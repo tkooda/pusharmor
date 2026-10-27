@@ -75,3 +75,25 @@ test("preflight passes with every value filled, and names a PLACEHOLDER value", 
     assert.match(r.stderr, /vars\.MAIL_FROM is a PLACEHOLDER/);
   } finally { rmSync(d, { recursive: true, force: true }); }
 });
+
+test("preflight aborts when d1_databases is removed or an env block holds a placeholder", () => {
+  const d = tree();
+  try {
+    filled(d);
+    const pre = join(d, "server", "deploy", "preflight.mjs");
+    const wp = join(d, "server", "worker", "wrangler.jsonc");
+    const good = readFileSync(wp, "utf8");
+    const j = JSON.parse(good.split("\n").filter((l) => !l.trim().startsWith("//")).join("\n"));
+    delete j.d1_databases;
+    writeFileSync(wp, JSON.stringify(j));
+    let r = spawnSync("node", [pre, d], { encoding: "utf8" });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /d1_databases has no entry/);
+    const j2 = JSON.parse(good.split("\n").filter((l) => !l.trim().startsWith("//")).join("\n"));
+    j2.env = { staging: { d1_databases: j2.d1_databases, vars: { ...j2.vars, MAIL_FROM: "PLACEHOLDER_MAIL" } } };
+    writeFileSync(wp, JSON.stringify(j2));
+    r = spawnSync("node", [pre, d], { encoding: "utf8" });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /env\.staging\.vars\.MAIL_FROM is a PLACEHOLDER/);
+  } finally { rmSync(d, { recursive: true, force: true }); }
+});

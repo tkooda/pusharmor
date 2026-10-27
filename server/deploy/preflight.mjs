@@ -41,19 +41,27 @@ function isEmpty(v) {
 const hasPlaceholder = (v) => JSON.stringify(v).toLowerCase().includes("placeholder");
 
 const w = jsonc("server/worker/wrangler.jsonc");
-if (w) {
-  for (const d of w.d1_databases || []) {
+function checkBlock(b, label) {
+  const f = "server/worker/wrangler.jsonc";
+  const dbs = b.d1_databases || [];
+  if (!Array.isArray(dbs) || dbs.length === 0) problems.push(f + ": " + label + "d1_databases has no entry");
+  for (const d of Array.isArray(dbs) ? dbs : []) {
     if (typeof d.database_id !== "string" || ZERO_ID.test(d.database_id) || hasPlaceholder(d.database_id)) {
-      problems.push("server/worker/wrangler.jsonc: d1_databases " + d.binding + " database_id is unset (" + d.database_id + ")");
+      problems.push(f + ": " + label + "d1_databases " + d.binding + " database_id is unset (" + d.database_id + ")");
     }
   }
-  const vars = w.vars || {};
+  const vars = b.vars || {};
   for (const k of REQUIRED_VARS) {
-    if (isEmpty(vars[k])) problems.push("server/worker/wrangler.jsonc: vars." + k + " is empty");
+    if (isEmpty(vars[k])) problems.push(f + ": " + label + "vars." + k + " is empty");
   }
   for (const [k, v] of Object.entries(vars)) {
-    if (hasPlaceholder(v)) problems.push("server/worker/wrangler.jsonc: vars." + k + " is a PLACEHOLDER");
+    if (hasPlaceholder(v)) problems.push(f + ": " + label + "vars." + k + " is a PLACEHOLDER");
   }
+}
+
+if (w) {
+  checkBlock(w, "");
+  for (const [name, e] of Object.entries(w.env || {})) checkBlock(e || {}, "env." + name + ".");
 }
 
 const c = jsonc("release/constants.json");
