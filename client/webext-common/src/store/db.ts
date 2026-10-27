@@ -297,6 +297,9 @@ export class Db {
    * "dup" (seen n with a History row for (sender, pairing id, n); that row's
    * id returned), "seen" (seen n, no row) or "old" (n <= h - 100), or
    * "nostate" when no replay row exists or its pairing id differs.
+   * peerFn, when given, is applied to the sender's peer row in the same
+   * transaction on "accept" (as updatePeer), so a crash cannot keep the
+   * replay record and lose that change (I301).
    */
   async acceptN(
     sender: string,
@@ -306,8 +309,9 @@ export class Db {
     check: (s: ReplayState) => "accept" | "seen" | "old",
     record: (s: ReplayState) => ReplayState,
     doRecord = true,
-  ): Promise<{ verdict: "accept" | "dup" | "seen" | "old" | "nostate"; rowId?: number }> {
-    return this.tx(["replay", "history"], (tx) =>
+    peerFn?: (cur: PeerRow | undefined) => PeerRow | null,
+  ): Promise<{ verdict: "accept" | "dup" | "seen" | "old" | "nostate"; rowId?: number; peer?: PeerRow | null }> {
+    return this.tx(peerFn ? ["replay", "history", "peers"] : ["replay", "history"], (tx) =>
       new Promise((res, rej) => {
         const rs = tx.objectStore("replay");
         const g = rs.get(sender);
@@ -319,11 +323,27 @@ export class Db {
           if (v === "accept") {
             if (!doRecord) return res({ verdict: "accept" });
             rs.put(record(st), sender);
+            const done = (rowId?: number) => {
+              if (!peerFn) return res({ verdict: "accept", rowId });
+              const ps = tx.objectStore("peers");
+              const pg = ps.get(sender);
+              pg.onerror = () => rej(pg.error);
+              pg.onsuccess = () => {
+                let p: PeerRow | null;
+                try {
+                  p = peerFn(pg.result as PeerRow | undefined);
+                } catch (e) {
+                  return rej(e);
+                }
+                if (p) ps.put(p);
+                res({ verdict: "accept", rowId, peer: p });
+              };
+            };
             if (row) {
               const a = tx.objectStore("history").add(row);
-              a.onsuccess = () => res({ verdict: "accept", rowId: a.result as number });
+              a.onsuccess = () => done(a.result as number);
               a.onerror = () => rej(a.error);
-            } else res({ verdict: "accept" });
+            } else done();
             return;
           }
           if (v === "old") return res({ verdict: "old" });

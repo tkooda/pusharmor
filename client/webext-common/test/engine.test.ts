@@ -633,6 +633,31 @@ test("I287: a pushed approve landing while approve() runs leaves the pairing app
   assert.equal(await getEntry(a.p.storageLocal, b.id), null);
 });
 
+test("I301: a crash right after the replay commit of an approve still leaves the pairing approved and verified", async () => {
+  const { w, a, b } = await setup();
+  await refresh(a, b);
+  await a.e.pairStart(b.id);
+  await deliver(w, b);
+  await deliver(w, a);
+  await deliver(w, b);
+  assert.equal(await a.e.approve(b.id), "stored");
+  assert.equal(await b.e.approve(a.id), "sent");
+  const ms = w.take(a.id);
+  assert.equal(ms.length, 1);
+  const orig = a.db.acceptN.bind(a.db);
+  a.db.acceptN = async (...args: Parameters<typeof orig>) => {
+    await orig(...args);
+    throw new Error("crash"); // service worker killed after the commit
+  };
+  await assert.rejects(a.e.receive(ms[0]!, "push"), /crash/);
+  a.db.acceptN = orig;
+  await a.e.receive(ms[0]!, "push"); // redelivery: a seen n, noop
+  const pa = (await a.db.peer(b.id))!;
+  assert.equal(pa.approve_verified, true);
+  assert.equal(pa.approves_me, true);
+  assert.equal(pa.pending_approve_n, 0);
+});
+
 test("register rejects an assigned id whose keyhash is not ours", async () => {
   const { clock, w, b } = await setup();
   const { e } = await makeEngine(new FakePlatform("chrome", w, clock), new IDBFactory(), clock);

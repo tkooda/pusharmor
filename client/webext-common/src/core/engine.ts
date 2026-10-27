@@ -91,6 +91,21 @@ function now(p: Platform): number {
   return p.now();
 }
 
+/**
+ * A received approve as a field-level update on the current peer row
+ * (I286, I287): a concurrent approve() or reserveN is kept.
+ */
+function approveRow(n: number, name: string | null): (cur: PeerRow | undefined) => PeerRow | null {
+  return (cur) => {
+    if (!cur) return null;
+    let r = cur;
+    if (name !== null && n > r.name_n) r = { ...r, name, name_n: n };
+    if (r.ruling === "approved") return { ...r, approves_me: true, approve_verified: true, get_after_verify: false, pending_approve_n: 0 };
+    // pinned, unruled: keep it; mark "approves me" when I approve
+    return { ...r, pending_approve_n: n };
+  };
+}
+
 export class Engine {
   readonly p: Platform;
   readonly db: Db;
@@ -230,14 +245,16 @@ export class Engine {
     const peer = (await this.db.peer(r.from))!;
     const pidB64 = b64urlEncode(r.pin.pairing_id);
     const row = c.type === "url" || c.type === "text" || c.type === "tel" ? this.inboundRow(peer, c.type, c.value, r.n, pidB64) : null;
-    const rec = await this.db.acceptN(r.from, pidB64, r.n, row, (s) => replayCheck(s, r.n), (s) => replayRecord(s, r.n));
+    // approve: the peer-row change commits with the replay record (I301)
+    const peerFn = c.type === "approve" ? approveRow(r.n, r.name) : undefined;
+    const rec = await this.db.acceptN(r.from, pidB64, r.n, row, (s) => replayCheck(s, r.n), (s) => replayRecord(s, r.n), true, peerFn);
     if (rec.verdict !== "accept") return; // lost a race with a concurrent duplicate
     let cur = (await this.db.peer(r.from))!;
     if (cur.missing) {
       // a valid push from a peer marked missing clears the mark
       cur = (await this.db.updatePeer(r.from, (p) => (p ? { ...p, missing: false } : null))) ?? cur;
     }
-    await this.act(c, r.n, cur, r.name, rec.rowId, src, self);
+    await this.act(c, r.n, cur, r.name, rec.rowId, src, self, rec.peer);
   }
 
   private inboundRow(peer: PeerRow, type: "url" | "text" | "tel", value: string, n: number, pidB64: string): HistoryRow {
@@ -261,7 +278,16 @@ export class Engine {
     } as HistoryRow;
   }
 
-  private async act(c: Content, n: number, peer: PeerRow, name: string | null, rowId: number | undefined, src: Src, self: SelfKeys): Promise<void> {
+  private async act(
+    c: Content,
+    n: number,
+    peer: PeerRow,
+    name: string | null,
+    rowId: number | undefined,
+    src: Src,
+    self: SelfKeys,
+    applied?: PeerRow | null,
+  ): Promise<void> {
     switch (c.type) {
       case "url":
       case "text":
@@ -274,16 +300,8 @@ export class Engine {
         return;
       }
       case "approve": {
-        // field-level update on the current row (I286, I287): a concurrent approve() or reserveN is kept
-        const row =
-          (await this.db.updatePeer(peer.id, (cur) => {
-            if (!cur) return null;
-            let r = cur;
-            if (name !== null && n > r.name_n) r = { ...r, name, name_n: n };
-            if (r.ruling === "approved") return { ...r, approves_me: true, approve_verified: true, get_after_verify: false, pending_approve_n: 0 };
-            // pinned, unruled: keep it; mark "approves me" when I approve
-            return { ...r, pending_approve_n: n };
-          })) ?? peer;
+        // the peer row was updated with the replay record (approveRow)
+        const row = applied ?? peer;
         if (row.ruling === "approved") {
           await this.p.storageLocal.remove([pairKeyOf(peer.id)]);
           if (src === "push") this.p.notify("a:" + peer.id, T.appName, T.approved(peerLabel(row.name)));
