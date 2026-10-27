@@ -1,0 +1,16 @@
+name: android
+
+# Placeholder so ci.yml can call it; the real android jobs replace this file.
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  placeholder:
+    name: android jobs not written yet
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - run: echo "android.yml is a placeholder"

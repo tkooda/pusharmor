@@ -1,0 +1,16 @@
+name: ios
+
+# Placeholder so ci.yml can call it; the real ios jobs replace this file.
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  placeholder:
+    name: ios jobs not written yet
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - run: echo "ios.yml is a placeholder"

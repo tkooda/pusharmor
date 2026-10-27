@@ -1,0 +1,143 @@
+name: ci
+
+# The one entry workflow for pull requests and pushes to main. It decides which
+# component files to call; ci-ok is the only required check. Release tags run
+# the component files directly (their own tag triggers), not this file.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    name: change detection
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      worker: ${{ steps.detect.outputs.worker }}
+      site: ${{ steps.detect.outputs.site }}
+      webext: ${{ steps.detect.outputs.webext }}
+      android: ${{ steps.detect.outputs.android }}
+      ios: ${{ steps.detect.outputs.ios }}
+      vectors: ${{ steps.detect.outputs.vectors }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: detect
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          # pull_request: HEAD is the merge commit, so HEAD^1..HEAD is the PR change.
+          # push: before..HEAD; a new branch or an unknown before runs everything.
+          all=0
+          if [ "$EVENT" = "pull_request" ]; then
+            files="$(git diff --name-only HEAD^1 HEAD)"
+          elif printf '%s' "$BEFORE" | grep -Eq '^[0-9a-f]{40}$' && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+            && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            files="$(git diff --name-only "$BEFORE" HEAD)"
+          else
+            files=""
+            all=1
+          fi
+          printf '%s\n' "$files"
+          hit() { [ "$all" = 1 ] || printf '%s\n' "$files" | grep -Eq "$1"; }
+          # shared paths count as every component
+          if hit '^(\.github/|release/|tests/vectors/|package-lock\.json$|\.npmrc$|\.node-version$|site/\.node-version$)'; then all=1; fi
+          out() { if hit "$2"; then echo "$1=true"; else echo "$1=false"; fi >> "$GITHUB_OUTPUT"; }
+          out worker '^server/(worker|tools|deploy)/'
+          # the site checks also read the Firefox manifest and the Worker wrangler pin
+          out site '^(site/|client/firefox/|server/worker/package\.json$)'
+          out webext '^client/(webext-common|chrome|firefox)/'
+          out android '^client/android/'
+          out ios '^client/ios/'
+          out vectors '^(server/worker|client/(webext-common|chrome|firefox|android|ios))/'
+          cat "$GITHUB_OUTPUT"
+
+  repo:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/repo.yml
+
+  vectors:
+    needs: changes
+    if: needs.changes.outputs.vectors == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/vectors.yml
+
+  worker:
+    needs: changes
+    if: needs.changes.outputs.worker == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/worker.yml
+
+  site:
+    needs: changes
+    if: needs.changes.outputs.site == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/site.yml
+
+  # The called files also hold tag-only release jobs. GitHub checks every nested
+  # job's permissions against the caller's grant even when the job is skipped,
+  # so these grants are a ceiling only: on a pull request or main push every job
+  # that runs asks for contents: read and nothing else.
+  webext:
+    needs: changes
+    if: needs.changes.outputs.webext == 'true'
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/webext.yml
+
+  android:
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/android.yml
+
+  ios:
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/ios.yml
+
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [changes, repo, vectors, worker, site, webext, android, ios]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Every job that ran passed (a skipped job is fine)
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for r in $RESULTS; do
+            case "$r" in
+              success|skipped) ;;
+              *) echo "a needed job ended with: $r"; exit 1 ;;
+            esac
+          done
