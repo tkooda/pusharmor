@@ -483,7 +483,7 @@ function messagesSection() {
       'b64url(enc || ct). Receiver state: pin (the pinned keys, pairing id and ruling approved | unruled | denied of the ' +
       'sender), window (h and the seen n values), history (n values with a History row). Assert: open message with the ' +
       'receiver enc_priv and compare plaintext; verify sig before inflate; inflate deflated and compare json; run the ' +
-      'full receive pipeline and compare expect (outcome, type, n, value; approve/rename value = verified name and n).',
+      'full receive pipeline and compare expect (outcome, type, n, value; approve/rename value = verified name and n; the name entry n must equal the message n).',
     cases,
   };
 }
@@ -709,6 +709,9 @@ function mustFailSection() {
     { from: S, pin: pin(S, PAIRING_ID, 'unruled') });
   msg('approve_name_earlier_pairing_id', 'unreadable', { json: appr(4, OLD_PAIRING_ID), keys: xKeys }, { pin: pin(X, PAIRING_ID, 'unruled') });
   msg('approve_name_n_leading_zero_signed', 'unreadable', { json: appr(7, PAIRING_ID, '07'), keys: xKeys }, { pin: pin(X, PAIRING_ID, 'unruled') });
+  msg('approve_name_n_differs', 'unreadable',
+    { json: '{"n":5,"approve":' + nameJson(nameObj(X, N, 4, 'Pixel 8'), 4) + '}', keys: xKeys }, { pin: pin(X, PAIRING_ID, 'unruled') });
+  msg('rename_name_n_differs', 'unreadable', { json: '{"n":8,"rename":' + nameJson(nameObj(X, N, 7, 'Work phone'), 7) + '}' });
   msg('no_type_key', 'unreadable', { json: '{"n":1}' });
   msg('two_type_keys', 'unreadable', { json: '{"n":1,"url":"https://example.com/a","text":"a"}' });
   msg('unknown_top_level_key', 'unreadable', { json: '{"n":1,"url":"https://example.com/a","x":1}' });
