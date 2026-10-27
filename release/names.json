@@ -1,0 +1,47 @@
+{
+  "_doc": "The one list of deployment names (provisional; rename here, then fix the code that reads the name). release/names.test.mjs checks the other lists against it.",
+  "cloudflare_vars": {
+    "FCM_PROJECT_ID": "Firebase project id the Worker sends FCM pushes to",
+    "APNS_TOPIC": "APNs topic: the iOS app bundle id",
+    "APNS_KEY_ID": "id of the APNs auth key (.p8)",
+    "APNS_TEAM_ID": "Apple developer team id that owns the APNs key",
+    "VAPID_PUBLIC_KEY": "Web Push VAPID public key (b64url)",
+    "VAPID_SUB": "VAPID subject (mailto:), also the ops contact address",
+    "SES_REGION": "AWS region of the SES account that sends sign-in codes",
+    "MAIL_FROM": "From address of sign-in code mails",
+    "SES_CONFIG_SET": "SES configuration set name for sent mails",
+    "GOOGLE_AUD_WEB": "JSON list of Google OAuth client ids accepted from web flows",
+    "GOOGLE_AUD_NATIVE": "JSON list of Google OAuth client ids accepted from the apps",
+    "APPLE_AUD_WEB": "Apple Services ID accepted from web sign-in",
+    "APPLE_AUD_NATIVE": "iOS app bundle id accepted from native Apple sign-in",
+    "OAUTH_REDIRECT_CHROME": "Chrome extension OAuth redirect (https://<extension id>.chromiumapp.org/)"
+  },
+  "cloudflare_secrets": {
+    "ID_SECRET": "HMAC key for account ids",
+    "CODE_SECRET": "HMAC key for mailed sign-in codes",
+    "CONFIRM_SECRET": "HMAC key for confirm tokens",
+    "TOKEN_SECRET": "HMAC key for session tokens",
+    "TURNSTILE_SECRET": "Turnstile secret key",
+    "SES_ACCESS_KEY_ID": "AWS access key id for SES",
+    "SES_SECRET_ACCESS_KEY": "AWS secret access key for SES",
+    "FCM_SA_EMAIL": "Firebase service account email",
+    "FCM_SA_KEY_ID": "Firebase service account key id",
+    "FCM_SA_PRIVATE_KEY": "Firebase service account private key",
+    "APNS_KEY_P8": "APNs auth key (.p8 content)",
+    "VAPID_PRIVATE_KEY": "Web Push VAPID private key",
+    "GOOGLE_CLIENT_SECRET": "Google OAuth client secret (web flow)",
+    "APPLE_SIGNIN_KEY_ID": "id of the Sign in with Apple key",
+    "APPLE_SIGNIN_KEY_P8": "Sign in with Apple key (.p8 content)"
+  },
+  "local_keys": {
+    "release_cert_sha256": "list of Android release signing cert SHA-256 fingerprints (assetlinks, App Links)",
+    "chrome_extension_id": "Chrome Web Store extension id (site /turnstile framing)",
+    "chrome_dev_key": "Chrome manifest public key for dev builds (keeps the store id)",
+    "firefox_addon_id": "Firefox add-on (gecko) id",
+    "vapid_public_key": "Web Push VAPID public key baked into the site, extensions and Android",
+    "turnstile_sitekey": "Turnstile sitekey on /turnstile",
+    "google_web_client_id": "Google web OAuth client id used by Android sign-in",
+    "ios_development_team": "Apple developer team id for iOS signing",
+    "ios_google_client_id": "Google iOS OAuth client id"
+  }
+}
