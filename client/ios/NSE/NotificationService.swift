@@ -35,9 +35,9 @@ final class NotificationService: UNNotificationServiceExtension {
                 budgetLeft: { 30 - Date().timeIntervalSince(started) },
                 onReceived: { [weak self] r in
                     guard r.committed, let b = r.banner else { return }
-                    self?.setCommitted(BannerContent.content(b, m: m, key: key))
+                    self?.setCommitted(BannerContent.content(b, m: m, key: key, handled: r.handled))
                 })
-            self.deliver(BannerContent.content(r.banner ?? .dropped, m: m, key: key))
+            self.deliver(BannerContent.content(r.banner ?? .dropped, m: m, key: key, handled: r.handled))
         }
     }
 

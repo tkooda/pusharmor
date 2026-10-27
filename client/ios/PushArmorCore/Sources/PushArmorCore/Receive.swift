@@ -19,6 +19,8 @@ public struct ReceiveResult: Sendable {
     public var newMessage: Bool
     /// An approve (pushed or returned) verified in this run.
     public var approveVerified: Bool
+    /// The NSE ran steps 3-9 or wrote the drop event (I308): the app drain skips this push.
+    public var handled = false
 
     static func plain(_ b: Banner?) -> ReceiveResult {
         ReceiveResult(banner: b, rowid: nil, committed: false, newMessage: false, approveVerified: false)

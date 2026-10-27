@@ -79,6 +79,32 @@ final class NSEFlowTests: XCTestCase {
         inbox.removeAll()
     }
 
+    /// I308: a push the NSE dropped is marked handled under the stamp; the drain then counts no
+    /// second could-not-read event. A relay "done" without the stamp is still drained.
+    func testDrainSkipsHandledDrop() async throws {
+        let w = FakeWorker(), clock = TestClock()
+        let n = try Device(worker: w, clock: clock, name: "Ndev"), x = try Device(worker: w, clock: clock, name: "Xdev")
+        try await Scenario.pairFully(w, n, x)
+        let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-nse-\(UUID().uuidString)"))
+        let key = try TapStamp.key(x.core.store)
+        let m = String(repeating: "A", count: 400)
+        let r = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 1, budgetLeft: { 30 })
+        XCTAssertEqual(r.banner, .dropped)
+        XCTAssertTrue(r.handled)
+        func events() throws -> Int64 { try x.core.store.history().filter { $0.event == .couldNotRead }.map { $0.count }.reduce(0, +) }
+        XCTAssertEqual(try events(), 1)
+        let info = try XCTUnwrap(r.banner).userInfo(m: m, key: key, handled: r.handled)
+        var drained = await x.core.drainDelivered([info])
+        XCTAssertEqual(drained, [])
+        XCTAssertEqual(try events(), 1)
+        // forged: "done" without the stamp, or the stamp of an unmarked banner with "done" added
+        var forged = try XCTUnwrap(r.banner).userInfo(m: m, key: key)
+        forged["done"] = "1"
+        drained = await x.core.drainDelivered([["m": m, "done": "1", "tap": "history"], forged])
+        XCTAssertEqual(drained, [0, 1])
+        XCTAssertEqual(try events(), 3)
+    }
+
     /// I311: the delivered drain skips "m" only under a valid NSE stamp; a relay rowid or a
     /// stamp under another key does not skip it.
     func testDrainSkipsOnlyStamped() async throws {

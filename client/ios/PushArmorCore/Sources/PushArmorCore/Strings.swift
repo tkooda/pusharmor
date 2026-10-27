@@ -97,8 +97,9 @@ public struct Banner: Equatable, Sendable {
     }
 
     /// Notification userInfo: only "m" is kept from the relay payload, then the routing keys,
-    /// stamped with a MAC under the per-install tap key (TapStamp) when one is given.
-    public func userInfo(m: Any?, key: Data? = nil) -> [AnyHashable: Any] {
+    /// stamped with a MAC under the per-install tap key (TapStamp) when one is given. "done"
+    /// marks a push the NSE handled (I308), covered by the same MAC.
+    public func userInfo(m: Any?, key: Data? = nil, handled: Bool = false) -> [AnyHashable: Any] {
         var info: [AnyHashable: Any] = [:]
         if let m = m { info["m"] = m }
         if let r = rowid { info["rowid"] = NSNumber(value: r) }
@@ -109,6 +110,7 @@ public struct Banner: Equatable, Sendable {
         case .history: info["tap"] = "history"
         case .none: info["tap"] = "none"
         }
+        if handled { info["done"] = "1" }
         if let k = key { info[TapStamp.field] = TapStamp.mac(info, key: k) }
         return info
     }
@@ -131,7 +133,7 @@ public enum TapStamp {
         return fresh
     }
 
-    /// HMAC-SHA256 over the routing keys, each length-prefixed (absent and empty differ).
+    /// HMAC-SHA256 over the routing keys and "done", each length-prefixed (absent and empty differ).
     static func mac(_ info: [AnyHashable: Any], key: Data) -> String {
         B64URL.encode(Data(HMAC<SHA256>.authenticationCode(for: routing(info), using: SymmetricKey(data: key))))
     }
@@ -139,7 +141,8 @@ public enum TapStamp {
     static func routing(_ info: [AnyHashable: Any]) -> Data {
         var d = Data()
         let rowid = (info["rowid"] as? NSNumber).map { String($0.int64Value) }
-        for v in [rowid, info["tap"] as? String, info["url"] as? String, info["peer"] as? String] {
+        for v in [rowid, info["tap"] as? String, info["url"] as? String, info["peer"] as? String,
+                  info["done"] as? String] {
             guard let v = v else { d.append(0); continue }
             let b = Data(v.utf8)
             d.append(1)
@@ -149,12 +152,12 @@ public enum TapStamp {
         return d
     }
 
-    /// The "m" the app drains from a delivered or tapped notification (I311): none only when
-    /// the stamp verifies and the NSE marked the push handled (a rowid). A relay "rowid"
-    /// without a valid stamp is drained.
+    /// The "m" the app drains from a delivered or tapped notification (I311, I308): none only
+    /// when the stamp verifies and the NSE marked the push handled (a rowid or "done"). A relay
+    /// "rowid" or "done" without a valid stamp is drained.
     public static func drainM(_ info: [AnyHashable: Any], key: Data?) -> String? {
         guard let m = info["m"] as? String else { return nil }
-        if info["rowid"] != nil && verified(info, key: key) { return nil }
+        if (info["rowid"] != nil || info["done"] != nil) && verified(info, key: key) { return nil }
         return m
     }
 
