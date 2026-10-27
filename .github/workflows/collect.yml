@@ -1,14 +1,15 @@
 name: collect
 
 # After store review (component-ci-r1 sections 2 and 4.5): fetch the store-signed
-# CRX (Chrome Web Store update URL) and XPI (AMO API, no credentials) of the newest
-# chrome/v* and firefox/v* tag, check every file against the release file-hash
-# manifest (<zip>.files.sha256 of the GitHub Release), and attach the unchanged
-# store file with its SHA-256 to the release, prerelease or promoted. Store-added
+# CRX (Chrome Web Store update URL) and XPI (AMO API, no credentials) that the
+# public item serves now, take the chrome/v or firefox/v tag of that version (any
+# promoted version, also when newer test tags exist), check every file against
+# the release file-hash manifest (<zip>.files.sha256 of the GitHub Release), and
+# attach the unchanged store file with its SHA-256 to that release. Store-added
 # files are skipped: Chrome _metadata/, and the release/constants.json lists
 # ("cws_added": manifest.json keys; "amo_added": path prefixes). manifest.json is
-# compared as parsed JSON. A store version that is not yet the tag version, or a
-# release that already holds the file, is a skip, not a failure.
+# compared as parsed JSON. No public store version yet, no tag or release of it,
+# or a release that already holds the file, is a skip, not a failure.
 on:
   schedule:
     - cron: "23 6 * * *"
@@ -51,17 +52,45 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
           fetch-tags: true
-      - name: Newest tag, its release and the release files
-        id: find
+      - name: The store file and its version
+        id: store
         run: |
           skip() { echo "skip: $1"; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; }
-          tag="$(git tag -l "$BROWSER/v*" | grep -E "^$BROWSER/v[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n 1)"
-          [ -n "$tag" ] || skip "no $BROWSER/v tag"
-          version="${tag#"$BROWSER"/v}"
           id="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get(sys.argv[2]) or "")' "$PWD/release/public.json" "$ID_KEY")"
           if [ -z "$id" ] || printf '%s' "$id" | grep -qi placeholder; then skip "$ID_KEY is not set"; fi
+          f="$RUNNER_TEMP/store.$EXT"
+          if [ "$BROWSER" = chrome ]; then
+            url="https://clients2.google.com/service/update2/crx?response=redirect&prodversion=140.0&acceptformat=crx2,crx3&x=id%3D$id%26uc"
+            code="$(curl -sSL -o "$f" -w '%{http_code}' "$url")"
+            [ "$code" = 200 ] && [ -s "$f" ] || skip "Chrome Web Store returned HTTP $code"
+            # zipfile reads past the CRX header (data before the archive).
+            version="$(python3 -I -c 'import json,sys,zipfile; print(json.loads(zipfile.ZipFile(sys.argv[1]).read("manifest.json")).get("version", ""))' "$f")"
+          else
+            gid="$(python3 -I -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$id")"
+            code="$(curl -sS -o "$RUNNER_TEMP/amo.json" -w '%{http_code}' "https://addons.mozilla.org/api/v5/addons/addon/$gid/")"
+            [ "$code" = 200 ] || skip "AMO has no listed add-on yet (HTTP $code)"
+            version="$(jq -r '.current_version.version // empty' "$RUNNER_TEMP/amo.json")"
+            status="$(jq -r '.current_version.file.status // empty' "$RUNNER_TEMP/amo.json")"
+            [ "$status" = public ] || skip "AMO file status of ${version:-unknown} is ${status:-unknown}"
+            curl -fsSL -o "$f" "$(jq -r '.current_version.file.url' "$RUNNER_TEMP/amo.json")"
+          fi
+          printf '%s' "$version" | grep -qxE '[0-9]+\.[0-9]+\.[0-9]+' || skip "store version ${version:-unknown} is not X.Y.Z"
+          {
+            echo "skip=false"
+            echo "id=$id"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
+      - name: The tag of the store version, its release and the release files
+        id: find
+        if: steps.store.outputs.skip == 'false'
+        env:
+          VERSION: ${{ steps.store.outputs.version }}
+        run: |
+          skip() { echo "skip: $1"; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; }
+          tag="$BROWSER/v$VERSION"
+          git rev-parse -q --verify "refs/tags/$tag" > /dev/null || skip "no tag $tag for the store version"
           gh release view "$tag" --json assets --jq '.assets[].name' > "$RUNNER_TEMP/assets.txt" || skip "no GitHub Release for $tag"
-          name="pusharmor-$BROWSER-$version"
+          name="pusharmor-$BROWSER-$VERSION"
           grep -qx "$name.$EXT" "$RUNNER_TEMP/assets.txt" && skip "$tag already holds $name.$EXT"
           grep -qx "$name.zip.files.sha256" "$RUNNER_TEMP/assets.txt" || skip "$tag has no $name.zip.files.sha256"
           mkdir -p "$RUNNER_TEMP/rel"
@@ -69,38 +98,14 @@ jobs:
           {
             echo "skip=false"
             echo "tag=$tag"
-            echo "version=$version"
-            echo "id=$id"
             echo "name=$name"
           } >> "$GITHUB_OUTPUT"
-      - name: Fetch the store file
-        id: fetch
-        if: steps.find.outputs.skip == 'false'
-        env:
-          ID: ${{ steps.find.outputs.id }}
-          VERSION: ${{ steps.find.outputs.version }}
-        run: |
-          skip() { echo "skip: $1"; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; }
-          f="$RUNNER_TEMP/store.$EXT"
-          if [ "$BROWSER" = chrome ]; then
-            url="https://clients2.google.com/service/update2/crx?response=redirect&prodversion=140.0&acceptformat=crx2,crx3&x=id%3D$ID%26uc"
-            code="$(curl -sSL -o "$f" -w '%{http_code}' "$url")"
-            [ "$code" = 200 ] && [ -s "$f" ] || skip "Chrome Web Store returned HTTP $code"
-          else
-            gid="$(python3 -I -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$ID")"
-            code="$(curl -sS -o "$RUNNER_TEMP/amo.json" -w '%{http_code}' "https://addons.mozilla.org/api/v5/addons/addon/$gid/versions/$VERSION/")"
-            [ "$code" = 200 ] || skip "AMO has no version $VERSION yet (HTTP $code)"
-            status="$(jq -r '.file.status // empty' "$RUNNER_TEMP/amo.json")"
-            [ "$status" = public ] || skip "AMO file status is ${status:-unknown}"
-            curl -fsSL -o "$f" "$(jq -r '.file.url' "$RUNNER_TEMP/amo.json")"
-          fi
-          echo "skip=false" >> "$GITHUB_OUTPUT"
       - name: Check the store file against the release file-hash manifest
         id: check
-        if: steps.find.outputs.skip == 'false' && steps.fetch.outputs.skip == 'false'
+        if: steps.store.outputs.skip == 'false' && steps.find.outputs.skip == 'false'
         env:
           NAME: ${{ steps.find.outputs.name }}
-          VERSION: ${{ steps.find.outputs.version }}
+          VERSION: ${{ steps.store.outputs.version }}
         run: |
           rc=0
           python3 -I - "$RUNNER_TEMP/store.$EXT" "$RUNNER_TEMP/rel/$NAME.zip" "$RUNNER_TEMP/rel/$NAME.zip.files.sha256" \
