@@ -5,6 +5,21 @@ export const deps = {
   now: (): number => Date.now(),
 };
 
+// Isolate state scoped to the outbound transport: one scope per isolate in production
+// (deps.fetch never changes); a newly installed transport starts with empty state.
+const scopes = new WeakMap<object, Map<string, unknown>>();
+export function transportScoped<T>(name: string, make: () => T): () => T {
+  return () => {
+    let m = scopes.get(deps.fetch);
+    if (!m) {
+      m = new Map();
+      scopes.set(deps.fetch, m);
+    }
+    if (!m.has(name)) m.set(name, make());
+    return m.get(name) as T;
+  };
+}
+
 export type Cls = "send" | "approve" | "deny" | "peerchg" | "pause" | "pair";
 
 export interface VendorRequest {
