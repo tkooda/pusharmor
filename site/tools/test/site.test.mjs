@@ -21,6 +21,9 @@ const TURNSTILE_HOST = "https://challenges.cloudflare.com";
 // Cloudflare documented Turnstile test sitekey: always passes, visible widget.
 const TURNSTILE_TEST_SITEKEY = "1x00000000000000000000AA";
 
+// PA_RELEASE=1 turns every placeholder skip into a failure and enables the release checks.
+const RELEASE = process.env.PA_RELEASE === "1";
+
 const files = listFiles(PUB);
 const htmlFiles = files.filter((f) => f.endsWith(".html"));
 const read = (rel) => readFileSync(join(PUB, rel), "utf8");
@@ -263,11 +266,30 @@ test("assetlinks.json lists exactly the release cert SHA-256 values", (t) => {
   const want = [].concat(v ?? []);
   const FP = /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/;
   if (!want.length || want.some((f) => typeof f !== "string" || !FP.test(f.toUpperCase()))) {
+    assert.ok(!RELEASE, "PA_RELEASE=1: release_cert_sha256 in release/constants.json is a placeholder " + JSON.stringify(v));
     t.skip("release_cert_sha256 in release/constants.json is a placeholder (" + JSON.stringify(v) + ")");
     return;
   }
   const a = JSON.parse(read(".well-known/assetlinks.json"));
   assert.deepEqual([...a[0].target.sha256_cert_fingerprints].sort(), want.map((f) => f.toUpperCase()).sort());
+});
+
+test("PA_RELEASE=1: no placeholder in release constants, assetlinks, site files or fdroid version", (t) => {
+  if (!RELEASE) { t.skip("PA_RELEASE=1 not set"); return; }
+  const bad = [];
+  const cp = join(REPO, "release", "constants.json");
+  const consts = JSON.parse(readFileSync(cp, "utf8"));
+  for (const [k, v] of Object.entries(consts)) {
+    if (/placeholder/i.test(JSON.stringify(v))) bad.push("release/constants.json: " + k);
+  }
+  const a = JSON.parse(read(".well-known/assetlinks.json"));
+  if (!a[0].target.sha256_cert_fingerprints.length) bad.push("assetlinks.json: empty sha256_cert_fingerprints");
+  for (const f of files) {
+    if (!/\.(html|js|json|txt)$/.test(f) && f !== "_headers") continue;
+    if (read(f).includes("CHROME_EXTENSION_ID")) bad.push("site/public/" + f + ": CHROME_EXTENSION_ID");
+  }
+  if (read("fdroid/android.txt").split("\n")[0] === "0.0.0") bad.push("fdroid/android.txt: version 0.0.0");
+  assert.deepEqual(bad, []);
 });
 
 test("security.txt: Contact, Expires (> 30 days, <= 1 year), Canonical", () => {
