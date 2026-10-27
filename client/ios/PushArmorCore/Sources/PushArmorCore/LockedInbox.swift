@@ -46,30 +46,35 @@ public struct LockedInbox: Sendable {
 extension Core {
     /// Locked-inbox drain (ios 7): steps 4-9 with no banner for each file in name order,
     /// rows unread; a failed file writes one unreadable event row (done by receive) and is
-    /// deleted too. Returns the number of messages received while locked.
-    public func drainLockedInbox(_ inbox: LockedInbox) async -> Int {
+    /// deleted too. Returns the number of messages received while locked and the "m" values
+    /// run, which the delivered drain then skips (I313).
+    public func drainLockedInbox(_ inbox: LockedInbox) async -> (count: Int, ms: Set<String>) {
         var count = 0
+        var ms: Set<String> = []
         for f in inbox.files() {
-            if let d = try? Data(contentsOf: f), let m = String(data: d, encoding: .ascii) {
-                let r = await receive(m.trimmingCharacters(in: .whitespacesAndNewlines), mode: .drain)
+            if let d = try? Data(contentsOf: f), let s = String(data: d, encoding: .ascii) {
+                let m = s.trimmingCharacters(in: .whitespacesAndNewlines)
+                ms.insert(m)
+                let r = await receive(m, mode: .drain)
                 if r.newMessage { count += 1 }
             } else {
                 _ = drop(.drain)
             }
             try? FileManager.default.removeItem(at: f)
         }
-        return count
+        return (count, ms)
     }
 
     /// Delivered-notification drain: steps 4-9 with no banner for each userInfo whose "m"
-    /// the NSE did not stamp as handled (TapStamp.drainM). Returns the indexes drained; the
-    /// app removes those notifications.
-    public func drainDelivered(_ infos: [[AnyHashable: Any]]) async -> [Int] {
+    /// the NSE did not stamp as handled (TapStamp.drainM). An "m" in skip (run by the
+    /// locked-inbox drain) is not run again (I313). Returns the indexes drained; the app
+    /// removes those notifications.
+    public func drainDelivered(_ infos: [[AnyHashable: Any]], skip: Set<String> = []) async -> [Int] {
         let key = try? TapStamp.key(store)
         var done: [Int] = []
         for (i, info) in infos.enumerated() {
             guard let m = TapStamp.drainM(info, key: key) else { continue }
-            _ = await receive(m, mode: .drain)
+            if !skip.contains(m) { _ = await receive(m, mode: .drain) }
             done.append(i)
         }
         return done

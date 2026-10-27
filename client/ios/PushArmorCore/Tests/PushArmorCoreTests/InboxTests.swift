@@ -14,7 +14,7 @@ final class InboxTests: XCTestCase {
         for m in w.take(x.id) { try inbox.write(m, nowMs: ms); ms += 1 }
         try inbox.write("not-a-message!", nowMs: ms)
         XCTAssertEqual(inbox.files().count, 3)
-        let got = await x.core.drainLockedInbox(inbox)
+        let got = await x.core.drainLockedInbox(inbox).count
         XCTAssertEqual(got, 2)
         XCTAssertEqual(inbox.files().count, 0)
         let h = try x.core.store.history()
@@ -103,6 +103,27 @@ final class NSEFlowTests: XCTestCase {
         drained = await x.core.drainDelivered([["m": m, "done": "1", "tap": "history"], forged])
         XCTAssertEqual(drained, [0, 1])
         XCTAssertEqual(try events(), 3)
+    }
+
+    /// I313: a push the NSE put in the locked inbox is also delivered unmarked; the delivered
+    /// drain skips an "m" the locked-inbox drain already ran, so an unreadable one gives one event.
+    func testLockedUnreadableOneEvent() async throws {
+        let w = FakeWorker(), clock = TestClock()
+        let n = try Device(worker: w, clock: clock, name: "Ndev"), x = try Device(worker: w, clock: clock, name: "Xdev")
+        try await Scenario.pairFully(w, n, x)
+        let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-nse-\(UUID().uuidString)"))
+        let key = try TapStamp.key(x.core.store)
+        let m = String(repeating: "A", count: 400)
+        let r = await NSEFlow.handle(m: m, loadKeys: { throw KeyLoadError.beforeFirstUnlock }, openCore: { _ in nil }, inbox: inbox,
+                                     nowMs: 1, budgetLeft: { 30 })
+        XCTAssertEqual(r.banner, .locked)
+        let info = try XCTUnwrap(r.banner).userInfo(m: m, key: key, handled: r.handled)
+        let locked = await x.core.drainLockedInbox(inbox)
+        let drained = await x.core.drainDelivered([info], skip: locked.ms)
+        XCTAssertEqual(drained, [0])
+        let events = try x.core.store.history().filter { $0.event == .couldNotRead }.map { $0.count }.reduce(0, +)
+        XCTAssertEqual(events, 1)
+        inbox.removeAll()
     }
 
     /// I315: a thrown store error (here SQLITE_BUSY while another connection writes) is not a

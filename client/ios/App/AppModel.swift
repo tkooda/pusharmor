@@ -105,9 +105,9 @@ final class AppModel: ObservableObject {
         await checkPermission()
         guard let core = core, phase == .main || phase == .signedOut else { return }
         try? core.pruneHistory()
-        let n = await core.drainLockedInbox(env.inbox)
+        let (n, lockedMs) = await core.drainLockedInbox(env.inbox)
         if n > 0 { lockedLine = S.receivedWhileLocked(n) }
-        await drainDelivered()
+        await drainDelivered(skip: lockedMs)
         if phase == .main { await core.appOpen(push: pushInfo) }
         else { await core.allowReconcile() }
         reload()
@@ -116,11 +116,12 @@ final class AppModel: ObservableObject {
 
     /// getDeliveredNotifications(): each one with "m" the NSE did not stamp as handled runs
     /// steps 4-9 with no banner, then is removed (I311: a relay rowid alone does not skip it).
-    func drainDelivered() async {
+    /// skip: the "m" values the locked-inbox drain just ran (I313).
+    func drainDelivered(skip: Set<String> = []) async {
         guard let core = core else { return }
         let center = UNUserNotificationCenter.current()
         let delivered = await center.deliveredNotifications()
-        let drained = await core.drainDelivered(delivered.map { $0.request.content.userInfo })
+        let drained = await core.drainDelivered(delivered.map { $0.request.content.userInfo }, skip: skip)
         let done = drained.map { delivered[$0].request.identifier }
         if !done.isEmpty { center.removeDeliveredNotifications(withIdentifiers: done) }
     }
