@@ -1,0 +1,208 @@
+// Shared wiring for the two shells. The shell passes in its "browser"
+// namespace object; nothing here reads a browser global.
+import { Api } from "./api/client.ts";
+import { MENU_PAGE, MENU_SEL, MENU_URL, clickTarget, menuSend } from "./core/actions.ts";
+import { Engine } from "./core/engine.ts";
+import { Rpc, type Req } from "./core/rpc.ts";
+import type { PushFields } from "./crypto/labels.ts";
+import type { KV, MenuPeer, Platform } from "./platform.ts";
+import type { Browser, MenuInfo, MessageSender, Tab } from "./shim-types.ts";
+import { Db, openDb } from "./store/db.ts";
+import type { UiEnv } from "./ui/dom.ts";
+
+export const ICON = "icons/icon-128.png";
+
+export interface PushHooks {
+  pushSubscribe(vapid: Uint8Array): Promise<PushFields>;
+  pushCurrent(): Promise<PushFields | null>;
+  pushUnsubscribe(): Promise<void>;
+}
+
+export function basePlatform(b: Browser, name: "chrome" | "firefox", isAndroid: boolean, push: PushHooks): Platform {
+  const kv = (a: Browser["storage"]["local"]): KV => ({
+    get: (k) => a.get(k),
+    set: (i) => a.set(i),
+    remove: (k) => a.remove(k),
+  });
+  const menus = b.menus ?? b.contextMenus;
+  return {
+    platformName: name,
+    isAndroid,
+    pushSubscribe: (v) => push.pushSubscribe(v),
+    pushCurrent: () => push.pushCurrent(),
+    pushUnsubscribe: () => push.pushUnsubscribe(),
+    notify(id, title, body) {
+      void b.notifications.clear(id).then(() => b.notifications.create(id, { type: "basic", iconUrl: ICON, title, message: body }));
+    },
+    clearNotification(id) {
+      void b.notifications.clear(id);
+    },
+    async clearAllNotifications() {
+      for (const id of Object.keys(await b.notifications.getAll())) await b.notifications.clear(id);
+    },
+    async openTab(url, active) {
+      const t = await b.tabs.create({ url, active });
+      return t.id ?? null;
+    },
+    closeTab(id) {
+      void b.tabs.remove(id).catch(() => undefined);
+    },
+    async authFlow(url) {
+      if (!b.identity) return null;
+      return b.identity.launchWebAuthFlow({ url, interactive: true });
+    },
+    async autoOpenTab(url) {
+      if (isAndroid || !b.windows) {
+        await b.tabs.create({ url, active: false });
+        return true;
+      }
+      let w: { id?: number };
+      try {
+        w = await b.windows.getLastFocused({ windowTypes: ["normal"] });
+      } catch {
+        return false; // no window: notification only
+      }
+      if (w.id === undefined) return false;
+      await b.tabs.create({ url, active: false, windowId: w.id });
+      return true;
+    },
+    menusRebuild(peers: MenuPeer[], showAll: boolean) {
+      if (!menus) return;
+      void menus.removeAll().then(() => {
+        const parents: [string, string, string][] = [
+          [MENU_URL, "PushArmor URL to", "link"],
+          [MENU_PAGE, "PushArmor URL to", "page"],
+          [MENU_SEL, "PushArmor selection to", "selection"],
+        ];
+        for (const [id, title, ctx] of parents) {
+          menus.create({ id, title, contexts: [ctx] });
+          if (showAll) menus.create({ id: id + "|all", parentId: id, title: "All peers", contexts: [ctx] });
+          for (const p of peers) menus.create({ id: id + "|" + p.id, parentId: id, title: p.name, contexts: [ctx] });
+        }
+      });
+    },
+    setBadge(text) {
+      void (b.action ?? b.browserAction)?.setBadgeText({ text });
+    },
+    storageLocal: kv(b.storage.local),
+    storageSession: kv(b.storage.session),
+    alarmAt(name, when) {
+      b.alarms.create(name, { when });
+    },
+    clearAlarm(name) {
+      void b.alarms.clear(name);
+    },
+    fetch: (i, init) => fetch(i, init),
+    now: () => Date.now(),
+  };
+}
+
+export interface Booted {
+  engine: Engine;
+  rpc: Rpc;
+}
+
+/** Lazy init inside handlers (no top-level await in the entry files). */
+export function lazyBoot(make: () => Platform, vapid: Uint8Array): () => Promise<Booted> {
+  let p: Promise<Booted> | null = null;
+  return () => {
+    if (!p) {
+      p = (async () => {
+        const platform = make();
+        const db = new Db(await openDb());
+        let offset: number | null = null;
+        const api = new Api({
+          fetch: (i, init) => platform.fetch(i, init),
+          now: () => platform.now(),
+          sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+          getOffset: async () => {
+            if (offset === null) offset = (await db.meta<number>("offset")) ?? 0;
+            return offset;
+          },
+          setOffset: async (o) => {
+            offset = o;
+            await db.setMeta("offset", o);
+          },
+        });
+        const engine = new Engine({ platform, db, api, vapidPub: vapid });
+        return { engine, rpc: new Rpc(engine) };
+      })();
+    }
+    return p;
+  };
+}
+
+/** runtime.onMessage: {op, args} from UI pages and content scripts. */
+export function onRuntimeMessage(boot: () => Promise<Booted>, extra?: (msg: Req, sender: MessageSender) => Promise<unknown> | null) {
+  return (msg: unknown, sender: MessageSender, sendResponse: (r: unknown) => void): boolean => {
+    const m = msg as Req;
+    if (!m || typeof m.op !== "string") return false;
+    const ex = extra?.(m, sender);
+    if (ex) {
+      ex.then(sendResponse, () => sendResponse({ ok: false }));
+      return true;
+    }
+    void boot()
+      .then((b) => b.rpc.handle(m, sender.tab?.id))
+      .then(sendResponse);
+    return true;
+  };
+}
+
+export function onNotificationClick(b: Browser, boot: () => Promise<Booted>) {
+  return (id: string): void => {
+    void (async () => {
+      const { engine } = await boot();
+      const t = await clickTarget(engine, id);
+      await b.notifications.clear(id);
+      if (!t) return;
+      if ("url" in t) await b.tabs.create({ url: t.url, active: true });
+      else await b.tabs.create({ url: b.runtime.getURL("page.html" + t.page), active: true });
+    })();
+  };
+}
+
+export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelection: (tab: Tab | undefined, text: string) => Promise<string>) {
+  return (info: MenuInfo, tab?: Tab): void => {
+    void (async () => {
+      const [parent, child] = String(info.menuItemId).split("|");
+      if (!child) return;
+      let text = "";
+      if (parent === MENU_URL) text = info.linkUrl ?? "";
+      else if (parent === MENU_PAGE) text = info.pageUrl ?? tab?.url ?? "";
+      else text = await readSelection(tab, info.selectionText ?? "");
+      if (!text) return;
+      const { engine } = await boot();
+      const r = await menuSend(engine, text, child, parent === MENU_SEL);
+      if (r.overCap !== null) {
+        await b.tabs.create({ url: b.runtime.getURL("page.html#send=" + encodeURIComponent(r.overCap)), active: true });
+        return;
+      }
+      if (r.badge) {
+        engine.p.setBadge(r.badge);
+        setTimeout(() => void engine.updateBadge(), 5000);
+      }
+      if (r.notice) engine.p.notify("send-result", "PushArmor", r.notice);
+    })();
+  };
+}
+
+/** UiEnv for popup.html and page.html. */
+export function uiEnv(b: Browser): UiEnv {
+  return {
+    call: (req) => b.runtime.sendMessage(req) as Promise<never>,
+    async activeUrl() {
+      const [t] = await b.tabs.query({ active: true, currentWindow: true });
+      return t?.url && /^https?:/i.test(t.url) ? t.url : "";
+    },
+    openPage(hash) {
+      void b.tabs.create({ url: b.runtime.getURL("page.html" + hash), active: true });
+    },
+    openUrl(url) {
+      void b.tabs.create({ url, active: true });
+    },
+    async copy(text) {
+      await navigator.clipboard.writeText(text);
+    },
+  };
+}
