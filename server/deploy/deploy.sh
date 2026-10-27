@@ -51,6 +51,9 @@ fi
 VERSION="$MODE"
 TAG="worker-v$VERSION"
 
+# 0. release values: no placeholder or empty var may reach wrangler deploy
+node "$HERE/preflight.mjs" "$SERVER_DIR/.." || die "release preflight failed; nothing was deployed"
+
 # 1. clean tree
 [ -z "$(git status --porcelain)" ] || die "working tree is dirty (uncommitted or untracked files)"
 
