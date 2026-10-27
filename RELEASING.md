@@ -66,8 +66,9 @@ never changes a promoted release.
 
 ## Android (`android/vX.Y.Z`)
 
-CI: signed play and foss APKs, the AAB, mapping files and hashes in the GitHub
-prerelease; the AAB on the Play internal track.
+CI: signed play and foss APKs, mapping files and hashes in the GitHub
+prerelease. The AAB is not attached there: it goes to the Play internal track
+and stays in the `android-signed` run artifact.
 
 Test: internal testers install from Play; Obtainium testers turn on "Include
 prereleases" for the app. While `PLAY_INTERNAL_STATUS` in
