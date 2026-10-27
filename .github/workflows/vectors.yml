@@ -1,0 +1,139 @@
+name: vectors
+
+# Golden cross-platform vectors (tests/vectors/golden-v1.json): every leg runs the
+# file through its own production code. Called by ci.yml and by the release
+# workflows; nightly it also runs the security.txt Expires check.
+on:
+  workflow_call:
+  schedule:
+    - cron: "17 4 * * *"
+
+permissions: {}
+
+env:
+  XCODE_APP: /Applications/Xcode_26.6.app
+  XCODE_VERSION: "Xcode 26.6"
+  XCODE_BUILD: "Build version 17F113"
+  JAVA_VERSION: "17.0.20+8"
+
+jobs:
+  reference:
+    name: reference (Node)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - name: Check golden-v1.json with the reference code
+        working-directory: tests/vectors
+        run: node --test ref/check.mjs
+
+  worker:
+    name: Worker (vitest in workerd)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - name: Install
+        working-directory: server/worker
+        run: npm ci --ignore-scripts
+      - name: Golden vectors
+        working-directory: server/worker
+        run: npx --no-install vitest run test/golden.test.ts
+
+  webext:
+    name: webext shared (Node)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - name: Install
+        working-directory: client/webext-common
+        run: npm ci --ignore-scripts
+      - name: Golden vectors
+        working-directory: client/webext-common
+        run: node --test --test-reporter=spec test/golden.test.ts
+
+  android:
+    name: Android (JVM)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Golden vectors (:crypto, :protocol)
+        working-directory: client/android
+        run: >-
+          ./gradlew --no-daemon --stacktrace
+          :crypto:test --tests '*Golden*'
+          :protocol:test --tests '*Golden*' --tests '*PairDecide*'
+
+  ios:
+    name: iOS (swift test)
+    if: github.event_name != 'schedule'
+    runs-on: macos-26
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Select and assert Xcode
+        run: |
+          echo "runner image: $ImageOS $ImageVersion"
+          sudo xcode-select -s "$XCODE_APP"
+          v="$(xcodebuild -version)"
+          echo "$v"
+          printf '%s\n' "$v" | grep -qx "$XCODE_VERSION"
+          printf '%s\n' "$v" | grep -qx "$XCODE_BUILD"
+      - name: Golden vectors (PushArmorCore)
+        run: swift test --package-path client/ios/PushArmorCore --filter 'GoldenTests|PairDecideTests'
+
+  security-txt:
+    name: security.txt Expires
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - name: Expires more than 30 days ahead
+        run: node --test --test-name-pattern='^security\.txt' site/tools/test/site.test.mjs
