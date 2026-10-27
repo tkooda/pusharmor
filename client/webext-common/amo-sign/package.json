@@ -1,0 +1,9 @@
+{
+  "name": "pusharmor-amo-sign",
+  "version": "0.0.1",
+  "private": true,
+  "license": "UNLICENSED",
+  "dependencies": {
+    "web-ext": "10.7.0"
+  }
+}
