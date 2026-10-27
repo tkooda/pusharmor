@@ -722,6 +722,8 @@ function mustFailSection() {
   msg('unknown_top_level_key', 'unreadable', { json: '{"n":1,"url":"https://example.com/a","x":1}' });
   msg('unknown_type', 'unreadable', { json: '{"n":1,"foo":1}' });
   msg('remove_id_39_chars', 'unreadable', { json: '{"n":1,"remove":"' + O.idB64.slice(0, 39) + '"}' });
+  msg('remove_id_39_chars_seen_n', 'unreadable', { json: '{"n":1,"remove":"' + O.idB64.slice(0, 39) + '"}' },
+    { window: { h: 1, seen: [1] } });
   msg('remove_id_not_b64url', 'unreadable', { json: '{"n":1,"remove":"' + O.idB64.slice(0, 39) + '+"}' });
   msg('deny_value_true', 'unreadable', { json: '{"n":1,"deny":true}' });
   msg('pause_value_1.0', 'unreadable', { json: '{"n":1,"pause":1.0}' });

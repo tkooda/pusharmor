@@ -107,7 +107,10 @@ public struct InnerJSON: Equatable, Sendable {
         case "url": c = .url(try str())
         case "text": c = .text(try str())
         case "tel": c = .tel(try str())
-        case "remove": c = .remove(try str())
+        case "remove":
+            let id = try str()
+            guard PeerId(text: id) != nil else { throw Failure.value }   // at parse, before the replay window (I320)
+            c = .remove(id)
         case "approve", "rename":
             guard let f = NameField.from(val) else { throw Failure.value }
             c = key == "approve" ? .approve(f) : .rename(f)

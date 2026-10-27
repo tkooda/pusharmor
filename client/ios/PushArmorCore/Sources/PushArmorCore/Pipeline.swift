@@ -115,11 +115,6 @@ public enum ReceivePipeline {
         case .approve:
             guard p.ruling == .approved || p.ruling == .unruled else { return .drop(from) }
         }
-        switch j.content {
-        case .remove(let id):
-            guard PeerId(text: id) != nil else { return .drop(from) }
-        default: break
-        }
         w.accept(j.n)
         r.windowAfter = w
         return r
