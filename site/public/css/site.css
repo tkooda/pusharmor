@@ -1,0 +1,86 @@
+/* PushArmor site styles. One file, no external fonts. */
+:root {
+  --fg: #1d2330;
+  --bg: #ffffff;
+  --muted: #5a6475;
+  --line: #d9dee7;
+  --accent: #1f5fbf;
+  --warn: #9a3b00;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: #e6e9ef;
+    --bg: #14171d;
+    --muted: #a3acbb;
+    --line: #333a46;
+    --accent: #7fb0ff;
+    --warn: #ffb27a;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 0 1rem;
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+}
+header, main, footer { max-width: 46rem; margin: 0 auto; }
+header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  align-items: baseline;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--line);
+}
+header .brand { font-weight: 700; font-size: 1.2rem; text-decoration: none; color: var(--fg); }
+nav { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; }
+main { padding: 1rem 0 2rem; }
+footer {
+  padding: 1rem 0 2rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+footer a { margin-right: 1rem; }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible, input:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+h1 { font-size: 1.7rem; line-height: 1.25; }
+h2 { font-size: 1.25rem; margin-top: 2rem; }
+code, .mono { font-family: ui-monospace, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; vertical-align: top; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--line); }
+.note { color: var(--muted); }
+.warn { color: var(--warn); }
+form { margin: 1rem 0; }
+label { display: block; margin: 0.5rem 0 0.25rem; font-weight: 600; }
+input[type="email"], input[type="text"] {
+  width: 100%;
+  max-width: 24rem;
+  padding: 0.5rem;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+button, .button {
+  display: inline-block;
+  margin: 0.5rem 0.5rem 0.5rem 0;
+  padding: 0.5rem 1rem;
+  font: inherit;
+  color: #ffffff;
+  background: var(--accent);
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: none;
+}
+button.secondary { color: var(--accent); background: transparent; border: 1px solid var(--accent); }
+button.danger { background: #b3261e; }
+.ts-frame { width: 100%; max-width: 22rem; height: 90px; border: 0; }
+.status { min-height: 1.5rem; font-weight: 600; }

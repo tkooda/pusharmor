@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delete account - PushArmor</title>
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-Isqq963IVcjaMPINbfEbhweWnI2OMigS+3m/2CvFwVY=">
+<script src="/js/pa-web.js" integrity="sha256-xAOz2CPFteJB44C3kZu4pCL3LtSZUvzjUCIVff1yPhQ=" defer></script>
+<script src="/js/delete-account.js" integrity="sha256-SntnmSGqZ8Y4/nWkcO8GBY3Xji/5eBVuVMI8b5Zmhdo=" defer></script>
+</head>
+<body>
+<header>
+<a class="brand" href="/">PushArmor</a>
+<nav><a href="/how-to">How to</a> <a href="/download">Download</a> <a href="/security">Security</a> <a href="/support">Support</a></nav>
+</header>
+<main>
+<h1>Delete your PushArmor account</h1>
+<p>This page deletes the PushArmor account of an email address. You can also use Delete account
+in the app.</p>
+<p>Deleted at once: all peer rows (keys, push tokens, names). Kept: the keyed account hash with
+its ban flag, for banned accounts only; undelivered pushes at the vendors, up to 7 days (pairing
+requests up to 4 weeks); copies on your other peers. No login to this site is needed.</p>
+
+<p id="status" class="status" role="status" aria-live="polite"></p>
+
+<section id="prove" hidden>
+<h2>1. Prove it is your account</h2>
+<form id="email-form">
+<label for="email">Email address</label>
+<input id="email" type="email" autocomplete="email" required>
+<iframe id="ts" class="ts-frame" title="Robot check" src="/turnstile#o=https://pusharmor.com"></iframe>
+<div><button type="submit">Send code</button></div>
+</form>
+<form id="code-form" hidden>
+<label for="code">Code from the email</label>
+<input id="code" type="text" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" required>
+<div><button type="submit">Verify code</button></div>
+</form>
+<p>Or sign in with:</p>
+<p><button id="google" type="button" class="secondary">Google</button> <button id="apple" type="button" class="secondary">Apple</button></p>
+</section>
+
+<section id="confirm" hidden>
+<h2>2. Delete</h2>
+<p id="signed-in"></p>
+<p class="note">If you signed in with Apple and chose Hide My Email, the app shows the address
+under Signed in as. Use that address on your other peers. Find it in iOS Settings &gt; Apple ID
+&gt; Sign in with Apple, or at appleid.apple.com &gt; Hide My Email.</p>
+<form id="confirm-form">
+<button id="delete" type="submit" class="danger">Delete account</button>
+</form>
+</section>
+
+<section id="done" hidden>
+<h2>Account deleted</h2>
+<p id="result"></p>
+</section>
+</main>
+<footer>
+<a href="/privacy">Privacy</a> <a href="/terms">Terms</a> <a href="/support">Support</a> <a href="/delete-account">Delete account</a> <a href="https://github.com/tkooda/pusharmor">Source code on GitHub</a>
+</footer>
+</body>
+</html>
