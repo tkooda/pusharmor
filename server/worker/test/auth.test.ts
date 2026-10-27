@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import type { Env } from "../src/env";
 import { b64urlDecode, b64urlEncode } from "../src/codec/b64url";
 import { deriveCode } from "../src/crypto/code";
 import { utf8 } from "../src/crypto/hash";
@@ -93,6 +94,27 @@ describe("POST /auth/email + verify", () => {
     let last = 0;
     for (let i = 0; i < 6; i++) last = (await call("POST", "/v1/auth/email/verify", { request_token: token, code: "AAAAAA" })).status;
     expect(last).toBe(429);
+  });
+
+  it("RL_CODE is per request token: 5 wrong on token A, correct code on token B -> 200 (I293)", async () => {
+    const email = randomEmail();
+    const a = await startEmail(email);
+    const tokA = secretString(a.r.body.request_token as string);
+    for (let i = 0; i < 5; i++) expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: "AAAAAA" })).status).toBe(401);
+    expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: "AAAAAA" })).status).toBe(429);
+    const b = await startEmail(email);
+    const tokB = secretString(b.r.body.request_token as string);
+    const code = await deriveCode(S.CODE_SECRET, tokB);
+    const r = await call("POST", "/v1/auth/email/verify", { request_token: tokB, code });
+    expect(r.status).toBe(200);
+  });
+
+  it("RL_CODE_ALL: the per-email cap over all tokens still bites (I293)", async () => {
+    const email = randomEmail();
+    const { r } = await startEmail(email);
+    const tok = r.body.request_token as string;
+    const e = { ...(await testEnv()), RL_CODE: { limit: async () => ({ success: true }) }, RL_CODE_ALL: { limit: async () => ({ success: false }) } } as Env;
+    expect((await call("POST", "/v1/auth/email/verify", { request_token: tok, code: "AAAAAA" }, { env: e })).status).toBe(429);
   });
 });
 

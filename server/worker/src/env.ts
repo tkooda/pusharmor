@@ -12,6 +12,7 @@ export interface Env {
   RL_CODE: RateLimit;
   RL_PAIR: RateLimit;
   RL_PROBE: RateLimit;
+  RL_CODE_ALL: RateLimit;
 
   ALLOWED_PUSH_ENDPOINT_PREFIXES: string;
   PUSH_TTL_SECONDS: string;
