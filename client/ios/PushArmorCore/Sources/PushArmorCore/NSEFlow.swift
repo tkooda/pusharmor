@@ -14,6 +14,10 @@ public enum NSEFlow {
     ///   - loadKeys: Keychain load (step 2).
     ///   - openCore: opens the DB and builds the core (step 3).
     ///   - budgetLeft: seconds left of the NSE budget.
+    ///   - onReceived: called only for a final verdict (r.handled: a committed row, a noop or a
+    ///     drop with its event written), before the peer fetch; the NSE keeps that content,
+    ///     stamped "done", for time expiry so the app does not run the push again (I329). Never
+    ///     called for a fault: expiry then delivers the unstamped "m" for the app drain.
     /// - Returns: the banner to deliver and whether the step 8-9 transaction committed.
     public static func handle(m: Any?, loadKeys: () throws -> DeviceKeys, openCore: (DeviceKeys?) -> Core?,
                               inbox: LockedInbox, nowMs: Int64, budgetLeft: () -> Double,
@@ -47,7 +51,7 @@ public enum NSEFlow {
         if r.banner == nil { r.banner = .dropped }   // never empty content for a push
         r.handled = !r.fault   // a thrown store error stays unmarked: the app drain retries it (I315)
         if r.fault { try? inbox.write(ms, nowMs: nowMs) }
-        onReceived?(r)
+        if r.handled { onReceived?(r) }
         // 6.5: an unknown sender sets fetch_due; one GET /peers only with >= 10 s of budget left
         if (try? core.store.me().fetchDue) == true && budgetLeft() >= 10 {
             await core.fetchPeers(nse: true)

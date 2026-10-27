@@ -34,7 +34,8 @@ final class NotificationService: UNNotificationServiceExtension {
                 nowMs: Int64(Date().timeIntervalSince1970 * 1000),
                 budgetLeft: { 30 - Date().timeIntervalSince(started) },
                 onReceived: { [weak self] r in
-                    guard r.committed, let b = r.banner else { return }
+                    // a final verdict (I329): expiry delivers this content stamped "done"
+                    guard let b = r.banner else { return }
                     self?.setCommitted(BannerContent.content(b, m: m, key: key, handled: r.handled))
                 })
             self.deliver(BannerContent.content(r.banner ?? .dropped, m: m, key: key, handled: r.handled))
@@ -55,8 +56,8 @@ final class NotificationService: UNNotificationServiceExtension {
         h?(c)
     }
 
-    /// If the step 8-9 transaction committed, deliver the 6.2 banner; else fresh "New message"
-    /// content with only "m" (I307): never the relay's own alert or userInfo. Never PA_DROPPED here.
+    /// If the push reached a final verdict, deliver its stamped content (I329); else fresh "New
+    /// message" content with only "m" (I307): never the relay's own alert or userInfo.
     override func serviceExtensionTimeWillExpire() {
         lock.lock()
         let c: UNNotificationContent = committed ?? BannerContent.expiry(m: m)
