@@ -186,14 +186,14 @@ tag commit, so only reviewed commits may be tagged:
    secrets (names and environments: `release/names.json` "github_secrets"):
    `ANDROID_*` in `android-sign`, `ASC_*` in `ios-release`, `MOZILLA_AMO_*` in
    `firefox-release`. `android-release` and `chrome-release` hold none (WIF).
-5. Workload Identity Federation: one provider per store
-   (`google_play_wif_provider`, `google_cws_wif_provider`), each with an
+5. Workload Identity Federation: one pool per store (Play, CWS), each with a
+   provider (`google_play_wif_provider`, `google_cws_wif_provider`) with an
    attribute condition scoped to this repository, its tags and its environment:
    Play: `assertion.repository == '<owner>/pusharmor' &&
    assertion.ref.startsWith('refs/tags/android/v') &&
    assertion.environment == 'android-release'`;
    Chrome Web Store: the same with `refs/tags/chrome/v` and `chrome-release`.
-   Grant each service account to that provider's principalSet only.
+   Grant each service account to the principalSet of its own store's pool only.
 6. Leave GitHub immutable releases off: with it on, a rerun cannot replace the
    assets of a prerelease and the collect workflow cannot attach the store
    files.
