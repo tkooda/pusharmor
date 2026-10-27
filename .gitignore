@@ -35,7 +35,5 @@ xcuserdata/
 *.iml
 .vscode/
 
-# Release build ids (template: release/local.example.json)
-release/local.json
-client/android/app/src/play/google-services.json
+# Derived from release/public.json by client/ios/tools/public-xcconfig.sh
 client/ios/Config/Public.xcconfig
