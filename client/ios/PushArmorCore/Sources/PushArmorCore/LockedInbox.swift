@@ -46,34 +46,38 @@ public struct LockedInbox: Sendable {
 extension Core {
     /// Locked-inbox drain (ios 7): steps 4-9 with no banner for each file in name order,
     /// rows unread; a failed file writes one unreadable event row (done by receive) and is
-    /// deleted too. Returns the number of messages received while locked and the "m" values
-    /// run, which the delivered drain then skips (I313).
-    public func drainLockedInbox(_ inbox: LockedInbox) async -> (count: Int, ms: Set<String>) {
+    /// deleted too. A fault keeps the file for the next drain (I321). Returns the number of
+    /// messages received while locked, the "m" values run, which the delivered drain then
+    /// skips (I313), and the "m" values held by a fault, which it neither runs nor removes.
+    public func drainLockedInbox(_ inbox: LockedInbox) async -> (count: Int, ms: Set<String>, held: Set<String>) {
         var count = 0
         var ms: Set<String> = []
+        var held: Set<String> = []
         for f in inbox.files() {
             if let d = try? Data(contentsOf: f), let s = String(data: d, encoding: .ascii) {
                 let m = s.trimmingCharacters(in: .whitespacesAndNewlines)
-                ms.insert(m)
                 let r = await receive(m, mode: .drain)
+                if r.fault { held.insert(m); continue }
+                ms.insert(m)
                 if r.newMessage { count += 1 }
-            } else {
-                _ = drop(.drain)
+            } else if drop(.drain).fault {
+                continue
             }
             try? FileManager.default.removeItem(at: f)
         }
-        return (count, ms)
+        return (count, ms.subtracting(held), held)
     }
 
     /// Delivered-notification drain: steps 4-9 with no banner for each userInfo whose "m"
     /// the NSE did not stamp as handled (TapStamp.drainM). An "m" in skip (run by the
     /// locked-inbox drain) is not run again (I313). Returns the indexes drained; the app
-    /// removes those notifications. A fault leaves the notification for the next drain (I322).
-    public func drainDelivered(_ infos: [[AnyHashable: Any]], skip: Set<String> = []) async -> [Int] {
+    /// removes those notifications. A fault leaves the notification for the next drain (I322);
+    /// an "m" in held (its locked-inbox file kept by a fault) is neither run nor removed (I321).
+    public func drainDelivered(_ infos: [[AnyHashable: Any]], skip: Set<String> = [], held: Set<String> = []) async -> [Int] {
         let key = try? TapStamp.key(store)
         var done: [Int] = []
         for (i, info) in infos.enumerated() {
-            guard let m = TapStamp.drainM(info, key: key) else { continue }
+            guard let m = TapStamp.drainM(info, key: key), !held.contains(m) else { continue }
             if !skip.contains(m), await receive(m, mode: .drain).fault { continue }
             done.append(i)
         }
