@@ -5,18 +5,17 @@ import PushArmorCore
 final class NotificationService: UNNotificationServiceExtension {
     private let lock = NSLock()
     private var handler: ((UNNotificationContent) -> Void)?
-    private var original: UNMutableNotificationContent?
+    private var m: Any?
     private var committed: UNMutableNotificationContent?
     private let started = Date()
 
     override func didReceive(_ request: UNNotificationRequest, withContentHandler contentHandler: @escaping (UNNotificationContent) -> Void) {
-        let orig = (request.content.mutableCopy() as? UNMutableNotificationContent) ?? UNMutableNotificationContent()
+        let m = request.content.userInfo["m"]
         lock.lock()
         handler = contentHandler
-        original = orig
+        self.m = m
         lock.unlock()
         let env = AppEnvironment.shared
-        let m = request.content.userInfo["m"]
         let started = self.started
         Task {
             // per-install tap key (I297); nil while the store is unreadable: routing then unstamped
@@ -56,12 +55,12 @@ final class NotificationService: UNNotificationServiceExtension {
         h?(c)
     }
 
-    /// If the step 8-9 transaction committed, deliver the 6.2 banner; else hand back the
-    /// original content (PA_FALLBACK "New message"). Never PA_DROPPED here.
+    /// If the step 8-9 transaction committed, deliver the 6.2 banner; else fresh "New message"
+    /// content with only "m" (I307): never the relay's own alert or userInfo. Never PA_DROPPED here.
     override func serviceExtensionTimeWillExpire() {
         lock.lock()
-        let c: UNNotificationContent? = committed ?? original
+        let c: UNNotificationContent = committed ?? BannerContent.expiry(m: m)
         lock.unlock()
-        if let c = c { deliver(c) }
+        deliver(c)
     }
 }

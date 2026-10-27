@@ -158,4 +158,14 @@ final class RulesTests: XCTestCase {
         XCTAssertFalse(TapStamp.verified(good, key: nil))
         XCTAssertFalse(TapStamp.verified(b.userInfo(m: "abc"), key: key))
     }
+
+    /// I307: the expiry fallback keeps only "m" of a relay payload, whatever else it carries.
+    func testExpiryUserInfo() {
+        let relay: [AnyHashable: Any] = ["m": "abc", "aps": ["alert": ["title": "x", "body": "evil", "subtitle": "s"]],
+                                         "rowid": NSNumber(value: 7), "tap": "url", "url": "https://evil.example/", "s": "x"]
+        let info = Banner.expiryUserInfo(m: relay["m"])
+        XCTAssertEqual(Set(info.keys.compactMap { $0 as? String }), ["m"])
+        XCTAssertEqual(info["m"] as? String, "abc")
+        XCTAssertTrue(Banner.expiryUserInfo(m: nil).isEmpty)
+    }
 }

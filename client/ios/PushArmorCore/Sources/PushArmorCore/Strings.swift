@@ -89,6 +89,13 @@ public struct Banner: Equatable, Sendable {
         "p." + B64URL.encode(Bytes.sha256(id.raw).prefix(12))
     }
 
+    /// NSE time expiry before the commit (I307): userInfo is only "m"; nothing else of the
+    /// relay's payload is kept, and with no routing keys the app drains "m".
+    public static func expiryUserInfo(m: Any?) -> [AnyHashable: Any] {
+        guard let m = m else { return [:] }
+        return ["m": m]
+    }
+
     /// Notification userInfo: only "m" is kept from the relay payload, then the routing keys,
     /// stamped with a MAC under the per-install tap key (TapStamp) when one is given.
     public func userInfo(m: Any?, key: Data? = nil) -> [AnyHashable: Any] {

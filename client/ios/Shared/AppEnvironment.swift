@@ -82,6 +82,20 @@ enum BannerContent {
         return c
     }
 
+    /// NSE time expiry before the commit (I307): fresh "New message" content; nothing of the
+    /// relay's alert or userInfo is kept but "m".
+    static func expiry(m: Any?) -> UNMutableNotificationContent {
+        let b = Banner.fallback
+        let c = UNMutableNotificationContent()
+        c.title = S.title
+        c.body = b.body
+        c.sound = .default
+        c.categoryIdentifier = b.category.rawValue
+        c.threadIdentifier = b.threadId
+        c.userInfo = Banner.expiryUserInfo(m: m)
+        return c
+    }
+
     /// Category ids with their actions; every category sets hiddenPreviewsBodyPlaceholder
     /// "New message" (Q165 B). Copy actions require authentication.
     static func categories() -> Set<UNNotificationCategory> {
