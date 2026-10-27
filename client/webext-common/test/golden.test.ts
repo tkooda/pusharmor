@@ -36,6 +36,8 @@ import { parseStrictJson } from "../src/model/json.ts";
 import {
   type NameEntry,
   type PairKind,
+  buildBody,
+  encodeInner,
   encodePair,
   inflateInner,
   msgSignedBytes,
@@ -308,6 +310,45 @@ for (const section of ["messages", "padded_messages"]) {
         }
         // the HPKE layer alone opens with the receiver key
         assert.ok(await hpkeOpen(enc, ascii("PA-MSG1"), ascii(rec.id), d(c.message)));
+      });
+    }
+  });
+}
+
+// Sender side: rebuild each message from its json and compare with the vector.
+for (const section of ["messages", "padded_messages"]) {
+  describe("golden sender: " + section, () => {
+    for (const c of G[section].cases) {
+      test(c.name, async () => {
+        const rec = peerOf(c.receiver);
+        const sender = peerOf(c.from);
+        const pt = d(c.plaintext);
+        const p = parseInnerPlain(pt)!;
+        const args = {
+          signKey: (await importPrivate("ECDSA", d(sender.sign_priv), d(sender.sign_pub))).privateKey,
+          fromId: d(sender.id),
+          pairingId: p.pairingId,
+          keys: p.keys ? { sign_pub: d(sender.sign_pub), enc_pub: d(sender.enc_pub) } : undefined,
+          json: c.json,
+          recipientId: rec.id,
+          recipientEncPub: d(rec.enc_pub),
+          ikmE: d(c.hpke.ikmE),
+        };
+        const body = await buildBody(args);
+        // same deflated bytes, header, length (bucket) and zero padding as the vector
+        assert.equal(b64urlEncode(body), b64urlEncode(p.body));
+        if (section === "padded_messages") {
+          const q = parseInnerPlain(concat(new Uint8Array(64), body))!;
+          assert.equal(q.deflated.byteOffset - q.body.byteOffset + q.deflated.length, c.unpadded_body_len);
+        }
+        // full wire: same HPKE enc and length; opens to sig || the same body; signature verifies
+        const m = await encodeInner(args);
+        assert.equal(m.length, c.message.length);
+        if (section === "padded_messages") assert.equal(m.length, c.bucket);
+        assert.equal(b64urlEncode(d(m).subarray(0, 65)), b64urlEncode(d(c.message).subarray(0, 65)));
+        const got = parseInnerPlain((await openInner(await encPair(c.receiver), rec.id, m))!)!;
+        assert.equal(b64urlEncode(got.body), b64urlEncode(p.body));
+        assert.ok(await verifyInner(d(sender.sign_pub), rec.id, got));
       });
     }
   });
