@@ -184,15 +184,14 @@ test("fx queue: 13 days kept, 15 days dropped, cap 150 drops the oldest", () => 
   assert.deepEqual(c.drop.map((e) => e.id), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 });
 
-test("golden vectors (tests/vectors/golden-v1.json): PA-Sig", async (t) => {
+test("golden vectors (tests/vectors/golden-v1.json): request_sig (PA-Sig)", async (t) => {
   const p = join(SITE, "..", "tests", "vectors", "golden-v1.json");
   if (!existsSync(p)) { t.skip("tests/vectors/golden-v1.json not present yet"); return; }
-  const g = JSON.parse(readFileSync(p, "utf8"));
-  const vs = [].concat(g.pa_sig || g["PA-Sig"] || []);
-  if (!vs.length) { t.skip("golden file has no PA-Sig section"); return; }
-  for (const v of vs) {
-    const bytes = PA.reqSigBytes(v.method, v.path, String(v.pa_time), enc.encode(v.body ?? ""));
-    if (v.signed_string !== undefined) assert.equal(new TextDecoder().decode(bytes), v.signed_string);
-    if (v.sign_pub && v.pa_sig) assert.ok(await verify(v.sign_pub, v.pa_sig, bytes));
+  const cases = JSON.parse(readFileSync(p, "utf8")).request_sig.cases;
+  assert.ok(cases.length > 0);
+  for (const c of cases) {
+    const bytes = PA.reqSigBytes(c.method, c.path, c.pa_time, b64urlDecode(c.body));
+    assert.deepEqual(Buffer.from(bytes), Buffer.from(b64urlDecode(c.signed_bytes)), c.name + ": signed_bytes");
+    assert.ok(await verify(c.sign_pub, c.sig, bytes), c.name + ": sig");
   }
 });
