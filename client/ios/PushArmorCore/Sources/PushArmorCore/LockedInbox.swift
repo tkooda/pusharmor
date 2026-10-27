@@ -84,6 +84,14 @@ extension Core {
         return done
     }
 
+    /// A tapped notification's "m" runs steps 4-9 with no banner (TapStamp.drainM). iOS removes
+    /// a tapped notification, so a fault keeps "m" in the locked inbox for the next drain (I325).
+    public func receiveTapped(_ m: String, inbox: LockedInbox) async -> ReceiveResult {
+        let r = await receive(m, mode: .drain)
+        if r.fault { try? inbox.write(m, nowMs: clock() * 1000) }
+        return r
+    }
+
     /// History retention: auto-delete rows older than N days (default 30).
     public func pruneHistory() throws {
         let days = Int64(try store.setting(SettingKey.historyDays) ?? "30") ?? 30

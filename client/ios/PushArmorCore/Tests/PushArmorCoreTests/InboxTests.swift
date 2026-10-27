@@ -264,4 +264,27 @@ final class NSEFlowTests: XCTestCase {
         XCTAssertEqual(h.filter { $0.event == .couldNotRead }.count, 0)
         inbox.removeAll()
     }
+    /// I325: a tapped notification is gone once tapped; a fault in its app-side receive keeps
+    /// "m" in the locked inbox, and the next locked drain stores it once.
+    func testTapFaultKeepsPush() async throws {
+        let w = FakeWorker(), clock = TestClock()
+        let n = try Device(worker: w, clock: clock, name: "Ndev"), x = try Device(worker: w, clock: clock, name: "Xdev")
+        try await Scenario.pairFully(w, n, x)
+        _ = try await n.core.send("kept", as: .text, to: [x.id], allCount: 1)
+        let m = try XCTUnwrap(w.take(x.id).first)
+        let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-nse-\(UUID().uuidString)"))
+        let other = try DB(path: x.path)
+        try other.exec("ALTER TABLE me RENAME TO me_off")
+        let r = await x.core.receiveTapped(m, inbox: inbox)
+        try other.exec("ALTER TABLE me_off RENAME TO me")
+        XCTAssertTrue(r.fault)
+        XCTAssertEqual(inbox.files().count, 1)
+        let locked = await x.core.drainLockedInbox(inbox)
+        XCTAssertEqual(locked.count, 1)
+        XCTAssertEqual(inbox.files().count, 0)
+        let h = try x.core.store.history()
+        XCTAssertEqual(h.filter { $0.content == "kept" }.count, 1)
+        XCTAssertEqual(h.filter { $0.event == .couldNotRead }.count, 0)
+        inbox.removeAll()
+    }
 }

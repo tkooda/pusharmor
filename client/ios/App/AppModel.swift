@@ -443,7 +443,7 @@ final class AppModel: ObservableObject {
     func handleTap(_ info: [AnyHashable: Any], action: String) async {
         let key = store.flatMap { try? TapStamp.key($0) }
         if let m = TapStamp.drainM(info, key: key), let core = core {
-            _ = await core.receive(m, mode: .drain)
+            _ = await core.receiveTapped(m, inbox: env.inbox)
             reload()
         }
         // routing keys count only with the NSE stamp (I297); relay userInfo is ignored
