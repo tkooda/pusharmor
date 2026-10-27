@@ -62,7 +62,8 @@ Try a build without touching the tree:
 Deploy is done by Cloudflare Workers Builds from the main branch. `wrangler.jsonc` sets the build
 command `node tools/build.mjs` (run in `site/`), so `wrangler deploy` fails while a placeholder is
 left, with no dashboard setting needed. `wrangler dev` skips the build (`WRANGLER_COMMAND=dev`) and
-keeps the placeholders. Keep the Workers Builds build command empty or equal to that value.
+keeps the placeholders. The Workers Builds build command must be EMPTY: a second run of the build
+fails because the placeholders are already gone.
 
 The site has no deploy script. Before a release deploy, run the checks with the release gate on:
 
