@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
 const client = join(import.meta.dirname, "..", "..");
 const read = (p: string) => JSON.parse(readFileSync(p, "utf8"));
 const constants = read(join(client, "..", "release", "constants.json"));
+const localPath = join(client, "..", "release", "local.json");
+const local = existsSync(localPath) ? read(localPath) : null;
 const chrome = read(join(client, "chrome", "manifest.json"));
 const firefox = read(join(client, "firefox", "manifest.json"));
 
@@ -30,10 +34,10 @@ test("Firefox matches and host permissions equal FIREFOX-MATCH-LIST and release/
   assert.deepEqual(constants.firefox_host_permissions, HOSTS);
 });
 
-test("Firefox data_collection_permissions present; gecko id equals the repo constant", () => {
+test("Firefox data_collection_permissions present; the committed gecko id is a placeholder (the build sets it)", () => {
   const g = firefox.browser_specific_settings.gecko;
   assert.deepEqual(g.data_collection_permissions.required, ["personallyIdentifyingInfo", "personalCommunications"]);
-  assert.equal(g.id, constants.firefox_addon_id);
+  assert.equal(g.id, "placeholder-addon-id@pusharmor.com");
   assert.equal(g.strict_min_version, "140.0");
   assert.equal(firefox.browser_specific_settings.gecko_android.strict_min_version, "142.0");
   assert.equal(firefox.manifest_version, 2);
@@ -51,14 +55,27 @@ test("Chrome manifest: MV3, no key in the committed or release manifest, permiss
   if (existsSync(built) && !existsSync(join(client, "chrome", "dist", "pusharmor-chrome-dev.zip"))) assert.equal("key" in read(built), false);
 });
 
-test("Chrome extension id equals the id derived from the dev key (once both constants are real)", () => {
-  const key = constants.chrome_dev_key as string;
-  const id = constants.chrome_extension_id as string;
+test("Chrome extension id equals the id derived from the dev key (once both are real in release/local.json)", () => {
+  const key = (local?.chrome_dev_key ?? "PLACEHOLDER") as string;
+  const id = (local?.chrome_extension_id ?? "PLACEHOLDER") as string;
   if (key.startsWith("PLACEHOLDER") || id.startsWith("PLACEHOLDER")) return;
   const h = createHash("sha256").update(Buffer.from(key, "base64")).digest();
   let derived = "";
   for (const b of h.subarray(0, 16)) derived += String.fromCharCode(97 + (b >> 4)) + String.fromCharCode(97 + (b & 15));
   assert.equal(derived, id);
+});
+
+test("release build fails before any output when the local file is missing or holds placeholders", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "pa-webext-"));
+  try {
+    const example = join(client, "..", "release", "local.example.json");
+    for (const lp of [join(tmp, "none.json"), example]) {
+      const r = spawnSync("node", [join(import.meta.dirname, "..", "build.mjs"), "--local", lp], { encoding: "utf8" });
+      assert.equal(r.status, 1, lp);
+      assert.match(r.stderr, lp === example ? /vapid_public_key is a PLACEHOLDER/ : /is missing; copy release\/local\.example\.json/);
+      assert.doesNotMatch(r.stdout, /built/);
+    }
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
 function walk(dir: string): string[] {
