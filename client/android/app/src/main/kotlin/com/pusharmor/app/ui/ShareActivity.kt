@@ -1,0 +1,74 @@
+package com.pusharmor.app.ui
+
+import android.content.Intent
+import android.os.Bundle
+import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.core.content.pm.ShortcutManagerCompat
+import androidx.lifecycle.lifecycleScope
+import com.pusharmor.protocol.ContentType
+import com.pusharmor.protocol.Detect
+import com.pusharmor.protocol.SizeCap
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+
+/** Share sheet entry (section 7): ACTION_SEND text/plain. */
+class ShareActivity : ComponentActivity() {
+    private val vm: AppViewModel by viewModels()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: intent.getStringExtra(Intent.EXTRA_SUBJECT)
+        if (text == null || vm.g.identity() == null) { finish(); return }
+        val direct = intent.getStringExtra("peer") ?: intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID)
+        val all = vm.g.store.peers().filter { it.inAll }
+        val tooLong = SizeCap.utf8Size(text) > SizeCap.MAX_CONTENT_BYTES
+        val type = Detect.type(text)
+        // exactly one peer in the All set: send directly (Q160 C)
+        if (!tooLong && (direct != null || all.size == 1)) { send(listOf(direct ?: all.first().id), text); return }
+        setContent {
+            MaterialTheme {
+                var cut by remember { mutableStateOf<String?>(null) }
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (tooLong && cut == null) {
+                        if (type == ContentType.TEXT) {
+                            Text("Too long (${SizeCap.utf8Size(text)} / 2048)")
+                            Button(onClick = { cut = SizeCap.truncateUtf8(text) }) { Text("Send the first 2048 bytes") }
+                        } else {
+                            Text("Too long (${SizeCap.utf8Size(text)} / 2048)")
+                        }
+                    } else {
+                        SendScreen(vm, cut ?: text) { r -> toastAndFinish(r) }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun send(ids: List<String>, text: String) {
+        lifecycleScope.launch {
+            val r = withTimeoutOrNull(10_000) { vm.send(ids, text, asText = false) }
+            toastAndFinish(r ?: "Sending")
+        }
+    }
+
+    private fun toastAndFinish(text: String) {
+        Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
+        finish()
+    }
+
+}
