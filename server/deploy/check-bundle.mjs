@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 
 export const FORBIDDEN = [
   "resetHealth",
+  "clearTokens",
   "TEST_MIGRATIONS",
   "TEST_SECRETS",
   "cloudflare:test",
