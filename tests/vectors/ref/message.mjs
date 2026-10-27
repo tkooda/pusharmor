@@ -159,7 +159,7 @@ export function receiveMessage(ctx, message) {
   const type = [...obj.keys()].find((k) => k !== 'n');
   if (!TYPES.includes(type)) return bad('type');
   const value = obj.get(type);
-  if (flag === 1 && type !== 'approve') return bad('keys flag on non-approve');
+  if ((flag === 1) !== (type === 'approve')) return bad('keys flag and type');
   const pidB64 = b64e(pairingId);
   let result;
   if (type === 'url' || type === 'text' || type === 'tel') {

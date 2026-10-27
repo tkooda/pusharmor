@@ -123,6 +123,16 @@ object Receive {
         }
     }
 
+    /** approve / rename: entry n equals the message n and the entry verifies (checked before the replay window). */
+    fun nameEntryOk(ok: OpenResult.Ok, peer: Peer, ownId: String): Boolean {
+        val e = when (val b = ok.body) {
+            is MessageBody.Approve -> b.entry
+            is MessageBody.Rename -> b.entry
+            else -> return true
+        }
+        return e.n == ok.n && verifyName(e, peer, ownId) != null
+    }
+
     private fun verifyName(e: NameEntryClear, peer: Peer, ownId: String): String? {
         val sp = peer.signPub?.let { B64url.decodeOrNull(it) } ?: return null
         val pid = peer.pairingId ?: return null
@@ -155,6 +165,7 @@ object ReceivePipeline {
             is OpenResult.UnknownSender -> Inbound.Unreadable(null, fetch = peerOf(opened.fromId)?.removed != true)
             is OpenResult.Ok -> {
                 val peer = peerOf(opened.fromId)!!
+                if (!Receive.nameEntryOk(opened, peer, ownId)) return Inbound.Unreadable(peer.id)
                 val window = windowOf(peer.id) ?: return Inbound.Unreadable(null)
                 Receive.decide(opened, peer, window, ownId) { n -> historyIdFor(peer.id, opened.pairingId, n) }
             }

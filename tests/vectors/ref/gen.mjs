@@ -476,14 +476,14 @@ function messagesSection() {
   return {
     description:
       'One full inner message per type, X -> N. JSON {"n": counter, type: value} -> deflate-raw (any valid stream is ' +
-      'fine for senders; receivers inflate the given bytes) -> body = from id(30) || pairing id(8) || keys flag(1) ' +
-      '[|| sign_pub || enc_pub, approve only] || u16 BE deflated length || deflated -> zero pad so the wire length is the ' +
+      'fine for senders; receivers inflate the given bytes) -> body = from id(30) || pairing id(8) || keys flag(1; 1 on ' +
+      'approve, 0 on every other type) [|| sign_pub || enc_pub, approve only] || u16 BE deflated length || deflated -> zero pad so the wire length is the ' +
       'next of 512/1024/2048/3800 chars -> sig = ECDSA over "PA-MSG1\\n" + recipient 40-char id + "\\n" + padded body ' +
       '(signed_bytes) -> plaintext = sig || padded body -> HPKE (info "PA-MSG1", aad = recipient id) -> message = ' +
       'b64url(enc || ct). Receiver state: pin (the pinned keys, pairing id and ruling approved | unruled | denied of the ' +
       'sender), window (h and the seen n values), history (n values with a History row). Assert: open message with the ' +
       'receiver enc_priv and compare plaintext; verify sig before inflate; inflate deflated and compare json; run the ' +
-      'full receive pipeline and compare expect (outcome, type, n, value; approve/rename value = verified name and n; the name entry n must equal the message n).',
+      'full receive pipeline and compare expect (outcome, type, n, value; approve/rename value = verified name and n; the name entry n must equal the message n; the name entry is checked before the replay window).',
     cases,
   };
 }
@@ -711,6 +711,11 @@ function mustFailSection() {
   msg('approve_name_n_leading_zero_signed', 'unreadable', { json: appr(7, PAIRING_ID, '07'), keys: xKeys }, { pin: pin(X, PAIRING_ID, 'unruled') });
   msg('approve_name_n_differs', 'unreadable',
     { json: '{"n":5,"approve":' + nameJson(nameObj(X, N, 4, 'Pixel 8'), 4) + '}', keys: xKeys }, { pin: pin(X, PAIRING_ID, 'unruled') });
+  msg('approve_keys_flag_0', 'unreadable', { json: appr(4) }, { pin: pin(X, PAIRING_ID, 'unruled') });
+  msg('approve_bad_name_entry_seen_n', 'unreadable', { json: appr(4, OLD_PAIRING_ID), keys: xKeys },
+    { pin: pin(X, PAIRING_ID, 'unruled'), window: { h: 4, seen: [4] } });
+  msg('rename_bad_name_entry_seen_n', 'unreadable',
+    { json: '{"n":7,"rename":' + nameJson(nameObj(X, N, 7, 'Work phone', OLD_PAIRING_ID), 7) + '}' }, { window: { h: 7, seen: [7] } });
   msg('rename_name_n_differs', 'unreadable', { json: '{"n":8,"rename":' + nameJson(nameObj(X, N, 7, 'Work phone'), 7) + '}' });
   msg('no_type_key', 'unreadable', { json: '{"n":1}' });
   msg('two_type_keys', 'unreadable', { json: '{"n":1,"url":"https://example.com/a","text":"a"}' });

@@ -88,9 +88,19 @@ public enum ReceivePipeline {
         var isApprove = false
         if case .approve = j.content { isApprove = true }
         guard isApprove == (sp.keys != nil) else { return .drop(from) }
+        // approve / rename: the name entry is checked before the replay window
+        var name: String?
+        switch j.content {
+        case .approve(let f), .rename(let f):
+            guard f.n == j.n, let v = NameEntry.verify(f, owner: from, recipient: me, pairingId: p.pairingId, ownerSignPub: p.signPub) else {
+                return .drop(from)
+            }
+            name = v
+        default: break
+        }
         // step 8: replay window
         guard var w = window(from) else { return .drop(from) }
-        var r = Result(outcome: .accept, verifiedFrom: from, unknownFrom: nil, json: j, name: nil, windowAfter: nil,
+        var r = Result(outcome: .accept, verifiedFrom: from, unknownFrom: nil, json: j, name: name, windowAfter: nil,
                        pairingId: p.pairingId)
         switch w.outcome(j.n, control: isControl(j.content), hasHistory: hasHistory(from, j.n)) {
         case .accept: break
@@ -106,11 +116,6 @@ public enum ReceivePipeline {
             guard p.ruling == .approved || p.ruling == .unruled else { return .drop(from) }
         }
         switch j.content {
-        case .approve(let f), .rename(let f):
-            guard f.n == j.n, let name = NameEntry.verify(f, owner: from, recipient: me, pairingId: p.pairingId, ownerSignPub: p.signPub) else {
-                return .drop(from)
-            }
-            r.name = name
         case .remove(let id):
             guard PeerId(text: id) != nil else { return .drop(from) }
         default: break

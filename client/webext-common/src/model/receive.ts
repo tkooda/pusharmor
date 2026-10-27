@@ -67,16 +67,16 @@ export async function receiveDecide(i: ReceiveInput): Promise<ReceiveResult> {
   if (!j) return { outcome: "unreadable", from };
   const c = j.content;
   if ((c.type === "approve") !== (p.keys !== null)) return { outcome: "unreadable", from };
+  let name: string | null = null;
+  if (c.type === "approve" || c.type === "rename") {
+    name = await verifyNameEntry(pin.sign_pub, from, i.id, pin.pairing_id, c.entry);
+    if (name === null) return { outcome: "unreadable", from };
+  }
   const win = await i.window(from);
   if (!win || !equal(win.pairing_id, pin.pairing_id)) return { outcome: "unreadable", from };
   const pidB64 = b64urlEncode(pin.pairing_id);
   const r = replayClassify(win, j.n, c.type, await i.hasHistory(from, pidB64, j.n));
   if (r !== "accept") return { outcome: r, from, n: j.n, content: c };
   if (!acceptable(c.type, pin.ruling)) return { outcome: "unreadable", from };
-  let name: string | null = null;
-  if (c.type === "approve" || c.type === "rename") {
-    name = await verifyNameEntry(pin.sign_pub, from, i.id, pin.pairing_id, c.entry);
-    if (name === null) return { outcome: "unreadable", from };
-  }
   return { outcome: "accept", from, n: j.n, content: c, name, pin };
 }
