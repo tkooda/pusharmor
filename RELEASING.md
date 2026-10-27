@@ -4,7 +4,8 @@ A tag builds ONE platform and uploads it to that platform's test channel and to
 a GitHub prerelease. CI never publishes to a public channel. After testing on
 devices, the owner promotes the same build by hand in each store console.
 Nothing is rebuilt for the promotion. The site deploys from main on its own
-(Cloudflare Workers Builds); it has no tag.
+(Cloudflare Workers Builds, build command EMPTY: `wrangler deploy` runs the
+build from `wrangler.jsonc`, and a second run fails); it has no tag.
 
 | Tag              | CI uploads to (test channel)                          | Owner promotes by hand                          |
 |------------------|-------------------------------------------------------|-------------------------------------------------|
