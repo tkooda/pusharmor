@@ -27,11 +27,12 @@ function fail(lines) {
 
 let pub;
 try { pub = loadPublic(publicPath); } catch (e) { fail([publicPath + ": " + e.message]); }
-const bad = publicProblems(["cloudflare_turnstile_sitekey", "webpush_vapid_public_key", "google_chrome_extension_id", "android_release_cert_sha256"], pub);
+const bad = publicProblems(["cloudflare_turnstile_sitekey", "webpush_vapid_public_key", "google_chrome_extension_id", "google_chrome_beta_extension_id", "android_release_cert_sha256"], pub);
 const dummy = (v) => /ci-fork-dummy/i.test(v);
 if (!bad.length) {
-  const id = pub.google_chrome_extension_id;
-  if (!dummy(id) && !/^[a-p]{32}$/.test(id)) bad.push("release/public.json: google_chrome_extension_id is not 32 letters a-p");
+  for (const k of ["google_chrome_extension_id", "google_chrome_beta_extension_id"]) {
+    if (!dummy(pub[k]) && !/^[a-p]{32}$/.test(pub[k])) bad.push("release/public.json: " + k + " is not 32 letters a-p");
+  }
   for (const f of [].concat(pub.android_release_cert_sha256)) {
     if (!dummy(f) && !/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(String(f).toUpperCase())) bad.push("release/public.json: android_release_cert_sha256 " + JSON.stringify(f) + " is not a SHA-256 fingerprint");
   }
@@ -47,6 +48,7 @@ function fill(rel, from, to) {
 fill("turnstile.html", 'data-sitekey="TURNSTILE_SITEKEY_PLACEHOLDER"', 'data-sitekey="' + pub.cloudflare_turnstile_sitekey + '"');
 fill("js/fx-setup.js", '"VAPID_PUBLIC_KEY_PLACEHOLDER"', JSON.stringify(pub.webpush_vapid_public_key));
 fill("_headers", "chrome-extension://CHROME_EXTENSION_ID", "chrome-extension://" + pub.google_chrome_extension_id);
+fill("_headers", "chrome-extension://CHROME_BETA_EXTENSION_ID", "chrome-extension://" + pub.google_chrome_beta_extension_id);
 const alp = join(dir, ".well-known", "assetlinks.json");
 const al = JSON.parse(readFileSync(alp, "utf8"));
 al[0].target.sha256_cert_fingerprints = [].concat(pub.android_release_cert_sha256).map((f) => String(f).toUpperCase());
