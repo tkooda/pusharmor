@@ -1,8 +1,5 @@
 // Every SQL statement of the Worker (component design section 6). P(n) is the JSON path
 // for one id: '$."' || ?n || '"'. Ids are validated b64url, so they cannot leave the path.
-// Note: "+account" (unary plus) stops SQLite from choosing the peers_account index (a scan
-// of the whole account) where a primary-key lookup by id is cheaper. If the schema switches
-// to WITHOUT ROWID PRIMARY KEY (account, id), drop the "+" again.
 const P = (n: number) => `'$."' || ?${n} || '"'`;
 
 // GET /peers; tail of POST /peers. ?1 me, ?2 acct
@@ -21,13 +18,13 @@ const Q_CTX_COLS = `id, sign_pub, enc_pub, push_type, push, paused,
   CASE WHEN id = ?1 THEN allow END AS my_allow`;
 export const Q_CTX = `SELECT ${Q_CTX_COLS}
 FROM peers
-WHERE +account = ?2 AND (id = ?1 OR id IN (SELECT value FROM json_each(?3)))`;
+WHERE account = ?2 AND (id = ?1 OR id IN (SELECT value FROM json_each(?3)))`;
 
 // POST /send: Q_CTX plus the account's last_seen_month.
 export const Q_CTX_SEND = `SELECT ${Q_CTX_COLS},
   (SELECT last_seen_month FROM accounts WHERE id = ?2) AS seen
 FROM peers
-WHERE +account = ?2 AND (id = ?1 OR id IN (SELECT value FROM json_each(?3)))`;
+WHERE account = ?2 AND (id = ?1 OR id IN (SELECT value FROM json_each(?3)))`;
 
 // POST /peers read. ?1 acct, ?2 id, ?3 JSON array of evict ids
 export const Q_REG = `SELECT (SELECT status FROM accounts WHERE id = ?1) AS status,
@@ -68,7 +65,7 @@ export function W_NAME(pairs: number): string {
   for (let i = 0; i < pairs; i++) {
     const idp = 3 + 2 * i;
     sets.push(`${P(idp)}, ?${idp + 1}`);
-    guards.push(`AND EXISTS (SELECT 1 FROM peers g WHERE +g.account = ?2 AND g.id = ?${idp})`);
+    guards.push(`AND EXISTS (SELECT 1 FROM peers g WHERE g.account = ?2 AND g.id = ?${idp})`);
   }
   s = `UPDATE peers SET name = json_set(name, ${sets.join(", ")})
 WHERE account = ?2 AND id = ?1
@@ -97,7 +94,7 @@ export const W_DELACCT = `DELETE FROM accounts WHERE id = ?1 AND status IS NULL`
 
 // Lazy cleanup of pending entries whose peer row is gone. ?2 acct
 const PRUNED = `(SELECT COALESCE(json_group_object(j.key, j.value), '{}') FROM json_each(peers.pending) j
-  WHERE EXISTS (SELECT 1 FROM peers o WHERE +o.account = ?2 AND o.id = j.key))`;
+  WHERE EXISTS (SELECT 1 FROM peers o WHERE o.account = ?2 AND o.id = j.key))`;
 
 // ?1 me, ?2 acct, ?3 X, ?4 name entry, ?5 c
 export const W_APPROVE = `UPDATE peers
@@ -105,19 +102,19 @@ SET allow = json_set(allow, ${P(3)}, 1), deny = json_remove(deny, ${P(3)}),
     name = json_set(name, ${P(3)}, ?4),
     pending = json_set(${PRUNED}, ${P(3)}, ?5)
 WHERE account = ?2 AND id = ?1
-  AND EXISTS (SELECT 1 FROM peers g WHERE +g.account = ?2 AND g.id = ?3)
+  AND EXISTS (SELECT 1 FROM peers g WHERE g.account = ?2 AND g.id = ?3)
 RETURNING NOT EXISTS (SELECT 1 FROM peers x
-                      WHERE +x.account = ?2 AND x.id = ?3
+                      WHERE x.account = ?2 AND x.id = ?3
                         AND json_type(x.allow, ${P(1)}) IS NOT NULL) AS stored,
           (SELECT json_extract(x.pending, ${P(1)}) FROM peers x
-           WHERE +x.account = ?2 AND x.id = ?3) AS c_x`;
+           WHERE x.account = ?2 AND x.id = ?3) AS c_x`;
 
 // ?1 me, ?2 acct, ?3 X
 export const W_DENY = `UPDATE peers
 SET deny = json_set(deny, ${P(3)}, 1), allow = json_remove(allow, ${P(3)}),
     name = json_remove(name, ${P(3)}), pending = json_remove(${PRUNED}, ${P(3)})
 WHERE account = ?2 AND id = ?1
-  AND EXISTS (SELECT 1 FROM peers g WHERE +g.account = ?2 AND g.id = ?3)
+  AND EXISTS (SELECT 1 FROM peers g WHERE g.account = ?2 AND g.id = ?3)
 RETURNING 1`;
 
 // ?1 me, ?2 acct, ?3 X
