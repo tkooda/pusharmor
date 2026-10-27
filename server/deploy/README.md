@@ -26,7 +26,7 @@ Operator scripts for the `pusharmor-api` Worker (api.pusharmor.com).
    export the DB to a temp dir (deleted on exit).
 4. Apply D1 migrations. On failure the script prints the restore command
    `wrangler d1 time-travel restore pusharmor --bookmark=<bookmark>` and stops.
-5. Dry-run bundle, print its sha256, then deploy.
+5. Deploy with --outdir and print the sha256 of that uploaded bundle.
 6. Smoke test: an unsigned GET /v1/peers must return 400 with body
    {"error":"bad request"}, a 13-digit PA-Epoch-Ms header, and
    Access-Control-Expose-Headers containing PA-Epoch-Ms. Then send one message
