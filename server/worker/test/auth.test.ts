@@ -81,6 +81,16 @@ describe("POST /auth/email + verify", () => {
     expect((await startEmail(email)).r.status).toBe(429);
   });
 
+  it("RL_MAIL per IP: address variants from one IP hit the limit (I306)", async () => {
+    const k = await keys();
+    const ip = "198.51.100.77";
+    const st = [];
+    for (let i = 0; i < 3; i++) {
+      st.push((await call("POST", "/v1/auth/email", { email: `v+${i}@example.com`, sign_pub: k.signPub, purpose: "register", turnstile: "t" }, { ip })).status);
+    }
+    expect(st).toEqual([200, 200, 429]);
+  });
+
   it("request_token tamper and expiry; RL_CODE 5 per minute", async () => {
     const { r } = await startEmail(randomEmail());
     const token = r.body.request_token as string;
@@ -199,6 +209,23 @@ describe("Google", () => {
     expect(b64urlEncode(new Uint8Array(await crypto.subtle.digest("SHA-256", utf8(v))))).toBe(challenge);
     // Tampered state -> 400.
     expect((await call("GET", `/v1/auth/google/callback?code=x&state=${state.slice(0, -2)}AA`)).status).toBe(400);
+  });
+
+  it("valid state: provider error, missing code, failed exchange -> 302 with #error; bad state stays 400 (I306)", async () => {
+    const k = await keys();
+    const kr = await keyRef(b64urlDecode(k.signPub)!);
+    const s = await call("GET", `/v1/auth/google?k=${kr}&r=firefox&p=register`);
+    const state = secretString(new URL(s.res.headers.get("Location")!).searchParams.get("state")!);
+    const loc = async (q: string) => {
+      const r = await call("GET", `/v1/auth/google/callback?${q}`);
+      expect(r.status).toBe(302);
+      return r.res.headers.get("Location");
+    };
+    expect(await loc(`error=access_denied&state=${state}`)).toBe("https://pusharmor.com/auth/done#error=cancelled");
+    expect(await loc(`state=${state}`)).toBe("https://pusharmor.com/auth/done#error=failed");
+    onVendor((r) => r.url === "https://oauth2.googleapis.com/token", () => new Response("{}", { status: 400 }));
+    expect(await loc(`code=abc&state=${state}`)).toBe("https://pusharmor.com/auth/done#error=failed");
+    expect((await call("GET", `/v1/auth/google/callback?error=access_denied&state=${state.slice(0, -2)}AA`)).status).toBe(400);
   });
 
   it("empty client redirect -> 503 at start and callback, never a relative Location (I296)", async () => {

@@ -146,14 +146,21 @@ export async function oauthCallback(c: Ctx, p: ProviderCfg, params: URLSearchPar
   if (!(CLIENTS as readonly string[]).includes(st.r)) throw bad();
   const target = redirectFor(c.env, st.r as Client);
   const purpose = checkPurpose(st.p);
-  if (code === null || code.length === 0 || code.length > 4096) throw new ApiError(401, "invalid id_token");
-  const verifier = await pkceVerifier(c.env.TOKEN_SECRET, st.n);
-  const clientId = p.clientIdWeb(c.env);
-  const ex = await p.exchange(c.env, code, clientId, callbackUri(c, p), verifier);
-  const email = await verifyIdToken(ex.id_token, { provider: p.name, auds: p.webAuds(c.env), nonce: await oauthNonce(purpose, st.k) });
-  const sealed = p.name === "apple" && purpose === "delete-account" ? await sealApple(c.env, ex.refresh_token, clientId) : undefined;
-  const t = await ticketReply(c.env, email, st.k, purpose, sealed);
-  return redirect(`${target}#ticket=${encodeURIComponent(t.ticket)}&email=${encodeURIComponent(t.email)}`);
+  // With a valid state the user returns to the client page with #error=<word>, never a JSON page on the Worker origin.
+  if (params.get("error") !== null) return redirect(`${target}#error=cancelled`);
+  if (code === null || code.length === 0 || code.length > 4096) return redirect(`${target}#error=failed`);
+  try {
+    const verifier = await pkceVerifier(c.env.TOKEN_SECRET, st.n);
+    const clientId = p.clientIdWeb(c.env);
+    const ex = await p.exchange(c.env, code, clientId, callbackUri(c, p), verifier);
+    const email = await verifyIdToken(ex.id_token, { provider: p.name, auds: p.webAuds(c.env), nonce: await oauthNonce(purpose, st.k) });
+    const sealed = p.name === "apple" && purpose === "delete-account" ? await sealApple(c.env, ex.refresh_token, clientId) : undefined;
+    const t = await ticketReply(c.env, email, st.k, purpose, sealed);
+    return redirect(`${target}#ticket=${encodeURIComponent(t.ticket)}&email=${encodeURIComponent(t.email)}`);
+  } catch (e) {
+    if (e instanceof ApiError) return redirect(`${target}#error=failed`);
+    throw e;
+  }
 }
 
 // POST /auth/$provider/token (native).
