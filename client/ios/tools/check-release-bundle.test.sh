@@ -67,6 +67,20 @@ expect xctest-in-appex 1 "$A"
 good "$A"; echo "XCTest" >> "$A/PushArmor"; expect strings-xctest 1 "$A"
 good "$A"; echo "XCUIApplication" >> "$A/PlugIns/PushArmorNSE.appex/PushArmorNSE"; expect strings-xcui-appex 1 "$A"
 good "$A"; echo "PushArmorUITests" >> "$A/PushArmor"; expect strings-uitest 1 "$A"
+good "$A"; printf 'x\0launchArguments\0' >> "$A/PushArmor"; expect launch-arguments 1 "$A"
+good "$A"; printf 'x\0launchEnvironment\0' >> "$A/PushArmor"; expect launch-environment 1 "$A"
+good "$A"; printf 'x\0UITEST\0' >> "$A/PushArmor"; expect env-key-uitest 1 "$A"
+good "$A"; printf 'x\0PA_UI_TEST\0' >> "$A/PlugIns/PushArmorNSE.appex/PushArmorNSE"; expect env-key-ui-test-appex 1 "$A"
+good "$A"; printf 'x\0-uitesting\0' >> "$A/PushArmor"; expect arg-uitesting 1 "$A"
+good "$A"; printf "x\0_\$ss11CommandLineO9argumentsSaySSGvgZ\0" >> "$A/PushArmor"; expect commandline-arguments 1 "$A"
+good "$A"; printf "x\0_\$ss11CommandLineO10unsafeArgvSpySpys4Int8VGSgGvgZ\0" >> "$A/PlugIns/PushArmorShare.appex/PushArmorShare"
+expect commandline-argv-appex 1 "$A"
+good "$A"; printf "x\0_\$s10Foundation11ProcessInfoC11environmentSDyS2SGvg\0" >> "$A/PushArmor"; expect swift-processinfo-env 1 "$A"
+good "$A"; printf "x\0_OBJC_CLASS_\$_NSProcessInfo\0processInfo\0arguments\0" >> "$A/PushArmor"; expect objc-processinfo-arguments 1 "$A"
+good "$A"; printf "x\0_OBJC_CLASS_\$_NSProcessInfo\0processInfo\0environment\0" >> "$A/PushArmor"; expect objc-processinfo-environment 1 "$A"
+good "$A"; printf "x\0_OBJC_CLASS_\$_NSProcessInfo\0processInfo\0thermalState\0Invalid arguments\0" >> "$A/PushArmor"
+printf "x\0arguments\0environment\0_\$s7SwiftUI4ViewPAAE11environmentyQrs15WritableKeyPathVyAA17EnvironmentValuesqd__G_qd__tlF\0" >> "$A/PlugIns/PushArmorNSE.appex/PushArmorNSE"
+expect processinfo-other-use-pass 0 "$A"
 good "$A"; rm "$A/PushArmor"; expect missing-exe 1 "$A"
 good "$A"; expect otool-xctest 1 "$A" FAKE_OTOOL_LIB=@rpath/XCTest.framework/XCTest
 good "$A"; expect otool-testing 1 "$A" FAKE_OTOOL_LIB=@rpath/Testing.framework/Testing
@@ -99,4 +113,7 @@ fi
 echo "XCTest" >> "$A/PushArmor"
 PATH="$d/nobin" bash "$s" "$A" "$d/public.json" >"$d/out" 2>&1; got=$?
 if [ "$got" = 1 ]; then echo "ok no-tools-strings"; else echo "FAIL no-tools-strings: status $got"; fail=1; fi
+good "$A"; printf "x\0_OBJC_CLASS_\$_NSProcessInfo\0arguments\0" >> "$A/PushArmor"
+PATH="$d/nobin" bash "$s" "$A" "$d/public.json" >"$d/out" 2>&1; got=$?
+if [ "$got" = 1 ] && grep -q 'NSProcessInfo with selector arguments' "$d/out"; then echo "ok no-tools-launch-args"; else echo "FAIL no-tools-launch-args: status $got"; cat "$d/out"; fail=1; fi
 exit $fail

@@ -7,6 +7,13 @@
 #     Testing.framework or *.xctest anywhere in the bundle
 #   - each main executable: otool -L lists no XCTest / XCUI / Testing library (skipped
 #     without otool); its strings hold no XCTest, XCUIApplication or UITest
+#   - each main executable: no launch-argument test hook in its strings: no launchArguments
+#     or launchEnvironment, no UITest / UI_TEST / -uitesting style key (any case), no
+#     CommandLine.arguments / argc / unsafeArgv (the Swift mangled import
+#     "11CommandLineO9arguments" etc.) or Swift-native ProcessInfo.arguments / environment
+#     ("11ProcessInfoC9arguments"), and not both the NSProcessInfo class and an exact
+#     "arguments" or "environment" Objective-C selector string (how Swift on Darwin calls
+#     ProcessInfo.processInfo.arguments / .environment; other ProcessInfo use passes)
 #   - CFBundleURLTypes schemes: the app has exactly the Google callback scheme, derived
 #     from google_ios_client_id in release/public.json as tools/public-xcconfig.sh does;
 #     an extension has none
@@ -105,11 +112,20 @@ while IFS= read -r b; do
       [ -z "$libs" ] || add "$name: links a test library: $(echo "$libs" | tr -s ' \t\n' ' ')"
     fi
     if command -v strings >/dev/null 2>&1; then
-      hits="$(strings -a "$exe" | grep -oE 'XCTest|XCUIApplication|UITest' | sort -u | tr '\n' ' ')"
+      strs="$(strings -a "$exe")"
     else
-      hits="$(grep -aoE 'XCTest|XCUIApplication|UITest' "$exe" | sort -u | tr '\n' ' ')"
+      strs="$(tr -c '[:print:]' '\n' < "$exe")"
     fi
+    hits="$(printf '%s\n' "$strs" | grep -oE 'XCTest|XCUIApplication|UITest' | sort -u | tr '\n' ' ')"
     [ -z "$hits" ] || add "$name: executable contains test strings: $hits"
+    hits="$(printf '%s\n' "$strs" | grep -oiE 'launch(arguments|environment)|ui[-_]?test' | sort -u | tr '\n' ' ')"
+    hits="$hits$(printf '%s\n' "$strs" \
+      | grep -oE '11CommandLineO(9arguments|4argc|10unsafeArgv)|11ProcessInfoC(9arguments|11environment)' | sort -u | tr '\n' ' ')"
+    if printf '%s\n' "$strs" | grep -q 'NSProcessInfo'; then
+      sel="$(printf '%s\n' "$strs" | grep -xE 'arguments|environment' | sort -u | tr '\n' ' ')"
+      [ -z "$sel" ] || hits="${hits}NSProcessInfo with selector $sel"
+    fi
+    [ -z "$hits" ] || add "$name: executable reads launch arguments or a test key: $hits"
   fi
   schemes="$(pl_schemes "$plist" | sort | tr '\n' ' ')"
   if [ "$b" = "$app" ]; then
