@@ -381,7 +381,7 @@ class Session(private val g: Graph) {
                 .setIcon(IconCompat.createWithResource(ctx, R.drawable.ic_notify))
                 .setCategories(setOf("com.pusharmor.category.SHARE_TARGET"))
                 .setPerson(Person.Builder().setName(label).build())
-                .setIntent(Intent(ctx, ShareActivity::class.java).setAction(Intent.ACTION_SEND).putExtra("peer", p.id)).build()
+                .setIntent(Intent(ctx, ShareActivity::class.java).setAction(Intent.ACTION_SEND)).build()
             ShortcutManagerCompat.pushDynamicShortcut(ctx, sc)
         }
     }
