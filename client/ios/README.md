@@ -1,0 +1,64 @@
+# PushArmor for iPhone (client/ios)
+
+iOS 17+ app with a Notification Service Extension and a share extension. All
+crypto, the wire codec, the API client, the SQLite store and the protocol rules
+live in the local Swift package `PushArmorCore`, linked by all three targets.
+
+    PushArmorCore/   Swift package (no UIKit): crypto, codec, rules, store, API
+    App/             PushArmor app (SwiftUI)
+    NSE/             PushArmorNSE (decrypts every push, sets the banner)
+    Share/           PushArmorShare (send a shared URL, text or phone number)
+    Shared/          App Group store, Keychain group and platform hooks (all targets)
+    project.yml      XcodeGen spec for the Xcode project
+
+Apple frameworks only in the shipped app: CryptoKit, Security, Compression,
+UserNotifications, AuthenticationServices, WebKit, SQLite3.
+
+## PushArmorCore
+
+- HPKE: RFC 9180 base mode, DHKEM(P-256, HKDF-SHA256), HKDF-SHA256, AES-256-GCM
+  (CryptoKit `HPKE`). Recipient keys in the Secure Enclave on a phone; software
+  keys in the Simulator and in tests, through the same code paths.
+- ECDSA P-256 raw r||s, strict b64url, peer id checks, pairing fingerprint,
+  pairing id and key, PA-Sig request signing, name entries, inner message
+  encode / pad / parse, replay window, phone detection, the pure `pair_decide`.
+- Store: one SQLite file in the App Group (WAL, BEGIN IMMEDIATE, busy timeout
+  2 s), shared by the app, the NSE and the share extension.
+
+### Tests
+
+On macOS (Xcode 15.3 or later):
+
+    cd client/ios/PushArmorCore && swift test
+
+On Linux the package builds against swift-crypto, the system zlib and the
+system SQLite (test only; none of these is linked into the iOS targets). The
+SQLite headers are not part of the Ubuntu runtime package, so point the script
+at a directory holding `include/sqlite3.h` and `lib/libsqlite3.so`:
+
+    SWIFT_BIN=/path/to/swift/usr/bin SQLITE_DIR=/path/to/sqlite ./PushArmorCore/test-linux.sh
+
+The tests run every section of `tests/vectors/golden-v1.json`, the RFC 9180
+P-256 suite vectors, RFC 6979 and RFC 7636 known answers, and the per-platform
+state-machine tests (pairing, crossing, cap, allow reconcile, approve re-send,
+replay window, counter reservation across connections, clock-skew retry,
+countdown formatting, persistence across restart) against an in-memory Worker.
+
+## App targets
+
+    brew install xcodegen
+    cd client/ios && xcodegen generate
+    open PushArmor.xcodeproj
+
+Set `DEVELOPMENT_TEAM`, `APP_BUNDLE_ID`, `GOOGLE_IOS_CLIENT_ID` and
+`GOOGLE_CALLBACK_SCHEME` in `project.yml` (or as build settings) at the store
+bootstrap. The App Group is `group.$APP_BUNDLE_ID`; the Keychain access group is
+`$TEAM.$APP_BUNDLE_ID.shared`.
+
+## Notes
+
+- Deny on an unpinned peer row is a local ruling only: without a pin there is
+  no pairing id and no trusted key to sign and seal a deny message.
+- Pair messages: an open is accepted in state replied, or in state prompted when
+  the reply was authorized but its "sent" result was not recorded yet; the c_N
+  check applies either way.
