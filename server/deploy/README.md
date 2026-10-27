@@ -8,6 +8,9 @@ Operator scripts for the `pusharmor-api` Worker (api.pusharmor.com).
 `wrangler deploy` directly for a release: it skips the preflight, the backup
 and the migration steps. `wrangler dev` stays fine for local work.
 
+Never connect Workers Builds (Git integration) to the `pusharmor-api` Worker: it would skip
+the preflight, check-bundle, the backup and the migrations. Deploy only with `deploy.sh`.
+
     CLOUDFLARE_ACCOUNT_ID=... server/deploy/deploy.sh X.Y.Z
     CLOUDFLARE_ACCOUNT_ID=... server/deploy/deploy.sh maintenance
     server/deploy/deploy.sh --help
