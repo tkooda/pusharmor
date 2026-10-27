@@ -1,6 +1,6 @@
 name: webext-release
 
-# chrome-v* and firefox-v* tags: the golden vectors and the webext tests run
+# chrome/vX.Y.Z and firefox/vX.Y.Z tags (release/tag.mjs): the golden vectors and the webext tests run
 # first, then two jobs for the browser of the tag, so npm packages and repo
 # scripts never share a job with the Environment, its secrets or id-token:
 #   build-<browser>    no Environment, no secrets: npm ci, release build and
@@ -14,8 +14,8 @@ name: webext-release
 on:
   push:
     tags:
-      - "chrome-v*"
-      - "firefox-v*"
+      - "chrome/v*"
+      - "firefox/v*"
 
 permissions: {}
 
@@ -24,19 +24,42 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Fails early: the tag rule and version files before any test or build.
+  tag:
+    name: release tag rule and version files
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - name: Release tag rule
+        run: node release/tag.mjs --check "$TAG"
+
   vectors:
+    needs: tag
     permissions:
       contents: read
     uses: ./.github/workflows/vectors.yml
 
   test:
+    needs: tag
     permissions:
       contents: read
     uses: ./.github/workflows/webext.yml
 
   build-chrome:
     name: build Chrome (release zip, checks)
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/chrome-v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/chrome/v')
     needs: [test, vectors]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -60,10 +83,10 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: site/.node-version
-      - name: Release tag rule and release values
+      - name: Release tag rule, version files and release values
         id: tag
         run: |
-          version="$(node release/tag.mjs chrome "$TAG")"
+          version="$(node release/tag.mjs --check "$TAG")"
           node release/public.mjs --check webpush_vapid_public_key mozilla_firefox_addon_id \
             google_chrome_extension_id google_cws_publisher_id \
             google_cws_wif_provider google_cws_wif_service_account
@@ -115,7 +138,7 @@ jobs:
 
   publish-chrome:
     name: publish Chrome (draft GitHub Release, Chrome Web Store review)
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/chrome-v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/chrome/v')
     needs: build-chrome
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -193,7 +216,7 @@ jobs:
 
   build-firefox:
     name: build Firefox (release zip, source archive, checks)
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/firefox-v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/firefox/v')
     needs: [test, vectors]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -214,10 +237,10 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: site/.node-version
-      - name: Release tag rule and release values
+      - name: Release tag rule, version files and release values
         id: tag
         run: |
-          version="$(node release/tag.mjs firefox "$TAG")"
+          version="$(node release/tag.mjs --check "$TAG")"
           node release/public.mjs --check webpush_vapid_public_key mozilla_firefox_addon_id
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Install
@@ -246,7 +269,7 @@ jobs:
           zip="pusharmor-firefox-$VERSION.zip"
           src="pusharmor-firefox-$VERSION-source.zip"
           cp client/firefox/dist/pusharmor-firefox.zip "$out/$zip"
-          git archive --format=zip --prefix="pusharmor-$TAG/" -o "$out/$src" "$TAG"
+          git archive --format=zip --prefix="pusharmor-$VERSION/" -o "$out/$src" "$TAG"
           unzip -q "$out/$zip" -d "$RUNNER_TEMP/unzip"
           (cd "$RUNNER_TEMP/unzip" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum) > "$out/$zip.files.sha256"
           (cd "$out" && sha256sum "$zip" "$src") > "$out/pusharmor-firefox-$VERSION.hashes.txt"
@@ -264,7 +287,7 @@ jobs:
 
   publish-firefox:
     name: publish Firefox (draft GitHub Release, AMO review)
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/firefox-v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/firefox/v')
     needs: build-firefox
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -311,7 +334,7 @@ jobs:
 
   submit-firefox:
     name: submit Firefox to AMO (web-ext sign)
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/firefox-v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/firefox/v')
     needs: [build-firefox, publish-firefox]
     runs-on: ubuntu-24.04
     timeout-minutes: 30

@@ -11,7 +11,7 @@ and the migration steps. `wrangler dev` stays fine for local work.
 Never connect Workers Builds (Git integration) to the `pusharmor-api` Worker: it would skip
 the preflight, check-bundle, the backup and the migrations. Deploy only with `deploy.sh`.
 
-    CLOUDFLARE_ACCOUNT_ID=... server/deploy/deploy.sh X.Y.Z
+    CLOUDFLARE_ACCOUNT_ID=... server/deploy/deploy.sh worker/vX.Y.Z
     CLOUDFLARE_ACCOUNT_ID=... server/deploy/deploy.sh maintenance
     server/deploy/deploy.sh --help
 
@@ -59,8 +59,11 @@ table to that file, so a new route needs a reviewed edit to `routes.json`.
 
 0. Preflight (above). Nothing is deployed when it fails.
 1. Refuse to run on a dirty tree (uncommitted or untracked files).
-2. Check HEAD is an ancestor of origin/main, X.Y.Z is valid, and tag
-   worker-vX.Y.Z does not exist.
+2. Check HEAD is an ancestor of origin/main, `node release/tag.mjs --check
+   worker/vX.Y.Z` passes (annotated tag at HEAD, version rules, version files),
+   and the tag is on origin at HEAD. Make the tag first with
+   `node release/tag.mjs worker X.Y.Z` and push it (RELEASING.md); its
+   worker-release run must be green.
 3. Check the DB size, print the D1 time-travel bookmark (the restore path),
    export the DB to a temp dir (deleted on exit).
 4. Apply D1 migrations. On failure the script prints the restore command
@@ -72,9 +75,8 @@ table to that file, so a new route needs a reviewed edit to `routes.json`.
    between peers of your own accounts and type `ok`.
 7. If step 5 or 6 fails, run `(cd server/worker && npx wrangler rollback)`.
    The previous version must work with the current migrations (N-1 rule).
-8. Tag worker-vX.Y.Z at the deployed commit (annotated, with the bundle
-   sha256) and push the tag. If the push fails, rerun
-   `git push origin worker-vX.Y.Z`.
+8. Done: the script prints the tag and the uploaded bundle sha256. It creates
+   no tag (the worker/v tag came first).
 
 ## Maintenance mode
 

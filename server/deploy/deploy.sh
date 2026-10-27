@@ -5,8 +5,9 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  deploy.sh X.Y.Z       release deploy of the current commit (must be on origin/main)
-  deploy.sh maintenance deploy the static 503 Worker
+  deploy.sh worker/vX.Y.Z  release deploy of the tagged commit: HEAD must be
+                         that tag (pushed, made by release/tag.mjs) on origin/main
+  deploy.sh maintenance    deploy the static 503 Worker
   deploy.sh --help
 
 Environment:
@@ -44,12 +45,11 @@ if [ "$MODE" = "maintenance" ]; then
   "$WRANGLER" deploy --config "$HERE/maintenance/wrangler.jsonc"
   echo "Maintenance mode is live (503 on every request)."
   echo "To return to service: (cd server/worker && npx wrangler rollback)"
-  echo "  or run a normal release deploy: server/deploy/deploy.sh X.Y.Z"
+  echo "  or run a normal release deploy: server/deploy/deploy.sh worker/vX.Y.Z"
   exit 0
 fi
 
-VERSION="$MODE"
-TAG="worker-v$VERSION"
+TAG="$MODE"
 
 # 0. release values: the repo config holds no ids and keeps the dashboard vars;
 #    the deployed Worker has every dashboard var (read-only wrangler calls);
@@ -61,13 +61,14 @@ WRANGLER="$WRANGLER" node "$HERE/check-bundle.mjs" "$SERVER_DIR/.." || die "bund
 # 1. clean tree
 [ -z "$(git status --porcelain)" ] || die "working tree is dirty (uncommitted or untracked files)"
 
-# 2. commit on main, version format, tag unused
-echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || die "version must be X.Y.Z"
+# 2. commit on main; the worker/v tag is HEAD, pushed, and obeys release/tag.mjs
+printf '%s' "$TAG" | grep -Eq '^worker/v[0-9]+\.[0-9]+\.[0-9]+$' || die "the argument must be a worker/vX.Y.Z tag"
 SHA="$(git rev-parse HEAD)"
 git fetch origin main
 git merge-base --is-ancestor "$SHA" origin/main || die "HEAD is not on origin/main; only a commit on main can be deployed"
-if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then die "tag $TAG already exists"; fi
-if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then die "tag $TAG already exists on origin"; fi
+node release/tag.mjs --check "$TAG" >/dev/null || die "release tag check failed for $TAG"
+REMOTE="$(git ls-remote --tags origin "refs/tags/$TAG^{}" | cut -f1)"
+[ "$REMOTE" = "$SHA" ] || die "tag $TAG is not on origin at HEAD; push it first: git push origin $TAG"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -126,17 +127,12 @@ smoke() {
 smoke || rollback_hint
 echo "smoke test passed."
 echo "Now send one message between peers of your own accounts."
-printf 'Type "ok" when it worked (anything else aborts before tagging): '
+printf 'Type "ok" when it worked (anything else prints the rollback steps): '
 read -r ANSWER
 if [ "$ANSWER" != "ok" ]; then
-  echo "not confirmed; no tag created." >&2
+  echo "not confirmed." >&2
   rollback_hint
 fi
 
-# 8. tag
-git tag -a "$TAG" "$SHA" -m "bundle sha256 $BUNDLE_HASH"
-if ! git push origin "$TAG"; then
-  echo "deploy is live, tag not pushed; rerun: git push origin $TAG" >&2
-  exit 1
-fi
-echo "released $TAG"
+# 8. done
+echo "released $TAG (bundle sha256 $BUNDLE_HASH)"

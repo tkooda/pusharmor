@@ -7,7 +7,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-// Version: committed release/version.properties (CI asserts it equals the android-v tag).
+// Version: committed release/version.properties (release/tag.mjs; CI asserts it equals the android/v tag).
 val versionProps = Properties().apply {
     rootProject.file("../../release/version.properties").inputStream().use { load(it) }
 }

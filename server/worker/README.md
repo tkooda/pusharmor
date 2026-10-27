@@ -48,8 +48,8 @@ test route.
 
 ## Deploy
 
-Only with `server/deploy/deploy.sh` from a clean checkout of main (see
-`server/deploy/README.md`).
+Only with `server/deploy/deploy.sh worker/vX.Y.Z` from a clean checkout of that
+tag on main (see `server/deploy/README.md` and `RELEASING.md`).
 Deployment ids (FCM, APNs, VAPID, SES, OAuth audiences) are Cloudflare
 dashboard variables, not repo values; `wrangler.jsonc` sets `keep_vars: true`.
 The owner steps are in `server/deploy/README.md`.
