@@ -38,3 +38,4 @@ xcuserdata/
 # Release build ids (template: release/local.example.json)
 release/local.json
 client/android/app/src/play/google-services.json
+client/ios/Config/Local.xcconfig

@@ -5,15 +5,17 @@ options:
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
+# Build ids (DEVELOPMENT_TEAM, GOOGLE_IOS_CLIENT_ID, GOOGLE_CALLBACK_SCHEME) come from
+# Config/Local.xcconfig (git-ignored), written by tools/local-xcconfig.sh.
+configFiles:
+  Debug: Config/Base.xcconfig
+  Release: Config/Base.xcconfig
 settings:
   base:
     SWIFT_VERSION: "5.10"
     MARKETING_VERSION: "0.0.1"
     CURRENT_PROJECT_VERSION: "1"
-    DEVELOPMENT_TEAM: ""                        # set at the store bootstrap
     APP_BUNDLE_ID: com.pusharmor.app            # repo constant after the store bootstrap
-    GOOGLE_IOS_CLIENT_ID: ""                    # iOS-type OAuth client id (no secret)
-    GOOGLE_CALLBACK_SCHEME: ""                  # com.googleusercontent.apps.$ID
     CODE_SIGN_STYLE: Automatic
 packages:
   PushArmorCore:

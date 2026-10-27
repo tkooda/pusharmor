@@ -50,9 +50,13 @@ countdown formatting, persistence across restart) against an in-memory Worker.
     cd client/ios && xcodegen generate
     open PushArmor.xcodeproj
 
-Set `DEVELOPMENT_TEAM`, `APP_BUNDLE_ID`, `GOOGLE_IOS_CLIENT_ID` and
-`GOOGLE_CALLBACK_SCHEME` in `project.yml` (or as build settings) at the store
-bootstrap. The App Group is `group.$APP_BUNDLE_ID`; the Keychain access group is
+Build ids are not in the repo. Owner steps: fill `ios_development_team` and
+`ios_google_client_id` in the git-ignored `release/local.json` (copy
+`release/local.example.json`), then run `sh tools/local-xcconfig.sh` before
+`xcodegen generate`. It writes the git-ignored `Config/Local.xcconfig`
+(DEVELOPMENT_TEAM, GOOGLE_IOS_CLIENT_ID, GOOGLE_CALLBACK_SCHEME), which
+`Config/Base.xcconfig` includes. Debug builds work without it; a Release build
+fails while a value is empty. `APP_BUNDLE_ID` stays in `project.yml`. The App Group is `group.$APP_BUNDLE_ID`; the Keychain access group is
 `$TEAM.$APP_BUNDLE_ID.shared`.
 
 ## Notes
