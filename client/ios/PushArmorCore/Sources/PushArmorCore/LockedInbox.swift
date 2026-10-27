@@ -68,13 +68,13 @@ extension Core {
     /// Delivered-notification drain: steps 4-9 with no banner for each userInfo whose "m"
     /// the NSE did not stamp as handled (TapStamp.drainM). An "m" in skip (run by the
     /// locked-inbox drain) is not run again (I313). Returns the indexes drained; the app
-    /// removes those notifications.
+    /// removes those notifications. A fault leaves the notification for the next drain (I322).
     public func drainDelivered(_ infos: [[AnyHashable: Any]], skip: Set<String> = []) async -> [Int] {
         let key = try? TapStamp.key(store)
         var done: [Int] = []
         for (i, info) in infos.enumerated() {
             guard let m = TapStamp.drainM(info, key: key) else { continue }
-            if !skip.contains(m) { _ = await receive(m, mode: .drain) }
+            if !skip.contains(m), await receive(m, mode: .drain).fault { continue }
             done.append(i)
         }
         return done
