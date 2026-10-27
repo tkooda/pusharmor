@@ -1,0 +1,19 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directories:
+      - /server/worker
+      - /client/webext-common
+      - /site
+    schedule:
+      interval: weekly
+  # A Gradle bump needs the dependency verification metadata regenerated on the
+  # Dependabot branch before merge: ./gradlew --write-verification-metadata sha256 help
+  - package-ecosystem: gradle
+    directory: /client/android
+    schedule:
+      interval: weekly
