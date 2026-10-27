@@ -5,12 +5,14 @@
 //   --public FILE           read FILE instead of release/public.json
 // Build ids (VAPID public key, add-on id, Chrome dev key) come from the tracked
 // release/public.json; a release build fails while one holds a placeholder (or a
-// CI dummy without PA_CI_DUMMY=1).
+// CI dummy without PA_CI_DUMMY=1). A release build then checks both zips
+// (check-release.mjs) and fails on a key, placeholder, test entry or local endpoint.
 import { build } from "esbuild";
 import { mkdirSync, readFileSync, rmSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { deflateRawSync, deflateSync, crc32 } from "node:zlib";
 import { PUBLIC_PATH, isUnset, loadPublic, publicProblems } from "../../release/public.mjs";
+import { checkZips } from "./check-release.mjs";
 
 const here = dirname(new URL(import.meta.url).pathname);
 const client = join(here, "..");
@@ -161,3 +163,12 @@ await shell("firefox", ["background", "popup", "page"], [["cs", "sitefwd/cs"]], 
   if (value("mozilla_firefox_addon_id")) m.browser_specific_settings.gecko.id = value("mozilla_firefox_addon_id");
   writeFileSync(join(out, "background.html"), readFileSync(join(root, "background.html")));
 });
+if (!dev) {
+  const bad = checkZips(["chrome", "firefox"].map((n) => join(client, n, "dist", "pusharmor-" + n + ".zip")));
+  if (bad.length) {
+    console.error("release zip check failed:");
+    for (const b of bad) console.error("  - " + b);
+    process.exit(1);
+  }
+  console.log("release zip check ok");
+}
