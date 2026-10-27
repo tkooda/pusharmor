@@ -50,7 +50,7 @@ public enum NSEFlow {
     }
 
     static func dropWithEvent(_ core: Core?) -> ReceiveResult {
-        if let c = core { var r = c.drop(.nse); r.handled = true; return r }
+        if let c = core { var r = c.drop(.nse); r.handled = !r.fault; return r }
         return .plain(.dropped)
     }
 }
