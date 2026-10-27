@@ -83,7 +83,9 @@ Simulator alone keeps a software-key fallback when there is no Secure Enclave
 
 It fails on any XCTest, XCUIAutomation or Testing framework or `.xctest` in the
 app or an extension, test strings or test libraries in a main executable
-(`otool -L`, `strings`), URL schemes other than the Google callback scheme
+(`otool -L`, `strings`), a launch-argument hook in a main executable
+(`launchArguments`, a `UITEST`-style key, `CommandLine.arguments`, or
+`ProcessInfo` `arguments` / `environment`), URL schemes other than the Google callback scheme
 derived from `release/public.json`, or `get-task-allow` in the signature
 (`codesign`; skipped where the tool is missing). Its test:
 `bash tools/check-release-bundle.test.sh`.
