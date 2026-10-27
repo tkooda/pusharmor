@@ -80,4 +80,14 @@ class AppLogicTest {
         val hop = AuthLinkActivity.forward(ctx, "t1", "a@b.com")
         assertEquals("t1" to "a@b.com", com.pusharmor.app.ui.MainActivity.authExtras(hop))
     }
+
+    @Test fun keystoreEcdhFailureIsCryptoExceptionAndPushPostsOneNotice() {
+        val e = runCatching { com.pusharmor.app.keys.KeystoreKeyOps.wrap<ByteArray> { throw java.security.ProviderException("keystore") } }.exceptionOrNull()
+        assertTrue(e is com.pusharmor.crypto.CryptoException)
+        var notices = 0
+        com.pusharmor.app.push.PushDispatcher.guard({ notices++ }) { throw java.security.ProviderException("keystore") }
+        assertEquals(1, notices)
+        com.pusharmor.app.push.PushDispatcher.guard({ notices++ }) {}
+        assertEquals(1, notices)
+    }
 }

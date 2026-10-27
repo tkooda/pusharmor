@@ -2,6 +2,7 @@ package com.pusharmor.app.keys
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import com.pusharmor.crypto.CryptoException
 import com.pusharmor.crypto.KeyOps
 import com.pusharmor.crypto.P256
 import java.security.KeyPairGenerator
@@ -40,6 +41,14 @@ class KeystoreKeyOps private constructor(private val ks: KeyStore) : KeyOps {
             return KeystoreKeyOps(store())
         }
 
+        internal inline fun <T> wrap(block: () -> T): T = try {
+            block()
+        } catch (e: CryptoException) {
+            throw e
+        } catch (e: Exception) {
+            throw CryptoException("keystore: ${e.javaClass.simpleName}")
+        }
+
         fun load(): KeystoreKeyOps? = if (present()) KeystoreKeyOps(store()) else null
 
         private fun gen(alias: String, purpose: Int, f: (KeyGenParameterSpec.Builder) -> KeyGenParameterSpec.Builder) {
@@ -64,10 +73,11 @@ class KeystoreKeyOps private constructor(private val ks: KeyStore) : KeyOps {
         return P256.derToRaw(s.sign())
     }
 
-    override fun ecdh(peerPoint: ByteArray): ByteArray {
+    /** Keystore failures surface as CryptoException, so a push that cannot be opened is dropped (I299). */
+    override fun ecdh(peerPoint: ByteArray): ByteArray = wrap {
         val ka = KeyAgreement.getInstance("ECDH", "AndroidKeyStore")
         ka.init(ks.getKey(ENC, null) as PrivateKey)
         ka.doPhase(P256.publicKey(peerPoint), true)
-        return ka.generateSecret()
+        ka.generateSecret()
     }
 }

@@ -9,11 +9,18 @@ object PushDispatcher {
         if (g.identity() == null) return // signed out of keys: nothing can be read
         val now = System.currentTimeMillis()
         if (m == null) { g.effects(fcm).couldNotRead(); return }
-        if (m.length == PairMessage.WIRE_CHARS) {
-            g.pairing(fcm).onPush(m, now) { id -> g.session.fetchPeers(force = true); g.store.peer(id)?.listEncPub != null }
-        } else {
-            g.receive(fcm).onMessage(m, now)
+        guard({ g.effects(fcm).couldNotRead() }) {
+            if (m.length == PairMessage.WIRE_CHARS) {
+                g.pairing(fcm).onPush(m, now) { id -> g.session.fetchPeers(force = true); g.store.peer(id)?.listEncPub != null }
+            } else {
+                g.receive(fcm).onMessage(m, now)
+            }
+            g.session.purgeHistory()
         }
-        g.session.purgeHistory()
+    }
+
+    /** Any failure in the handler drops the push with the generic notice instead of crashing (I299). */
+    fun guard(onFail: () -> Unit, block: () -> Unit) {
+        try { block() } catch (e: Exception) { onFail() }
     }
 }
