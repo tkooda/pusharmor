@@ -287,4 +287,30 @@ final class NSEFlowTests: XCTestCase {
         XCTAssertEqual(h.filter { $0.event == .couldNotRead }.count, 0)
         inbox.removeAll()
     }
+    /// I326: an NSE fault (store error, or the DB does not open) keeps "m" in the locked inbox,
+    /// so a notification the user clears is not the only copy; the next locked drain stores it.
+    func testNSEFaultKeepsPushInInbox() async throws {
+        let w = FakeWorker(), clock = TestClock()
+        let n = try Device(worker: w, clock: clock, name: "Ndev"), x = try Device(worker: w, clock: clock, name: "Xdev")
+        try await Scenario.pairFully(w, n, x)
+        _ = try await n.core.send("one", as: .text, to: [x.id], allCount: 1)
+        _ = try await n.core.send("two", as: .text, to: [x.id], allCount: 1)
+        let ms = w.take(x.id)
+        let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-nse-\(UUID().uuidString)"))
+        let other = try DB(path: x.path)
+        try other.exec("ALTER TABLE me RENAME TO me_off")
+        let r = await NSEFlow.handle(m: ms[0], loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 1, budgetLeft: { 30 })
+        try other.exec("ALTER TABLE me_off RENAME TO me")
+        XCTAssertTrue(r.fault)
+        let r2 = await NSEFlow.handle(m: ms[1], loadKeys: { x.keys }, openCore: { _ in nil }, inbox: inbox, nowMs: 2, budgetLeft: { 30 })
+        XCTAssertFalse(r2.handled)
+        XCTAssertEqual(inbox.files().count, 2)
+        let locked = await x.core.drainLockedInbox(inbox)
+        XCTAssertEqual(locked.count, 2)
+        XCTAssertEqual(inbox.files().count, 0)
+        let h = try x.core.store.history()
+        for t in ["one", "two"] { XCTAssertEqual(h.filter { $0.content == t }.count, 1, t) }
+        XCTAssertEqual(h.filter { $0.event == .couldNotRead }.count, 0)
+        inbox.removeAll()
+    }
 }

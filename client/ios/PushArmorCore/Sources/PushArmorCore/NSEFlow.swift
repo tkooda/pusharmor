@@ -37,10 +37,16 @@ public enum NSEFlow {
             return dropWithEvent(openCore(nil))
         }
         // step 3
-        guard let core = openCore(keys) else { return .plain(.dropped) }
+        // a fault (DB not open, thrown store error) also keeps "m" in the locked inbox, so a
+        // cleared notification is not its only copy (I326)
+        guard let core = openCore(keys) else {
+            try? inbox.write(ms, nowMs: nowMs)
+            return .plain(.dropped)
+        }
         var r = await core.receive(ms, mode: .nse)
         if r.banner == nil { r.banner = .dropped }   // never empty content for a push
         r.handled = !r.fault   // a thrown store error stays unmarked: the app drain retries it (I315)
+        if r.fault { try? inbox.write(ms, nowMs: nowMs) }
         onReceived?(r)
         // 6.5: an unknown sender sets fetch_due; one GET /peers only with >= 10 s of budget left
         if (try? core.store.me().fetchDue) == true && budgetLeft() >= 10 {
