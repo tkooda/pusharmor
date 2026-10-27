@@ -287,6 +287,52 @@ final class NSEFlowTests: XCTestCase {
         XCTAssertEqual(h.filter { $0.event == .couldNotRead }.count, 0)
         inbox.removeAll()
     }
+    /// I327: an NSE fault leaves a copy of "m" in the locked inbox; a tap that then reaches a
+    /// final drop removes that copy, so the next locked drain writes no second event.
+    func testTapDropRemovesNSECopy() async throws {
+        let w = FakeWorker(), clock = TestClock()
+        let x = try Device(worker: w, clock: clock, name: "Xdev")
+        let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-nse-\(UUID().uuidString)"))
+        let m = String(repeating: "A", count: 120)   // strict b64url that does not open: a final drop
+        let other = try DB(path: x.path)
+        try other.exec("BEGIN IMMEDIATE")
+        let r = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 1, budgetLeft: { 30 })
+        try other.exec("ROLLBACK")
+        XCTAssertTrue(r.fault)
+        XCTAssertEqual(inbox.files().count, 1)
+        let t = await x.core.receiveTapped(m, inbox: inbox)
+        XCTAssertFalse(t.fault)
+        XCTAssertEqual(inbox.files().count, 0)
+        _ = await x.core.drainLockedInbox(inbox)
+        let ev = try x.core.store.history().filter { $0.event == .couldNotRead }
+        XCTAssertEqual(ev.count, 1)
+        XCTAssertEqual(ev.first?.count, 1)
+        inbox.removeAll()
+    }
+    /// I327: a tap fault while the NSE copy exists writes no second file with the same "m",
+    /// and one locked drain runs each "m" at most once (two files, one event).
+    func testTapFaultNoSecondCopy() async throws {
+        let w = FakeWorker(), clock = TestClock()
+        let x = try Device(worker: w, clock: clock, name: "Xdev")
+        let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-nse-\(UUID().uuidString)"))
+        let m = String(repeating: "A", count: 120)   // strict b64url that does not open: a final drop
+        let other = try DB(path: x.path)
+        try other.exec("BEGIN IMMEDIATE")
+        let r = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 1, budgetLeft: { 30 })
+        let t = await x.core.receiveTapped(m, inbox: inbox)
+        try other.exec("ROLLBACK")
+        XCTAssertTrue(r.fault)
+        XCTAssertTrue(t.fault)
+        XCTAssertEqual(inbox.files().count, 1)
+        try inbox.write(m, nowMs: 2)
+        XCTAssertEqual(inbox.files().count, 2)
+        _ = await x.core.drainLockedInbox(inbox)
+        XCTAssertEqual(inbox.files().count, 0)
+        let ev = try x.core.store.history().filter { $0.event == .couldNotRead }
+        XCTAssertEqual(ev.count, 1)
+        XCTAssertEqual(ev.first?.count, 1)
+        inbox.removeAll()
+    }
     /// I326: an NSE fault (store error, or the DB does not open) keeps "m" in the locked inbox,
     /// so a notification the user clears is not the only copy; the next locked drain stores it.
     func testNSEFaultKeepsPushInInbox() async throws {

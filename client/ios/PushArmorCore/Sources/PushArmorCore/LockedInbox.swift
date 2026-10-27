@@ -40,6 +40,15 @@ public struct LockedInbox: Sendable {
         try Data(m.utf8).write(to: dir.appendingPathComponent(name), options: opts)
     }
 
+    /// The trimmed ASCII "m" a file holds, or nil when it does not read.
+    public func m(of f: URL) -> String? {
+        guard let d = try? Data(contentsOf: f), let s = String(data: d, encoding: .ascii) else { return nil }
+        return s.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// The files whose "m" equals m.
+    public func files(holding m: String) -> [URL] { files().filter { self.m(of: $0) == m } }
+
     public func removeAll() { try? FileManager.default.removeItem(at: dir) }
 }
 
@@ -49,13 +58,14 @@ extension Core {
     /// deleted too. A fault keeps the file for the next drain (I321). Returns the number of
     /// messages received while locked, the "m" values run, which the delivered drain then
     /// skips (I313), and the "m" values held by a fault, which it neither runs nor removes.
+    /// Each "m" runs at most once per pass; a second file with an "m" already run is deleted (I327).
     public func drainLockedInbox(_ inbox: LockedInbox) async -> (count: Int, ms: Set<String>, held: Set<String>) {
         var count = 0
         var ms: Set<String> = []
         var held: Set<String> = []
         for f in inbox.files() {
-            if let d = try? Data(contentsOf: f), let s = String(data: d, encoding: .ascii) {
-                let m = s.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let m = inbox.m(of: f) {
+                if ms.contains(m) || held.contains(m) { try? FileManager.default.removeItem(at: f); continue }
                 let r = await receive(m, mode: .drain)
                 if r.fault { held.insert(m); continue }
                 ms.insert(m)
@@ -85,10 +95,17 @@ extension Core {
     }
 
     /// A tapped notification's "m" runs steps 4-9 with no banner (TapStamp.drainM). iOS removes
-    /// a tapped notification, so a fault keeps "m" in the locked inbox for the next drain (I325).
+    /// a tapped notification, so a fault keeps "m" in the locked inbox for the next drain (I325),
+    /// in one file only. A final verdict deletes any locked-inbox copy (an NSE fault's), so the
+    /// next locked drain does not run "m" again (I327).
     public func receiveTapped(_ m: String, inbox: LockedInbox) async -> ReceiveResult {
         let r = await receive(m, mode: .drain)
-        if r.fault { try? inbox.write(m, nowMs: clock() * 1000) }
+        let copies = inbox.files(holding: m)
+        if r.fault {
+            if copies.isEmpty { try? inbox.write(m, nowMs: clock() * 1000) }
+        } else {
+            for f in copies { try? FileManager.default.removeItem(at: f) }
+        }
         return r
     }
 
