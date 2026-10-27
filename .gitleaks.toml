@@ -1,0 +1,23 @@
+# gitleaks config for repo.yml: the default rules plus allow-lists for public
+# test vectors, test-only keys and placeholders (all reviewed, none secret).
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "public test vectors and test-only keys"
+paths = [
+  '''^tests/vectors/golden-v1\.json$''',
+  '''^tests/vectors/ref/[^/]+\.mjs$''',
+  '''^server/worker/test/secrets\.ts$''',
+  '''^server/tools/ban/lib\.test\.mjs$''',
+  '''^client/android/crypto/src/test/kotlin/com/pusharmor/crypto/IdsTest\.kt$''',
+  '''^server/worker/\.dev\.vars\.example$''',
+]
+
+[[allowlists]]
+description = "placeholders and type names, not values"
+regexTarget = "match"
+regexes = [
+  '''PLACEHOLDER_[A-Z0-9_]+''',
+  '''P256\.(Signing|KeyAgreement)\.PrivateKey''',
+]
