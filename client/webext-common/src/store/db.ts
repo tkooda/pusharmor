@@ -184,6 +184,32 @@ export class Db {
     return this.put("peers", p);
   }
 
+  /**
+   * Read-modify-write of one peer row in ONE readwrite transaction, so a
+   * concurrent reserveN or update is never lost. fn gets the current row
+   * (undefined if none) and returns the new row, or null to write nothing.
+   * fn must be synchronous. Returns the row written, or null.
+   */
+  async updatePeer(id: string, fn: (cur: PeerRow | undefined) => PeerRow | null): Promise<PeerRow | null> {
+    return this.tx(["peers"], (tx) =>
+      new Promise<PeerRow | null>((res, rej) => {
+        const s = tx.objectStore("peers");
+        const g = s.get(id);
+        g.onsuccess = () => {
+          let row: PeerRow | null;
+          try {
+            row = fn(g.result as PeerRow | undefined);
+          } catch (e) {
+            return rej(e);
+          }
+          if (row) s.put(row);
+          res(row);
+        };
+        g.onerror = () => rej(g.error);
+      }),
+    );
+  }
+
   /** Counter rule: reserve n = last_n + 1 in one readwrite transaction, committed before use. */
   async reserveN(id: string): Promise<number> {
     return this.tx(["peers"], (tx) =>
