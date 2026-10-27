@@ -58,3 +58,29 @@ test("ci-dummy on a copy of release/public.json: the gate then passes only with 
     assert.equal(publicProblems(KEYS, pub, {}).length, KEYS.length);
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
+
+test("--check CLI: fails on PLACEHOLDER keys and on any PA_CI_DUMMY; passes on real values", () => {
+  const cli = join(import.meta.dirname, "public.mjs");
+  const run = (args, env) => spawnSync("node", [cli, ...args], { encoding: "utf8", env: { PATH: process.env.PATH, ...env } });
+  assert.equal(run([], {}).status, 2);
+  assert.equal(run(["--check"], {}).status, 2);
+  const r = run(["--check", "apple_team_id", "google_cws_publisher_id"], {});
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /apple_team_id is a PLACEHOLDER/);
+  assert.match(r.stderr, /google_cws_publisher_id is a PLACEHOLDER/);
+  const tmp = mkdtempSync(join(tmpdir(), "pa-public-check-"));
+  try {
+    // a copy of public.mjs next to a public.json with real values
+    writeFileSync(join(tmp, "public.mjs"), readFileSync(cli));
+    writeFileSync(join(tmp, "public.json"), JSON.stringify({ a: "real", b: ["AB:CD"], c: "ci-fork-dummy-c" }));
+    const ok = spawnSync("node", [join(tmp, "public.mjs"), "--check", "a", "b"], { encoding: "utf8", env: { PATH: process.env.PATH } });
+    assert.equal(ok.status, 0, ok.stderr);
+    assert.match(ok.stdout, /release values check: ok \(a, b\)/);
+    const dummy = spawnSync("node", [join(tmp, "public.mjs"), "--check", "a", "c"], { encoding: "utf8", env: { PATH: process.env.PATH, PA_CI_DUMMY: "1" } });
+    assert.equal(dummy.status, 1);
+    assert.match(dummy.stderr, /PA_CI_DUMMY is set/);
+    const empty = spawnSync("node", [join(tmp, "public.mjs"), "--check", "a"], { encoding: "utf8", env: { PATH: process.env.PATH, PA_CI_DUMMY: "" } });
+    assert.equal(empty.status, 1);
+    assert.match(empty.stderr, /PA_CI_DUMMY is set/);
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
