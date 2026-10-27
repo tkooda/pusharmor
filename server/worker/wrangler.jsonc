@@ -1,9 +1,13 @@
 // PushArmor Worker. Bindings and vars only; secrets are set with "wrangler secret put".
+// Deployment ids (FCM_PROJECT_ID, APNS_*, VAPID_*, SES_*, MAIL_FROM, *_AUD_*, OAUTH_REDIRECT_CHROME)
+// are Cloudflare dashboard variables, never in this file; keep_vars keeps them on deploy.
+// The D1 binding names the database; wrangler looks its id up by name.
 {
   "name": "pusharmor-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-15",
   "workers_dev": false,
+  "keep_vars": true,
   "preview_urls": false,
   "routes": [{ "pattern": "api.pusharmor.com", "custom_domain": true }],
   "limits": { "cpu_ms": 2000 },
@@ -17,7 +21,6 @@
     {
       "binding": "DB",
       "database_name": "pusharmor",
-      "database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "migrations"
     }
   ],
@@ -35,22 +38,8 @@
     "ALLOWED_PUSH_ENDPOINT_PREFIXES": "[\"https://fcm.googleapis.com/fcm/send/\",\"https://fcm.googleapis.com/wp/\",\"https://updates.push.services.mozilla.com/wpush/v1/\",\"https://updates.push.services.mozilla.com/wpush/v2/\"]",
     "PUSH_TTL_SECONDS": "604800",
     "PUSH_PAIR_TTL_SECONDS": "2419200",
-    "FCM_PROJECT_ID": "",
-    "APNS_TOPIC": "",
-    "APNS_KEY_ID": "",
-    "APNS_TEAM_ID": "",
-    "VAPID_PUBLIC_KEY": "",
-    "VAPID_SUB": "",
-    "SES_REGION": "",
-    "MAIL_FROM": "",
-    "SES_CONFIG_SET": "",
     "TURNSTILE_HOSTNAME": "pusharmor.com",
     "TURNSTILE_ACTION": "email",
-    "GOOGLE_AUD_WEB": "[]",
-    "GOOGLE_AUD_NATIVE": "[]",
-    "APPLE_AUD_WEB": "",
-    "APPLE_AUD_NATIVE": "",
-    "OAUTH_REDIRECT_CHROME": "",
     "OAUTH_REDIRECT_FIREFOX": "https://pusharmor.com/auth/done",
     "OAUTH_REDIRECT_ANDROID": "https://pusharmor.com/auth/android",
     "OAUTH_REDIRECT_WEB": "https://pusharmor.com/delete-account",

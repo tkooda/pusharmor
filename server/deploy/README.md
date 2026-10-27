@@ -21,8 +21,33 @@ and the migration steps. `wrangler dev` stays fine for local work.
 - WRANGLER: wrangler path. Default server/worker/node_modules/.bin/wrangler.
 - API_BASE: smoke test base URL. Default https://api.pusharmor.com/v1.
 
+## Worker variables (Cloudflare dashboard)
+
+Deployment ids are not in the repo. `server/worker/wrangler.jsonc` holds only
+fixed values and sets `keep_vars: true`, so a deploy keeps the dashboard
+variables (the maintenance config sets it too). Owner steps, once and after
+each change:
+
+1. Create the Worker first: `wrangler secret put` for each secret (see the
+   Worker README), or one plain `wrangler deploy` from `server/worker`.
+2. Cloudflare dashboard > Workers & Pages > pusharmor-api > Settings >
+   Variables and Secrets > Add, type Text, for each of: FCM_PROJECT_ID,
+   APNS_TOPIC, APNS_KEY_ID, APNS_TEAM_ID, VAPID_PUBLIC_KEY, VAPID_SUB,
+   SES_REGION, MAIL_FROM, SES_CONFIG_SET, GOOGLE_AUD_WEB, GOOGLE_AUD_NATIVE
+   (JSON arrays as text, e.g. `["id1","id2"]`), APPLE_AUD_WEB,
+   APPLE_AUD_NATIVE, OAUTH_REDIRECT_CHROME. Save and deploy.
+3. The D1 binding has no database_id; wrangler finds the database by its
+   name `pusharmor`.
+
+Preflight (step 0 of a release): `preflight.mjs` fails when the repo config
+holds one of these ids, a database_id or a PLACEHOLDER, or lacks keep_vars;
+`preflight.mjs --dashboard` then reads the deployed version with the
+read-only `wrangler deployments status` and `wrangler versions view` and
+fails when a variable above is missing, empty or a PLACEHOLDER.
+
 ## Release steps
 
+0. Preflight (above). Nothing is deployed when it fails.
 1. Refuse to run on a dirty tree (uncommitted or untracked files).
 2. Check HEAD is an ancestor of origin/main, X.Y.Z is valid, and tag
    worker-vX.Y.Z does not exist.

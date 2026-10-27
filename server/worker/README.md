@@ -46,3 +46,6 @@ The test suite uses fixed test-only values (`test/secrets.ts`).
 
 Only with `server/deploy/deploy.sh` from a clean checkout of main (see
 `server/deploy/README.md`).
+Deployment ids (FCM, APNs, VAPID, SES, OAuth audiences) are Cloudflare
+dashboard variables, not repo values; `wrangler.jsonc` sets `keep_vars: true`.
+The owner steps are in `server/deploy/README.md`.
