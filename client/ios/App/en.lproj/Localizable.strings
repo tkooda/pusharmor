@@ -1,0 +1,6 @@
+/* Alert text of every push before the Notification Service Extension replaces it. */
+"PA_TITLE" = "PushArmor";
+"PA_FALLBACK" = "New message";
+"PA_LOCKED" = "New message. Unlock to view";
+"PA_DROPPED" = "PushArmor received a message it could not read";
+"PA_INVALID" = "Invalid message received";
