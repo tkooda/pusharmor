@@ -246,3 +246,16 @@ export function externalLoads(html) {
 export function pageText(html) {
   return unescapeAttr(html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
 }
+
+// Names every html/js/json/txt/_headers file under dir that holds an uppercase release placeholder.
+export function placeholderFiles(dir) {
+  const bad = [];
+  for (const f of listFiles(dir)) {
+    if (!/\.(html|js|json|txt)$/.test(f) && f !== "_headers") continue;
+    const body = readFileSync(join(dir, f), "utf8");
+    for (const w of ["PLACEHOLDER", "CHROME_EXTENSION_ID"]) {
+      if (body.includes(w)) bad.push("site/public/" + f + ": " + w);
+    }
+  }
+  return bad;
+}

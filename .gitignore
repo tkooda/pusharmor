@@ -34,3 +34,6 @@ xcuserdata/
 .idea/
 *.iml
 .vscode/
+
+# Release build ids (template: release/local.example.json)
+release/local.json

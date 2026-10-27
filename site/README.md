@@ -1,8 +1,9 @@
 # PushArmor website (pusharmor.com)
 
 Static site served by Cloudflare Workers static assets (assets only, no Worker script).
-Hand-written HTML, one CSS file and small plain scripts. No build step, no framework, no
-third-party scripts except Cloudflare Turnstile on /turnstile.
+Hand-written HTML, one CSS file and small plain scripts. No framework and no build step
+beyond filling the build ids (below); no third-party scripts except Cloudflare Turnstile
+on /turnstile.
 
 Layout:
 
@@ -16,6 +17,7 @@ Layout:
         .well-known/       security.txt, assetlinks.json
       wrangler.jsonc       assets-only config (the site checks allow no other keys)
       tools/hashes.mjs     rewrites SRI integrity attributes and CSP script hashes
+      tools/build.mjs      fills the build ids from release/local.json (release deploy)
       tools/test/          site checks (node --test)
 
 ## Install
@@ -35,16 +37,31 @@ The header snapshot test starts the project-local `wrangler dev`; it is skipped 
 wrangler cannot start. Checks that need files from other components (release constants,
 Firefox manifest, golden vectors, Worker wrangler version) are skipped until those files exist.
 
-## Values to fill before launch
+## Build ids (release/local.json)
 
-- Turnstile sitekey: `data-sitekey` in `public/turnstile.html` (the only place).
-- VAPID public key: `VAPID_PUBLIC_KEY` in `public/js/fx-setup.js`.
-- Chrome extension id: `chrome-extension://CHROME_EXTENSION_ID` in the /turnstile rule of
-  `public/_headers`.
-- Release certificate SHA-256 values: `public/.well-known/assetlinks.json`.
-- Store links and APK hashes: `public/download.html`; F-Droid version: `public/fdroid/android.txt`.
+The repo holds placeholders, not ids. `site/tools/build.mjs` fills them from the
+git-ignored `release/local.json` (template `release/local.example.json`) in place and
+rewrites the hashes:
 
-Deploy is done by Cloudflare Workers Builds from the main branch (`npx wrangler deploy`).
+- `turnstile_sitekey` -> `data-sitekey` in `public/turnstile.html`.
+- `vapid_public_key` -> `VAPID_PUBLIC_KEY` in `public/js/fx-setup.js`.
+- `chrome_extension_id` -> `chrome-extension://CHROME_EXTENSION_ID` in `public/_headers`.
+- `release_cert_sha256` (list) -> `public/.well-known/assetlinks.json`.
+
+It fails when the file is missing or a value is empty, malformed or a PLACEHOLDER. Store
+links and APK hashes (`public/download.html`) and the F-Droid version
+(`public/fdroid/android.txt`) are edited by hand in the release PR.
+
+Try a build without touching the tree:
+
+    cp -r site/public /tmp/site && node site/tools/build.mjs --dir /tmp/site
+
+Deploy is done by Cloudflare Workers Builds from the main branch. Owner steps, once: in the
+Workers Builds project settings add the build variable `PA_LOCAL_JSON` holding the full
+content of your `release/local.json`, and set the build command to
+
+    printf '%s' "$PA_LOCAL_JSON" > ../release/local.json && node tools/build.mjs
+
 The site has no deploy script. Before a release deploy, run the checks with the release gate on:
 
     PA_RELEASE=1 node --test 'site/tools/test/*.test.mjs'

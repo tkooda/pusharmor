@@ -8,9 +8,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   attrs, checkWranglerConfig, computeHashUpdates, cspDirectives, externalLoads, headersFor,
-  inlineScripts, listFiles, pageText, parseHeaders, parseJsonc, resolvePath, sha256b64, tags,
+  inlineScripts, listFiles, pageText, parseHeaders, parseJsonc, placeholderFiles, resolvePath, sha256b64, tags,
   unescapeAttr, urlPath
 } from "../site-lib.mjs";
+import { LOCAL_PATH, loadLocal } from "../../../release/local.mjs";
+import { spawnSync } from "node:child_process";
 
 const SITE = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const PUB = join(SITE, "public");
@@ -259,33 +261,52 @@ test("assetlinks.json is valid and names com.pusharmor", () => {
   for (const f of a[0].target.sha256_cert_fingerprints) assert.match(f, /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
 });
 
-test("assetlinks.json lists exactly the release cert SHA-256 values", (t) => {
-  const p = join(REPO, "release", "constants.json");
-  if (!existsSync(p)) { t.skip("release/constants.json not present yet"); return; }
-  const v = JSON.parse(readFileSync(p, "utf8")).release_cert_sha256;
-  const want = [].concat(v ?? []);
-  const FP = /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/;
-  if (!want.length || want.some((f) => typeof f !== "string" || !FP.test(f.toUpperCase()))) {
-    assert.ok(!RELEASE, "PA_RELEASE=1: release_cert_sha256 in release/constants.json is a placeholder " + JSON.stringify(v));
-    t.skip("release_cert_sha256 in release/constants.json is a placeholder (" + JSON.stringify(v) + ")");
-    return;
-  }
-  const a = JSON.parse(read(".well-known/assetlinks.json"));
-  assert.deepEqual([...a[0].target.sha256_cert_fingerprints].sort(), want.map((f) => f.toUpperCase()).sort());
+// Builds a copy of site/public with the given local file; returns {dir, r}.
+function buildCopy(localPath) {
+  const dir = mkdtempSync(join(tmpdir(), "pa-site-build-"));
+  cpSync(PUB, dir, { recursive: true });
+  const r = spawnSync("node", [join(SITE, "tools", "build.mjs"), "--dir", dir, "--local", localPath], { encoding: "utf8" });
+  return { dir, r };
+}
+
+test("committed site files hold the placeholders, not ids (release/local.json fills them at build)", () => {
+  assert.deepEqual(placeholderFiles(PUB).sort(), [
+    "site/public/_headers: CHROME_EXTENSION_ID",
+    "site/public/js/fx-setup.js: PLACEHOLDER",
+    "site/public/turnstile.html: PLACEHOLDER"
+  ]);
+  assert.deepEqual(JSON.parse(read(".well-known/assetlinks.json"))[0].target.sha256_cert_fingerprints, []);
 });
 
-// Names every html/js/json/txt/_headers file under dir that holds an uppercase release placeholder.
-function placeholderFiles(dir) {
-  const bad = [];
-  for (const f of listFiles(dir)) {
-    if (!/\.(html|js|json|txt)$/.test(f) && f !== "_headers") continue;
-    const body = readFileSync(join(dir, f), "utf8");
-    for (const w of ["PLACEHOLDER", "CHROME_EXTENSION_ID"]) {
-      if (body.includes(w)) bad.push("site/public/" + f + ": " + w);
-    }
+test("site build fills every id from a local file and leaves current hashes", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "pa-local-"));
+  const fp = Array.from({ length: 32 }, (_, i) => (i + 16).toString(16).toUpperCase()).join(":");
+  const lp = join(tmp, "local.json");
+  writeFileSync(lp, JSON.stringify({
+    turnstile_sitekey: TURNSTILE_TEST_SITEKEY, vapid_public_key: "BTestVapidKey", chrome_extension_id: "abcdefghijklmnopabcdefghijklmnop",
+    release_cert_sha256: [fp.toLowerCase()]
+  }));
+  const { dir, r } = buildCopy(lp);
+  try {
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(placeholderFiles(dir), []);
+    assert.deepEqual(computeHashUpdates(dir), {});
+    assert.ok(readFileSync(join(dir, "turnstile.html"), "utf8").includes('data-sitekey="' + TURNSTILE_TEST_SITEKEY + '"'));
+    assert.ok(readFileSync(join(dir, "js", "fx-setup.js"), "utf8").includes('VAPID_PUBLIC_KEY = "BTestVapidKey"'));
+    assert.ok(readFileSync(join(dir, "_headers"), "utf8").includes("chrome-extension://abcdefghijklmnopabcdefghijklmnop"));
+    assert.deepEqual(JSON.parse(readFileSync(join(dir, ".well-known", "assetlinks.json"), "utf8"))[0].target.sha256_cert_fingerprints, [fp]);
+  } finally { rmSync(dir, { recursive: true, force: true }); rmSync(tmp, { recursive: true, force: true }); }
+});
+
+test("site build fails on a missing local file or the example placeholders", () => {
+  for (const lp of [join(tmpdir(), "pa-no-such-local.json"), join(REPO, "release", "local.example.json")]) {
+    const { dir, r } = buildCopy(lp);
+    try {
+      assert.equal(r.status, 1, lp);
+      assert.match(r.stderr, lp.includes("example") ? /turnstile_sitekey is a PLACEHOLDER/ : /is missing; copy release\/local\.example\.json/);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   }
-  return bad;
-}
+});
 
 test("placeholder scan names a file that holds only a PLACEHOLDER token", () => {
   const tmp = mkdtempSync(join(tmpdir(), "pa-ph-"));
@@ -296,17 +317,21 @@ test("placeholder scan names a file that holds only a PLACEHOLDER token", () => 
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
-test("PA_RELEASE=1: no placeholder in release constants, assetlinks, site files or fdroid version", (t) => {
+test("PA_RELEASE=1: release/local.json builds the site with no placeholder; fdroid version set", (t) => {
   if (!RELEASE) { t.skip("PA_RELEASE=1 not set"); return; }
   const bad = [];
-  const cp = join(REPO, "release", "constants.json");
-  const consts = JSON.parse(readFileSync(cp, "utf8"));
-  for (const [k, v] of Object.entries(consts)) {
-    if (/placeholder/i.test(JSON.stringify(v))) bad.push("release/constants.json: " + k);
+  if (!loadLocal()) bad.push(LOCAL_PATH + " is missing");
+  else {
+    const { dir, r } = buildCopy(LOCAL_PATH);
+    try {
+      if (r.status !== 0) bad.push("site build: " + r.stderr.trim());
+      else {
+        bad.push(...placeholderFiles(dir));
+        const a = JSON.parse(readFileSync(join(dir, ".well-known", "assetlinks.json"), "utf8"));
+        if (!a[0].target.sha256_cert_fingerprints.length) bad.push("assetlinks.json: empty sha256_cert_fingerprints");
+      }
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   }
-  const a = JSON.parse(read(".well-known/assetlinks.json"));
-  if (!a[0].target.sha256_cert_fingerprints.length) bad.push("assetlinks.json: empty sha256_cert_fingerprints");
-  bad.push(...placeholderFiles(PUB));
   if (read("fdroid/android.txt").split("\n")[0] === "0.0.0") bad.push("fdroid/android.txt: version 0.0.0");
   assert.deepEqual(bad, []);
 });
