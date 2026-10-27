@@ -1,7 +1,7 @@
 name: webext
 
 # Chrome extension and Firefox add-on tests. Called by ci.yml and by
-# webext-release.yml (the chrome-v* and firefox-v* release jobs).
+# webext-release.yml (the chrome/v* and firefox/v* release jobs).
 on:
   workflow_call:
 

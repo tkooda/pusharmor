@@ -43,7 +43,7 @@ const all = () => Object.fromEntries(DASHBOARD_VARS.map((k) => [k, k.startsWith(
 const calls = (d) => readFileSync(join(d, "calls.log"), "utf8").trim().split("\n");
 
 function run(d, w) {
-  return spawnSync("bash", [join(d, "server", "deploy", "deploy.sh"), "9.9.9"], {
+  return spawnSync("bash", [join(d, "server", "deploy", "deploy.sh"), "worker/v9.9.9"], {
     encoding: "utf8",
     env: { ...process.env, CLOUDFLARE_ACCOUNT_ID: "acct", WRANGLER: w }
   });

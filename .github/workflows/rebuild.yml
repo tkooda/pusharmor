@@ -1,7 +1,7 @@
 name: rebuild
 
 # Reproducibility check (component-ci-r1 section 5): rebuilds the play and foss
-# APKs of an android-v* tag on a fresh runner with the release pins and compares
+# APKs of an android/v* tag on a fresh runner with the release pins and compares
 # each to the signed GitHub Release asset with apksigcopier compare (equal apart
 # from the signature). Read-only. Run it after the owner publishes the release
 # (a draft release may not be visible to a read-only token).
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: android-vX.Y.Z tag to rebuild
+        description: android/vX.Y.Z tag to rebuild
         required: true
         type: string
 
@@ -48,9 +48,9 @@ jobs:
         run: |
           version="$(node --input-type=module -e '
             import { parseTag } from "./release/tag.mjs";
-            const v = parseTag("android", process.argv[1]);
-            if (!v || v[1] > 999 || v[2] > 999) { console.error("not an android-vX.Y.Z tag: " + JSON.stringify(process.argv[1])); process.exit(1); }
-            console.log(v.join("."));
+            const t = parseTag(process.argv[1]);
+            if (!t || t.platform !== "android") { console.error("not an android/vX.Y.Z tag: " + JSON.stringify(process.argv[1])); process.exit(1); }
+            console.log(t.version);
           ' "$TAG")"
           git rev-parse -q --verify "refs/tags/$TAG^{commit}" > /dev/null || { echo "tag $TAG does not exist"; exit 1; }
           git checkout -q --detach "refs/tags/$TAG"

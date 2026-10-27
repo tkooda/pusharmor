@@ -1,7 +1,7 @@
 name: worker
 
 # Worker tests only. CI never deploys the Worker: the owner runs
-# server/deploy/deploy.sh from a clean checkout.
+# server/deploy/deploy.sh worker/vX.Y.Z from a clean checkout of the tag.
 on:
   workflow_call:
 
@@ -54,11 +54,16 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: site/.node-version
-      - name: Run the latest worker-v tag's vitest suite on the current migrations
+      - name: Run the latest worker/v tag's vitest suite on the current migrations
         run: |
-          tag="$(git tag -l 'worker-v*' --sort=-v:refname | head -n 1)"
+          # the newest worker/v tag on another commit than HEAD
+          head="$(git rev-parse HEAD)"
+          tag=""
+          for t in $(git tag -l 'worker/v*' --sort=-v:refname); do
+            if [ "$(git rev-parse "$t^{commit}")" != "$head" ]; then tag="$t"; break; fi
+          done
           if [ -z "$tag" ]; then
-            echo "no worker-v tag yet: nothing to check"
+            echo "no earlier worker/v tag yet: nothing to check"
             exit 0
           fi
           echo "previous Worker: $tag"

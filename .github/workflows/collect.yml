@@ -2,7 +2,7 @@ name: collect
 
 # After store review (component-ci-r1 sections 2 and 4.5): fetch the store-signed
 # CRX (Chrome Web Store update URL) and XPI (AMO API, no credentials) of the newest
-# chrome-v* and firefox-v* tag, check every file against the release file-hash
+# chrome/v* and firefox/v* tag, check every file against the release file-hash
 # manifest (<zip>.files.sha256 of the GitHub Release), and attach the unchanged
 # store file with its SHA-256 to the release, draft or published. Store-added
 # files are skipped: Chrome _metadata/, and the release/constants.json lists
@@ -55,9 +55,9 @@ jobs:
         id: find
         run: |
           skip() { echo "skip: $1"; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; }
-          tag="$(git tag -l "$BROWSER-v*" | grep -E "^$BROWSER-v[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n 1)"
-          [ -n "$tag" ] || skip "no $BROWSER-v tag"
-          version="${tag#"$BROWSER"-v}"
+          tag="$(git tag -l "$BROWSER/v*" | grep -E "^$BROWSER/v[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n 1)"
+          [ -n "$tag" ] || skip "no $BROWSER/v tag"
+          version="${tag#"$BROWSER"/v}"
           id="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get(sys.argv[2]) or "")' "$PWD/release/public.json" "$ID_KEY")"
           if [ -z "$id" ] || printf '%s' "$id" | grep -qi placeholder; then skip "$ID_KEY is not set"; fi
           gh release view "$tag" --json assets --jq '.assets[].name' > "$RUNNER_TEMP/assets.txt" || skip "no GitHub Release for $tag"
