@@ -21,8 +21,15 @@ Compose, Gradle Kotlin DSL with a version catalog.
 Both use applicationId `com.pusharmor` and the same versionCode. The version comes from
 `release/version.properties` (versionCode = major * 1000000 + minor * 1000 + patch).
 
-`app/src/play/google-services.json` is a placeholder; replace it with the real Firebase
-client config before a release build.
+Build ids are not in the repo. Owner steps before a release build:
+
+1. Copy `release/local.example.json` to `release/local.json` (git-ignored) and fill
+   `vapid_public_key` and `google_web_client_id` (meanings in `release/names.json`).
+2. Download the Firebase client config to `app/src/play/google-services.json`
+   (git-ignored). Debug builds use the placeholder in `app/src/playDebug/`.
+
+`assemble*Release` and `bundle*Release` fail while a value is missing, empty or a
+PLACEHOLDER; debug builds work without either file.
 
 ## Build and test
 

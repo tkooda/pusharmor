@@ -12,10 +12,14 @@ plugins {
 val versionProps = Properties().apply {
     rootProject.file("../../release/version.properties").inputStream().use { load(it) }
 }
-// Repo constants (release/constants.json): the VAPID public key baked into the clients.
+// Build ids from the git-ignored release/local.json (template release/local.example.json,
+// key names in release/names.json). Debug builds work without it; release builds fail.
+val localJson = rootProject.file("../../release/local.json")
 @Suppress("UNCHECKED_CAST")
-val repoConstants = rootProject.file("../../release/constants.json").takeIf { it.isFile }
+val localValues = localJson.takeIf { it.isFile }
     ?.let { JsonSlurper().parse(it) as Map<String, Any?> } ?: emptyMap()
+val localVapidKey = "vapid_public_key"
+val localGoogleWebClientId = "google_web_client_id"
 
 android {
     namespace = "com.pusharmor.app"
@@ -29,8 +33,8 @@ android {
         versionName = versionProps.getProperty("versionName")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "API_BASE", "\"https://api.pusharmor.com\"")
-        buildConfigField("String", "VAPID_PUBLIC_KEY", "\"${repoConstants["vapid_public_key"] ?: ""}\"")
-        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${project.findProperty("pusharmor.googleWebClientId") ?: "PLACEHOLDER_GOOGLE_WEB_CLIENT_ID"}\"")
+        buildConfigField("String", "VAPID_PUBLIC_KEY", "\"${localValues[localVapidKey] ?: ""}\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${localValues[localGoogleWebClientId] ?: "PLACEHOLDER_GOOGLE_WEB_CLIENT_ID"}\"")
     }
 
     flavorDimensions += "dist"
@@ -73,16 +77,19 @@ googleServices {
 
 // Release gate: a release assemble or bundle fails while a PLACEHOLDER or empty value is baked in.
 // Debug builds are unaffected.
-val releaseVapidKey = repoConstants["vapid_public_key"]?.toString() ?: ""
-val releaseGoogleClientId = (project.findProperty("pusharmor.googleWebClientId") ?: "PLACEHOLDER_GOOGLE_WEB_CLIENT_ID").toString()
+// The real google-services.json is git-ignored in src/play/ and wins over the committed
+// placeholder in src/playDebug/, which only debug builds can use.
+val releaseVapidKey = localValues[localVapidKey]?.toString() ?: ""
+val releaseGoogleClientId = localValues[localGoogleWebClientId]?.toString() ?: ""
 val googleServicesFile = file("src/play/google-services.json")
 fun releaseValueProblems(play: Boolean): List<String> {
     val bad = mutableListOf<String>()
     fun check(name: String, v: String) {
         if (v.isBlank() || v.contains("placeholder", ignoreCase = true)) bad += "$name is empty or a PLACEHOLDER"
     }
-    check("release/constants.json vapid_public_key (BuildConfig.VAPID_PUBLIC_KEY)", releaseVapidKey)
-    check("gradle property pusharmor.googleWebClientId (BuildConfig.GOOGLE_WEB_CLIENT_ID)", releaseGoogleClientId)
+    if (!localJson.isFile) bad += "release/local.json is missing; copy release/local.example.json and fill it"
+    check("release/local.json $localVapidKey (BuildConfig.VAPID_PUBLIC_KEY)", releaseVapidKey)
+    check("release/local.json $localGoogleWebClientId (BuildConfig.GOOGLE_WEB_CLIENT_ID)", releaseGoogleClientId)
     if (play) {
         if (!googleServicesFile.isFile) bad += "app/src/play/google-services.json is missing"
         else if (googleServicesFile.readText().contains("placeholder", ignoreCase = true)) {
