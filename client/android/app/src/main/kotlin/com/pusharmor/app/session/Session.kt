@@ -118,7 +118,7 @@ class Session(private val g: Graph) {
     /** A ticket arrived (email code, Google token, or the App Link). */
     fun onTicket(ticket: String, email: String?, evict: List<String>? = null): SignIn {
         if (email != null) s.set(Settings.K.BANNER, null)
-        return if (signedOut) unpause(ticket, email) else register(ticket, email, evict)
+        return if (signedOut) unpause(ticket) else register(ticket, email, evict)
     }
 
     private fun register(ticket: String, email: String?, evict: List<String>?): SignIn {
@@ -148,8 +148,7 @@ class Session(private val g: Graph) {
         }
     }
 
-    private fun unpause(ticket: String, email: String?): SignIn {
-        if (email != null) dao.self()?.let { dao.putSelf(it.copy(email = email)) }
+    private fun unpause(ticket: String): SignIn {
         val r = g.pause().unpause(ticket)
         if (r !is ApiResult.Ok) return SignIn.Error(ErrorText.of(r))
         s.set(Settings.K.SIGNED_OUT, false)

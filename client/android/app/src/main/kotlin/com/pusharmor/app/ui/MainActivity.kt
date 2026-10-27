@@ -53,13 +53,23 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handle(intent: Intent) {
-        intent.getStringExtra("ticket")?.let { t -> vm.onAppLinkTicket(t, intent.getStringExtra("email")) {} }
+        authExtras(intent)?.let { (t, e) -> vm.onAppLinkTicket(t, e) {} }
         intent.getStringExtra("peer")?.let { vm.highlight.value = it }
         intent.getStringExtra("route")?.let { pendingRoute = it }
     }
 
     companion object {
         var pendingRoute: String? = null
+
+        /** Non-exported alias of this activity; only [AuthLinkActivity] starts it (I298). */
+        const val AUTH_ALIAS = "com.pusharmor.app.ui.AuthTicket"
+
+        /** Ticket and email extras, honored only when the intent came through [AUTH_ALIAS]. */
+        fun authExtras(intent: Intent): Pair<String, String?>? {
+            if (intent.component?.className != AUTH_ALIAS) return null
+            val t = intent.getStringExtra("ticket") ?: return null
+            return t to intent.getStringExtra("email")
+        }
     }
 }
 
