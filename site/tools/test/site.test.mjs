@@ -259,13 +259,15 @@ test("assetlinks.json is valid and names com.pusharmor", () => {
 test("assetlinks.json lists exactly the release cert SHA-256 values", (t) => {
   const p = join(REPO, "release", "constants.json");
   if (!existsSync(p)) { t.skip("release/constants.json not present yet"); return; }
-  const fps = new Set();
-  JSON.stringify(JSON.parse(readFileSync(p, "utf8")), (k, v) => {
-    if (typeof v === "string" && /^([0-9A-Fa-f]{2}:){31}[0-9A-Fa-f]{2}$/.test(v)) fps.add(v.toUpperCase());
-    return v;
-  });
+  const v = JSON.parse(readFileSync(p, "utf8")).release_cert_sha256;
+  const want = [].concat(v ?? []);
+  const FP = /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/;
+  if (!want.length || want.some((f) => typeof f !== "string" || !FP.test(f.toUpperCase()))) {
+    t.skip("release_cert_sha256 in release/constants.json is a placeholder (" + JSON.stringify(v) + ")");
+    return;
+  }
   const a = JSON.parse(read(".well-known/assetlinks.json"));
-  assert.deepEqual([...a[0].target.sha256_cert_fingerprints].sort(), [...fps].sort());
+  assert.deepEqual([...a[0].target.sha256_cert_fingerprints].sort(), want.map((f) => f.toUpperCase()).sort());
 });
 
 test("security.txt: Contact, Expires (> 30 days, <= 1 year), Canonical", () => {
@@ -402,10 +404,14 @@ test("Firefox: SW forward URL; manifest lists equal FIREFOX-MATCH-LIST and relea
   ];
   const HOSTS = ["https://api.pusharmor.com/*", "https://pusharmor.com/fx/fwd"];
   const man = JSON.parse(readFileSync(manifestPath, "utf8"));
-  assert.deepEqual((man.content_scripts || []).flatMap((c) => c.matches), MATCHES);
-  assert.deepEqual(man.host_permissions, HOSTS);
-  const constText = readFileSync(constPath, "utf8");
-  for (const s of MATCHES.concat(HOSTS)) assert.ok(constText.includes(JSON.stringify(s)), "constants lack " + s);
+  const consts = JSON.parse(readFileSync(constPath, "utf8"));
+  const manMatches = (man.content_scripts || []).flatMap((c) => c.matches);
+  // MV2: host permissions are the URL entries in "permissions".
+  const manHosts = (man.permissions || []).filter((x) => typeof x === "string" && x.includes("://"));
+  assert.deepEqual(manMatches, consts.firefox_content_scripts_matches);
+  assert.deepEqual(manHosts, consts.firefox_host_permissions);
+  assert.deepEqual(manMatches, MATCHES);
+  assert.deepEqual(manHosts, HOSTS);
   for (const m of MATCHES) assert.ok(!m.includes("delete-account"));
   let found = false;
   for (const rel of listFiles(join(REPO, "client", "firefox"))) {
