@@ -1,18 +1,19 @@
-// Release build of the site: fills the build ids from release/local.json into
+// Release build of the site: fills the build ids from release/public.json into
 // the assets directory in place, then rewrites the SRI and CSP hashes.
 // Workers Builds runs it before "npx wrangler deploy" (see site/README.md).
-//   node site/tools/build.mjs [--dir DIR] [--local FILE]
-// DIR defaults to site/public. Fails when release/local.json is missing, a
-// value is empty, malformed or a PLACEHOLDER, or a placeholder is left.
+//   node site/tools/build.mjs [--dir DIR] [--public FILE]
+// DIR defaults to site/public. Fails when a value is missing, empty, malformed
+// or a PLACEHOLDER (or a CI dummy without PA_CI_DUMMY=1), or a placeholder is left.
+// A CI dummy skips the format checks.
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { LOCAL_PATH, loadLocal, localProblems } from "../../release/local.mjs";
+import { PUBLIC_PATH, loadPublic, publicProblems } from "../../release/public.mjs";
 import { computeHashUpdates, placeholderFiles } from "./site-lib.mjs";
 
 const arg = (name) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : undefined; };
 const dir = arg("--dir") || join(dirname(fileURLToPath(import.meta.url)), "..", "public");
-const localPath = arg("--local") || LOCAL_PATH;
+const publicPath = arg("--public") || PUBLIC_PATH;
 
 function fail(lines) {
   console.error("site build failed:");
@@ -20,12 +21,15 @@ function fail(lines) {
   process.exit(1);
 }
 
-const local = loadLocal(localPath);
-const bad = localProblems(local, ["turnstile_sitekey", "vapid_public_key", "chrome_extension_id", "release_cert_sha256"], localPath);
+let pub;
+try { pub = loadPublic(publicPath); } catch (e) { fail([publicPath + ": " + e.message]); }
+const bad = publicProblems(["cloudflare_turnstile_sitekey", "webpush_vapid_public_key", "google_chrome_extension_id", "android_release_cert_sha256"], pub);
+const dummy = (v) => /ci-fork-dummy/i.test(v);
 if (!bad.length) {
-  if (!/^[a-p]{32}$/.test(local.chrome_extension_id)) bad.push("release/local.json: chrome_extension_id is not 32 letters a-p");
-  for (const f of [].concat(local.release_cert_sha256)) {
-    if (!/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(String(f).toUpperCase())) bad.push("release/local.json: release_cert_sha256 " + JSON.stringify(f) + " is not a SHA-256 fingerprint");
+  const id = pub.google_chrome_extension_id;
+  if (!dummy(id) && !/^[a-p]{32}$/.test(id)) bad.push("release/public.json: google_chrome_extension_id is not 32 letters a-p");
+  for (const f of [].concat(pub.android_release_cert_sha256)) {
+    if (!dummy(f) && !/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(String(f).toUpperCase())) bad.push("release/public.json: android_release_cert_sha256 " + JSON.stringify(f) + " is not a SHA-256 fingerprint");
   }
 }
 if (bad.length) fail(bad);
@@ -36,12 +40,12 @@ function fill(rel, from, to) {
   if (!s.includes(from)) fail([rel + ": " + from + " not found"]);
   writeFileSync(p, s.split(from).join(to));
 }
-fill("turnstile.html", 'data-sitekey="TURNSTILE_SITEKEY_PLACEHOLDER"', 'data-sitekey="' + local.turnstile_sitekey + '"');
-fill("js/fx-setup.js", '"VAPID_PUBLIC_KEY_PLACEHOLDER"', JSON.stringify(local.vapid_public_key));
-fill("_headers", "chrome-extension://CHROME_EXTENSION_ID", "chrome-extension://" + local.chrome_extension_id);
+fill("turnstile.html", 'data-sitekey="TURNSTILE_SITEKEY_PLACEHOLDER"', 'data-sitekey="' + pub.cloudflare_turnstile_sitekey + '"');
+fill("js/fx-setup.js", '"VAPID_PUBLIC_KEY_PLACEHOLDER"', JSON.stringify(pub.webpush_vapid_public_key));
+fill("_headers", "chrome-extension://CHROME_EXTENSION_ID", "chrome-extension://" + pub.google_chrome_extension_id);
 const alp = join(dir, ".well-known", "assetlinks.json");
 const al = JSON.parse(readFileSync(alp, "utf8"));
-al[0].target.sha256_cert_fingerprints = [].concat(local.release_cert_sha256).map((f) => String(f).toUpperCase());
+al[0].target.sha256_cert_fingerprints = [].concat(pub.android_release_cert_sha256).map((f) => String(f).toUpperCase());
 writeFileSync(alp, JSON.stringify(al, null, 2) + "\n");
 
 for (let i = 0; i < 3; i++) {
