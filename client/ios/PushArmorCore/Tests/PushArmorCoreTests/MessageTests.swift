@@ -75,7 +75,7 @@ final class MessageTests: XCTestCase {
         let f = NameField(name: "UGhvbmU", n: 1, s: String(repeating: "A", count: 86))
         let (m2, _) = try roundTrip(InnerJSON(n: 1, content: .approve(f)), keys: true)
         XCTAssertEqual(m2.count, 1024)
-        for c: MessageContent in [.text("hi"), .tel("+1 555-123-4567"), .deny, .remove("x"), .rename(f), .delete, .pause, .unpause] {
+        for c: MessageContent in [.text("hi"), .tel("+1 555-123-4567"), .deny, .remove("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwd"), .rename(f), .delete, .pause, .unpause] {
             let (m, _) = try roundTrip(InnerJSON(n: 9, content: c))
             XCTAssertEqual(m.count, 512)
         }

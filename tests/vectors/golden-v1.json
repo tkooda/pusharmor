@@ -1747,6 +1747,28 @@
         "from": "X",
         "history": [],
         "kind": "message",
+        "message": "BHkc87OC4eNPoOnWAC2C3Peuvny7nn9StvYiQ1-OdBY6dTvwGMvYHapiLnl6_gy9SFlb7Y5znMXrFI07MQOsgi1qCfp8ylLGkrywb4if0IF3Z3o1lhY-MfO6WRyVeXZDq76duW_sHPHVD5rQ_wJNFrjoenhfBzL8wohve-5GvZtju2PORbN6_QH2WS6n5rRqTOXC1H3AahjnxVQbheJ6Jwi7_8H4wXyOze01-ZMIUl8vwh2pv-uHZim6GC8YCnnptr06TJEMLHJphByb6GY-2y6moBne76Kp89oN2-iR7z_QnmMJcZyvaqFPZQpsST_V177xY36Savu37XKghlWT7SgdZ-7XWT1r5leS030Sb8Ka7fBFlhD70KQSwa5GJ0Sp5IU2wYSixo88vljFDyU-AkV2U5nTQqNATod3yqgX6k7Xis2ixrnpHrXzl4vchykRMUNeg9e8g6Ub08bnQ59GtcGhiPFAf7Asob-TxhPSb0ULrnn8UiC61DEYC_jJ2pN3",
+        "name": "remove_id_39_chars_seen_n",
+        "outcome": "unreadable",
+        "pin": {
+          "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
+          "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
+          "pairing_id": "m-8oOwvzZC8",
+          "ruling": "approved",
+          "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
+        },
+        "receiver": "N",
+        "window": {
+          "h": 1,
+          "seen": [
+            1
+          ]
+        }
+      },
+      {
+        "from": "X",
+        "history": [],
+        "kind": "message",
         "message": "BJf3poi67XyoaSIfDySEOHzJFtwC9OxUv_G2dALicrpOmf-uxJl6gIulH1cbm7JpnOWykR7fw4riJu-VU9jKeG8gVmMSUD-6laLQsio9VyHJgAm1DWC01jFDKR-RC8Al0NRXWv-4swyMQhcmQ-WxUDOlgh1RT8hkyRdtEBovCuNAiU_FPLWSzDCAkS8ZK6-fwfQ_-UAps6jG6yCYi2XmL-0qhtV0Eo0E2xsir5zxDwPEGSCs1jGUHVBW3TmM7plufBK1TgMt9wWZTx14v2XpbzhhcuxYGVmVI2Fr9-MxQ9L6u9-YTHK8UXwLWWuKSGaeEkxOtpwjJMrEf3xVGhc4Um5f1hz-_VEzZr5QAea9jI_w89WBbglaJQYvHX-fxIip75fuqYGMZIXRQdHlUMwKeazkpRjDQxoYQj-4ZdHxHASKfTx72PctuAwLP3sDnDLxVSVXDLO0LElSEe7tLtqa6ezaUlBAxcu3pKwKOnw211_R6TNIev_EFiOmOe27uEo6",
         "name": "remove_id_not_b64url",
         "outcome": "unreadable",
