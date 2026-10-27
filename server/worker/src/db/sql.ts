@@ -57,7 +57,8 @@ export const W_REG = `INSERT INTO peers (id, account, sign_pub, enc_pub, platfor
   allow, deny, name, pending, created)
 SELECT ?1, ?2, ?3, ?4, ?8, ?5, ?6, '{}', '{}', '{}', '{}', ?7
 WHERE (SELECT count(*) FROM peers WHERE account = ?2) < 10
-  AND NOT EXISTS (SELECT 1 FROM accounts WHERE id = ?2 AND status = 'banned')`;
+  AND NOT EXISTS (SELECT 1 FROM accounts WHERE id = ?2 AND status = 'banned')
+ON CONFLICT (account, id) DO NOTHING`;
 
 // ?1 me, ?2 acct
 export const Q_SELF = `SELECT sign_pub, enc_pub, platform, push_type, push, push IS NULL AS push_missing, paused, allow

@@ -119,6 +119,17 @@ describe("POST /peers", () => {
     expect(await row(ok[0].peer.id)).toBeNull();
   });
 
+  it("duplicate concurrent first-time registration of one peer: both 200, one row (I305)", async () => {
+    const email = randomEmail();
+    const k = await keys();
+    const body = { ticket: await ticketFor(email, k.signPub, "register"), sign_pub: k.signPub, enc_pub: k.encPub, platform: "android", push: null };
+    const rs = await Promise.all(Array.from({ length: 4 }, () => call("POST", "/v1/peers", body, { sign: k.sign })));
+    expect(rs.map((x) => x.status)).toEqual([200, 200, 200, 200]);
+    expect(new Set(rs.map((x) => x.body.id)).size).toBe(1);
+    const n = await env.DB.prepare("SELECT count(*) AS n FROM peers WHERE id = ?1").bind(rs[0].body.id).first<{ n: number }>();
+    expect(n!.n).toBe(1);
+  });
+
   it("evict id outside the account or not found -> 400", async () => {
     const email = randomEmail();
     const other = await newPeer(randomEmail());
