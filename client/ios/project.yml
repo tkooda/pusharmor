@@ -29,6 +29,11 @@ targets:
       - package: PushArmorCore
       - target: PushArmorNSE
       - target: PushArmorShare
+    preBuildScripts:
+      # Release gate: the script exits 0 in every configuration except Release.
+      - name: Check release values
+        script: sh "${SRCROOT}/tools/check-release-values.sh"
+        basedOnDependencyAnalysis: false
     info:
       path: App/Info.plist
       properties:
