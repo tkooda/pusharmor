@@ -118,7 +118,8 @@ export async function register(c: Ctx): Promise<Response> {
     const rs = await batch(c.log, c.env.DB, stmts);
     const regRes = rs[rs.length - 2];
     rows = rs[rs.length - 1].results as ListRow[];
-    if (regRes.meta.changes === 0) {
+    // No change: a concurrent duplicate already inserted this peer (its row is in the list), or the limit is hit.
+    if (regRes.meta.changes === 0 && !rows.some((r) => r.id === id)) {
       const fresh = await makeTicket(c.env.TOKEN_SECRET, { a: acct, k: ticket.k, p: "register", x: now + TICKET_LIFE_PEER_LIMIT_S });
       throw new ApiError(409, "peer limit", { ticket: fresh, peers: limitPeers(rows) });
     }
