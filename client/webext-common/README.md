@@ -21,7 +21,9 @@ Node 24 runs the TypeScript tests directly (type stripping).
     npm run lint:firefox   # web-ext lint on the Firefox build
 
 The build is reproducible: unminified ES modules, zip entries sorted, fixed
-timestamps. Build constants (VAPID public key, add-on id) come from
-`release/constants.json`.
+timestamps. Build ids (VAPID public key, Firefox add-on id, Chrome dev key)
+come from the git-ignored `release/local.json` (copy
+`release/local.example.json` and fill it). A release build fails when the
+file is missing or holds a placeholder; `--dev` builds without it.
 
 The golden test reads `tests/vectors/golden-v1.json` at the repo root.
