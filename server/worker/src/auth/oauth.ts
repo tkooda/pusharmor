@@ -56,9 +56,21 @@ export function jsonList(raw: string): string[] {
 }
 
 // An unset (empty) or non-https target would make a relative Location: 503.
-function redirectFor(env: Env, r: Client): string {
-  const t = r === "chrome" ? env.PA_OAUTH_REDIRECT_CHROME : r === "firefox" ? env.PA_OAUTH_REDIRECT_FIREFOX : r === "android" ? env.PA_OAUTH_REDIRECT_ANDROID : env.PA_OAUTH_REDIRECT_WEB;
-  if (!t.startsWith("https://")) throw new ApiError(503, "unavailable");
+// Chrome: PA_OAUTH_REDIRECT_CHROME is a JSON list (public and Beta extension); the
+// client names its own redirect in u, which must equal a list entry exactly (no
+// open redirect); without u the first entry. u is refused for every other client.
+function redirectFor(env: Env, r: Client, u: string | null): string {
+  let t: string | undefined;
+  if (r === "chrome") {
+    const list = jsonList(env.PA_OAUTH_REDIRECT_CHROME);
+    if (list.length === 0) throw new ApiError(503, "unavailable");
+    if (u !== null && !list.includes(u)) throw bad();
+    t = u ?? list[0];
+  } else {
+    if (u !== null) throw bad();
+    t = r === "firefox" ? env.PA_OAUTH_REDIRECT_FIREFOX : r === "android" ? env.PA_OAUTH_REDIRECT_ANDROID : env.PA_OAUTH_REDIRECT_WEB;
+  }
+  if (!t?.startsWith("https://")) throw new ApiError(503, "unavailable");
   return t;
 }
 
@@ -108,7 +120,7 @@ async function sealApple(env: Env, refresh: string | undefined, clientId: string
   return seal(env.PA_TOKEN_SECRET, JSON.stringify({ t: refresh, c: clientId }));
 }
 
-// GET /auth/$provider?k=..&r=..&p=..
+// GET /auth/$provider?k=..&r=..&p=..[&u=..]
 export async function oauthStart(c: Ctx, p: ProviderCfg): Promise<Response> {
   if (c.body.length !== 0) throw bad();
   const q = new URL(c.req.url).searchParams;
@@ -118,9 +130,10 @@ export async function oauthStart(c: Ctx, p: ProviderCfg): Promise<Response> {
   if (k === null || k.length !== 43 || b64urlDecode(k)?.length !== 32) throw bad();
   if (r === null || !(CLIENTS as readonly string[]).includes(r)) throw bad();
   if (r === "web" && purpose !== "delete-account") throw bad();
-  redirectFor(c.env, r as Client);
+  const want = q.get("u");
+  redirectFor(c.env, r as Client, want);
   const n = b64urlEncode(crypto.getRandomValues(new Uint8Array(16)));
-  const state = await makeToken(c.env.PA_TOKEN_SECRET, LABEL_STATE, { k, r, p: purpose, exp: nowS() + STATE_LIFE_S, n });
+  const state = await makeToken(c.env.PA_TOKEN_SECRET, LABEL_STATE, { k, r, p: purpose, exp: nowS() + STATE_LIFE_S, n, ...(want !== null ? { u: want } : {}) });
   const verifier = await pkceVerifier(c.env.PA_TOKEN_SECRET, n);
   const u = new URL(p.authorizeUrl);
   const params: Record<string, string> = {
@@ -144,7 +157,8 @@ export async function oauthCallback(c: Ctx, p: ProviderCfg, params: URLSearchPar
   if (!st || typeof st.k !== "string" || typeof st.r !== "string" || typeof st.n !== "string" || typeof st.exp !== "number") throw bad();
   if (st.exp < nowS()) throw bad();
   if (!(CLIENTS as readonly string[]).includes(st.r)) throw bad();
-  const target = redirectFor(c.env, st.r as Client);
+  if (st.u !== undefined && typeof st.u !== "string") throw bad();
+  const target = redirectFor(c.env, st.r as Client, st.u ?? null);
   const purpose = checkPurpose(st.p);
   // With a valid state the user returns to the client page with #error=<word>, never a JSON page on the Worker origin.
   if (params.get("error") !== null) return redirect(`${target}#error=cancelled`);

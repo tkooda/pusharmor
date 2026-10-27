@@ -49,7 +49,10 @@ export function basePlatform(b: Browser, name: "chrome" | "firefox", isAndroid: 
     },
     async authFlow(url) {
       if (!b.identity) return null;
-      return b.identity.launchWebAuthFlow({ url, interactive: true });
+      // u names this extension's own redirect (public or Beta id); the Worker
+      // accepts only an exact entry of its allow-list.
+      const u = "&u=" + encodeURIComponent(b.identity.getRedirectURL());
+      return b.identity.launchWebAuthFlow({ url: url + u, interactive: true });
     },
     async autoOpenTab(url) {
       if (isAndroid || !b.windows) {

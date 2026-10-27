@@ -14,7 +14,7 @@
     "GOOGLE_AUD_NATIVE": "JSON list of Google OAuth client ids accepted from the apps",
     "APPLE_SIGNIN_AUD_WEB": "Apple Services ID accepted from web sign-in",
     "APPLE_SIGNIN_AUD_NATIVE": "iOS app bundle id accepted from native Apple sign-in",
-    "PA_OAUTH_REDIRECT_CHROME": "Chrome extension OAuth redirect (https://<extension id>.chromiumapp.org/)"
+    "PA_OAUTH_REDIRECT_CHROME": "JSON list of Chrome extension OAuth redirects, one per extension id (public and Beta): [\"https://<id>.chromiumapp.org/\", ...]"
   },
   "cloudflare_fixed_vars": {
     "PA_ALLOWED_PUSH_ENDPOINT_PREFIXES": "JSON list of Web Push endpoint URL prefixes the Worker accepts",
