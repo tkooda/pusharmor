@@ -178,6 +178,30 @@ describe("Google", () => {
     // Tampered state -> 400.
     expect((await call("GET", `/v1/auth/google/callback?code=x&state=${state.slice(0, -2)}AA`)).status).toBe(400);
   });
+
+  it("JWKS: unknown kid refetches at most once per 60 s; stale keys survive a failed refetch (I295)", async () => {
+    const g = await idp("RS256");
+    serveJwks("www.googleapis.com", g);
+    const k = await keys();
+    const nonce = await oauthNonce("register", await keyRef(b64urlDecode(k.signPub)!));
+    const good = { iss: "https://accounts.google.com", aud: "google-ios-client", exp: Math.floor(Date.now() / 1000) + 3 * 86400, nonce, email: randomEmail(), email_verified: true };
+    const post = (t: string) => call("POST", "/v1/auth/google/token", { id_token: t, sign_pub: k.signPub, purpose: "register" });
+    expect((await post(await idToken(g, good))).status).toBe(200);
+    const certs = () => vendorRequests("www.googleapis.com").length;
+    expect(certs()).toBe(1);
+    for (let i = 0; i < 10; i++) {
+      const kid = b64urlEncode(crypto.getRandomValues(new Uint8Array(9)));
+      const t = secretString(await signJwt("RS256", g.priv, { alg: "RS256", kid }, good));
+      expect((await post(t)).body.error).toBe("invalid id_token");
+    }
+    expect(certs()).toBe(2);
+    // Cache past max-age, refetch fails: the known kid still verifies.
+    mock.clock += 2 * 86400 * 1000;
+    onVendor((r) => new URL(r.url).hostname === "www.googleapis.com", () => new Response("down", { status: 503 }), 99);
+    mock.scripts.unshift(mock.scripts.pop()!);
+    expect((await post(await idToken(g, good))).status).toBe(200);
+    expect(certs()).toBe(3);
+  });
 });
 
 describe("Apple delete-account (6.5, 8.2)", () => {
