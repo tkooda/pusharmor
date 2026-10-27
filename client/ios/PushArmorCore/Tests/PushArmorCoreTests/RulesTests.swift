@@ -122,4 +122,17 @@ final class RulesTests: XCTestCase {
         XCTAssertNil(URLRule.parse("file:///etc/passwd"))
         XCTAssertNil(URLRule.parse("two https://a.com https://b.com"))
     }
+
+    /// I289: the banner userInfo starts empty; only "m" comes from the relay payload.
+    func testBannerUserInfoKeepsOnlyM() {
+        let b = Banner(body: "hi", locKey: nil, category: .url, threadId: "t", rowid: 7, tap: .openURL("https://a.com/"))
+        let info = b.userInfo(m: "abc")
+        XCTAssertEqual(Set(info.keys.compactMap { $0 as? String }), ["m", "rowid", "tap", "url"])
+        XCTAssertEqual(info["m"] as? String, "abc")
+        XCTAssertEqual((info["rowid"] as? NSNumber)?.int64Value, 7)
+        XCTAssertEqual(info["tap"] as? String, "url")
+        XCTAssertEqual(info["url"] as? String, "https://a.com/")
+        let p = Banner(body: "x", locKey: nil, category: .event, threadId: "t", rowid: nil, tap: .peers(nil))
+        XCTAssertEqual(Set(p.userInfo(m: nil).keys.compactMap { $0 as? String }), ["tap"])
+    }
 }

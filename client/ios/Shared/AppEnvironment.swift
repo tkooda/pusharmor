@@ -69,22 +69,17 @@ final class AppEnvironment: PlatformHooks {
 
 /// Banner -> notification content (NSE and app re-presentation).
 enum BannerContent {
-    static func fill(_ c: UNMutableNotificationContent, _ b: Banner) {
+    /// Fresh content: nothing of the relay's alert (subtitle included) is kept; only "m"
+    /// is copied into userInfo (spec 6.2).
+    static func content(_ b: Banner, m: Any?) -> UNMutableNotificationContent {
+        let c = UNMutableNotificationContent()
         c.title = S.title
         c.body = b.body
         c.sound = .default
         c.categoryIdentifier = b.category.rawValue
         c.threadIdentifier = b.threadId
-        var info = c.userInfo
-        if let r = b.rowid { info["rowid"] = NSNumber(value: r) }
-        switch b.tap {
-        case .openURL(let u): info["tap"] = "url"; info["url"] = u
-        case .detail: info["tap"] = "detail"
-        case .peers(let id): info["tap"] = "peers"; if let id = id { info["peer"] = id }
-        case .history: info["tap"] = "history"
-        case .none: info["tap"] = "none"
-        }
-        c.userInfo = info
+        c.userInfo = b.userInfo(m: m)
+        return c
     }
 
     /// Category ids with their actions; every category sets hiddenPreviewsBodyPlaceholder

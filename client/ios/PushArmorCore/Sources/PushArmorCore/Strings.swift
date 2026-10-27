@@ -88,6 +88,21 @@ public struct Banner: Equatable, Sendable {
     public static func peerThread(_ id: PeerId) -> String {
         "p." + B64URL.encode(Bytes.sha256(id.raw).prefix(12))
     }
+
+    /// Notification userInfo: only "m" is kept from the relay payload, then the routing keys.
+    public func userInfo(m: Any?) -> [AnyHashable: Any] {
+        var info: [AnyHashable: Any] = [:]
+        if let m = m { info["m"] = m }
+        if let r = rowid { info["rowid"] = NSNumber(value: r) }
+        switch tap {
+        case .openURL(let u): info["tap"] = "url"; info["url"] = u
+        case .detail: info["tap"] = "detail"
+        case .peers(let id): info["tap"] = "peers"; if let id = id { info["peer"] = id }
+        case .history: info["tap"] = "history"
+        case .none: info["tap"] = "none"
+        }
+        return info
+    }
 }
 
 /// Lock-screen body choice (section 6.2, Q165 B, Q183 B, Q187 A): effective = main AND peer;

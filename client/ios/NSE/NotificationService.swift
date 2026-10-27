@@ -33,13 +33,10 @@ final class NotificationService: UNNotificationServiceExtension {
                 nowMs: Int64(Date().timeIntervalSince1970 * 1000),
                 budgetLeft: { 30 - Date().timeIntervalSince(started) },
                 onReceived: { [weak self] r in
-                    guard r.committed, let b = r.banner, let c = orig.mutableCopy() as? UNMutableNotificationContent else { return }
-                    BannerContent.fill(c, b)
-                    self?.setCommitted(c)
+                    guard r.committed, let b = r.banner else { return }
+                    self?.setCommitted(BannerContent.content(b, m: m))
                 })
-            let c = (orig.mutableCopy() as? UNMutableNotificationContent) ?? UNMutableNotificationContent()
-            BannerContent.fill(c, r.banner ?? .dropped)
-            self.deliver(c)
+            self.deliver(BannerContent.content(r.banner ?? .dropped, m: m))
         }
     }
 
