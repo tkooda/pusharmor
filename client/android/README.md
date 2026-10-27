@@ -21,15 +21,20 @@ Compose, Gradle Kotlin DSL with a version catalog.
 Both use applicationId `com.pusharmor` and the same versionCode. The version comes from
 `release/version.properties` (versionCode = major * 1000000 + minor * 1000 + patch).
 
-Build ids are not in the repo. Owner steps before a release build:
+Build ids come from the tracked `release/public.json` (meanings in
+`release/names.json`); the owner fills them in a normal commit. Gradle reads
+`webpush_vapid_public_key` for both flavors; play also reads
+`google_web_client_id` and the Firebase options `google_fcm_android_app_id`,
+`google_fcm_project_number`, `google_fcm_android_api_key` and
+`google_fcm_project_id` (baked in as the resources FirebaseInitProvider reads; no
+google-services.json and no google-services plugin).
 
-1. Copy `release/local.example.json` to `release/local.json` (git-ignored) and fill
-   `vapid_public_key` and `google_web_client_id` (meanings in `release/names.json`).
-2. Download the Firebase client config to `app/src/play/google-services.json`
-   (git-ignored). Debug builds use the placeholder in `app/src/playDebug/`.
+`assemble*Release` and `bundle*Release` fail while a value the flavor bakes in is
+missing, empty or a PLACEHOLDER, or a CI dummy (`release/ci-dummy.mjs`) without
+`PA_CI_DUMMY=1`; debug builds work with the placeholders.
 
-`assemble*Release` and `bundle*Release` fail while a value is missing, empty or a
-PLACEHOLDER; debug builds work without either file.
+F-Droid: the foss build needs nothing outside the repo; its values come from
+`release/public.json` at the tag.
 
 ## Build and test
 
