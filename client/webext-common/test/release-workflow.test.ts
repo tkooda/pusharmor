@@ -59,6 +59,15 @@ test("CI uploads only to the test channels: private Chrome Beta item, unlisted F
   assert.match(chrome, /ITEM: \$\{\{ needs\.build-chrome\.outputs\.google_chrome_beta_extension_id \}\}/);
   assert.match(chrome, /ZIP: \$\{\{ steps\.files\.outputs\.beta \}\}/);
   assert.doesNotMatch(wf, /outputs\.google_chrome_extension_id|STAGED_PUBLISH|--channel listed/);
+  // The Beta id is checked against the public id before the publish job, which
+  // rechecks its form and names no other item.
+  const cws = jobs.get("build-chrome")!;
+  assert.match(cws, /if \(beta === p\.google_chrome_extension_id\) throw/);
+  assert.match(cws, /if \(!\/\^\[a-p\]\{32\}\$\/\.test\(beta\)\) throw/);
+  assert.ok(cws.indexOf("equals google_chrome_extension_id") < cws.indexOf("console.log(k + \"=\" + p[k])"));
+  assert.match(chrome, /grep -qxE '\[a-p\]\{32\}'; then\n\s+echo "::error::Beta item id is not 32 letters a-p; refusing to upload"\n\s+exit 1/);
+  assert.ok(chrome.indexOf("refusing to upload") < chrome.indexOf(":upload"));
+  assert.deepEqual(chrome.match(/items\/[^"\s]*/g), ["items/$ITEM"]);
   assert.match(jobs.get("submit-firefox")!, /--channel unlisted/);
   assert.doesNotMatch(wf, /--draft/);
   const creates = wf.match(/gh release create .*/g) ?? [];
