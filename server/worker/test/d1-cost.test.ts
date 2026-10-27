@@ -199,11 +199,10 @@ describe("D1 cost per endpoint (fixture test/d1-cost.json)", () => {
       const want = fx.find((e) => e.endpoint === s.endpoint && e.n === s.n && e.k === s.k && e.q === s.q);
       if (!want || want.rows_read !== got.rows_read || want.rows_written !== got.rows_written) console.warn("D1COST " + JSON.stringify(got));
       expect(got).toEqual(want);
-      // Ceilings against an accidental full scan of the account (I274). The design states
-      // 6 + q + n (approve) and 4 + q + n (deny); local D1 also counts the q json_each rows
-      // of the pending prune, so the measured ceiling is 6 + 2q + n and 4 + 2q + n.
-      if (s.endpoint.startsWith("POST /approve")) expect(m.rows_read).toBeLessThanOrEqual(6 + 2 * s.q + s.n);
-      if (s.endpoint === "POST /deny/$X") expect(m.rows_read).toBeLessThanOrEqual(4 + 2 * s.q + s.n);
+      // Ceilings against an accidental full scan of the account (I274): 6 + q + n (approve)
+      // and 4 + q + n (deny).
+      if (s.endpoint.startsWith("POST /approve")) expect(m.rows_read).toBeLessThanOrEqual(6 + s.q + s.n);
+      if (s.endpoint === "POST /deny/$X") expect(m.rows_read).toBeLessThanOrEqual(4 + s.q + s.n);
     });
   }
   it("fixture has no stale entries", () => {

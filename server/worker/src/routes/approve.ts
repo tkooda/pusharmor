@@ -20,7 +20,7 @@ export function targetX(c: Ctx, s: Signed): string {
 }
 
 export async function readCtxX(c: Ctx, s: Signed, x: string): Promise<{ caller?: CtxRow; xr?: CtxRow }> {
-  const rows = await all<CtxRow>(c.log, c.env.DB.prepare(SQL.Q_CTX).bind(s.me, s.acct, JSON.stringify([x])));
+  const rows = await all<CtxRow>(c.log, c.env.DB.prepare(SQL.Q_CTX(1)).bind(s.me, s.acct, x));
   return { caller: rows.find((r) => r.id === s.me), xr: rows.find((r) => r.id === x) };
 }
 

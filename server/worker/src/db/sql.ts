@@ -11,20 +11,32 @@ export const Q_LIST = `SELECT id, sign_pub, enc_pub, platform, push_type, create
   json_extract(name, ${P(1)}) AS name_for_me
 FROM peers WHERE account = ?2`;
 
-// Caller + named peers. ?1 me, ?2 acct, ?3 JSON array of ids
+// Caller + named peers. ?1 me, ?2 acct, then one id per parameter ?3, ?4, ... A VALUES
+// list joined to the primary key reads one row per id; json_each and IN lists add rows
+// read on D1. A repeated id returns a repeated row.
 const Q_CTX_COLS = `id, sign_pub, enc_pub, push_type, push, paused,
   json_type(allow, ${P(1)}) IS NOT NULL AS approves_me,
   json_type(deny, ${P(1)}) IS NOT NULL AS denies_me,
   CASE WHEN id = ?1 THEN allow END AS my_allow`;
-export const Q_CTX = `SELECT ${Q_CTX_COLS}
-FROM peers
-WHERE account = ?2 AND (id = ?1 OR id IN (SELECT value FROM json_each(?3)))`;
+const ctxCache = new Map<string, string>();
+function ctxSql(ids: number, send: boolean): string {
+  if (!Number.isInteger(ids) || ids < 0 || ids > 10) throw new Error("Q_CTX ids");
+  const key = `${ids}${send}`;
+  let s = ctxCache.get(key);
+  if (s) return s;
+  const list = ["(?1)"];
+  for (let i = 0; i < ids; i++) list.push(`(?${3 + i})`);
+  s = `SELECT ${Q_CTX_COLS}${send ? `,
+  (SELECT last_seen_month FROM accounts WHERE id = ?2) AS seen` : ""}
+FROM (VALUES ${list.join(", ")}) v CROSS JOIN peers
+WHERE peers.account = ?2 AND peers.id = v.column1`;
+  ctxCache.set(key, s);
+  return s;
+}
+export const Q_CTX = (ids: number): string => ctxSql(ids, false);
 
 // POST /send: Q_CTX plus the account's last_seen_month.
-export const Q_CTX_SEND = `SELECT ${Q_CTX_COLS},
-  (SELECT last_seen_month FROM accounts WHERE id = ?2) AS seen
-FROM peers
-WHERE account = ?2 AND (id = ?1 OR id IN (SELECT value FROM json_each(?3)))`;
+export const Q_CTX_SEND = (ids: number): string => ctxSql(ids, true);
 
 // POST /peers read. ?1 acct, ?2 id, ?3 JSON array of evict ids
 export const Q_REG = `SELECT (SELECT status FROM accounts WHERE id = ?1) AS status,
