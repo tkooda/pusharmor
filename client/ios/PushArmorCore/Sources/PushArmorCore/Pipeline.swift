@@ -107,7 +107,7 @@ public enum ReceivePipeline {
         }
         switch j.content {
         case .approve(let f), .rename(let f):
-            guard let name = NameEntry.verify(f, owner: from, recipient: me, pairingId: p.pairingId, ownerSignPub: p.signPub) else {
+            guard f.n == j.n, let name = NameEntry.verify(f, owner: from, recipient: me, pairingId: p.pairingId, ownerSignPub: p.signPub) else {
                 return .drop(from)
             }
             r.name = name

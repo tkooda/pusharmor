@@ -795,7 +795,7 @@
         "wire_chars": 512
       }
     ],
-    "description": "One full inner message per type, X -> N. JSON {\"n\": counter, type: value} -> deflate-raw (any valid stream is fine for senders; receivers inflate the given bytes) -> body = from id(30) || pairing id(8) || keys flag(1) [|| sign_pub || enc_pub, approve only] || u16 BE deflated length || deflated -> zero pad so the wire length is the next of 512/1024/2048/3800 chars -> sig = ECDSA over \"PA-MSG1\\n\" + recipient 40-char id + \"\\n\" + padded body (signed_bytes) -> plaintext = sig || padded body -> HPKE (info \"PA-MSG1\", aad = recipient id) -> message = b64url(enc || ct). Receiver state: pin (the pinned keys, pairing id and ruling approved | unruled | denied of the sender), window (h and the seen n values), history (n values with a History row). Assert: open message with the receiver enc_priv and compare plaintext; verify sig before inflate; inflate deflated and compare json; run the full receive pipeline and compare expect (outcome, type, n, value; approve/rename value = verified name and n)."
+    "description": "One full inner message per type, X -> N. JSON {\"n\": counter, type: value} -> deflate-raw (any valid stream is fine for senders; receivers inflate the given bytes) -> body = from id(30) || pairing id(8) || keys flag(1) [|| sign_pub || enc_pub, approve only] || u16 BE deflated length || deflated -> zero pad so the wire length is the next of 512/1024/2048/3800 chars -> sig = ECDSA over \"PA-MSG1\\n\" + recipient 40-char id + \"\\n\" + padded body (signed_bytes) -> plaintext = sig || padded body -> HPKE (info \"PA-MSG1\", aad = recipient id) -> message = b64url(enc || ct). Receiver state: pin (the pinned keys, pairing id and ruling approved | unruled | denied of the sender), window (h and the seen n values), history (n values with a History row). Assert: open message with the receiver enc_priv and compare plaintext; verify sig before inflate; inflate deflated and compare json; run the full receive pipeline and compare expect (outcome, type, n, value; approve/rename value = verified name and n; the name entry n must equal the message n)."
   },
   "must_fail": {
     "cases": [
@@ -1531,6 +1531,46 @@
           "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
           "pairing_id": "m-8oOwvzZC8",
           "ruling": "unruled",
+          "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
+        },
+        "receiver": "N",
+        "window": {
+          "h": 0,
+          "seen": []
+        }
+      },
+      {
+        "from": "X",
+        "history": [],
+        "kind": "message",
+        "message": "BEuP333ae9eguPtyMq9tfvE0JwwVMv4VFI1OeS2NsL-3lXA7qJTFmscykkAwcEsjC-eWUhRtRlWLU2Z5nb38ySV86V6AwbldaW0MGEZ_Orug7y5jnC4T1khGU0OS-Q4o6e-JC_6TgsPLs4e8ZE_Sr4HGrxHK3KvRuufskSR8tqasvzpjjjB4PaFnJNlEVyT8krW9eOElYvXU2aeL_Ftokxx1-DQoXYjN-WqTpPMGNwBWg66nkFTuFMj6bIUYiJtVSQKy4aAHIkqqFzPpZUgfsYYDK_tolouLMG-Do24zdZQv0LoerFq5nUNzFTk-YyhLf_45tUtH_Ki40Wlk_4Bf-pwBvqO3L71yse3DYyI2BTMu-KFLl-cCJ-O-anNJmsOnejGnt1v7K2_KcFgkEw2626wbFbNkf8FwhdFiFyH2ARDuYyZ4uTUoJ9P8NueiYJyh6dfadwxineZwGht4lkD8dDdfUmhe1uZaN_kZnG3MlnD59SOmjK0_XL9v9iMGGiki8QfAypUVe7rNiEoOk6FyLUzQIM08vke2ZxtXGfjY3xd_ZEYV4Ck7ySWKfjMgiTTd2uuXMD8sm8U2I809LHTDMFkICmjAhTP9eFe68rfw-ueJAeioLh6LNM0U_e0hf9fFhr8yAwFTCpETLNprxRO3ssXedDwvXjvcZnv4eeAF7vyV1TX1NZOAk2FKld-d4-cV5yiYnglMWl0Qr0nZa-npZADtZkg093w3xL0LjF5D-jhiHTHciTQVha-1F09ftARo6yioGjMiC5o7wQuz6lLa-RyTBInEL81GESHrO66GAwoqZ5G9tHbaYaUF2SMnstMp4GS3OgAIW9TKGCLKLjnWaeA53LICMAsbNLNgjS3gk2L9nbPtf0vrvAo4GcS9ROB49AFWdBBlxdoIWiqw-hVW6IpJhYlUt-X5Nwa_7MFzkxdY93bTbXs7DOavg7WW_6hK6BN2JIFbPtrnNz1rzjLssbN99DU8sYzo53NQaWAus7b4WFeTOnj_LJrnCJ7yEAzv",
+        "name": "approve_name_n_differs",
+        "outcome": "unreadable",
+        "pin": {
+          "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
+          "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
+          "pairing_id": "m-8oOwvzZC8",
+          "ruling": "unruled",
+          "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
+        },
+        "receiver": "N",
+        "window": {
+          "h": 0,
+          "seen": []
+        }
+      },
+      {
+        "from": "X",
+        "history": [],
+        "kind": "message",
+        "message": "BOjzXfsgYTBMOXeUc2emvTxHIk606hn5NjdzNBm2u1gFiXfWefymjv-X31Wgey3Y8bYM8P76Wiyam4wVVRT0W5Y3t0VMaFpxEGzTPD1TeJXu-urUHrjc2AkmoTbcEYNFiyky7DqLQO28iaYrCyAikr5jc7OBd2VlONvQcMUKsRJQHleF-keMO3t2UeWtKtk7Lwb1tUgNuZOCiffcm9IR4MnDB9KKMOpqh8kxLotl9o6YPQ7qiGuBzw25u7J64p8vKMm9va6vI6wlxBYXCINJ_zwzJtPL3klmD0NMiR-sUEovIDPwwqJOjGC7sBBOg1o5Fc975HYAX40hlPrSoiWNDtbDQzKW260W-cO9SWyavozNIHzU20kYmKf07lEn2wjiojW3_kC3XommlANBo4oeJFO8nXYjsVbGEiq5orpCvje7PF65lvNalS_DgcBlHVFROSO9ddCWQrHvYKxMcaWhcoI-SmP5QTmScqmzvJhn3xifek4p_kl4bKToivfdnDk0",
+        "name": "rename_name_n_differs",
+        "outcome": "unreadable",
+        "pin": {
+          "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
+          "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
+          "pairing_id": "m-8oOwvzZC8",
+          "ruling": "approved",
           "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
         },
         "receiver": "N",

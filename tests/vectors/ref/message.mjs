@@ -167,7 +167,7 @@ export function receiveMessage(ctx, message) {
     result = value;
   } else if (type === 'approve' || type === 'rename') {
     const r = checkNameObject(value, fromB64, ctx.own_id, pidB64, signPub);
-    if (!r) return bad('name entry');
+    if (!r || r.n !== n) return bad('name entry');
     result = r;
   } else if (type === 'remove') {
     if (typeof value !== 'string' || value.length !== 40 || !b64ok(value)) return bad('remove id');
