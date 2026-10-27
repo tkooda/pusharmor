@@ -1,7 +1,7 @@
 // Release preflight tests. Run: node --test server/deploy/
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -12,33 +12,35 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 function tree() {
   const d = mkdtempSync(join(tmpdir(), "pa-deploy-"));
   mkdirSync(join(d, "server", "worker"), { recursive: true });
-  mkdirSync(join(d, "release"));
   cpSync(join(REPO, "server", "deploy"), join(d, "server", "deploy"), { recursive: true });
   cpSync(join(REPO, "server", "worker", "wrangler.jsonc"), join(d, "server", "worker", "wrangler.jsonc"));
-  cpSync(join(REPO, "release", "constants.json"), join(d, "release", "constants.json"));
   return d;
 }
 
-function filled(d) {
-  const wp = join(d, "server", "worker", "wrangler.jsonc");
-  let w = readFileSync(wp, "utf8").replace(/0{8}-0{4}-0{4}-0{4}-0{12}/, "11111111-2222-3333-4444-555555555555");
-  w = w.replace(/"(FCM_PROJECT_ID|APNS_TOPIC|APNS_KEY_ID|APNS_TEAM_ID|VAPID_PUBLIC_KEY|VAPID_SUB|SES_REGION|MAIL_FROM|SES_CONFIG_SET|APPLE_AUD_WEB|APPLE_AUD_NATIVE|OAUTH_REDIRECT_CHROME)": ""/g, '"$1": "x"');
-  w = w.replace(/"(GOOGLE_AUD_WEB|GOOGLE_AUD_NATIVE)": "\[\]"/g, '"$1": "[\\"a\\"]"');
-  writeFileSync(wp, w);
-  const c = JSON.parse(readFileSync(join(d, "release", "constants.json"), "utf8"));
-  c.release_cert_sha256 = "AA"; c.chrome_extension_id = "abc"; c.chrome_dev_key = "k";
-  c.firefox_addon_id = "id@pusharmor.com"; c.vapid_public_key = "v";
-  writeFileSync(join(d, "release", "constants.json"), JSON.stringify(c));
-}
+const DASHBOARD_VARS = ["FCM_PROJECT_ID", "APNS_TOPIC", "APNS_KEY_ID", "APNS_TEAM_ID", "VAPID_PUBLIC_KEY", "VAPID_SUB",
+  "SES_REGION", "MAIL_FROM", "SES_CONFIG_SET", "GOOGLE_AUD_WEB", "GOOGLE_AUD_NATIVE", "APPLE_AUD_WEB",
+  "APPLE_AUD_NATIVE", "OAUTH_REDIRECT_CHROME"];
 
-function stub(d) {
+// Stub wrangler: logs every call; answers the two read-only calls with the given dashboard vars.
+function stub(d, vars) {
   const bin = join(d, "bin");
   mkdirSync(bin);
+  const bindings = Object.entries(vars).map(([name, text]) => ({ type: "plain_text", name, text }));
+  bindings.push({ type: "secret_text", name: "VAPID_PRIVATE_JWK" });
+  writeFileSync(join(d, "status.json"), JSON.stringify({ versions: [{ version_id: "v1", percentage: 100 }] }));
+  writeFileSync(join(d, "version.json"), JSON.stringify({ id: "v1", resources: { bindings } }));
   const w = join(bin, "wrangler");
-  writeFileSync(w, '#!/bin/sh\necho "$@" >> "' + join(d, "calls.log") + '"\nexit 0\n');
+  writeFileSync(w, '#!/bin/sh\necho "$@" >> "' + join(d, "calls.log") + '"\n' +
+    'case "$1 $2" in\n' +
+    '  "deployments status") cat "' + join(d, "status.json") + '" ;;\n' +
+    '  "versions view") cat "' + join(d, "version.json") + '" ;;\n' +
+    'esac\nexit 0\n');
   chmodSync(w, 0o755);
   return w;
 }
+
+const all = () => Object.fromEntries(DASHBOARD_VARS.map((k) => [k, k.startsWith("GOOGLE_AUD") ? '["a"]' : "x"]));
+const calls = (d) => readFileSync(join(d, "calls.log"), "utf8").trim().split("\n");
 
 function run(d, w) {
   return spawnSync("bash", [join(d, "server", "deploy", "deploy.sh"), "9.9.9"], {
@@ -47,53 +49,70 @@ function run(d, w) {
   });
 }
 
-test("deploy.sh aborts on the committed placeholders before any wrangler call", () => {
+test("committed wrangler configs pass the file preflight (no ids, keep_vars true)", () => {
+  const r = spawnSync("node", [join(REPO, "server", "deploy", "preflight.mjs"), REPO], { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+});
+
+test("deploy.sh aborts on missing dashboard vars after read-only wrangler calls only", () => {
   const d = tree();
   try {
-    const w = stub(d);
+    const vars = all();
+    delete vars.FCM_PROJECT_ID;
+    vars.MAIL_FROM = "";
+    vars.APNS_TOPIC = "PLACEHOLDER_TOPIC";
+    vars.GOOGLE_AUD_WEB = "[]";
+    const w = stub(d, vars);
     const r = run(d, w);
     assert.notEqual(r.status, 0);
-    assert.equal(existsSync(join(d, "calls.log")), false, "wrangler was called");
-    for (const k of ["database_id", "FCM_PROJECT_ID", "APNS_TOPIC", "VAPID_PUBLIC_KEY", "SES_REGION", "MAIL_FROM",
-      "GOOGLE_AUD_WEB", "APPLE_AUD_NATIVE", "OAUTH_REDIRECT_CHROME", "release_cert_sha256", "chrome_extension_id"]) {
-      assert.ok(r.stderr.includes(k), "missing in output: " + k);
-    }
+    assert.deepEqual(calls(d), ["deployments status --json", "versions view v1 --json"]);
+    assert.match(r.stderr, /var FCM_PROJECT_ID is missing or empty/);
+    assert.match(r.stderr, /var MAIL_FROM is missing or empty/);
+    assert.match(r.stderr, /var GOOGLE_AUD_WEB is missing or empty/);
+    assert.match(r.stderr, /var APNS_TOPIC is a PLACEHOLDER/);
   } finally { rmSync(d, { recursive: true, force: true }); }
 });
 
-test("preflight passes with every value filled, and names a PLACEHOLDER value", () => {
+test("dashboard preflight passes with every var set", () => {
   const d = tree();
   try {
-    filled(d);
-    const pre = join(d, "server", "deploy", "preflight.mjs");
-    let r = spawnSync("node", [pre, d], { encoding: "utf8" });
+    const w = stub(d, all());
+    const r = spawnSync("node", [join(d, "server", "deploy", "preflight.mjs"), "--dashboard", d], {
+      encoding: "utf8", env: { ...process.env, WRANGLER: w }
+    });
     assert.equal(r.status, 0, r.stderr);
-    const wp = join(d, "server", "worker", "wrangler.jsonc");
-    writeFileSync(wp, readFileSync(wp, "utf8").replace('"MAIL_FROM": "x"', '"MAIL_FROM": "PLACEHOLDER_MAIL"'));
-    r = spawnSync("node", [pre, d], { encoding: "utf8" });
-    assert.equal(r.status, 1);
-    assert.match(r.stderr, /vars\.MAIL_FROM is a PLACEHOLDER/);
+    assert.deepEqual(calls(d), ["deployments status --json", "versions view v1 --json"]);
   } finally { rmSync(d, { recursive: true, force: true }); }
 });
 
-test("preflight aborts when d1_databases is removed or an env block holds a placeholder", () => {
+test("file preflight aborts on an id in the repo config or a missing keep_vars, before any wrangler call", () => {
   const d = tree();
   try {
-    filled(d);
-    const pre = join(d, "server", "deploy", "preflight.mjs");
     const wp = join(d, "server", "worker", "wrangler.jsonc");
-    const good = readFileSync(wp, "utf8");
-    const j = JSON.parse(good.split("\n").filter((l) => !l.trim().startsWith("//")).join("\n"));
+    const mp = join(d, "server", "deploy", "maintenance", "wrangler.jsonc");
+    const parse = (p) => JSON.parse(readFileSync(p, "utf8").split("\n").filter((l) => !l.trim().startsWith("//")).join("\n"));
+    const j = parse(wp);
+    j.vars.MAIL_FROM = "codes@example.com";
+    j.d1_databases[0].database_id = "11111111-2222-3333-4444-555555555555";
+    delete j.keep_vars;
+    j.env = { staging: { d1_databases: [{ binding: "DB", database_name: "x" }], vars: { X: "PLACEHOLDER_X" } } };
+    writeFileSync(wp, JSON.stringify(j));
+    const m = parse(mp);
+    delete m.keep_vars;
+    writeFileSync(mp, JSON.stringify(m));
+    const w = stub(d, all());
+    const r = run(d, w);
+    assert.notEqual(r.status, 0);
+    assert.throws(() => calls(d), "wrangler was called");
+    assert.match(r.stderr, /vars\.MAIL_FROM must not be in the repo/);
+    assert.match(r.stderr, /DB has a database_id/);
+    assert.match(r.stderr, /wrangler\.jsonc: keep_vars must be true/);
+    assert.match(r.stderr, /maintenance\/wrangler\.jsonc: keep_vars must be true/);
+    assert.match(r.stderr, /env\.staging\.vars\.X is a PLACEHOLDER/);
     delete j.d1_databases;
     writeFileSync(wp, JSON.stringify(j));
-    let r = spawnSync("node", [pre, d], { encoding: "utf8" });
-    assert.equal(r.status, 1);
-    assert.match(r.stderr, /d1_databases has no entry/);
-    const j2 = JSON.parse(good.split("\n").filter((l) => !l.trim().startsWith("//")).join("\n"));
-    j2.env = { staging: { d1_databases: j2.d1_databases, vars: { ...j2.vars, MAIL_FROM: "PLACEHOLDER_MAIL" } } };
-    writeFileSync(wp, JSON.stringify(j2));
-    r = spawnSync("node", [pre, d], { encoding: "utf8" });
-    assert.equal(r.status, 1);
-    assert.match(r.stderr, /env\.staging\.vars\.MAIL_FROM is a PLACEHOLDER/);
+    const r2 = spawnSync("node", [join(d, "server", "deploy", "preflight.mjs"), d], { encoding: "utf8" });
+    assert.equal(r2.status, 1);
+    assert.match(r2.stderr, /d1_databases has no entry/);
   } finally { rmSync(d, { recursive: true, force: true }); }
 });
