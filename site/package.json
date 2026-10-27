@@ -1,0 +1,7 @@
+{
+  "name": "pusharmor-site",
+  "private": true,
+  "devDependencies": {
+    "wrangler": "4.124.0"
+  }
+}
