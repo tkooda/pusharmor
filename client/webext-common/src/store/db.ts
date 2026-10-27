@@ -1,5 +1,6 @@
 // IndexedDB "pusharmor" (component-webext section 4.2). Migrations are
 // additive and forward-only; a rollback build keeps the current version.
+import { b64urlEncode } from "../crypto/b64url.ts";
 import type { ReplayState } from "../model/replay.ts";
 
 export const DB_NAME = "pusharmor";
@@ -318,7 +319,7 @@ export class Db {
         g.onerror = () => rej(g.error);
         g.onsuccess = () => {
           const st = g.result as ReplayState | undefined;
-          if (!st) return res({ verdict: "nostate" });
+          if (!st || b64urlEncode(st.pairing_id) !== pairingIdB64) return res({ verdict: "nostate" });
           const v = check(st);
           if (v === "accept") {
             if (!doRecord) return res({ verdict: "accept" });

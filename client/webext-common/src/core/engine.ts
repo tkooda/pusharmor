@@ -93,11 +93,12 @@ function now(p: Platform): number {
 
 /**
  * A received approve as a field-level update on the current peer row
- * (I286, I287): a concurrent approve() or reserveN is kept.
+ * (I286, I287): a concurrent approve() or reserveN is kept. A row
+ * re-pinned since the decide (another pairing id) is left alone (I314).
  */
-function approveRow(n: number, name: string | null): (cur: PeerRow | undefined) => PeerRow | null {
+function approveRow(n: number, name: string | null, pairingId: Uint8Array): (cur: PeerRow | undefined) => PeerRow | null {
   return (cur) => {
-    if (!cur) return null;
+    if (!cur || !cur.pairing_id || !equal(cur.pairing_id, pairingId)) return null;
     let r = cur;
     if (name !== null && n > r.name_n) r = { ...r, name, name_n: n };
     if (r.ruling === "approved") return { ...r, approves_me: true, approve_verified: true, get_after_verify: false, pending_approve_n: 0 };
@@ -246,7 +247,7 @@ export class Engine {
     const pidB64 = b64urlEncode(r.pin.pairing_id);
     const row = c.type === "url" || c.type === "text" || c.type === "tel" ? this.inboundRow(peer, c.type, c.value, r.n, pidB64) : null;
     // approve: the peer-row change commits with the replay record (I301)
-    const peerFn = c.type === "approve" ? approveRow(r.n, r.name) : undefined;
+    const peerFn = c.type === "approve" ? approveRow(r.n, r.name, r.pin.pairing_id) : undefined;
     const rec = await this.db.acceptN(r.from, pidB64, r.n, row, (s) => replayCheck(s, r.n), (s) => replayRecord(s, r.n), true, peerFn);
     if (rec.verdict !== "accept") return; // lost a race with a concurrent duplicate
     let cur = (await this.db.peer(r.from))!;

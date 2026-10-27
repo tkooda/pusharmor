@@ -666,3 +666,28 @@ test("register rejects an assigned id whose keyhash is not ours", async () => {
   assert.equal(await e.self(), null);
   assert.equal(await e.regState(), null);
 });
+
+test("approve decided under the old pin is not recorded into a replay row a re-pin wrote meanwhile (I314)", async () => {
+  const { w, a, b } = await setup();
+  await refresh(a, b);
+  await a.e.pairStart(b.id);
+  await deliver(w, b);
+  await deliver(w, a);
+  await deliver(w, b);
+  await a.e.approve(b.id); // stored
+  await b.e.approve(a.id); // sent; push to a queued
+  const ms = w.take(a.id);
+  assert.equal(ms.length, 1);
+  // stall between receiveDecide and acceptN: a re-pin with a new pairing id lands
+  const orig = a.db.acceptN.bind(a.db);
+  a.db.acceptN = async (...args: Parameters<typeof orig>) => {
+    const p = (await a.db.peer(b.id))!;
+    assert.ok(await a.db.pin(b.id, p.sign_pub, p.enc_pub, new Uint8Array(8).fill(7), p));
+    return orig(...args);
+  };
+  await a.e.receive(ms[0]!, "push");
+  assert.equal((await a.db.replay(b.id))!.h, 0);
+  const p = (await a.db.peer(b.id))!;
+  assert.equal(p.approve_verified, false);
+  assert.equal(p.approves_me, false);
+});
