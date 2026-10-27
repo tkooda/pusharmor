@@ -1,16 +1,24 @@
 name: webext-release
 
-# chrome/vX.Y.Z and firefox/vX.Y.Z tags (release/tag.mjs): the golden vectors and the webext tests run
-# first, then two jobs for the browser of the tag, so npm packages and repo
-# scripts never share a job with the Environment, its secrets or id-token:
+# chrome/vX.Y.Z and firefox/vX.Y.Z tags (release/tag.mjs, owner ruling Q209 B):
+# the tag rule, the golden vectors and the webext tests run first, then the jobs
+# for the browser of the tag, so npm packages and repo scripts never share a job
+# with id-token or write permissions:
 #   build-<browser>    no Environment, no secrets: npm ci, release build and
-#                      checks, release files; uploads them with their SHA-256
-#   publish-<browser>  Environment chrome-release / firefox-release (owner
-#                      approval): verifies the SHA-256, provenance, draft GitHub
-#                      Release; Chrome then submits to the store as the last step
+#                      checks; the release zip, the Beta zip ("PushArmor Beta")
+#                      and (Firefox) the source archive, with their SHA-256
+#   publish-chrome     Environment chrome-release: verifies the SHA-256,
+#                      provenance, GitHub prerelease with the public and Beta
+#                      zips, then the Beta zip to the PRIVATE Beta item
 #   submit-firefox     Environment firefox-release, contents: read, no id-token:
-#                      verifies the SHA-256, npm ci web-ext, AMO submission
-# Only this file holds write permissions; ci.yml never calls it.
+#                      verifies the SHA-256, npm ci web-ext, signs the Beta zip
+#                      as the UNLISTED Beta add-on on AMO, hands on the XPI
+#   publish-firefox    Environment firefox-release: verifies every SHA-256,
+#                      provenance, GitHub prerelease (public zip, source, signed
+#                      Beta XPI), then the Beta update manifest asset
+# CI never uploads to the public Chrome item or the listed AMO add-on: the owner
+# uploads the public zip from the prerelease (RELEASING.md). Only this file holds
+# write permissions; ci.yml never calls it.
 on:
   push:
     tags:
@@ -58,7 +66,7 @@ jobs:
     uses: ./.github/workflows/webext.yml
 
   build-chrome:
-    name: build Chrome (release zip, checks)
+    name: build Chrome (release and Beta zips, checks)
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/chrome/v')
     needs: [test, vectors]
     runs-on: ubuntu-24.04
@@ -70,10 +78,11 @@ jobs:
     outputs:
       version: ${{ steps.tag.outputs.version }}
       zip_sha256: ${{ steps.files.outputs.zip_sha256 }}
+      beta_sha256: ${{ steps.files.outputs.beta_sha256 }}
       google_cws_wif_provider: ${{ steps.cws.outputs.google_cws_wif_provider }}
       google_cws_wif_service_account: ${{ steps.cws.outputs.google_cws_wif_service_account }}
       google_cws_publisher_id: ${{ steps.cws.outputs.google_cws_publisher_id }}
-      google_chrome_extension_id: ${{ steps.cws.outputs.google_chrome_extension_id }}
+      google_chrome_beta_extension_id: ${{ steps.cws.outputs.google_chrome_beta_extension_id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -87,34 +96,39 @@ jobs:
         id: tag
         run: |
           version="$(node release/tag.mjs --check "$TAG")"
-          node release/public.mjs --check webpush_vapid_public_key mozilla_firefox_addon_id \
-            google_chrome_extension_id google_cws_publisher_id \
+          node release/public.mjs --check webpush_vapid_public_key mozilla_firefox_addon_id mozilla_firefox_beta_addon_id \
+            google_chrome_extension_id google_chrome_beta_extension_id google_cws_publisher_id \
             google_cws_wif_provider google_cws_wif_service_account
           echo "version=$version" >> "$GITHUB_OUTPUT"
+      # The store upload goes to the private Beta item only; the public item is
+      # updated by hand from the prerelease (RELEASING.md).
       - name: Chrome Web Store ids for the publish job
         id: cws
         run: |
           node -e '
             const p = require(process.argv[1]);
-            for (const k of ["google_cws_wif_provider", "google_cws_wif_service_account", "google_cws_publisher_id", "google_chrome_extension_id"])
+            for (const k of ["google_cws_wif_provider", "google_cws_wif_service_account", "google_cws_publisher_id", "google_chrome_beta_extension_id"])
               console.log(k + "=" + p[k]);
           ' "$PWD/release/public.json" >> "$GITHUB_OUTPUT"
       - name: Install
         working-directory: client/webext-common
         run: npm ci --ignore-scripts
-      - name: Release build (runs check-release.mjs)
+      - name: Release build (runs check-release.mjs on the release and Beta zips)
         working-directory: client/webext-common
         run: node build.mjs
-      - name: Check the release zip and its version
+      - name: Check the zips, their versions and names
         env:
           VERSION: ${{ steps.tag.outputs.version }}
         run: |
-          node client/webext-common/check-release.mjs client/chrome/dist/pusharmor-chrome.zip
-          got="$(node -p 'require(process.argv[1]).version' "$PWD/client/chrome/dist/unpacked/manifest.json")"
-          if [ "$got" != "$VERSION" ]; then
-            echo "manifest version $got does not equal the tag version $VERSION"
-            exit 1
-          fi
+          d=client/chrome/dist
+          node client/webext-common/check-release.mjs "$d/pusharmor-chrome.zip" "$d/pusharmor-chrome-beta.zip"
+          for m in "$d/unpacked/manifest.json:PushArmor" "$d/beta/unpacked/manifest.json:PushArmor Beta"; do
+            got="$(node -p 'const m = require(process.argv[1]); m.version + " " + m.name' "$PWD/${m%%:*}")"
+            if [ "$got" != "$VERSION ${m#*:}" ]; then
+              echo "${m%%:*}: $got, want $VERSION ${m#*:}"
+              exit 1
+            fi
+          done
       - name: Release files, SHA-256 lines and file-hash manifest
         id: files
         env:
@@ -123,12 +137,17 @@ jobs:
           out="$RUNNER_TEMP/release"
           mkdir -p "$out" "$RUNNER_TEMP/unzip"
           zip="pusharmor-chrome-$VERSION.zip"
+          beta="pusharmor-chrome-beta-$VERSION.zip"
           cp client/chrome/dist/pusharmor-chrome.zip "$out/$zip"
+          cp client/chrome/dist/pusharmor-chrome-beta.zip "$out/$beta"
           unzip -q "$out/$zip" -d "$RUNNER_TEMP/unzip"
           (cd "$RUNNER_TEMP/unzip" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum) > "$out/$zip.files.sha256"
-          (cd "$out" && sha256sum "$zip") > "$out/pusharmor-chrome-$VERSION.hashes.txt"
+          (cd "$out" && sha256sum "$zip" "$beta") > "$out/pusharmor-chrome-$VERSION.hashes.txt"
           cat "$out/pusharmor-chrome-$VERSION.hashes.txt"
-          echo "zip_sha256=$(sha256sum "$out/$zip" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          {
+            echo "zip_sha256=$(sha256sum "$out/$zip" | cut -d' ' -f1)"
+            echo "beta_sha256=$(sha256sum "$out/$beta" | cut -d' ' -f1)"
+          } >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: webext-chrome
@@ -137,7 +156,7 @@ jobs:
           if-no-files-found: error
 
   publish-chrome:
-    name: publish Chrome (draft GitHub Release, Chrome Web Store review)
+    name: publish Chrome (GitHub prerelease, private Beta item)
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/chrome/v')
     needs: build-chrome
     runs-on: ubuntu-24.04
@@ -155,28 +174,47 @@ jobs:
         with:
           name: webext-chrome
           path: ${{ runner.temp }}/release
-      - name: Verify the release zip SHA-256 against the build job
+      - name: Verify the zip SHA-256 values against the build job
         id: files
         env:
           ZIP_SHA256: ${{ needs.build-chrome.outputs.zip_sha256 }}
+          BETA_SHA256: ${{ needs.build-chrome.outputs.beta_sha256 }}
         run: |
           out="$RUNNER_TEMP/release"
           zip="pusharmor-chrome-$VERSION.zip"
-          printf '%s  %s\n' "$ZIP_SHA256" "$zip" > "$RUNNER_TEMP/expect.sha256"
+          beta="pusharmor-chrome-beta-$VERSION.zip"
+          printf '%s  %s\n%s  %s\n' "$ZIP_SHA256" "$zip" "$BETA_SHA256" "$beta" > "$RUNNER_TEMP/expect.sha256"
           (cd "$out" && sha256sum -c --strict "$RUNNER_TEMP/expect.sha256")
           {
             echo "dir=$out"
             echo "zip=$out/$zip"
+            echo "beta=$out/$beta"
           } >> "$GITHUB_OUTPUT"
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: ${{ steps.files.outputs.zip }}
-      - name: Draft GitHub Release
+          subject-path: |
+            ${{ steps.files.outputs.zip }}
+            ${{ steps.files.outputs.beta }}
+      # A rerun of the same tag replaces the assets of the prerelease; a release
+      # the owner has promoted (prerelease flag cleared) is never touched.
+      - name: GitHub prerelease
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           DIR: ${{ steps.files.outputs.dir }}
-        run: gh release create "$TAG" --draft --verify-tag --title "$TAG" "$DIR"/*
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            pre="$(gh release view "$TAG" --json isPrerelease,isDraft --jq '.isPrerelease or .isDraft')"
+            if [ "$pre" != "true" ]; then
+              echo "::error::Release $TAG is promoted (not a prerelease); refusing to change its assets"
+              exit 1
+            fi
+            gh release upload "$TAG" --clobber "$DIR"/*
+          else
+            gh release create "$TAG" --prerelease --verify-tag --title "$TAG" \
+              --notes "Test build. pusharmor-chrome-$VERSION.zip is the public zip; the Beta zip went to the private PushArmor Beta item. Promote by hand (RELEASING.md)." \
+              "$DIR"/*
+          fi
       - id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
@@ -185,14 +223,15 @@ jobs:
           token_format: access_token
           access_token_scopes: https://www.googleapis.com/auth/chromewebstore
           create_credentials_file: false
-      # Last step: upload, then submit for review. A failure after the upload is
-      # fixed with a new patch tag.
-      - name: Upload to the Chrome Web Store and submit for review
+      # Last step: the Beta zip to the PRIVATE Beta item (trusted testers only),
+      # then publish it there after review. The public item is never touched by
+      # CI. A failure after the upload is fixed with a new patch tag.
+      - name: Upload the Beta zip to the private Beta item and publish it to testers
         env:
           TOKEN: ${{ steps.auth.outputs.access_token }}
           PUB: ${{ needs.build-chrome.outputs.google_cws_publisher_id }}
-          ITEM: ${{ needs.build-chrome.outputs.google_chrome_extension_id }}
-          ZIP: ${{ steps.files.outputs.zip }}
+          ITEM: ${{ needs.build-chrome.outputs.google_chrome_beta_extension_id }}
+          ZIP: ${{ steps.files.outputs.beta }}
         run: |
           api="https://chromewebstore.googleapis.com"
           item="publishers/$PUB/items/$ITEM"
@@ -215,7 +254,7 @@ jobs:
           curl -fsS -X POST -H "Authorization: Bearer $TOKEN" "$api/v2/$item:publish"
 
   build-firefox:
-    name: build Firefox (release zip, source archive, checks)
+    name: build Firefox (release and Beta zips, source archive, checks)
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/firefox/v')
     needs: [test, vectors]
     runs-on: ubuntu-24.04
@@ -226,7 +265,9 @@ jobs:
       TAG: ${{ github.ref_name }}
     outputs:
       version: ${{ steps.tag.outputs.version }}
+      beta_id: ${{ steps.tag.outputs.beta_id }}
       zip_sha256: ${{ steps.files.outputs.zip_sha256 }}
+      beta_sha256: ${{ steps.files.outputs.beta_sha256 }}
       src_sha256: ${{ steps.files.outputs.src_sha256 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -241,24 +282,28 @@ jobs:
         id: tag
         run: |
           version="$(node release/tag.mjs --check "$TAG")"
-          node release/public.mjs --check webpush_vapid_public_key mozilla_firefox_addon_id
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          node release/public.mjs --check webpush_vapid_public_key mozilla_firefox_addon_id mozilla_firefox_beta_addon_id
+          {
+            echo "version=$version"
+            echo "beta_id=$(node -p 'require(process.argv[1]).mozilla_firefox_beta_addon_id' "$PWD/release/public.json")"
+          } >> "$GITHUB_OUTPUT"
       - name: Install
         working-directory: client/webext-common
         run: npm ci --ignore-scripts
-      - name: Release build (runs check-release.mjs)
+      - name: Release build (runs check-release.mjs on the release and Beta zips)
         working-directory: client/webext-common
         run: node build.mjs
-      - name: Check the release zip and its version
+      - name: Check the zips, their versions, names and gecko ids
         env:
           VERSION: ${{ steps.tag.outputs.version }}
+          BETA_ID: ${{ steps.tag.outputs.beta_id }}
         run: |
-          node client/webext-common/check-release.mjs client/firefox/dist/pusharmor-firefox.zip
-          got="$(node -p 'require(process.argv[1]).version' "$PWD/client/firefox/dist/unpacked/manifest.json")"
-          if [ "$got" != "$VERSION" ]; then
-            echo "manifest version $got does not equal the tag version $VERSION"
-            exit 1
-          fi
+          d=client/firefox/dist
+          node client/webext-common/check-release.mjs "$d/pusharmor-firefox.zip" "$d/pusharmor-firefox-beta.zip"
+          got="$(node -p 'const m = require(process.argv[1]); m.version + " " + m.name + " " + m.browser_specific_settings.gecko.id' "$PWD/$d/beta/unpacked/manifest.json")"
+          [ "$got" = "$VERSION PushArmor Beta $BETA_ID" ] || { echo "Beta manifest: $got"; exit 1; }
+          got="$(node -p 'const m = require(process.argv[1]); m.version + " " + m.name' "$PWD/$d/unpacked/manifest.json")"
+          [ "$got" = "$VERSION PushArmor" ] || { echo "manifest: $got"; exit 1; }
       - name: Release files, source archive, SHA-256 lines and file-hash manifest
         id: files
         env:
@@ -267,15 +312,16 @@ jobs:
           out="$RUNNER_TEMP/release"
           mkdir -p "$out" "$RUNNER_TEMP/unzip"
           zip="pusharmor-firefox-$VERSION.zip"
+          beta="pusharmor-firefox-beta-$VERSION.zip"
           src="pusharmor-firefox-$VERSION-source.zip"
           cp client/firefox/dist/pusharmor-firefox.zip "$out/$zip"
+          cp client/firefox/dist/pusharmor-firefox-beta.zip "$out/$beta"
           git archive --format=zip --prefix="pusharmor-$VERSION/" -o "$out/$src" "$TAG"
           unzip -q "$out/$zip" -d "$RUNNER_TEMP/unzip"
           (cd "$RUNNER_TEMP/unzip" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum) > "$out/$zip.files.sha256"
-          (cd "$out" && sha256sum "$zip" "$src") > "$out/pusharmor-firefox-$VERSION.hashes.txt"
-          cat "$out/pusharmor-firefox-$VERSION.hashes.txt"
           {
             echo "zip_sha256=$(sha256sum "$out/$zip" | cut -d' ' -f1)"
+            echo "beta_sha256=$(sha256sum "$out/$beta" | cut -d' ' -f1)"
             echo "src_sha256=$(sha256sum "$out/$src" | cut -d' ' -f1)"
           } >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -285,84 +331,41 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
-  publish-firefox:
-    name: publish Firefox (draft GitHub Release, AMO review)
+  submit-firefox:
+    name: sign the Firefox Beta add-on on AMO (web-ext sign, unlisted)
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/firefox/v')
     needs: build-firefox
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: firefox-release
-    permissions:
-      contents: write
-      id-token: write
-      attestations: write
-    env:
-      TAG: ${{ github.ref_name }}
-      VERSION: ${{ needs.build-firefox.outputs.version }}
-    steps:
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: webext-firefox
-          path: ${{ runner.temp }}/release
-      - name: Verify the release zip and source archive SHA-256 against the build job
-        id: files
-        env:
-          ZIP_SHA256: ${{ needs.build-firefox.outputs.zip_sha256 }}
-          SRC_SHA256: ${{ needs.build-firefox.outputs.src_sha256 }}
-        run: |
-          out="$RUNNER_TEMP/release"
-          zip="pusharmor-firefox-$VERSION.zip"
-          src="pusharmor-firefox-$VERSION-source.zip"
-          printf '%s  %s\n%s  %s\n' "$ZIP_SHA256" "$zip" "$SRC_SHA256" "$src" > "$RUNNER_TEMP/expect.sha256"
-          (cd "$out" && sha256sum -c --strict "$RUNNER_TEMP/expect.sha256")
-          {
-            echo "dir=$out"
-            echo "zip=$out/$zip"
-            echo "src=$out/$src"
-          } >> "$GITHUB_OUTPUT"
-      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-path: |
-            ${{ steps.files.outputs.zip }}
-            ${{ steps.files.outputs.src }}
-      - name: Draft GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          DIR: ${{ steps.files.outputs.dir }}
-        run: gh release create "$TAG" --draft --verify-tag --title "$TAG" "$DIR"/*
-
-  submit-firefox:
-    name: submit Firefox to AMO (web-ext sign)
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/firefox/v')
-    needs: [build-firefox, publish-firefox]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    environment: firefox-release
-    # No OIDC token here: web-ext and its packages cannot mint one.
+    # No OIDC token and no write permission here: web-ext and its packages run
+    # in this job.
     permissions:
       contents: read
     env:
       VERSION: ${{ needs.build-firefox.outputs.version }}
+      BETA_ID: ${{ needs.build-firefox.outputs.beta_id }}
+    outputs:
+      xpi_sha256: ${{ steps.xpi.outputs.xpi_sha256 }}
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: webext-firefox
           path: ${{ runner.temp }}/release
-      - name: Verify the release zip and source archive SHA-256 against the build job
+      - name: Verify the Beta zip and source archive SHA-256 against the build job
         id: files
         env:
-          ZIP_SHA256: ${{ needs.build-firefox.outputs.zip_sha256 }}
+          BETA_SHA256: ${{ needs.build-firefox.outputs.beta_sha256 }}
           SRC_SHA256: ${{ needs.build-firefox.outputs.src_sha256 }}
         run: |
           out="$RUNNER_TEMP/release"
-          zip="pusharmor-firefox-$VERSION.zip"
+          beta="pusharmor-firefox-beta-$VERSION.zip"
           src="pusharmor-firefox-$VERSION-source.zip"
-          printf '%s  %s\n%s  %s\n' "$ZIP_SHA256" "$zip" "$SRC_SHA256" "$src" > "$RUNNER_TEMP/expect.sha256"
+          printf '%s  %s\n%s  %s\n' "$BETA_SHA256" "$beta" "$SRC_SHA256" "$src" > "$RUNNER_TEMP/expect.sha256"
           (cd "$out" && sha256sum -c --strict "$RUNNER_TEMP/expect.sha256")
-          # web-ext sign takes a directory: the verified zip, unpacked.
+          # web-ext sign takes a directory: the verified Beta zip, unpacked.
           mkdir -p "$RUNNER_TEMP/unpacked"
-          unzip -q "$out/$zip" -d "$RUNNER_TEMP/unpacked"
+          unzip -q "$out/$beta" -d "$RUNNER_TEMP/unpacked"
           echo "src=$out/$src" >> "$GITHUB_OUTPUT"
       # web-ext only, exact version from its own lockfile (npm integrity hashes),
       # no install scripts; installed before any secret is in the environment.
@@ -376,9 +379,10 @@ jobs:
       - name: Install web-ext (amo-sign lockfile)
         working-directory: client/webext-common/amo-sign
         run: npm ci --ignore-scripts
-      # Last step: upload to AMO for review (listed channel) without waiting for
-      # approval. A failure after the upload is fixed with a new patch tag.
-      - name: Submit to AMO (web-ext sign, listed)
+      # The UNLISTED Beta add-on (its own gecko id): AMO signs it automatically
+      # and never lists it; the public listed add-on is uploaded by hand from the
+      # prerelease (RELEASING.md). Waits for the signed XPI.
+      - name: Sign the Beta add-on on AMO (web-ext sign, unlisted)
         working-directory: client/webext-common/amo-sign
         env:
           WEB_EXT_API_KEY: ${{ secrets.MOZILLA_AMO_JWT_ISSUER }}
@@ -388,6 +392,128 @@ jobs:
           npx --no-install web-ext sign --no-input \
             --source-dir "$RUNNER_TEMP/unpacked" \
             --artifacts-dir "$RUNNER_TEMP/web-ext" \
-            --channel listed \
+            --channel unlisted \
             --upload-source-code "$SRC" \
-            --approval-timeout 0
+            --approval-timeout 1200000
+      - name: The signed XPI is the Beta add-on at this version
+        id: xpi
+        run: |
+          n="$(find "$RUNNER_TEMP/web-ext" -maxdepth 1 -name '*.xpi' | wc -l)"
+          [ "$n" = 1 ] || { echo "want one signed XPI, found $n"; exit 1; }
+          out="$RUNNER_TEMP/signed"
+          mkdir -p "$out"
+          xpi="$out/pusharmor-firefox-beta-$VERSION.xpi"
+          cp "$RUNNER_TEMP/web-ext"/*.xpi "$xpi"
+          python3 -I - "$xpi" "$VERSION" "$BETA_ID" <<'PY'
+          import json, sys, zipfile
+          path, version, gid = sys.argv[1:4]
+          z = zipfile.ZipFile(path)
+          m = json.loads(z.read("manifest.json"))
+          got = (m.get("version"), m.get("name"), m["browser_specific_settings"]["gecko"].get("id"))
+          if got != (version, "PushArmor Beta", gid):
+              sys.exit("signed XPI is %r" % (got,))
+          if not any(n.startswith("META-INF/") for n in z.namelist()):
+              sys.exit("the XPI is not signed (no META-INF/)")
+          print("ok:", got)
+          PY
+          echo "xpi_sha256=$(sha256sum "$xpi" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: firefox-beta-xpi
+          path: ${{ runner.temp }}/signed/
+          retention-days: 30
+          if-no-files-found: error
+
+  publish-firefox:
+    name: publish Firefox (GitHub prerelease, Beta update manifest)
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/firefox/v')
+    needs: [build-firefox, submit-firefox]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: firefox-release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      TAG: ${{ github.ref_name }}
+      VERSION: ${{ needs.build-firefox.outputs.version }}
+      BETA_ID: ${{ needs.build-firefox.outputs.beta_id }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: webext-firefox
+          path: ${{ runner.temp }}/release
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: firefox-beta-xpi
+          path: ${{ runner.temp }}/release
+      - name: Verify the SHA-256 values against the build and sign jobs
+        id: files
+        env:
+          ZIP_SHA256: ${{ needs.build-firefox.outputs.zip_sha256 }}
+          BETA_SHA256: ${{ needs.build-firefox.outputs.beta_sha256 }}
+          SRC_SHA256: ${{ needs.build-firefox.outputs.src_sha256 }}
+          XPI_SHA256: ${{ needs.submit-firefox.outputs.xpi_sha256 }}
+        run: |
+          out="$RUNNER_TEMP/release"
+          zip="pusharmor-firefox-$VERSION.zip"
+          src="pusharmor-firefox-$VERSION-source.zip"
+          xpi="pusharmor-firefox-beta-$VERSION.xpi"
+          printf '%s  %s\n%s  %s\n%s  %s\n%s  %s\n' "$ZIP_SHA256" "$zip" "$BETA_SHA256" "pusharmor-firefox-beta-$VERSION.zip" \
+            "$SRC_SHA256" "$src" "$XPI_SHA256" "$xpi" > "$RUNNER_TEMP/expect.sha256"
+          (cd "$out" && sha256sum -c --strict "$RUNNER_TEMP/expect.sha256")
+          # The unsigned Beta zip stays out of the prerelease; the signed XPI is the Beta file.
+          rm "$out/pusharmor-firefox-beta-$VERSION.zip"
+          (cd "$out" && sha256sum "$zip" "$src" "$xpi") > "$out/pusharmor-firefox-$VERSION.hashes.txt"
+          cat "$out/pusharmor-firefox-$VERSION.hashes.txt"
+          {
+            echo "dir=$out"
+            echo "zip=$out/$zip"
+            echo "src=$out/$src"
+            echo "xpi=$out/$xpi"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            ${{ steps.files.outputs.zip }}
+            ${{ steps.files.outputs.src }}
+            ${{ steps.files.outputs.xpi }}
+      # A rerun of the same tag replaces the assets of the prerelease; a release
+      # the owner has promoted (prerelease flag cleared) is never touched.
+      - name: GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DIR: ${{ steps.files.outputs.dir }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            pre="$(gh release view "$TAG" --json isPrerelease,isDraft --jq '.isPrerelease or .isDraft')"
+            if [ "$pre" != "true" ]; then
+              echo "::error::Release $TAG is promoted (not a prerelease); refusing to change its assets"
+              exit 1
+            fi
+            gh release upload "$TAG" --clobber "$DIR"/*
+          else
+            gh release create "$TAG" --prerelease --verify-tag --title "$TAG" \
+              --notes "Test build. pusharmor-firefox-$VERSION.zip and the source archive are for the public AMO listing; pusharmor-firefox-beta-$VERSION.xpi is the signed PushArmor Beta add-on. Promote by hand (RELEASING.md)." \
+              "$DIR"/*
+          fi
+      # Self-hosted update manifest of the Beta add-on (update_url
+      # https://pusharmor.com/fx/beta/updates.json, release/constants.json). It
+      # points at the signed XPI of this prerelease; the owner copies it to
+      # site/public/fx/beta/updates.json in a site commit (RELEASING.md).
+      - name: Beta update manifest (prerelease asset)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          XPI: ${{ steps.files.outputs.xpi }}
+        run: |
+          name="pusharmor-firefox-beta-$VERSION.xpi"
+          link="$(gh release view "$TAG" --json assets --jq ".assets[] | select(.name == \"$name\") | .url")"
+          case "$link" in https://github.com/*) ;; *) echo "no download URL for $name: $link"; exit 1 ;; esac
+          f="$RUNNER_TEMP/pusharmor-firefox-beta-$VERSION-updates.json"
+          jq -n --arg id "$BETA_ID" --arg v "$VERSION" --arg l "$link" --arg h "sha256:$(sha256sum "$XPI" | cut -d' ' -f1)" \
+            '{addons: {($id): {updates: [{version: $v, update_link: $l, update_hash: $h}]}}}' > "$f"
+          cat "$f"
+          gh release upload "$TAG" --clobber "$f"
