@@ -45,3 +45,8 @@ Firefox manifest, golden vectors, Worker wrangler version) are skipped until tho
 - Store links and APK hashes: `public/download.html`; F-Droid version: `public/fdroid/android.txt`.
 
 Deploy is done by Cloudflare Workers Builds from the main branch (`npx wrangler deploy`).
+The site has no deploy script. Before a release deploy, run the checks with the release gate on:
+
+    PA_RELEASE=1 node --test 'site/tools/test/*.test.mjs'
+
+Do not deploy a release if any check fails or is skipped. `wrangler dev` stays fine for local work.
