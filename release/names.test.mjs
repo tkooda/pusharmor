@@ -27,3 +27,8 @@ test("every Cloudflare name is a field of the Worker Env", () => {
     assert.match(env, new RegExp("^\\s+" + k + ": string;$", "m"), k);
   }
 });
+
+test("release/constants.json holds no local build id", () => {
+  const c = JSON.parse(readFileSync(join(REPO, "release", "constants.json"), "utf8"));
+  for (const k of Object.keys(names.local_keys)) assert.equal(k in c, false, k);
+});
