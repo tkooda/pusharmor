@@ -32,6 +32,8 @@ MODE="$1"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SERVER_DIR="$(cd "$HERE/.." && pwd)"
 WORKER_DIR="$SERVER_DIR/worker"
+# The git checks and the tag must target this repo, not the caller's cwd.
+cd "$SERVER_DIR/.."
 WRANGLER="${WRANGLER:-$WORKER_DIR/node_modules/.bin/wrangler}"
 API_BASE="${API_BASE:-https://api.pusharmor.com/v1}"
 # The owner sets this from the measured export time. The export blocks the
