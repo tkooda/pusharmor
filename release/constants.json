@@ -1,9 +1,4 @@
 {
-  "release_cert_sha256": "PLACEHOLDER_RELEASE_CERT_SHA256",
-  "chrome_extension_id": "PLACEHOLDER_CHROME_EXTENSION_ID",
-  "chrome_dev_key": "PLACEHOLDER_CHROME_DEV_PUBLIC_KEY",
-  "firefox_addon_id": "placeholder-addon-id@pusharmor.com",
-  "vapid_public_key": "PLACEHOLDER_VAPID_PUBLIC_KEY",
   "firefox_content_scripts_matches": [
     "https://pusharmor.com/fx/setup",
     "https://pusharmor.com/fx/setup?*",
