@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Download - PushArmor</title>
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-Isqq963IVcjaMPINbfEbhweWnI2OMigS+3m/2CvFwVY=">
+</head>
+<body>
+<header>
+<a class="brand" href="/">PushArmor</a>
+<nav><a href="/how-to">How to</a> <a href="/download">Download</a> <a href="/security">Security</a> <a href="/support">Support</a></nav>
+</header>
+<main>
+<h1>Download</h1>
+
+<h2>Stores</h2>
+<ul>
+<li>Android: <a href="https://play.google.com/store/apps/details?id=com.pusharmor">Google Play</a></li>
+<li>iPhone: App Store (link added at launch)</li>
+<li>Chrome: Chrome Web Store (link added at launch)</li>
+<li>Firefox: addons.mozilla.org (link added at launch)</li>
+</ul>
+
+<h2>Android APKs from GitHub</h2>
+<p>Each release on <a href="https://github.com/tkooda/pusharmor/releases">GitHub Releases</a> has
+two Android APKs:</p>
+<ul>
+<li><strong>play</strong>: for Google push (FCM) or UnifiedPush.</li>
+<li><strong>foss</strong>: for UnifiedPush only, no Google code.</li>
+</ul>
+<p>Check a downloaded APK against these SHA-256 values.</p>
+<div>
+<table>
+<thead><tr><th>File</th><th>SHA-256</th></tr></thead>
+<tbody>
+<tr><td>pusharmor-play-vX.apk</td><td class="mono">(added with the first release)</td></tr>
+<tr><td>pusharmor-foss-vX.apk</td><td class="mono">(added with the first release)</td></tr>
+<tr><td>Release certificate</td><td class="mono">(added with the first release)</td></tr>
+</tbody>
+</table>
+</div>
+<p class="note">To check the certificate of an installed or downloaded APK, run
+<code>apksigner verify --print-certs</code> on it and compare the SHA-256 digest.</p>
+</main>
+<footer>
+<a href="/privacy">Privacy</a> <a href="/terms">Terms</a> <a href="/support">Support</a> <a href="/delete-account">Delete account</a> <a href="https://github.com/tkooda/pusharmor">Source code on GitHub</a>
+</footer>
+</body>
+</html>

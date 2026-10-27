@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Return to PushArmor</title>
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-Isqq963IVcjaMPINbfEbhweWnI2OMigS+3m/2CvFwVY=">
+</head>
+<body>
+<main>
+<h1>Sign-in done</h1>
+<p><a id="return" class="button" href="intent://pusharmor.com/auth/android#Intent;scheme=https;package=com.pusharmor;S.browser_fallback_url=https%3A%2F%2Fpusharmor.com%2Fdownload;end">Tap to return to PushArmor</a></p>
+<p><a href="/download">Do not have the app? Get PushArmor</a></p>
+</main>
+<footer>
+<a href="/support">Support</a> <a href="https://github.com/tkooda/pusharmor">Source code on GitHub</a>
+</footer>
+<script>(function(){var h=location.hash.slice(1),a=document.getElementById("return");if(h&&/^[A-Za-z0-9._~%=&+@-]+$/.test(h)){a.href="intent://pusharmor.com/auth/android?"+h+"#Intent;scheme=https;package=com.pusharmor;S.browser_fallback_url=https%3A%2F%2Fpusharmor.com%2Fdownload;end";}history.replaceState(null,"",location.pathname);})();</script>
+</body>
+</html>

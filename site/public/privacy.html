@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy policy - PushArmor</title>
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-Isqq963IVcjaMPINbfEbhweWnI2OMigS+3m/2CvFwVY=">
+</head>
+<body>
+<header>
+<a class="brand" href="/">PushArmor</a>
+<nav><a href="/how-to">How to</a> <a href="/download">Download</a> <a href="/security">Security</a> <a href="/support">Support</a></nav>
+</header>
+<main>
+<h1>Privacy policy</h1>
+<p>PushArmor is operated by the PushArmor project at pusharmor.com. Contact:
+<a href="mailto:support@pusharmor.com">support@pusharmor.com</a>.</p>
+
+<p>We never sell or share your data with anyone for their own purposes; the services below
+process it for us.</p>
+
+<h2>Services we use</h2>
+<ul>
+<li><strong>AWS SES</strong>: used for email sign-in only, to send the sign-in code. It sees
+your email address at send time. If a code email bounces, the mail provider keeps that address
+on a suppression list until we clear it.</li>
+<li><strong>Google FCM (Android), Apple APNs (iPhone), Google and Mozilla web push (Chrome,
+Firefox), and a UnifiedPush distributor if you chose one</strong>: used to wake your device.
+They see the push token or endpoint and the encrypted payload only. They hold undelivered
+messages up to 7 days (pairing requests up to 4 weeks).</li>
+<li><strong>Cloudflare</strong>: runs our server code and database, so it can technically see
+everything the server sees: your email address briefly at sign-in, your IP address, peer public
+keys, push tokens and encrypted messages. Cloudflare also keeps our delivery logs for 7 days:
+account id, peer ids and send results; no content, no IP, no email. Turnstile runs on the email
+sign-in page only.</li>
+<li><strong>Google and Apple sign-in</strong> (if you choose them): used to prove the account.
+We keep only the keyed hash.</li>
+</ul>
+
+<h2>Your email address</h2>
+<p>We do not store your email address. We keep only a keyed one-way hash of it, which cannot be
+turned back into the address.</p>
+
+<h2>End-to-end encryption</h2>
+<p>Messages are end-to-end encrypted. Each peer makes its own keys on the device, and the
+private keys stay on the devices. A message is encrypted on the sending peer for the receiving
+peer, so our server sees ciphertext only. We do not store message content or pairing
+fingerprints.</p>
+
+<h2>What our server stores</h2>
+<p>The server database keeps, until removal:</p>
+<ul>
+<li>Per account: the account id (the keyed hash), a banned flag, the created time, and the
+last-active month (updated at most once per 30 days, by sending or adding a peer).</li>
+<li>Per peer: public keys, push token or endpoint, allow and deny lists, encrypted name entries,
+created time, platform, paused flag, and pending approve messages (end-to-end encrypted, up to 9
+per peer, kept until the other peer is removed, denied or withdrawn, or a newer approve
+replaces them).</li>
+</ul>
+<p>Accounts with no send for 3 years are deleted with their peers (banned accounts are
+kept).</p>
+
+<h2>What stays on your device</h2>
+<ul>
+<li>The address you signed in with, shown as Signed in as (a Hide My Email relay address if you
+chose one).</li>
+<li>Your history, deleted automatically after the number of days you set (default 30). History is
+device-local and not backed up.</li>
+<li>Your keys.</li>
+</ul>
+<p>Lock screen: message content follows the platform setting (Android sensitive notification
+content, iPhone Show Previews) or the in-app switch Show message content on lock screen. With
+Send messages to watch off, Android message notifications are local only (not mirrored to paired
+wearables). Both switches work per peer too. Always hide content (off by default) shows no
+message content in any notice.</p>
+
+<h2>Tracking</h2>
+<p>No analytics, no ads, no tracking. This site has no third-party scripts, except Turnstile on
+the sign-in page. We set no cookies; Cloudflare security features may set a short-lived
+one.</p>
+
+<h2>Background transmission (Firefox)</h2>
+<p>The Firefox add-on keeps a push connection to Mozilla (autopush WebSocket) in the background.
+As a fallback, a service worker on pusharmor.com receives encrypted messages and forwards them to
+the add-on inside the browser. Both carry ciphertext only.</p>
+
+<h2>Deletion</h2>
+<p>Use Delete account in the app, Remove on a peer, or the web flow at
+<a href="/delete-account">pusharmor.com/delete-account</a>. Deletion removes all peer rows at
+once. Kept: the keyed account hash with its ban flag, for banned accounts only; undelivered
+pushes at the vendors, up to 7 days (pairing requests up to 4 weeks); copies on your other
+peers.</p>
+
+<h2>Support</h2>
+<p>Email <a href="mailto:support@pusharmor.com">support@pusharmor.com</a> (forwarded to the
+operator by Cloudflare Email Routing) or open a
+<a href="https://github.com/tkooda/pusharmor/issues">GitHub Issue</a>. Both are listed on the
+<a href="/support">support page</a>.</p>
+</main>
+<footer>
+<a href="/privacy">Privacy</a> <a href="/terms">Terms</a> <a href="/support">Support</a> <a href="/delete-account">Delete account</a> <a href="https://github.com/tkooda/pusharmor">Source code on GitHub</a>
+</footer>
+</body>
+</html>

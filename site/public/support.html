@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support - PushArmor</title>
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-Isqq963IVcjaMPINbfEbhweWnI2OMigS+3m/2CvFwVY=">
+</head>
+<body>
+<header>
+<a class="brand" href="/">PushArmor</a>
+<nav><a href="/how-to">How to</a> <a href="/download">Download</a> <a href="/security">Security</a> <a href="/support">Support</a></nav>
+</header>
+<main>
+<h1>Support</h1>
+
+<h2>Contact</h2>
+<p>Email: <a href="mailto:support@pusharmor.com">support@pusharmor.com</a></p>
+<p>Bug reports and questions: <a href="https://github.com/tkooda/pusharmor/issues">GitHub Issues</a></p>
+<p>To delete your account, use Delete account in the app, or the
+<a href="/delete-account">account deletion page</a>.</p>
+
+<h2>Sign-in</h2>
+<p><strong>Which email addresses work?</strong> Only email addresses with plain ASCII characters
+are supported.</p>
+<p><strong>The code email.</strong> Each code email ends with: "Nothing happens unless this code
+is entered within 15 minutes. If you did not request it, ignore this email."</p>
+<p><strong>No code arrived?</strong> Check spam. If your address bounced earlier, the mail
+provider may block it until we clear it: write to support@pusharmor.com. Google and Apple
+sign-in keep working.</p>
+<p><strong>Hide My Email.</strong> If you signed in with Apple and chose Hide My Email, the app
+shows the address under Signed in as. Use that address on your other peers. Find it in iOS
+Settings &gt; Apple ID &gt; Sign in with Apple, or at appleid.apple.com &gt; Hide My Email.</p>
+
+<h2>Pairing</h2>
+<p>A pairing stays open for 14 days. Each pairing shows how much time is left. Tap Pair on a
+peer, then compare the pairing fingerprint on both peers.</p>
+<p>"A new peer wants to pair" means someone tried to pair with this device and the try failed or
+came from an unknown peer. Ignore it unless you started a pairing. If a Reply button appears,
+this device has already answered 10 tries in 24 hours; tap Reply only if you started that
+pairing.</p>
+<p>"<em>Name</em> wants to pair again. Tap Cancel pairing on its row, then pair." means that this
+device still holds an earlier, unfinished pairing with that peer. On the device that shows the
+notice, tap Cancel pairing on that row, then pair again. Use Remove only to really remove a
+peer: that peer is removed from the account; it signs in again with a new identity and pairs
+again with each of your peers.</p>
+
+<h2>Messages</h2>
+<p>"Invalid message received" means a message arrived that was already seen or is too old. It
+is dropped. "Could not read" means a message failed to decrypt or verify.</p>
+
+<h2>Lock screen and watch</h2>
+<p>Android shows message text on the lock screen unless the system setting hides sensitive
+notification content; iPhone follows Settings &gt; Notifications &gt; Show Previews. To hide it
+always, turn off Show message content on lock screen in the app (per peer or for all).</p>
+<p>On Android and iPhone, the Always hide content switch (for all peers or per peer) shows "New
+message from <em>Name</em>" with no content, even when the phone is unlocked; the content is
+only in the app. The Apple Watch shows notices while the iPhone is locked, so it follows the
+lock-screen choice; per-app watch mirroring is set in the Watch app.</p>
+<p>Turn off Send messages to watch to keep Android notifications off paired wearables
+entirely.</p>
+
+<h2>Android</h2>
+<p>On Android, each peer has its own notification channel, so you can set sound and importance
+per peer in the system settings.</p>
+<p>Android limits high-priority pushes for rarely opened apps. If messages come late, open the
+app now and then, and turn off battery Restricted mode and app hibernation.</p>
+
+<h2>iPhone</h2>
+<p>While the phone is offline Apple keeps only the newest message, and alerts must be on; use
+Send again from history.</p>
+
+<h2>Firefox</h2>
+<p>The Firefox add-on keeps its own push connection to Mozilla. As a fallback, and always on
+Firefox for Android, it uses a small service worker on pusharmor.com (under /fx/). At install
+the add-on opens a setup page that asks to allow notifications for pusharmor.com. That service
+worker receives encrypted messages, shows a short "New message" notice and hands the encrypted
+message to the add-on. It never sees your keys or any plaintext.</p>
+<p>If the add-on shows "Firefox push needs one click", open the setup page again and allow
+notifications.</p>
+<p>Firefox without Google Play services (Fennec, Mull, IronFox): This Firefox build cannot
+receive push (no Google Play services). Use the Chrome extension or another Firefox build.</p>
+</main>
+<footer>
+<a href="/privacy">Privacy</a> <a href="/terms">Terms</a> <a href="/support">Support</a> <a href="/delete-account">Delete account</a> <a href="https://github.com/tkooda/pusharmor">Source code on GitHub</a>
+</footer>
+</body>
+</html>

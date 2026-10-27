@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PushArmor - end-to-end encrypted push between your devices</title>
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-Isqq963IVcjaMPINbfEbhweWnI2OMigS+3m/2CvFwVY=">
+</head>
+<body>
+<header>
+<a class="brand" href="/">PushArmor</a>
+<nav><a href="/how-to">How to</a> <a href="/download">Download</a> <a href="/security">Security</a> <a href="/support">Support</a></nav>
+</header>
+<main>
+<h1>Send links and short text between your own devices, end-to-end encrypted.</h1>
+<p>PushArmor runs on Android, iPhone, Chrome and Firefox. Each app or add-on is a peer of your
+account. Pair your peers once, then send a link or a note from one peer to another, or to all of
+them.</p>
+
+<h2>End-to-end encryption in one screen</h2>
+<ul>
+<li>Each peer makes its own keys. The private keys never leave the device.</li>
+<li>Before two peers trust each other, you compare a 4-character pairing fingerprint on both
+screens. If it matches, the pairing is genuine.</li>
+<li>Each message is encrypted on the sending peer for the receiving peer and signed by the
+sender. Only the receiving peer can decrypt it.</li>
+<li>Our server (a Cloudflare Worker) and the push services only carry ciphertext. They cannot
+read your messages. Your peers check every signature and drop old or repeated messages.</li>
+<li>We do not store your email address, only a keyed one-way hash of it.</li>
+</ul>
+<p>Read the <a href="/security">threat model</a> for what each party can and cannot see.</p>
+
+<h2>Get started</h2>
+<p><a class="button" href="/download">Download</a> <a class="button" href="/how-to">How to use it</a></p>
+
+<h2>Open source</h2>
+<p>The full source code is public: <a href="https://github.com/tkooda/pusharmor">github.com/tkooda/pusharmor</a>.</p>
+</main>
+<footer>
+<a href="/privacy">Privacy</a> <a href="/terms">Terms</a> <a href="/support">Support</a> <a href="/delete-account">Delete account</a> <a href="https://github.com/tkooda/pusharmor">Source code on GitHub</a>
+</footer>
+</body>
+</html>
