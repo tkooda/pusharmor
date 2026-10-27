@@ -108,4 +108,11 @@ class WorkerClientTest {
         server.shutdown()
         assertTrue(client.peers() is ApiResult.Network)
     }
+
+    @Test fun oversizedBodyIsNetworkAndNotRetried() {
+        val big = okio.Buffer().apply { write(ByteArray(1 shl 20) { 'a'.code.toByte() }); repeat(49) { write(ByteArray(1 shl 20)) } } // 50 MB
+        server.enqueue(MockResponse().setBody(big))
+        assertTrue(client.send(emptyMap()) is ApiResult.Network)
+        assertEquals(1, server.requestCount)
+    }
 }
