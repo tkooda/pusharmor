@@ -50,13 +50,13 @@ countdown formatting, persistence across restart) against an in-memory Worker.
     cd client/ios && xcodegen generate
     open PushArmor.xcodeproj
 
-Build ids are not in the repo. Owner steps: fill `ios_development_team` and
-`ios_google_client_id` in the git-ignored `release/local.json` (copy
-`release/local.example.json`), then run `sh tools/local-xcconfig.sh` before
-`xcodegen generate`. It writes the git-ignored `Config/Local.xcconfig`
-(DEVELOPMENT_TEAM, GOOGLE_IOS_CLIENT_ID, GOOGLE_CALLBACK_SCHEME), which
-`Config/Base.xcconfig` includes. Debug builds work without it; a Release build
-fails while a value is empty. `APP_BUNDLE_ID` stays in `project.yml`. The App Group is `group.$APP_BUNDLE_ID`; the Keychain access group is
+Build ids come from the tracked `release/public.json`: the owner fills
+`apple_team_id` and `google_ios_client_id` there in a normal commit. Run
+`sh tools/public-xcconfig.sh` before `xcodegen generate`. It writes the derived,
+git-ignored `Config/Public.xcconfig` (DEVELOPMENT_TEAM, GOOGLE_IOS_CLIENT_ID,
+GOOGLE_CALLBACK_SCHEME), which `Config/Base.xcconfig` includes. Debug builds work
+without it; a Release build fails while a value is empty, a PLACEHOLDER or a CI
+dummy without `PA_CI_DUMMY=1`. `APP_BUNDLE_ID` stays in `project.yml`. The App Group is `group.$APP_BUNDLE_ID`; the Keychain access group is
 `$TEAM.$APP_BUNDLE_ID.shared`.
 
 ## Notes

@@ -1,18 +1,22 @@
 #!/bin/sh
 # Release gate for the Xcode Release configuration (a pre-build script phase).
-# Fails when a build id (Config/Local.xcconfig, written from release/local.json by
-# tools/local-xcconfig.sh) is empty or a PLACEHOLDER, or unless the app
+# Fails when a build id (Config/Public.xcconfig, written from release/public.json by
+# tools/public-xcconfig.sh) is empty or a PLACEHOLDER, or a CI dummy
+# (release/ci-dummy.mjs) without PA_CI_DUMMY=1, or unless the app
 # entitlements file is readable and says aps-environment production (fail closed).
 # Other configurations pass.
 # Xcode exports the build settings as environment variables.
-# Env: CONFIGURATION, SRCROOT, DEVELOPMENT_TEAM, GOOGLE_IOS_CLIENT_ID, GOOGLE_CALLBACK_SCHEME
+# Env: CONFIGURATION, SRCROOT, DEVELOPMENT_TEAM, GOOGLE_IOS_CLIENT_ID, GOOGLE_CALLBACK_SCHEME,
+# PA_CI_DUMMY
 [ "${CONFIGURATION:-}" = "Release" ] || exit 0
 
 bad=""
 check() {
   case "$2" in
     ""|*[Pp][Ll][Aa][Cc][Ee][Hh][Oo][Ll][Dd][Ee][Rr]*) bad="$bad
-  - $1 is empty or a PLACEHOLDER (run tools/local-xcconfig.sh)" ;;
+  - $1 is empty or a PLACEHOLDER (run tools/public-xcconfig.sh)" ;;
+    *[Cc][Ii]-[Ff][Oo][Rr][Kk]-[Dd][Uu][Mm][Mm][Yy]*) [ "${PA_CI_DUMMY:-}" = "1" ] || bad="$bad
+  - $1 is a CI dummy (allowed only with PA_CI_DUMMY=1)" ;;
   esac
 }
 check DEVELOPMENT_TEAM "${DEVELOPMENT_TEAM:-}"

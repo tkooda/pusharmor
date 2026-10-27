@@ -6,7 +6,7 @@ options:
     iOS: "17.0"
   createIntermediateGroups: true
 # Build ids (DEVELOPMENT_TEAM, GOOGLE_IOS_CLIENT_ID, GOOGLE_CALLBACK_SCHEME) come from
-# Config/Local.xcconfig (git-ignored), written by tools/local-xcconfig.sh.
+# Config/Public.xcconfig (git-ignored), written by tools/public-xcconfig.sh from release/public.json.
 configFiles:
   Debug: Config/Base.xcconfig
   Release: Config/Base.xcconfig
