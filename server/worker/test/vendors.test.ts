@@ -6,6 +6,7 @@ import { BUDGET_MS, fanout, SUBREQUEST_WORST_CASE, type Target } from "../src/pu
 import { apnsPayload } from "../src/push/apns";
 import { deps } from "../src/push/deps";
 import { mintFcmToken } from "../src/push/fcm";
+import { getToken, peekToken } from "../src/push/tokencache";
 import { Log } from "../src/log";
 import { authAlerts, recordHealth } from "../src/push/results";
 import { healthCheck } from "../src/scheduled";
@@ -54,6 +55,31 @@ describe("result mapping, row by row (vendor-wrap 6)", () => {
     const sends = mock.requests.filter(isSend("apns")).slice(before);
     expect(sends).toHaveLength(2);
     expect(sends[0].headers.authorization).not.toBe(sends[1].headers.authorization);
+  });
+
+  it("fcm 401 within 60 s of a mint: retry once with no second OAuth exchange (I304)", async () => {
+    const e = await testEnv();
+    const t = await target("fcm");
+    onVendor(isSend("fcm"), () => new Response(null, { status: 401 }), 1);
+    expect((await fanout(e, [t], new Log())).results[t.id]).toBe("sent");
+    expect(vendorRequests("oauth2.googleapis.com")).toHaveLength(1);
+    mock.clock += 61 * 1000;
+    onVendor(isSend("fcm"), () => new Response(null, { status: 401 }), 1);
+    expect((await fanout(e, [t], new Log())).results[t.id]).toBe("sent");
+    expect(vendorRequests("oauth2.googleapis.com")).toHaveLength(2);
+  });
+
+  it("token cache is bounded; build failures are not labeled auth (I304)", async () => {
+    for (let i = 0; i < 300; i++) await getToken("vapid:https://h" + i + ".example", async () => ({ value: "v", mintedAt: 0, useUntil: deps.now() + 3600000 }), deps.now());
+    expect(peekToken("vapid:https://h0.example")).toBeUndefined();
+    expect(peekToken("vapid:https://h299.example")).toBeDefined();
+    const e = await testEnv();
+    const t = await target("wp");
+    t.push = JSON.stringify({ ...JSON.parse(t.push), p256dh: "!" });
+    expect((await fanout(e, [t], new Log())).results[t.id]).toBe("failed:wp-build");
+    const f = await target("fcm");
+    onVendor((r) => r.url === "https://oauth2.googleapis.com/token", () => new Response(null, { status: 500 }), 1);
+    expect((await fanout(e, [f], new Log())).results[f.id]).toBe("failed:fcm-auth");
   });
 
   it("network error -> failed:net after 3 retries; backoff 0.5, 1.5, 3 s", async () => {
