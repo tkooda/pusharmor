@@ -5,7 +5,7 @@ import { deps } from "../push/deps";
 
 export async function verifyTurnstile(env: Env, response: string, ip: string | null): Promise<void> {
   const fail = new ApiError(403, "turnstile failed");
-  const form = new URLSearchParams({ secret: env.TURNSTILE_SECRET, response });
+  const form = new URLSearchParams({ secret: env.CLOUDFLARE_TURNSTILE_SECRET, response });
   if (ip) form.set("remoteip", ip);
   let j: { success?: unknown; hostname?: unknown; action?: unknown };
   try {
@@ -24,5 +24,5 @@ export async function verifyTurnstile(env: Env, response: string, ip: string | n
   } catch {
     throw fail;
   }
-  if (j.success !== true || j.hostname !== env.TURNSTILE_HOSTNAME || j.action !== env.TURNSTILE_ACTION) throw fail;
+  if (j.success !== true || j.hostname !== env.CLOUDFLARE_TURNSTILE_HOSTNAME || j.action !== env.CLOUDFLARE_TURNSTILE_ACTION) throw fail;
 }

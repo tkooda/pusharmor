@@ -2,9 +2,9 @@
 
 Bans an account by email. Run from any directory:
 
-    ID_SECRET="$(pass show pusharmor/ID_SECRET)" node server/tools/ban/ban.mjs a@b.com
+    PA_ID_SECRET="$(pass show pusharmor/PA_ID_SECRET)" node server/tools/ban/ban.mjs a@b.com
 
-- ID_SECRET: required, read from the environment only (the b64url string set as the
+- PA_ID_SECRET: required, read from the environment only (the b64url string set as the
   Worker secret, at least 32 bytes decoded). Never printed.
 - WRANGLER: optional wrangler path. Default server/worker/node_modules/.bin/wrangler.
 

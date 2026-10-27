@@ -40,7 +40,7 @@ interface SelfRow {
 
 function pushOrNull(c: Ctx, v: unknown): Promise<PushValue | null> {
   if (v === null) return Promise.resolve(null);
-  return checkPush(v, c.env.ALLOWED_PUSH_ENDPOINT_PREFIXES, (r) => (c.log.endpoint_reject = r));
+  return checkPush(v, c.env.PA_ALLOWED_PUSH_ENDPOINT_PREFIXES, (r) => (c.log.endpoint_reject = r));
 }
 
 // PATCH skip rule: stored push confirmed and equal to the incoming push without verified_at.
@@ -74,7 +74,7 @@ export async function register(c: Ctx): Promise<Response> {
   const acct = ticket.a;
   const paTime = checkTime(c.req.headers, Date.now());
   await checkSig(signPub, c.req.headers, c.method, c.path, paTime, c.body);
-  const id = await peerId(c.env.ID_SECRET, acct, signRaw, encRaw);
+  const id = await peerId(c.env.PA_ID_SECRET, acct, signRaw, encRaw);
   c.log.account = acct;
   c.log.peer = id;
   requireAccount(evict, acct);
@@ -120,7 +120,7 @@ export async function register(c: Ctx): Promise<Response> {
     rows = rs[rs.length - 1].results as ListRow[];
     // No change: a concurrent duplicate already inserted this peer (its row is in the list), or the limit is hit.
     if (regRes.meta.changes === 0 && !rows.some((r) => r.id === id)) {
-      const fresh = await makeTicket(c.env.TOKEN_SECRET, { a: acct, k: ticket.k, p: "register", x: now + TICKET_LIFE_PEER_LIMIT_S });
+      const fresh = await makeTicket(c.env.PA_TOKEN_SECRET, { a: acct, k: ticket.k, p: "register", x: now + TICKET_LIFE_PEER_LIMIT_S });
       throw new ApiError(409, "peer limit", { ticket: fresh, peers: limitPeers(rows) });
     }
     pushWritten = push !== null;
@@ -255,8 +255,8 @@ export async function confirm(c: Ctx): Promise<Response> {
   const now = nowS();
   const w = Math.floor(now / 300);
   const ok =
-    ctEqualStr(b.code, await probeCode(c.env.CONFIRM_SECRET, s.me, fields, w)) ||
-    ctEqualStr(b.code, await probeCode(c.env.CONFIRM_SECRET, s.me, fields, w - 1));
+    ctEqualStr(b.code, await probeCode(c.env.PA_CONFIRM_SECRET, s.me, fields, w)) ||
+    ctEqualStr(b.code, await probeCode(c.env.PA_CONFIRM_SECRET, s.me, fields, w - 1));
   if (!ok) throw new ApiError(401, "wrong code");
   await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_CONFIRM).bind(s.me, s.acct, now, self!.push)]);
   return json(200, {});

@@ -1,5 +1,5 @@
 // PushArmor Worker. Bindings and vars only; secrets are set with "wrangler secret put".
-// Deployment ids (FCM_PROJECT_ID, APNS_*, VAPID_*, SES_*, MAIL_FROM, *_AUD_*, OAUTH_REDIRECT_CHROME)
+// Deployment ids (GOOGLE_*, APPLE_*, WEBPUSH_*, AWS_*, *_AUD_*, PA_OAUTH_REDIRECT_CHROME)
 // are Cloudflare dashboard variables, never in this file; keep_vars keeps them on deploy.
 // The D1 binding names the database; wrangler looks its id up by name.
 {
@@ -35,14 +35,14 @@
     { "name": "RL_CODE_ALL", "namespace_id": "1008", "simple": { "limit": 30, "period": 60 } }
   ],
   "vars": {
-    "ALLOWED_PUSH_ENDPOINT_PREFIXES": "[\"https://fcm.googleapis.com/fcm/send/\",\"https://fcm.googleapis.com/wp/\",\"https://updates.push.services.mozilla.com/wpush/v1/\",\"https://updates.push.services.mozilla.com/wpush/v2/\"]",
-    "PUSH_TTL_SECONDS": "604800",
-    "PUSH_PAIR_TTL_SECONDS": "2419200",
-    "TURNSTILE_HOSTNAME": "pusharmor.com",
-    "TURNSTILE_ACTION": "email",
-    "OAUTH_REDIRECT_FIREFOX": "https://pusharmor.com/auth/done",
-    "OAUTH_REDIRECT_ANDROID": "https://pusharmor.com/auth/android",
-    "OAUTH_REDIRECT_WEB": "https://pusharmor.com/delete-account",
-    "WEB_ORIGINS": "[\"https://pusharmor.com\"]"
+    "PA_ALLOWED_PUSH_ENDPOINT_PREFIXES": "[\"https://fcm.googleapis.com/fcm/send/\",\"https://fcm.googleapis.com/wp/\",\"https://updates.push.services.mozilla.com/wpush/v1/\",\"https://updates.push.services.mozilla.com/wpush/v2/\"]",
+    "PA_PUSH_TTL_SECONDS": "604800",
+    "PA_PUSH_PAIR_TTL_SECONDS": "2419200",
+    "CLOUDFLARE_TURNSTILE_HOSTNAME": "pusharmor.com",
+    "CLOUDFLARE_TURNSTILE_ACTION": "email",
+    "PA_OAUTH_REDIRECT_FIREFOX": "https://pusharmor.com/auth/done",
+    "PA_OAUTH_REDIRECT_ANDROID": "https://pusharmor.com/auth/android",
+    "PA_OAUTH_REDIRECT_WEB": "https://pusharmor.com/delete-account",
+    "PA_WEB_ORIGINS": "[\"https://pusharmor.com\"]"
   }
 }

@@ -1,4 +1,4 @@
-// Web push endpoint allow-list (ALLOWED_PUSH_ENDPOINT_PREFIXES) and the UnifiedPush
+// Web push endpoint allow-list (PA_ALLOWED_PUSH_ENDPOINT_PREFIXES) and the UnifiedPush
 // (type 6) endpoint rule. No regex on URLs; parse with URL().
 export type EndpointReject = { host?: string; prefix_len?: number; reason?: string };
 

@@ -62,8 +62,8 @@ export async function start(c: Ctx): Promise<Response> {
   // Per IP (a limiter key only, never stored): address variants from one IP share this cap.
   await enforce(c.env, "RL_MAIL", "mailip:" + (c.req.headers.get("CF-Connecting-IP") ?? ""), c.log);
   await enforce(c.env, "RL_MAIL_ALL", "mail:all", c.log);
-  const token = await makeToken(c.env.TOKEN_SECRET, LABEL_REQUEST_TOKEN, { t: nowS(), e: eh, m: email, k: await keyRef(raw), p: purpose });
-  const code = await deriveCode(c.env.CODE_SECRET, token);
+  const token = await makeToken(c.env.PA_TOKEN_SECRET, LABEL_REQUEST_TOKEN, { t: nowS(), e: eh, m: email, k: await keyRef(raw), p: purpose });
+  const code = await deriveCode(c.env.PA_CODE_SECRET, token);
   const mail = mailText(purpose, code);
   await sendEmail(c.env, email, mail.subject, mail.text, ((u: string, i: RequestInit) => deps.fetch(u, i)) as unknown as typeof fetch);
   return json(200, { request_token: token });
@@ -73,7 +73,7 @@ export async function verify(c: Ctx): Promise<Response> {
   const b = parseJsonObject(c.body);
   keysExactly(b, ["request_token", "code"]);
   if (typeof b.request_token !== "string" || typeof b.code !== "string" || !/^[0-9A-Za-z]{6}$/.test(b.code)) throw bad();
-  const rt = await openToken(c.env.TOKEN_SECRET, LABEL_REQUEST_TOKEN, b.request_token);
+  const rt = await openToken(c.env.PA_TOKEN_SECRET, LABEL_REQUEST_TOKEN, b.request_token);
   if (!rt || typeof rt.t !== "number" || typeof rt.e !== "string" || typeof rt.m !== "string" || typeof rt.k !== "string") {
     throw new ApiError(401, "wrong code");
   }
@@ -83,10 +83,10 @@ export async function verify(c: Ctx): Promise<Response> {
   // codeall: is the looser cap over every token of one email.
   await enforce(c.env, "RL_CODE", "code:" + rt.e + ":" + b.request_token.slice(b.request_token.lastIndexOf(".") + 1), c.log);
   await enforce(c.env, "RL_CODE_ALL", "codeall:" + rt.e, c.log);
-  if (!(await checkCode(c.env.CODE_SECRET, b.request_token, b.code))) throw new ApiError(401, "wrong code");
+  if (!(await checkCode(c.env.PA_CODE_SECRET, b.request_token, b.code))) throw new ApiError(401, "wrong code");
   const eh = b64urlDecode(rt.e);
   if (!eh || eh.length !== 32) throw new ApiError(401, "wrong code");
-  const a = await accountId(c.env.ID_SECRET, eh);
-  const ticket = await makeTicket(c.env.TOKEN_SECRET, { a, k: rt.k, p: purpose, x: nowS() + TICKET_LIFE_S });
+  const a = await accountId(c.env.PA_ID_SECRET, eh);
+  const ticket = await makeTicket(c.env.PA_TOKEN_SECRET, { a, k: rt.k, p: purpose, x: nowS() + TICKET_LIFE_S });
   return json(200, { ticket, email: rt.m });
 }

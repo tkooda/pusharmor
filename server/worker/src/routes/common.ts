@@ -23,7 +23,7 @@ export interface Signed {
 // Steps a, b, c.
 export async function signedStart(c: Ctx): Promise<Signed> {
   const paTime = checkTime(c.req.headers, Date.now());
-  const me = await checkPaId(c.env.ID_SECRET, c.req.headers);
+  const me = await checkPaId(c.env.PA_ID_SECRET, c.req.headers);
   c.log.peer = me;
   c.log.account = me.slice(0, 12);
   await enforce(c.env, "RL_PEER", "id:" + me, c.log);
@@ -46,7 +46,7 @@ export async function callerCheck(c: Ctx, s: Signed, row: CallerRow | undefined 
 
 // Ticket check: MAC, purpose, k, expiry (and account when given).
 export async function checkTicket(c: Ctx, ticket: unknown, purpose: Purpose, signPub: string, acct?: string): Promise<Ticket> {
-  const t = await openToken(c.env.TOKEN_SECRET, LABEL_TICKET, ticket);
+  const t = await openToken(c.env.PA_TOKEN_SECRET, LABEL_TICKET, ticket);
   const raw = rawPoint(signPub);
   if (!t || !raw) throw new ApiError(401, "invalid ticket");
   if (t.p !== purpose || t.k !== (await keyRef(raw)) || typeof t.a !== "string" || !/^[A-Za-z0-9_-]{12}$/.test(t.a)) {
@@ -95,7 +95,7 @@ export function scheduleProbe(c: Ctx, id: string, fields: Record<string, string>
     (async () => {
       try {
         if (!(await allow(env, "RL_PROBE", "probe:" + id, log))) return;
-        const code = await probeCode(env.CONFIRM_SECRET, id, fields, Math.floor(nowS() / 300));
+        const code = await probeCode(env.PA_CONFIRM_SECRET, id, fields, Math.floor(nowS() / 300));
         await sendProbe(env, { endpoint: fields.endpoint, p256dh: fields.p256dh, auth: fields.auth }, code);
       } catch {
         // best effort

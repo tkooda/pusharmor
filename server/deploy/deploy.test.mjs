@@ -58,18 +58,18 @@ test("deploy.sh aborts on missing dashboard vars after read-only wrangler calls 
   const d = tree();
   try {
     const vars = all();
-    delete vars.FCM_PROJECT_ID;
-    vars.MAIL_FROM = "";
-    vars.APNS_TOPIC = "PLACEHOLDER_TOPIC";
+    delete vars.GOOGLE_FCM_PROJECT_ID;
+    vars.AWS_SES_MAIL_FROM = "";
+    vars.APPLE_APNS_TOPIC = "PLACEHOLDER_TOPIC";
     vars.GOOGLE_AUD_WEB = "[]";
     const w = stub(d, vars);
     const r = run(d, w);
     assert.notEqual(r.status, 0);
     assert.deepEqual(calls(d), ["deployments status --json", "versions view v1 --json"]);
-    assert.match(r.stderr, /var FCM_PROJECT_ID is missing or empty/);
-    assert.match(r.stderr, /var MAIL_FROM is missing or empty/);
+    assert.match(r.stderr, /var GOOGLE_FCM_PROJECT_ID is missing or empty/);
+    assert.match(r.stderr, /var AWS_SES_MAIL_FROM is missing or empty/);
     assert.match(r.stderr, /var GOOGLE_AUD_WEB is missing or empty/);
-    assert.match(r.stderr, /var APNS_TOPIC is a PLACEHOLDER/);
+    assert.match(r.stderr, /var APPLE_APNS_TOPIC is a PLACEHOLDER/);
   } finally { rmSync(d, { recursive: true, force: true }); }
 });
 
@@ -92,7 +92,7 @@ test("file preflight aborts on an id in the repo config or a missing keep_vars, 
     const mp = join(d, "server", "deploy", "maintenance", "wrangler.jsonc");
     const parse = (p) => JSON.parse(readFileSync(p, "utf8").split("\n").filter((l) => !l.trim().startsWith("//")).join("\n"));
     const j = parse(wp);
-    j.vars.MAIL_FROM = "codes@example.com";
+    j.vars.AWS_SES_MAIL_FROM = "codes@example.com";
     j.d1_databases[0].database_id = "11111111-2222-3333-4444-555555555555";
     delete j.keep_vars;
     j.env = { staging: { d1_databases: [{ binding: "DB", database_name: "x" }], vars: { X: "PLACEHOLDER_X" } } };
@@ -104,7 +104,7 @@ test("file preflight aborts on an id in the repo config or a missing keep_vars, 
     const r = run(d, w);
     assert.notEqual(r.status, 0);
     assert.throws(() => calls(d), "wrangler was called");
-    assert.match(r.stderr, /vars\.MAIL_FROM must not be in the repo/);
+    assert.match(r.stderr, /vars\.AWS_SES_MAIL_FROM must not be in the repo/);
     assert.match(r.stderr, /DB has a database_id/);
     assert.match(r.stderr, /wrangler\.jsonc: keep_vars must be true/);
     assert.match(r.stderr, /maintenance\/wrangler\.jsonc: keep_vars must be true/);

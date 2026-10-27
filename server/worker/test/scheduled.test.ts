@@ -63,7 +63,7 @@ describe("scheduled()", () => {
     expect(vendorRequests("oauth2.googleapis.com")).toHaveLength(1);
     expect(vendorRequests("email.us-east-1.amazonaws.com")).toHaveLength(0);
     mock.clock += 21 * 60 * 1000;
-    await scheduled(createScheduledController({ cron: "0 * * * *" }), await testEnv({ APNS_KEY_P8: "broken" }));
+    await scheduled(createScheduledController({ cron: "0 * * * *" }), await testEnv({ APPLE_APNS_KEY_P8: "broken" }));
     const mails = vendorRequests("email.us-east-1.amazonaws.com");
     expect(mails).toHaveLength(1);
     expect(JSON.parse(new TextDecoder().decode(mails[0].body)).Content.Simple.Body.Text.Data).toContain("apns");

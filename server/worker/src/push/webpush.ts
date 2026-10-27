@@ -15,8 +15,8 @@ export async function mintVapid(env: Env, aud: string, force = false): Promise<s
     async () => {
       const t = deps.now();
       const exp = Math.floor(t / 1000) + VAPID_LIFE_S;
-      const key = await importEs256Private(env.VAPID_PRIVATE_KEY, env.VAPID_PUBLIC_KEY);
-      const jwt = await signJwt("ES256", key, { typ: "JWT", alg: "ES256" }, { aud, exp, sub: env.VAPID_SUB });
+      const key = await importEs256Private(env.WEBPUSH_VAPID_PRIVATE_KEY, env.WEBPUSH_VAPID_PUBLIC_KEY);
+      const jwt = await signJwt("ES256", key, { typ: "JWT", alg: "ES256" }, { aud, exp, sub: env.WEBPUSH_VAPID_SUB });
       return { value: jwt, mintedAt: t, useUntil: (exp - 3600) * 1000 };
     },
     deps.now(),
@@ -48,7 +48,7 @@ export async function buildWebPush(
     url: push.endpoint,
     method: "POST",
     headers: {
-      Authorization: `vapid t=${jwt}, k=${env.VAPID_PUBLIC_KEY}`,
+      Authorization: `vapid t=${jwt}, k=${env.WEBPUSH_VAPID_PUBLIC_KEY}`,
       TTL: String(ttlFor(cls, env)),
       Urgency: isNormal(cls) ? "normal" : "high",
       "Content-Encoding": "aes128gcm",

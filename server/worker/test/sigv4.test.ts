@@ -67,11 +67,11 @@ describe("sigv4", () => {
 
 describe("ses sendEmail", () => {
   const env: SesEnv = {
-    SES_REGION: "eu-west-1",
-    MAIL_FROM: "noreply@example.com",
-    SES_CONFIG_SET: "cfg",
-    SES_ACCESS_KEY_ID: "AKIDTEST",
-    SES_SECRET_ACCESS_KEY: "secret",
+    AWS_SES_REGION: "eu-west-1",
+    AWS_SES_MAIL_FROM: "noreply@example.com",
+    AWS_SES_CONFIG_SET: "cfg",
+    AWS_SES_ACCESS_KEY_ID: "AKIDTEST",
+    AWS_SES_SECRET_ACCESS_KEY: "secret",
   };
   it("sends the expected signed request", async () => {
     let req: Request | undefined;

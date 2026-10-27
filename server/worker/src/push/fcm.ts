@@ -13,12 +13,12 @@ export async function mintFcmToken(env: Env, force = false): Promise<string> {
     "fcm",
     async () => {
       const iat = Math.floor(deps.now() / 1000);
-      const key = await importRs256Private(env.FCM_SA_PRIVATE_KEY);
+      const key = await importRs256Private(env.GOOGLE_FCM_SA_PRIVATE_KEY);
       const jwt = await signJwt(
         "RS256",
         key,
-        { alg: "RS256", typ: "JWT", kid: env.FCM_SA_KEY_ID },
-        { iss: env.FCM_SA_EMAIL, scope: SCOPE, aud: TOKEN_URL, iat, exp: iat + 3600 },
+        { alg: "RS256", typ: "JWT", kid: env.GOOGLE_FCM_SA_KEY_ID },
+        { iss: env.GOOGLE_FCM_SA_EMAIL, scope: SCOPE, aud: TOKEN_URL, iat, exp: iat + 3600 },
       );
       const res = await deps.fetch(TOKEN_URL, {
         method: "POST",
@@ -52,7 +52,7 @@ export async function buildFcm(env: Env, push: { token: string }, m: string, cls
     },
   };
   return {
-    url: `https://fcm.googleapis.com/v1/projects/${env.FCM_PROJECT_ID}/messages:send`,
+    url: `https://fcm.googleapis.com/v1/projects/${env.GOOGLE_FCM_PROJECT_ID}/messages:send`,
     method: "POST",
     headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
     body: JSON.stringify(body),

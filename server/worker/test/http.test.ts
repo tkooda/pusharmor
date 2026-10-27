@@ -97,8 +97,8 @@ describe("crons", () => {
     expect(cfg.observability.logs.invocation_logs).toBe(false);
     expect(cfg.workers_dev).toBe(false);
     expect(cfg.preview_urls).toBe(false);
-    expect(cfg.vars.PUSH_TTL_SECONDS).toBe("604800");
-    expect(cfg.vars.PUSH_PAIR_TTL_SECONDS).toBe("2419200");
+    expect(cfg.vars.PA_PUSH_TTL_SECONDS).toBe("604800");
+    expect(cfg.vars.PA_PUSH_PAIR_TTL_SECONDS).toBe("2419200");
   });
 });
 

@@ -22,9 +22,9 @@ if (!email || process.argv.length !== 3) {
   console.error("usage: node ban.mjs <email>");
   process.exit(2);
 }
-const secret = process.env.ID_SECRET;
+const secret = process.env.PA_ID_SECRET;
 if (!secret) {
-  console.error("ID_SECRET is not set");
+  console.error("PA_ID_SECRET is not set");
   process.exit(2);
 }
 

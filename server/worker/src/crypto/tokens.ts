@@ -1,4 +1,4 @@
-// Stateless Worker tokens: b64url(body JSON) "." b64url(HMAC-SHA256(TOKEN_SECRET, label || body part)).
+// Stateless Worker tokens: b64url(body JSON) "." b64url(HMAC-SHA256(PA_TOKEN_SECRET, label || body part)).
 // The MAC is checked over the string as received, before JSON.parse.
 import { b64urlDecode, b64urlEncode } from "../codec/b64url";
 import { concat, ctEqual, hmac, sha256, utf8 } from "./hash";
@@ -76,7 +76,7 @@ async function sealKey(secret: string): Promise<CryptoKey> {
   return crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
 }
 
-// AES-256-GCM under a key derived from TOKEN_SECRET; output b64url(iv 12 || ct+tag).
+// AES-256-GCM under a key derived from PA_TOKEN_SECRET; output b64url(iv 12 || ct+tag).
 export async function seal(secret: string, plaintext: string): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await sealKey(secret), utf8(plaintext)));

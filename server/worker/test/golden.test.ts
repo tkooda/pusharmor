@@ -19,8 +19,8 @@ const hex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, "
 const d = (s: string) => b64urlDecode(s)!;
 
 describe("golden: keys and ids", () => {
-  it("test ID_SECRET is the golden id_secret", () => {
-    expect(S.ID_SECRET).toBe(G.keys.id_secret);
+  it("test PA_ID_SECRET is the golden id_secret", () => {
+    expect(S.PA_ID_SECRET).toBe(G.keys.id_secret);
   });
   for (const [name, p] of Object.entries(G.keys.peers) as [string, Record<string, string>][]) {
     it(`peer ${name}: account, keyhash, id`, async () => {

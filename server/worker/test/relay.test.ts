@@ -270,9 +270,9 @@ describe("UnifiedPush probe and confirm (7.6, 6.11)", () => {
     const push = j((await row(p.id))!.push);
     const w = Math.floor(Date.now() / 1000 / 300);
     expect((await call("POST", `/v1/peers/${p.id}/confirm`, { code: "A".repeat(22) }, { peer: p })).body.error).toBe("wrong code");
-    const old = await probeCode(S.CONFIRM_SECRET, p.id, push, w - 2);
+    const old = await probeCode(S.PA_CONFIRM_SECRET, p.id, push, w - 2);
     expect((await call("POST", `/v1/peers/${p.id}/confirm`, { code: old }, { peer: p })).status).toBe(401);
-    const prev = await probeCode(S.CONFIRM_SECRET, p.id, push, w - 1);
+    const prev = await probeCode(S.PA_CONFIRM_SECRET, p.id, push, w - 1);
     const r = await call("POST", `/v1/peers/${p.id}/confirm`, { code: prev }, { peer: p });
     expect(r.status).toBe(200);
     expect(r.body).toEqual({});
