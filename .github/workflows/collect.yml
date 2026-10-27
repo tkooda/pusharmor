@@ -4,7 +4,7 @@ name: collect
 # CRX (Chrome Web Store update URL) and XPI (AMO API, no credentials) of the newest
 # chrome/v* and firefox/v* tag, check every file against the release file-hash
 # manifest (<zip>.files.sha256 of the GitHub Release), and attach the unchanged
-# store file with its SHA-256 to the release, draft or published. Store-added
+# store file with its SHA-256 to the release, prerelease or promoted. Store-added
 # files are skipped: Chrome _metadata/, and the release/constants.json lists
 # ("cws_added": manifest.json keys; "amo_added": path prefixes). manifest.json is
 # compared as parsed JSON. A store version that is not yet the tag version, or a
@@ -25,7 +25,7 @@ jobs:
     name: collect ${{ matrix.browser }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    # Write is needed to read a draft release and to attach the file. No
+    # Write is needed to attach the file. No
     # third-party action runs in this job.
     permissions:
       contents: write
