@@ -23,6 +23,10 @@ env:
   JAVA_VERSION: "17.0.20+8"
   SDK_PACKAGES: platforms;android-35 build-tools;35.0.0 build-tools;34.0.0 platform-tools
   PACKAGE_NAME: com.pusharmor
+  # Status of the Play internal track release. Play accepts only draft while the
+  # app has never been published. The owner changes this to completed once, after
+  # the first manual publish in Play Console.
+  PLAY_INTERNAL_STATUS: draft
 
 jobs:
   vectors:
@@ -295,7 +299,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           DIR: ${{ steps.files.outputs.dir }}
-        run: gh release create "$TAG" --draft --verify-tag --title "$TAG" "$DIR"/*
+        run: |
+          # A rerun of the same tag finds the draft and replaces its assets.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" --clobber "$DIR"/*
+          else
+            gh release create "$TAG" --draft --verify-tag --title "$TAG" "$DIR"/*
+          fi
       - id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
@@ -316,16 +326,24 @@ jobs:
           auth="Authorization: Bearer $TOKEN"
           edit="$(curl -fsS -X POST -H "$auth" -H "Content-Type: application/json" --data '{}' "$api/edits" | jq -r '.id')"
           [ -n "$edit" ] && [ "$edit" != null ] || { echo "edits.insert returned no id"; exit 1; }
-          code="$(curl -fsS -X POST -H "$auth" -H "Content-Type: application/octet-stream" \
-            --data-binary "@$AAB" "$up/edits/$edit/bundles?uploadType=media" | jq -r '.versionCode')"
-          echo "uploaded versionCode: $code"
           IFS=. read -r major minor patch <<EOF
           $VERSION
           EOF
-          if [ "$code" != "$((major * 1000000 + minor * 1000 + patch))" ]; then
+          want="$((major * 1000000 + minor * 1000 + patch))"
+          # A rerun of the same tag: Play rejects a second upload of a versionCode.
+          have="$(curl -fsS -H "$auth" "$api/edits/$edit/bundles" | jq -r --argjson c "$want" '[.bundles[]? | select(.versionCode == $c)] | length')"
+          if [ "$have" != 0 ]; then
+            echo "versionCode $want is already on Play; skipping the upload"
+            code="$want"
+          else
+            code="$(curl -fsS -X POST -H "$auth" -H "Content-Type: application/octet-stream" \
+              --data-binary "@$AAB" "$up/edits/$edit/bundles?uploadType=media" | jq -r '.versionCode')"
+            echo "uploaded versionCode: $code"
+          fi
+          if [ "$code" != "$want" ]; then
             echo "Play reports versionCode $code, not the tag's"
             exit 1
           fi
-          body="$(jq -nc --arg c "$code" '{track: "internal", releases: [{versionCodes: [$c], status: "completed"}]}')"
+          body="$(jq -nc --arg c "$code" --arg s "$PLAY_INTERNAL_STATUS" '{track: "internal", releases: [{versionCodes: [$c], status: $s}]}')"
           curl -fsS -X PUT -H "$auth" -H "Content-Type: application/json" --data "$body" "$api/edits/$edit/tracks/internal"
           curl -fsS -X POST -H "$auth" "$api/edits/$edit:commit"
