@@ -127,7 +127,3 @@ export function healthSnapshot(hour: number): Record<string, { auth: number; ok:
   for (const [v, h] of health) if (h.hour === hour) out[v] = { auth: h.auth, ok: h.ok };
   return out;
 }
-
-export function resetHealth(): void {
-  health.clear();
-}
