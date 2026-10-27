@@ -5,21 +5,23 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.google.services)
 }
 
 // Version: committed release/version.properties (CI asserts it equals the android-v tag).
 val versionProps = Properties().apply {
     rootProject.file("../../release/version.properties").inputStream().use { load(it) }
 }
-// Build ids from the git-ignored release/local.json (template release/local.example.json,
-// key names in release/names.json). Debug builds work without it; release builds fail.
-val localJson = rootProject.file("../../release/local.json")
+// Public build ids from the tracked release/public.json (meanings in release/names.json
+// "public_keys"). Debug builds work with its placeholders; release builds fail on them.
 @Suppress("UNCHECKED_CAST")
-val localValues = localJson.takeIf { it.isFile }
-    ?.let { JsonSlurper().parse(it) as Map<String, Any?> } ?: emptyMap()
-val localVapidKey = "vapid_public_key"
-val localGoogleWebClientId = "google_web_client_id"
+val publicValues = JsonSlurper().parse(rootProject.file("../../release/public.json")) as Map<String, Any?>
+fun publicValue(key: String) = publicValues[key]?.toString() ?: ""
+// Baked into each flavor: foss gets no Google or Firebase value.
+val fossKeys = listOf("webpush_vapid_public_key")
+val playKeys = fossKeys + listOf(
+    "google_web_client_id",
+    "google_fcm_android_app_id", "google_fcm_project_number", "google_fcm_android_api_key", "google_fcm_project_id",
+)
 
 android {
     namespace = "com.pusharmor.app"
@@ -33,13 +35,22 @@ android {
         versionName = versionProps.getProperty("versionName")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "API_BASE", "\"https://api.pusharmor.com\"")
-        buildConfigField("String", "VAPID_PUBLIC_KEY", "\"${localValues[localVapidKey] ?: ""}\"")
-        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${localValues[localGoogleWebClientId] ?: "PLACEHOLDER_GOOGLE_WEB_CLIENT_ID"}\"")
+        // A placeholder bakes in "" (UnifiedPush registers without a VAPID key).
+        val vapid = publicValue("webpush_vapid_public_key").takeUnless { it.contains("placeholder", ignoreCase = true) } ?: ""
+        buildConfigField("String", "VAPID_PUBLIC_KEY", "\"$vapid\"")
     }
 
     flavorDimensions += "dist"
     productFlavors {
-        create("play") { dimension = "dist" }
+        create("play") {
+            dimension = "dist"
+            buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${publicValue("google_web_client_id")}\"")
+            // The Firebase options FirebaseInitProvider reads (FirebaseOptions.fromResource).
+            resValue("string", "google_app_id", publicValue("google_fcm_android_app_id"))
+            resValue("string", "gcm_defaultSenderId", publicValue("google_fcm_project_number"))
+            resValue("string", "google_api_key", publicValue("google_fcm_android_api_key"))
+            resValue("string", "project_id", publicValue("google_fcm_project_id"))
+        }
         create("foss") { dimension = "dist" }
     }
 
@@ -70,33 +81,18 @@ android {
     testOptions { unitTests.isIncludeAndroidResources = true }
 }
 
-// foss has no google-services.json; the plugin only does work for play variants.
-googleServices {
-    missingGoogleServicesStrategy = com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy.IGNORE
-}
-
-// Release gate: a release assemble or bundle fails while a PLACEHOLDER or empty value is baked in.
-// Debug builds are unaffected.
-// The real google-services.json is git-ignored in src/play/ and wins over the committed
-// placeholder in src/playDebug/, which only debug builds can use.
-val releaseVapidKey = localValues[localVapidKey]?.toString() ?: ""
-val releaseGoogleClientId = localValues[localGoogleWebClientId]?.toString() ?: ""
-val googleServicesFile = file("src/play/google-services.json")
-fun releaseValueProblems(play: Boolean): List<String> {
-    val bad = mutableListOf<String>()
-    fun check(name: String, v: String) {
-        if (v.isBlank() || v.contains("placeholder", ignoreCase = true)) bad += "$name is empty or a PLACEHOLDER"
+// Release gate: a release assemble or bundle fails while a value it bakes in is empty or a
+// PLACEHOLDER, or a CI dummy (release/ci-dummy.mjs) without PA_CI_DUMMY=1. Debug builds are unaffected.
+val ciDummyAllowed = System.getenv("PA_CI_DUMMY") == "1"
+fun releaseValueProblems(play: Boolean): List<String> = (if (play) playKeys else fossKeys).mapNotNull { k ->
+    val v = publicValue(k)
+    when {
+        v.isBlank() -> "release/public.json $k is missing or empty"
+        v.contains("placeholder", ignoreCase = true) -> "release/public.json $k is a PLACEHOLDER"
+        v.contains("ci-fork-dummy", ignoreCase = true) && !ciDummyAllowed ->
+            "release/public.json $k is a CI dummy (allowed only with PA_CI_DUMMY=1)"
+        else -> null
     }
-    if (!localJson.isFile) bad += "release/local.json is missing; copy release/local.example.json and fill it"
-    check("release/local.json $localVapidKey (BuildConfig.VAPID_PUBLIC_KEY)", releaseVapidKey)
-    check("release/local.json $localGoogleWebClientId (BuildConfig.GOOGLE_WEB_CLIENT_ID)", releaseGoogleClientId)
-    if (play) {
-        if (!googleServicesFile.isFile) bad += "app/src/play/google-services.json is missing"
-        else if (googleServicesFile.readText().contains("placeholder", ignoreCase = true)) {
-            bad += "app/src/play/google-services.json contains PLACEHOLDER values"
-        }
-    }
-    return bad
 }
 for (flavor in listOf("Play", "Foss")) {
     tasks.register("checkRelease${flavor}Values") {
