@@ -50,6 +50,10 @@ fails when one of those variables is missing, empty or a PLACEHOLDER.
 --outdir <tmp>` (no upload) and fails when it holds test code or a test route:
 resetHealth, clearTokens, clearJwks, TEST_MIGRATIONS, TEST_SECRETS, cloudflare:test,
 vitest, miniflare, "/test", "/debug" or "/__". No test hooks ship in a release.
+It also fails on any "/v1/..." string literal whose path is not in the pinned
+allow-list `server/worker/routes.json`, and on any "x-pa-..." name (any case) not
+in its `x_pa_headers` list. The Worker test `test/routes.test.ts` pins the router
+table to that file, so a new route needs a reviewed edit to `routes.json`.
 
 ## Release steps
 
