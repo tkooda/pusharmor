@@ -31,11 +31,10 @@ each change:
 1. Create the Worker first: `wrangler secret put` for each secret (see the
    Worker README), or one plain `wrangler deploy` from `server/worker`.
 2. Cloudflare dashboard > Workers & Pages > pusharmor-api > Settings >
-   Variables and Secrets > Add, type Text, for each of: FCM_PROJECT_ID,
-   APNS_TOPIC, APNS_KEY_ID, APNS_TEAM_ID, VAPID_PUBLIC_KEY, VAPID_SUB,
-   SES_REGION, MAIL_FROM, SES_CONFIG_SET, GOOGLE_AUD_WEB, GOOGLE_AUD_NATIVE
-   (JSON arrays as text, e.g. `["id1","id2"]`), APPLE_AUD_WEB,
-   APPLE_AUD_NATIVE, OAUTH_REDIRECT_CHROME. Save and deploy.
+   Variables and Secrets > Add, type Text, one variable per name in
+   `release/names.json` "cloudflare_vars" (the one list, with a meaning per
+   name; JSON lists such as GOOGLE_AUD_WEB go in as text, e.g.
+   `["id1","id2"]`). Save and deploy. The secrets are in "cloudflare_secrets".
 3. The D1 binding has no database_id; wrangler finds the database by its
    name `pusharmor`.
 
@@ -43,7 +42,7 @@ Preflight (step 0 of a release): `preflight.mjs` fails when the repo config
 holds one of these ids, a database_id or a PLACEHOLDER, or lacks keep_vars;
 `preflight.mjs --dashboard` then reads the deployed version with the
 read-only `wrangler deployments status` and `wrangler versions view` and
-fails when a variable above is missing, empty or a PLACEHOLDER.
+fails when one of those variables is missing, empty or a PLACEHOLDER.
 
 ## Release steps
 

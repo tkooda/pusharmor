@@ -12,14 +12,14 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 function tree() {
   const d = mkdtempSync(join(tmpdir(), "pa-deploy-"));
   mkdirSync(join(d, "server", "worker"), { recursive: true });
+  mkdirSync(join(d, "release"));
   cpSync(join(REPO, "server", "deploy"), join(d, "server", "deploy"), { recursive: true });
   cpSync(join(REPO, "server", "worker", "wrangler.jsonc"), join(d, "server", "worker", "wrangler.jsonc"));
+  cpSync(join(REPO, "release", "names.json"), join(d, "release", "names.json"));
   return d;
 }
 
-const DASHBOARD_VARS = ["FCM_PROJECT_ID", "APNS_TOPIC", "APNS_KEY_ID", "APNS_TEAM_ID", "VAPID_PUBLIC_KEY", "VAPID_SUB",
-  "SES_REGION", "MAIL_FROM", "SES_CONFIG_SET", "GOOGLE_AUD_WEB", "GOOGLE_AUD_NATIVE", "APPLE_AUD_WEB",
-  "APPLE_AUD_NATIVE", "OAUTH_REDIRECT_CHROME"];
+const DASHBOARD_VARS = Object.keys(JSON.parse(readFileSync(join(REPO, "release", "names.json"), "utf8")).cloudflare_vars);
 
 // Stub wrangler: logs every call; answers the two read-only calls with the given dashboard vars.
 function stub(d, vars) {

@@ -15,14 +15,8 @@ const root = resolve(rootArg || join(dirname(fileURLToPath(import.meta.url)), ".
 const problems = [];
 
 // Set in the Cloudflare dashboard (Worker > Settings > Variables and Secrets), never in the repo.
-const DASHBOARD_VARS = [
-  "FCM_PROJECT_ID", "APNS_TOPIC", "APNS_KEY_ID", "APNS_TEAM_ID",
-  "VAPID_PUBLIC_KEY", "VAPID_SUB",
-  "SES_REGION", "MAIL_FROM", "SES_CONFIG_SET",
-  "GOOGLE_AUD_WEB", "GOOGLE_AUD_NATIVE", "APPLE_AUD_WEB", "APPLE_AUD_NATIVE",
-  "OAUTH_REDIRECT_CHROME"
-];
-const ZERO_ID = /^0{8}-0{4}-0{4}-0{4}-0{12}$/;
+// The names are listed once, in release/names.json.
+const DASHBOARD_VARS = Object.keys(JSON.parse(readFileSync(join(root, "release", "names.json"), "utf8")).cloudflare_vars);
 
 function jsonc(rel) {
   const p = join(root, rel);
