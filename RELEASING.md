@@ -22,7 +22,9 @@ workflow in its first job):
 
 - A version is bound to one commit: every `<platform>/vX.Y.Z` tag of X.Y.Z points
   at the same commit, and a commit carries one version.
-- A new version is greater than every existing tag of any platform.
+- A new version (no tag of it yet) is greater than every existing tag of any
+  platform. A version that already has a tag stays open to other platforms at
+  its commit, also after newer versions are tagged.
 - Platforms may skip numbers (a Worker-only fix needs no Android tag).
 - X.Y.Z has no leading zeros; Y and Z are at most 999; X is at most 2099.
 - The version files at the tag commit hold X.Y.Z: `release/version.properties`

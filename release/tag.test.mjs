@@ -57,6 +57,22 @@ test("one version per commit, one commit per version, new versions greater than 
   ]);
 });
 
+test("another platform may join a version already bound to the commit, also after newer tags", () => {
+  const tags = [
+    { name: "android/v1.0.0", commit: "a".repeat(40) },
+    { name: "worker/v1.0.1", commit: "b".repeat(40) },
+  ];
+  assert.deepEqual(tagProblems("1.0.0", "a".repeat(40), tags), []);
+  assert.deepEqual(tagProblems("1.0.0", "c".repeat(40), tags), [
+    "1.0.0 is bound to commit aaaaaaaaaaaa by tag android/v1.0.0",
+    "1.0.0 is not greater than the existing tag worker/v1.0.1",
+  ]);
+  assert.deepEqual(tagProblems("0.9.0", "c".repeat(40), tags), [
+    "0.9.0 is not greater than the existing tag android/v1.0.0",
+    "0.9.0 is not greater than the existing tag worker/v1.0.1",
+  ]);
+});
+
 test("the committed version files agree with each other", () => {
   const v = readFileSync(join(REPO, "release/version.properties"), "utf8").match(/^versionName=(.*)$/m)[1];
   assert.deepEqual(stampProblems(REPO, v), []);
@@ -137,7 +153,14 @@ test("CLI check: a rerun of an older tag ignores tags created after it", (t) => 
   git("commit", "-q", "-am", "release 0.2.0");
   execFileSync("git", ["tag", "-a", "worker/v0.2.0", "-m", "w"], { cwd: d, env: env("2026-02-01T00:00:00Z") });
   git("checkout", "-q", "--detach", first);
-  const r = run("--check", "worker/v0.1.0");
+  let r = run("--check", "worker/v0.1.0");
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout.trim(), "0.1.0");
+
+  // A new platform tag of 0.1.0 at its commit, made after worker/v0.2.0.
+  r = run("android", "0.1.0");
+  assert.equal(r.status, 0, r.stderr);
+  r = run("--check", "android/v0.1.0");
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout.trim(), "0.1.0");
 });
