@@ -5,7 +5,8 @@ import { pairingKey } from "../src/crypto/labels.ts";
 import { T } from "../src/core/texts.ts";
 import { allEntries, getAllowSet, getEntry } from "../src/core/state.ts";
 import { encodeInner } from "../src/model/message.ts";
-import { Clock, MockWorker, deliver, device, pairAndApprove, refresh, restart } from "./harness.ts";
+import { IDBFactory } from "fake-indexeddb";
+import { Clock, FakePlatform, MockWorker, deliver, device, makeEngine, pairAndApprove, refresh, restart } from "./harness.ts";
 
 const DAY = 86400_000;
 
@@ -630,4 +631,13 @@ test("I287: a pushed approve landing while approve() runs leaves the pairing app
   assert.equal(pa.approves_me, true);
   assert.equal(pa.pending_approve_n, 0);
   assert.equal(await getEntry(a.p.storageLocal, b.id), null);
+});
+
+test("register rejects an assigned id whose keyhash is not ours", async () => {
+  const { clock, w, b } = await setup();
+  const { e } = await makeEngine(new FakePlatform("chrome", w, clock), new IDBFactory(), clock);
+  w.inject.push({ match: /POST \/v1\/peers$/, status: 200, body: { id: b.id, peers: [], my_allow: [] }, times: 1 });
+  await assert.rejects(e.register("T", "a@b.com"), /Bad reply from the server/);
+  assert.equal(await e.self(), null);
+  assert.equal(await e.regState(), null);
 });
