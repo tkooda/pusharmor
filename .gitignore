@@ -13,6 +13,7 @@ out/
 *.crx
 .wrangler/
 .gradle/
+.kotlin/
 local.properties
 .build/
 .swiftpm/
