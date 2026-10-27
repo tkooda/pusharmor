@@ -1,9 +1,12 @@
 name: webext
 
 # Chrome extension and Firefox add-on tests. Called by ci.yml and by
-# webext-release.yml (the chrome/v* and firefox/v* release jobs).
+# webext-release.yml (the chrome/v* and firefox/v* release jobs);
+# workflow_dispatch runs it on any branch by hand. The dev zips are uploaded
+# (not for fork PRs or tags).
 on:
   workflow_call:
+  workflow_dispatch:
 
 permissions: {}
 
@@ -41,6 +44,17 @@ jobs:
         run: npm run build -- --dev
       - name: web-ext lint (Firefox build)
         run: npm run lint:firefox
+      - name: Upload the dev zips
+        if: >-
+          !startsWith(github.ref, 'refs/tags/') &&
+          (github.event_name == 'push' || github.event_name == 'workflow_dispatch' ||
+          github.event.pull_request.head.repo.full_name == github.repository)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: webext-dev-zips
+          path: client/*/dist/pusharmor-*-dev.zip
+          retention-days: 7
+          if-no-files-found: error
       # Proves the release build compiles and passes check-release.mjs. Built
       # with CI dummies, so the zips are thrown away (never uploaded).
       - name: Release build with CI dummies
