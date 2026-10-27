@@ -222,17 +222,21 @@ class Session(private val g: Graph) {
     // ---- peers ----------------------------------------------------------------------------
 
     /** GET /peers (coalesced unless [force]); merge, push_missing, reconcile. */
-    fun fetchPeers(force: Boolean = false): Boolean {
+    /**
+     * [inPush]: from the 10 s push handler (I299): one short attempt, the reconcile and any
+     * retry go to WorkManager.
+     */
+    fun fetchPeers(force: Boolean = false, inPush: Boolean = false): Boolean {
         if (g.identity() == null) return true
         val now = System.currentTimeMillis()
         val last = s.get(Settings.K.LAST_FETCH) ?: 0
         if (!force && now - last < Work.FETCH_WINDOW_MS) { Work.fetchPeers(g.app, s); return true }
         s.set(Settings.K.LAST_FETCH, now)
-        return when (val r = g.client.peers()) {
+        val ok = when (val r = if (inPush) g.client.peersOnce() else g.client.peers()) {
             is ApiResult.Ok -> {
                 g.sync().merge(r.value)
                 if (r.pushMissing || (r.value.myPushSha256 != currentPushHash() && currentPushHash() != null)) Work.patchPush(g.app)
-                g.reconcile().run()
+                if (inPush) Work.reconcile(g.app) else g.reconcile().run()
                 updateShortcuts()
                 true
             }
@@ -243,6 +247,8 @@ class Session(private val g: Graph) {
             }
             ApiResult.Network -> false
         }
+        if (!ok && inPush) Work.fetchPeers(g.app, s)
+        return ok
     }
 
     /** Refresh button (greyed 60 s): GET /peers, push hash check, reconcile, approve re-fetch. */

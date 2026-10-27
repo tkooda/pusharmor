@@ -56,6 +56,8 @@ class WorkerClient(
 ) : Api {
     companion object {
         const val BUDGET_MS = 8_000L
+        /** Whole-call timeout of a single attempt inside the 10 s push handler (I299). */
+        const val ONCE_TIMEOUT_MS = 5_000L
         /** Largest reply body read; a longer one is a network failure (I299). */
         const val MAX_BODY = 1L shl 20
         val BACKOFF_MS = longArrayOf(500, 1500, 3000)
@@ -72,14 +74,17 @@ class WorkerClient(
         fun map(m: Map<String, String>) = m.entries.joinToString(",", "{", "}") { "${str(it.key)}:${str(it.value)}" }
     }
 
+    private val onceHttp by lazy { http.newBuilder().callTimeout(ONCE_TIMEOUT_MS, TimeUnit.MILLISECONDS).build() }
+
     /** PA-Time as 13 decimal digits. */
     fun paTime(): String = (now() + offset.offsetMs).toString().padStart(13, '0')
 
     /**
      * One call. [signed]: PA-ID + PA-Time + PA-Sig; [signedNoId]: PA-Time + PA-Sig only
-     * (POST /peers, DELETE /account). [path] includes /v1 and no query.
+     * (POST /peers, DELETE /account). [path] includes /v1 and no query. [once]: one attempt
+     * with [ONCE_TIMEOUT_MS], no retry.
      */
-    fun call(method: String, path: String, body: ByteArray?, signed: Boolean, signedNoId: Boolean = false, query: Map<String, String> = emptyMap()): Reply? {
+    fun call(method: String, path: String, body: ByteArray?, signed: Boolean, signedNoId: Boolean = false, query: Map<String, String> = emptyMap(), once: Boolean = false): Reply? {
         val bytes = body ?: ByteArray(0)
         val url = base.newBuilder().encodedPath(path).apply { query.forEach { (k, v) -> addQueryParameter(k, v) } }.build()
         val rb = Request.Builder().url(url)
@@ -96,7 +101,7 @@ class WorkerClient(
         while (true) {
             var retryAfter: Long? = null
             val reply: Reply? = try {
-                http.newCall(req).execute().use { r ->
+                (if (once) onceHttp else http).newCall(req).execute().use { r ->
                     r.header("PA-Epoch-Ms")?.toLongOrNull()?.let { offset.offsetMs = it - now() }
                     val text = r.body?.let { readCapped(it) }.orEmpty()
                     val json = try { Json.parseToJsonElement(text) as? JsonObject } catch (e: Exception) { null }
@@ -109,7 +114,7 @@ class WorkerClient(
                 null
             }
             val retryable = reply == null || reply.status == 429 || reply.status == 503
-            if (!retryable || attempt >= BACKOFF_MS.size) return reply
+            if (once || !retryable || attempt >= BACKOFF_MS.size) return reply
             val wait = maxOf(BACKOFF_MS[attempt], (retryAfter ?: 0) * 1000)
             if (now() - start + wait > BUDGET_MS) return reply
             sleep(wait)
@@ -159,6 +164,9 @@ class WorkerClient(
         result(call("POST", "/v1/pair/$x", obj("k" to str(kind), "c" to str(c)).toByteArray(), true)) { it["r"]!!.jsonPrimitive.content }
 
     override fun peers() = result(call("GET", "/v1/peers", null, true), ::peersReply)
+
+    /** GET /peers from the push handler: one attempt within [ONCE_TIMEOUT_MS]. */
+    fun peersOnce() = result(call("GET", "/v1/peers", null, true, once = true), ::peersReply)
 
     override fun pause(messages: Map<String, String>) =
         result(call("POST", "/v1/peers/${me()}/pause", obj("m" to map(messages)).toByteArray(), true), ::results)

@@ -11,7 +11,7 @@ object PushDispatcher {
         if (m == null) { g.effects(fcm).couldNotRead(); return }
         guard({ g.effects(fcm).couldNotRead() }) {
             if (m.length == PairMessage.WIRE_CHARS) {
-                g.pairing(fcm).onPush(m, now) { id -> g.session.fetchPeers(force = true); g.store.peer(id)?.listEncPub != null }
+                g.pairing(fcm).onPush(m, now) { id -> g.session.fetchPeers(force = true, inPush = true); g.store.peer(id)?.listEncPub != null }
             } else {
                 g.receive(fcm).onMessage(m, now)
             }
