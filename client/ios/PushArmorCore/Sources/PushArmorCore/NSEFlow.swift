@@ -5,6 +5,8 @@ public enum KeyLoadError: Error, Equatable {
     case beforeFirstUnlock
     /// Any other Keychain error, errSecItemNotFound included: a drop, never 6.3.
     case other(Int32)
+    /// A device without a Secure Enclave (no iOS 17 device lacks one): no keys are created.
+    case noSecureEnclave
 }
 
 /// The NSE didReceive flow (ios 6.1 to 6.5), free of UserNotifications so it is testable.
