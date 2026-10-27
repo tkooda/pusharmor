@@ -1,7 +1,7 @@
 import { applyD1Migrations, env } from "cloudflare:test";
 import { afterAll, beforeAll, beforeEach, vi } from "vitest";
 import { clearTokens } from "../src/push/tokencache";
-import { resetHealth } from "../src/push/results";
+import { recordHealth, type VendorName } from "../src/push/results";
 import { clearJwks } from "../src/auth/jwks";
 import { captured, installVendorMock, scrubViolations } from "./helpers";
 
@@ -18,7 +18,9 @@ beforeAll(async () => {
 beforeEach(async () => {
   await env.DB.batch([env.DB.prepare("DELETE FROM peers"), env.DB.prepare("DELETE FROM accounts")]);
   clearTokens();
-  resetHealth();
+  // Fresh vendor health through public behavior: a record for hour 0 replaces each vendor's
+  // current-hour counts, so no current hour carries counts from an earlier test.
+  for (const v of ["fcm", "apns", "wp", "up"] as VendorName[]) recordHealth(v, false, false, 0);
   clearJwks();
   installVendorMock();
 });
