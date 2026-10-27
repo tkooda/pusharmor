@@ -88,7 +88,7 @@ Promote:
    (versionName, then versionCode) in a site commit. The first time, add the
    app metadata to fdroiddata by hand (UpdateCheckMode HTTP on that file,
    tag pattern `android/v%v`, Binaries
-   `https://github.com/<owner>/pusharmor/releases/download/android/v%v/pusharmor-%v-foss.apk`,
+   `https://github.com/tkooda/pusharmor/releases/download/android/v%v/pusharmor-%v-foss.apk`,
    AllowedAPKSigningKeys the release certificate). F-Droid builds only after
    the GitHub release resolves.
 
@@ -189,7 +189,7 @@ tag commit, so only reviewed commits may be tagged:
 5. Workload Identity Federation: one pool per store (Play, CWS), each with a
    provider (`google_play_wif_provider`, `google_cws_wif_provider`) with an
    attribute condition scoped to this repository, its tags and its environment:
-   Play: `assertion.repository == '<owner>/pusharmor' &&
+   Play: `assertion.repository == 'tkooda/pusharmor' &&
    assertion.ref.startsWith('refs/tags/android/v') &&
    assertion.environment == 'android-release'`;
    Chrome Web Store: the same with `refs/tags/chrome/v` and `chrome-release`.
