@@ -32,3 +32,7 @@ or test entry, no public.json placeholder, no CI dummy without `PA_CI_DUMMY=1`,
 no `://localhost` or `127.0.0.1`. No test hooks ship in a release.
 
 The golden test reads `tests/vectors/golden-v1.json` at the repo root.
+
+`amo-sign/` pins web-ext alone (exact version, own lockfile) for the AMO
+submission in `.github/workflows/webext-release.yml`: the publish job installs
+only it (`npm ci --ignore-scripts`), never this package's dependencies.
