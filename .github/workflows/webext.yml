@@ -1,0 +1,274 @@
+name: webext
+
+# Chrome extension and Firefox add-on. ci.yml calls this file for tests; a
+# chrome-v* or firefox-v* tag runs the tests, the golden vectors and then the
+# release job of that browser (GitHub Environment with owner approval).
+on:
+  workflow_call:
+  push:
+    tags:
+      - "chrome-v*"
+      - "firefox-v*"
+
+permissions: {}
+
+jobs:
+  test:
+    name: typecheck, tests, builds, web-ext lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: client/webext-common
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - name: Install
+        run: npm ci --ignore-scripts
+      - name: No storage.sync under client/
+        working-directory: .
+        run: |
+          if git grep -n 'storage\.sync' -- client/; then
+            echo "storage.sync is not allowed (data must stay on the device)"
+            exit 1
+          fi
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit, state machine, manifest and golden vector tests
+        run: npm test
+      - name: Dev build (both zips)
+        run: npm run build -- --dev
+      - name: web-ext lint (Firefox build)
+        run: npm run lint:firefox
+      # Proves the release build compiles and passes check-release.mjs. Built
+      # with CI dummies, so the zips are thrown away (never uploaded).
+      - name: Release build with CI dummies
+        run: |
+          node ../../release/ci-dummy.mjs
+          PA_CI_DUMMY=1 node build.mjs
+
+  vectors:
+    if: >-
+      github.event_name == 'push' &&
+      (startsWith(github.ref, 'refs/tags/chrome-v') || startsWith(github.ref, 'refs/tags/firefox-v'))
+    permissions:
+      contents: read
+    uses: ./.github/workflows/vectors.yml
+
+  release-chrome:
+    name: release Chrome (draft GitHub Release, Chrome Web Store review)
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/chrome-v')
+    needs: [test, vectors]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: chrome-release
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - name: Release tag rule and release values
+        id: tag
+        run: |
+          version="$(node release/tag.mjs chrome "$TAG")"
+          node release/public.mjs --check webpush_vapid_public_key mozilla_firefox_addon_id \
+            google_chrome_extension_id google_cws_publisher_id \
+            google_play_wif_provider google_cws_wif_service_account
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Install
+        working-directory: client/webext-common
+        run: npm ci --ignore-scripts
+      - name: Release build (runs check-release.mjs)
+        working-directory: client/webext-common
+        run: node build.mjs
+      - name: Check the release zip and its version
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          node client/webext-common/check-release.mjs client/chrome/dist/pusharmor-chrome.zip
+          got="$(node -p 'require(process.argv[1]).version' "$PWD/client/chrome/dist/unpacked/manifest.json")"
+          if [ "$got" != "$VERSION" ]; then
+            echo "manifest version $got does not equal the tag version $VERSION"
+            exit 1
+          fi
+      - name: Release files, SHA-256 lines and file-hash manifest
+        id: files
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          out="$RUNNER_TEMP/release"
+          mkdir -p "$out" "$RUNNER_TEMP/unzip"
+          zip="pusharmor-chrome-$VERSION.zip"
+          cp client/chrome/dist/pusharmor-chrome.zip "$out/$zip"
+          unzip -q "$out/$zip" -d "$RUNNER_TEMP/unzip"
+          (cd "$RUNNER_TEMP/unzip" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum) > "$out/$zip.files.sha256"
+          (cd "$out" && sha256sum "$zip") > "$out/pusharmor-chrome-$VERSION.hashes.txt"
+          cat "$out/pusharmor-chrome-$VERSION.hashes.txt"
+          echo "dir=$out" >> "$GITHUB_OUTPUT"
+          echo "zip=$out/$zip" >> "$GITHUB_OUTPUT"
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ steps.files.outputs.zip }}
+      - name: Draft GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DIR: ${{ steps.files.outputs.dir }}
+        run: gh release create "$TAG" --draft --verify-tag --title "$TAG" "$DIR"/*
+      - name: Chrome Web Store ids
+        id: cws
+        run: |
+          node -e '
+            const p = require(process.argv[1]);
+            for (const k of ["google_play_wif_provider", "google_cws_wif_service_account", "google_cws_publisher_id", "google_chrome_extension_id"])
+              console.log(k + "=" + p[k]);
+          ' "$PWD/release/public.json" >> "$GITHUB_OUTPUT"
+      - id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ steps.cws.outputs.google_play_wif_provider }}
+          service_account: ${{ steps.cws.outputs.google_cws_wif_service_account }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+          create_credentials_file: false
+      # Last step: upload, then submit for review. A failure after the upload is
+      # fixed with a new patch tag.
+      - name: Upload to the Chrome Web Store and submit for review
+        env:
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+          PUB: ${{ steps.cws.outputs.google_cws_publisher_id }}
+          ITEM: ${{ steps.cws.outputs.google_chrome_extension_id }}
+          ZIP: ${{ steps.files.outputs.zip }}
+        run: |
+          api="https://chromewebstore.googleapis.com"
+          item="publishers/$PUB/items/$ITEM"
+          r="$(curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/zip" \
+            --data-binary "@$ZIP" "$api/upload/v2/$item:upload")"
+          echo "$r"
+          state="$(printf '%s' "$r" | jq -r '.uploadState // empty')"
+          n=0
+          while [ "$state" = "IN_PROGRESS" ] && [ "$n" -lt 30 ]; do
+            sleep 10
+            n=$((n + 1))
+            r="$(curl -fsS -H "Authorization: Bearer $TOKEN" "$api/v2/$item:fetchStatus")"
+            state="$(printf '%s' "$r" | jq -r '.lastAsyncUploadState // empty')"
+          done
+          if [ "$state" != "SUCCEEDED" ]; then
+            echo "upload state: ${state:-none}"
+            echo "$r"
+            exit 1
+          fi
+          curl -fsS -X POST -H "Authorization: Bearer $TOKEN" "$api/v2/$item:publish"
+
+  release-firefox:
+    name: release Firefox (draft GitHub Release, AMO review)
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/firefox-v')
+    needs: [test, vectors]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: firefox-release
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - name: Release tag rule and release values
+        id: tag
+        run: |
+          version="$(node release/tag.mjs firefox "$TAG")"
+          node release/public.mjs --check webpush_vapid_public_key mozilla_firefox_addon_id
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Install
+        working-directory: client/webext-common
+        run: npm ci --ignore-scripts
+      - name: Release build (runs check-release.mjs)
+        working-directory: client/webext-common
+        run: node build.mjs
+      - name: Check the release zip and its version
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          node client/webext-common/check-release.mjs client/firefox/dist/pusharmor-firefox.zip
+          got="$(node -p 'require(process.argv[1]).version' "$PWD/client/firefox/dist/unpacked/manifest.json")"
+          if [ "$got" != "$VERSION" ]; then
+            echo "manifest version $got does not equal the tag version $VERSION"
+            exit 1
+          fi
+      - name: Release files, source archive, SHA-256 lines and file-hash manifest
+        id: files
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          out="$RUNNER_TEMP/release"
+          mkdir -p "$out" "$RUNNER_TEMP/unzip"
+          zip="pusharmor-firefox-$VERSION.zip"
+          src="pusharmor-firefox-$VERSION-source.zip"
+          cp client/firefox/dist/pusharmor-firefox.zip "$out/$zip"
+          git archive --format=zip --prefix="pusharmor-$TAG/" -o "$out/$src" "$TAG"
+          unzip -q "$out/$zip" -d "$RUNNER_TEMP/unzip"
+          (cd "$RUNNER_TEMP/unzip" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum) > "$out/$zip.files.sha256"
+          (cd "$out" && sha256sum "$zip" "$src") > "$out/pusharmor-firefox-$VERSION.hashes.txt"
+          cat "$out/pusharmor-firefox-$VERSION.hashes.txt"
+          {
+            echo "dir=$out"
+            echo "zip=$out/$zip"
+            echo "src=$out/$src"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            ${{ steps.files.outputs.zip }}
+            ${{ steps.files.outputs.src }}
+      - name: Draft GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DIR: ${{ steps.files.outputs.dir }}
+        run: gh release create "$TAG" --draft --verify-tag --title "$TAG" "$DIR"/*
+      # Last step: upload to AMO for review (listed channel) without waiting for
+      # approval. A failure after the upload is fixed with a new patch tag.
+      - name: Submit to AMO (web-ext sign, listed)
+        working-directory: client/webext-common
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.MOZILLA_AMO_JWT_ISSUER }}
+          WEB_EXT_API_SECRET: ${{ secrets.MOZILLA_AMO_JWT_SECRET }}
+          SRC: ${{ steps.files.outputs.src }}
+        run: |
+          npx --no-install web-ext sign --no-input \
+            --source-dir ../firefox/dist/unpacked \
+            --artifacts-dir "$RUNNER_TEMP/web-ext" \
+            --channel listed \
+            --upload-source-code "$SRC" \
+            --approval-timeout 0
