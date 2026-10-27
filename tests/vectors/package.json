@@ -1,0 +1,9 @@
+{
+  "name": "pusharmor-vectors",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "gen": "node ref/gen.mjs",
+    "test": "node --test ref/check.mjs"
+  }
+}
