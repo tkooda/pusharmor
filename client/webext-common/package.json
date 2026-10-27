@@ -1,0 +1,24 @@
+{
+  "name": "pusharmor-webext",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "license": "UNLICENSED",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test --test-reporter=spec \"test/**/*.test.ts\"",
+    "build": "node build.mjs",
+    "lint:firefox": "web-ext lint --source-dir ../firefox/dist/unpacked --no-input",
+    "check": "npm run typecheck && npm test && npm run build && npm run lint:firefox"
+  },
+  "dependencies": {
+    "@hpke/core": "1.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "esbuild": "0.28.2",
+    "fake-indexeddb": "6.2.5",
+    "typescript": "5.9.3",
+    "web-ext": "10.7.0"
+  }
+}
