@@ -118,7 +118,8 @@ Promote:
    `pusharmor-chrome-X.Y.Z.zip` from the prerelease, submit for review, publish.
 2. GitHub: clear "Set as a pre-release".
 3. The collect workflow (daily) attaches the store CRX after it checks it
-   against the release file hashes.
+   against the release file hashes. It takes the tag of the version the public
+   item serves, so promoting an older test tag works.
 
 ## Firefox (`firefox/vX.Y.Z`)
 
@@ -139,7 +140,8 @@ Promote:
 1. AMO Developer Hub, the listed add-on: upload `pusharmor-firefox-X.Y.Z.zip`
    as a new version with the source archive; it goes public after review.
 2. GitHub: clear "Set as a pre-release".
-3. The collect workflow attaches the AMO XPI after it checks it.
+3. The collect workflow attaches the AMO XPI of the current public version
+   after it checks it.
 
 ## One-time owner setup
 

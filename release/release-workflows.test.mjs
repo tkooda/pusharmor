@@ -39,3 +39,16 @@ test("the Play upload stays on the internal track; iOS uploads to App Store Conn
   const ios = read("ios-release.yml");
   assert.doesNotMatch(ios, /appStoreVersionSubmissions|reviewSubmissions|betaAppReviewSubmissions/);
 });
+
+test("collect picks the tag of the version the store serves now, not the newest tag", () => {
+  const wf = read("collect.yml");
+  assert.doesNotMatch(wf, /sort -V|tail -n 1/);
+  const store = wf.indexOf("id: store");
+  const find = wf.indexOf("id: find");
+  assert.ok(store > 0 && find > store);
+  assert.match(wf, /\.current_version\.version/);
+  assert.match(wf, /\.current_version\.file\.url/);
+  assert.match(wf, /read\("manifest\.json"\)\)\.get\("version"/);
+  assert.match(wf, /tag="\$BROWSER\/v\$VERSION"/);
+  assert.match(wf, /VERSION: \$\{\{ steps\.store\.outputs\.version \}\}/);
+});
