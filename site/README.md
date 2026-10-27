@@ -17,7 +17,7 @@ Layout:
         .well-known/       security.txt, assetlinks.json
       wrangler.jsonc       assets-only config (the site checks allow no other keys)
       tools/hashes.mjs     rewrites SRI integrity attributes and CSP script hashes
-      tools/build.mjs      fills the build ids from release/local.json (release deploy)
+      tools/build.mjs      fills the build ids from release/public.json (release deploy)
       tools/test/          site checks (node --test)
 
 ## Install
@@ -37,18 +37,19 @@ The header snapshot test starts the project-local `wrangler dev`; it is skipped 
 wrangler cannot start. Checks that need files from other components (release constants,
 Firefox manifest, golden vectors, Worker wrangler version) are skipped until those files exist.
 
-## Build ids (release/local.json)
+## Build ids (release/public.json)
 
-The repo holds placeholders, not ids. `site/tools/build.mjs` fills them from the
-git-ignored `release/local.json` (template `release/local.example.json`) in place and
-rewrites the hashes:
+The site files hold placeholders, not ids. `site/tools/build.mjs` fills them from the
+tracked `release/public.json` (edit it in a normal commit) in place and rewrites the
+hashes:
 
-- `turnstile_sitekey` -> `data-sitekey` in `public/turnstile.html`.
-- `vapid_public_key` -> `VAPID_PUBLIC_KEY` in `public/js/fx-setup.js`.
-- `chrome_extension_id` -> `chrome-extension://CHROME_EXTENSION_ID` in `public/_headers`.
-- `release_cert_sha256` (list) -> `public/.well-known/assetlinks.json`.
+- `cloudflare_turnstile_sitekey` -> `data-sitekey` in `public/turnstile.html`.
+- `webpush_vapid_public_key` -> `VAPID_PUBLIC_KEY` in `public/js/fx-setup.js`.
+- `google_chrome_extension_id` -> `chrome-extension://CHROME_EXTENSION_ID` in `public/_headers`.
+- `android_release_cert_sha256` (list) -> `public/.well-known/assetlinks.json`.
 
-It fails when the file is missing or a value is empty, malformed or a PLACEHOLDER. Store
+It fails when a value is missing, empty, malformed or a PLACEHOLDER, or a CI dummy
+(`release/ci-dummy.mjs`) without `PA_CI_DUMMY=1`. Store
 links and APK hashes (`public/download.html`) and the F-Droid version
 (`public/fdroid/android.txt`) are edited by hand in the release PR.
 
@@ -56,11 +57,10 @@ Try a build without touching the tree:
 
     cp -r site/public /tmp/site && node site/tools/build.mjs --dir /tmp/site
 
-Deploy is done by Cloudflare Workers Builds from the main branch. Owner steps, once: in the
-Workers Builds project settings add the build variable `PA_LOCAL_JSON` holding the full
-content of your `release/local.json`, and set the build command to
+Deploy is done by Cloudflare Workers Builds from the main branch. Owner step, once: in the
+Workers Builds project settings set the build command to
 
-    printf '%s' "$PA_LOCAL_JSON" > ../release/local.json && node tools/build.mjs
+    node tools/build.mjs
 
 The site has no deploy script. Before a release deploy, run the checks with the release gate on:
 
