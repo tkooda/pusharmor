@@ -1,6 +1,6 @@
 // Release build of the site: fills the build ids from release/public.json into
 // the assets directory in place, then rewrites the SRI and CSP hashes.
-// Workers Builds runs it before "npx wrangler deploy" (see site/README.md).
+// "wrangler deploy" runs it as the build command from wrangler.jsonc (see site/README.md).
 //   node site/tools/build.mjs [--dir DIR] [--public FILE]
 // DIR defaults to site/public. Fails when a value is missing, empty, malformed
 // or a PLACEHOLDER (or a CI dummy without PA_CI_DUMMY=1), or a placeholder is left.
@@ -10,6 +10,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PUBLIC_PATH, loadPublic, publicProblems } from "../../release/public.mjs";
 import { computeHashUpdates, placeholderFiles } from "./site-lib.mjs";
+
+// wrangler.jsonc runs this script as its build command, also for "wrangler dev"
+// (WRANGLER_COMMAND=dev). A dev run keeps the placeholders and must not rewrite the tree.
+if (process.env.WRANGLER_COMMAND === "dev") { console.log("site build: skipped for wrangler dev"); process.exit(0); }
 
 const arg = (name) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : undefined; };
 const dir = arg("--dir") || join(dirname(fileURLToPath(import.meta.url)), "..", "public");

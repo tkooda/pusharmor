@@ -270,6 +270,19 @@ function buildCopy(publicPath, env = {}) {
   return { dir, r };
 }
 
+test("wrangler.jsonc runs tools/build.mjs on deploy, and the build skips for wrangler dev", () => {
+  const cfg = readFileSync(join(SITE, "wrangler.jsonc"), "utf8");
+  assert.match(cfg, /"build"\s*:\s*\{\s*"command"\s*:\s*"node tools\/build\.mjs"\s*\}/);
+  const { dir, r } = buildCopy(PUBLIC_PATH, { WRANGLER_COMMAND: "dev" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /skipped for wrangler dev/);
+  assert.deepEqual(placeholderFiles(dir).length, 3);
+  const d = buildCopy(PUBLIC_PATH, { WRANGLER_COMMAND: "deploy" });
+  assert.notEqual(d.r.status, 0);
+  rmSync(dir, { recursive: true, force: true });
+  rmSync(d.dir, { recursive: true, force: true });
+});
+
 test("committed site files hold the placeholders, not ids (release/public.json fills them at build)", () => {
   assert.deepEqual(placeholderFiles(PUB).sort(), [
     "site/public/_headers: CHROME_EXTENSION_ID",
