@@ -4,6 +4,10 @@ Operator scripts for the `pusharmor-api` Worker (api.pusharmor.com).
 
 ## Usage
 
+`deploy.sh` is the only supported release path for the Worker. Do not run
+`wrangler deploy` directly for a release: it skips the preflight, the backup
+and the migration steps. `wrangler dev` stays fine for local work.
+
     CLOUDFLARE_ACCOUNT_ID=... server/deploy/deploy.sh X.Y.Z
     CLOUDFLARE_ACCOUNT_ID=... server/deploy/deploy.sh maintenance
     server/deploy/deploy.sh --help
