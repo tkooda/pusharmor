@@ -1,6 +1,11 @@
 # pusharmor
 Push URLs and text between devices securely.
 
+## Releasing
+
+Per-platform tags `<platform>/vX.Y.Z` on one version line, test channels,
+manual promotion and the release protection setup: `RELEASING.md`.
+
 ## Deployment ids
 
 Every name is listed once, with its meaning, in `release/names.json`.
