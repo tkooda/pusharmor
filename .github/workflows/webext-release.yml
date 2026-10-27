@@ -7,7 +7,9 @@ name: webext-release
 #                      checks, release files; uploads them with their SHA-256
 #   publish-<browser>  Environment chrome-release / firefox-release (owner
 #                      approval): verifies the SHA-256, provenance, draft GitHub
-#                      Release, then the store submission as the last step
+#                      Release; Chrome then submits to the store as the last step
+#   submit-firefox     Environment firefox-release, contents: read, no id-token:
+#                      verifies the SHA-256, npm ci web-ext, AMO submission
 # Only this file holds write permissions; ci.yml never calls it.
 on:
   push:
@@ -290,14 +292,55 @@ jobs:
           src="pusharmor-firefox-$VERSION-source.zip"
           printf '%s  %s\n%s  %s\n' "$ZIP_SHA256" "$zip" "$SRC_SHA256" "$src" > "$RUNNER_TEMP/expect.sha256"
           (cd "$out" && sha256sum -c --strict "$RUNNER_TEMP/expect.sha256")
-          # web-ext sign takes a directory: the verified zip, unpacked.
-          mkdir -p "$RUNNER_TEMP/unpacked"
-          unzip -q "$out/$zip" -d "$RUNNER_TEMP/unpacked"
           {
             echo "dir=$out"
             echo "zip=$out/$zip"
             echo "src=$out/$src"
           } >> "$GITHUB_OUTPUT"
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            ${{ steps.files.outputs.zip }}
+            ${{ steps.files.outputs.src }}
+      - name: Draft GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DIR: ${{ steps.files.outputs.dir }}
+        run: gh release create "$TAG" --draft --verify-tag --title "$TAG" "$DIR"/*
+
+  submit-firefox:
+    name: submit Firefox to AMO (web-ext sign)
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/firefox-v')
+    needs: [build-firefox, publish-firefox]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: firefox-release
+    # No OIDC token here: web-ext and its packages cannot mint one.
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.build-firefox.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: webext-firefox
+          path: ${{ runner.temp }}/release
+      - name: Verify the release zip and source archive SHA-256 against the build job
+        id: files
+        env:
+          ZIP_SHA256: ${{ needs.build-firefox.outputs.zip_sha256 }}
+          SRC_SHA256: ${{ needs.build-firefox.outputs.src_sha256 }}
+        run: |
+          out="$RUNNER_TEMP/release"
+          zip="pusharmor-firefox-$VERSION.zip"
+          src="pusharmor-firefox-$VERSION-source.zip"
+          printf '%s  %s\n%s  %s\n' "$ZIP_SHA256" "$zip" "$SRC_SHA256" "$src" > "$RUNNER_TEMP/expect.sha256"
+          (cd "$out" && sha256sum -c --strict "$RUNNER_TEMP/expect.sha256")
+          # web-ext sign takes a directory: the verified zip, unpacked.
+          mkdir -p "$RUNNER_TEMP/unpacked"
+          unzip -q "$out/$zip" -d "$RUNNER_TEMP/unpacked"
+          echo "src=$out/$src" >> "$GITHUB_OUTPUT"
       # web-ext only, exact version from its own lockfile (npm integrity hashes),
       # no install scripts; installed before any secret is in the environment.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -310,17 +353,6 @@ jobs:
       - name: Install web-ext (amo-sign lockfile)
         working-directory: client/webext-common/amo-sign
         run: npm ci --ignore-scripts
-      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-path: |
-            ${{ steps.files.outputs.zip }}
-            ${{ steps.files.outputs.src }}
-      - name: Draft GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          DIR: ${{ steps.files.outputs.dir }}
-        run: gh release create "$TAG" --draft --verify-tag --title "$TAG" "$DIR"/*
       # Last step: upload to AMO for review (listed channel) without waiting for
       # approval. A failure after the upload is fixed with a new patch tag.
       - name: Submit to AMO (web-ext sign, listed)
