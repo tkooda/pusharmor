@@ -254,7 +254,7 @@ export function placeholderFiles(dir) {
   for (const f of listFiles(dir)) {
     if (!/\.(html|js|json|txt)$/.test(f) && f !== "_headers") continue;
     const body = readFileSync(join(dir, f), "utf8");
-    for (const w of ["PLACEHOLDER", "CHROME_EXTENSION_ID"]) {
+    for (const w of ["PLACEHOLDER", "CHROME_EXTENSION_ID", "CHROME_BETA_EXTENSION_ID"]) {
       if (body.includes(w)) bad.push("site/public/" + f + ": " + w);
     }
   }

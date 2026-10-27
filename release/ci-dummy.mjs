@@ -1,13 +1,13 @@
 // CI only (pull requests from forks): rewrites release/public.json in place,
 // replacing every PLACEHOLDER value with a labeled dummy "ci-fork-dummy-<key>",
 // so a run with PA_CI_DUMMY=1 proves the release builds compile. Release jobs
-// never run this or set PA_CI_DUMMY. The Firefox add-on id dummy keeps the
+// never run this or set PA_CI_DUMMY. The Firefox add-on id dummies keep the
 // email-like id form. Run: node release/ci-dummy.mjs [FILE]
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { PUBLIC_PATH } from "./public.mjs";
 
-const SUFFIX = { mozilla_firefox_addon_id: "@pusharmor.com" };
+const SUFFIX = { mozilla_firefox_addon_id: "@pusharmor.com", mozilla_firefox_beta_addon_id: "@pusharmor.com" };
 
 /** Returns [new object, list of changed keys]. */
 export function dummyValues(pub) {

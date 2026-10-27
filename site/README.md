@@ -46,6 +46,8 @@ hashes:
 - `cloudflare_turnstile_sitekey` -> `data-sitekey` in `public/turnstile.html`.
 - `webpush_vapid_public_key` -> `VAPID_PUBLIC_KEY` in `public/js/fx-setup.js`.
 - `google_chrome_extension_id` -> `chrome-extension://CHROME_EXTENSION_ID` in `public/_headers`.
+- `google_chrome_beta_extension_id` -> `chrome-extension://CHROME_BETA_EXTENSION_ID` in `public/_headers`
+  (the private "PushArmor Beta" item).
 - `android_release_cert_sha256` (list) -> `public/.well-known/assetlinks.json`.
 
 It fails when a value is missing, empty, malformed or a PLACEHOLDER, or a CI dummy

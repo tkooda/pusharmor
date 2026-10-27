@@ -276,7 +276,7 @@ test("wrangler.jsonc runs tools/build.mjs on deploy, and the build skips for wra
   const { dir, r } = buildCopy(PUBLIC_PATH, { WRANGLER_COMMAND: "dev" });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /skipped for wrangler dev/);
-  assert.deepEqual(placeholderFiles(dir).length, 3);
+  assert.deepEqual(placeholderFiles(dir).length, 4);
   const d = buildCopy(PUBLIC_PATH, { WRANGLER_COMMAND: "deploy" });
   assert.notEqual(d.r.status, 0);
   rmSync(dir, { recursive: true, force: true });
@@ -285,6 +285,7 @@ test("wrangler.jsonc runs tools/build.mjs on deploy, and the build skips for wra
 
 test("committed site files hold the placeholders, not ids (release/public.json fills them at build)", () => {
   assert.deepEqual(placeholderFiles(PUB).sort(), [
+    "site/public/_headers: CHROME_BETA_EXTENSION_ID",
     "site/public/_headers: CHROME_EXTENSION_ID",
     "site/public/js/fx-setup.js: PLACEHOLDER",
     "site/public/turnstile.html: PLACEHOLDER"
@@ -298,6 +299,7 @@ test("site build fills every id from a public file and leaves current hashes", (
   const lp = join(tmp, "public.json");
   writeFileSync(lp, JSON.stringify({
     cloudflare_turnstile_sitekey: TURNSTILE_TEST_SITEKEY, webpush_vapid_public_key: "BTestVapidKey", google_chrome_extension_id: "abcdefghijklmnopabcdefghijklmnop",
+    google_chrome_beta_extension_id: "ponmlkjihgfedcbaponmlkjihgfedcba",
     android_release_cert_sha256: [fp.toLowerCase()]
   }));
   const { dir, r } = buildCopy(lp);
@@ -307,7 +309,7 @@ test("site build fills every id from a public file and leaves current hashes", (
     assert.deepEqual(computeHashUpdates(dir), {});
     assert.ok(readFileSync(join(dir, "turnstile.html"), "utf8").includes('data-sitekey="' + TURNSTILE_TEST_SITEKEY + '"'));
     assert.ok(readFileSync(join(dir, "js", "fx-setup.js"), "utf8").includes('VAPID_PUBLIC_KEY = "BTestVapidKey"'));
-    assert.ok(readFileSync(join(dir, "_headers"), "utf8").includes("chrome-extension://abcdefghijklmnopabcdefghijklmnop"));
+    assert.ok(readFileSync(join(dir, "_headers"), "utf8").includes("chrome-extension://abcdefghijklmnopabcdefghijklmnop chrome-extension://ponmlkjihgfedcbaponmlkjihgfedcba"));
     assert.deepEqual(JSON.parse(readFileSync(join(dir, ".well-known", "assetlinks.json"), "utf8"))[0].target.sha256_cert_fingerprints, [fp]);
   } finally { rmSync(dir, { recursive: true, force: true }); rmSync(tmp, { recursive: true, force: true }); }
 });
