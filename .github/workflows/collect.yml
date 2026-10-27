@@ -1,0 +1,178 @@
+name: collect
+
+# After store review (component-ci-r1 sections 2 and 4.5): fetch the store-signed
+# CRX (Chrome Web Store update URL) and XPI (AMO API, no credentials) of the newest
+# chrome-v* and firefox-v* tag, check every file against the release file-hash
+# manifest (<zip>.files.sha256 of the GitHub Release), and attach the unchanged
+# store file with its SHA-256 to the release, draft or published. Store-added
+# files are skipped: Chrome _metadata/, and the release/constants.json lists
+# ("cws_added": manifest.json keys; "amo_added": path prefixes). manifest.json is
+# compared as parsed JSON. A store version that is not yet the tag version, or a
+# release that already holds the file, is a skip, not a failure.
+on:
+  schedule:
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    name: collect ${{ matrix.browser }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # Write is needed to read a draft release and to attach the file. No
+    # third-party action runs in this job.
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - browser: chrome
+            ext: crx
+            id_key: google_chrome_extension_id
+          - browser: firefox
+            ext: xpi
+            id_key: mozilla_firefox_addon_id
+    env:
+      BROWSER: ${{ matrix.browser }}
+      EXT: ${{ matrix.ext }}
+      ID_KEY: ${{ matrix.id_key }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Newest tag, its release and the release files
+        id: find
+        run: |
+          skip() { echo "skip: $1"; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; }
+          tag="$(git tag -l "$BROWSER-v*" | grep -E "^$BROWSER-v[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n 1)"
+          [ -n "$tag" ] || skip "no $BROWSER-v tag"
+          version="${tag#"$BROWSER"-v}"
+          id="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get(sys.argv[2]) or "")' "$PWD/release/public.json" "$ID_KEY")"
+          if [ -z "$id" ] || printf '%s' "$id" | grep -qi placeholder; then skip "$ID_KEY is not set"; fi
+          gh release view "$tag" --json assets --jq '.assets[].name' > "$RUNNER_TEMP/assets.txt" || skip "no GitHub Release for $tag"
+          name="pusharmor-$BROWSER-$version"
+          grep -qx "$name.$EXT" "$RUNNER_TEMP/assets.txt" && skip "$tag already holds $name.$EXT"
+          grep -qx "$name.zip.files.sha256" "$RUNNER_TEMP/assets.txt" || skip "$tag has no $name.zip.files.sha256"
+          mkdir -p "$RUNNER_TEMP/rel"
+          gh release download "$tag" --dir "$RUNNER_TEMP/rel" --pattern "$name.zip" --pattern "$name.zip.files.sha256"
+          {
+            echo "skip=false"
+            echo "tag=$tag"
+            echo "version=$version"
+            echo "id=$id"
+            echo "name=$name"
+          } >> "$GITHUB_OUTPUT"
+      - name: Fetch the store file
+        id: fetch
+        if: steps.find.outputs.skip == 'false'
+        env:
+          ID: ${{ steps.find.outputs.id }}
+          VERSION: ${{ steps.find.outputs.version }}
+        run: |
+          skip() { echo "skip: $1"; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; }
+          f="$RUNNER_TEMP/store.$EXT"
+          if [ "$BROWSER" = chrome ]; then
+            url="https://clients2.google.com/service/update2/crx?response=redirect&prodversion=140.0&acceptformat=crx2,crx3&x=id%3D$ID%26uc"
+            code="$(curl -sSL -o "$f" -w '%{http_code}' "$url")"
+            [ "$code" = 200 ] && [ -s "$f" ] || skip "Chrome Web Store returned HTTP $code"
+          else
+            gid="$(python3 -I -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$ID")"
+            code="$(curl -sS -o "$RUNNER_TEMP/amo.json" -w '%{http_code}' "https://addons.mozilla.org/api/v5/addons/addon/$gid/versions/$VERSION/")"
+            [ "$code" = 200 ] || skip "AMO has no version $VERSION yet (HTTP $code)"
+            status="$(jq -r '.file.status // empty' "$RUNNER_TEMP/amo.json")"
+            [ "$status" = public ] || skip "AMO file status is ${status:-unknown}"
+            curl -fsSL -o "$f" "$(jq -r '.file.url' "$RUNNER_TEMP/amo.json")"
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+      - name: Check the store file against the release file-hash manifest
+        id: check
+        if: steps.find.outputs.skip == 'false' && steps.fetch.outputs.skip == 'false'
+        env:
+          NAME: ${{ steps.find.outputs.name }}
+          VERSION: ${{ steps.find.outputs.version }}
+        run: |
+          rc=0
+          python3 -I - "$RUNNER_TEMP/store.$EXT" "$RUNNER_TEMP/rel/$NAME.zip" "$RUNNER_TEMP/rel/$NAME.zip.files.sha256" \
+            "$PWD/release/constants.json" "$BROWSER" "$VERSION" <<'PY' || rc=$?
+          import hashlib, io, json, struct, sys, zipfile
+          store_path, ours_path, manifest_path, constants_path, browser, version = sys.argv[1:7]
+          const = json.load(open(constants_path))
+          data = open(store_path, "rb").read()
+          if browser == "chrome":
+              if data[:4] != b"Cr24":
+                  sys.exit("not a CRX file")
+              v = struct.unpack("<I", data[4:8])[0]
+              if v == 3:
+                  start = 12 + struct.unpack("<I", data[8:12])[0]
+              elif v == 2:
+                  start = 16 + sum(struct.unpack("<II", data[8:16]))
+              else:
+                  sys.exit("unknown CRX version %d" % v)
+              data = data[start:]
+              skip_prefixes = ["_metadata/"]
+              drop_keys = const.get("cws_added", [])
+          else:
+              skip_prefixes = const.get("amo_added", [])
+              drop_keys = []
+          store = zipfile.ZipFile(io.BytesIO(data))
+          ours = zipfile.ZipFile(ours_path)
+          want = {}
+          for line in open(manifest_path):
+              h, p = line.rstrip("\n").split("  ", 1)
+              want[p[2:] if p.startswith("./") else p] = h
+          sha = lambda b: hashlib.sha256(b).hexdigest()
+          ours_files = {n: ours.read(n) for n in ours.namelist() if not n.endswith("/")}
+          if {n: sha(b) for n, b in ours_files.items()} != want:
+              sys.exit("the release zip does not match its own file-hash manifest")
+          store_files = {n: store.read(n) for n in store.namelist()
+                         if not n.endswith("/") and not any(n.startswith(p) for p in skip_prefixes)}
+          sm = json.loads(store_files.get("manifest.json", b"{}"))
+          if sm.get("version") != version:
+              print("store version %s is not the tag version %s yet" % (sm.get("version"), version))
+              sys.exit(3)
+          for k in drop_keys:
+              sm.pop(k, None)
+          bad = []
+          if sm != json.loads(ours_files["manifest.json"]):
+              bad.append("manifest.json differs (parsed, store-added keys dropped)")
+          for n in sorted(set(want) | set(store_files)):
+              if n == "manifest.json":
+                  continue
+              if n not in store_files:
+                  bad.append("missing in the store file: " + n)
+              elif n not in want:
+                  bad.append("not in the release: " + n)
+              elif sha(store_files[n]) != want[n]:
+                  bad.append("differs: " + n)
+          if bad:
+              sys.exit("store file check failed:\n  - " + "\n  - ".join(bad))
+          print("ok: %d files match" % len(want))
+          PY
+          case "$rc" in
+            0) echo "skip=false" >> "$GITHUB_OUTPUT" ;;
+            3) echo "skip=true" >> "$GITHUB_OUTPUT" ;;
+            *) exit "$rc" ;;
+          esac
+      - name: Attach the store file and its SHA-256 to the release
+        if: steps.check.outputs.skip == 'false'
+        env:
+          TAG: ${{ steps.find.outputs.tag }}
+          NAME: ${{ steps.find.outputs.name }}
+        run: |
+          d="$RUNNER_TEMP/out"
+          mkdir -p "$d"
+          cp "$RUNNER_TEMP/store.$EXT" "$d/$NAME.$EXT"
+          (cd "$d" && sha256sum "$NAME.$EXT") > "$d/$NAME.$EXT.sha256"
+          cat "$d/$NAME.$EXT.sha256"
+          gh release upload "$TAG" "$d/$NAME.$EXT" "$d/$NAME.$EXT.sha256"
