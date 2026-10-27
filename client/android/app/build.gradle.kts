@@ -105,7 +105,7 @@ for (flavor in listOf("Play", "Foss")) {
     }
 }
 tasks.configureEach {
-    val m = Regex("^(?:assemble|bundle)(Play|Foss)?Release$").matchEntire(name) ?: return@configureEach
+    val m = Regex("^(?:assemble|bundle|package)(Play|Foss)?Release(?:Bundle)?$").matchEntire(name) ?: return@configureEach
     val only = m.groupValues[1]
     for (f in listOf("Play", "Foss")) if (only.isEmpty() || only == f) dependsOn("checkRelease${f}Values")
 }
