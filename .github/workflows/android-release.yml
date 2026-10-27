@@ -301,7 +301,13 @@ jobs:
           DIR: ${{ steps.files.outputs.dir }}
         run: |
           # A rerun of the same tag finds the draft and replaces its assets.
+          # A published release is never touched.
           if gh release view "$TAG" >/dev/null 2>&1; then
+            draft=$(gh release view "$TAG" --json isDraft --jq .isDraft)
+            if [ "$draft" != "true" ]; then
+              echo "::error::Release $TAG exists and is not a draft; refusing to overwrite its assets"
+              exit 1
+            fi
             gh release upload "$TAG" --clobber "$DIR"/*
           else
             gh release create "$TAG" --draft --verify-tag --title "$TAG" "$DIR"/*
