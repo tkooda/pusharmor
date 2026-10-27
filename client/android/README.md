@@ -50,3 +50,18 @@ Requires JDK 17 and an Android SDK (platform 35, build-tools 34.0.0).
 The JVM tests of `:crypto` and `:protocol` run every section of the cross-platform vector
 file `tests/vectors/golden-v1.json` (path relative to the repo root) and fail when it is
 missing.
+
+## No test hooks in release builds
+
+Test code lives only in test source sets (`test`, `androidTest`, `testFixtures`). Check a
+release APK, without Gradle:
+
+    bash tools/check-release-apk.sh app/build/outputs/apk/foss/release/app-foss-release-unsigned.apk
+    bash tools/check-release-apk.sh app/build/outputs/apk/play/release/app-play-release-unsigned.apk
+    bash tools/check-release-apk.test.sh                    # the check's own test (fake SDK tools)
+
+It fails on android:debuggable, android:testOnly or cleartext traffic; on exported
+components beyond the allow-list (MainActivity, ShareActivity, AuthLinkActivity, plus the
+pinned library components with their guarding permissions); on test classes (androidx.test,
+JUnit, Mockito, Robolectric, kotlinx.coroutines.test, the crypto test fixtures); and for
+foss on any Firebase, Play services or credentials-playservices class or component.

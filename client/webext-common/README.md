@@ -26,4 +26,9 @@ come from the tracked `release/public.json` (edit it in a normal commit). A
 release build fails while a needed value is a placeholder (or a CI dummy
 without `PA_CI_DUMMY=1`); `--dev` builds work with the placeholders.
 
+A release build then checks both zips with `check-release.mjs` (also runnable
+on its own: `node check-release.mjs <zip>...`): no Chrome "key", no source map
+or test entry, no public.json placeholder, no CI dummy without `PA_CI_DUMMY=1`,
+no `://localhost` or `127.0.0.1`. No test hooks ship in a release.
+
 The golden test reads `tests/vectors/golden-v1.json` at the repo root.
