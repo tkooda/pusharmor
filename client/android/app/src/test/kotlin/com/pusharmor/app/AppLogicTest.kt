@@ -7,6 +7,7 @@ import com.pusharmor.app.notify.Notifier
 import com.pusharmor.app.notify.Policy
 import com.pusharmor.app.ui.AuthLinkActivity
 import com.pusharmor.app.ui.CodeInput
+import com.pusharmor.app.ui.ShareActivity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -47,6 +48,22 @@ class AppLogicTest {
         // Unknown only with an Unknown row; filter resets to All with no rows left
         assertFalse(HistoryFilter.chips(rows.dropLast(1)) { it }.contains(Chip.Unknown))
         assertEquals(Chip.All, HistoryFilter.effective(rows.dropLast(1), Chip.Unknown))
+    }
+
+    @Test fun shareDirectTargetOnlyFromAllSet() {
+        val all = listOf("a", "b")
+        assertEquals("a", ShareActivity.directTarget("a", all)) // shortcut id in All: direct send
+        assertNull(ShareActivity.directTarget("hidden", all)) // not in All: picker
+        assertNull(ShareActivity.directTarget(null, all))
+        assertEquals("a", ShareActivity.directTarget(null, listOf("a"))) // single All peer (Q160 C)
+        assertEquals("a", ShareActivity.directTarget("hidden", listOf("a")))
+        assertNull(ShareActivity.directTarget("hidden", emptyList()))
+    }
+
+    @Test fun shareIgnoresPeerExtra() {
+        val i = android.content.Intent().putExtra("peer", "hidden")
+        val id = i.getStringExtra(androidx.core.content.pm.ShortcutManagerCompat.EXTRA_SHORTCUT_ID)
+        assertNull(ShareActivity.directTarget(id, listOf("a", "b")))
     }
 
     @Test fun codeEntry() {

@@ -34,12 +34,11 @@ class ShareActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: intent.getStringExtra(Intent.EXTRA_SUBJECT)
         if (text == null || vm.g.identity() == null) { finish(); return }
-        val direct = intent.getStringExtra("peer") ?: intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID)
         val all = vm.g.store.peers().filter { it.inAll }
+        val direct = directTarget(intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID), all.map { it.id })
         val tooLong = SizeCap.utf8Size(text) > SizeCap.MAX_CONTENT_BYTES
         val type = Detect.type(text)
-        // exactly one peer in the All set: send directly (Q160 C)
-        if (!tooLong && (direct != null || all.size == 1)) { send(listOf(direct ?: all.first().id), text); return }
+        if (!tooLong && direct != null) { send(listOf(direct), text); return }
         setContent {
             MaterialTheme {
                 var cut by remember { mutableStateOf<String?>(null) }
@@ -57,6 +56,12 @@ class ShareActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    companion object {
+        /** Direct send target: a shortcut id that is in the All set, else the only All peer, else null (picker). */
+        fun directTarget(shortcutId: String?, allIds: List<String>): String? =
+            if (shortcutId != null && shortcutId in allIds) shortcutId else allIds.singleOrNull()
     }
 
     private fun send(ids: List<String>, text: String) {
