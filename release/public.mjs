@@ -32,3 +32,20 @@ export function publicProblems(keys, pub = loadPublic(), env = process.env) {
   }
   return bad;
 }
+
+// Release jobs: node release/public.mjs --check KEY... exits 1 and lists every
+// needed key that publicProblems reports, and fails when PA_CI_DUMMY is set at all.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const [flag, ...keys] = process.argv.slice(2);
+  if (flag !== "--check" || keys.length === 0) {
+    console.error("usage: node release/public.mjs --check KEY...");
+    process.exit(2);
+  }
+  const bad = process.env.PA_CI_DUMMY !== undefined ? ["PA_CI_DUMMY is set; a release job never sets it"] : [];
+  bad.push(...publicProblems(keys));
+  if (bad.length) {
+    console.error("release values check failed:\n" + bad.map((b) => "  - " + b).join("\n"));
+    process.exit(1);
+  }
+  console.log("release values check: ok (" + keys.join(", ") + ")");
+}
