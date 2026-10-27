@@ -28,9 +28,11 @@ interface Jwk {
 }
 
 const jwksCache = new Map<Provider, { keys: Jwk[]; until: number }>();
+const lastRefetch = new Map<Provider, number>();
 
 export function clearJwks(): void {
   jwksCache.clear();
+  lastRefetch.clear();
 }
 
 async function fetchJwks(p: Provider): Promise<Jwk[]> {
@@ -48,12 +50,20 @@ async function fetchJwks(p: Provider): Promise<Jwk[]> {
 
 async function findKey(p: Provider, kid: string): Promise<Jwk | undefined> {
   const c = jwksCache.get(p);
-  if (c && deps.now() < c.until) {
-    const k = c.keys.find((x) => x.kid === kid);
-    if (k) return k;
+  if (!c) return (await fetchJwks(p)).find((x) => x.kid === kid);
+  const now = deps.now();
+  const k = c.keys.find((x) => x.kid === kid);
+  if (k && now < c.until) return k;
+  // Unknown kid or stale cache: refetch at most once per 60 s per provider; on a
+  // failed refetch keep the cached keys.
+  const t = lastRefetch.get(p);
+  if (t !== undefined && now - t < 60000) return k;
+  lastRefetch.set(p, now);
+  try {
+    return (await fetchJwks(p)).find((x) => x.kid === kid);
+  } catch {
+    return k;
   }
-  // Unknown kid or stale cache: fetch once.
-  return (await fetchJwks(p)).find((x) => x.kid === kid);
 }
 
 function decodeJson(part: string): Record<string, unknown> | null {
