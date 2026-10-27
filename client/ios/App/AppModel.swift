@@ -114,19 +114,14 @@ final class AppModel: ObservableObject {
         if (try? core.store.me().removed) == true { phase = .removed }
     }
 
-    /// getDeliveredNotifications(): each one with "m" and no history rowid runs steps 4-9
-    /// with no banner, then is removed.
+    /// getDeliveredNotifications(): each one with "m" the NSE did not stamp as handled runs
+    /// steps 4-9 with no banner, then is removed (I311: a relay rowid alone does not skip it).
     func drainDelivered() async {
         guard let core = core else { return }
         let center = UNUserNotificationCenter.current()
         let delivered = await center.deliveredNotifications()
-        var done: [String] = []
-        for n in delivered {
-            let info = n.request.content.userInfo
-            guard let m = info["m"] as? String, info["rowid"] == nil else { continue }
-            _ = await core.receive(m, mode: .drain)
-            done.append(n.request.identifier)
-        }
+        let drained = await core.drainDelivered(delivered.map { $0.request.content.userInfo })
+        let done = drained.map { delivered[$0].request.identifier }
         if !done.isEmpty { center.removeDeliveredNotifications(withIdentifiers: done) }
     }
 
@@ -444,12 +439,13 @@ final class AppModel: ObservableObject {
 
     /// Notification tap routing (section 10).
     func handleTap(_ info: [AnyHashable: Any], action: String) async {
-        if let m = info["m"] as? String, info["rowid"] == nil, let core = core {
+        let key = store.flatMap { try? TapStamp.key($0) }
+        if let m = TapStamp.drainM(info, key: key), let core = core {
             _ = await core.receive(m, mode: .drain)
             reload()
         }
         // routing keys count only with the NSE stamp (I297); relay userInfo is ignored
-        let stamped = TapStamp.verified(info, key: store.flatMap { try? TapStamp.key($0) })
+        let stamped = TapStamp.verified(info, key: key)
         let rowid = stamped ? (info["rowid"] as? NSNumber)?.int64Value : nil
         let row = rowid.flatMap { r in history.first { $0.rowid == r } }
         if action == "COPY", let r = row {

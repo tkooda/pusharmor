@@ -149,6 +149,15 @@ public enum TapStamp {
         return d
     }
 
+    /// The "m" the app drains from a delivered or tapped notification (I311): none only when
+    /// the stamp verifies and the NSE marked the push handled (a rowid). A relay "rowid"
+    /// without a valid stamp is drained.
+    public static func drainM(_ info: [AnyHashable: Any], key: Data?) -> String? {
+        guard let m = info["m"] as? String else { return nil }
+        if info["rowid"] != nil && verified(info, key: key) { return nil }
+        return m
+    }
+
     /// True when the routing keys carry a valid stamp.
     public static func verified(_ info: [AnyHashable: Any], key: Data?) -> Bool {
         guard let k = key, let s = info[field] as? String, let got = B64URL.decode(s) else { return false }

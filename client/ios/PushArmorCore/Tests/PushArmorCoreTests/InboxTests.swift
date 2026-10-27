@@ -78,4 +78,25 @@ final class NSEFlowTests: XCTestCase {
         XCTAssertTrue(r.committed)
         inbox.removeAll()
     }
+
+    /// I311: the delivered drain skips "m" only under a valid NSE stamp; a relay rowid or a
+    /// stamp under another key does not skip it.
+    func testDrainSkipsOnlyStamped() async throws {
+        let w = FakeWorker(), clock = TestClock()
+        let n = try Device(worker: w, clock: clock, name: "Ndev"), x = try Device(worker: w, clock: clock, name: "Xdev")
+        try await Scenario.pairFully(w, n, x)
+        for t in ["one", "two", "three"] { _ = try await n.core.send(t, as: .text, to: [x.id], allCount: 1) }
+        let ms = w.take(x.id)
+        let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-nse-\(UUID().uuidString)"))
+        let key = try TapStamp.key(x.core.store)
+        let r = await NSEFlow.handle(m: ms[0], loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 1, budgetLeft: { 30 })
+        let stamped = try XCTUnwrap(r.banner).userInfo(m: ms[0], key: key)
+        let fakeRowid: [AnyHashable: Any] = ["m": ms[1], "rowid": NSNumber(value: try XCTUnwrap(r.rowid)), "tap": "detail"]
+        let otherKey = Banner(body: "x", locKey: nil, category: .text, threadId: "t", rowid: 99, tap: .detail)
+            .userInfo(m: ms[2], key: Data(count: 32))
+        let drained = await x.core.drainDelivered([stamped, fakeRowid, otherKey, ["tap": "none"]])
+        XCTAssertEqual(drained, [1, 2])
+        let texts = try x.core.store.history().map { $0.content }
+        for t in ["one", "two", "three"] { XCTAssertEqual(texts.filter { $0 == t }.count, 1, t) }
+    }
 }
