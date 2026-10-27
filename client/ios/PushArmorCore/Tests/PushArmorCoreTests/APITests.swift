@@ -1,0 +1,47 @@
+import XCTest
+@testable import PushArmorCore
+
+final class APITests: XCTestCase {
+    final class Recorder: @unchecked Sendable {
+        var sleeps: [Double] = []
+    }
+
+    func client(_ w: FakeWorker, _ rec: Recorder) -> APIClient {
+        APIClient(base: URL(string: "https://api.test")!, transport: w, clockMs: { 1761300000000 }, sleep: { rec.sleeps.append($0) })
+    }
+
+    func testRetryOn429HonorsRetryAfterAnd503Backoff() async {
+        let w = FakeWorker(), rec = Recorder()
+        let api = client(w, rec)
+        w.script("POST", "/v1/auth/email", 429, "{\"error\":\"rate limited\",\"retry_after\":2}")
+        w.script("POST", "/v1/auth/email", 503, "{\"error\":\"unavailable\"}")
+        w.script("POST", "/v1/auth/email", 200, "{\"request_token\":\"rt\"}")
+        let r = await AuthClient(api: api).emailStart(email: "A@B.com", signPub: SoftwareSigner().publicKey, purpose: .register, turnstile: "t")
+        XCTAssertEqual(r, .requestToken("rt"))
+        XCTAssertEqual(rec.sleeps, [2, 1.5])
+    }
+
+    func testNoRetryOn502AndLongRetryAfter() async {
+        let w = FakeWorker(), rec = Recorder()
+        let api = client(w, rec)
+        w.script("POST", "/v1/auth/email", 502, "{\"error\":\"email send failed\"}")
+        let r = await AuthClient(api: api).emailStart(email: "a@b.com", signPub: SoftwareSigner().publicKey, purpose: .register, turnstile: "t")
+        XCTAssertEqual(r, .emailSendFailed)
+        w.script("POST", "/v1/auth/email", 429, "{\"error\":\"rate limited\",\"retry_after\":60}")
+        let r2 = await AuthClient(api: api).emailStart(email: "a@b.com", signPub: SoftwareSigner().publicKey, purpose: .register, turnstile: "t")
+        XCTAssertEqual(r2, .rateLimited(60))
+        XCTAssertEqual(rec.sleeps, [])
+        // a non-ASCII address is refused before sending
+        let r3 = await AuthClient(api: api).emailStart(email: "b\u{00f6}b@x.com", signPub: SoftwareSigner().publicKey, purpose: .register, turnstile: "t")
+        XCTAssertEqual(r3, .badEmail)
+    }
+
+    func testOffsetResyncedFromEveryReply() async {
+        let w = FakeWorker(), rec = Recorder()
+        w.epochMs = 1761300000000 + 7000
+        let api = client(w, rec)
+        _ = await api.call("GET", "/v1/x", auth: .none)
+        XCTAssertEqual(api.offsetMs, 7000)
+        XCTAssertEqual(api.workerNowMs, 1761300007000)
+    }
+}
