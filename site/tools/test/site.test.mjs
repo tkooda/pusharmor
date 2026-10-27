@@ -429,3 +429,20 @@ test("attrs parser sanity", () => {
   assert.deepEqual(attrs(' a="1" b=\'2\' c=3 d'), { a: "1", b: "2", c: "3", d: "" });
   assert.equal(readdirSync(PUB).includes("_headers"), true);
 });
+
+test("every page embedding /turnstile is named in the privacy text", () => {
+  const pages = htmlFiles.filter((f) => /<iframe[^>]*src="\/turnstile[#"]/.test(read(f)));
+  assert.ok(pages.includes("delete-account.html"));
+  const p = text("privacy.html");
+  assert.ok(p.includes("Turnstile runs on the email sign-in page and on the delete-account page only"));
+  for (const f of pages) {
+    const name = f.replace(/\.html$/, "");
+    if (name === "delete-account") continue;
+    assert.ok(p.includes(name), "privacy does not name " + name);
+  }
+});
+
+test("delete-account init: a hash without ticket= is cleared with a retry message", () => {
+  const js = read("js/delete-account.js");
+  assert.ok(/h\.length > 1\) \{\s*history\.replaceState\(null, "", location\.pathname\);\s*await restart\("Sign-in did not finish/.test(js));
+});

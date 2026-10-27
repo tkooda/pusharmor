@@ -27,7 +27,7 @@ returns. Keys are made on each device and the private keys never leave it.</p>
 <tr><td>Cloudflare</td><td>Everything the Worker sees, since it runs the Worker and its database. Delivery logs: account id, peer ids and send results, for 7 days.</td><td>Message content, private keys.</td></tr>
 <tr><td>Push services (Google FCM, Apple APNs, Google and Mozilla web push, a UnifiedPush distributor)</td><td>The push token or endpoint and the encrypted payload; they hold undelivered messages up to 7 days (pairing requests up to 4 weeks).</td><td>Message content, keys.</td></tr>
 <tr><td>AWS SES</td><td>Your email address when it sends a sign-in code.</td><td>Anything else.</td></tr>
-<tr><td>This website</td><td>Nothing about you: static files, no login, no analytics. Turnstile runs on the email sign-in page only.</td><td>Keys, message content.</td></tr>
+<tr><td>This website</td><td>Nothing about you: static files, no login, no analytics. Turnstile runs on the email sign-in page and on the delete-account page only.</td><td>Keys, message content.</td></tr>
 </tbody>
 </table>
 </div>
