@@ -70,7 +70,7 @@ export interface Browser {
     onShown: Event<(info: MenuInfo, tab: Tab) => void>;
     refresh(): Promise<void>;
   };
-  identity?: { launchWebAuthFlow(d: { url: string; interactive: boolean }): Promise<string> };
+  identity?: { launchWebAuthFlow(d: { url: string; interactive: boolean }): Promise<string>; getRedirectURL(): string };
   scripting?: {
     executeScript(d: { target: { tabId: number }; func: () => unknown }): Promise<{ result: unknown }[]>;
   };

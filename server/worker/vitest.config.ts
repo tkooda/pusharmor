@@ -26,7 +26,7 @@ export default defineConfig(async () => {
             GOOGLE_AUD_NATIVE: '["google-web-client","google-ios-client"]',
             APPLE_SIGNIN_AUD_WEB: "com.example.pusharmor.web",
             APPLE_SIGNIN_AUD_NATIVE: "com.example.pusharmor",
-            PA_OAUTH_REDIRECT_CHROME: "https://extid.chromiumapp.org/",
+            PA_OAUTH_REDIRECT_CHROME: '["https://extid.chromiumapp.org/","https://betaid.chromiumapp.org/"]',
           },
         },
       }),

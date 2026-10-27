@@ -228,6 +228,32 @@ describe("Google", () => {
     expect((await call("GET", `/v1/auth/google/callback?error=access_denied&state=${state.slice(0, -2)}AA`)).status).toBe(400);
   });
 
+  it("Chrome redirect list: u must equal an allow-listed entry; default is the first; u only for chrome", async () => {
+    const k = await keys();
+    const kr = await keyRef(b64urlDecode(k.signPub)!);
+    const start = (q: string) => call("GET", `/v1/auth/google?k=${kr}&p=register&${q}`);
+    const back = async (s: Awaited<ReturnType<typeof start>>, env?: Awaited<ReturnType<typeof testEnv>>) => {
+      const state = secretString(new URL(s.res.headers.get("Location")!).searchParams.get("state")!);
+      const r = await call("GET", `/v1/auth/google/callback?error=access_denied&state=${state}`, undefined, env ? { env } : undefined);
+      return [r.status, r.res.headers.get("Location")];
+    };
+    const beta = encodeURIComponent("https://betaid.chromiumapp.org/");
+    expect(await back(await start(`r=chrome&u=${beta}`))).toEqual([302, "https://betaid.chromiumapp.org/#error=cancelled"]);
+    expect(await back(await start("r=chrome"))).toEqual([302, "https://extid.chromiumapp.org/#error=cancelled"]);
+    for (const u of ["https://evil.chromiumapp.org/", "https://betaid.chromiumapp.org", "https://betaid.chromiumapp.org/x", "https://betaid.chromiumapp.org/#a", ""]) {
+      expect((await start(`r=chrome&u=${encodeURIComponent(u)}`)).status, u).toBe(400);
+    }
+    expect((await start(`r=firefox&u=${beta}`)).status).toBe(400);
+    // The callback checks u against the list again: an entry removed since the start -> 400.
+    const s = await start(`r=chrome&u=${beta}`);
+    const env = await testEnv({ PA_OAUTH_REDIRECT_CHROME: '["https://extid.chromiumapp.org/"]' });
+    expect((await back(s, env))[0]).toBe(400);
+    // A single URL (not a list) still works.
+    const one = await testEnv({ PA_OAUTH_REDIRECT_CHROME: "https://extid.chromiumapp.org/" });
+    const s1 = await call("GET", `/v1/auth/google?k=${kr}&p=register&r=chrome`, undefined, { env: one });
+    expect(await back(s1, one)).toEqual([302, "https://extid.chromiumapp.org/#error=cancelled"]);
+  });
+
   it("empty client redirect -> 503 at start and callback, never a relative Location (I296)", async () => {
     const g = await idp("RS256");
     serveJwks("www.googleapis.com", g);
@@ -238,6 +264,9 @@ describe("Google", () => {
     const env = await testEnv({ PA_OAUTH_REDIRECT_CHROME: "" });
     const s2 = await call("GET", `/v1/auth/google?k=${kr}&r=chrome&p=register`, undefined, { env });
     expect(s2.status).toBe(503);
+    // An empty list never lets the client name the target.
+    const s3 = await call("GET", `/v1/auth/google?k=${kr}&r=chrome&p=register&u=${encodeURIComponent("https://evil.example/")}`, undefined, { env });
+    expect(s3.status).toBe(503);
     onVendor((r) => r.url === "https://oauth2.googleapis.com/token", async () =>
       Response.json({ id_token: await idToken(g, { iss: "accounts.google.com", aud: "google-web-client", exp: Math.floor(Date.now() / 1000) + 60, nonce: await oauthNonce("register", kr), email: randomEmail(), email_verified: true }) }),
     );
