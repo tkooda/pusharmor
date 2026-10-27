@@ -7,3 +7,11 @@ plugins {
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.ksp) apply false
 }
+
+// Reproducible archives (jar, aar, zip) in every module: fixed timestamps and entry order.
+subprojects {
+    tasks.withType<AbstractArchiveTask>().configureEach {
+        isPreserveFileTimestamps = false
+        isReproducibleFileOrder = true
+    }
+}
