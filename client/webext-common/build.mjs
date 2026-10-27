@@ -1,14 +1,17 @@
 // Builds both extensions: esbuild bundles to unminified ES modules, then
 // writes reproducible zips (sorted entries, fixed timestamps).
 //   node build.mjs          release build (no Chrome "key"); needs real ids in release/public.json
+//                           also writes the Beta zips pusharmor-<browser>-beta.zip: the
+//                           same files, name "PushArmor Beta"; Firefox with the Beta
+//                           gecko id and update_url (release/constants.json)
 //   node build.mjs --dev    dev build (Chrome "key" from release/public.json when set)
 //   --public FILE           read FILE instead of release/public.json
 // Build ids (VAPID public key, add-on id, Chrome dev key) come from the tracked
 // release/public.json; a release build fails while one holds a placeholder (or a
-// CI dummy without PA_CI_DUMMY=1). A release build then checks both zips
+// CI dummy without PA_CI_DUMMY=1). A release build then checks all four zips
 // (check-release.mjs) and fails on a key, placeholder, test entry or local endpoint.
 import { build } from "esbuild";
-import { mkdirSync, readFileSync, rmSync, writeFileSync, readdirSync, statSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { deflateRawSync, deflateSync, crc32 } from "node:zlib";
 import { PUBLIC_PATH, isUnset, loadPublic, publicProblems } from "../../release/public.mjs";
@@ -20,7 +23,8 @@ const dev = process.argv.includes("--dev");
 const pi = process.argv.indexOf("--public");
 const pub = loadPublic(pi > 0 ? process.argv[pi + 1] : PUBLIC_PATH);
 if (!dev) {
-  const bad = publicProblems(["webpush_vapid_public_key", "mozilla_firefox_addon_id"], pub);
+  const bad = publicProblems(["webpush_vapid_public_key", "mozilla_firefox_addon_id", "mozilla_firefox_beta_addon_id"], pub);
+  if (pub.mozilla_firefox_beta_addon_id === pub.mozilla_firefox_addon_id) bad.push("release/public.json: mozilla_firefox_beta_addon_id equals mozilla_firefox_addon_id");
   if (bad.length) {
     console.error("release build failed (dev builds: --dev):");
     for (const b of bad) console.error("  - " + b);
@@ -163,8 +167,27 @@ await shell("firefox", ["background", "popup", "page"], [["cs", "sitefwd/cs"]], 
   if (value("mozilla_firefox_addon_id")) m.browser_specific_settings.gecko.id = value("mozilla_firefox_addon_id");
   writeFileSync(join(out, "background.html"), readFileSync(join(root, "background.html")));
 });
+// Beta: a copy of the release files with a Beta manifest (owner ruling Q209 B).
+function beta(name, manifestFix) {
+  const dist = join(client, name, "dist");
+  const out = join(dist, "beta", "unpacked");
+  cpSync(join(dist, "unpacked"), out, { recursive: true });
+  const manifest = JSON.parse(readFileSync(join(out, "manifest.json"), "utf8"));
+  manifest.name = "PushArmor Beta";
+  manifestFix(manifest);
+  writeFileSync(join(out, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
+  zip(out, join(dist, "pusharmor-" + name + "-beta.zip"));
+  console.log("built", name, "(beta)");
+}
 if (!dev) {
-  const bad = checkZips(["chrome", "firefox"].map((n) => join(client, n, "dist", "pusharmor-" + n + ".zip")));
+  const constants = JSON.parse(readFileSync(join(here, "..", "..", "release", "constants.json"), "utf8"));
+  beta("chrome", () => {});
+  beta("firefox", (m) => {
+    m.browser_specific_settings.gecko.id = pub.mozilla_firefox_beta_addon_id;
+    m.browser_specific_settings.gecko.update_url = constants.firefox_beta_update_url;
+  });
+  const zips = ["chrome", "firefox"].flatMap((n) => ["", "-beta"].map((b) => join(client, n, "dist", "pusharmor-" + n + b + ".zip")));
+  const bad = checkZips(zips);
   if (bad.length) {
     console.error("release zip check failed:");
     for (const b of bad) console.error("  - " + b);

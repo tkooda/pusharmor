@@ -16,7 +16,7 @@ Node 24 runs the TypeScript tests directly (type stripping).
     npm ci
     npm run typecheck      # tsc --noEmit (shared code and both shells)
     npm test               # unit, state machine, manifest and golden vector tests
-    npm run build          # both zips in client/chrome/dist and client/firefox/dist
+    npm run build          # release zips and Beta zips in client/chrome/dist and client/firefox/dist
     npm run build -- --dev # dev build: Chrome manifest gets "key"
     npm run lint:firefox   # web-ext lint on the Firefox build
 
@@ -26,10 +26,18 @@ come from the tracked `release/public.json` (edit it in a normal commit). A
 release build fails while a needed value is a placeholder (or a CI dummy
 without `PA_CI_DUMMY=1`); `--dev` builds work with the placeholders.
 
-A release build then checks both zips with `check-release.mjs` (also runnable
+A release build also writes the Beta zips `pusharmor-<browser>-beta.zip`
+(owner ruling Q209 B): the same files with the name "PushArmor Beta"; the
+Firefox one has the Beta gecko id `mozilla_firefox_beta_addon_id` and the
+update_url `firefox_beta_update_url` of `release/constants.json`. Release tags
+upload them to the test channels (`RELEASING.md`).
+
+A release build then checks all four zips with `check-release.mjs` (also runnable
 on its own: `node check-release.mjs <zip>...`): no Chrome "key", no source map
 or test entry, no public.json placeholder, no CI dummy without `PA_CI_DUMMY=1`,
-no `://localhost` or `127.0.0.1`, no `globalThis.__*` in shipped JS. It also
+no `://localhost` or `127.0.0.1`, no `globalThis.__*` in shipped JS, the
+name "PushArmor" ("PushArmor Beta" in a Beta zip), and a Firefox update_url
+only in the Beta zip. It also
 checks against the pinned allow-list `release-allow.json`: each zip entry must
 be in its browser's `entries`, and each runtime message op the shipped JS
 dispatches on must be in `ops` (a test pins `ops` to the source handlers; add

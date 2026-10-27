@@ -11,6 +11,7 @@
     "https://api.pusharmor.com/*",
     "https://pusharmor.com/fx/fwd"
   ],
+  "firefox_beta_update_url": "https://pusharmor.com/fx/beta/updates.json",
   "cws_added": ["update_url"],
   "amo_added": ["META-INF/"]
 }

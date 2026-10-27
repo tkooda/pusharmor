@@ -2,7 +2,9 @@
 // build.mjs runs it on both zips after a release build; CI may run it on its own:
 //   node check-release.mjs <pusharmor-chrome.zip|pusharmor-firefox.zip>...
 // Fails when a zip holds a source map or a test/ entry, when the Chrome manifest has a
-// "key", or when the manifest, a .js or a .html holds a public.json placeholder
+// "key", when the manifest name is not "PushArmor" ("PushArmor Beta" for a *-beta.zip),
+// when a Firefox manifest has a gecko update_url other than the Beta one
+// (release/constants.json; only *-beta.zip has it), or when the manifest, a .js or a .html holds a public.json placeholder
 // ("PLACEHOLDER_..." or "placeholder-..."), a CI dummy (unless PA_CI_DUMMY=1), or a
 // local endpoint ("://localhost" or "127.0.0.1"). The bare word "localhost" is allowed:
 // the auto-open host rule names it to reject it.
@@ -16,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { inflateRawSync } from "node:zlib";
 
 export const ALLOW = JSON.parse(readFileSync(new URL("./release-allow.json", import.meta.url), "utf8"));
+const BETA_UPDATE_URL = JSON.parse(readFileSync(new URL("../../release/constants.json", import.meta.url), "utf8")).firefox_beta_update_url;
 
 /** Op names a runtime message handler in the text dispatches on. */
 export function ops(text) {
@@ -60,8 +63,8 @@ export function readZip(buf) {
   return out;
 }
 
-/** Problems found in one release zip; chrome selects the Chrome manifest rule. */
-export function checkZip(buf, { chrome, dummyOk = process.env.PA_CI_DUMMY === "1", allow = ALLOW }) {
+/** Problems found in one release zip; chrome selects the Chrome manifest rule, beta the Beta name. */
+export function checkZip(buf, { chrome, beta = false, dummyOk = process.env.PA_CI_DUMMY === "1", allow = ALLOW }) {
   const bad = [];
   const files = readZip(buf);
   const entries = new Set(allow.entries[chrome ? "chrome" : "firefox"]);
@@ -73,7 +76,14 @@ export function checkZip(buf, { chrome, dummyOk = process.env.PA_CI_DUMMY === "1
   }
   const manifest = files.get("manifest.json");
   if (!manifest) bad.push("manifest.json missing");
-  else if (chrome && "key" in JSON.parse(manifest.toString("utf8"))) bad.push("manifest.json: has a \"key\" (dev builds only)");
+  else {
+    const m = JSON.parse(manifest.toString("utf8"));
+    if (chrome && "key" in m) bad.push("manifest.json: has a \"key\" (dev builds only)");
+    const name = beta ? "PushArmor Beta" : "PushArmor";
+    if (m.name !== name) bad.push("manifest.json: name is " + JSON.stringify(m.name) + ", want " + JSON.stringify(name));
+    const update = m.browser_specific_settings?.gecko?.update_url;
+    if (!chrome && update !== (beta ? BETA_UPDATE_URL : undefined)) bad.push("manifest.json: gecko update_url is " + JSON.stringify(update ?? null));
+  }
   for (const [name, data] of files) {
     if (!/\.(js|html|json)$/.test(name)) continue;
     const s = data.toString("latin1");
@@ -91,7 +101,8 @@ export function checkZip(buf, { chrome, dummyOk = process.env.PA_CI_DUMMY === "1
 export function checkZips(paths) {
   const bad = [];
   for (const p of paths) {
-    for (const b of checkZip(readFileSync(p), { chrome: basename(p).includes("chrome") })) bad.push(basename(p) + ": " + b);
+    const n = basename(p);
+    for (const b of checkZip(readFileSync(p), { chrome: n.includes("chrome"), beta: n.includes("-beta") })) bad.push(n + ": " + b);
   }
   return bad;
 }

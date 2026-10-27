@@ -71,9 +71,22 @@ test("a clean release zip passes (bare localhost word and input placeholders all
 });
 
 test("Chrome manifest key fails; Firefox has no such rule", () => {
-  const m = { ...GOOD, "manifest.json": JSON.stringify({ key: "MIIB" }) };
+  const m = { ...GOOD, "manifest.json": JSON.stringify({ name: "PushArmor", key: "MIIB" }) };
   assert.match(check(m).join(), /has a "key"/);
   assert.deepEqual(check(m, false), []);
+});
+
+test("manifest name: PushArmor, or PushArmor Beta in a Beta zip; Firefox update_url only the Beta one", () => {
+  const url = JSON.parse(readFileSync(new URL("../../../release/constants.json", import.meta.url), "utf8")).firefox_beta_update_url;
+  const fx = (m: object) => ({ ...GOOD_FX, "manifest.json": JSON.stringify(m) });
+  const b = (files: Record<string, string>, chrome: boolean) => checkZip(zip(files), { chrome, beta: true, dummyOk: false });
+  assert.deepEqual(b({ ...GOOD, "manifest.json": JSON.stringify({ name: "PushArmor Beta" }) }, true), []);
+  assert.match(b(GOOD, true).join(), /name is "PushArmor", want "PushArmor Beta"/);
+  assert.match(check({ ...GOOD, "manifest.json": JSON.stringify({ name: "PushArmor Beta" }) }).join(), /want "PushArmor"$/);
+  const betaFx = { name: "PushArmor Beta", browser_specific_settings: { gecko: { id: "beta@x", update_url: url } } };
+  assert.deepEqual(b(fx(betaFx), false), []);
+  assert.match(b(fx({ ...betaFx, browser_specific_settings: { gecko: { id: "beta@x" } } }), false).join(), /gecko update_url is null/);
+  assert.match(check(fx({ name: "PushArmor", browser_specific_settings: { gecko: { id: "a@x", update_url: url } } }), false).join(), /gecko update_url is "https:/);
 });
 
 test("source maps, test entries and a missing manifest fail", () => {
