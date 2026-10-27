@@ -1,16 +1,174 @@
 name: android
 
-# Placeholder so ci.yml can call it; the real android jobs replace this file.
+# Android tests and builds. Called by ci.yml (pull requests, main pushes) and by
+# android-release.yml before the release jobs. Release variants built here use
+# CI dummies when release/public.json still holds PLACEHOLDER values; those
+# outputs are never uploaded.
 on:
   workflow_call:
 
 permissions: {}
 
+env:
+  JAVA_VERSION: "17.0.20+8"
+  # Exact SDK packages; the runner's preinstalled SDK floats.
+  SDK_PACKAGES: platforms;android-35 build-tools;35.0.0 build-tools;34.0.0 platform-tools
+
 jobs:
-  placeholder:
-    name: android jobs not written yet
+  android-jvm:
+    name: JVM and Robolectric tests
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions: {}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: client/android
     steps:
-      - run: echo "android.yml is a placeholder"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      # Validates the wrapper jar checksum (on by default). Only a push to main
+      # writes the cache; pull requests read it.
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      - name: Unit tests
+        run: >-
+          ./gradlew --no-daemon --stacktrace
+          :crypto:test :protocol:test :net:test :store:testDebugUnitTest
+          :app:testPlayDebugUnitTest :app:testFossDebugUnitTest
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-jvm-test-results
+          path: client/android/*/build/test-results/
+          retention-days: 7
+
+  android-build:
+    name: lint, debug and release builds, release APK check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: client/android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      - name: Android SDK packages (exact)
+        run: |
+          # shellcheck disable=SC2086
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install $SDK_PACKAGES < /dev/null
+      # The release values gate rejects PLACEHOLDER values; CI dummies let the
+      # release variants compile (R8 included). Outputs are never uploaded.
+      - name: CI dummies when release/public.json has PLACEHOLDER values
+        working-directory: .
+        run: |
+          if grep -qi placeholder release/public.json; then
+            node release/ci-dummy.mjs
+            echo "PA_CI_DUMMY=1" >> "$GITHUB_ENV"
+          fi
+      - name: Lint
+        run: ./gradlew --no-daemon --stacktrace :app:lintPlayDebug :app:lintFossDebug
+      - name: Debug builds
+        run: ./gradlew --no-daemon --stacktrace :app:assemblePlayDebug :app:assembleFossDebug
+      - name: Release builds (unsigned, R8)
+        run: ./gradlew --no-daemon --stacktrace :app:assemblePlayRelease :app:assembleFossRelease :app:bundlePlayRelease
+      # No test hooks in a release build (owner rule Q194).
+      - name: Release APK check (play, foss)
+        run: |
+          bash tools/check-release-apk.sh app/build/outputs/apk/play/release/app-play-release-unsigned.apk play
+          bash tools/check-release-apk.sh app/build/outputs/apk/foss/release/app-foss-release-unsigned.apk foss
+      - name: Foss dependency tree holds no Google Play services or Firebase
+        run: |
+          ./gradlew --no-daemon --stacktrace -q :app:dependencies --configuration fossReleaseRuntimeClasspath > "$RUNNER_TEMP/foss-deps.txt"
+          if grep -nE 'com\.google\.android\.gms|com\.google\.firebase|credentials-play-services' "$RUNNER_TEMP/foss-deps.txt"; then
+            echo "the foss release dependency tree holds the artifacts above"
+            exit 1
+          fi
+      - name: Upload debug APKs
+        if: >-
+          !startsWith(github.ref, 'refs/tags/') &&
+          (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-debug-apks
+          path: client/android/app/build/outputs/apk/*/debug/*.apk
+          retention-days: 7
+
+  # Instrumented tests on emulators. These have not run yet: continue-on-error
+  # until the first green run on main (owner ruling Q197 B); then flip to
+  # required by removing continue-on-error. Not run for release tags.
+  android-emulator:
+    name: emulator API ${{ matrix.api }} ${{ matrix.flavor }}
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    continue-on-error: true
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [31, 35]
+        flavor: [play, foss]
+        include:
+          - flavor: play
+            target: google_apis
+            task: connectedPlayDebugAndroidTest
+          - flavor: foss
+            target: default
+            task: connectedFossDebugAndroidTest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -e /dev/kvm || { echo "/dev/kvm is missing on this runner"; exit 1; }
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      - name: Instrumented tests
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: ${{ matrix.api }}
+          target: ${{ matrix.target }}
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot-save -noaudio -no-boot-anim
+          working-directory: client/android
+          script: ./gradlew --no-daemon --stacktrace :app:${{ matrix.task }}
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-emulator-${{ matrix.api }}-${{ matrix.flavor }}
+          path: client/android/app/build/outputs/androidTest-results/
+          retention-days: 7
