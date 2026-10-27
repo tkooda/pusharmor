@@ -232,8 +232,7 @@ export class Engine {
     let cur = (await this.db.peer(r.from))!;
     if (cur.missing) {
       // a valid push from a peer marked missing clears the mark
-      cur = { ...cur, missing: false };
-      await this.db.putPeer(cur);
+      cur = (await this.db.updatePeer(r.from, (p) => (p ? { ...p, missing: false } : null))) ?? cur;
     }
     await this.act(c, r.n, cur, r.name, rec.rowId, src, self);
   }
@@ -272,23 +271,25 @@ export class Engine {
         return;
       }
       case "approve": {
-        let row = peer;
-        if (name !== null && n > row.name_n) row = { ...row, name, name_n: n };
+        // field-level update on the current row (I286, I287): a concurrent approve() or reserveN is kept
+        const row =
+          (await this.db.updatePeer(peer.id, (cur) => {
+            if (!cur) return null;
+            let r = cur;
+            if (name !== null && n > r.name_n) r = { ...r, name, name_n: n };
+            if (r.ruling === "approved") return { ...r, approves_me: true, approve_verified: true, get_after_verify: false, pending_approve_n: 0 };
+            // pinned, unruled: keep it; mark "approves me" when I approve
+            return { ...r, pending_approve_n: n };
+          })) ?? peer;
         if (row.ruling === "approved") {
-          row = { ...row, approves_me: true, approve_verified: true, get_after_verify: false, pending_approve_n: 0 };
-          await this.db.putPeer(row);
           await this.p.storageLocal.remove([pairKeyOf(peer.id)]);
           if (src === "push") this.p.notify("a:" + peer.id, T.appName, T.approved(peerLabel(row.name)));
           await this.rebuildMenus();
-        } else {
-          // pinned, unruled: keep it; mark "approves me" when I approve
-          row = { ...row, pending_approve_n: n };
-          await this.db.putPeer(row);
         }
         return;
       }
       case "rename": {
-        if (name !== null && n > peer.name_n) await this.db.putPeer({ ...peer, name, name_n: n });
+        if (name !== null) await this.db.updatePeer(peer.id, (p) => (p && n > p.name_n ? { ...p, name, name_n: n } : null));
         if (src === "push") this.p.notify("peerchg", T.appName, T.peerChanged);
         await this.rebuildMenus();
         return;
@@ -309,7 +310,7 @@ export class Engine {
         return;
       case "pause":
       case "unpause": {
-        if (n > peer.pause_n) await this.db.putPeer({ ...peer, paused: c.type === "pause", pause_n: n });
+        await this.db.updatePeer(peer.id, (p) => (p && n > p.pause_n ? { ...p, paused: c.type === "pause", pause_n: n } : null));
         const id = await this.addEvent(c.type === "pause" ? "paused" : "resumed", peer.id);
         if (this.penalized && src === "push") {
           const nm = peerLabel(peer.name);
@@ -319,7 +320,7 @@ export class Engine {
         return;
       }
       case "deny": {
-        await this.db.putPeer({ ...peer, denies_me: true, approves_me: false });
+        await this.db.updatePeer(peer.id, (p) => (p ? { ...p, denies_me: true, approves_me: false } : null));
         await this.p.storageLocal.remove([pairKeyOf(peer.id)]);
         const id = await this.addEvent("denied", peer.id);
         if (this.penalized && src === "push") this.p.notify("h:" + id, T.appName, T.denied(peerLabel(peer.name)));
@@ -684,9 +685,14 @@ export class Engine {
     let peer = await this.db.peer(x);
     if (!self || !peer || !peer.pinned || !peer.pairing_id) throw new UserError("Pair first");
     if (e && e.state !== "shown") throw new UserError("Pair first");
-    peer = { ...peer, ruling: "approved", denies_me: false };
-    if (peer.pending_approve_n > 0) peer = { ...peer, approves_me: true, approve_verified: true, get_after_verify: false, pending_approve_n: 0 };
-    await this.db.putPeer(peer);
+    // field-level update on the current row (I286, I287): a concurrent pushed approve or reserveN is kept
+    peer =
+      (await this.db.updatePeer(x, (cur) => {
+        if (!cur) return null;
+        const r: PeerRow = { ...cur, ruling: "approved", denies_me: false };
+        if (r.pending_approve_n > 0) return { ...r, approves_me: true, approve_verified: true, get_after_verify: false, pending_approve_n: 0 };
+        return r;
+      })) ?? peer;
     const name = await this.myName();
     const body = await this.buildApprove(x, self, name);
     if (e) await this.p.storageLocal.set({ [pairKeyOf(x)]: { ...e, approved: true, approve_body: body, approve_name: name } satisfies PairEntry });
@@ -749,8 +755,7 @@ export class Engine {
       await this.p.storageLocal.set({ [pairKeyOf(x)]: upd });
     }
     if (result === "denied") {
-      const p = await this.db.peer(x);
-      if (p) await this.db.putPeer({ ...p, denies_me: true });
+      await this.db.updatePeer(x, (p) => (p ? { ...p, denies_me: true } : null));
       await this.p.storageLocal.remove([pairKeyOf(x)]);
     }
     return result;
@@ -804,8 +809,7 @@ export class Engine {
     });
     await this.p.storageLocal.remove([pairKeyOf(x)]);
     if (peer.pinned) await this.db.unpin(x);
-    const cur = (await this.db.peer(x))!;
-    await this.db.putPeer({ ...cur, ruling: "denied" });
+    await this.db.updatePeer(x, (p) => (p ? { ...p, ruling: "denied" } : null));
     let result: string;
     try {
       const r = await this.api.call("POST", "/deny/" + x, { signer: this.signerOf(self), body: { c } });
@@ -958,39 +962,55 @@ export class Engine {
       if (!(await validPeerEntry(id, sp, ep, acct))) continue;
       const platform = (["android", "iphone", "chrome", "firefox"] as const).includes(it.platform as Platform4) ? (it.platform as Platform4) : "android";
       const created = typeof it.created === "number" ? it.created : 0;
-      let row = (await this.db.peer(it.id)) ?? newPeerRow(it.id, sp, ep, platform, created);
-      if (row.removed) continue;
+      const snap = await this.db.peer(it.id);
+      if (snap?.removed) continue;
       seen.add(it.id);
-      if (row.pinned) {
-        if (!equal(row.sign_pub, sp) || !equal(row.enc_pub, ep)) {
-          // keys changed, not trusted: plain drop of the list keys (a Worker list never pins)
-          console.warn("peer keys changed in list; ignored", it.id);
-        }
-      } else row = { ...row, sign_pub: sp, enc_pub: ep };
-      row = {
-        ...row,
-        platform,
-        created,
-        paused: it.paused === true,
-        reachable: it.reachable === true,
-        denies_me: it.denies_me === true,
-        missing: false,
-      };
-      if (row.pinned && row.approve_verified) row = { ...row, approves_me: it.approves_me === true, get_after_verify: true };
-      else if (!row.pinned) row = { ...row, approves_me: it.approves_me === true };
-      if (row.pinned && row.ruling === "approved" && typeof it.name_for_me === "string" && row.pairing_id) {
+      if (snap?.pinned && (!equal(snap.sign_pub, sp) || !equal(snap.enc_pub, ep))) {
+        // keys changed, not trusted: plain drop of the list keys (a Worker list never pins)
+        console.warn("peer keys changed in list; ignored", it.id);
+      }
+      // name entry checked against the snapshot; applied below only if the row still matches
+      let nameCand: { name: string; n: number; pairing_id: Uint8Array; sign_pub: Uint8Array } | null = null;
+      if (snap && snap.pinned && snap.ruling === "approved" && typeof it.name_for_me === "string" && snap.pairing_id) {
         const ent = await openNameEntry(self.enc, self.id, it.name_for_me);
-        if (ent && ent.n > row.name_n) {
-          const nm = await verifyNameEntry(row.sign_pub, row.id, self.id, row.pairing_id, ent);
-          if (nm !== null) row = { ...row, name: nm, name_n: ent.n };
+        if (ent && ent.n > snap.name_n) {
+          const nm = await verifyNameEntry(snap.sign_pub, snap.id, self.id, snap.pairing_id, ent);
+          if (nm !== null) nameCand = { name: nm, n: ent.n, pairing_id: snap.pairing_id, sign_pub: snap.sign_pub };
         }
       }
-      await this.db.putPeer(row);
+      // field-level update on the current row in one transaction (I286): a concurrent reserveN is kept
+      await this.db.updatePeer(it.id, (cur) => {
+        let row = cur ?? newPeerRow(it.id as string, sp, ep, platform, created);
+        if (row.removed) return null;
+        if (!row.pinned) row = { ...row, sign_pub: sp, enc_pub: ep };
+        row = {
+          ...row,
+          platform,
+          created,
+          paused: it.paused === true,
+          reachable: it.reachable === true,
+          denies_me: it.denies_me === true,
+          missing: false,
+        };
+        if (row.pinned && row.approve_verified) row = { ...row, approves_me: it.approves_me === true, get_after_verify: true };
+        else if (!row.pinned) row = { ...row, approves_me: it.approves_me === true };
+        if (
+          nameCand &&
+          row.pinned &&
+          row.ruling === "approved" &&
+          row.pairing_id &&
+          equal(row.pairing_id, nameCand.pairing_id) &&
+          equal(row.sign_pub, nameCand.sign_pub) &&
+          nameCand.n > row.name_n
+        )
+          row = { ...row, name: nameCand.name, name_n: nameCand.n };
+        return row;
+      });
     }
     for (const row of await this.db.peers()) {
       if (seen.has(row.id) || row.removed) continue;
       if (row.ruling === "approved") {
-        if (!row.missing) await this.db.putPeer({ ...row, missing: true });
+        if (!row.missing) await this.db.updatePeer(row.id, (p) => (p ? { ...p, missing: true } : null));
       } else {
         if (await getEntry(this.p.storageLocal, row.id)) continue;
         await this.db.del("peers", row.id);
@@ -1103,8 +1123,7 @@ export class Engine {
       failures.push({ id, result: res, text: res === "gone" ? T.notDelivered(nm) : nm + ": " + res });
       if (res === "unapproved" || res === "unknown" || res === "gone") trigger = true;
       if (res === "paused") {
-        const p = await this.db.peer(id);
-        if (p) await this.db.putPeer({ ...p, paused: true });
+        await this.db.updatePeer(id, (p) => (p ? { ...p, paused: true } : null));
       }
     }
     await this.db.addHistory({
@@ -1256,8 +1275,7 @@ export class Engine {
   private async markRemoved(p: PeerRow): Promise<void> {
     await this.p.storageLocal.remove([pairKeyOf(p.id)]);
     await this.db.unpin(p.id);
-    const cur = (await this.db.peer(p.id))!;
-    await this.db.putPeer({ ...cur, removed: true, ruling: "none", hidden: false, missing: false, name: p.name });
+    await this.db.updatePeer(p.id, (cur) => (cur ? { ...cur, removed: true, ruling: "none", hidden: false, missing: false, name: p.name } : null));
   }
 
   /** Local Delete of a missing row: drop the pin and the shortcut, keep history, no Worker call. */
@@ -1269,8 +1287,7 @@ export class Engine {
   }
 
   async setHidden(x: string, hidden: boolean): Promise<void> {
-    const p = await this.db.peer(x);
-    if (p) await this.db.putPeer({ ...p, hidden });
+    await this.db.updatePeer(x, (p) => (p ? { ...p, hidden } : null));
     await this.rebuildMenus();
   }
 

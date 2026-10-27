@@ -580,3 +580,54 @@ test("clock skew on POST /approve: a new n and new bytes in the retry", async ()
   assert.equal((await a.db.peer(b.id))!.last_n, 2);
   assert.equal((await getEntry(a.p.storageLocal, b.id))!.approve_body, JSON.stringify(ap[1]!.body));
 });
+
+test("I286: a send between a peer-row read and its write keeps last_n (GET /peers merge)", async () => {
+  const { w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  const before = (await a.db.peer(b.id))!.last_n;
+  const orig = a.db.peer.bind(a.db);
+  let armed = true;
+  let reserved = 0;
+  a.db.peer = async (id: string) => {
+    const snap = await orig(id);
+    if (armed && id === b.id) {
+      armed = false;
+      reserved = await a.db.reserveN(b.id);
+    }
+    return snap;
+  };
+  await a.e.fetchPeersNow();
+  a.db.peer = orig;
+  assert.equal(reserved, before + 1);
+  assert.equal((await a.db.peer(b.id))!.last_n, before + 1);
+  assert.equal(await a.db.reserveN(b.id), before + 2);
+});
+
+test("I287: a pushed approve landing while approve() runs leaves the pairing approved and verified", async () => {
+  const { w, a, b } = await setup();
+  await refresh(a, b);
+  await a.e.pairStart(b.id);
+  await deliver(w, b);
+  await deliver(w, a);
+  await deliver(w, b);
+  assert.equal(await b.e.approve(a.id), "stored");
+  const pushed = w.rows.get(b.id)!.pending[a.id]!; // b's approve, as a concurrent push to a
+  const orig = a.db.peer.bind(a.db);
+  let armed = true;
+  a.db.peer = async (id: string) => {
+    const snap = await orig(id);
+    if (armed && id === b.id) {
+      armed = false;
+      await a.e.receive(pushed, "push"); // applied between approve()'s read and its write
+    }
+    return snap;
+  };
+  await a.e.approve(b.id);
+  a.db.peer = orig;
+  const pa = (await a.db.peer(b.id))!;
+  assert.equal(pa.ruling, "approved");
+  assert.equal(pa.approve_verified, true);
+  assert.equal(pa.approves_me, true);
+  assert.equal(pa.pending_approve_n, 0);
+  assert.equal(await getEntry(a.p.storageLocal, b.id), null);
+});
