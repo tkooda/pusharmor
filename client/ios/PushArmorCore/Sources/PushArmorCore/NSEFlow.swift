@@ -40,6 +40,7 @@ public enum NSEFlow {
         guard let core = openCore(keys) else { return .plain(.dropped) }
         var r = await core.receive(ms, mode: .nse)
         if r.banner == nil { r.banner = .dropped }   // never empty content for a push
+        r.handled = true
         onReceived?(r)
         // 6.5: an unknown sender sets fetch_due; one GET /peers only with >= 10 s of budget left
         if (try? core.store.me().fetchDue) == true && budgetLeft() >= 10 {
@@ -49,7 +50,7 @@ public enum NSEFlow {
     }
 
     static func dropWithEvent(_ core: Core?) -> ReceiveResult {
-        if let c = core { return c.drop(.nse) }
+        if let c = core { var r = c.drop(.nse); r.handled = true; return r }
         return .plain(.dropped)
     }
 }
