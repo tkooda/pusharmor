@@ -7,6 +7,7 @@ import { buildApns, apnsMayRemint } from "./apns";
 import { deps, type Cls, type VendorRequest } from "./deps";
 import { buildFcm } from "./fcm";
 import { classify, isAuthFailure, recordHealth, type Outcome, type VendorName } from "./results";
+import { MintError } from "./tokencache";
 import { buildWebPush } from "./webpush";
 
 export const SLOTS = 6;
@@ -142,8 +143,8 @@ async function deliver(env: Env, t: Target, slots: Slots): Promise<Delivery> {
       let req: VendorRequest;
       try {
         req = await build(env, t, force);
-      } catch {
-        last = { kind: "failed", code: `${v}-auth`, next: "none" };
+      } catch (e) {
+        last = { kind: "failed", code: e instanceof MintError ? `${v}-auth` : `${v}-build`, next: "none" };
         break;
       }
       a = await attempt(v, req, Math.min(ATTEMPT_MS, remaining));

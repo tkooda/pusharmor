@@ -8,20 +8,37 @@ export interface Cached {
 const cache = new Map<string, Cached>();
 const inflight = new Map<string, Promise<Cached>>();
 
+// VAPID keys follow attacker-chosen push origins: bound the cache.
+export const MAX_TOKENS = 256;
+// A forced remint (auth refresh) of a token younger than this reuses it.
+export const MIN_FORCE_MS = 60 * 1000;
+
+// Thrown when mint() fails, so callers can tell a mint failure from other build errors.
+export class MintError extends Error {}
+
+function put(key: string, v: Cached, nowMs: number): void {
+  cache.delete(key);
+  if (cache.size >= MAX_TOKENS) {
+    for (const [k, x] of cache) if (nowMs >= x.useUntil) cache.delete(k);
+  }
+  while (cache.size >= MAX_TOKENS) cache.delete(cache.keys().next().value!);
+  cache.set(key, v);
+}
+
 export async function getToken(key: string, mint: () => Promise<Cached>, nowMs: number, force = false): Promise<Cached> {
   const c = cache.get(key);
-  if (c && !force && nowMs < c.useUntil) return c;
+  if (c && nowMs < c.useUntil && (!force || nowMs - c.mintedAt < MIN_FORCE_MS)) return c;
   let p = inflight.get(key);
   if (!p) {
     p = mint().then(
       (v) => {
-        cache.set(key, v);
+        put(key, v, nowMs);
         inflight.delete(key);
         return v;
       },
       (e) => {
         inflight.delete(key);
-        throw e;
+        throw e instanceof MintError ? e : new MintError(String(e));
       },
     );
     inflight.set(key, p);
