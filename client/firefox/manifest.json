@@ -1,0 +1,43 @@
+{
+  "manifest_version": 2,
+  "name": "PushArmor",
+  "version": "0.0.1",
+  "description": "Send links and text between your own devices, end-to-end encrypted.",
+  "background": { "page": "background.html", "persistent": true },
+  "browser_action": { "default_popup": "popup.html", "default_icon": { "128": "icons/icon-128.png" } },
+  "icons": { "128": "icons/icon-128.png" },
+  "permissions": [
+    "notifications",
+    "menus",
+    "storage",
+    "activeTab",
+    "alarms",
+    "webRequest",
+    "webRequestBlocking",
+    "https://api.pusharmor.com/*",
+    "https://pusharmor.com/fx/fwd"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://pusharmor.com/fx/setup",
+        "https://pusharmor.com/fx/setup?*",
+        "https://pusharmor.com/fx/open",
+        "https://pusharmor.com/fx/open?*",
+        "https://pusharmor.com/auth/done",
+        "https://pusharmor.com/auth/done?*"
+      ],
+      "run_at": "document_start",
+      "js": ["cs.js"]
+    }
+  ],
+  "content_security_policy": "script-src 'self'; object-src 'self'; frame-src https://pusharmor.com",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "placeholder-addon-id@pusharmor.com",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": { "required": ["personallyIdentifyingInfo", "personalCommunications"] }
+    },
+    "gecko_android": { "strict_min_version": "142.0" }
+  }
+}
