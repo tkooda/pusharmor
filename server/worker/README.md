@@ -42,6 +42,10 @@ golden test reads `../../tests/vectors/golden-v1.json`.
 Secrets are set with `wrangler secret put`; their names are listed in `.dev.vars.example`.
 The test suite uses fixed test-only values (`test/secrets.ts`).
 
+No test hooks in release builds: `src/` exports nothing that only tests call, and
+`server/deploy/check-bundle.mjs` (deploy step 0) fails a bundle holding test code or a
+test route.
+
 ## Deploy
 
 Only with `server/deploy/deploy.sh` from a clean checkout of main (see
