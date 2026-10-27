@@ -52,9 +52,11 @@ VERSION="$MODE"
 TAG="worker-v$VERSION"
 
 # 0. release values: the repo config holds no ids and keeps the dashboard vars;
-#    the deployed Worker has every dashboard var (read-only wrangler calls)
+#    the deployed Worker has every dashboard var (read-only wrangler calls);
+#    the bundle (wrangler deploy --dry-run) holds no test code or test route
 node "$HERE/preflight.mjs" "$SERVER_DIR/.." || die "release preflight failed; nothing was deployed"
 WRANGLER="$WRANGLER" node "$HERE/preflight.mjs" --dashboard "$SERVER_DIR/.." || die "dashboard preflight failed; nothing was deployed"
+WRANGLER="$WRANGLER" node "$HERE/check-bundle.mjs" "$SERVER_DIR/.." || die "bundle check failed; nothing was deployed"
 
 # 1. clean tree
 [ -z "$(git status --porcelain)" ] || die "working tree is dirty (uncommitted or untracked files)"
