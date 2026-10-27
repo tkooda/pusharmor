@@ -191,4 +191,24 @@ final class NSEFlowTests: XCTestCase {
         XCTAssertEqual(h.filter { $0.content == "kept" }.count, 1)
         XCTAssertEqual(h.filter { $0.event == .couldNotRead }.count, 0)
     }
+    /// I324: a drop whose event write fails (here SQLITE_BUSY) is not final: the NSE leaves the
+    /// push unmarked and the delivered drain writes the one event.
+    func testDropEventWriteFaultRetried() async throws {
+        let w = FakeWorker(), clock = TestClock()
+        let n = try Device(worker: w, clock: clock, name: "Ndev"), x = try Device(worker: w, clock: clock, name: "Xdev")
+        try await Scenario.pairFully(w, n, x)
+        let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-nse-\(UUID().uuidString)"))
+        let key = try TapStamp.key(x.core.store)
+        let m = "not-a-message!"
+        let other = try DB(path: x.path)
+        try other.exec("BEGIN IMMEDIATE")
+        let r = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 1, budgetLeft: { 30 })
+        try other.exec("ROLLBACK")
+        XCTAssertTrue(r.fault)
+        XCTAssertFalse(r.handled)
+        let info = try XCTUnwrap(r.banner).userInfo(m: m, key: key, handled: r.handled)
+        let drained = await x.core.drainDelivered([info])
+        XCTAssertEqual(drained, [0])
+        XCTAssertEqual(try x.core.store.history().filter { $0.event == .couldNotRead }.count, 1)
+    }
 }

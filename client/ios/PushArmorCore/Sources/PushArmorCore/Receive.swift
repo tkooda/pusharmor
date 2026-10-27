@@ -61,12 +61,19 @@ extension Core {
 
     /// A drop: event row (when the DB is readable) and the could-not-read banner. A fault drop
     /// writes no event: the push is retried, and the retry writes it if it ends unreadable (I323).
+    /// A drop whose event write throws is a fault too: the drop is final only once stored (I324).
     func drop(_ mode: ReceiveMode, peer: PeerId? = nil, invalid: Bool = false, fault: Bool = false) -> ReceiveResult {
         if mode == .returnedC { return .plain(nil) }
         let now = clock()
-        if !fault { _ = try? store.addEvent(invalid ? .invalid : .couldNotRead, peer: peer, content: invalid ? S.invalid : S.dropped, now: now) }
         var r = ReceiveResult.plain(mode == .nse ? (invalid ? .invalid : .dropped) : nil)
         r.fault = fault
+        if !fault {
+            do {
+                try store.addEvent(invalid ? .invalid : .couldNotRead, peer: peer, content: invalid ? S.invalid : S.dropped, now: now)
+            } catch {
+                r.fault = true
+            }
+        }
         return r
     }
 
