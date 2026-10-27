@@ -1,5 +1,6 @@
 {
   "name": "pusharmor-site",
+  "build": { "command": "node tools/build.mjs" },
   "compatibility_date": "2026-08-22",
   "assets": { "directory": "./public", "not_found_handling": "404-page", "html_handling": "auto-trailing-slash" },
   "workers_dev": false,

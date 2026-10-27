@@ -57,13 +57,13 @@ Try a build without touching the tree:
 
     cp -r site/public /tmp/site && node site/tools/build.mjs --dir /tmp/site
 
-Deploy is done by Cloudflare Workers Builds from the main branch. Owner step, once: in the
-Workers Builds project settings set the build command to
-
-    node tools/build.mjs
+Deploy is done by Cloudflare Workers Builds from the main branch. `wrangler.jsonc` sets the build
+command `node tools/build.mjs` (run in `site/`), so `wrangler deploy` fails while a placeholder is
+left, with no dashboard setting needed. `wrangler dev` skips the build (`WRANGLER_COMMAND=dev`) and
+keeps the placeholders. Keep the Workers Builds build command empty or equal to that value.
 
 The site has no deploy script. Before a release deploy, run the checks with the release gate on:
 
     PA_RELEASE=1 node --test 'site/tools/test/*.test.mjs'
 
-Do not deploy a release if any check fails or is skipped. `wrangler dev` stays fine for local work.
+Do not deploy a release if any check fails or is skipped. `wrangler dev` stays fine for local work. `npx wrangler deploy --dry-run` in `site/` must fail while a placeholder is left.

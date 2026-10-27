@@ -191,7 +191,7 @@ export function computeHashUpdates(pub) {
 // site/wrangler.jsonc may hold exactly these keys (component-website-r1 section 2).
 export function checkWranglerConfig(cfg, siteName) {
   const errs = [];
-  const allowed = ["name", "compatibility_date", "assets", "workers_dev", "preview_urls", "routes"];
+  const allowed = ["name", "build", "compatibility_date", "assets", "workers_dev", "preview_urls", "routes"];
   for (const k of Object.keys(cfg)) if (!allowed.includes(k)) errs.push("key not allowed: " + k);
   for (const k of allowed) if (!(k in cfg)) errs.push("key missing: " + k);
   if (cfg.name !== siteName) errs.push("name must be " + siteName);
@@ -200,6 +200,7 @@ export function checkWranglerConfig(cfg, siteName) {
   const wantAssets = { directory: "./public", not_found_handling: "404-page", html_handling: "auto-trailing-slash" };
   if (JSON.stringify(Object.keys(a).sort()) !== JSON.stringify(Object.keys(wantAssets).sort())) errs.push("assets keys must be directory, not_found_handling, html_handling");
   for (const [k, v] of Object.entries(wantAssets)) if (a[k] !== v) errs.push("assets." + k + " must be " + v);
+  if (JSON.stringify(cfg.build) !== JSON.stringify({ command: "node tools/build.mjs" })) errs.push("build must be exactly the command node tools/build.mjs");
   if (cfg.workers_dev !== false) errs.push("workers_dev must be false");
   if (cfg.preview_urls !== false) errs.push("preview_urls must be false");
   if (JSON.stringify(cfg.routes) !== JSON.stringify([{ pattern: "pusharmor.com", custom_domain: true }])) errs.push("routes must be exactly the pusharmor.com custom domain");
