@@ -59,7 +59,7 @@ targets:
     entitlements:
       path: App/PushArmor.entitlements
       properties:
-        aps-environment: development
+        aps-environment: $(APS_ENVIRONMENT)   # expanded per configuration at signing
         com.apple.security.application-groups: [group.$(APP_BUNDLE_ID)]
         keychain-access-groups: [$(AppIdentifierPrefix)$(APP_BUNDLE_ID).shared]
         com.apple.developer.applesignin: [Default]
@@ -67,6 +67,11 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
         TARGETED_DEVICE_FAMILY: "1"
+      configs:
+        Debug:
+          APS_ENVIRONMENT: development
+        Release:
+          APS_ENVIRONMENT: production
   PushArmorNSE:
     type: app-extension
     platform: iOS

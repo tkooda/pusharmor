@@ -22,6 +22,11 @@ expect release-dummy-allowed 0 CONFIGURATION=Release PA_CI_DUMMY=1 $DUMMY
 expect release-placeholder-dummy-flag 1 CONFIGURATION=Release PA_CI_DUMMY=1 DEVELOPMENT_TEAM=PLACEHOLDER_TEAM GOOGLE_IOS_CLIENT_ID=1-x GOOGLE_CALLBACK_SCHEME=s
 printf '<key>aps-environment</key>\n<string>development</string>\n' > "$d/App/PushArmor.entitlements"
 expect release-aps-dev 1 CONFIGURATION=Release $GOOD
+printf '<key>aps-environment</key>\n<string>$(APS_ENVIRONMENT)</string>\n' > "$d/App/PushArmor.entitlements"
+expect release-aps-setting-prod 0 CONFIGURATION=Release APS_ENVIRONMENT=production $GOOD
+expect release-aps-setting-dev 1 CONFIGURATION=Release APS_ENVIRONMENT=development $GOOD
+expect release-aps-setting-unset 1 CONFIGURATION=Release $GOOD
+expect debug-aps-setting-dev 0 CONFIGURATION=Debug APS_ENVIRONMENT=development
 printf '<key>com.apple.developer.applesignin</key>\n<array/>\n' > "$d/App/PushArmor.entitlements"
 expect release-aps-missing 1 CONFIGURATION=Release $GOOD
 rm "$d/App/PushArmor.entitlements"
