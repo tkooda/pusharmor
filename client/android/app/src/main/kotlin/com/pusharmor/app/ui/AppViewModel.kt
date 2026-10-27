@@ -98,7 +98,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             if (err != null) message.value = err else { start.value = Session.Start.SIGN_IN; withContext(Dispatchers.Main) { onDone() } }
             return
         }
-        if (email != null) g.dao.self()?.let { g.dao.putSelf(it.copy(email = email)) }
         val evict = limit.value?.let { pendingEvict }
         when (val r = g.session.onTicket(ticket, email, evict)) {
             Session.SignIn.Done -> {

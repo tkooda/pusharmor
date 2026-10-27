@@ -26,6 +26,12 @@
             </intent-filter>
         </activity>
 
+        <!-- Sign-in ticket hop: only AuthLinkActivity starts it; MainActivity reads ticket extras only from here. -->
+        <activity-alias
+            android:name=".ui.AuthTicket"
+            android:exported="false"
+            android:targetActivity=".ui.MainActivity" />
+
         <activity
             android:name=".ui.ShareActivity"
             android:exported="true"

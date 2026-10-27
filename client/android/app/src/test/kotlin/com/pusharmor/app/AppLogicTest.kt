@@ -71,4 +71,13 @@ class AppLogicTest {
         assertTrue(Notifier.pairId("qtqwAJuYP9_Yd8FBzzto5w") >= 0)
         assertEquals(3, setOf(Notifier.TAG_MSG, Notifier.TAG_NOTICE, Notifier.TAG_PAIR).size)
     }
+
+    @Test fun ticketExtrasOnlyThroughTheAuthHop() {
+        val ctx = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        // an exported entry: any app can start MainActivity with these extras
+        val direct = android.content.Intent(ctx, com.pusharmor.app.ui.MainActivity::class.java).putExtra("ticket", "x").putExtra("email", "evil")
+        assertNull(com.pusharmor.app.ui.MainActivity.authExtras(direct))
+        val hop = AuthLinkActivity.forward(ctx, "t1", "a@b.com")
+        assertEquals("t1" to "a@b.com", com.pusharmor.app.ui.MainActivity.authExtras(hop))
+    }
 }

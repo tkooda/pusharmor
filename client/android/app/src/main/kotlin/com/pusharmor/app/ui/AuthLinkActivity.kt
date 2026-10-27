@@ -1,6 +1,7 @@
 package com.pusharmor.app.ui
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -15,13 +16,17 @@ class AuthLinkActivity : Activity() {
         val data = intent.data
         val (ticket, email) = parse(data)
         if (ticket != null) {
-            startActivity(Intent(this, MainActivity::class.java).putExtra("ticket", ticket).putExtra("email", email)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+            startActivity(forward(this, ticket, email))
         }
         finish()
     }
 
     companion object {
+        /** The hop to MainActivity through its non-exported alias (the only way ticket extras are read). */
+        fun forward(ctx: Context, ticket: String, email: String?): Intent =
+            Intent().setClassName(ctx, MainActivity.AUTH_ALIAS).putExtra("ticket", ticket).putExtra("email", email)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+
         fun parse(uri: Uri?): Pair<String?, String?> {
             if (uri == null || uri.host != "pusharmor.com" || uri.path != "/auth/android") return null to null
             val frag = uri.encodedFragment?.let { Uri.parse("x://h/?$it") }
