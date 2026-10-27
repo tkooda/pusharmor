@@ -135,4 +135,27 @@ final class RulesTests: XCTestCase {
         let p = Banner(body: "x", locKey: nil, category: .event, threadId: "t", rowid: nil, tap: .peers(nil))
         XCTAssertEqual(Set(p.userInfo(m: nil).keys.compactMap { $0 as? String }), ["tap"])
     }
+
+    /// I297: tap routing counts only with a valid stamp under the per-install key.
+    func testTapStamp() throws {
+        let path = NSTemporaryDirectory() + "pa-tap-\(UUID().uuidString).sqlite"
+        let key = try TapStamp.key(try Store(path: path))
+        XCTAssertEqual(key.count, 32)
+        XCTAssertEqual(try TapStamp.key(try Store(path: path)), key)   // a second connection reads the same key
+        let b = Banner(body: "hi", locKey: nil, category: .url, threadId: "t", rowid: 7, tap: .openURL("https://a.com/"))
+        let good = b.userInfo(m: "abc", key: key)
+        XCTAssertTrue(TapStamp.verified(good, key: key))
+        // forged by the relay: no stamp, or a stamp moved to another row / tap
+        var forged: [AnyHashable: Any] = ["m": "abc", "rowid": NSNumber(value: 7), "tap": "url"]
+        XCTAssertFalse(TapStamp.verified(forged, key: key))
+        forged = good; forged["rowid"] = NSNumber(value: 8)
+        XCTAssertFalse(TapStamp.verified(forged, key: key))
+        forged = good; forged["tap"] = "detail"
+        XCTAssertFalse(TapStamp.verified(forged, key: key))
+        forged = good; forged["peer"] = "x"
+        XCTAssertFalse(TapStamp.verified(forged, key: key))
+        XCTAssertFalse(TapStamp.verified(good, key: Data(count: 32)))
+        XCTAssertFalse(TapStamp.verified(good, key: nil))
+        XCTAssertFalse(TapStamp.verified(b.userInfo(m: "abc"), key: key))
+    }
 }

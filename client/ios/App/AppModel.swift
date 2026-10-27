@@ -421,7 +421,7 @@ final class AppModel: ObservableObject {
     /// Tap on a url: re-check the parsed scheme, then open it directly.
     func open(_ row: HistoryRow) {
         markRead(row)
-        guard row.type == "url", let u = URL(string: row.content), URLRule.isOpenable(u) else { return }
+        guard row.dir == .incoming, row.type == "url", let u = URL(string: row.content), URLRule.isOpenable(u) else { return }
         UIApplication.shared.open(u)
     }
 
@@ -448,13 +448,15 @@ final class AppModel: ObservableObject {
             _ = await core.receive(m, mode: .drain)
             reload()
         }
-        let rowid = (info["rowid"] as? NSNumber)?.int64Value
+        // routing keys count only with the NSE stamp (I297); relay userInfo is ignored
+        let stamped = TapStamp.verified(info, key: store.flatMap { try? TapStamp.key($0) })
+        let rowid = stamped ? (info["rowid"] as? NSNumber)?.int64Value : nil
         let row = rowid.flatMap { r in history.first { $0.rowid == r } }
         if action == "COPY", let r = row {
             UIPasteboard.general.string = r.content
             return
         }
-        switch info["tap"] as? String {
+        switch stamped ? info["tap"] as? String : nil {
         case "url": if let r = row { open(r) }
         case "peers": highlightPeer = info["peer"] as? String
         case "history": showHistory = true

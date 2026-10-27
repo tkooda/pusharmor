@@ -71,14 +71,14 @@ final class AppEnvironment: PlatformHooks {
 enum BannerContent {
     /// Fresh content: nothing of the relay's alert (subtitle included) is kept; only "m"
     /// is copied into userInfo (spec 6.2).
-    static func content(_ b: Banner, m: Any?) -> UNMutableNotificationContent {
+    static func content(_ b: Banner, m: Any?, key: Data?) -> UNMutableNotificationContent {
         let c = UNMutableNotificationContent()
         c.title = S.title
         c.body = b.body
         c.sound = .default
         c.categoryIdentifier = b.category.rawValue
         c.threadIdentifier = b.threadId
-        c.userInfo = b.userInfo(m: m)
+        c.userInfo = b.userInfo(m: m, key: key)
         return c
     }
 

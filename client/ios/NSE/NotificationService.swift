@@ -19,6 +19,8 @@ final class NotificationService: UNNotificationServiceExtension {
         let m = request.content.userInfo["m"]
         let started = self.started
         Task {
+            // per-install tap key (I297); nil while the store is unreadable: routing then unstamped
+            let key = (try? env.openStore()).flatMap { try? TapStamp.key($0) }
             let r = await NSEFlow.handle(
                 m: m,
                 loadKeys: { try env.keychain.load() },
@@ -34,9 +36,9 @@ final class NotificationService: UNNotificationServiceExtension {
                 budgetLeft: { 30 - Date().timeIntervalSince(started) },
                 onReceived: { [weak self] r in
                     guard r.committed, let b = r.banner else { return }
-                    self?.setCommitted(BannerContent.content(b, m: m))
+                    self?.setCommitted(BannerContent.content(b, m: m, key: key))
                 })
-            self.deliver(BannerContent.content(r.banner ?? .dropped, m: m))
+            self.deliver(BannerContent.content(r.banner ?? .dropped, m: m, key: key))
         }
     }
 

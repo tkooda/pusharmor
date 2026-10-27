@@ -89,8 +89,9 @@ public struct Banner: Equatable, Sendable {
         "p." + B64URL.encode(Bytes.sha256(id.raw).prefix(12))
     }
 
-    /// Notification userInfo: only "m" is kept from the relay payload, then the routing keys.
-    public func userInfo(m: Any?) -> [AnyHashable: Any] {
+    /// Notification userInfo: only "m" is kept from the relay payload, then the routing keys,
+    /// stamped with a MAC under the per-install tap key (TapStamp) when one is given.
+    public func userInfo(m: Any?, key: Data? = nil) -> [AnyHashable: Any] {
         var info: [AnyHashable: Any] = [:]
         if let m = m { info["m"] = m }
         if let r = rowid { info["rowid"] = NSNumber(value: r) }
@@ -101,7 +102,50 @@ public struct Banner: Equatable, Sendable {
         case .history: info["tap"] = "history"
         case .none: info["tap"] = "none"
         }
+        if let k = key { info[TapStamp.field] = TapStamp.mac(info, key: k) }
         return info
+    }
+}
+
+/// Tap routing stamp (I297): a push the NSE did not rewrite keeps relay userInfo, so a tap
+/// acts on rowid / tap / url / peer only when they carry a MAC under a per-install key kept
+/// in the App Group store.
+public enum TapStamp {
+    public static let field = "s"
+    static let settingKey = "tap_key"
+
+    /// The per-install key; created on first use (a concurrent creator keeps the first one).
+    public static func key(_ store: Store) throws -> Data {
+        if let k = try store.setting(settingKey).flatMap(B64URL.decode), k.count == 32 { return k }
+        let fresh = SymmetricKey(size: .bits256).withUnsafeBytes { Data($0) }
+        try store.db.exec("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", [.text(settingKey), .text(B64URL.encode(fresh))])
+        if let k = try store.setting(settingKey).flatMap(B64URL.decode), k.count == 32 { return k }
+        try store.setSetting(settingKey, B64URL.encode(fresh))   // a corrupt value is replaced
+        return fresh
+    }
+
+    /// HMAC-SHA256 over the routing keys, each length-prefixed (absent and empty differ).
+    static func mac(_ info: [AnyHashable: Any], key: Data) -> String {
+        B64URL.encode(Data(HMAC<SHA256>.authenticationCode(for: routing(info), using: SymmetricKey(data: key))))
+    }
+
+    static func routing(_ info: [AnyHashable: Any]) -> Data {
+        var d = Data()
+        let rowid = (info["rowid"] as? NSNumber).map { String($0.int64Value) }
+        for v in [rowid, info["tap"] as? String, info["url"] as? String, info["peer"] as? String] {
+            guard let v = v else { d.append(0); continue }
+            let b = Data(v.utf8)
+            d.append(1)
+            withUnsafeBytes(of: UInt32(b.count).bigEndian) { d.append(contentsOf: $0) }
+            d.append(b)
+        }
+        return d
+    }
+
+    /// True when the routing keys carry a valid stamp.
+    public static func verified(_ info: [AnyHashable: Any], key: Data?) -> Bool {
+        guard let k = key, let s = info[field] as? String, let got = B64URL.decode(s) else { return false }
+        return HMAC<SHA256>.isValidAuthenticationCode(got, authenticating: routing(info), using: SymmetricKey(data: k))
     }
 }
 
