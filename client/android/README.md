@@ -51,6 +51,25 @@ The JVM tests of `:crypto` and `:protocol` run every section of the cross-platfo
 file `tests/vectors/golden-v1.json` (path relative to the repo root) and fail when it is
 missing.
 
+## Dependency verification
+
+`gradle/verification-metadata.xml` pins the SHA-256 of every dependency and plugin
+artifact. Gradle verifies them on every build (strict by default while the file
+exists) and fails on an unknown or changed artifact. After a dependency change,
+including a Dependabot branch, the owner regenerates the file from the repo root
+with the tasks CI runs (the release tasks need `node release/ci-dummy.mjs` first;
+restore `release/public.json` afterwards with `git checkout release/public.json`):
+
+    cd client/android && PA_CI_DUMMY=1 ./gradlew --write-verification-metadata sha256 help \
+      :crypto:test :protocol:test :net:test :store:testDebugUnitTest \
+      :app:testPlayDebugUnitTest :app:testFossDebugUnitTest :app:lintPlayDebug :app:lintFossDebug \
+      :app:assemblePlayDebug :app:assembleFossDebug :app:assemblePlayRelease :app:assembleFossRelease \
+      :app:bundlePlayRelease :app:assemblePlayDebugAndroidTest :app:assembleFossDebugAndroidTest
+
+With a device or emulator attached, also add `:app:connectedPlayDebugAndroidTest
+:app:connectedFossDebugAndroidTest`; only they resolve the test runner (UTP) artifacts
+that the emulator jobs need. Review the diff of the file before committing it.
+
 ## No test hooks in release builds
 
 Test code lives only in test source sets (`test`, `androidTest`, `testFixtures`). Check a
