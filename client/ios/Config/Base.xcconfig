@@ -1,0 +1,7 @@
+// Build ids: empty here; Local.xcconfig (git-ignored) sets them. Write it from
+// release/local.json with: sh tools/local-xcconfig.sh
+// A Release build fails while one is empty (tools/check-release-values.sh).
+DEVELOPMENT_TEAM =
+GOOGLE_IOS_CLIENT_ID =
+GOOGLE_CALLBACK_SCHEME =
+#include? "Local.xcconfig"

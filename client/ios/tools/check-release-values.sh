@@ -1,6 +1,7 @@
 #!/bin/sh
 # Release gate for the Xcode Release configuration (a pre-build script phase).
-# Fails when a project.yml setting is empty or a PLACEHOLDER, or unless the app
+# Fails when a build id (Config/Local.xcconfig, written from release/local.json by
+# tools/local-xcconfig.sh) is empty or a PLACEHOLDER, or unless the app
 # entitlements file is readable and says aps-environment production (fail closed).
 # Other configurations pass.
 # Xcode exports the build settings as environment variables.
@@ -11,7 +12,7 @@ bad=""
 check() {
   case "$2" in
     ""|*[Pp][Ll][Aa][Cc][Ee][Hh][Oo][Ll][Dd][Ee][Rr]*) bad="$bad
-  - $1 is empty or a PLACEHOLDER" ;;
+  - $1 is empty or a PLACEHOLDER (run tools/local-xcconfig.sh)" ;;
   esac
 }
 check DEVELOPMENT_TEAM "${DEVELOPMENT_TEAM:-}"
