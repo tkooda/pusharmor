@@ -1,8 +1,9 @@
 name: site
 
-# Site checks only. Cloudflare Workers Builds deploys site/ from main.
+# Site checks only (also workflow_dispatch by hand). Cloudflare Workers Builds deploys site/ from main.
 on:
   workflow_call:
+  workflow_dispatch:
 
 permissions: {}
 
