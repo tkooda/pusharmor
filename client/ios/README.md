@@ -59,6 +59,35 @@ without it; a Release build fails while a value is empty, a PLACEHOLDER or a CI
 dummy without `PA_CI_DUMMY=1`. `APP_BUNDLE_ID` stays in `project.yml`. The App Group is `group.$APP_BUNDLE_ID`; the Keychain access group is
 `$TEAM.$APP_BUNDLE_ID.shared`.
 
+### App tests
+
+The PushArmor scheme's test action (Debug) runs two targets:
+
+- `PushArmorTests`: app-hosted unit tests (`@testable import PushArmor`) of
+  app-target logic such as the notification categories and banner content.
+- `PushArmorUITests`: one launch smoke test. It starts the app with no launch
+  arguments and no environment and expects the first screen (sign-in, or the
+  notification explainer).
+
+    xcodebuild test -scheme PushArmor -destination 'platform=iOS Simulator,name=iPhone 15'
+
+### No test hooks in release builds
+
+The app has no launch arguments, environment switches, URL schemes, debug
+menus or methods that exist only for tests. Tests reach app code only through
+`@testable import` in Debug; Release sets `ENABLE_TESTABILITY = NO`. The
+Simulator alone keeps a software-key fallback when there is no Secure Enclave
+(compiled only for the Simulator). Check a release build with:
+
+    bash tools/check-release-bundle.sh build/PushArmor.xcarchive   # or a .app or .ipa
+
+It fails on any XCTest, XCUIAutomation or Testing framework or `.xctest` in the
+app or an extension, test strings or test libraries in a main executable
+(`otool -L`, `strings`), URL schemes other than the Google callback scheme
+derived from `release/public.json`, or `get-task-allow` in the signature
+(`codesign`; skipped where the tool is missing). Its test:
+`bash tools/check-release-bundle.test.sh`.
+
 ## Notes
 
 - Deny on an unpinned peer row sends a deny message sealed to the listed key

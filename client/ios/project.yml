@@ -17,6 +17,10 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     APP_BUNDLE_ID: com.pusharmor.app            # repo constant after the store bootstrap
     CODE_SIGN_STYLE: Automatic
+  configs:
+    # Tests reach app code only through @testable import in Debug; Release is never testable.
+    Release:
+      ENABLE_TESTABILITY: NO
 packages:
   PushArmorCore:
     path: PushArmorCore
@@ -123,10 +127,39 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).share
+  # Tests: built and run only by the scheme's test action (Debug); never part of an archive.
+  PushArmorTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - PushArmorTests
+    dependencies:
+      - target: PushArmor   # PushArmorCore symbols resolve through BUNDLE_LOADER (not linked twice)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/PushArmor.app/PushArmor
+        BUNDLE_LOADER: $(TEST_HOST)
+  PushArmorUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - PushArmorUITests
+    dependencies:
+      - target: PushArmor
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: PushArmor
 schemes:
   PushArmor:
     build:
       targets:
         PushArmor: all
     test:
-      targets: []
+      config: Debug
+      targets:
+        - PushArmorTests
+        - PushArmorUITests
