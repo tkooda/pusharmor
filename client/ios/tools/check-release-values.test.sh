@@ -18,4 +18,9 @@ expect release-good 0 CONFIGURATION=Release $GOOD
 expect release-placeholder 1 CONFIGURATION=Release DEVELOPMENT_TEAM=PLACEHOLDER_TEAM GOOGLE_IOS_CLIENT_ID=1-x GOOGLE_CALLBACK_SCHEME=s
 printf '<key>aps-environment</key>\n<string>development</string>\n' > "$d/App/PushArmor.entitlements"
 expect release-aps-dev 1 CONFIGURATION=Release $GOOD
+printf '<key>com.apple.developer.applesignin</key>\n<array/>\n' > "$d/App/PushArmor.entitlements"
+expect release-aps-missing 1 CONFIGURATION=Release $GOOD
+rm "$d/App/PushArmor.entitlements"
+expect release-no-entitlements 1 CONFIGURATION=Release $GOOD
+expect debug-no-entitlements 0 CONFIGURATION=Debug
 exit $fail

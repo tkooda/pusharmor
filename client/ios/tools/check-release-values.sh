@@ -1,7 +1,8 @@
 #!/bin/sh
 # Release gate for the Xcode Release configuration (a pre-build script phase).
-# Fails when a project.yml setting is empty or a PLACEHOLDER, or when the app
-# entitlements still say aps-environment development. Other configurations pass.
+# Fails when a project.yml setting is empty or a PLACEHOLDER, or unless the app
+# entitlements file is readable and says aps-environment production (fail closed).
+# Other configurations pass.
 # Xcode exports the build settings as environment variables.
 # Env: CONFIGURATION, SRCROOT, DEVELOPMENT_TEAM, GOOGLE_IOS_CLIENT_ID, GOOGLE_CALLBACK_SCHEME
 [ "${CONFIGURATION:-}" = "Release" ] || exit 0
@@ -18,9 +19,9 @@ check GOOGLE_IOS_CLIENT_ID "${GOOGLE_IOS_CLIENT_ID:-}"
 check GOOGLE_CALLBACK_SCHEME "${GOOGLE_CALLBACK_SCHEME:-}"
 
 ent="${SRCROOT:-.}/App/PushArmor.entitlements"
-if [ -f "$ent" ] && grep -A1 'aps-environment' "$ent" | grep -q '<string>development</string>'; then
+if ! grep -A1 'aps-environment' "$ent" 2>/dev/null | grep -q '<string>production</string>'; then
   bad="$bad
-  - App/PushArmor.entitlements aps-environment is development (set production in project.yml)"
+  - App/PushArmor.entitlements is missing, unreadable or its aps-environment is not production (set production in project.yml)"
 fi
 
 if [ -n "$bad" ]; then

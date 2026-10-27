@@ -33,6 +33,8 @@ targets:
       # Release gate: the script exits 0 in every configuration except Release.
       - name: Check release values
         script: sh "${SRCROOT}/tools/check-release-values.sh"
+        inputFiles:
+          - $(SRCROOT)/App/PushArmor.entitlements   # declared so a sandboxed script phase may read it
         basedOnDependencyAnalysis: false
     info:
       path: App/Info.plist
