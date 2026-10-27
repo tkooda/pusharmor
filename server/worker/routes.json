@@ -1,0 +1,28 @@
+{
+  "routes": [
+    "POST /v1/auth/email",
+    "POST /v1/auth/email/verify",
+    "GET /v1/auth/google",
+    "GET /v1/auth/google/callback",
+    "POST /v1/auth/google/token",
+    "GET /v1/auth/apple",
+    "POST /v1/auth/apple/callback",
+    "POST /v1/auth/apple/token",
+    "POST /v1/peers",
+    "GET /v1/peers",
+    "PATCH /v1/peers/:id",
+    "DELETE /v1/peers/:id",
+    "POST /v1/peers/:id/pause",
+    "POST /v1/peers/:id/unpause",
+    "POST /v1/peers/:id/confirm",
+    "DELETE /v1/account",
+    "POST /v1/approve/:id",
+    "POST /v1/deny/:id",
+    "POST /v1/pair/:id",
+    "POST /v1/send",
+    "OPTIONS /v1/auth/email",
+    "OPTIONS /v1/auth/email/verify",
+    "OPTIONS /v1/account"
+  ],
+  "x_pa_headers": []
+}
