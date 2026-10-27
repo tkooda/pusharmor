@@ -1,0 +1,133 @@
+import Foundation
+
+/// User-facing strings from the design (ios sections 5-11, catalog Notice rule).
+public enum S {
+    public static let title = "PushArmor"
+    public static let fallback = "New message"
+    public static let locked = "New message. Unlock to view"
+    public static let dropped = "PushArmor received a message it could not read"
+    public static let invalid = "Invalid message received"
+    public static let unknownSender = "Unknown sender"
+    public static let aPeer = "A peer"
+    public static let pairCommit = "A new peer wants to pair. Open PushArmor."
+    public static func pairOpen(_ fp: String) -> String { "New peer: compare \(fp)" }
+    public static let pairReply = "Pairing fingerprint ready. Open PushArmor."
+    public static func pairAgain(_ x: String) -> String { "\(x) wants to pair again. Tap Cancel pairing on its row, then pair." }
+    public static func pairCrossing(_ x: String) -> String { "Pairing with \(x) in progress. Open PushArmor." }
+    public static func approved(_ name: String) -> String { "\(name) approved this device" }
+    public static func renamed(_ old: String, _ new: String) -> String { "'\(old)' renamed to '\(new)'" }
+    public static let peerListChanged = "Peer list changed"
+    public static let thisDeviceRemoved = "This device was removed. Sign in again"
+    public static let accountDeleted = "Account deleted on another peer"
+    public static func denied(_ name: String) -> String { "\(name) denied this device" }
+    public static func pausedReceiving(_ name: String) -> String { "\(name) paused receiving" }
+    public static func resumedReceiving(_ name: String) -> String { "\(name) resumed receiving" }
+    public static func newMessageFrom(_ peer: String) -> String { "New message from \(peer)" }
+    public static let pairingFailed = "Pairing failed. Start again on the new peer."
+    public static let pairingTimedOut = "Pairing timed out. Tap Pair to start again."
+    public static func waiting(_ x: String) -> String { "Waiting for \(x): open PushArmor there and approve" }
+    public static func noReplyYet(_ x: String) -> String { "No reply yet. Open PushArmor on \(x), or tap Send again." }
+    public static func stillHolds(_ x: String) -> String { "\(x) still holds an earlier pairing. On \(x), tap Cancel pairing, then tap Send again." }
+    public static func notPairedOn(_ x: String) -> String { "Not paired on \(x)" }
+    public static func declinedBy(_ x: String) -> String { "Declined by \(x)" }
+    public static func pairingFingerprint(_ fp: String) -> String { "Pairing fingerprint \(fp)" }
+    public static func removeConfirm(_ x: String) -> String {
+        "Remove \(x) from this account? \(x) must sign in again and pair with every peer again."
+    }
+    public static func sentTo(_ n: Int, _ m: Int) -> String { "Sent to \(n) of \(m) peers" }
+    public static func notDelivered(_ x: String) -> String { "Not delivered to \(x): open PushArmor on it" }
+    public static func signedOutPeer(_ x: String) -> String { "\(x) is signed out" }
+    public static let emailSendFailed = "could not send the email, try again"
+    public static let clockOff = "This device's clock is off by more than 5 minutes"
+    public static let badEmail = "Only email addresses with plain ASCII characters are supported."
+    public static let signInExpired = "Sign-in expired, sign in again"
+    public static let signedOutResume = "Signed out. Sign in to resume"
+    public static let notificationsOff = "Notifications are off; this device cannot receive"
+    public static func signedInAs(_ email: String) -> String { "Signed in as \(email)" }
+    public static let relayHelp = "To sign in on another peer, use this address. Find it in iOS Settings > Apple ID > Sign in with Apple, or at appleid.apple.com > Hide My Email."
+    public static func receivedWhileLocked(_ n: Int) -> String { "\(n) messages received while locked" }
+    public static let thisPhoneOldInstall = "(this phone, old install)"
+    public static let tooLongShare = "Send the first 2048 bytes"
+    public static let lockScreenSwitch = "Show message content on lock screen"
+    public static let alwaysHide = "Always hide content"
+    public static let lockScreenHelp = "hides content only for messages that arrive while the phone is locked"
+}
+
+/// Notification categories (section 6.2).
+public enum BannerCategory: String, Sendable {
+    case url = "PA_URL", text = "PA_TEXT", tel = "PA_TEL", event = "PA_EVENT", notice = "PA_NOTICE"
+}
+
+/// What the NSE shows for one push.
+public struct Banner: Equatable, Sendable {
+    public enum Tap: Equatable, Sendable { case openURL(String), detail, peers(String?), history, none }
+
+    public var body: String
+    public var locKey: String?          // PA_FALLBACK, PA_LOCKED, PA_DROPPED, PA_INVALID
+    public var category: BannerCategory
+    public var threadId: String
+    public var rowid: Int64?
+    public var tap: Tap
+
+    public static let dropThread = "pa.notice"
+
+    public static var dropped: Banner {
+        Banner(body: S.dropped, locKey: "PA_DROPPED", category: .notice, threadId: dropThread, rowid: nil, tap: .history)
+    }
+    public static var invalid: Banner {
+        Banner(body: S.invalid, locKey: "PA_INVALID", category: .notice, threadId: dropThread, rowid: nil, tap: .history)
+    }
+    public static var locked: Banner {
+        Banner(body: S.locked, locKey: "PA_LOCKED", category: .event, threadId: "pa.locked", rowid: nil, tap: .none)
+    }
+    public static var fallback: Banner {
+        Banner(body: S.fallback, locKey: "PA_FALLBACK", category: .event, threadId: "pa.fallback", rowid: nil, tap: .none)
+    }
+
+    /// threadIdentifier = peer id hash (local only).
+    public static func peerThread(_ id: PeerId) -> String {
+        "p." + B64URL.encode(Bytes.sha256(id.raw).prefix(12))
+    }
+}
+
+/// Lock-screen body choice (section 6.2, Q165 B, Q183 B, Q187 A): effective = main AND peer;
+/// Always hide content (main or peer) wins.
+public enum LockScreen {
+    public static func body(mainShow: Bool, peerShow: Bool, mainAlwaysHide: Bool, peerAlwaysHide: Bool,
+                            locked: Bool, peerName: String, content: String) -> String {
+        if mainAlwaysHide || peerAlwaysHide { return S.newMessageFrom(peerName) }
+        if !(mainShow && peerShow) && locked { return S.newMessageFrom(peerName) }
+        return content
+    }
+}
+
+/// "$X" for a peer without a name in pairing notices: platform and created date,
+/// for example "Android peer added Oct 3".
+public enum PeerLabel {
+    public static func platformName(_ p: String?) -> String {
+        switch p {
+        case "android": return "Android"
+        case "iphone": return "iPhone"
+        case "chrome": return "Chrome"
+        case "firefox": return "Firefox"
+        default: return "Unknown"
+        }
+    }
+
+    public static func unnamed(platform: String?, created: Int64?, timeZone: TimeZone = .current) -> String {
+        var s = platformName(platform) + " peer"
+        if let c = created {
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.timeZone = timeZone
+            f.dateFormat = "MMM d"
+            s += " added " + f.string(from: Date(timeIntervalSince1970: TimeInterval(c)))
+        }
+        return s
+    }
+
+    public static func label(_ p: Peer?) -> String {
+        guard let p = p else { return S.aPeer }
+        return p.name ?? unnamed(platform: p.platform, created: p.created)
+    }
+}
