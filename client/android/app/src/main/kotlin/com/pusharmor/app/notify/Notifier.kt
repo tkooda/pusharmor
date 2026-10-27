@@ -86,8 +86,8 @@ class Notifier(private val context: Context, private val settings: Settings, pri
     fun enabled() = NotificationManagerCompat.from(context).areNotificationsEnabled()
 
     private fun openApp(route: String, extra: String? = null): PendingIntent {
-        val i = Intent(context, MainActivity::class.java).setAction("open:$route:${extra ?: ""}")
-            .putExtra("route", route).putExtra("peer", extra).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        val i = MainActivity.openIntent(context, route).setAction("open:$route:${extra ?: ""}")
+            .putExtra("peer", extra).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         return PendingIntent.getActivity(context, route.hashCode() xor (extra?.hashCode() ?: 0), i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
 

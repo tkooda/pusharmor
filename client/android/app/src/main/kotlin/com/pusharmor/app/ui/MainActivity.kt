@@ -54,8 +54,10 @@ class MainActivity : ComponentActivity() {
 
     private fun handle(intent: Intent) {
         authExtras(intent)?.let { (t, e) -> vm.onAppLinkTicket(t, e) {} }
-        intent.getStringExtra("peer")?.let { vm.highlight.value = it }
-        intent.getStringExtra("route")?.let { pendingRoute = it }
+        ownExtras(intent)?.let { (peer, route) ->
+            peer?.let { vm.highlight.value = it }
+            route?.let { pendingRoute = it }
+        }
     }
 
     companion object {
@@ -63,6 +65,24 @@ class MainActivity : ComponentActivity() {
 
         /** Non-exported alias of this activity; only [AuthLinkActivity] starts it (I298). */
         const val AUTH_ALIAS = "com.pusharmor.app.ui.AuthTicket"
+
+        /** Non-exported alias of this activity; our own notification PendingIntents start it (I332). */
+        const val OPEN_ALIAS = "com.pusharmor.app.ui.OpenFromNotice"
+
+        val ROUTES = setOf("peers", "send", "history", "settings")
+
+        /** Returns [route] only when it is a known destination. */
+        fun safeRoute(route: String?): String? = route?.takeIf { it in ROUTES }
+
+        /** Peer and route extras, honored only when the intent came through [OPEN_ALIAS]. */
+        fun ownExtras(intent: Intent): Pair<String?, String?>? {
+            if (intent.component?.className != OPEN_ALIAS) return null
+            return intent.getStringExtra("peer") to safeRoute(intent.getStringExtra("route"))
+        }
+
+        /** Intent for our own notification taps and in-app jumps. */
+        fun openIntent(ctx: android.content.Context, route: String): Intent =
+            Intent().setClassName(ctx.packageName, OPEN_ALIAS).putExtra("route", route)
 
         /** Ticket and email extras, honored only when the intent came through [AUTH_ALIAS]. */
         fun authExtras(intent: Intent): Pair<String, String?>? {

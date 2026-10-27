@@ -98,6 +98,19 @@ class AppLogicTest {
         assertEquals("t1" to "a@b.com", com.pusharmor.app.ui.MainActivity.authExtras(hop))
     }
 
+    @Test fun routeAndPeerExtrasOnlyThroughTheOpenAlias() {
+        val main = com.pusharmor.app.ui.MainActivity
+        assertEquals("history", main.safeRoute("history"))
+        assertNull(main.safeRoute("nope"))
+        assertNull(main.safeRoute(null))
+        val ctx = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val direct = android.content.Intent(ctx, com.pusharmor.app.ui.MainActivity::class.java).putExtra("route", "send").putExtra("peer", "p")
+        assertNull(main.ownExtras(direct))
+        val own = main.openIntent(ctx, "send").putExtra("peer", "p")
+        assertEquals("p" to "send", main.ownExtras(own))
+        assertEquals("p" to null, main.ownExtras(main.openIntent(ctx, "bogus").putExtra("peer", "p")))
+    }
+
     @Test fun keystoreEcdhFailureIsCryptoExceptionAndPushPostsOneNotice() {
         val e = runCatching { com.pusharmor.app.keys.KeystoreKeyOps.wrap<ByteArray> { throw java.security.ProviderException("keystore") } }.exceptionOrNull()
         assertTrue(e is com.pusharmor.crypto.CryptoException)

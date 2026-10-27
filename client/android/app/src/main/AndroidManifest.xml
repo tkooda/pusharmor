@@ -32,6 +32,12 @@
             android:exported="false"
             android:targetActivity=".ui.MainActivity" />
 
+        <!-- Notification taps: only our own PendingIntents start it; MainActivity reads peer and route extras only from here. -->
+        <activity-alias
+            android:name=".ui.OpenFromNotice"
+            android:exported="false"
+            android:targetActivity=".ui.MainActivity" />
+
         <activity
             android:name=".ui.ShareActivity"
             android:exported="true"

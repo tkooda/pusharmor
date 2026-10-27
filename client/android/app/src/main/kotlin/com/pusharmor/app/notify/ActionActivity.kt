@@ -51,7 +51,7 @@ class ActionActivity : Activity() {
     }
 
     private fun openHistory(id: Long) {
-        startActivity(Intent(this, MainActivity::class.java).putExtra("route", "history").putExtra("history", id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
+        startActivity(MainActivity.openIntent(this, "history").putExtra("history", id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
     }
 
     companion object {
