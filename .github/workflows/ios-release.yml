@@ -10,7 +10,10 @@ name: ios-release
 #                then the App Store Connect upload. No package resolution, no
 #                npm, no node.
 #   publish-ios  Environment ios-release, id-token: verify the IPA SHA-256,
-#                provenance, draft GitHub Release. No third-party code.
+#                provenance, GitHub prerelease. No third-party code.
+# Test channels only (owner ruling Q209 B): TestFlight (no review submission)
+# and the GitHub prerelease. The owner submits the build for App Store review
+# with manual release and clears the prerelease flag by hand (RELEASING.md).
 #
 # Signing (owner ruling Q192 B): no certificate, profile or keychain is stored.
 # xcodebuild -exportArchive re-signs the ad-hoc signed archive through App Store
@@ -322,7 +325,7 @@ jobs:
         run: rm -rf "$RUNNER_TEMP/asc" "$RUNNER_TEMP"/ExportOptions-*.plist
 
   publish-ios:
-    name: publish iOS (provenance, draft GitHub Release)
+    name: publish iOS (provenance, GitHub prerelease)
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/ios/v')
     needs: [build-ios, sign-ios]
     runs-on: ubuntu-24.04
@@ -356,9 +359,23 @@ jobs:
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: ${{ steps.files.outputs.ipa }}
-      - name: Draft GitHub Release
+      # A rerun of the same tag replaces the assets of the prerelease; a release
+      # the owner has promoted (prerelease flag cleared) is never touched.
+      - name: GitHub prerelease
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           DIR: ${{ steps.files.outputs.dir }}
-        run: gh release create "$TAG" --draft --verify-tag --title "$TAG" "$DIR"/*
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            pre="$(gh release view "$TAG" --json isPrerelease,isDraft --jq '.isPrerelease or .isDraft')"
+            if [ "$pre" != "true" ]; then
+              echo "::error::Release $TAG is promoted (not a prerelease); refusing to change its assets"
+              exit 1
+            fi
+            gh release upload "$TAG" --clobber "$DIR"/*
+          else
+            gh release create "$TAG" --prerelease --verify-tag --title "$TAG" \
+              --notes "Test build: TestFlight and this prerelease. Promote by hand (RELEASING.md)." \
+              "$DIR"/*
+          fi

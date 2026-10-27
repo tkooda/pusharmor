@@ -4,10 +4,11 @@ name: android-release
 # jobs, so the signing keys never share a job with Gradle or a third-party action:
 #   android-rel-build    no Environment, no secrets: unsigned AAB and APKs
 #   android-rel-sign     Environment android-sign: keystores, no checkout
-#   android-rel-publish  Environment android-release: provenance, draft GitHub
-#                        Release, then the Play internal upload as the last step
-# Obtainium and F-Droid see only PUBLISHED releases: the owner publishes the draft
-# after the device checklist (component-ci-r1 section 6 step 7).
+#   android-rel-publish  Environment android-release: provenance, GitHub
+#                        prerelease, then the Play internal upload as the last step
+# Test channels only (owner ruling Q209 B): Play internal track and the GitHub
+# prerelease (Obtainium testers include prereleases). The owner promotes by hand
+# (RELEASING.md): Play promote, clear the prerelease flag, F-Droid metadata.
 on:
   push:
     tags:
@@ -265,7 +266,7 @@ jobs:
           if-no-files-found: error
 
   android-rel-publish:
-    name: publish (draft GitHub Release, Play internal track)
+    name: publish (GitHub prerelease, Play internal track)
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/android/v')
     needs: [android-rel-build, android-rel-sign]
     runs-on: ubuntu-24.04
@@ -308,23 +309,25 @@ jobs:
             ${{ steps.files.outputs.aab }}
       # Stable asset names pusharmor-<version>-play.apk and -foss.apk: Obtainium
       # filters by name.
-      - name: Draft GitHub Release
+      # A rerun of the same tag replaces the assets of the prerelease; a release
+      # the owner has promoted (prerelease flag cleared) is never touched.
+      - name: GitHub prerelease
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           DIR: ${{ steps.files.outputs.dir }}
         run: |
-          # A rerun of the same tag finds the draft and replaces its assets.
-          # A published release is never touched.
           if gh release view "$TAG" >/dev/null 2>&1; then
-            draft=$(gh release view "$TAG" --json isDraft --jq .isDraft)
-            if [ "$draft" != "true" ]; then
-              echo "::error::Release $TAG exists and is not a draft; refusing to overwrite its assets"
+            pre="$(gh release view "$TAG" --json isPrerelease,isDraft --jq '.isPrerelease or .isDraft')"
+            if [ "$pre" != "true" ]; then
+              echo "::error::Release $TAG is promoted (not a prerelease); refusing to change its assets"
               exit 1
             fi
             gh release upload "$TAG" --clobber "$DIR"/*
           else
-            gh release create "$TAG" --draft --verify-tag --title "$TAG" "$DIR"/*
+            gh release create "$TAG" --prerelease --verify-tag --title "$TAG" \
+              --notes "Test build: Play internal track and this prerelease. Promote by hand (RELEASING.md)." \
+              "$DIR"/*
           fi
       - id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
