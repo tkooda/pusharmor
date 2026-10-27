@@ -3,11 +3,12 @@
 # Fails when a build id (Config/Public.xcconfig, written from release/public.json by
 # tools/public-xcconfig.sh) is empty or a PLACEHOLDER, or a CI dummy
 # (release/ci-dummy.mjs) without PA_CI_DUMMY=1, or unless the app
-# entitlements file is readable and says aps-environment production (fail closed).
+# entitlements file is readable and its aps-environment is production, or is
+# $(APS_ENVIRONMENT) with the build setting APS_ENVIRONMENT=production (fail closed).
 # Other configurations pass.
 # Xcode exports the build settings as environment variables.
 # Env: CONFIGURATION, SRCROOT, DEVELOPMENT_TEAM, GOOGLE_IOS_CLIENT_ID, GOOGLE_CALLBACK_SCHEME,
-# PA_CI_DUMMY
+# PA_CI_DUMMY, APS_ENVIRONMENT
 [ "${CONFIGURATION:-}" = "Release" ] || exit 0
 
 bad=""
@@ -24,9 +25,11 @@ check GOOGLE_IOS_CLIENT_ID "${GOOGLE_IOS_CLIENT_ID:-}"
 check GOOGLE_CALLBACK_SCHEME "${GOOGLE_CALLBACK_SCHEME:-}"
 
 ent="${SRCROOT:-.}/App/PushArmor.entitlements"
-if ! grep -A1 'aps-environment' "$ent" 2>/dev/null | grep -q '<string>production</string>'; then
+aps="$(grep -A1 'aps-environment' "$ent" 2>/dev/null | sed -n 's|.*<string>\(.*\)</string>.*|\1|p' | head -n 1)"
+[ "$aps" = '$(APS_ENVIRONMENT)' ] && aps="${APS_ENVIRONMENT:-}"
+if [ "$aps" != "production" ]; then
   bad="$bad
-  - App/PushArmor.entitlements is missing, unreadable or its aps-environment is not production (set production in project.yml)"
+  - App/PushArmor.entitlements is missing, unreadable or its aps-environment is not production (Release sets APS_ENVIRONMENT = production in project.yml)"
 fi
 
 if [ -n "$bad" ]; then
