@@ -36,10 +36,10 @@ export function b64urlDecode(s) {
   return new Uint8Array(out);
 }
 
-// ID_SECRET is the b64url form of at least 32 random bytes; the HMAC key is the decoded bytes.
+// PA_ID_SECRET is the b64url form of at least 32 random bytes; the HMAC key is the decoded bytes.
 export async function accountId(idSecret, emailHashBytes) {
   const raw = b64urlDecode(idSecret);
-  if (raw.length < 32) throw new Error("bad ID_SECRET");
+  if (raw.length < 32) throw new Error("bad PA_ID_SECRET");
   const key = await globalThis.crypto.subtle.importKey(
     "raw",
     raw,

@@ -76,11 +76,11 @@ export async function testEnv(over: Partial<Env> = {}): Promise<Env> {
   for (const s of Object.values(S)) if (s.length >= 12) forbidden.add(s);
   return {
     ...(baseEnv as unknown as Env),
-    FCM_SA_PRIVATE_KEY: k.fcmPem,
-    APNS_KEY_P8: k.apnsPem,
+    GOOGLE_FCM_SA_PRIVATE_KEY: k.fcmPem,
+    APPLE_APNS_KEY_P8: k.apnsPem,
     APPLE_SIGNIN_KEY_P8: k.applePem,
-    VAPID_PRIVATE_KEY: k.vapidPem,
-    VAPID_PUBLIC_KEY: k.vapidPublicRaw,
+    WEBPUSH_VAPID_PRIVATE_KEY: k.vapidPem,
+    WEBPUSH_VAPID_PUBLIC_KEY: k.vapidPublicRaw,
     ...over,
   };
 }
@@ -129,12 +129,12 @@ export async function keys(): Promise<{ sign: CryptoKeyPair; signPub: string; en
 }
 
 export async function acctOf(email: string): Promise<string> {
-  return accountId(S.ID_SECRET, await emailHash(email));
+  return accountId(S.PA_ID_SECRET, await emailHash(email));
 }
 
 export async function ticketFor(email: string, signPub: string, purpose: Purpose, lifeS = 120): Promise<string> {
   const { b64urlDecode } = await import("../src/codec/b64url");
-  const t = await makeTicket(S.TOKEN_SECRET, {
+  const t = await makeTicket(S.PA_TOKEN_SECRET, {
     a: await acctOf(email),
     k: await keyRef(b64urlDecode(signPub)!),
     p: purpose,
@@ -230,7 +230,7 @@ export async function register(
   const body = { ticket: await ticketFor(email, k.signPub, "register"), sign_pub: k.signPub, enc_pub: k.encPub, platform, push: p, ...extra };
   const r = await call("POST", "/v1/peers", body, { sign: k.sign, env: envOver });
   const acct = await acctOf(email);
-  const id = await peerId(S.ID_SECRET, acct, k.signRaw, k.encRaw);
+  const id = await peerId(S.PA_ID_SECRET, acct, k.signRaw, k.encRaw);
   return { peer: { id, acct, email, sign: k.sign, signPub: k.signPub, encPub: k.encPub, encPriv: k.encPriv, platform }, r };
 }
 

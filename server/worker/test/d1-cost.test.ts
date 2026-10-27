@@ -184,7 +184,7 @@ scenarios.push({
     const [p] = await account(1, "android");
     const push = pushFor("android", "unifiedpush");
     await env.DB.prepare("UPDATE peers SET push = ?1, push_type = 6 WHERE id = ?2").bind(JSON.stringify(push), p.id).run();
-    const code = await probeCode(S.CONFIRM_SECRET, p.id, push, Math.floor(Date.now() / 1000 / 300));
+    const code = await probeCode(S.PA_CONFIRM_SECRET, p.id, push, Math.floor(Date.now() / 1000 / 300));
     return measured(() => call("POST", `/v1/peers/${p.id}/confirm`, { code }, { peer: p }));
   },
 });

@@ -44,7 +44,7 @@ export async function handle(req: Request, env: Env, exec: ExecutionContext): Pr
       res = json(503, { error: "unavailable" });
     }
   }
-  res = finish(res, path, req.headers.get("Origin"), env.WEB_ORIGINS);
+  res = finish(res, path, req.headers.get("Origin"), env.PA_WEB_ORIGINS);
   log.status = res.status;
   log.emit();
   return res;

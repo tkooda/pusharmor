@@ -38,7 +38,7 @@ describe("POST /auth/email + verify", () => {
     const mail = JSON.parse(new TextDecoder().decode(ses[0].body));
     expect(mail.Destination.ToAddresses).toEqual([email]);
     expect(mail.ConfigurationSetName).toBe("test-config-set");
-    const code = await deriveCode(S.CODE_SECRET, token);
+    const code = await deriveCode(S.PA_CODE_SECRET, token);
     expect(mail.Content.Simple.Body.Text.Data).toContain(code);
     expect(mail.Content.Simple.Body.Text.Data).toContain("Nothing happens unless this code is entered within 15 minutes. If you did not request it, ignore this email.");
     const ts = vendorRequests("challenges.cloudflare.com");
@@ -48,7 +48,7 @@ describe("POST /auth/email + verify", () => {
     v = await call("POST", "/v1/auth/email/verify", { request_token: token, code: code.toLowerCase().replace(/0/g, "o") });
     expect(v.status).toBe(200);
     expect(v.body.email).toBe(email);
-    const t = await openToken(S.TOKEN_SECRET, LABEL_TICKET, secretString(v.body.ticket as string));
+    const t = await openToken(S.PA_TOKEN_SECRET, LABEL_TICKET, secretString(v.body.ticket as string));
     expect(t).toMatchObject({ a: await acctOf(email), k: await keyRef(b64urlDecode(k.signPub)!), p: "register" });
   });
 
@@ -99,7 +99,7 @@ describe("POST /auth/email + verify", () => {
     const forged = b64urlEncode(utf8(JSON.stringify({ ...body, p: "delete-account" }))) + "." + mac;
     expect((await call("POST", "/v1/auth/email/verify", { request_token: forged, code: "AAAAAA" })).status).toBe(401);
     const { makeToken } = await import("../src/crypto/tokens");
-    const old = await makeToken(S.TOKEN_SECRET, LABEL_REQUEST_TOKEN, { ...body, t: body.t - 901 });
+    const old = await makeToken(S.PA_TOKEN_SECRET, LABEL_REQUEST_TOKEN, { ...body, t: body.t - 901 });
     expect((await call("POST", "/v1/auth/email/verify", { request_token: old, code: "AAAAAA" })).body.error).toBe("code expired");
     let last = 0;
     for (let i = 0; i < 6; i++) last = (await call("POST", "/v1/auth/email/verify", { request_token: token, code: "AAAAAA" })).status;
@@ -114,7 +114,7 @@ describe("POST /auth/email + verify", () => {
     expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: "AAAAAA" })).status).toBe(429);
     const b = await startEmail(email);
     const tokB = secretString(b.r.body.request_token as string);
-    const code = await deriveCode(S.CODE_SECRET, tokB);
+    const code = await deriveCode(S.PA_CODE_SECRET, tokB);
     const r = await call("POST", "/v1/auth/email/verify", { request_token: tokB, code });
     expect(r.status).toBe(200);
   });
@@ -235,7 +235,7 @@ describe("Google", () => {
     const kr = await keyRef(b64urlDecode(k.signPub)!);
     const s = await call("GET", `/v1/auth/google?k=${kr}&r=chrome&p=register`);
     const state = secretString(new URL(s.res.headers.get("Location")!).searchParams.get("state")!);
-    const env = await testEnv({ OAUTH_REDIRECT_CHROME: "" });
+    const env = await testEnv({ PA_OAUTH_REDIRECT_CHROME: "" });
     const s2 = await call("GET", `/v1/auth/google?k=${kr}&r=chrome&p=register`, undefined, { env });
     expect(s2.status).toBe(503);
     onVendor((r) => r.url === "https://oauth2.googleapis.com/token", async () =>

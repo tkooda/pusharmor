@@ -7,7 +7,7 @@ import { deps } from "../push/deps";
 import { importEs256Private, signJwt } from "../push/jwt";
 import { formParams, jsonList, oauthCallback, oauthStart, oauthToken, postForm, type ProviderCfg } from "./oauth";
 
-// client_secret = ES256 JWT signed with APPLE_SIGNIN_KEY_P8 (team id = APNS_TEAM_ID).
+// client_secret = ES256 JWT signed with APPLE_SIGNIN_KEY_P8 (team id = APPLE_APNS_TEAM_ID).
 export async function appleClientSecret(env: Env, clientId: string): Promise<string> {
   const iat = Math.floor(deps.now() / 1000);
   const key = await importEs256Private(env.APPLE_SIGNIN_KEY_P8);
@@ -15,16 +15,16 @@ export async function appleClientSecret(env: Env, clientId: string): Promise<str
     "ES256",
     key,
     { alg: "ES256", kid: env.APPLE_SIGNIN_KEY_ID },
-    { iss: env.APNS_TEAM_ID, iat, exp: iat + 300, aud: "https://appleid.apple.com", sub: clientId },
+    { iss: env.APPLE_APNS_TEAM_ID, iat, exp: iat + 300, aud: "https://appleid.apple.com", sub: clientId },
   );
 }
 
 export const apple: ProviderCfg = {
   name: "apple",
   authorizeUrl: "https://appleid.apple.com/auth/authorize",
-  clientIdWeb: (env: Env) => env.APPLE_AUD_WEB,
-  webAuds: (env: Env) => jsonList(env.APPLE_AUD_WEB),
-  nativeAuds: (env: Env) => jsonList(env.APPLE_AUD_NATIVE),
+  clientIdWeb: (env: Env) => env.APPLE_SIGNIN_AUD_WEB,
+  webAuds: (env: Env) => jsonList(env.APPLE_SIGNIN_AUD_WEB),
+  nativeAuds: (env: Env) => jsonList(env.APPLE_SIGNIN_AUD_NATIVE),
   authParams: { scope: "email", response_mode: "form_post" },
   async exchange(env, code, clientId, redirectUri, verifier) {
     const form: Record<string, string> = {
@@ -48,7 +48,7 @@ export const token = (c: Ctx) => oauthToken(c, apple);
 // Best effort: a failed revoke never fails DELETE /account.
 export async function revokeAppleSealed(env: Env, sealed: string): Promise<void> {
   try {
-    const raw = await unseal(env.TOKEN_SECRET, sealed);
+    const raw = await unseal(env.PA_TOKEN_SECRET, sealed);
     if (!raw) return;
     const o = JSON.parse(raw) as { t?: unknown; c?: unknown };
     if (typeof o.t !== "string" || typeof o.c !== "string") return;

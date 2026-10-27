@@ -39,21 +39,21 @@ describe("ids", () => {
     const eh = await emailHash("a@b.com");
     const ref = new Uint8Array(await crypto.subtle.digest("SHA-256", utf8("PA-ACCT1\na@b.com")));
     expect(hex(eh)).toBe(hex(ref));
-    const acct = await accountId(S.ID_SECRET, eh);
+    const acct = await accountId(S.PA_ID_SECRET, eh);
     expect(acct).toHaveLength(12);
-    expect(hex(b64urlDecode(acct)!)).toBe(hex((await hmac(S.ID_SECRET, eh)).slice(0, 9)));
+    expect(hex(b64urlDecode(acct)!)).toBe(hex((await hmac(S.PA_ID_SECRET, eh)).slice(0, 9)));
     const k = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign"])) as CryptoKeyPair;
     const sp = new Uint8Array((await crypto.subtle.exportKey("raw", k.publicKey)) as ArrayBuffer);
     const ep = sp.slice();
-    const id = await peerId(S.ID_SECRET, acct, sp, ep);
+    const id = await peerId(S.PA_ID_SECRET, acct, sp, ep);
     expect(id).toHaveLength(40);
     expect(id.slice(0, 12)).toBe(acct);
     expect(hex(b64urlDecode(id)!.slice(9, 21))).toBe(hex(await keyhash(sp, ep)));
-    expect(await checkPeerIdMac(S.ID_SECRET, id)).toBe(true);
+    expect(await checkPeerIdMac(S.PA_ID_SECRET, id)).toBe(true);
     const raw = b64urlDecode(id)!;
     raw[29] ^= 1;
-    expect(await checkPeerIdMac(S.ID_SECRET, b64urlEncode(raw))).toBe(false);
-    expect(await checkPeerIdMac(S.ID_SECRET, id.slice(0, 39))).toBe(false);
+    expect(await checkPeerIdMac(S.PA_ID_SECRET, b64urlEncode(raw))).toBe(false);
+    expect(await checkPeerIdMac(S.PA_ID_SECRET, id.slice(0, 39))).toBe(false);
   });
 });
 
@@ -80,31 +80,31 @@ describe("ecdsa", () => {
 describe("email code", () => {
   it("is 6 Crockford chars from the top 30 bits and accepts O/I/L mapping", async () => {
     const tok = "some.request.token";
-    const code = await deriveCode(S.CODE_SECRET, tok);
-    const m = await hmac(S.CODE_SECRET, utf8(tok));
+    const code = await deriveCode(S.PA_CODE_SECRET, tok);
+    const m = await hmac(S.PA_CODE_SECRET, utf8(tok));
     let bits = "";
     for (const b of m.slice(0, 4)) bits += b.toString(2).padStart(8, "0");
     let expectCode = "";
     for (let i = 0; i < 6; i++) expectCode += CROCKFORD[parseInt(bits.slice(i * 5, i * 5 + 5), 2)];
     expect(code).toBe(expectCode);
     expect(normalizeCode("oil0")).toBe("0110");
-    expect(await checkCode(S.CODE_SECRET, tok, code.toLowerCase())).toBe(true);
-    expect(await checkCode(S.CODE_SECRET, tok + "x", code)).toBe(false);
+    expect(await checkCode(S.PA_CODE_SECRET, tok, code.toLowerCase())).toBe(true);
+    expect(await checkCode(S.PA_CODE_SECRET, tok + "x", code)).toBe(false);
   });
 });
 
 describe("tokens", () => {
   it("MAC over label + body part; tamper and label swap fail", async () => {
-    const t = await makeToken(S.TOKEN_SECRET, LABEL_TICKET, { a: "AAAAAAAAAAAA", k: "k", p: "register", x: 1 });
-    expect(await openToken(S.TOKEN_SECRET, LABEL_TICKET, t)).toEqual({ a: "AAAAAAAAAAAA", k: "k", p: "register", x: 1 });
-    expect(await openToken(S.TOKEN_SECRET, "PA-RT1\n", t)).toBeNull();
+    const t = await makeToken(S.PA_TOKEN_SECRET, LABEL_TICKET, { a: "AAAAAAAAAAAA", k: "k", p: "register", x: 1 });
+    expect(await openToken(S.PA_TOKEN_SECRET, LABEL_TICKET, t)).toEqual({ a: "AAAAAAAAAAAA", k: "k", p: "register", x: 1 });
+    expect(await openToken(S.PA_TOKEN_SECRET, "PA-RT1\n", t)).toBeNull();
     const [b, mac] = t.split(".");
     const forged = b64urlEncode(utf8(JSON.stringify({ a: "AAAAAAAAAAAA", k: "k", p: "delete-account", x: 1 })));
-    expect(await openToken(S.TOKEN_SECRET, LABEL_TICKET, forged + "." + mac)).toBeNull();
-    expect(await openToken(S.TOKEN_SECRET, LABEL_TICKET, b + "." + mac.slice(0, -2) + "AA")).toBeNull();
-    const sealed = await seal(S.TOKEN_SECRET, "refresh-token");
-    expect(await unseal(S.TOKEN_SECRET, sealed)).toBe("refresh-token");
-    expect(await unseal(S.CODE_SECRET, sealed)).toBeNull();
+    expect(await openToken(S.PA_TOKEN_SECRET, LABEL_TICKET, forged + "." + mac)).toBeNull();
+    expect(await openToken(S.PA_TOKEN_SECRET, LABEL_TICKET, b + "." + mac.slice(0, -2) + "AA")).toBeNull();
+    const sealed = await seal(S.PA_TOKEN_SECRET, "refresh-token");
+    expect(await unseal(S.PA_TOKEN_SECRET, sealed)).toBe("refresh-token");
+    expect(await unseal(S.PA_CODE_SECRET, sealed)).toBeNull();
   });
   it("oauth nonce", async () => {
     const n = await oauthNonce("register", "k");

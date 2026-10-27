@@ -16,8 +16,8 @@ export const PURGE_MAX_CHUNKS = 500;
 const fetchFn = ((u: string, i: RequestInit) => deps.fetch(u, i)) as unknown as typeof fetch;
 
 export async function mailOps(env: Env, subject: string, text: string): Promise<void> {
-  // Ops contact = VAPID_SUB without "mailto:".
-  const to = env.VAPID_SUB.replace(/^mailto:/, "");
+  // Ops contact = WEBPUSH_VAPID_SUB without "mailto:".
+  const to = env.WEBPUSH_VAPID_SUB.replace(/^mailto:/, "");
   if (!to) return;
   try {
     await sendEmail(env, to, subject, text, fetchFn);

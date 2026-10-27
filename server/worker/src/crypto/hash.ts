@@ -25,7 +25,7 @@ export async function sha256(data: Uint8Array): Promise<Uint8Array> {
 const hmacKeys = new Map<string, Promise<CryptoKey>>();
 
 // HMAC-SHA256 key from a Worker secret: strict b64url of at least 32 random bytes (the
-// golden vectors use the same form for ID_SECRET). Cached per isolate.
+// golden vectors use the same form for PA_ID_SECRET). Cached per isolate.
 export function hmacKey(secret: string): Promise<CryptoKey> {
   let k = hmacKeys.get(secret);
   if (!k) {

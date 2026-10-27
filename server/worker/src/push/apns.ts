@@ -12,8 +12,8 @@ export async function mintApnsJwt(env: Env, force = false): Promise<string> {
     "apns",
     async () => {
       const t = deps.now();
-      const key = await importEs256Private(env.APNS_KEY_P8);
-      const jwt = await signJwt("ES256", key, { alg: "ES256", kid: env.APNS_KEY_ID }, { iss: env.APNS_TEAM_ID, iat: Math.floor(t / 1000) });
+      const key = await importEs256Private(env.APPLE_APNS_KEY_P8);
+      const jwt = await signJwt("ES256", key, { alg: "ES256", kid: env.APPLE_APNS_KEY_ID }, { iss: env.APPLE_APNS_TEAM_ID, iat: Math.floor(t / 1000) });
       return { value: jwt, mintedAt: t, useUntil: t + REUSE_MS };
     },
     deps.now(),
@@ -46,7 +46,7 @@ export async function buildApns(
   const headers: Record<string, string> = {
     authorization: "bearer " + jwt,
     "apns-push-type": "alert",
-    "apns-topic": env.APNS_TOPIC,
+    "apns-topic": env.APPLE_APNS_TOPIC,
     "apns-priority": "10",
     "apns-expiration": String(Math.floor(deps.now() / 1000) + ttlFor(cls, env)),
   };

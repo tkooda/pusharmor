@@ -2,11 +2,11 @@ import { ApiError } from "../errors";
 import { signV4 } from "./sigv4";
 
 export interface SesEnv {
-  SES_REGION: string;
-  MAIL_FROM: string;
-  SES_CONFIG_SET: string;
-  SES_ACCESS_KEY_ID: string;
-  SES_SECRET_ACCESS_KEY: string;
+  AWS_SES_REGION: string;
+  AWS_SES_MAIL_FROM: string;
+  AWS_SES_CONFIG_SET: string;
+  AWS_SES_ACCESS_KEY_ID: string;
+  AWS_SES_SECRET_ACCESS_KEY: string;
 }
 
 // Sends a plain-text email through SESv2. Nothing is logged here on purpose.
@@ -17,10 +17,10 @@ export async function sendEmail(
   text: string,
   fetchFn: typeof fetch = fetch,
 ): Promise<void> {
-  const url = `https://email.${env.SES_REGION}.amazonaws.com/v2/email/outbound-emails`;
+  const url = `https://email.${env.AWS_SES_REGION}.amazonaws.com/v2/email/outbound-emails`;
   const body = new TextEncoder().encode(
     JSON.stringify({
-      FromEmailAddress: env.MAIL_FROM,
+      FromEmailAddress: env.AWS_SES_MAIL_FROM,
       Destination: { ToAddresses: [to] },
       Content: {
         Simple: {
@@ -28,7 +28,7 @@ export async function sendEmail(
           Body: { Text: { Data: text, Charset: "UTF-8" } },
         },
       },
-      ConfigurationSetName: env.SES_CONFIG_SET,
+      ConfigurationSetName: env.AWS_SES_CONFIG_SET,
     }),
   );
   let res: Response;
@@ -38,9 +38,9 @@ export async function sendEmail(
       url,
       headers: { "content-type": "application/json" },
       body,
-      accessKeyId: env.SES_ACCESS_KEY_ID,
-      secretAccessKey: env.SES_SECRET_ACCESS_KEY,
-      region: env.SES_REGION,
+      accessKeyId: env.AWS_SES_ACCESS_KEY_ID,
+      secretAccessKey: env.AWS_SES_SECRET_ACCESS_KEY,
+      region: env.AWS_SES_REGION,
       service: "ses",
       now: new Date(),
     });

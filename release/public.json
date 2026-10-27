@@ -12,5 +12,9 @@
   "google_fcm_project_id": "PLACEHOLDER_GOOGLE_FCM_PROJECT_ID",
   "google_fcm_project_number": "PLACEHOLDER_GOOGLE_FCM_PROJECT_NUMBER",
   "google_fcm_android_app_id": "PLACEHOLDER_GOOGLE_FCM_ANDROID_APP_ID",
-  "google_fcm_android_api_key": "PLACEHOLDER_GOOGLE_FCM_ANDROID_API_KEY"
+  "google_fcm_android_api_key": "PLACEHOLDER_GOOGLE_FCM_ANDROID_API_KEY",
+  "google_play_wif_provider": "PLACEHOLDER_GOOGLE_PLAY_WIF_PROVIDER",
+  "google_play_wif_service_account": "PLACEHOLDER_GOOGLE_PLAY_WIF_SERVICE_ACCOUNT",
+  "google_cws_wif_service_account": "PLACEHOLDER_GOOGLE_CWS_WIF_SERVICE_ACCOUNT",
+  "google_cws_publisher_id": "PLACEHOLDER_GOOGLE_CWS_PUBLISHER_ID"
 }

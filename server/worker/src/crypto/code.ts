@@ -1,4 +1,4 @@
-// Email code: first 30 bits of HMAC-SHA256(CODE_SECRET, request_token string), MSB first,
+// Email code: first 30 bits of HMAC-SHA256(PA_CODE_SECRET, request_token string), MSB first,
 // as 6 Crockford chars. Input is upper-cased and Crockford-mapped (O->0, I/L->1).
 import { ctEqualStr, hmac, utf8 } from "./hash";
 
