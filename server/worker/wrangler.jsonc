@@ -1,0 +1,58 @@
+// PushArmor Worker. Bindings and vars only; secrets are set with "wrangler secret put".
+{
+  "name": "pusharmor-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-15",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "api.pusharmor.com", "custom_domain": true }],
+  "limits": { "cpu_ms": 2000 },
+  "triggers": { "crons": ["0 * * * *", "0 3 1 * *"] },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": { "invocation_logs": false }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "pusharmor",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "ratelimits": [
+    { "name": "RL_IP", "namespace_id": "1001", "simple": { "limit": 100, "period": 60 } },
+    { "name": "RL_PEER", "namespace_id": "1002", "simple": { "limit": 60, "period": 60 } },
+    { "name": "RL_MAIL", "namespace_id": "1003", "simple": { "limit": 2, "period": 60 } },
+    { "name": "RL_MAIL_ALL", "namespace_id": "1004", "simple": { "limit": 100, "period": 60 } },
+    { "name": "RL_CODE", "namespace_id": "1005", "simple": { "limit": 5, "period": 60 } },
+    { "name": "RL_PAIR", "namespace_id": "1006", "simple": { "limit": 1, "period": 60 } },
+    { "name": "RL_PROBE", "namespace_id": "1007", "simple": { "limit": 2, "period": 60 } }
+  ],
+  "vars": {
+    "ALLOWED_PUSH_ENDPOINT_PREFIXES": "[\"https://fcm.googleapis.com/fcm/send/\",\"https://fcm.googleapis.com/wp/\",\"https://updates.push.services.mozilla.com/wpush/v1/\",\"https://updates.push.services.mozilla.com/wpush/v2/\"]",
+    "PUSH_TTL_SECONDS": "604800",
+    "PUSH_PAIR_TTL_SECONDS": "2419200",
+    "FCM_PROJECT_ID": "",
+    "APNS_TOPIC": "",
+    "APNS_KEY_ID": "",
+    "APNS_TEAM_ID": "",
+    "VAPID_PUBLIC_KEY": "",
+    "VAPID_SUB": "",
+    "SES_REGION": "",
+    "MAIL_FROM": "",
+    "SES_CONFIG_SET": "",
+    "TURNSTILE_HOSTNAME": "pusharmor.com",
+    "TURNSTILE_ACTION": "email",
+    "GOOGLE_AUD_WEB": "[]",
+    "GOOGLE_AUD_NATIVE": "[]",
+    "APPLE_AUD_WEB": "",
+    "APPLE_AUD_NATIVE": "",
+    "OAUTH_REDIRECT_CHROME": "",
+    "OAUTH_REDIRECT_FIREFOX": "https://pusharmor.com/auth/done",
+    "OAUTH_REDIRECT_ANDROID": "https://pusharmor.com/auth/android",
+    "OAUTH_REDIRECT_WEB": "https://pusharmor.com/delete-account",
+    "WEB_ORIGINS": "[\"https://pusharmor.com\"]"
+  }
+}

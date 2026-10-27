@@ -1,0 +1,18 @@
+# Secret names for local "wrangler dev" (copy to .dev.vars, which is git-ignored).
+# Production values are set with "wrangler secret put NAME"; never commit them.
+# HMAC secrets are b64url strings of at least 32 random bytes.
+ID_SECRET=
+CODE_SECRET=
+CONFIRM_SECRET=
+TOKEN_SECRET=
+TURNSTILE_SECRET=
+SES_ACCESS_KEY_ID=
+SES_SECRET_ACCESS_KEY=
+FCM_SA_EMAIL=
+FCM_SA_KEY_ID=
+FCM_SA_PRIVATE_KEY=
+APNS_KEY_P8=
+VAPID_PRIVATE_KEY=
+GOOGLE_CLIENT_SECRET=
+APPLE_SIGNIN_KEY_ID=
+APPLE_SIGNIN_KEY_P8=
