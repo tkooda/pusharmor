@@ -105,6 +105,28 @@ final class NSEFlowTests: XCTestCase {
         XCTAssertEqual(try events(), 3)
     }
 
+    /// I315: a thrown store error (here SQLITE_BUSY while another connection writes) is not a
+    /// final verdict: the NSE leaves the push unmarked and the delivered drain stores it.
+    func testNSEFaultLeavesPushForDrain() async throws {
+        let w = FakeWorker(), clock = TestClock()
+        let n = try Device(worker: w, clock: clock, name: "Ndev"), x = try Device(worker: w, clock: clock, name: "Xdev")
+        try await Scenario.pairFully(w, n, x)
+        _ = try await n.core.send("kept", as: .text, to: [x.id], allCount: 1)
+        let m = try XCTUnwrap(w.take(x.id).first)
+        let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-nse-\(UUID().uuidString)"))
+        let key = try TapStamp.key(x.core.store)
+        let other = try DB(path: x.path)
+        try other.exec("BEGIN IMMEDIATE")
+        let r = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 1, budgetLeft: { 30 })
+        try other.exec("ROLLBACK")
+        XCTAssertEqual(r.banner, .dropped)
+        XCTAssertFalse(r.handled)
+        let info = try XCTUnwrap(r.banner).userInfo(m: m, key: key, handled: r.handled)
+        let drained = await x.core.drainDelivered([info])
+        XCTAssertEqual(drained, [0])
+        XCTAssertEqual(try x.core.store.history().filter { $0.content == "kept" }.count, 1)
+    }
+
     /// I311: the delivered drain skips "m" only under a valid NSE stamp; a relay rowid or a
     /// stamp under another key does not skip it.
     func testDrainSkipsOnlyStamped() async throws {

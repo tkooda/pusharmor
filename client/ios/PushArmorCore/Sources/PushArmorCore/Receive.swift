@@ -21,6 +21,8 @@ public struct ReceiveResult: Sendable {
     public var approveVerified: Bool
     /// The NSE ran steps 3-9 or wrote the drop event (I308): the app drain skips this push.
     public var handled = false
+    /// A drop caused by a thrown store error (busy, I/O, me() read), not a final verdict (I315).
+    public var fault = false
 
     static func plain(_ b: Banner?) -> ReceiveResult {
         ReceiveResult(banner: b, rowid: nil, committed: false, newMessage: false, approveVerified: false)
@@ -58,11 +60,13 @@ extension Core {
     }
 
     /// A drop: event row (when the DB is readable) and the could-not-read banner.
-    func drop(_ mode: ReceiveMode, peer: PeerId? = nil, invalid: Bool = false) -> ReceiveResult {
+    func drop(_ mode: ReceiveMode, peer: PeerId? = nil, invalid: Bool = false, fault: Bool = false) -> ReceiveResult {
         if mode == .returnedC { return .plain(nil) }
         let now = clock()
         _ = try? store.addEvent(invalid ? .invalid : .couldNotRead, peer: peer, content: invalid ? S.invalid : S.dropped, now: now)
-        return .plain(mode == .nse ? (invalid ? .invalid : .dropped) : nil)
+        var r = ReceiveResult.plain(mode == .nse ? (invalid ? .invalid : .dropped) : nil)
+        r.fault = fault
+        return r
     }
 
     /// Steps 1 and 3-10 of ios 6.1 (step 2, the key load, is done by the caller).
@@ -70,7 +74,8 @@ extension Core {
         // step 1
         guard m.utf8.count <= InnerMessage.maxWire, B64URL.isStrict(m) else { return drop(mode) }
         // step 3
-        guard let me = try? store.me(), let myId = me.id, !me.removed else { return drop(mode) }
+        guard let me = try? store.me() else { return drop(mode, fault: true) }
+        guard let myId = me.id, !me.removed else { return drop(mode) }
         if m.utf8.count == PairMessage.wireLength {
             if mode == .returnedC { return .plain(nil) }
             return await receivePair(m, me: myId, mode: mode)
@@ -132,7 +137,7 @@ extension Core {
                 return drop(mode, peer: r.verifiedFrom)
             }
         } catch {
-            return drop(mode)
+            return drop(mode, fault: true)
         }
     }
 
