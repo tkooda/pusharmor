@@ -5,6 +5,7 @@ import { cleanCode, parseFragment } from "../src/core/login.ts";
 import { selectionTitle } from "../src/core/actions.ts";
 import { readForward } from "../../firefox/src/sitefwd/fwd.ts";
 import { endpointAllowed } from "../../firefox/src/platform-firefox.ts";
+import { senderAllowed } from "../../firefox/src/gate.ts";
 
 test("History filter: chips All / peer names / Unknown, peer chips hidden with one peer", () => {
   const one = [
@@ -49,4 +50,24 @@ test("Firefox fallback endpoint allow-list", () => {
   assert.ok(!endpointAllowed("https://u:p@fcm.googleapis.com/fcm/send/abc"));
   assert.ok(!endpointAllowed("https://evil.example/wpush/v2/"));
   assert.ok(!endpointAllowed("http://fcm.googleapis.com/fcm/send/abc"));
+});
+
+test("Firefox sender gate: a site content script gets only its own site op", () => {
+  const id = "ext@pusharmor";
+  const base = "moz-extension://1111-2222/";
+  const site = (path: string) => ({ id, url: "https://pusharmor.com" + path, tab: { id: 7 } });
+  for (const op of ["approve", "send", "deny", "historyDeleteAll", "peers"]) {
+    assert.equal(senderAllowed(op, site("/fx/open"), id, base), false, op);
+    assert.equal(senderAllowed(op, site("/auth/done"), id, base), false, op);
+    assert.equal(senderAllowed(op, { id, url: base + "popup.html" }, id, base), true, op);
+    assert.equal(senderAllowed(op, { id, url: base + "page.html#peers", tab: { id: 3 } }, id, base), true, op);
+  }
+  assert.equal(senderAllowed("fx-sub", site("/fx/setup"), id, base), true);
+  assert.equal(senderAllowed("fx-msg", site("/fx/open"), id, base), true);
+  assert.equal(senderAllowed("authDone", site("/auth/done"), id, base), true);
+  assert.equal(senderAllowed("fx-msg", site("/fx/setup"), id, base), false);
+  assert.equal(senderAllowed("authDone", site("/fx/open"), id, base), false);
+  assert.equal(senderAllowed("fx-sub", { id, url: base + "popup.html" }, id, base), false);
+  assert.equal(senderAllowed("approve", { id: "other", url: base + "popup.html" }, id, base), false);
+  assert.equal(senderAllowed("approve", { id }, id, base), false);
 });

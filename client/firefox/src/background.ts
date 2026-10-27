@@ -4,11 +4,11 @@ import { b64urlTryDecode } from "../../webext-common/src/crypto/b64url.ts";
 import type { PushFields } from "../../webext-common/src/crypto/labels.ts";
 import { MENU_SEL, selectionTitle } from "../../webext-common/src/core/actions.ts";
 import { lazyBoot, onMenuClick, onNotificationClick, onRuntimeMessage } from "../../webext-common/src/shellkit.ts";
-import type { MessageSender } from "../../webext-common/src/shim-types.ts";
 import type { Req } from "../../webext-common/src/core/rpc.ts";
 import { Db, openDb } from "../../webext-common/src/store/db.ts";
 import type { WebPushKeys } from "../../webext-common/src/crypto/rfc8291.ts";
 import { Autopush, type ApState } from "./autopush/client.ts";
+import { senderAllowed } from "./gate.ts";
 import { FWD_URL, SETUP_URL, endpointAllowed, firefoxPlatform } from "./platform-firefox.ts";
 import { readForward } from "./sitefwd/fwd.ts";
 import { browser } from "./shim.ts";
@@ -72,10 +72,6 @@ setInterval(() => {
 }, 30_000);
 addEventListener("online", () => autopush?.reconnectNow());
 
-function fromSite(sender: MessageSender, path: string): boolean {
-  return typeof sender.url === "string" && sender.url.startsWith("https://pusharmor.com" + path) && sender.id === browser.runtime.id;
-}
-
 async function extra(msg: Req): Promise<unknown> {
   await ready;
   const { engine } = await boot();
@@ -100,10 +96,8 @@ async function extra(msg: Req): Promise<unknown> {
 
 browser.runtime.onMessage.addListener(
   onRuntimeMessage(boot, (msg, sender) => {
-    if (msg.op === "fx-sub" && fromSite(sender, "/fx/setup")) return extra(msg);
-    if (msg.op === "fx-msg" && fromSite(sender, "/fx/open")) return extra(msg);
-    if (msg.op === "fx-sub" || msg.op === "fx-msg") return Promise.resolve({ ok: false });
-    if (msg.op === "authDone" && !fromSite(sender, "/auth/done")) return Promise.resolve({ ok: false });
+    if (!senderAllowed(msg.op, sender, browser.runtime.id, browser.runtime.getURL(""))) return Promise.resolve({ ok: false });
+    if (msg.op === "fx-sub" || msg.op === "fx-msg") return extra(msg);
     return null;
   }),
 );
