@@ -12,7 +12,7 @@ public final class KeychainKeyStore {
 
     /// Fallback if the Secure Enclave cannot act as an HPKE recipient (device test 1): a
     /// software P-256 enc key in the Keychain. The sign key stays in the SE.
-    public static var secureEnclaveEncKey = true
+    static let secureEnclaveEncKey = true
 
     public init(accessGroup: String) { self.accessGroup = accessGroup }
 
@@ -48,11 +48,15 @@ public final class KeychainKeyStore {
     public func load() throws -> DeviceKeys {
         guard let s = try read(.sign) else { throw KeyLoadError.other(errSecItemNotFound) }
         let signer: PASigner
+        #if targetEnvironment(simulator)
         if SecureEnclave.isAvailable {
             signer = try SecureEnclaveSigner(blob: s)
         } else {
             signer = try SoftwareSigner(raw: s)
         }
+        #else
+        signer = try SecureEnclaveSigner(blob: s)
+        #endif
         if let e = try read(.encSE) {
             return DeviceKeys(signer: signer, decryptor: try SecureEnclaveDecryptor(blob: e))
         }
@@ -61,13 +65,18 @@ public final class KeychainKeyStore {
     }
 
     /// First sign-in: two SE keys with .privateKeyUsage, no biometry, usable after first
-    /// unlock. The Simulator has no SE: software keys through the same code paths.
+    /// unlock. The Simulator has no SE: software keys through the same code paths. The
+    /// software path is compiled only for the Simulator; a device without an SE throws.
     public func create() throws -> DeviceKeys {
         guard SecureEnclave.isAvailable else {
+            #if targetEnvironment(simulator)
             let s = SoftwareSigner(), e = SoftwareDecryptor()
             try write(.sign, s.key.rawRepresentation)
             try write(.encSoftware, e.key.rawRepresentation)
             return DeviceKeys(signer: s, decryptor: e)
+            #else
+            throw KeyLoadError.noSecureEnclave
+            #endif
         }
         var err: Unmanaged<CFError>?
         guard let ac = SecAccessControlCreateWithFlags(nil, kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
