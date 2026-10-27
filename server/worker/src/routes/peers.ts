@@ -150,7 +150,7 @@ async function readSelf(c: Ctx, me: string, acct: string): Promise<SelfRow | und
 }
 
 async function readCtx(c: Ctx, me: string, acct: string, ids: string[]): Promise<{ caller?: CtxRow; byId: Map<string, CtxRow> }> {
-  const rows = await all<CtxRow>(c.log, c.env.DB.prepare(SQL.Q_CTX).bind(me, acct, JSON.stringify(ids)));
+  const rows = await all<CtxRow>(c.log, c.env.DB.prepare(SQL.Q_CTX(ids.length)).bind(me, acct, ...ids));
   const byId = new Map(rows.map((r) => [r.id, r]));
   return { caller: byId.get(me), byId };
 }
