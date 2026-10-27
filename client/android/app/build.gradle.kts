@@ -71,6 +71,45 @@ googleServices {
     missingGoogleServicesStrategy = com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy.IGNORE
 }
 
+// Release gate: a release assemble or bundle fails while a PLACEHOLDER or empty value is baked in.
+// Debug builds are unaffected.
+val releaseVapidKey = repoConstants["vapid_public_key"]?.toString() ?: ""
+val releaseGoogleClientId = (project.findProperty("pusharmor.googleWebClientId") ?: "PLACEHOLDER_GOOGLE_WEB_CLIENT_ID").toString()
+val googleServicesFile = file("src/play/google-services.json")
+fun releaseValueProblems(play: Boolean): List<String> {
+    val bad = mutableListOf<String>()
+    fun check(name: String, v: String) {
+        if (v.isBlank() || v.contains("placeholder", ignoreCase = true)) bad += "$name is empty or a PLACEHOLDER"
+    }
+    check("release/constants.json vapid_public_key (BuildConfig.VAPID_PUBLIC_KEY)", releaseVapidKey)
+    check("gradle property pusharmor.googleWebClientId (BuildConfig.GOOGLE_WEB_CLIENT_ID)", releaseGoogleClientId)
+    if (play) {
+        if (!googleServicesFile.isFile) bad += "app/src/play/google-services.json is missing"
+        else if (googleServicesFile.readText().contains("placeholder", ignoreCase = true)) {
+            bad += "app/src/play/google-services.json contains PLACEHOLDER values"
+        }
+    }
+    return bad
+}
+for (flavor in listOf("Play", "Foss")) {
+    tasks.register("checkRelease${flavor}Values") {
+        group = "verification"
+        description = "Fails when a release value is a PLACEHOLDER or empty."
+        val play = flavor == "Play"
+        doLast {
+            val bad = releaseValueProblems(play)
+            if (bad.isNotEmpty()) {
+                throw GradleException("release values not set:\n  - " + bad.joinToString("\n  - "))
+            }
+        }
+    }
+}
+tasks.configureEach {
+    val m = Regex("^(?:assemble|bundle)(Play|Foss)?Release$").matchEntire(name) ?: return@configureEach
+    val only = m.groupValues[1]
+    for (f in listOf("Play", "Foss")) if (only.isEmpty() || only == f) dependsOn("checkRelease${f}Values")
+}
+
 dependencies {
     implementation(project(":net"))
     implementation(project(":store"))
