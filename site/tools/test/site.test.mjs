@@ -274,6 +274,28 @@ test("assetlinks.json lists exactly the release cert SHA-256 values", (t) => {
   assert.deepEqual([...a[0].target.sha256_cert_fingerprints].sort(), want.map((f) => f.toUpperCase()).sort());
 });
 
+// Names every html/js/json/txt/_headers file under dir that holds an uppercase release placeholder.
+function placeholderFiles(dir) {
+  const bad = [];
+  for (const f of listFiles(dir)) {
+    if (!/\.(html|js|json|txt)$/.test(f) && f !== "_headers") continue;
+    const body = readFileSync(join(dir, f), "utf8");
+    for (const w of ["PLACEHOLDER", "CHROME_EXTENSION_ID"]) {
+      if (body.includes(w)) bad.push("site/public/" + f + ": " + w);
+    }
+  }
+  return bad;
+}
+
+test("placeholder scan names a file that holds only a PLACEHOLDER token", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "pa-ph-"));
+  try {
+    writeFileSync(join(tmp, "ok.html"), '<input placeholder="you@example.com">');
+    writeFileSync(join(tmp, "turnstile.html"), '<div data-sitekey="TURNSTILE_SITEKEY_PLACEHOLDER"></div>');
+    assert.deepEqual(placeholderFiles(tmp), ["site/public/turnstile.html: PLACEHOLDER"]);
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
+
 test("PA_RELEASE=1: no placeholder in release constants, assetlinks, site files or fdroid version", (t) => {
   if (!RELEASE) { t.skip("PA_RELEASE=1 not set"); return; }
   const bad = [];
@@ -284,10 +306,7 @@ test("PA_RELEASE=1: no placeholder in release constants, assetlinks, site files 
   }
   const a = JSON.parse(read(".well-known/assetlinks.json"));
   if (!a[0].target.sha256_cert_fingerprints.length) bad.push("assetlinks.json: empty sha256_cert_fingerprints");
-  for (const f of files) {
-    if (!/\.(html|js|json|txt)$/.test(f) && f !== "_headers") continue;
-    if (read(f).includes("CHROME_EXTENSION_ID")) bad.push("site/public/" + f + ": CHROME_EXTENSION_ID");
-  }
+  bad.push(...placeholderFiles(PUB));
   if (read("fdroid/android.txt").split("\n")[0] === "0.0.0") bad.push("fdroid/android.txt: version 0.0.0");
   assert.deepEqual(bad, []);
 });
