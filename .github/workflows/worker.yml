@@ -1,0 +1,72 @@
+name: worker
+
+# Worker tests only. CI never deploys the Worker: the owner runs
+# server/deploy/deploy.sh from a clean checkout.
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  test:
+    name: typecheck, vitest, deploy and ban scripts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - name: Install
+        working-directory: server/worker
+        run: npm ci --ignore-scripts
+      - name: Typecheck
+        working-directory: server/worker
+        run: npm run typecheck
+      - name: vitest (workerd, local D1, vendor mocks, D1 cost)
+        working-directory: server/worker
+        run: npm test
+      - name: Deploy script tests
+        run: node --test server/deploy/*.test.mjs
+      - name: Ban tool tests
+        run: node --test server/tools/ban/*.test.mjs
+      - name: Release preflight (repo config only, no wrangler call)
+        run: node server/deploy/preflight.mjs
+      - name: Release bundle check (wrangler deploy --dry-run, no upload, no login)
+        run: node server/deploy/check-bundle.mjs
+
+  migrations-compat:
+    name: migrations work with the previous Worker
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - name: Run the latest worker-v tag's vitest suite on the current migrations
+        run: |
+          tag="$(git tag -l 'worker-v*' --sort=-v:refname | head -n 1)"
+          if [ -z "$tag" ]; then
+            echo "no worker-v tag yet: nothing to check"
+            exit 0
+          fi
+          echo "previous Worker: $tag"
+          prev="$RUNNER_TEMP/prev"
+          git worktree add --detach "$prev" "$tag"
+          rm -rf "$prev/server/worker/migrations"
+          cp -R server/worker/migrations "$prev/server/worker/migrations"
+          cd "$prev/server/worker"
+          npm ci --ignore-scripts
+          # d1-cost is skipped: a new index can change rows_read
+          npx --no-install vitest run --exclude 'test/d1-cost.test.ts'
