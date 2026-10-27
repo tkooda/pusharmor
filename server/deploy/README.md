@@ -45,8 +45,8 @@ read-only `wrangler deployments status` and `wrangler versions view` and
 fails when one of those variables is missing, empty or a PLACEHOLDER.
 `check-bundle.mjs` then builds the bundle with `wrangler deploy --dry-run
 --outdir <tmp>` (no upload) and fails when it holds test code or a test route:
-resetHealth, clearTokens, TEST_MIGRATIONS, TEST_SECRETS, cloudflare:test, vitest,
-miniflare, "/test", "/debug" or "/__". No test hooks ship in a release.
+resetHealth, clearTokens, clearJwks, TEST_MIGRATIONS, TEST_SECRETS, cloudflare:test,
+vitest, miniflare, "/test", "/debug" or "/__". No test hooks ship in a release.
 
 ## Release steps
 
