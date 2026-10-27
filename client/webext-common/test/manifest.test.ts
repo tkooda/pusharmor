@@ -81,6 +81,23 @@ test("release build fails before any output on placeholders, or on CI dummies wi
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
+test("release build fails when the Chrome Beta id equals the public id or is not 32 letters a-p", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "pa-webext-"));
+  try {
+    const lp = join(tmp, "public.json");
+    for (const [beta, want] of [["a".repeat(32), /google_chrome_beta_extension_id equals google_chrome_extension_id/], ["A".repeat(32), /google_chrome_beta_extension_id is not 32 letters a-p/]] as const) {
+      writeFileSync(lp, JSON.stringify(pub));
+      assert.equal(spawnSync("node", [join(client, "..", "release", "ci-dummy.mjs"), lp]).status, 0);
+      writeFileSync(lp, JSON.stringify({ ...read(lp), google_chrome_extension_id: "a".repeat(32), google_chrome_beta_extension_id: beta }));
+      const r = spawnSync("node", [join(import.meta.dirname, "..", "build.mjs"), "--public", lp],
+        { encoding: "utf8", env: { ...process.env, PA_CI_DUMMY: "1" } });
+      assert.equal(r.status, 1, beta);
+      assert.match(r.stderr, want);
+      assert.doesNotMatch(r.stdout, /built/);
+    }
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
+
 function walk(dir: string): string[] {
   const out: string[] = [];
   for (const n of readdirSync(dir)) {

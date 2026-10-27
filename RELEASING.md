@@ -150,7 +150,8 @@ Store items and ids:
   release build or a dev zip), description stating it is a test build,
   visibility Private (trusted testers). Put its id in `release/public.json`
   `google_chrome_beta_extension_id`. The CWS service account must have access
-  to that item.
+  to that item. The release build and the `chrome/v` job fail when this id
+  equals the public id or is not 32 letters a-p.
 - Firefox: pick the Beta gecko id (e.g. `beta@pusharmor.com`, not the public
   id) for `mozilla_firefox_beta_addon_id`. The first `firefox/v` tag creates the
   unlisted add-on on AMO.

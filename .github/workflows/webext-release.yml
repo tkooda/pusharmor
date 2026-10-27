@@ -101,12 +101,16 @@ jobs:
             google_cws_wif_provider google_cws_wif_service_account
           echo "version=$version" >> "$GITHUB_OUTPUT"
       # The store upload goes to the private Beta item only; the public item is
-      # updated by hand from the prerelease (RELEASING.md).
+      # updated by hand from the prerelease (RELEASING.md). The Beta id must be
+      # a Chrome id and never the public id.
       - name: Chrome Web Store ids for the publish job
         id: cws
         run: |
           node -e '
             const p = require(process.argv[1]);
+            const beta = p.google_chrome_beta_extension_id;
+            if (beta === p.google_chrome_extension_id) throw new Error("google_chrome_beta_extension_id equals google_chrome_extension_id");
+            if (!/^[a-p]{32}$/.test(beta)) throw new Error("google_chrome_beta_extension_id is not 32 letters a-p");
             for (const k of ["google_cws_wif_provider", "google_cws_wif_service_account", "google_cws_publisher_id", "google_chrome_beta_extension_id"])
               console.log(k + "=" + p[k]);
           ' "$PWD/release/public.json" >> "$GITHUB_OUTPUT"
@@ -233,6 +237,10 @@ jobs:
           ITEM: ${{ needs.build-chrome.outputs.google_chrome_beta_extension_id }}
           ZIP: ${{ steps.files.outputs.beta }}
         run: |
+          if ! printf '%s' "$ITEM" | grep -qxE '[a-p]{32}'; then
+            echo "::error::Beta item id is not 32 letters a-p; refusing to upload"
+            exit 1
+          fi
           api="https://chromewebstore.googleapis.com"
           item="publishers/$PUB/items/$ITEM"
           r="$(curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/zip" \
