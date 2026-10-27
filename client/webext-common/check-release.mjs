@@ -6,10 +6,33 @@
 // ("PLACEHOLDER_..." or "placeholder-..."), a CI dummy (unless PA_CI_DUMMY=1), or a
 // local endpoint ("://localhost" or "127.0.0.1"). The bare word "localhost" is allowed:
 // the auto-open host rule names it to reject it.
+// Structural checks against the pinned allow-list release-allow.json: every zip entry must
+// be in its browser's "entries" list, every runtime message op the shipped JS dispatches on
+// (case labels of a switch on X.op, and X.op compared to a literal) must be in "ops" (a test
+// pins "ops" to the handlers in the source), and no shipped JS may touch globalThis.__*.
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { inflateRawSync } from "node:zlib";
+
+export const ALLOW = JSON.parse(readFileSync(new URL("./release-allow.json", import.meta.url), "utf8"));
+
+/** Op names a runtime message handler in the text dispatches on. */
+export function ops(text) {
+  const out = new Set();
+  for (const m of text.matchAll(/switch\s*\(\s*[\w$]+\.op\s*\)\s*\{/g)) {
+    let depth = 1;
+    let i = m.index + m[0].length;
+    while (i < text.length && depth > 0) {
+      if (text[i] === "{") depth++;
+      else if (text[i] === "}") depth--;
+      i++;
+    }
+    for (const c of text.slice(m.index, i).matchAll(/case\s+["'`]([^"'`]*)["'`]\s*:/g)) out.add(c[1]);
+  }
+  for (const m of text.matchAll(/(typeof\s+)?[\w$]+\.op\s*[!=]==?\s*["'`]([^"'`]*)["'`]/g)) if (!m[1]) out.add(m[2]);
+  return [...out];
+}
 
 /** Map of entry name to contents, from the zip central directory (stored or deflate). */
 export function readZip(buf) {
@@ -38,10 +61,13 @@ export function readZip(buf) {
 }
 
 /** Problems found in one release zip; chrome selects the Chrome manifest rule. */
-export function checkZip(buf, { chrome, dummyOk = process.env.PA_CI_DUMMY === "1" }) {
+export function checkZip(buf, { chrome, dummyOk = process.env.PA_CI_DUMMY === "1", allow = ALLOW }) {
   const bad = [];
   const files = readZip(buf);
+  const entries = new Set(allow.entries[chrome ? "chrome" : "firefox"]);
+  const allowedOps = new Set(allow.ops);
   for (const name of files.keys()) {
+    if (!entries.has(name)) bad.push(name + ": entry not in release-allow.json");
     if (name.endsWith(".map")) bad.push(name + ": source map");
     if (/(^|\/)tests?\//.test(name)) bad.push(name + ": test entry");
   }
@@ -54,6 +80,9 @@ export function checkZip(buf, { chrome, dummyOk = process.env.PA_CI_DUMMY === "1
     if (/placeholder[_-]/i.test(s)) bad.push(name + ": holds a PLACEHOLDER value");
     if (!dummyOk && /ci-fork-dummy/i.test(s)) bad.push(name + ": holds a CI dummy (allowed only with PA_CI_DUMMY=1)");
     if (/:\/\/localhost|127\.0\.0\.1/i.test(s)) bad.push(name + ": names a local endpoint");
+    if (!name.endsWith(".js")) continue;
+    if (/globalThis\s*(\.\s*__|\[\s*["'`]__)/.test(s)) bad.push(name + ": sets or reads globalThis.__*");
+    for (const op of ops(s)) if (!allowedOps.has(op)) bad.push(name + ": message op \"" + op + "\" not in release-allow.json");
   }
   return bad;
 }
