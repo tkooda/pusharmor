@@ -1,24 +1,24 @@
 // Builds both extensions: esbuild bundles to unminified ES modules, then
 // writes reproducible zips (sorted entries, fixed timestamps).
-//   node build.mjs          release build (no Chrome "key"); needs release/local.json
-//   node build.mjs --dev    dev build (Chrome "key" from release/local.json when set)
-//   --local FILE            read FILE instead of release/local.json
-// Build ids (VAPID public key, add-on id, Chrome dev key) come from the git-ignored
-// release/local.json; a release build fails when it is missing or holds a placeholder.
+//   node build.mjs          release build (no Chrome "key"); needs real ids in release/public.json
+//   node build.mjs --dev    dev build (Chrome "key" from release/public.json when set)
+//   --public FILE           read FILE instead of release/public.json
+// Build ids (VAPID public key, add-on id, Chrome dev key) come from the tracked
+// release/public.json; a release build fails while one holds a placeholder (or a
+// CI dummy without PA_CI_DUMMY=1).
 import { build } from "esbuild";
 import { mkdirSync, readFileSync, rmSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { deflateRawSync, deflateSync, crc32 } from "node:zlib";
-import { LOCAL_PATH, loadLocal, localProblems } from "../../release/local.mjs";
+import { PUBLIC_PATH, isUnset, loadPublic, publicProblems } from "../../release/public.mjs";
 
 const here = dirname(new URL(import.meta.url).pathname);
 const client = join(here, "..");
 const dev = process.argv.includes("--dev");
-const li = process.argv.indexOf("--local");
-const localPath = li > 0 ? process.argv[li + 1] : LOCAL_PATH;
-const local = loadLocal(localPath);
+const pi = process.argv.indexOf("--public");
+const pub = loadPublic(pi > 0 ? process.argv[pi + 1] : PUBLIC_PATH);
 if (!dev) {
-  const bad = localProblems(local, ["vapid_public_key", "firefox_addon_id"], localPath);
+  const bad = publicProblems(["webpush_vapid_public_key", "mozilla_firefox_addon_id"], pub);
   if (bad.length) {
     console.error("release build failed (dev builds: --dev):");
     for (const b of bad) console.error("  - " + b);
@@ -27,8 +27,8 @@ if (!dev) {
 }
 // A dev build takes a value only when it is set and not a placeholder.
 const value = (k) => {
-  const v = local ? local[k] : undefined;
-  return typeof v === "string" && v !== "" && !/placeholder/i.test(v) ? v : undefined;
+  const v = pub[k];
+  return typeof v === "string" && v !== "" && !isUnset(v) ? v : undefined;
 };
 
 function icon(size) {
@@ -139,7 +139,7 @@ async function shell(name, entries, iife, target, manifestFix) {
     legalComments: "inline",
     charset: "ascii",
     target,
-    define: { VAPID_PUBLIC_KEY: JSON.stringify(value("vapid_public_key") ?? "") },
+    define: { VAPID_PUBLIC_KEY: JSON.stringify(value("webpush_vapid_public_key") ?? "") },
     logLevel: "warning",
   };
   await build({ ...common, entryPoints: entries.map((e) => join(root, "src", e + ".ts")), outdir: out, format: "esm" });
@@ -155,9 +155,9 @@ async function shell(name, entries, iife, target, manifestFix) {
 }
 
 await shell("chrome", ["sw", "popup", "page"], [], "chrome121", (m) => {
-  if (dev && value("chrome_dev_key")) m.key = value("chrome_dev_key");
+  if (dev && value("google_chrome_dev_key")) m.key = value("google_chrome_dev_key");
 });
 await shell("firefox", ["background", "popup", "page"], [["cs", "sitefwd/cs"]], "firefox140", (m, out, root) => {
-  if (value("firefox_addon_id")) m.browser_specific_settings.gecko.id = value("firefox_addon_id");
+  if (value("mozilla_firefox_addon_id")) m.browser_specific_settings.gecko.id = value("mozilla_firefox_addon_id");
   writeFileSync(join(out, "background.html"), readFileSync(join(root, "background.html")));
 });
