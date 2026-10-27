@@ -115,4 +115,13 @@ class WorkerClientTest {
         assertTrue(client.send(emptyMap()) is ApiResult.Network)
         assertEquals(1, server.requestCount)
     }
+
+    @Test fun peersOnceIsOneShortAttempt() {
+        server.enqueue(ok("{\"peers\":[]}").setHeadersDelay(8, java.util.concurrent.TimeUnit.SECONDS))
+        val t = System.nanoTime()
+        assertTrue(client.peersOnce() is ApiResult.Network)
+        assertTrue((System.nanoTime() - t) / 1_000_000 < WorkerClient.ONCE_TIMEOUT_MS + 1_000)
+        assertEquals(1, server.requestCount)
+        assertTrue(slept.isEmpty())
+    }
 }
