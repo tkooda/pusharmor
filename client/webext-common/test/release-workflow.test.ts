@@ -41,6 +41,19 @@ test("no job with an Environment, secrets or id-token runs npm ci of the webext 
   }
 });
 
+test("no job with id-token runs npm or npx; submit-firefox has contents: read only", () => {
+  for (const [name, b] of jobs) {
+    if (/id-token: write/.test(b)) assert.doesNotMatch(b, /\b(npm|npx) /, name);
+  }
+  const submit = jobs.get("submit-firefox");
+  assert.ok(submit);
+  assert.match(submit, /^ {4}environment: firefox-release$/m);
+  assert.match(submit, /^ {4}needs: \[build-firefox, publish-firefox\]$/m);
+  assert.match(submit, /^ {4}permissions:\n {6}contents: read\n {4}\S/m);
+  assert.doesNotMatch(submit, /id-token/);
+  assert.match(submit, /sha256sum -c --strict/);
+});
+
 test("amo-sign pins only web-ext, at an exact version, with lockfile integrity", () => {
   const dir = join(repo, "client", "webext-common", "amo-sign");
   const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
