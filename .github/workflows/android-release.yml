@@ -1,0 +1,331 @@
+name: android-release
+
+# android-v* tags only. The golden vectors and android.yml run first; then three
+# jobs, so the signing keys never share a job with Gradle or a third-party action:
+#   android-rel-build    no Environment, no secrets: unsigned AAB and APKs
+#   android-rel-sign     Environment android-sign: keystores, no checkout
+#   android-rel-publish  Environment android-release: provenance, draft GitHub
+#                        Release, then the Play internal upload as the last step
+# Obtainium and F-Droid see only PUBLISHED releases: the owner publishes the draft
+# after the device checklist (component-ci-r1 section 6 step 7).
+on:
+  push:
+    tags:
+      - "android-v*"
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  JAVA_VERSION: "17.0.20+8"
+  SDK_PACKAGES: platforms;android-35 build-tools;35.0.0 build-tools;34.0.0 platform-tools
+  PACKAGE_NAME: com.pusharmor
+
+jobs:
+  vectors:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/vectors.yml
+
+  test:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/android.yml
+
+  android-rel-build:
+    name: release build (unsigned)
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/android-v')
+    needs: [vectors, test]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ github.ref_name }}
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      certs: ${{ steps.ids.outputs.certs }}
+      wif_provider: ${{ steps.ids.outputs.wif_provider }}
+      wif_service_account: ${{ steps.ids.outputs.wif_service_account }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - name: Release tag rule, version.properties and release values
+        id: tag
+        run: |
+          version="$(node release/tag.mjs android "$TAG")"
+          IFS=. read -r major minor patch <<EOF
+          $version
+          EOF
+          code=$((major * 1000000 + minor * 1000 + patch))
+          name_got="$(sed -n 's/^versionName=//p' release/version.properties)"
+          code_got="$(sed -n 's/^versionCode=//p' release/version.properties)"
+          if [ "$name_got" != "$version" ] || [ "$code_got" != "$code" ]; then
+            echo "release/version.properties ($name_got, $code_got) does not equal the tag ($version, $code)"
+            exit 1
+          fi
+          # PA_CI_DUMMY must be unset here; --check fails when it is set at all.
+          node release/public.mjs --check webpush_vapid_public_key google_web_client_id \
+            google_fcm_android_app_id google_fcm_project_number google_fcm_android_api_key \
+            google_fcm_project_id android_release_cert_sha256 \
+            google_play_wif_provider google_play_wif_service_account
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Ids for the sign and publish jobs
+        id: ids
+        run: |
+          node -e '
+            const p = require(process.argv[1]);
+            console.log("certs=" + JSON.stringify(p.android_release_cert_sha256));
+            console.log("wif_provider=" + p.google_play_wif_provider);
+            console.log("wif_service_account=" + p.google_play_wif_service_account);
+          ' "$PWD/release/public.json" >> "$GITHUB_OUTPUT"
+      - name: SOURCE_DATE_EPOCH from the tag commit
+        run: echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct "$TAG")" >> "$GITHUB_ENV"
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-disabled: true
+      - name: Android SDK packages (exact)
+        run: |
+          # shellcheck disable=SC2086
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install $SDK_PACKAGES < /dev/null
+      # The play APK is the universal APK Gradle builds (no splits); the foss APK
+      # needs nothing outside the repo (F-Droid builds it the same way).
+      - name: Release builds (AAB, play APK, foss APK)
+        working-directory: client/android
+        run: ./gradlew --no-daemon --stacktrace :app:bundlePlayRelease :app:assemblePlayRelease :app:assembleFossRelease
+      - name: Release APK check (play, foss)
+        working-directory: client/android
+        run: |
+          bash tools/check-release-apk.sh app/build/outputs/apk/play/release/app-play-release-unsigned.apk play
+          bash tools/check-release-apk.sh app/build/outputs/apk/foss/release/app-foss-release-unsigned.apk foss
+      - name: Foss dependency tree holds no Google Play services or Firebase
+        working-directory: client/android
+        run: |
+          ./gradlew --no-daemon --stacktrace -q :app:dependencies --configuration fossReleaseRuntimeClasspath > "$RUNNER_TEMP/foss-deps.txt"
+          if grep -nE 'com\.google\.android\.gms|com\.google\.firebase|credentials-play-services' "$RUNNER_TEMP/foss-deps.txt"; then
+            echo "the foss release dependency tree holds the artifacts above"
+            exit 1
+          fi
+      - name: Collect the unsigned files
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          o="$RUNNER_TEMP/unsigned"
+          b=client/android/app/build/outputs
+          mkdir -p "$o"
+          cp "$b/bundle/playRelease/app-play-release.aab" "$o/pusharmor-$VERSION-play.aab"
+          cp "$b/apk/play/release/app-play-release-unsigned.apk" "$o/pusharmor-$VERSION-play-unsigned.apk"
+          cp "$b/apk/foss/release/app-foss-release-unsigned.apk" "$o/pusharmor-$VERSION-foss-unsigned.apk"
+          cp "$b/mapping/playRelease/mapping.txt" "$o/pusharmor-$VERSION-play-mapping.txt"
+          cp "$b/mapping/fossRelease/mapping.txt" "$o/pusharmor-$VERSION-foss-mapping.txt"
+          (cd "$o" && sha256sum ./*)
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-unsigned
+          path: ${{ runner.temp }}/unsigned/
+          retention-days: 30
+          if-no-files-found: error
+
+  android-rel-sign:
+    name: sign (app signing key, upload key)
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/android-v')
+    needs: android-rel-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: android-sign
+    permissions: {}
+    env:
+      VERSION: ${{ needs.android-rel-build.outputs.version }}
+      CERTS: ${{ needs.android-rel-build.outputs.certs }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: android-unsigned
+          path: ${{ runner.temp }}/in
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      # build-tools 34.0.0: newer apksigner versions fail apksigcopier (F-Droid).
+      - name: build-tools 34.0.0
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "build-tools;34.0.0" < /dev/null'
+      - name: Keystores (decoded to RUNNER_TEMP, owner-only)
+        env:
+          APP_KEYSTORE_B64: ${{ secrets.ANDROID_APP_SIGNING_KEYSTORE_B64 }}
+          UPLOAD_KEYSTORE_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_B64 }}
+        run: |
+          umask 077
+          mkdir -p "$RUNNER_TEMP/keys"
+          printf '%s' "$APP_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/keys/app.keystore"
+          printf '%s' "$UPLOAD_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/keys/upload.keystore"
+          test -s "$RUNNER_TEMP/keys/app.keystore"
+          test -s "$RUNNER_TEMP/keys/upload.keystore"
+      # The app signing key signs both APKs: F-Droid reproducible builds ship our
+      # signature on the foss APK, and Obtainium users may install either one.
+      - name: Sign the play and foss APKs (apksigner, v2 + v3)
+        env:
+          KS_PASS: ${{ secrets.ANDROID_APP_SIGNING_STORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.ANDROID_APP_SIGNING_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_APP_SIGNING_KEY_ALIAS }}
+        run: |
+          bt="$ANDROID_HOME/build-tools/34.0.0"
+          in="$RUNNER_TEMP/in"
+          out="$RUNNER_TEMP/signed"
+          mkdir -p "$out"
+          for f in play foss; do
+            "$bt/zipalign" -c 4 "$in/pusharmor-$VERSION-$f-unsigned.apk"
+            "$bt/apksigner" sign --ks "$RUNNER_TEMP/keys/app.keystore" --ks-key-alias "$KEY_ALIAS" \
+              --ks-pass env:KS_PASS --key-pass env:KEY_PASS \
+              --v2-signing-enabled true --v3-signing-enabled true \
+              --out "$out/pusharmor-$VERSION-$f.apk" "$in/pusharmor-$VERSION-$f-unsigned.apk"
+          done
+      - name: Assert the APK certificate SHA-256 is in android_release_cert_sha256
+        run: |
+          bt="$ANDROID_HOME/build-tools/34.0.0"
+          : > "$RUNNER_TEMP/certs.txt"
+          for f in play foss; do
+            apk="$RUNNER_TEMP/signed/pusharmor-$VERSION-$f.apk"
+            "$bt/apksigner" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/verify.txt"
+            got="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/verify.txt" | tr -d ': ' | tr 'A-F' 'a-f')"
+            n="$(grep -c '^Signer #' "$RUNNER_TEMP/verify.txt" || true)"
+            if [ -z "$got" ] || grep -q '^Signer #2' "$RUNNER_TEMP/verify.txt"; then
+              echo "$f: expected exactly one signer ($n signer lines)"
+              exit 1
+            fi
+            if ! printf '%s' "$CERTS" | jq -r '.[]' | tr -d ': ' | tr 'A-F' 'a-f' | grep -qx "$got"; then
+              echo "$f: certificate SHA-256 $got is not in release/public.json android_release_cert_sha256"
+              exit 1
+            fi
+            echo "$got" >> "$RUNNER_TEMP/certs.txt"
+          done
+          if [ "$(sort -u "$RUNNER_TEMP/certs.txt" | wc -l)" != 1 ]; then
+            echo "the play and foss APKs carry different certificates"
+            exit 1
+          fi
+      - name: Sign the AAB with the upload key (jarsigner)
+        env:
+          KS_PASS: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+        run: |
+          aab="$RUNNER_TEMP/signed/pusharmor-$VERSION-play.aab"
+          cp "$RUNNER_TEMP/in/pusharmor-$VERSION-play.aab" "$aab"
+          jarsigner -keystore "$RUNNER_TEMP/keys/upload.keystore" -storepass:env KS_PASS -keypass:env KEY_PASS \
+            -sigalg SHA256withRSA -digestalg SHA-256 "$aab" "$KEY_ALIAS"
+          jarsigner -verify "$aab"
+      - name: Remove the keystores
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/keys"
+      - name: SHA-256 lines and hashes snippet
+        run: |
+          out="$RUNNER_TEMP/signed"
+          cert="$(head -n 1 "$RUNNER_TEMP/certs.txt")"
+          (cd "$out" && sha256sum "pusharmor-$VERSION-play.apk" "pusharmor-$VERSION-foss.apk") > "$RUNNER_TEMP/apk.sha256"
+          {
+            cat "$RUNNER_TEMP/apk.sha256"
+            echo "$cert  release certificate SHA-256 (the one release certificate; the upload key never appears)"
+          } > "$out/pusharmor-$VERSION.hashes.txt"
+          cat "$out/pusharmor-$VERSION.hashes.txt"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-signed
+          path: ${{ runner.temp }}/signed/
+          retention-days: 30
+          if-no-files-found: error
+
+  android-rel-publish:
+    name: publish (draft GitHub Release, Play internal track)
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/android-v')
+    needs: [android-rel-build, android-rel-sign]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: android-release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      TAG: ${{ github.ref_name }}
+      VERSION: ${{ needs.android-rel-build.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: android-signed
+          path: ${{ runner.temp }}/signed
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: android-unsigned
+          path: ${{ runner.temp }}/unsigned
+      - name: Release files
+        id: files
+        run: |
+          out="$RUNNER_TEMP/release"
+          mkdir -p "$out"
+          s="$RUNNER_TEMP/signed"
+          cp "$s/pusharmor-$VERSION-play.apk" "$s/pusharmor-$VERSION-foss.apk" "$s/pusharmor-$VERSION.hashes.txt" "$out/"
+          cp "$RUNNER_TEMP/unsigned/pusharmor-$VERSION-play-mapping.txt" "$RUNNER_TEMP/unsigned/pusharmor-$VERSION-foss-mapping.txt" "$out/"
+          (cd "$out" && sha256sum ./*.apk)
+          {
+            echo "dir=$out"
+            echo "aab=$s/pusharmor-$VERSION-play.aab"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            ${{ steps.files.outputs.dir }}/pusharmor-${{ env.VERSION }}-play.apk
+            ${{ steps.files.outputs.dir }}/pusharmor-${{ env.VERSION }}-foss.apk
+            ${{ steps.files.outputs.aab }}
+      # Stable asset names pusharmor-<version>-play.apk and -foss.apk: Obtainium
+      # filters by name.
+      - name: Draft GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DIR: ${{ steps.files.outputs.dir }}
+        run: gh release create "$TAG" --draft --verify-tag --title "$TAG" "$DIR"/*
+      - id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ needs.android-rel-build.outputs.wif_provider }}
+          service_account: ${{ needs.android-rel-build.outputs.wif_service_account }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+      # Last step: Play internal track (edits.insert, bundles.upload, tracks.update,
+      # edits.commit). A failure after the upload is fixed with a new patch tag.
+      - name: Upload the AAB to the Play internal track
+        env:
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+          AAB: ${{ steps.files.outputs.aab }}
+        run: |
+          api="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME"
+          up="https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/$PACKAGE_NAME"
+          auth="Authorization: Bearer $TOKEN"
+          edit="$(curl -fsS -X POST -H "$auth" -H "Content-Type: application/json" --data '{}' "$api/edits" | jq -r '.id')"
+          [ -n "$edit" ] && [ "$edit" != null ] || { echo "edits.insert returned no id"; exit 1; }
+          code="$(curl -fsS -X POST -H "$auth" -H "Content-Type: application/octet-stream" \
+            --data-binary "@$AAB" "$up/edits/$edit/bundles?uploadType=media" | jq -r '.versionCode')"
+          echo "uploaded versionCode: $code"
+          IFS=. read -r major minor patch <<EOF
+          $VERSION
+          EOF
+          if [ "$code" != "$((major * 1000000 + minor * 1000 + patch))" ]; then
+            echo "Play reports versionCode $code, not the tag's"
+            exit 1
+          fi
+          body="$(jq -nc --arg c "$code" '{track: "internal", releases: [{versionCodes: [$c], status: "completed"}]}')"
+          curl -fsS -X PUT -H "$auth" -H "Content-Type: application/json" --data "$body" "$api/edits/$edit/tracks/internal"
+          curl -fsS -X POST -H "$auth" "$api/edits/$edit:commit"
