@@ -33,15 +33,19 @@
     "APPLE_SIGNIN_KEY_ID": "id of the Sign in with Apple key",
     "APPLE_SIGNIN_KEY_P8": "Sign in with Apple key (.p8 content)"
   },
-  "local_keys": {
-    "release_cert_sha256": "list of Android release signing cert SHA-256 fingerprints (assetlinks, App Links)",
-    "chrome_extension_id": "Chrome Web Store extension id (site /turnstile framing)",
-    "chrome_dev_key": "Chrome manifest public key for dev builds (keeps the store id)",
-    "firefox_addon_id": "Firefox add-on (gecko) id",
-    "vapid_public_key": "Web Push VAPID public key baked into the site, extensions and Android",
-    "turnstile_sitekey": "Turnstile sitekey on /turnstile",
-    "google_web_client_id": "Google web OAuth client id used by Android sign-in",
-    "ios_development_team": "Apple developer team id for iOS signing",
-    "ios_google_client_id": "Google iOS OAuth client id"
+  "public_keys": {
+    "android_release_cert_sha256": "list of Android release signing cert SHA-256 fingerprints (assetlinks, App Links)",
+    "webpush_vapid_public_key": "Web Push VAPID public key baked into the site, extensions and Android",
+    "cloudflare_turnstile_sitekey": "Turnstile sitekey on /turnstile",
+    "google_chrome_extension_id": "Chrome Web Store extension id (site /turnstile framing)",
+    "google_chrome_dev_key": "Chrome manifest public key for dev builds (keeps the store id)",
+    "mozilla_firefox_addon_id": "Firefox add-on (gecko) id",
+    "google_web_client_id": "Google web OAuth client id used by Android (play) sign-in",
+    "google_ios_client_id": "Google iOS OAuth client id",
+    "apple_team_id": "Apple developer team id for iOS signing",
+    "google_fcm_project_id": "Firebase project id (Android play: project_id)",
+    "google_fcm_project_number": "Firebase project number, the FCM sender id (Android play: gcm_defaultSenderId)",
+    "google_fcm_android_app_id": "Firebase Android app id 1:<number>:android:<hex> (Android play: google_app_id)",
+    "google_fcm_android_api_key": "Firebase Android API key (Android play: google_api_key)"
   }
 }

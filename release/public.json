@@ -1,0 +1,16 @@
+{
+  "_doc": "Public build ids: shipped in the apps and the site, needed to build them. Edit the values here in a normal commit; release builds fail while a needed value is empty or a PLACEHOLDER. Meanings: release/names.json \"public_keys\".",
+  "android_release_cert_sha256": ["PLACEHOLDER_ANDROID_RELEASE_CERT_SHA256"],
+  "webpush_vapid_public_key": "PLACEHOLDER_WEBPUSH_VAPID_PUBLIC_KEY",
+  "cloudflare_turnstile_sitekey": "PLACEHOLDER_CLOUDFLARE_TURNSTILE_SITEKEY",
+  "google_chrome_extension_id": "PLACEHOLDER_GOOGLE_CHROME_EXTENSION_ID",
+  "google_chrome_dev_key": "PLACEHOLDER_GOOGLE_CHROME_DEV_KEY",
+  "mozilla_firefox_addon_id": "PLACEHOLDER_MOZILLA_FIREFOX_ADDON_ID",
+  "google_web_client_id": "PLACEHOLDER_GOOGLE_WEB_CLIENT_ID",
+  "google_ios_client_id": "PLACEHOLDER_GOOGLE_IOS_CLIENT_ID",
+  "apple_team_id": "PLACEHOLDER_APPLE_TEAM_ID",
+  "google_fcm_project_id": "PLACEHOLDER_GOOGLE_FCM_PROJECT_ID",
+  "google_fcm_project_number": "PLACEHOLDER_GOOGLE_FCM_PROJECT_NUMBER",
+  "google_fcm_android_app_id": "PLACEHOLDER_GOOGLE_FCM_ANDROID_APP_ID",
+  "google_fcm_android_api_key": "PLACEHOLDER_GOOGLE_FCM_ANDROID_API_KEY"
+}

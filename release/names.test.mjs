@@ -9,10 +9,10 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), "..");
 const names = JSON.parse(readFileSync(join(REPO, "release", "names.json"), "utf8"));
 const keys = (o) => Object.keys(o).sort();
 
-test("release/local.example.json has exactly the local_keys, each a PLACEHOLDER", () => {
-  const ex = JSON.parse(readFileSync(join(REPO, "release", "local.example.json"), "utf8"));
-  assert.deepEqual(keys(ex), keys(names.local_keys));
-  for (const [k, v] of Object.entries(ex)) assert.match(JSON.stringify(v), /PLACEHOLDER/, k);
+test("release/public.json has exactly the public_keys and a _doc", () => {
+  const pub = JSON.parse(readFileSync(join(REPO, "release", "public.json"), "utf8"));
+  assert.equal(typeof pub._doc, "string");
+  assert.deepEqual(keys(pub).filter((k) => k !== "_doc"), keys(names.public_keys));
 });
 
 test("server/worker/.dev.vars.example names exactly the Cloudflare vars and secrets", () => {
@@ -28,7 +28,7 @@ test("every Cloudflare name is a field of the Worker Env", () => {
   }
 });
 
-test("release/constants.json holds no local build id", () => {
+test("release/constants.json holds no public build id", () => {
   const c = JSON.parse(readFileSync(join(REPO, "release", "constants.json"), "utf8"));
-  for (const k of Object.keys(names.local_keys)) assert.equal(k in c, false, k);
+  for (const k of Object.keys(names.public_keys)) assert.equal(k in c, false, k);
 });
