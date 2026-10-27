@@ -2,7 +2,8 @@ name: ci
 
 # The one entry workflow for pull requests and pushes to main. It decides which
 # component files to call; ci-ok is the only required check. Release tags run
-# the component files directly (their own tag triggers), not this file.
+# the tag-only *-release.yml files, which call the same component files; every
+# call from here grants contents: read and nothing more.
 on:
   pull_request:
   push:
@@ -91,35 +92,25 @@ jobs:
       contents: read
     uses: ./.github/workflows/site.yml
 
-  # The called files also hold tag-only release jobs. GitHub checks every nested
-  # job's permissions against the caller's grant even when the job is skipped,
-  # so these grants are a ceiling only: on a pull request or main push every job
-  # that runs asks for contents: read and nothing else.
   webext:
     needs: changes
     if: needs.changes.outputs.webext == 'true'
     permissions:
-      contents: write
-      id-token: write
-      attestations: write
+      contents: read
     uses: ./.github/workflows/webext.yml
 
   android:
     needs: changes
     if: needs.changes.outputs.android == 'true'
     permissions:
-      contents: write
-      id-token: write
-      attestations: write
+      contents: read
     uses: ./.github/workflows/android.yml
 
   ios:
     needs: changes
     if: needs.changes.outputs.ios == 'true'
     permissions:
-      contents: write
-      id-token: write
-      attestations: write
+      contents: read
     uses: ./.github/workflows/ios.yml
 
   ci-ok:
