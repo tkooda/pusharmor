@@ -241,22 +241,27 @@ class ReceiveEngine(
     private val me: Identity,
     private val effects: Effects,
 ) {
+    /** Lookup, decide and apply run in ONE transaction (I288); notices run after it commits. */
     fun onMessage(wire: String, now: Long): Inbound {
-        val inbound = ReceivePipeline.run(wire, me.keys, me.id, me.account, store::peer, store::window, store::historyIdFor)
-        when (inbound) {
-            is Inbound.Unreadable -> {
-                store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = inbound.peerId, type = "unreadable", at = now, read = true))
-                if (inbound.fetch) effects.fetchPeersSoon()
-                effects.couldNotRead()
+        var after: (() -> Unit)? = null
+        val inbound = store.tx {
+            val inbound = ReceivePipeline.run(wire, me.keys, me.id, me.account, store::peer, store::window, store::historyIdFor)
+            when (inbound) {
+                is Inbound.Unreadable -> {
+                    store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = inbound.peerId, type = "unreadable", at = now, read = true))
+                    after = { if (inbound.fetch) effects.fetchPeersSoon(); effects.couldNotRead() }
+                }
+                is Inbound.Invalid -> {
+                    store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = inbound.peerId, type = "invalid", at = now, read = true))
+                    after = { effects.invalidMessage() }
+                }
+                is Inbound.RePresent -> after = { effects.rePresent(inbound.historyId) }
+                is Inbound.Duplicate -> after = { rePresentControl(inbound.peerId, inbound.body) }
+                is Inbound.Accepted -> after = apply(inbound, now)
             }
-            is Inbound.Invalid -> {
-                store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = inbound.peerId, type = "invalid", at = now, read = true))
-                effects.invalidMessage()
-            }
-            is Inbound.RePresent -> effects.rePresent(inbound.historyId)
-            is Inbound.Duplicate -> rePresentControl(inbound.peerId, inbound.body)
-            is Inbound.Accepted -> apply(inbound, now)
+            inbound
         }
+        after?.invoke()
         return inbound
     }
 
@@ -273,11 +278,12 @@ class ReceiveEngine(
         }
     }
 
-    private fun apply(a: Inbound.Accepted, now: Long) {
+    /** Runs inside the caller's transaction; returns the notices to post after it commits. */
+    private fun apply(a: Inbound.Accepted, now: Long): (() -> Unit)? {
         var after: (() -> Unit)? = null
-        store.tx {
+        run {
             store.putWindow(a.peerId, a.pairingId, a.window)
-            val peer0 = store.peer(a.peerId) ?: return@tx
+            val peer0 = store.peer(a.peerId) ?: return@run
             val peer = if (peer0.missing) peer0.copy(missing = false) else peer0
             if (peer !== peer0) store.putPeer(peer)
             when (val e = a.effect) {
@@ -322,7 +328,7 @@ class ReceiveEngine(
                 }
             }
         }
-        after?.invoke()
+        return after
     }
 }
 
