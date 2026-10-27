@@ -59,6 +59,8 @@ export async function start(c: Ctx): Promise<Response> {
   const email = normalizeEmail(b.email);
   const eh = b64urlEncode(await emailHash(email));
   await enforce(c.env, "RL_MAIL", "mail:" + eh, c.log);
+  // Per IP (a limiter key only, never stored): address variants from one IP share this cap.
+  await enforce(c.env, "RL_MAIL", "mailip:" + (c.req.headers.get("CF-Connecting-IP") ?? ""), c.log);
   await enforce(c.env, "RL_MAIL_ALL", "mail:all", c.log);
   const token = await makeToken(c.env.TOKEN_SECRET, LABEL_REQUEST_TOKEN, { t: nowS(), e: eh, m: email, k: await keyRef(raw), p: purpose });
   const code = await deriveCode(c.env.CODE_SECRET, token);
