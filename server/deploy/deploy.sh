@@ -99,11 +99,11 @@ rollback_hint() {
   echo "rollback: (cd server/worker && npx wrangler rollback)" >&2
   exit 1
 }
-(cd "$WORKER_DIR" && "$WRANGLER" deploy --dry-run --outdir "$TMP/bundle") || rollback_hint
+# The hash is of the bundle this deploy uploads (--outdir), not of a separate build.
+(cd "$WORKER_DIR" && "$WRANGLER" deploy --outdir "$TMP/bundle") || rollback_hint
 BUNDLE_HASH="$(cd "$TMP/bundle" && find . -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -d' ' -f1)" || rollback_hint
 [ -n "$BUNDLE_HASH" ] || rollback_hint
 echo "bundle sha256: $BUNDLE_HASH"
-(cd "$WORKER_DIR" && "$WRANGLER" deploy) || rollback_hint
 
 # 6. smoke test
 smoke() {
