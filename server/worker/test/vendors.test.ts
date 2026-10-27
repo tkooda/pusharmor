@@ -6,7 +6,7 @@ import { BUDGET_MS, fanout, SUBREQUEST_WORST_CASE, type Target } from "../src/pu
 import { apnsPayload } from "../src/push/apns";
 import { deps } from "../src/push/deps";
 import { mintFcmToken } from "../src/push/fcm";
-import { getToken, peekToken } from "../src/push/tokencache";
+import { clearTokens, getToken, MAX_TOKENS, peekToken } from "../src/push/tokencache";
 import { Log } from "../src/log";
 import { authAlerts, recordHealth } from "../src/push/results";
 import { healthCheck } from "../src/scheduled";
@@ -272,5 +272,25 @@ describe("vendor auth alert (I274)", () => {
     expect(texts).toContain("PushArmor vendor auth alert");
     expect(log.extra.auth_alert).toBe("apns");
     expect(env.DB).toBeTruthy();
+  });
+});
+
+describe("token cache bound (I316)", () => {
+  it("evicts only vapid keys; apns and fcm stay", async () => {
+    clearTokens();
+    const mint = async () => ({ value: "t", mintedAt: 0, useUntil: 1e12 });
+    await getToken("apns", mint, 1);
+    await getToken("fcm", mint, 1);
+    const apns = peekToken("apns");
+    const fcm = peekToken("fcm");
+    for (let i = 0; i < 300; i++) await getToken("vapid:https://h" + i + ".example", mint, 1);
+    expect(peekToken("apns")).toBe(apns);
+    expect(peekToken("fcm")).toBe(fcm);
+    let vapid = 0;
+    for (let i = 0; i < 300; i++) if (peekToken("vapid:https://h" + i + ".example")) vapid++;
+    expect(vapid).toBeLessThanOrEqual(MAX_TOKENS);
+    expect(vapid).toBeGreaterThan(0);
+    expect(peekToken("vapid:https://h299.example")).toBeDefined();
+    clearTokens();
   });
 });

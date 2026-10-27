@@ -16,12 +16,22 @@ export const MIN_FORCE_MS = 60 * 1000;
 // Thrown when mint() fails, so callers can tell a mint failure from other build errors.
 export class MintError extends Error {}
 
+// Only "vapid:" keys are bounded and evicted. Fixed vendor tokens ("apns", "fcm") never are.
+const VAPID_PREFIX = "vapid:";
+
 function put(key: string, v: Cached, nowMs: number): void {
   cache.delete(key);
-  if (cache.size >= MAX_TOKENS) {
-    for (const [k, x] of cache) if (nowMs >= x.useUntil) cache.delete(k);
+  if (key.startsWith(VAPID_PREFIX)) {
+    let n = 0;
+    for (const k of cache.keys()) if (k.startsWith(VAPID_PREFIX)) n++;
+    if (n >= MAX_TOKENS) {
+      for (const [k, x] of cache) if (k.startsWith(VAPID_PREFIX) && nowMs >= x.useUntil) { cache.delete(k); n--; }
+    }
+    for (const k of cache.keys()) {
+      if (n < MAX_TOKENS) break;
+      if (k.startsWith(VAPID_PREFIX)) { cache.delete(k); n--; }
+    }
   }
-  while (cache.size >= MAX_TOKENS) cache.delete(cache.keys().next().value!);
   cache.set(key, v);
 }
 
