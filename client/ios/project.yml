@@ -1,0 +1,123 @@
+# XcodeGen spec: `xcodegen generate` writes PushArmor.xcodeproj (not committed).
+name: PushArmor
+options:
+  bundleIdPrefix: com.pusharmor
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MARKETING_VERSION: "0.0.1"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""                        # set at the store bootstrap
+    APP_BUNDLE_ID: com.pusharmor.app            # repo constant after the store bootstrap
+    GOOGLE_IOS_CLIENT_ID: ""                    # iOS-type OAuth client id (no secret)
+    GOOGLE_CALLBACK_SCHEME: ""                  # com.googleusercontent.apps.$ID
+    CODE_SIGN_STYLE: Automatic
+packages:
+  PushArmorCore:
+    path: PushArmorCore
+targets:
+  PushArmor:
+    type: application
+    platform: iOS
+    sources:
+      - App
+      - Shared
+    dependencies:
+      - package: PushArmorCore
+      - target: PushArmorNSE
+      - target: PushArmorShare
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: PushArmor
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        PAAppGroup: group.$(APP_BUNDLE_ID)
+        PAKeychainGroup: $(AppIdentifierPrefix)$(APP_BUNDLE_ID).shared
+        PAGoogleClientID: $(GOOGLE_IOS_CLIENT_ID)
+        CFBundleURLTypes:
+          - CFBundleURLName: google-oauth
+            CFBundleURLSchemes: [$(GOOGLE_CALLBACK_SCHEME)]
+    entitlements:
+      path: App/PushArmor.entitlements
+      properties:
+        aps-environment: development
+        com.apple.security.application-groups: [group.$(APP_BUNDLE_ID)]
+        keychain-access-groups: [$(AppIdentifierPrefix)$(APP_BUNDLE_ID).shared]
+        com.apple.developer.applesignin: [Default]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
+        TARGETED_DEVICE_FAMILY: "1"
+  PushArmorNSE:
+    type: app-extension
+    platform: iOS
+    sources:
+      - NSE
+      - Shared
+    dependencies:
+      - package: PushArmorCore
+    info:
+      path: NSE/Info.plist
+      properties:
+        CFBundleDisplayName: PushArmorNSE
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        PAAppGroup: group.$(APP_BUNDLE_ID)
+        PAKeychainGroup: $(AppIdentifierPrefix)$(APP_BUNDLE_ID).shared
+        PAGoogleClientID: ""
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
+    entitlements:
+      path: NSE/PushArmorNSE.entitlements
+      properties:
+        com.apple.security.application-groups: [group.$(APP_BUNDLE_ID)]
+        keychain-access-groups: [$(AppIdentifierPrefix)$(APP_BUNDLE_ID).shared]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).nse
+  PushArmorShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Share
+      - Shared
+    dependencies:
+      - package: PushArmorCore
+    info:
+      path: Share/Info.plist
+      properties:
+        CFBundleDisplayName: PushArmor
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        PAAppGroup: group.$(APP_BUNDLE_ID)
+        PAKeychainGroup: $(AppIdentifierPrefix)$(APP_BUNDLE_ID).shared
+        PAGoogleClientID: ""
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+              NSExtensionActivationSupportsText: true
+    entitlements:
+      path: Share/PushArmorShare.entitlements
+      properties:
+        com.apple.security.application-groups: [group.$(APP_BUNDLE_ID)]
+        keychain-access-groups: [$(AppIdentifierPrefix)$(APP_BUNDLE_ID).shared]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).share
+schemes:
+  PushArmor:
+    build:
+      targets:
+        PushArmor: all
+    test:
+      targets: []
