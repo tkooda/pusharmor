@@ -446,3 +446,11 @@ test("delete-account init: a hash without ticket= is cleared with a retry messag
   const js = read("js/delete-account.js");
   assert.ok(/h\.length > 1\) \{\s*history\.replaceState\(null, "", location\.pathname\);\s*await restart\("Sign-in did not finish/.test(js));
 });
+
+test("delete-account init: an OAuth #error=<word> hash is handled by the generic hash branch (I306)", () => {
+  const js = read("js/delete-account.js");
+  // The ticket branch is keyed on "ticket="; any other non-empty hash (#error=cancelled, #error=failed) is cleared with the retry text.
+  assert.ok(js.indexOf('h.indexOf("ticket=") >= 0') < js.indexOf("h.length > 1"));
+  assert.ok(!/ticket=/.test(js.slice(js.indexOf("h.length > 1"), js.indexOf('await restart("");'))));
+  assert.ok(js.includes('"Sign-in did not finish. Try again."'));
+});
