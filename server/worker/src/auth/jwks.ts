@@ -3,7 +3,7 @@
 import { b64urlDecode } from "../codec/b64url";
 import { utf8 } from "../crypto/hash";
 import { ApiError } from "../errors";
-import { deps } from "../push/deps";
+import { deps, transportScoped } from "../push/deps";
 
 export type Provider = "google" | "apple";
 
@@ -27,13 +27,10 @@ interface Jwk {
   y?: string;
 }
 
-const jwksCache = new Map<Provider, { keys: Jwk[]; until: number }>();
-const lastRefetch = new Map<Provider, number>();
-
-export function clearJwks(): void {
-  jwksCache.clear();
-  lastRefetch.clear();
-}
+const state = transportScoped("jwks", () => ({
+  jwksCache: new Map<Provider, { keys: Jwk[]; until: number }>(),
+  lastRefetch: new Map<Provider, number>(),
+}));
 
 async function fetchJwks(p: Provider): Promise<Jwk[]> {
   const res = await deps.fetch(JWKS_URL[p], { method: "GET", redirect: "manual", signal: AbortSignal.timeout(5000) });
@@ -44,11 +41,12 @@ async function fetchJwks(p: Provider): Promise<Jwk[]> {
   const j = (await res.json()) as { keys?: Jwk[] };
   const keys = Array.isArray(j.keys) ? j.keys : [];
   const m = /max-age=([0-9]+)/.exec(res.headers.get("Cache-Control") ?? "");
-  jwksCache.set(p, { keys, until: deps.now() + (m ? Math.min(Number(m[1]), 86400) : 3600) * 1000 });
+  state().jwksCache.set(p, { keys, until: deps.now() + (m ? Math.min(Number(m[1]), 86400) : 3600) * 1000 });
   return keys;
 }
 
 async function findKey(p: Provider, kid: string): Promise<Jwk | undefined> {
+  const { jwksCache, lastRefetch } = state();
   const c = jwksCache.get(p);
   if (!c) return (await fetchJwks(p)).find((x) => x.kid === kid);
   const now = deps.now();
