@@ -58,8 +58,9 @@
     "google_fcm_project_number": "Firebase project number, the FCM sender id (Android play: gcm_defaultSenderId)",
     "google_fcm_android_app_id": "Firebase Android app id 1:<number>:android:<hex> (Android play: google_app_id)",
     "google_fcm_android_api_key": "Firebase Android API key (Android play: google_api_key)",
-    "google_play_wif_provider": "Workload Identity provider resource name for the Play upload and the Chrome Web Store (release jobs only)",
+    "google_play_wif_provider": "Workload Identity provider resource name for the Play upload only (release jobs only)",
     "google_play_wif_service_account": "service account email for the Play upload (release jobs only)",
+    "google_cws_wif_provider": "Workload Identity provider for the Chrome Web Store (release jobs only)",
     "google_cws_wif_service_account": "service account email for the Chrome Web Store API (release jobs only)",
     "google_cws_publisher_id": "Chrome Web Store publisher id (release jobs only)"
   },

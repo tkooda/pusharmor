@@ -54,7 +54,7 @@ jobs:
           version="$(node release/tag.mjs chrome "$TAG")"
           node release/public.mjs --check webpush_vapid_public_key mozilla_firefox_addon_id \
             google_chrome_extension_id google_cws_publisher_id \
-            google_play_wif_provider google_cws_wif_service_account
+            google_cws_wif_provider google_cws_wif_service_account
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Install
         working-directory: client/webext-common
@@ -101,13 +101,13 @@ jobs:
         run: |
           node -e '
             const p = require(process.argv[1]);
-            for (const k of ["google_play_wif_provider", "google_cws_wif_service_account", "google_cws_publisher_id", "google_chrome_extension_id"])
+            for (const k of ["google_cws_wif_provider", "google_cws_wif_service_account", "google_cws_publisher_id", "google_chrome_extension_id"])
               console.log(k + "=" + p[k]);
           ' "$PWD/release/public.json" >> "$GITHUB_OUTPUT"
       - id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
-          workload_identity_provider: ${{ steps.cws.outputs.google_play_wif_provider }}
+          workload_identity_provider: ${{ steps.cws.outputs.google_cws_wif_provider }}
           service_account: ${{ steps.cws.outputs.google_cws_wif_service_account }}
           token_format: access_token
           access_token_scopes: https://www.googleapis.com/auth/chromewebstore
