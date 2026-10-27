@@ -1,0 +1,21 @@
+#!/bin/sh
+# Test for check-release-values.sh. Run: sh client/ios/tools/check-release-values.test.sh
+here="$(cd "$(dirname "$0")" && pwd)"
+s="$here/check-release-values.sh"
+d="$(mktemp -d)"; trap 'rm -rf "$d"' EXIT
+mkdir "$d/App"
+fail=0
+expect() { # name want-status, rest is env
+  name="$1"; want="$2"; shift 2
+  env -i PATH="$PATH" SRCROOT="$d" "$@" sh "$s" >/dev/null 2>"$d/err"; got=$?
+  if [ "$got" != "$want" ]; then echo "FAIL $name: status $got, want $want"; fail=1; else echo "ok $name"; fi
+}
+GOOD="DEVELOPMENT_TEAM=ABCDE12345 GOOGLE_IOS_CLIENT_ID=1-x GOOGLE_CALLBACK_SCHEME=com.googleusercontent.apps.1-x"
+printf '<key>aps-environment</key>\n<string>production</string>\n' > "$d/App/PushArmor.entitlements"
+expect debug-empty 0 CONFIGURATION=Debug
+expect release-empty 1 CONFIGURATION=Release
+expect release-good 0 CONFIGURATION=Release $GOOD
+expect release-placeholder 1 CONFIGURATION=Release DEVELOPMENT_TEAM=PLACEHOLDER_TEAM GOOGLE_IOS_CLIENT_ID=1-x GOOGLE_CALLBACK_SCHEME=s
+printf '<key>aps-environment</key>\n<string>development</string>\n' > "$d/App/PushArmor.entitlements"
+expect release-aps-dev 1 CONFIGURATION=Release $GOOD
+exit $fail
