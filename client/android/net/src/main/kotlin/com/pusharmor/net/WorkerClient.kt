@@ -26,6 +26,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.ResponseBody
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -55,6 +56,8 @@ class WorkerClient(
 ) : Api {
     companion object {
         const val BUDGET_MS = 8_000L
+        /** Largest reply body read; a longer one is a network failure (I299). */
+        const val MAX_BODY = 1L shl 20
         val BACKOFF_MS = longArrayOf(500, 1500, 3000)
         private val JSON = "application/json".toMediaType()
 
@@ -95,11 +98,13 @@ class WorkerClient(
             val reply: Reply? = try {
                 http.newCall(req).execute().use { r ->
                     r.header("PA-Epoch-Ms")?.toLongOrNull()?.let { offset.offsetMs = it - now() }
-                    val text = r.body?.string().orEmpty()
+                    val text = r.body?.let { readCapped(it) }.orEmpty()
                     val json = try { Json.parseToJsonElement(text) as? JsonObject } catch (e: Exception) { null }
                     retryAfter = r.header("Retry-After")?.toLongOrNull() ?: json?.get("retry_after")?.jsonPrimitive?.longOrNull
                     Reply(r.code, json, retryAfter)
                 }
+            } catch (e: BodyTooLarge) {
+                return null // a hostile or broken reply: not retried
             } catch (e: IOException) {
                 null
             }
@@ -110,6 +115,14 @@ class WorkerClient(
             sleep(wait)
             attempt++
         }
+    }
+
+    private class BodyTooLarge : IOException("reply body over cap")
+
+    private fun readCapped(b: ResponseBody): String {
+        val src = b.source()
+        if (src.request(MAX_BODY + 1)) throw BodyTooLarge()
+        return src.buffer.readUtf8()
     }
 
     private fun <T> result(reply: Reply?, parse: (JsonObject) -> T): ApiResult<T> {
