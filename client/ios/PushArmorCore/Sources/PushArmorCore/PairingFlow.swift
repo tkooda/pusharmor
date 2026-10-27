@@ -80,7 +80,7 @@ extension Core {
                 return (out, try store.pairing(from), try store.peer(from))
             }
         } catch {
-            return drop(mode)
+            return drop(mode, fault: true)
         }
         let (out, entry, peer) = decided
         var banner: Banner?
@@ -111,14 +111,19 @@ extension Core {
     func onReply(from: PeerId, signPub: Data, encPub: Data, rX: Data, me: PeerId, mode: ReceiveMode) async -> ReceiveResult {
         let now = clock()
         let my = myKeys
-        let e: PairingEntry? = try? store.db.write {
-            guard var e = try store.pairing(from), e.role == .n, e.state == .committed, let rN = e.r else { return nil }
-            let pid = PairingCrypto.pairingId(rN: rN, rX: rX)
-            let fp = PairingCrypto.fingerprint(signPubN: my.sign, encPubN: my.enc, signPubX: signPub, encPubX: encPub, rN: rN, rX: rX)
-            try store.pin(from, signPub: signPub, encPub: encPub, pairingId: pid, fingerprint: fp)
-            e.state = .shown
-            try store.savePairing(e)
-            return e
+        let e: PairingEntry?
+        do {
+            e = try store.db.write {
+                guard var e = try store.pairing(from), e.role == .n, e.state == .committed, let rN = e.r else { return nil }
+                let pid = PairingCrypto.pairingId(rN: rN, rX: rX)
+                let fp = PairingCrypto.fingerprint(signPubN: my.sign, encPubN: my.enc, signPubX: signPub, encPubX: encPub, rN: rN, rX: rX)
+                try store.pin(from, signPub: signPub, encPub: encPub, pairingId: pid, fingerprint: fp)
+                e.state = .shown
+                try store.savePairing(e)
+                return e
+            }
+        } catch {
+            return drop(mode, fault: true)
         }
         guard let entry = e else { return drop(mode) }
         _ = await sendOpen(entry, nse: mode == .nse)
@@ -129,7 +134,8 @@ extension Core {
     func onOpen(from: PeerId, signPub: Data, encPub: Data, rN: Data, me: PeerId, mode: ReceiveMode) -> ReceiveResult {
         enum R { case drop, abort, shown(String) }
         let my = myKeys
-        let r: R = (try? store.db.write { () -> R in
+        let r: R
+        do { r = try store.db.write { () -> R in
             guard var e = try store.pairing(from), e.role == .x, let cN = e.cN, let rX = e.r else { return .drop }
             let matches = PairingCrypto.commit(signPubN: signPub, encPubN: encPub, rN: rN) == cN
             if e.state == .shown {
@@ -150,7 +156,9 @@ extension Core {
             e.unsent = false
             try store.savePairing(e)
             return .shown(fp)
-        }) ?? .drop
+        } } catch {
+            return drop(mode, fault: true)
+        }
         switch r {
         case .drop, .abort: return drop(mode)
         case .shown(let fp): return .plain(mode == .nse ? pairBanner(S.pairOpen(fp), n: from, x: me, peer: from) : nil)
