@@ -1,0 +1,38 @@
+# Local tool settings
+.claude/
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+out/
+*.zip
+*.xpi
+*.crx
+.wrangler/
+.gradle/
+local.properties
+.build/
+.swiftpm/
+DerivedData/
+xcuserdata/
+*.apk
+*.aab
+
+# Secrets and local env
+.env
+.env.*
+.dev.vars
+*.keystore
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+
+# Editor and OS files
+.DS_Store
+.idea/
+*.iml
+.vscode/
