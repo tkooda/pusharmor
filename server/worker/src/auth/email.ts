@@ -77,7 +77,10 @@ export async function verify(c: Ctx): Promise<Response> {
   }
   const purpose = checkPurpose(rt.p);
   if (nowS() - rt.t > REQUEST_TOKEN_LIFE_S) throw new ApiError(401, "code expired");
-  await enforce(c.env, "RL_CODE", "code:" + rt.e, c.log);
+  // Per request token, so wrong guesses on one token cannot lock out a later token for the same email;
+  // codeall: is the looser cap over every token of one email.
+  await enforce(c.env, "RL_CODE", "code:" + rt.e + ":" + b.request_token.slice(b.request_token.lastIndexOf(".") + 1), c.log);
+  await enforce(c.env, "RL_CODE_ALL", "codeall:" + rt.e, c.log);
   if (!(await checkCode(c.env.CODE_SECRET, b.request_token, b.code))) throw new ApiError(401, "wrong code");
   const eh = b64urlDecode(rt.e);
   if (!eh || eh.length !== 32) throw new ApiError(401, "wrong code");
