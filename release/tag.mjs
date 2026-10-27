@@ -3,8 +3,9 @@
 //   node release/tag.mjs --check TAG       release jobs: the checked-out tag obeys
 //                                          the rules; prints X.Y.Z
 // Rules: a version is bound to one commit (every tag of X.Y.Z points at the same
-// commit, and a commit carries one version); a new version is greater than every
-// existing tag; the version files at the commit hold X.Y.Z (stampProblems).
+// commit, and a commit carries one version); a new version (no tag of it yet) is
+// greater than every existing tag; the version files at the commit hold X.Y.Z
+// (stampProblems).
 // Platforms may skip numbers. Android versionCode and the iOS build number are
 // buildNumber(X.Y.Z) = X * 1000000 + Y * 1000 + Z, so they grow with the version.
 // Tag mode fetches the tags of origin first (when a remote origin exists). When
@@ -60,6 +61,8 @@ export function formatProblems(platform, version) {
  */
 export function tagProblems(version, commit, tags) {
   const bad = [];
+  // A version already bound to this commit is not new: another platform may join it.
+  const bound = tags.some((t) => parseTag(t.name)?.version === version && t.commit === commit);
   for (const t of tags) {
     const p = parseTag(t.name);
     if (!p) continue;
@@ -67,7 +70,7 @@ export function tagProblems(version, commit, tags) {
       if (t.commit !== commit) bad.push(version + " is bound to commit " + t.commit.slice(0, 12) + " by tag " + t.name);
     } else if (t.commit === commit) {
       bad.push("the commit already carries version " + p.version + " (tag " + t.name + ")");
-    } else if (cmp(version, p.version) <= 0) {
+    } else if (!bound && cmp(version, p.version) <= 0) {
       bad.push(version + " is not greater than the existing tag " + t.name);
     }
   }
