@@ -61,6 +61,20 @@ extension Core {
         return count
     }
 
+    /// Delivered-notification drain: steps 4-9 with no banner for each userInfo whose "m"
+    /// the NSE did not stamp as handled (TapStamp.drainM). Returns the indexes drained; the
+    /// app removes those notifications.
+    public func drainDelivered(_ infos: [[AnyHashable: Any]]) async -> [Int] {
+        let key = try? TapStamp.key(store)
+        var done: [Int] = []
+        for (i, info) in infos.enumerated() {
+            guard let m = TapStamp.drainM(info, key: key) else { continue }
+            _ = await receive(m, mode: .drain)
+            done.append(i)
+        }
+        return done
+    }
+
     /// History retention: auto-delete rows older than N days (default 30).
     public func pruneHistory() throws {
         let days = Int64(try store.setting(SettingKey.historyDays) ?? "30") ?? 30
