@@ -1,0 +1,38 @@
+import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers";
+import { defineConfig } from "vitest/config";
+import { TEST_SECRETS } from "./test/secrets.ts";
+
+
+export default defineConfig(async () => {
+  const migrations = await readD1Migrations("./migrations");
+  return {
+    plugins: [
+      cloudflareTest({
+        main: "./src/index.ts",
+        wrangler: { configPath: "./wrangler.jsonc" },
+        miniflare: {
+          bindings: {
+            ...TEST_SECRETS,
+            TEST_MIGRATIONS: migrations,
+            FCM_PROJECT_ID: "test-project",
+            APNS_TOPIC: "com.example.pusharmor",
+            APNS_KEY_ID: "TESTAPNSKID",
+            APNS_TEAM_ID: "TESTTEAMID",
+            VAPID_SUB: "mailto:ops@example.com",
+            SES_REGION: "us-east-1",
+            MAIL_FROM: "codes@example.com",
+            SES_CONFIG_SET: "test-config-set",
+            GOOGLE_AUD_WEB: '["google-web-client"]',
+            GOOGLE_AUD_NATIVE: '["google-web-client","google-ios-client"]',
+            APPLE_AUD_WEB: "com.example.pusharmor.web",
+            APPLE_AUD_NATIVE: "com.example.pusharmor",
+            OAUTH_REDIRECT_CHROME: "https://extid.chromiumapp.org/",
+          },
+        },
+      }),
+    ],
+    test: {
+      setupFiles: ["./test/setup.ts"],
+    },
+  };
+});
