@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -9,8 +9,8 @@ import { test } from "node:test";
 const client = join(import.meta.dirname, "..", "..");
 const read = (p: string) => JSON.parse(readFileSync(p, "utf8"));
 const constants = read(join(client, "..", "release", "constants.json"));
-const localPath = join(client, "..", "release", "local.json");
-const local = existsSync(localPath) ? read(localPath) : null;
+const publicPath = join(client, "..", "release", "public.json");
+const pub = read(publicPath);
 const chrome = read(join(client, "chrome", "manifest.json"));
 const firefox = read(join(client, "firefox", "manifest.json"));
 
@@ -55,24 +55,27 @@ test("Chrome manifest: MV3, no key in the committed or release manifest, permiss
   if (existsSync(built) && !existsSync(join(client, "chrome", "dist", "pusharmor-chrome-dev.zip"))) assert.equal("key" in read(built), false);
 });
 
-test("Chrome extension id equals the id derived from the dev key (once both are real in release/local.json)", () => {
-  const key = (local?.chrome_dev_key ?? "PLACEHOLDER") as string;
-  const id = (local?.chrome_extension_id ?? "PLACEHOLDER") as string;
-  if (key.startsWith("PLACEHOLDER") || id.startsWith("PLACEHOLDER")) return;
+test("Chrome extension id equals the id derived from the dev key (once both are real in release/public.json)", () => {
+  const key = pub.google_chrome_dev_key as string;
+  const id = pub.google_chrome_extension_id as string;
+  if (/placeholder|ci-fork-dummy/i.test(key + id)) return;
   const h = createHash("sha256").update(Buffer.from(key, "base64")).digest();
   let derived = "";
   for (const b of h.subarray(0, 16)) derived += String.fromCharCode(97 + (b >> 4)) + String.fromCharCode(97 + (b & 15));
   assert.equal(derived, id);
 });
 
-test("release build fails before any output when the local file is missing or holds placeholders", () => {
+test("release build fails before any output on placeholders, or on CI dummies without PA_CI_DUMMY=1", () => {
   const tmp = mkdtempSync(join(tmpdir(), "pa-webext-"));
   try {
-    const example = join(client, "..", "release", "local.example.json");
-    for (const lp of [join(tmp, "none.json"), example]) {
-      const r = spawnSync("node", [join(import.meta.dirname, "..", "build.mjs"), "--local", lp], { encoding: "utf8" });
+    const dummy = join(tmp, "public.json");
+    writeFileSync(dummy, JSON.stringify(pub));
+    assert.equal(spawnSync("node", [join(client, "..", "release", "ci-dummy.mjs"), dummy]).status, 0);
+    for (const [lp, want] of [[publicPath, /webpush_vapid_public_key is a PLACEHOLDER/], [dummy, /webpush_vapid_public_key is a CI dummy/]] as const) {
+      const r = spawnSync("node", [join(import.meta.dirname, "..", "build.mjs"), "--public", lp],
+        { encoding: "utf8", env: { ...process.env, PA_CI_DUMMY: "" } });
       assert.equal(r.status, 1, lp);
-      assert.match(r.stderr, lp === example ? /vapid_public_key is a PLACEHOLDER/ : /is missing; copy release\/local\.example\.json/);
+      assert.match(r.stderr, want);
       assert.doesNotMatch(r.stdout, /built/);
     }
   } finally { rmSync(tmp, { recursive: true, force: true }); }

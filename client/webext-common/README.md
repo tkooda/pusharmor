@@ -22,8 +22,8 @@ Node 24 runs the TypeScript tests directly (type stripping).
 
 The build is reproducible: unminified ES modules, zip entries sorted, fixed
 timestamps. Build ids (VAPID public key, Firefox add-on id, Chrome dev key)
-come from the git-ignored `release/local.json` (copy
-`release/local.example.json` and fill it). A release build fails when the
-file is missing or holds a placeholder; `--dev` builds without it.
+come from the tracked `release/public.json` (edit it in a normal commit). A
+release build fails while a needed value is a placeholder (or a CI dummy
+without `PA_CI_DUMMY=1`); `--dev` builds work with the placeholders.
 
 The golden test reads `tests/vectors/golden-v1.json` at the repo root.
