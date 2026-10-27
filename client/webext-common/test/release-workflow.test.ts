@@ -16,14 +16,14 @@ const jobs = new Map<string, string>();
 const privileged = (b: string) => /^ {4}environment:/m.test(b) || /id-token: write/.test(b) || /\$\{\{ secrets\./.test(b);
 
 test("each browser has a build job and a publish job in its Environment", () => {
-  for (const [b, env] of [["chrome", "chrome-release"], ["firefox", "firefox-release"]]) {
+  for (const [b, env, needs] of [["chrome", "chrome-release", "build-chrome"], ["firefox", "firefox-release", "\\[build-firefox, submit-firefox\\]"]]) {
     const build = jobs.get("build-" + b);
     const publish = jobs.get("publish-" + b);
     assert.ok(build && publish, b);
     assert.equal(privileged(build), false, "build-" + b);
     assert.match(build, /^ {4}permissions:\n {6}contents: read\n {4}\S/m, "build-" + b);
     assert.match(publish, new RegExp("^ {4}environment: " + env + "$", "m"));
-    assert.match(publish, new RegExp("^ {4}needs: build-" + b + "$", "m"));
+    assert.match(publish, new RegExp("^ {4}needs: " + needs + "$", "m"));
   }
 });
 
@@ -48,10 +48,23 @@ test("no job with id-token runs npm or npx; submit-firefox has contents: read on
   const submit = jobs.get("submit-firefox");
   assert.ok(submit);
   assert.match(submit, /^ {4}environment: firefox-release$/m);
-  assert.match(submit, /^ {4}needs: \[build-firefox, publish-firefox\]$/m);
+  assert.match(submit, /^ {4}needs: build-firefox$/m);
   assert.match(submit, /^ {4}permissions:\n {6}contents: read\n {4}\S/m);
   assert.doesNotMatch(submit, /id-token/);
   assert.match(submit, /sha256sum -c --strict/);
+});
+
+test("CI uploads only to the test channels: private Chrome Beta item, unlisted Firefox Beta add-on, GitHub prerelease", () => {
+  const chrome = jobs.get("publish-chrome")!;
+  assert.match(chrome, /ITEM: \$\{\{ needs\.build-chrome\.outputs\.google_chrome_beta_extension_id \}\}/);
+  assert.match(chrome, /ZIP: \$\{\{ steps\.files\.outputs\.beta \}\}/);
+  assert.doesNotMatch(wf, /outputs\.google_chrome_extension_id|STAGED_PUBLISH|--channel listed/);
+  assert.match(jobs.get("submit-firefox")!, /--channel unlisted/);
+  assert.doesNotMatch(wf, /--draft/);
+  const creates = wf.match(/gh release create .*/g) ?? [];
+  assert.equal(creates.length, 2);
+  for (const c of creates) assert.match(c, /--prerelease --verify-tag/);
+  for (const b of ["chrome", "firefox"]) assert.match(jobs.get("publish-" + b)!, /refusing to change its assets/);
 });
 
 test("amo-sign pins only web-ext, at an exact version, with lockfile integrity", () => {
