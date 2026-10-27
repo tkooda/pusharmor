@@ -55,8 +55,11 @@ export function jsonList(raw: string): string[] {
   }
 }
 
+// An unset (empty) or non-https target would make a relative Location: 503.
 function redirectFor(env: Env, r: Client): string {
-  return r === "chrome" ? env.OAUTH_REDIRECT_CHROME : r === "firefox" ? env.OAUTH_REDIRECT_FIREFOX : r === "android" ? env.OAUTH_REDIRECT_ANDROID : env.OAUTH_REDIRECT_WEB;
+  const t = r === "chrome" ? env.OAUTH_REDIRECT_CHROME : r === "firefox" ? env.OAUTH_REDIRECT_FIREFOX : r === "android" ? env.OAUTH_REDIRECT_ANDROID : env.OAUTH_REDIRECT_WEB;
+  if (!t.startsWith("https://")) throw new ApiError(503, "unavailable");
+  return t;
 }
 
 function callbackUri(c: Ctx, p: ProviderCfg): string {
@@ -115,6 +118,7 @@ export async function oauthStart(c: Ctx, p: ProviderCfg): Promise<Response> {
   if (k === null || k.length !== 43 || b64urlDecode(k)?.length !== 32) throw bad();
   if (r === null || !(CLIENTS as readonly string[]).includes(r)) throw bad();
   if (r === "web" && purpose !== "delete-account") throw bad();
+  redirectFor(c.env, r as Client);
   const n = b64urlEncode(crypto.getRandomValues(new Uint8Array(16)));
   const state = await makeToken(c.env.TOKEN_SECRET, LABEL_STATE, { k, r, p: purpose, exp: nowS() + STATE_LIFE_S, n });
   const verifier = await pkceVerifier(c.env.TOKEN_SECRET, n);
@@ -140,6 +144,7 @@ export async function oauthCallback(c: Ctx, p: ProviderCfg, params: URLSearchPar
   if (!st || typeof st.k !== "string" || typeof st.r !== "string" || typeof st.n !== "string" || typeof st.exp !== "number") throw bad();
   if (st.exp < nowS()) throw bad();
   if (!(CLIENTS as readonly string[]).includes(st.r)) throw bad();
+  const target = redirectFor(c.env, st.r as Client);
   const purpose = checkPurpose(st.p);
   if (code === null || code.length === 0 || code.length > 4096) throw new ApiError(401, "invalid id_token");
   const verifier = await pkceVerifier(c.env.TOKEN_SECRET, st.n);
@@ -148,7 +153,6 @@ export async function oauthCallback(c: Ctx, p: ProviderCfg, params: URLSearchPar
   const email = await verifyIdToken(ex.id_token, { provider: p.name, auds: p.webAuds(c.env), nonce: await oauthNonce(purpose, st.k) });
   const sealed = p.name === "apple" && purpose === "delete-account" ? await sealApple(c.env, ex.refresh_token, clientId) : undefined;
   const t = await ticketReply(c.env, email, st.k, purpose, sealed);
-  const target = redirectFor(c.env, st.r as Client);
   return redirect(`${target}#ticket=${encodeURIComponent(t.ticket)}&email=${encodeURIComponent(t.email)}`);
 }
 

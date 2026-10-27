@@ -179,6 +179,24 @@ describe("Google", () => {
     expect((await call("GET", `/v1/auth/google/callback?code=x&state=${state.slice(0, -2)}AA`)).status).toBe(400);
   });
 
+  it("empty client redirect -> 503 at start and callback, never a relative Location (I296)", async () => {
+    const g = await idp("RS256");
+    serveJwks("www.googleapis.com", g);
+    const k = await keys();
+    const kr = await keyRef(b64urlDecode(k.signPub)!);
+    const s = await call("GET", `/v1/auth/google?k=${kr}&r=chrome&p=register`);
+    const state = secretString(new URL(s.res.headers.get("Location")!).searchParams.get("state")!);
+    const env = await testEnv({ OAUTH_REDIRECT_CHROME: "" });
+    const s2 = await call("GET", `/v1/auth/google?k=${kr}&r=chrome&p=register`, undefined, { env });
+    expect(s2.status).toBe(503);
+    onVendor((r) => r.url === "https://oauth2.googleapis.com/token", async () =>
+      Response.json({ id_token: await idToken(g, { iss: "accounts.google.com", aud: "google-web-client", exp: Math.floor(Date.now() / 1000) + 60, nonce: await oauthNonce("register", kr), email: randomEmail(), email_verified: true }) }),
+    );
+    const cb = await call("GET", `/v1/auth/google/callback?code=${secretString("authcode123")}&state=${state}`, undefined, { env });
+    expect(cb.status).toBe(503);
+    expect(cb.res.headers.get("Location")).toBeNull();
+  });
+
   it("JWKS: unknown kid refetches at most once per 60 s; stale keys survive a failed refetch (I295)", async () => {
     const g = await idp("RS256");
     serveJwks("www.googleapis.com", g);
