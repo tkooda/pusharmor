@@ -1,0 +1,12 @@
+{
+  "entries": {
+    "chrome": ["icons/icon-128.png", "manifest.json", "page.html", "page.js", "popup.html", "popup.js", "style.css", "sw.js"],
+    "firefox": ["background.html", "background.js", "cs.js", "icons/icon-128.png", "manifest.json", "page.html", "page.js", "popup.html", "popup.js", "style.css"]
+  },
+  "ops": [
+    "approve", "authDone", "cancel", "deny", "detect", "emailStart", "emailVerify", "evict", "fingerprintShown",
+    "fx-msg", "fx-sub", "greyedTap", "hide", "history", "historyDeleteAll", "historyOpened", "historyRead",
+    "localDelete", "loginPurpose", "oauth", "pair", "peers", "popupOpen", "refresh", "remove", "rename", "reply",
+    "send", "sendAgain", "settings", "signout", "state"
+  ]
+}

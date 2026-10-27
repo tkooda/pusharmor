@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { crc32, deflateRawSync } from "node:zlib";
 // @ts-expect-error plain .mjs module without types
-import { checkZip, readZip } from "../check-release.mjs";
+import { checkZip, ops, readZip } from "../check-release.mjs";
+import { readFileSync } from "node:fs";
 
 /** Minimal zip writer: even entries deflate, odd entries stored. */
 function zip(files: Record<string, string>): Buffer {
@@ -50,8 +51,12 @@ const GOOD = {
   "popup.html": '<input placeholder="Code">',
   "icons/icon-128.png": "png",
 };
-const check = (files: Record<string, string>, chrome = true, dummyOk = false): string[] =>
-  checkZip(zip(files), { chrome, dummyOk });
+const { "sw.js": swJs, ...SHARED } = GOOD;
+const GOOD_FX = { ...SHARED, "background.js": swJs, "cs.js": "", "background.html": "<script src=background.js></script>" };
+const check = (files: Record<string, string>, chrome = true, dummyOk = false): string[] => {
+  const fx = !chrome && "sw.js" in files ? (({ "sw.js": s, ...r }) => ({ ...r, "background.js": s }))(files) : files;
+  return checkZip(zip(chrome ? files : fx), { chrome, dummyOk });
+};
 
 test("readZip reads stored and deflated entries", () => {
   const m = readZip(zip({ a: "one", b: "two", c: "three" }));
@@ -62,6 +67,7 @@ test("readZip reads stored and deflated entries", () => {
 test("a clean release zip passes (bare localhost word and input placeholders allowed)", () => {
   assert.deepEqual(check(GOOD), []);
   assert.deepEqual(check(GOOD, false), []);
+  assert.deepEqual(check(GOOD_FX, false), []);
 });
 
 test("Chrome manifest key fails; Firefox has no such rule", () => {
@@ -87,4 +93,32 @@ test("placeholders, CI dummies and local endpoints fail", () => {
   assert.deepEqual(check(dummy, true, true), []);
   assert.match(check({ ...GOOD, "page.js": 'fetch("http://localhost:8787/v1")' }).join(), /local endpoint/);
   assert.match(check({ ...GOOD, "popup.html": '<a href="http://127.0.0.1/">' }).join(), /local endpoint/);
+});
+
+test("an entry not in the per-browser allow-list fails", () => {
+  assert.match(check({ ...GOOD, "testhelper.js": "" }).join(), /testhelper\.js: entry not in release-allow\.json/);
+  assert.match(check({ ...GOOD, "mocks/fake.js": "" }).join(), /mocks\/fake\.js: entry not in/);
+  assert.match(check({ ...GOOD, "cs.js": "" }).join(), /cs\.js: entry not in/);
+  assert.match(checkZip(zip({ ...GOOD_FX, "sw.js": "" }), { chrome: false }).join(), /sw\.js: entry not in/);
+});
+
+test("a globalThis.__ hook in shipped JS fails", () => {
+  assert.match(check({ ...GOOD, "sw.js": "globalThis.__pa_test = { db };" }).join(), /sw\.js: sets or reads globalThis\.__/);
+  assert.match(check({ ...GOOD, "page.js": 'globalThis["__pa"] = 1;' }).join(), /globalThis\.__/);
+});
+
+test("a runtime message op not in the allow-list fails", () => {
+  const sw = 'switch (req2.op) {\n case "state":\n return 1;\n case "debugDump": {\n return dump();\n }\n}';
+  assert.match(check({ ...GOOD, "sw.js": sw }).join(), /sw\.js: message op "debugDump" not in release-allow\.json/);
+  const bg = 'if (msg.op === "fx-sub") x(); if (msg.op === "debugDump") return dump();';
+  assert.match(check({ ...GOOD_FX, "background.js": bg }, false).join(), /message op "debugDump"/);
+  assert.deepEqual(check({ ...GOOD, "sw.js": 'if (typeof m.op !== "string") return false; switch (r.op) { case "peers": { } case "fx-msg": }' }), []);
+});
+
+test("the op allow-list matches the runtime message handlers in the source", () => {
+  const src = ["webext-common/src/core/rpc.ts", "webext-common/src/shellkit.ts", "chrome/src/sw.ts", "firefox/src/background.ts"]
+    .map((f) => readFileSync(new URL("../../" + f, import.meta.url), "utf8"))
+    .join("\n");
+  const allow = JSON.parse(readFileSync(new URL("../release-allow.json", import.meta.url), "utf8"));
+  assert.deepEqual(ops(src).sort(), [...allow.ops].sort());
 });
