@@ -37,6 +37,8 @@ public final class Core: @unchecked Sendable {
     public var keys: DeviceKeys
     public weak var hooks: PlatformHooks?
     public let clock: @Sendable () -> Int64
+    /// Serializes the app's drain entry points (I328).
+    let gate = DrainGate()
 
     public init(store: Store, api: APIClient, keys: DeviceKeys, hooks: PlatformHooks? = nil,
                 clock: @escaping @Sendable () -> Int64 = { Int64(Date().timeIntervalSince1970) }) {

@@ -102,7 +102,9 @@ final class NSEFlowTests: XCTestCase {
         forged["done"] = "1"
         drained = await x.core.drainDelivered([["m": m, "done": "1", "tap": "history"], forged])
         XCTAssertEqual(drained, [0, 1])
-        XCTAssertEqual(try events(), 3)
+        // one "m" is one push: the second copy is removed, not run again (I328)
+        XCTAssertEqual(try events(), 2)
+        XCTAssertEqual(TapStamp.drainM(forged, key: key), m)
     }
 
     /// I313: a push the NSE put in the locked inbox is also delivered unmarked; the delivered
@@ -357,6 +359,30 @@ final class NSEFlowTests: XCTestCase {
         let h = try x.core.store.history()
         for t in ["one", "two"] { XCTAssertEqual(h.filter { $0.content == t }.count, 1, t) }
         XCTAssertEqual(h.filter { $0.event == .couldNotRead }.count, 0)
+        inbox.removeAll()
+    }
+    /// I328: a tap receive and the foreground locked drain on the same "m" at once write one
+    /// event. A held write lock parks both mid-receive until both have started.
+    func testTapAndLockedDrainAtOnceOneEvent() async throws {
+        let w = FakeWorker(), clock = TestClock()
+        let x = try Device(worker: w, clock: clock, name: "Xdev")
+        let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-nse-\(UUID().uuidString)"))
+        let m = String(repeating: "A", count: 120)   // strict b64url that does not open: a final drop
+        try inbox.write(m, nowMs: 1)
+        let other = try DB(path: x.path)
+        try other.exec("BEGIN IMMEDIATE")
+        let core = x.core
+        async let locked = core.drainLockedInbox(inbox)
+        async let tap = core.receiveTapped(m, inbox: inbox)
+        try await Task.sleep(nanoseconds: 300_000_000)
+        try other.exec("ROLLBACK")
+        let (l, t) = await (locked, tap)
+        XCTAssertTrue(l.held.isEmpty)
+        XCTAssertFalse(t.fault)
+        XCTAssertEqual(inbox.files().count, 0)
+        let ev = try x.core.store.history().filter { $0.event == .couldNotRead }
+        XCTAssertEqual(ev.count, 1)
+        XCTAssertEqual(ev.first?.count, 1)
         inbox.removeAll()
     }
 }

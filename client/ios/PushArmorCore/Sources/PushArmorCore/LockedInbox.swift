@@ -52,22 +52,65 @@ public struct LockedInbox: Sendable {
     public func removeAll() { try? FileManager.default.removeItem(at: dir) }
 }
 
+/// One drain at a time per Core (I328): the locked drain, the delivered drain and a tap
+/// receive never run pushes at once in the app process. It also keeps the "m" values that
+/// reached a final verdict, so a later entry point does not run them again (newest 200).
+actor DrainGate {
+    static let cap = 200
+    private var busy = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private var done: Set<String> = []
+    private var order: [String] = []
+
+    func acquire() async {
+        if !busy { busy = true; return }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    func release() {
+        if waiters.isEmpty { busy = false } else { waiters.removeFirst().resume() }
+    }
+
+    func isDone(_ m: String) -> Bool { done.contains(m) }
+
+    func markDone(_ m: String) {
+        guard done.insert(m).inserted else { return }
+        order.append(m)
+        if order.count > DrainGate.cap { done.remove(order.removeFirst()) }
+    }
+}
+
 extension Core {
+    /// Runs body with the drain gate held (I328).
+    func serially<T>(_ body: () async -> T) async -> T {
+        await gate.acquire()
+        let r = await body()
+        await gate.release()
+        return r
+    }
+
     /// Locked-inbox drain (ios 7): steps 4-9 with no banner for each file in name order,
     /// rows unread; a failed file writes one unreadable event row (done by receive) and is
     /// deleted too. A fault keeps the file for the next drain (I321). Returns the number of
     /// messages received while locked, the "m" values run, which the delivered drain then
     /// skips (I313), and the "m" values held by a fault, which it neither runs nor removes.
-    /// Each "m" runs at most once per pass; a second file with an "m" already run is deleted (I327).
+    /// Each "m" runs at most once per pass; a second file with an "m" already run is deleted (I327),
+    /// as is a file whose "m" another entry point already took to a final verdict (I328).
     public func drainLockedInbox(_ inbox: LockedInbox) async -> (count: Int, ms: Set<String>, held: Set<String>) {
+        await serially { await drainLockedInboxNow(inbox) }
+    }
+
+    private func drainLockedInboxNow(_ inbox: LockedInbox) async -> (count: Int, ms: Set<String>, held: Set<String>) {
         var count = 0
         var ms: Set<String> = []
         var held: Set<String> = []
         for f in inbox.files() {
             if let m = inbox.m(of: f) {
-                if ms.contains(m) || held.contains(m) { try? FileManager.default.removeItem(at: f); continue }
+                let seen = await gate.isDone(m)
+                if seen || ms.contains(m) || held.contains(m) { try? FileManager.default.removeItem(at: f); continue }
                 let r = await receive(m, mode: .drain)
                 if r.fault { held.insert(m); continue }
+                await gate.markDone(m)
                 ms.insert(m)
                 if r.newMessage { count += 1 }
             } else if drop(.drain).fault {
@@ -83,30 +126,42 @@ extension Core {
     /// locked-inbox drain) is not run again (I313). Returns the indexes drained; the app
     /// removes those notifications. A fault leaves the notification for the next drain (I322);
     /// an "m" in held (its locked-inbox file kept by a fault) is neither run nor removed (I321).
+    /// An "m" another entry point already took to a final verdict is removed, not run (I328).
     public func drainDelivered(_ infos: [[AnyHashable: Any]], skip: Set<String> = [], held: Set<String> = []) async -> [Int] {
-        let key = try? TapStamp.key(store)
-        var done: [Int] = []
-        for (i, info) in infos.enumerated() {
-            guard let m = TapStamp.drainM(info, key: key), !held.contains(m) else { continue }
-            if !skip.contains(m), await receive(m, mode: .drain).fault { continue }
-            done.append(i)
+        await serially {
+            let key = try? TapStamp.key(store)
+            var done: [Int] = []
+            for (i, info) in infos.enumerated() {
+                guard let m = TapStamp.drainM(info, key: key), !held.contains(m) else { continue }
+                let seen = await gate.isDone(m)
+                if !skip.contains(m) && !seen {
+                    if await receive(m, mode: .drain).fault { continue }
+                    await gate.markDone(m)
+                }
+                done.append(i)
+            }
+            return done
         }
-        return done
     }
 
     /// A tapped notification's "m" runs steps 4-9 with no banner (TapStamp.drainM). iOS removes
     /// a tapped notification, so a fault keeps "m" in the locked inbox for the next drain (I325),
     /// in one file only. A final verdict deletes any locked-inbox copy (an NSE fault's), so the
-    /// next locked drain does not run "m" again (I327).
+    /// next locked drain does not run "m" again (I327). An "m" another entry point already
+    /// took to a final verdict is not run again (I328).
     public func receiveTapped(_ m: String, inbox: LockedInbox) async -> ReceiveResult {
-        let r = await receive(m, mode: .drain)
-        let copies = inbox.files(holding: m)
-        if r.fault {
-            if copies.isEmpty { try? inbox.write(m, nowMs: clock() * 1000) }
-        } else {
-            for f in copies { try? FileManager.default.removeItem(at: f) }
+        await serially {
+            if await gate.isDone(m) { return .plain(nil) }
+            let r = await receive(m, mode: .drain)
+            let copies = inbox.files(holding: m)
+            if r.fault {
+                if copies.isEmpty { try? inbox.write(m, nowMs: clock() * 1000) }
+            } else {
+                await gate.markDone(m)
+                for f in copies { try? FileManager.default.removeItem(at: f) }
+            }
+            return r
         }
-        return r
     }
 
     /// History retention: auto-delete rows older than N days (default 30).
