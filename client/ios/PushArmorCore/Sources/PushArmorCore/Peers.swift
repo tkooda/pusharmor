@@ -236,22 +236,22 @@ extension Core {
     }
 
     /// Deny. A pinned peer gets a signed deny message; the entry ends. An unpinned row has no
-    /// pin to sign under, so its Deny is a local ruling only (see the component README).
+    /// pairing id: its deny is sealed to the listed key under an all-zero pairing id (as webext
+    /// and Android); X drops it, but the Worker still records the deny.
     public func deny(_ x: PeerId) async -> ApproveOutcome {
         guard let p = try? store.peer(x) else { return .error(0) }
-        var outcome = ApproveOutcome.result("local")
-        if p.pinned {
-            do {
-                let out = try await signedWithMessages("POST", "/v1/deny/" + x.text) {
-                    JOut.obj([("c", .str(try buildMessage(to: x) { _ in .deny }))]).data
-                }
-                guard let r = out.reply else { return .network }
-                if r.status == 429 { return .rateLimited(clock() + Int64(r.retryAfter ?? 60)) }
-                guard r.ok, let res = r.json?["r"]?.stringValue else { return .error(r.status) }
-                outcome = res == "denied" ? .denied : .result(res)
-            } catch {
-                return .error(0)
+        let outcome: ApproveOutcome
+        do {
+            let out = try await signedWithMessages("POST", "/v1/deny/" + x.text) {
+                let c = p.pinned ? try buildMessage(to: x) { _ in .deny } : try unpinnedDenyMessage(p)
+                return JOut.obj([("c", .str(c))]).data
             }
+            guard let r = out.reply else { return .network }
+            if r.status == 429 { return .rateLimited(clock() + Int64(r.retryAfter ?? 60)) }
+            guard r.ok, let res = r.json?["r"]?.stringValue else { return .error(r.status) }
+            outcome = res == "denied" ? .denied : .result(res)
+        } catch {
+            return .error(0)
         }
         try? store.db.write {
             guard var q = try store.peer(x) else { return }
@@ -261,6 +261,14 @@ extension Core {
             try store.allowRemove(x.text)
         }
         return outcome
+    }
+
+    /// Deny for an unpinned row: no pairing id exists, so it is sealed to the listed key with
+    /// an all-zero pairing id and n = 1 (no counter exists without a pin; as Android).
+    func unpinnedDenyMessage(_ p: Peer) throws -> String {
+        guard let enc = p.listEncPub else { throw CoreError.notPinned }
+        return try InnerMessage.seal(InnerJSON(n: 1, content: .deny), signer: keys.signer, from: try myId(), to: p.id,
+                                     toEncPub: enc, pairingId: Data(count: 8), keys: nil)
     }
 
     // MARK: rename, remove, local actions

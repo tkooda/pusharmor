@@ -57,8 +57,9 @@ bootstrap. The App Group is `group.$APP_BUNDLE_ID`; the Keychain access group is
 
 ## Notes
 
-- Deny on an unpinned peer row is a local ruling only: without a pin there is
-  no pairing id and no trusted key to sign and seal a deny message.
+- Deny on an unpinned peer row sends a deny message sealed to the listed key
+  with an all-zero pairing id and n = 1 (as the browser extension and Android).
+  The peer cannot verify it and drops it; the Worker still records the deny.
 - Pair messages: an open is accepted in state replied, or in state prompted when
   the reply was authorized but its "sent" result was not recorded yet; the c_N
   check applies either way.

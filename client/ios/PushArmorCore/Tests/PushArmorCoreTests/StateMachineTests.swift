@@ -148,6 +148,17 @@ final class StateMachineTests: XCTestCase {
         XCTAssertFalse(try n.core.store.allowSet().contains(o.id.text))
     }
 
+    /// I285: Deny on an unpinned row posts a deny (zero pairing id) so the Worker sets deny[X].
+    func testDenyUnpinnedRowPostsDeny() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        await n.core.fetchPeers(force: true)
+        XCTAssertFalse(try n.core.store.peer(x.id)!.pinned)
+        _ = await n.core.deny(x.id)
+        XCTAssertEqual(w.count("POST", "/v1/deny/" + x.id.text), 1)
+        XCTAssertEqual(w.rows[n.id.text]!.deny[x.id.text], true)
+        XCTAssertEqual(try n.core.store.peer(x.id)!.state, .denied)
+    }
+
     func testMessagesMissingWithdrawsThenRetriesOnce() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev"), o = try dev("Odev")
         try await pairFully(n, x)
