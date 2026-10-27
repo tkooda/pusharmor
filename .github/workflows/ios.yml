@@ -1,16 +1,270 @@
 name: ios
 
-# Placeholder so ci.yml can call it; the real ios jobs replace this file.
+# iOS tests and builds. Called by ci.yml (pull requests, main pushes: newest
+# simulator runtime only) and by ios-release.yml (with oldest: true, so the
+# iOS 17 job runs before the release job). The iOS 17 job also runs weekly and
+# on manual dispatch (owner ruling Q193 A); those runs run nothing else.
 on:
   workflow_call:
+    inputs:
+      oldest:
+        description: also run the iOS 17 simulator job
+        type: boolean
+        default: false
+  workflow_dispatch:
+  schedule:
+    - cron: "41 5 * * 1"
 
 permissions: {}
 
+env:
+  XCODE_APP: /Applications/Xcode_26.6.app
+  XCODE_VERSION: "Xcode 26.6"
+  XCODE_BUILD: "Build version 17F113"
+  XCODEGEN_VERSION: 2.46.0
+  XCODEGEN_SHA256: 4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806
+  SIM_NAME: iPhone 17
+  OLDEST_IOS: "17.5"
+  OLDEST_DEVICE: iPhone 15
+
 jobs:
-  placeholder:
-    name: ios jobs not written yet
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions: {}
+  ios-core-test:
+    name: PushArmorCore tests (macOS and simulator)
+    if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
+    runs-on: macos-26
+    timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
-      - run: echo "ios.yml is a placeholder"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Select and assert Xcode
+        run: |
+          echo "runner image: $ImageOS $ImageVersion"
+          sudo xcode-select -s "$XCODE_APP"
+          v="$(xcodebuild -version)"
+          echo "$v"
+          printf '%s\n' "$v" | grep -qx "$XCODE_VERSION"
+          printf '%s\n' "$v" | grep -qx "$XCODE_BUILD"
+      - name: swift test (macOS host)
+        run: swift test --package-path client/ios/PushArmorCore
+      - name: Simulator present
+        run: |
+          xcrun simctl list runtimes
+          xcrun simctl list runtimes | grep -q '^iOS 26\.' || { echo "no iOS 26 simulator runtime"; exit 1; }
+          xcrun simctl list devices available | grep -qF "    $SIM_NAME (" || { echo "no $SIM_NAME simulator"; exit 1; }
+      - name: xcodebuild test (iOS simulator)
+        working-directory: client/ios/PushArmorCore
+        run: xcodebuild test -scheme PushArmorCore -destination "platform=iOS Simulator,name=$SIM_NAME,OS=latest"
+
+  ios-build:
+    name: Debug simulator and Release device builds (unsigned)
+    if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
+    runs-on: macos-26
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - name: Select and assert Xcode
+        run: |
+          echo "runner image: $ImageOS $ImageVersion"
+          sudo xcode-select -s "$XCODE_APP"
+          v="$(xcodebuild -version)"
+          echo "$v"
+          printf '%s\n' "$v" | grep -qx "$XCODE_VERSION"
+          printf '%s\n' "$v" | grep -qx "$XCODE_BUILD"
+      # The Release gate rejects PLACEHOLDER values; CI dummies let the Release
+      # configuration compile. Outputs are never uploaded.
+      - name: CI dummies when release/public.json has PLACEHOLDER values
+        run: |
+          if grep -qi placeholder release/public.json; then
+            node release/ci-dummy.mjs
+            echo "PA_CI_DUMMY=1" >> "$GITHUB_ENV"
+          fi
+      - name: Config/Public.xcconfig from release/public.json
+        run: sh client/ios/tools/public-xcconfig.sh
+      - name: XcodeGen (pinned, SHA-256 checked) and generate the project
+        run: |
+          d="$RUNNER_TEMP/xcodegen"
+          mkdir -p "$d"
+          curl -fsSL -o "$d/xcodegen.zip" "https://github.com/yonaskolb/XcodeGen/releases/download/$XCODEGEN_VERSION/xcodegen.zip"
+          echo "$XCODEGEN_SHA256  $d/xcodegen.zip" | shasum -a 256 -c -
+          unzip -q "$d/xcodegen.zip" -d "$d"
+          "$d/xcodegen/bin/xcodegen" --version | grep -qF "$XCODEGEN_VERSION"
+          cd client/ios && "$d/xcodegen/bin/xcodegen" generate
+      - name: Resolve packages to the committed pins
+        working-directory: client/ios
+        run: |
+          s=PushArmor.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+          mkdir -p "$s"
+          cp PushArmorCore/Package.resolved "$s/Package.resolved"
+          xcodebuild -resolvePackageDependencies -project PushArmor.xcodeproj -scheme PushArmor
+          python3 -I -c '
+          import json, sys
+          pins = lambda p: sorted((x["identity"], x["state"].get("revision")) for x in json.load(open(p))["pins"])
+          if pins(sys.argv[1]) != pins(sys.argv[2]):
+              sys.exit("resolved packages differ from PushArmorCore/Package.resolved")
+          ' PushArmorCore/Package.resolved "$s/Package.resolved"
+      - name: Debug build (simulator)
+        working-directory: client/ios
+        run: >-
+          xcodebuild build -project PushArmor.xcodeproj -scheme PushArmor -configuration Debug
+          -destination "generic/platform=iOS Simulator" -derivedDataPath "$RUNNER_TEMP/dd"
+          -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO
+      - name: Release build (device, unsigned; runs the release values gate)
+        working-directory: client/ios
+        run: >-
+          xcodebuild build -project PushArmor.xcodeproj -scheme PushArmor -configuration Release
+          -destination "generic/platform=iOS" -derivedDataPath "$RUNNER_TEMP/dd"
+          -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO
+      # No test hooks in a release build (owner rule Q194).
+      - name: Release bundle check
+        run: bash client/ios/tools/check-release-bundle.sh "$RUNNER_TEMP/dd/Build/Products/Release-iphoneos/PushArmor.app"
+
+  ios-sim-test:
+    name: app tests (newest simulator)
+    if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
+    runs-on: macos-26
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Select and assert Xcode
+        run: |
+          echo "runner image: $ImageOS $ImageVersion"
+          sudo xcode-select -s "$XCODE_APP"
+          v="$(xcodebuild -version)"
+          echo "$v"
+          printf '%s\n' "$v" | grep -qx "$XCODE_VERSION"
+          printf '%s\n' "$v" | grep -qx "$XCODE_BUILD"
+      - name: XcodeGen (pinned, SHA-256 checked) and generate the project
+        run: |
+          d="$RUNNER_TEMP/xcodegen"
+          mkdir -p "$d"
+          curl -fsSL -o "$d/xcodegen.zip" "https://github.com/yonaskolb/XcodeGen/releases/download/$XCODEGEN_VERSION/xcodegen.zip"
+          echo "$XCODEGEN_SHA256  $d/xcodegen.zip" | shasum -a 256 -c -
+          unzip -q "$d/xcodegen.zip" -d "$d"
+          "$d/xcodegen/bin/xcodegen" --version | grep -qF "$XCODEGEN_VERSION"
+          cd client/ios && "$d/xcodegen/bin/xcodegen" generate
+      - name: Resolve packages to the committed pins
+        working-directory: client/ios
+        run: |
+          s=PushArmor.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+          mkdir -p "$s"
+          cp PushArmorCore/Package.resolved "$s/Package.resolved"
+          xcodebuild -resolvePackageDependencies -project PushArmor.xcodeproj -scheme PushArmor
+          python3 -I -c '
+          import json, sys
+          pins = lambda p: sorted((x["identity"], x["state"].get("revision")) for x in json.load(open(p))["pins"])
+          if pins(sys.argv[1]) != pins(sys.argv[2]):
+              sys.exit("resolved packages differ from PushArmorCore/Package.resolved")
+          ' PushArmorCore/Package.resolved "$s/Package.resolved"
+      - name: Simulator present
+        run: |
+          xcrun simctl list runtimes | grep -q '^iOS 26\.' || { echo "no iOS 26 simulator runtime"; exit 1; }
+          xcrun simctl list devices available | grep -qF "    $SIM_NAME (" || { echo "no $SIM_NAME simulator"; exit 1; }
+      # Scheme test action: PushArmorTests + PushArmorUITests (owner ruling Q194 A).
+      - name: xcodebuild test (PushArmor scheme)
+        working-directory: client/ios
+        run: >-
+          xcodebuild test -project PushArmor.xcodeproj -scheme PushArmor
+          -destination "platform=iOS Simulator,name=$SIM_NAME,OS=latest"
+          -disableAutomaticPackageResolution
+          -resultBundlePath "$RUNNER_TEMP/PushArmor.xcresult"
+      - name: Upload the result bundle
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-sim-test-xcresult
+          path: ${{ runner.temp }}/PushArmor.xcresult
+          retention-days: 7
+
+  # iOS 17 (the deployment target). macos-26 images ship no iOS 17 runtime, so
+  # the job downloads it first (several GB).
+  ios-sim-test-oldest:
+    name: core and app tests (iOS 17 simulator)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || inputs.oldest
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Select and assert Xcode
+        run: |
+          echo "runner image: $ImageOS $ImageVersion"
+          sudo xcode-select -s "$XCODE_APP"
+          v="$(xcodebuild -version)"
+          echo "$v"
+          printf '%s\n' "$v" | grep -qx "$XCODE_VERSION"
+          printf '%s\n' "$v" | grep -qx "$XCODE_BUILD"
+      - name: iOS 17 runtime and simulator device
+        id: sim
+        run: |
+          xcodebuild -downloadPlatform iOS -buildVersion "$OLDEST_IOS"
+          rt="$(xcrun simctl list runtimes -j | python3 -I -c '
+          import json, sys
+          want = sys.argv[1]
+          ids = [r["identifier"] for r in json.load(sys.stdin)["runtimes"]
+                 if r.get("platform") == "iOS" and r.get("isAvailable") and (r["version"] == want or r["version"].startswith(want + "."))]
+          print(ids[0] if ids else "")
+          ' "$OLDEST_IOS")"
+          [ -n "$rt" ] || { echo "no available iOS $OLDEST_IOS runtime"; xcrun simctl list runtimes; exit 1; }
+          udid="$(xcrun simctl create "PushArmor iOS $OLDEST_IOS" "$OLDEST_DEVICE" "$rt")"
+          echo "runtime $rt, device $udid"
+          echo "dest=platform=iOS Simulator,id=$udid" >> "$GITHUB_OUTPUT"
+      - name: XcodeGen (pinned, SHA-256 checked) and generate the project
+        run: |
+          d="$RUNNER_TEMP/xcodegen"
+          mkdir -p "$d"
+          curl -fsSL -o "$d/xcodegen.zip" "https://github.com/yonaskolb/XcodeGen/releases/download/$XCODEGEN_VERSION/xcodegen.zip"
+          echo "$XCODEGEN_SHA256  $d/xcodegen.zip" | shasum -a 256 -c -
+          unzip -q "$d/xcodegen.zip" -d "$d"
+          "$d/xcodegen/bin/xcodegen" --version | grep -qF "$XCODEGEN_VERSION"
+          cd client/ios && "$d/xcodegen/bin/xcodegen" generate
+      - name: Resolve packages to the committed pins
+        working-directory: client/ios
+        run: |
+          s=PushArmor.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+          mkdir -p "$s"
+          cp PushArmorCore/Package.resolved "$s/Package.resolved"
+          xcodebuild -resolvePackageDependencies -project PushArmor.xcodeproj -scheme PushArmor
+          python3 -I -c '
+          import json, sys
+          pins = lambda p: sorted((x["identity"], x["state"].get("revision")) for x in json.load(open(p))["pins"])
+          if pins(sys.argv[1]) != pins(sys.argv[2]):
+              sys.exit("resolved packages differ from PushArmorCore/Package.resolved")
+          ' PushArmorCore/Package.resolved "$s/Package.resolved"
+      - name: xcodebuild test (PushArmorCore)
+        working-directory: client/ios/PushArmorCore
+        env:
+          DEST: ${{ steps.sim.outputs.dest }}
+        run: xcodebuild test -scheme PushArmorCore -destination "$DEST" -resultBundlePath "$RUNNER_TEMP/PushArmorCore-oldest.xcresult"
+      - name: xcodebuild test (PushArmor scheme)
+        working-directory: client/ios
+        env:
+          DEST: ${{ steps.sim.outputs.dest }}
+        run: >-
+          xcodebuild test -project PushArmor.xcodeproj -scheme PushArmor
+          -destination "$DEST" -disableAutomaticPackageResolution
+          -resultBundlePath "$RUNNER_TEMP/PushArmor-oldest.xcresult"
+      - name: Upload the result bundles
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-sim-test-oldest-xcresult
+          path: ${{ runner.temp }}/*.xcresult
+          retention-days: 7
+          if-no-files-found: ignore
