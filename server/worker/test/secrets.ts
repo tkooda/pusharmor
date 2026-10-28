@@ -14,6 +14,5 @@ export const TEST_SECRETS = {
   APPLE_APNS_KEY_P8: "",
   WEBPUSH_VAPID_PRIVATE_KEY: "",
   GOOGLE_CLIENT_SECRET: "test-google-client-secret",
-  APPLE_SIGNIN_KEY_ID: "TESTAPPLEKID",
   APPLE_SIGNIN_KEY_P8: "",
 };
