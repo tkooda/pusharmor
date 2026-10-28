@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { applyFilter, historyChips } from "../src/ui/historyfilter.ts";
 import { cleanCode, parseFragment } from "../src/core/login.ts";
-import { selectionTitle } from "../src/core/actions.ts";
+import { MENU_PARENTS, selectionTitle } from "../src/core/actions.ts";
 import { T } from "../src/core/texts.ts";
 import { readForward } from "../../firefox/src/sitefwd/fwd.ts";
 import { endpointAllowed } from "../../firefox/src/platform-firefox.ts";
@@ -29,9 +29,17 @@ test("login code paste rules and OAuth fragment", () => {
 });
 
 test("Firefox menu selection titles", () => {
-  assert.equal(selectionTitle("https://example.com"), "PushArmor URL to");
-  assert.equal(selectionTitle("+1 555-123-4567"), "PushArmor phone to");
-  assert.equal(selectionTitle("hello"), "PushArmor text to");
+  assert.equal(selectionTitle("https://example.com"), "Send link to");
+  assert.equal(selectionTitle("+1 555-123-4567"), "Send phone number to");
+  assert.equal(selectionTitle("hello"), "Send text to");
+});
+
+test("context menu parent titles per context", () => {
+  assert.deepEqual(MENU_PARENTS.map(([, title, ctx]) => [ctx, title]), [
+    ["link", "Send link to"],
+    ["page", "Send page to"],
+    ["selection", "Send text to"],
+  ]);
 });
 
 test("type badge labels and the pairing countdown text", () => {

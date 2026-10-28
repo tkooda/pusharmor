@@ -1,7 +1,7 @@
 // Shared wiring for the two shells. The shell passes in its "browser"
 // namespace object; nothing here reads a browser global.
 import { Api } from "./api/client.ts";
-import { MENU_PAGE, MENU_SEL, MENU_URL, clickTarget, menuSend } from "./core/actions.ts";
+import { MENU_PAGE, MENU_PARENTS, MENU_SEL, MENU_URL, clickTarget, menuSend } from "./core/actions.ts";
 import { Engine } from "./core/engine.ts";
 import { Rpc, type Req } from "./core/rpc.ts";
 import type { PushFields } from "./crypto/labels.ts";
@@ -72,12 +72,7 @@ export function basePlatform(b: Browser, name: "chrome" | "firefox", isAndroid: 
     menusRebuild(peers: MenuPeer[], showAll: boolean) {
       if (!menus) return;
       void menus.removeAll().then(() => {
-        const parents: [string, string, string][] = [
-          [MENU_URL, "PushArmor URL to", "link"],
-          [MENU_PAGE, "PushArmor URL to", "page"],
-          [MENU_SEL, "PushArmor selection to", "selection"],
-        ];
-        for (const [id, title, ctx] of parents) {
+        for (const [id, title, ctx] of MENU_PARENTS) {
           menus.create({ id, title, contexts: [ctx] });
           if (showAll) menus.create({ id: id + "|all", parentId: id, title: "All peers", contexts: [ctx] });
           for (const p of peers) menus.create({ id: id + "|" + p.id, parentId: id, title: p.name, contexts: [ctx] });
