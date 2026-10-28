@@ -18,7 +18,13 @@ public enum Deflate {
 
     /// Streaming inflate with a hard output cap; rejects corrupt, truncated or trailing data.
     public static func inflateRaw(_ input: Data, cap: Int = inflateCap) throws -> Data {
-        try run(encode: false, input: input, cap: cap)
+        let out = try run(encode: false, input: input, cap: cap)
+        // The last byte must hold the end of the final block, so the stream without it must not
+        // complete. This catches trailing bytes on every platform (the Apple decoder takes them).
+        if !input.isEmpty, (try? run(encode: false, input: input.prefix(input.count - 1), cap: cap)) != nil {
+            throw Failure.trailing
+        }
+        return out
     }
 
     private static let chunk = 4096
