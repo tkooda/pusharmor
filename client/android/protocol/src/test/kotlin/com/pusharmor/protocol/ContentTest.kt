@@ -21,7 +21,10 @@ class ContentTest {
     }
 
     @Test fun detectionPrecedence() {
-        assertEquals(ContentType.TEL, Detect.type("tel:hello"))
+        assertEquals(ContentType.TEXT, Detect.type("tel:hello"))
+        assertEquals(ContentType.TEXT, Detect.type("TEL:+15551234567"))
+        assertEquals(ContentType.TEL, Detect.type("tel:+15551234567"))
+        assertEquals(ContentType.TEXT, Detect.type("5551234567\u000B"))
         assertEquals(ContentType.URL, Detect.type("https://example.com"))
         assertEquals(ContentType.TEL, Detect.type("+1 555-123-4567"))
         assertEquals(ContentType.TEXT, Detect.type("hello https://example.com"))

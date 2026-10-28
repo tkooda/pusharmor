@@ -41,9 +41,12 @@ object Phone {
     private val IPV4 = Regex("^[0-9]{1,3}(\\.[0-9]{1,3}){3}$")
     private val DATE = Regex("^([0-9]{4}([-. ])[0-9]{2}\\2[0-9]{2}|[0-9]{2}([-. ])[0-9]{2}\\3[0-9]{4})$")
 
+    /** Trim TAB, LF, FF, CR, SPACE and NBSP only. */
+    fun trim(s: String): String = s.trim { it == ' ' || it == '\t' || it == '\n' || it == '\r' || it == '\u000C' || it == '\u00a0' }
+
     /** Trim ASCII whitespace and NBSP; strip one leading "tel:". */
     fun normalize(s: String): String {
-        var t = s.trim { it == ' ' || it == '\t' || it == '\n' || it == '\r' || it == '\u000B' || it == '\u000C' || it == '\u00a0' }
+        var t = trim(s)
         if (t.startsWith("tel:")) t = t.substring(4)
         return t
     }
@@ -109,8 +112,8 @@ private fun toAsciiHost(s: String): String? {
 /** Type detection for sending: tel: URI > one http(s) URL > phone pattern > text. */
 object Detect {
     fun type(raw: String): ContentType {
-        val trimmed = raw.trim()
-        if (trimmed.regionMatches(0, "tel:", 0, 4, ignoreCase = true)) return ContentType.TEL
+        val trimmed = Phone.trim(raw)
+        if (trimmed.startsWith("tel:") && Phone.isPhone(trimmed)) return ContentType.TEL
         if (UrlCheck.parse(trimmed) != null) return ContentType.URL
         if (Phone.isPhone(trimmed)) return ContentType.TEL
         return ContentType.TEXT
