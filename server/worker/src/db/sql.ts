@@ -159,3 +159,11 @@ export const W_PURGE_ACCOUNTS = `DELETE FROM accounts WHERE id IN (SELECT id FRO
   WHERE status IS NULL AND last_seen_month < ?1 ORDER BY id LIMIT 100)`;
 
 export const Q_HEALTH = `SELECT 1 AS ok`;
+
+// Vendor auth counters. ?1 vendor, ?2 hour. The hour rows older than ?1 are dropped by the cron.
+export const W_HEALTH_AUTH = `INSERT INTO vendor_health (vendor, hour, auth, ok) VALUES (?1, ?2, 1, 0)
+  ON CONFLICT (vendor, hour) DO UPDATE SET auth = auth + 1`;
+export const W_HEALTH_OK = `INSERT INTO vendor_health (vendor, hour, auth, ok) VALUES (?1, ?2, 0, 1)
+  ON CONFLICT (vendor, hour) DO UPDATE SET ok = ok + 1`;
+export const Q_HEALTH_HOUR = `SELECT vendor, auth, ok FROM vendor_health WHERE hour = ?1 ORDER BY vendor`;
+export const W_HEALTH_PURGE = `DELETE FROM vendor_health WHERE hour < ?1`;

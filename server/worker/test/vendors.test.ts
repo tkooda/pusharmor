@@ -261,10 +261,10 @@ describe("vendor auth alert (I274)", () => {
     const e = await testEnv();
     const hour = Math.floor(deps.now() / 3600000) - 1;
     const t = hour * 3600000 + 1000;
-    recordHealth("apns", false, true, t);
-    recordHealth("apns", false, true, t);
-    recordHealth("fcm", true, false, t);
-    expect(authAlerts(hour)).toEqual(["apns"]);
+    await recordHealth(env, "apns", false, true, t);
+    await recordHealth(env, "apns", false, true, t);
+    await recordHealth(env, "fcm", true, false, t);
+    expect(await authAlerts(env, hour)).toEqual(["apns"]);
     const log = new Log();
     await healthCheck(e, log);
     const mails = vendorRequests("email.us-east-1.amazonaws.com");

@@ -1,3 +1,6 @@
+import type { Env } from "../env";
+import * as SQL from "../db/sql";
+
 // Vendor status -> result word (vendor-wrap section 6).
 export type VendorName = "fcm" | "apns" | "wp" | "up";
 
@@ -90,13 +93,14 @@ export function classify(v: VendorName, status: number, body: string, retryAfter
   return { kind: "failed", code: code(v, status), next: "none" };
 }
 
-// Vendor auth alert counters (per isolate, per UTC hour): auth-type failures vs successes.
-export interface HourCount {
-  hour: number;
-  auth: number;
-  ok: number;
+// Vendor auth alert counters (D1, per UTC hour): auth-type failures vs successes. The hourly cron
+// runs in another isolate, so the counts live in D1. Successes only need to be known as "some",
+// so each isolate writes one success row per vendor and hour.
+const okSeen = new Map<string, number>();
+
+export function resetHealthCache(): void {
+  okSeen.clear();
 }
-const health = new Map<string, HourCount>();
 
 export function isAuthFailure(v: VendorName, status: number, code: string | undefined): boolean {
   if (v === "apns") return code === "apns-403-InvalidProviderToken" || code === "apns-429-TooManyProviderTokenUpdates";
@@ -104,26 +108,34 @@ export function isAuthFailure(v: VendorName, status: number, code: string | unde
   return false;
 }
 
-export function recordHealth(v: VendorName, ok: boolean, authFailure: boolean, nowMs: number): void {
+export async function recordHealth(env: Env, v: VendorName, ok: boolean, authFailure: boolean, nowMs: number): Promise<void> {
   const hour = Math.floor(nowMs / 3600000);
-  let h = health.get(v);
-  if (!h || h.hour !== hour) {
-    h = { hour, auth: 0, ok: 0 };
-    health.set(v, h);
+  let sql: string;
+  if (ok) {
+    if (okSeen.get(v) === hour) return;
+    okSeen.set(v, hour);
+    sql = SQL.W_HEALTH_OK;
+  } else if (authFailure) {
+    sql = SQL.W_HEALTH_AUTH;
+  } else {
+    return;
   }
-  if (ok) h.ok++;
-  else if (authFailure) h.auth++;
+  try {
+    await env.DB.prepare(sql).bind(v, hour).run();
+  } catch {
+    // Health counting must never fail a delivery.
+  }
 }
 
 // Vendors whose counts for the given hour show only auth failures and no success.
-export function authAlerts(hour: number): string[] {
-  const out: string[] = [];
-  for (const [v, h] of health) if (h.hour === hour && h.auth > 0 && h.ok === 0) out.push(v);
-  return out.sort();
+export async function authAlerts(env: Env, hour: number): Promise<string[]> {
+  const snap = await healthSnapshot(env, hour);
+  return Object.keys(snap).filter((v) => snap[v].auth > 0 && snap[v].ok === 0).sort();
 }
 
-export function healthSnapshot(hour: number): Record<string, { auth: number; ok: number }> {
+export async function healthSnapshot(env: Env, hour: number): Promise<Record<string, { auth: number; ok: number }>> {
   const out: Record<string, { auth: number; ok: number }> = {};
-  for (const [v, h] of health) if (h.hour === hour) out[v] = { auth: h.auth, ok: h.ok };
+  const rs = await env.DB.prepare(SQL.Q_HEALTH_HOUR).bind(hour).all<{ vendor: string; auth: number; ok: number }>();
+  for (const r of rs.results) out[r.vendor] = { auth: r.auth, ok: r.ok };
   return out;
 }
