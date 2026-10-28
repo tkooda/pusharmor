@@ -439,9 +439,10 @@ test("download: every Android channel, release asset names, certificate fingerpr
 test("FAQ texts (I258, I264, I272, WEB6-04) and fixed lines", () => {
   const how = text("how-to.html");
   const sup = text("support.html");
-  assert.ok(how.includes("You have 14 days to finish a pairing."));
+  assert.ok(how.includes("Peers stay paired until you remove one."));
   assert.ok(!how.includes("10 min"));
   const both = how + " " + sup;
+  for (const m of ["14 days", "10 tries", "24 hours", "15 minutes"]) assert.ok(!both.includes(m), "mechanics: " + m);
   assert.ok(both.includes("wants to pair"));
   assert.ok(both.includes("Tap Cancel pairing on its row"));
   assert.ok(!both.includes("Remove it on this device first"));
