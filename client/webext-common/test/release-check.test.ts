@@ -3,7 +3,9 @@ import { test } from "node:test";
 import { crc32, deflateRawSync } from "node:zlib";
 // @ts-expect-error plain .mjs module without types
 import { checkZip, ops, readZip } from "../check-release.mjs";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 /** Minimal zip writer: even entries deflate, odd entries stored. */
 function zip(files: Record<string, string>): Buffer {
@@ -106,6 +108,20 @@ test("placeholders, CI dummies and local endpoints fail", () => {
   assert.deepEqual(check(dummy, true, true), []);
   assert.match(check({ ...GOOD, "page.js": 'fetch("http://localhost:8787/v1")' }).join(), /local endpoint/);
   assert.match(check({ ...GOOD, "popup.html": '<a href="http://127.0.0.1/">' }).join(), /local endpoint/);
+});
+
+test("the screenshot mode fails a release zip: marker in shipped JS or HTML, shots entries", () => {
+  assert.match(check({ ...GOOD, "popup.js": 'const MARKER = "PA_SCREENSHOTS";' }).join(), /popup\.js: holds the screenshot mode/);
+  assert.match(check({ ...GOOD, "popup.html": '<html data-mode="PA_SCREENSHOTS">' }).join(), /popup\.html: holds the screenshot mode/);
+  const bad = check({ ...GOOD, "shots.js": "", "shots.html": "" }).join();
+  assert.match(bad, /shots\.js: entry not in release-allow\.json/);
+  assert.match(bad, /shots\.html: entry not in release-allow\.json/);
+});
+
+test("build.mjs refuses --shots without --dev", () => {
+  const r = spawnSync(process.execPath, [fileURLToPath(new URL("../build.mjs", import.meta.url)), "--shots"], { encoding: "utf8" });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /--shots needs --dev/);
 });
 
 test("an entry not in the per-browser allow-list fails", () => {

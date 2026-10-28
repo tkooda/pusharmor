@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PushArmor screenshots</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  html, body { margin: 0; width: 1280px; height: 800px; overflow: hidden; color-scheme: light; }
+  body { min-width: 0; max-width: none; padding: 0; background: #1F3A5F; display: flex; align-items: center; justify-content: center; gap: 72px; }
+  .side { width: 460px; color: #FFFFFF; font: 20px system-ui, sans-serif; }
+  .side h1 { margin: 0 0 20px; color: #FFFFFF; font-size: 56px; letter-spacing: -1px; }
+  .side h1 .push { color: #34C77B; }
+  .side p { margin: 0; font-size: 30px; line-height: 1.3; }
+  .frame { zoom: 1.5; width: 380px; height: 440px; overflow: hidden; background: #FFFFFF; border-radius: 8px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45); }
+  .frame #app { padding: 8px; }
+</style>
+</head>
+<body>
+<div class="side"><h1><span class="push">Push</span>Armor</h1><p id="headline"></p></div>
+<div class="frame"><div id="app"></div></div>
+<script type="module" src="shots.js"></script>
+</body>
+</html>
