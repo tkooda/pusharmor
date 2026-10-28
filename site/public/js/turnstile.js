@@ -21,6 +21,10 @@
   var parentOrigin = allowedOrigin(new URLSearchParams(location.hash.slice(1)).get("o"));
   var box = document.getElementById("ts");
   var status = document.getElementById("status");
+  // In the delete-account iframe: widget and status only, so the fixed-height frame has no scrollbar.
+  if (parentOrigin === "https://pusharmor.com" && window.parent !== window) {
+    document.documentElement.className = "framed";
+  }
 
   function send(token) {
     if (parentOrigin && window.parent !== window) {
