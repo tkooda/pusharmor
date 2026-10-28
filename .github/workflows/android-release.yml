@@ -308,7 +308,9 @@ jobs:
             echo "dir=$out"
             echo "aab=$s/pusharmor-$VERSION-play.aab"
           } >> "$GITHUB_OUTPUT"
+      # Attestations need a public repo or an org plan; skipped while private, runs once public.
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        if: ${{ !github.event.repository.private }}
         with:
           subject-path: |
             ${{ steps.files.outputs.dir }}/pusharmor-${{ env.VERSION }}-play.apk
