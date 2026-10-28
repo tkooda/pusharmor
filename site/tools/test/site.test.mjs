@@ -271,6 +271,16 @@ function buildCopy(publicPath, env = {}) {
   return { dir, r };
 }
 
+// Writes a copy of release/public.json with every value a PLACEHOLDER (same keys and
+// shapes) into dir and returns its path, so the guards stay tested once real values land.
+function placeholderPublic(dir) {
+  const lp = join(dir, "public.json");
+  const ph = (k) => "PLACEHOLDER_" + k.toUpperCase();
+  writeFileSync(lp, JSON.stringify(Object.fromEntries(Object.entries(loadPublic()).map(([k, v]) =>
+    [k, k.startsWith("_") ? v : Array.isArray(v) ? [ph(k)] : ph(k)]))));
+  return lp;
+}
+
 test("wrangler.jsonc runs tools/build.mjs on deploy, and the build skips for wrangler dev", () => {
   const cfg = readFileSync(join(SITE, "wrangler.jsonc"), "utf8");
   assert.match(cfg, /"build"\s*:\s*\{\s*"command"\s*:\s*"node tools\/build\.mjs"\s*\}/);
@@ -278,10 +288,13 @@ test("wrangler.jsonc runs tools/build.mjs on deploy, and the build skips for wra
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /skipped for wrangler dev/);
   assert.deepEqual(placeholderFiles(dir).length, 4);
-  const d = buildCopy(PUBLIC_PATH, { WRANGLER_COMMAND: "deploy" });
+  const tmp = mkdtempSync(join(tmpdir(), "pa-public-"));
+  const d = buildCopy(placeholderPublic(tmp), { WRANGLER_COMMAND: "deploy" });
   assert.notEqual(d.r.status, 0);
+  assert.match(d.r.stderr, /is a PLACEHOLDER/);
   rmSync(dir, { recursive: true, force: true });
   rmSync(d.dir, { recursive: true, force: true });
+  rmSync(tmp, { recursive: true, force: true });
 });
 
 test("committed site files hold the placeholders, not ids (release/public.json fills them at build)", () => {
@@ -315,20 +328,23 @@ test("site build fills every id from a public file and leaves current hashes", (
   } finally { rmSync(dir, { recursive: true, force: true }); rmSync(tmp, { recursive: true, force: true }); }
 });
 
-test("site build fails on a missing public file or the committed placeholders", () => {
-  for (const lp of [join(tmpdir(), "pa-no-such-public.json"), PUBLIC_PATH]) {
-    const { dir, r } = buildCopy(lp);
-    try {
-      assert.equal(r.status, 1, lp);
-      assert.match(r.stderr, lp === PUBLIC_PATH ? /cloudflare_turnstile_sitekey is a PLACEHOLDER/ : /ENOENT/);
-    } finally { rmSync(dir, { recursive: true, force: true }); }
-  }
+test("site build fails on a missing public file or on placeholders", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "pa-public-"));
+  const ph = placeholderPublic(tmp);
+  try {
+    for (const lp of [join(tmpdir(), "pa-no-such-public.json"), ph]) {
+      const { dir, r } = buildCopy(lp);
+      try {
+        assert.equal(r.status, 1, lp);
+        assert.match(r.stderr, lp === ph ? /cloudflare_turnstile_sitekey is a PLACEHOLDER/ : /ENOENT/);
+      } finally { rmSync(dir, { recursive: true, force: true }); }
+    }
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
 test("site build takes the CI dummies only with PA_CI_DUMMY=1", () => {
   const tmp = mkdtempSync(join(tmpdir(), "pa-public-"));
-  const lp = join(tmp, "public.json");
-  writeFileSync(lp, JSON.stringify(loadPublic()));
+  const lp = placeholderPublic(tmp);
   assert.equal(spawnSync("node", [join(REPO, "release", "ci-dummy.mjs"), lp]).status, 0);
   try {
     const no = buildCopy(lp);
