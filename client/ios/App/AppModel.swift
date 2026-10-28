@@ -76,7 +76,16 @@ final class AppModel: ObservableObject {
         await checkPermission()
         await route()
         await onForeground()
+        started = true
+        if let t = pendingTap {
+            pendingTap = nil
+            await handleTap(t.info, action: t.action)
+        }
     }
+
+    /// A notification tap that arrived before start() finished; replayed after it.
+    private var started = false
+    private var pendingTap: (info: [AnyHashable: Any], action: String)?
 
     /// Which screen to show.
     func route() async {
@@ -441,6 +450,7 @@ final class AppModel: ObservableObject {
 
     /// Notification tap routing (section 10).
     func handleTap(_ info: [AnyHashable: Any], action: String) async {
+        if !started { pendingTap = (info, action); return }
         let key = store.flatMap { try? TapStamp.key($0) }
         if let m = TapStamp.drainM(info, key: key), let core = core {
             _ = await core.receiveTapped(m, inbox: env.inbox)
