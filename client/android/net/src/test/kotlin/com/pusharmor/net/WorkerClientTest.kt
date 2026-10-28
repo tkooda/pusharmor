@@ -46,6 +46,16 @@ class WorkerClientTest {
         assertEquals((clock + 5000).toString(), server.takeRequest().getHeader("PA-Time"))
     }
 
+    @Test fun authStateHookSeesUnknownPeerAndPausedOnSignedCalls() {
+        val seen = ArrayList<String>()
+        val c = WorkerClient({ keys }, { id }, offset, server.url("/"), WorkerClient.defaultHttp(), { clock }, { clock += it }, { seen.add(it) })
+        server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"unknown peer\"}"))
+        server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"paused\"}"))
+        server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"clock skew\"}"))
+        c.send(mapOf("x" to "M")); c.peers(); c.send(mapOf("x" to "M"))
+        assertEquals(listOf("unknown peer", "paused"), seen)
+    }
+
     @Test fun retries429WithinBudgetWithSameBytesAndSignature() {
         server.enqueue(MockResponse().setResponseCode(429).setHeader("Retry-After", "2").setBody("{\"error\":\"rate limited\",\"retry_after\":2}"))
         server.enqueue(ok())
