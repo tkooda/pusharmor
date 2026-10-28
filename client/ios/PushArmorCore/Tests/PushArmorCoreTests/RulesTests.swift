@@ -121,6 +121,10 @@ final class RulesTests: XCTestCase {
         XCTAssertNil(URLRule.parse("https://u@example.com"))
         XCTAssertNil(URLRule.parse("file:///etc/passwd"))
         XCTAssertNil(URLRule.parse("two https://a.com https://b.com"))
+        XCTAssertEqual(URLRule.parse("http://a.com/x y")?.href, "http://a.com/x%20y")
+        XCTAssertEqual(SendDetection.detect("http://a.com/x y"), .url)
+        XCTAssertEqual(URLRule.parse("https://a.com/\u{301}x")?.href, "https://a.com/%CC%81x")
+        XCTAssertNil(URLRule.parse("https://a\u{200D}b.com/"))
     }
 
     /// I289: the banner userInfo starts empty; only "m" comes from the relay payload.
