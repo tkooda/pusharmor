@@ -59,8 +59,8 @@ public enum URLRule {
 
     /// Hand parse that follows the WHATWG URL rules for the supported shapes, after the shared
     /// shape rules (golden url_parse): no control or DEL, no leading or trailing space, no "@"
-    /// or "%" in the authority, listed non-ASCII host code points only, a numeric host only as
-    /// a dotted quad. Works on Unicode scalars so a combining mark cannot hide a delimiter.
+    /// or "%" in the authority, a numeric host only as a dotted quad, then the shared IDN
+    /// conversion. Works on Unicode scalars so a combining mark cannot hide a delimiter.
     public static func parse(_ s: String) -> ParsedURL? {
         let sc = Array(s.unicodeScalars)
         guard let first = sc.first, let end = sc.last, first != " ", end != " ",
@@ -127,19 +127,16 @@ public enum URLRule {
         return out
     }
 
-    /// Non-ASCII host code points that UTS 46 leaves as they are (golden url_parse shape rules).
-    static func hostCharOk(_ c: UInt32) -> Bool {
-        (0xdf...0xf6).contains(c) || (0xf8...0xff).contains(c) || (0x3b1...0x3c9).contains(c) ||
-            (0x430...0x45f).contains(c) || (0x3041...0x3096).contains(c) || (0x30a1...0x30fa).contains(c) ||
-            (0x4e00...0x9fff).contains(c) || (0xac00...0xd7a3).contains(c)
-    }
-
-    /// ASCII-lowercase host; a label with listed non-ASCII code points becomes "xn--" punycode.
-    /// nil on other non-ASCII, forbidden chars, or a numeric host that is not a dotted quad.
+    /// Shared IDN conversion (golden url_parse): each scalar to lowercase on its own (ASCII A-Z,
+    /// else the Unicode full lowercase mapping), then a label with a non-ASCII scalar becomes
+    /// "xn--" punycode. nil on forbidden chars or a numeric host that is not a dotted quad.
     static func asciiHost(_ h: [Unicode.Scalar]) -> String? {
         if h.contains(where: { hostForbidden.contains($0) }) { return nil }
-        if h.contains(where: { $0.value >= 0x80 && !hostCharOk($0.value) }) { return nil }
-        let lower = h.map { ($0.value >= 0x41 && $0.value <= 0x5a) ? Unicode.Scalar($0.value + 32)! : $0 }
+        let lower: [Unicode.Scalar] = h.flatMap { c -> [Unicode.Scalar] in
+            if c.value >= 0x41 && c.value <= 0x5a { return [Unicode.Scalar(c.value + 32)!] }
+            if c.isASCII { return [c] }
+            return Array(c.properties.lowercaseMapping.unicodeScalars)
+        }
         var labels: [String] = []
         for label in lower.split(separator: ".", omittingEmptySubsequences: false) {
             if label.allSatisfy({ $0.isASCII }) {
