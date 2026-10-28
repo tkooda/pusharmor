@@ -12,7 +12,7 @@
 #     so a new exported library component or a dropped permission fails
 #   - dex classes (dexdump, else apkanalyzer): no androidx.test, org.junit, junit.,
 #     org.mockito, org.robolectric, kotlinx.coroutines.test, and no crypto testFixtures
-#     class (SoftwareKeyOps, Golden, EcMath); foss: no com.google.firebase,
+#     class (SoftwareKeyOps, Golden, EcMath), no screenshot mode (ScreenshotMode, app.shots); foss: no com.google.firebase,
 #     com.google.android.gms or androidx.credentials.playservices, in dex or manifest
 # Tools: aapt2 and dexdump from $ANDROID_HOME/build-tools (newest), or on PATH; apkanalyzer
 # from $ANDROID_HOME/cmdline-tools/latest/bin.
@@ -44,7 +44,7 @@ com.google.firebase.iid.FirebaseInstanceIdReceiver com.google.android.c2dm.permi
 ALLOWED="$ALLOWED
 $LIB_ALLOWED"
 ALLOWED="$(echo "$ALLOWED" | sort)"
-TEST_PKGS='androidx\.test\.|org\.junit\.|junit\.|org\.mockito\.|org\.robolectric\.|kotlinx\.coroutines\.test\.|com\.pusharmor\.crypto\.(SoftwareKeyOps|Golden|EcMath)([.$]|$)'
+TEST_PKGS='androidx\.test\.|org\.junit\.|junit\.|org\.mockito\.|org\.robolectric\.|kotlinx\.coroutines\.test\.|com\.pusharmor\.crypto\.(SoftwareKeyOps|Golden|EcMath)([.$]|$)|com\.pusharmor\.app\.ScreenshotMode([.$]|$)|com\.pusharmor\.app\.shots\.'
 FOSS_PKGS='com\.google\.firebase\.|com\.google\.android\.gms\.|androidx\.credentials\.playservices\.'
 
 # tool <name>: print the path of an SDK tool.
