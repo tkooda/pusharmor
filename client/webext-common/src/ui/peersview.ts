@@ -51,7 +51,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
     }
     row.append(head);
     if (p.fingerprint) {
-      row.append(h("div", { class: "fp" }, T.fingerprint(p.fingerprint)));
+      row.append(h("div", { class: "fp" }, h("span", { class: "fp-label" }, T.fingerprint("")), h("code", { class: "fp-code" }, p.fingerprint)));
       if (p.pk) void rpc(env, "fingerprintShown", { pk: p.pk }).catch(() => undefined);
     }
     for (const l of p.lines) if (!l.startsWith("Pairing fingerprint")) row.append(h("div", { class: "line" }, l));

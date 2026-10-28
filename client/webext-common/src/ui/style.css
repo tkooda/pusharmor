@@ -23,7 +23,9 @@ body { margin: 0; min-width: 340px; max-width: 760px; padding: 8px; background: 
 .own input { flex: 1; min-width: 0; }
 .greyed { opacity: 0.6; }
 .dim, .sender { color: var(--muted); font-size: 12px; }
-.fp { font: bold 18px monospace; letter-spacing: 2px; }
+.fp { margin: 4px 0; }
+.fp-label { color: var(--muted); }
+.fp-code { white-space: nowrap; font: bold 18px ui-monospace, monospace; letter-spacing: 2px; color: var(--ink); }
 button { font: inherit; color: var(--ink); background: var(--btn); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; margin: 2px 4px 2px 0; cursor: pointer; }
 button:hover { background: var(--btn-hover); }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; }
