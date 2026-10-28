@@ -84,3 +84,13 @@ test("web-ext sign has a request timeout; RELEASING.md says only publish-firefox
   const doc = readFileSync(join(import.meta.dirname, "..", "RELEASING.md"), "utf8");
   assert.match(doc, /rerun only the failed `publish-firefox` job/);
 });
+
+test("a sparse checkout that reads site/.node-version checks that file out", () => {
+  for (const f of ["android-release.yml", "ios-release.yml", "webext-release.yml", "worker-release.yml"]) {
+    const jobs = read(f).split(/^ {2}[a-z0-9-]+:\n/m).slice(1);
+    for (const job of jobs) {
+      if (!/sparse-checkout:/.test(job) || !/node-version-file: site\/\.node-version/.test(job)) continue;
+      assert.match(job, /sparse-checkout: \|\n(?: {12}\S+\n)* {12}\/site\/\.node-version\n(?: {12}\S+\n)* {10}sparse-checkout-cone-mode: false\n/, f);
+    }
+  }
+});
