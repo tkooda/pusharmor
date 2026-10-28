@@ -78,11 +78,13 @@
   };
 
   // key: null for unsigned calls, else headers PA-Time + PA-Sig signed by key.
+  // unsure: true when an earlier try got no reply or a 503, so it may have taken effect.
   Client.prototype.request = async function (method, path, obj, key) {
     var body = JSON.stringify(obj);
     var bytes = enc.encode(body);
     var delays = [500, 1500, 3000];
     var start = this.now();
+    var unsure = false;
     for (var attempt = 0; ; attempt++) {
       var headers = { "Content-Type": "application/json" };
       if (key) {
@@ -103,10 +105,11 @@
         if (epoch && /^[0-9]+$/.test(epoch)) this.offset = Number(epoch) - this.now();
         try { data = await res.json(); } catch (e) { data = {}; }
         if (!data || typeof data !== "object") data = {};
-        if (res.status !== 429 && res.status !== 503) return { status: res.status, data: data };
+        if (res.status !== 429 && res.status !== 503) return { status: res.status, data: data, unsure: unsure };
         retryAfter = Number(res.headers.get("Retry-After")) || 0;
       }
-      var result = { status: res ? res.status : 0, data: data };
+      if (!res || res.status === 503) unsure = true;
+      var result = { status: res ? res.status : 0, data: data, unsure: unsure };
       if (attempt >= 3) return result;
       var wait = Math.max(delays[attempt], retryAfter * 1000);
       if (this.now() - start + wait > 8000) return result;

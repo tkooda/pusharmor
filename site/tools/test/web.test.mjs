@@ -103,6 +103,23 @@ test("DELETE /v1/account: headers, body, signature; deleted 0", async () => {
   assert.equal(PA.TEXT.noPeers, "No peers were found under this address");
 });
 
+test("DELETE /v1/account retried after a lost reply is marked unsure", async () => {
+  const key = await PA.newKey();
+  let api = fakeApi(["neterr", { status: 200, body: { r: {}, deleted: 0 } }]);
+  let r = await api.client.deleteAccount(key, "T");
+  assert.equal(r.status, 200);
+  assert.equal(r.data.deleted, 0);
+  assert.equal(r.unsure, true);
+  api = fakeApi([{ status: 503, body: {} }, { status: 200, body: { r: {}, deleted: 0 } }]);
+  r = await api.client.deleteAccount(key, "T");
+  assert.equal(r.unsure, true);
+  api = fakeApi([{ status: 200, body: { r: {}, deleted: 0 } }]);
+  r = await api.client.deleteAccount(key, "T");
+  assert.equal(r.unsure, false);
+  const js = readFileSync(join(PUB, "js", "delete-account.js"), "utf8");
+  assert.ok(js.includes("r.data.deleted === 0 && !r.unsure ? PA.TEXT.noPeers : PA.TEXT.deleted"));
+});
+
 test("clock skew: offset from PA-Epoch-Ms, re-sign, retry once", async () => {
   const key = await PA.newKey();
   const skew = 10 * 60 * 1000;

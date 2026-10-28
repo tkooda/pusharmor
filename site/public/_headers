@@ -19,7 +19,7 @@
   ! Content-Security-Policy
   ! Cache-Control
   X-Robots-Tag: noindex
-  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-+/VgqZH9JunGvvGHFVK1eymAzs1wKMgUG76v7JIf3yM=' 'sha256-eUW3Gr/VOXdvt+0oFKvnJIEYjHOp+qcAusiTVtZwdpc=' 'sha256-xAOz2CPFteJB44C3kZu4pCL3LtSZUvzjUCIVff1yPhQ=' 'sha256-0RzylcXMiZOm0VHJd5jOBfHABAf7AKh/KjFfFHa9BVg=' 'sha256-jcgIjBklzaXdYB2k/WwQSiLyhQivr3dUUq/xVjWeA2U='; connect-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-+/VgqZH9JunGvvGHFVK1eymAzs1wKMgUG76v7JIf3yM=' 'sha256-eUW3Gr/VOXdvt+0oFKvnJIEYjHOp+qcAusiTVtZwdpc=' 'sha256-QesJhsOnRtWqXBKR8+6uagoEKqerjzS4lWZWNXuhcgU=' 'sha256-0RzylcXMiZOm0VHJd5jOBfHABAf7AKh/KjFfFHa9BVg=' 'sha256-jcgIjBklzaXdYB2k/WwQSiLyhQivr3dUUq/xVjWeA2U='; connect-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   Cache-Control: no-cache
 
 /fx/sw.js
@@ -42,7 +42,7 @@
 
 /delete-account
   ! Content-Security-Policy
-  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-xAOz2CPFteJB44C3kZu4pCL3LtSZUvzjUCIVff1yPhQ=' 'sha256-4XZWWHmA/xYUQPeO+8wApyYn1/BCL6dE08dXlLBGMVc='; connect-src https://api.pusharmor.com; frame-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-QesJhsOnRtWqXBKR8+6uagoEKqerjzS4lWZWNXuhcgU=' 'sha256-EgPxyKz5mn9A/IKfAPY/BiPgGqnbVc+ycdIvPpVq8fI='; connect-src https://api.pusharmor.com; frame-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
 
 /.well-known/security.txt
   ! Content-Type
