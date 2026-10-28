@@ -44,6 +44,13 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
           test -e /dev/kvm || { echo "/dev/kvm is missing on this runner"; exit 1; }
+      # The pixel_6 AVD needs 7.2G free for its data partition. Some runners
+      # have about 6.8G, and the emulator then exits before adb sees it.
+      - name: Free disk space for the AVD
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/.ghcup /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
@@ -58,9 +65,6 @@ jobs:
           target: ${{ matrix.target }}
           arch: x86_64
           profile: pixel_6
-          # pixel_6 defaults to a 6G data partition, which needs 7.2G free; some
-          # runners have less, and the emulator exits before adb sees it.
-          disk-size: 2G
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot-save -noaudio -no-boot-anim
           working-directory: client/android
