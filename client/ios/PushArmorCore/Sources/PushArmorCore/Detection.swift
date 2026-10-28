@@ -50,76 +50,146 @@ public struct ParsedURL: Equatable, Sendable {
 }
 
 public enum URLRule {
+    private static let hostForbidden: Set<Unicode.Scalar> = [" ", "#", "%", "/", ":", "<", ">", "?", "@", "[", "\\", "]", "^", "|"]
+    private static let pathEncode = Set(" \"#<>?`{}^".utf8)
+    private static let queryEncode = Set(" \"#<>'".utf8)
+    private static let fragmentEncode = Set(" \"<>`".utf8)
+    private static let quad = try! NSRegularExpression(
+        pattern: "^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}$")
+
+    /// Hand parse that follows the WHATWG URL rules for the supported shapes, after the shared
+    /// shape rules (golden url_parse): no control or DEL, no leading or trailing space, no "@"
+    /// or "%" in the authority, listed non-ASCII host code points only, a numeric host only as
+    /// a dotted quad. Works on Unicode scalars so a combining mark cannot hide a delimiter.
     public static func parse(_ s: String) -> ParsedURL? {
-        guard let colon = s.firstIndex(of: ":") else { return nil }
-        let scheme = s[..<colon].lowercased()
+        let sc = Array(s.unicodeScalars)
+        guard let first = sc.first, let end = sc.last, first != " ", end != " ",
+              !sc.contains(where: { $0.value < 0x20 || $0.value == 0x7f }) else { return nil }
+        guard let colon = sc.firstIndex(of: ":") else { return nil }
+        let scheme = str(sc[..<colon]).lowercased()
         guard scheme == "http" || scheme == "https" else { return nil }
-        var rest = s[s.index(after: colon)...]
-        guard rest.hasPrefix("//") else { return nil }
-        rest = rest.dropFirst(2)
-        let authEnd = rest.firstIndex(where: { $0 == "/" || $0 == "?" || $0 == "#" || $0 == "\\" }) ?? rest.endIndex
-        let authority = rest[..<authEnd]
-        var tail = String(rest[authEnd...])
-        if authority.contains("@") { return nil }
-        var hostPart = Substring(authority)
-        var port: Substring? = nil
-        if hostPart.hasPrefix("[") {
+        guard colon + 2 < sc.count, sc[colon + 1] == "/", sc[colon + 2] == "/" else { return nil }
+        let start = colon + 3
+        if start < sc.count && (sc[start] == "/" || sc[start] == "\\") { return nil }
+        let authEnd = sc[start...].firstIndex(where: { $0 == "/" || $0 == "?" || $0 == "#" || $0 == "\\" }) ?? sc.count
+        let authority = Array(sc[start..<authEnd])
+        if authority.contains("@") || authority.contains("%") { return nil }
+        var hostPart = authority[...]
+        var port: ArraySlice<Unicode.Scalar>? = nil
+        if hostPart.first == "[" {
             guard let close = hostPart.firstIndex(of: "]") else { return nil }
-            let after = hostPart[hostPart.index(after: close)...]
+            let after = hostPart[(close + 1)...]
             if !after.isEmpty {
-                guard after.hasPrefix(":") else { return nil }
+                guard after.first == ":" else { return nil }
                 port = after.dropFirst()
             }
             hostPart = hostPart[...close]
             let inner = hostPart.dropFirst().dropLast()
-            guard !inner.isEmpty, inner.allSatisfy({ $0.isHexDigit || $0 == ":" || $0 == "." }) else { return nil }
+            guard !inner.isEmpty, inner.allSatisfy({ $0.properties.isASCIIHexDigit || $0 == ":" || $0 == "." }) else { return nil }
         } else if let c = hostPart.lastIndex(of: ":") {
-            port = hostPart[hostPart.index(after: c)...]
+            port = hostPart[(c + 1)...]
             hostPart = hostPart[..<c]
         }
         guard !hostPart.isEmpty else { return nil }
+        let host: String
+        if hostPart.first == "[" {
+            host = str(hostPart).lowercased()
+        } else {
+            guard let h = asciiHost(Array(hostPart)) else { return nil }
+            host = h
+        }
         var portText = ""
         if let p = port, !p.isEmpty {
-            guard p.allSatisfy({ $0.isASCII && $0.isNumber }), let v = Int(p), v <= 65535 else { return nil }
+            guard p.allSatisfy({ $0.value >= 0x30 && $0.value <= 0x39 }) else { return nil }
+            let digits = p.drop(while: { $0 == "0" })
+            guard digits.count <= 5 else { return nil }
+            let v = digits.isEmpty ? 0 : Int(str(digits))!
+            guard v <= 65535 else { return nil }
             if !((scheme == "https" && v == 443) || (scheme == "http" && v == 80)) { portText = ":" + String(v) }
         }
-        guard let host = asciiHost(String(hostPart)) else { return nil }
-        tail = tail.replacingOccurrences(of: "\\", with: "/")
-        if tail.isEmpty || tail.first != "/" { tail = "/" + tail }
-        let href = scheme + "://" + host + portText + percentEncode(tail)
+        var rest = Array(sc[authEnd...])
+        var query: [Unicode.Scalar]? = nil
+        var fragment: [Unicode.Scalar]? = nil
+        if let i = rest.firstIndex(of: "#") { fragment = Array(rest[(i + 1)...]); rest = Array(rest[..<i]) }
+        if let i = rest.firstIndex(of: "?") { query = Array(rest[(i + 1)...]); rest = Array(rest[..<i]) }
+        let slash: Unicode.Scalar = "/"
+        var path = dotSegments(encode(rest.map { $0 == "\\" ? slash : $0 }, pathEncode))
+        if path.isEmpty { path = "/" }
+        var href = scheme + "://" + host + portText + path
+        if let q = query { href += "?" + encode(q, queryEncode) }
+        if let f = fragment { href += "#" + encode(f, fragmentEncode) }
         return ParsedURL(href: href, host: host)
     }
 
-    /// Lowercase ASCII labels; IDN labels to punycode ("xn--"). nil on forbidden chars.
-    static func asciiHost(_ h: String) -> String? {
-        if h.hasPrefix("[") { return h.lowercased() }
+    private static func str<S: Sequence>(_ x: S) -> String where S.Element == Unicode.Scalar {
+        var out = ""
+        out.unicodeScalars.append(contentsOf: x)
+        return out
+    }
+
+    /// Non-ASCII host code points that UTS 46 leaves as they are (golden url_parse shape rules).
+    static func hostCharOk(_ c: UInt32) -> Bool {
+        (0xdf...0xf6).contains(c) || (0xf8...0xff).contains(c) || (0x3b1...0x3c9).contains(c) ||
+            (0x430...0x45f).contains(c) || (0x3041...0x3096).contains(c) || (0x30a1...0x30fa).contains(c) ||
+            (0x4e00...0x9fff).contains(c) || (0xac00...0xd7a3).contains(c)
+    }
+
+    /// ASCII-lowercase host; a label with listed non-ASCII code points becomes "xn--" punycode.
+    /// nil on other non-ASCII, forbidden chars, or a numeric host that is not a dotted quad.
+    static func asciiHost(_ h: [Unicode.Scalar]) -> String? {
+        if h.contains(where: { hostForbidden.contains($0) }) { return nil }
+        if h.contains(where: { $0.value >= 0x80 && !hostCharOk($0.value) }) { return nil }
+        let lower = h.map { ($0.value >= 0x41 && $0.value <= 0x5a) ? Unicode.Scalar($0.value + 32)! : $0 }
         var labels: [String] = []
-        for label in h.split(separator: ".", omittingEmptySubsequences: false) {
-            let l = String(label).lowercased()
-            if l.unicodeScalars.allSatisfy({ $0.isASCII }) {
-                let bad: Set<Character> = [" ", "#", "%", "/", ":", "<", ">", "?", "@", "[", "\\", "]", "^", "|"]
-                guard !l.contains(where: { bad.contains($0) || $0.asciiValue.map { $0 < 0x21 || $0 == 0x7f } == true }) else { return nil }
-                labels.append(l)
+        for label in lower.split(separator: ".", omittingEmptySubsequences: false) {
+            if label.allSatisfy({ $0.isASCII }) {
+                labels.append(str(label))
             } else {
-                guard let p = Punycode.encode(l) else { return nil }
+                guard let p = Punycode.encode(str(label)) else { return nil }
                 labels.append("xn--" + p)
             }
         }
         let out = labels.joined(separator: ".")
-        return out.isEmpty || out == "." ? nil : out
+        if out.isEmpty { return nil }
+        if labels.count > 1 && labels.last == "" { labels.removeLast() }
+        let last = labels.last ?? ""
+        let isDigit = { (b: UInt8) in b >= 0x30 && b <= 0x39 }
+        let endsInNumber = (!last.isEmpty && last.utf8.allSatisfy(isDigit)) ||
+            (last.hasPrefix("0x") && last.utf8.dropFirst(2).allSatisfy { isDigit($0) || ($0 >= 0x61 && $0 <= 0x66) })
+        if endsInNumber && quad.firstMatch(in: out, range: NSRange(out.startIndex..., in: out)) == nil { return nil }
+        return out
     }
 
-    /// Percent-encode controls, space, non-ASCII and the few chars WHATWG encodes in paths.
-    static func percentEncode(_ s: String) -> String {
+    /// Percent-encode non-ASCII (as UTF-8) and the bytes in the set; existing escapes stay.
+    static func encode(_ s: [Unicode.Scalar], _ set: Set<UInt8>) -> String {
         var out = ""
-        for b in s.utf8 {
-            if b <= 0x20 || b >= 0x7f || b == 0x22 || b == 0x3c || b == 0x3e || b == 0x60 {
+        for b in str(s).utf8 {
+            if b >= 0x80 || set.contains(b) {
                 out += String(format: "%%%02X", b)
             } else {
                 out.unicodeScalars.append(Unicode.Scalar(b))
             }
         }
         return out
+    }
+
+    /// WHATWG dot segments: "." and ".." (also as %2e) collapse; the root is never left.
+    static func dotSegments(_ path: String) -> String {
+        let parts = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        var out: [String] = []
+        for (i, seg) in parts.enumerated() {
+            let last = i == parts.count - 1
+            switch seg.lowercased() {
+            case ".", "%2e":
+                if last { out.append("") }
+            case "..", ".%2e", "%2e.", "%2e%2e":
+                if out.count > 1 { out.removeLast() }
+                if last { out.append("") }
+            default:
+                out.append(seg)
+            }
+        }
+        return out.joined(separator: "/")
     }
 
     /// Re-check before opening (section 10): scheme http or https, case-insensitive.
