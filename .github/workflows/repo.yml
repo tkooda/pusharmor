@@ -97,9 +97,10 @@ jobs:
       - name: names, public ids, CI dummies, tag rule
         run: node --test release/*.test.mjs
 
+  # Needs GitHub Advanced Security on a private repo: skipped while private, runs once public.
   dependency-review:
     name: dependency review
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && !github.event.repository.private
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
