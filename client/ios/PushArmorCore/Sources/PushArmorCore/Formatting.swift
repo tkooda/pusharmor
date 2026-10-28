@@ -19,6 +19,16 @@ public enum Pairing {
     public static func isExpired(startedAt: Int64, now: Int64) -> Bool { now >= startedAt + timeout }
 }
 
+/// The dial string for a tel message: a leading "+" is kept, every other separator is dropped.
+public enum DialString {
+    public static func make(_ content: String) -> String {
+        var t = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        if t.lowercased().hasPrefix("tel:") { t = String(t.dropFirst(4)).trimmingCharacters(in: .whitespaces) }
+        let digits = String(t.filter { $0.isASCII && $0.isNumber })
+        return t.hasPrefix("+") ? "+" + digits : digits
+    }
+}
+
 /// Email code entry (catalog Login client notes, ios 5.1).
 public enum EmailCode {
     public static let length = 6

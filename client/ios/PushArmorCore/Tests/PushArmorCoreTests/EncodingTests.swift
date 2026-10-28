@@ -83,4 +83,11 @@ final class EncodingTests: XCTestCase {
         XCTAssertThrowsError(try Deflate.inflateRaw(d + Data([0])))
         XCTAssertThrowsError(try Deflate.inflateRaw(Data([0xff, 0xff, 0xff])))
     }
+
+    func testDialStringKeepsLeadingPlus() {
+        XCTAssertEqual(DialString.make("+49 30 1234567"), "+4930" + "1234567")
+        XCTAssertEqual(DialString.make(" (030) 123-4567 "), "0301234567")
+        XCTAssertEqual(DialString.make("tel:+1 (555) 010-9999"), "+15550109999")
+        XCTAssertEqual(DialString.make("555 12+34"), "5551234")
+    }
 }

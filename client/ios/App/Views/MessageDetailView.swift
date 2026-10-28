@@ -7,7 +7,7 @@ struct MessageDetailView: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
 
-    private var digits: String { row.content.filter { $0.isASCII && $0.isNumber } }
+    private var digits: String { DialString.make(row.content) }
 
     var body: some View {
         NavigationStack {
