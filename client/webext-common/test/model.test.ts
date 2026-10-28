@@ -231,6 +231,8 @@ test("phone detection and URL rules", () => {
   assert.equal(detectType("tel:+15551234567"), "tel");
   assert.equal(detectType("https://example.com/a"), "url");
   assert.equal(detectType(" https://example.com/a "), "url");
+  assert.equal(detectType("http://a.com/x y"), "url"); // Q221: space in the path is kept as %20
+  assert.equal(detectType("http://a.com/x\ty"), "text");
   assert.equal(detectType("see https://example.com"), "text");
   assert.equal(detectType("ftp://example.com"), "text");
   assert.equal(detectType("https://user:pw@example.com"), "text");
