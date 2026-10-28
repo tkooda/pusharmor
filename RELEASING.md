@@ -136,6 +136,11 @@ signed Beta XPI `pusharmor-firefox-beta-X.Y.Z.xpi` and its update manifest
 add-on ("PushArmor Beta", own gecko id) is signed UNLISTED on AMO; AMO never
 lists it.
 
+Rerun: AMO accepts each version once. When `submit-firefox` passed and
+`publish-firefox` failed, rerun only the failed `publish-firefox` job. A full
+rerun signs the same version again and fails; fix a failure in
+`submit-firefox` or before it with a new patch version.
+
 Test: install the Beta XPI from the prerelease link once. Auto-update: copy the
 updates.json asset to `site/public/fx/beta/updates.json` in a site commit (the
 Beta manifest's update_url is `https://pusharmor.com/fx/beta/updates.json`,
