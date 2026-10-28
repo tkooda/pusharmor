@@ -43,6 +43,7 @@ function siteFiles() {
 
 test("every site file is ASCII", () => {
   for (const rel of siteFiles()) {
+    if (/\.(png|ico)$/.test(rel)) continue; // binary images
     const buf = readFileSync(join(SITE, rel));
     const bad = buf.findIndex((b) => b > 127);
     assert.equal(bad, -1, rel + " has a non-ASCII byte at " + bad);
