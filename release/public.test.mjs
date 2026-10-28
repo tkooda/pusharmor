@@ -2,14 +2,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadPublic, publicProblems } from "./public.mjs";
+import { publicProblems } from "./public.mjs";
 import { dummyValues } from "./ci-dummy.mjs";
 
-const PUB = loadPublic();
-const KEYS = Object.keys(PUB).filter((k) => !k.startsWith("_"));
+// A fixture with every public key set to a PLACEHOLDER, so the tests do not
+// depend on which values the owner has filled into the tracked release/public.json.
+const NAMES = JSON.parse(readFileSync(join(import.meta.dirname, "names.json"), "utf8"));
+const KEYS = Object.keys(NAMES.public_keys).sort();
+const PUB = { _doc: "PLACEHOLDER fixture", ...Object.fromEntries(KEYS.map((k) => [k, "PLACEHOLDER_" + k.toUpperCase()])) };
 
 test("every committed value is a PLACEHOLDER until the owner fills it", () => {
   for (const k of KEYS) assert.match(JSON.stringify(PUB[k]), /PLACEHOLDER/, k);
@@ -64,12 +67,17 @@ test("--check CLI: fails on PLACEHOLDER keys and on any PA_CI_DUMMY; passes on r
   const run = (args, env) => spawnSync("node", [cli, ...args], { encoding: "utf8", env: { PATH: process.env.PATH, ...env } });
   assert.equal(run([], {}).status, 2);
   assert.equal(run(["--check"], {}).status, 2);
-  const r = run(["--check", "apple_team_id", "google_cws_publisher_id"], {});
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /apple_team_id is a PLACEHOLDER/);
-  assert.match(r.stderr, /google_cws_publisher_id is a PLACEHOLDER/);
   const tmp = mkdtempSync(join(tmpdir(), "pa-public-check-"));
   try {
+    // a copy of public.mjs next to a public.json with only PLACEHOLDER values
+    const pl = join(tmp, "placeholders");
+    mkdirSync(pl);
+    writeFileSync(join(pl, "public.mjs"), readFileSync(cli));
+    writeFileSync(join(pl, "public.json"), JSON.stringify(PUB));
+    const r = spawnSync("node", [join(pl, "public.mjs"), "--check", "apple_team_id", "google_cws_publisher_id"], { encoding: "utf8", env: { PATH: process.env.PATH } });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /apple_team_id is a PLACEHOLDER/);
+    assert.match(r.stderr, /google_cws_publisher_id is a PLACEHOLDER/);
     // a copy of public.mjs next to a public.json with real values
     writeFileSync(join(tmp, "public.mjs"), readFileSync(cli));
     writeFileSync(join(tmp, "public.json"), JSON.stringify({ a: "real", b: ["AB:CD"], c: "ci-fork-dummy-c" }));
