@@ -24,9 +24,10 @@
 </header>
 <main id="main">
 <h1>Security and threat model</h1>
-<p>PushArmor is built so that our own server does not need to be trusted with your messages. We
-treat the server (a Cloudflare Worker) as hostile: the apps and add-ons check everything it
-returns. Keys are made on each device and the private keys never leave it.</p>
+<p>Your peers don't need to trust the server. Messages are encrypted on your device, and only your
+own peers can read them. Each app and add-on checks everything the server sends, so the server
+cannot change a message or pose as a peer. Keys are made on each device and the private keys
+never leave it.</p>
 
 <h2>What each party sees</h2>
 <div class="table-wrap">
@@ -49,8 +50,8 @@ content.</p>
 
 <h2>How peers trust each other</h2>
 <p>Two peers trust each other only after you pair them and compare the 4-character pairing
-fingerprint on both screens. A forged pairing succeeds with a chance of about 1 in a million per
-try, and each failed try shows a notice on the other peer. Every message is signed by the
+fingerprint on both screens. This check stops a fake pairing in all but about 1 in a million
+tries, and each failed try shows a notice on the other peer. Every message is signed by the
 sending peer and checked by the receiving peer; repeated or old messages are dropped.</p>
 
 <h2>Reporting a security problem</h2>
