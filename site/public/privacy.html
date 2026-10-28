@@ -57,8 +57,8 @@ created time, platform, paused flag, and pending approve messages (end-to-end en
 per peer, kept until the other peer is removed, denied or withdrawn, or a newer approve
 replaces them).</li>
 </ul>
-<p>Accounts with no send for 3 years are deleted with their peers (banned accounts are
-kept).</p>
+<p>An account with no send and no added peer for about 3 years is deleted with its peers
+(banned accounts are kept). This also removes an account that has no peers left.</p>
 
 <h2>What stays on your device</h2>
 <ul>
@@ -85,11 +85,14 @@ As a fallback, a service worker on pusharmor.com receives encrypted messages and
 the add-on inside the browser. Both carry ciphertext only.</p>
 
 <h2>Deletion</h2>
-<p>Use Delete account in the app, Remove on a peer, or the web flow at
-<a href="/delete-account">pusharmor.com/delete-account</a>. Deletion removes all peer rows at
-once. Kept: the keyed account hash with its ban flag, for banned accounts only; undelivered
+<p>Use Delete account in the app or the web flow at
+<a href="/delete-account">pusharmor.com/delete-account</a>. Deletion removes the account and all
+its peer rows at once. Kept: the keyed account hash with its ban flag, for banned accounts only; undelivered
 pushes at the vendors, up to 7 days (pairing requests up to 4 weeks); copies on your other
 peers.</p>
+<p>Remove on a peer deletes that one peer row only. The account row (the keyed hash, created
+time and last-active month) stays until you delete the account, or until the 3-year purge
+above.</p>
 
 <h2>Support</h2>
 <p>Email <a href="mailto:support@pusharmor.com">support@pusharmor.com</a> (forwarded to the
