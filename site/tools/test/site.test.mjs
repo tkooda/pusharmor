@@ -420,6 +420,11 @@ test("retention: 4 weeks on /privacy and /delete-account; stored list", () => {
   }
 });
 
+test("minimum age 13 on /terms and /privacy (Q227 A)", () => {
+  assert.ok(text("terms.html").includes("You must be at least 13 to use PushArmor."));
+  assert.ok(text("privacy.html").includes("PushArmor is for people aged 13 and over."));
+});
+
 test("FAQ texts (I258, I264, I272, WEB6-04) and fixed lines", () => {
   const how = text("how-to.html");
   const sup = text("support.html");
