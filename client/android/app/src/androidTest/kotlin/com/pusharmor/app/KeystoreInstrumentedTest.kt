@@ -1,5 +1,6 @@
 package com.pusharmor.app
 
+import android.os.Build
 import android.security.keystore.KeyProperties
 import android.security.keystore.KeyProtection
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -13,6 +14,7 @@ import com.pusharmor.crypto.ascii
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.security.KeyStore
@@ -44,8 +46,12 @@ class KeystoreInstrumentedTest {
      * Golden vectors through the Keystore ECDH path: the golden enc private key is imported
      * with KeyStore.setEntry and KeyProtection(PURPOSE_AGREE_KEY). The vector is the
      * rfc9180 section of tests/vectors/golden-v1.json (P-256, AES-256-GCM, base mode).
+     * Skipped on API 31: an imported key does not get AGREE_KEY there, and keystore2 rejects
+     * the ECDH begin ("the purpose is not authorized", KeyMint ErrorCode -3). The app never
+     * imports keys; createSignVerifyAndEcdh covers ECDH with a generated key on API 31.
      */
     @Test fun goldenRfc9180ThroughKeystoreEcdh() {
+        assumeTrue(Build.VERSION.SDK_INT != Build.VERSION_CODES.S)
         val skRm = "317f915db7bc629c48fe765587897e01e282d3e8445f79f27f65d031a88082b2"
         val pkEm = "04c06b4f6bebc7bb495cb797ab753f911aff80aefb86fd8b6fcc35525f3ab5f03e0b21bd31a86c6048af3cb2d98e0d3bf01da5cc4c39ff5370d331a4f1f7d5a4e0"
         val ct = "58c61a45059d0c5704560e9d88b564a8b63f1364b8d1fcb3c4c6ddc1d291742465e902cd216f8908da49f8f96f"
