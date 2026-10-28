@@ -289,7 +289,7 @@ class PairingEngine(
                         store.putPairing(cur.copy(notBefore = now + (r.retryAfter ?: 60) * 1000, lastSendAt = now))
                         SendStep.WAIT_UNTIL
                     }
-                    r.status >= 500 -> SendStep.RETRY
+                    r.status >= 500 || r.isClockSkew -> SendStep.RETRY // the client already re-synced its clock
                     else -> { // permanent (401 paused included): stays prompted with [Reply] / [Send again]
                         store.putPairing(promptOnFailure(cur).copy(lastSendAt = now, lastResult = r.error))
                         SendStep.STOP
