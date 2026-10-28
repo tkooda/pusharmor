@@ -1,6 +1,13 @@
 # pusharmor
 Push URLs and text between devices securely.
 
+Website: https://pusharmor.com
+
+## License and security
+
+- License: MIT, see [LICENSE](LICENSE).
+- To report a security problem, see [SECURITY.md](SECURITY.md).
+
 ## Releasing
 
 Per-platform tags `<platform>/vX.Y.Z` on one version line, test channels,
