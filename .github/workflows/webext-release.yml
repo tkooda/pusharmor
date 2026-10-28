@@ -251,7 +251,9 @@ jobs:
           fi
           api="https://chromewebstore.googleapis.com"
           item="publishers/$PUB/items/$ITEM"
-          r="$(curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/zip" \
+          # Print the API error body on an HTTP error, then fail.
+          call() { local r; if ! r="$(curl -sS --fail-with-body "$@")"; then printf '%s\n' "$r" >&2; return 1; fi; printf '%s\n' "$r"; }
+          r="$(call -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/zip" \
             --data-binary "@$ZIP" "$api/upload/v2/$item:upload")"
           echo "$r"
           state="$(printf '%s' "$r" | jq -r '.uploadState // empty')"
@@ -259,7 +261,7 @@ jobs:
           while [ "$state" = "IN_PROGRESS" ] && [ "$n" -lt 30 ]; do
             sleep 10
             n=$((n + 1))
-            r="$(curl -fsS -H "Authorization: Bearer $TOKEN" "$api/v2/$item:fetchStatus")"
+            r="$(call -H "Authorization: Bearer $TOKEN" "$api/v2/$item:fetchStatus")"
             state="$(printf '%s' "$r" | jq -r '.lastAsyncUploadState // empty')"
           done
           if [ "$state" != "SUCCEEDED" ]; then
@@ -267,7 +269,12 @@ jobs:
             echo "$r"
             exit 1
           fi
-          curl -fsS -X POST -H "Authorization: Bearer $TOKEN" "$api/v2/$item:publish"
+          r="$(call -X POST -H "Authorization: Bearer $TOKEN" "$api/v2/$item:publish")"
+          echo "$r"
+          state="$(printf '%s' "$r" | jq -r '.state // empty')"
+          case "$state" in
+            ""|ITEM_STATE_UNSPECIFIED|REJECTED|CANCELLED) echo "publish state: ${state:-none}"; exit 1 ;;
+          esac
 
   build-firefox:
     name: build Firefox (release and Beta zips, source archive, checks)

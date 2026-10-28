@@ -67,3 +67,14 @@ test("attest steps are skipped while the repo is private", () => {
     assert.doesNotMatch(wf, /steps\.attest/, f);
   }
 });
+
+test("store API calls print the error body and the Chrome publish state is checked", () => {
+  for (const f of ["android-release.yml", "webext-release.yml"]) {
+    const wf = read(f);
+    assert.doesNotMatch(wf, /curl -fsS/, f);
+    assert.match(wf, /curl -sS --fail-with-body "\$@"/, f);
+  }
+  const wf = read("webext-release.yml");
+  assert.match(wf, /r="\$\(call -X POST -H "Authorization: Bearer \$TOKEN" "\$api\/v2\/\$item:publish"\)"/);
+  assert.match(wf, /jq -r '\.state \/\/ empty'/);
+});
