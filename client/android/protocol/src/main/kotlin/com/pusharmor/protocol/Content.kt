@@ -69,7 +69,7 @@ object UrlCheck {
      * Hand parse that follows the WHATWG URL rules for the supported shapes: scheme http or
      * https (any case), non-empty host, no userinfo, after the shared shape rules (no control
      * or DEL, no leading or trailing space, no "@" or "%" in the authority, a numeric host only
-     * as a dotted quad) and the shared IDN conversion. Returns null when the
+     * as a dotted quad) and the shared UTS 46 guard and IDN conversion. Returns null when the
      * value is not one such URL (then shown as plain text).
      */
     fun parse(s: String): Parsed? {
@@ -130,21 +130,36 @@ object UrlCheck {
     }
 
     /**
-     * Shared IDN conversion (golden url_parse): each code point to lowercase on its own (ASCII
-     * A-Z, else the Unicode full lowercase mapping), then a label with a non-ASCII code point
-     * becomes "xn--" punycode. Null on forbidden chars or a numeric host that is not a dotted quad.
+     * Shared UTS 46 guard (golden url_parse): a host a browser would map or reject stays text.
+     * The host must equal its NFKC form; each non-ASCII code point must equal its own full
+     * lowercase mapping and not be ignorable (Default_Ignorable_Code_Point, plus U+3002, which
+     * UTS 46 maps to "."); no label may start with a combining mark (Mn, Mc, Me).
      */
-    private fun asciiHost(h: String): String? {
-        if (h.any { it in HOST_FORBIDDEN }) return null
-        val lower = buildString {
-            h.codePoints().forEach {
-                when {
-                    it in 'A'.code..'Z'.code -> append((it + 32).toChar())
-                    it < 0x80 -> append(it.toChar())
-                    else -> append(String(Character.toChars(it)).lowercase())
-                }
+    private fun idnOk(h: String): Boolean {
+        if (java.text.Normalizer.normalize(h, java.text.Normalizer.Form.NFKC) != h) return false
+        val bad = h.codePoints().anyMatch { it >= 0x80 && (ignorable(it) || String(Character.toChars(it)).let { c -> c.lowercase() != c }) }
+        if (bad) return false
+        return h.split('.').none { l ->
+            l.isNotEmpty() && Character.getType(l.codePointAt(0)).toByte().let {
+                it == Character.NON_SPACING_MARK || it == Character.COMBINING_SPACING_MARK || it == Character.ENCLOSING_MARK
             }
         }
+    }
+
+    private fun ignorable(c: Int): Boolean =
+        c == 0xad || c == 0x34f || c == 0x61c || c in 0x115f..0x1160 || c in 0x17b4..0x17b5 ||
+            c in 0x180b..0x180f || c in 0x200b..0x200f || c in 0x202a..0x202e || c in 0x2060..0x206f ||
+            c == 0x3002 || c == 0x3164 || c in 0xfe00..0xfe0f || c == 0xfeff || c == 0xffa0 ||
+            c in 0xfff0..0xfff8 || c in 0x1bca0..0x1bca3 || c in 0x1d173..0x1d17a || c in 0xe0000..0xe0fff
+
+    /**
+     * Shared IDN conversion (golden url_parse), after idnOk: ASCII A-Z to lowercase, then a
+     * label with a non-ASCII code point becomes "xn--" punycode. Null on forbidden chars, a
+     * host idnOk rejects, or a numeric host that is not a dotted quad.
+     */
+    private fun asciiHost(h: String): String? {
+        if (h.any { it in HOST_FORBIDDEN } || !idnOk(h)) return null
+        val lower = buildString { for (ch in h) append(if (ch in 'A'..'Z') ch + 32 else ch) }
         val ascii = lower.split('.').joinToString(".") { l -> if (l.all { it.code < 0x80 }) l else "xn--" + punycode(l) }
         val labels = ascii.split('.').toMutableList()
         if (labels.size > 1 && labels.last().isEmpty()) labels.removeAt(labels.size - 1)
