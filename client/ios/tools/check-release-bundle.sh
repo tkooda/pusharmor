@@ -14,6 +14,9 @@
 #     ("11ProcessInfoC9arguments"), and not both the NSProcessInfo class and an exact
 #     "arguments" or "environment" Objective-C selector string (how Swift on Darwin calls
 #     ProcessInfo.processInfo.arguments / .environment; other ProcessInfo use passes)
+#   - each main executable: crypto from the OS only (Apple CryptoKit): otool -L lists no
+#     BoringSSL library and its strings hold no swift-crypto or BoringSSL symbol
+#     (CCryptoBoringSSL, CryptoBoringWrapper, _CryptoExtras, the Swift module prefix "$s6Crypto")
 #   - CFBundleURLTypes schemes: the app has exactly the Google callback scheme, derived
 #     from google_ios_client_id in release/public.json as tools/public-xcconfig.sh does;
 #     an extension has none
@@ -110,6 +113,8 @@ while IFS= read -r b; do
     if [ $have_otool = 1 ]; then
       libs="$(otool -L "$exe" | grep -E 'XCTest|XCUI|Testing\.framework')"
       [ -z "$libs" ] || add "$name: links a test library: $(echo "$libs" | tr -s ' \t\n' ' ')"
+      libs="$(otool -L "$exe" | grep -iE 'boringssl|swift-?crypto')"
+      [ -z "$libs" ] || add "$name: links a non-OS crypto library: $(echo "$libs" | tr -s ' \t\n' ' ')"
     fi
     if command -v strings >/dev/null 2>&1; then
       strs="$(strings -a "$exe")"
@@ -118,6 +123,8 @@ while IFS= read -r b; do
     fi
     hits="$(printf '%s\n' "$strs" | grep -oE 'XCTest|XCUIApplication|UITest' | sort -u | tr '\n' ' ')"
     [ -z "$hits" ] || add "$name: executable contains test strings: $hits"
+    hits="$(printf '%s\n' "$strs" | grep -oE 'CCryptoBoringSSL|CryptoBoringWrapper|_CryptoExtras|[$]s6Crypto[0-9]' | sort -u | tr '\n' ' ')"
+    [ -z "$hits" ] || add "$name: executable contains non-OS crypto (swift-crypto or BoringSSL): $hits"
     hits="$(printf '%s\n' "$strs" | grep -oiE 'launch(arguments|environment)|ui[-_]?test' | sort -u | tr '\n' ' ')"
     hits="$hits$(printf '%s\n' "$strs" \
       | grep -oE '11CommandLineO(9arguments|4argc|10unsafeArgv)|11ProcessInfoC(9arguments|11environment)' | sort -u | tr '\n' ' ')"
