@@ -425,6 +425,16 @@ test("minimum age 13 on /terms and /privacy", () => {
   assert.ok(text("privacy.html").includes("PushArmor is for people aged 13 and over."));
 });
 
+test("download: every Android channel, release asset names, certificate fingerprint", () => {
+  const t = text("download.html");
+  for (const c of ["Google Play", "F-Droid", "Obtainium, from GitHub Releases", "APK from GitHub Releases (below)"]) {
+    assert.ok(t.includes(c + " Coming soon"), "download lacks: " + c);
+  }
+  for (const s of ["pusharmor-0.0.X-play.apk", "pusharmor-0.0.X-foss.apk", "Signing certificate (SHA-256 fingerprint)"]) {
+    assert.ok(t.includes(s), "download lacks: " + s);
+  }
+});
+
 test("FAQ texts and fixed lines", () => {
   const how = text("how-to.html");
   const sup = text("support.html");
