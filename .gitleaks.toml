@@ -21,3 +21,11 @@ regexes = [
   '''PLACEHOLDER_[A-Z0-9_]+''',
   '''P256\.(Signing|KeyAgreement)\.PrivateKey''',
 ]
+
+[[allowlists]]
+description = "public Firebase Android client key (ships in every app build)"
+targetRules = ["gcp-api-key", "generic-api-key"]
+condition = "AND"
+paths = ['''^release/public\.json$''']
+regexTarget = "line"
+regexes = ['''"google_fcm_android_api_key"\s*:''']
