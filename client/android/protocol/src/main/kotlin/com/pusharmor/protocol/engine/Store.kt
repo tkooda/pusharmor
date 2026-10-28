@@ -69,11 +69,15 @@ interface LocalStore {
 
     fun peer(id: String): Peer?
     fun peers(): List<Peer>
+    /** Writes [p] but never changes last_n of an existing row (use [resetCounter]). */
     fun putPeer(p: Peer)
     fun deletePeer(id: String)
 
     /** Reserves n = last_n + 1 for [peerId] and persists it in one committed atomic increment. */
     fun reserveCounter(peerId: String): Long
+
+    /** Sets last_n to 0 (pin and unpin only). */
+    fun resetCounter(peerId: String)
 
     fun window(peerId: String): ReplayWindow?
     fun putWindow(peerId: String, pairingId: ByteArray, w: ReplayWindow)

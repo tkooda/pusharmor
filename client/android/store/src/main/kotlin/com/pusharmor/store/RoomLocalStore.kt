@@ -25,6 +25,7 @@ class RoomLocalStore(val db: PaDatabase) : LocalStore {
         dao.putPeer(p.toEntity(old))
     }
     override fun deletePeer(id: String) = dao.deletePeer(id)
+    override fun resetCounter(peerId: String) = dao.resetCounter(peerId)
 
     override fun reserveCounter(peerId: String): Long = tx {
         check(dao.bumpCounter(peerId) == 1) { "no peer row" }
@@ -101,7 +102,7 @@ fun PeerEntity.toPeer() = Peer(
 /** Keeps the per-peer switches of [old] (they are not part of the protocol view). */
 fun Peer.toEntity(old: PeerEntity?) = PeerEntity(
     id, platform, created, listSignPub, listEncPub, signPub, encPub, pairingId, approved, deniedByMe, approveVerified, listApprovesMe,
-    listDeniesMe, listAfterVerify, declined, reachable, paused, pauseN, hidden, name, nameN, removed, missing, lastN,
+    listDeniesMe, listAfterVerify, declined, reachable, paused, pauseN, hidden, name, nameN, removed, missing, old?.lastN ?: lastN,
     channelId ?: old?.channelId, storedApprove, storedApproveName, lastApproveResult, lastSendAt, note,
     lockScreen = old?.lockScreen ?: true, watch = old?.watch ?: true, hideContent = old?.hideContent ?: false,
 )

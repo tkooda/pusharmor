@@ -122,6 +122,16 @@ class EngineTest {
         assertEquals(200, got.toSet().size)
     }
 
+    @Test fun putPeerWithStaleCopyDoesNotRollBackCounter() {
+        pairShown()
+        val stale = n.store.peer(x.id)!!
+        val reserved = n.store.reserveCounter(x.id)
+        n.store.putPeer(stale.copy(hidden = !stale.hidden))
+        assertEquals(reserved, n.store.peer(x.id)!!.lastN)
+        n.store.resetCounter(x.id)
+        assertEquals(0L, n.store.peer(x.id)!!.lastN)
+    }
+
     @Test fun allowReconcile() {
         pairShown()
         n.approve.approve(x.id) // allow has X (pinned)

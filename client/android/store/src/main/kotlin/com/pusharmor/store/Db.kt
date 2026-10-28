@@ -125,6 +125,7 @@ interface PaDao {
     @Query("DELETE FROM peers WHERE id = :id") fun deletePeer(id: String)
     @Query("DELETE FROM peers") fun deleteAllPeers()
     @Query("UPDATE peers SET last_n = last_n + 1 WHERE id = :id") fun bumpCounter(id: String): Int
+    @Query("UPDATE peers SET last_n = 0 WHERE id = :id") fun resetCounter(id: String)
     @Query("SELECT last_n FROM peers WHERE id = :id") fun counter(id: String): Long
 
     @Query("SELECT * FROM replay WHERE peer_id = :id") fun replay(id: String): ReplayEntity?

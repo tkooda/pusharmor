@@ -38,6 +38,17 @@ class RoomLocalStoreTest {
         assertEquals(100L, a.peer("p")!!.lastN)
     }
 
+    @Test fun putPeerKeepsStoredCounterAndResetClearsIt() {
+        val s = RoomLocalStore(Room.databaseBuilder(ctx, PaDatabase::class.java, "k.db").allowMainThreadQueries().build())
+        s.putPeer(Peer(id = "p"))
+        val stale = s.peer("p")!!
+        assertEquals(1L, s.reserveCounter("p"))
+        s.putPeer(stale.copy(hidden = true))
+        assertEquals(1L, s.peer("p")!!.lastN)
+        s.resetCounter("p")
+        assertEquals(0L, s.peer("p")!!.lastN)
+    }
+
     @Test fun pairingRowSurvivesReopen() {
         val db1 = Room.databaseBuilder(ctx, PaDatabase::class.java, "p.db").allowMainThreadQueries().build()
         val s1 = RoomLocalStore(db1)
