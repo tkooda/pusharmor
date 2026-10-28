@@ -113,7 +113,6 @@ export async function recordHealth(env: Env, v: VendorName, ok: boolean, authFai
   let sql: string;
   if (ok) {
     if (okSeen.get(v) === hour) return;
-    okSeen.set(v, hour);
     sql = SQL.W_HEALTH_OK;
   } else if (authFailure) {
     sql = SQL.W_HEALTH_AUTH;
@@ -122,6 +121,7 @@ export async function recordHealth(env: Env, v: VendorName, ok: boolean, authFai
   }
   try {
     await env.DB.prepare(sql).bind(v, hour).run();
+    if (ok) okSeen.set(v, hour);
   } catch {
     // Health counting must never fail a delivery.
   }
