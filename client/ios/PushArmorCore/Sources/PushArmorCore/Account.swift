@@ -21,7 +21,10 @@ extension Core {
             ("push", push.map { p in JOut.obj([("type", .str(p.type.rawValue)), ("token", .str(p.token))]) } ?? .null),
         ]
         if !evict.isEmpty { fields.append(("evict", .arr(evict.map { .str($0) }))) }
-        let out = await api.call("POST", "/v1/peers", body: JOut.obj(fields).data, auth: .signed(keys.signer, nil))
+        let body = JOut.obj(fields).data
+        var out = await api.call("POST", "/v1/peers", body: body, auth: .signed(keys.signer, nil))
+        // the offset is re-synced from the reply; the ticket is still valid, so sign again once
+        if out.isClockSkew { out = await api.call("POST", "/v1/peers", body: body, auth: .signed(keys.signer, nil)) }
         guard let r = out.reply else { return .network }
         switch (r.status, r.error) {
         case (403, "banned"?): return .banned
