@@ -436,7 +436,7 @@ test("FAQ texts (I258, I264, I272, WEB6-04) and fixed lines", () => {
   const sec = text("security.html");
   assert.ok(sec.includes("The push service and the Worker can show a notification with text of their choosing on every platform; verified content appears only after your device decrypts it."));
   assert.ok(sec.includes("The vendor sees the size bucket and the urgency level of a message, not its content."));
-  assert.ok(text("delete-account.html").includes("Deleted at once: all peer rows (keys, push tokens, names). Kept: the keyed account hash with its ban flag, for banned accounts only; undelivered pushes at the vendors, up to 7 days (pairing requests up to 4 weeks); copies on your other peers. No login to this site is needed."));
+  assert.ok(text("delete-account.html").includes("Deleted at once: all peer rows (keys, push tokens, names). Kept: the keyed account hash with its ban flag, for banned accounts only, so a banned address stays banned; undelivered pushes at the vendors, up to 7 days (pairing requests up to 4 weeks); copies on your other peers. No login to this site is needed."));
   assert.ok(text("auth/done.html").includes("Returning to PushArmor... If this tab stays open, the add-on did not receive the sign-in: check it is enabled, then retry"));
 });
 

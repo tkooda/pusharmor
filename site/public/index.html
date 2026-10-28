@@ -89,7 +89,8 @@ screens. If it matches, the pairing is genuine.</li>
 sender. Only the receiving peer can decrypt it.</li>
 <li>Our server (a Cloudflare Worker) and the push services only carry ciphertext. They cannot
 read your messages. Your peers check every signature and drop old or repeated messages.</li>
-<li>We do not store your email address, only a keyed one-way hash of it.</li>
+<li>We do not store your email address, only a keyed one-way hash of it. The hash is your account
+id: it puts all your peers in one account.</li>
 </ul>
 <p>Read the <a href="/security">threat model</a> for what each party can and cannot see.</p>
 

@@ -39,17 +39,25 @@ Firefox), and a UnifiedPush distributor if you chose one</strong>: used to wake 
 They see the push token or endpoint and the encrypted payload only. They hold undelivered
 messages up to 7 days (pairing requests up to 4 weeks).</li>
 <li><strong>Cloudflare</strong>: runs our server code and database, so it can technically see
-everything the server sees: your email address briefly at sign-in, your IP address, peer public
+everything the server sees: your email address briefly at sign-in (to send the code), your IP address, peer public
 keys, push tokens and encrypted messages. Cloudflare also keeps our delivery logs for 7 days:
 account id, peer ids and send results; no content, no IP, no email. Turnstile runs on the email
 sign-in page and on the delete-account page only.</li>
 <li><strong>Google and Apple sign-in</strong> (if you choose them): used to prove the account.
-We keep only the keyed hash.</li>
+We keep only the keyed hash of the address (your account id, see below).</li>
 </ul>
 
 <h2>Your email address</h2>
 <p>We do not store your email address. We keep only a keyed one-way hash of it, which cannot be
 turned back into the address.</p>
+<p>Why we keep the hash: it is your account id. When you sign in on another peer with the same
+address, the hash puts that peer in the same account. It also lets us ban an address that is
+used for abuse, and keeps a banned address banned. The hash is kept in the server database until
+you delete the account, or until the 3-year purge below. For a banned account it is kept after
+deletion.</p>
+<p>To limit how many sign-in codes can be sent to one address, Cloudflare's rate limiter counts
+code requests by a hash of the address, for 1 minute. This count is not kept in the server
+database.</p>
 
 <h2>End-to-end encryption</h2>
 <p>Messages are end-to-end encrypted. Each peer makes its own keys on the device, and the
@@ -73,7 +81,7 @@ replaces them).</li>
 <h2>What stays on your device</h2>
 <ul>
 <li>The address you signed in with, shown as Signed in as (a Hide My Email relay address if you
-chose one).</li>
+chose one), so you can see which address to use on your other peers.</li>
 <li>Your history, deleted automatically after the number of days you set (default 30). History is
 device-local and not backed up.</li>
 <li>Your keys.</li>
@@ -97,7 +105,8 @@ the add-on inside the browser. Both carry ciphertext only.</p>
 <h2>Deletion</h2>
 <p>Use Delete account in the app or the web flow at
 <a href="/delete-account">pusharmor.com/delete-account</a>. Deletion removes the account and all
-its peer rows at once. Kept: the keyed account hash with its ban flag, for banned accounts only; undelivered
+its peer rows at once. Kept: the keyed account hash with its ban flag, for banned accounts only, so a banned address
+stays banned; undelivered
 pushes at the vendors, up to 7 days (pairing requests up to 4 weeks); copies on your other
 peers.</p>
 <p>Remove on a peer deletes that one peer row only. The account row (the keyed hash, created

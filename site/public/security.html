@@ -34,7 +34,7 @@ returns. Keys are made on each device and the private keys never leave it.</p>
 <thead><tr><th>Party</th><th>Sees</th><th>Does not see</th></tr></thead>
 <tbody>
 <tr><td>Your peers</td><td>The messages you send them, after decryption and signature checks.</td><td>Messages for other peers.</td></tr>
-<tr><td>The Worker (our server on Cloudflare)</td><td>A keyed hash of your email address (the address itself briefly at sign-in), your IP address, peer public keys, push tokens or endpoints, encrypted messages and their size, and who sends to whom inside your account.</td><td>Message content, private keys, pairing fingerprints.</td></tr>
+<tr><td>The Worker (our server on Cloudflare)</td><td>A keyed hash of your email address, which is your account id (the address itself briefly at sign-in, to send the code), your IP address, peer public keys, push tokens or endpoints, encrypted messages and their size, and who sends to whom inside your account.</td><td>Message content, private keys, pairing fingerprints.</td></tr>
 <tr><td>Cloudflare</td><td>Everything the Worker sees, since it runs the Worker and its database. Delivery logs: account id, peer ids and send results, for 7 days.</td><td>Message content, private keys.</td></tr>
 <tr><td>Push services (Google FCM, Apple APNs, Google and Mozilla web push, a UnifiedPush distributor)</td><td>The push token or endpoint and the encrypted payload; they hold undelivered messages up to 7 days (pairing requests up to 4 weeks).</td><td>Message content, keys.</td></tr>
 <tr><td>AWS SES</td><td>Your email address when it sends a sign-in code.</td><td>Anything else.</td></tr>
