@@ -641,6 +641,15 @@ function urlSection() {
     // IDN hosts that stay text
     'https://\u05d0 \u05d1.com/', 'https://\u00e9%41.com/', 'https://\u00e9@a.com/', 'https://\u0645\u062b.123/',
     'https://\u00e9<.com/', 'https://\u00e9|.com/', 'https://[\u00e9]/',
+    // UTS 46 would map, delete or reject: stays text
+    'https://\uff21.com/', 'https://a\uff0ecom/', 'https://a\uff61com/', 'https://\u00e9\u3000.com/',
+    'https://\u00e9\u00a0.com/', 'https://\u00e9\ufeff.com/', 'https://\u00e9\u2060.com/', 'https://a\u200bb.com/',
+    'https://i\u2764\ufe0f.ws/', 'https://\u00e9\u{e0041}.com/', 'https://x\u00b2.com/', 'https://\ufb01.com/',
+    'https://\u2460.com/', 'https://\u3131.kr/', 'https://\u00b5.com/', 'https://\u017f.com/', 'https://\u1e9e.de/',
+    'https://\u01c5.com/', 'https://e\u0301.com/', 'https://\u0301a.com/', 'https://a.\u0903b.com/',
+    'https://\u05d0\u202e.com/', 'https://\u00e9.\u3002com/',
+    // NFC, lowercase, no mapping: still a link
+    'https://\u00e9.com/', 'https://\u03c2.gr/', 'https://x\u0301.com/x',
   ];
   return {
     description:
@@ -649,9 +658,13 @@ function urlSection() {
       'parsed hostname shown to the user (IDN as punycode). Shape rules first (else url false): no C0 control or ' +
       'DEL, no leading or trailing space; "http://" or "https://" (any case) not followed by "/" or "\\"; no "@" or ' +
       '"%" in the authority; a host that ends in a number ' +
-      'only as a dotted quad 0-255 without leading zeros. A non-ASCII host: each code point to lowercase on its own ' +
-      '(ASCII A-Z, else the Unicode full lowercase mapping), then each label with a non-ASCII code point becomes ' +
-      '"xn--" + RFC 3492 punycode; no other UTS 46 mapping or check. A space in the path, query or fragment is kept as %20. ' +
+      'only as a dotted quad 0-255 without leading zeros. A host that UTS 46 would map or reject is url false: ' +
+      'the host must equal its NFKC form; each non-ASCII code point must equal its own full lowercase mapping and ' +
+      'not be a Default_Ignorable_Code_Point (U+00AD, U+034F, U+061C, U+115F-U+1160, U+17B4-U+17B5, U+180B-U+180F, ' +
+      'U+200B-U+200F, U+202A-U+202E, U+2060-U+206F, U+3164, U+FE00-U+FE0F, U+FEFF, U+FFA0, U+FFF0-U+FFF8, ' +
+      'U+1BCA0-U+1BCA3, U+1D173-U+1D17A, U+E0000-U+E0FFF) or U+3002; no label may start with a combining mark ' +
+      '(Mn, Mc, Me). Then ASCII A-Z to lowercase and each label with a non-ASCII code point becomes ' +
+      '"xn--" + RFC 3492 punycode. A space in the path, query or fragment is kept as %20. ' +
       'auto_open (extensions only): https, DNS hostname, no IP ' +
       'literal, no explicit port, at least two labels after stripping one trailing dot, no empty label, not "localhost", last label not ' +
       '"localhost" or "local".',
