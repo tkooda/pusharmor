@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 240" width="940" height="240">
+  <title>PushArmor wordmark</title>
+  <defs><mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><path fill="#000" d="M256 168 L318 236 H280 V334 H232 V236 H194 Z"/></mask></defs>
+  <g transform="translate(14 14) scale(0.414)"><path fill="#1F9A5A" mask="url(#m)" d="M256 108 L376 150 V250 C376 330 322 382 256 406 C190 382 136 330 136 250 V150 Z"/></g>
+  <text x="250" y="158" font-family="'Inter', 'Helvetica Neue', Arial, sans-serif" font-size="112" font-weight="700" letter-spacing="-2"><tspan fill="#1F9A5A">Push</tspan><tspan fill="#1F3A5F">Armor</tspan></text>
+</svg>
