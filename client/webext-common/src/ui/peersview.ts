@@ -16,6 +16,10 @@ const ACTION_LABEL: Record<string, string> = {
   unhide: "Unhide",
   localDelete: "Delete",
 };
+// Display order of a row's actions: the main action first, the row tools last.
+const ACTION_ORDER = ["pair", "approve", "approve_again", "reply", "send_again", "deny", "cancel", "localDelete", "remove", "hide", "unhide"];
+const ACTION_CLASS: Record<string, string> = { pair: "primary", approve: "primary", reply: "primary", remove: "quiet", hide: "quiet", unhide: "quiet" };
+const rank = (a: string): number => (ACTION_ORDER.indexOf(a) + 1 || ACTION_ORDER.length + 1);
 
 export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, highlight?: string): Promise<void> {
   const status = h("div", { class: "status" });
@@ -57,11 +61,13 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
     for (const l of p.lines) if (!l.startsWith("Pairing fingerprint")) row.append(h("div", { class: "line" }, l));
     if (p.countdown) row.append(h("div", { class: "dim countdown" }, T.countdownLeft(p.countdown)));
     const acts = h("div", { class: "actions" });
-    for (const a of p.actions) {
-      const b = h("button", {}, ACTION_LABEL[a] ?? a) as HTMLButtonElement;
+    const tools = h("span", { class: "tools" });
+    for (const a of [...p.actions].sort((x, y) => rank(x) - rank(y))) {
+      const b = h("button", { class: ACTION_CLASS[a] ?? "" }, ACTION_LABEL[a] ?? a) as HTMLButtonElement;
       b.addEventListener("click", () => void act(env, a, p, b, row, status, () => renderPeers(env, root, full)));
-      acts.append(b);
+      (ACTION_CLASS[a] === "quiet" ? tools : acts).append(b);
     }
+    if (tools.firstChild) acts.append(tools);
     row.append(acts);
     root.append(row);
     if (highlight === p.id) {

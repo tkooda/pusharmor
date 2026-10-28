@@ -32,6 +32,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 button:disabled { opacity: 0.5; cursor: default; }
 button.primary { background: var(--green); border-color: var(--green); color: var(--on-green); font-weight: 600; }
 button.primary:hover { filter: brightness(1.06); }
+.actions { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 4px; }
+.actions button { margin: 0; }
+button.quiet { background: transparent; border-color: transparent; color: var(--muted); padding: 5px 6px; }
+button.quiet:hover { background: var(--btn); color: var(--ink); }
+.tools { display: flex; gap: 4px; white-space: nowrap; }
+.actions button + .tools { margin-left: auto; }
 button.danger { color: var(--danger); background: transparent; border-color: var(--danger); }
 input, textarea, select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; }
 input[type=checkbox] { accent-color: var(--green); }
