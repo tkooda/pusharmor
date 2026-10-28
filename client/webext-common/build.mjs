@@ -6,6 +6,8 @@
 //                           gecko id and update_url (release/constants.json)
 //   node build.mjs --dev    dev build (Chrome "key" from release/public.json when set)
 //   --public FILE           read FILE instead of release/public.json
+//   --dev --shots           also bundles src/shots (store screenshots, shots.mjs) into the
+//                           Chrome dev build; refused without --dev
 // Build ids (VAPID public key, add-on id, Chrome dev key) come from the tracked
 // release/public.json; a release build fails while one holds a placeholder (or a
 // CI dummy without PA_CI_DUMMY=1). A release build then checks all four zips
@@ -20,6 +22,11 @@ import { checkZips } from "./check-release.mjs";
 const here = dirname(new URL(import.meta.url).pathname);
 const client = join(here, "..");
 const dev = process.argv.includes("--dev");
+const shots = process.argv.includes("--shots");
+if (shots && !dev) {
+  console.error("--shots needs --dev: the screenshot page never goes into a release build");
+  process.exit(1);
+}
 const pi = process.argv.indexOf("--public");
 const pub = loadPublic(pi > 0 ? process.argv[pi + 1] : PUBLIC_PATH);
 if (!dev) {
@@ -118,6 +125,10 @@ async function shell(name, entries, iife, target, manifestFix) {
   };
   await build({ ...common, entryPoints: entries.map((e) => join(root, "src", e + ".ts")), outdir: out, format: "esm" });
   for (const [outName, src] of iife) await build({ ...common, entryPoints: { [outName]: join(root, "src", src + ".ts") }, outdir: out, format: "iife" });
+  if (shots && name === "chrome") {
+    await build({ ...common, entryPoints: { shots: join(here, "src", "shots", "shots.ts") }, outdir: out, format: "esm" });
+    writeFileSync(join(out, "shots.html"), readFileSync(join(here, "src", "shots", "shots.html")));
+  }
   const ui = join(here, "src", "ui");
   for (const f of ["popup.html", "page.html", "style.css"]) writeFileSync(join(out, f), readFileSync(join(ui, f)));
   cpSync(join(here, "icons"), join(out, "icons"), { recursive: true });

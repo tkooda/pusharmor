@@ -6,7 +6,8 @@
 // when a Firefox manifest has a gecko update_url other than the Beta one
 // (release/constants.json; only *-beta.zip has it), or when the manifest, a .js or a .html holds a public.json placeholder
 // ("PLACEHOLDER_..." or "placeholder-..."), a CI dummy (unless PA_CI_DUMMY=1), or a
-// local endpoint ("://localhost" or "127.0.0.1"). The bare word "localhost" is allowed:
+// local endpoint ("://localhost" or "127.0.0.1"), or the screenshot mode marker
+// "PA_SCREENSHOTS" (src/shots, dev builds only). The bare word "localhost" is allowed:
 // the auto-open host rule names it to reject it.
 // Structural checks against the pinned allow-list release-allow.json: every zip entry must
 // be in its browser's "entries" list, every runtime message op the shipped JS dispatches on
@@ -90,6 +91,7 @@ export function checkZip(buf, { chrome, beta = false, dummyOk = process.env.PA_C
     if (/placeholder[_-]/i.test(s)) bad.push(name + ": holds a PLACEHOLDER value");
     if (!dummyOk && /ci-fork-dummy/i.test(s)) bad.push(name + ": holds a CI dummy (allowed only with PA_CI_DUMMY=1)");
     if (/:\/\/localhost|127\.0\.0\.1/i.test(s)) bad.push(name + ": names a local endpoint");
+    if (s.includes("PA_SCREENSHOTS")) bad.push(name + ": holds the screenshot mode (src/shots)");
     if (!name.endsWith(".js")) continue;
     if (/globalThis\s*(\.\s*__|\[\s*["'`]__)/.test(s)) bad.push(name + ": sets or reads globalThis.__*");
     for (const op of ops(s)) if (!allowedOps.has(op)) bad.push(name + ": message op \"" + op + "\" not in release-allow.json");
