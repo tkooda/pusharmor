@@ -56,8 +56,9 @@ talks to the production Worker, and the public clients must keep working with it
    step 3 for each one at the SAME commit.
 
 A failed upload after the store accepted the file is fixed with a new patch
-version. A rerun of the tag workflow replaces the assets of a prerelease; it
-never changes a promoted release.
+version. Each tag workflow creates the GitHub release as a draft, uploads every
+asset, then publishes it as a prerelease. A rerun replaces the assets of a
+draft; it never changes a published release.
 
 ## Worker (`worker/vX.Y.Z`)
 
@@ -208,6 +209,7 @@ tag commit, so only reviewed commits may be tagged:
    assertion.environment == 'android-release'`;
    Chrome Web Store: the same with `refs/tags/chrome/v` and `chrome-release`.
    Grant each service account to the principalSet of its own store's pool only.
-6. Leave GitHub immutable releases off: with it on, a rerun cannot replace the
-   assets of a prerelease and the collect workflow cannot attach the store
-   files.
+6. GitHub immutable releases are on and supported: the release workflows add
+   every asset to a draft and publish it last. A published release cannot get
+   new assets, so a failed publish after that point is fixed with a new patch
+   version.
