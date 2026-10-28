@@ -101,7 +101,8 @@
     say("Deleting...");
     var r = await client.deleteAccount(key, ticket);
     if (r.status === 200) {
-      $("result").textContent = r.data.deleted === 0 ? PA.TEXT.noPeers : PA.TEXT.deleted;
+      // A retried DELETE after a lost reply sees deleted 0: the first try did the delete.
+      $("result").textContent = r.data.deleted === 0 && !r.unsure ? PA.TEXT.noPeers : PA.TEXT.deleted;
       show("done");
       say("Done.");
     } else if (r.status === 401 && (r.data.error === "ticket expired" || r.data.error === "invalid ticket")) {
