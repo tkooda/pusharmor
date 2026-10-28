@@ -62,7 +62,7 @@ jobs:
           if [ "$BROWSER" = chrome ]; then
             url="https://clients2.google.com/service/update2/crx?response=redirect&prodversion=140.0&acceptformat=crx2,crx3&x=id%3D$id%26uc"
             code="$(curl -sSL -o "$f" -w '%{http_code}' "$url")"
-            [ "$code" = 200 ] && [ -s "$f" ] || skip "Chrome Web Store returned HTTP $code"
+            if [ "$code" != 200 ] || [ ! -s "$f" ]; then skip "Chrome Web Store returned HTTP $code"; fi
             # zipfile reads past the CRX header (data before the archive).
             version="$(python3 -I -c 'import json,sys,zipfile; print(json.loads(zipfile.ZipFile(sys.argv[1]).read("manifest.json")).get("version", ""))' "$f")"
           else

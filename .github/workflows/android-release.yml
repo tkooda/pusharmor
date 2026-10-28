@@ -348,7 +348,7 @@ jobs:
           up="https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/$PACKAGE_NAME"
           auth="Authorization: Bearer $TOKEN"
           edit="$(curl -fsS -X POST -H "$auth" -H "Content-Type: application/json" --data '{}' "$api/edits" | jq -r '.id')"
-          [ -n "$edit" ] && [ "$edit" != null ] || { echo "edits.insert returned no id"; exit 1; }
+          if [ -z "$edit" ] || [ "$edit" = null ]; then echo "edits.insert returned no id"; exit 1; fi
           IFS=. read -r major minor patch <<EOF
           $VERSION
           EOF
