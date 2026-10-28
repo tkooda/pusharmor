@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "PushArmor",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Send links and text between your own devices, end-to-end encrypted.",
   "background": { "page": "background.html", "persistent": true },
   "browser_action": { "default_popup": "popup.html", "default_icon": { "16": "icons/icon-16.png", "32": "icons/icon-32.png" } },
