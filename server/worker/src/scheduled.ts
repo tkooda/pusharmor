@@ -59,13 +59,18 @@ export async function healthCheck(env: Env, log: Log): Promise<string[]> {
   await check("apns", () => mintApnsJwt(env, apnsMayRemint()));
   await check("vapid", () => mintVapid(env, "https://fcm.googleapis.com", true));
   await check("d1", () => env.DB.prepare(SQL.Q_HEALTH).first());
-  // Vendor auth alert: the previous full hour of this isolate's counts.
+  // Vendor auth alert: the previous full hour of the shared counts.
   const hour = Math.floor(deps.now() / 3600000) - 1;
-  const alerts = authAlerts(hour);
-  const snap = healthSnapshot(hour);
+  const alerts = await authAlerts(env, hour);
+  const snap = await healthSnapshot(env, hour);
   for (const [v, h] of Object.entries(snap)) {
     log.extra[`auth_${v}`] = h.auth;
     log.extra[`ok_${v}`] = h.ok;
+  }
+  try {
+    await env.DB.prepare(SQL.W_HEALTH_PURGE).bind(hour - 48).run();
+  } catch {
+    // Old counter rows are harmless; the next hour retries.
   }
   if (failed.length) await mailOps(env, "PushArmor health check failed", "Failed checks: " + failed.join(", ") + "\n");
   if (alerts.length) await mailOps(env, "PushArmor vendor auth alert", "Only auth failures, no success, in the last hour: " + alerts.join(", ") + "\n");

@@ -152,7 +152,7 @@ async function deliver(env: Env, t: Target, slots: Slots): Promise<Delivery> {
       slots.release();
     }
     last = a.outcome;
-    recordHealth(v, last.kind === "sent", isAuthFailure(v, a.status, last.code), deps.now());
+    await recordHealth(env, v, last.kind === "sent", isAuthFailure(v, a.status, last.code), deps.now());
     if (last.kind !== "failed") break;
     if (last.next === "auth" && !authUsed && (v !== "apns" || apnsMayRemint())) {
       authUsed = true;
