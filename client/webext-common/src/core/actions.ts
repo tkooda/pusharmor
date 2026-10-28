@@ -39,14 +39,14 @@ export const MENU_SEL = "pa-sel";
 
 /** Context menu parents: [id, title, context]. */
 export const MENU_PARENTS: readonly (readonly [string, string, string])[] = [
-  [MENU_URL, "Send link to", "link"],
-  [MENU_PAGE, "Send page to", "page"],
-  [MENU_SEL, "Send text to", "selection"],
+  [MENU_URL, "PushArmor URL to", "link"],
+  [MENU_PAGE, "PushArmor URL to", "page"],
+  [MENU_SEL, "PushArmor selection to", "selection"],
 ];
 
 export function selectionTitle(text: string): string {
   const t = detectType(text);
-  return t === "url" ? "Send link to" : t === "tel" ? "Send phone number to" : "Send text to";
+  return t === "url" ? "PushArmor URL to" : t === "tel" ? "PushArmor phone to" : "PushArmor text to";
 }
 
 export interface MenuSendResult {
