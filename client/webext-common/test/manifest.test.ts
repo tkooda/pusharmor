@@ -68,10 +68,16 @@ test("Chrome extension id equals the id derived from the dev key (once both are 
 test("release build fails before any output on placeholders, or on CI dummies without PA_CI_DUMMY=1", () => {
   const tmp = mkdtempSync(join(tmpdir(), "pa-webext-"));
   try {
+    // Every value a PLACEHOLDER (same keys and shapes as release/public.json).
+    const ph = (k: string) => "PLACEHOLDER_" + k.toUpperCase();
+    const placeholders = Object.fromEntries(Object.entries(pub).map(([k, v]) =>
+      [k, k.startsWith("_") ? v : Array.isArray(v) ? [ph(k)] : ph(k)]));
+    const held = join(tmp, "placeholders.json");
+    writeFileSync(held, JSON.stringify(placeholders));
     const dummy = join(tmp, "public.json");
-    writeFileSync(dummy, JSON.stringify(pub));
+    writeFileSync(dummy, JSON.stringify(placeholders));
     assert.equal(spawnSync("node", [join(client, "..", "release", "ci-dummy.mjs"), dummy]).status, 0);
-    for (const [lp, want] of [[publicPath, /webpush_vapid_public_key is a PLACEHOLDER/], [dummy, /webpush_vapid_public_key is a CI dummy/]] as const) {
+    for (const [lp, want] of [[held, /webpush_vapid_public_key is a PLACEHOLDER/], [dummy, /webpush_vapid_public_key is a CI dummy/]] as const) {
       const r = spawnSync("node", [join(import.meta.dirname, "..", "build.mjs"), "--public", lp],
         { encoding: "utf8", env: { ...process.env, PA_CI_DUMMY: "" } });
       assert.equal(r.status, 1, lp);
