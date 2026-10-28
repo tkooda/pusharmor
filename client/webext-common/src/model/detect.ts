@@ -19,8 +19,7 @@ export function isPhone(input: string): boolean {
 
 // Shape rules shared with every platform (golden url_parse): no C0 control or DEL, no
 // leading or trailing space; "http(s)://" not followed by "/" or "\\"; no "@" or "%" in the
-// authority; non-ASCII host code points only from HOST_CHARS; a numeric host only as a dotted quad.
-const HOST_CHARS = /^[\u00df-\u00f6\u00f8-\u00ff\u03b1-\u03c9\u0430-\u045f\u3041-\u3096\u30a1-\u30fa\u4e00-\u9fff\uac00-\ud7a3]$/;
+// authority; a numeric host only as a dotted quad. Then a non-ASCII host goes through idnHost.
 const QUAD = /^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}$/;
 
 function shapeOk(s: string): boolean {
@@ -31,7 +30,6 @@ function shapeOk(s: string): boolean {
   if (auth.includes("@") || auth.includes("%")) return false;
   if (auth.startsWith("[")) return true;
   const raw = auth.split(":")[0]!;
-  for (const ch of raw) if (ch.codePointAt(0)! >= 0x80 && !HOST_CHARS.test(ch)) return false;
   const host = raw.replace(/[A-Z]/g, (c) => c.toLowerCase());
   const labels = host.split(".");
   if (labels.length > 1 && labels[labels.length - 1] === "") labels.pop();
@@ -40,12 +38,74 @@ function shapeOk(s: string): boolean {
   return !endsInNumber || QUAD.test(host);
 }
 
+// Shared IDN conversion (golden url_parse): each host code point to lowercase on its own
+// (ASCII A-Z, else the Unicode full lowercase mapping), then each label with a non-ASCII
+// code point becomes "xn--" + RFC 3492 punycode. No other UTS 46 mapping or check.
+function idnHost(s: string): string {
+  const m = /^(https?:\/\/)([^/?#\\:]*)/i.exec(s);
+  if (!m || m[2]!.startsWith("[") || !/[^\u0000-\u007f]/.test(m[2]!)) return s;
+  let lower = "";
+  for (const ch of m[2]!) lower += ch.codePointAt(0)! < 0x80 ? ch.replace(/[A-Z]/, (c) => c.toLowerCase()) : ch.toLowerCase();
+  const host = lower
+    .split(".")
+    .map((l) => (/^[\u0000-\u007f]*$/.test(l) ? l : "xn--" + punycode(l)))
+    .join(".");
+  return m[1]! + host + s.slice(m[0].length);
+}
+
+/** RFC 3492 punycode encoder for one label. */
+function punycode(label: string): string {
+  const cps = [...label].map((c) => c.codePointAt(0)!);
+  let out = cps.filter((c) => c < 0x80).map((c) => String.fromCharCode(c)).join("");
+  const b = out.length;
+  let h = b;
+  if (b > 0) out += "-";
+  let n = 0x80;
+  let delta = 0;
+  let bias = 72;
+  const digit = (d: number) => String.fromCharCode(d < 26 ? d + 97 : d + 22);
+  const adapt = (d0: number, num: number, first: boolean) => {
+    let d = first ? Math.floor(d0 / 700) : d0 >> 1;
+    d += Math.floor(d / num);
+    let k = 0;
+    while (d > 455) {
+      d = Math.floor(d / 35);
+      k += 36;
+    }
+    return k + Math.floor((36 * d) / (d + 38));
+  };
+  while (h < cps.length) {
+    const m = Math.min(...cps.filter((c) => c >= n));
+    delta += (m - n) * (h + 1);
+    n = m;
+    for (const c of cps) {
+      if (c < n) delta++;
+      if (c === n) {
+        let q = delta;
+        for (let k = 36; ; k += 36) {
+          const t = k <= bias ? 1 : k >= bias + 26 ? 26 : k - bias;
+          if (q < t) break;
+          out += digit(t + ((q - t) % (36 - t)));
+          q = Math.floor((q - t) / (36 - t));
+        }
+        out += digit(q);
+        bias = adapt(delta, h + 1, h === b);
+        delta = 0;
+        h++;
+      }
+    }
+    delta++;
+    n++;
+  }
+  return out;
+}
+
 /** One http(s) URL: shape rules, then strict URL() parse, scheme http/https, non-empty host, no userinfo. */
 export function parseHttpUrl(s: string): URL | null {
   if (!shapeOk(s)) return null;
   let u: URL;
   try {
-    u = new URL(s);
+    u = new URL(idnHost(s));
   } catch {
     return null;
   }
