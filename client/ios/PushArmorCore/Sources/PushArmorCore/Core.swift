@@ -141,7 +141,11 @@ extension Store {
             try db.exec("UPDATE me SET removed = 1, paused = 0, push_missing = 0, request_token = NULL")
             try db.exec("""
                 UPDATE peers SET sign_pub = NULL, enc_pub = NULL, pairing_id = NULL, fingerprint = NULL, last_n = 0,
-                approve_c = NULL, approve_name = NULL, approve_name_rev = NULL, approve_result = NULL, approve_sent_at = NULL
+                approve_c = NULL, approve_name = NULL, approve_name_rev = NULL, approve_result = NULL, approve_sent_at = NULL,
+                state = CASE WHEN state = 'removed' THEN 'removed' ELSE 'unruled' END,
+                approve_verified = 0, approve_verified_at = NULL, approve_prompt_n = 0,
+                get_approves_me = NULL, get_denies_me = NULL, get_at = NULL, denied_me_msg = 0,
+                paused = 0, pause_n = 0, name = NULL, name_n = 0, pending_name = NULL, pending_n = 0
                 """)
             try db.exec("UPDATE pairing SET r = zeroblob(length(r)), c_n = zeroblob(length(c_n))")
             try db.exec("DELETE FROM pairing")
