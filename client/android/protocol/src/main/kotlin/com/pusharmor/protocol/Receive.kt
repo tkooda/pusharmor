@@ -75,8 +75,10 @@ object Receive {
             }
             ReplayWindow.Verdict.FRESH -> Unit
         }
-        val next = window.accept(ok.n)
-        return Inbound.Accepted(peer.id, ok.n, ok.pairingId, next, ok.body, accept(ok, peer, ownId))
+        // a dropped message leaves the replay window unchanged, so a later re-delivery still counts as fresh
+        val effect = accept(ok, peer, ownId)
+        val next = if (effect is Effect.Drop) window else window.accept(ok.n)
+        return Inbound.Accepted(peer.id, ok.n, ok.pairingId, next, ok.body, effect)
     }
 
     fun accept(ok: OpenResult.Ok, peer: Peer, ownId: String): Effect {
