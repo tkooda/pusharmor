@@ -231,8 +231,9 @@ test("CLI check: a rerun of an older tag ignores tags created after it", (t) => 
 test("CLI: no tag unless ci-ok succeeded on HEAD; --ci checks the commit of the tag", (t) => {
   const { d, git, run, ci, bin } = scratch();
   t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
-  run("ios", "0.0.7");
-  git("commit", "-q", "-am", "release 0.0.7");
+  // A version far above the repo version files, so the stamp always changes them.
+  run("ios", "90.0.7");
+  git("commit", "-q", "-am", "release 90.0.7");
   const head = git("rev-parse", "HEAD").slice(0, 12);
   for (const [jobs, want] of [
     ["completed\tfailure\n", "ci-ok of the ci workflow did not succeed on commit " + head + " (failure)"],
@@ -240,25 +241,25 @@ test("CLI: no tag unless ci-ok succeeded on HEAD; --ci checks the commit of the 
     ["in_progress\t\n", "ci-ok of the ci workflow is still running on commit " + head + "; wait for it and rerun"],
   ]) {
     ci.jobs = jobs;
-    const r = run("ios", "0.0.7");
+    const r = run("ios", "90.0.7");
     assert.equal(r.status, 1, jobs);
     assert.ok(r.stderr.includes(want), r.stderr);
     assert.equal(git("tag", "-l"), "");
   }
   ci.jobs = "completed\tfailure\ncompleted\tsuccess\n";
-  let r = run("ios", "0.0.7");
+  let r = run("ios", "90.0.7");
   assert.equal(r.status, 0, r.stderr);
-  r = run("--ci", "ios/v0.0.7");
+  r = run("--ci", "ios/v90.0.7");
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout.trim(), "ci-ok succeeded on " + head);
   ci.jobs = "completed\tcancelled\n";
-  r = run("--ci", "ios/v0.0.7");
+  r = run("--ci", "ios/v90.0.7");
   assert.equal(r.status, 1);
   assert.match(r.stderr, /ci-ok of the ci workflow did not succeed on commit [0-9a-f]{12} \(cancelled\)/);
-  r = run("--ci", "ios/v0.0.8");
+  r = run("--ci", "ios/v90.0.8");
   assert.equal(r.status, 1);
-  assert.match(r.stderr, /tag ios\/v0\.0\.8 does not exist/);
+  assert.match(r.stderr, /tag ios\/v90\.0\.8 does not exist/);
   // --check reads git only: it passes without gh.
   ci.jobs = "";
-  assert.equal(run("--check", "ios/v0.0.7").status, 0);
+  assert.equal(run("--check", "ios/v90.0.7").status, 0);
 });
