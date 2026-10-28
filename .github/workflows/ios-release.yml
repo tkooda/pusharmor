@@ -41,13 +41,14 @@ env:
   APP_BUNDLE_ID: com.pusharmor.app
 
 jobs:
-  # Fails early: the tag rule and version files before any test or build.
+  # Fails early: the tag rule, version files and ci-ok before any test or build.
   tag:
     name: release tag rule and version files
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 45
     permissions:
       contents: read
+      actions: read
     env:
       TAG: ${{ github.ref_name }}
     steps:
@@ -61,6 +62,12 @@ jobs:
           node-version-file: site/.node-version
       - name: Release tag rule
         run: node release/tag.mjs --check "$TAG"
+      # Owner ruling Q215 C: ci-ok green on the tag commit; waits up to 40 minutes
+      # for a running ci workflow.
+      - name: ci-ok green on the tag commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node release/tag.mjs --ci "$TAG"
 
   vectors:
     needs: tag
@@ -364,7 +371,6 @@ jobs:
       - name: GitHub prerelease
         env:
           GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
           DIR: ${{ steps.files.outputs.dir }}
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then

@@ -28,6 +28,11 @@ test("each release workflow runs on its <platform>/v* tags and checks the tag fi
     assert.deepEqual(tags, platforms, f);
     assert.match(wf, /^ {2}tag:\n/m, f);
     assert.match(wf, /run: node release\/tag\.mjs --check "\$TAG"/, f);
+    // ci-ok gate (owner ruling Q215 C) in the tag job, after the git-only --check.
+    const job = wf.slice(wf.indexOf("\n  tag:\n"), wf.indexOf("\n  vectors:\n"));
+    assert.match(job, /^ {4}timeout-minutes: 45\n {4}permissions:\n {6}contents: read\n {6}actions: read\n/m, f);
+    assert.match(job, /GH_TOKEN: \$\{\{ github\.token \}\}\n {8}run: node release\/tag\.mjs --ci "\$TAG"\n/, f);
+    assert.ok(job.indexOf("--check") < job.indexOf("--ci"), f);
     assert.match(wf, /^ {2}vectors:\n {4}needs: tag$/m, f);
   }
 });

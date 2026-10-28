@@ -2,10 +2,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync, execFileSync } from "node:child_process";
-import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { chmodSync, cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { buildNumber, formatProblems, parseTag, stampProblems, tagProblems } from "./tag.mjs";
+import { buildNumber, ciJobs, repoName, ciProblems, ciState, formatProblems, parseTag, stampProblems, tagProblems } from "./tag.mjs";
 
 const REPO = join(import.meta.dirname, "..");
 const CLI = join(import.meta.dirname, "tag.mjs");
@@ -78,7 +78,66 @@ test("the committed version files agree with each other", () => {
   assert.deepEqual(stampProblems(REPO, v), []);
 });
 
-// A scratch repo holding copies of the version files.
+test("ci-ok: any successful run or attempt counts; running, missing and failed jobs do not", () => {
+  const c = "e".repeat(40);
+  const ok = { status: "completed", conclusion: "success" };
+  const bad = { status: "completed", conclusion: "failure" };
+  const run = { status: "in_progress", conclusion: null };
+  assert.equal(ciState(c, [bad, ok, run]), "ok");
+  assert.equal(ciState(c, [bad, run]), "pending");
+  assert.equal(ciState(c, []), "no ci-ok job of the ci workflow ran on commit eeeeeeeeeeee (push it to main and wait for CI)");
+  assert.equal(ciState(c, [bad, { status: "completed", conclusion: "cancelled" }]), "ci-ok of the ci workflow did not succeed on commit eeeeeeeeeeee (failure, cancelled)");
+});
+
+test("ci-ok: gh api reads the push runs of ci.yml on the commit and the ci-ok jobs of each", () => {
+  const calls = [];
+  const gh = (args) => {
+    calls.push(args);
+    return args[1].includes("/jobs") ? (args[1].includes("/7/") ? "completed\tfailure\n" : "in_progress\t\ncompleted\tsuccess\n") : "7\n8\n";
+  };
+  assert.deepEqual(ciJobs("abc", gh, "o/r"), [
+    { status: "completed", conclusion: "failure" },
+    { status: "in_progress", conclusion: null },
+    { status: "completed", conclusion: "success" },
+  ]);
+  assert.equal(calls[0][0], "repos/o/r/actions/workflows/ci.yml/runs?event=push&per_page=100&head_sha=abc");
+  assert.deepEqual(calls[1].slice(0, 2), ["--paginate", "repos/o/r/actions/runs/7/jobs?filter=all&per_page=100"]);
+  assert.match(calls[1][3], /select\(\.name == "ci-ok"\)/);
+  assert.equal(repoName({ GITHUB_REPOSITORY: "a/b", GH_REPO: "c/d" }), "a/b");
+  assert.equal(repoName({ GH_REPO: "c/d" }), "c/d");
+  for (const u of ["git@github_alias:tkooda/pusharmor.git", "https://github.com/tkooda/pusharmor", "ssh://git@github.com/tkooda/pusharmor.git/"]) {
+    assert.equal(repoName({}, () => u), "tkooda/pusharmor", u);
+  }
+  assert.throws(() => repoName({}, () => "../repo"), /set GH_REPO/);
+});
+
+test("ci-ok wait: polls a running CI and a failing gh api until the deadline, stops on a result", () => {
+  const c = "f".repeat(40);
+  const clock = () => {
+    let t = 0;
+    return { now: () => t, sleep: (ms) => { t += ms; } };
+  };
+  const seq = (...states) => { let i = 0; return () => { const s = states[Math.min(i++, states.length - 1)]; if (s instanceof Error) throw s; return s; }; };
+  const running = [{ status: "queued", conclusion: null }];
+  const done = [{ status: "completed", conclusion: "success" }];
+  let k = clock();
+  assert.deepEqual(ciProblems(c, { waitMs: 600000, list: seq(running, Object.assign(new Error("x"), { stderr: "HTTP 502" }), done), ...k }), []);
+  assert.equal(k.now(), 120000);
+  k = clock();
+  assert.deepEqual(ciProblems(c, { waitMs: 300000, list: seq(running), ...k }), ["ci-ok of the ci workflow is still running on commit ffffffffffff after 5 minutes"]);
+  assert.equal(k.now(), 300000);
+  k = clock();
+  assert.deepEqual(ciProblems(c, { waitMs: 300000, list: seq(running, [{ status: "completed", conclusion: "failure" }]), ...k }), ["ci-ok of the ci workflow did not succeed on commit ffffffffffff (failure)"]);
+  assert.equal(k.now(), 60000);
+  // No wait (tag mode): one look.
+  k = clock();
+  assert.deepEqual(ciProblems(c, { list: seq(running), ...k }), ["ci-ok of the ci workflow is still running on commit ffffffffffff; wait for it and rerun"]);
+  assert.deepEqual(ciProblems(c, { list: seq(new Error("spawnSync gh ENOENT")), ...k }), ["could not read the ci runs with gh api: spawnSync gh ENOENT"]);
+  assert.equal(k.now(), 0);
+});
+
+// A scratch repo holding copies of the version files, and a fake gh on PATH that
+// answers one ci run whose ci-ok jobs are ci.jobs (status TAB conclusion lines).
 function scratch() {
   const d = mkdtempSync(join(tmpdir(), "pa-tag-"));
   for (const f of ["release/version.properties", "client/chrome/manifest.json", "client/firefox/manifest.json", "client/ios/project.yml"]) {
@@ -93,13 +152,17 @@ function scratch() {
   git("config", "commit.gpgSign", "false");
   git("add", "-A");
   git("commit", "-q", "-m", "init");
-  const run = (...a) => spawnSync("node", [CLI, ...a], { cwd: d, encoding: "utf8", env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" } });
-  return { d, git, run };
+  const bin = mkdtempSync(join(tmpdir(), "pa-tag-bin-"));
+  writeFileSync(join(bin, "gh"), '#!/bin/sh\ncase "$*" in\n  */jobs*) printf "%s" "$FAKE_GH_JOBS" ;;\n  *) echo 101 ;;\nesac\n');
+  chmodSync(join(bin, "gh"), 0o755);
+  const ci = { jobs: "completed\tsuccess\n" };
+  const run = (...a) => spawnSync("node", [CLI, ...a], { cwd: d, encoding: "utf8", env: { ...process.env, PATH: bin + ":" + process.env.PATH, GH_REPO: "o/r", GITHUB_REPOSITORY: "", FAKE_GH_JOBS: ci.jobs, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" } });
+  return { d, git, run, ci, bin };
 }
 
 test("CLI: stamp, commit, tag; second platform at the same commit; check mode", (t) => {
-  const { d, git, run } = scratch();
-  t.after(() => rmSync(d, { recursive: true, force: true }));
+  const { d, git, run, bin } = scratch();
+  t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
   assert.equal(run().status, 2);
   let r = run("android", "1.2.3");
   assert.equal(r.status, 1, r.stderr);
@@ -142,8 +205,8 @@ test("CLI: stamp, commit, tag; second platform at the same commit; check mode", 
 });
 
 test("CLI check: a rerun of an older tag ignores tags created after it", (t) => {
-  const { d, git, run } = scratch();
-  t.after(() => rmSync(d, { recursive: true, force: true }));
+  const { d, git, run, bin } = scratch();
+  t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
   run("worker", "0.1.0");
   git("commit", "-q", "-am", "release 0.1.0");
   const env = (date) => ({ ...process.env, GIT_COMMITTER_DATE: date, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" });
@@ -163,4 +226,39 @@ test("CLI check: a rerun of an older tag ignores tags created after it", (t) => 
   r = run("--check", "android/v0.1.0");
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout.trim(), "0.1.0");
+});
+
+test("CLI: no tag unless ci-ok succeeded on HEAD; --ci checks the commit of the tag", (t) => {
+  const { d, git, run, ci, bin } = scratch();
+  t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
+  run("ios", "0.0.7");
+  git("commit", "-q", "-am", "release 0.0.7");
+  const head = git("rev-parse", "HEAD").slice(0, 12);
+  for (const [jobs, want] of [
+    ["completed\tfailure\n", "ci-ok of the ci workflow did not succeed on commit " + head + " (failure)"],
+    ["", "no ci-ok job of the ci workflow ran on commit " + head],
+    ["in_progress\t\n", "ci-ok of the ci workflow is still running on commit " + head + "; wait for it and rerun"],
+  ]) {
+    ci.jobs = jobs;
+    const r = run("ios", "0.0.7");
+    assert.equal(r.status, 1, jobs);
+    assert.ok(r.stderr.includes(want), r.stderr);
+    assert.equal(git("tag", "-l"), "");
+  }
+  ci.jobs = "completed\tfailure\ncompleted\tsuccess\n";
+  let r = run("ios", "0.0.7");
+  assert.equal(r.status, 0, r.stderr);
+  r = run("--ci", "ios/v0.0.7");
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout.trim(), "ci-ok succeeded on " + head);
+  ci.jobs = "completed\tcancelled\n";
+  r = run("--ci", "ios/v0.0.7");
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /ci-ok of the ci workflow did not succeed on commit [0-9a-f]{12} \(cancelled\)/);
+  r = run("--ci", "ios/v0.0.8");
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /tag ios\/v0\.0\.8 does not exist/);
+  // --check reads git only: it passes without gh.
+  ci.jobs = "";
+  assert.equal(run("--check", "ios/v0.0.7").status, 0);
 });
