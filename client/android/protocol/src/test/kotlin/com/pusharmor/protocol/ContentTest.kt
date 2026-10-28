@@ -52,7 +52,7 @@ class ContentTest {
         assertEquals(ContentType.URL, Detect.type("http://a.com/x y"))
         assertEquals("http://a.com/x%20y", href("http://a.com/x y"))
         assertEquals("https://xn--strae-oqa.de/", href("https://stra\u00dfe.de/"))
-        assertNull(UrlCheck.parse("https://a\u200db.com/"))
+        assertEquals("https://xn--ab-m1t.com/", href("https://a\u200db.com/"))
     }
 
     @Test fun strictUrl() {

@@ -65,16 +65,11 @@ object UrlCheck {
     private const val FRAGMENT_ENCODE = " \"<>`"
     private val QUAD = Regex("(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}")
 
-    /** Non-ASCII host code points that UTS 46 leaves as they are (golden url_parse shape rules). */
-    private fun hostCharOk(c: Int): Boolean =
-        c in 0xdf..0xf6 || c in 0xf8..0xff || c in 0x3b1..0x3c9 || c in 0x430..0x45f ||
-            c in 0x3041..0x3096 || c in 0x30a1..0x30fa || c in 0x4e00..0x9fff || c in 0xac00..0xd7a3
-
     /**
      * Hand parse that follows the WHATWG URL rules for the supported shapes: scheme http or
      * https (any case), non-empty host, no userinfo, after the shared shape rules (no control
-     * or DEL, no leading or trailing space, no "@" or "%" in the authority, listed non-ASCII
-     * host code points only, a numeric host only as a dotted quad). Returns null when the
+     * or DEL, no leading or trailing space, no "@" or "%" in the authority, a numeric host only
+     * as a dotted quad) and the shared IDN conversion. Returns null when the
      * value is not one such URL (then shown as plain text).
      */
     fun parse(s: String): Parsed? {
@@ -135,15 +130,21 @@ object UrlCheck {
     }
 
     /**
-     * ASCII-lowercase host; a label with listed non-ASCII code points becomes "xn--" punycode
-     * (as UTS 46 does for them). Null on other non-ASCII, forbidden chars, or a numeric host
-     * that is not a dotted quad.
+     * Shared IDN conversion (golden url_parse): each code point to lowercase on its own (ASCII
+     * A-Z, else the Unicode full lowercase mapping), then a label with a non-ASCII code point
+     * becomes "xn--" punycode. Null on forbidden chars or a numeric host that is not a dotted quad.
      */
     private fun asciiHost(h: String): String? {
         if (h.any { it in HOST_FORBIDDEN }) return null
-        val cps = h.codePoints().toArray()
-        if (cps.any { it >= 0x80 && !hostCharOk(it) }) return null
-        val lower = String(cps.map { if (it in 'A'.code..'Z'.code) it + 32 else it }.toIntArray(), 0, cps.size)
+        val lower = buildString {
+            h.codePoints().forEach {
+                when {
+                    it in 'A'.code..'Z'.code -> append((it + 32).toChar())
+                    it < 0x80 -> append(it.toChar())
+                    else -> append(String(Character.toChars(it)).lowercase())
+                }
+            }
+        }
         val ascii = lower.split('.').joinToString(".") { l -> if (l.all { it.code < 0x80 }) l else "xn--" + punycode(l) }
         val labels = ascii.split('.').toMutableList()
         if (labels.size > 1 && labels.last().isEmpty()) labels.removeAt(labels.size - 1)
