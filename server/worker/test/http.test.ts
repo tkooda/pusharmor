@@ -5,6 +5,7 @@ import { ipKey } from "../src/pipeline/limits";
 import type { Env, RateLimit } from "../src/env";
 import { CRON_HOURLY, CRON_MONTHLY } from "../src/crons";
 import wranglerText from "../wrangler.jsonc?raw";
+import limitsSrc from "../src/pipeline/limits.ts?raw";
 
 beforeAll(initP256);
 
@@ -101,6 +102,17 @@ describe("crons", () => {
     expect(cfg.preview_urls).toBe(false);
     expect(cfg.vars.PA_PUSH_TTL_SECONDS).toBe("604800");
     expect(cfg.vars.PA_PUSH_PAIR_TTL_SECONDS).toBe("2419200");
+  });
+  it("rate limit bindings match the expected table and the Binding union", () => {
+    const cfg = JSON.parse(wranglerText.replace(/^\s*\/\/.*$/gm, ""));
+    const got = Object.fromEntries(cfg.ratelimits.map((r: { name: string; simple: { limit: number; period: number } }) => [r.name, [r.simple.limit, r.simple.period]]));
+    expect(got).toEqual({
+      RL_IP: [100, 60], RL_PEER: [60, 60], RL_MAIL: [2, 60], RL_MAIL_ALL: [100, 60],
+      RL_CODE: [5, 60], RL_PAIR: [1, 60], RL_PROBE: [2, 60], RL_CODE_ALL: [30, 60],
+    });
+    const union = /export type Binding = ([^;]+);/.exec(limitsSrc)![1].match(/RL_[A-Z_]+/g)!;
+    expect([...union].sort()).toEqual(Object.keys(got).sort());
+    for (const b of union) expect(typeof (env as unknown as Record<string, RateLimit>)[b]?.limit, b).toBe("function");
   });
 });
 
