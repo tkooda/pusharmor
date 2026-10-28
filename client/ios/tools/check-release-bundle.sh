@@ -14,6 +14,8 @@
 #     ("11ProcessInfoC9arguments"), and not both the NSProcessInfo class and an exact
 #     "arguments" or "environment" Objective-C selector string (how Swift on Darwin calls
 #     ProcessInfo.processInfo.arguments / .environment; other ProcessInfo use passes)
+#   - each main executable: no store screenshot mode (App/Debug/ScreenshotSample.swift):
+#     no PAScreenshots, pa-shots.sqlite or ScreenshotSample string
 #   - each main executable: crypto from the OS only (Apple CryptoKit): otool -L lists no
 #     BoringSSL library and its strings hold no swift-crypto or BoringSSL symbol
 #     (CCryptoBoringSSL, CryptoBoringWrapper, _CryptoExtras, the Swift module prefix "$s6Crypto")
@@ -133,6 +135,8 @@ while IFS= read -r b; do
       [ -z "$sel" ] || hits="${hits}NSProcessInfo with selector $sel"
     fi
     [ -z "$hits" ] || add "$name: executable reads launch arguments or a test key: $hits"
+    hits="$(printf '%s\n' "$strs" | grep -oE 'PAScreenshots|pa-shots\.sqlite|ScreenshotSample' | sort -u | tr '\n' ' ')"
+    [ -z "$hits" ] || add "$name: executable contains the screenshot mode: $hits"
   fi
   schemes="$(pl_schemes "$plist" | sort | tr '\n' ' ')"
   if [ "$b" = "$app" ]; then

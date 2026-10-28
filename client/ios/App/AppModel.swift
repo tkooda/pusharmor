@@ -61,6 +61,18 @@ final class AppModel: ObservableObject {
     // MARK: launch
 
     func start() async {
+        #if DEBUG
+        if ScreenshotSample.isOn {
+            UNUserNotificationCenter.current().setNotificationCategories(BannerContent.categories())
+            store = try? ScreenshotSample.makeStore()
+            core = nil
+            phase = .main
+            reload()
+            started = true
+            await ScreenshotSample.notifyIfAsked()
+            return
+        }
+        #endif
         do {
             try env.prepareDirectories()
             let store = try env.openStore()
