@@ -31,6 +31,8 @@ workflow in its first job):
 - The version files at the tag commit hold X.Y.Z: `release/version.properties`
   (Android), `client/chrome/manifest.json`, `client/firefox/manifest.json`,
   `client/ios/project.yml`.
+- `ci-ok` of the ci workflow succeeded on the tag commit (a push run; `gh api`
+  with actions: read). The release workflow waits up to 40 minutes for it.
 
 Build numbers: Android versionCode and the iOS build number
 (CURRENT_PROJECT_VERSION, CFBundleVersion) are both
@@ -48,7 +50,8 @@ talks to the production Worker, and the public clients must keep working with it
    X.Y.Z yet, it writes them and stops (nothing tagged).
 2. Commit the version files ("release X.Y.Z") and push to main; wait for ci-ok.
 3. Check out that commit and run `node release/tag.mjs <platform> X.Y.Z` again:
-   it fetches the tags of origin, checks the rules and creates the annotated tag.
+   it fetches the tags of origin, checks the rules (ci-ok too, with your `gh`
+   login) and creates the annotated tag.
 4. `git push origin <platform>/vX.Y.Z`. More platforms at the same version: run
    step 3 for each one at the SAME commit.
 
@@ -174,7 +177,8 @@ tag commit, so only reviewed commits may be tagged:
 1. Branch ruleset on `main`: block force pushes, restrict deletions. No pull
    request and no required status check, so the owner can push to `main`
    directly. `ci-ok` still runs on every push; wait for it to be green before
-   you tag a commit. No script or workflow in the repo checks this for you.
+   you tag a commit. `release/tag.mjs` and the first job of every release
+   workflow refuse a commit without a successful ci-ok.
 2. Tag ruleset, target pattern `*/v*` (all release tags): restrict creation,
    update and deletion to the owner (bypass list: repository admin and the
    push deploy key); block force pushes. A release tag can then not be
