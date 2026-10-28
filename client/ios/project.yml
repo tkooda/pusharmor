@@ -48,6 +48,7 @@ targets:
         CFBundleDisplayName: PushArmor
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: true   # end-to-end encryption (owner ruling Q216 A)
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         PAAppGroup: group.$(APP_BUNDLE_ID)
