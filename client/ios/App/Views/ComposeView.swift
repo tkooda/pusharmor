@@ -49,6 +49,14 @@ struct ComposeView: View {
                 Toggle("Send as text", isOn: $asText)
             }
         }
+        #if DEBUG
+        .onAppear {
+            if ScreenshotSample.isOn && text.isEmpty {
+                text = ScreenshotSample.draft
+                selected = [ScreenshotSample.draftPeer]
+            }
+        }
+        #endif
 
         if model.showAllOption {
             Button {
