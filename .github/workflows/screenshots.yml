@@ -1,0 +1,158 @@
+name: screenshots
+
+# Store screenshots with sample data, on manual dispatch only. Each job runs the
+# debug-only screenshot mode of its client (no Worker call, generic sample peers
+# and example.com links), checks the PNGs with release/check-screenshots.mjs
+# (flattened to RGB first) and uploads them as screenshots-<platform>.
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  JAVA_VERSION: "17.0.20+8"
+  XCODE_APP: /Applications/Xcode_26.6.app
+  XCODE_VERSION: "Xcode 26.6"
+  XCODE_BUILD: "Build version 17F113"
+  XCODEGEN_VERSION: 2.46.0
+  XCODEGEN_SHA256: 4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806
+
+jobs:
+  android:
+    name: Android (emulator API 35, 1080x1920)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -e /dev/kvm || { echo "/dev/kvm is missing on this runner"; exit 1; }
+      - name: Free disk space for the AVD
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/.ghcup /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: true
+      - name: Screenshots on the emulator
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot-save -noaudio -no-boot-anim
+          working-directory: client/android
+          script: bash tools/screenshots.sh "${{ runner.temp }}/shots/android"
+      - name: Check the screenshots
+        run: node release/check-screenshots.mjs android "$RUNNER_TEMP/shots/android" --flatten
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screenshots-android
+          path: ${{ runner.temp }}/shots/android/
+          retention-days: 14
+          if-no-files-found: error
+
+  ios:
+    name: iOS (iPhone 17 Pro Max simulator, 1320x2868)
+    runs-on: macos-26
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - name: Select and assert Xcode
+        run: |
+          echo "runner image: $ImageOS $ImageVersion"
+          sudo xcode-select -s "$XCODE_APP"
+          v="$(xcodebuild -version)"
+          echo "$v"
+          printf '%s\n' "$v" | grep -qx "$XCODE_VERSION"
+          printf '%s\n' "$v" | grep -qx "$XCODE_BUILD"
+      - name: XcodeGen (pinned, SHA-256 checked) and generate the project
+        run: |
+          d="$RUNNER_TEMP/xcodegen"
+          mkdir -p "$d"
+          curl -fsSL -o "$d/xcodegen.zip" "https://github.com/yonaskolb/XcodeGen/releases/download/$XCODEGEN_VERSION/xcodegen.zip"
+          echo "$XCODEGEN_SHA256  $d/xcodegen.zip" | shasum -a 256 -c -
+          unzip -q "$d/xcodegen.zip" -d "$d"
+          "$d/xcodegen/bin/xcodegen" --version | grep -qF "$XCODEGEN_VERSION"
+          cd client/ios && "$d/xcodegen/bin/xcodegen" generate
+      - name: Resolve packages to the committed pins
+        working-directory: client/ios
+        run: |
+          s=PushArmor.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+          mkdir -p "$s"
+          cp PushArmorCore/Package.resolved "$s/Package.resolved"
+          xcodebuild -resolvePackageDependencies -project PushArmor.xcodeproj -scheme PushArmor
+          python3 -I -c '
+          import json, sys
+          pins = lambda p: sorted((x["identity"], x["state"].get("revision")) for x in json.load(open(p))["pins"])
+          if pins(sys.argv[1]) != pins(sys.argv[2]):
+              sys.exit("resolved packages differ from PushArmorCore/Package.resolved")
+          ' PushArmorCore/Package.resolved "$s/Package.resolved"
+      - name: Screenshots on the simulator
+        working-directory: client/ios
+        run: bash tools/screenshots.sh "$RUNNER_TEMP/shots/ios"
+      - name: Check the screenshots
+        run: node release/check-screenshots.mjs ios "$RUNNER_TEMP/shots/ios" --flatten
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screenshots-ios
+          path: ${{ runner.temp }}/shots/ios/
+          retention-days: 14
+          if-no-files-found: error
+
+  chrome:
+    name: Chrome (popup, 1280x800)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - name: Install
+        working-directory: client/webext-common
+        run: npm ci --ignore-scripts
+      - name: Dev build with the screenshot page
+        working-directory: client/webext-common
+        run: node build.mjs --dev --shots
+      - name: Screenshots in headless Chrome
+        working-directory: client/webext-common
+        run: |
+          google-chrome --version
+          node shots.mjs "$RUNNER_TEMP/shots/chrome" google-chrome
+      - name: Check the screenshots
+        run: node release/check-screenshots.mjs chrome "$RUNNER_TEMP/shots/chrome" --flatten
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screenshots-chrome
+          path: ${{ runner.temp }}/shots/chrome/
+          retention-days: 14
+          if-no-files-found: error
