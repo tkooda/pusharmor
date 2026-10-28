@@ -59,8 +59,8 @@ public enum URLRule {
 
     /// Hand parse that follows the WHATWG URL rules for the supported shapes, after the shared
     /// shape rules (golden url_parse): no control or DEL, no leading or trailing space, no "@"
-    /// or "%" in the authority, a numeric host only as a dotted quad, then the shared IDN
-    /// conversion. Works on Unicode scalars so a combining mark cannot hide a delimiter.
+    /// or "%" in the authority, a numeric host only as a dotted quad, then the shared UTS 46
+    /// guard and IDN conversion. Works on Unicode scalars so a combining mark cannot hide a delimiter.
     public static func parse(_ s: String) -> ParsedURL? {
         let sc = Array(s.unicodeScalars)
         guard let first = sc.first, let end = sc.last, first != " ", end != " ",
@@ -127,16 +127,33 @@ public enum URLRule {
         return out
     }
 
-    /// Shared IDN conversion (golden url_parse): each scalar to lowercase on its own (ASCII A-Z,
-    /// else the Unicode full lowercase mapping), then a label with a non-ASCII scalar becomes
-    /// "xn--" punycode. nil on forbidden chars or a numeric host that is not a dotted quad.
-    static func asciiHost(_ h: [Unicode.Scalar]) -> String? {
-        if h.contains(where: { hostForbidden.contains($0) }) { return nil }
-        let lower: [Unicode.Scalar] = h.flatMap { c -> [Unicode.Scalar] in
-            if c.value >= 0x41 && c.value <= 0x5a { return [Unicode.Scalar(c.value + 32)!] }
-            if c.isASCII { return [c] }
-            return Array(c.properties.lowercaseMapping.unicodeScalars)
+    /// Shared UTS 46 guard (golden url_parse): a host a browser would map or reject stays text.
+    /// The host must equal its NFKC form; each non-ASCII scalar must equal its own full
+    /// lowercase mapping and not be ignorable (Default_Ignorable_Code_Point, plus U+3002, which
+    /// UTS 46 maps to "."); no label may start with a combining mark (Mn, Mc, Me).
+    static func idnOk(_ h: [Unicode.Scalar]) -> Bool {
+        if Array(str(h).precomposedStringWithCompatibilityMapping.unicodeScalars) != h { return false }
+        for c in h where !c.isASCII {
+            if ignorable(c.value) || Array(c.properties.lowercaseMapping.unicodeScalars) != [c] { return false }
         }
+        let marks: [Unicode.GeneralCategory] = [.nonspacingMark, .spacingMark, .enclosingMark]
+        return !h.split(separator: ".").contains { marks.contains($0.first!.properties.generalCategory) }
+    }
+
+    static func ignorable(_ c: UInt32) -> Bool {
+        c == 0xad || c == 0x34f || c == 0x61c || (0x115f...0x1160).contains(c) || (0x17b4...0x17b5).contains(c) ||
+            (0x180b...0x180f).contains(c) || (0x200b...0x200f).contains(c) || (0x202a...0x202e).contains(c) ||
+            (0x2060...0x206f).contains(c) || c == 0x3002 || c == 0x3164 || (0xfe00...0xfe0f).contains(c) ||
+            c == 0xfeff || c == 0xffa0 || (0xfff0...0xfff8).contains(c) || (0x1bca0...0x1bca3).contains(c) ||
+            (0x1d173...0x1d17a).contains(c) || (0xe0000...0xe0fff).contains(c)
+    }
+
+    /// Shared IDN conversion (golden url_parse), after idnOk: ASCII A-Z to lowercase, then a
+    /// label with a non-ASCII scalar becomes "xn--" punycode. nil on forbidden chars, a host
+    /// idnOk rejects, or a numeric host that is not a dotted quad.
+    static func asciiHost(_ h: [Unicode.Scalar]) -> String? {
+        if h.contains(where: { hostForbidden.contains($0) }) || !idnOk(h) { return nil }
+        let lower = h.map { ($0.value >= 0x41 && $0.value <= 0x5a) ? Unicode.Scalar($0.value + 32)! : $0 }
         var labels: [String] = []
         for label in lower.split(separator: ".", omittingEmptySubsequences: false) {
             if label.allSatisfy({ $0.isASCII }) {
