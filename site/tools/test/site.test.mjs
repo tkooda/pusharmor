@@ -390,7 +390,8 @@ test("PA_RELEASE=1: release/public.json builds the site with no placeholder; fdr
 
 test("security.txt: Contact, Expires (> 30 days, <= 1 year), Canonical", () => {
   const s = read(".well-known/security.txt");
-  assert.match(s, /^Contact: mailto:support@pusharmor\.com$/m);
+  assert.match(s, /^Contact: https:\/\/github\.com\/tkooda\/pusharmor\/security\/advisories\/new$/m);
+  assert.ok(!/@|mailto:/i.test(s), "no email address in security.txt");
   assert.match(s, /^Canonical: https:\/\/pusharmor\.com\/\.well-known\/security\.txt$/m);
   const m = /^Expires: (\S+)$/m.exec(s);
   assert.ok(m, "Expires");
