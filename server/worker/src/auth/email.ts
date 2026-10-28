@@ -80,10 +80,13 @@ export async function verify(c: Ctx): Promise<Response> {
   const purpose = checkPurpose(rt.p);
   if (nowS() - rt.t > REQUEST_TOKEN_LIFE_S) throw new ApiError(401, "code expired");
   // Per request token, so wrong guesses on one token cannot lock out a later token for the same email;
-  // codeall: is the looser cap over every token of one email.
+  // codeall: is the looser cap over every token of one email; only wrong guesses are charged to it,
+  // so someone who knows an email cannot spend it to block the real owner's correct code.
   await enforce(c.env, "RL_CODE", "code:" + rt.e + ":" + b.request_token.slice(b.request_token.lastIndexOf(".") + 1), c.log);
-  await enforce(c.env, "RL_CODE_ALL", "codeall:" + rt.e, c.log);
-  if (!(await checkCode(c.env.PA_CODE_SECRET, b.request_token, b.code))) throw new ApiError(401, "wrong code");
+  if (!(await checkCode(c.env.PA_CODE_SECRET, b.request_token, b.code))) {
+    await enforce(c.env, "RL_CODE_ALL", "codeall:" + rt.e, c.log);
+    throw new ApiError(401, "wrong code");
+  }
   const eh = b64urlDecode(rt.e);
   if (!eh || eh.length !== 32) throw new ApiError(401, "wrong code");
   const a = await accountId(c.env.PA_ID_SECRET, eh);

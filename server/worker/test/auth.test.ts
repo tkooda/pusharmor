@@ -130,6 +130,16 @@ describe("POST /auth/email + verify", () => {
     const e = { ...(await testEnv()), RL_CODE: { limit: async () => ({ success: true }) }, RL_CODE_ALL: { limit: async () => ({ success: false }) } } as Env;
     expect((await call("POST", "/v1/auth/email/verify", { request_token: tok, code: "AAAAAA" }, { env: e })).status).toBe(429);
   });
+
+  it("RL_CODE_ALL is charged only by wrong guesses: the correct code passes while the email cap is spent", async () => {
+    const { r } = await startEmail(randomEmail());
+    const tok = r.body.request_token as string;
+    let charged = 0;
+    const e = { ...(await testEnv()), RL_CODE_ALL: { limit: async () => (charged++, { success: false }) } } as Env;
+    const code = await deriveCode(S.PA_CODE_SECRET, tok);
+    expect((await call("POST", "/v1/auth/email/verify", { request_token: tok, code }, { env: e })).status).toBe(200);
+    expect(charged).toBe(0);
+  });
 });
 
 // ---------- OAuth ----------
