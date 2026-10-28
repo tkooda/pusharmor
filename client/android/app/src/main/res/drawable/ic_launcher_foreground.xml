@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Written by brand/build-icons.mjs from brand/pusharmor-icon-small.svg. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <group android:pivotX="256" android:pivotY="257" android:scaleX="0.2" android:scaleY="0.2"
+        android:translateX="-202" android:translateY="-203">
+        <path android:fillColor="#FF34C77B" android:fillType="evenOdd"
+            android:pathData="M256 108 L376 150 V250 C376 330 322 382 256 406 C190 382 136 330 136 250 V150 Z M256 168 L318 236 H280 V334 H232 V236 H194 Z" />
+    </group>
+</vector>
