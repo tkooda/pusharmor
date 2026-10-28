@@ -38,6 +38,8 @@ android {
         // A placeholder bakes in "" (UnifiedPush registers without a VAPID key).
         val vapid = publicValue("webpush_vapid_public_key").takeUnless { it.contains("placeholder", ignoreCase = true) } ?: ""
         buildConfigField("String", "VAPID_PUBLIC_KEY", "\"$vapid\"")
+        // Store screenshot mode (ScreenshotMode.kt): debug builds only.
+        buildConfigField("boolean", "SCREENSHOT_MODE", "false")
     }
 
     flavorDimensions += "dist"
@@ -55,6 +57,7 @@ android {
     }
 
     buildTypes {
+        debug { buildConfigField("boolean", "SCREENSHOT_MODE", "true") }
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

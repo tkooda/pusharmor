@@ -8,8 +8,10 @@ import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import androidx.work.WorkManager
+import com.pusharmor.app.BuildConfig
 import com.pusharmor.app.Graph
 import com.pusharmor.app.R
+import com.pusharmor.app.ScreenshotMode
 import com.pusharmor.app.data.Settings
 import com.pusharmor.app.keys.KeystoreKeyOps
 import com.pusharmor.app.push.UnifiedPushSupport
@@ -73,6 +75,7 @@ class Session(private val g: Graph) {
 
     /** App start / open work when signed in (no GET /peers on app open). */
     fun onAppOpen(now: Long) {
+        if (BuildConfig.SCREENSHOT_MODE && ScreenshotMode.on) return
         if (g.identity() == null || s.flag(Settings.K.SIGNED_OUT, false)) return
         flavorRule()
         g.push.start(g)

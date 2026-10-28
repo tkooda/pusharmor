@@ -54,7 +54,9 @@ class Graph(val app: PaApp) {
             set(v) { dao.self()?.let { dao.putSelf(it.copy(clockOffset = v)) } }
     }
 
-    val client = WorkerClient({ keysOrNull ?: error("no keys") }, { dao.self()?.id }, offset, BuildConfig.API_BASE.toHttpUrl(), onAuthState = ::onAuthState)
+    val client = WorkerClient({ keysOrNull ?: error("no keys") }, { dao.self()?.id }, offset, BuildConfig.API_BASE.toHttpUrl(),
+        http = if (BuildConfig.SCREENSHOT_MODE) ScreenshotMode.guard(WorkerClient.defaultHttp()) else WorkerClient.defaultHttp(),
+        onAuthState = ::onAuthState)
 
     /** 401 "unknown peer": this device was removed; 401 "paused": signed out. Applies to every signed call. */
     private fun onAuthState(error: String) {
