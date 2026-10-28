@@ -30,7 +30,7 @@ let package = Package(
         .testTarget(
             name: "PushArmorCoreTests",
             dependencies: ["PushArmorCore"],
-            resources: [.copy("Resources")]
+            resources: [.copy("Fixtures")]
         ),
     ]
 )

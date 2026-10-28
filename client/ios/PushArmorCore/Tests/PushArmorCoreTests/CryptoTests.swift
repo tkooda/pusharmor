@@ -15,7 +15,7 @@ final class CryptoTests: XCTestCase {
     /// RFC 9180 test vectors (base mode, DHKEM(P-256, HKDF-SHA256), HKDF-SHA256,
     /// AES-128-GCM = A.3.1 and AES-256-GCM), open direction.
     func testRFC9180Open() throws {
-        let url = Bundle.module.url(forResource: "rfc9180-p256-base", withExtension: "json", subdirectory: "Resources")!
+        let url = Bundle.module.url(forResource: "rfc9180-p256-base", withExtension: "json", subdirectory: "Fixtures")!
         let f = try JSONDecoder().decode(HPKEFile.self, from: Data(contentsOf: url))
         XCTAssertEqual(f.vectors.count, 2)
         for v in f.vectors {
