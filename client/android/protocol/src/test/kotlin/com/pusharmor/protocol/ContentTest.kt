@@ -31,6 +31,30 @@ class ContentTest {
         assertEquals(ContentType.TEXT, Detect.type("ftp://example.com"))
     }
 
+    @Test fun urlMatchesWhatwg() {
+        fun href(s: String) = UrlCheck.parse(s)!!.href
+        assertEquals("https://a.com/a|b", href("https://a.com/a|b"))
+        assertEquals("https://a.com/a%7Bb%7D%22c", href("https://a.com/a{b}\"c"))
+        assertEquals("http://my_host.com/", href("http://my_host.com/"))
+        assertEquals("my_host.com", UrlCheck.parse("http://my_host.com/")!!.host)
+        assertEquals("https://a.com/a%zz%2", href("https://a.com/a%zz%2"))
+        assertEquals("https://a.com/b/c", href("https://a.com/a/../b/./c"))
+        assertEquals("https://a.com/x/y", href("https://a.com\\x\\y"))
+        assertEquals("https://a.com/%C3%A9?%C3%A9#%C3%A9", href("https://a.com/\u00e9?\u00e9#\u00e9"))
+        assertEquals("https://a.com/?a|b^c{d}e%22f%3Cg%3Eh`i%27j", href("https://a.com/?a|b^c{d}e\"f<g>h`i'j"))
+        assertEquals("https://a.com/#a|b^c{d}e%22f%3Cg%3Eh%60i'j", href("https://a.com/#a|b^c{d}e\"f<g>h`i'j"))
+        assertEquals("https://a.com/", href("https://a.com:/"))
+        assertEquals("http://a.com:81/", href("http://a.com:0081"))
+        assertEquals("https://a.com/?x", href("https://a.com?x"))
+        assertEquals("https://[::1]/", href("https://[::1]/"))
+        assertNull(UrlCheck.parse("https://a.com:99999/"))
+        assertNull(UrlCheck.parse("https://a|b.com/"))
+        assertEquals(ContentType.URL, Detect.type("http://a.com/x y"))
+        assertEquals("http://a.com/x%20y", href("http://a.com/x y"))
+        assertEquals("https://xn--strae-oqa.de/", href("https://stra\u00dfe.de/"))
+        assertNull(UrlCheck.parse("https://a\u200db.com/"))
+    }
+
     @Test fun strictUrl() {
         assertEquals("https://example.com/", UrlCheck.parse("HTTPS://Example.COM")!!.href)
         assertEquals("example.com", UrlCheck.parse("https://Example.COM:443/a?b#c")!!.host)
