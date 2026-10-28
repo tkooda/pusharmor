@@ -84,7 +84,7 @@ function setup() {
     },
     uuid: () => "chan-" + ++n,
   });
-  return { ap, sockets, timers, delivered, endpoints, modes, keys: () => keys!, advance: (ms: number) => (t += ms) };
+  return { ap, sockets, timers, delivered, endpoints, modes, keys: () => keys!, wipeKeys: () => (keys = null), advance: (ms: number) => (t += ms) };
 }
 
 test("autopush: hello, register, notification decrypt and ack, dedupe, decrypt error 101, unknown channel", async () => {
@@ -114,6 +114,32 @@ test("autopush: hello, register, notification decrypt and ack, dedupe, decrypt e
     { messageType: "ack", updates: [{ channelID: "other", version: "v3", code: 100 }] },
     { messageType: "unregister", channelID: "other" },
   ]);
+});
+
+test("autopush: ensureRunning after unregister and a key wipe gives fresh keys and a new subscription", async () => {
+  const s = setup();
+  await s.ap.start();
+  let ws = s.sockets[0]!;
+  ws.onopen!();
+  await ws.rx({ messageType: "hello", status: 200, uaid: "U1" });
+  await ws.rx({ messageType: "register", status: 200, channelID: "chan-1", pushEndpoint: "https://updates.push.services.mozilla.com/wpush/v2/a" });
+  const oldAuth = (await s.ap.fields())!.auth;
+  await s.ap.unregister();
+  s.wipeKeys();
+  assert.equal(await s.ap.fields(), null);
+  await s.ap.ensureRunning();
+  assert.equal(s.sockets.length, 2);
+  ws = s.sockets[1]!;
+  ws.onopen!();
+  await ws.rx({ messageType: "hello", status: 200, uaid: "U1" });
+  assert.equal(ws.sent.at(-1)!.messageType, "register");
+  await ws.rx({ messageType: "register", status: 200, channelID: "chan-2", pushEndpoint: "https://updates.push.services.mozilla.com/wpush/v2/b" });
+  const f = (await s.ap.fields())!;
+  assert.equal(f.endpoint, "https://updates.push.services.mozilla.com/wpush/v2/b");
+  assert.notEqual(f.auth, oldAuth);
+  const n = s.sockets.length;
+  await s.ap.ensureRunning(); // running: no restart
+  assert.equal(s.sockets.length, n);
 });
 
 test("autopush: backoff 5 s * 2^k, fallback after 30 min of failures, 4774 switches at once", async () => {
