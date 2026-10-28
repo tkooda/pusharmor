@@ -372,8 +372,9 @@ jobs:
         if: ${{ !github.event.repository.private }}
         with:
           subject-path: ${{ steps.files.outputs.ipa }}
-      # A rerun of the same tag replaces the assets of the prerelease; a release
-      # the owner has promoted (prerelease flag cleared) is never touched.
+      # Immutable releases: the release is created as a draft, gets every asset,
+      # then is published. A rerun replaces the assets of a draft; a published
+      # release is never touched.
       - name: GitHub prerelease
         env:
           GH_TOKEN: ${{ github.token }}
@@ -381,14 +382,15 @@ jobs:
           DIR: ${{ steps.files.outputs.dir }}
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
-            pre="$(gh release view "$TAG" --json isPrerelease,isDraft --jq '.isPrerelease or .isDraft')"
-            if [ "$pre" != "true" ]; then
-              echo "::error::Release $TAG is promoted (not a prerelease); refusing to change its assets"
+            draft="$(gh release view "$TAG" --json isDraft --jq '.isDraft')"
+            if [ "$draft" != "true" ]; then
+              echo "::error::Release $TAG is published (immutable); refusing to change its assets"
               exit 1
             fi
             gh release upload "$TAG" --clobber "$DIR"/*
           else
-            gh release create "$TAG" --prerelease --verify-tag --title "$TAG" \
+            gh release create "$TAG" --draft --prerelease --verify-tag --title "$TAG" \
               --notes "Test build: TestFlight and this prerelease. Promote by hand (RELEASING.md)." \
               "$DIR"/*
           fi
+          gh release edit "$TAG" --draft=false --prerelease

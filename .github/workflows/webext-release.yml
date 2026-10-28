@@ -15,7 +15,7 @@ name: webext-release
 #                      as the UNLISTED Beta add-on on AMO, hands on the XPI
 #   publish-firefox    Environment firefox-release: verifies every SHA-256,
 #                      provenance, GitHub prerelease (public zip, source, signed
-#                      Beta XPI), then the Beta update manifest asset
+#                      Beta XPI, Beta update manifest) as a draft, then publish
 # CI never uploads to the public Chrome item or the listed AMO add-on: the owner
 # uploads the public zip from the prerelease (RELEASING.md). Only this file holds
 # write permissions; ci.yml never calls it.
@@ -208,8 +208,9 @@ jobs:
           subject-path: |
             ${{ steps.files.outputs.zip }}
             ${{ steps.files.outputs.beta }}
-      # A rerun of the same tag replaces the assets of the prerelease; a release
-      # the owner has promoted (prerelease flag cleared) is never touched.
+      # Immutable releases: the release is created as a draft, gets every asset,
+      # then is published. A rerun replaces the assets of a draft; a published
+      # release is never touched.
       - name: GitHub prerelease
         env:
           GH_TOKEN: ${{ github.token }}
@@ -217,17 +218,18 @@ jobs:
           DIR: ${{ steps.files.outputs.dir }}
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
-            pre="$(gh release view "$TAG" --json isPrerelease,isDraft --jq '.isPrerelease or .isDraft')"
-            if [ "$pre" != "true" ]; then
-              echo "::error::Release $TAG is promoted (not a prerelease); refusing to change its assets"
+            draft="$(gh release view "$TAG" --json isDraft --jq '.isDraft')"
+            if [ "$draft" != "true" ]; then
+              echo "::error::Release $TAG is published (immutable); refusing to change its assets"
               exit 1
             fi
             gh release upload "$TAG" --clobber "$DIR"/*
           else
-            gh release create "$TAG" --prerelease --verify-tag --title "$TAG" \
+            gh release create "$TAG" --draft --prerelease --verify-tag --title "$TAG" \
               --notes "Test build. pusharmor-chrome-$VERSION.zip is the public zip; the Beta zip went to the private PushArmor Beta item. Promote by hand (RELEASING.md)." \
               "$DIR"/*
           fi
+          gh release edit "$TAG" --draft=false --prerelease
       - id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
@@ -509,8 +511,25 @@ jobs:
             ${{ steps.files.outputs.zip }}
             ${{ steps.files.outputs.src }}
             ${{ steps.files.outputs.xpi }}
-      # A rerun of the same tag replaces the assets of the prerelease; a release
-      # the owner has promoted (prerelease flag cleared) is never touched.
+      # Self-hosted update manifest of the Beta add-on (update_url
+      # https://pusharmor.com/fx/beta/updates.json, release/constants.json). It
+      # points at the signed XPI of this prerelease and goes into the draft with
+      # the other assets; the owner copies it to site/public/fx/beta/updates.json
+      # in a site commit (RELEASING.md).
+      - name: Beta update manifest (prerelease asset)
+        env:
+          DIR: ${{ steps.files.outputs.dir }}
+          XPI: ${{ steps.files.outputs.xpi }}
+          REPO: ${{ github.repository }}
+        run: |
+          link="https://github.com/$REPO/releases/download/$TAG/pusharmor-firefox-beta-$VERSION.xpi"
+          f="$DIR/pusharmor-firefox-beta-$VERSION-updates.json"
+          jq -n --arg id "$BETA_ID" --arg v "$VERSION" --arg l "$link" --arg h "sha256:$(sha256sum "$XPI" | cut -d' ' -f1)" \
+            '{addons: {($id): {updates: [{version: $v, update_link: $l, update_hash: $h}]}}}' > "$f"
+          cat "$f"
+      # Immutable releases: the release is created as a draft, gets every asset,
+      # then is published. A rerun replaces the assets of a draft; a published
+      # release is never touched.
       - name: GitHub prerelease
         env:
           GH_TOKEN: ${{ github.token }}
@@ -518,32 +537,27 @@ jobs:
           DIR: ${{ steps.files.outputs.dir }}
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
-            pre="$(gh release view "$TAG" --json isPrerelease,isDraft --jq '.isPrerelease or .isDraft')"
-            if [ "$pre" != "true" ]; then
-              echo "::error::Release $TAG is promoted (not a prerelease); refusing to change its assets"
+            draft="$(gh release view "$TAG" --json isDraft --jq '.isDraft')"
+            if [ "$draft" != "true" ]; then
+              echo "::error::Release $TAG is published (immutable); refusing to change its assets"
               exit 1
             fi
             gh release upload "$TAG" --clobber "$DIR"/*
           else
-            gh release create "$TAG" --prerelease --verify-tag --title "$TAG" \
+            gh release create "$TAG" --draft --prerelease --verify-tag --title "$TAG" \
               --notes "Test build. pusharmor-firefox-$VERSION.zip and the source archive are for the public AMO listing; pusharmor-firefox-beta-$VERSION.xpi is the signed PushArmor Beta add-on. Promote by hand (RELEASING.md)." \
               "$DIR"/*
           fi
-      # Self-hosted update manifest of the Beta add-on (update_url
-      # https://pusharmor.com/fx/beta/updates.json, release/constants.json). It
-      # points at the signed XPI of this prerelease; the owner copies it to
-      # site/public/fx/beta/updates.json in a site commit (RELEASING.md).
-      - name: Beta update manifest (prerelease asset)
+          gh release edit "$TAG" --draft=false --prerelease
+      - name: Check the published release and the Beta update link
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          XPI: ${{ steps.files.outputs.xpi }}
+          DIR: ${{ steps.files.outputs.dir }}
         run: |
           name="pusharmor-firefox-beta-$VERSION.xpi"
+          gh release view "$TAG" --json isDraft,isPrerelease --jq '"draft=\(.isDraft) prerelease=\(.isPrerelease)"' | grep -qx 'draft=false prerelease=true'
           link="$(gh release view "$TAG" --json assets --jq ".assets[] | select(.name == \"$name\") | .url")"
-          case "$link" in https://github.com/*) ;; *) echo "no download URL for $name: $link"; exit 1 ;; esac
-          f="$RUNNER_TEMP/pusharmor-firefox-beta-$VERSION-updates.json"
-          jq -n --arg id "$BETA_ID" --arg v "$VERSION" --arg l "$link" --arg h "sha256:$(sha256sum "$XPI" | cut -d' ' -f1)" \
-            '{addons: {($id): {updates: [{version: $v, update_link: $l, update_hash: $h}]}}}' > "$f"
-          cat "$f"
-          gh release upload "$TAG" --clobber "$f"
+          want="$(jq -r '.addons[].updates[0].update_link' "$DIR/pusharmor-firefox-beta-$VERSION-updates.json")"
+          if [ "$link" != "$want" ]; then echo "::error::update_link $want is not the published asset URL $link"; exit 1; fi
+          gh release view "$TAG" --json assets --jq '.assets[].name' | grep -qx "pusharmor-firefox-beta-$VERSION-updates.json"
