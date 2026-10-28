@@ -23,9 +23,9 @@ regexes = [
 ]
 
 [[allowlists]]
-description = "public Firebase Android client key (ships in every app build)"
+description = "public Firebase Android client key and Chrome dev public key (both ship in builds)"
 targetRules = ["gcp-api-key", "generic-api-key"]
 condition = "AND"
 paths = ['''^release/public\.json$''']
 regexTarget = "line"
-regexes = ['''"google_fcm_android_api_key"\s*:''']
+regexes = ['''"(google_fcm_android_api_key|google_chrome_dev_key)"\s*:''']
