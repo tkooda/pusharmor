@@ -95,6 +95,36 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(got.max(), UInt64(start) + UInt64(threads * per))
     }
 
+    func testWipeResetsPerPeerRulingState() throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try n.core.store.db.write {
+            try n.core.store.db.exec("""
+                INSERT INTO peers (id, state, approve_verified, approve_verified_at, paused, pause_n, name, name_n)
+                VALUES ('\(x.id.text)', 'approved', 1, 5, 1, 7, 'Xdev', 3)
+                ON CONFLICT(id) DO UPDATE SET state = 'approved', approve_verified = 1, approve_verified_at = 5,
+                  paused = 1, pause_n = 7, name = 'Xdev', name_n = 3
+                """)
+        }
+        n.core.selfRemoved()
+        let p = try n.core.store.peer(x.id)!
+        XCTAssertEqual(p.state, .unruled)
+        XCTAssertFalse(p.approveVerified)
+        XCTAssertNil(p.approveVerifiedAt)
+        XCTAssertFalse(p.paused)
+        XCTAssertEqual(p.pauseN, 0)
+        XCTAssertNil(p.name)
+        XCTAssertEqual(p.nameN, 0)
+    }
+
+    func testRegisterRetriesOnceOnClockSkew() async throws {
+        let n = try dev("Ndev")
+        w.script("POST", "/v1/peers", 401, "{\"error\":\"clock skew\"}")
+        w.script("POST", "/v1/peers", 409, "{\"error\":\"id collision\"}")
+        let r = await n.core.register(ticket: "t", push: nil)
+        guard case .idCollision = r else { return XCTFail("expected the retried reply, got \(r)") }
+        XCTAssertEqual(w.count("POST", "/v1/peers"), 2)
+    }
+
     func testClockSkewRetryReservesNewN() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try await pairFully(n, x)
