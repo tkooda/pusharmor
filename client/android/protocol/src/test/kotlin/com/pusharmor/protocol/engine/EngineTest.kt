@@ -132,6 +132,14 @@ class EngineTest {
         assertEquals(0L, n.store.peer(x.id)!!.lastN)
     }
 
+    @Test fun pairSendClockSkewIsRetriedNotPermanent() {
+        assertTrue(n.pairing.tapPair(x.id, t0))
+        n.skewNext = 1
+        assertEquals(PairingEngine.SendStep.RETRY, n.pairing.sendPending(x.id, t0))
+        assertEquals(PairingEngine.SendStep.DONE, n.pairing.sendPending(x.id, t0))
+        assertEquals("sent", n.store.pairing(x.id)!!.lastResult)
+    }
+
     @Test fun allowReconcile() {
         pairShown()
         n.approve.approve(x.id) // allow has X (pinned)
