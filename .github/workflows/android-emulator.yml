@@ -58,6 +58,9 @@ jobs:
           target: ${{ matrix.target }}
           arch: x86_64
           profile: pixel_6
+          # pixel_6 defaults to a 6G data partition, which needs 7.2G free; some
+          # runners have less, and the emulator exits before adb sees it.
+          disk-size: 2G
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot-save -noaudio -no-boot-anim
           working-directory: client/android
