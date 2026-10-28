@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>PushArmor icon</title>
+  <defs><mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><path fill="#000" d="M256 168 L318 236 H280 V334 H232 V236 H194 Z"/></mask></defs>
+  <rect width="512" height="512" rx="112" fill="#1F3A5F"/>
+  <g transform="translate(256 257) scale(1.22) translate(-256 -257)"><path fill="#34C77B" mask="url(#m)" d="M256 108 L376 150 V250 C376 330 322 382 256 406 C190 382 136 330 136 250 V150 Z"/></g>
+</svg>
