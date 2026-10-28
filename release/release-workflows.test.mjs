@@ -78,3 +78,9 @@ test("store API calls print the error body and the Chrome publish state is check
   assert.match(wf, /r="\$\(call -X POST -H "Authorization: Bearer \$TOKEN" "\$api\/v2\/\$item:publish"\)"/);
   assert.match(wf, /jq -r '\.state \/\/ empty'/);
 });
+
+test("web-ext sign has a request timeout; RELEASING.md says only publish-firefox may be rerun", () => {
+  assert.match(read("webext-release.yml"), /web-ext sign --no-input \\\n(?: +.*\\\n)* +--timeout 600000 \\\n/);
+  const doc = readFileSync(join(import.meta.dirname, "..", "RELEASING.md"), "utf8");
+  assert.match(doc, /rerun only the failed `publish-firefox` job/);
+});

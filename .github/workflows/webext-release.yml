@@ -417,6 +417,7 @@ jobs:
             --artifacts-dir "$RUNNER_TEMP/web-ext" \
             --channel unlisted \
             --upload-source-code "$SRC" \
+            --timeout 600000 \
             --approval-timeout 1200000
       - name: The signed XPI is the Beta add-on at this version
         id: xpi
