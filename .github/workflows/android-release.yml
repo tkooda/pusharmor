@@ -355,19 +355,21 @@ jobs:
           api="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME"
           up="https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/$PACKAGE_NAME"
           auth="Authorization: Bearer $TOKEN"
-          edit="$(curl -fsS -X POST -H "$auth" -H "Content-Type: application/json" --data '{}' "$api/edits" | jq -r '.id')"
+          # Print the API error body on an HTTP error, then fail.
+          call() { local r; if ! r="$(curl -sS --fail-with-body "$@")"; then printf '%s\n' "$r" >&2; return 1; fi; printf '%s\n' "$r"; }
+          edit="$(call -X POST -H "$auth" -H "Content-Type: application/json" --data '{}' "$api/edits" | jq -r '.id')"
           if [ -z "$edit" ] || [ "$edit" = null ]; then echo "edits.insert returned no id"; exit 1; fi
           IFS=. read -r major minor patch <<EOF
           $VERSION
           EOF
           want="$((major * 1000000 + minor * 1000 + patch))"
           # A rerun of the same tag: Play rejects a second upload of a versionCode.
-          have="$(curl -fsS -H "$auth" "$api/edits/$edit/bundles" | jq -r --argjson c "$want" '[.bundles[]? | select(.versionCode == $c)] | length')"
+          have="$(call -H "$auth" "$api/edits/$edit/bundles" | jq -r --argjson c "$want" '[.bundles[]? | select(.versionCode == $c)] | length')"
           if [ "$have" != 0 ]; then
             echo "versionCode $want is already on Play; skipping the upload"
             code="$want"
           else
-            code="$(curl -fsS -X POST -H "$auth" -H "Content-Type: application/octet-stream" \
+            code="$(call -X POST -H "$auth" -H "Content-Type: application/octet-stream" \
               --data-binary "@$AAB" "$up/edits/$edit/bundles?uploadType=media" | jq -r '.versionCode')"
             echo "uploaded versionCode: $code"
           fi
@@ -376,5 +378,5 @@ jobs:
             exit 1
           fi
           body="$(jq -nc --arg c "$code" --arg s "$PLAY_INTERNAL_STATUS" '{track: "internal", releases: [{versionCodes: [$c], status: $s}]}')"
-          curl -fsS -X PUT -H "$auth" -H "Content-Type: application/json" --data "$body" "$api/edits/$edit/tracks/internal"
-          curl -fsS -X POST -H "$auth" "$api/edits/$edit:commit"
+          call -X PUT -H "$auth" -H "Content-Type: application/json" --data "$body" "$api/edits/$edit/tracks/internal"
+          call -X POST -H "$auth" "$api/edits/$edit:commit"
