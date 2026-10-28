@@ -4558,46 +4558,28 @@
         "url": true
       },
       {
-        "auto_open": true,
-        "host": "xn--pple-43d.com",
-        "href": "https://xn--pple-43d.com/",
         "input": "https://\u0410pple.com/",
-        "url": true
+        "url": false
       },
       {
-        "auto_open": true,
-        "host": "xn--mi7c.com",
-        "href": "https://xn--mi7c.com/",
         "input": "https://\uff41.com/",
-        "url": true
+        "url": false
       },
       {
-        "auto_open": true,
-        "host": "xn--ab-m1t.com",
-        "href": "https://xn--ab-m1t.com/",
         "input": "https://a\u200db.com/",
-        "url": true
+        "url": false
       },
       {
-        "auto_open": true,
-        "host": "xn--ab-j1t.com",
-        "href": "https://xn--ab-j1t.com/",
         "input": "https://a\u200cb.com/",
-        "url": true
+        "url": false
       },
       {
-        "auto_open": true,
-        "host": "xn--ab-5da.com",
-        "href": "https://xn--ab-5da.com/",
         "input": "https://a\u00adb.com/",
-        "url": true
+        "url": false
       },
       {
-        "auto_open": false,
-        "host": "xn--acom-qw3c",
-        "href": "https://xn--acom-qw3c/",
         "input": "https://a\u3002com/",
-        "url": true
+        "url": false
       },
       {
         "auto_open": true,
@@ -4607,11 +4589,8 @@
         "url": true
       },
       {
-        "auto_open": true,
-        "host": "xn--cafe-yvc.com",
-        "href": "https://xn--cafe-yvc.com/",
         "input": "https://cafe\u0301.com/",
-        "url": true
+        "url": false
       },
       {
         "auto_open": true,
@@ -4656,46 +4635,28 @@
         "url": true
       },
       {
-        "auto_open": true,
-        "host": "xn--mxacd.gr",
-        "href": "https://xn--mxacd.gr/",
         "input": "https://\u0391\u0392\u0393.gr/",
-        "url": true
+        "url": false
       },
       {
-        "auto_open": true,
-        "host": "xn--mnchen-3ya.de",
-        "href": "https://xn--mnchen-3ya.de/",
         "input": "https://M\u00dcNCHEN.de/",
-        "url": true
+        "url": false
       },
       {
-        "auto_open": true,
-        "host": "xn--e1afmkfd.xn--p1ai",
-        "href": "https://xn--e1afmkfd.xn--p1ai/",
         "input": "https://\u041f\u0420\u0418\u041c\u0415\u0420.\u0420\u0424/",
-        "url": true
+        "url": false
       },
       {
-        "auto_open": true,
-        "host": "k.com",
-        "href": "https://k.com/",
         "input": "https://\u212a.com/",
-        "url": true
+        "url": false
       },
       {
-        "auto_open": true,
-        "host": "xn--istanbul-o0e.tr",
-        "href": "https://xn--istanbul-o0e.tr/",
         "input": "https://\u0130stanbul.tr/",
-        "url": true
+        "url": false
       },
       {
-        "auto_open": false,
-        "host": "xn--9ca",
-        "href": "https://xn--9ca:8443/",
         "input": "https://\u00c9:8443/",
-        "url": true
+        "url": false
       },
       {
         "input": "https://\u05d0 \u05d1.com/",
@@ -4724,9 +4685,122 @@
       {
         "input": "https://[\u00e9]/",
         "url": false
+      },
+      {
+        "input": "https://\uff21.com/",
+        "url": false
+      },
+      {
+        "input": "https://a\uff0ecom/",
+        "url": false
+      },
+      {
+        "input": "https://a\uff61com/",
+        "url": false
+      },
+      {
+        "input": "https://\u00e9\u3000.com/",
+        "url": false
+      },
+      {
+        "input": "https://\u00e9\u00a0.com/",
+        "url": false
+      },
+      {
+        "input": "https://\u00e9\ufeff.com/",
+        "url": false
+      },
+      {
+        "input": "https://\u00e9\u2060.com/",
+        "url": false
+      },
+      {
+        "input": "https://a\u200bb.com/",
+        "url": false
+      },
+      {
+        "input": "https://i\u2764\ufe0f.ws/",
+        "url": false
+      },
+      {
+        "input": "https://\u00e9\udb40\udc41.com/",
+        "url": false
+      },
+      {
+        "input": "https://x\u00b2.com/",
+        "url": false
+      },
+      {
+        "input": "https://\ufb01.com/",
+        "url": false
+      },
+      {
+        "input": "https://\u2460.com/",
+        "url": false
+      },
+      {
+        "input": "https://\u3131.kr/",
+        "url": false
+      },
+      {
+        "input": "https://\u00b5.com/",
+        "url": false
+      },
+      {
+        "input": "https://\u017f.com/",
+        "url": false
+      },
+      {
+        "input": "https://\u1e9e.de/",
+        "url": false
+      },
+      {
+        "input": "https://\u01c5.com/",
+        "url": false
+      },
+      {
+        "input": "https://e\u0301.com/",
+        "url": false
+      },
+      {
+        "input": "https://\u0301a.com/",
+        "url": false
+      },
+      {
+        "input": "https://a.\u0903b.com/",
+        "url": false
+      },
+      {
+        "input": "https://\u05d0\u202e.com/",
+        "url": false
+      },
+      {
+        "input": "https://\u00e9.\u3002com/",
+        "url": false
+      },
+      {
+        "auto_open": true,
+        "host": "xn--9ca.com",
+        "href": "https://xn--9ca.com/",
+        "input": "https://\u00e9.com/",
+        "url": true
+      },
+      {
+        "auto_open": true,
+        "host": "xn--3xa.gr",
+        "href": "https://xn--3xa.gr/",
+        "input": "https://\u03c2.gr/",
+        "url": true
+      },
+      {
+        "auto_open": true,
+        "host": "xn--x-xbb.com",
+        "href": "https://xn--x-xbb.com/x",
+        "input": "https://x\u0301.com/x",
+        "url": true
       }
     ],
-    "description": "Received url: a strict URL parse, scheme http or https (any case), non-empty host, no userinfo; url false = shown as a plain text notification. href = WHATWG URL().href shown in notification, History and Open; host = the parsed hostname shown to the user (IDN as punycode). Shape rules first (else url false): no C0 control or DEL, no leading or trailing space; \"http://\" or \"https://\" (any case) not followed by \"/\" or \"\\\"; no \"@\" or \"%\" in the authority; a host that ends in a number only as a dotted quad 0-255 without leading zeros. A non-ASCII host: each code point to lowercase on its own (ASCII A-Z, else the Unicode full lowercase mapping), then each label with a non-ASCII code point becomes \"xn--\" + RFC 3492 punycode; no other UTS 46 mapping or check. A space in the path, query or fragment is kept as %20. auto_open (extensions only): https, DNS hostname, no IP literal, no explicit port, at least two labels after stripping one trailing dot, no empty label, not \"localhost\", last label not \"localhost\" or \"local\"."
+    "description": "Received url: a strict URL parse, scheme http or https (any case), non-empty host, no userinfo; url false = shown as a plain text notification. href = WHATWG URL().href shown in notification, History and Open; host = the parsed hostname shown to the user (IDN as punycode). Shape rules first (else url false): no C0 control or DEL, no leading or trailing space; \"http://\" or \"https://\" (any case) not followed by \"/\" or \"\\\"; no \"@\" or \"%\" in the authority; a host that ends in a number only as a dotted quad 0-255 without leading zeros. A host that UTS 46 would map or reject is url false: the host must equal its NFKC form; each non-ASCII code point must equal its own full lowercase mapping and not be a Default_Ignorable_Code_Point (U+00AD, U+034F, U+061C, U+115F-U+1160, U+17B4-U+17B5, U+180B-U+180F, U+200B-U+200F, U+202A-U+202E, U+2060-U+206F, U+3164, U+FE00-U+FE0F, U+FEFF, U+FFA0, U+FFF0-U+FFF8, U+1BCA0-U+1BCA3, U+1D173-U+1D17A, U+E0000-U+E0FFF) or U+3002; no label may start with a combining mark (Mn, Mc, Me). Then ASCII A-Z to lowercase and each label with a non-ASCII code point becomes \"xn--\" + RFC 3492 punycode. A space in the path, query or fragment is kept as %20. auto_open (extensions only): https, DNS hostname, no IP literal, no explicit port, at least two labels after stripping one trailing dot, no empty label, not \"localhost\", last label not \"localhost\" or \"local\"."
   },
   "version": 1
 }

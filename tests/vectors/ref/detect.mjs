@@ -22,7 +22,8 @@ const IPV4 = /^[0-9]{1,3}(\.[0-9]{1,3}){3}$/;
 // - no C0 control or DEL anywhere, no leading or trailing space (URL() would strip them);
 // - "http://" or "https://" (any case) not followed by another "/" or "\\";
 // - no "@" or "%" in the authority (no userinfo, no percent-decoded host);
-// - a host that ends in a number (WHATWG) only as a plain dotted quad, 0-255, no leading zero.
+// - a host that ends in a number (WHATWG) only as a plain dotted quad, 0-255, no leading zero;
+// - a host that UTS 46 (browser URL parse) would leave as it is (idnOk).
 // Then a non-ASCII host goes through the shared IDN conversion (idnHost) before the parse.
 const QUAD = /^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}$/;
 
@@ -34,6 +35,7 @@ function shapeOk(s) {
   if (auth.includes('@') || auth.includes('%')) return false;
   if (auth.startsWith('[')) return true;
   const raw = auth.split(':')[0];
+  if (!idnOk(raw)) return false;
   const host = raw.replace(/[A-Z]/g, (c) => c.toLowerCase());
   const labels = host.split('.');
   if (labels.length > 1 && labels[labels.length - 1] === '') labels.pop();
@@ -42,15 +44,26 @@ function shapeOk(s) {
   return !endsInNumber || QUAD.test(host);
 }
 
-// Shared IDN conversion (every platform): each host code point to lowercase on its own
-// (ASCII A-Z, else the Unicode full lowercase mapping), then each label with a non-ASCII
-// code point becomes "xn--" + RFC 3492 punycode. No other UTS 46 mapping or check.
+// Shared UTS 46 guard (every platform): a host a browser would map or reject stays text.
+// The host must equal its NFKC form; each non-ASCII code point must equal its own full
+// lowercase mapping and not be in IGNORABLE (Default_Ignorable_Code_Point, plus U+3002,
+// which UTS 46 maps to "."); no label may start with a combining mark (Mn, Mc, Me).
+const IGNORABLE =
+  /[\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3002\u3164\ufe00-\ufe0f\ufeff\uffa0\ufff0-\ufff8\u{1bca0}-\u{1bca3}\u{1d173}-\u{1d17a}\u{e0000}-\u{e0fff}]/u;
+
+function idnOk(host) {
+  if (host.normalize('NFKC') !== host || IGNORABLE.test(host)) return false;
+  for (const ch of host) if (ch.codePointAt(0) >= 0x80 && ch.toLowerCase() !== ch) return false;
+  return !host.split('.').some((l) => /^\p{M}/u.test(l));
+}
+
+// Shared IDN conversion (every platform), after idnOk: ASCII A-Z to lowercase, then each
+// label with a non-ASCII code point becomes "xn--" + RFC 3492 punycode.
 function idnHost(s) {
   const m = /^(https?:\/\/)([^/?#\\:]*)/i.exec(s);
   if (!m || m[2].startsWith('[') || !/[^\u0000-\u007f]/.test(m[2])) return s;
-  let lower = '';
-  for (const ch of m[2]) lower += ch.codePointAt(0) < 0x80 ? ch.replace(/[A-Z]/, (c) => c.toLowerCase()) : ch.toLowerCase();
-  const host = lower
+  const host = m[2]
+    .replace(/[A-Z]/g, (c) => c.toLowerCase())
     .split('.')
     .map((l) => (/^[\u0000-\u007f]*$/.test(l) ? l : 'xn--' + punycode(l)))
     .join('.');
