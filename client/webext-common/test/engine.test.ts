@@ -207,6 +207,16 @@ test("send: a URL whose normalized href exceeds the cap is refused before any co
   assert.equal(w.calls.filter((c) => c.path === "/v1/send").length, 0);
 });
 
+test("a 401 paused from any signed call sets reg to paused", async () => {
+  const { w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  assert.equal(await a.e.regState(), "registered");
+  w.rows.get(a.id)!.paused = true; // the Worker applied a pause whose reply was lost
+  const r = await a.e.send("hi", false, "all");
+  assert.equal(r.sent, 0);
+  assert.equal(await a.e.regState(), "paused");
+});
+
 test("pairing state survives restarts, valid at day 13, expires at day 14", async () => {
   const { w, a, b, clock } = await setup();
   await refresh(a, b);

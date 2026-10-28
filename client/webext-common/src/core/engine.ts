@@ -119,6 +119,7 @@ export class Engine {
     this.p = d.platform;
     this.db = d.db;
     this.api = d.api;
+    this.api.onPaused = () => this.db.setMeta("reg", "paused");
     this.vapid = d.vapidPub;
   }
 
