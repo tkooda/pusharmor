@@ -3,7 +3,7 @@
 // changed. Run: node --test release/release-workflows.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const WF = join(import.meta.dirname, "..", ".github", "workflows");
@@ -91,6 +91,23 @@ test("a sparse checkout that reads site/.node-version checks that file out", () 
     for (const job of jobs) {
       if (!/sparse-checkout:/.test(job) || !/node-version-file: site\/\.node-version/.test(job)) continue;
       assert.match(job, /sparse-checkout: \|\n(?: {12}\S+\n)* {12}\/site\/\.node-version\n(?: {12}\S+\n)* {10}sparse-checkout-cone-mode: false\n/, f);
+    }
+  }
+});
+
+test("a gh step in a job without a checkout sets GH_REPO", () => {
+  for (const f of readdirSync(WF).filter((n) => n.endsWith(".yml"))) {
+    const wf = read(f);
+    const jobsAt = wf.search(/^jobs:\n/m);
+    const top = wf.slice(0, jobsAt);
+    const jobs = wf.slice(jobsAt).split(/^ {2}(?=[a-z0-9-]+:\n)/m).slice(1);
+    for (const job of jobs) {
+      if (/uses: actions\/checkout@/.test(job)) continue;
+      const [head, ...steps] = job.split(/^ {6}- /m);
+      for (const step of steps) {
+        if (!/(?:^|[\s$(|;&])gh (?:release|api|run|pr|issue|workflow|repo|attestation)\b/m.test(step)) continue;
+        assert.ok(/GH_REPO:/.test(step) || /GH_REPO:/.test(head) || /GH_REPO:/.test(top), `${f}: ${job.split(":")[0]}: ${step.split("\n")[0]}`);
+      }
     }
   }
 });
