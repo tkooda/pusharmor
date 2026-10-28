@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { applyFilter, historyChips } from "../src/ui/historyfilter.ts";
 import { cleanCode, parseFragment } from "../src/core/login.ts";
 import { selectionTitle } from "../src/core/actions.ts";
+import { T } from "../src/core/texts.ts";
 import { readForward } from "../../firefox/src/sitefwd/fwd.ts";
 import { endpointAllowed } from "../../firefox/src/platform-firefox.ts";
 import { senderAllowed } from "../../firefox/src/gate.ts";
@@ -31,6 +32,14 @@ test("Firefox menu selection titles", () => {
   assert.equal(selectionTitle("https://example.com"), "PushArmor URL to");
   assert.equal(selectionTitle("+1 555-123-4567"), "PushArmor phone to");
   assert.equal(selectionTitle("hello"), "PushArmor text to");
+});
+
+test("type badge labels and the pairing countdown text", () => {
+  assert.equal(T.typeBadge("url"), "URL");
+  assert.equal(T.typeBadge("text"), "Text");
+  assert.equal(T.typeBadge("tel"), "Phone");
+  assert.equal(T.countdownLeft("13 days"), "13 days left");
+  assert.equal(T.countdownLeft("1 hour"), "1 hour left");
 });
 
 test("fx/fwd catch: only the SW fetch, body concatenated, over 3800 bytes dropped", () => {
