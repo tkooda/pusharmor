@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { env } from "cloudflare:test";
 import { b64urlEncode } from "../src/codec/b64url";
-import { call, initP256, message, newPeer, randomEmail, row, setAllow, vendorRequests, type Peer } from "./helpers";
+import { call, countingLimit, initP256, message, newPeer, randomEmail, row, setAllow, testEnv, vendorRequests, type Peer } from "./helpers";
 
 beforeAll(initP256);
 
@@ -28,8 +28,13 @@ describe("POST /approve/$X (Q180 B, I230)", () => {
     expect(fcm).toHaveLength(1);
     expect(JSON.parse(new TextDecoder().decode(fcm[0].body)).message.data.m).toBe(cb);
     // Re-sent approve (I265): same reply.
-    const r2 = await call("POST", "/v1/approve/" + a.id, { c: cb, name: message(200) }, { peer: b, ip: "10.9.9.9" });
-    expect(r2.status).toBe(429); // RL_PAIR inside 60 s
+    // RL_PAIR: 1 per 60 s per key, counted by a stub (the binding window can roll over mid-test, I364).
+    const rl = countingLimit(1);
+    const e = await testEnv({ RL_PAIR: rl });
+    const r2 = await call("POST", "/v1/approve/" + a.id, { c: cb, name: message(200) }, { peer: b, ip: "10.9.9.9", env: e });
+    const r3 = await call("POST", "/v1/approve/" + a.id, { c: cb, name: message(200) }, { peer: b, ip: "10.9.9.9", env: e });
+    expect([r2.status, r3.status]).toEqual([200, 429]);
+    expect(rl.seen).toEqual(Array(2).fill("id:" + b.id + a.id));
   });
 
   it("approve after X denied -> denied, nothing stored", async () => {

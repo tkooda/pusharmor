@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { env } from "cloudflare:test";
-import { call, captured, initP256, newPeer, randomEmail, testEnv, keys, ticketFor } from "./helpers";
+import { call, captured, countingLimit, initP256, newPeer, randomEmail, testEnv, keys, ticketFor } from "./helpers";
 import { ipKey } from "../src/pipeline/limits";
 import type { Env, RateLimit } from "../src/env";
 import { CRON_HOURLY, CRON_MONTHLY } from "../src/crons";
@@ -62,16 +62,18 @@ describe("rate limits", () => {
     expect(ipKey("192.0.2.1")).toBe("ip:192.0.2.1");
   });
 
-  it("RL_IP real binding: 100 per 60 s per IP", async () => {
+  it("RL_IP: 100 per 60 s per IP", async () => {
     let last = 0;
-    for (let i = 0; i < 101; i++) last = (await call("GET", "/v1/nope", undefined, { ip: "198.51.100.7" })).status;
+    const e = await testEnv({ RL_IP: countingLimit(100) });
+    for (let i = 0; i < 101; i++) last = (await call("GET", "/v1/nope", undefined, { ip: "198.51.100.7", env: e })).status;
     expect(last).toBe(429);
   });
 
   it("RL_PEER (I227 06): 60 signed calls pass, the 61st -> 429", async () => {
     const p = await newPeer(randomEmail());
-    for (let i = 0; i < 60; i++) expect((await call("GET", "/v1/peers", undefined, { peer: p })).status).toBe(200);
-    const r = await call("GET", "/v1/peers", undefined, { peer: p });
+    const e = await testEnv({ RL_PEER: countingLimit(60) });
+    for (let i = 0; i < 60; i++) expect((await call("GET", "/v1/peers", undefined, { peer: p, env: e })).status).toBe(200);
+    const r = await call("GET", "/v1/peers", undefined, { peer: p, env: e });
     expect(r.status).toBe(429);
     expect(r.res.headers.get("Retry-After")).toBe("60");
   });

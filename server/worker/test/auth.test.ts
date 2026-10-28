@@ -6,7 +6,7 @@ import { utf8 } from "../src/crypto/hash";
 import { keyRef, LABEL_REQUEST_TOKEN, LABEL_TICKET, oauthNonce, openToken } from "../src/crypto/tokens";
 import { signJwt } from "../src/push/jwt";
 import { normalizeEmail } from "../src/auth/normalize";
-import { acctOf, call, initP256, keys, message, mock, newPeer, onVendor, randomEmail, secretString, setAllow, testEnv, vendorRequests } from "./helpers";
+import { acctOf, call, countingLimit, initP256, keys, message, mock, newPeer, onVendor, randomEmail, secretString, setAllow, testEnv, vendorRequests } from "./helpers";
 import { TEST_SECRETS as S } from "./secrets";
 
 beforeAll(initP256);
@@ -21,9 +21,9 @@ describe("email normalization", () => {
   });
 });
 
-async function startEmail(email: string, purpose = "register", extra: Record<string, unknown> = {}) {
+async function startEmail(email: string, purpose = "register", extra: Record<string, unknown> = {}, e?: Env) {
   const k = await keys();
-  const r = await call("POST", "/v1/auth/email", { email, sign_pub: k.signPub, purpose, turnstile: "turnstile-token", ...extra });
+  const r = await call("POST", "/v1/auth/email", { email, sign_pub: k.signPub, purpose, turnstile: "turnstile-token", ...extra }, { env: e });
   return { k, r };
 }
 
@@ -76,17 +76,19 @@ describe("POST /auth/email + verify", () => {
 
   it("RL_MAIL: 2 per 60 s per email_hash", async () => {
     const email = randomEmail();
-    expect((await startEmail(email)).r.status).toBe(200);
-    expect((await startEmail(email)).r.status).toBe(200);
-    expect((await startEmail(email)).r.status).toBe(429);
+    const e = await testEnv({ RL_MAIL: countingLimit(2) });
+    expect((await startEmail(email, "register", {}, e)).r.status).toBe(200);
+    expect((await startEmail(email, "register", {}, e)).r.status).toBe(200);
+    expect((await startEmail(email, "register", {}, e)).r.status).toBe(429);
   });
 
   it("RL_MAIL per IP: address variants from one IP hit the limit (I306)", async () => {
     const k = await keys();
     const ip = "198.51.100.77";
     const st = [];
+    const e = await testEnv({ RL_MAIL: countingLimit(2) });
     for (let i = 0; i < 3; i++) {
-      st.push((await call("POST", "/v1/auth/email", { email: `v+${i}@example.com`, sign_pub: k.signPub, purpose: "register", turnstile: "t" }, { ip })).status);
+      st.push((await call("POST", "/v1/auth/email", { email: `v+${i}@example.com`, sign_pub: k.signPub, purpose: "register", turnstile: "t" }, { ip, env: e })).status);
     }
     expect(st).toEqual([200, 200, 429]);
   });
@@ -94,6 +96,7 @@ describe("POST /auth/email + verify", () => {
   it("request_token tamper and expiry; RL_CODE 5 per minute", async () => {
     const { r } = await startEmail(randomEmail());
     const token = r.body.request_token as string;
+    const e = await testEnv({ RL_CODE: countingLimit(5) });
     const [b, mac] = token.split(".");
     const body = JSON.parse(new TextDecoder().decode(b64urlDecode(b)!));
     const forged = b64urlEncode(utf8(JSON.stringify({ ...body, p: "delete-account" }))) + "." + mac;
@@ -102,20 +105,21 @@ describe("POST /auth/email + verify", () => {
     const old = await makeToken(S.PA_TOKEN_SECRET, LABEL_REQUEST_TOKEN, { ...body, t: body.t - 901 });
     expect((await call("POST", "/v1/auth/email/verify", { request_token: old, code: "AAAAAA" })).body.error).toBe("code expired");
     let last = 0;
-    for (let i = 0; i < 6; i++) last = (await call("POST", "/v1/auth/email/verify", { request_token: token, code: "AAAAAA" })).status;
+    for (let i = 0; i < 6; i++) last = (await call("POST", "/v1/auth/email/verify", { request_token: token, code: "AAAAAA" }, { env: e })).status;
     expect(last).toBe(429);
   });
 
   it("RL_CODE is per request token: 5 wrong on token A, correct code on token B -> 200 (I293)", async () => {
     const email = randomEmail();
+    const e = await testEnv({ RL_CODE: countingLimit(5) });
     const a = await startEmail(email);
     const tokA = secretString(a.r.body.request_token as string);
-    for (let i = 0; i < 5; i++) expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: "AAAAAA" })).status).toBe(401);
-    expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: "AAAAAA" })).status).toBe(429);
+    for (let i = 0; i < 5; i++) expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: "AAAAAA" }, { env: e })).status).toBe(401);
+    expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: "AAAAAA" }, { env: e })).status).toBe(429);
     const b = await startEmail(email);
     const tokB = secretString(b.r.body.request_token as string);
     const code = await deriveCode(S.PA_CODE_SECRET, tokB);
-    const r = await call("POST", "/v1/auth/email/verify", { request_token: tokB, code });
+    const r = await call("POST", "/v1/auth/email/verify", { request_token: tokB, code }, { env: e });
     expect(r.status).toBe(200);
   });
 

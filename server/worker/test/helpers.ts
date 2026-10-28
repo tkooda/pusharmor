@@ -85,6 +85,20 @@ export async function testEnv(over: Partial<Env> = {}): Promise<Env> {
   };
 }
 
+// A counting RateLimit stub: allows `max` calls per key, whatever the wall clock reads (I364).
+export function countingLimit(max: number): RateLimit & { seen: string[] } {
+  const n = new Map<string, number>();
+  const seen: string[] = [];
+  return {
+    seen,
+    limit: async ({ key }) => {
+      seen.push(key);
+      n.set(key, (n.get(key) ?? 0) + 1);
+      return { success: n.get(key)! <= max };
+    },
+  };
+}
+
 // ---------- random values ----------
 export function randBytes(n: number): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(n));
