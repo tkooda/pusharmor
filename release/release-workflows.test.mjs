@@ -57,3 +57,13 @@ test("collect picks the tag of the version the store serves now, not the newest 
   assert.match(wf, /tag="\$BROWSER\/v\$VERSION"/);
   assert.match(wf, /VERSION: \$\{\{ steps\.store\.outputs\.version \}\}/);
 });
+
+test("attest steps are skipped while the repo is private", () => {
+  for (const f of ["android-release.yml", "ios-release.yml", "webext-release.yml"]) {
+    const wf = read(f);
+    const steps = [...wf.matchAll(/^( +)- uses: actions\/attest-build-provenance@.*\n((?:\1  .*\n)+)/gm)];
+    assert.ok(steps.length > 0, f);
+    for (const s of steps) assert.match(s[2], /^ +if: \$\{\{ !github\.event\.repository\.private \}\}$/m, f);
+    assert.doesNotMatch(wf, /steps\.attest/, f);
+  }
+});

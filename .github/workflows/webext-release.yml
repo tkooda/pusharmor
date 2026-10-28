@@ -201,7 +201,9 @@ jobs:
             echo "zip=$out/$zip"
             echo "beta=$out/$beta"
           } >> "$GITHUB_OUTPUT"
+      # Attestations need a public repo or an org plan; skipped while private, runs once public.
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        if: ${{ !github.event.repository.private }}
         with:
           subject-path: |
             ${{ steps.files.outputs.zip }}
@@ -487,7 +489,9 @@ jobs:
             echo "src=$out/$src"
             echo "xpi=$out/$xpi"
           } >> "$GITHUB_OUTPUT"
+      # Attestations need a public repo or an org plan; skipped while private, runs once public.
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        if: ${{ !github.event.repository.private }}
         with:
           subject-path: |
             ${{ steps.files.outputs.zip }}
