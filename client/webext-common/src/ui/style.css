@@ -59,5 +59,7 @@ textarea { width: 100%; box-sizing: border-box; resize: vertical; }
 .turnstile { border: 0; width: 320px; height: 80px; }
 .pulse { animation: pulse 1s 1; }
 @keyframes pulse { 0% { background: #34C77B55; } 100% { background: transparent; } }
-.icon { float: left; width: 1.5em; color: var(--muted); }
+.hist { padding-left: 1.5em; }
+.icon { position: absolute; left: 0; top: 6px; width: 1.5em; color: var(--muted); }
+.sender { display: flex; flex-wrap: wrap; column-gap: 10px; padding-right: 14px; }
 h1 { font-size: 18px; color: var(--tab-on); }
