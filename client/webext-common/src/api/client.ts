@@ -55,6 +55,8 @@ function paTime(ms: number): string {
 
 export class Api {
   private readonly d: ApiDeps;
+  /** Called on 401 "paused" for a signed call (the Worker paused this device). */
+  onPaused: (() => Promise<void>) | null = null;
   constructor(d: ApiDeps) {
     this.d = d;
   }
@@ -74,6 +76,7 @@ export class Api {
         if (e instanceof ApiError && e.status === 401 && e.error === "clock skew") {
           throw new ApiError(401, "clock skew twice", e.body, null);
         }
+        if (e instanceof ApiError && e.status === 401 && e.error === "paused" && opts.signer?.id != null) await this.onPaused?.();
         throw e;
       }
     }
