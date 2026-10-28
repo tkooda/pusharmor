@@ -158,7 +158,7 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (tex
   const time = new Date(r.received).toLocaleString();
   const who = r.dir === "out" ? "To " + (r.targets?.length ?? 0) + " peer(s)" : r.sender;
   const row = h("div", { class: "row hist", id: "h-" + r.id });
-  const name = h("div", { class: "sender dim" }, who + "  " + time);
+  const name = h("div", { class: "sender dim" }, h("span", {}, who), h("span", {}, time));
   if (r.dir === "in" && r.peer) name.addEventListener("click", () => env.openPage("#peers=" + r.peer));
   row.append(h("span", { class: "icon" }, r.dir === "in" ? "<" : ">"), name);
   if (r.type === "event") {
