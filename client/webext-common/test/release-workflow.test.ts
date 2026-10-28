@@ -69,10 +69,11 @@ test("CI uploads only to the test channels: private Chrome Beta item, unlisted F
   assert.ok(chrome.indexOf("refusing to upload") < chrome.indexOf(":upload"));
   assert.deepEqual(chrome.match(/items\/[^"\s]*/g), ["items/$ITEM"]);
   assert.match(jobs.get("submit-firefox")!, /--channel unlisted/);
-  assert.doesNotMatch(wf, /--draft/);
+  // Immutable releases: a draft prerelease gets every asset, then is published.
   const creates = wf.match(/gh release create .*/g) ?? [];
   assert.equal(creates.length, 2);
-  for (const c of creates) assert.match(c, /--prerelease --verify-tag/);
+  for (const c of creates) assert.match(c, /--draft --prerelease --verify-tag/);
+  for (const b of ["chrome", "firefox"]) assert.match(jobs.get("publish-" + b)!, /gh release edit "\$TAG" --draft=false --prerelease\n/);
   for (const b of ["chrome", "firefox"]) assert.match(jobs.get("publish-" + b)!, /refusing to change its assets/);
 });
 
