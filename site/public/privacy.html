@@ -52,12 +52,9 @@ We keep only the keyed hash of the address (your account id, see below).</li>
 turned back into the address.</p>
 <p>Why we keep the hash: it is your account id. When you sign in on another peer with the same
 address, the hash puts that peer in the same account. It also lets us ban an address that is
-used for abuse, and keeps a banned address banned. The hash is kept in the server database until
+used for abuse, and keeps a banned address banned. The hash is kept until
 you delete the account, or until the 3-year purge below. For a banned account it is kept after
 deletion.</p>
-<p>To limit how many sign-in codes can be sent to one address, Cloudflare's rate limiter counts
-code requests by a hash of the address, for 1 minute. This count is not kept in the server
-database.</p>
 
 <h2>End-to-end encryption</h2>
 <p>Messages are end-to-end encrypted. Each peer makes its own keys on the device, and the
@@ -66,14 +63,13 @@ peer, so our server sees ciphertext only. We do not store message content or pai
 fingerprints.</p>
 
 <h2>What our server stores</h2>
-<p>The server database keeps, until removal:</p>
+<p>Our server keeps, until removal:</p>
 <ul>
 <li>Per account: the account id (the keyed hash), a banned flag, the created time, and the
-last-active month (updated at most once per 30 days, by sending or adding a peer).</li>
+last-active month.</li>
 <li>Per peer: public keys, push token or endpoint, allow and deny lists, encrypted name entries,
-created time, platform, paused flag, and pending approve messages (end-to-end encrypted, up to 9
-per peer, kept until the other peer is removed, denied or withdrawn, or a newer approve
-replaces them).</li>
+created time, platform, paused flag, and pending approve messages (end-to-end encrypted, kept
+until the other peer is removed, denied or withdrawn).</li>
 </ul>
 <p>An account with no send and no added peer for about 3 years is deleted with its peers
 (banned accounts are kept). This also removes an account that has no peers left.</p>
@@ -105,11 +101,11 @@ the add-on inside the browser. Both carry ciphertext only.</p>
 <h2>Deletion</h2>
 <p>Use Delete account in the app or the web flow at
 <a href="/delete-account">pusharmor.com/delete-account</a>. Deletion removes the account and all
-its peer rows at once. Kept: the keyed account hash with its ban flag, for banned accounts only, so a banned address
+its peers at once. Kept: the keyed account hash with its ban flag, for banned accounts only, so a banned address
 stays banned; undelivered
 pushes at the vendors, up to 7 days (pairing requests up to 4 weeks); copies on your other
 peers.</p>
-<p>Remove on a peer deletes that one peer row only. The account row (the keyed hash, created
+<p>Remove on a peer deletes that one peer only. The account (the keyed hash, created
 time and last-active month) stays until you delete the account, or until the 3-year purge
 above.</p>
 

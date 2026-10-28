@@ -413,11 +413,12 @@ test("retention: 4 weeks on /privacy and /delete-account; stored list", () => {
   assert.ok(text("privacy.html").includes("4 weeks"));
   assert.ok(text("delete-account.html").includes("4 weeks"));
   const p = text("privacy.html");
-  for (const s of ["platform", "paused", "approve messages", "by sending or adding a peer",
+  for (const s of ["platform", "paused", "approve messages", "last-active month",
     "We never sell or share your data with anyone for their own purposes; the services below process it for us.",
     "We do not store your email address. We keep only a keyed one-way hash of it, which cannot be turned back into the address."]) {
     assert.ok(p.includes(s), "privacy lacks: " + s);
   }
+  for (const s of ["rate limiter", "server database", "peer row", "1 minute"]) assert.ok(!p.includes(s), "privacy has server detail: " + s);
 });
 
 test("minimum age 13 on /terms and /privacy (Q227 A)", () => {
@@ -451,7 +452,7 @@ test("FAQ texts (I258, I264, I272, WEB6-04) and fixed lines", () => {
   const sec = text("security.html");
   assert.ok(sec.includes("The push service and the Worker can show a notification with text of their choosing on every platform; verified content appears only after your device decrypts it."));
   assert.ok(sec.includes("The vendor sees the size bucket and the urgency level of a message, not its content."));
-  assert.ok(text("delete-account.html").includes("Deleted at once: all peer rows (keys, push tokens, names). Kept: the keyed account hash with its ban flag, for banned accounts only, so a banned address stays banned; undelivered pushes at the vendors, up to 7 days (pairing requests up to 4 weeks); copies on your other peers. No login to this site is needed."));
+  assert.ok(text("delete-account.html").includes("Deleted at once: all peers (keys, push tokens, names). Kept: the keyed account hash with its ban flag, for banned accounts only, so a banned address stays banned; undelivered pushes at the vendors, up to 7 days (pairing requests up to 4 weeks); copies on your other peers. No login to this site is needed."));
   assert.ok(text("auth/done.html").includes("Returning to PushArmor... If this tab stays open, the add-on did not receive the sign-in: check it is enabled, then retry"));
 });
 
