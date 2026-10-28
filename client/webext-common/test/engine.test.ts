@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { b64urlDecode, b64urlEncode } from "../src/crypto/b64url.ts";
 import { pairingKey } from "../src/crypto/labels.ts";
 import { T } from "../src/core/texts.ts";
+import { UserError } from "../src/core/engine.ts";
 import { allEntries, getAllowSet, getEntry } from "../src/core/state.ts";
 import { encodeInner } from "../src/model/message.ts";
 import { IDBFactory } from "fake-indexeddb";
@@ -194,6 +195,16 @@ test("clock skew: rebuild with a new n, then a second skew stops", async () => {
   const r2 = await a.e.send("again", false, "all");
   assert.equal(r2.error, T.clockOff);
   void clock;
+});
+
+test("send: a URL whose normalized href exceeds the cap is refused before any counter or call", async () => {
+  const { w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  const n0 = (await a.db.peer(b.id))!.last_n;
+  const url = "https://example.com/" + "\u4e2d".repeat(400); // 1220 raw bytes, 3620 as href
+  await assert.rejects(a.e.send(url, false, "all"), (e: unknown) => e instanceof UserError && /^Too long/.test(e.message));
+  assert.equal((await a.db.peer(b.id))!.last_n, n0);
+  assert.equal(w.calls.filter((c) => c.path === "/v1/send").length, 0);
 });
 
 test("pairing state survives restarts, valid at day 13, expires at day 14", async () => {
