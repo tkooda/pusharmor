@@ -5,8 +5,8 @@
   "description": "Send links and text between your own devices, end-to-end encrypted.",
   "minimum_chrome_version": "121",
   "background": { "service_worker": "sw.js", "type": "module" },
-  "action": { "default_popup": "popup.html", "default_icon": { "128": "icons/icon-128.png" } },
-  "icons": { "128": "icons/icon-128.png" },
+  "action": { "default_popup": "popup.html", "default_icon": { "16": "icons/icon-16.png", "32": "icons/icon-32.png" } },
+  "icons": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" },
   "permissions": ["notifications", "contextMenus", "storage", "activeTab", "identity", "alarms", "unlimitedStorage", "scripting"],
   "host_permissions": ["https://api.pusharmor.com/*"],
   "content_security_policy": {
