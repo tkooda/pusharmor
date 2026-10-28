@@ -615,13 +615,36 @@ function urlSection() {
     'https://', 'https://10.0.0.1/', 'https://[::1]/', 'https://example.com:8443/', 'https://intranet/',
     'https://foo.localhost/', 'https://localhost./', 'https://x.local./', 'https://Example.COM./',
     'https://\u0430pple.com/', 'https://sub.example.co.uk/x',
+    // space, controls and the path, query and fragment encode sets
+    'http://a.com/x y', 'http://a.com/x y?q a#f g', ' https://a.com/', 'https://a.com/ ', 'https://a.com/x\ty',
+    'https://a b.com/', 'https://a.com/a|b', 'https://a.com/{}^`', "https://a.com/?q='`{}", "https://a.com/#`{}' x",
+    'https://A.com/\u00e9', 'https://a.com/%zz', 'https://a.com/a/../b/./c', 'https://a.com/%2e/b/%2E%2e/c',
+    'https://a.com/a/..', 'https://a.com/a\\b?c\\d', 'https://a.com\\b', 'https://a.com?x#y', 'HTTP://A.COM',
+    // trailing punctuation stays part of the URL
+    'https://example.com/a.', 'https://example.com/a)', 'https://example.com/a,', 'https://example.com).',
+    // ASCII hosts
+    'http://my_host.com/', 'https://a..com/', 'https://./', 'https://ex%61mple.com/', 'https://@a.com/',
+    'https://0x7f.1/', 'https://1.2.3/', 'https://1.2.3.4./', 'https://example.123/', 'https://09.a/',
+    'https:/a.com/', 'https:a.com', 'https:///a.com/',
+    // ports
+    'https://a.com:/', 'https://a.com:000443/', 'https://a.com:080/', 'https://a.com:65536/',
+    // IDN hosts: only the listed lowercase code points; anything UTS 46 would map or check is url false
+    'https://stra\u00dfe.de/', 'https://caf\u00e9.com/', 'https://B\u00fccher.de/', 'https://\u4f8b\u3048.jp/',
+    'https://\ud55c\uad6d.kr/', 'https://\u03b1\u03b2.gr/', 'https://\u0410pple.com/', 'https://\uff41.com/',
+    'https://a\u200db.com/', 'https://a\u200cb.com/', 'https://a\u00adb.com/', 'https://a\u3002com/',
+    'https://\u05d0\u05d1.com/', 'https://cafe\u0301.com/', 'https://\ud83d\ude00.com/',
   ];
   return {
     description:
       'Received url: a strict URL parse, scheme http or https (any case), non-empty host, no userinfo; url false = shown ' +
       'as a plain text notification. href = WHATWG URL().href shown in notification, History and Open; host = the ' +
-      'parsed hostname shown to the user (IDN as punycode). auto_open (extensions only): https, DNS hostname, no IP ' +
-      'literal, no explicit port, at least two labels after stripping one trailing dot, not "localhost", last label not ' +
+      'parsed hostname shown to the user (IDN as punycode). Shape rules first (else url false): no C0 control or ' +
+      'DEL, no leading or trailing space; "http://" or "https://" (any case) not followed by "/" or "\\"; no "@" or ' +
+      '"%" in the authority; a non-ASCII host code point only from U+00DF-U+00F6, U+00F8-U+00FF, U+03B1-U+03C9, ' +
+      'U+0430-U+045F, U+3041-U+3096, U+30A1-U+30FA, U+4E00-U+9FFF, U+AC00-U+D7A3; a host that ends in a number ' +
+      'only as a dotted quad 0-255 without leading zeros. A space in the path, query or fragment is kept as %20. ' +
+      'auto_open (extensions only): https, DNS hostname, no IP ' +
+      'literal, no explicit port, at least two labels after stripping one trailing dot, no empty label, not "localhost", last label not ' +
       '"localhost" or "local".',
     cases: inputs.map((input) => ({ input, ...parseReceivedUrl(input) })),
   };

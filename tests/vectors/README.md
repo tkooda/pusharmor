@@ -71,7 +71,7 @@ deflate stream is correct) unless the change is intended.
 | `content_cap` | 2048-byte UTF-8 cap and the cut on a code point boundary | utf8_bytes, ok, truncated |
 | `inflate` | deflate-raw streams with the 16384-byte cap | ok, length and sha256 of the output |
 | `replay_window` | window state, n, type, History row | outcome, state_after |
-| `url_parse` | received url cases incl. one IDN lookalike | url, href, host, auto_open |
+| `url_parse` | received url cases: shape rules, encode sets, IDN hosts | url, href, host, auto_open |
 | `phone` | phone detection cases | phone |
 | `must_fail` | inputs every client must reject (kinds message, pair, name_entry, request, peer_entry) | rejected, with the given `outcome` |
 | `rfc9180` | HPKE suite vector (P-256, HKDF-SHA256, AES-256-GCM, base mode) | DeriveKeyPair, key schedule, seal and open |
