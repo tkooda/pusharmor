@@ -423,7 +423,7 @@ test("retention: 4 weeks on /privacy and /delete-account; stored list", () => {
 test("FAQ texts (I258, I264, I272, WEB6-04) and fixed lines", () => {
   const how = text("how-to.html");
   const sup = text("support.html");
-  assert.ok(how.includes("A pairing stays open for 14 days."));
+  assert.ok(how.includes("You have 14 days to finish a pairing."));
   assert.ok(!how.includes("10 min"));
   const both = how + " " + sup;
   assert.ok(both.includes("wants to pair"));
