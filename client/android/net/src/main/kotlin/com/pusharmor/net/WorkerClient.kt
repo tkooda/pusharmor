@@ -53,6 +53,8 @@ class WorkerClient(
     private val http: OkHttpClient = defaultHttp(),
     private val now: () -> Long = System::currentTimeMillis,
     private val sleep: (Long) -> Unit = { Thread.sleep(it) },
+    /** Called for any call signed with PA-ID that gets 401 "unknown peer" or 401 "paused" (the error text). */
+    private val onAuthState: (String) -> Unit = {},
 ) : Api {
     companion object {
         const val BUDGET_MS = 8_000L
@@ -112,6 +114,10 @@ class WorkerClient(
                 return null // a hostile or broken reply: not retried
             } catch (e: IOException) {
                 null
+            }
+            if (signed && reply != null && reply.status == 401) {
+                val err = (reply.json?.get("error") as? JsonPrimitive)?.content
+                if (err == "unknown peer" || err == "paused") onAuthState(err)
             }
             val retryable = reply == null || reply.status == 429 || reply.status == 503
             if (once || !retryable || attempt >= BACKOFF_MS.size) return reply
