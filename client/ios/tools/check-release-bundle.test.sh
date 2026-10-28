@@ -81,6 +81,11 @@ good "$A"; printf "x\0_OBJC_CLASS_\$_NSProcessInfo\0processInfo\0environment\0" 
 good "$A"; printf "x\0_OBJC_CLASS_\$_NSProcessInfo\0processInfo\0thermalState\0Invalid arguments\0" >> "$A/PushArmor"
 printf "x\0arguments\0environment\0_\$s7SwiftUI4ViewPAAE11environmentyQrs15WritableKeyPathVyAA17EnvironmentValuesqd__G_qd__tlF\0" >> "$A/PlugIns/PushArmorNSE.appex/PushArmorNSE"
 expect processinfo-other-use-pass 0 "$A"
+good "$A"; printf 'x\0CCryptoBoringSSL_EVP_AEAD_CTX_init\0' >> "$A/PushArmor"; expect boringssl-symbol 1 "$A"
+good "$A"; printf 'x\0CryptoBoringWrapper\0' >> "$A/PlugIns/PushArmorNSE.appex/PushArmorNSE"; expect boringwrapper-appex 1 "$A"
+good "$A"; printf "x\0_\$s6Crypto4HPKEO6SenderV\0" >> "$A/PushArmor"; expect swift-crypto-module 1 "$A"
+good "$A"; printf "x\0_\$s9CryptoKit4HPKEO6SenderV\0" >> "$A/PushArmor"; expect cryptokit-pass 0 "$A"
+good "$A"; expect otool-boringssl 1 "$A" FAKE_OTOOL_LIB=@rpath/CCryptoBoringSSL.framework/CCryptoBoringSSL
 good "$A"; rm "$A/PushArmor"; expect missing-exe 1 "$A"
 good "$A"; expect otool-xctest 1 "$A" FAKE_OTOOL_LIB=@rpath/XCTest.framework/XCTest
 good "$A"; expect otool-testing 1 "$A" FAKE_OTOOL_LIB=@rpath/Testing.framework/Testing
