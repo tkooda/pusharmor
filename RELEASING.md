@@ -46,8 +46,7 @@ talks to the production Worker, and the public clients must keep working with it
 1. On an up-to-date main with a clean tree:
    `node release/tag.mjs <platform> X.Y.Z`. When the version files do not hold
    X.Y.Z yet, it writes them and stops (nothing tagged).
-2. Commit the version files ("release X.Y.Z") through a pull request to main;
-   wait for ci-ok.
+2. Commit the version files ("release X.Y.Z") and push to main; wait for ci-ok.
 3. Check out that commit and run `node release/tag.mjs <platform> X.Y.Z` again:
    it fetches the tags of origin, checks the rules and creates the annotated tag.
 4. `git push origin <platform>/vX.Y.Z`. More platforms at the same version: run
@@ -172,11 +171,14 @@ Store items and ids:
 The release workflows trust the workflow file and `release/public.json` of the
 tag commit, so only reviewed commits may be tagged:
 
-1. Branch ruleset on `main`: pull request required, required check `ci-ok`,
-   no force push, no deletion.
+1. Branch ruleset on `main`: block force pushes, restrict deletions. No pull
+   request and no required status check, so the owner can push to `main`
+   directly. `ci-ok` still runs on every push; wait for it to be green before
+   you tag a commit. No script or workflow in the repo checks this for you.
 2. Tag ruleset, target pattern `*/v*` (all release tags): restrict creation,
-   update and deletion to the owner (bypass list); block force pushes. A
-   release tag can then not be created by anyone else, moved or deleted.
+   update and deletion to the owner (bypass list: repository admin and the
+   push deploy key); block force pushes. A release tag can then not be
+   created by anyone else, moved or deleted.
 3. Environments `android-sign`, `android-release`, `ios-release`,
    `chrome-release`, `firefox-release`: "Deployment branches and tags" =
    selected tags only, `android/v*` for both Android environments, `ios/v*`,
