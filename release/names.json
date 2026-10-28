@@ -5,6 +5,7 @@
     "APPLE_APNS_TOPIC": "APNs topic: the iOS app bundle id",
     "APPLE_APNS_KEY_ID": "id of the APNs auth key (.p8)",
     "APPLE_APNS_TEAM_ID": "Apple developer team id that owns the APNs key",
+    "APPLE_SIGNIN_KEY_ID": "id of the Sign in with Apple key",
     "WEBPUSH_VAPID_PUBLIC_KEY": "Web Push VAPID public key (b64url)",
     "WEBPUSH_VAPID_SUB": "VAPID subject (mailto:), also the ops contact address",
     "AWS_SES_REGION": "AWS region of the SES account that sends sign-in codes",
@@ -41,7 +42,6 @@
     "APPLE_APNS_KEY_P8": "APNs auth key (.p8 content)",
     "WEBPUSH_VAPID_PRIVATE_KEY": "Web Push VAPID private key",
     "GOOGLE_CLIENT_SECRET": "Google OAuth client secret (web flow)",
-    "APPLE_SIGNIN_KEY_ID": "id of the Sign in with Apple key",
     "APPLE_SIGNIN_KEY_P8": "Sign in with Apple key (.p8 content)"
   },
   "public_keys": {

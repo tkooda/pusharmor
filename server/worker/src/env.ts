@@ -21,6 +21,7 @@ export interface Env {
   APPLE_APNS_TOPIC: string;
   APPLE_APNS_KEY_ID: string;
   APPLE_APNS_TEAM_ID: string;
+  APPLE_SIGNIN_KEY_ID: string;
   WEBPUSH_VAPID_PUBLIC_KEY: string;
   WEBPUSH_VAPID_SUB: string;
   AWS_SES_REGION: string;
@@ -51,6 +52,5 @@ export interface Env {
   APPLE_APNS_KEY_P8: string;
   WEBPUSH_VAPID_PRIVATE_KEY: string;
   GOOGLE_CLIENT_SECRET: string;
-  APPLE_SIGNIN_KEY_ID: string;
   APPLE_SIGNIN_KEY_P8: string;
 }
