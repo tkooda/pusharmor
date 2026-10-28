@@ -101,6 +101,9 @@ to App Store Connect. No review submission.
 
 Test: internal TestFlight testers (no Beta App Review).
 
+The app declares ITSAppUsesNonExemptEncryption = true. Once, in App Store
+Connect export compliance, answer "standard encryption algorithms".
+
 Promote:
 
 1. App Store Connect: create the version X.Y.Z, choose the uploaded build,
