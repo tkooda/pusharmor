@@ -170,7 +170,7 @@ extension Core {
         return JOut.obj([("c", .str(c)), ("name", .str(n))]).data
     }
 
-    func postApprove(_ x: PeerId, fresh: Bool) async -> ApproveOutcome {
+    public func postApprove(_ x: PeerId, fresh: Bool) async -> ApproveOutcome {
         let path = "/v1/approve/" + x.text
         var first = true
         let out: APIOutcome
