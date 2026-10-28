@@ -60,6 +60,7 @@ export function firefoxPlatform(ctx: FxCtx): Platform {
       }
       const ap = ctx.autopush();
       if (!ap) throw new Error("autopush not running");
+      await ap.ensureRunning();
       for (let i = 0; i < 30; i++) {
         const f = await ap.fields();
         if (f) return f;
