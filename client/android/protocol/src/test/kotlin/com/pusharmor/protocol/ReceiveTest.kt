@@ -29,6 +29,21 @@ class ReceiveTest {
         assertEquals(Inbound.Invalid(a.id), Receive.decide(ok(150, MessageBody.Pause), peer, far.window, b.id) { null })
     }
 
+    @Test fun droppedMessageLeavesWindowUnchanged() {
+        val approved = a.asPeer(pid)
+        val unruled = approved.copy(approved = false, approveVerified = false)
+        val w = ReplayWindow.fresh()
+        val dropped = Receive.decide(ok(5, MessageBody.Url("https://x.com")), unruled, w, b.id) { null } as Inbound.Accepted
+        assertTrue(dropped.effect is Effect.Drop)
+        assertEquals(w.h, dropped.window.h)
+        val big = Receive.decide(ok(5, MessageBody.Text("x".repeat(2049))), approved, w, b.id) { null } as Inbound.Accepted
+        assertTrue(big.effect is Effect.Drop)
+        assertEquals(w.h, big.window.h)
+        // after approval the same n is still fresh
+        val later = Receive.decide(ok(5, MessageBody.Url("https://x.com")), approved, dropped.window, b.id) { null } as Inbound.Accepted
+        assertTrue(later.effect is Effect.Show)
+    }
+
     @Test fun acceptanceTable() {
         val approved = a.asPeer(pid)
         val unruled = approved.copy(approved = false, approveVerified = false)
