@@ -35,7 +35,13 @@ export function mailText(purpose: Purpose, code: string): { subject: string; tex
       : purpose === "unpause"
         ? "Your PushArmor code to resume receiving is"
         : "Your PushArmor code to delete your account is";
-  return { subject: "PushArmor code", text: `${what}:\n\n${code}\n\n${ENDING}\n` };
+  const subject =
+    purpose === "register"
+      ? "your PushArmor sign-in code"
+      : purpose === "unpause"
+        ? "your PushArmor resume code"
+        : "your PushArmor account deletion code";
+  return { subject, text: `${what}:\n\n${code}\n\n${ENDING}\n` };
 }
 
 export function checkPurpose(v: unknown): Purpose {

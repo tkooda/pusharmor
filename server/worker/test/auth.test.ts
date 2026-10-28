@@ -6,6 +6,7 @@ import { utf8 } from "../src/crypto/hash";
 import { keyRef, LABEL_REQUEST_TOKEN, LABEL_TICKET, oauthNonce, openToken } from "../src/crypto/tokens";
 import { signJwt } from "../src/push/jwt";
 import { normalizeEmail } from "../src/auth/normalize";
+import { mailText } from "../src/auth/email";
 import { acctOf, call, countingLimit, initP256, keys, message, mock, newPeer, onVendor, randomEmail, secretString, setAllow, testEnv, vendorRequests } from "./helpers";
 import { TEST_SECRETS as S } from "./secrets";
 
@@ -27,6 +28,14 @@ async function startEmail(email: string, purpose = "register", extra: Record<str
   return { k, r };
 }
 
+describe("mailText subject per purpose", () => {
+  it("sign-in, resume and account deletion subjects", () => {
+    expect(mailText("register", "X").subject).toBe("your PushArmor sign-in code");
+    expect(mailText("unpause", "X").subject).toBe("your PushArmor resume code");
+    expect(mailText("delete-account", "X").subject).toBe("your PushArmor account deletion code");
+  });
+});
+
 describe("POST /auth/email + verify", () => {
   it("sends the code by SES and verify returns ticket + email", async () => {
     const email = randomEmail();
@@ -40,6 +49,7 @@ describe("POST /auth/email + verify", () => {
     expect(mail.ConfigurationSetName).toBe("test-config-set");
     const code = await deriveCode(S.PA_CODE_SECRET, token);
     expect(mail.Content.Simple.Body.Text.Data).toContain(code);
+    expect(mail.Content.Simple.Subject.Data).toBe("your PushArmor sign-in code");
     expect(mail.Content.Simple.Body.Text.Data).toContain("Nothing happens unless this code is entered within 15 minutes. If you did not request it, ignore this email.");
     const ts = vendorRequests("challenges.cloudflare.com");
     expect(new URLSearchParams(new TextDecoder().decode(ts[0].body)).get("response")).toBe("turnstile-token");
