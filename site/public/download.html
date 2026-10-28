@@ -14,24 +14,25 @@
 <meta property="og:image" content="https://pusharmor.com/apple-touch-icon.png">
 <link rel="icon" href="/favicon.ico" sizes="any" integrity="sha256-WBRVm+oTUTpG8HdmRjQYXSzTkCjwYCVj5PZdJQP73qM=">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" integrity="sha256-TQcTrShS2zw2E6zqzKq9Tlfqd9GGyBSjl/LTQvTeJY8=">
-<link rel="stylesheet" href="/css/site.css" integrity="sha256-Isqq963IVcjaMPINbfEbhweWnI2OMigS+3m/2CvFwVY=">
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-emPPp10toXA2GoYv2zwbQhaHHDr17F39riCLPtBKdws=">
 </head>
 <body>
+<a class="skip" href="#main">Skip to content</a>
 <header>
-<a class="brand" href="/">PushArmor</a>
-<nav><a href="/how-to">How to</a> <a href="/download">Download</a> <a href="/security">Security</a> <a href="/support">Support</a></nav>
+<a class="brand" href="/"><svg class="mark" width="26" height="32" viewBox="130 100 252 312" aria-hidden="true" focusable="false"><path fill-rule="evenodd" d="M256 108 L376 150 V250 C376 330 322 382 256 406 C190 382 136 330 136 250 V150 Z M256 168 L318 236 H280 V334 H232 V236 H194 Z"/></svg><span><span class="push">Push</span><span class="armor">Armor</span></span></a>
+<nav aria-label="Main"><a href="/how-to">How to</a> <a href="/download" aria-current="page">Download</a> <a href="/security">Security</a> <a href="/support">Support</a></nav>
 </header>
-<main>
+<main id="main">
 <h1>Download</h1>
 
 <p>PushArmor is not released yet. The apps and add-ons are coming soon.</p>
 
 <h2>Stores</h2>
 <ul>
-<li>Android: Google Play (coming soon)</li>
-<li>iPhone: App Store (coming soon)</li>
-<li>Chrome: Chrome Web Store (coming soon)</li>
-<li>Firefox: addons.mozilla.org (coming soon)</li>
+<li>Android: Google Play <span class="soon">Coming soon</span></li>
+<li>iPhone: App Store <span class="soon">Coming soon</span></li>
+<li>Chrome: Chrome Web Store <span class="soon">Coming soon</span></li>
+<li>Firefox: addons.mozilla.org <span class="soon">Coming soon</span></li>
 </ul>
 
 <h2>Android APKs from GitHub</h2>
@@ -42,7 +43,7 @@ have two Android APKs:</p>
 <li><strong>foss</strong>: for UnifiedPush only, no Google code.</li>
 </ul>
 <p>Check a downloaded APK against these SHA-256 values.</p>
-<div>
+<div class="table-wrap">
 <table>
 <thead><tr><th>File</th><th>SHA-256</th></tr></thead>
 <tbody>
@@ -57,6 +58,7 @@ have two Android APKs:</p>
 </main>
 <footer>
 <a href="/privacy">Privacy</a> <a href="/terms">Terms</a> <a href="/support">Support</a> <a href="/delete-account">Delete account</a> <a href="https://github.com/tkooda/pusharmor">Source code on GitHub</a>
+<p class="fine">PushArmor is a free, open source project.</p>
 </footer>
 </body>
 </html>

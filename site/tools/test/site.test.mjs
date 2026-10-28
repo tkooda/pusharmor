@@ -76,6 +76,10 @@ test("internal links and resources resolve", () => {
     }
     for (const r of refs) {
       if (/^[a-z][a-z0-9+.-]*:/i.test(r) || r.startsWith("//")) continue;
+      if (r.startsWith("#")) {
+        assert.ok(html.includes(' id="' + r.slice(1) + '"'), rel + ": no target for " + r);
+        continue;
+      }
       assert.ok(r.startsWith("/"), rel + ": use site-absolute links: " + r);
       assert.ok(resolvePath(files, r), rel + ": broken link " + r);
     }
