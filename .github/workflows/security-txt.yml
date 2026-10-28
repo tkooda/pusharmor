@@ -1,0 +1,47 @@
+name: security-txt
+
+# Monthly renewal reminder (owner ruling Q225 B): when the Expires date in
+# site/public/.well-known/security.txt is fewer than 60 days away, open one
+# issue asking for renewal. An issue, not a pull request: the repository does
+# not let GitHub Actions create pull requests.
+on:
+  schedule:
+    - cron: "23 6 1 * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  renew:
+    name: security.txt renewal reminder
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Days left before Expires
+        id: exp
+        run: |
+          exp="$(sed -n 's/^Expires: *//p' site/public/.well-known/security.txt | tr -d '\r')"
+          [ -n "$exp" ] || { echo "no Expires line in security.txt"; exit 1; }
+          end="$(date -u -d "$exp" +%s)"
+          left=$(( (end - $(date -u +%s)) / 86400 ))
+          echo "Expires $exp: $left days left"
+          echo "expires=$exp" >> "$GITHUB_OUTPUT"
+          if [ "$left" -lt 60 ]; then echo "renew=true" >> "$GITHUB_OUTPUT"; fi
+      - name: Open a renewal issue (once)
+        if: steps.exp.outputs.renew == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPIRES: ${{ steps.exp.outputs.expires }}
+        run: |
+          title="Renew security.txt Expires"
+          n="$(gh issue list -R "$GITHUB_REPOSITORY" --state open --limit 200 --json title \
+            -q "[.[] | select(.title == \"$title\")] | length")"
+          if [ "$n" != 0 ]; then echo "an open issue already asks for renewal"; exit 0; fi
+          gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body \
+            "site/public/.well-known/security.txt expires at $EXPIRES, fewer than 60 days from now. Set Expires to a date up to one year ahead, then deploy the site."
