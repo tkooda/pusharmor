@@ -6,7 +6,7 @@
 
   // The fixed VAPID public key (b64url of the 65-byte point), same as Chrome and autopush.
   var VAPID_PUBLIC_KEY = "VAPID_PUBLIC_KEY_PLACEHOLDER";
-  var SUBSCRIBE_TIMEOUT_MS = 15000;
+  var SUBSCRIBE_TIMEOUT_MS = 15000; // register + ready + subscribe together
 
   var status = document.getElementById("status");
   var start = document.getElementById("start");
@@ -34,12 +34,15 @@
     }
     var sub = null;
     try {
-      await navigator.serviceWorker.register("/fx/sw.js", { scope: "/fx/" });
-      var reg = await navigator.serviceWorker.ready;
-      sub = await withTimeout(reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: VAPID_PUBLIC_KEY
-      }), SUBSCRIBE_TIMEOUT_MS);
+      // ready never rejects, so one timeout covers all three steps.
+      sub = await withTimeout((async function () {
+        await navigator.serviceWorker.register("/fx/sw.js", { scope: "/fx/" });
+        var reg = await navigator.serviceWorker.ready;
+        return reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: VAPID_PUBLIC_KEY
+        });
+      })(), SUBSCRIBE_TIMEOUT_MS);
     } catch (e) {
       sub = null;
     }
