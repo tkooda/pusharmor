@@ -75,7 +75,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   }
   const update = async () => {
     const d = await rpc<{ type: string; bytes: number }>(env, "detect", { text: field.value });
-    badge.textContent = asText.checked ? "text" : d.type;
+    badge.textContent = T.typeBadge(asText.checked ? "text" : d.type);
     counter.textContent = d.bytes > CAP ? T.tooLong(d.bytes) : T.counter(d.bytes);
     counter.classList.toggle("red", d.bytes >= CAP * 0.9);
     sendBtn.disabled = d.bytes > CAP || d.bytes === 0;

@@ -55,7 +55,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
       if (p.pk) void rpc(env, "fingerprintShown", { pk: p.pk }).catch(() => undefined);
     }
     for (const l of p.lines) if (!l.startsWith("Pairing fingerprint")) row.append(h("div", { class: "line" }, l));
-    if (p.countdown) row.append(h("div", { class: "dim" }, p.countdown));
+    if (p.countdown) row.append(h("div", { class: "dim countdown" }, T.countdownLeft(p.countdown)));
     const acts = h("div", { class: "actions" });
     for (const a of p.actions) {
       const b = h("button", {}, ACTION_LABEL[a] ?? a) as HTMLButtonElement;
