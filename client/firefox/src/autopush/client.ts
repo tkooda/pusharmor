@@ -280,8 +280,17 @@ export class Autopush {
     } catch {
       code = 101;
     }
+    if (m !== null) {
+      // Ack only after delivery: on failure leave it unacked so autopush redelivers.
+      try {
+        await this.d.deliver(m);
+      } catch {
+        this.versions = this.versions.filter((v) => v !== version);
+        if (this.mode === "fallback") this.ws?.close();
+        return;
+      }
+    }
     this.send({ messageType: "ack", updates: [{ channelID, version, code }] });
-    if (m !== null) await this.d.deliver(m).catch(() => undefined);
     if (this.mode === "fallback") this.ws?.close();
   }
 }
