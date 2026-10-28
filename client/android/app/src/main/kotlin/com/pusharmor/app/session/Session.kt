@@ -17,6 +17,7 @@ import com.pusharmor.app.ui.ShareActivity
 import com.pusharmor.app.work.Work
 import com.pusharmor.crypto.B64url
 import com.pusharmor.crypto.Ids
+import com.pusharmor.crypto.signInKeys
 import com.pusharmor.net.ErrorText
 import com.pusharmor.net.WorkerClient
 import com.pusharmor.protocol.MessageBody
@@ -100,11 +101,11 @@ class Session(private val g: Graph) {
 
     fun purposeForSignIn(): String = if (signedOut) "unpause" else "register"
 
-    /** Keys are made BEFORE sign-in (sign_pub goes into the auth call); a signed-out device keeps its keys. */
-    fun keysForSignIn(): ByteArray {
-        val k = g.keysOrNull?.takeIf { dao.self() != null } ?: KeystoreKeyOps.createFresh().also { g.keysOrNull = it }
-        return k.signPub
-    }
+    /**
+     * Keys are made BEFORE sign-in (sign_pub goes into the auth call); a signed-out device keeps its keys.
+     * The same keys serve every call of one sign-in attempt, so the nonce and sign_pub always match.
+     */
+    fun keysForSignIn(): ByteArray = signInKeys(g.keysOrNull, { KeystoreKeyOps.load() }, { KeystoreKeyOps.createFresh() }) { g.keysOrNull = it }.signPub
 
     fun nonce(purpose: String) = Ids.oauthNonce(purpose, keysForSignIn())
 
