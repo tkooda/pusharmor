@@ -4558,43 +4558,175 @@
         "url": true
       },
       {
+        "auto_open": true,
+        "host": "xn--pple-43d.com",
+        "href": "https://xn--pple-43d.com/",
         "input": "https://\u0410pple.com/",
-        "url": false
+        "url": true
       },
       {
+        "auto_open": true,
+        "host": "xn--mi7c.com",
+        "href": "https://xn--mi7c.com/",
         "input": "https://\uff41.com/",
-        "url": false
+        "url": true
       },
       {
+        "auto_open": true,
+        "host": "xn--ab-m1t.com",
+        "href": "https://xn--ab-m1t.com/",
         "input": "https://a\u200db.com/",
-        "url": false
+        "url": true
       },
       {
+        "auto_open": true,
+        "host": "xn--ab-j1t.com",
+        "href": "https://xn--ab-j1t.com/",
         "input": "https://a\u200cb.com/",
-        "url": false
+        "url": true
       },
       {
+        "auto_open": true,
+        "host": "xn--ab-5da.com",
+        "href": "https://xn--ab-5da.com/",
         "input": "https://a\u00adb.com/",
-        "url": false
+        "url": true
       },
       {
+        "auto_open": false,
+        "host": "xn--acom-qw3c",
+        "href": "https://xn--acom-qw3c/",
         "input": "https://a\u3002com/",
-        "url": false
+        "url": true
       },
       {
+        "auto_open": true,
+        "host": "xn--4dbc.com",
+        "href": "https://xn--4dbc.com/",
         "input": "https://\u05d0\u05d1.com/",
-        "url": false
+        "url": true
       },
       {
+        "auto_open": true,
+        "host": "xn--cafe-yvc.com",
+        "href": "https://xn--cafe-yvc.com/",
         "input": "https://cafe\u0301.com/",
+        "url": true
+      },
+      {
+        "auto_open": true,
+        "host": "xn--e28h.com",
+        "href": "https://xn--e28h.com/",
+        "input": "https://\ud83d\ude00.com/",
+        "url": true
+      },
+      {
+        "auto_open": true,
+        "host": "xn--9dbne9b.co.il",
+        "href": "https://xn--9dbne9b.co.il/",
+        "input": "https://\u05e9\u05dc\u05d5\u05dd.co.il/",
+        "url": true
+      },
+      {
+        "auto_open": true,
+        "host": "xn--mgbh0fb.xn--kgbechtv",
+        "href": "https://xn--mgbh0fb.xn--kgbechtv/",
+        "input": "https://\u0645\u062b\u0627\u0644.\u0625\u062e\u062a\u0628\u0627\u0631/",
+        "url": true
+      },
+      {
+        "auto_open": true,
+        "host": "xn--mgbcd4a2b0d2b.com",
+        "href": "https://xn--mgbcd4a2b0d2b.com/x",
+        "input": "https://\u0627\u0644\u0639\u0631\u0628\u064a\u0629.com/x",
+        "url": true
+      },
+      {
+        "auto_open": true,
+        "host": "xn--i-7iq.ws",
+        "href": "https://xn--i-7iq.ws/",
+        "input": "https://i\u2764.ws/",
+        "url": true
+      },
+      {
+        "auto_open": true,
+        "host": "xn--on8h5e.com",
+        "href": "https://xn--on8h5e.com/",
+        "input": "https://\ud83d\udc4d\ud83c\udffd.com/",
+        "url": true
+      },
+      {
+        "auto_open": true,
+        "host": "xn--mxacd.gr",
+        "href": "https://xn--mxacd.gr/",
+        "input": "https://\u0391\u0392\u0393.gr/",
+        "url": true
+      },
+      {
+        "auto_open": true,
+        "host": "xn--mnchen-3ya.de",
+        "href": "https://xn--mnchen-3ya.de/",
+        "input": "https://M\u00dcNCHEN.de/",
+        "url": true
+      },
+      {
+        "auto_open": true,
+        "host": "xn--e1afmkfd.xn--p1ai",
+        "href": "https://xn--e1afmkfd.xn--p1ai/",
+        "input": "https://\u041f\u0420\u0418\u041c\u0415\u0420.\u0420\u0424/",
+        "url": true
+      },
+      {
+        "auto_open": true,
+        "host": "k.com",
+        "href": "https://k.com/",
+        "input": "https://\u212a.com/",
+        "url": true
+      },
+      {
+        "auto_open": true,
+        "host": "xn--istanbul-o0e.tr",
+        "href": "https://xn--istanbul-o0e.tr/",
+        "input": "https://\u0130stanbul.tr/",
+        "url": true
+      },
+      {
+        "auto_open": false,
+        "host": "xn--9ca",
+        "href": "https://xn--9ca:8443/",
+        "input": "https://\u00c9:8443/",
+        "url": true
+      },
+      {
+        "input": "https://\u05d0 \u05d1.com/",
         "url": false
       },
       {
-        "input": "https://\ud83d\ude00.com/",
+        "input": "https://\u00e9%41.com/",
+        "url": false
+      },
+      {
+        "input": "https://\u00e9@a.com/",
+        "url": false
+      },
+      {
+        "input": "https://\u0645\u062b.123/",
+        "url": false
+      },
+      {
+        "input": "https://\u00e9<.com/",
+        "url": false
+      },
+      {
+        "input": "https://\u00e9|.com/",
+        "url": false
+      },
+      {
+        "input": "https://[\u00e9]/",
         "url": false
       }
     ],
-    "description": "Received url: a strict URL parse, scheme http or https (any case), non-empty host, no userinfo; url false = shown as a plain text notification. href = WHATWG URL().href shown in notification, History and Open; host = the parsed hostname shown to the user (IDN as punycode). Shape rules first (else url false): no C0 control or DEL, no leading or trailing space; \"http://\" or \"https://\" (any case) not followed by \"/\" or \"\\\"; no \"@\" or \"%\" in the authority; a non-ASCII host code point only from U+00DF-U+00F6, U+00F8-U+00FF, U+03B1-U+03C9, U+0430-U+045F, U+3041-U+3096, U+30A1-U+30FA, U+4E00-U+9FFF, U+AC00-U+D7A3; a host that ends in a number only as a dotted quad 0-255 without leading zeros. A space in the path, query or fragment is kept as %20. auto_open (extensions only): https, DNS hostname, no IP literal, no explicit port, at least two labels after stripping one trailing dot, no empty label, not \"localhost\", last label not \"localhost\" or \"local\"."
+    "description": "Received url: a strict URL parse, scheme http or https (any case), non-empty host, no userinfo; url false = shown as a plain text notification. href = WHATWG URL().href shown in notification, History and Open; host = the parsed hostname shown to the user (IDN as punycode). Shape rules first (else url false): no C0 control or DEL, no leading or trailing space; \"http://\" or \"https://\" (any case) not followed by \"/\" or \"\\\"; no \"@\" or \"%\" in the authority; a host that ends in a number only as a dotted quad 0-255 without leading zeros. A non-ASCII host: each code point to lowercase on its own (ASCII A-Z, else the Unicode full lowercase mapping), then each label with a non-ASCII code point becomes \"xn--\" + RFC 3492 punycode; no other UTS 46 mapping or check. A space in the path, query or fragment is kept as %20. auto_open (extensions only): https, DNS hostname, no IP literal, no explicit port, at least two labels after stripping one trailing dot, no empty label, not \"localhost\", last label not \"localhost\" or \"local\"."
   },
   "version": 1
 }

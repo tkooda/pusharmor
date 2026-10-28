@@ -628,11 +628,19 @@ function urlSection() {
     'https:/a.com/', 'https:a.com', 'https:///a.com/',
     // ports
     'https://a.com:/', 'https://a.com:000443/', 'https://a.com:080/', 'https://a.com:65536/',
-    // IDN hosts: only the listed lowercase code points; anything UTS 46 would map or check is url false
+    // IDN hosts: per code point lowercase, then punycode per label (no other UTS 46 mapping or check)
     'https://stra\u00dfe.de/', 'https://caf\u00e9.com/', 'https://B\u00fccher.de/', 'https://\u4f8b\u3048.jp/',
     'https://\ud55c\uad6d.kr/', 'https://\u03b1\u03b2.gr/', 'https://\u0410pple.com/', 'https://\uff41.com/',
     'https://a\u200db.com/', 'https://a\u200cb.com/', 'https://a\u00adb.com/', 'https://a\u3002com/',
     'https://\u05d0\u05d1.com/', 'https://cafe\u0301.com/', 'https://\ud83d\ude00.com/',
+    // Hebrew, Arabic, emoji, uppercase non-ASCII
+    'https://\u05e9\u05dc\u05d5\u05dd.co.il/', 'https://\u0645\u062b\u0627\u0644.\u0625\u062e\u062a\u0628\u0627\u0631/',
+    'https://\u0627\u0644\u0639\u0631\u0628\u064a\u0629.com/x', 'https://i\u2764.ws/', 'https://\ud83d\udc4d\ud83c\udffd.com/',
+    'https://\u0391\u0392\u0393.gr/', 'https://M\u00dcNCHEN.de/', 'https://\u041f\u0420\u0418\u041c\u0415\u0420.\u0420\u0424/',
+    'https://\u212a.com/', 'https://\u0130stanbul.tr/', 'https://\u00c9:8443/',
+    // IDN hosts that stay text
+    'https://\u05d0 \u05d1.com/', 'https://\u00e9%41.com/', 'https://\u00e9@a.com/', 'https://\u0645\u062b.123/',
+    'https://\u00e9<.com/', 'https://\u00e9|.com/', 'https://[\u00e9]/',
   ];
   return {
     description:
@@ -640,9 +648,10 @@ function urlSection() {
       'as a plain text notification. href = WHATWG URL().href shown in notification, History and Open; host = the ' +
       'parsed hostname shown to the user (IDN as punycode). Shape rules first (else url false): no C0 control or ' +
       'DEL, no leading or trailing space; "http://" or "https://" (any case) not followed by "/" or "\\"; no "@" or ' +
-      '"%" in the authority; a non-ASCII host code point only from U+00DF-U+00F6, U+00F8-U+00FF, U+03B1-U+03C9, ' +
-      'U+0430-U+045F, U+3041-U+3096, U+30A1-U+30FA, U+4E00-U+9FFF, U+AC00-U+D7A3; a host that ends in a number ' +
-      'only as a dotted quad 0-255 without leading zeros. A space in the path, query or fragment is kept as %20. ' +
+      '"%" in the authority; a host that ends in a number ' +
+      'only as a dotted quad 0-255 without leading zeros. A non-ASCII host: each code point to lowercase on its own ' +
+      '(ASCII A-Z, else the Unicode full lowercase mapping), then each label with a non-ASCII code point becomes ' +
+      '"xn--" + RFC 3492 punycode; no other UTS 46 mapping or check. A space in the path, query or fragment is kept as %20. ' +
       'auto_open (extensions only): https, DNS hostname, no IP ' +
       'literal, no explicit port, at least two labels after stripping one trailing dot, no empty label, not "localhost", last label not ' +
       '"localhost" or "local".',
