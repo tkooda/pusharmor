@@ -202,11 +202,15 @@ jobs:
     outputs:
       ipa_sha256: ${{ steps.files.outputs.ipa_sha256 }}
     steps:
-      # Only the bash check script; nothing from the checkout is built.
+      # Only the bash check script and the public.json it reads; nothing from the
+      # checkout is built.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          sparse-checkout: client/ios/tools
+          sparse-checkout: |
+            /client/ios/tools/
+            /release/public.json
+          sparse-checkout-cone-mode: false
       - name: Select and assert Xcode
         run: |
           echo "runner image: $ImageOS $ImageVersion"

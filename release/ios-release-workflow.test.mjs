@@ -46,3 +46,8 @@ test("only publish-ios holds id-token, and it runs no xcodebuild", () => {
   }
   assert.doesNotMatch(jobs.get("publish-ios"), /xcodebuild|secrets\./);
 });
+
+test("sign-ios checks out the bundle check script and release/public.json only", () => {
+  const sign = jobs.get("sign-ios");
+  assert.match(sign, /sparse-checkout: \|\n {12}\/client\/ios\/tools\/\n {12}\/release\/public\.json\n {10}sparse-checkout-cone-mode: false\n/);
+});
