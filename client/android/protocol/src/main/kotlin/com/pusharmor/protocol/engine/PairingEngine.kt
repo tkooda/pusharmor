@@ -212,6 +212,7 @@ class PairingEngine(
         store.putPeer(peer.copy(signPub = B64url.encode(signPub), encPub = B64url.encode(encPub), pairingId = pairingId,
             lastN = 0, approved = false, approveVerified = false, deniedByMe = false, declined = false, removed = false,
             missing = false, name = null, nameN = 0, pauseN = 0, storedApprove = null, storedApproveName = null, note = null))
+        store.resetCounter(peerId)
         store.putWindow(peerId, pairingId, ReplayWindow.fresh())
     }
 
@@ -220,6 +221,7 @@ class PairingEngine(
         val peer = store.peer(peerId) ?: return
         store.putPeer(peer.copy(signPub = null, encPub = null, pairingId = null, lastN = 0, approved = false, approveVerified = false,
             storedApprove = null, storedApproveName = null, listAfterVerify = false))
+        store.resetCounter(peerId)
         store.deleteWindow(peerId)
     }
 

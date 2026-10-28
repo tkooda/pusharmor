@@ -16,7 +16,8 @@ class MemStore(var name: String = "This device") : LocalStore {
     override fun <T> tx(block: () -> T): T = synchronized(lock) { block() }
     override fun peer(id: String) = synchronized(lock) { peers[id] }
     override fun peers() = synchronized(lock) { peers.values.toList() }
-    override fun putPeer(p: Peer) { synchronized(lock) { peers[p.id] = p } }
+    override fun putPeer(p: Peer) { synchronized(lock) { peers[p.id] = peers[p.id]?.let { p.copy(lastN = it.lastN) } ?: p } }
+    override fun resetCounter(peerId: String) { synchronized(lock) { peers[peerId]?.let { peers[peerId] = it.copy(lastN = 0) } } }
     override fun deletePeer(id: String) { synchronized(lock) { peers.remove(id) } }
     override fun reserveCounter(peerId: String): Long = synchronized(lock) {
         val p = peers[peerId]!!
