@@ -275,6 +275,18 @@ describe("vendor auth alert", () => {
   });
 });
 
+describe("health ok cache", () => {
+  it("a failed ok write does not suppress the next ok write in the hour", async () => {
+    const hour = Math.floor(deps.now() / 3600000) - 1;
+    const t = hour * 3600000 + 1000;
+    const broken = { DB: { prepare: () => { throw new Error("d1 down"); } } } as unknown as typeof env;
+    await recordHealth(broken, "fcm", true, false, t);
+    await recordHealth(env, "fcm", true, false, t);
+    await recordHealth(env, "fcm", false, true, t);
+    expect(await authAlerts(env, hour)).toEqual([]);
+  });
+});
+
 describe("token cache bound", () => {
   it("evicts only vapid keys; apns and fcm stay", async () => {
     const mint = async () => ({ value: "t", mintedAt: 0, useUntil: 1e12 });
