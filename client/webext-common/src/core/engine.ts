@@ -1103,6 +1103,8 @@ export class Engine {
       if (u) value = u.href;
       else type = "text";
     }
+    const valueLen = utf8Len(value);
+    if (valueLen > CONTENT_CAP) throw new UserError(T.tooLong(valueLen)); // href percent-encodes
     if (ids.length === 0) return { sent: 0, total, failures: [] };
     const build = async () => {
       const m: Record<string, string> = {};
