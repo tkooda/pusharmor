@@ -55,9 +55,12 @@ test("no job with id-token runs npm or npx; submit-firefox has contents: read on
 });
 
 test("CI uploads only to the test channels: private Chrome Beta item, unlisted Firefox Beta add-on, GitHub prerelease", () => {
-  const chrome = jobs.get("publish-chrome")!;
-  assert.match(chrome, /ITEM: \$\{\{ needs\.build-chrome\.outputs\.google_chrome_beta_extension_id \}\}/);
-  assert.match(chrome, /ZIP: \$\{\{ steps\.files\.outputs\.beta \}\}/);
+  // The CWS calls run in their own jobs (rerunnable after the immutable prerelease).
+  const upload = jobs.get("cws-upload-chrome")!;
+  const pub = jobs.get("cws-publish-chrome")!;
+  assert.ok(upload && pub);
+  assert.doesNotMatch(jobs.get("publish-chrome")!, /chromewebstore\.googleapis\.com/);
+  assert.match(upload, /ZIP: \$\{\{ steps\.files\.outputs\.beta \}\}/);
   assert.doesNotMatch(wf, /outputs\.google_chrome_extension_id|STAGED_PUBLISH|--channel listed/);
   // The Beta id is checked against the public id before the publish job, which
   // rechecks its form and names no other item.
@@ -65,9 +68,12 @@ test("CI uploads only to the test channels: private Chrome Beta item, unlisted F
   assert.match(cws, /if \(beta === p\.google_chrome_extension_id\) throw/);
   assert.match(cws, /if \(!\/\^\[a-p\]\{32\}\$\/\.test\(beta\)\) throw/);
   assert.ok(cws.indexOf("equals google_chrome_extension_id") < cws.indexOf("console.log(k + \"=\" + p[k])"));
-  assert.match(chrome, /grep -qxE '\[a-p\]\{32\}'; then\n\s+echo "::error::Beta item id is not 32 letters a-p; refusing to upload"\n\s+exit 1/);
-  assert.ok(chrome.indexOf("refusing to upload") < chrome.indexOf(":upload"));
-  assert.deepEqual(chrome.match(/items\/[^"\s]*/g), ["items/$ITEM"]);
+  for (const [chrome, call] of [[upload, ":upload"], [pub, ":publish"]] as const) {
+    assert.match(chrome, /ITEM: \$\{\{ needs\.build-chrome\.outputs\.google_chrome_beta_extension_id \}\}/);
+    assert.match(chrome, /grep -qxE '\[a-p\]\{32\}'; then\n\s+echo "::error::Beta item id is not 32 letters a-p; refusing to call the CWS API"\n\s+exit 1/);
+    assert.ok(chrome.indexOf("refusing to call the CWS API") < chrome.indexOf(call));
+    assert.deepEqual(chrome.match(/items\/[^"\s]*/g), ["items/$ITEM"]);
+  }
   assert.match(jobs.get("submit-firefox")!, /--channel unlisted/);
   // Immutable releases: a draft prerelease gets every asset, then is published.
   const creates = wf.match(/gh release create .*/g) ?? [];
