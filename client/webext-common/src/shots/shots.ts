@@ -73,6 +73,7 @@ const env: UiEnv = {
   openPage: () => undefined,
   openUrl: () => undefined,
   copy: async () => undefined,
+  beta: false,
 };
 
 const HEADLINES: Record<string, string> = {

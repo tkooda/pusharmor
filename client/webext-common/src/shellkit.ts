@@ -202,5 +202,6 @@ export function uiEnv(b: Browser): UiEnv {
     async copy(text) {
       await navigator.clipboard.writeText(text);
     },
+    beta: b.runtime.getManifest().name === "PushArmor Beta",
   };
 }

@@ -37,6 +37,7 @@ export interface Browser {
   runtime: {
     id: string;
     getURL(path: string): string;
+    getManifest(): { name: string };
     sendMessage(msg: unknown): Promise<unknown>;
     onMessage: Event<(msg: unknown, sender: MessageSender, sendResponse: (r: unknown) => void) => boolean | void | Promise<unknown>>;
     onStartup: Event<() => void>;
