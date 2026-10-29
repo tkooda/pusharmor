@@ -374,8 +374,8 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
         )
         val inset = Modifier.padding(start = 72.dp, end = 16.dp)
         when {
-            !p.pinned -> Row(inset.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilledTonalButton(onClick = { vm.pair(p.id) }, Modifier.height(40.dp)) { Text("Pair") }
+            !p.pinned -> Row(inset.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                FilledTonalButton(onClick = { vm.pair(p.id) }, Modifier.heightIn(min = 48.dp)) { Text("Pair") }
                 TextButton(onClick = { vm.deny(p.id) }) { Text("Deny") }
             }
             p.notPairedOnPeer -> Row(inset.padding(bottom = 8.dp)) { TextButton(onClick = { vm.cancelPairing(p.id) }) { Text("Cancel pairing") } }
