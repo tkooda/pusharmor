@@ -1,0 +1,39 @@
+/* Firefox tokens (copied to the build as tokens.css; style.css uses them).
+   Firefox neutrals and Acorn radii, so the popup sits in the panel without a seam. */
+:root {
+  --bg: #FFFFFF; --s1: #F9F9FB; --s2: #F0F0F4; --s3: #E0E0E6;
+  --ink: #15141A; --ink2: #5B5B66; --line: #E0E0E6; --ctl: #8F8F9D;
+  --primary: #1F3A5F; --onp: #FFFFFF; --pc: #D9E5F4; --onpc: #0E2238;
+  --success: #157A4A; --err: #B42318; --errc: #FCE8E6; --onerrc: #5F1209;
+  --armor: #1F3A5F;
+  --green: #34C77B; --on-green: #0E2238; --cta-edge: #157A4A;
+  --beta: #F5B83D; --on-beta: #3A2A00;
+  --avbg: #E6EDF6; --avfg: #1F3A5F;
+  --hero: #1F3A5F; --hero-line: #1F3A5F; --onhero: #FFFFFF; --onhero2: #C4D3E6; --heroav: #2B4A75;
+  --plate: #EEF3FA; --fpcell: #FFFFFF;
+  --halo: #E3ECF7; --ring: #D5DEE9; --tile-edge: transparent;
+  --g-bg: #FFFFFF; --g-line: #747775; --g-ink: #1F1F1F; --a-bg: #000000; --a-ink: #FFFFFF;
+  --rb: 4px; --rc: 8px; --rf: 4px; --ra: 6px; --rp: 8px; --rcell: 4px;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #2B2A33; --s1: #323139; --s2: #42414D; --s3: #52525E;
+    --ink: #FBFBFE; --ink2: #BFBFC9; --line: #52525E; --ctl: #8F8F9D;
+    --primary: #A9C8F0; --onp: #0E2238; --pc: #28466E; --onpc: #D9E5F4;
+    --success: #5FD89A; --err: #FF8A80; --errc: #4A1A16; --onerrc: #FFDAD5;
+    --armor: #F4F7FA; --cta-edge: transparent;
+    --avbg: #22354F; --avfg: #A9C8F0;
+    --hero: #1B3150; --hero-line: #2B4770; --onhero: #F4F7FA; --onhero2: #B8C8DC; --heroav: #284468;
+    /* plate and cells from the Firefox neutrals in dark, not navy */
+    --plate: #42414D; --fpcell: #2B2A33;
+    --halo: #13233A; --ring: #6B6B76; --tile-edge: #4A6D9E;
+    --g-bg: #131314; --g-line: #8E918F; --g-ink: #E3E3E3; --a-bg: #FFFFFF; --a-ink: #000000;
+  }
+}
+/* Firefox for Android shows the popup as a full-screen panel. */
+@media (pointer: coarse) {
+  body { width: 100vw; max-height: none; }
+  button, .chip, .x-ac, select, input { min-height: 48px; }
+  .prow { min-height: 56px; }
+}
