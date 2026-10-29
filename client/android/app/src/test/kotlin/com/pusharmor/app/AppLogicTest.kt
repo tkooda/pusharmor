@@ -89,6 +89,15 @@ class AppLogicTest {
         assertEquals(3, setOf(Notifier.TAG_MSG, Notifier.TAG_NOTICE, Notifier.TAG_PAIR).size)
     }
 
+    @Test fun spentIntentIsNotReplayed() {
+        val hist = android.content.Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY
+        assertTrue(com.pusharmor.app.ui.MainActivity.shouldHandle(false, 0))
+        assertFalse(com.pusharmor.app.ui.MainActivity.shouldHandle(true, 0))
+        assertFalse(com.pusharmor.app.ui.MainActivity.shouldHandle(false, hist))
+        assertFalse(com.pusharmor.app.ui.MainActivity.shouldHandle(false, hist or android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+        assertTrue(com.pusharmor.app.ui.MainActivity.shouldHandle(false, android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
     @Test fun ticketExtrasOnlyThroughTheAuthHop() {
         val ctx = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
         // an exported entry: any app can start MainActivity with these extras

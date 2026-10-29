@@ -44,8 +44,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         vm.boot(fromMain = true)
-        // A recreate (rotation) brings back the same intent: its route and ticket are already spent.
-        if (savedInstanceState == null) handle(intent)
+        if (shouldHandle(savedInstanceState != null, intent.flags)) handle(intent)
         setContent { MaterialTheme { App(vm) } }
     }
 
@@ -64,6 +63,13 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
+        /**
+         * False for a recreate (rotation) and for a relaunch from Recents: both bring back the
+         * original intent, whose route and ticket are already spent.
+         */
+        fun shouldHandle(restored: Boolean, flags: Int): Boolean =
+            !restored && flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY == 0
+
         /** Compose state, so a notification tap while the app is open recomposes and navigates (I401). */
         var pendingRoute by mutableStateOf<String?>(null)
 
