@@ -35,6 +35,12 @@ class PairingEngine(
         const val PAIRING_FAILED = "Pairing failed. Start again on the new peer."
         const val TIMED_OUT = "Pairing timed out. Tap Pair to start again."
         const val SEND_AGAIN_MS = 60_000L
+
+        /** The waiting hint from rows the caller already holds (the Peers screen, on the main thread). */
+        fun hint(row: PairingRow, peer: Peer?, now: Long): PairDecide.Hint? {
+            if (row.role != PairRole.N || row.state != PairState.COMMITTED) return null
+            return PairDecide.hint(peer?.takeIf { it.listSignPub != null }?.listApprovesMe, (now - row.startedAt) / 1000)
+        }
     }
 
     private fun pk(nId: String, xId: String) = Ids.pairingKey(B64url.decode(nId), B64url.decode(xId))
@@ -348,9 +354,5 @@ class PairingEngine(
     }
 
     /** N row text: hint after 3 days in committed (golden pair_hint). */
-    fun hint(row: PairingRow, now: Long): PairDecide.Hint? {
-        if (row.role != PairRole.N || row.state != PairState.COMMITTED) return null
-        val peer = store.peer(row.peerId)
-        return PairDecide.hint(peer?.takeIf { it.listSignPub != null }?.listApprovesMe, (now - row.startedAt) / 1000)
-    }
+    fun hint(row: PairingRow, now: Long): PairDecide.Hint? = hint(row, store.peer(row.peerId), now)
 }

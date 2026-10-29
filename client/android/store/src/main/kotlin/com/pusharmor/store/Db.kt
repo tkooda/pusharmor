@@ -115,6 +115,7 @@ data class HistoryEntity(
 @Dao
 interface PaDao {
     @Query("SELECT * FROM self WHERE k = 0") fun self(): SelfEntity?
+    @Query("SELECT * FROM self WHERE k = 0") fun selfFlow(): Flow<SelfEntity?>
     @Upsert fun putSelf(s: SelfEntity)
     @Query("DELETE FROM self") fun deleteSelf()
 
@@ -176,8 +177,7 @@ abstract class PaDatabase : RoomDatabase() {
         fun open(context: Context, name: String? = NAME): PaDatabase {
             val b = if (name == null) Room.inMemoryDatabaseBuilder(context, PaDatabase::class.java)
             else Room.databaseBuilder(context, PaDatabase::class.java, name).enableMultiInstanceInvalidation()
-            // The Compose screens and ShareActivity read small rows on the main thread (I398).
-            return b.allowMainThreadQueries().build()
+            return b.build()
         }
     }
 }

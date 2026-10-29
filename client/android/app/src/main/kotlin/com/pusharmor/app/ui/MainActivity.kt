@@ -98,6 +98,7 @@ class MainActivity : ComponentActivity() {
 private fun App(vm: AppViewModel) {
     val start by vm.start.collectAsState()
     val limit by vm.limit.collectAsState()
+    val signInPurpose by vm.signInPurpose.collectAsState()
     val nav = rememberNavController()
     var deleting by remember { mutableStateOf(false) }
     when (start) {
@@ -105,7 +106,7 @@ private fun App(vm: AppViewModel) {
         Session.Start.KEYS_UNAVAILABLE -> {
             Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(Session.KEYS_UNAVAILABLE)
-                Button(onClick = { vm.g.session.selfRemoved(deleted = false, lostKeys = true); vm.boot() }) { Text("Sign in again") }
+                Button(onClick = { vm.io { vm.g.session.selfRemoved(deleted = false, lostKeys = true); vm.boot() } }) { Text("Sign in again") }
             }
             return
         }
@@ -114,7 +115,7 @@ private fun App(vm: AppViewModel) {
     if (limit != null) { LimitScreen(vm) {}; return }
     val signedIn = start == Session.Start.READY
     if (!signedIn || deleting) {
-        val purpose = if (deleting) "delete-account" else vm.purpose()
+        val purpose = if (deleting) "delete-account" else signInPurpose
         var email by remember { mutableStateOf(false) }
         if (email) EmailScreen(vm, purpose) { deleting = false; email = false }
         else WelcomeScreen(vm, purpose, onEmail = { email = true }) { deleting = false }

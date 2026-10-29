@@ -14,6 +14,7 @@ import com.pusharmor.protocol.engine.PairingRow
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -24,10 +25,10 @@ import java.util.concurrent.Executors
 class RoomLocalStoreTest {
     private val ctx = ApplicationProvider.getApplicationContext<Context>()
 
-    @Test fun appDatabaseAllowsMainThreadReads() {
-        // Robolectric runs the test on the main thread: the Peers screen reads dao.self() there (I398).
+    @Test fun appDatabaseRefusesMainThreadReads() {
+        // Robolectric runs the test on the main thread. Screens read through flows or Dispatchers.IO (I403).
         val db = PaDatabase.open(ctx, null)
-        assertNull(db.dao().self())
+        assertTrue(runCatching { db.dao().self() }.exceptionOrNull() is IllegalStateException)
         db.close()
     }
 

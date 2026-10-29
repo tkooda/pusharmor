@@ -78,12 +78,13 @@ fun PeersScreen(vm: AppViewModel) {
         vm.onPeersOpen()
         while (true) { delay(30_000); now = System.currentTimeMillis(); vm.onPeersOpen() } // timeout timer while open
     }
-    val selfId = vm.g.dao.self()?.id
+    val me by vm.self.collectAsState()
+    val selfId = me?.id
     val list = peers.filter { it.id != selfId && !(it.removed && !it.pinned && rows.none { r -> r.peerId == it.id }) }
     val state = rememberLazyListState()
     LaunchedEffect(highlight, list.size) { highlight?.let { h -> list.indexOfFirst { it.id == h }.takeIf { it >= 0 }?.let { state.animateScrollToItem(it) } } }
     Column(Modifier.fillMaxSize().padding(12.dp)) {
-        Text(vm.g.session.ownName(), style = MaterialTheme.typography.titleLarge)
+        Text(me?.name ?: "", style = MaterialTheme.typography.titleLarge)
         Banners(vm, prefs?.get(Settings.K.BANNER))
         val lastRefresh = prefs?.get(Settings.K.LAST_REFRESH) ?: 0
         OutlinedButton(onClick = { vm.refresh() }, enabled = now - lastRefresh >= 60_000) { Text("Refresh") }
@@ -109,7 +110,7 @@ private fun Banners(vm: AppViewModel, banner: String?) {
     if (!n.enabled() || n.mainChannelsBlocked()) BannerRow("Notifications are off; messages will not be shown", "Fix") {
         context.startActivity(Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
     }
-    n.blockedChannelPeer()?.let { BannerRow("Messages from $it are blocked", "Fix") {
+    n.blockedChannelPeer(vm.peerEntities.collectAsState().value)?.let { BannerRow("Messages from $it are blocked", "Fix") {
         context.startActivity(Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
     } }
     if (banner?.startsWith("no_distributor") == true) {
@@ -213,7 +214,7 @@ private fun PairingRowView(vm: AppViewModel, p: Peer, row: PairingRow, now: Long
         row.role == PairRole.X -> Text("Replied. Waiting for $x.")
         else -> {
             Text("Waiting for $x to reply.")
-            when (vm.g.pairing().hint(row, now)) {
+            when (PairingEngine.hint(row, p, now)) {
                 PairDecide.Hint.STILL_HOLDS -> Text("$x still holds an earlier pairing. On $x, tap Cancel pairing, then tap Send again.")
                 PairDecide.Hint.NO_REPLY_YET -> Text("No reply yet. Open PushArmor on $x, or tap Send again.")
                 null -> Unit
@@ -257,6 +258,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     var asText by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<String?>(null) }
     val peers by vm.peers.collectAsState()
+    val me by vm.self.collectAsState()
     val all = vm.allPeers()
     val picked = remember { mutableStateListOf<String>().apply { preselect?.let { add(it) } } }
     val scope = rememberCoroutineScope()
@@ -274,7 +276,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
             Checkbox(picked.containsAll(all.map { it.id }), { on -> picked.clear(); if (on) picked.addAll(all.map { it.id }) })
             Text("All")
         }
-        val selfId = vm.g.dao.self()?.id
+        val selfId = me?.id
         for (p in peers.filter { it.pinned && it.id != selfId }) {
             val ok = p.inAll
             Row {
@@ -351,7 +353,8 @@ fun HistoryScreen(vm: AppViewModel, onPeer: (String) -> Unit) {
 fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: () -> Unit) {
     val prefs by vm.prefs.collectAsState()
     val context = LocalContext.current
-    var name by remember { mutableStateOf(vm.g.session.ownName()) }
+    val me by vm.self.collectAsState()
+    var name by remember(me?.name) { mutableStateOf(me?.name ?: "") }
     var confirmHistory by remember { mutableStateOf(false) }
     fun b(k: androidx.datastore.preferences.core.Preferences.Key<Boolean>, d: Boolean) = prefs?.get(k) ?: d
     Column(Modifier.fillMaxSize().padding(12.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -386,7 +389,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
         TextButton(onClick = { try { context.startActivity(Intent("android.settings.NOTIFICATION_SETTINGS")) } catch (e: Exception) { } }) { Text("System lock screen setting") }
         SwitchRow("Send messages to watch", b(Settings.K.WATCH, true), sub = "When off, the watch gets no notice at all") { vm.setPref(Settings.K.WATCH, it) }
         SwitchRow("Always hide content", b(Settings.K.HIDE_CONTENT, false)) { vm.setPref(Settings.K.HIDE_CONTENT, it) }
-        vm.g.dao.self()?.email?.let {
+        me?.email?.let {
             Text("Signed in as $it")
             if (it.endsWith("@privaterelay.appleid.com")) Text("iOS Settings > Apple ID > Sign in with Apple, and appleid.apple.com > Hide My Email, list the address to use on another peer.", color = Color.Gray)
         }

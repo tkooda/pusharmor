@@ -15,6 +15,7 @@ import com.pusharmor.crypto.B64url
 import com.pusharmor.protocol.ContentType
 import com.pusharmor.protocol.ShownContent
 import com.pusharmor.store.PaDao
+import com.pusharmor.store.PeerEntity
 import java.security.SecureRandom
 
 /** Notification channels, ids and builders (section 6). */
@@ -76,7 +77,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         for (p in dao.peers()) p.channelId?.let { nm.deleteNotificationChannel(it) }
     }
 
-    fun blockedChannelPeer(): String? = dao.peers().firstOrNull { p ->
+    fun blockedChannelPeer(peers: List<PeerEntity>): String? = peers.firstOrNull { p ->
         p.channelId?.let { nm.getNotificationChannel(it)?.importance == NotificationManager.IMPORTANCE_NONE } == true
     }?.let { it.name ?: "a peer" }
 
