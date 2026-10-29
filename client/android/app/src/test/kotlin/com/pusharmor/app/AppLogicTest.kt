@@ -137,6 +137,17 @@ class AppLogicTest {
         assertNull(p.input.getString("m"))
     }
 
+    @Test fun unifiedPushPayloadIsAsciiAndFitsTheJobInput() {
+        // A non-ASCII 4096-byte payload would cross the 10 KB Data limit as U+FFFD and crash onMessage (I407).
+        assertTrue(runCatching { com.pusharmor.app.work.Work.upPushRequest(null, "\uFFFD".repeat(4096)) }.isFailure)
+        assertNull(com.pusharmor.app.push.UpService.text(ByteArray(4096) { 0xC3.toByte() }))
+        assertNull(com.pusharmor.app.push.UpService.text("ab\u00e9".toByteArray()))
+        assertNull(com.pusharmor.app.push.UpService.text(ByteArray(0)))
+        assertNull(com.pusharmor.app.push.UpService.text(ByteArray(4097) { 'a'.code.toByte() }))
+        val max = com.pusharmor.app.push.UpService.text(ByteArray(4096) { '~'.code.toByte() })!!
+        assertEquals(max, com.pusharmor.app.work.Work.upPushRequest(null, max).workSpec.input.getString("m"))
+    }
+
     @Test fun keystoreEcdhFailureIsCryptoExceptionAndPushPostsOneNotice() {
         val e = runCatching { com.pusharmor.app.keys.KeystoreKeyOps.wrap<ByteArray> { throw java.security.ProviderException("keystore") } }.exceptionOrNull()
         assertTrue(e is com.pusharmor.crypto.CryptoException)
