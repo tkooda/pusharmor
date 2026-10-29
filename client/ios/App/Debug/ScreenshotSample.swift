@@ -39,12 +39,15 @@ enum ScreenshotSample {
         }
         guard let laptop = PeerId(text: id("L")), let desktop = PeerId(text: id("W")), let tablet = PeerId(text: id("T"))
         else { return store }
+        // History times sit just before the 9:41 status bar clock.
+        let clock = Int64((Calendar.current.date(bySettingHour: 9, minute: 41, second: 0, of: Date()) ?? Date())
+            .timeIntervalSince1970)
         try store.addMessage(dir: .outgoing, peer: tablet, type: "url", content: draft, n: nil, pairingId: nil,
-                             read: true, results: "{\"\(tablet.text)\":\"sent\"}", now: now - 7200)
+                             read: true, results: "{\"\(tablet.text)\":\"sent\"}", now: clock - 7200)
         try store.addMessage(dir: .incoming, peer: desktop, type: "text", content: "Meeting moved to 3 pm, room B", n: nil,
-                             pairingId: nil, read: true, results: nil, now: now - 1500)
+                             pairingId: nil, read: true, results: nil, now: clock - 1500)
         try store.addMessage(dir: .incoming, peer: laptop, type: "url", content: link, n: nil, pairingId: nil,
-                             read: false, results: nil, now: now - 120)
+                             read: false, results: nil, now: clock - 120)
         if args.contains("-PAScreenshotsPairing") {
             try store.db.exec("""
                 INSERT INTO peers (id, state, listed, reachable, platform, created, name, name_n, fingerprint)
