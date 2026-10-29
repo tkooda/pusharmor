@@ -1,7 +1,13 @@
 {
   "addons": {
     "{549aa960-212f-41ba-b28c-7d7d1662bb57}": {
-      "updates": []
+      "updates": [
+        {
+          "version": "0.0.13",
+          "update_link": "https://github.com/tkooda/pusharmor/releases/download/firefox/v0.0.13/pusharmor-firefox-beta-0.0.13.xpi",
+          "update_hash": "sha256:338008627ac099c5364e5808d2100a3c93ef4b6843a61da12b9ee97494e7c351"
+        }
+      ]
     }
   }
 }
