@@ -44,6 +44,7 @@ import com.pusharmor.app.ui.theme.PaTopBar
 import com.pusharmor.app.ui.theme.SignInHalo
 import com.pusharmor.app.ui.theme.Wordmark
 import com.pusharmor.app.ui.theme.groupItem
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -92,10 +93,13 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onDone
     val banner = prefs?.get(Settings.K.BANNER)?.takeIf { !it.startsWith("no_distributor") }
     val cs = MaterialTheme.colorScheme
     val x = LocalPaExtra.current
-    // Scrolls when landscape or a large font makes it taller than the screen; the weighted middle still centers.
-    Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally) {
-        Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+    // Fills the screen when there is room (the middle centers above the buttons) and scrolls when
+    // landscape or a large font makes it taller; weight() cannot fill inside verticalScroll (I424).
+    BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight).padding(horizontal = 24.dp),
+        verticalArrangement = Arrangement.SpaceBetween, horizontalAlignment = Alignment.CenterHorizontally) {
+        Spacer(Modifier.height(0.dp))
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             SignInHalo()
             Spacer(Modifier.height(8.dp))
             Wordmark(34.sp)
@@ -111,7 +115,8 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onDone
             banner?.let { Spacer(Modifier.height(12.dp)); Text(it, color = cs.error, textAlign = TextAlign.Center) }
             status?.let { Spacer(Modifier.height(12.dp)); Text(it, color = cs.onSurfaceVariant, textAlign = TextAlign.Center) }
         }
-        vm.message.collectAsState().value?.let { Text(it, Modifier.padding(bottom = 12.dp), color = cs.error, textAlign = TextAlign.Center) }
+        Column(Modifier.fillMaxWidth()) {
+        vm.message.collectAsState().value?.let { Text(it, Modifier.fillMaxWidth().padding(bottom = 12.dp), color = cs.error, textAlign = TextAlign.Center) }
         Column(Modifier.fillMaxWidth().padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             val g = if (x.dark) Triple(Color(0xFF131314), Color(0xFF8E918F), Color(0xFFE3E3E3)) else Triple(Color.White, Color(0xFF747775), Color(0xFF1F1F1F))
             OutlinedButton(onClick = {
@@ -135,6 +140,8 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onDone
             Text("Use the same account on every device you want to pair.", Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
         }
+        }
+    }
     }
 }
 
