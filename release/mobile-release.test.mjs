@@ -58,3 +58,8 @@ test("webext-release: CWS upload and publish are their own jobs after the Chrome
     assert.ok(!/contents: write/.test(j));
   }
 });
+
+test("android-release: the bodyless edits:commit POST sends Content-Length (I406)", () => {
+  const y = read(".github/workflows/android-release.yml");
+  assert.ok(y.includes('call -X POST -H "$auth" -H "Content-Length: 0" "$api/edits/$edit:commit"'));
+});
