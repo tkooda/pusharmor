@@ -34,7 +34,7 @@
   "content_security_policy": "script-src 'self'; object-src 'self'; frame-src https://pusharmor.com",
   "browser_specific_settings": {
     "gecko": {
-      "id": "placeholder-addon-id@pusharmor.com",
+      "id": "{00000000-0000-0000-0000-000000000000}",
       "strict_min_version": "140.0",
       "data_collection_permissions": { "required": ["personallyIdentifyingInfo", "personalCommunications"] }
     },
