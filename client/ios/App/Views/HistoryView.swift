@@ -23,7 +23,17 @@ struct HistoryView: View {
                 filterControl
             }
             if rows.isEmpty {
-                Text("No messages yet").foregroundColor(.secondary)
+                VStack(spacing: 8) {
+                    MessagesIllustration()
+                    Text("No messages yet")
+                        .font(.title2.weight(.semibold))
+                    Text(S.noMessagesBody)
+                        .font(.subheadline)
+                        .foregroundColor(.secondaryText)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
             }
             ForEach(rows, id: \.rowid) { row in
                 HistoryRowView(row: row)
@@ -74,13 +84,10 @@ struct HistoryRowView: View {
     private var iconName: String {
         if outgoing { return "paperplane" }
         if unknown { return "app.badge" }
-        switch peer?.platform {
-        case "iphone": return "iphone"
-        case "android": return "smartphone"
-        case "chrome", "firefox": return "laptopcomputer"
-        default: return "questionmark.circle"
-        }
+        return platformSymbol(peer?.platform)
     }
+
+    private var unread: Bool { !row.read && !isEvent && !outgoing }
 
     private var contentText: String {
         isEvent && row.count > 1 ? "\(row.content) (\(row.count))" : row.content
@@ -96,39 +103,79 @@ struct HistoryRowView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
         HStack(alignment: .top, spacing: 10) {
-            Button {
-                if !unknown && !outgoing, let id = row.peerId { model.highlightPeer = id }
-            } label: {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: iconName)
-                        .frame(width: 24)
-                        .foregroundColor(.secondary)
-                    Text(senderName)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .buttonStyle(.borderless)
-            .accessibilityLabel(senderName)
-            .disabled(unknown || outgoing)
-            Spacer()
-            if !row.read && !isEvent && !outgoing {
-                Circle().fill(Color.accentColor).frame(width: 9, height: 9)
+            if unread {
+                Circle().fill(Color.accentColor).frame(width: 10, height: 10)
+                    .padding(.top, 10)
                     .accessibilityLabel("Unread")
+            } else {
+                Color.clear.frame(width: 10, height: 10)
             }
-        }
-        VStack(alignment: .leading, spacing: 2) {
-            Text(contentText)
-                .lineLimit(3)
-            if let s = resultsSummary {
-                Text(s).font(.caption).foregroundColor(.secondary)
+            if isEvent {
+                Image(systemName: iconName)
+                    .foregroundColor(.secondaryText)
+                    .frame(width: 30, height: 30)
+                    .accessibilityHidden(true)
+            } else {
+                IconTile(iconName)
             }
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline) {
+                    sender
+                    Spacer(minLength: 8)
+                    time
+                        .font(.subheadline)
+                        .foregroundColor(.secondaryText)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    content
+                        .font(isEvent ? .subheadline : .body)
+                        .foregroundColor(.secondaryText)
+                    if let s = resultsSummary {
+                        Text(s).font(.caption).foregroundColor(.secondaryText)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture { tap() }
+            }
+            .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-        .onTapGesture { tap() }
+    }
+
+    private var senderText: Text {
+        Text(senderName).font(unread ? .headline : .body)
+    }
+
+    @ViewBuilder
+    private var sender: some View {
+        if !unknown && !outgoing, let id = row.peerId {
+            Button { model.highlightPeer = id } label: { senderText.foregroundColor(.primary) }
+                .buttonStyle(.plain)
+                .accessibilityLabel(senderName)
+        } else {
+            senderText.accessibilityLabel(senderName)
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch row.type {
+        case "url": Text(contentText).lineLimit(1).truncationMode(.middle)
+        case "tel": Text(contentText).lineLimit(1)
+        default: Text(contentText).lineLimit(3)
+        }
+    }
+
+    @ViewBuilder
+    private var time: some View {
+        let d = Date(timeIntervalSince1970: TimeInterval(row.createdLocal))
+        if Calendar.current.isDateInToday(d) {
+            Text(d, style: .time)
+        } else if Calendar.current.isDateInYesterday(d) {
+            Text("Yesterday")
+        } else {
+            Text(d.formatted(.dateTime.month().day()))
         }
     }
 
