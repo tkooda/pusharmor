@@ -3,6 +3,7 @@ package com.pusharmor.app.shots
 import android.Manifest
 import android.content.Intent
 import android.graphics.Bitmap
+import android.os.ParcelFileDescriptor
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -42,6 +43,16 @@ class ScreenshotCapture {
 
     private fun shell(cmd: String) {
         inst.uiAutomation.executeShellCommand(cmd).close()
+    }
+
+    private fun shellOut(cmd: String): String =
+        ParcelFileDescriptor.AutoCloseInputStream(inst.uiAutomation.executeShellCommand(cmd)).use { it.readBytes().decodeToString() }
+
+    /** Snoozes every notification of other packages (emulator "Android System" notices) for the run. */
+    private fun snoozeOthers() {
+        shellOut("cmd notification list").lines().map { it.trim() }
+            .filter { it.split('|').getOrNull(1).let { p -> p != null && p != app.packageName } }
+            .forEach { shell("cmd notification snooze --for 3600000 $it") }
     }
 
     private fun settle(ms: Long = 2500) {
@@ -98,12 +109,15 @@ class ScreenshotCapture {
         main()
         shot("01-peers")
 
+        snoozeOthers()
         g.notifier.content(linkId, laptop, ShownContent(ContentType.URL, link, href = link, host = "example.com"))
         settle(1500)
         shell("cmd statusbar expand-notifications")
         settle()
         shot("02-notification")
         shell("cmd statusbar collapse")
+        // The shade drops the demo-mode hiding of notification icons; hide them again.
+        shell("am broadcast -a com.android.systemui.demo -e command notifications -e visible false")
         settle(1000)
 
         app.startActivity(Intent(app, ShareActivity::class.java).setAction(Intent.ACTION_SEND).setType("text/plain")
