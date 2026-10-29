@@ -225,9 +225,11 @@ fun PeersScreen(vm: AppViewModel) {
 @Composable
 private fun RenameDialog(current: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
     var typed by remember { mutableStateOf(current) }
+    val error = UiText.nameError(typed)
     AlertDialog(onDismissRequest = onDismiss,
-        text = { OutlinedTextField(typed, { typed = it.take(32) }, label = { Text("Peer name") }, singleLine = true) },
-        confirmButton = { TextButton(onClick = { onSave(typed); onDismiss() }) { Text("Save") } },
+        text = { OutlinedTextField(typed, { typed = it.take(32) }, label = { Text("Peer name") }, singleLine = true,
+            isError = error != null, supportingText = error?.let { { Text(it) } }) },
+        confirmButton = { TextButton(onClick = { onSave(typed); onDismiss() }, enabled = error == null) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
 }
 
