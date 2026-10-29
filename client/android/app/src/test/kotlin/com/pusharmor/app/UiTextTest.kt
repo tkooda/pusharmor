@@ -44,6 +44,14 @@ class UiTextTest {
         assertEquals("30 days", UiText.days(30))
     }
 
+    @Test fun renameFieldError() {
+        assertEquals(null, UiText.nameError("Phone"))
+        assertEquals(null, UiText.nameError("x".repeat(32)))
+        assertEquals("1 to 32 printable ASCII characters", UiText.nameError(""))
+        assertEquals("1 to 32 printable ASCII characters", UiText.nameError("Caf\u00e9"))
+        assertEquals("1 to 32 printable ASCII characters", UiText.nameError("x".repeat(33)))
+    }
+
     @Test fun middleEllipsisKeepsStartAndEnd() {
         val url = "https://www.example.com/recipes/weeknight-lemon-pasta"
         assertEquals(url, UiText.middleEllipsis(url) { it.length <= 80 })

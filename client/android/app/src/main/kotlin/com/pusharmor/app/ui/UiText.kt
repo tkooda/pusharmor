@@ -1,5 +1,6 @@
 package com.pusharmor.app.ui
 
+import com.pusharmor.protocol.NameEntry
 import com.pusharmor.protocol.Peer
 import java.text.DateFormat
 import java.time.Instant
@@ -48,6 +49,9 @@ object UiText {
             else -> DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(at))
         }
     }
+
+    /** Rename field error: null when [name] is a valid peer name (same rule and text as Session.rename). */
+    fun nameError(name: String): String? = if (NameEntry.isValidName(name)) null else "1 to 32 printable ASCII characters"
 
     /** "1 day", "30 days". */
     fun days(d: Int): String = if (d == 1) "1 day" else "$d days"
