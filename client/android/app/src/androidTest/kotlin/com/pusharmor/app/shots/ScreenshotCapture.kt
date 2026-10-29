@@ -90,6 +90,10 @@ class ScreenshotCapture {
         shell("appops set ${app.packageName} AUTO_REVOKE_PERMISSIONS_IF_UNUSED ignore")
 
         val now = System.currentTimeMillis()
+        // History times sit just before the 9:41 demo clock in the status bar.
+        val clock = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 9); set(java.util.Calendar.MINUTE, 41); set(java.util.Calendar.SECOND, 0)
+        }.timeInMillis
         val secs = now / 1000
         g.store.wipeRegistration()
         g.dao.deleteAllHistory()
@@ -100,32 +104,20 @@ class ScreenshotCapture {
         g.dao.putPeer(paired(laptop, "chrome", "Laptop", secs - 40 * 86400))
         g.dao.putPeer(paired(desktop, "firefox", "Work desktop", secs - 30 * 86400))
         g.dao.putPeer(paired(tablet, "android", "Tablet", secs - 20 * 86400))
-        g.dao.insertHistory(history("SENT", tablet, "url", "https://example.com/guide/hiking-trails", now - 2 * 3600_000, true))
-        val text = "Meeting moved to 3 pm, room B"
-        val textId = g.dao.insertHistory(history("RECEIVED", desktop, "text", text, now - 25 * 60_000, true))
+        g.dao.insertHistory(history("SENT", tablet, "url", "https://example.com/guide/hiking-trails", clock - 2 * 3600_000, true))
+        g.dao.insertHistory(history("RECEIVED", desktop, "text", "Meeting moved to 3 pm, room B", clock - 25 * 60_000, true))
         val link = "https://example.com/recipes/lentil-soup"
-        val linkId = g.dao.insertHistory(history("RECEIVED", laptop, "url", link, now - 2 * 60_000, false))
+        val linkId = g.dao.insertHistory(history("RECEIVED", laptop, "url", link, clock - 2 * 60_000, false))
 
         main()
         shot("01-peers")
 
-        // 02: a heads-up over the app. Older notices first; the link last, once their heads-up is gone.
+        // 02: the link heads-up over the app.
         snoozeOthers()
-        g.notifier.createPeerChannel(laptop) // paired peers have their own channel (one card each)
-        g.notifier.createPeerChannel(desktop)
-        g.notifier.content(textId, desktop, ShownContent(ContentType.TEXT, text))
-        g.notifier.pairNotice("A".repeat(43), "New peer: compare K7QD", newLaptop)
-        settle(7000)
+        g.notifier.createPeerChannel(laptop) // a paired peer has its own channel
         g.notifier.content(linkId, laptop, ShownContent(ContentType.URL, link, href = link, host = "example.com"))
-        settle(2000)
+        settle(3000)
         shot("02-notification")
-        shell("cmd statusbar expand-notifications")
-        settle()
-        shot("06-shade")
-        shell("cmd statusbar collapse")
-        // The shade drops the demo-mode hiding of notification icons; hide them again.
-        shell("am broadcast -a com.android.systemui.demo -e command notifications -e visible false")
-        settle(1000)
 
         ScreenshotMode.sendText = "https://example.com/recipes/weeknight-pasta"
         ScreenshotMode.sendTo = listOf(laptop, desktop, tablet)
