@@ -21,6 +21,8 @@ import java.security.SecureRandom
 /** Notification channels, ids and builders (section 6). */
 class Notifier(private val context: Context, private val settings: Settings, private val dao: PaDao) {
     companion object {
+        /** Brand navy accent on every notification (small icon tint and actions). */
+        const val NAVY = 0xFF1F3A5F.toInt()
         const val DEFAULT_CHANNEL = "default"
         const val TAG_MSG = "msg"
         const val TAG_NOTICE = "notice"
@@ -106,14 +108,14 @@ class Notifier(private val context: Context, private val settings: Settings, pri
     fun notice(text: String) {
         val dismiss = dismiss(TAG_NOTICE, NOTICE_ID)
         notify(TAG_NOTICE, NOTICE_ID, NotificationCompat.Builder(context, peersChannel)
-            .setSmallIcon(R.drawable.ic_notify).setContentTitle("PushArmor").setContentText(text)
+            .setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setContentTitle("PushArmor").setContentText(text)
             .setContentIntent(dismiss).setAutoCancel(true)
             .addAction(0, "OK", dismiss).build())
     }
 
     fun peersNotice(text: String, id: Int = UNDELIVERED_ID) {
         notify(TAG_NOTICE, id, NotificationCompat.Builder(context, peersChannel)
-            .setSmallIcon(R.drawable.ic_notify).setContentTitle("PushArmor").setContentText(text)
+            .setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setContentTitle("PushArmor").setContentText(text)
             .setContentIntent(openApp("peers")).setAutoCancel(true).build())
     }
 
@@ -121,7 +123,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
     fun pairNotice(pk: String, text: String, peerId: String?, highlight: Boolean = false, ok: Boolean = false) {
         val id = pairId(pk)
         val b = NotificationCompat.Builder(context, peersChannel)
-            .setSmallIcon(R.drawable.ic_notify).setContentTitle("PushArmor").setContentText(text)
+            .setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setContentTitle("PushArmor").setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(openApp("peers", if (highlight) peerId else null)).setAutoCancel(true)
         if (ok) b.addAction(0, "OK", dismiss(TAG_PAIR, id))
@@ -143,7 +145,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         val peer = dao.peer(peerId)
         val policy = Policy.of(settings.lockScreen, peer?.lockScreen ?: true, settings.watch, peer?.watch ?: true, settings.hideContent, peer?.hideContent ?: false)
         val channel = peer?.channelId?.takeIf { nm.getNotificationChannel(it) != null } ?: messagesChannel
-        val b = NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notify).setAutoCancel(true)
+        val b = NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setAutoCancel(true)
             .setGroup(GROUP_PREFIX + channel).setLocalOnly(policy.localOnly)
         val open = action(historyId, "item")
         if (policy.hideAll) {
@@ -167,7 +169,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
             }
             if (policy.privateOnLockScreen) {
                 b.setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
-                b.setPublicVersion(NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notify).setContentTitle("New message").build())
+                b.setPublicVersion(NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setContentTitle("New message").build())
             }
         }
         notify(TAG_MSG, historyId.toInt(), b.build())
@@ -176,7 +178,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
 
     /** One summary per channel: no content, localOnly if a child is, strictest visibility. */
     private fun summary(channel: String, child: Policy) {
-        val b = NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notify)
+        val b = NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notify).setColor(NAVY)
             .setGroup(GROUP_PREFIX + channel).setGroupSummary(true).setLocalOnly(child.localOnly)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
         notify(TAG_MSG, -(channel.hashCode() and 0x7FFFFFFF) - 1, b.build())
