@@ -51,6 +51,14 @@ public enum S {
     public static let lockScreenSwitch = "Show message content on lock screen"
     public static let alwaysHide = "Always hide content"
     public static let lockScreenHelp = "hides content only for messages that arrive while the phone is locked"
+    public static func pairWith(_ x: String) -> String { "Pair with \(x)?" }
+    public static func checkSameCode(_ x: String) -> String { "Check that \(x) shows this same code." }
+    public static let codesMismatch = "Codes do not match? Tap Deny."
+    public static let newPeerWantsToPair = "A new peer wants to pair."
+    public static func timesOutIn(_ t: String) -> String { "Times out in \(t)" }
+    public static let sameAccount = "Use the same account on every device you want to pair."
+    public static let noPeersBody = "Install PushArmor on your other devices and sign in with the same account. They show up here, ready to pair."
+    public static let noMessagesBody = "Links and text you send or receive show up here."
 }
 
 /// Notification categories (section 6.2).
