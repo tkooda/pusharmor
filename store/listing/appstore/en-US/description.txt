@@ -1,0 +1,19 @@
+PushArmor sends links and short text between your own devices.
+
+Share a page from your browser and it shows up on your iPhone. Send a note
+from your iPhone to your computer. That is all it does, and it does it
+privately.
+
+- End-to-end encrypted. Each device makes its own keys. Our relay sees only
+  scrambled data.
+- Your devices only. Messages go only to devices you paired on your account.
+- Links and text only. No files.
+- No ads, no tracking, no analytics.
+- Free and open source.
+
+Works with the PushArmor browser extension for Chrome and Firefox.
+
+Sign in with Apple, Google, or an email code. Pair a new device once by
+checking that both screens show the same short code.
+
+Made by Ion Echo, LLC.

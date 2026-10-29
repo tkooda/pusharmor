@@ -1,0 +1,198 @@
+name: promote
+
+# Owner rulings Q241 A and Q242 A: the owner starts this workflow by hand
+# (workflow_dispatch, also from the GitHub phone app) with a version X.Y.Z and
+# approves it once (Environment promote, the owner is the required reviewer).
+# It sends that SAME tested build to the public channel of each store. Nothing
+# is rebuilt (release/promote.mjs):
+#   play      Play internal versionCode to production, listing text, screenshots
+#   appstore  TestFlight build to App Review, version page text, screenshots
+#   chrome    public zip of the chrome/vX.Y.Z prerelease to the public item
+#   firefox   public zip and source of the firefox/vX.Y.Z prerelease to the
+#             listed add-on
+# A platform without tag and prerelease X.Y.Z is skipped. Each store is its own
+# job: rerun only the failed one. Every job skips a version that is already
+# live or in review. Store jobs use the store's release Environment for its
+# secrets (WIF for Play and Chrome Web Store).
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version X.Y.Z to promote (tested on the test channels)"
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: promote
+  cancel-in-progress: false
+
+env:
+  VERSION: ${{ inputs.version }}
+
+jobs:
+  check:
+    name: tags, prereleases and listings
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      android: ${{ steps.check.outputs.android }}
+      ios: ${{ steps.check.outputs.ios }}
+      chrome: ${{ steps.check.outputs.chrome }}
+      firefox: ${{ steps.check.outputs.firefox }}
+      play_wif_provider: ${{ steps.check.outputs.google_play_wif_provider }}
+      play_wif_service_account: ${{ steps.check.outputs.google_play_wif_service_account }}
+      cws_wif_provider: ${{ steps.check.outputs.google_cws_wif_provider }}
+      cws_wif_service_account: ${{ steps.check.outputs.google_cws_wif_service_account }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - id: check
+        name: Version and listing check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node release/promote.mjs check "$VERSION"
+
+  approve:
+    name: owner approval
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: promote
+    permissions: {}
+    steps:
+      - name: Approved
+        run: echo "Promote $VERSION approved"
+
+  play:
+    name: Google Play production
+    needs: [check, approve]
+    if: needs.check.outputs.android == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: android-release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /release/
+            /store/
+            /site/.node-version
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ needs.check.outputs.play_wif_provider }}
+          service_account: ${{ needs.check.outputs.play_wif_service_account }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+      - name: Promote to production
+        env:
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: node release/promote.mjs play "$VERSION"
+
+  appstore:
+    name: App Store review
+    needs: [check, approve]
+    if: needs.check.outputs.ios == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: ios-release
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /release/
+            /store/
+            /site/.node-version
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - name: Submit for App Review
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: node release/promote.mjs appstore "$VERSION"
+
+  chrome:
+    name: Chrome Web Store public item
+    needs: [check, approve]
+    if: needs.check.outputs.chrome == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: chrome-release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /release/
+            /store/
+            /site/.node-version
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ needs.check.outputs.cws_wif_provider }}
+          service_account: ${{ needs.check.outputs.cws_wif_service_account }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+          create_credentials_file: false
+      - name: Upload and publish the public zip
+        env:
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: node release/promote.mjs chrome "$VERSION"
+
+  firefox:
+    name: Firefox AMO listed add-on
+    needs: [check, approve]
+    if: needs.check.outputs.firefox == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: firefox-release
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /release/
+            /store/
+            /site/.node-version
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - name: Submit the public zip as a listed version
+        env:
+          MOZILLA_AMO_JWT_ISSUER: ${{ secrets.MOZILLA_AMO_JWT_ISSUER }}
+          MOZILLA_AMO_JWT_SECRET: ${{ secrets.MOZILLA_AMO_JWT_SECRET }}
+        run: node release/promote.mjs firefox "$VERSION"
