@@ -113,8 +113,26 @@ test("idempotence guards are present in every store command", () => {
   assert.match(body("chrome"), /PENDING_REVIEW/);
   assert.match(body("firefox"), /already on AMO/);
   for (const fn of ["play", "appstore", "chrome", "firefox"]) assert.match(body(fn), /SKIP/, fn);
-  // App Review contact details and the demo account stay console-only.
-  assert.doesNotMatch(src, /contact(FirstName|LastName|Phone|Email)|demoAccount/);
+});
+
+// Owner rule: no contact field (email, phone, website, address) is set or
+// overwritten through any store API; they stay as set in the consoles.
+test("no contact-field keys in the store API payloads", () => {
+  const src = readFileSync(join(ROOT, "release", "promote.mjs"), "utf8");
+  for (const fn of ["play", "appstore", "chrome", "firefox"]) {
+    const i = src.indexOf("async function " + fn + "(");
+    const code = src
+      .slice(i, src.indexOf("\n}\n", i))
+      .split("\n")
+      .filter((l) => !/^\s*\/\//.test(l))
+      .join("\n");
+    // Object keys and fields of any payload, and the Play contact resource.
+    assert.doesNotMatch(code, /\b(contact\w*|demoAccount\w*|support\w*Url|marketing\w*|website\w*|e-?mail\w*|phone\w*|address\w*)["']?\s*:/i, fn);
+    assert.doesNotMatch(code, /\.(contact\w*|supportUrl|marketingUrl|website|email|phone|address)\b/i, fn);
+    assert.doesNotMatch(code, /["/]details\b|appStoreReviewDetail\b[^"]*"\s*,\s*\{[^}]*contact/i, fn);
+  }
+  for (const f of readdirSync(join(ROOT, "store", "listing", "appstore", "en-US"))) assert.doesNotMatch(f, /support|marketing|contact|email|phone|address|website/, f);
+  for (const f of readdirSync(join(ROOT, "store", "listing", "play", "en-US"))) assert.doesNotMatch(f, /support|marketing|contact|email|phone|address|website/, f);
 });
 
 test("release checks: tag, published release and the needed assets", () => {
