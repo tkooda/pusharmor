@@ -11,7 +11,6 @@ import com.pusharmor.app.PaApp
 import com.pusharmor.app.ScreenshotMode
 import com.pusharmor.app.keys.KeystoreKeyOps
 import com.pusharmor.app.ui.MainActivity
-import com.pusharmor.app.ui.ShareActivity
 import com.pusharmor.protocol.ContentType
 import com.pusharmor.protocol.ShownContent
 import com.pusharmor.store.HistoryEntity
@@ -102,27 +101,35 @@ class ScreenshotCapture {
         g.dao.putPeer(paired(desktop, "firefox", "Work desktop", secs - 30 * 86400))
         g.dao.putPeer(paired(tablet, "android", "Tablet", secs - 20 * 86400))
         g.dao.insertHistory(history("SENT", tablet, "url", "https://example.com/guide/hiking-trails", now - 2 * 3600_000, true))
-        g.dao.insertHistory(history("RECEIVED", desktop, "text", "Meeting moved to 3 pm, room B", now - 25 * 60_000, true))
+        val text = "Meeting moved to 3 pm, room B"
+        val textId = g.dao.insertHistory(history("RECEIVED", desktop, "text", text, now - 25 * 60_000, true))
         val link = "https://example.com/recipes/lentil-soup"
         val linkId = g.dao.insertHistory(history("RECEIVED", laptop, "url", link, now - 2 * 60_000, false))
 
         main()
         shot("01-peers")
 
+        // 02: a heads-up over the app. Older notices first; the link last, once their heads-up is gone.
         snoozeOthers()
+        g.notifier.createPeerChannel(laptop) // paired peers have their own channel (one card each)
+        g.notifier.createPeerChannel(desktop)
+        g.notifier.content(textId, desktop, ShownContent(ContentType.TEXT, text))
+        g.notifier.pairNotice("A".repeat(43), "New peer: compare K7QD", newLaptop)
+        settle(7000)
         g.notifier.content(linkId, laptop, ShownContent(ContentType.URL, link, href = link, host = "example.com"))
-        settle(1500)
+        settle(2000)
+        shot("02-notification")
         shell("cmd statusbar expand-notifications")
         settle()
-        shot("02-notification")
+        shot("06-shade")
         shell("cmd statusbar collapse")
         // The shade drops the demo-mode hiding of notification icons; hide them again.
         shell("am broadcast -a com.android.systemui.demo -e command notifications -e visible false")
         settle(1000)
 
-        app.startActivity(Intent(app, ShareActivity::class.java).setAction(Intent.ACTION_SEND).setType("text/plain")
-            .putExtra(Intent.EXTRA_TEXT, "https://example.com/guide/hiking-trails").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        settle()
+        ScreenshotMode.sendText = "https://example.com/recipes/weeknight-pasta"
+        ScreenshotMode.sendTo = listOf(laptop, desktop, tablet)
+        main("send")
         shot("03-send")
 
         g.dao.putPeer(paired(newLaptop, "chrome", "New laptop", secs - 50 * 86400).copy(signPub = null, encPub = null, pairingId = null,

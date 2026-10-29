@@ -11,6 +11,10 @@ import java.io.IOException
 object ScreenshotMode {
     @Volatile var on = false
 
+    /** Send tab prefill for the screenshot run: message text and checked peer ids. */
+    @Volatile var sendText = ""
+    @Volatile var sendTo: List<String> = emptyList()
+
     /** Fails every Worker request while the mode is on (no 401 can wipe the sample data). */
     fun guard(http: OkHttpClient): OkHttpClient = http.newBuilder().addInterceptor { chain ->
         if (on) throw IOException("screenshot mode: no Worker calls")
