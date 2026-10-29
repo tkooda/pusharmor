@@ -8,6 +8,7 @@ import com.pusharmor.app.notify.Policy
 import com.pusharmor.app.ui.AuthLinkActivity
 import com.pusharmor.app.ui.CodeInput
 import com.pusharmor.app.ui.ShareActivity
+import com.pusharmor.app.ui.pairingScrollTop
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -34,6 +35,14 @@ class AppLogicTest {
         assertTrue(Policy.of(true, true, true, true, true, false).hideAll)
         // main off greys the per-peer switches
         assertFalse(Policy.peerSwitchEnabled(false))
+    }
+
+    @Test fun peersScrollTopOnlyWhenPairingGrows() {
+        assertTrue(pairingScrollTop(0, 1, aiming = false))
+        assertTrue(pairingScrollTop(1, 2, aiming = false))
+        assertFalse(pairingScrollTop(2, 1, aiming = false)) // a card left: keep the place
+        assertFalse(pairingScrollTop(1, 1, aiming = false))
+        assertFalse(pairingScrollTop(0, 1, aiming = true)) // a highlight scroll is still due
     }
 
     @Test fun historyFilterChips() {

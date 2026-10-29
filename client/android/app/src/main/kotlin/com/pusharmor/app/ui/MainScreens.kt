@@ -64,9 +64,11 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -143,6 +145,9 @@ private fun platformIcon(platform: String): ImageVector = when (platform) {
     else -> PaIcons.Devices
 }
 
+/** Scroll the Peers list to the top when a pairing card is added, unless a highlight scroll is still due. */
+internal fun pairingScrollTop(before: Int, after: Int, aiming: Boolean): Boolean = !aiming && after > before
+
 /** Peers screen (section 8): banners, pairing cards, This device, the peer group. */
 @Composable
 fun PeersScreen(vm: AppViewModel) {
@@ -164,17 +169,24 @@ fun PeersScreen(vm: AppViewModel) {
     val lastRefresh = prefs?.get(Settings.K.LAST_REFRESH) ?: 0
     val canRefresh = now - lastRefresh >= 60_000
     val state = rememberLazyListState()
+    // The highlight scrolls once per visit; leaving the screen clears it.
+    var aimed by remember { mutableStateOf<String?>(null) }
+    DisposableEffect(Unit) { onDispose { vm.highlight.value = null } }
     // Item order: banners, [pairing header, cards], self header, self, [peers header, peers].
     LaunchedEffect(highlight, list.size) {
-        highlight?.let { h ->
+        highlight?.takeIf { it != aimed }?.let { h ->
             val pi = pairing.indexOfFirst { it.id == h }
             val base = if (pairing.isEmpty()) 1 else 2 + pairing.size
             val idx = if (pi >= 0) 2 + pi else plain.indexOfFirst { it.id == h }.takeIf { it >= 0 }?.let { base + 3 + it }
-            idx?.let { state.animateScrollToItem(it) }
+            idx?.let { state.animateScrollToItem(it); aimed = h }
         }
     }
     // A pairing card that appears goes in at the top; show it rather than keep the old anchor.
-    LaunchedEffect(pairing.size) { if (pairing.isNotEmpty() && highlight == null) state.scrollToItem(0) }
+    var shownPairing by remember { mutableIntStateOf(pairing.size) }
+    LaunchedEffect(pairing.size) {
+        if (pairingScrollTop(shownPairing, pairing.size, aiming = highlight != null && highlight != aimed)) state.scrollToItem(0)
+        shownPairing = pairing.size
+    }
     Column(Modifier.fillMaxSize()) {
         PaTopBar("Peers", actions = {
             IconButton(onClick = { vm.refresh() }, enabled = canRefresh) { Icon(PaIcons.Refresh, "Refresh") }
