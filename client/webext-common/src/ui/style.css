@@ -123,6 +123,7 @@ label.srow { cursor: pointer; }
 .hint { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 8px; font-size: 12px; line-height: 16px; color: var(--ink2); }
 .pair-foot { display: flex; align-items: center; justify-content: space-between; margin: 8px -14px 0; padding: 0 14px 0 4px; border-top: 1px solid var(--line); min-height: 40px; }
 .pair-foot button { height: 32px; }
+.pair button, .foot.bar button { font-weight: 600; }
 .pair-foot .countdown { margin-left: auto; }
 
 /* Footers (Peers tools, Send button). */
