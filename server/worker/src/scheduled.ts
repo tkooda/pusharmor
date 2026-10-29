@@ -61,8 +61,15 @@ export async function healthCheck(env: Env, log: Log): Promise<string[]> {
   await check("d1", () => env.DB.prepare(SQL.Q_HEALTH).first());
   // Vendor auth alert: the previous full hour of the shared counts.
   const hour = Math.floor(deps.now() / 3600000) - 1;
-  const alerts = await authAlerts(env, hour);
-  const snap = await healthSnapshot(env, hour);
+  // A D1 outage must not stop the health check failed mail below; it shows up there as "d1".
+  let alerts: string[] = [];
+  let snap: Awaited<ReturnType<typeof healthSnapshot>> = {};
+  try {
+    alerts = await authAlerts(env, hour);
+    snap = await healthSnapshot(env, hour);
+  } catch {
+    // No alerts this hour; the d1 check reports the outage.
+  }
   for (const [v, h] of Object.entries(snap)) {
     log.extra[`auth_${v}`] = h.auth;
     log.extra[`ok_${v}`] = h.ok;
