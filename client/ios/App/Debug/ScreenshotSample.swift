@@ -49,7 +49,7 @@ enum ScreenshotSample {
             try store.db.exec("""
                 INSERT INTO peers (id, state, listed, reachable, platform, created, name, name_n, fingerprint)
                 VALUES (?, 'unruled', 1, 1, 'chrome', ?, 'New laptop', 1, 'K7QD')
-                """, [.text(id("N")), .int(now)])
+                """, [.text(id("N")), .int(now - 50 * 86400)])  // oldest: the first row on screen
             try store.db.exec("""
                 INSERT INTO pairing (peer_id, role, state, r, authorized, started_at, last_send_at)
                 VALUES (?, 'X', 'shown', ?, 1, ?, ?)
