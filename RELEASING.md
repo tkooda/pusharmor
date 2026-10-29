@@ -169,8 +169,10 @@ Store items and ids:
   `google_chrome_beta_extension_id`. The CWS service account must have access
   to that item. The release build and the `chrome/v` job fail when this id
   equals the public id or is not 32 letters a-p.
-- Firefox: pick the Beta gecko id (e.g. `beta@pusharmor.com`, not the public
-  id) for `mozilla_firefox_beta_addon_id`. The first `firefox/v` tag creates the
+- Firefox: both gecko ids are random lowercase GUIDs in braces
+  (`{xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}`, from `uuidgen`); the release build
+  refuses any other form. Pick the Beta gecko id (not the public id) for
+  `mozilla_firefox_beta_addon_id`. The first `firefox/v` tag creates the
   unlisted add-on on AMO.
 - Worker variable `PA_OAUTH_REDIRECT_CHROME` (Cloudflare dashboard): a JSON
   list of both redirects,

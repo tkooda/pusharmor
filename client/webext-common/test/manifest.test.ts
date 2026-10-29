@@ -37,7 +37,7 @@ test("Firefox matches and host permissions equal FIREFOX-MATCH-LIST and release/
 test("Firefox data_collection_permissions present; the committed gecko id is a placeholder (the build sets it)", () => {
   const g = firefox.browser_specific_settings.gecko;
   assert.deepEqual(g.data_collection_permissions.required, ["personallyIdentifyingInfo", "personalCommunications"]);
-  assert.equal(g.id, "placeholder-addon-id@pusharmor.com");
+  assert.equal(g.id, "{00000000-0000-0000-0000-000000000000}");
   assert.equal(g.strict_min_version, "140.0");
   assert.equal(firefox.browser_specific_settings.gecko_android.strict_min_version, "142.0");
   assert.equal(firefox.manifest_version, 2);

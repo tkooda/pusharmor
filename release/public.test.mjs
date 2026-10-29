@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { publicProblems } from "./public.mjs";
+import { GECKO_DUMMY_IDS, GECKO_PLACEHOLDER_ID, publicProblems } from "./public.mjs";
 import { dummyValues } from "./ci-dummy.mjs";
 
 // A fixture with every public key set to a PLACEHOLDER, so the tests do not
@@ -42,9 +42,26 @@ test("gate: a CI dummy fails unless PA_CI_DUMMY=1; a PLACEHOLDER fails even then
   assert.deepEqual(publicProblems(["c"], pub, { PA_CI_DUMMY: "1" }), ["release/public.json: c is a PLACEHOLDER"]);
 });
 
+test("gate: a Firefox add-on id must be a lowercase GUID in braces; the reserved fake ids are a PLACEHOLDER or a CI dummy", () => {
+  const ok = "{03381876-62cc-4ce1-8cb9-c22567d00ca6}";
+  for (const id of [ok, "{549aa960-212f-41ba-b28c-7d7d1662bb57}"]) assert.deepEqual(publicProblems(["mozilla_firefox_addon_id"], { mozilla_firefox_addon_id: id }, {}), []);
+  for (const id of ["beta@example.org", ok.toUpperCase(), ok.slice(1, -1), ok + " ", "{" + ok + "}"]) {
+    assert.deepEqual(publicProblems(["mozilla_firefox_beta_addon_id"], { mozilla_firefox_beta_addon_id: id }, {}),
+      ["release/public.json: mozilla_firefox_beta_addon_id is not a lowercase GUID {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}"], id);
+  }
+  assert.deepEqual(publicProblems(["other"], { other: "not-a-guid" }, {}), []);
+  assert.deepEqual(publicProblems(["mozilla_firefox_addon_id"], { mozilla_firefox_addon_id: GECKO_PLACEHOLDER_ID }, { PA_CI_DUMMY: "1" }),
+    ["release/public.json: mozilla_firefox_addon_id is a PLACEHOLDER"]);
+  const dummy = { mozilla_firefox_beta_addon_id: GECKO_DUMMY_IDS.mozilla_firefox_beta_addon_id };
+  assert.deepEqual(publicProblems(["mozilla_firefox_beta_addon_id"], dummy, {}),
+    ["release/public.json: mozilla_firefox_beta_addon_id is a CI dummy (allowed only with PA_CI_DUMMY=1)"]);
+  assert.deepEqual(publicProblems(["mozilla_firefox_beta_addon_id"], dummy, { PA_CI_DUMMY: "1" }), []);
+});
+
 test("ci-dummy replaces every PLACEHOLDER with a labeled dummy and keeps the rest", () => {
   const [out, changed] = dummyValues({ _doc: "PLACEHOLDER text", a: "PLACEHOLDER_A", b: ["X", "PLACEHOLDER_B"], c: "real", mozilla_firefox_addon_id: "PLACEHOLDER" });
-  assert.deepEqual(out, { _doc: "PLACEHOLDER text", a: "ci-fork-dummy-a", b: ["X", "ci-fork-dummy-b"], c: "real", mozilla_firefox_addon_id: "ci-fork-dummy-mozilla_firefox_addon_id@pusharmor.com" });
+  assert.deepEqual(out, { _doc: "PLACEHOLDER text", a: "ci-fork-dummy-a", b: ["X", "ci-fork-dummy-b"], c: "real", mozilla_firefox_addon_id: GECKO_DUMMY_IDS.mozilla_firefox_addon_id });
+  assert.match(GECKO_DUMMY_IDS.mozilla_firefox_addon_id, /^\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}$/);
   assert.deepEqual(changed, ["a", "b", "mozilla_firefox_addon_id"]);
 });
 
