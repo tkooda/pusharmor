@@ -83,6 +83,17 @@ jobs:
       contents: read
       id-token: write
     steps:
+      # Hard gate (I414): no Play production release until the owner confirms the
+      # public developer contact details in Play Console are fixed, by setting
+      # the repository variable PLAY_CONTACT_OK to yes.
+      - name: Play contact details confirmed
+        env:
+          PLAY_CONTACT_OK: ${{ vars.PLAY_CONTACT_OK }}
+        run: |
+          if [ "$PLAY_CONTACT_OK" != "yes" ]; then
+            echo "Play: BLOCKED. Fix the public developer contact details in Play Console, then set the repository variable PLAY_CONTACT_OK to yes." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -105,6 +116,7 @@ jobs:
       - name: Promote to production
         env:
           TOKEN: ${{ steps.auth.outputs.access_token }}
+          PLAY_CONTACT_OK: ${{ vars.PLAY_CONTACT_OK }}
         run: node release/promote.mjs play "$VERSION"
 
   appstore:

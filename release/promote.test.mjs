@@ -68,6 +68,17 @@ test("each store job skips a platform without tag and prerelease", () => {
   for (const j of STORE_JOBS) assert.match(jobs.get(j), new RegExp("\\n {4}if: needs\\.check\\.outputs\\." + out[j] + " == 'true'\\n"), j);
 });
 
+test("the Play job is gated on the repository variable PLAY_CONTACT_OK (I414)", () => {
+  const b = jobs.get("play");
+  const steps = b.split(/\n {6}- /).slice(1);
+  assert.match(steps[0], /^name: Play contact details confirmed\n/);
+  assert.match(steps[0], /PLAY_CONTACT_OK: \$\{\{ vars\.PLAY_CONTACT_OK \}\}/);
+  assert.match(steps[0], /if \[ "\$PLAY_CONTACT_OK" != "yes" \]; then\n[^\n]*\n {12}exit 1\n/);
+  assert.match(b, /TOKEN: \$\{\{ steps\.auth\.outputs\.access_token \}\}\n {10}PLAY_CONTACT_OK: \$\{\{ vars\.PLAY_CONTACT_OK \}\}\n {8}run: node release\/promote\.mjs play/);
+  const src = readFileSync(join(ROOT, "release", "promote.mjs"), "utf8");
+  assert.match(src, /async function play\(version\) \{\n(?: {2}\/\/.*\n)*  if \(process\.env\.PLAY_CONTACT_OK !== "yes"\) throw/);
+});
+
 test("secrets reach only their own store job and are never echoed", () => {
   const own = { appstore: /secrets\.ASC_API_(KEY_P8|KEY_ID|ISSUER_ID)/g, firefox: /secrets\.MOZILLA_AMO_JWT_(ISSUER|SECRET)/g };
   for (const [name, b] of jobs) {

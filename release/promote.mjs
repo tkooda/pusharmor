@@ -227,6 +227,9 @@ async function check(version) {
 // ---- Google Play ----
 
 async function play(version) {
+  // Hard gate (I414): the owner sets the repository variable PLAY_CONTACT_OK to
+  // yes once the public developer contact details in Play Console are fixed.
+  if (process.env.PLAY_CONTACT_OK !== "yes") throw new Error("Play blocked: fix the developer contact details in Play Console, then set the repository variable PLAY_CONTACT_OK to yes");
   const api = "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/" + PACKAGE_NAME;
   const up = "https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/" + PACKAGE_NAME;
   const auth = { Authorization: "Bearer " + process.env.TOKEN };
