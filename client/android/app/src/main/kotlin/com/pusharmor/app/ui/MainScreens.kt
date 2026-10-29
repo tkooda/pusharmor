@@ -171,6 +171,8 @@ fun PeersScreen(vm: AppViewModel) {
             idx?.let { state.animateScrollToItem(it) }
         }
     }
+    // A pairing card that appears goes in at the top; show it rather than keep the old anchor.
+    LaunchedEffect(pairing.size) { if (pairing.isNotEmpty() && highlight == null) state.scrollToItem(0) }
     Column(Modifier.fillMaxSize()) {
         PaTopBar("Peers", actions = {
             IconButton(onClick = { vm.refresh() }, enabled = canRefresh) { Icon(PaIcons.Refresh, "Refresh") }
