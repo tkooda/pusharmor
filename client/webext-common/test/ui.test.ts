@@ -38,3 +38,13 @@ test("short History time: clock today, Yesterday, else month and day", () => {
   assert.equal(shortTime(new Date(2026, 9, 28, 23, 59).getTime(), now), "Yesterday");
   assert.equal(shortTime(new Date(2026, 9, 1, 8, 0).getTime(), now), new Date(2026, 9, 1).toLocaleDateString([], { month: "short", day: "numeric" }));
 });
+
+test("History sender link is a keyboard-operable button with a visible focus ring", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  assert.match(src, /h\("button", \{ class: "who peerlink", type: "button" \}/); // native Tab, Enter and Space
+  assert.match(src, /who\.addEventListener\("click"/); // click is what Enter and Space fire on a button
+  assert.match(css, /^:focus-visible \{ outline: 2px solid/m); // global ring
+  assert.doesNotMatch(css, /peerlink[^{]*\{[^}]*outline: ?none/);
+});
