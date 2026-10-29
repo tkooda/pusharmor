@@ -5,6 +5,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -208,7 +210,7 @@ fun EmptyState(illustration: @Composable () -> Unit, title: String, body: String
 /** Blocking state: icon tile, text and actions (no illustration). */
 @Composable
 fun BlockingState(icon: ImageVector, text: String, modifier: Modifier = Modifier, actions: @Composable () -> Unit) {
-    Column(modifier.fillMaxSize().padding(horizontal = 32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         IconTile(icon, size = 56.dp)
         Spacer(Modifier.height(20.dp))
         Text(text, Modifier.widthIn(max = 320.dp), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
