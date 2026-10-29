@@ -9,25 +9,34 @@ import android.provider.Settings as SysSettings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -36,16 +45,22 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.pusharmor.app.session.Session
+import com.pusharmor.app.ui.theme.BlockingState
+import com.pusharmor.app.ui.theme.GreenButton
+import com.pusharmor.app.ui.theme.LocalPaExtra
+import com.pusharmor.app.ui.theme.PaIcons
+import com.pusharmor.app.ui.theme.PushArmorTheme
 
 /** Single NavHost (section 8). */
 class MainActivity : ComponentActivity() {
     private val vm: AppViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         vm.boot(fromMain = true)
         if (shouldHandle(savedInstanceState != null, intent.flags)) handle(intent)
-        setContent { MaterialTheme { App(vm) } }
+        setContent { PushArmorTheme { Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { App(vm) } } }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -111,11 +126,13 @@ private fun App(vm: AppViewModel) {
     val nav = rememberNavController()
     var deleting by remember { mutableStateOf(false) }
     when (start) {
-        null -> { Text("PushArmor", Modifier.safeDrawingPadding()); return }
+        null -> {
+            Box(Modifier.fillMaxSize().safeDrawingPadding(), Alignment.Center) { CircularProgressIndicator() }
+            return
+        }
         Session.Start.KEYS_UNAVAILABLE -> {
-            Column(Modifier.safeDrawingPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(Session.KEYS_UNAVAILABLE)
-                Button(onClick = { vm.io { vm.g.session.selfRemoved(deleted = false, lostKeys = true); vm.boot() } }) { Text("Sign in again") }
+            BlockingState(PaIcons.Info, Session.KEYS_UNAVAILABLE, Modifier.safeDrawingPadding()) {
+                GreenButton(onClick = { vm.io { vm.g.session.selfRemoved(deleted = false, lostKeys = true); vm.boot() } }, text = "Sign in again", icon = null)
             }
             return
         }
@@ -126,7 +143,7 @@ private fun App(vm: AppViewModel) {
     if (!signedIn || deleting) {
         val purpose = if (deleting) "delete-account" else signInPurpose
         var email by remember { mutableStateOf(false) }
-        if (email) EmailScreen(vm, purpose) { deleting = false; email = false }
+        if (email) EmailScreen(vm, purpose, onBack = { email = false }) { deleting = false; email = false }
         else WelcomeScreen(vm, purpose, onEmail = { email = true }) { deleting = false }
         return
     }
@@ -138,16 +155,23 @@ private fun App(vm: AppViewModel) {
         androidx.compose.runtime.LaunchedEffect(back, pending) {
             if (back != null && pending != null) { MainActivity.pendingRoute = null; nav.navigate(pending) { launchSingleTop = true } }
         }
-        Scaffold(bottomBar = {
-            NavigationBar {
-                for ((r, l) in listOf("peers" to "Peers", "send" to "Send", "history" to "History", "settings" to "Settings")) {
-                    NavigationBarItem(selected = route == r, onClick = { nav.navigate(r) { launchSingleTop = true } }, icon = {}, label = { Text(l) })
+        val x = LocalPaExtra.current
+        Scaffold(containerColor = MaterialTheme.colorScheme.background, bottomBar = {
+            Column {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                NavigationBar(containerColor = x.tile, tonalElevation = 0.dp) {
+                    for ((r, l, i) in listOf(Triple("peers", "Peers", PaIcons.Devices), Triple("send", "Send", PaIcons.Send),
+                        Triple("history", "History", PaIcons.History), Triple("settings", "Settings", PaIcons.Settings))) {
+                        NavigationBarItem(selected = route == r, onClick = { nav.navigate(r) { launchSingleTop = true } },
+                            icon = { Icon(i, null) }, label = { Text(l) },
+                            colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.secondaryContainer))
+                    }
                 }
             }
         }) { pad ->
             NavHost(nav, startDestination = "peers", modifier = Modifier.padding(pad)) {
                 composable("peers") { PeersScreen(vm) }
-                composable("send") { SendScreen(vm) }
+                composable("send") { SendScreen(vm, title = "Send") }
                 composable("history") { HistoryScreen(vm) { id -> vm.highlight.value = id; nav.navigate("peers") } }
                 composable("settings") { SettingsScreen(vm, onDeleteAccount = { deleting = true }, onSignedOut = {}) }
             }
@@ -166,14 +190,16 @@ private fun PermissionGate(content: @Composable () -> Unit) {
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok = it; asked = true }
     if (ok || skipped) { content(); return }
     if (!asked) { androidx.compose.runtime.LaunchedEffect(Unit) { launcher.launch(Manifest.permission.POST_NOTIFICATIONS) } }
-    Column(Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("PushArmor shows each message as a notification. Allow notifications to receive messages. Also turn off \"Pause app activity if unused\" for PushArmor.")
-        val activity = ctx as? android.app.Activity
-        val permanent = asked && activity != null && !activity.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)
-        Button(onClick = {
-            if (permanent) ctx.startActivity(Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, ctx.packageName))
-            else launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }) { Text(if (permanent) "Open notification settings" else "Allow notifications") }
-        Button(onClick = { skipped = true }) { Text("Not now") }
+    val activity = ctx as? android.app.Activity
+    val permanent = asked && activity != null && !activity.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)
+    BlockingState(PaIcons.NotificationsOff, "PushArmor shows each message as a notification. Allow notifications to receive messages. Also turn off \"Pause app activity if unused\" for PushArmor.",
+        Modifier.safeDrawingPadding()) {
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            GreenButton(onClick = {
+                if (permanent) ctx.startActivity(Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, ctx.packageName))
+                else launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }, text = if (permanent) "Open notification settings" else "Allow notifications", icon = null, modifier = Modifier.fillMaxWidth())
+            TextButton(onClick = { skipped = true }) { Text("Not now") }
+        }
     }
 }
