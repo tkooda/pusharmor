@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -54,7 +55,7 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onDone
     val scope = rememberCoroutineScope()
     val prefs by vm.prefs.collectAsState()
     val banner = prefs?.get(Settings.K.BANNER)?.takeIf { !it.startsWith("no_distributor") }
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("PushArmor", style = MaterialTheme.typography.headlineMedium)
         when {
             banner != null -> Text(banner, color = MaterialTheme.colorScheme.error)
@@ -87,7 +88,7 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onDone: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val msg by vm.message.collectAsState()
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         when (stage) {
             0 -> {
                 OutlinedTextField(email, { email = it }, label = { Text("Email address") }, singleLine = true,
@@ -162,7 +163,7 @@ fun LimitScreen(vm: AppViewModel, onDone: () -> Unit) {
     val limit by vm.limit.collectAsState()
     val ticked = remember { mutableStateListOf<String>() }
     val l = limit ?: return
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp)) {
         Text("This account has 10 peers. Pick peers to remove.", style = MaterialTheme.typography.titleMedium)
         LazyColumn(Modifier.weight(1f)) {
             items(l.peers, key = { it.id }) { p ->
