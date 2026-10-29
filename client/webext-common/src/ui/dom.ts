@@ -1,5 +1,5 @@
 // Tiny DOM helpers for the vanilla TypeScript UI (no framework).
-import type { Reply, Req } from "../core/rpc.ts";
+import type { PeerView, Reply, Req } from "../core/rpc.ts";
 
 export type Call = (req: Req) => Promise<Reply>;
 
@@ -11,6 +11,8 @@ export interface UiEnv {
   openPage(hash: string): void;
   openUrl(url: string): void;
   copy(text: string): Promise<void>;
+  /** true in the Beta build (manifest name "PushArmor Beta") */
+  beta: boolean;
 }
 
 type Attrs = Record<string, string | boolean | ((ev: Event) => void)>;
@@ -39,17 +41,18 @@ export async function rpc<T>(env: UiEnv, op: string, args?: Record<string, unkno
 
 /** Greys a button for ms with a countdown in its label (Refresh, Send again: 60 s). */
 export function greyFor(btn: HTMLButtonElement, ms: number): void {
-  const label = btn.textContent ?? "";
+  const el = (btn.querySelector(".lbl") as HTMLElement | null) ?? btn; // keeps a leading icon
+  const label = el.textContent ?? "";
   const until = Date.now() + ms;
   btn.disabled = true;
   const tick = () => {
     const left = Math.ceil((until - Date.now()) / 1000);
     if (left <= 0) {
       btn.disabled = false;
-      btn.textContent = label;
+      el.textContent = label;
       return;
     }
-    btn.textContent = label + " (" + left + " s)";
+    el.textContent = label + " (" + left + " s)";
     setTimeout(tick, 1000);
   };
   tick();
@@ -58,4 +61,158 @@ export function greyFor(btn: HTMLButtonElement, ms: number): void {
 export function add(el: HTMLElement, ...kids: (Node | string | null | undefined | false)[]): HTMLElement {
   for (const k of kids) if (k !== null && k !== undefined && k !== false) el.append(k);
   return el;
+}
+
+/** A section header (caps by CSS; the DOM text stays sentence case). */
+export function sh(text: string): HTMLElement {
+  return h("div", { class: "sh" }, text);
+}
+
+/** A bordered group card holding rows. */
+export function group(...rows: (Node | null | undefined | false)[]): HTMLElement {
+  return h("div", { class: "grp" }, ...rows);
+}
+
+export type StatusKind = "ok" | "wait" | "off";
+
+/** Status mark (filled dot, ring, ring with a bar) plus its word. */
+export function statusLine(kind: StatusKind, word: string): HTMLElement {
+  const ns = "http://www.w3.org/2000/svg";
+  const mark = document.createElementNS(ns, "svg");
+  mark.setAttribute("viewBox", "0 0 10 10");
+  mark.setAttribute("aria-hidden", "true");
+  const c = document.createElementNS(ns, "circle");
+  for (const [k, v] of Object.entries({ cx: "5", cy: "5", r: kind === "ok" ? "4.5" : "3.9" })) c.setAttribute(k, v);
+  if (kind === "ok") c.setAttribute("fill", "currentColor");
+  else for (const [k, v] of Object.entries({ fill: "none", stroke: "currentColor", "stroke-width": "1.6" })) c.setAttribute(k, v);
+  mark.append(c);
+  if (kind === "off") {
+    const bar = document.createElementNS(ns, "path");
+    for (const [k, v] of Object.entries({ d: "M2.4 5h5.2", stroke: "currentColor", "stroke-width": "1.6" })) bar.setAttribute(k, v);
+    mark.append(bar);
+  }
+  const el = h("span", { class: "st " + kind });
+  el.append(mark, word);
+  return el;
+}
+
+const OFF_WORDS: Record<string, string> = { "(missing)": "(missing)", "signed out": "Signed out", unreachable: "Unreachable" };
+
+/**
+ * The peer status line by priority (missing, signed out, unreachable, approves,
+ * has not approved), or null when pairing or note lines take its place.
+ */
+export function peerStatus(p: PeerView): { kind: StatusKind; word: string } | null {
+  if (p.fingerprint || p.lines.length) return null;
+  if (p.greyed) return OFF_WORDS[p.greyed] ? { kind: "off", word: OFF_WORDS[p.greyed]! } : null;
+  return p.approvesMe ? { kind: "ok", word: "Approves this device" } : { kind: "wait", word: "Has not approved this device" };
+}
+
+const PLATFORM_LABEL: Record<string, string> = { android: "Android", iphone: "iPhone", chrome: "Chrome", firefox: "Firefox" };
+export function platformLabel(platform: string): string {
+  return PLATFORM_LABEL[platform] ?? platform;
+}
+
+/** Short History time: clock time today, "Yesterday", else month and day. */
+export function shortTime(ts: number, now: number): string {
+  const d = new Date(ts);
+  const day = (x: Date) => x.getFullYear() * 10000 + x.getMonth() * 100 + x.getDate();
+  const today = new Date(now);
+  if (day(d) === day(today)) return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const y = new Date(now);
+  y.setDate(y.getDate() - 1);
+  if (day(d) === day(y)) return "Yesterday";
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+/**
+ * The longest head + "..." + tail of text that fits (tail a third of the kept
+ * characters), or text itself when it fits. Exactly one "..." is ever added.
+ */
+export function fitMiddle(text: string, fits: (s: string) => boolean): string {
+  if (fits(text)) return text;
+  let lo = 1;
+  let hi = text.length - 1;
+  let best = "...";
+  while (lo <= hi) {
+    const k = (lo + hi) >> 1;
+    const tail = Math.floor(k / 3);
+    const s = text.slice(0, k - tail) + "..." + text.slice(text.length - tail);
+    if (fits(s)) {
+      best = s;
+      lo = k + 1;
+    } else hi = k - 1;
+  }
+  return best;
+}
+
+let refitInstalled = false;
+
+/** Middle ellipsis on one line; the full text stays in title and aria-label. */
+export function midEllipsis(el: HTMLElement, text: string): void {
+  el.title = text;
+  el.setAttribute("aria-label", text);
+  el.dataset.full = text;
+  el.classList.add("mid");
+  const fit = () => {
+    if (!el.isConnected) return;
+    el.textContent = fitMiddle(text, (s) => {
+      el.textContent = s;
+      return el.scrollWidth <= el.clientWidth;
+    });
+  };
+  el.textContent = text;
+  requestAnimationFrame(fit);
+  if (!refitInstalled) {
+    refitInstalled = true;
+    addEventListener("resize", () => {
+      for (const m of Array.from(document.querySelectorAll<HTMLElement>(".mid"))) midEllipsis(m, m.dataset.full ?? "");
+    });
+  }
+}
+
+/** A more_vert button that opens a small menu (Escape and outside click close it). */
+export function overflowMenu(label: string, items: { label: string; run: (b: HTMLButtonElement) => void }[], moreIcon: Node): HTMLElement {
+  const wrap = h("span", { class: "more" });
+  const btn = h("button", { class: "quiet ib", "aria-label": "More options for " + label, "aria-haspopup": "menu", "aria-expanded": "false" }, moreIcon) as HTMLButtonElement;
+  let menu: HTMLElement | null = null;
+  const close = (refocus: boolean) => {
+    if (!menu) return;
+    menu.remove();
+    menu = null;
+    btn.setAttribute("aria-expanded", "false");
+    document.removeEventListener("pointerdown", outside, true);
+    if (refocus) btn.focus();
+  };
+  const outside = (ev: Event) => {
+    if (!wrap.contains(ev.target as Node)) close(false);
+  };
+  btn.addEventListener("click", () => {
+    if (menu) return close(true);
+    menu = h("div", { role: "menu", class: "menu", "aria-label": label });
+    for (const it of items) {
+      const mi = h("button", { role: "menuitem", tabindex: "-1" }, it.label) as HTMLButtonElement;
+      mi.addEventListener("click", () => {
+        close(true);
+        it.run(btn);
+      });
+      menu.append(mi);
+    }
+    menu.addEventListener("keydown", (ev: KeyboardEvent) => {
+      const all = Array.from(menu?.querySelectorAll<HTMLButtonElement>("[role=menuitem]") ?? []);
+      const i = all.indexOf(document.activeElement as HTMLButtonElement);
+      if (ev.key === "Tab") return close(false);
+      if (ev.key === "Escape") close(true);
+      else if (ev.key === "ArrowDown") all[(i + 1) % all.length]?.focus();
+      else if (ev.key === "ArrowUp") all[(i - 1 + all.length) % all.length]?.focus();
+      else return;
+      ev.preventDefault();
+    });
+    wrap.append(menu);
+    btn.setAttribute("aria-expanded", "true");
+    document.addEventListener("pointerdown", outside, true);
+    (menu.firstElementChild as HTMLElement | null)?.focus();
+  });
+  wrap.append(btn);
+  return wrap;
 }
