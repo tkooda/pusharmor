@@ -5,11 +5,14 @@ name: collect
 # public item serves now, take the chrome/v or firefox/v tag of that version (any
 # promoted version, also when newer test tags exist), check every file against
 # the release file-hash manifest (<zip>.files.sha256 of the GitHub Release), and
-# attach the unchanged store file with its SHA-256 to that release. Store-added
+# publish the unchanged store file with its SHA-256 as its own release
+# store/<browser>/vX.Y.Z (draft with both files, then published: releases are
+# immutable, so the published tag release never gets new files). Store-added
 # files are skipped: Chrome _metadata/, and the release/constants.json lists
 # ("cws_added": manifest.json keys; "amo_added": path prefixes). manifest.json is
 # compared as parsed JSON. No public store version yet, no tag or release of it,
-# or a release that already holds the file, is a skip, not a failure.
+# or an existing store release, is a skip, not a failure. A draft store release
+# left by a failed run is deleted and created again.
 on:
   schedule:
     - cron: "23 6 * * *"
@@ -26,7 +29,7 @@ jobs:
     name: collect ${{ matrix.browser }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    # Write is needed to attach the file. No
+    # Write is needed to publish the store release. No
     # third-party action runs in this job.
     permissions:
       contents: write
@@ -90,14 +93,19 @@ jobs:
           tag="$BROWSER/v$VERSION"
           git rev-parse -q --verify "refs/tags/$tag" > /dev/null || skip "no tag $tag for the store version"
           gh release view "$tag" --json assets --jq '.assets[].name' > "$RUNNER_TEMP/assets.txt" || skip "no GitHub Release for $tag"
+          store_tag="store/$BROWSER/v$VERSION"
+          if draft="$(gh release view "$store_tag" --json isDraft --jq .isDraft 2>/dev/null)"; then
+            [ "$draft" = true ] || skip "$store_tag already exists"
+            gh release delete "$store_tag" --yes
+          fi
           name="pusharmor-$BROWSER-$VERSION"
-          grep -qx "$name.$EXT" "$RUNNER_TEMP/assets.txt" && skip "$tag already holds $name.$EXT"
           grep -qx "$name.zip.files.sha256" "$RUNNER_TEMP/assets.txt" || skip "$tag has no $name.zip.files.sha256"
           mkdir -p "$RUNNER_TEMP/rel"
           gh release download "$tag" --dir "$RUNNER_TEMP/rel" --pattern "$name.zip" --pattern "$name.zip.files.sha256"
           {
             echo "skip=false"
             echo "tag=$tag"
+            echo "store_tag=$store_tag"
             echo "name=$name"
           } >> "$GITHUB_OUTPUT"
       - name: Check the store file against the release file-hash manifest
@@ -169,10 +177,11 @@ jobs:
             3) echo "skip=true" >> "$GITHUB_OUTPUT" ;;
             *) exit "$rc" ;;
           esac
-      - name: Attach the store file and its SHA-256 to the release
+      - name: Publish the store file and its SHA-256 as the store release
         if: steps.check.outputs.skip == 'false'
         env:
           TAG: ${{ steps.find.outputs.tag }}
+          STORE_TAG: ${{ steps.find.outputs.store_tag }}
           NAME: ${{ steps.find.outputs.name }}
         run: |
           d="$RUNNER_TEMP/out"
@@ -180,4 +189,8 @@ jobs:
           cp "$RUNNER_TEMP/store.$EXT" "$d/$NAME.$EXT"
           (cd "$d" && sha256sum "$NAME.$EXT") > "$d/$NAME.$EXT.sha256"
           cat "$d/$NAME.$EXT.sha256"
-          gh release upload "$TAG" "$d/$NAME.$EXT" "$d/$NAME.$EXT.sha256"
+          sha="$(git rev-list -n 1 "refs/tags/$TAG")"
+          gh release create "$STORE_TAG" --draft --prerelease=false --latest=false --target "$sha" --title "$STORE_TAG" \
+            --notes "Store-signed $NAME.$EXT, checked against the file hashes of $TAG." \
+            "$d/$NAME.$EXT" "$d/$NAME.$EXT.sha256"
+          gh release edit "$STORE_TAG" --draft=false --latest=false
