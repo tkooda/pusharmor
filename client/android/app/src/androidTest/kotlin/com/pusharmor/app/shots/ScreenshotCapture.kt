@@ -84,6 +84,7 @@ class ScreenshotCapture {
         g.store.wipeRegistration()
         g.dao.deleteAllHistory()
         g.settings.clearKeepingOldId()
+        g.notifier.ensureChannels() // the clear dropped the channel ids
         KeystoreKeyOps.createFresh()
         g.dao.putSelf(SelfEntity(id = self, accountPrefix = ByteArray(9), name = "Phone"))
         g.dao.putPeer(paired(laptop, "chrome", "Laptop", secs - 40 * 86400))
