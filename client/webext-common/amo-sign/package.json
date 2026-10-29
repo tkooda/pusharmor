@@ -4,6 +4,6 @@
   "private": true,
   "license": "UNLICENSED",
   "dependencies": {
-    "web-ext": "10.7.0"
+    "web-ext": "10.8.0"
   }
 }
