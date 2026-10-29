@@ -125,6 +125,18 @@ class AppLogicTest {
         }
     }
 
+    @Test fun unifiedPushMessageRunsInAnExpeditedJob() {
+        // onMessage hands off to WorkManager, not a thread the process can lose once it returns (I404).
+        val m = com.pusharmor.app.work.Work.upPushRequest(null, "abc").workSpec
+        assertTrue(m.expedited)
+        assertEquals(com.pusharmor.app.work.UpPushWorker::class.java.name, m.workerClassName)
+        assertEquals("abc", m.input.getString("m"))
+        assertNull(m.input.getString("probe"))
+        val p = com.pusharmor.app.work.Work.upPushRequest("code1", null).workSpec
+        assertEquals("code1", p.input.getString("probe"))
+        assertNull(p.input.getString("m"))
+    }
+
     @Test fun keystoreEcdhFailureIsCryptoExceptionAndPushPostsOneNotice() {
         val e = runCatching { com.pusharmor.app.keys.KeystoreKeyOps.wrap<ByteArray> { throw java.security.ProviderException("keystore") } }.exceptionOrNull()
         assertTrue(e is com.pusharmor.crypto.CryptoException)

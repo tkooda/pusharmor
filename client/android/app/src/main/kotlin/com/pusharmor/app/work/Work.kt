@@ -1,12 +1,14 @@
 package com.pusharmor.app.work
 
 import android.content.Context
+import android.util.Log
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -15,6 +17,7 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.pusharmor.app.PaApp
 import com.pusharmor.app.data.Settings
+import com.pusharmor.app.push.PushDispatcher
 import com.pusharmor.protocol.Countdown
 import com.pusharmor.protocol.engine.PairingEngine
 import java.util.concurrent.TimeUnit
@@ -51,6 +54,15 @@ object Work {
         WorkManager.getInstance(context).enqueueUniqueWork("push-patch", ExistingWorkPolicy.REPLACE,
             OneTimeWorkRequestBuilder<PushPatchWorker>().setConstraints(net).setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS).build())
     }
+
+    /** One UnifiedPush message or probe; the unique chain keeps them in arrival order. */
+    fun upPush(context: Context, probe: String?, m: String?) {
+        WorkManager.getInstance(context).enqueueUniqueWork("up-push", ExistingWorkPolicy.APPEND_OR_REPLACE, upPushRequest(probe, m))
+    }
+
+    fun upPushRequest(probe: String?, m: String?): OneTimeWorkRequest = OneTimeWorkRequestBuilder<UpPushWorker>()
+        .setInputData(workDataOf("probe" to probe, "m" to m))
+        .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST).build()
 
     fun scheduleDaily(context: Context) {
         WorkManager.getInstance(context).enqueueUniquePeriodicWork("daily", ExistingPeriodicWorkPolicy.KEEP,
@@ -109,6 +121,17 @@ class PushPatchWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(
             false -> Result.retry()
             null -> Result.success() // 401 "paused": permanent, never retried
         }
+    }
+}
+
+class UpPushWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
+    override suspend fun doWork(): Result {
+        val g = (applicationContext as PaApp).graph
+        val probe = inputData.getString("probe")
+        if (probe != null) {
+            try { g.session.confirmProbe(probe) } catch (e: Exception) { Log.w("PushArmor", "UnifiedPush probe confirm failed", e) }
+        } else PushDispatcher.onPush(g, inputData.getString("m"), fcm = false)
+        return Result.success()
     }
 }
 
