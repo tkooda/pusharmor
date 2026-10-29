@@ -111,8 +111,8 @@ class ScreenshotCapture {
         settle()
         shot("03-send")
 
-        g.dao.putPeer(paired(newLaptop, "chrome", "New laptop", secs).copy(signPub = null, encPub = null, pairingId = null,
-            approved = false, approveVerified = false, listApprovesMe = false, listAfterVerify = false))
+        g.dao.putPeer(paired(newLaptop, "chrome", "New laptop", secs - 50 * 86400).copy(signPub = null, encPub = null, pairingId = null,
+            approved = false, approveVerified = false, listApprovesMe = false, listAfterVerify = false)) // oldest: first on screen
         g.dao.putPairing(PairingEntity(peerId = newLaptop, role = "X", state = "SHOWN", r = ByteArray(32), cN = null,
             peerSignPub = null, peerEncPub = null, peerR = null, startedAt = now, pendingKind = null, pendingMessage = null,
             notBefore = 0, authorized = true, fingerprint = "K7QD", lastSendAt = now, lastResult = null))
