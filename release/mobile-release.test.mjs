@@ -33,3 +33,9 @@ test("android-release: the Play upload is its own job after the GitHub prereleas
   assert.ok(!/contents: write/.test(play), "the Play job needs no contents: write");
   assert.ok(play.includes("bundles.upload") || play.includes("/bundles?uploadType=media"));
 });
+
+test("android-release: jarsigner takes the signature algorithm from the upload key", () => {
+  const y = read(".github/workflows/android-release.yml");
+  assert.ok(y.includes("jarsigner -keystore"));
+  assert.ok(!y.includes("-sigalg"));
+});
