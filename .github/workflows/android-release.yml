@@ -24,7 +24,7 @@ concurrency:
 
 env:
   JAVA_VERSION: "17.0.20+8"
-  SDK_PACKAGES: platforms;android-35 build-tools;35.0.0 build-tools;34.0.0 platform-tools
+  SDK_PACKAGES: platforms;android-36 build-tools;35.0.0 build-tools;34.0.0 platform-tools
   PACKAGE_NAME: com.pusharmor
   # Status of the Play internal track release. Play accepts only draft while the
   # app has never been published. The owner changes this to completed once, after

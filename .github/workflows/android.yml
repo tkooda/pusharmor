@@ -14,7 +14,7 @@ permissions: {}
 env:
   JAVA_VERSION: "17.0.20+8"
   # Exact SDK packages; the runner's preinstalled SDK floats.
-  SDK_PACKAGES: platforms;android-35 build-tools;35.0.0 build-tools;34.0.0 platform-tools
+  SDK_PACKAGES: platforms;android-36 build-tools;35.0.0 build-tools;34.0.0 platform-tools
 
 jobs:
   android-jvm:

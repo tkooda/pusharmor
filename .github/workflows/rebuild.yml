@@ -16,7 +16,7 @@ permissions: {}
 
 env:
   JAVA_VERSION: "17.0.20+8"
-  SDK_PACKAGES: platforms;android-35 build-tools;35.0.0 build-tools;34.0.0 platform-tools
+  SDK_PACKAGES: platforms;android-36 build-tools;35.0.0 build-tools;34.0.0 platform-tools
   # apksigcopier and its one dependency, pinned by version and wheel SHA-256.
   APKSIGCOPIER_REQS: |
     apksigcopier==1.1.1 --hash=sha256:0834bb7d6f3607bb0994cf8cd2e26b8f0c9d481e13b75872e0fa9cec052e519b
