@@ -410,7 +410,7 @@ jobs:
             echo "Play reports versionCode $code, not the tag's"
             exit 1
           fi
-          body="$(jq -nc --arg c "$code" --arg s "$PLAY_INTERNAL_STATUS" '{track: "internal", releases: [{versionCodes: [$c], status: $s}]}')"
+          body="$(jq -nc --arg c "$code" --arg s "$PLAY_INTERNAL_STATUS" --arg n "$VERSION" '{track: "internal", releases: [{name: $n, versionCodes: [$c], status: $s}]}')"
           call -X PUT -H "$auth" -H "Content-Type: application/json" --data "$body" "$api/edits/$edit/tracks/internal"
           # Content-Length: 0: a POST with no body gets HTTP 411 from the Google front end.
           call -X POST -H "$auth" -H "Content-Length: 0" "$api/edits/$edit:commit"

@@ -73,6 +73,8 @@ test("each release workflow runs on its <platform>/v* tags and checks the tag fi
 test("the Play upload stays on the internal track; iOS uploads to App Store Connect without a review submission", () => {
   const android = read("android-release.yml");
   assert.match(android, /track: "internal"/);
+  assert.match(android, /--arg n "\$VERSION" .*releases: \[\{name: \$n, versionCodes/);
+  assert.match(android, /PLAY_INTERNAL_STATUS: completed/);
   assert.doesNotMatch(android, /production|"beta"|"alpha"/);
   const ios = read("ios-release.yml");
   assert.doesNotMatch(ios, /appStoreVersionSubmissions|reviewSubmissions|betaAppReviewSubmissions/);
