@@ -15,6 +15,10 @@ test("ios-release archives with tools/release-archive.sh (unsigned, codesign ad-
   assert.ok(sh.includes('AppIdentifierPrefix="$team."'));
   assert.ok(sh.includes("--generate-entitlement-der"));
   assert.ok(sh.includes('check-archive-groups.sh "$archive" "$team"'));
+  assert.ok(sh.includes("[A-Z0-9]{10}"), "TEAM is validated");
+  const chk = read("client/ios/tools/check-archive-groups.sh");
+  assert.ok(chk.includes("aps-environment"));
+  assert.ok(y.includes("application-identifier") && y.includes("aps-environment"));
 });
 
 test("ios.yml dispatch runs the same release archive script", () => {
