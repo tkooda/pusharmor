@@ -122,7 +122,10 @@ private fun App(vm: AppViewModel) {
     PermissionGate {
         val back by nav.currentBackStackEntryAsState()
         val route = back?.destination?.route
-        MainActivity.pendingRoute?.let { r -> MainActivity.pendingRoute = null; nav.navigate(r) }
+        // After NavHost has set the graph: navigating during the first composition throws (I399).
+        androidx.compose.runtime.LaunchedEffect(back) {
+            if (back != null) MainActivity.pendingRoute?.let { r -> MainActivity.pendingRoute = null; nav.navigate(r) }
+        }
         Scaffold(bottomBar = {
             NavigationBar {
                 for ((r, l) in listOf("peers" to "Peers", "send" to "Send", "history" to "History", "settings" to "Settings")) {
