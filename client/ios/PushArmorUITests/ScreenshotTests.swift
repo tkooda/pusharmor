@@ -57,7 +57,7 @@ final class ScreenshotTests: XCTestCase {
             let allow = springboard.alerts.buttons["Allow"]
             if attempt == 1, allow.waitForExistence(timeout: 15) { allow.tap() }
             if onScreen(banner, timeout: 20) {
-                usleep(500_000) // the slide-in animation
+                settle(banner)
                 let a = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
                 if banner.exists && banner.isHittable {
                     a.name = "02-notification"
@@ -74,6 +74,21 @@ final class ScreenshotTests: XCTestCase {
     /// Any element whose label contains the text (a peer row reads as one combined element).
     private func labelled(_ app: XCUIApplication, _ text: String) -> XCUIElement {
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+    }
+
+    /// Waits out the slide-in: the frame must hold still for three polls in a row, then a
+    /// one-second pause lets the blur and the icon finish fading in.
+    private func settle(_ e: XCUIElement) {
+        var last = CGRect.null
+        var still = 0
+        let end = Date().addingTimeInterval(3)
+        while still < 3 && Date() < end && e.exists {
+            let f = e.frame
+            still = f == last ? still + 1 : 0
+            last = f
+            usleep(100_000)
+        }
+        usleep(1_000_000)
     }
 
     private func onScreen(_ e: XCUIElement, timeout: TimeInterval) -> Bool {
