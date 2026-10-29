@@ -45,7 +45,6 @@ export const T = {
   unknownSender: "Unknown sender",
   signedInAs: (e: string) => "Signed in as " + e,
   notificationsOff: "Notifications are off; this device cannot receive",
-  ffNoPlay: "This Firefox build cannot receive push (no Google Play services)",
   ffFinishSetup: "Finish the Firefox setup tab",
   unsupportedPush: "This browser's push service is not supported yet",
 } as const;
