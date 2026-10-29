@@ -108,13 +108,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val evict = limit.value?.let { pendingEvict }
         when (val r = g.session.onTicket(ticket, email, evict)) {
             Session.SignIn.Done -> {
+                message.value = null // a failed earlier step must not show on Peers (I425)
                 email?.let { e -> g.dao.self()?.let { g.dao.putSelf(it.copy(email = e)) } }
                 limit.value = null
                 setStart(Session.Start.READY)
                 g.session.onAppOpen(System.currentTimeMillis())
                 withContext(Dispatchers.Main) { onDone() }
             }
-            is Session.SignIn.Limit -> { limitTicket = r.limit.ticket; limit.value = r.limit }
+            is Session.SignIn.Limit -> { limitTicket = r.limit.ticket; message.value = null; limit.value = r.limit }
             Session.SignIn.NeedNewTicket -> message.value = "Please sign in again"
             is Session.SignIn.Error -> {
                 if (r.text == "Sign-in expired, sign in again") limit.value = limit.value // ticks kept
@@ -133,7 +134,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         ticket(t, null, "register", onDone)
     }
 
-    fun cancelLimit() { limit.value = null; pendingEvict = null }
+    fun cancelLimit() { limit.value = null; pendingEvict = null; message.value = null }
 
     // ---- peers ----
 

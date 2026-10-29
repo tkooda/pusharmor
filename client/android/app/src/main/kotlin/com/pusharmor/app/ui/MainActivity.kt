@@ -146,8 +146,9 @@ private fun App(vm: AppViewModel) {
     if (!signedIn || deleting) {
         val purpose = if (deleting) "delete-account" else signInPurpose
         var email by remember { mutableStateOf(false) }
-        if (email) EmailScreen(vm, purpose, onBack = { email = false }) { deleting = false; email = false }
-        else WelcomeScreen(vm, purpose, onEmail = { email = true }) { deleting = false }
+        // Each sign-in step starts with no message from the step before (I425).
+        if (email) EmailScreen(vm, purpose, onBack = { vm.message.value = null; email = false }) { deleting = false; email = false }
+        else WelcomeScreen(vm, purpose, onEmail = { vm.message.value = null; email = true }) { deleting = false }
         return
     }
     PermissionGate {
@@ -179,7 +180,7 @@ private fun App(vm: AppViewModel) {
                 composable("peers") { PeersScreen(vm) }
                 composable("send") { SendScreen(vm, title = "Send") }
                 composable("history") { HistoryScreen(vm) { id -> vm.highlight.value = id; nav.navigate("peers") } }
-                composable("settings") { SettingsScreen(vm, onDeleteAccount = { deleting = true }, onSignedOut = {}) }
+                composable("settings") { SettingsScreen(vm, onDeleteAccount = { vm.message.value = null; deleting = true }, onSignedOut = {}) }
             }
         }
     }
