@@ -8,7 +8,9 @@ struct CodeEntryView: View {
     @State private var raw = ""
     @State private var busy = false
     @FocusState private var focused: Bool
-    @ScaledMetric private var cellSize: CGFloat = 28
+    @ScaledMetric private var scaled: CGFloat = 28
+    // Six cells share the width: past about 44 pt a monospaced glyph no longer fits a cell.
+    private var cellSize: CGFloat { min(scaled, 44) }
 
     private var chars: [String] { EmailCode.clean(raw).map(String.init) }
 
@@ -22,6 +24,8 @@ struct CodeEntryView: View {
                     ForEach(0 ..< EmailCode.length, id: \.self) { i in
                         Text(i < chars.count ? chars[i] : " ")
                             .font(.system(size: cellSize, weight: .semibold, design: .monospaced))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
                             .foregroundStyle(Color.primary)
                             .frame(maxWidth: .infinity, minHeight: cellSize * 2)
                             .background(Color.fpCell, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
