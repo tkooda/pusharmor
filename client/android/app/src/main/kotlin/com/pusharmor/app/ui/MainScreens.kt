@@ -4,29 +4,61 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings as SysSettings
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -39,17 +71,49 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.PackageManagerCompat
 import androidx.core.content.IntentCompat
+import com.pusharmor.app.R
 import com.pusharmor.app.data.Settings
 import com.pusharmor.app.notify.AppEffects
 import com.pusharmor.app.notify.HistoryFilter
 import com.pusharmor.app.notify.Policy
 import com.pusharmor.app.push.UnifiedPushSupport
+import com.pusharmor.app.ui.theme.DevicesIllustration
+import com.pusharmor.app.ui.theme.EmptyState
+import com.pusharmor.app.ui.theme.FingerprintText
+import com.pusharmor.app.ui.theme.GreenButton
+import com.pusharmor.app.ui.theme.GroupedList
+import com.pusharmor.app.ui.theme.IconTile
+import com.pusharmor.app.ui.theme.LocalPaExtra
+import com.pusharmor.app.ui.theme.MessagesIllustration
+import com.pusharmor.app.ui.theme.MiddleEllipsisText
+import com.pusharmor.app.ui.theme.PaIcons
+import com.pusharmor.app.ui.theme.PaTopBar
+import com.pusharmor.app.ui.theme.SectionHeader
+import com.pusharmor.app.ui.theme.StatusLine
+import com.pusharmor.app.ui.theme.groupItem
+import com.pusharmor.protocol.ContentType
 import com.pusharmor.protocol.Countdown
 import com.pusharmor.protocol.Detect
 import com.pusharmor.protocol.PairDecide
@@ -61,38 +125,84 @@ import com.pusharmor.protocol.engine.PairingEngine
 import com.pusharmor.protocol.engine.PairingRow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.text.DateFormat
+import java.util.Date
 
 private fun label(p: Peer) = p.name ?: "${AppEffects.platformLabel(p.platform)} peer added ${AppEffects.dateLabel(p.created)}"
 
 /** Peers other than self; none until self is known, so the own device never shows as a peer. */
 internal fun others(peers: List<Peer>, selfId: String?): List<Peer> = if (selfId == null) emptyList() else peers.filter { it.id != selfId }
 
-/** Peers screen (section 8). */
+private fun platformIcon(platform: String): ImageVector = when (platform) {
+    "chrome" -> PaIcons.Laptop
+    "firefox" -> PaIcons.Desktop
+    "android", "iphone" -> PaIcons.Smartphone
+    else -> PaIcons.Devices
+}
+
+/** Peers screen (section 8): banners, pairing cards, This device, the peer group. */
 @Composable
 fun PeersScreen(vm: AppViewModel) {
     val peers by vm.peers.collectAsState()
     val rows by vm.pairings.collectAsState()
     val highlight by vm.highlight.collectAsState()
     val prefs by vm.prefs.collectAsState()
-    val context = LocalContext.current
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     var confirmRemove by remember { mutableStateOf<Peer?>(null) }
+    var renaming by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         vm.onPeersOpen()
         while (true) { delay(30_000); now = System.currentTimeMillis(); vm.onPeersOpen() } // timeout timer while open
     }
     val me by vm.self.collectAsState()
     val list = others(peers, me?.id).filter { !(it.removed && !it.pinned && rows.none { r -> r.peerId == it.id }) }
+    val pairing = list.filter { p -> rows.any { it.peerId == p.id } }
+    val plain = list.filter { p -> rows.none { it.peerId == p.id } }
+    val lastRefresh = prefs?.get(Settings.K.LAST_REFRESH) ?: 0
+    val canRefresh = now - lastRefresh >= 60_000
     val state = rememberLazyListState()
-    LaunchedEffect(highlight, list.size) { highlight?.let { h -> list.indexOfFirst { it.id == h }.takeIf { it >= 0 }?.let { state.animateScrollToItem(it) } } }
-    Column(Modifier.fillMaxSize().padding(12.dp)) {
-        Text(me?.name ?: "", style = MaterialTheme.typography.titleLarge)
-        Banners(vm, prefs?.get(Settings.K.BANNER))
-        val lastRefresh = prefs?.get(Settings.K.LAST_REFRESH) ?: 0
-        OutlinedButton(onClick = { vm.refresh() }, enabled = now - lastRefresh >= 60_000) { Text("Refresh") }
-        LazyColumn(state = state, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(list, key = { it.id }) { p ->
-                PeerRow(vm, p, rows.firstOrNull { it.peerId == p.id }, now, p.id == highlight) { confirmRemove = p }
+    // Item order: banners, [pairing header, cards], self header, self, [peers header, peers].
+    LaunchedEffect(highlight, list.size) {
+        highlight?.let { h ->
+            val pi = pairing.indexOfFirst { it.id == h }
+            val base = if (pairing.isEmpty()) 1 else 2 + pairing.size
+            val idx = if (pi >= 0) 2 + pi else plain.indexOfFirst { it.id == h }.takeIf { it >= 0 }?.let { base + 3 + it }
+            idx?.let { state.animateScrollToItem(it) }
+        }
+    }
+    Column(Modifier.fillMaxSize()) {
+        PaTopBar("Peers", actions = {
+            IconButton(onClick = { vm.refresh() }, enabled = canRefresh) { Icon(PaIcons.Refresh, "Refresh") }
+        })
+        LazyColumn(Modifier.weight(1f), state = state, contentPadding = PaddingValues(bottom = 16.dp)) {
+            item(key = "banners") {
+                Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Banners(vm, prefs?.get(Settings.K.BANNER))
+                }
+            }
+            if (pairing.isNotEmpty()) {
+                item(key = "pairing-header") { SectionHeader("Pairing") }
+                itemsIndexed(pairing, key = { _, p -> "pair-" + p.id }) { i, p ->
+                    val row = rows.first { it.peerId == p.id }
+                    PairingCard(vm, p, row, now, Modifier.padding(top = if (i > 0) 12.dp else 0.dp))
+                }
+            }
+            item(key = "self-header") { SectionHeader("This device") }
+            item(key = "self") { HeroCard(me?.name ?: "", plain = pairing.isNotEmpty()) { renaming = true } }
+            if (plain.isNotEmpty()) {
+                item(key = "peers-header") { SectionHeader("Peers") }
+                itemsIndexed(plain, key = { _, p -> p.id }) { i, p ->
+                    PeerRow(vm, p, now, p.id == highlight, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, plain.size)) { confirmRemove = p }
+                }
+            } else if (pairing.isEmpty()) {
+                item(key = "empty") {
+                    EmptyState({ DevicesIllustration() }, "No peers yet",
+                        "Install PushArmor on your other devices and sign in with the same account. They show up here, ready to pair.", top = 52.dp) {
+                        FilledTonalButton(onClick = { vm.refresh() }, enabled = canRefresh) {
+                            Icon(PaIcons.Refresh, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Refresh")
+                        }
+                    }
+                }
             }
         }
     }
@@ -103,20 +213,56 @@ fun PeersScreen(vm: AppViewModel) {
             confirmButton = { TextButton(onClick = { vm.remove(p.id); confirmRemove = null }) { Text("Remove") } },
             dismissButton = { TextButton(onClick = { confirmRemove = null }) { Text("Cancel") } })
     }
+    if (renaming) RenameDialog(me?.name ?: "", onSave = { vm.rename(it) }) { renaming = false }
+}
+
+/** Rename this device: one field, same save call as before. */
+@Composable
+private fun RenameDialog(current: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    var typed by remember { mutableStateOf(current) }
+    AlertDialog(onDismissRequest = onDismiss,
+        text = { OutlinedTextField(typed, { typed = it.take(32) }, label = { Text("Peer name") }, singleLine = true) },
+        confirmButton = { TextButton(onClick = { onSave(typed); onDismiss() }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+}
+
+/** This device: navy hero card, or the plain tile while a pairing card is on screen. */
+@Composable
+private fun HeroCard(name: String, plain: Boolean, onEdit: () -> Unit) {
+    val x = LocalPaExtra.current
+    val cs = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(24.dp)
+    Box(Modifier.padding(horizontal = 16.dp).fillMaxWidth().heightIn(min = 82.dp).clip(shape)
+        .background(if (plain) x.tile else x.hero)
+        .then(if (plain) Modifier else Modifier.border(1.dp, x.heroBorder, shape))) {
+        if (!plain) Icon(painterResource(R.drawable.ic_notify), null, tint = Color.White.copy(alpha = 0.04f),
+            modifier = Modifier.size(120.dp).align(Alignment.CenterEnd).offset(x = (-96).dp, y = 10.dp).rotate(-12f))
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Box(Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(if (plain) x.iconTileBg else x.heroIconBg), Alignment.Center) {
+                Icon(PaIcons.Smartphone, null, tint = if (plain) x.iconTileFg else Color.White, modifier = Modifier.size(24.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Text(name, style = MaterialTheme.typography.titleMedium, color = if (plain) cs.onSurface else x.onHero)
+                Text("Android, this device", style = MaterialTheme.typography.bodyMedium, color = if (plain) cs.onSurfaceVariant else x.onHero2)
+            }
+            IconButton(onClick = onEdit) { Icon(PaIcons.Edit, "Rename", tint = if (plain) cs.onSurfaceVariant else x.onHero2) }
+        }
+    }
 }
 
 @Composable
 private fun Banners(vm: AppViewModel, banner: String?) {
     val context = LocalContext.current
     val n = vm.g.notifier
-    if (!n.enabled() || n.mainChannelsBlocked()) BannerRow("Notifications are off; messages will not be shown", "Fix") {
+    if (!n.enabled() || n.mainChannelsBlocked()) BannerRow("Notifications are off; messages will not be shown", "Fix", fault = true, PaIcons.NotificationsOff) {
         context.startActivity(Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
     }
-    n.blockedChannelPeer(vm.peerEntities.collectAsState().value)?.let { BannerRow("Messages from $it are blocked", "Fix") {
+    n.blockedChannelPeer(vm.peerEntities.collectAsState().value)?.let { BannerRow("Messages from $it are blocked", "Fix", fault = true, PaIcons.NotificationsOff) {
         context.startActivity(Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
     } }
     if (banner?.startsWith("no_distributor") == true) {
-        BannerRow("Install a UnifiedPush app (we suggest ntfy)", "Get") {
+        BannerRow("Install a UnifiedPush app (we suggest ntfy)", "Get", fault = false, PaIcons.Info) {
             val url = if (vm.g.push.hasPlayServices) "https://play.google.com/store/apps/details?id=io.heckel.ntfy" else "https://f-droid.org/packages/io.heckel.ntfy/"
             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         }
@@ -125,109 +271,213 @@ private fun Banners(vm: AppViewModel, banner: String?) {
     val s = vm.g.settings
     val upAt = s.get(Settings.K.UP_REGISTERED_AT)
     if (s.get(Settings.K.PUSH_TYPE) == "unifiedpush" && upAt != null && !s.flag(Settings.K.UP_VERIFIED, false) && System.currentTimeMillis() - upAt > 10 * 60_000) {
-        BannerRow("This push server did not deliver; check your UnifiedPush app", "Retry") { vm.retryPush() }
+        BannerRow("This push server did not deliver; check your UnifiedPush app", "Retry", fault = true, PaIcons.Info) { vm.retryPush() }
         if (vm.g.push.hasPlayServices) TextButton(onClick = { vm.switchPush(toUp = false) }) { Text("Switch back to Google") }
     }
     val st = remember { try { PackageManagerCompat.getUnusedAppRestrictionsStatus(context).get(2, java.util.concurrent.TimeUnit.SECONDS) } catch (e: Exception) { 0 } }
     if (st == androidx.core.content.UnusedAppRestrictionsConstants.API_31) {
-        BannerRow("Android may pause this app when unused", "Settings") {
+        BannerRow("Android may pause this app when unused", "Settings", fault = false, PaIcons.Info) {
             context.startActivity(IntentCompat.createManageUnusedAppRestrictionsIntent(context, context.packageName))
         }
     }
     val am = context.getSystemService(android.app.ActivityManager::class.java)
-    if (am.isBackgroundRestricted) BannerRow("Battery setting Restricted delays messages", "Settings") {
+    if (am.isBackgroundRestricted) BannerRow("Battery setting Restricted delays messages", "Settings", fault = false, PaIcons.Info) {
         context.startActivity(Intent(SysSettings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName)))
     }
 }
 
+/** Fault banners on errorContainer, advice on surfaceContainerHigh. */
 @Composable
-private fun BannerRow(text: String, action: String, onClick: () -> Unit) {
-    Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Row(Modifier.padding(8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(text, Modifier.weight(1f))
-            TextButton(onClick = onClick) { Text(action) }
+private fun BannerRow(text: String, action: String, fault: Boolean, icon: ImageVector, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = if (fault) cs.errorContainer else cs.surfaceContainerHigh,
+            contentColor = if (fault) cs.onErrorContainer else cs.onSurface)) {
+        Column(Modifier.padding(start = 16.dp, top = 16.dp, end = 8.dp, bottom = 8.dp)) {
+            Row(Modifier.padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Icon(icon, null)
+                Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onClick, colors = ButtonDefaults.textButtonColors(
+                    contentColor = if (fault) cs.onErrorContainer else cs.primary)) { Text(action) }
+            }
         }
     }
 }
 
+/** One peer in the Peers group: icon tile, name, platform, status line, overflow menu; tap shows the switches. */
 @Composable
-private fun PeerRow(vm: AppViewModel, p: Peer, row: PairingRow?, now: Long, highlighted: Boolean, onRemove: () -> Unit) {
+private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, modifier: Modifier, onRemove: () -> Unit) {
     val x = label(p)
     var detail by remember { mutableStateOf(false) }
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(10.dp).then(if (highlighted) Modifier.background(MaterialTheme.colorScheme.secondaryContainer) else Modifier), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(x + if (p.missing) " (missing)" else "", style = MaterialTheme.typography.titleMedium,
-                color = if (p.missing || !p.reachable) Color.Gray else Color.Unspecified,
-                modifier = Modifier.clickable { if (p.missing || !p.reachable) vm.tapGreyed() else detail = !detail })
-            Text(AppEffects.platformLabel(p.platform) + (if (!p.reachable) ", unreachable" else "") + (if (p.paused) ", signed out" else ""), color = Color.Gray)
-            p.note?.let { Text(it) }
-            when {
-                row != null -> PairingRowView(vm, p, row, now)
-                !p.pinned -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { vm.pair(p.id) }) { Text("Pair") }
-                    OutlinedButton(onClick = { vm.deny(p.id) }) { Text("Deny") }
+    var menu by remember { mutableStateOf(false) }
+    val grey = p.missing || !p.reachable
+    val cs = MaterialTheme.colorScheme
+    // Pairing and note lines replace the status line (catalog order).
+    val stateText = when {
+        !p.pinned -> null
+        p.notPairedOnPeer -> if (p.listDeniesMe) "Declined by $x" else "Not paired on $x"
+        p.waiting -> "Waiting for $x: open PushArmor there and approve"
+        p.missing -> null
+        p.declined -> "Declined by $x"
+        else -> null
+    }
+    val lines = listOfNotNull(p.note, stateText)
+    Column(modifier.then(if (highlighted) Modifier.background(cs.secondaryContainer) else Modifier)) {
+        ListItem(
+            modifier = Modifier.clickable { if (grey) vm.tapGreyed() else detail = !detail },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            leadingContent = { IconTile(platformIcon(p.platform), dim = grey) },
+            headlineContent = {
+                Text(x, Modifier.alpha(if (grey) 0.5f else 1f), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            },
+            supportingContent = {
+                Column {
+                    Text(AppEffects.platformLabel(p.platform))
+                    if (lines.isEmpty()) { val (k, w) = UiText.status(p); StatusLine(k, w) } else for (l in lines) Text(l)
                 }
-                p.notPairedOnPeer -> {
-                    Text(if (p.listDeniesMe) "Declined by $x" else "Not paired on $x")
-                    OutlinedButton(onClick = { vm.cancelPairing(p.id) }) { Text("Cancel pairing") }
+            },
+            trailingContent = {
+                Box {
+                    IconButton(onClick = { menu = true }) { Icon(PaIcons.MoreVert, "More options") }
+                    DropdownMenu(menu, { menu = false }) {
+                        DropdownMenuItem(text = { Text("Remove") }, onClick = { menu = false; onRemove() })
+                        if (p.pinned) DropdownMenuItem(text = { Text(if (p.hidden) "Unhide" else "Hide") }, onClick = { menu = false; vm.setHidden(p.id, !p.hidden) })
+                        if (p.missing) DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; vm.localDelete(p.id) })
+                    }
                 }
-                p.waiting -> WaitingView(vm, p, x, now)
-                p.missing -> OutlinedButton(onClick = { vm.localDelete(p.id) }) { Text("Delete") }
-                p.declined -> Text("Declined by $x")
+            },
+        )
+        val inset = Modifier.padding(start = 72.dp, end = 16.dp)
+        when {
+            !p.pinned -> Row(inset.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilledTonalButton(onClick = { vm.pair(p.id) }, Modifier.height(40.dp)) { Text("Pair") }
+                TextButton(onClick = { vm.deny(p.id) }) { Text("Deny") }
             }
-            if (p.pinned && row == null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onRemove) { Text("Remove") }
-                TextButton(onClick = { vm.setHidden(p.id, !p.hidden) }) { Text(if (p.hidden) "Unhide" else "Hide") }
-            } else if (row == null && p.pinned.not()) TextButton(onClick = onRemove) { Text("Remove") }
-            if (detail && p.pinned) PeerDetail(vm, p)
+            p.notPairedOnPeer -> Row(inset.padding(bottom = 8.dp)) { TextButton(onClick = { vm.cancelPairing(p.id) }) { Text("Cancel pairing") } }
+            p.waiting -> Row(inset.padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { vm.cancelPairing(p.id) }) { Text("Cancel pairing") }
+                WaitingSendAgain(vm, p, now)
+            }
         }
+        if (detail && p.pinned) Column(inset.padding(bottom = 8.dp)) { PeerDetail(vm, p) }
     }
 }
 
+/** "Send again" while waiting for the peer's approve, after a failed send. */
 @Composable
-private fun WaitingView(vm: AppViewModel, p: Peer, x: String, now: Long) {
-    Text("Waiting for $x: open PushArmor there and approve")
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = { vm.cancelPairing(p.id) }) { Text("Cancel pairing") }
-        val r = p.lastApproveResult
-        if (r != null && r != "sent" && r != "stored" && r != "denied") {
-            Button(onClick = { vm.approve(p.id) }, enabled = now - p.lastSendAt >= 60_000) { Text("Send again") }
-        }
+private fun WaitingSendAgain(vm: AppViewModel, p: Peer, now: Long) {
+    val r = p.lastApproveResult
+    if (r != null && r != "sent" && r != "stored" && r != "denied") {
+        TextButton(onClick = { vm.approve(p.id) }, enabled = now - p.lastSendAt >= 60_000) { Text("Send again") }
     }
 }
 
+/** Pairing card: header, fingerprint plate with Deny / Approve, or the other pairing states; footer with Cancel pairing and the timeout. */
 @Composable
-private fun PairingRowView(vm: AppViewModel, p: Peer, row: PairingRow, now: Long) {
+private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, modifier: Modifier) {
     val x = label(p)
-    Text("Times out in " + Countdown.format(row.startedAt, now), color = Color.Gray)
-    when {
-        row.state == PairState.SHOWN && p.waiting -> WaitingView(vm, p, x, now)
-        row.state == PairState.SHOWN -> {
-            Text("Pairing fingerprint ${row.fingerprint}", style = MaterialTheme.typography.titleMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { vm.approve(p.id) }) { Text("Approve") }
-                OutlinedButton(onClick = { vm.deny(p.id) }) { Text("Deny") }
+    val ex = LocalPaExtra.current
+    val cs = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(24.dp)
+    val shown = row.state == PairState.SHOWN && !p.waiting
+    val prompted = row.role == PairRole.X && row.state == PairState.PROMPTED
+    val body = MaterialTheme.typography.bodyMedium
+    Column(modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(shape).background(ex.tile).border(1.dp, ex.pairBorder, shape)
+        .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            IconTile(platformIcon(p.platform))
+            Column {
+                Text(if (shown || prompted) "Pair with $x?" else x, style = MaterialTheme.typography.titleMedium)
+                Text(AppEffects.platformLabel(p.platform), style = body, color = cs.onSurfaceVariant)
             }
         }
-        row.role == PairRole.X && row.state == PairState.PROMPTED -> {
-            Text("A new peer wants to pair.")
-            Button(onClick = { vm.reply(p.id) }) { Text("Reply") }
+        Spacer(Modifier.height(16.dp))
+        when {
+            row.state == PairState.SHOWN && p.waiting -> {
+                Text("Waiting for $x: open PushArmor there and approve", style = body, color = cs.onSurfaceVariant)
+                WaitingSendAgain(vm, p, now)
+            }
+            row.state == PairState.SHOWN -> {
+                FingerprintPlate(row.fingerprint, x)
+                Spacer(Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.weight(1f).height(48.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, cs.outline)) { Text("Deny") }
+                    GreenButton(onClick = { vm.approve(p.id) }, text = "Approve", icon = PaIcons.Check, modifier = Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Icon(PaIcons.Info, null, Modifier.size(16.dp), tint = cs.onSurfaceVariant)
+                    Text("Codes do not match? Tap Deny.", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+                }
+            }
+            prompted -> {
+                Text("A new peer wants to pair.", style = body, color = cs.onSurfaceVariant)
+                Spacer(Modifier.height(12.dp))
+                GreenButton(onClick = { vm.reply(p.id) }, text = "Reply", icon = null, modifier = Modifier.fillMaxWidth())
+            }
+            row.role == PairRole.X -> Text("Replied. Waiting for $x.", style = body, color = cs.onSurfaceVariant)
+            else -> {
+                Text("Waiting for $x to reply.", style = body, color = cs.onSurfaceVariant)
+                when (PairingEngine.hint(row, p, now)) {
+                    PairDecide.Hint.STILL_HOLDS -> Text("$x still holds an earlier pairing. On $x, tap Cancel pairing, then tap Send again.", style = body, color = cs.onSurfaceVariant)
+                    PairDecide.Hint.NO_REPLY_YET -> Text("No reply yet. Open PushArmor on $x, or tap Send again.", style = body, color = cs.onSurfaceVariant)
+                    null -> Unit
+                }
+            }
         }
-        row.role == PairRole.X -> Text("Replied. Waiting for $x.")
-        else -> {
-            Text("Waiting for $x to reply.")
-            when (PairingEngine.hint(row, p, now)) {
-                PairDecide.Hint.STILL_HOLDS -> Text("$x still holds an earlier pairing. On $x, tap Cancel pairing, then tap Send again.")
-                PairDecide.Hint.NO_REPLY_YET -> Text("No reply yet. Open PushArmor on $x, or tap Send again.")
-                null -> Unit
+        if (row.role == PairRole.N && row.state != PairState.PROMPTED && !(row.state == PairState.SHOWN && p.approveVerified)) {
+            TextButton(onClick = { vm.sendAgainPair(p.id) }, enabled = now - row.lastSendAt >= PairingEngine.SEND_AGAIN_MS) { Text("Send again") }
+        }
+        Spacer(Modifier.height(12.dp))
+        // Divider across the full card width (out through the 16 dp side padding).
+        HorizontalDivider(Modifier.layout { m, c ->
+            val extra = 32.dp.roundToPx()
+            val pl = m.measure(c.copy(minWidth = c.maxWidth + extra, maxWidth = c.maxWidth + extra))
+            layout(c.maxWidth, pl.height) { pl.place(-extra / 2, 0) }
+        }, color = cs.outlineVariant)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { vm.cancelPairing(p.id) }) { Text("Cancel pairing") }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(PaIcons.Schedule, null, Modifier.size(16.dp), tint = cs.onSurfaceVariant)
+                Text("Times out in " + Countdown.format(row.startedAt, now), style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
             }
         }
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (row.role == PairRole.N && row.state != PairState.PROMPTED && !(row.state == PairState.SHOWN && p.approveVerified)) {
-            Button(onClick = { vm.sendAgainPair(p.id) }, enabled = now - row.lastSendAt >= PairingEngine.SEND_AGAIN_MS) { Text("Send again") }
+}
+
+/** Plate with the caps label and four mono cells; read as one element, character by character. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FingerprintPlate(code: String, x: String) {
+    val ex = LocalPaExtra.current
+    val cs = MaterialTheme.colorScheme
+    val wrap = LocalDensity.current.fontScale >= 1.5f
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(ex.plate).padding(horizontal = 12.dp, vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(Modifier.clearAndSetSemantics {}, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(painterResource(R.drawable.ic_notify), null, Modifier.size(13.dp), tint = cs.primary)
+            Text("Pairing fingerprint".uppercase(), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = cs.onSurfaceVariant)
         }
-        OutlinedButton(onClick = { vm.cancelPairing(p.id) }) { Text("Cancel pairing") }
+        Spacer(Modifier.height(12.dp))
+        val shape = RoundedCornerShape(14.dp)
+        val cell: @Composable (Char, Modifier) -> Unit = { c, m ->
+            Box(m.heightIn(min = 76.dp).clip(shape).background(ex.fpCell).border(1.dp, cs.outline, shape), Alignment.Center) {
+                Text(c.toString(), style = FingerprintText, color = cs.onSurface) // one ink for every cell
+            }
+        }
+        val sem = Modifier.clearAndSetSemantics { contentDescription = UiText.fingerprintLabel(code) }
+        if (wrap) FlowRow(sem, horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(10.dp), maxItemsInEachRow = 2) {
+            for (c in code) cell(c, Modifier.sizeIn(minWidth = 64.dp))
+        } else Row(sem.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally)) {
+            for (c in code) cell(c, Modifier.weight(1f, fill = false).widthIn(max = 64.dp).fillMaxWidth())
+        }
+        Spacer(Modifier.height(12.dp))
+        Text("Check that $x shows this same code.", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
     }
 }
 
@@ -242,20 +492,25 @@ private fun PeerDetail(vm: AppViewModel, p: Peer) {
     SwitchRow("Always hide content", e.hideContent, true) { vm.setPeerSwitch(p.id, hide = it) }
 }
 
+/** A switch row; the whole row is the toggle target. */
 @Composable
-fun SwitchRow(text: String, checked: Boolean, enabled: Boolean = true, sub: String? = null, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        Column(Modifier.weight(1f)) {
-            Text(text, color = if (enabled) Color.Unspecified else Color.Gray)
-            sub?.let { Text(it, color = Color.Gray, style = MaterialTheme.typography.bodySmall) }
+fun SwitchRow(text: String, checked: Boolean, enabled: Boolean = true, sub: String? = null, modifier: Modifier = Modifier, onChange: (Boolean) -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Row(modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
+        .padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(end = 16.dp)) {
+            Text(text, style = MaterialTheme.typography.bodyLarge, color = if (enabled) cs.onSurface else cs.onSurface.copy(alpha = 0.38f))
+            sub?.let { Text(it, color = cs.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
         }
-        Switch(checked, onChange, enabled = enabled)
+        Switch(checked, null, enabled = enabled)
     }
 }
 
-/** Send: compose field with "(N / 2048)", type chip + "Send as text", recipient picker, result. */
+private val Modifier.rowPad get() = this.padding(horizontal = 16.dp)
+
+/** Send: field, type tag and counter, "Send as text", recipient group, green send bar. */
 @Composable
-fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null, onSent: (String) -> Unit = {}) {
+fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null, title: String? = null, onSent: (String) -> Unit = {}) {
     var text by remember { mutableStateOf(initial) }
     var asText by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<String?>(null) }
@@ -266,33 +521,95 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     val scope = rememberCoroutineScope()
     val bytes = SizeCap.utf8Size(text)
     val showAll = vm.g.settings.showAll
-    Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(text, { text = it }, modifier = Modifier.fillMaxWidth(), minLines = 3, label = { Text("Message") })
-        Text(if (bytes > SizeCap.MAX_CONTENT_BYTES) "Too long ($bytes / 2048)" else "($bytes / 2048)",
-            color = if (SizeCap.isNearCap(text)) Color.Red else Color.Gray)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = true, onClick = {}, label = { Text(if (asText) "text" else Detect.type(text).key) })
-            FilterChip(selected = asText, onClick = { asText = !asText }, label = { Text("Send as text") })
-        }
-        if (showAll && all.size > 1) Row {
-            Checkbox(picked.containsAll(all.map { it.id }), { on -> picked.clear(); if (on) picked.addAll(all.map { it.id }) })
-            Text("All")
-        }
-        for (p in others(peers, me?.id).filter { it.pinned }) {
-            val ok = p.inAll
-            Row {
-                Checkbox(p.id in picked, { if (it) picked.add(p.id) else picked.remove(p.id) }, enabled = ok)
-                Text(label(p), color = if (ok) Color.Unspecified else Color.Gray)
+    val ex = LocalPaExtra.current
+    val cs = MaterialTheme.colorScheme
+    val snack = remember { SnackbarHostState() }
+    LaunchedEffect(result) { result?.let { snack.showSnackbar(it) } }
+    val detected = Detect.type(text)
+    val type = if (asText) ContentType.TEXT else detected
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            title?.let { PaTopBar(it) }
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(top = if (title == null) 16.dp else 0.dp, bottom = 96.dp)) {
+                OutlinedTextField(text, { text = it }, modifier = Modifier.rowPad.fillMaxWidth(), minLines = 3, label = { Text("Message") },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = ex.tile, unfocusedContainerColor = ex.tile,
+                        focusedBorderColor = cs.primary, unfocusedBorderColor = cs.outline))
+                Row(Modifier.rowPad.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    TypeTag(type)
+                    Text(UiText.counter(bytes), style = MaterialTheme.typography.bodySmall,
+                        color = if (SizeCap.isNearCap(text)) cs.error else cs.onSurfaceVariant)
+                }
+                if (detected != ContentType.TEXT) {
+                    Spacer(Modifier.height(12.dp))
+                    GroupedList(listOf<@Composable (Modifier) -> Unit> { m -> SwitchRow("Send as text", asText, modifier = m.padding(horizontal = 16.dp)) { asText = it } })
+                }
+                SectionHeader("Send to")
+                val recipients = buildList<@Composable (Modifier) -> Unit> {
+                    if (showAll && all.size > 1) add { m ->
+                        RecipientRow(PaIcons.Devices, "All", null, picked.containsAll(all.map { it.id }), true, null, m) { on ->
+                            picked.clear(); if (on) picked.addAll(all.map { it.id })
+                        }
+                    }
+                    for (p in others(peers, me?.id).filter { it.pinned }) add { m ->
+                        val ok = p.inAll
+                        RecipientRow(platformIcon(p.platform), label(p), AppEffects.platformLabel(p.platform), p.id in picked, ok,
+                            if (ok) null else UiText.status(p), m) { if (it) picked.add(p.id) else picked.remove(p.id) }
+                    }
+                }
+                GroupedList(recipients)
             }
         }
-        Button(onClick = {
-            scope.launch { val r = vm.send(picked.toList(), text, asText); result = r; onSent(r) }
-        }, enabled = picked.isNotEmpty() && text.isNotEmpty() && bytes <= SizeCap.MAX_CONTENT_BYTES) { Text("Send") }
-        result?.let { Text(it) }
+        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+            .background(Brush.verticalGradient(0f to Color.Transparent, 0.22f to cs.background))
+            .padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 16.dp)) {
+            GreenButton(onClick = {
+                scope.launch { val r = vm.send(picked.toList(), text, asText); result = r; onSent(r) }
+            }, text = UiText.sendLabel(picked.size), icon = PaIcons.Send, modifier = Modifier.fillMaxWidth(),
+                enabled = picked.isNotEmpty() && text.isNotEmpty() && bytes <= SizeCap.MAX_CONTENT_BYTES)
+        }
+        SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp))
     }
 }
 
-/** History: newest first, unread dot, sent/received filters plus peer chips (catalog History filter). */
+/** Detected type, not a button: "URL", "Phone" or "Text" shown in caps. */
+@Composable
+private fun TypeTag(type: ContentType) {
+    val ex = LocalPaExtra.current
+    val (icon, word) = when (type) {
+        ContentType.URL -> PaIcons.Link to "URL"
+        ContentType.TEL -> PaIcons.Call to "Phone"
+        ContentType.TEXT -> PaIcons.Notes to "Text"
+    }
+    Row(Modifier.height(28.dp).clip(RoundedCornerShape(8.dp)).background(ex.iconTileBg).padding(horizontal = 10.dp)
+        .semantics(mergeDescendants = true) { contentDescription = word },
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Icon(icon, null, Modifier.size(16.dp), tint = ex.iconTileFg)
+        Text(word.uppercase(), Modifier.clearAndSetSemantics {}, style = MaterialTheme.typography.labelMedium, color = ex.iconTileFg)
+    }
+}
+
+/** One recipient: icon tile, name, platform (and status when it cannot receive), checkbox; the row toggles. */
+@Composable
+private fun RecipientRow(icon: ImageVector, name: String, platform: String?, checked: Boolean, enabled: Boolean,
+                         status: Pair<UiText.Mark, String>?, modifier: Modifier, onChange: (Boolean) -> Unit) {
+    val sup: (@Composable () -> Unit)? = if (platform == null) null else { {
+        Column(Modifier.alpha(if (enabled) 1f else 0.5f)) {
+            Text(platform)
+            status?.let { (k, w) -> StatusLine(k, w) }
+        }
+    } }
+    ListItem(
+        modifier = modifier.toggleable(checked, enabled = enabled, role = Role.Checkbox, onValueChange = onChange),
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        leadingContent = { IconTile(icon, dim = !enabled) },
+        headlineContent = { Text(name, Modifier.alpha(if (enabled) 1f else 0.5f), fontWeight = FontWeight.Medium) },
+        supportingContent = sup,
+        trailingContent = { Checkbox(checked, null, enabled = enabled) },
+    )
+}
+
+/** History: filter chips, day groups, newest first, unread dot, expanded row actions. */
 @Composable
 fun HistoryScreen(vm: AppViewModel, onPeer: (String) -> Unit) {
     val rows by vm.history.collectAsState()
@@ -300,106 +617,252 @@ fun HistoryScreen(vm: AppViewModel, onPeer: (String) -> Unit) {
     var chip by remember { mutableStateOf<HistoryFilter.Chip>(HistoryFilter.Chip.All) }
     var dir by remember { mutableStateOf<String?>(null) }
     var open by remember { mutableStateOf<Long?>(null) }
-    val context = LocalContext.current
     fun nameOf(id: String) = peers.firstOrNull { it.id == id }?.let { (it.name ?: label(it)) + if (it.removed) " (removed)" else "" } ?: "(removed)"
     val frows = rows.map { HistoryFilter.Row(it.peerId, it.direction == "RECEIVED") }
     val eff = HistoryFilter.effective(frows, chip)
-    Column(Modifier.fillMaxSize().padding(12.dp)) {
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    val ex = LocalPaExtra.current
+    val now = System.currentTimeMillis()
+    Column(Modifier.fillMaxSize()) {
+        PaTopBar("History")
+        if (rows.isEmpty()) {
+            EmptyState({ MessagesIllustration() }, "No messages yet",
+                "Links and text you send or receive show up here. Share a link from any app to send it to your peers.", top = 110.dp)
+            return@Column
+        }
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for (c in HistoryFilter.chips(frows, ::nameOf)) {
                 val t = when (c) { HistoryFilter.Chip.All -> "All"; HistoryFilter.Chip.Unknown -> "Unknown"; is HistoryFilter.Chip.PeerChip -> c.name }
-                FilterChip(selected = eff == c, onClick = { chip = c }, label = { Text(t) })
+                PaChip(eff == c, t) { chip = c }
             }
-            FilterChip(selected = dir == "SENT", onClick = { dir = if (dir == "SENT") null else "SENT" }, label = { Text("Sent") })
-            FilterChip(selected = dir == "RECEIVED", onClick = { dir = if (dir == "RECEIVED") null else "RECEIVED" }, label = { Text("Received") })
+            PaChip(dir == "SENT", "Sent") { dir = if (dir == "SENT") null else "SENT" }
+            PaChip(dir == "RECEIVED", "Received") { dir = if (dir == "RECEIVED") null else "RECEIVED" }
         }
-        LazyColumn {
-            items(rows.filter { HistoryFilter.matches(HistoryFilter.Row(it.peerId, it.direction == "RECEIVED"), eff) && (dir == null || it.direction == dir) }, key = { it.id }) { h ->
-                Column(Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable { open = h.id; vm.markRead(h.id) }) {
-                    val who = h.peerId?.let { nameOf(it) } ?: if (h.direction == "SENT") "Sent" else "Unknown sender"
-                    Text((if (!h.read && h.type in setOf("url", "text", "tel")) "* " else "") + who, color = Color.Gray,
-                        modifier = Modifier.clickable(enabled = h.peerId != null) { h.peerId?.let(onPeer) })
-                    val body = when (h.type) {
-                        "unreadable" -> "PushArmor received a message it could not read" + if (h.count > 1) " (${h.count})" else ""
-                        "invalid" -> "Invalid message received" + if (h.count > 1) " (${h.count})" else ""
-                        "denied" -> "Denied this device"
-                        "paused" -> "Paused receiving"
-                        "resumed" -> "Resumed receiving"
-                        else -> h.content.orEmpty()
-                    }
-                    Text(body, maxLines = if (open == h.id) Int.MAX_VALUE else 3)
-                    val hc = h.content
-                    if (open == h.id && hc != null) {
-                        SelectionContainer { Text(hc) }
-                        Row {
-                            TextButton(onClick = { com.pusharmor.app.notify.ActionActivity.copy(context, hc) }) { Text("Copy") }
-                            TextButton(onClick = { context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, hc), null)) }) { Text("Share") }
-                            if (h.type == "url") com.pusharmor.protocol.UrlCheck.parse(hc)?.let { u ->
-                                TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u.href)).addCategory(Intent.CATEGORY_BROWSABLE)) }) { Text("Open") }
-                            }
-                            if (h.type == "tel" && com.pusharmor.protocol.Phone.isPhone(hc)) {
-                                TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(hc)))) }) { Text("Dial") }
-                            }
-                        }
-                    }
-                    HorizontalDivider()
+        val shown = rows.filter { HistoryFilter.matches(HistoryFilter.Row(it.peerId, it.direction == "RECEIVED"), eff) && (dir == null || it.direction == dir) }
+        val days = shown.groupBy { UiText.day(it.at) }
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 16.dp)) {
+            for ((day, group) in days) {
+                item(key = "day-$day") {
+                    val l = UiText.dayLabel(group.first().at, now)
+                    Text(l.uppercase(), Modifier.padding(start = 32.dp, end = 16.dp, top = 20.dp, bottom = 8.dp).semantics { contentDescription = l },
+                        style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                itemsIndexed(group, key = { _, h -> h.id }) { i, h ->
+                    HistoryRow(vm, h, open == h.id, ::nameOf, onPeer,
+                        Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, group.size, if (open == h.id) ex.expandedRow else ex.tile)) { open = h.id }
                 }
             }
         }
     }
 }
 
-/** Settings (section 8). */
+@Composable
+private fun PaChip(selected: Boolean, text: String, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    FilterChip(selected = selected, onClick = onClick, label = { Text(text) },
+        leadingIcon = if (selected) { { Icon(PaIcons.Check, null, Modifier.size(18.dp)) } } else null,
+        colors = FilterChipDefaults.filterChipColors(containerColor = LocalPaExtra.current.tile, selectedContainerColor = cs.secondaryContainer),
+        border = FilterChipDefaults.filterChipBorder(enabled = true, selected = selected, borderColor = cs.outline, selectedBorderColor = Color.Transparent))
+}
+
+private val CONTENT_TYPES = setOf("url", "text", "tel")
+
+@Composable
+private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, expanded: Boolean, nameOf: (String) -> String,
+                       onPeer: (String) -> Unit, modifier: Modifier, onOpen: () -> Unit) {
+    val context = LocalContext.current
+    val cs = MaterialTheme.colorScheme
+    val event = h.type !in CONTENT_TYPES
+    val unread = !h.read && !event
+    val who = h.peerId?.let { nameOf(it) } ?: if (h.direction == "SENT") "Sent" else "Unknown sender"
+    val time = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(h.at))
+    val body = when (h.type) {
+        "unreadable" -> "PushArmor received a message it could not read" + if (h.count > 1) " (${h.count})" else ""
+        "invalid" -> "Invalid message received" + if (h.count > 1) " (${h.count})" else ""
+        "denied" -> "Denied this device"
+        "paused" -> "Paused receiving"
+        "resumed" -> "Resumed receiving"
+        else -> h.content.orEmpty()
+    }
+    val weight = if (unread) FontWeight.Medium else FontWeight.Normal
+    Column(modifier.clickable { onOpen(); vm.markRead(h.id) }) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            if (event) Box(Modifier.size(40.dp), Alignment.Center) {
+                Icon(when (h.type) { "paused" -> PaIcons.Pause; "resumed" -> PaIcons.Check; else -> PaIcons.Info }, null, tint = cs.onSurfaceVariant)
+            } else IconTile(when {
+                h.direction == "SENT" -> PaIcons.NorthEast
+                h.type == "url" -> PaIcons.Link
+                h.type == "tel" -> PaIcons.Call
+                else -> PaIcons.Notes
+            })
+            Column(Modifier.weight(1f)) {
+                if (event) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(body, Modifier.weight(1f).padding(top = 10.dp), style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                        Text(time, Modifier.padding(top = 10.dp), style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+                    }
+                    if (h.peerId != null) Text(who, Modifier.clickable { h.peerId?.let(onPeer) },
+                        style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(who, Modifier.weight(1f).clickable(enabled = h.peerId != null) { h.peerId?.let(onPeer) },
+                            style = MaterialTheme.typography.bodyMedium, fontWeight = weight, color = cs.onSurfaceVariant,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(time, Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+                    }
+                    val style = MaterialTheme.typography.bodyLarge.copy(fontWeight = weight)
+                    val hc = h.content
+                    when {
+                        expanded && hc != null -> SelectionContainer { Text(hc, style = style) }
+                        h.type == "url" -> MiddleEllipsisText(body, style, Modifier.fillMaxWidth())
+                        h.type == "tel" -> Text(body, style = style, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        else -> Text(body, style = style, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+            if (unread) Box(Modifier.padding(top = 6.dp).size(8.dp).clip(CircleShape).background(cs.primary))
+        }
+        val hc = h.content
+        if (expanded && hc != null) {
+            Row(Modifier.padding(start = 72.dp, end = 16.dp, bottom = 8.dp).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (h.type == "url") com.pusharmor.protocol.UrlCheck.parse(hc)?.let { u ->
+                    RowAction("Open", PaIcons.OpenInNew) { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u.href)).addCategory(Intent.CATEGORY_BROWSABLE)) }
+                }
+                if (h.type == "tel" && com.pusharmor.protocol.Phone.isPhone(hc)) {
+                    RowAction("Dial", PaIcons.Call) { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(hc)))) }
+                }
+                RowAction("Copy", PaIcons.ContentCopy) { com.pusharmor.app.notify.ActionActivity.copy(context, hc) }
+                RowAction("Share", PaIcons.Share) {
+                    context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, hc), null))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowAction(text: String, icon: ImageVector, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    AssistChip(onClick = onClick, label = { Text(text) },
+        leadingIcon = { Icon(icon, null, Modifier.size(18.dp), tint = cs.primary) },
+        colors = AssistChipDefaults.assistChipColors(containerColor = LocalPaExtra.current.tile),
+        border = AssistChipDefaults.assistChipBorder(enabled = true, borderColor = cs.outline))
+}
+
+/** A plain settings row (no icon tile); [onClick] null makes it static text. */
+@Composable
+private fun SettingRow(title: String, sub: String? = null, modifier: Modifier, color: Color = Color.Unspecified,
+                       trailing: (@Composable () -> Unit)? = null, onClick: (() -> Unit)?) {
+    Row(modifier.heightIn(min = 56.dp).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+        .padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, color = color)
+            sub?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        trailing?.let { Spacer(Modifier.width(16.dp)); it() }
+    }
+}
+
+/** Settings (section 8): one group per section. */
 @Composable
 fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: () -> Unit) {
     val prefs by vm.prefs.collectAsState()
     val context = LocalContext.current
     val me by vm.self.collectAsState()
-    // null until the user types: shows the self name as it loads, and a later self update keeps typed text.
-    var typed by remember { mutableStateOf<String?>(null) }
-    val name = typed ?: me?.name ?: ""
+    var renaming by remember { mutableStateOf(false) }
     var confirmHistory by remember { mutableStateOf(false) }
+    var pickDays by remember { mutableStateOf(false) }
     fun b(k: androidx.datastore.preferences.core.Preferences.Key<Boolean>, d: Boolean) = prefs?.get(k) ?: d
-    Column(Modifier.fillMaxSize().padding(12.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row {
-            OutlinedTextField(name, { typed = it.take(32) }, label = { Text("Peer name") }, singleLine = true, modifier = Modifier.weight(1f))
-            TextButton(onClick = { vm.rename(name) }) { Text("Save") }
-        }
-        SwitchRow("Show \"All\" option", b(Settings.K.SHOW_ALL, true)) { vm.setPref(Settings.K.SHOW_ALL, it) }
-        SwitchRow("Tap opens link", b(Settings.K.TAP_OPENS_LINK, true)) { vm.setPref(Settings.K.TAP_OPENS_LINK, it) }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("History days")
-            for (d in listOf(1, 7, 30, 90, 365)) FilterChip(selected = (prefs?.get(Settings.K.HISTORY_DAYS) ?: 30) == d,
-                onClick = { vm.setPref(Settings.K.HISTORY_DAYS, d) }, label = { Text("$d") })
-        }
-        TextButton(onClick = { confirmHistory = true }) { Text("Delete all history") }
-        SwitchRow("Direct share targets", b(Settings.K.DIRECT_SHARE, true)) { vm.setPref(Settings.K.DIRECT_SHARE, it) }
-        if (vm.g.push.hasPlayServices) {
-            val up = prefs?.get(Settings.K.PUSH_TYPE) == "unifiedpush"
-            Text("Push method")
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilterChip(selected = !up, onClick = { if (up) vm.switchPush(false) }, label = { Text("Google (default)") })
-                FilterChip(selected = up, onClick = { if (!up) vm.switchPush(true) }, label = { Text("UnifiedPush app") })
+    val cs = MaterialTheme.colorScheme
+    val days = prefs?.get(Settings.K.HISTORY_DAYS) ?: 30
+    val pad = Modifier.padding(horizontal = 16.dp)
+    val external: @Composable () -> Unit = { Icon(PaIcons.OpenInNew, null, tint = cs.onSurfaceVariant) }
+    Column(Modifier.fillMaxSize()) {
+        PaTopBar("Settings")
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
+            SectionHeader("This device")
+            GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
+                SettingRow("Peer name", me?.name ?: "", m, trailing = { Icon(PaIcons.Edit, null, tint = cs.onSurfaceVariant) }) { renaming = true }
+            })
+            SectionHeader("Sending")
+            GroupedList(listOf<@Composable (Modifier) -> Unit>(
+                { m -> SwitchRow("Show \"All\" option", b(Settings.K.SHOW_ALL, true), modifier = m.then(pad)) { vm.setPref(Settings.K.SHOW_ALL, it) } },
+                { m -> SwitchRow("Tap opens link", b(Settings.K.TAP_OPENS_LINK, true), modifier = m.then(pad)) { vm.setPref(Settings.K.TAP_OPENS_LINK, it) } },
+            ))
+            SectionHeader("History")
+            GroupedList(listOf<@Composable (Modifier) -> Unit>(
+                { m -> SettingRow("History days", UiText.days(days), m) { pickDays = true } },
+                { m -> SettingRow("Delete all history", modifier = m, color = cs.error) { confirmHistory = true } },
+            ))
+            SectionHeader("Notifications")
+            GroupedList(buildList<@Composable (Modifier) -> Unit> {
+                add { m ->
+                    SettingRow("Notifications", modifier = m, trailing = external) {
+                        context.startActivity(Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
+                    }
+                }
+                add { m ->
+                    SwitchRow("Show message content on lock screen", b(Settings.K.LOCK_SCREEN, true), sub = "When off, the lock screen shows 'New message' only",
+                        modifier = m.then(pad)) { vm.setPref(Settings.K.LOCK_SCREEN, it) }
+                }
+                add { m ->
+                    SettingRow("System lock screen setting", modifier = m, trailing = external) {
+                        try { context.startActivity(Intent("android.settings.NOTIFICATION_SETTINGS")) } catch (e: Exception) { }
+                    }
+                }
+                add { m ->
+                    SwitchRow("Send messages to watch", b(Settings.K.WATCH, true), sub = "When off, the watch gets no notice at all",
+                        modifier = m.then(pad)) { vm.setPref(Settings.K.WATCH, it) }
+                }
+                add { m -> SwitchRow("Always hide content", b(Settings.K.HIDE_CONTENT, false), modifier = m.then(pad)) { vm.setPref(Settings.K.HIDE_CONTENT, it) } }
+                add { m -> SwitchRow("Direct share targets", b(Settings.K.DIRECT_SHARE, true), modifier = m.then(pad)) { vm.setPref(Settings.K.DIRECT_SHARE, it) } }
+                if (vm.g.push.hasPlayServices) add { m ->
+                    val up = prefs?.get(Settings.K.PUSH_TYPE) == "unifiedpush"
+                    Column(m.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                        Text("Push method", style = MaterialTheme.typography.bodyLarge)
+                        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            PaChip(!up, "Google (default)") { if (up) vm.switchPush(false) }
+                            PaChip(up, "UnifiedPush app") { if (!up) vm.switchPush(true) }
+                        }
+                        if (up && UnifiedPushSupport.distributors(context).size > 1) for (d in UnifiedPushSupport.distributors(context)) {
+                            TextButton(onClick = { UnifiedPushSupport.pick(vm.g, d) }) { Text(d) }
+                        }
+                    }
+                }
+            })
+            SectionHeader("Account")
+            me?.email?.let { email ->
+                GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
+                    SettingRow("Signed in as $email", modifier = m,
+                        sub = if (email.endsWith("@privaterelay.appleid.com")) "iOS Settings > Apple ID > Sign in with Apple, and appleid.apple.com > Hide My Email, list the address to use on another peer." else null,
+                        onClick = null)
+                })
             }
-            if (up && UnifiedPushSupport.distributors(context).size > 1) for (d in UnifiedPushSupport.distributors(context)) {
-                TextButton(onClick = { UnifiedPushSupport.pick(vm.g, d) }) { Text(d) }
+            Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(onClick = { vm.signOut(onSignedOut) }, Modifier.height(48.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, cs.outline)) { Text("Sign out") }
+                OutlinedButton(onClick = onDeleteAccount, Modifier.height(48.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, cs.error),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = cs.error)) { Text("Delete account") }
             }
+            vm.message.collectAsState().value?.let { Text(it, Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), color = cs.error) }
         }
-        TextButton(onClick = {
-            context.startActivity(Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
-        }) { Text("Notifications") }
-        SwitchRow("Show message content on lock screen", b(Settings.K.LOCK_SCREEN, true), sub = "When off, the lock screen shows 'New message' only") { vm.setPref(Settings.K.LOCK_SCREEN, it) }
-        TextButton(onClick = { try { context.startActivity(Intent("android.settings.NOTIFICATION_SETTINGS")) } catch (e: Exception) { } }) { Text("System lock screen setting") }
-        SwitchRow("Send messages to watch", b(Settings.K.WATCH, true), sub = "When off, the watch gets no notice at all") { vm.setPref(Settings.K.WATCH, it) }
-        SwitchRow("Always hide content", b(Settings.K.HIDE_CONTENT, false)) { vm.setPref(Settings.K.HIDE_CONTENT, it) }
-        me?.email?.let {
-            Text("Signed in as $it")
-            if (it.endsWith("@privaterelay.appleid.com")) Text("iOS Settings > Apple ID > Sign in with Apple, and appleid.apple.com > Hide My Email, list the address to use on another peer.", color = Color.Gray)
-        }
-        Button(onClick = { vm.signOut(onSignedOut) }) { Text("Sign out") }
-        OutlinedButton(onClick = onDeleteAccount) { Text("Delete account") }
-        vm.message.collectAsState().value?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
+    if (renaming) RenameDialog(me?.name ?: "", onSave = { vm.rename(it) }) { renaming = false }
+    if (pickDays) AlertDialog(onDismissRequest = { pickDays = false }, title = { Text("History days") },
+        text = {
+            Column {
+                for (d in listOf(1, 7, 30, 90, 365)) Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    .selectable(selected = days == d, role = Role.RadioButton) { vm.setPref(Settings.K.HISTORY_DAYS, d); pickDays = false },
+                    verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(days == d, null)
+                    Spacer(Modifier.width(12.dp))
+                    Text(UiText.days(d))
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { pickDays = false }) { Text("Cancel") } })
     if (confirmHistory) AlertDialog(onDismissRequest = { confirmHistory = false }, text = { Text("Delete all history?") },
         confirmButton = { TextButton(onClick = { vm.deleteAllHistory(); confirmHistory = false }) { Text("Delete") } },
         dismissButton = { TextButton(onClick = { confirmHistory = false }) { Text("Cancel") } })
