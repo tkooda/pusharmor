@@ -207,6 +207,7 @@ struct PeerPendingLines: View {
 struct PairingCardView: View {
     let p: Peer
     @EnvironmentObject var model: AppModel
+    @State private var confirmRemove = false
 
     private var label: String { model.label(p) }
     private var entry: PairingEntry? { model.pairings[p.id.text] }
@@ -243,6 +244,32 @@ struct PairingCardView: View {
             footer
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .contextMenu {
+            // A peer not yet paired has no row under Peers: its switches, Hide and Remove live here.
+            if !p.pinned { peerActions }
+        }
+        .confirmationDialog(S.removeConfirm(label), isPresented: $confirmRemove, titleVisibility: .visible) {
+            Button("Remove", role: .destructive) { Task { await model.remove(p) } }
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    @ViewBuilder
+    private var peerActions: some View {
+        Toggle(S.lockScreenSwitch, isOn: Binding(
+            get: { p.lockShow },
+            set: { model.setPeerSwitches(p, lockShow: $0) }
+        ))
+        .disabled(!model.boolSetting(SettingKey.lockShow, true))
+        Toggle(S.alwaysHide, isOn: Binding(
+            get: { p.alwaysHide },
+            set: { model.setPeerSwitches(p, alwaysHide: $0) }
+        ))
+        Button(p.hidden ? "Unhide" : "Hide") { model.setHidden(p, !p.hidden) }
+        Button("Remove", role: .destructive) { confirmRemove = true }
+        if p.missing {
+            Button("Delete") { Task { await model.localDelete(p) } }
+        }
     }
 
     private func denyButton() -> some View {
