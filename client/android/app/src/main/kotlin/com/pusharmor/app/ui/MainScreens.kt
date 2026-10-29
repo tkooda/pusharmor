@@ -89,6 +89,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -362,7 +363,7 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
             },
             trailingContent = {
                 Box {
-                    IconButton(onClick = { menu = true }) { Icon(PaIcons.MoreVert, "More options") }
+                    IconButton(onClick = { menu = true }) { Icon(PaIcons.MoreVert, "More options for $x") }
                     DropdownMenu(menu, { menu = false }) {
                         DropdownMenuItem(text = { Text("Remove") }, onClick = { menu = false; onRemove() })
                         if (p.pinned) DropdownMenuItem(text = { Text(if (p.hidden) "Unhide" else "Hide") }, onClick = { menu = false; vm.setHidden(p.id, !p.hidden) })
@@ -668,7 +669,7 @@ fun HistoryScreen(vm: AppViewModel, onPeer: (String) -> Unit) {
             for ((day, group) in days) {
                 item(key = "day-$day") {
                     val l = UiText.dayLabel(group.first().at, now)
-                    Text(l.uppercase(), Modifier.padding(start = 32.dp, end = 16.dp, top = 20.dp, bottom = 8.dp).semantics { contentDescription = l },
+                    Text(l.uppercase(), Modifier.padding(start = 32.dp, end = 16.dp, top = 20.dp, bottom = 8.dp).semantics { contentDescription = l; heading() },
                         style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 itemsIndexed(group, key = { _, h -> h.id }) { i, h ->
@@ -744,7 +745,7 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
                     }
                 }
             }
-            if (unread) Box(Modifier.padding(top = 6.dp).size(8.dp).clip(CircleShape).background(cs.primary))
+            if (unread) Box(Modifier.padding(top = 6.dp).size(8.dp).clip(CircleShape).background(cs.primary).semantics { contentDescription = "Unread" })
         }
         val hc = h.content
         if (expanded && hc != null) {
