@@ -159,10 +159,13 @@ fun PeersScreen(vm: AppViewModel) {
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     var confirmRemove by remember { mutableStateOf<Peer?>(null) }
     var renaming by remember { mutableStateOf(false) }
-    // A failed rename, remove, pair or deny puts its error in vm.message; show it once.
+    // A failed rename, remove, pair or deny puts its error in vm.message. Take it when shown, not on
+    // dismiss, so leaving Peers does not leave it set (I426); counted like the Send result.
     val snack = remember { SnackbarHostState() }
     val msg by vm.message.collectAsState()
-    LaunchedEffect(msg) { msg?.let { snack.showSnackbar(it); vm.message.value = null } }
+    var shown by remember { mutableStateOf<Pair<Int, String>?>(null) }
+    LaunchedEffect(msg) { msg?.let { shown = (shown?.first ?: 0) + 1 to it; vm.message.value = null } }
+    LaunchedEffect(shown) { shown?.let { snack.showSnackbar(it.second) } }
     LaunchedEffect(Unit) {
         vm.onPeersOpen()
         while (true) { delay(30_000); now = System.currentTimeMillis(); vm.onPeersOpen() } // timeout timer while open
