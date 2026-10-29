@@ -309,7 +309,7 @@ struct PairingCardView: View {
                     .buttonStyle(GreenButtonStyle())
                 }
                 .padding(.top, 4)
-                Label(S.codesMismatch, systemImage: "info.circle")
+                Label(S.codesMismatch, systemImage: "info.circle.fill")
                     .font(.footnote)
                     .foregroundColor(.secondaryText)
                     .frame(maxWidth: .infinity)
