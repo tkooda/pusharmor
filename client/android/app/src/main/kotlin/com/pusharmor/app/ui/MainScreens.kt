@@ -159,6 +159,10 @@ fun PeersScreen(vm: AppViewModel) {
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     var confirmRemove by remember { mutableStateOf<Peer?>(null) }
     var renaming by remember { mutableStateOf(false) }
+    // A failed rename, remove, pair or deny puts its error in vm.message; show it once.
+    val snack = remember { SnackbarHostState() }
+    val msg by vm.message.collectAsState()
+    LaunchedEffect(msg) { msg?.let { snack.showSnackbar(it); vm.message.value = null } }
     LaunchedEffect(Unit) {
         vm.onPeersOpen()
         while (true) { delay(30_000); now = System.currentTimeMillis(); vm.onPeersOpen() } // timeout timer while open
@@ -188,41 +192,44 @@ fun PeersScreen(vm: AppViewModel) {
         if (pairingScrollTop(shownPairing, pairing.size, aiming = highlight != null && highlight != aimed)) state.scrollToItem(0)
         shownPairing = pairing.size
     }
-    Column(Modifier.fillMaxSize()) {
-        PaTopBar("Peers", actions = {
-            IconButton(onClick = { vm.refresh() }, enabled = canRefresh) { Icon(PaIcons.Refresh, "Refresh") }
-        })
-        LazyColumn(Modifier.weight(1f), state = state, contentPadding = PaddingValues(bottom = 16.dp)) {
-            item(key = "banners") {
-                Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Banners(vm, prefs?.get(Settings.K.BANNER))
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            PaTopBar("Peers", actions = {
+                IconButton(onClick = { vm.refresh() }, enabled = canRefresh) { Icon(PaIcons.Refresh, "Refresh") }
+            })
+            LazyColumn(Modifier.weight(1f), state = state, contentPadding = PaddingValues(bottom = 16.dp)) {
+                item(key = "banners") {
+                    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Banners(vm, prefs?.get(Settings.K.BANNER))
+                    }
                 }
-            }
-            if (pairing.isNotEmpty()) {
-                item(key = "pairing-header") { SectionHeader("Pairing") }
-                itemsIndexed(pairing, key = { _, p -> "pair-" + p.id }) { i, p ->
-                    val row = rows.first { it.peerId == p.id }
-                    PairingCard(vm, p, row, now, Modifier.padding(top = if (i > 0) 12.dp else 0.dp))
+                if (pairing.isNotEmpty()) {
+                    item(key = "pairing-header") { SectionHeader("Pairing") }
+                    itemsIndexed(pairing, key = { _, p -> "pair-" + p.id }) { i, p ->
+                        val row = rows.first { it.peerId == p.id }
+                        PairingCard(vm, p, row, now, Modifier.padding(top = if (i > 0) 12.dp else 0.dp))
+                    }
                 }
-            }
-            item(key = "self-header") { SectionHeader("This device") }
-            item(key = "self") { HeroCard(me?.name ?: "", plain = pairing.isNotEmpty()) { renaming = true } }
-            if (plain.isNotEmpty()) {
-                item(key = "peers-header") { SectionHeader("Peers") }
-                itemsIndexed(plain, key = { _, p -> p.id }) { i, p ->
-                    PeerRow(vm, p, now, p.id == highlight, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, plain.size)) { confirmRemove = p }
-                }
-            } else if (pairing.isEmpty()) {
-                item(key = "empty") {
-                    EmptyState({ DevicesIllustration() }, "No peers yet",
-                        "Install PushArmor on your other devices and sign in with the same account. They show up here, ready to pair.", top = 52.dp) {
-                        FilledTonalButton(onClick = { vm.refresh() }, enabled = canRefresh) {
-                            Icon(PaIcons.Refresh, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Refresh")
+                item(key = "self-header") { SectionHeader("This device") }
+                item(key = "self") { HeroCard(me?.name ?: "", plain = pairing.isNotEmpty()) { renaming = true } }
+                if (plain.isNotEmpty()) {
+                    item(key = "peers-header") { SectionHeader("Peers") }
+                    itemsIndexed(plain, key = { _, p -> p.id }) { i, p ->
+                        PeerRow(vm, p, now, p.id == highlight, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, plain.size)) { confirmRemove = p }
+                    }
+                } else if (pairing.isEmpty()) {
+                    item(key = "empty") {
+                        EmptyState({ DevicesIllustration() }, "No peers yet",
+                            "Install PushArmor on your other devices and sign in with the same account. They show up here, ready to pair.", top = 52.dp) {
+                            FilledTonalButton(onClick = { vm.refresh() }, enabled = canRefresh) {
+                                Icon(PaIcons.Refresh, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Refresh")
+                            }
                         }
                     }
                 }
             }
         }
+        SnackbarHost(snack, Modifier.align(Alignment.BottomCenter))
     }
     confirmRemove?.let { p ->
         val x = label(p)
