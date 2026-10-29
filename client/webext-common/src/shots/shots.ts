@@ -21,7 +21,7 @@ const NEW_LAPTOP = id("N");
 const now = Date.now();
 
 const state: StateView = {
-  reg: "registered", banner: null, email: null, name: "Chrome", settings: DEFAULT_SETTINGS,
+  reg: "registered", banner: null, email: null, name: "Laptop", settings: DEFAULT_SETTINGS,
   platform: "chrome", isAndroid: false, receiveMode: null, receiveNote: null,
 };
 
@@ -33,7 +33,7 @@ const paired = (pid: string, label: string, platform: string, greyed: string | n
 const peers: PeerView[] = [
   paired(PHONE, "Phone", "android"),
   paired(DESKTOP, "Work desktop", "firefox"),
-  paired(TABLET, "Tablet", "iphone", "unreachable"),
+  paired(TABLET, "Tablet", "android", "unreachable"),
   {
     id: NEW_LAPTOP, label: "New laptop", platform: "chrome", lines: [T.fingerprint("K7QD")],
     actions: ["cancel", "approve", "deny", "remove", "hide"], countdown: formatCountdown(PAIRING_TIMEOUT_MS - 60_000),
@@ -50,7 +50,7 @@ const history: (HistoryRow & { sender: string })[] = [
     received: now - 40 * 60_000, read: true, results: { [TABLET]: "sent" }, targets: [TABLET], sender: "" },
   { id: 2, dir: "in", peer: TABLET, type: "event", event: "paused", content: "", n: null, pairing_id: null,
     received: now - 50 * 60_000, read: true, sender: "Tablet" },
-  { id: 1, dir: "in", peer: PHONE, type: "tel", content: "+1 555 0142", n: 1, pairing_id: null,
+  { id: 1, dir: "in", peer: PHONE, type: "text", content: "Pick up basil and lemons on the way home", n: 1, pairing_id: null,
     received: now - 26 * 3600_000, read: true, sender: "Phone" },
 ];
 
@@ -61,7 +61,7 @@ function reply(req: Req): unknown {
     case "state":
       return state;
     case "peers":
-      return { self: { id: id("C"), name: "Chrome" }, peers };
+      return { self: { id: id("C"), name: "Laptop" }, peers };
     case "history":
       return history;
     case "detect":
