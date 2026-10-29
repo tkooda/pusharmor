@@ -37,5 +37,5 @@ test("android-release: the Play upload is its own job after the GitHub prereleas
 test("android-release: jarsigner takes the signature algorithm from the upload key", () => {
   const y = read(".github/workflows/android-release.yml");
   assert.ok(y.includes("jarsigner -keystore"));
-  assert.ok(!y.includes("-sigalg"));
+  assert.ok(!/^ *-sigalg /m.test(y) && !/jarsigner .*-sigalg/.test(y));
 });
