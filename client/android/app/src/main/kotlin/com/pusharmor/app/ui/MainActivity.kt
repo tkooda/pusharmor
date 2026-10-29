@@ -12,7 +12,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +27,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -60,7 +60,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         vm.boot(fromMain = true)
         if (shouldHandle(savedInstanceState != null, intent.flags)) handle(intent)
-        setContent { PushArmorTheme { Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { App(vm) } } }
+        setContent { PushArmorTheme { Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { App(vm) } } }
     }
 
     override fun onNewIntent(intent: Intent) {

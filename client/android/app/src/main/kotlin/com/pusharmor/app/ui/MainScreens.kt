@@ -400,7 +400,7 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
                 WaitingSendAgain(vm, p, now)
             }
             row.state == PairState.SHOWN -> {
-                FingerprintPlate(row.fingerprint, x)
+                FingerprintPlate(row.fingerprint.orEmpty(), x)
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.weight(1f).height(48.dp),
