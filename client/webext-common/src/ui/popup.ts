@@ -90,19 +90,26 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     const s = peerStatus(p);
     return [platformLabel(p.platform), ...(s && s.kind === "off" ? [statusLine(s.kind, s.word)] : [])];
   };
-  const count = () => (allBox?.checked ? sendable.length : checks.filter((c) => c.box.checked).length);
+  const count = () => checks.filter((c) => c.box.checked).length;
   const relabel = () => {
     const n = count();
     sendLabel.textContent = n > 0 ? "Send to " + n + (n === 1 ? " peer" : " peers") : "Send";
   };
   if (st.settings.showAll) {
     allBox = h("input", { type: "checkbox", checked: true }) as HTMLInputElement;
-    allBox.addEventListener("change", relabel);
+    allBox.addEventListener("change", () => {
+      for (const c of checks) c.box.checked = allBox!.checked;
+      relabel();
+    });
     targets.append(target(icon("devices", 18), "All", [], allBox));
   }
+  // "All" sends to every sendable peer, so its rows show ticked; unticking one row leaves "All".
   for (const p of sendable) {
-    const box = h("input", { type: "checkbox" }) as HTMLInputElement;
-    box.addEventListener("change", relabel);
+    const box = h("input", { type: "checkbox", checked: allBox !== null }) as HTMLInputElement;
+    box.addEventListener("change", () => {
+      if (allBox && !box.checked) allBox.checked = false;
+      relabel();
+    });
     checks.push({ id: p.id, box });
     targets.append(target(platformIcon(p.platform), p.label, sub(p), box, p.greyed !== null));
   }
