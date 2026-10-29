@@ -176,7 +176,8 @@ abstract class PaDatabase : RoomDatabase() {
         fun open(context: Context, name: String? = NAME): PaDatabase {
             val b = if (name == null) Room.inMemoryDatabaseBuilder(context, PaDatabase::class.java)
             else Room.databaseBuilder(context, PaDatabase::class.java, name).enableMultiInstanceInvalidation()
-            return b.build()
+            // The Compose screens and ShareActivity read small rows on the main thread (I398).
+            return b.allowMainThreadQueries().build()
         }
     }
 }

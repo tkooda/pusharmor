@@ -24,6 +24,13 @@ import java.util.concurrent.Executors
 class RoomLocalStoreTest {
     private val ctx = ApplicationProvider.getApplicationContext<Context>()
 
+    @Test fun appDatabaseAllowsMainThreadReads() {
+        // Robolectric runs the test on the main thread: the Peers screen reads dao.self() there (I398).
+        val db = PaDatabase.open(ctx, null)
+        assertNull(db.dao().self())
+        db.close()
+    }
+
     @Test fun counterReservedFromTwoDatabaseInstancesIsDistinct() {
         // Two Room instances on the same file stand in for two processes sharing the store.
         val a = RoomLocalStore(Room.databaseBuilder(ctx, PaDatabase::class.java, "c.db").enableMultiInstanceInvalidation().allowMainThreadQueries().build())
