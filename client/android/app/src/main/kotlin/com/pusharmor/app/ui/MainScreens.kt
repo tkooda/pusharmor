@@ -354,12 +354,14 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     val prefs by vm.prefs.collectAsState()
     val context = LocalContext.current
     val me by vm.self.collectAsState()
-    var name by remember(me?.name) { mutableStateOf(me?.name ?: "") }
+    // null until the user types: shows the self name as it loads, and a later self update keeps typed text.
+    var typed by remember { mutableStateOf<String?>(null) }
+    val name = typed ?: me?.name ?: ""
     var confirmHistory by remember { mutableStateOf(false) }
     fun b(k: androidx.datastore.preferences.core.Preferences.Key<Boolean>, d: Boolean) = prefs?.get(k) ?: d
     Column(Modifier.fillMaxSize().padding(12.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row {
-            OutlinedTextField(name, { name = it.take(32) }, label = { Text("Peer name") }, singleLine = true, modifier = Modifier.weight(1f))
+            OutlinedTextField(name, { typed = it.take(32) }, label = { Text("Peer name") }, singleLine = true, modifier = Modifier.weight(1f))
             TextButton(onClick = { vm.rename(name) }) { Text("Save") }
         }
         SwitchRow("Show \"All\" option", b(Settings.K.SHOW_ALL, true)) { vm.setPref(Settings.K.SHOW_ALL, it) }
