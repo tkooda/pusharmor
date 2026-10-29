@@ -47,13 +47,36 @@ final class ScreenshotTests: XCTestCase {
         shot("04-pairing")
         app.terminate()
 
-        app = launch(["-PAScreenshotsNotify"])
+        // The banner shows for a few seconds only: shoot it while it is on screen (hittable before
+        // and after the shot), else relaunch, which posts the sample notification again.
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        let allow = springboard.alerts.buttons["Allow"]
-        if allow.waitForExistence(timeout: 15) { allow.tap() }
         let banner = springboard.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS %@", "lentil-soup")).firstMatch
-        XCTAssertTrue(banner.waitForExistence(timeout: 15), "the sample notification did not show")
-        shot("02-notification")
+        for attempt in 1...3 {
+            app = launch(["-PAScreenshotsNotify"])
+            let allow = springboard.alerts.buttons["Allow"]
+            if attempt == 1, allow.waitForExistence(timeout: 15) { allow.tap() }
+            if onScreen(banner, timeout: 20) {
+                usleep(500_000) // the slide-in animation
+                let a = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+                if banner.exists && banner.isHittable {
+                    a.name = "02-notification"
+                    a.lifetime = .keepAlways
+                    add(a)
+                    return
+                }
+            }
+            app.terminate()
+        }
+        XCTFail("the sample notification banner was not on screen in 3 attempts")
+    }
+
+    private func onScreen(_ e: XCUIElement, timeout: TimeInterval) -> Bool {
+        let end = Date().addingTimeInterval(timeout)
+        while Date() < end {
+            if e.exists && e.isHittable { return true }
+            usleep(200_000)
+        }
+        return false
     }
 }
