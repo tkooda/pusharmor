@@ -25,12 +25,12 @@ val playKeys = fossKeys + listOf(
 
 android {
     namespace = "com.pusharmor.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.pusharmor"
         minSdk = 31
-        targetSdk = 35
+        targetSdk = 36
         versionCode = versionProps.getProperty("versionCode").toInt()
         versionName = versionProps.getProperty("versionName")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
