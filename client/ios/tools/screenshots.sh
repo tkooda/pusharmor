@@ -21,7 +21,7 @@ for rt, devs in sorted(json.load(sys.stdin)["devices"].items(), reverse=True):
 xcrun simctl boot "$udid" 2>/dev/null || true
 xcrun simctl bootstatus "$udid" -b
 xcrun simctl status_bar "$udid" override --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 \
-  --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
+  --cellularMode active --cellularBars 4 --batteryState discharging --batteryLevel 100
 tmp="$(mktemp -d)"
 rb="$tmp/shots.xcresult"
 TEST_RUNNER_PA_SHOTS=1 xcodebuild test -project PushArmor.xcodeproj -scheme PushArmor \
