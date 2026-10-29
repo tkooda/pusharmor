@@ -131,6 +131,7 @@ async function shell(name, entries, iife, target, manifestFix) {
   }
   const ui = join(here, "src", "ui");
   for (const f of ["popup.html", "page.html", "style.css"]) writeFileSync(join(out, f), readFileSync(join(ui, f)));
+  writeFileSync(join(out, "tokens.css"), readFileSync(join(ui, "tokens-" + name + ".css")));
   cpSync(join(here, "icons"), join(out, "icons"), { recursive: true });
   const manifest = JSON.parse(readFileSync(join(root, "manifest.json"), "utf8"));
   manifestFix(manifest, out, root);
