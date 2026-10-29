@@ -251,8 +251,9 @@ jobs:
         run: |
           aab="$RUNNER_TEMP/signed/pusharmor-$VERSION-play.aab"
           cp "$RUNNER_TEMP/in/pusharmor-$VERSION-play.aab" "$aab"
+          # No -sigalg: jarsigner picks SHA256withRSA or SHA256withECDSA from the key.
           jarsigner -keystore "$RUNNER_TEMP/keys/upload.keystore" -storepass:env KS_PASS -keypass:env KEY_PASS \
-            -sigalg SHA256withRSA -digestalg SHA-256 "$aab" "$KEY_ALIAS"
+            -digestalg SHA-256 "$aab" "$KEY_ALIAS"
           jarsigner -verify "$aab"
       - name: Remove the keystores
         if: always()
