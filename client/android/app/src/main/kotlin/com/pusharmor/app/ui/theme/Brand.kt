@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -92,7 +93,7 @@ fun Wordmark(fontSize: TextUnit, modifier: Modifier = Modifier) {
 fun GreenButton(onClick: () -> Unit, text: String, icon: ImageVector?, modifier: Modifier = Modifier, enabled: Boolean = true) {
     val edge = LocalPaExtra.current.ctaEdge
     Button(
-        onClick, modifier.height(48.dp), enabled = enabled, shape = CircleShape,
+        onClick, modifier.heightIn(min = 48.dp), enabled = enabled, shape = CircleShape,
         colors = ButtonDefaults.buttonColors(containerColor = BrandGreen, contentColor = OnBrandGreen),
         border = if (enabled && edge != Color.Transparent) BorderStroke(1.dp, edge) else null,
     ) {

@@ -48,6 +48,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -114,16 +115,16 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onDone
                     val token = if (vm.g.push.hasPlayServices) GoogleSignIn.idToken(context as Activity, vm.g.session.nonce(purpose)) else null
                     if (token != null) vm.googleToken(token, purpose, onDone) else customTab(context, vm.oauthUrl("google", purpose))
                 }
-            }, Modifier.fillMaxWidth().height(48.dp), border = BorderStroke(1.dp, g.second),
+            }, Modifier.fillMaxWidth().heightIn(min = 48.dp), border = BorderStroke(1.dp, g.second),
                 colors = ButtonDefaults.outlinedButtonColors(containerColor = g.first, contentColor = g.third)) {
                 Icon(PaIcons.GoogleG, null, Modifier.size(20.dp), tint = Color.Unspecified); Spacer(Modifier.width(10.dp)); Text("Sign in with Google")
             }
             val a = if (x.dark) Color.White to Color.Black else Color.Black to Color.White
-            Button(onClick = { customTab(context, vm.oauthUrl("apple", purpose)) }, Modifier.fillMaxWidth().height(48.dp),
+            Button(onClick = { customTab(context, vm.oauthUrl("apple", purpose)) }, Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = a.first, contentColor = a.second)) {
                 Icon(PaIcons.Apple, null, Modifier.size(18.dp)); Spacer(Modifier.width(10.dp)); Text("Sign in with Apple")
             }
-            OutlinedButton(onClick = onEmail, Modifier.fillMaxWidth().height(48.dp), border = BorderStroke(1.dp, cs.outline),
+            OutlinedButton(onClick = onEmail, Modifier.fillMaxWidth().heightIn(min = 48.dp), border = BorderStroke(1.dp, cs.outline),
                 colors = ButtonDefaults.outlinedButtonColors(containerColor = x.tile)) {
                 Icon(PaIcons.Mail, null, Modifier.size(18.dp)); Spacer(Modifier.width(10.dp)); Text("Sign in with email")
             }
@@ -191,7 +192,7 @@ private fun CodeCells(code: String, onChange: (String) -> Unit) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
                     for (i in 0 until 6) {
                         val shape = RoundedCornerShape(12.dp)
-                        Box(Modifier.weight(1f, fill = false).widthIn(max = 52.dp).fillMaxWidth().height(60.dp).clip(shape).background(x.fpCell)
+                        Box(Modifier.weight(1f, fill = false).widthIn(max = 52.dp).fillMaxWidth().heightIn(min = 60.dp).clip(shape).background(x.fpCell)
                             .border(if (i == code.length) 2.dp else 1.dp, if (i == code.length) cs.primary else cs.outline, shape), Alignment.Center) {
                             Text(code.getOrNull(i)?.toString() ?: "", style = FingerprintText.copy(fontSize = 28.sp, lineHeight = 34.sp), color = cs.onSurface)
                         }
