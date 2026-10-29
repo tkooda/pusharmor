@@ -4,6 +4,7 @@ import { b64urlDecode, b64urlEncode } from "../src/crypto/b64url.ts";
 import { pairingKey } from "../src/crypto/labels.ts";
 import { T } from "../src/core/texts.ts";
 import { UserError } from "../src/core/engine.ts";
+import { Rpc } from "../src/core/rpc.ts";
 import { allEntries, getAllowSet, getEntry } from "../src/core/state.ts";
 import { encodeInner } from "../src/model/message.ts";
 import { IDBFactory } from "fake-indexeddb";
@@ -571,6 +572,17 @@ test("a just-completed pairing with an older GET showing approves_me false stays
   const p = (await a.db.peer(b.id))!;
   assert.ok(p.approves_me && !p.get_after_verify);
   assert.equal((await a.e.allSet()).length, 1);
+});
+
+test("peer view approvesMe follows the peer's approve of this device", async () => {
+  const { w, a, b } = await setup();
+  await refresh(a, b);
+  const before = (await new Rpc(a.e).peers()).peers.find((v) => v.id === b.id)!;
+  assert.equal(before.approvesMe, false);
+  await pairAndApprove(w, a, b);
+  const after = (await new Rpc(a.e).peers()).peers.find((v) => v.id === b.id)!;
+  assert.equal(after.approvesMe, true);
+  assert.equal(after.sendable, true);
 });
 
 test("N-side hint: approves_me true while committed reads still holds an earlier pairing", async () => {

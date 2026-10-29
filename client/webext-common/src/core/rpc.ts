@@ -33,6 +33,8 @@ export interface PeerView {
   greyed: string | null;
   hidden: boolean;
   sendable: boolean;
+  /** the peer approves this device (peer status line) */
+  approvesMe: boolean;
 }
 
 export interface StateView {
@@ -179,7 +181,7 @@ export class Rpc {
       if (p.removed || p.id === self?.id) continue;
       const label = p.name ?? created(p);
       const nm = peerLabel(p.name);
-      const v: PeerView = { id: p.id, label, platform: p.platform, lines: [], actions: [], countdown: null, fingerprint: null, pk: null, greyed: null, hidden: p.hidden, sendable: false };
+      const v: PeerView = { id: p.id, label, platform: p.platform, lines: [], actions: [], countdown: null, fingerprint: null, pk: null, greyed: null, hidden: p.hidden, sendable: false, approvesMe: p.approves_me };
       const pv = entries.has(p.id) ? await e.pairRowView(p.id) : null;
       if (pv) {
         v.lines = pv.lines;
