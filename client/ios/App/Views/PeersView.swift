@@ -288,10 +288,14 @@ struct PairingCardView: View {
     }
 
     private func denyButton() -> some View {
-        Button { Task { await model.deny(p) } } label: {
-            Text("Deny").frame(maxWidth: .infinity)
+        // Destructive role for VoiceOver; the tint and ink keep the design's neutral look.
+        Button(role: .destructive) { Task { await model.deny(p) } } label: {
+            Text("Deny")
+                .foregroundStyle(Color.accentColor)
+                .frame(maxWidth: .infinity)
         }
         .buttonStyle(.bordered)
+        .tint(.accentColor)
         .controlSize(.large)
         .buttonBorderShape(.capsule)
     }
