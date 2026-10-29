@@ -274,15 +274,23 @@ jobs:
           for b in "$app" "$app/PlugIns/PushArmorNSE.appex" "$app/PlugIns/PushArmorShare.appex"; do
             codesign --verify --strict "$b"
             codesign -d --entitlements - --xml "$b" > "$RUNNER_TEMP/ent.plist" 2>/dev/null
-            aps=""
-            [ "$b" = "$app" ] && aps=production
-            python3 -I - "$RUNNER_TEMP/ent.plist" "$b" "$TEAM" "$APP_BUNDLE_ID" "$aps" <<'PY'
+            aps=""; suffix=""
+            case "$b" in
+              "$app") aps=production ;;
+              *NSE.appex) suffix=.nse ;;
+              *Share.appex) suffix=.share ;;
+            esac
+            python3 -I - "$RUNNER_TEMP/ent.plist" "$b" "$TEAM" "$APP_BUNDLE_ID" "$aps" "$suffix" <<'PY'
           import plistlib, sys
-          path, name, team, bid, aps = sys.argv[1:6]
+          path, name, team, bid, aps, suffix = sys.argv[1:7]
           e = plistlib.load(open(path, "rb"))
           bad = []
+          if e.get("application-identifier") != team + "." + bid + suffix:
+              bad.append("application-identifier is %r, want %r" % (e.get("application-identifier"), team + "." + bid + suffix))
           if aps and e.get("aps-environment") != aps:
               bad.append("aps-environment is %r, want %r" % (e.get("aps-environment"), aps))
+          elif not aps and "aps-environment" in e:
+              bad.append("aps-environment must be absent")
           if e.get("com.apple.security.application-groups") != ["group." + bid]:
               bad.append("app groups are %r" % e.get("com.apple.security.application-groups"))
           if e.get("keychain-access-groups") != [team + "." + bid + ".shared"]:
