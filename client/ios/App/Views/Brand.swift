@@ -30,7 +30,8 @@ func platformSymbol(_ platform: String?) -> String {
     switch platform {
     case "iphone": return "iphone"
     case "android": return "smartphone"
-    case "chrome", "firefox": return "laptopcomputer"
+    case "chrome": return "laptopcomputer"
+    case "firefox": return "desktopcomputer"
     default: return "questionmark.circle"
     }
 }
