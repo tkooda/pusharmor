@@ -141,6 +141,20 @@ jobs:
       # No test hooks in a release build (owner rule Q194).
       - name: Release bundle check
         run: bash client/ios/tools/check-release-bundle.sh "$RUNNER_TEMP/dd/Build/Products/Release-iphoneos/PushArmor.app"
+      # Manual dispatch only (before a release tag): the archive line of
+      # ios-release.yml build-ios (ad-hoc signed, no secrets) and its checks.
+      - name: Release archive as in ios-release.yml, groups and bundle check
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: client/ios
+        run: |
+          TEAM="$(node -p 'require(process.argv[1]).apple_team_id' "$GITHUB_WORKSPACE/release/public.json")"
+          xcodebuild archive -project PushArmor.xcodeproj -scheme PushArmor -configuration Release \
+            -destination "generic/platform=iOS" -archivePath "$RUNNER_TEMP/PushArmor.xcarchive" \
+            -disableAutomaticPackageResolution \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO PROVISIONING_PROFILE_SPECIFIER= \
+            AppIdentifierPrefix="$TEAM."
+          bash tools/check-archive-groups.sh "$RUNNER_TEMP/PushArmor.xcarchive" "$TEAM"
+          bash tools/check-release-bundle.sh "$RUNNER_TEMP/PushArmor.xcarchive"
 
   ios-sim-test:
     name: app tests (newest simulator)
