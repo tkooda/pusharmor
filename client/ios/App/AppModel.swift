@@ -390,7 +390,8 @@ final class AppModel: ObservableObject {
 
     func canSendAgain(_ e: PairingEntry) -> Bool { core?.canSendAgain(e) ?? false }
 
-    func offersCancel(_ p: Peer) -> Bool { core?.offersCancel(p) ?? false }
+    /// Without Core (screenshot mode) the same rule runs on the loaded pairings.
+    func offersCancel(_ p: Peer) -> Bool { core?.offersCancel(p) ?? (pairings[p.id.text] != nil || p.notPairedOnPeer) }
 
     var allSet: [Peer] { peers.filter { $0.inAll } }
 
