@@ -36,7 +36,7 @@ struct CodeEntryView: View {
                 // The field takes the typing and the one-time code; the cells show it.
                 TextField("Code", text: $raw)
                     .focused($focused)
-                    .foregroundStyle(.clear)
+                    .foregroundStyle(Color.clear)
                     .tint(.clear)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
