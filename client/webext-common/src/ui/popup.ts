@@ -233,7 +233,9 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (tex
     return row;
   }
   const sent = r.results ? Object.values(r.results).filter((v) => v === "sent").length : (r.targets?.length ?? 0);
-  const who = h("span", { class: "who" }, r.dir === "out" ? T.sentToNofM(sent, r.targets?.length ?? 0) : r.sender);
+  const whoText = r.dir === "out" ? T.sentToNofM(sent, r.targets?.length ?? 0) : r.sender;
+  // A real button when it opens the peer, so Tab focuses it and Enter/Space activate it.
+  const who = r.dir === "in" && r.peer ? h("button", { class: "who peerlink", type: "button" }, whoText) : h("span", { class: "who" }, whoText);
   if (r.dir === "in" && r.peer) who.addEventListener("click", () => env.openPage("#peers=" + r.peer));
   const col = h("div", { class: "txt" }, h("div", { class: "hmeta" }, who, time));
   const one = r.type === "url" || r.type === "tel";
