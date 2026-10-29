@@ -91,6 +91,18 @@ test("collect picks the tag of the version the store serves now, not the newest 
   assert.match(wf, /VERSION: \$\{\{ steps\.store\.outputs\.version \}\}/);
 });
 
+test("collect never uploads to an existing release; it publishes the store file as its own draft-then-publish release", () => {
+  const wf = read("collect.yml");
+  assert.doesNotMatch(wf, /gh release (upload|edit "\$TAG"|delete "\$TAG")/);
+  const cmds = [...wf.matchAll(/gh release (create|edit)\b.*/g)].map((m) => m[0]);
+  assert.ok(cmds.length >= 2, "create then publish");
+  assert.match(cmds[0], /^gh release create "\$STORE_TAG" --draft\b.*--target/);
+  assert.match(cmds[1], /^gh release edit "\$STORE_TAG" --draft=false/);
+  assert.match(wf, /store_tag="store\/\$BROWSER\/v\$VERSION"/);
+  assert.match(wf, /gh release delete "\$store_tag" --yes/);
+  assert.match(wf, /STORE_TAG: \$\{\{ steps\.find\.outputs\.store_tag \}\}/);
+});
+
 test("attest steps are skipped while the repo is private", () => {
   for (const f of RELEASE_WFS) {
     const wf = read(f);
