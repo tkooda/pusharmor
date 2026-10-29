@@ -102,8 +102,8 @@ to App Store Connect. No review submission.
 
 Test: internal TestFlight testers (no Beta App Review).
 
-The app declares ITSAppUsesNonExemptEncryption = true. Once, in App Store
-Connect export compliance, answer "standard encryption algorithms".
+The app declares ITSAppUsesNonExemptEncryption = false: it uses only Apple OS
+encryption (CryptoKit), so no export compliance answer is needed.
 
 Promote:
 
