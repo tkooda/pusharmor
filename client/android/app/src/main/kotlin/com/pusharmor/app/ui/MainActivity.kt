@@ -43,12 +43,14 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         vm.boot(fromMain = true)
-        handle(intent)
+        // A recreate (rotation) brings back the same intent: its route and ticket are already spent.
+        if (savedInstanceState == null) handle(intent)
         setContent { MaterialTheme { App(vm) } }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         handle(intent)
     }
 
@@ -127,7 +129,7 @@ private fun App(vm: AppViewModel) {
         val pending = MainActivity.pendingRoute
         // After NavHost has set the graph: navigating during the first composition throws (I399).
         androidx.compose.runtime.LaunchedEffect(back, pending) {
-            if (back != null && pending != null) { MainActivity.pendingRoute = null; nav.navigate(pending) }
+            if (back != null && pending != null) { MainActivity.pendingRoute = null; nav.navigate(pending) { launchSingleTop = true } }
         }
         Scaffold(bottomBar = {
             NavigationBar {
