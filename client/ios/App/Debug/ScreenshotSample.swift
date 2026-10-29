@@ -63,6 +63,7 @@ enum ScreenshotSample {
         guard args.contains("-PAScreenshotsNotify") else { return }
         let center = UNUserNotificationCenter.current()
         _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+        center.removeAllDeliveredNotifications() // a relaunch shows the banner again
         let c = UNMutableNotificationContent()
         c.title = S.title
         c.body = link
