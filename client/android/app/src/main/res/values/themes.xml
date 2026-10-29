@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.PushArmor" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Edge-to-edge (target 35): the light app draws under the status bar, so its icons must be dark. -->
+    <style name="Theme.PushArmor" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
     <style name="Theme.PushArmor.Dialog" parent="android:Theme.Material.Light.Dialog" />
 </resources>
