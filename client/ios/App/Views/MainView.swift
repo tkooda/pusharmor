@@ -8,12 +8,15 @@ struct MainView: View {
     var body: some View {
         TabView(selection: $tab) {
             HomeView()
+                .tabBarMaterial()
                 .tabItem { Label("Home", systemImage: "house") }
                 .tag(0)
             PeersView()
+                .tabBarMaterial()
                 .tabItem { Label("Peers", systemImage: "person.2") }
                 .tag(1)
             SettingsView()
+                .tabBarMaterial()
                 .tabItem { Label("Settings", systemImage: "gear") }
                 .tag(2)
         }
@@ -81,7 +84,29 @@ struct HomeView: View {
                 }
                 HistoryView()
             }
+            .contentMargins(.bottom, 12, for: .scrollContent)
             .navigationTitle("PushArmor")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    HStack(spacing: 8) {
+                        BrandTileView(size: 30)
+                        Wordmark(size: 22)
+                    }
+                }
+                // The wordmark is the title; the plain navigation title stays for accessibility.
+                ToolbarItem(placement: .principal) {
+                    Color.clear.frame(width: 1, height: 1).accessibilityHidden(true)
+                }
+            }
         }
+    }
+}
+
+extension View {
+    /// The tab bar always sits on the system bar material, at rest too.
+    func tabBarMaterial() -> some View {
+        toolbarBackground(.visible, for: .tabBar)
+            .toolbarBackground(.bar, for: .tabBar)
     }
 }
