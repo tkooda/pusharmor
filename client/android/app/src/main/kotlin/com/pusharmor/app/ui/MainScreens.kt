@@ -64,6 +64,9 @@ import kotlinx.coroutines.launch
 
 private fun label(p: Peer) = p.name ?: "${AppEffects.platformLabel(p.platform)} peer added ${AppEffects.dateLabel(p.created)}"
 
+/** Peers other than self; none until self is known, so the own device never shows as a peer. */
+internal fun others(peers: List<Peer>, selfId: String?): List<Peer> = if (selfId == null) emptyList() else peers.filter { it.id != selfId }
+
 /** Peers screen (section 8). */
 @Composable
 fun PeersScreen(vm: AppViewModel) {
@@ -79,8 +82,7 @@ fun PeersScreen(vm: AppViewModel) {
         while (true) { delay(30_000); now = System.currentTimeMillis(); vm.onPeersOpen() } // timeout timer while open
     }
     val me by vm.self.collectAsState()
-    val selfId = me?.id
-    val list = peers.filter { it.id != selfId && !(it.removed && !it.pinned && rows.none { r -> r.peerId == it.id }) }
+    val list = others(peers, me?.id).filter { !(it.removed && !it.pinned && rows.none { r -> r.peerId == it.id }) }
     val state = rememberLazyListState()
     LaunchedEffect(highlight, list.size) { highlight?.let { h -> list.indexOfFirst { it.id == h }.takeIf { it >= 0 }?.let { state.animateScrollToItem(it) } } }
     Column(Modifier.fillMaxSize().padding(12.dp)) {
@@ -276,8 +278,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
             Checkbox(picked.containsAll(all.map { it.id }), { on -> picked.clear(); if (on) picked.addAll(all.map { it.id }) })
             Text("All")
         }
-        val selfId = me?.id
-        for (p in peers.filter { it.pinned && it.id != selfId }) {
+        for (p in others(peers, me?.id).filter { it.pinned }) {
             val ok = p.inAll
             Row {
                 Checkbox(p.id in picked, { if (it) picked.add(p.id) else picked.remove(p.id) }, enabled = ok)

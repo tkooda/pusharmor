@@ -148,6 +148,14 @@ class AppLogicTest {
         assertEquals(max, com.pusharmor.app.work.Work.upPushRequest(null, max).workSpec.input.getString("m"))
     }
 
+    @Test fun selfNeverShowsAsAPeer() {
+        // peers can emit before self: the own device must not show as a peer for that frame (critic14 #8)
+        val ps = listOf(com.pusharmor.protocol.Peer(id = "me", platform = "android", created = 1),
+            com.pusharmor.protocol.Peer(id = "b", platform = "android", created = 2))
+        assertEquals(emptyList<com.pusharmor.protocol.Peer>(), com.pusharmor.app.ui.others(ps, null))
+        assertEquals(listOf("b"), com.pusharmor.app.ui.others(ps, "me").map { it.id })
+    }
+
     @Test fun unifiedPushJobNeverFailsTheChain() {
         // APPEND_OR_REPLACE: one FAILED job would fail every push queued behind it (critic14 #4).
         val r = kotlinx.coroutines.runBlocking { com.pusharmor.app.work.Work.neverFail { throw IllegalStateException("onFail threw") } }
