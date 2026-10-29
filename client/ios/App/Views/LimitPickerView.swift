@@ -13,12 +13,12 @@ struct LimitPickerView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(PeerLabel.platformName(e.platform))
                                 if e.oldInstall {
-                                    Text(S.thisPhoneOldInstall).font(.caption).foregroundColor(.secondary)
+                                    Text(S.thisPhoneOldInstall).font(.caption).foregroundColor(.secondaryText)
                                 }
                                 Text("Created " + Date(timeIntervalSince1970: TimeInterval(e.created)).formatted(date: .abbreviated, time: .omitted))
-                                    .font(.caption).foregroundColor(.secondary)
+                                    .font(.caption).foregroundColor(.secondaryText)
                                 Text("approves \(e.approves), approved by \(e.approvedBy)")
-                                    .font(.caption).foregroundColor(.secondary)
+                                    .font(.caption).foregroundColor(.secondaryText)
                                 if !e.reachable {
                                     Text("unreachable").font(.caption).foregroundColor(.orange)
                                 }

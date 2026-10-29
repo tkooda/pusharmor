@@ -14,7 +14,7 @@ struct NameDeviceView: View {
                 .autocorrectionDisabled()
             Text("1 to 32 plain ASCII characters.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(.secondaryText)
             Button("Save") { Task { await model.setName(name) } }
                 .buttonStyle(.borderedProminent)
                 .disabled(!NameEntry.isValidName(name))
