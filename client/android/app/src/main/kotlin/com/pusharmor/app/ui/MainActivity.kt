@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -104,9 +105,9 @@ private fun App(vm: AppViewModel) {
     val nav = rememberNavController()
     var deleting by remember { mutableStateOf(false) }
     when (start) {
-        null -> { Text("PushArmor"); return }
+        null -> { Text("PushArmor", Modifier.safeDrawingPadding()); return }
         Session.Start.KEYS_UNAVAILABLE -> {
-            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.safeDrawingPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(Session.KEYS_UNAVAILABLE)
                 Button(onClick = { vm.io { vm.g.session.selfRemoved(deleted = false, lostKeys = true); vm.boot() } }) { Text("Sign in again") }
             }
@@ -159,7 +160,7 @@ private fun PermissionGate(content: @Composable () -> Unit) {
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok = it; asked = true }
     if (ok || skipped) { content(); return }
     if (!asked) { androidx.compose.runtime.LaunchedEffect(Unit) { launcher.launch(Manifest.permission.POST_NOTIFICATIONS) } }
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("PushArmor shows each message as a notification. Allow notifications to receive messages. Also turn off \"Pause app activity if unused\" for PushArmor.")
         val activity = ctx as? android.app.Activity
         val permanent = asked && activity != null && !activity.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)
