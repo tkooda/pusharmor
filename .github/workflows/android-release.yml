@@ -5,7 +5,9 @@ name: android-release
 #   android-rel-build    no Environment, no secrets: unsigned AAB and APKs
 #   android-rel-sign     Environment android-sign: keystores, no checkout
 #   android-rel-publish  Environment android-release: provenance, GitHub
-#                        prerelease, then the Play internal upload as the last step
+#                        prerelease
+#   android-rel-play     Environment android-release: the Play internal upload,
+#                        in its own job so a failed upload can be rerun alone
 # Test channels only (owner ruling Q209 B): Play internal track and the GitHub
 # prerelease (Obtainium testers include prereleases). The owner promotes by hand
 # (RELEASING.md): Play promote, clear the prerelease flag, F-Droid metadata.
@@ -340,6 +342,33 @@ jobs:
               "$DIR"/*
           fi
           gh release edit "$TAG" --draft=false --prerelease
+
+  # Its own job: "Re-run failed jobs" repeats only the Play upload (the GitHub
+  # prerelease above is published and immutable). The bundles check below makes
+  # a rerun skip an upload that already happened.
+  android-rel-play:
+    name: Play internal track upload
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/android/v')
+    needs: [android-rel-build, android-rel-publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: android-release
+    permissions:
+      id-token: write
+    env:
+      VERSION: ${{ needs.android-rel-build.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: android-signed
+          path: ${{ runner.temp }}/signed
+      - name: AAB path
+        id: files
+        run: |
+          aab="$RUNNER_TEMP/signed/pusharmor-$VERSION-play.aab"
+          test -s "$aab"
+          sha256sum "$aab"
+          echo "aab=$aab" >> "$GITHUB_OUTPUT"
       - id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
@@ -348,8 +377,8 @@ jobs:
           token_format: access_token
           access_token_scopes: https://www.googleapis.com/auth/androidpublisher
           create_credentials_file: false
-      # Last step: Play internal track (edits.insert, bundles.upload, tracks.update,
-      # edits.commit). A failure after the upload is fixed with a new patch tag.
+      # Play internal track (edits.insert, bundles.upload, tracks.update,
+      # edits.commit). Rerun this job after a failure; a committed upload is skipped.
       - name: Upload the AAB to the Play internal track
         env:
           TOKEN: ${{ steps.auth.outputs.access_token }}
