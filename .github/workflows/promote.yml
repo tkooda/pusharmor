@@ -12,7 +12,8 @@ name: promote
 #             listed add-on
 # A platform without tag and prerelease X.Y.Z is skipped. Each store is its own
 # job: rerun only the failed one. Every job skips a version that is already
-# live or in review. Store jobs use the store's release Environment for its
+# live or in review. After its store accepts the build, each job clears the
+# prerelease flag of its own GitHub release. Store jobs use the store's release Environment for its
 # secrets (WIF for Play and Chrome Web Store).
 on:
   workflow_dispatch:
@@ -80,7 +81,7 @@ jobs:
     timeout-minutes: 30
     environment: android-release
     permissions:
-      contents: read
+      contents: write
       id-token: write
     steps:
       # Hard gate (I414): no Play production release until the owner confirms the
@@ -118,6 +119,13 @@ jobs:
           TOKEN: ${{ steps.auth.outputs.access_token }}
           PLAY_CONTACT_OK: ${{ vars.PLAY_CONTACT_OK }}
         run: node release/promote.mjs play "$VERSION"
+      # Owner ruling Q248 B: after the store accepted the build, the release
+      # is no longer a test build. Runs only when the step above succeeded; a
+      # release that is already a full release is not an error.
+      - name: Clear the GitHub prerelease flag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "android/v$VERSION" --repo "$GITHUB_REPOSITORY" --prerelease=false
 
   appstore:
     name: App Store review
@@ -127,7 +135,7 @@ jobs:
     timeout-minutes: 30
     environment: ios-release
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -146,6 +154,13 @@ jobs:
           ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
           ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
         run: node release/promote.mjs appstore "$VERSION"
+      # Owner ruling Q248 B: after the store accepted the build, the release
+      # is no longer a test build. Runs only when the step above succeeded; a
+      # release that is already a full release is not an error.
+      - name: Clear the GitHub prerelease flag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "ios/v$VERSION" --repo "$GITHUB_REPOSITORY" --prerelease=false
 
   chrome:
     name: Chrome Web Store public item
@@ -155,7 +170,7 @@ jobs:
     timeout-minutes: 20
     environment: chrome-release
     permissions:
-      contents: read
+      contents: write
       id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -181,6 +196,13 @@ jobs:
         env:
           TOKEN: ${{ steps.auth.outputs.access_token }}
         run: node release/promote.mjs chrome "$VERSION"
+      # Owner ruling Q248 B: after the store accepted the build, the release
+      # is no longer a test build. Runs only when the step above succeeded; a
+      # release that is already a full release is not an error.
+      - name: Clear the GitHub prerelease flag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "chrome/v$VERSION" --repo "$GITHUB_REPOSITORY" --prerelease=false
 
   firefox:
     name: Firefox AMO listed add-on
@@ -190,7 +212,7 @@ jobs:
     timeout-minutes: 20
     environment: firefox-release
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -208,3 +230,10 @@ jobs:
           MOZILLA_AMO_JWT_ISSUER: ${{ secrets.MOZILLA_AMO_JWT_ISSUER }}
           MOZILLA_AMO_JWT_SECRET: ${{ secrets.MOZILLA_AMO_JWT_SECRET }}
         run: node release/promote.mjs firefox "$VERSION"
+      # Owner ruling Q248 B: after the store accepted the build, the release
+      # is no longer a test build. Runs only when the step above succeeded; a
+      # release that is already a full release is not an error.
+      - name: Clear the GitHub prerelease flag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "firefox/v$VERSION" --repo "$GITHUB_REPOSITORY" --prerelease=false
