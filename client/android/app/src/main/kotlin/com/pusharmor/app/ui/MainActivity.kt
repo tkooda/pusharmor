@@ -61,7 +61,8 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
-        var pendingRoute: String? = null
+        /** Compose state, so a notification tap while the app is open recomposes and navigates (I401). */
+        var pendingRoute by mutableStateOf<String?>(null)
 
         /** Non-exported alias of this activity; only [AuthLinkActivity] starts it (I298). */
         const val AUTH_ALIAS = "com.pusharmor.app.ui.AuthTicket"
@@ -122,9 +123,10 @@ private fun App(vm: AppViewModel) {
     PermissionGate {
         val back by nav.currentBackStackEntryAsState()
         val route = back?.destination?.route
+        val pending = MainActivity.pendingRoute
         // After NavHost has set the graph: navigating during the first composition throws (I399).
-        androidx.compose.runtime.LaunchedEffect(back) {
-            if (back != null) MainActivity.pendingRoute?.let { r -> MainActivity.pendingRoute = null; nav.navigate(r) }
+        androidx.compose.runtime.LaunchedEffect(back, pending) {
+            if (back != null && pending != null) { MainActivity.pendingRoute = null; nav.navigate(pending) }
         }
         Scaffold(bottomBar = {
             NavigationBar {

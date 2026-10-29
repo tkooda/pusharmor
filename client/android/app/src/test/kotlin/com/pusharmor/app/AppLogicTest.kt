@@ -111,6 +111,20 @@ class AppLogicTest {
         assertEquals("p" to null, main.ownExtras(main.openIntent(ctx, "bogus").putExtra("peer", "p")))
     }
 
+    @Test fun pendingRouteChangeNotifiesCompose() {
+        // A notification tap while the app is open must recompose the effect that navigates (I401).
+        var changed = false
+        val h = androidx.compose.runtime.snapshots.Snapshot.registerApplyObserver { _, _ -> changed = true }
+        try {
+            com.pusharmor.app.ui.MainActivity.pendingRoute = "history"
+            androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+            assertTrue(changed)
+        } finally {
+            h.dispose()
+            com.pusharmor.app.ui.MainActivity.pendingRoute = null
+        }
+    }
+
     @Test fun keystoreEcdhFailureIsCryptoExceptionAndPushPostsOneNotice() {
         val e = runCatching { com.pusharmor.app.keys.KeystoreKeyOps.wrap<ByteArray> { throw java.security.ProviderException("keystore") } }.exceptionOrNull()
         assertTrue(e is com.pusharmor.crypto.CryptoException)
