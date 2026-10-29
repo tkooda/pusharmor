@@ -7,6 +7,7 @@ import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
+import androidx.work.ListenableWorker
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
@@ -58,6 +59,12 @@ object Work {
     /** One UnifiedPush message or probe; the unique chain keeps them in arrival order. */
     fun upPush(context: Context, probe: String?, m: String?) {
         WorkManager.getInstance(context).enqueueUniqueWork("up-push", ExistingWorkPolicy.APPEND_OR_REPLACE, upPushRequest(probe, m))
+    }
+
+    /** A FAILED job fails every request appended behind it on the up-push chain: always succeed. */
+    suspend fun neverFail(block: suspend () -> Unit): ListenableWorker.Result {
+        try { block() } catch (e: Exception) { Log.w("PushArmor", "UnifiedPush job failed", e) }
+        return ListenableWorker.Result.success()
     }
 
     fun upPushRequest(probe: String?, m: String?): OneTimeWorkRequest = OneTimeWorkRequestBuilder<UpPushWorker>()
@@ -125,13 +132,12 @@ class PushPatchWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(
 }
 
 class UpPushWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
-    override suspend fun doWork(): Result {
+    override suspend fun doWork(): Result = Work.neverFail {
         val g = (applicationContext as PaApp).graph
         val probe = inputData.getString("probe")
         if (probe != null) {
             try { g.session.confirmProbe(probe) } catch (e: Exception) { Log.w("PushArmor", "UnifiedPush probe confirm failed", e) }
         } else PushDispatcher.onPush(g, inputData.getString("m"), fcm = false)
-        return Result.success()
     }
 }
 

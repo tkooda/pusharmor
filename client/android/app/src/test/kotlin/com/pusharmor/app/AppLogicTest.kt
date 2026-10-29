@@ -148,6 +148,12 @@ class AppLogicTest {
         assertEquals(max, com.pusharmor.app.work.Work.upPushRequest(null, max).workSpec.input.getString("m"))
     }
 
+    @Test fun unifiedPushJobNeverFailsTheChain() {
+        // APPEND_OR_REPLACE: one FAILED job would fail every push queued behind it (critic14 #4).
+        val r = kotlinx.coroutines.runBlocking { com.pusharmor.app.work.Work.neverFail { throw IllegalStateException("onFail threw") } }
+        assertEquals(androidx.work.ListenableWorker.Result.success(), r)
+    }
+
     @Test fun keystoreEcdhFailureIsCryptoExceptionAndPushPostsOneNotice() {
         val e = runCatching { com.pusharmor.app.keys.KeystoreKeyOps.wrap<ByteArray> { throw java.security.ProviderException("keystore") } }.exceptionOrNull()
         assertTrue(e is com.pusharmor.crypto.CryptoException)
