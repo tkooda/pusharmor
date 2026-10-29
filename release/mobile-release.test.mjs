@@ -4,20 +4,22 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const read = (p) => readFileSync(new URL("../" + p, import.meta.url), "utf8");
-const FLAGS = 'CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO PROVISIONING_PROFILE_SPECIFIER=';
+const ARCHIVE = 'bash client/ios/tools/release-archive.sh "$RUNNER_TEMP/PushArmor.xcarchive" "$TEAM" "$VERSION" "$BUILD"';
 
-test("ios-release archive sets AppIdentifierPrefix and checks the groups", () => {
+test("ios-release archives with tools/release-archive.sh (unsigned, codesign ad-hoc, group check)", () => {
   const y = read(".github/workflows/ios-release.yml");
-  assert.match(y, /CURRENT_PROJECT_VERSION="\$BUILD" AppIdentifierPrefix="\$TEAM\."/);
-  assert.ok(y.includes(FLAGS));
-  assert.ok(y.includes('check-archive-groups.sh "$RUNNER_TEMP/PushArmor.xcarchive" "$TEAM"'));
+  assert.ok(y.includes(ARCHIVE));
+  assert.ok(!/xcodebuild archive/.test(y), "the archive line lives in the script only");
+  const sh = read("client/ios/tools/release-archive.sh");
+  assert.ok(sh.includes("CODE_SIGNING_ALLOWED=NO"), "xcodebuild refuses ad-hoc signing for the device SDK");
+  assert.ok(sh.includes('AppIdentifierPrefix="$team."'));
+  assert.ok(sh.includes("--generate-entitlement-der"));
+  assert.ok(sh.includes('check-archive-groups.sh "$archive" "$team"'));
 });
 
-test("ios.yml dispatch runs the same archive line and checks", () => {
+test("ios.yml dispatch runs the same release archive script", () => {
   const y = read(".github/workflows/ios.yml");
-  assert.ok(y.includes(FLAGS));
-  assert.ok(y.includes('AppIdentifierPrefix="$TEAM."'));
-  assert.ok(y.includes('check-archive-groups.sh "$RUNNER_TEMP/PushArmor.xcarchive" "$TEAM"'));
+  assert.ok(y.includes('bash tools/release-archive.sh "$RUNNER_TEMP/PushArmor.xcarchive" "$TEAM"'));
 });
 
 test("android-release: the Play upload is its own job after the GitHub prerelease", () => {

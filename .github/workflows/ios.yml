@@ -148,12 +148,7 @@ jobs:
         working-directory: client/ios
         run: |
           TEAM="$(node -p 'require(process.argv[1]).apple_team_id' "$GITHUB_WORKSPACE/release/public.json")"
-          xcodebuild archive -project PushArmor.xcodeproj -scheme PushArmor -configuration Release \
-            -destination "generic/platform=iOS" -archivePath "$RUNNER_TEMP/PushArmor.xcarchive" \
-            -disableAutomaticPackageResolution \
-            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO PROVISIONING_PROFILE_SPECIFIER= \
-            AppIdentifierPrefix="$TEAM."
-          bash tools/check-archive-groups.sh "$RUNNER_TEMP/PushArmor.xcarchive" "$TEAM"
+          bash tools/release-archive.sh "$RUNNER_TEMP/PushArmor.xcarchive" "$TEAM" 0.0.0 1
           bash tools/check-release-bundle.sh "$RUNNER_TEMP/PushArmor.xcarchive"
 
   ios-sim-test:

@@ -154,29 +154,18 @@ jobs:
           if pins(sys.argv[1]) != pins(sys.argv[2]):
               sys.exit("resolved packages differ from PushArmorCore/Package.resolved")
           ' PushArmorCore/Package.resolved "$s/Package.resolved"
-      # No signing identity or API key here: ad-hoc signed, so the entitlements
-      # are in the archive for sign-ios to re-sign with.
-      - name: Archive (Release, ad-hoc signed)
-        working-directory: client/ios
+      # No signing identity or API key here: an unsigned archive, ad-hoc signed
+      # with the expanded entitlements by codesign (tools/release-archive.sh),
+      # so the entitlements are in the archive for sign-ios to re-sign with.
+      - name: Archive (Release, ad-hoc signed by codesign), App Group and keychain group check
         env:
           VERSION: ${{ steps.tag.outputs.version }}
           BUILD: ${{ steps.tag.outputs.build }}
           TEAM: ${{ steps.tag.outputs.team }}
-        # AppIdentifierPrefix normally comes from a provisioning profile; the
-        # ad-hoc archive has none, so set it for the keychain group.
-        run: >-
-          xcodebuild archive -project PushArmor.xcodeproj -scheme PushArmor -configuration Release
-          -destination "generic/platform=iOS" -archivePath "$RUNNER_TEMP/PushArmor.xcarchive"
-          -disableAutomaticPackageResolution
-          CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO PROVISIONING_PROFILE_SPECIFIER=
-          MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" AppIdentifierPrefix="$TEAM."
+        run: bash client/ios/tools/release-archive.sh "$RUNNER_TEMP/PushArmor.xcarchive" "$TEAM" "$VERSION" "$BUILD"
       # No test hooks in a release build (owner rule Q194).
       - name: Release bundle check (archive)
         run: bash client/ios/tools/check-release-bundle.sh "$RUNNER_TEMP/PushArmor.xcarchive"
-      - name: App Group and team-prefixed keychain group (archive)
-        env:
-          TEAM: ${{ steps.tag.outputs.team }}
-        run: bash client/ios/tools/check-archive-groups.sh "$RUNNER_TEMP/PushArmor.xcarchive" "$TEAM"
       - name: Archive tarball and SHA-256
         id: files
         run: |
