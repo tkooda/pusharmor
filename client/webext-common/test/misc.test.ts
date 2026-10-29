@@ -48,6 +48,7 @@ test("type badge labels and the pairing countdown text", () => {
   assert.equal(T.typeBadge("tel"), "Phone");
   assert.equal(T.countdownLeft("13 days"), "13 days left");
   assert.equal(T.countdownLeft("1 hour"), "1 hour left");
+  assert.equal(T.counter(39), "39 / 2048");
 });
 
 test("fx/fwd catch: only the SW fetch, body concatenated, over 3800 bytes dropped", () => {

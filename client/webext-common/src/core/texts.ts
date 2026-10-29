@@ -37,7 +37,7 @@ export const T = {
   sentToNofM: (n: number, m: number) => "Sent to " + n + " of " + m + " peers",
   notDelivered: (x: string) => "Not delivered to " + x + ": open PushArmor on it",
   tooLong: (n: number) => "Too long (" + n + " / 2048)",
-  counter: (n: number) => "(" + n + " / 2048)",
+  counter: (n: number) => n + " / 2048",
   countdownLeft: (c: string) => c + " left",
   typeBadge: (t: string) => (t === "url" ? "URL" : t === "tel" ? "Phone" : "Text"),
   clockOff: "This device's clock is off by more than 5 minutes",
