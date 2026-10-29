@@ -39,3 +39,20 @@ test("android-release: jarsigner takes the signature algorithm from the upload k
   assert.ok(y.includes("jarsigner -keystore"));
   assert.ok(!/^ *-sigalg /m.test(y) && !/jarsigner .*-sigalg/.test(y));
 });
+
+test("webext-release: CWS upload and publish are their own jobs after the Chrome prerelease", () => {
+  const y = read(".github/workflows/webext-release.yml");
+  const job = (n) => { const i = y.indexOf("\n  " + n + ":"); assert.ok(i >= 0, n); const r = y.slice(i + 1); const k = r.search(/\n  [a-z-]+:\n/); return k < 0 ? r : r.slice(0, k); };
+  const pub = job("publish-chrome");
+  const up = job("cws-upload-chrome");
+  const ps = job("cws-publish-chrome");
+  assert.ok(pub.includes("gh release create") && !pub.includes("chromewebstore.googleapis.com"));
+  assert.match(up, /needs: \[build-chrome, publish-chrome\]/);
+  assert.ok(up.includes(":upload") && !up.includes(":publish"));
+  assert.match(ps, /needs: \[build-chrome, cws-upload-chrome\]/);
+  assert.ok(ps.includes('curl -sS --fail-with-body -H "Content-Length: 0" "$@"'), "the bodyless publish POST sends Content-Length");
+  for (const j of [up, ps]) {
+    assert.match(j, /environment: chrome-release/);
+    assert.ok(!/contents: write/.test(j));
+  }
+});

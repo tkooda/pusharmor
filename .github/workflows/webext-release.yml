@@ -201,7 +201,7 @@ jobs:
             echo "zip=$out/$zip"
             echo "beta=$out/$beta"
           } >> "$GITHUB_OUTPUT"
-      # Attestations need a public repo or an org plan; skipped while private, runs once public.
+      # Build provenance attestation (needs a public repo or an org plan; skipped if the repo is private).
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         if: ${{ !github.event.repository.private }}
         with:
@@ -230,6 +230,35 @@ jobs:
               "$DIR"/*
           fi
           gh release edit "$TAG" --draft=false --prerelease
+
+  # The CWS calls run in their own jobs after the GitHub prerelease (published,
+  # immutable): "Re-run failed jobs" repeats only the CWS step that failed. Only
+  # the PRIVATE Beta item (trusted testers) is touched; never the public item.
+  cws-upload-chrome:
+    name: CWS upload (private Beta item)
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/chrome/v')
+    needs: [build-chrome, publish-chrome]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: chrome-release
+    permissions:
+      id-token: write
+    env:
+      VERSION: ${{ needs.build-chrome.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: webext-chrome
+          path: ${{ runner.temp }}/release
+      - name: Verify the Beta zip SHA-256 against the build job
+        id: files
+        env:
+          BETA_SHA256: ${{ needs.build-chrome.outputs.beta_sha256 }}
+        run: |
+          beta="pusharmor-chrome-beta-$VERSION.zip"
+          printf '%s  %s\n' "$BETA_SHA256" "$beta" > "$RUNNER_TEMP/expect.sha256"
+          (cd "$RUNNER_TEMP/release" && sha256sum -c --strict "$RUNNER_TEMP/expect.sha256")
+          echo "beta=$RUNNER_TEMP/release/$beta" >> "$GITHUB_OUTPUT"
       - id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
@@ -238,10 +267,7 @@ jobs:
           token_format: access_token
           access_token_scopes: https://www.googleapis.com/auth/chromewebstore
           create_credentials_file: false
-      # Last step: the Beta zip to the PRIVATE Beta item (trusted testers only),
-      # then publish it there after review. The public item is never touched by
-      # CI. A failure after the upload is fixed with a new patch tag.
-      - name: Upload the Beta zip to the private Beta item and publish it to testers
+      - name: Upload the Beta zip to the private Beta item
         env:
           TOKEN: ${{ steps.auth.outputs.access_token }}
           PUB: ${{ needs.build-chrome.outputs.google_cws_publisher_id }}
@@ -249,13 +275,13 @@ jobs:
           ZIP: ${{ steps.files.outputs.beta }}
         run: |
           if ! printf '%s' "$ITEM" | grep -qxE '[a-p]{32}'; then
-            echo "::error::Beta item id is not 32 letters a-p; refusing to upload"
+            echo "::error::Beta item id is not 32 letters a-p; refusing to call the CWS API"
             exit 1
           fi
           api="https://chromewebstore.googleapis.com"
           item="publishers/$PUB/items/$ITEM"
-          # Print the API error body on an HTTP error, then fail.
-          call() { local r; if ! r="$(curl -sS --fail-with-body "$@")"; then printf '%s\n' "$r" >&2; return 1; fi; printf '%s\n' "$r"; }
+          # Print the API error body (also as an annotation) on an HTTP error, then fail.
+          call() { local r; if ! r="$(curl -sS --fail-with-body "$@")"; then printf '%s\n' "$r" >&2; printf '::error::CWS API error: %s\n' "$(printf '%s' "$r" | tr '\n' ' ')" >&2; return 1; fi; printf '%s\n' "$r"; }
           r="$(call -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/zip" \
             --data-binary "@$ZIP" "$api/upload/v2/$item:upload")"
           echo "$r"
@@ -268,15 +294,50 @@ jobs:
             state="$(printf '%s' "$r" | jq -r '.lastAsyncUploadState // empty')"
           done
           if [ "$state" != "SUCCEEDED" ]; then
-            echo "upload state: ${state:-none}"
+            echo "::error::upload state: ${state:-none}"
             echo "$r"
             exit 1
           fi
+
+  # Publish to the Beta item's testers (its dashboard visibility is Private).
+  cws-publish-chrome:
+    name: CWS publish (private Beta item testers)
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/chrome/v')
+    needs: [build-chrome, cws-upload-chrome]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: chrome-release
+    permissions:
+      id-token: write
+    steps:
+      - id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ needs.build-chrome.outputs.google_cws_wif_provider }}
+          service_account: ${{ needs.build-chrome.outputs.google_cws_wif_service_account }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+          create_credentials_file: false
+      - name: Publish the Beta item to its testers
+        env:
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+          PUB: ${{ needs.build-chrome.outputs.google_cws_publisher_id }}
+          ITEM: ${{ needs.build-chrome.outputs.google_chrome_beta_extension_id }}
+        run: |
+          if ! printf '%s' "$ITEM" | grep -qxE '[a-p]{32}'; then
+            echo "::error::Beta item id is not 32 letters a-p; refusing to call the CWS API"
+            exit 1
+          fi
+          api="https://chromewebstore.googleapis.com"
+          item="publishers/$PUB/items/$ITEM"
+          # Print the API error body (also as an annotation) on an HTTP error, then fail.
+          # Content-Length: 0: the publish POST has no body (else HTTP 411).
+          call() { local r; if ! r="$(curl -sS --fail-with-body -H "Content-Length: 0" "$@")"; then printf '%s\n' "$r" >&2; printf '::error::CWS API error: %s\n' "$(printf '%s' "$r" | tr '\n' ' ')" >&2; return 1; fi; printf '%s\n' "$r"; }
           r="$(call -X POST -H "Authorization: Bearer $TOKEN" "$api/v2/$item:publish")"
           echo "$r"
           state="$(printf '%s' "$r" | jq -r '.state // empty')"
           case "$state" in
-            ""|ITEM_STATE_UNSPECIFIED|REJECTED|CANCELLED) echo "publish state: ${state:-none}"; exit 1 ;;
+            ""|ITEM_STATE_UNSPECIFIED|REJECTED|CANCELLED) echo "::error::publish state: ${state:-none}"; exit 1 ;;
           esac
 
   build-firefox:
