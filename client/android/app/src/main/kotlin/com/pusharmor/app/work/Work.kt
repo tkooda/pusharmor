@@ -56,9 +56,13 @@ object Work {
             OneTimeWorkRequestBuilder<PushPatchWorker>().setConstraints(net).setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS).build())
     }
 
-    /** One UnifiedPush message or probe; the unique chain keeps them in arrival order. */
+    /**
+     * One UnifiedPush message or probe; the unique chain keeps them in arrival order. Enqueue is async:
+     * wait (bounded) until WorkManager has stored the request, so the process cannot die before it does.
+     */
     fun upPush(context: Context, probe: String?, m: String?) {
-        WorkManager.getInstance(context).enqueueUniqueWork("up-push", ExistingWorkPolicy.APPEND_OR_REPLACE, upPushRequest(probe, m))
+        val op = WorkManager.getInstance(context).enqueueUniqueWork("up-push", ExistingWorkPolicy.APPEND_OR_REPLACE, upPushRequest(probe, m))
+        try { op.result.get(2, TimeUnit.SECONDS) } catch (e: Exception) { Log.w("PushArmor", "UnifiedPush enqueue not confirmed", e) }
     }
 
     /** A FAILED job fails every request appended behind it on the up-push chain: always succeed. */
