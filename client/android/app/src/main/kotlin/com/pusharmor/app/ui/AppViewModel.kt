@@ -16,6 +16,7 @@ import com.pusharmor.protocol.engine.ApiResult
 import com.pusharmor.protocol.engine.PairingRow
 import com.pusharmor.store.HistoryEntity
 import com.pusharmor.store.PeerEntity
+import com.pusharmor.store.SelfEntity
 import com.pusharmor.store.toPeer
 import com.pusharmor.store.toRow
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +39,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val peers: StateFlow<List<Peer>> = g.dao.peersFlow().map { l -> l.map { it.toPeer() } }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val pairings: StateFlow<List<PairingRow>> = g.dao.pairingsFlow().map { l -> l.map { it.toRow() } }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val history: StateFlow<List<HistoryEntity>> = g.dao.historyFlow().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val self: StateFlow<SelfEntity?> = g.dao.selfFlow().stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val prefs = g.settings.data.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /** Peer limit picker state (409 "peer limit"). */
@@ -49,9 +51,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         try { block() } finally { busy.value = false }
     }
 
+    /** Sign-in purpose, read off the main thread with each start change (Room refuses main-thread reads). */
+    val signInPurpose = MutableStateFlow("register")
+
+    private fun setStart(s: Session.Start) { signInPurpose.value = purpose(); start.value = s }
+
     fun boot(fromMain: Boolean = true) = io {
         val s = g.session.startup(fromMain)
-        start.value = s
+        setStart(s)
         if (s == Session.Start.READY) g.session.onAppOpen(System.currentTimeMillis())
     }
 
@@ -95,7 +102,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun ticket(ticket: String, email: String?, purpose: String, onDone: () -> Unit) {
         if (purpose == "delete-account") {
             val err = g.session.deleteAccount(ticket)
-            if (err != null) message.value = err else { start.value = Session.Start.SIGN_IN; withContext(Dispatchers.Main) { onDone() } }
+            if (err != null) message.value = err else { setStart(Session.Start.SIGN_IN); withContext(Dispatchers.Main) { onDone() } }
             return
         }
         val evict = limit.value?.let { pendingEvict }
@@ -103,7 +110,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             Session.SignIn.Done -> {
                 email?.let { e -> g.dao.self()?.let { g.dao.putSelf(it.copy(email = e)) } }
                 limit.value = null
-                start.value = Session.Start.READY
+                setStart(Session.Start.READY)
                 g.session.onAppOpen(System.currentTimeMillis())
                 withContext(Dispatchers.Main) { onDone() }
             }
@@ -190,7 +197,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun rename(name: String) = io { g.session.rename(name)?.let { message.value = it } }
     fun signOut(onDone: () -> Unit) = io {
         val err = g.session.signOut()
-        if (err != null) message.value = err else { start.value = Session.Start.SIGNED_OUT; withContext(Dispatchers.Main) { onDone() } }
+        if (err != null) message.value = err else { setStart(Session.Start.SIGNED_OUT); withContext(Dispatchers.Main) { onDone() } }
     }
     fun switchPush(toUp: Boolean) = io { if (toUp) g.push.switchToUnifiedPush(g) else g.push.switchToGoogle(g) }
     fun retryPush() = io { com.pusharmor.app.work.Work.patchPush(g.app) }

@@ -177,8 +177,6 @@ class Session(private val g: Graph) {
         return n.ifEmpty { "Android" }
     }
 
-    fun ownName(): String = dao.self()?.name ?: ""
-
     // ---- sign out / delete ----------------------------------------------------------------
 
     fun signOut(): String? {

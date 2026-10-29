@@ -22,8 +22,11 @@ import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.lifecycle.lifecycleScope
 import com.pusharmor.protocol.ContentType
 import com.pusharmor.protocol.Detect
+import com.pusharmor.protocol.Peer
 import com.pusharmor.protocol.SizeCap
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /** Share sheet entry (section 7): ACTION_SEND text/plain. */
@@ -33,8 +36,15 @@ class ShareActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: intent.getStringExtra(Intent.EXTRA_SUBJECT)
-        if (text == null || vm.g.identity() == null) { finish(); return }
-        val all = vm.g.store.peers().filter { it.inAll }
+        if (text == null) { finish(); return }
+        lifecycleScope.launch {
+            // Room refuses main-thread reads.
+            val all = withContext(Dispatchers.IO) { if (vm.g.identity() == null) null else vm.g.store.peers().filter { it.inAll } }
+            if (all == null) finish() else show(text, all)
+        }
+    }
+
+    private fun show(text: String, all: List<Peer>) {
         val direct = directTarget(intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID), all.map { it.id })
         val tooLong = SizeCap.utf8Size(text) > SizeCap.MAX_CONTENT_BYTES
         val type = Detect.type(text)
