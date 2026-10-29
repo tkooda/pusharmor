@@ -37,6 +37,8 @@ class ShareActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: intent.getStringExtra(Intent.EXTRA_SUBJECT)
         if (text == null) { finish(); return }
+        // The dialog shows at once: a placeholder until the peer read returns, never a blank box.
+        setContent { MaterialTheme { Text("PushArmor", Modifier.padding(16.dp)) } }
         lifecycleScope.launch {
             // Room refuses main-thread reads.
             val all = withContext(Dispatchers.IO) { if (vm.g.identity() == null) null else vm.g.store.peers().filter { it.inAll } }
