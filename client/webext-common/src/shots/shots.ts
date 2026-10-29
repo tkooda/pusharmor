@@ -25,15 +25,15 @@ const state: StateView = {
   platform: "chrome", isAndroid: false, receiveMode: null, receiveNote: null,
 };
 
-const paired = (pid: string, label: string, platform: string): PeerView => ({
+const paired = (pid: string, label: string, platform: string, greyed: string | null = null): PeerView => ({
   id: pid, label, platform, lines: [], actions: ["remove", "hide"], countdown: null, fingerprint: null, pk: null,
-  greyed: null, hidden: false, sendable: true, approvesMe: true,
+  greyed, hidden: false, sendable: true, approvesMe: true,
 });
 
 const peers: PeerView[] = [
   paired(PHONE, "Phone", "android"),
   paired(DESKTOP, "Work desktop", "firefox"),
-  paired(TABLET, "Tablet", "iphone"),
+  paired(TABLET, "Tablet", "iphone", "unreachable"),
   {
     id: NEW_LAPTOP, label: "New laptop", platform: "chrome", lines: [T.fingerprint("K7QD")],
     actions: ["cancel", "approve", "deny", "remove", "hide"], countdown: formatCountdown(PAIRING_TIMEOUT_MS - 60_000),
@@ -42,12 +42,16 @@ const peers: PeerView[] = [
 ];
 
 const history: (HistoryRow & { sender: string })[] = [
-  { id: 3, dir: "in", peer: PHONE, type: "url", content: "https://example.com/recipes/lentil-soup", n: 1, pairing_id: null,
+  { id: 5, dir: "in", peer: PHONE, type: "url", content: "https://www.example.com/recipes/2026/10/weeknight-lemon-pasta", n: 1, pairing_id: null,
     received: now - 2 * 60_000, read: false, sender: "Phone" },
-  { id: 2, dir: "in", peer: DESKTOP, type: "text", content: "Meeting moved to 3 pm, room B", n: 1, pairing_id: null,
+  { id: 4, dir: "in", peer: DESKTOP, type: "text", content: "Meeting moved to 3 pm, room B", n: 1, pairing_id: null,
     received: now - 25 * 60_000, read: true, sender: "Work desktop" },
-  { id: 1, dir: "out", peer: null, type: "url", content: "https://example.com/guide/hiking-trails", n: null, pairing_id: null,
-    received: now - 2 * 3600_000, read: true, results: { [TABLET]: "sent" }, targets: [TABLET], sender: "" },
+  { id: 3, dir: "out", peer: null, type: "url", content: "https://example.com/guide/hiking-trails", n: null, pairing_id: null,
+    received: now - 40 * 60_000, read: true, results: { [TABLET]: "sent" }, targets: [TABLET], sender: "" },
+  { id: 2, dir: "in", peer: TABLET, type: "event", event: "paused", content: "", n: null, pairing_id: null,
+    received: now - 50 * 60_000, read: true, sender: "Tablet" },
+  { id: 1, dir: "in", peer: PHONE, type: "tel", content: "+1 555 0142", n: 1, pairing_id: null,
+    received: now - 26 * 3600_000, read: true, sender: "Phone" },
 ];
 
 function reply(req: Req): unknown {
@@ -85,6 +89,7 @@ const HEADLINES: Record<string, string> = {
 async function main(): Promise<void> {
   document.documentElement.dataset.mode = MARKER;
   const tab = location.hash.slice(1) || "send";
+  if (tab === "signin") state.reg = null;
   document.getElementById("headline")!.textContent = HEADLINES[tab] ?? "";
   await mountPopup(env, document.getElementById("app")!);
   // let the first (Send) view finish drawing before switching tabs
