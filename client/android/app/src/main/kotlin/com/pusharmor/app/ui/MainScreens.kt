@@ -524,7 +524,8 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     val shots = BuildConfig.SCREENSHOT_MODE && ScreenshotMode.on && title != null
     var text by remember { mutableStateOf(if (shots) ScreenshotMode.sendText else initial) }
     var asText by remember { mutableStateOf(false) }
-    var result by remember { mutableStateOf<String?>(null) }
+    // Count with the text, so a repeat of the same result still shows a snackbar.
+    var result by remember { mutableStateOf<Pair<Int, String>?>(null) }
     val peers by vm.peers.collectAsState()
     val me by vm.self.collectAsState()
     val all = vm.allPeers()
@@ -535,7 +536,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     val ex = LocalPaExtra.current
     val cs = MaterialTheme.colorScheme
     val snack = remember { SnackbarHostState() }
-    LaunchedEffect(result) { result?.let { snack.showSnackbar(it) } }
+    LaunchedEffect(result) { result?.let { snack.showSnackbar(it.second) } }
     val detected = Detect.type(text)
     val type = if (asText) ContentType.TEXT else detected
     Box(Modifier.fillMaxSize()) {
@@ -575,7 +576,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
             .background(Brush.verticalGradient(0f to Color.Transparent, 0.22f to cs.background))
             .padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 16.dp)) {
             GreenButton(onClick = {
-                scope.launch { val r = vm.send(picked.toList(), text, asText); result = r; onSent(r) }
+                scope.launch { val r = vm.send(picked.toList(), text, asText); result = ((result?.first ?: 0) + 1) to r; onSent(r) }
             }, text = UiText.sendLabel(picked.size), icon = PaIcons.Send, modifier = Modifier.fillMaxWidth(),
                 enabled = picked.isNotEmpty() && text.isNotEmpty() && bytes <= SizeCap.MAX_CONTENT_BYTES)
         }
