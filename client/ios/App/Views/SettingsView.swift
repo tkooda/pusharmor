@@ -20,6 +20,7 @@ struct SettingsView: View {
             Form {
                 Section {
                     Toggle("Show \"All\" option", isOn: boolBinding(SettingKey.showAll, true))
+                        .tint(.brandGreen)
                 }
 
                 Section("History") {
@@ -63,7 +64,11 @@ struct SettingsView: View {
                         Text(S.notificationsOff).foregroundColor(.red)
                         Button("Open notification settings") { model.openNotificationSettings() }
                     } else {
-                        Text("Notifications are on")
+                        Label {
+                            Text("Notifications are on")
+                        } icon: {
+                            Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.success)
+                        }
                     }
                 }
 
@@ -85,18 +90,20 @@ struct SettingsView: View {
                     if let e = email {
                         Text(S.signedInAs(e))
                         if e.lowercased().hasSuffix("@privaterelay.appleid.com") {
-                            Text(S.relayHelp).font(.caption).foregroundColor(.secondary)
+                            Text(S.relayHelp).font(.caption).foregroundColor(.secondaryText)
                         }
                     }
                 }
 
                 Section {
                     Toggle(S.lockScreenSwitch, isOn: boolBinding(SettingKey.lockShow, true))
+                        .tint(.brandGreen)
                     Text("Uses iOS Show Previews: set it to When Unlocked to hide content on the lock screen. The Apple Watch shows notices while the iPhone is locked, so it follows this choice. This switch " + S.lockScreenHelp + "; use Always hide content for the rest.")
-                        .font(.caption).foregroundColor(.secondary)
+                        .font(.caption).foregroundColor(.secondaryText)
                     Toggle(S.alwaysHide, isOn: boolBinding(SettingKey.alwaysHide, false))
+                        .tint(.brandGreen)
                     Text("Every notice shows \"New message from $peer\" with no content.")
-                        .font(.caption).foregroundColor(.secondary)
+                        .font(.caption).foregroundColor(.secondaryText)
                 }
 
                 Section("Account") {
