@@ -1,6 +1,11 @@
 package com.pusharmor.app.ui
 
 import com.pusharmor.protocol.Peer
+import java.text.DateFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.util.Date
 import com.pusharmor.protocol.SizeCap
 
 /** Pure text rules of the screens (unit tested without a device). */
@@ -29,6 +34,20 @@ object UiText {
 
     /** Spoken form of a fingerprint: "Pairing fingerprint K, 7, Q, D". */
     fun fingerprintLabel(code: String): String = "Pairing fingerprint " + code.toList().joinToString(", ")
+
+    /** Day of [at] (epoch ms) in [zone], for grouping History rows. */
+    fun day(at: Long, zone: ZoneId = ZoneId.systemDefault()): LocalDate = Instant.ofEpochMilli(at).atZone(zone).toLocalDate()
+
+    /** History day header: "Today", "Yesterday", else the locale medium date. */
+    fun dayLabel(at: Long, now: Long, zone: ZoneId = ZoneId.systemDefault()): String {
+        val d = day(at, zone)
+        val today = day(now, zone)
+        return when (d) {
+            today -> "Today"
+            today.minusDays(1) -> "Yesterday"
+            else -> DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(at))
+        }
+    }
 
     /** "1 day", "30 days". */
     fun days(d: Int): String = if (d == 1) "1 day" else "$d days"
