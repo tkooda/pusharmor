@@ -426,7 +426,7 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
                 FingerprintPlate(row.fingerprint.orEmpty(), x)
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.weight(1f).height(48.dp),
+                    OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.weight(1f).heightIn(min = 48.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, cs.outline)) { Text("Deny") }
                     GreenButton(onClick = { vm.approve(p.id) }, text = "Approve", icon = PaIcons.Check, modifier = Modifier.weight(1f))
                 }
@@ -606,7 +606,7 @@ private fun TypeTag(type: ContentType) {
         ContentType.TEL -> PaIcons.Call to "Phone"
         ContentType.TEXT -> PaIcons.Notes to "Text"
     }
-    Row(Modifier.height(28.dp).clip(RoundedCornerShape(8.dp)).background(ex.iconTileBg).padding(horizontal = 10.dp)
+    Row(Modifier.heightIn(min = 28.dp).clip(RoundedCornerShape(8.dp)).background(ex.iconTileBg).padding(horizontal = 10.dp)
         .semantics(mergeDescendants = true) { contentDescription = word },
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Icon(icon, null, Modifier.size(16.dp), tint = ex.iconTileFg)
@@ -865,9 +865,9 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                 })
             }
             Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = { vm.signOut(onSignedOut) }, Modifier.height(48.dp),
+                OutlinedButton(onClick = { vm.signOut(onSignedOut) }, Modifier.heightIn(min = 48.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, cs.outline)) { Text("Sign out") }
-                OutlinedButton(onClick = onDeleteAccount, Modifier.height(48.dp),
+                OutlinedButton(onClick = onDeleteAccount, Modifier.heightIn(min = 48.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, cs.error),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = cs.error)) { Text("Delete account") }
             }
