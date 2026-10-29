@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
@@ -235,8 +236,11 @@ private fun HeroCard(name: String, plain: Boolean, onEdit: () -> Unit) {
     Box(Modifier.padding(horizontal = 16.dp).fillMaxWidth().heightIn(min = 82.dp).clip(shape)
         .background(if (plain) x.tile else x.hero)
         .then(if (plain) Modifier else Modifier.border(1.dp, x.heroBorder, shape))) {
-        if (!plain) Icon(painterResource(R.drawable.ic_notify), null, tint = Color.White.copy(alpha = 0.04f),
-            modifier = Modifier.size(120.dp).align(Alignment.CenterEnd).offset(x = (-96).dp, y = 10.dp).rotate(-12f))
+        // matchParentSize: the watermark must not set the card height (82 dp row, not 120 dp).
+        if (!plain) Box(Modifier.matchParentSize()) {
+            Icon(painterResource(R.drawable.ic_notify), null, tint = Color.White.copy(alpha = 0.04f),
+                modifier = Modifier.requiredSize(120.dp).align(Alignment.CenterEnd).offset(x = (-96).dp, y = 10.dp).rotate(-12f))
+        }
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Box(Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(if (plain) x.iconTileBg else x.heroIconBg), Alignment.Center) {
