@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -18,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.pusharmor.app.ui.theme.PushArmorTheme
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.lifecycle.lifecycleScope
 import com.pusharmor.protocol.ContentType
@@ -38,7 +41,7 @@ class ShareActivity : ComponentActivity() {
         val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: intent.getStringExtra(Intent.EXTRA_SUBJECT)
         if (text == null) { finish(); return }
         // The dialog shows at once: a placeholder until the peer read returns, never a blank box.
-        setContent { MaterialTheme { Text("PushArmor", Modifier.padding(16.dp)) } }
+        setContent { PushArmorTheme { Surface(color = MaterialTheme.colorScheme.background) { CircularProgressIndicator(Modifier.padding(24.dp)) } } }
         lifecycleScope.launch {
             // Room refuses main-thread reads.
             val all = withContext(Dispatchers.IO) { if (vm.g.identity() == null) null else vm.g.store.peers().filter { it.inAll } }
@@ -52,7 +55,7 @@ class ShareActivity : ComponentActivity() {
         val type = Detect.type(text)
         if (!tooLong && direct != null) { send(listOf(direct), text); return }
         setContent {
-            MaterialTheme {
+            PushArmorTheme { Surface(color = MaterialTheme.colorScheme.background) {
                 var cut by remember { mutableStateOf<String?>(null) }
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (tooLong && cut == null) {
@@ -66,7 +69,7 @@ class ShareActivity : ComponentActivity() {
                         SendScreen(vm, cut ?: text) { r -> toastAndFinish(r) }
                     }
                 }
-            }
+            } }
         }
     }
 
