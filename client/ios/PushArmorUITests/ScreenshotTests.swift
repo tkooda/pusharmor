@@ -35,14 +35,14 @@ final class ScreenshotTests: XCTestCase {
         sleep(1)
         shot("03-send")
         peersTab(app)
-        XCTAssertTrue(app.staticTexts["Work desktop"].waitForExistence(timeout: 10))
+        XCTAssertTrue(labelled(app, "Work desktop").waitForExistence(timeout: 10))
         sleep(1)
         shot("01-peers")
         app.terminate()
 
         app = launch(["-PAScreenshotsPairing"])
         peersTab(app)
-        XCTAssertTrue(app.staticTexts["New laptop"].waitForExistence(timeout: 10))
+        XCTAssertTrue(labelled(app, "Pair with New laptop?").waitForExistence(timeout: 10))
         sleep(1)
         shot("04-pairing")
         app.terminate()
@@ -69,6 +69,11 @@ final class ScreenshotTests: XCTestCase {
             app.terminate()
         }
         XCTFail("the sample notification banner was not on screen in 3 attempts")
+    }
+
+    /// Any element whose label contains the text (a peer row reads as one combined element).
+    private func labelled(_ app: XCUIApplication, _ text: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
     }
 
     private func onScreen(_ e: XCUIElement, timeout: TimeInterval) -> Bool {
