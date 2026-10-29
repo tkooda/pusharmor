@@ -44,10 +44,21 @@ test("minimal permissions: none at the top, each job lists its own", () => {
     const p = /\n {4}permissions:(.*)\n((?: {6}.*\n)*)/.exec(b);
     assert.ok(p, name + ": no permissions block");
     const perms = p[1].trim() === "{}" ? [] : p[2].trim().split("\n").map((l) => l.trim());
-    for (const x of perms) assert.match(x, /^(contents: read|id-token: write)$/, name + ": " + x);
+    for (const x of perms) assert.match(x, /^(contents: read|contents: write|id-token: write)$/, name + ": " + x);
   }
   assert.match(jobs.get("approve"), /permissions: \{\}/);
   for (const j of ["appstore", "firefox"]) assert.doesNotMatch(jobs.get(j), /id-token/, j);
+});
+
+test("each store job clears its own prerelease flag as its last step", () => {
+  const tags = { play: "android", appstore: "ios", chrome: "chrome", firefox: "firefox" };
+  for (const [j, t] of Object.entries(tags)) {
+    const b = jobs.get(j);
+    assert.match(b, /\n {4}permissions:\n {6}contents: write\n/, j);
+    assert.match(b, new RegExp("run: gh release edit \"" + t + "/v\\$VERSION\" --repo \"\\$GITHUB_REPOSITORY\" --prerelease=false\\n*$"), j);
+    assert.doesNotMatch(b, /\n {6}- (if|continue-on-error)/, j);
+  }
+  for (const j of ["check", "approve"]) assert.doesNotMatch(jobs.get(j), /contents: write/, j);
 });
 
 test("every store job waits for the owner approval in Environment promote", () => {
