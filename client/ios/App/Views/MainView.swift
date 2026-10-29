@@ -86,18 +86,20 @@ struct HomeView: View {
             }
             .contentMargins(.bottom, 12, for: .scrollContent)
             .navigationTitle("PushArmor")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    HStack(spacing: 8) {
-                        BrandTileView(size: 30)
-                        Wordmark(size: 22)
-                    }
+            // A custom header, not a toolbar item: iOS 26 wraps bar items in a glass bubble.
+            .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                HStack(spacing: 8) {
+                    BrandTileView(size: 30)
+                    Wordmark(size: 22)
+                    Spacer(minLength: 0)
                 }
-                // The wordmark is the title; the plain navigation title stays for accessibility.
-                ToolbarItem(placement: .principal) {
-                    Color.clear.frame(width: 1, height: 1).accessibilityHidden(true)
-                }
+                .padding(.horizontal, 20)
+                .frame(minHeight: 44)
+                .padding(.bottom, 4)
+                .background(Color(uiColor: .systemGroupedBackground))
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
             }
         }
     }
