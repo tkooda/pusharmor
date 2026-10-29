@@ -148,34 +148,34 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onDo
     val scope = rememberCoroutineScope()
     val msg by vm.message.collectAsState()
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-    PaTopBar("Sign in with email", navigationIcon = { IconButton(onClick = onBack) { Icon(PaIcons.ArrowBack, "Back") } })
-    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        when (stage) {
-            0 -> {
-                OutlinedTextField(email, { email = it }, label = { Text("Email address") }, singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), modifier = Modifier.fillMaxWidth())
-                GreenButton(onClick = {
-                    if (email.any { it.code > 127 }) error = "Only email addresses with plain ASCII characters are supported."
-                    else { error = null; stage = 1 }
-                }, text = "Next", icon = null, modifier = Modifier.fillMaxWidth())
-            }
-            1 -> TurnstileView { token ->
-                scope.launch {
-                    val rt = vm.emailStart(email, token, purpose)
-                    if (rt != null) { requestToken = rt; stage = 2 } else stage = 0
+        PaTopBar("Sign in with email", navigationIcon = { IconButton(onClick = onBack) { Icon(PaIcons.ArrowBack, "Back") } })
+        Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            when (stage) {
+                0 -> {
+                    OutlinedTextField(email, { email = it }, label = { Text("Email address") }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), modifier = Modifier.fillMaxWidth())
+                    GreenButton(onClick = {
+                        if (email.any { it.code > 127 }) error = "Only email addresses with plain ASCII characters are supported."
+                        else { error = null; stage = 1 }
+                    }, text = "Next", icon = null, modifier = Modifier.fillMaxWidth())
+                }
+                1 -> TurnstileView { token ->
+                    scope.launch {
+                        val rt = vm.emailStart(email, token, purpose)
+                        if (rt != null) { requestToken = rt; stage = 2 } else stage = 0
+                    }
+                }
+                2 -> {
+                    Text("Enter the code sent to $email")
+                    CodeCells(code) { v ->
+                        // paste takes a standalone 6-char token; typing is cleaned as typed
+                        code = if (v.length > code.length + 1) CodeInput.fromPaste(v) ?: CodeInput.clean(v) else CodeInput.clean(v)
+                        if (code.length == 6) requestToken?.let { vm.emailVerify(it, code, purpose, onDone) }
+                    }
                 }
             }
-            2 -> {
-                Text("Enter the code sent to $email")
-                CodeCells(code) { v ->
-                    // paste takes a standalone 6-char token; typing is cleaned as typed
-                    code = if (v.length > code.length + 1) CodeInput.fromPaste(v) ?: CodeInput.clean(v) else CodeInput.clean(v)
-                    if (code.length == 6) requestToken?.let { vm.emailVerify(it, code, purpose, onDone) }
-                }
-            }
+            (error ?: msg)?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
-        (error ?: msg)?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-    }
     }
 }
 
