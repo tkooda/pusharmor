@@ -27,7 +27,7 @@ const state: StateView = {
 
 const paired = (pid: string, label: string, platform: string): PeerView => ({
   id: pid, label, platform, lines: [], actions: ["remove", "hide"], countdown: null, fingerprint: null, pk: null,
-  greyed: null, hidden: false, sendable: true,
+  greyed: null, hidden: false, sendable: true, approvesMe: true,
 });
 
 const peers: PeerView[] = [
@@ -37,7 +37,7 @@ const peers: PeerView[] = [
   {
     id: NEW_LAPTOP, label: "New laptop", platform: "chrome", lines: [T.fingerprint("K7QD")],
     actions: ["cancel", "approve", "deny", "remove", "hide"], countdown: formatCountdown(PAIRING_TIMEOUT_MS - 60_000),
-    fingerprint: "K7QD", pk: null, greyed: null, hidden: false, sendable: false,
+    fingerprint: "K7QD", pk: null, greyed: null, hidden: false, sendable: false, approvesMe: false,
   },
 ];
 
