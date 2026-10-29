@@ -390,8 +390,16 @@ final class AppModel: ObservableObject {
 
     func canSendAgain(_ e: PairingEntry) -> Bool { core?.canSendAgain(e) ?? false }
 
-    /// Without Core (screenshot mode) the same rule runs on the loaded pairings.
-    func offersCancel(_ p: Peer) -> Bool { core?.offersCancel(p) ?? (pairings[p.id.text] != nil || p.notPairedOnPeer) }
+    /// Without Core only screenshot mode runs the same rule on the loaded pairings.
+    func offersCancel(_ p: Peer) -> Bool {
+        if let core { return core.offersCancel(p) }
+        #if DEBUG
+        // Screenshot mode runs with no Core and still shows the footer.
+        if ScreenshotSample.isOn { return pairings[p.id.text] != nil || p.notPairedOnPeer }
+        #endif
+        // No Core (it failed to start): Cancel pairing would do nothing, so it is not offered.
+        return false
+    }
 
     var allSet: [Peer] { peers.filter { $0.inAll } }
 
