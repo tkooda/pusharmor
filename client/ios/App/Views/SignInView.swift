@@ -11,11 +11,7 @@ struct SignInView: View {
     @State private var showTurnstile = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text(title)
-                    .font(.title2.bold())
-
+        BrandLayout(text: purpose == .register ? WelcomeText.intro : title, footer: S.sameAccount) {
                 SignInWithAppleButton(.signIn) { request in
                     request.requestedScopes = [.email]
                     request.nonce = try? model.nonce(purpose)
@@ -23,15 +19,15 @@ struct SignInView: View {
                     handleApple(result)
                 }
                 .signInWithAppleButtonStyle(scheme == .dark ? .white : .black)
-                .frame(height: 48)
+                .frame(height: 50)
+                .clipShape(Capsule())
 
                 Button {
                     Task { await GoogleSignIn().signIn(purpose: purpose, model: model) }
                 } label: {
-                    Text("Sign in with Google").frame(maxWidth: .infinity)
+                    Text("Sign in with Google")
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
+                .buttonStyle(GoogleButtonStyle())
 
                 if showEmail {
                     TextField("Email address", text: $email)
@@ -47,17 +43,19 @@ struct SignInView: View {
                             showTurnstile = true
                         }
                     } label: {
-                        Text("Send code").frame(maxWidth: .infinity)
+                        Text("Send code")
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    .buttonStyle(GreenButtonStyle())
                 } else {
                     Button {
                         showEmail = true
                     } label: {
-                        Text("Email code").frame(maxWidth: .infinity)
+                        Label("Email code", systemImage: "envelope.fill")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 36)
                     }
                     .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
                     .controlSize(.large)
                 }
 
@@ -65,8 +63,6 @@ struct SignInView: View {
                     Button("Cancel") { model.phase = .main }
                         .frame(maxWidth: .infinity)
                 }
-            }
-            .padding(24)
         }
         .sheet(isPresented: $showTurnstile) {
             TurnstileSheet { token in
@@ -98,5 +94,74 @@ struct SignInView: View {
             code = String(data: c, encoding: .utf8)
         }
         Task { await model.appleToken(idToken: idToken, code: code, purpose: purpose) }
+    }
+}
+
+enum WelcomeText {
+    static let intro = "PushArmor sends links, text and phone numbers between your own devices, end to end encrypted."
+}
+
+/// Welcome and sign-in layout: halo, wordmark, one sentence, then the buttons at the bottom.
+struct BrandLayout<Buttons: View>: View {
+    let text: String
+    var footer: String?
+    @ViewBuilder let buttons: () -> Buttons
+
+    var body: some View {
+        GeometryReader { geo in
+            ScrollView {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 16)
+                    SignInHalo()
+                    Wordmark(size: 36)
+                        .padding(.top, 6)
+                    Text(text)
+                        .font(.body)
+                        .foregroundColor(.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 330)
+                        .padding(.top, 12)
+                    Spacer(minLength: 32)
+                    VStack(spacing: 12) {
+                        buttons()
+                    }
+                    if let f = footer {
+                        Text(f)
+                            .font(.footnote)
+                            .foregroundColor(.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 16)
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 24)
+                .padding(.bottom, 48)
+                .frame(minHeight: geo.size.height)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
+    }
+}
+
+/// Google sign-in button colours (Google branding: white or dark fill, grey edge).
+struct GoogleButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) private var scheme
+
+    private func rgb(_ v: UInt32) -> Color {
+        Color(red: Double((v >> 16) & 0xFF) / 255, green: Double((v >> 8) & 0xFF) / 255, blue: Double(v & 0xFF) / 255)
+    }
+
+    func makeBody(configuration: Configuration) -> some View {
+        let dark = scheme == .dark
+        return configuration.label
+            .font(.body.weight(.medium))
+            .foregroundStyle(rgb(dark ? 0xE3E3E3 : 0x1F1F1F))
+            .frame(maxWidth: .infinity, minHeight: 50)
+            .background(
+                Capsule().fill(rgb(dark ? 0x131314 : 0xFFFFFF))
+                    .overlay(Capsule().strokeBorder(rgb(dark ? 0x8E918F : 0x747775), lineWidth: 1))
+            )
+            .contentShape(Capsule())
+            .opacity(configuration.isPressed ? 0.85 : 1)
     }
 }

@@ -81,21 +81,18 @@ struct WelcomeView: View {
     @EnvironmentObject var model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Spacer()
-            Text("PushArmor")
-                .font(.largeTitle.bold())
-            Text("PushArmor sends links, text and phone numbers between your own devices, end to end encrypted. Allow notifications so this device can receive them.")
+        BrandLayout(text: WelcomeText.intro + " Allow notifications so this device can receive them.") {
             Button("Allow notifications") { Task { await model.requestNotifications() } }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(GreenButtonStyle())
             if model.notificationsOff {
                 Text(S.notificationsOff)
                     .foregroundColor(.red)
+                    .multilineTextAlignment(.center)
                 Button("Open notification settings") { model.openNotificationSettings() }
                     .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.large)
             }
-            Spacer()
         }
-        .padding(24)
     }
 }
