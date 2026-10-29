@@ -148,6 +148,22 @@ describe("POST /auth/email + verify", () => {
     const code = await deriveCode(S.PA_CODE_SECRET, tok);
     expect((await call("POST", "/v1/auth/email/verify", { request_token: tok, code }, { env: e })).status).toBe(429);
   });
+
+  it("RL_CODE_ALL is per purpose: a spent sign-in cap does not block a resume code for the same email (I408)", async () => {
+    const email = randomEmail();
+    const all = countingLimit(2);
+    const e = await testEnv({ RL_CODE_ALL: all });
+    const a = await startEmail(email, "register");
+    const tokA = secretString(a.r.body.request_token as string);
+    for (let i = 0; i < 2; i++) expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: "AAAAAA" }, { env: e })).status).toBe(401);
+    expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: "AAAAAA" }, { env: e })).status).toBe(429);
+    const b = await startEmail(email, "unpause");
+    const tokB = secretString(b.r.body.request_token as string);
+    const code = await deriveCode(S.PA_CODE_SECRET, tokB);
+    expect((await call("POST", "/v1/auth/email/verify", { request_token: tokB, code }, { env: e })).status).toBe(200);
+    // the cap still bites per purpose: the sign-in token stays refused, even with its correct code
+    expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: await deriveCode(S.PA_CODE_SECRET, tokA) }, { env: e })).status).toBe(429);
+  });
 });
 
 // ---------- OAuth ----------
