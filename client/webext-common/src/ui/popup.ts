@@ -71,7 +71,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
 const TYPE_ICON: Record<string, IconName> = { url: "link", tel: "call", text: "notes" };
 
 export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, prefill?: string, offerCut = false): Promise<void> {
-  const field = h("textarea", { rows: "4", "aria-label": "Text to send" }) as HTMLTextAreaElement;
+  const field = h("textarea", { rows: "3", "aria-label": "Text to send" }) as HTMLTextAreaElement;
   field.value = prefill ?? (await env.activeUrl().catch(() => ""));
   const badge = h("span", { class: "badge" });
   const counter = h("span", { class: "counter" });
