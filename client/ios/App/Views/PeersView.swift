@@ -224,16 +224,31 @@ struct PairingCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 14) {
-                IconTile(platformSymbol(p.platform), size: 40)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.headline)
-                    Text(PeerLabel.platformName(p.platform))
-                        .font(.subheadline)
-                        .foregroundColor(.secondaryText)
+            HStack(alignment: .top, spacing: 8) {
+                HStack(spacing: 14) {
+                    IconTile(platformSymbol(p.platform), size: 40)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title).font(.headline)
+                        Text(PeerLabel.platformName(p.platform))
+                            .font(.subheadline)
+                            .foregroundColor(.secondaryText)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                Spacer(minLength: 0)
+                if !p.pinned {
+                    // A peer not yet paired has no row under Peers: its switches, Hide and Remove live here.
+                    Menu { peerActions } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.title3)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("More actions")
+                    .padding(.top, -2)
+                    .padding(.trailing, -10)
                 }
             }
-            .accessibilityElement(children: .combine)
 
             VStack(alignment: .leading, spacing: 12) {
                 stateBlock
@@ -245,7 +260,7 @@ struct PairingCardView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contextMenu {
-            // A peer not yet paired has no row under Peers: its switches, Hide and Remove live here.
+            // Long press: a shortcut to the same actions as the More actions button.
             if !p.pinned { peerActions }
         }
         .confirmationDialog(S.removeConfirm(label), isPresented: $confirmRemove, titleVisibility: .visible) {

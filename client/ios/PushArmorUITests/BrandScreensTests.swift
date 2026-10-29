@@ -31,4 +31,16 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.buttons["Deny"].exists)
         XCTAssertTrue(app.staticTexts["Check that New laptop shows this same code."].exists)
     }
+
+    func testUnpairedPeerActionsHaveAVisibleButton() {
+        let app = launch(["-PAScreenshotsPairing"])
+        let tab = app.tabBars.buttons["Peers"]
+        XCTAssertTrue(tab.waitForExistence(timeout: 30))
+        tab.tap()
+        let more = app.buttons["More actions"]
+        XCTAssertTrue(more.waitForExistence(timeout: 10))
+        more.tap()
+        XCTAssertTrue(app.buttons["Hide"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Remove"].exists)
+    }
 }
