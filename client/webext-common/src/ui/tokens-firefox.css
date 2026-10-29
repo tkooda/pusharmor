@@ -31,9 +31,9 @@
     --g-bg: #131314; --g-line: #8E918F; --g-ink: #E3E3E3; --a-bg: #FFFFFF; --a-ink: #000000;
   }
 }
-/* Firefox for Android shows the popup as a full-screen panel. */
+/* Firefox for Android shows the popup as a full-screen panel (html body: wins over style.css). */
 @media (pointer: coarse) {
-  body { width: 100vw; max-height: none; }
-  button, .chip, .x-ac, select, input { min-height: 48px; }
+  html body { width: 100vw; max-height: none; }
+  button, .chip, .ac, select, input:not([type=checkbox]) { min-height: 48px; }
   .prow { min-height: 56px; }
 }

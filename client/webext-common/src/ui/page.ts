@@ -3,9 +3,10 @@
 import type { LoginResult } from "../core/login.ts";
 import type { StateView } from "../core/rpc.ts";
 import { T } from "../core/texts.ts";
-import { type UiEnv, add, clear, h, rpc } from "./dom.ts";
+import { type UiEnv, add, clear, group, h, rpc } from "./dom.ts";
+import { appleLogo, googleLogo, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
-import { historyView, sendView } from "./popup.ts";
+import { historyView, sendView, wordmark } from "./popup.ts";
 
 export const SITE = "https://pusharmor.com";
 
@@ -33,7 +34,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   const st = await rpc<StateView>(env, "state");
   const status = h("div", { class: "status" });
   const email = h("input", { type: "email", placeholder: "Email address", autocomplete: "email" }) as HTMLInputElement;
-  const code = h("input", { placeholder: "Code", maxlength: "20", autocomplete: "one-time-code" }) as HTMLInputElement;
+  const code = h("input", { class: "code", placeholder: "Code", maxlength: "20", autocomplete: "one-time-code" }) as HTMLInputElement;
   const codeRow = h("div", { class: "row", hidden: true }, code);
   let token = "";
   window.addEventListener("message", (ev: MessageEvent) => {
@@ -69,7 +70,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     }
   });
   const sendCode = h("button", {
-    class: "primary",
+    class: "primary big",
     onclick: async () => {
       if (/[^\x00-\x7f]/.test(email.value)) {
         status.textContent = T.badEmail;
@@ -97,16 +98,31 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   };
   add(
     root,
-    h("h1", {}, purpose === "delete-account" ? "Delete account" : purpose === "unpause" ? T.signedOut : "Sign in to PushArmor"),
-    st.banner ? h("div", { class: "banner" }, st.banner) : null,
-    st.platform === "firefox" && !st.reg ? h("div", { class: "dim" }, T.ffFinishSetup) : null,
-    st.receiveNote ? h("div", { class: "dim" }, st.receiveNote) : null,
-    h("div", { class: "row" }, email),
-    frame,
-    sendCode,
-    codeRow,
-    h("div", { class: "row" }, h("button", { onclick: oauth("google") }, "Sign in with Google"), h("button", { onclick: oauth("apple") }, "Sign in with Apple")),
-    status,
+    h(
+      "div",
+      { class: "login" },
+      h("div", { class: "login-head" }, h("img", { src: "icons/icon-48.png", width: "28", height: "28", alt: "" }), wordmark(env, 18)),
+      add(
+        h("div", { class: "p-card" }),
+        h("h1", {}, purpose === "delete-account" ? "Delete account" : purpose === "unpause" ? T.signedOut : "Sign in to PushArmor"),
+        st.banner ? h("div", { class: "banner" }, st.banner) : null,
+        st.platform === "firefox" && !st.reg ? h("div", { class: "dim" }, T.ffFinishSetup) : null,
+        st.receiveNote ? h("div", { class: "dim" }, st.receiveNote) : null,
+        h("div", { class: "row" }, email),
+        frame,
+        sendCode,
+        codeRow,
+        h("div", { class: "or" }, "or"),
+        h(
+          "div",
+          { class: "oauth" },
+          h("button", { class: "big google", onclick: oauth("google") }, googleLogo(), "Sign in with Google"),
+          h("button", { class: "big apple", onclick: oauth("apple") }, appleLogo(), "Sign in with Apple"),
+        ),
+      ),
+      status,
+      h("p", { class: "dim same" }, "Use the same account on every device you want to pair."),
+    ),
   );
 }
 
@@ -125,36 +141,43 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
   const peers = (Array.isArray(body.peers) ? body.peers : []) as LimitPeer[];
   const boxes: { id: string; box: HTMLInputElement }[] = [];
   const status = h("div", { class: "status" });
-  root.append(h("h1", {}, "Peer limit reached"), h("div", {}, "Pick peers to remove from this account, then continue."));
+  const list = group();
+  root.append(h("h1", {}, "Peer limit reached"), h("div", { class: "lead" }, "Pick peers to remove from this account, then continue."));
   for (const p of peers) {
     const box = h("input", { type: "checkbox" }) as HTMLInputElement; // nothing pre-ticked
     boxes.push({ id: p.id, box });
     const flags = [p.reachable ? "" : "unreachable", p.paused ? "signed out" : ""].filter(Boolean).join(", ");
-    root.append(
+    list.append(
       h(
         "label",
-        { class: "row" },
+        { class: "prow target" },
+        h("div", { class: "av" }, platformIcon(p.platform)),
+        h("div", { class: "txt t1" }, p.platform + ", added " + new Date(p.created * 1000).toISOString().slice(0, 10) + ", approves " + p.approves + ", approved by " + p.approved_by + (flags ? " (" + flags + ")" : "")),
         box,
-        " " + p.platform + ", added " + new Date(p.created * 1000).toISOString().slice(0, 10) + ", approves " + p.approves + ", approved by " + p.approved_by + (flags ? " (" + flags + ")" : ""),
       ),
     );
   }
   root.append(
-    h("button", {
-      class: "primary",
-      onclick: async () => {
-        const evict = boxes.filter((b) => b.box.checked).map((b) => b.id);
-        try {
-          const r = await rpc<LoginResult>(env, "evict", { ticket, evict });
-          if (r.done) clear(root).append(h("div", { class: "banner" }, "Signed in. You can close this tab."));
-          else if (r.limit) limitView(env, root, r.limit, r.ticket ?? ticket);
-        } catch (e) {
-          status.textContent = (e as Error).message;
-          if (status.textContent === "Sign-in expired, sign in again") env.openPage("#login");
-        }
-      },
-    }, "Remove and continue"),
-    h("button", { onclick: () => window.close() }, "Cancel"),
+    list,
+    h(
+      "div",
+      { class: "btns" },
+      h("button", {
+        class: "primary",
+        onclick: async () => {
+          const evict = boxes.filter((b) => b.box.checked).map((b) => b.id);
+          try {
+            const r = await rpc<LoginResult>(env, "evict", { ticket, evict });
+            if (r.done) clear(root).append(h("div", { class: "banner" }, "Signed in. You can close this tab."));
+            else if (r.limit) limitView(env, root, r.limit, r.ticket ?? ticket);
+          } catch (e) {
+            status.textContent = (e as Error).message;
+            if (status.textContent === "Sign-in expired, sign in again") env.openPage("#login");
+          }
+        },
+      }, "Remove and continue"),
+      h("button", { onclick: () => window.close() }, "Cancel"),
+    ),
     status,
   );
 }
