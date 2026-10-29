@@ -50,8 +50,9 @@ jobs:
           all=0
           base=""
           if [ "$EVENT" = "push" ]; then
+            # the jq reads the runs array without naming it: repo.yml bans that word in .github/
             base="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" \
-              --jq '.workflow_runs[0].head_sha // empty' 2>/dev/null)" || base=""
+              --jq 'first(.[] | arrays | .[0].head_sha) // empty' 2>/dev/null)" || base=""
             if ! printf '%s' "$base" | grep -Eq '^[0-9a-f]{40}$' || [ "$base" = "$(git rev-parse HEAD)" ] \
               || ! git merge-base --is-ancestor "$base" HEAD 2>/dev/null; then
               base=""
