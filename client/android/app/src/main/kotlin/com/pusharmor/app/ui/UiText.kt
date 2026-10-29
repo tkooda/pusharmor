@@ -1,0 +1,53 @@
+package com.pusharmor.app.ui
+
+import com.pusharmor.protocol.Peer
+import com.pusharmor.protocol.SizeCap
+
+/** Pure text rules of the screens (unit tested without a device). */
+object UiText {
+    enum class Mark { OK, WAIT, OFF }
+
+    /** Peer status line by priority: missing, signed out, unreachable, approves, has not approved. */
+    fun status(p: Peer): Pair<Mark, String> = when {
+        p.missing -> Mark.OFF to "(missing)"
+        p.paused -> Mark.OFF to "Signed out"
+        !p.reachable -> Mark.OFF to "Unreachable"
+        p.approvesMe -> Mark.OK to "Approves this device"
+        else -> Mark.WAIT to "Has not approved this device"
+    }
+
+    /** "39 / 2048"; over the cap "Too long (N / 2048)". */
+    fun counter(bytes: Int): String =
+        if (bytes > SizeCap.MAX_CONTENT_BYTES) "Too long ($bytes / 2048)" else "$bytes / 2048"
+
+    /** Send button label for [n] checked peers. */
+    fun sendLabel(n: Int): String = when (n) {
+        0 -> "Send"
+        1 -> "Send to 1 peer"
+        else -> "Send to $n peers"
+    }
+
+    /** Spoken form of a fingerprint: "Pairing fingerprint K, 7, Q, D". */
+    fun fingerprintLabel(code: String): String = "Pairing fingerprint " + code.toList().joinToString(", ")
+
+    /** "1 day", "30 days". */
+    fun days(d: Int): String = if (d == 1) "1 day" else "$d days"
+
+    /**
+     * Longest "head...tail" form of [text] that [fits] (about two thirds head), or [text] itself
+     * when it fits. Binary search on the number of kept characters.
+     */
+    fun middleEllipsis(text: String, fits: (String) -> Boolean): String {
+        if (fits(text)) return text
+        var lo = 1
+        var hi = text.length - 1
+        var best = "..."
+        while (lo <= hi) {
+            val k = (lo + hi) / 2
+            val tail = k / 3
+            val s = text.take(k - tail) + "..." + text.takeLast(tail)
+            if (fits(s)) { best = s; lo = k + 1 } else hi = k - 1
+        }
+        return best
+    }
+}

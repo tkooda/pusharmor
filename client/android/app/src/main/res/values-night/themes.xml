@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark mode: light status bar icons on the dark page. -->
+    <style name="Theme.PushArmor" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">@color/pa_page</item>
+    </style>
+    <style name="Theme.PushArmor.Dialog" parent="android:Theme.Material.Dialog" />
+</resources>
