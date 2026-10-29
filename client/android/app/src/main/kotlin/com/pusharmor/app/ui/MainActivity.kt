@@ -40,6 +40,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -151,9 +154,12 @@ private fun App(vm: AppViewModel) {
         val back by nav.currentBackStackEntryAsState()
         val route = back?.destination?.route
         val pending = MainActivity.pendingRoute
+        // Only a resumed activity takes the route: a relaunch (CLEAR_TASK or CLEAR_TOP) sets it while
+        // the old, paused instance is still composing, and that one must not use it up.
+        val resumed = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value.isAtLeast(Lifecycle.State.RESUMED)
         // After NavHost has set the graph: navigating during the first composition throws (I399).
-        androidx.compose.runtime.LaunchedEffect(back, pending) {
-            if (back != null && pending != null) { MainActivity.pendingRoute = null; nav.navigate(pending) { launchSingleTop = true } }
+        androidx.compose.runtime.LaunchedEffect(back, pending, resumed) {
+            if (resumed && back != null && pending != null) { MainActivity.pendingRoute = null; nav.navigate(pending) { launchSingleTop = true } }
         }
         val x = LocalPaExtra.current
         Scaffold(containerColor = MaterialTheme.colorScheme.background, bottomBar = {
