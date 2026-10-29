@@ -2,7 +2,8 @@
 # Store screenshots on a running emulator or device (workflow screenshots.yml).
 # Usage: bash tools/screenshots.sh <out-dir>   (run from client/android)
 # Installs the play debug app and its test APK (not connectedAndroidTest: that uninstalls
-# the app at the end), turns off the network, puts the status bar in demo mode, runs
+# the app at the end), turns off the network, puts the status bar in demo mode (full Wi-Fi and
+# signal with no "no internet" mark: "fully true"), runs
 # shots.ScreenshotCapture with "-e shots 1" and pulls the PNGs into <out-dir>.
 set -euo pipefail
 out="${1:?usage: $0 <out-dir>}"
@@ -15,7 +16,8 @@ demo() { adb shell am broadcast -a com.android.systemui.demo -e command "$@" > /
 demo enter
 demo clock -e hhmm 0941
 demo battery -e level 100 -e plugged false
-demo network -e wifi show -e level 4 -e mobile show -e datatype none -e level 4
+demo network -e wifi show -e level 4 -e fully true
+demo network -e mobile show -e datatype none -e level 4 -e fully true
 demo notifications -e visible false
 adb shell rm -rf "/sdcard/Android/data/$pkg/files/shots"
 log="$(adb shell am instrument -w -e shots 1 -e class "$pkg.app.shots.ScreenshotCapture" \

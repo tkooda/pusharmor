@@ -94,7 +94,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.PackageManagerCompat
 import androidx.core.content.IntentCompat
+import com.pusharmor.app.BuildConfig
 import com.pusharmor.app.R
+import com.pusharmor.app.ScreenshotMode
 import com.pusharmor.app.data.Settings
 import com.pusharmor.app.notify.AppEffects
 import com.pusharmor.app.notify.HistoryFilter
@@ -517,13 +519,14 @@ private val Modifier.rowPad get() = this.padding(horizontal = 16.dp)
 /** Send: field, type tag and counter, "Send as text", recipient group, green send bar. */
 @Composable
 fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null, title: String? = null, onSent: (String) -> Unit = {}) {
-    var text by remember { mutableStateOf(initial) }
+    val shots = BuildConfig.SCREENSHOT_MODE && ScreenshotMode.on && title != null
+    var text by remember { mutableStateOf(if (shots) ScreenshotMode.sendText else initial) }
     var asText by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<String?>(null) }
     val peers by vm.peers.collectAsState()
     val me by vm.self.collectAsState()
     val all = vm.allPeers()
-    val picked = remember { mutableStateListOf<String>().apply { preselect?.let { add(it) } } }
+    val picked = remember { mutableStateListOf<String>().apply { preselect?.let { add(it) }; if (shots) addAll(ScreenshotMode.sendTo) } }
     val scope = rememberCoroutineScope()
     val bytes = SizeCap.utf8Size(text)
     val showAll = vm.g.settings.showAll
