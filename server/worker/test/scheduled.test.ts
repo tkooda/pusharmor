@@ -68,4 +68,15 @@ describe("scheduled()", () => {
     expect(mails).toHaveLength(1);
     expect(JSON.parse(new TextDecoder().decode(mails[0].body)).Content.Simple.Body.Text.Data).toContain("apns");
   });
+
+  it("D1 outage: the health check failed mail is still sent (I402)", async () => {
+    const down = () => {
+      throw new Error("D1 down");
+    };
+    const DB = { prepare: down, batch: down, exec: down } as unknown as D1Database;
+    await scheduled(createScheduledController({ cron: "0 * * * *" }), await testEnv({ DB }));
+    const mails = vendorRequests("email.us-east-1.amazonaws.com");
+    expect(mails).toHaveLength(1);
+    expect(JSON.parse(new TextDecoder().decode(mails[0].body)).Content.Simple.Body.Text.Data).toContain("d1");
+  });
 });
