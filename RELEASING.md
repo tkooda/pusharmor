@@ -75,9 +75,10 @@ prerelease. The AAB is not attached there: it goes to the Play internal track
 and stays in the `android-signed` run artifact.
 
 Test: internal testers install from Play; Obtainium testers turn on "Include
-prereleases" for the app. While `PLAY_INTERNAL_STATUS` in
-`.github/workflows/android-release.yml` is `draft` (until the app's first manual
-publish), roll the internal release out by hand in Play Console.
+prereleases" for the app. `PLAY_INTERNAL_STATUS` in
+`.github/workflows/android-release.yml` is `completed`: each tag rolls out to
+internal testers on its own. (Play accepts only `draft` until an app's first
+release is published by hand in Play Console; that step is done.)
 
 Promote:
 
