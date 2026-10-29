@@ -94,8 +94,10 @@ Listings (owner ruling Q242 A): `store/listing/play/en-US/*.txt`,
 promote sends them (Play: only when they differ). Change them in a normal
 commit. `release/promote.test.mjs` checks the store limits, plain ASCII, and
 that no listing or release file holds a phone number or an address at the
-project or company domains. Contact details, the App Review contact and demo
-account, tester lists, the age rating, App Privacy and Data safety stay in the
+project or company domains. Promote never sets or overwrites a contact field
+(email, phone, website, support or marketing URL, address) through any store
+API (the test checks the payloads). Contact details, the App Review contact
+and demo account, tester lists, the age rating, App Privacy and Data safety stay in the
 store consoles. Chrome Web Store and AMO listing text stays in their
 dashboards.
 

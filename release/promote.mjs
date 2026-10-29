@@ -45,8 +45,6 @@ export const LISTING = {
     description: { max: 4000 },
     keywords: { max: 100, bytes: true },
     promotional_text: { max: 170 },
-    support_url: { max: 255, url: true },
-    marketing_url: { max: 255, url: true },
     privacy_url: { max: 255, url: true },
     copyright: { max: 200 },
     review_notes: { max: 4000 },
@@ -259,10 +257,11 @@ async function play(version) {
 
   const want = readListing("play");
   const cur = (await http("GET", e + "/listings/" + LOCALE, { headers: auth, ok: [200, 404] })).json || {};
+  // Listing text only; the contact details (edits.details) are never touched.
   const listing = { language: LOCALE, title: want.title, shortDescription: want.short_description, fullDescription: want.full_description };
   let text = "listing text unchanged";
   if (cur.title !== listing.title || cur.shortDescription !== listing.shortDescription || cur.fullDescription !== listing.fullDescription) {
-    await http("PUT", e + "/listings/" + LOCALE, { headers: json, body: JSON.stringify({ ...cur, ...listing }) });
+    await http("PUT", e + "/listings/" + LOCALE, { headers: json, body: JSON.stringify(listing) });
     text = "listing text updated";
     changed = true;
   }
@@ -352,7 +351,9 @@ async function appstore(version) {
 
   // Version page text.
   const locs = (await asc("GET", "/v1/appStoreVersions/" + v.id + "/appStoreVersionLocalizations")).json.data;
-  const la = { description: want.description, keywords: want.keywords, promotionalText: want.promotional_text, supportUrl: want.support_url, marketingUrl: want.marketing_url };
+  // No contact field (support or marketing URL, email, phone, address): those
+  // stay as set in App Store Connect (owner rule).
+  const la = { description: want.description, keywords: want.keywords, promotionalText: want.promotional_text };
   let loc = locs.find((l) => l.attributes.locale === LOCALE);
   if (loc) {
     await asc("PATCH", "/v1/appStoreVersionLocalizations/" + loc.id, { data: { type: "appStoreVersionLocalizations", id: loc.id, attributes: la } });
