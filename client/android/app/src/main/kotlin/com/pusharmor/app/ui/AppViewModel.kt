@@ -193,6 +193,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (key == Settings.K.HISTORY_DAYS) g.session.purgeHistory()
     }
 
+    /** Saves the Theme choice and tells the system, so the splash screen and window follow it (no white flash). */
+    fun setTheme(t: com.pusharmor.app.ui.theme.ThemePref) {
+        setPref(Settings.K.THEME, t.key)
+        com.pusharmor.app.ui.theme.ThemePref.applyToSystem(getApplication(), t)
+    }
+
     fun deleteAllHistory() = io { g.dao.deleteAllHistory() }
     fun markRead(id: Long) = io { g.dao.markRead(id) }
     fun rename(name: String) = io { g.session.rename(name)?.let { message.value = it } }

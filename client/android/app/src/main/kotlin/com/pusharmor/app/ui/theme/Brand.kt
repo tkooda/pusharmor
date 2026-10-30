@@ -123,7 +123,9 @@ fun groupShape(index: Int, count: Int): RoundedCornerShape {
 /** Modifier for one item of a group: side margin, shape and tile fill. */
 @Composable
 fun Modifier.groupItem(index: Int, count: Int, fill: Color = LocalPaExtra.current.tile): Modifier =
-    this.padding(horizontal = 16.dp).fillMaxWidth().clip(groupShape(index, count)).background(fill)
+    LocalPaExtra.current.cardEdge.let { edge ->
+        this.padding(horizontal = 16.dp).fillMaxWidth().clip(groupShape(index, count)).background(fill).border(1.dp, edge, groupShape(index, count))
+    }
 
 /** A column of grouped tiles with 2 dp gaps. */
 @Composable
@@ -143,7 +145,9 @@ fun SectionHeader(text: String, modifier: Modifier = Modifier) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PaTopBar(title: String, navigationIcon: @Composable () -> Unit = {}, actions: @Composable () -> Unit = {}) {
-    val bg = MaterialTheme.colorScheme.background
+    // Light: white like the cards (and the status bar strip), so a system heads-up reads against the page.
+    val x = LocalPaExtra.current
+    val bg = if (x.dark) MaterialTheme.colorScheme.background else x.tile
     TopAppBar(
         title = { Text(title, style = MaterialTheme.typography.headlineSmall) },
         navigationIcon = navigationIcon,

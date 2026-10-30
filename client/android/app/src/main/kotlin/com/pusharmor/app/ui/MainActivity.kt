@@ -12,7 +12,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -47,12 +51,14 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.pusharmor.app.data.Settings
 import com.pusharmor.app.session.Session
 import com.pusharmor.app.ui.theme.BlockingState
 import com.pusharmor.app.ui.theme.GreenButton
 import com.pusharmor.app.ui.theme.LocalPaExtra
 import com.pusharmor.app.ui.theme.PaIcons
 import com.pusharmor.app.ui.theme.PushArmorTheme
+import com.pusharmor.app.ui.theme.ThemePref
 
 /** Single NavHost (section 8). */
 class MainActivity : ComponentActivity() {
@@ -63,7 +69,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         vm.boot(fromMain = true)
         if (shouldHandle(savedInstanceState != null, intent.flags)) handle(intent)
-        setContent { PushArmorTheme { Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { App(vm) } } }
+        setContent { AppTheme(vm) { Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { App(vm) } } }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -121,6 +127,16 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** PushArmorTheme driven by the Theme setting; also hands the choice to the system once it is loaded. */
+@Composable
+internal fun AppTheme(vm: AppViewModel, content: @Composable () -> Unit) {
+    val prefs by vm.prefs.collectAsState()
+    val pref = ThemePref.parse(prefs?.get(Settings.K.THEME))
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    if (prefs != null) androidx.compose.runtime.LaunchedEffect(pref) { ThemePref.applyToSystem(ctx, pref) }
+    PushArmorTheme(dark = pref.isDark(androidx.compose.foundation.isSystemInDarkTheme()), content = content)
+}
+
 @Composable
 private fun App(vm: AppViewModel) {
     val start by vm.start.collectAsState()
@@ -163,7 +179,11 @@ private fun App(vm: AppViewModel) {
             if (resumed && back != null && pending != null) { MainActivity.pendingRoute = null; nav.navigate(pending) { launchSingleTop = true } }
         }
         val x = LocalPaExtra.current
-        Scaffold(containerColor = MaterialTheme.colorScheme.background, bottomBar = {
+        Scaffold(containerColor = MaterialTheme.colorScheme.background, topBar = {
+            // Status bar strip: white in light (like the top app bar), so a heads-up reads against the page.
+            Box(Modifier.fillMaxWidth().background(if (x.dark) MaterialTheme.colorScheme.background else x.tile)
+                .windowInsetsTopHeight(WindowInsets.statusBars))
+        }, bottomBar = {
             Column {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 NavigationBar(containerColor = x.tile, tonalElevation = 0.dp) {

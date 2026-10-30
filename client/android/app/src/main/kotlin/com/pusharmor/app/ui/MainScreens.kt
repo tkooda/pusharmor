@@ -125,6 +125,7 @@ import com.pusharmor.app.ui.theme.MiddleEllipsisText
 import com.pusharmor.app.ui.theme.PaIcons
 import com.pusharmor.app.ui.theme.PaTopBar
 import com.pusharmor.app.ui.theme.SectionHeader
+import com.pusharmor.app.ui.theme.ThemePref
 import com.pusharmor.app.ui.theme.StatusLine
 import com.pusharmor.app.ui.theme.groupItem
 import com.pusharmor.protocol.ContentType
@@ -272,7 +273,7 @@ private fun HeroCard(name: String, plain: Boolean, onEdit: () -> Unit) {
     val shape = RoundedCornerShape(24.dp)
     Box(Modifier.padding(horizontal = 16.dp).fillMaxWidth().heightIn(min = 82.dp).clip(shape)
         .background(if (plain) x.tile else x.hero)
-        .then(if (plain) Modifier else Modifier.border(1.dp, x.heroBorder, shape))) {
+        .border(1.dp, if (plain) x.cardEdge else x.heroBorder, shape)) {
         // matchParentSize: the watermark must not set the card height (82 dp row, not 120 dp).
         if (!plain) Box(Modifier.matchParentSize()) {
             Icon(painterResource(R.drawable.ic_notify), null, tint = Color.White.copy(alpha = 0.04f),
@@ -841,6 +842,8 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     var renaming by remember { mutableStateOf(false) }
     var confirmHistory by remember { mutableStateOf(false) }
     var pickDays by remember { mutableStateOf(false) }
+    var pickTheme by remember { mutableStateOf(false) }
+    val themePref = ThemePref.parse(prefs?.get(Settings.K.THEME))
     fun b(k: androidx.datastore.preferences.core.Preferences.Key<Boolean>, d: Boolean) = prefs?.get(k) ?: d
     val cs = MaterialTheme.colorScheme
     val days = prefs?.get(Settings.K.HISTORY_DAYS) ?: 30
@@ -852,6 +855,10 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             SectionHeader("This device")
             GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
                 SettingRow("Device name", me?.name ?: "", m, trailing = { Icon(PaIcons.Edit, null, tint = cs.onSurfaceVariant) }) { renaming = true }
+            })
+            SectionHeader("Appearance")
+            GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
+                SettingRow("Theme", themePref.label, m) { pickTheme = true }
             })
             SectionHeader("Sending")
             GroupedList(listOf<@Composable (Modifier) -> Unit>(
@@ -931,6 +938,21 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             }
         },
         confirmButton = { TextButton(onClick = { pickDays = false }) { Text("Cancel") } })
+    if (pickTheme) AlertDialog(onDismissRequest = { pickTheme = false }, title = { Text("Theme") },
+        text = {
+            Column {
+                for (t in ThemePref.entries) Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    .selectable(selected = themePref == t, role = Role.RadioButton) { vm.setTheme(t); pickTheme = false },
+                    verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(themePref == t, null)
+                    Spacer(Modifier.width(12.dp))
+                    Text(t.label)
+                }
+                Text("Dark uses a true black background.", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium,
+                    color = cs.onSurfaceVariant)
+            }
+        },
+        confirmButton = { TextButton(onClick = { pickTheme = false }) { Text("Cancel") } })
     if (confirmHistory) AlertDialog(onDismissRequest = { confirmHistory = false }, text = { Text("Delete all history?") },
         confirmButton = { TextButton(onClick = { vm.deleteAllHistory(); confirmHistory = false }) { Text("Delete") } },
         dismissButton = { TextButton(onClick = { confirmHistory = false }) { Text("Cancel") } })
