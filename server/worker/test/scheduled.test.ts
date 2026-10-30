@@ -37,6 +37,19 @@ describe("purge (Q159)", () => {
     expect(log.extra.purged).toBe(250);
   });
 
+  it("keyset cursor (I448): each chunk starts after the last purged id, no rescans, no empty final chunk", async () => {
+    await fill(2000, NOW, "A");
+    await fill(250, NOW - PURGE_IDLE_S - 10, "I");
+    await fill(2000, NOW, "Z");
+    const log = new Log();
+    expect(await purge(await testEnv(), NOW, log)).toBe(250);
+    expect(log.extra.chunks).toBe(3);
+    // One pass over the table per statement (2 statements per chunk), not one per chunk.
+    expect(log.rows_read).toBeLessThan(2 * 4250 + 2000);
+    const left = await env.DB.prepare("SELECT count(*) AS n FROM accounts").first<{ n: number }>();
+    expect(left!.n).toBe(4000);
+  });
+
   it("cap (I227 07): 60,000 idle accounts -> at most 500 chunks; count logged", async () => {
     await fill(60000, NOW - PURGE_IDLE_S - 10, "C");
     const log = new Log();

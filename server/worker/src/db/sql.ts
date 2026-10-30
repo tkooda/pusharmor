@@ -168,11 +168,14 @@ export const W_PAUSE = `UPDATE peers SET paused = ?3 WHERE account = ?2 AND id =
 export const W_CONFIRM = `UPDATE peers SET push = json_set(push, '$.verified_at', ?3)
 WHERE account = ?2 AND id = ?1 AND push = ?4`;
 
-// Purge (monthly). ?1 = now - 94608000
-export const W_PURGE_PEERS = `DELETE FROM peers WHERE account IN (SELECT id FROM accounts
-  WHERE status IS NULL AND last_seen_month < ?1 ORDER BY id LIMIT 100)`;
-export const W_PURGE_ACCOUNTS = `DELETE FROM accounts WHERE id IN (SELECT id FROM accounts
-  WHERE status IS NULL AND last_seen_month < ?1 ORDER BY id LIMIT 100)`;
+// Purge (monthly). ?1 = now - 94608000, ?2 = last purged id of this run ('' to start). The
+// keyset cursor walks the accounts primary key once per run: a chunk never rescans the ids
+// before ?2. W_PURGE_ACCOUNTS returns the purged ids (the next ?2 is the largest).
+const PURGE_IDS = `SELECT id FROM accounts
+  WHERE id > ?2 AND status IS NULL AND last_seen_month < ?1 ORDER BY id LIMIT 100`;
+export const PURGE_CHUNK = 100;
+export const W_PURGE_PEERS = `DELETE FROM peers WHERE account IN (${PURGE_IDS})`;
+export const W_PURGE_ACCOUNTS = `DELETE FROM accounts WHERE id IN (${PURGE_IDS}) RETURNING id`;
 
 // Pending expiry (monthly), one keyset chunk of rows with pending entries. ?1 last id done
 // ('' to start), ?2 chunk size, ?3 cutoff (now - PENDING_TTL_S), ?4 now. Ids start with the

@@ -31,13 +31,18 @@ export async function purge(env: Env, nowS: number, log: Log): Promise<number> {
   const cutoff = nowS - PURGE_IDLE_S;
   let purged = 0;
   let chunks = 0;
+  let last = "";
   while (chunks < PURGE_MAX_CHUNKS) {
-    const rs = await env.DB.batch([env.DB.prepare(SQL.W_PURGE_PEERS).bind(cutoff), env.DB.prepare(SQL.W_PURGE_ACCOUNTS).bind(cutoff)]);
+    const rs = await env.DB.batch([
+      env.DB.prepare(SQL.W_PURGE_PEERS).bind(cutoff, last),
+      env.DB.prepare(SQL.W_PURGE_ACCOUNTS).bind(cutoff, last),
+    ]);
     chunks++;
     for (const r of rs) log.addMeta(r.meta);
-    const changed = rs[0].meta.changes + rs[1].meta.changes;
-    purged += rs[1].meta.changes;
-    if (changed === 0) break;
+    const ids = (rs[1].results as { id: string }[]).map((r) => r.id);
+    purged += ids.length;
+    if (ids.length < SQL.PURGE_CHUNK) break;
+    last = ids.reduce((a, b) => (a > b ? a : b));
   }
   log.extra.purged = purged;
   log.extra.chunks = chunks;
