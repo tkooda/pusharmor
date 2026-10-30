@@ -93,6 +93,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -607,47 +608,61 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     val detected = Detect.type(text)
     val type = if (asText) ContentType.TEXT else detected
     val keyboardUp = WindowInsets.isImeVisible
+    // With the keyboard up the field keeps at least 2 lines: the caption and "Send as text" rows give way,
+    // the device chips and Send do not.
+    var areaPx by remember { mutableIntStateOf(0) }
+    var chipsPx by remember { mutableIntStateOf(0) }
+    var extrasPx by remember { mutableIntStateOf(0) }
+    // 2 text lines + 16 dp padding above and below them + 8 dp for the label on the border (+ 16 dp top padding without a title).
+    val twoLinesPx = with(LocalDensity.current) {
+        (MaterialTheme.typography.bodyLarge.lineHeight * 2).roundToPx() + (if (title == null) 56.dp else 40.dp).roundToPx()
+    }
+    val extras = UiText.sendExtrasShown(keyboardUp, areaPx, chipsPx, extrasPx, twoLinesPx)
     Box(Modifier.fillMaxSize().imePadding()) {
         Column(Modifier.fillMaxSize()) {
             title?.let { PaTopBar(it) }
             // The page never scrolls: chips and Send keep their space, and the field gets what is left.
-            Column(Modifier.weight(1f).fillMaxWidth()) {
+            Column(Modifier.weight(1f).fillMaxWidth().onSizeChanged { areaPx = it.height }) {
                 // The field starts at 4 lines and grows with its text up to the free space, then scrolls inside;
-                // with the keyboard up it shrinks first.
+                // with the keyboard up it shrinks first, to 2 lines while the chips still fit.
                 OutlinedTextField(text, { text = it }, modifier = Modifier.rowPad.fillMaxWidth().weight(1f, fill = false)
                     .padding(top = if (title == null) 16.dp else 0.dp), minLines = 4, label = { Text("Message") },
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = ex.tile, unfocusedContainerColor = ex.tile,
                         focusedBorderColor = cs.primary, unfocusedBorderColor = cs.outline))
-                val counter = UiText.showCounter(bytes)
-                if (text.isNotEmpty() || counter) {
-                    Row(Modifier.padding(start = 32.dp, end = 32.dp, top = 6.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically) {
-                        if (text.isNotEmpty()) TypeCaption(type) else Spacer(Modifier.width(1.dp))
-                        if (counter) Text(UiText.counter(bytes), style = MaterialTheme.typography.bodySmall, color = cs.error)
+                if (extras) Column(Modifier.onSizeChanged { extrasPx = it.height }) {
+                    val counter = UiText.showCounter(bytes)
+                    if (text.isNotEmpty() || counter) {
+                        Row(Modifier.padding(start = 32.dp, end = 32.dp, top = 6.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically) {
+                            if (text.isNotEmpty()) TypeCaption(type) else Spacer(Modifier.width(1.dp))
+                            if (counter) Text(UiText.counter(bytes), style = MaterialTheme.typography.bodySmall, color = cs.error)
+                        }
                     }
-                }
-                if (detected != ContentType.TEXT) {
-                    Row(Modifier.rowPad.fillMaxWidth().heightIn(min = 40.dp).toggleable(asText, role = Role.Checkbox) { asText = it },
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(asText, null)
-                        Spacer(Modifier.width(12.dp))
-                        Text("Send as text", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                    if (detected != ContentType.TEXT) {
+                        Row(Modifier.rowPad.fillMaxWidth().heightIn(min = 40.dp).toggleable(asText, role = Role.Checkbox) { asText = it },
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(asText, null)
+                            Spacer(Modifier.width(12.dp))
+                            Text("Send as text", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                        }
                     }
                 }
                 val chips = others(peers, me?.id).filter { it.pinned }
-                SectionHeader(UiText.sendToHeader(sendTo.size, canReceive.size))
-                FlowRow(Modifier.rowPad.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (UiText.showAllChip(showAll, all.size, keyboardUp)) {
-                        val on = picked.containsAll(all.map { it.id })
-                        DeviceChip(PaIcons.Devices, "All", on, true) { picked.clear(); if (!on) picked.addAll(all.map { it.id }) }
-                    }
-                    for (p in chips) {
-                        val ok = p.inAll
-                        if (!UiText.chipVisible(ok && p.id in picked, keyboardUp)) continue
-                        DeviceChip(platformIcon(p.platform), label(p), p.id in sendTo, ok, if (ok) null else UiText.status(p).second) {
-                            if (!ok) { vm.tapGreyed(); scope.launch { snack.showSnackbar("${label(p)}: ${UiText.status(p).second}") } }
-                            else if (p.id in picked) picked.remove(p.id) else picked.add(p.id)
+                Column(Modifier.onSizeChanged { chipsPx = it.height }) {
+                    SectionHeader(UiText.sendToHeader(sendTo.size, canReceive.size))
+                    FlowRow(Modifier.rowPad.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (UiText.showAllChip(showAll, all.size, keyboardUp)) {
+                            val on = picked.containsAll(all.map { it.id })
+                            DeviceChip(PaIcons.Devices, "All", on, true) { picked.clear(); if (!on) picked.addAll(all.map { it.id }) }
+                        }
+                        for (p in chips) {
+                            val ok = p.inAll
+                            if (!UiText.chipVisible(ok && p.id in picked, keyboardUp)) continue
+                            DeviceChip(platformIcon(p.platform), label(p), p.id in sendTo, ok, if (ok) null else UiText.status(p).second) {
+                                if (!ok) { vm.tapGreyed(); scope.launch { snack.showSnackbar("${label(p)}: ${UiText.status(p).second}") } }
+                                else if (p.id in picked) picked.remove(p.id) else picked.add(p.id)
+                            }
                         }
                     }
                 }

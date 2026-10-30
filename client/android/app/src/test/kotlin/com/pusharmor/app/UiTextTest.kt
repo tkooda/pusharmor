@@ -68,6 +68,11 @@ class UiTextTest {
         assertEquals(false, UiText.chipVisible(selected = false, keyboardUp = true))
         assertEquals(true, UiText.chipVisible(selected = false, keyboardUp = false))
         assertEquals(true, UiText.chipVisible(selected = true, keyboardUp = false))
+        // Keyboard up: the extra rows give way so the field keeps 2 lines (here 200 px); chips keep their space.
+        assertEquals(true, UiText.sendExtrasShown(keyboardUp = true, areaPx = 500, chipsPx = 200, extrasPx = 100, fieldMinPx = 200))
+        assertEquals(false, UiText.sendExtrasShown(keyboardUp = true, areaPx = 499, chipsPx = 200, extrasPx = 100, fieldMinPx = 200))
+        assertEquals(false, UiText.sendExtrasShown(keyboardUp = true, areaPx = 300, chipsPx = 250, extrasPx = 100, fieldMinPx = 200))
+        assertEquals(true, UiText.sendExtrasShown(keyboardUp = false, areaPx = 300, chipsPx = 250, extrasPx = 100, fieldMinPx = 200))
         assertEquals(false, UiText.showCounter(1843))
         assertEquals(true, UiText.showCounter(1844))
         assertEquals(true, UiText.showCounter(2049))
