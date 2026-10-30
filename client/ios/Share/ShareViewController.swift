@@ -62,7 +62,7 @@ final class ShareModel: ObservableObject {
         if all.count == 1 {
             await send(to: all.map { $0.id })
         } else if all.isEmpty {
-            step = .failed("No paired peers to send to.")
+            step = .failed("No paired devices to send to.")
         } else {
             step = .pick
         }

@@ -24,7 +24,7 @@ final class ScreenshotTests: XCTestCase {
     }
 
     private func peersTab(_ app: XCUIApplication) {
-        let tab = app.tabBars.buttons["Peers"]
+        let tab = app.tabBars.buttons["Devices"]
         XCTAssertTrue(tab.waitForExistence(timeout: 30))
         tab.tap()
     }

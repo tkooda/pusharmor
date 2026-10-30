@@ -24,7 +24,7 @@ final class StateMachineTests: XCTestCase {
         await n.core.fetchPeers(force: true)
         XCTAssertEqual(try n.core.allSet().map { $0.id }, [x.id])
         let rep = try await n.core.send("https://example.com/a", as: .url, to: [x.id], allCount: 1)
-        XCTAssertEqual(rep.toast, "Sent to 1 of 1 peers")
+        XCTAssertEqual(rep.toast, "Sent to 1 of 1 devices")
         let pushed = w.take(x.id)
         XCTAssertEqual(pushed.count, 1)
         let r = await x.core.receive(pushed[0], mode: .nse)

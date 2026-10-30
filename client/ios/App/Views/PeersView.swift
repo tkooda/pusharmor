@@ -47,7 +47,7 @@ struct PeersView: View {
                                 .listRowBackground(Color.clear)
                         }
                     } else if !listed.isEmpty {
-                        Section("Peers") {
+                        Section("Devices") {
                             ForEach(listed, id: \.id.text) { p in
                                 PeerRowView(p: p, isExpanded: Binding(
                                     get: { expanded == p.id.text },
@@ -60,7 +60,7 @@ struct PeersView: View {
                     }
                 }
                 .contentMargins(.bottom, 12, for: .scrollContent)
-                .navigationTitle("Peers")
+                .navigationTitle("Devices")
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         TimelineView(.periodic(from: .now, by: 1)) { ctx in
@@ -85,7 +85,7 @@ struct PeersView: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             DevicesIllustration()
-            Text("No peers yet")
+            Text("No devices yet")
                 .font(.title2.weight(.semibold))
             Text(S.noPeersBody)
                 .font(.subheadline)

@@ -8,22 +8,22 @@ public enum S {
     public static let dropped = "PushArmor received a message it could not read"
     public static let invalid = "Invalid message received"
     public static let unknownSender = "Unknown sender"
-    public static let aPeer = "A peer"
-    public static let pairCommit = "A new peer wants to pair. Open PushArmor."
-    public static func pairOpen(_ fp: String) -> String { "New peer: compare \(fp)" }
+    public static let aPeer = "A device"
+    public static let pairCommit = "A new device wants to pair. Open PushArmor."
+    public static func pairOpen(_ fp: String) -> String { "New device: compare \(fp)" }
     public static let pairReply = "Pairing fingerprint ready. Open PushArmor."
     public static func pairAgain(_ x: String) -> String { "\(x) wants to pair again. Tap Cancel pairing on its row, then pair." }
     public static func pairCrossing(_ x: String) -> String { "Pairing with \(x) in progress. Open PushArmor." }
     public static func approved(_ name: String) -> String { "\(name) approved this device" }
     public static func renamed(_ old: String, _ new: String) -> String { "'\(old)' renamed to '\(new)'" }
-    public static let peerListChanged = "Peer list changed"
+    public static let peerListChanged = "Device list changed"
     public static let thisDeviceRemoved = "This device was removed. Sign in again"
-    public static let accountDeleted = "Account deleted on another peer"
+    public static let accountDeleted = "Account deleted on another device"
     public static func denied(_ name: String) -> String { "\(name) denied this device" }
     public static func pausedReceiving(_ name: String) -> String { "\(name) paused receiving" }
     public static func resumedReceiving(_ name: String) -> String { "\(name) resumed receiving" }
     public static func newMessageFrom(_ peer: String) -> String { "New message from \(peer)" }
-    public static let pairingFailed = "Pairing failed. Start again on the new peer."
+    public static let pairingFailed = "Pairing failed. Start again on the new device."
     public static let pairingTimedOut = "Pairing timed out. Tap Pair to start again."
     public static func waiting(_ x: String) -> String { "Waiting for \(x): open PushArmor there and approve" }
     public static func noReplyYet(_ x: String) -> String { "No reply yet. Open PushArmor on \(x), or tap Send again." }
@@ -32,9 +32,9 @@ public enum S {
     public static func declinedBy(_ x: String) -> String { "Declined by \(x)" }
     public static func pairingFingerprint(_ fp: String) -> String { "Pairing fingerprint \(fp)" }
     public static func removeConfirm(_ x: String) -> String {
-        "Remove \(x) from this account? \(x) must sign in again and pair with every peer again."
+        "Remove \(x) from this account? \(x) must sign in again and pair with every device again."
     }
-    public static func sentTo(_ n: Int, _ m: Int) -> String { "Sent to \(n) of \(m) peers" }
+    public static func sentTo(_ n: Int, _ m: Int) -> String { "Sent to \(n) of \(m) devices" }
     public static func notDelivered(_ x: String) -> String { "Not delivered to \(x): open PushArmor on it" }
     public static func signedOutPeer(_ x: String) -> String { "\(x) is signed out" }
     public static let emailSendFailed = "could not send the email, try again"
@@ -42,23 +42,22 @@ public enum S {
     public static let badEmail = "Only email addresses with plain ASCII characters are supported."
     public static let signInExpired = "Sign-in expired, sign in again"
     public static let signedOutResume = "Signed out. Sign in to resume"
-    public static let notificationsOff = "Notifications are off; this device cannot receive"
+    public static let notificationsOff = "Notifications are off. This device cannot receive"
     public static func signedInAs(_ email: String) -> String { "Signed in as \(email)" }
-    public static let relayHelp = "To sign in on another peer, use this address. Find it in iOS Settings > Apple ID > Sign in with Apple, or at appleid.apple.com > Hide My Email."
+    public static let relayHelp = "To sign in on another device, use this address. Find it in iOS Settings > Apple ID > Sign in with Apple, or at appleid.apple.com > Hide My Email."
     public static func receivedWhileLocked(_ n: Int) -> String { "\(n) messages received while locked" }
     public static let thisPhoneOldInstall = "(this phone, old install)"
     public static let tooLongShare = "Send the first 2048 bytes"
     public static let lockScreenSwitch = "Show message content on lock screen"
     public static let alwaysHide = "Always hide content"
-    public static let lockScreenHelp = "hides content only for messages that arrive while the phone is locked"
     public static func pairWith(_ x: String) -> String { "Pair with \(x)?" }
     public static func checkSameCode(_ x: String) -> String { "Check that \(x) shows this same code." }
     public static let codesMismatch = "Codes do not match? Tap Deny."
-    public static let newPeerWantsToPair = "A new peer wants to pair."
+    public static let newPeerWantsToPair = "A new device wants to pair."
     public static func timesOutIn(_ t: String) -> String { "Times out in \(t)" }
     public static let sameAccount = "Use the same account on every device you want to pair."
     public static let noPeersBody = "Install PushArmor on your other devices and sign in with the same account. They show up here, ready to pair."
-    public static let noMessagesBody = "Links and text you send or receive show up here."
+    public static let noMessagesBody = "Everything you send or receive shows up here."
 }
 
 /// Notification categories (section 6.2).
@@ -201,7 +200,7 @@ public enum PeerLabel {
     }
 
     public static func unnamed(platform: String?, created: Int64?, timeZone: TimeZone = .current) -> String {
-        var s = platformName(platform) + " peer"
+        var s = platformName(platform) + " device"
         if let c = created {
             let f = DateFormatter()
             f.locale = Locale(identifier: "en_US_POSIX")

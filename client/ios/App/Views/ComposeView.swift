@@ -107,7 +107,7 @@ struct ComposeView: View {
     private var sendLabel: String {
         let n = recipientCount
         if n <= 0 { return "Send" }
-        return n == 1 ? "Send to 1 peer" : "Send to \(n) peers"
+        return n == 1 ? "Send to 1 device" : "Send to \(n) devices"
     }
 
     /// "39 / 2048" (SizeCap.label without the brackets), or "Too long (2049 / 2048)".
