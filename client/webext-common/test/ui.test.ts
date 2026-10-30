@@ -48,3 +48,18 @@ test("History sender link is a keyboard-operable button with a visible focus rin
   assert.match(css, /^:focus-visible \{ outline: 2px solid/m); // global ring
   assert.doesNotMatch(css, /peerlink[^{]*\{[^}]*outline: ?none/);
 });
+
+test("status and error text is announced: live regions and field errors wired to inputs", async () => {
+  const { readFileSync } = await import("node:fs");
+  const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
+  for (const f of ["popup.ts", "peersview.ts", "page.ts"]) assert.doesNotMatch(rd(f), /class: "status" \}/, f); // every status div has a role
+  assert.match(rd("popup.ts"), /class: "result", role: "status"/);
+  const page = rd("page.ts");
+  assert.match(page, /setAttribute\("role", "alert"\)/); // bad help is an alert
+  assert.match(page, /setAttribute\("aria-invalid", "true"\)/);
+  assert.match(page, /describe\(email, emailHelp/);
+  assert.match(page, /describe\(code, codeHelp/);
+  assert.match(page, /setHelp\(emailHelp, bad, true, email\)/);
+  assert.match(page, /setHelp\(codeHelp, msg[^\n]*, true, code\)/);
+  assert.match(rd("peersview.ts"), /await redraw\(msg\)/); // the message survives the redraw
+});

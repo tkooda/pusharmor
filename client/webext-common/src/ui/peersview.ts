@@ -27,16 +27,17 @@ const MENU = new Set(["remove", "hide", "unhide", "localDelete"]);
 const inMenu = (p: PeerView, a: string): boolean => MENU.has(a) || (a === "cancel" && p.actions.includes("pair_again"));
 const rank = (a: string): number => (ACTION_ORDER.indexOf(a) + 1 || ACTION_ORDER.length + 1);
 
-type Redraw = () => Promise<void>;
+/** Draws the list again; a message is announced in the new status region. */
+type Redraw = (message?: string) => Promise<void>;
 
-export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, highlight?: string): Promise<void> {
-  const status = h("div", { class: "status" });
+export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, highlight?: string, message?: string): Promise<void> {
+  const status = h("div", { class: "status", role: "status" });
   const [data, st] = await Promise.all([
     rpc<{ self: { id: string; name: string } | null; peers: PeerView[] }>(env, "peers"),
     rpc<StateView>(env, "state"),
   ]);
   clear(root);
-  const redraw = () => renderPeers(env, root, full);
+  const redraw: Redraw = (msg) => renderPeers(env, root, full, undefined, msg);
   const pairing = data.peers.filter((p) => p.fingerprint);
   for (const p of pairing) root.append(pairCard(env, p, status, redraw));
   if (data.self) root.append(sh("This device"), ownCard(env, data.self.name, st.platform, pairing.length > 0, status));
@@ -69,6 +70,8 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
     }
   });
   root.append(status, add(h("div", { class: "foot bar" }, refresh), !full && h("button", { class: "quiet", onclick: () => env.openPage("#peers") }, "Open full view")));
+  // Text put in a live region after it is in the page is announced; text present at insert is not.
+  if (message) setTimeout(() => (status.textContent = message), 50);
 }
 
 /** This device: the navy hero, or the plain variant while a pairing card shows. */
@@ -176,7 +179,8 @@ function pairCard(env: UiEnv, p: PeerView, status: HTMLElement, redraw: Redraw):
   return card;
 }
 
-async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, box: HTMLElement, status: HTMLElement, redraw: Redraw): Promise<void> {
+async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, box: HTMLElement, _status: HTMLElement, redraw: Redraw): Promise<void> {
+  let msg = "";
   if (a === "remove") {
     const confirm = h(
       "div",
@@ -188,12 +192,13 @@ async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, box
         h("button", {
           class: "danger",
           onclick: async () => {
+            let rmsg = "Removed " + p.label;
             try {
               await rpc(env, "remove", { id: p.id });
             } catch (e) {
-              status.textContent = (e as Error).message;
+              rmsg = (e as Error).message;
             }
-            await redraw();
+            await redraw(rmsg);
           },
         }, "Remove"),
         h("button", { onclick: () => confirm.remove() }, "Keep"),
@@ -209,9 +214,9 @@ async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, box
   if (a === "pair_again") b.disabled = true; // a second click would hit the open pairing
   try {
     const r = await rpc<unknown>(env, op, args);
-    if (op === "approve" && typeof r === "string" && r !== "stored" && r !== "sent") status.textContent = r === "denied" ? T.declinedBy(p.label) : "Approve: " + r;
+    if (op === "approve" && typeof r === "string" && r !== "stored" && r !== "sent") msg = r === "denied" ? T.declinedBy(p.label) : "Approve: " + r;
   } catch (e) {
-    status.textContent = (e as Error).message;
+    msg = (e as Error).message;
   }
-  await redraw();
+  await redraw(msg);
 }
