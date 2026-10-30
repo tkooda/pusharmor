@@ -61,7 +61,7 @@ class AppLogicTest {
 
     @Test fun shareDirectTargetOnlyFromAllSet() {
         val all = listOf("a", "b")
-        assertEquals("a", ShareActivity.directTarget("a", all)) // shortcut id in All: direct send
+        assertEquals("a", ShareActivity.directTarget("a", all)) // shortcut id in All: preselected, still waits for the Send tap
         assertNull(ShareActivity.directTarget("hidden", all)) // not in All: picker
         assertNull(ShareActivity.directTarget(null, all))
         assertEquals("a", ShareActivity.directTarget(null, listOf("a"))) // single All peer (Q160 C)

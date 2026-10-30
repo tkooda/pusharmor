@@ -29,7 +29,6 @@ import com.pusharmor.protocol.SizeCap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 
 /** Share sheet entry (section 7): ACTION_SEND text/plain. */
 class ShareActivity : ComponentActivity() {
@@ -49,10 +48,11 @@ class ShareActivity : ComponentActivity() {
     }
 
     private fun show(text: String, all: List<Peer>) {
+        // Another app can start this activity, so it never sends on its own: the target is only preselected
+        // and the user must tap Send.
         val direct = directTarget(intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID), all.map { it.id })
         val tooLong = SizeCap.utf8Size(text) > SizeCap.MAX_CONTENT_BYTES
         val type = Detect.type(text)
-        if (!tooLong && direct != null) { send(listOf(direct), text); return }
         setContent {
             AppTheme(vm) { Surface(color = MaterialTheme.colorScheme.background) {
                 var cut by remember { mutableStateOf<String?>(null) }
@@ -65,7 +65,7 @@ class ShareActivity : ComponentActivity() {
                             Text("Too long (${SizeCap.utf8Size(text)} / 2048)")
                         }
                     } else {
-                        SendScreen(vm, cut ?: text) { r -> toastAndFinish(r) }
+                        SendScreen(vm, cut ?: text, preselect = direct) { r -> toastAndFinish(r) }
                     }
                 }
             } }
@@ -73,16 +73,9 @@ class ShareActivity : ComponentActivity() {
     }
 
     companion object {
-        /** Direct send target: a shortcut id that is in the All set, else the only All peer, else null (picker). */
+        /** Preselected target: a shortcut id that is in the All set, else the only All peer, else null. Never sent without a tap. */
         fun directTarget(shortcutId: String?, allIds: List<String>): String? =
             if (shortcutId != null && shortcutId in allIds) shortcutId else allIds.singleOrNull()
-    }
-
-    private fun send(ids: List<String>, text: String) {
-        lifecycleScope.launch {
-            val r = withTimeoutOrNull(10_000) { vm.send(ids, text, asText = false) }
-            toastAndFinish(r ?: "Sending")
-        }
     }
 
     private fun toastAndFinish(text: String) {
