@@ -249,7 +249,8 @@ tag commit, so only reviewed commits may be tagged:
 3. Environments `android-sign`, `android-release`, `ios-release`,
    `chrome-release`, `firefox-release`: "Deployment branches and tags" =
    selected tags only, `android/v*` for both Android environments, `ios/v*`,
-   `chrome/v*`, `firefox/v*`. Required reviewers are optional (the store promotion is the human gate).
+   `chrome/v*`, `firefox/v*`. Required reviewers are optional
+   because the store promotion is the human gate.
 4. Secrets only as environment secrets, never repository or organization
    secrets (names and environments: `release/names.json` "github_secrets"):
    `ANDROID_*` in `android-sign`, `ASC_*` in `ios-release`, `MOZILLA_AMO_*` in
