@@ -156,6 +156,8 @@ struct ComposeView: View {
     @State private var visibleHeight: CGFloat = 0
     @State private var chipsHeight: CGFloat = 0
     @FocusState private var editing: Bool
+    /// Chip name width: 150 pt at the default text size, wider at large Dynamic Type (L8).
+    @ScaledMetric(relativeTo: .subheadline) private var chipNameWidth: CGFloat = 150
 
     private var candidates: [Peer] {
         model.peers.filter { $0.state == .approved && $0.pinned && !$0.hidden }
@@ -387,7 +389,7 @@ struct ComposeView: View {
         return nil
     }
 
-    /// Bordered capsule toggle; the name ellipsizes at 150 pt.
+    /// Bordered capsule toggle; the name ellipsizes at chipNameWidth (at most 260 pt).
     private func chip(title: String, symbol: String, on: Bool) -> some View {
         HStack(spacing: 6) {
             Image(systemName: on ? "checkmark" : symbol)
@@ -395,7 +397,7 @@ struct ComposeView: View {
             Text(title)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .frame(maxWidth: 150, alignment: .leading)
+                .frame(maxWidth: min(chipNameWidth, 260), alignment: .leading)
         }
         .font(.subheadline.weight(on ? .semibold : .regular))
         .foregroundStyle(on ? Color(uiColor: .systemBackground) : Color.primary)
