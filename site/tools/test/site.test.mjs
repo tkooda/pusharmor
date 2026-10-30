@@ -476,7 +476,7 @@ test("FAQ texts (I258, I264, I272, WEB6-04) and fixed lines", () => {
   assert.ok(read("security.html").includes('<th scope="col">Cannot see</th>'));
   assert.ok(!sec.includes("Does not see"));
   assert.ok(sec.includes("The push service and our relay server can show a notification with text of their choosing on every platform; verified content appears only after your device decrypts it."));
-  assert.ok(sec.includes("The vendor sees the size of a message (padded to a few standard sizes), not its content."));
+  assert.ok(sec.includes("The push service sees the size of a message (padded to a few standard sizes), not its content."));
   const del = text("delete-account.html");
   for (const s of ["You can also delete your account from the apps.",
     "Deleted right away: all your devices, with their keys, names, and notification addresses.",

@@ -26,7 +26,7 @@
 <h1>Security and threat model</h1>
 <p>Your devices don't need to trust our relay server. Messages are encrypted on your device, and can only
 ever be decrypted by your own paired devices. Each app and add-on checks everything the server sends, so the server
-cannot change a message or pose as one of your devices. Keys are made on each device, and the private keys used to decrypt and sign messages never
+cannot change a message or pose as one of your devices. Each device makes two P-256 key pairs, one for signing (ECDSA) and one for encryption (HPKE), and the private keys used to decrypt and sign messages never
 leave it. Where the device supports it, they are kept in its hardware key storage (the Secure
 Enclave on iPhone, the Android Keystore on Android).</p>
 
@@ -36,9 +36,9 @@ Enclave on iPhone, the Android Keystore on Android).</p>
 <thead><tr><th scope="col">Party</th><th scope="col">Sees</th><th scope="col">Cannot see</th></tr></thead>
 <tbody>
 <tr><th scope="row">Your devices</th><td data-label="Sees">The messages you send them, after decryption and signature checks.</td><td data-label="Cannot see">Messages for other devices.</td></tr>
-<tr><th scope="row">Our relay server (hosted on Cloudflare)</th><td data-label="Sees"><ul><li>A one-way hash of your email address, which is your account ID</li><li>The address itself briefly at sign-in, to send the sign-in code</li><li>Your IP address</li><li>Device public keys</li><li>The addresses your devices use to receive notifications (push tokens or endpoints)</li><li>Encrypted messages and their size</li><li>Who sends to whom inside your account</li></ul></td><td data-label="Cannot see"><ul><li>Message content</li><li>Private keys</li><li>Pairing fingerprints</li></ul></td></tr>
+<tr><th scope="row">Our relay server (hosted on Cloudflare)</th><td data-label="Sees"><ul><li>A one-way (keyed) hash of your email address, which is your account ID</li><li>The address itself briefly at sign-in, to send the sign-in code</li><li>Your IP address</li><li>Device public keys</li><li>The push tokens (FCM, APNs) and web push endpoint URLs your devices use to receive notifications</li><li>Encrypted messages (ciphertext) and their size</li><li>Who sends to whom inside your account</li></ul></td><td data-label="Cannot see"><ul><li>Message content</li><li>Private keys</li><li>Pairing fingerprints</li></ul></td></tr>
 <tr><th scope="row">Cloudflare</th><td data-label="Sees">Everything our relay server sees, since Cloudflare runs it and its database. Delivery logs: account ID, device IDs, and send results, for 7 days.</td><td data-label="Cannot see">Message content and private keys.</td></tr>
-<tr><th scope="row">Push services (Google's and Apple's notification services, Google and Mozilla web push, a UnifiedPush distributor)</th><td data-label="Sees"><ul><li>The push token or endpoint</li><li>The encrypted message</li><li>Undelivered messages, held up to 7 days (pairing requests up to 4 weeks)</li></ul></td><td data-label="Cannot see">Message content and keys.</td></tr>
+<tr><th scope="row">Push services (Firebase Cloud Messaging (FCM), Apple Push Notification service (APNs), Google and Mozilla web push, and a UnifiedPush distributor)</th><td data-label="Sees"><ul><li>The push token (FCM, APNs) or web push endpoint URL</li><li>The encrypted message (ciphertext)</li><li>Undelivered messages, held up to 7 days (pairing requests up to 4 weeks)</li></ul></td><td data-label="Cannot see">Message content and keys.</td></tr>
 <tr><th scope="row">This website</th><td data-label="Sees">Nothing about you: static files, no login, no analytics. Cloudflare's bot check (Turnstile) runs on the email sign-in page and on the delete-account page only.</td><td data-label="Cannot see">Keys and message content.</td></tr>
 <tr><th scope="row">AWS SES</th><td data-label="Sees">Your email address when it sends a sign-in code.</td><td data-label="Cannot see">Anything else.</td></tr>
 </tbody>
@@ -46,13 +46,13 @@ Enclave on iPhone, the Android Keystore on Android).</p>
 </div>
 <p class="note">The push service and our relay server can show a notification with text of their
 choosing on every platform; verified content appears only after your device decrypts it.</p>
-<p class="note">The vendor sees the size of a message (padded to a few standard sizes), not its
+<p class="note">The push service sees the size of a message (padded to a few standard sizes), not its
 content.</p>
 
 <h2>How devices trust each other</h2>
 <p>Two devices trust each other only after you pair them by verifying that the 4-character
 pairing fingerprint is identical on both screens. Every message is signed by the
-sending device and checked by the receiving device; repeated or old messages are dropped.
+sending device and checked by the receiving device; repeated or old messages are dropped (replay protection).
 A message that fails this check is never shown; History lists it as "PushArmor received a
 message it could not read". Messages you read inside PushArmor passed this check. A notification
 is only a prompt: if one looks wrong, open PushArmor and read the message there.</p>
