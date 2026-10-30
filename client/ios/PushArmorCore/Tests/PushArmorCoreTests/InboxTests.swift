@@ -46,7 +46,7 @@ final class InboxTests: XCTestCase {
     func testPeerLabel() {
         XCTAssertEqual(PeerLabel.unnamed(platform: "android", created: 1759449600, timeZone: TimeZone(identifier: "UTC")!),
                        "Android device added Oct 3")
-        XCTAssertEqual(PeerLabel.platformName("iphone"), "iPhone")
+        XCTAssertEqual(PeerLabel.platformName("ios"), "iPhone")
     }
 }
 

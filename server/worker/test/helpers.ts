@@ -164,7 +164,7 @@ export function pushFor(platform: string, kind?: string): Record<string, unknown
     case "android":
     case "fcm":
       return { type: "fcm", token: secretString("fcmtok" + b64urlEncode(randBytes(24)).replace(/[-_]/g, "a")) };
-    case "iphone":
+    case "ios":
     case "apns":
       return { type: "apns", token: secretString(Array.from(randBytes(32), (b) => b.toString(16).padStart(2, "0")).join("")) };
     case "apns-sandbox":

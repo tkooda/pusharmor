@@ -49,7 +49,7 @@ const peers: PeerView[] = [
 ];
 
 // ?n=1|3|9: that many other devices on the Send tab (some selected); default: the store set above.
-const MORE: [string, string][] = [["iPad", "iphone"], ["Home PC", "chrome"], ["MacBook", "chrome"], ["Kitchen tablet", "android"], ["Office laptop", "firefox"], ["Spare phone", "android"]];
+const MORE: [string, string][] = [["iPad", "ios"], ["Home PC", "chrome"], ["MacBook", "chrome"], ["Kitchen tablet", "android"], ["Office laptop", "firefox"], ["Spare phone", "android"]];
 let sendSel: string[] = [];
 if (q.has("n")) {
   const n = Number(q.get("n"));

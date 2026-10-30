@@ -17,7 +17,7 @@ extension Core {
     public func register(ticket: String, push: PushInfo?, evict: [String] = []) async -> RegisterOutcome {
         var fields: [(String, JOut)] = [
             ("ticket", .str(ticket)), ("sign_pub", .str(B64URL.encode(keys.signer.publicKey))),
-            ("enc_pub", .str(B64URL.encode(keys.decryptor.publicKey))), ("platform", .str("iphone")),
+            ("enc_pub", .str(B64URL.encode(keys.decryptor.publicKey))), ("platform", .str("ios")),
             ("push", push.map { p in JOut.obj([("type", .str(p.type.rawValue)), ("token", .str(p.token))]) } ?? .null),
         ]
         if !evict.isEmpty { fields.append(("evict", .arr(evict.map { .str($0) }))) }

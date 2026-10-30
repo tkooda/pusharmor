@@ -23,7 +23,7 @@ export interface WpKeys {
 }
 
 export type Ruling = "approved" | "denied" | "none";
-export type Platform4 = "android" | "iphone" | "chrome" | "firefox";
+export type Platform4 = "android" | "ios" | "chrome" | "firefox";
 
 export interface PeerRow {
   id: string;

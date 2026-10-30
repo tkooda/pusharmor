@@ -127,7 +127,7 @@ export function peerStatus(p: PeerView): { kind: StatusKind; word: string } | nu
   return p.approvesMe ? { kind: "ok", word: "Paired" } : { kind: "wait", word: "Has not approved this device" };
 }
 
-const PLATFORM_LABEL: Record<string, string> = { android: "Android", iphone: "iPhone", chrome: "Chrome", firefox: "Firefox" };
+const PLATFORM_LABEL: Record<string, string> = { android: "Android", ios: "iPhone", chrome: "Chrome", firefox: "Firefox" };
 export function platformLabel(platform: string): string {
   return PLATFORM_LABEL[platform] ?? platform;
 }

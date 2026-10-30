@@ -75,10 +75,11 @@ table to that file, so a new route needs a reviewed edit to `routes.json`.
    between peers of your own accounts and type `ok`.
 7. If step 5 or 6 fails, run `(cd server/worker && npx wrangler rollback)`.
    The previous version must work with the current migrations (N-1 rule).
-   Exception: never roll back to a Worker below 0.0.17. Migration 0004 stores
-   each pending entry as `[time, "c"]`; a Worker below 0.0.17 reads that array
-   as the c value and pairings fail. From 0.0.17 on, roll forward only: fix and
-   release a new Worker tag.
+   Exception: never roll back to a Worker below 0.0.19. Migration 0005 renames
+   peers.paused to logged_out and platform 'iphone' to 'ios'; a Worker below
+   0.0.19 cannot read it (and below 0.0.17 cannot read the 0004 pending
+   format). Below that floor, roll forward only: fix and release a new Worker
+   tag.
 8. Done: the script prints the tag and the uploaded bundle sha256. It creates
    no tag (the worker/v tag came first).
 

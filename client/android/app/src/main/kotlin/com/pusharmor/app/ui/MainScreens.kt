@@ -150,7 +150,7 @@ internal fun others(peers: List<Peer>, selfId: String?): List<Peer> = if (selfId
 private fun platformIcon(platform: String): ImageVector = when (platform) {
     "chrome" -> PaIcons.Laptop
     "firefox" -> PaIcons.Desktop
-    "android", "iphone" -> PaIcons.Smartphone
+    "android", "ios" -> PaIcons.Smartphone
     else -> PaIcons.Devices
 }
 

@@ -196,7 +196,7 @@ public enum PeerLabel {
     public static func platformName(_ p: String?) -> String {
         switch p {
         case "android": return "Android"
-        case "iphone": return "iPhone"
+        case "ios": return "iPhone"
         case "chrome": return "Chrome"
         case "firefox": return "Firefox"
         default: return "Unknown"

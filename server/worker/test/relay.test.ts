@@ -14,7 +14,7 @@ describe("POST /send", () => {
   it("results in /send order", async () => {
     const email = randomEmail();
     const me = await newPeer(email);
-    const ok = await newPeer(email, "iphone");
+    const ok = await newPeer(email, "ios");
     const den = await newPeer(email);
     const unap = await newPeer(email);
     const paused = await newPeer(email);
@@ -203,7 +203,7 @@ describe("POST /pair/$X (6.7a)", () => {
   it("relays each kind; iPhone gets apns-collapse-id = pk; others none; TTL 2419200", async () => {
     const email = randomEmail();
     const n = await newPeer(email);
-    const x = await newPeer(email, "iphone");
+    const x = await newPeer(email, "ios");
     const c = message(366 - 2) + "AA"; // 366 chars
     expect(c).toHaveLength(366);
     for (const k of ["commit", "open"]) {
@@ -231,7 +231,7 @@ describe("POST /pair/$X (6.7a)", () => {
   it("reply to an iPhone uses (X, me) order", async () => {
     const email = randomEmail();
     const x = await newPeer(email);
-    const n = await newPeer(email, "iphone");
+    const n = await newPeer(email, "ios");
     const c = message(364) + "AA";
     await call("POST", "/v1/pair/" + n.id, { k: "reply", c }, { peer: x });
     expect(vendorRequests("api.push.apple.com")[0].headers["apns-collapse-id"]).toBe(await pairKey(n.id, x.id));

@@ -72,7 +72,7 @@ export function requireAccount(ids: Iterable<string>, acct: string): void {
   for (const id of ids) if (id.slice(0, 12) !== acct) throw bad();
 }
 
-export const PLATFORMS = ["android", "iphone", "chrome", "firefox"] as const;
+export const PLATFORMS = ["android", "ios", "chrome", "firefox"] as const;
 export type Platform = (typeof PLATFORMS)[number];
 
 export function checkPlatform(v: unknown): Platform {
@@ -80,7 +80,7 @@ export function checkPlatform(v: unknown): Platform {
   return v as Platform;
 }
 
-const PLATFORM_TYPES: Record<Platform, number[]> = { android: [1, 6], iphone: [2, 5], chrome: [3], firefox: [4] };
+const PLATFORM_TYPES: Record<Platform, number[]> = { android: [1, 6], ios: [2, 5], chrome: [3], firefox: [4] };
 
 export interface PushValue {
   pushType: number;

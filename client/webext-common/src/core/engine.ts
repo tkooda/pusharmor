@@ -1000,7 +1000,7 @@ export class Engine {
       const ep = typeof it.enc_pub === "string" ? b64urlTryDecode(it.enc_pub) : null;
       if (!id || id.length !== ID_LEN || !sp || !ep) continue;
       if (!(await validPeerEntry(id, sp, ep, acct))) continue;
-      const platform = (["android", "iphone", "chrome", "firefox"] as const).includes(it.platform as Platform4) ? (it.platform as Platform4) : "android";
+      const platform = (["android", "ios", "chrome", "firefox"] as const).includes(it.platform as Platform4) ? (it.platform as Platform4) : "android";
       const created = typeof it.created === "number" ? it.created : 0;
       const snap = await this.db.peer(it.id);
       if (snap?.removed) continue;
