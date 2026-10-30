@@ -125,7 +125,16 @@ class ScreenshotCapture {
         throw AssertionError("not shown within ${timeoutMs}ms: $text (tree in logcat, tag ScreenshotCapture)")
     }
 
+    /** Walks the tree: Compose's node provider does not implement findAccessibilityNodeInfosByText. */
+    private fun hasText(n: AccessibilityNodeInfo?, text: String): Boolean {
+        if (n == null) return false
+        if (n.text?.contains(text) == true || n.contentDescription?.contains(text) == true) return true
+        return (0 until n.childCount).any { hasText(n.getChild(it), text) }
+    }
+
     private fun shot(name: String) {
+        // A system "... isn't responding" dialog over the app spoils the shot: fail instead.
+        if (!name.startsWith("debug-")) assertTrue("system dialog over $name", roots().none { hasText(it, "t responding") })
         val bmp: Bitmap = inst.uiAutomation.takeScreenshot()
         val dir = File(app.getExternalFilesDir(null), "shots").apply { mkdirs() }
         File(dir, "$name.png").outputStream().use { assertTrue(bmp.compress(Bitmap.CompressFormat.PNG, 100, it)) }
