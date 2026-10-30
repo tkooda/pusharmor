@@ -1,10 +1,10 @@
-// Rate-limit binding wrappers. A throwing limit() fails open for RL_IP, RL_PEER, RL_PAIR,
+// Rate-limit binding wrappers. A throwing limit() fails open for RL_IP, RL_PEER, RL_ACCT, RL_PAIR,
 // RL_PROBE and fails closed (429) for RL_MAIL, RL_MAIL_ALL, RL_CODE, RL_CODE_ALL.
 import type { Env } from "../env";
 import { rateLimited } from "../errors";
 import type { Log } from "../log";
 
-export type Binding = "RL_IP" | "RL_PEER" | "RL_MAIL" | "RL_MAIL_ALL" | "RL_CODE" | "RL_PAIR" | "RL_PROBE" | "RL_CODE_ALL";
+export type Binding = "RL_IP" | "RL_PEER" | "RL_MAIL" | "RL_MAIL_ALL" | "RL_CODE" | "RL_PAIR" | "RL_PROBE" | "RL_CODE_ALL" | "RL_ACCT";
 const FAIL_CLOSED = new Set<Binding>(["RL_MAIL", "RL_MAIL_ALL", "RL_CODE", "RL_CODE_ALL"]);
 
 // Returns true when the call may proceed.
@@ -44,4 +44,10 @@ function expandIPv6(ip: string): string[] | null {
   if (fill < 0) return null;
   const all = [...head, ...Array(fill).fill("0"), ...tail];
   return all.map((g) => (g.includes(".") ? g : g.replace(/^0+(?=.)/, "")));
+}
+
+// RL_ACCT: one counter per account for every signed call and POST /peers, so 10 peers (or a
+// register/evict churn) cannot multiply the per-peer limit.
+export function enforceAccount(env: Env, acct: string, log: Log): Promise<void> {
+  return enforce(env, "RL_ACCT", "acct:" + acct, log);
 }

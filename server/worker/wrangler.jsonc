@@ -36,7 +36,8 @@
     { "name": "RL_CODE", "namespace_id": "1005", "simple": { "limit": 5, "period": 60 } },
     { "name": "RL_PAIR", "namespace_id": "1006", "simple": { "limit": 1, "period": 60 } },
     { "name": "RL_PROBE", "namespace_id": "1007", "simple": { "limit": 2, "period": 60 } },
-    { "name": "RL_CODE_ALL", "namespace_id": "1008", "simple": { "limit": 30, "period": 60 } }
+    { "name": "RL_CODE_ALL", "namespace_id": "1008", "simple": { "limit": 30, "period": 60 } },
+    { "name": "RL_ACCT", "namespace_id": "1009", "simple": { "limit": 60, "period": 60 } }
   ],
   "vars": {
     "PA_ALLOWED_PUSH_ENDPOINT_PREFIXES": "[\"https://fcm.googleapis.com/fcm/send/\",\"https://fcm.googleapis.com/wp/\",\"https://updates.push.services.mozilla.com/wpush/v1/\",\"https://updates.push.services.mozilla.com/wpush/v2/\"]",

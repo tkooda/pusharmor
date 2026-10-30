@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { env } from "cloudflare:test";
-import { call, captured, countingLimit, initP256, newPeer, randomEmail, testEnv, keys, ticketFor } from "./helpers";
+import { call, captured, countingLimit, initP256, message, newPeer, randomEmail, testEnv, keys, ticketFor } from "./helpers";
 import { ipKey } from "../src/pipeline/limits";
 import type { Env, RateLimit } from "../src/env";
 import { CRON_HOURLY, CRON_MONTHLY } from "../src/crons";
@@ -72,16 +72,38 @@ describe("rate limits", () => {
 
   it("RL_PEER (I227 06): 60 signed calls pass, the 61st -> 429", async () => {
     const p = await newPeer(randomEmail());
-    const e = await testEnv({ RL_PEER: countingLimit(60) });
+    const e = await testEnv({ RL_PEER: countingLimit(60), RL_ACCT: countingLimit(1000) });
     for (let i = 0; i < 60; i++) expect((await call("GET", "/v1/peers", undefined, { peer: p, env: e })).status).toBe(200);
     const r = await call("GET", "/v1/peers", undefined, { peer: p, env: e });
     expect(r.status).toBe(429);
     expect(r.res.headers.get("Retry-After")).toBe("60");
   });
 
-  it("limit() throwing: open for RL_IP and RL_PEER, closed for RL_MAIL / RL_MAIL_ALL / RL_CODE", async () => {
+  it("RL_ACCT (I448): one counter per account across its peers, sends and register churn", async () => {
+    const email = randomEmail();
+    const a = await newPeer(email);
+    const b = await newPeer(email);
+    const rl = countingLimit(3);
+    const e = await testEnv({ RL_ACCT: rl } as Partial<Env>);
+    expect((await call("GET", "/v1/peers", undefined, { peer: a, env: e })).status).toBe(200);
+    expect((await call("POST", "/v1/send", { v: 1, m: { [b.id]: message() } }, { peer: a, env: e })).status).toBe(200);
+    expect((await call("POST", "/v1/peers/" + b.id + "/pause", { m: {} }, { peer: b, env: e })).status).toBe(200);
+    const r = await call("GET", "/v1/peers", undefined, { peer: b, env: e });
+    expect(r.status).toBe(429);
+    expect(r.res.headers.get("Retry-After")).toBe("60");
+    // Register (new peer or re-register) counts against the same account key.
+    const k = await keys();
+    const reg = await call("POST", "/v1/peers", { ticket: await ticketFor(email, k.signPub, "register"), sign_pub: k.signPub, enc_pub: k.encPub, platform: "android", push: null }, { sign: k.sign, env: e });
+    expect(reg.status).toBe(429);
+    expect(new Set(rl.seen)).toEqual(new Set(["acct:" + a.acct]));
+    // Another account is not affected.
+    const c = await newPeer(randomEmail());
+    expect((await call("GET", "/v1/peers", undefined, { peer: c, env: e })).status).toBe(200);
+  });
+
+  it("limit() throwing: open for RL_IP, RL_PEER and RL_ACCT, closed for RL_MAIL / RL_MAIL_ALL / RL_CODE", async () => {
     const p = await newPeer(randomEmail());
-    const e = { ...(await testEnv()), RL_IP: throwing, RL_PEER: throwing } as Env;
+    const e = { ...(await testEnv()), RL_IP: throwing, RL_PEER: throwing, RL_ACCT: throwing } as Env;
     expect((await call("GET", "/v1/peers", undefined, { peer: p, env: e })).status).toBe(200);
     for (const b of ["RL_MAIL", "RL_MAIL_ALL"] as const) {
       const k = await keys();
@@ -108,7 +130,7 @@ describe("crons", () => {
     const got = Object.fromEntries(cfg.ratelimits.map((r: { name: string; simple: { limit: number; period: number } }) => [r.name, [r.simple.limit, r.simple.period]]));
     expect(got).toEqual({
       RL_IP: [100, 60], RL_PEER: [60, 60], RL_MAIL: [2, 60], RL_MAIL_ALL: [100, 60],
-      RL_CODE: [5, 60], RL_PAIR: [1, 60], RL_PROBE: [2, 60], RL_CODE_ALL: [30, 60],
+      RL_CODE: [5, 60], RL_PAIR: [1, 60], RL_PROBE: [2, 60], RL_CODE_ALL: [30, 60], RL_ACCT: [60, 60],
     });
     const union = /export type Binding = ([^;]+);/.exec(limitsSrc)![1].match(/RL_[A-Z_]+/g)!;
     expect([...union].sort()).toEqual(Object.keys(got).sort());
