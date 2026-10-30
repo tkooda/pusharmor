@@ -145,10 +145,8 @@ import com.pusharmor.protocol.Peer
 import com.pusharmor.protocol.SizeCap
 import com.pusharmor.protocol.engine.PairingEngine
 import com.pusharmor.protocol.engine.PairingRow
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.text.DateFormat
 import java.util.Date
 
@@ -591,16 +589,17 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     LaunchedEffect(canReceive) {
         if (!restored && canReceive.isNotEmpty()) {
             restored = true
-            // DataStore blocks: read it off the main thread.
-            val last = withContext(Dispatchers.IO) { vm.g.settings.get(Settings.K.LAST_SEND_TO) }
-            picked.addAll(UiText.rememberedSelection(last, canReceive))
+            // Suspends, never blocks the main thread (I434). A chip tapped meanwhile is not added twice.
+            val last = vm.g.settings.lastSendTo()
+            picked.addAll(UiText.rememberedSelection(last, canReceive).filter { it !in picked })
             if (picked.isEmpty() && canReceive.size == 1) picked.add(canReceive[0])
         }
     }
     val scope = rememberCoroutineScope()
     val bytes = SizeCap.utf8Size(text)
     val prefs by vm.prefs.collectAsState()
-    val showAll = prefs?.get(Settings.K.SHOW_ALL) ?: true
+    // Hidden until the settings load, so the chip does not flash on for a user who turned it off.
+    val showAll = prefs?.get(Settings.K.SHOW_ALL) ?: (prefs != null)
     val ex = LocalPaExtra.current
     val cs = MaterialTheme.colorScheme
     val snack = remember { SnackbarHostState() }
@@ -672,7 +671,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                 }
             }
             GreenButton(onClick = {
-                scope.launch(Dispatchers.IO) { vm.g.settings.set(Settings.K.LAST_SEND_TO, sendTo.joinToString(",")) }
+                scope.launch { vm.g.settings.saveSendTo(sendTo) }
                 scope.launch { val r = vm.send(sendTo, text, asText); result = ((result?.first ?: 0) + 1) to r; onSent(r) }
             }, text = UiText.sendLabel(sendTo.size, sendTo.singleOrNull()?.let { id -> peers.firstOrNull { it.id == id } }?.let(::label)), icon = PaIcons.Send,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp).fillMaxWidth().heightIn(min = 56.dp),

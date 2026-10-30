@@ -59,6 +59,13 @@ class Settings(private val context: Context) {
         context.ds.edit { if (value == null) it.remove(key) else it[key] = value }
     }
 
+    /** Last send selection; suspends on DataStore and never blocks the caller, so the Send screen calls it on main (I434). */
+    suspend fun lastSendTo(): String? = context.ds.data.first()[K.LAST_SEND_TO]
+
+    suspend fun saveSendTo(ids: List<String>) {
+        context.ds.edit { it[K.LAST_SEND_TO] = ids.joinToString(",") }
+    }
+
     fun flag(key: Preferences.Key<Boolean>, default: Boolean): Boolean = get(key) ?: default
 
     fun <T> flow(key: Preferences.Key<T>): Flow<T?> = context.ds.data.map { it[key] }

@@ -189,4 +189,24 @@ class AppLogicTest {
         com.pusharmor.app.push.PushDispatcher.guard({ notices++ }) {}
         assertEquals(1, notices)
     }
+
+    private fun source(path: String) = java.io.File("src/main/kotlin/com/pusharmor/app/$path").readText()
+
+    @Test fun lastSendSelectionNeverBlocksTheMainThread() {
+        // The Send screen reads and saves its last selection on the main thread: only suspending DataStore calls (I434).
+        for (name in listOf("lastSendTo", "saveSendTo")) {
+            val m = com.pusharmor.app.data.Settings::class.java.methods.single { it.name == name }
+            assertEquals(kotlin.coroutines.Continuation::class.java, m.parameterTypes.last())
+        }
+        val settings = source("data/Settings.kt")
+        val body = settings.substring(settings.indexOf("suspend fun lastSendTo"), settings.indexOf("fun flag("))
+        assertFalse(body.contains("runBlocking"))
+        val main = source("ui/MainScreens.kt")
+        val screen = main.substring(main.indexOf("fun SendScreen("), main.indexOf("private fun TypeCaption("))
+        assertFalse(screen.contains("LAST_SEND_TO") || screen.contains("runBlocking"))
+        val ctx = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val s = com.pusharmor.app.data.Settings(ctx)
+        kotlinx.coroutines.runBlocking { s.saveSendTo(listOf("a", "b")) }
+        assertEquals("a,b", kotlinx.coroutines.runBlocking { s.lastSendTo() })
+    }
 }
