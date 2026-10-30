@@ -64,6 +64,13 @@ enum SendScreenRules {
         return (low, max(low, (visible - messageChrome).rounded(.down)))
     }
 
+    /// Send button title (F21): a single recipient is named in quotes, more are counted.
+    static func sendTitle(count: Int, soleName: String?) -> String {
+        if count <= 0 { return "Send" }
+        if count == 1 { return soleName.map { "Send to \"\($0)\"" } ?? "Send to 1 device" }
+        return "Send to \(count) devices"
+    }
+
     /// Quiet line under the message: how it will arrive.
     static func caption(_ type: SendType, asText: Bool) -> (title: String, symbol: String) {
         if asText { return ("Will arrive as text", "text.alignleft") }
@@ -288,10 +295,24 @@ struct ComposeView: View {
                     asText = false
                 }
             } label: {
-                Label(sendLabel, systemImage: "paperplane.fill")
+                Label {
+                    if let name = soleRecipientName {
+                        // The name truncates inside the quotes; the button stays one line.
+                        HStack(spacing: 0) {
+                            Text("Send to \"").fixedSize()
+                            Text(name).lineLimit(1).truncationMode(.tail)
+                            Text("\"").fixedSize()
+                        }
+                    } else {
+                        Text(sendLabel)
+                    }
+                } icon: {
+                    Image(systemName: "paperplane.fill")
+                }
             }
             .buttonStyle(GreenButtonStyle())
             .disabled(!canSend)
+            .accessibilityLabel(sendLabel)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
@@ -337,10 +358,15 @@ struct ComposeView: View {
         return candidates.filter { selected.contains($0.id.text) && enabled($0) }.count
     }
 
+    /// The one chosen device's name, when exactly one is chosen (not via "All").
+    private var soleRecipientName: String? {
+        if toAll && showAll { return nil }
+        let chosen = candidates.filter { selected.contains($0.id.text) && enabled($0) }
+        return chosen.count == 1 ? model.label(chosen[0]) : nil
+    }
+
     private var sendLabel: String {
-        let n = recipientCount
-        if n <= 0 { return "Send" }
-        return n == 1 ? "Send to 1 device" : "Send to \(n) devices"
+        SendScreenRules.sendTitle(count: recipientCount, soleName: soleRecipientName)
     }
 
     /// "39 / 2048" (SizeCap.label without the brackets), or "Too long (2049 / 2048)".

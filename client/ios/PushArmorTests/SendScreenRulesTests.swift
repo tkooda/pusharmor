@@ -69,4 +69,11 @@ final class SendScreenRulesTests: XCTestCase {
         // Before the first layout pass the visible height is 0.
         XCTAssertEqual(SendScreenRules.messageHeight(lineHeight: 22, visible: 0).max, 104)
     }
+
+    func testSendTitleNamesASingleRecipient() {
+        XCTAssertEqual(SendScreenRules.sendTitle(count: 0, soleName: nil), "Send")
+        XCTAssertEqual(SendScreenRules.sendTitle(count: 1, soleName: "Laptop"), "Send to \"Laptop\"")
+        XCTAssertEqual(SendScreenRules.sendTitle(count: 1, soleName: nil), "Send to 1 device")
+        XCTAssertEqual(SendScreenRules.sendTitle(count: 3, soleName: nil), "Send to 3 devices")
+    }
 }

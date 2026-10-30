@@ -1,7 +1,7 @@
 import XCTest
 
 /// Send and Devices tabs in the debug-only screenshot mode (sample database, no Keychain, no
-/// Worker call): the Send button counts its devices and the pairing card reads the
+/// Worker call): the Send button names its one device and the pairing card reads the
 /// fingerprint one character at a time.
 final class BrandScreensTests: XCTestCase {
     override func setUp() {
@@ -15,9 +15,9 @@ final class BrandScreensTests: XCTestCase {
         return app
     }
 
-    func testSendButtonCountsSelectedPeers() {
+    func testSendButtonNamesTheSelectedPeer() {
         let app = launch()
-        XCTAssertTrue(app.buttons["Send to 1 device"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Send to \"Laptop\""].waitForExistence(timeout: 30))
         XCTAssertTrue(app.tabBars.buttons["Send"].exists)
         XCTAssertTrue(app.navigationBars["Send"].exists)
         XCTAssertTrue(app.staticTexts["Will open as a link"].exists)
