@@ -17,7 +17,7 @@ class UiTextTest {
         assertEquals(Mark.OFF to "(missing)", UiText.status(pinned.copy(missing = true, paused = true, reachable = false)))
         assertEquals(Mark.OFF to "Signed out", UiText.status(pinned.copy(paused = true, reachable = false)))
         assertEquals(Mark.OFF to "Unreachable", UiText.status(pinned.copy(reachable = false)))
-        assertEquals(Mark.OK to "Approves this device", UiText.status(pinned))
+        assertEquals(Mark.OK to "Connected", UiText.status(pinned))
         assertEquals(Mark.WAIT to "Has not approved this device", UiText.status(pinned.copy(approveVerified = false)))
     }
 
