@@ -44,10 +44,6 @@ MIT, see [LICENSE](LICENSE).
 Per-platform tags `<platform>/vX.Y.Z` on one version line, test channels,
 manual promotion and the release protection setup: `RELEASING.md`.
 
-
-Per-platform tags `<platform>/vX.Y.Z` on one version line, test channels,
-manual promotion and the release protection setup: `RELEASING.md`.
-
 ## Deployment ids
 
 Every name is listed once, with its meaning, in `release/names.json`.
