@@ -19,11 +19,11 @@ describe("POST /approve/$X (Q180 B, I230)", () => {
     const cb = message(1024);
     let r = await call("POST", "/v1/approve/" + b.id, { c: ca, name: message(200) }, { peer: a });
     expect(r.body).toEqual({ r: "stored" });
-    expect(j((await row(a.id))!.pending)[b.id]).toBe(ca);
+    expect(j((await row(a.id))!.pending)[b.id][1]).toBe(ca);
     expect(vendorRequests()).toHaveLength(0);
     r = await call("POST", "/v1/approve/" + a.id, { c: cb, name: message(200) }, { peer: b });
     expect(r.body).toEqual({ r: "sent", c: ca });
-    expect(j((await row(b.id))!.pending)[a.id]).toBe(cb);
+    expect(j((await row(b.id))!.pending)[a.id][1]).toBe(cb);
     const fcm = vendorRequests("fcm.googleapis.com");
     expect(fcm).toHaveLength(1);
     expect(JSON.parse(new TextDecoder().decode(fcm[0].body)).message.data.m).toBe(cb);
@@ -281,7 +281,7 @@ describe("races (I253, I274, I265)", () => {
     const r2 = await call("POST", "/v1/approve/" + a.id, body, { peer: b, env: e });
     expect(r1.body).toEqual({ r: "sent", c: ca });
     expect(r2.body).toEqual(r1.body);
-    expect(j((await row(b.id))!.pending)[a.id]).toBe(body.c);
+    expect(j((await row(b.id))!.pending)[a.id][1]).toBe(body.c);
     expect(vendorRequests("fcm.googleapis.com").filter((x) => x.url.includes("/v1/projects/"))).toHaveLength(2);
   });
 });

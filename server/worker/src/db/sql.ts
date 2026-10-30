@@ -105,21 +105,37 @@ FROM peers WHERE account = ?1`;
 export const W_DELALL = `DELETE FROM peers WHERE account = ?1`;
 export const W_DELACCT = `DELETE FROM accounts WHERE id = ?1 AND status IS NULL`;
 
-// Lazy cleanup of pending entries whose peer row is gone. ?2 acct
-const PRUNED = `(SELECT COALESCE(json_group_object(j.key, j.value), '{}') FROM json_each(peers.pending) j
+// Stored JSON caps per row, in chars. The trigger peers_json_cap (migrations/0004) refuses an
+// UPDATE that grows name or pending past them; d1.ts maps that to 413 "too large".
+export const NAME_JSON_MAX = 6000;
+export const PENDING_JSON_MAX = 16000;
+export const JSON_CAP_ERROR = "pa-json-cap";
+// A pending entry is [store time, c]; the monthly cron drops it this long after the store.
+// Longer than the 14-day pairing timeout, so a waiting re-fetch still finds it.
+export const PENDING_TTL_S = 2592000;
+
+// Lazy cleanup of pending entries whose peer row is gone. ?2 acct. json() keeps an array
+// entry an array (legacy entries are plain strings).
+const PRUNED = `(SELECT COALESCE(json_group_object(j.key, CASE WHEN j.type = 'array' THEN json(j.value) ELSE j.value END), '{}')
+  FROM json_each(peers.pending) j
   WHERE EXISTS (SELECT 1 FROM peers o WHERE o.account = ?2 AND o.id = j.key))`;
 
-// ?1 me, ?2 acct, ?3 X, ?4 name entry, ?5 c
+// c of one pending entry: [time, c], or a legacy string. ?n id
+const PENDING_C = (col: string, n: number) =>
+  `CASE json_type(${col}, ${P(n)}) WHEN 'array' THEN json_extract(${col}, '$."' || ?${n} || '"[1]')
+   ELSE json_extract(${col}, ${P(n)}) END`;
+
+// ?1 me, ?2 acct, ?3 X, ?4 name entry, ?5 c, ?6 now
 export const W_APPROVE = `UPDATE peers
 SET allow = json_set(allow, ${P(3)}, 1), deny = json_remove(deny, ${P(3)}),
     name = json_set(name, ${P(3)}, ?4),
-    pending = json_set(${PRUNED}, ${P(3)}, ?5)
+    pending = json_set(${PRUNED}, ${P(3)}, json_array(?6, ?5))
 WHERE account = ?2 AND id = ?1
   AND EXISTS (SELECT 1 FROM peers g WHERE g.account = ?2 AND g.id = ?3)
 RETURNING NOT EXISTS (SELECT 1 FROM peers x
                       WHERE x.account = ?2 AND x.id = ?3
                         AND json_type(x.allow, ${P(1)}) IS NOT NULL) AS stored,
-          (SELECT json_extract(x.pending, ${P(1)}) FROM peers x
+          (SELECT ${PENDING_C("x.pending", 1)} FROM peers x
            WHERE x.account = ?2 AND x.id = ?3) AS c_x`;
 
 // ?1 me, ?2 acct, ?3 X
@@ -157,6 +173,20 @@ export const W_PURGE_PEERS = `DELETE FROM peers WHERE account IN (SELECT id FROM
   WHERE status IS NULL AND last_seen_month < ?1 ORDER BY id LIMIT 100)`;
 export const W_PURGE_ACCOUNTS = `DELETE FROM accounts WHERE id IN (SELECT id FROM accounts
   WHERE status IS NULL AND last_seen_month < ?1 ORDER BY id LIMIT 100)`;
+
+// Pending expiry (monthly), one keyset chunk of rows with pending entries. ?1 last id done
+// ('' to start), ?2 chunk size, ?3 cutoff (now - PENDING_TTL_S), ?4 now. Ids start with the
+// account, so id order is (account, id) order and the row value walks the primary key.
+const PENDING_CHUNK_ROWS = `SELECT account, id FROM peers
+  WHERE (account, id) > (substr(?1, 1, 12), ?1) AND pending <> '{}' ORDER BY account, id LIMIT ?2`;
+export const Q_PENDING_CHUNK = `SELECT count(*) AS n, max(id) AS last FROM (${PENDING_CHUNK_ROWS})`;
+// Drops entries stored before ?3 and stamps legacy string entries with ?4.
+export const W_PENDING_EXPIRE = `UPDATE peers SET pending = (
+  SELECT COALESCE(json_group_object(j.key, CASE WHEN j.type = 'array' THEN json(j.value) ELSE json_array(?4, j.value) END), '{}')
+  FROM json_each(peers.pending) j
+  WHERE j.type <> 'array' OR json_extract(j.value, '$[0]') >= ?3)
+WHERE (account, id) IN (${PENDING_CHUNK_ROWS})
+  AND EXISTS (SELECT 1 FROM json_each(peers.pending) j WHERE j.type <> 'array' OR json_extract(j.value, '$[0]') < ?3)`;
 
 export const Q_HEALTH = `SELECT 1 AS ok`;
 

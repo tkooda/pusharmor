@@ -44,6 +44,33 @@ export async function purge(env: Env, nowS: number, log: Log): Promise<number> {
   return purged;
 }
 
+export const PENDING_CHUNK = 500;
+export const PENDING_MAX_CHUNKS = 400;
+
+// Drops pending entries older than PENDING_TTL_S, one keyset chunk per batch (no rescans).
+// Returns the number of rows changed.
+export async function expirePending(env: Env, nowS: number, log: Log, chunk = PENDING_CHUNK): Promise<number> {
+  const cutoff = nowS - SQL.PENDING_TTL_S;
+  let last = "";
+  let changed = 0;
+  let chunks = 0;
+  while (chunks < PENDING_MAX_CHUNKS) {
+    const rs = await env.DB.batch([
+      env.DB.prepare(SQL.Q_PENDING_CHUNK).bind(last, chunk),
+      env.DB.prepare(SQL.W_PENDING_EXPIRE).bind(last, chunk, cutoff, nowS),
+    ]);
+    chunks++;
+    for (const r of rs) log.addMeta(r.meta);
+    changed += rs[1].meta.changes;
+    const head = rs[0].results[0] as { n: number; last: string | null } | undefined;
+    if (!head || head.n < chunk || head.last === null) break;
+    last = head.last;
+  }
+  log.extra.pending_expired = changed;
+  log.extra.pending_chunks = chunks;
+  return changed;
+}
+
 export async function healthCheck(env: Env, log: Log): Promise<string[]> {
   const failed: string[] = [];
   const check = async (name: string, f: () => Promise<unknown>) => {
@@ -95,7 +122,12 @@ export async function scheduled(controller: ScheduledController, env: Env): Prom
       await healthCheck(env, log);
     } else if (controller.cron === CRON_MONTHLY) {
       log.route = "cron monthly";
-      await purge(env, Math.floor(Date.now() / 1000), log);
+      const now = Math.floor(Date.now() / 1000);
+      try {
+        await purge(env, now, log);
+      } finally {
+        await expirePending(env, now, log);
+      }
     } else {
       log.error = "cron-unknown";
       await mailOps(env, "PushArmor cron-unknown", "scheduled() got an unknown cron string.\n");
