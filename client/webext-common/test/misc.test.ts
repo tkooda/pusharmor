@@ -6,7 +6,7 @@ import { MENU_PARENTS, selectionTitle } from "../src/core/actions.ts";
 import { T } from "../src/core/texts.ts";
 import { readForward } from "../../firefox/src/sitefwd/fwd.ts";
 import { endpointAllowed } from "../../firefox/src/platform-firefox.ts";
-import { senderAllowed } from "../../firefox/src/gate.ts";
+import { fxSubFields, senderAllowed } from "../../firefox/src/gate.ts";
 
 test("History filter: chips All / peer names / Unknown, peer chips hidden with one peer", () => {
   const one = [
@@ -89,4 +89,26 @@ test("Firefox sender gate: a site content script gets only its own site op", () 
   assert.equal(senderAllowed("fx-sub", { id, url: base + "popup.html" }, id, base), false);
   assert.equal(senderAllowed("approve", { id: "other", url: base + "popup.html" }, id, base), false);
   assert.equal(senderAllowed("approve", { id }, id, base), false);
+});
+
+test("fx-sub: the sender page is matched exactly and the message shape is validated", () => {
+  const id = "ext@pusharmor";
+  const base = "moz-extension://1111-2222/";
+  const at = (url: string) => ({ id, url, tab: { id: 7 } });
+  assert.equal(senderAllowed("fx-sub", at("https://pusharmor.com/fx/setup"), id, base), true);
+  assert.equal(senderAllowed("fx-sub", at("https://pusharmor.com/fx/setup?x=1#h"), id, base), true);
+  assert.equal(senderAllowed("fx-sub", at("https://pusharmor.com/fx/setup-evil"), id, base), false);
+  assert.equal(senderAllowed("fx-sub", at("https://pusharmor.com/fx/setup/../x"), id, base), false);
+  assert.equal(senderAllowed("fx-sub", at("http://pusharmor.com/fx/setup"), id, base), false);
+  assert.equal(senderAllowed("fx-sub", at("https://pusharmor.com:8443/fx/setup"), id, base), false);
+  assert.equal(senderAllowed("fx-sub", at("not a url"), id, base), false);
+  const ok = { endpoint: "https://updates.push.services.mozilla.com/wpush/v2/x", p256dh: "B".repeat(87), auth: "a".repeat(22) };
+  assert.deepEqual(fxSubFields(ok), ok);
+  assert.deepEqual(fxSubFields({ ...ok, extra: 1 }), ok); // unknown fields dropped
+  assert.equal(fxSubFields(null), null);
+  assert.equal(fxSubFields("x"), null);
+  assert.equal(fxSubFields({ ...ok, endpoint: 5 }), null);
+  assert.equal(fxSubFields({ ...ok, auth: ["a"] }), null);
+  assert.equal(fxSubFields({ ...ok, endpoint: "https://x/" + "a".repeat(3000) }), null);
+  assert.equal(fxSubFields({ ...ok, p256dh: "" }), null);
 });

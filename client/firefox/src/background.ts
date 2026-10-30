@@ -8,7 +8,7 @@ import type { Req } from "../../webext-common/src/core/rpc.ts";
 import { Db, openDb } from "../../webext-common/src/store/db.ts";
 import type { WebPushKeys } from "../../webext-common/src/crypto/rfc8291.ts";
 import { Autopush, type ApState } from "./autopush/client.ts";
-import { senderAllowed } from "./gate.ts";
+import { fxSubFields, senderAllowed } from "./gate.ts";
 import { FWD_URL, SETUP_URL, endpointAllowed, firefoxPlatform } from "./platform-firefox.ts";
 import { readForward } from "./sitefwd/fwd.ts";
 import { browser } from "./shim.ts";
@@ -77,7 +77,9 @@ async function extra(msg: Req): Promise<unknown> {
   const { engine } = await boot();
   const a = msg.args ?? {};
   if (msg.op === "fx-sub") {
-    const p: PushFields = { type: "webpush", endpoint: String(a.endpoint), p256dh: String(a.p256dh), auth: String(a.auth) };
+    const f = fxSubFields(a);
+    if (!f) return { ok: false };
+    const p: PushFields = { type: "webpush", ...f };
     const k = b64urlTryDecode(p.p256dh);
     const au = b64urlTryDecode(p.auth);
     if (!endpointAllowed(p.endpoint) || !k || k.length !== 65 || !au || au.length !== 16) return { ok: false };
