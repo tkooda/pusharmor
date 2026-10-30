@@ -184,14 +184,14 @@ describe("migration 0006 on existing rows", () => {
     expect((await env.DB.prepare("SELECT * FROM peers ORDER BY id").all()).results).toEqual(before.results);
     expect(await row(b.id)).toMatchObject({ logged_out: 1 });
     await env.DB.prepare("UPDATE peers SET platform = 'cli' WHERE id = ?1").bind(a.id).run();
-    await expect(env.DB.prepare("UPDATE peers SET platform = 'linux' WHERE id = ?1").bind(a.id).run()).rejects.toThrow();
+    await expect(env.DB.prepare("UPDATE peers SET platform = ?1 WHERE id = ?2").bind("x".repeat(17), a.id).run()).rejects.toThrow();
     await expect(env.DB.prepare("UPDATE peers SET name = ?1 WHERE id = ?2").bind(JSON.stringify({ x: message(NAME_JSON_MAX) }), a.id).run())
       .rejects.toThrow(/pa-json-cap/);
   });
 });
 
 describe("migration 0007 on existing rows", () => {
-  it("moves push verified_at to push_verified_at and strips the key; unconfirmed rows keep NULL", async () => {
+  it("moves push verified_at to push_verified_at and strips the key; unconfirmed rows keep NULL; shape-only CHECKs", async () => {
     const [a, b] = await family(2);
     const q = (prefix: string) => env.TEST_MIGRATIONS.find((m) => m.name.startsWith(prefix))!.queries;
     for (const s of q("0006")) await env.DB.prepare(s).run();
@@ -200,5 +200,11 @@ describe("migration 0007 on existing rows", () => {
     for (const s of q("0007")) await env.DB.prepare(s).run();
     expect(await row(a.id)).toMatchObject({ push: '{"type":"unifiedpush","endpoint":"e"}', push_verified_at: 77, push_failed_since: null });
     expect(await row(b.id)).toMatchObject({ push: '{"type":"unifiedpush","endpoint":"f"}', push_verified_at: null });
+    // Shape-only CHECKs: a future platform or push type fits, junk does not; the trigger is kept.
+    await env.DB.prepare("UPDATE peers SET platform = 'linux', push_type = 63 WHERE id = ?1").bind(a.id).run();
+    await expect(env.DB.prepare("UPDATE peers SET platform = '' WHERE id = ?1").bind(a.id).run()).rejects.toThrow();
+    await expect(env.DB.prepare("UPDATE peers SET push_type = 64 WHERE id = ?1").bind(a.id).run()).rejects.toThrow();
+    await expect(env.DB.prepare("UPDATE peers SET name = ?1 WHERE id = ?2").bind(JSON.stringify({ x: message(NAME_JSON_MAX) }), a.id).run())
+      .rejects.toThrow(/pa-json-cap/);
   });
 });
