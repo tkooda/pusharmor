@@ -206,6 +206,7 @@ async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, box
   const args: Record<string, unknown> = { id: p.id };
   if (op === "hide") args.hidden = a === "hide";
   if (a === "send_again" || a === "approve_again") greyFor(b, 60_000);
+  if (a === "pair_again") b.disabled = true; // a second click would hit the open pairing
   try {
     const r = await rpc<unknown>(env, op, args);
     if (op === "approve" && typeof r === "string" && r !== "stored" && r !== "sent") status.textContent = r === "denied" ? T.declinedBy(p.label) : "Approve: " + r;
