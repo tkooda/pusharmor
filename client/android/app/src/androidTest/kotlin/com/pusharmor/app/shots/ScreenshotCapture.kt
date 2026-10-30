@@ -201,6 +201,8 @@ class ScreenshotCapture {
         settle(3000)
         shot("02-notification")
         inst.runOnMainSync { ScreenshotMode.hideTitle = false }
+        // A heads-up still up would cover 03: take the notification away.
+        app.getSystemService(android.app.NotificationManager::class.java).cancelAll()
 
         ScreenshotMode.sendText = "https://example.com/recipes/weeknight-pasta"
         ScreenshotMode.sendTo = listOf(laptop, desktop, tablet)
