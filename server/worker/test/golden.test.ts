@@ -71,7 +71,7 @@ describe("golden: oauth_nonce, my_push_sha256, pk", () => {
       const k16 = await keyRef16(d(c.sign_pub));
       expect(k16).toBe(c.k16);
       expect("https://pusharmor.com/auth/cli#" + c.p + "." + k16).toBe(c.link);
-      const purpose = c.purpose as "register" | "login" | "delete-account";
+      const purpose = c.purpose as "register" | "login";
       expect(await makeCliCode(G.cli_code.token_secret, c.account, k16, purpose, c.window)).toBe(c.code);
       expect(await openCliCode(G.cli_code.token_secret, c.code, k16, purpose, c.window + 1)).toEqual({ a: c.account, w: c.window });
     }

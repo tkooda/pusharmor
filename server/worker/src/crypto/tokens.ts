@@ -20,7 +20,9 @@ export const REQUEST_TOKEN_LIFE_S = 900;
 export const STATE_LIFE_S = 600;
 // cli code windows: a code is accepted in its own window and the next one.
 export const CLI_WINDOW_S = 600;
-export const CLI_LETTER: Record<Purpose, string> = { register: "r", login: "l", "delete-account": "d" };
+// No delete-account: the command line client does not delete the account.
+export type CliPurpose = Exclude<Purpose, "delete-account">;
+export const CLI_LETTER: Record<CliPurpose, string> = { register: "r", login: "l" };
 
 export async function makeToken(secret: string, label: string, body: object): Promise<string> {
   const part = b64urlEncode(utf8(JSON.stringify(body)));
@@ -57,12 +59,12 @@ export async function keyRef16(signPubRaw: Uint8Array): Promise<string> {
 }
 
 // First 16 bytes of HMAC-SHA256(PA_TOKEN_SECRET, "PA-CLI1\n" a "\n" k16 "\n" p "\n" window).
-async function cliMac(secret: string, a: string, k16: string, p: Purpose, w: number): Promise<Uint8Array> {
+async function cliMac(secret: string, a: string, k16: string, p: CliPurpose, w: number): Promise<Uint8Array> {
   return (await hmac(secret, utf8(LABEL_CLI_CODE + a + "\n" + k16 + "\n" + CLI_LETTER[p] + "\n" + w))).slice(0, 16);
 }
 
 // cli code = b64url(raw account id 9 bytes || cliMac), 34 chars. w = floor(unix s / CLI_WINDOW_S).
-export async function makeCliCode(secret: string, a: string, k16: string, p: Purpose, w: number): Promise<string> {
+export async function makeCliCode(secret: string, a: string, k16: string, p: CliPurpose, w: number): Promise<string> {
   return b64urlEncode(concat(b64urlDecode(a)!, await cliMac(secret, a, k16, p, w)));
 }
 
@@ -72,7 +74,7 @@ export async function openCliCode(
   secret: string,
   code: string,
   k16: string,
-  p: Purpose,
+  p: CliPurpose,
   w: number,
 ): Promise<{ a: string; w: number } | "expired" | null> {
   const raw = /^[A-Za-z0-9_-]{34}$/.test(code) ? b64urlDecode(code) : null;

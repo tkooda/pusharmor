@@ -17,6 +17,7 @@ import {
   PURPOSES,
   REQUEST_TOKEN_LIFE_S,
   TICKET_LIFE_S,
+  type CliPurpose,
   type Purpose,
 } from "../crypto/tokens";
 import { ApiError } from "../errors";
@@ -57,6 +58,12 @@ export async function checkSignPub(v: unknown): Promise<Uint8Array> {
   return raw;
 }
 
+// Command line purposes: register and login only.
+export function checkCliPurpose(p: Purpose): CliPurpose {
+  if (p === "delete-account") throw bad();
+  return p;
+}
+
 // cli_k: k16 of the CLI's sign_pub (22 chars), from the /auth/cli link.
 export function checkCliK(v: unknown): string {
   if (typeof v !== "string" || v.length !== 22 || b64urlDecode(v)?.length !== 16) throw bad();
@@ -70,6 +77,7 @@ export async function start(c: Ctx): Promise<Response> {
   keysExactly(b, ["email", cli ? "cli_k" : "sign_pub", "purpose", "turnstile"]);
   const k = cli ? checkCliK(b.cli_k) : await keyRef(await checkSignPub(b.sign_pub));
   const purpose = checkPurpose(b.purpose);
+  if (cli) checkCliPurpose(purpose);
   if (typeof b.email !== "string" || typeof b.turnstile !== "string" || b.turnstile.length === 0 || b.turnstile.length > 4096) throw bad();
   await verifyTurnstile(c.env, b.turnstile, c.req.headers.get("CF-Connecting-IP"));
   const email = normalizeEmail(b.email);
@@ -106,7 +114,7 @@ export async function verify(c: Ctx): Promise<Response> {
   const eh = b64urlDecode(rt.e);
   if (!eh || eh.length !== 32) throw new ApiError(401, "wrong code");
   const a = await accountId(c.env.PA_ID_SECRET, eh);
-  if (rt.c === 1) return json(200, { cli_code: await makeCliCode(c.env.PA_TOKEN_SECRET, a, rt.k, purpose, Math.floor(nowS() / CLI_WINDOW_S)), email: rt.m });
+  if (rt.c === 1) return json(200, { cli_code: await makeCliCode(c.env.PA_TOKEN_SECRET, a, rt.k, checkCliPurpose(purpose), Math.floor(nowS() / CLI_WINDOW_S)), email: rt.m });
   const ticket = await makeTicket(c.env.PA_TOKEN_SECRET, { a, k: rt.k, p: purpose, x: nowS() + TICKET_LIFE_S });
   return json(200, { ticket, email: rt.m });
 }

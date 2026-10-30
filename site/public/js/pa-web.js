@@ -160,11 +160,11 @@
     return /^[\x00-\x7f]*$/.test(s);
   }
 
-  // /auth/cli helpers. Link fragment: <r|l|d>.<22 chars of [A-Za-z0-9_-]>.
-  var CLI_PURPOSE = { r: "register", l: "login", d: "delete-account" };
+  // /auth/cli helpers. Link fragment: <r|l>.<22 chars of [A-Za-z0-9_-]>.
+  var CLI_PURPOSE = { r: "register", l: "login" };
 
   function parseCliLink(hash) {
-    var m = /^#([rld])\.([A-Za-z0-9_-]{22})$/.exec(hash || "");
+    var m = /^#([rl])\.([A-Za-z0-9_-]{22})$/.exec(hash || "");
     return m ? { purpose: CLI_PURPOSE[m[1]], k: m[2] } : null;
   }
 

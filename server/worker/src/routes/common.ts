@@ -49,7 +49,7 @@ export async function callerCheck(c: Ctx, s: Signed, row: CallerRow | undefined 
 // Ticket check: MAC, purpose, k, expiry (and account when given). A 34-char ticket is a cli
 // code (401 "ticket expired" for an older window, else "bad ticket").
 export async function checkTicket(c: Ctx, ticket: unknown, purpose: Purpose, signPub: string, acct?: string): Promise<Ticket> {
-  if (typeof ticket === "string" && ticket.length === 34) {
+  if (typeof ticket === "string" && ticket.length === 34 && purpose !== "delete-account") {
     const raw = rawPoint(signPub);
     if (!raw) throw new ApiError(401, "bad ticket");
     const w = Math.floor(nowS() / CLI_WINDOW_S);
