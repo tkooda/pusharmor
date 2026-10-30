@@ -8,7 +8,7 @@ public struct Me: Sendable {
     public var lastPushSha256: String?
     public var pushMissing: Bool
     public var removed: Bool
-    public var paused: Bool
+    public var loggedOut: Bool
     public var lastFetchAt: Int64
     public var fetchDue: Bool
     public var signedInEmail: String?
@@ -36,8 +36,8 @@ public struct Peer: Sendable {
     public var getAt: Int64?
     public var deniedMeMsg: Bool
     public var reachable: Bool
-    public var paused: Bool
-    public var pauseN: Int64
+    public var loggedOut: Bool
+    public var logoutN: Int64
     public var platform: String?
     public var created: Int64?
     public var name: String?
@@ -76,7 +76,7 @@ public struct Peer: Sendable {
     public var declinedByPeer: Bool { notPairedOnPeer && getDeniesMe == true }
 
     /// Member of "All" (catalog Pairing flow, the one definition).
-    public var inAll: Bool { pinned && state == .approved && approvesMe && !hidden && !paused && !missing }
+    public var inAll: Bool { pinned && state == .approved && approvesMe && !hidden && !loggedOut && !missing }
 
     /// $name / $X in notices: the peer name if known, else "A device".
     public var noticeName: String { name ?? "A device" }
@@ -85,7 +85,7 @@ public struct Peer: Sendable {
         self.id = id
         state = .unruled
         missing = false; listed = false; approveVerified = false; deniedMeMsg = false
-        reachable = false; paused = false; pauseN = 0; nameN = 0; pendingN = 0
+        reachable = false; loggedOut = false; logoutN = 0; nameN = 0; pendingN = 0
         hidden = false; lockShow = true; alwaysHide = false; lastN = 0; approvePromptN = 0
     }
 }
@@ -109,8 +109,8 @@ public enum HistoryEvent: String, Sendable {
     case couldNotRead = "could_not_read"
     case invalid
     case denied
-    case paused
-    case resumed
+    case loggedOut = "logged_out"
+    case loggedIn = "logged_in"
 }
 
 public struct HistoryRow: Sendable {
@@ -140,7 +140,7 @@ public final class Store: @unchecked Sendable {
         let r = try db.one("SELECT * FROM me WHERE k = 1")!
         return Me(id: r.text("id").flatMap { PeerId(text: $0) }, signPub: r.blob("sign_pub"), encPub: r.blob("enc_pub"),
                   clockOffset: r.int("clock_offset") ?? 0, lastPushSha256: r.text("last_push_sha256"),
-                  pushMissing: r.bool("push_missing"), removed: r.bool("removed"), paused: r.bool("paused"),
+                  pushMissing: r.bool("push_missing"), removed: r.bool("removed"), loggedOut: r.bool("logged_out"),
                   lastFetchAt: r.int("last_fetch_at") ?? 0, fetchDue: r.bool("fetch_due"),
                   signedInEmail: r.text("signed_in_email"), name: r.text("name"), nameRev: r.int("name_rev") ?? 0,
                   oldId: r.text("old_id"), requestToken: r.text("request_token"))
@@ -180,7 +180,7 @@ public final class Store: @unchecked Sendable {
         p.getApprovesMe = r.int("get_approves_me").map { $0 != 0 }
         p.getDeniesMe = r.int("get_denies_me").map { $0 != 0 }
         p.getAt = r.int("get_at"); p.deniedMeMsg = r.bool("denied_me_msg")
-        p.reachable = r.bool("reachable"); p.paused = r.bool("paused"); p.pauseN = r.int("pause_n") ?? 0
+        p.reachable = r.bool("reachable"); p.loggedOut = r.bool("logged_out"); p.logoutN = r.int("logout_n") ?? 0
         p.platform = r.text("platform"); p.created = r.int("created")
         p.name = r.text("name"); p.nameN = r.int("name_n") ?? 0
         p.pendingName = r.text("pending_name"); p.pendingN = r.int("pending_n") ?? 0
@@ -217,8 +217,8 @@ public final class Store: @unchecked Sendable {
         cols.append(("get_at", .opt(p.getAt)))
         cols.append(("denied_me_msg", .bool(p.deniedMeMsg)))
         cols.append(("reachable", .bool(p.reachable)))
-        cols.append(("paused", .bool(p.paused)))
-        cols.append(("pause_n", .int(p.pauseN)))
+        cols.append(("logged_out", .bool(p.loggedOut)))
+        cols.append(("logout_n", .int(p.logoutN)))
         cols.append(("platform", .opt(p.platform)))
         cols.append(("created", .opt(p.created)))
         cols.append(("name", .opt(p.name)))
@@ -269,7 +269,7 @@ public final class Store: @unchecked Sendable {
             p.lastN = 0; p.approveVerified = false; p.approveVerifiedAt = nil; p.note = nil
             p.approveC = nil; p.approveName = nil; p.approveNameRev = nil; p.approveResult = nil; p.approveSentAt = nil
             p.approvePromptN = 0; p.pendingName = nil; p.pendingN = 0; p.name = nil; p.nameN = 0; p.deniedMeMsg = false
-            p.pauseN = 0
+            p.logoutN = 0
             if p.state == .removed { p.state = .unruled }
             try savePeer(p)
             try saveReplay(id, pairingId: pairingId, window: ReplayWindow())

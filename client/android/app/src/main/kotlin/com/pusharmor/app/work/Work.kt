@@ -130,7 +130,7 @@ class PushPatchWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(
         return when (g.session.patchPushNow()) {
             true -> Result.success()
             false -> Result.retry()
-            null -> Result.success() // 401 "paused": permanent, never retried
+            null -> Result.success() // 401 "logged out": permanent, never retried
         }
     }
 }

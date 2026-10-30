@@ -182,7 +182,7 @@ function checkFullMessage(c) {
 
 test('messages', () => {
   assert.deepEqual(G.messages.cases.map((c) => c.type).sort(),
-    ['approve', 'delete', 'deny', 'pause', 'remove', 'rename', 'tel', 'text', 'unpause', 'url']);
+    ['approve', 'delete', 'deny', 'login', 'logout', 'remove', 'rename', 'tel', 'text', 'url']);
   for (const c of G.messages.cases) {
     checkFullMessage(c);
     assert.equal(c.message.length, c.wire_chars);

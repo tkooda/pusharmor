@@ -69,8 +69,8 @@ test("inner JSON parse rules", () => {
     { type: "url" as const, value: "https://x" },
     { type: "text" as const, value: "a\"b\\c\n" },
     { type: "tel" as const, value: "+1 555-123-4567" },
-    { type: "pause" as const },
-    { type: "unpause" as const },
+    { type: "logout" as const },
+    { type: "login" as const },
     { type: "delete" as const },
   ]) {
     assert.deepEqual(p(buildJson(7, c)), { n: 7, content: c });

@@ -9,8 +9,8 @@ final class MessageTests: XCTestCase {
         XCTAssertEqual(String(decoding: j.encode(), as: UTF8.self), "{\"n\":42,\"url\":\"https://example.com/a\"}")
         XCTAssertEqual(try InnerJSON.parse(j.encode()), j)
         let f = NameField(name: "UGhvbmU", n: 3, s: "abc")
-        for c: MessageContent in [.text("a\"b\n"), .tel("+1 555"), .approve(f), .rename(f), .deny, .delete, .pause,
-                                   .unpause, .remove("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwd")] {
+        for c: MessageContent in [.text("a\"b\n"), .tel("+1 555"), .approve(f), .rename(f), .deny, .delete, .logout,
+                                   .login, .remove("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwd")] {
             let x = InnerJSON(n: 3, content: c)
             XCTAssertEqual(try InnerJSON.parse(x.encode()), x)
         }
@@ -23,7 +23,7 @@ final class MessageTests: XCTestCase {
             "{\"n\":\"1\",\"url\":\"x\"}", "{\"n\":9007199254740992,\"url\":\"x\"}", "{\"n\":1,\"n\":2,\"url\":\"x\"}",
             "{\"n\":1,\"url\":\"x\",\"url\":\"y\"}", "{\"n\":1}", "{\"n\":1,\"url\":\"x\",\"text\":\"y\"}",
             "{\"n\":1,\"url\":\"x\",\"t\":5}", "{\"n\":1,\"foo\":\"x\"}", "{\"url\":\"x\"}", "{\"n\":1,\"url\":5}",
-            "{\"n\":1,\"deny\":2}", "{\"n\":1,\"deny\":true}", "{\"n\":1,\"pause\":1.0}",
+            "{\"n\":1,\"deny\":2}", "{\"n\":1,\"deny\":true}", "{\"n\":1,\"logout\":1.0}",
             "{\"n\":1,\"approve\":{\"name\":\"x\",\"n\":1}}", "{\"n\":1,\"approve\":{\"name\":\"x\",\"n\":1,\"s\":\"y\",\"z\":1}}",
             "{\"n\":1,\"rename\":{\"name\":\"x\",\"n\":0,\"s\":\"y\"}}", "[1]", "",
         ]
@@ -75,7 +75,7 @@ final class MessageTests: XCTestCase {
         let f = NameField(name: "UGhvbmU", n: 1, s: String(repeating: "A", count: 86))
         let (m2, _) = try roundTrip(InnerJSON(n: 1, content: .approve(f)), keys: true)
         XCTAssertEqual(m2.count, 1024)
-        for c: MessageContent in [.text("hi"), .tel("+1 555-123-4567"), .deny, .remove("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwd"), .rename(f), .delete, .pause, .unpause] {
+        for c: MessageContent in [.text("hi"), .tel("+1 555-123-4567"), .deny, .remove("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwd"), .rename(f), .delete, .logout, .login] {
             let (m, _) = try roundTrip(InnerJSON(n: 9, content: c))
             XCTAssertEqual(m.count, 512)
         }

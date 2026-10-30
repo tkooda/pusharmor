@@ -28,8 +28,8 @@ data class Peer(
     /** A signed deny from this peer was received ("Declined by $X"). */
     val declined: Boolean = false,
     val reachable: Boolean = true,
-    val paused: Boolean = false,
-    val pauseN: Long = 0,
+    val loggedOut: Boolean = false,
+    val logoutN: Long = 0,
     val hidden: Boolean = false,
     val name: String? = null,
     val nameN: Long = 0,
@@ -64,7 +64,7 @@ data class Peer(
     val offersPairAgain: Boolean get() = pairAgain && (waiting || notPairedOnPeer)
 
     /** Member of the catalog "All" set. */
-    val inAll: Boolean get() = pinned && approved && approvesMe && !hidden && !paused && !missing && !removed
+    val inAll: Boolean get() = pinned && approved && approvesMe && !hidden && !loggedOut && !missing && !removed
 }
 
 /** The catalog "All" set (one definition for every client). */

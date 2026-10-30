@@ -28,4 +28,27 @@ class MigrationTest {
             assertEquals(0, c.getInt(1))
         }
     }
+
+    @Test fun migrate2To3RenamesPausedToLoggedOut() {
+        helper.createDatabase("m3.db", 2).apply {
+            execSQL(
+                "INSERT INTO peers (id, platform, created, approved, denied_by_me, approve_verified, approves_me, denies_me, list_after_verify, " +
+                    "declined, reachable, paused, pause_n, hidden, name_n, removed, missing, last_n, last_send_at, pair_again, lock_screen, watch, hide_content) " +
+                    "VALUES ('p', 'chrome', 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 7, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0)",
+            )
+            execSQL("INSERT INTO history (direction, peer_id, type, received_at, read, results, count) VALUES ('received', 'p', 'paused', 1, 0, '', 0)")
+            execSQL("INSERT INTO history (direction, peer_id, type, received_at, read, results, count) VALUES ('received', 'p', 'resumed', 2, 0, '', 0)")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate("m3.db", 3, true, PaDatabase.MIGRATION_2_3)
+        db.query("SELECT logged_out, logout_n FROM peers WHERE id = 'p'").use { c ->
+            c.moveToFirst()
+            assertEquals(1, c.getInt(0))
+            assertEquals(7L, c.getLong(1))
+        }
+        db.query("SELECT type FROM history ORDER BY received_at").use { c ->
+            c.moveToFirst(); assertEquals("logged_out", c.getString(0))
+            c.moveToNext(); assertEquals("logged_in", c.getString(0))
+        }
+    }
 }

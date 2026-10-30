@@ -13,7 +13,7 @@ export const MAX_WIRE = 3800;
 export const HPKE_OVERHEAD = 65 + 16;
 export const INFLATE_CAP = 16384;
 export const CONTENT_CAP = 2048;
-export const TYPES = ['url', 'text', 'tel', 'approve', 'deny', 'remove', 'rename', 'delete', 'pause', 'unpause'];
+export const TYPES = ['url', 'text', 'tel', 'approve', 'deny', 'remove', 'rename', 'delete', 'logout', 'login'];
 
 // Unpadded b64url length of n bytes.
 export const wireChars = (n) => Math.ceil((n * 4) / 3);

@@ -157,17 +157,17 @@ class EngineTest {
         assertFalse(x.id in n.allow)
     }
 
-    @Test fun messagesMissingWithdrawsThenRetriesAndPauseWorksWhilePausedWithdraw() {
+    @Test fun messagesMissingWithdrawsThenRetriesAndLogoutWorksWhileLoggedOutWithdraw() {
         pairShown()
         n.approve.approve(x.id)
         n.pairing.cancelPairing(x.id) // approve lost reply case: allow holds X, no pin
         n.store.replaceAllowSet(emptyList()) // stale local set: the Worker still has X
-        val pause = PauseFlow(n.store, n.me, n.api, n.reconcile)
-        val r = pause.pause()
+        val logout = LogoutFlow(n.store, n.me, n.api, n.reconcile)
+        val r = logout.logout()
         assertTrue(r is ApiResult.Ok)
-        assertEquals(listOf("pause", "withdraw:${x.id}", "pause"), n.calls.filter { it == "pause" || it.startsWith("withdraw") })
-        assertTrue(n.paused)
-        // a withdraw passes the pause gate
+        assertEquals(listOf("logout", "withdraw:${x.id}", "logout"), n.calls.filter { it == "logout" || it.startsWith("withdraw") })
+        assertTrue(n.loggedOut)
+        // a withdraw passes the logout gate
         n.allow.add("y"); n.store.addAllow("y")
         n.reconcile.run()
         assertFalse("y" in n.allow)
@@ -264,16 +264,16 @@ class EngineTest {
         assertTrue(n.effects.log.contains("reconcile"))
     }
 
-    @Test fun timeoutWhilePausedKeepsWaitingThenRefetchCompletes() {
+    @Test fun timeoutWhileLoggedOutKeepsWaitingThenRefetchCompletes() {
         pairShown()
         n.approve.approve(x.id)
         x.approve.approve(n.id)
         n.deliver(t0, drop = true)
-        n.paused = true
+        n.loggedOut = true
         val day = 24 * 3600_000L
         assertEquals(PairDecide.Timeout.KEEP_WAITING, n.pairing.checkTimeout(x.id, t0 + 15 * day, n.approve::refetch))
         assertTrue(n.store.peer(x.id)!!.pinned)
-        n.paused = false
+        n.loggedOut = false
         assertEquals(PairDecide.Timeout.COMPLETE, n.pairing.checkTimeout(x.id, t0 + 15 * day, n.approve::refetch))
         assertTrue(n.store.peer(x.id)!!.approveVerified)
         assertNull(n.store.pairing(x.id))

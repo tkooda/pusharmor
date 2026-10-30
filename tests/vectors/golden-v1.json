@@ -717,26 +717,26 @@
         "wire_chars": 512
       },
       {
-        "deflated": "q1bKU7Ky1FEqSCwtTlWyMqwFAA",
+        "deflated": "q1bKU7Ky1FHKyU_PLy1RsjKsBQA",
         "expect": {
           "n": 9,
           "outcome": "accept",
-          "type": "pause",
+          "type": "logout",
           "value": 1
         },
         "from": "X",
         "history": [],
         "hpke": {
-          "base_nonce": "G3IsKCetXcza_Fb3",
-          "enc": "BEQsHwwv7Ftiky-GetI3W-k2YcGStm4pezhGk2D4R6__ow4xb7_a8KuNXKlXiaOO80Av1bs-rYVkJXiNzTJ82YY",
-          "ikmE": "ZYcUSYT8-kx2ddfmsQHheXqZhpDckfh3hpJzojfh5GA",
-          "key": "zDFufA8lWUJDwqEw00EwvraoXv9hd8OKLnvL2wE6reY",
-          "shared_secret": "yIYlFTJyGCjlx18kObvyXVtySoi_guxFxsizh5DSOL0",
-          "skE": "nVHOi8o_1lurSJsSk7rhNNeWoFJfV5YQVHXBtPPb4_E"
+          "base_nonce": "DfYc0MX_jDPhCC5W",
+          "enc": "BHFxlbNwCsJJz-aTD1q1sO8cjOwNDw7UVcHRwdcB8xAcQsLRh0cLHXqbIoeiP9jYkX72Oy7gO8u0E1pYH3sj0h4",
+          "ikmE": "DYZGaFY_iqkD2ZejLW_hcLY3I67L78RYyR7PuoLEncg",
+          "key": "6DyEgKAOmP2OKkzV84NcnZFZFLSdWrmo2Awrvl9mYbo",
+          "shared_secret": "Md6AVihfhmjLqYbgDscAuwZ3pWcfnlAVI-89HQRjNV8",
+          "skE": "8mIaOrGSr2TdUNX0w7MKPqRCkT7sik6-NnnH5Ji4YfM"
         },
-        "json": "{\"n\":9,\"pause\":1}",
-        "message": "BEQsHwwv7Ftiky-GetI3W-k2YcGStm4pezhGk2D4R6__ow4xb7_a8KuNXKlXiaOO80Av1bs-rYVkJXiNzTJ82YZif4V18AiTyh7jg3ikqTyhSRcSoTk8tmlSHG1l2GASA_wBKXDAoPGcOUHtFvS8SiNZtqeJEZg-QWAHGggu3uahYSGHLiQa_X74gUaQHxwmL4n2ym7-7Aa4IhBOLr9dBvZijKzMjDkLR-qJvZxa2PS-nCuymAlBaoC5nF8E2xgJGScMI_R6qr3ciDC-sV090p1DdJpQ2-FzySk_6Vk4ctzI7MfPRO6UaMJkaQao7gBA2wUz8OWqYJaCp8ZaQOUL79n-2lACyDA0n6qFX1qZ4BDS9bGR4iXCgSI5voK0T457m0KG1Q_R_Byl80sWRjUviORV9ao3rHTG1Eh_1UAylYv_wlW6dldZJa6FmU9RAOZWlXNNPbhDZ7XTiHO6PlfZsuJYKkr0q2qke3Ni4Hrgx9Pozizkg-gUyg4k7hOD5jJG",
-        "name": "pause",
+        "json": "{\"n\":9,\"logout\":1}",
+        "message": "BHFxlbNwCsJJz-aTD1q1sO8cjOwNDw7UVcHRwdcB8xAcQsLRh0cLHXqbIoeiP9jYkX72Oy7gO8u0E1pYH3sj0h5-_HVasWThmYtRwDNmH3NtmkZyLTasEcT2AW1vnYYpRTVHcr91b0g1Lpqwfhf5zgTkbS31bbejFOyfMG7nhtMwDcL1lgeKoIXS5xQSZnu8rCkxKImB0KkJ42x72PbJdoULG-ZS6ymhflC4nUttsNXIr9l6evOtedmw6dz74T9wjWF3IzLtYXFnW1Ctg8S3f3bScETsdWvwY6emk3n60iJZu4vCK_yJcDawYgl9_RAv3M-mjFcxoW7BvqQ4bZ6J90njfgeNBov7feyKb-4hM-BIW8_pMzKGTABmgrnySVurfvRtsqdG-chgGi8kGWyuQ-lgvat2EDC4SGiuJpDJw-N3xfs0XmeOMnLNLfsfhx4RceptL1FcN2uol6pAmJ1Zrzo0jcg7uWmVZR9IjY8kiN83giG9vwHTHObvanB4PItY",
+        "name": "logout",
         "pin": {
           "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
           "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
@@ -744,11 +744,11 @@
           "ruling": "approved",
           "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
         },
-        "plaintext": "pa6DWUBrhknwzag7FDi9Na1MgNd_o0TfLagFcyQuVQpNP1LucfIG8gDJS7S551FxDXgbeO9YYguq6X8cBkISQwrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAATq1bKU7Ky1FEqSCwtTlWyMqwFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "plaintext": "wmWyXnA85MylZGrliyqZXWIZwxXMWYQ7t8PQI8TKt6CrxUDeSJtTfFfddHEuEP0P9K1RXWlEZiqsrDWw2XiOEQrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAAUq1bKU7Ky1FHKyU_PLy1RsjKsBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
         "receiver": "N",
-        "sig": "pa6DWUBrhknwzag7FDi9Na1MgNd_o0TfLagFcyQuVQpNP1LucfIG8gDJS7S551FxDXgbeO9YYguq6X8cBkISQw",
-        "signed_bytes": "UEEtTVNHMQpDdVZwbmE3LS1FbWJGSDNMQ3ZmaUFOdG5DdXJHcHlTdFNYSU82QVV6CgrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAATq1bKU7Ky1FEqSCwtTlWyMqwFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-        "type": "pause",
+        "sig": "wmWyXnA85MylZGrliyqZXWIZwxXMWYQ7t8PQI8TKt6CrxUDeSJtTfFfddHEuEP0P9K1RXWlEZiqsrDWw2XiOEQ",
+        "signed_bytes": "UEEtTVNHMQpDdVZwbmE3LS1FbWJGSDNMQ3ZmaUFOdG5DdXJHcHlTdFNYSU82QVV6CgrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAAUq1bKU7Ky1FHKyU_PLy1RsjKsBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "type": "logout",
         "window": {
           "h": 0,
           "seen": []
@@ -756,26 +756,26 @@
         "wire_chars": 512
       },
       {
-        "deflated": "q1bKU7IyNNBRKs0rSCwtTlWyMqwFAA",
+        "deflated": "q1bKU7IyNNBRyslPzwQxawE",
         "expect": {
           "n": 10,
           "outcome": "accept",
-          "type": "unpause",
+          "type": "login",
           "value": 1
         },
         "from": "X",
         "history": [],
         "hpke": {
-          "base_nonce": "Dw4XRzyGYvQkUGtT",
-          "enc": "BOTtXS65GhSQQU5QrrwzxbHOvYw37fBjhyQOqrVkJCsfbDdH3xcDxfF_9fXJkG26ALTidi_-6wZrZLfs3BXwmgU",
-          "ikmE": "ayBX1oEyuZgQoofDV4XIRVXUYwzJSDem6LWGPqq7Pss",
-          "key": "1Y0Jmf3utSZf2wgkiUXqJrb3volA3YZ4DX2gryR9fdY",
-          "shared_secret": "tGB_I1W2YOfTy6lAbLifarruJNoso9RIgMBxGUocCJQ",
-          "skE": "0q3vjAN0NcQI6V0Xf7vdPaF2mXfKJPHPij3zPtgBTaA"
+          "base_nonce": "B-yiuUbwuRxPvuuk",
+          "enc": "BKMx_9E-hxLYfRVSWXspbotnKYgvU3kmchaQP0_DBgu4jK_PyvKALoVdBXfb97a9LhNaTps-Pv6j8H3DmzRiv0s",
+          "ikmE": "wHudQx_ZvcD1iblcmsNVVM1E243Wn1GRId1mHgG42ws",
+          "key": "Ykv5WCiU7SGpnydNPfAJjEsPGN21RzB2pv2-VXu-J5Y",
+          "shared_secret": "z7-MZFV6vq6BDyBCnHf4NUNh-manpyJ61Bn9CkArpeA",
+          "skE": "dRm6dEyYzkSRMcfudM4so8DXujIcf1dEGvxzo7bnrDE"
         },
-        "json": "{\"n\":10,\"unpause\":1}",
-        "message": "BOTtXS65GhSQQU5QrrwzxbHOvYw37fBjhyQOqrVkJCsfbDdH3xcDxfF_9fXJkG26ALTidi_-6wZrZLfs3BXwmgUnijsqttb-Fnuxw3YYR4blIRKjJFjlr0KOY2zdx2gRBgpqyBItd88CbvS4MQcj4VRKlMRyXRYPtU1CxxtDoOWC2aMMmKsusWJiadCk3qvXjspoacXMtpLsB4T3m9F0r9GPkvwHw8BM4X8zWO-mBgmhAUkPCVoIRYzcB7-237HqqOO0FmJr9NjlTLph-VTyw5nCR1t39OXQUYiyR22jDss33TA9sAWwTw4YRrsAAKEFYho1a5YIjzkwRMXy756iB0YVlqUZz_t6ksSwhHfIQbrpnYSXtgYScITXemGxndvtoL6J4hs2aiq-_mhJ_pCbraCGseHS5JQmVsIUCRciHGybWuKraTLwyMhfXyGX6yx789k6_wY2LmMxyVRl-_u59hGG8wXwWXcIvB0ww6J30Lgv01g4hRHMdJmzKrVpvITn",
-        "name": "unpause",
+        "json": "{\"n\":10,\"login\":1}",
+        "message": "BKMx_9E-hxLYfRVSWXspbotnKYgvU3kmchaQP0_DBgu4jK_PyvKALoVdBXfb97a9LhNaTps-Pv6j8H3DmzRiv0usPW4VxZUwpEWzG4Frl8Pfn-3Pnt_eF0UUDHE06xLGaPla3rFGgRM66kaH4BaJWU_pDToiPs8OEhJxrnx357fNCGdmFL95QBmYAGsHcaBoyDKAZ86ISsrlwc8IfKGL7m3jdXTBzLjRVhzFwT6zYUf2QA2mCVijYZ7mYkJvWCV8RHGXda887A5iocQaZXGTnD5jEA6MXOZRNhYhsWHoLlPBSsR9g_T69jEOr_AQ6dx332vz8mq6XohvtFTsJNPUI3Kty6EQYhfBdmOEasrPlOSXuOh2S9rFySFUKUdcLnu6awQP2Vmpbnn2XZDYoViapWWf_jZ8Kk0JbrCmO2XG5E01A1fX_YY9H4PJeXBgufweuc-wU7z58bgNqRex76UOl-Ng1GEdvxY6JC3yYy9F6W34hFlDSqcZrYf4oQisaEK3",
+        "name": "login",
         "pin": {
           "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
           "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
@@ -783,11 +783,11 @@
           "ruling": "approved",
           "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
         },
-        "plaintext": "rg76C2UaF0HIiW_dF7w0CdCSJyTjBOOMov6dEo6HdZJPv6UwLcnPlcG2hPs7NXFvc5LOzmkaEWoN6SmuDffCAArlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAAWq1bKU7IyNNBRKs0rSCwtTlWyMqwFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "plaintext": "ouE5xMM2Ahwaiffze2D9q4aKtmHhG3qoQm8BXfb-8i6S487EuBhnp94QsHaALECJfcc-pdaUtArNZDfv8mbDLgrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAARq1bKU7IyNNBRyslPzwQxawEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
         "receiver": "N",
-        "sig": "rg76C2UaF0HIiW_dF7w0CdCSJyTjBOOMov6dEo6HdZJPv6UwLcnPlcG2hPs7NXFvc5LOzmkaEWoN6SmuDffCAA",
-        "signed_bytes": "UEEtTVNHMQpDdVZwbmE3LS1FbWJGSDNMQ3ZmaUFOdG5DdXJHcHlTdFNYSU82QVV6CgrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAAWq1bKU7IyNNBRKs0rSCwtTlWyMqwFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-        "type": "unpause",
+        "sig": "ouE5xMM2Ahwaiffze2D9q4aKtmHhG3qoQm8BXfb-8i6S487EuBhnp94QsHaALECJfcc-pdaUtArNZDfv8mbDLg",
+        "signed_bytes": "UEEtTVNHMQpDdVZwbmE3LS1FbWJGSDNMQ3ZmaUFOdG5DdXJHcHlTdFNYSU82QVV6CgrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAARq1bKU7IyNNBRyslPzwQxawEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "type": "login",
         "window": {
           "h": 0,
           "seen": []
@@ -1389,8 +1389,8 @@
         "from": "X",
         "history": [],
         "kind": "message",
-        "message": "BNcTeSxOuE_kbZCwAmmANC_rmlgDNEGqXafdw6G-X4bc4q1ixeaob__pXkaaQ1W-tly-IsVlnQTgsb1QLlao5L7YAmerpI4Wts0DP2TFwFxH3IOt7_clAn1Ge8W_LxxVeU7qGl2udOeVCrGl7b-wHTJ325hCoeFK0RxOgDuJDmu3GUnkuDrIU-EWwZHI9__raD5XMxhu-XIiWmSrrN2ARvnBRLwZx6In41v_8z1ngx3vp13bsZlTYFl1y7vYQ99Zr6gaWk92R0dQ8SAK1SIH0a_2T4P0k3QzDMigxv-zwJFAnhMX4vQXox2Tsq9Mm1svIOvv9K_DZ2OqjSKIUO0vjBPj30oiGhzntXzG8oJUo4B_oYu55nFOMIAx24WMmmDXNXOCGOMCyUmzv57xP5jtrPX1-9KqOLU8gKZ_Sm1YOxk-xOlCkX6iuTNS40YmA9MwskLvLKnet2xGYEbbKTu9opPDXQcF0purgEAlDGKyHp8xRSOwb5S3f6-1jmvG-LzZ",
-        "name": "pause_from_denied",
+        "message": "BKde6IcT2FYPt_-FeWk8teYINDo6vVTj9xZX5Z9kJlqqr8PO5Tz-XEa7f25e8vdBMyESybRhjRH_1hctS3Uymv6Y7gYEYrdaoJZKVY4Ge-NnpCNk1alYDcGx_vlQq6K3ZVQ0DLXdm26Q90zae7eyHP8F17XYW3mFG7db0jsBp8srhnK0RgeqNdpln62sdAvO_DIedv6qyMUlyPBFLlDzhF2db3hjuLAuCFX0o51OuW03ry_SYUMUnxsIzY82lZZrlXDCvGERzBrSOoimJZocZgCwqXfbnjUkfrDzZv7YCa68n1JhRLHGqsqlp_vVCcwLKYQb4JOoEZI3XxMK9633qL9Jl-WA0lfXXdupOzmqIPGTqK-9sfOTwfTOboAhdXSLsPsOKX-5rSWr2DMg7tYLA9M4pFjv4_quWPxX97HJRzV_vPaSuC3sBuTiI_gRcInuNNI2hGEzajZRfh66Auxs7LDP8dy8fIdFuPkjAutrp0scvhimFzJTsa4foeI_7UYC",
+        "name": "logout_from_denied",
         "outcome": "unreadable",
         "pin": {
           "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
@@ -1809,8 +1809,8 @@
         "from": "X",
         "history": [],
         "kind": "message",
-        "message": "BNABRFlSvSXA8R04uBAMYwC-SRyV0JQF53RtmlUTuZ8ma-bzGYj_pA9AlLnU8908OPmqz_RNjk_twBb_wXLltswUM29MhhCGnktDXXAdu87i_sN9ml1Ue6kzSo0ZZah2nzU1DPrbtAhmY8Me6T3MGltQ1PR-FVWYy-QR_luCwsARkEkwcZzvDtRXOVFJibt__v8x6OMwvw4yOgcpi_jlH0WB_m658N-PTFSqbJl87n4GLQwqXUla-aqyDInn-DOUmyv3HOiC0KDorw0YnN860LhMAPiH8moD2-wdn9nUWMO1v6O68U90Aq4-hm3dx-Jbe-FX6Bv9KCDQLtYf_1za_YsRmr2lb2z0tB0vJuu9JZ4WOmXjJLHuthxT0GcR5y6f-X-ngz449sEIz9dT_F4YCHNx18aqSDcPSh3hIuoc0qPmM0yWUrbLZqG9U7OghpK1uNDEwVfE4PAx9FHp6UUfd1VOcuIkmjoqSmYRDKJ9kDkD0-5C0go3PiYoR6p22uHm",
-        "name": "pause_value_1.0",
+        "message": "BA2nMAv6h7Bd0963J9HZqtaMWR7h3I14-We8gGpFPzVXos_Y5c74PGfPGWRCFN51pCrOthwtKCQy5bhte6biHOPOvkU76kMqQ_P9FXHwnEZ7F4SgFzEqXkxv8k8CJnpDyzStJ7SDYEB7tB6cwCpxL2aE1nASCRpEobTZvhpe8bI3zapHaJ6YmQebknjPp6rtulS60Bj2S6twy1Q-_0JYZf6UOU50LeyhIrAygYlMfEYnfGdKCvg0___Pa-fErRRvxl112Ty25UmTne3r-er4KDvvQGWshUHewg7fA6McZFdBT34kZmM6FxOr5ZiQ28CzlQ-m4a6Tp5KTPY3elGmpz96enZyKKPby5-5J65OjuKNSUhjf64aiA1YwC6spq5ENoEFWYVVRKa98huZOD1bg921UFLvgH5WNmswcoW3sVTWR3_MFDxPgensijjqw9AB_wa6qK7hYtXdPW24HpdiBkWD4xXcyo8I6w9oKUAqfgGSm4bh5j-Dx9aqWezqDiXkk",
+        "name": "logout_value_1.0",
         "outcome": "unreadable",
         "pin": {
           "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
@@ -2399,8 +2399,8 @@
       },
       {
         "k": "HZg5IIuyFznOzmFDAjKV409frrHrnDvMxlqKG4nPnCE",
-        "nonce": "f-9n0jC04So_qDpi0nKz13QD6YBnJmWfFebmEc9KioI",
-        "purpose": "unpause",
+        "nonce": "zSjnaoWNWhd0CRF7lFKnNnvy9erebRmdxPAkHKRlOJs",
+        "purpose": "login",
         "sign_pub": "BBU8HRjDliaMIU-vYpiwaJRkj0ThiOfXU-PoyWSRxf4o1W3uAcxnRzC2Bnwxg41VJ_Ud6C8T-iux4E89qCTPIHY"
       },
       {
@@ -3535,9 +3535,9 @@
         "input": {
           "approve_verified": false,
           "approved": true,
-          "resend": "paused"
+          "resend": "logged out"
         },
-        "name": "waiting_resend_paused",
+        "name": "waiting_resend_logged_out",
         "output": "keep_waiting"
       },
       {
@@ -3577,7 +3577,7 @@
         "output": "drop_pin"
       }
     ],
-    "description": "Pairing timeout at 14 days (Pairing flow step 8). input: approve_verified (the other side's approve verified), approved (this device approved; with approve_verified false the row is \"Waiting for $X\"), resend (result of the re-send of POST /v1/approve/$X: null not run yet | offline | paused | 429 | 5xx | 200_c_verified | 200_other). output: keep_pin | drop_pin (drop r, c_N and the pin, show \"Pairing timed out. Tap Pair to start again.\", then the allow reconcile) | resend (run the re-send first) | keep_waiting (row stays Waiting with Cancel pairing; retry at next app open, Refresh or unpause) | complete (the verified c completes the pairing)."
+    "description": "Pairing timeout at 14 days (Pairing flow step 8). input: approve_verified (the other side's approve verified), approved (this device approved; with approve_verified false the row is \"Waiting for $X\"), resend (result of the re-send of POST /v1/approve/$X: null not run yet | offline | logged out | 429 | 5xx | 200_c_verified | 200_other). output: keep_pin | drop_pin (drop r, c_N and the pin, show \"Pairing timed out. Tap Pair to start again.\", then the allow reconcile) | resend (run the re-send first) | keep_waiting (row stays Waiting with Cancel pairing; retry at next app open, Refresh or login) | complete (the verified c completes the pairing)."
   },
   "pairing": {
     "N": "N",
@@ -3896,7 +3896,7 @@
       {
         "history_row": false,
         "n": 4,
-        "name": "repeat_pause_noop",
+        "name": "repeat_logout_noop",
         "outcome": "noop",
         "state": {
           "h": 5,
@@ -3912,7 +3912,7 @@
             4
           ]
         },
-        "type": "pause"
+        "type": "logout"
       },
       {
         "history_row": false,
@@ -4036,7 +4036,7 @@
         "type": "text"
       }
     ],
-    "description": "Replay window per sender: h = highest accepted n, seen = the n values whose bit is set (bit k = n = h - k, k 0..99), listed high to low. Accept iff n > h - 100 and n not seen; on accept with n > h shift (h = n, drop bits past 99), else set the bit. A rejected n: n <= h - 100 -> invalid; seen n of a control type (approve rename remove delete pause unpause deny) -> noop; seen n of url/text/tel with a History row -> represent; else invalid. Assert outcome and state_after (equal to state when not accepted)."
+    "description": "Replay window per sender: h = highest accepted n, seen = the n values whose bit is set (bit k = n = h - k, k 0..99), listed high to low. Accept iff n > h - 100 and n not seen; on accept with n > h shift (h = n, drop bits past 99), else set the bit. A rejected n: n <= h - 100 -> invalid; seen n of a control type (approve rename remove delete logout login deny) -> noop; seen n of url/text/tel with a History row -> represent; else invalid. Assert outcome and state_after (equal to state when not accepted)."
   },
   "request_sig": {
     "cases": [

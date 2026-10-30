@@ -1,5 +1,6 @@
--- Platform value 'iphone' becomes 'ios'. SQLite cannot change a CHECK in place, so the peers
--- table is rebuilt with the same columns, keys and CHECKs; the 0004 trigger is recreated.
+-- Platform value 'iphone' becomes 'ios' and column paused becomes logged_out. SQLite cannot
+-- change a CHECK in place, so the peers table is rebuilt with the same keys and other CHECKs;
+-- the 0004 trigger is recreated.
 -- No foreign key references peers.
 CREATE TABLE peers_new (
   id        TEXT NOT NULL CHECK (length(id) = 40),
@@ -10,7 +11,7 @@ CREATE TABLE peers_new (
             CHECK (platform IN ('android', 'ios', 'chrome', 'firefox')),
   push_type INTEGER CHECK (push_type IS NULL OR push_type IN (1, 2, 3, 4, 5, 6)),
   push      TEXT CHECK (push IS NULL OR json_valid(push)),
-  paused    INTEGER NOT NULL DEFAULT 0 CHECK (paused IN (0, 1)),
+  logged_out INTEGER NOT NULL DEFAULT 0 CHECK (logged_out IN (0, 1)),
   allow     TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(allow)),
   deny      TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(deny)),
   name      TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(name)),
@@ -19,7 +20,7 @@ CREATE TABLE peers_new (
   CHECK ((push IS NULL) = (push_type IS NULL)),
   PRIMARY KEY (account, id)
 ) WITHOUT ROWID;
-INSERT INTO peers_new (id, account, sign_pub, enc_pub, platform, push_type, push, paused, allow, deny, name, pending, created)
+INSERT INTO peers_new (id, account, sign_pub, enc_pub, platform, push_type, push, logged_out, allow, deny, name, pending, created)
 SELECT id, account, sign_pub, enc_pub, CASE platform WHEN 'iphone' THEN 'ios' ELSE platform END,
        push_type, push, paused, allow, deny, name, pending, created
 FROM peers;

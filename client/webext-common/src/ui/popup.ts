@@ -31,7 +31,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   clear(root);
   if (st.reg !== "registered") {
     const going = (await rpc<Restore | null>(env, "signinProgress").catch(() => null))?.step === "code";
-    const head = going ? "Check your email for your code" : st.reg === "paused" ? T.signedOut : st.banner ?? "Sign in to use PushArmor";
+    const head = going ? "Check your email for your code" : st.reg === "logged_out" ? T.signedOut : st.banner ?? "Sign in to use PushArmor";
     add(
       root,
       h(
@@ -262,10 +262,10 @@ function eventText(r: HistoryRow & { sender: string }): string {
   switch (r.event) {
     case "denied":
       return T.denied(nm);
-    case "paused":
-      return T.pausedRecv(nm);
-    case "resumed":
-      return T.resumedRecv(nm);
+    case "logged_out":
+      return T.loggedOutRecv(nm);
+    case "logged_in":
+      return T.loggedInRecv(nm);
     case "invalid":
       return T.invalid + count;
     default:
@@ -279,11 +279,11 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (tex
   const row = h("div", { class: "hrow", id: "h-" + r.id });
   if (r.type === "event") {
     // Events: a bare glyph, no tile; the sender stays visible when the text lacks it.
-    const named = r.event === "denied" || r.event === "paused" || r.event === "resumed";
+    const named = r.event === "denied" || r.event === "logged_out" || r.event === "logged_in";
     const col = h("div", { class: "txt" }, h("div", { class: "hmeta" }, h("span", { class: "who" }, named ? eventText(r) : r.sender), time));
     if (!named) col.append(h("div", { class: "content ev" }, eventText(r)));
     row.classList.add("event");
-    row.append(h("div", { class: "av bare" }, icon(r.event === "paused" ? "pause" : "info", 18)), col);
+    row.append(h("div", { class: "av bare" }, icon(r.event === "logged_out" ? "pause" : "info", 18)), col);
     return row;
   }
   const sent = r.results ? Object.values(r.results).filter((v) => v === "sent").length : (r.targets?.length ?? 0);

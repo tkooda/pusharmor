@@ -143,7 +143,7 @@ describe("migration 0004 on existing rows (I448)", () => {
 });
 
 describe("migration 0005 on existing rows", () => {
-  it("rebuilds peers: platform iphone -> ios, other columns kept, cap trigger kept", async () => {
+  it("rebuilds peers: platform iphone -> ios, paused -> logged_out, other columns kept, cap trigger kept", async () => {
     const [a, b] = await family(2);
     const before = await env.DB.prepare("SELECT * FROM peers ORDER BY id").all();
     // Back to the 0001 table (platform 'iphone' allowed) with the 0004 trigger, then seed an old row.
@@ -154,15 +154,16 @@ describe("migration 0005 on existing rows", () => {
     await env.DB.prepare(peersSql).run();
     for (const r of before.results) {
       const cols = Object.keys(r);
-      await env.DB.prepare(`INSERT INTO peers (${cols.join(", ")}) VALUES (${cols.map((_, i) => "?" + (i + 1)).join(", ")})`)
+      const oldCols = cols.map((k) => (k === "logged_out" ? "paused" : k));
+      await env.DB.prepare(`INSERT INTO peers (${oldCols.join(", ")}) VALUES (${cols.map((_, i) => "?" + (i + 1)).join(", ")})`)
         .bind(...cols.map((k) => (r as Record<string, unknown>)[k])).run();
     }
-    await env.DB.prepare("UPDATE peers SET platform = 'iphone', push_type = 2, push = ?1 WHERE id = ?2").bind('{"type":"apns"}', b.id).run();
+    await env.DB.prepare("UPDATE peers SET platform = 'iphone', push_type = 2, push = ?1, paused = 1 WHERE id = ?2").bind('{"type":"apns"}', b.id).run();
     await env.DB.prepare(triggerSql()).run();
     for (const s of q("0005")) await env.DB.prepare(s).run();
 
-    expect((await row(a.id))!.platform).toBe("android");
-    expect(await row(b.id)).toMatchObject({ platform: "ios", push_type: 2, push: '{"type":"apns"}', sign_pub: b.signPub });
+    expect(await row(a.id)).toMatchObject({ platform: "android", logged_out: 0 });
+    expect(await row(b.id)).toMatchObject({ platform: "ios", logged_out: 1, push_type: 2, push: '{"type":"apns"}', sign_pub: b.signPub });
     await expect(env.DB.prepare("UPDATE peers SET platform = 'iphone' WHERE id = ?1").bind(a.id).run()).rejects.toThrow();
     await expect(env.DB.prepare("UPDATE peers SET name = ?1 WHERE id = ?2").bind(JSON.stringify({ x: message(NAME_JSON_MAX) }), a.id).run())
       .rejects.toThrow(/pa-json-cap/);

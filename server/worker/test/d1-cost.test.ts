@@ -84,11 +84,11 @@ for (const n of NS) {
     },
   });
   scenarios.push({
-    endpoint: "POST pause", n, k: n - 1, q: 0,
+    endpoint: "POST logout", n, k: n - 1, q: 0,
     run: async () => {
       const ps = await account(n);
       await allApproved(ps);
-      return measured(() => call("POST", `/v1/peers/${ps[0].id}/pause`, { m: mOf(ps.slice(1)) }, { peer: ps[0] }));
+      return measured(() => call("POST", `/v1/peers/${ps[0].id}/logout`, { m: mOf(ps.slice(1)) }, { peer: ps[0] }));
     },
   });
   scenarios.push({
@@ -170,12 +170,12 @@ scenarios.push({
   },
 });
 scenarios.push({
-  endpoint: "POST unpause", n: 5, k: 4, q: 0,
+  endpoint: "POST login", n: 5, k: 4, q: 0,
   run: async () => {
     const ps = await account(5);
     await allApproved(ps);
-    await env.DB.prepare("UPDATE peers SET paused = 1 WHERE id = ?1").bind(ps[0].id).run();
-    return measured(async () => call("POST", `/v1/peers/${ps[0].id}/unpause`, { ticket: await ticketFor(ps[0].email, ps[0].signPub, "unpause"), m: mOf(ps.slice(1)) }, { peer: ps[0] }));
+    await env.DB.prepare("UPDATE peers SET logged_out = 1 WHERE id = ?1").bind(ps[0].id).run();
+    return measured(async () => call("POST", `/v1/peers/${ps[0].id}/login`, { ticket: await ticketFor(ps[0].email, ps[0].signPub, "login"), m: mOf(ps.slice(1)) }, { peer: ps[0] }));
   },
 });
 scenarios.push({

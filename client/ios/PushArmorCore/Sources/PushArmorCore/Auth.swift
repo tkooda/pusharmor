@@ -1,7 +1,7 @@
 import Foundation
 
 /// Sign-in calls (catalog Auth, unsigned) and the client-side helpers.
-public enum AuthPurpose: String, Sendable { case register, unpause, deleteAccount = "delete-account" }
+public enum AuthPurpose: String, Sendable { case register, login, deleteAccount = "delete-account" }
 
 public enum AuthResult: Sendable, Equatable {
     case ticket(ticket: String, email: String)

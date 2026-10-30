@@ -100,10 +100,10 @@ final class StateMachineTests: XCTestCase {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try n.core.store.db.write {
             try n.core.store.db.exec("""
-                INSERT INTO peers (id, state, approve_verified, approve_verified_at, paused, pause_n, name, name_n)
+                INSERT INTO peers (id, state, approve_verified, approve_verified_at, logged_out, logout_n, name, name_n)
                 VALUES ('\(x.id.text)', 'approved', 1, 5, 1, 7, 'Xdev', 3)
                 ON CONFLICT(id) DO UPDATE SET state = 'approved', approve_verified = 1, approve_verified_at = 5,
-                  paused = 1, pause_n = 7, name = 'Xdev', name_n = 3
+                  logged_out = 1, logout_n = 7, name = 'Xdev', name_n = 3
                 """)
         }
         n.core.selfRemoved()
@@ -111,8 +111,8 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(p.state, .unruled)
         XCTAssertFalse(p.approveVerified)
         XCTAssertNil(p.approveVerifiedAt)
-        XCTAssertFalse(p.paused)
-        XCTAssertEqual(p.pauseN, 0)
+        XCTAssertFalse(p.loggedOut)
+        XCTAssertEqual(p.logoutN, 0)
         XCTAssertNil(p.name)
         XCTAssertEqual(p.nameN, 0)
     }
@@ -195,12 +195,12 @@ final class StateMachineTests: XCTestCase {
         try await pairFully(n, x)
         // the Worker still has o in n's allow (a lost reply), unknown to the local set
         w.rows[n.id.text]!.allow[o.id.text] = true
-        let out = try await n.core.pause()
+        let out = try await n.core.logout()
         XCTAssertEqual(out.reply?.status, 200)
         XCTAssertEqual(w.count("POST", "/v1/deny/" + o.id.text), 1)       // withdraw
-        XCTAssertEqual(w.count("POST", "/v1/peers/" + n.id.text + "/pause"), 2)  // refused once, retried once
-        XCTAssertTrue(try n.core.store.me().paused)
-        // a withdraw sent while paused succeeds
+        XCTAssertEqual(w.count("POST", "/v1/peers/" + n.id.text + "/logout"), 2)  // refused once, retried once
+        XCTAssertTrue(try n.core.store.me().loggedOut)
+        // a withdraw sent while logged out succeeds
         try n.core.store.allowAdd([o.id.text])
         await n.core.allowReconcile()
         XCTAssertFalse(try n.core.store.allowSet().contains(o.id.text))
@@ -214,7 +214,7 @@ final class StateMachineTests: XCTestCase {
         try n.core.store.allowAdd([x.id.text])
         await n.core.allowReconcile()
         XCTAssertNil(w.rows[n.id.text]!.allow[x.id.text])
-        let out = try await n.core.pause()
+        let out = try await n.core.logout()
         XCTAssertEqual(out.reply?.status, 200)
     }
 
@@ -547,7 +547,7 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(r.first?.banner?.body, S.pairAgain(PeerLabel.label(try n.core.store.peer(x.id))))   // no name yet
     }
 
-    func testTimeoutWhilePausedKeepsWaitingThenCompletesAfterUnpause() async throws {
+    func testTimeoutWhileLoggedOutKeepsWaitingThenCompletesAfterLogin() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try await pairToShown(n, x)
         let v12 = await n.core.approve(x.id)
@@ -555,19 +555,19 @@ final class StateMachineTests: XCTestCase {
         let v13 = await x.core.approve(n.id)
         XCTAssertEqual(v13, .completed)
         _ = w.take(n.id)                                                // lost approve push
-        _ = try await n.core.pause()
+        _ = try await n.core.logout()
         clock.now += 14 * 86400 + 1
         await n.core.checkTimeouts()
         XCTAssertNotNil(try n.core.store.pairing(x.id))                 // stays Waiting
         XCTAssertTrue(try n.core.store.peer(x.id)!.pinned)
-        _ = try await n.core.unpause(ticket: "t", push: nil)
+        _ = try await n.core.login(ticket: "t", push: nil)
         XCTAssertTrue(try n.core.store.peer(x.id)!.approveVerified)
         XCTAssertNil(try n.core.store.pairing(x.id))
         await n.core.checkTimeouts()
         XCTAssertTrue(try n.core.store.peer(x.id)!.pinned)
     }
 
-    func testTimeoutFoundWhilePausedDropsLocallyAndWithdraws() async throws {
+    func testTimeoutFoundWhileLoggedOutDropsLocallyAndWithdraws() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         await n.core.fetchPeers(force: true)
         await x.core.fetchPeers(force: true)
@@ -575,20 +575,20 @@ final class StateMachineTests: XCTestCase {
         await x.drainInbox(w)
         await n.drainInbox(w)
         await x.drainInbox(w)                                           // both shown, X approves nothing
-        // N's allow set holds X (an approve was being prepared), then N signs out
+        // N's allow set holds X (an approve was being prepared), then N logs out
         try n.core.store.allowAdd([x.id.text])
         w.rows[n.id.text]!.allow[x.id.text] = true
-        w.rows[n.id.text]!.paused = true
-        try n.core.store.setMe("paused", .int(1))
+        w.rows[n.id.text]!.loggedOut = true
+        try n.core.store.setMe("logged_out", .int(1))
         clock.now += 14 * 86400 + 1
         let callsBefore = w.calls.count
         await n.core.checkTimeouts()
         XCTAssertFalse(try n.core.store.peer(x.id)!.pinned)
         XCTAssertEqual(try n.core.store.peer(x.id)!.note, PairNote.timedOut.rawValue)
-        // nothing sent except through the reconcile: one withdraw, accepted while paused
+        // nothing sent except through the reconcile: one withdraw, accepted while logged out
         XCTAssertEqual(w.calls.count - callsBefore, 1)
         XCTAssertNil(w.rows[n.id.text]!.allow[x.id.text])
-        let out = try await n.core.unpause(ticket: "t", push: nil)
+        let out = try await n.core.login(ticket: "t", push: nil)
         XCTAssertEqual(out.reply?.status, 200)
     }
 
@@ -660,15 +660,15 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(try n.core.store.peer(x.id)?.state, .removed)
     }
 
-    func testPauseNoticeEventsAndOrdering() async throws {
+    func testLogoutNoticeEventsAndOrdering() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try await pairFully(n, x)
-        _ = try await n.core.pause()
+        _ = try await n.core.logout()
         let r = await x.drainInbox(w)
-        XCTAssertEqual(r.first?.banner?.body, S.pausedReceiving("Ndev"))
+        XCTAssertEqual(r.first?.banner?.body, S.loggedOutNotice("Ndev"))
         XCTAssertEqual(r.first?.banner?.category, .notice)
-        XCTAssertTrue(try x.core.store.peer(n.id)!.paused)
-        XCTAssertEqual(try x.core.store.history().first?.event, .paused)
+        XCTAssertTrue(try x.core.store.peer(n.id)!.loggedOut)
+        XCTAssertEqual(try x.core.store.history().first?.event, .loggedOut)
         XCTAssertFalse(try x.core.store.peer(n.id)!.inAll)
     }
 
@@ -697,9 +697,35 @@ final class StateMachineTests: XCTestCase {
         let path = NSTemporaryDirectory() + "pa-mig-\(UUID().uuidString).sqlite"
         _ = try Store(path: path)
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 1)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 2)
         XCTAssertEqual(try s.db.one("PRAGMA journal_mode")?.text("journal_mode"), "wal")
         XCTAssertNil(try s.me().id)
+    }
+
+    func testDBMigrationRenamesPauseColumns() throws {
+        let path = NSTemporaryDirectory() + "pa-mig2-\(UUID().uuidString).sqlite"
+        // Rebuild a version 1 file: the old column names, old event words and user_version 1.
+        do {
+            let s = try Store(path: path)
+            try s.db.exec("ALTER TABLE me RENAME COLUMN logged_out TO paused")
+            try s.db.exec("ALTER TABLE peers RENAME COLUMN logged_out TO paused")
+            try s.db.exec("ALTER TABLE peers RENAME COLUMN logout_n TO pause_n")
+            try s.db.exec("UPDATE me SET paused = 1")
+            try s.db.exec("INSERT INTO peers (id, paused, pause_n) VALUES ('p1', 1, 7)")
+            try s.db.exec("""
+                INSERT INTO history (dir, type, content, event, created_local)
+                VALUES ('in', 'event', 'a', 'paused', 1), ('in', 'event', 'b', 'resumed', 2)
+                """)
+            try s.db.exec("PRAGMA user_version = 1")
+        }
+        let s = try Store(path: path)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 2)
+        XCTAssertTrue(try s.me().loggedOut)
+        let p = try s.db.one("SELECT logged_out, logout_n FROM peers WHERE id = 'p1'")
+        XCTAssertEqual(p?.int("logged_out"), 1)
+        XCTAssertEqual(p?.int("logout_n"), 7)
+        let ev = try s.db.query("SELECT event FROM history ORDER BY created_local").map { $0.text("event") }
+        XCTAssertEqual(ev, ["logged_out", "logged_in"])
     }
 
     func testLockScreenBody() {

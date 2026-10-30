@@ -145,7 +145,7 @@ class ScreenshotCapture {
         id = id, platform = platform, created = created, listSignPub = null, listEncPub = null,
         signPub = "B".repeat(87), encPub = "C".repeat(87), pairingId = ByteArray(16), approved = true, deniedByMe = false,
         approveVerified = true, listApprovesMe = true, listDeniesMe = false, listAfterVerify = true, declined = false,
-        reachable = true, paused = false, pauseN = 0, hidden = false, name = name, nameN = 1, removed = false, missing = false,
+        reachable = true, loggedOut = false, logoutN = 0, hidden = false, name = name, nameN = 1, removed = false, missing = false,
         lastN = 0, channelId = null, storedApprove = null, storedApproveName = null, lastApproveResult = null, lastSendAt = 0, note = null,
     )
 

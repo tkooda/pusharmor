@@ -159,8 +159,8 @@ extension Core {
         case .remove(let t): return noticeBanner(t == me.text ? S.thisDeviceRemoved : S.peerListChanged, peer: id, category: .event, tap: .peers(nil))
         case .delete: return noticeBanner(S.accountDeleted, peer: id, category: .event, tap: .peers(nil))
         case .deny: return noticeBanner(S.denied(nm), peer: id, category: .notice, tap: .history)
-        case .pause: return noticeBanner(S.pausedReceiving(nm), peer: id, category: .notice, tap: .history)
-        case .unpause: return noticeBanner(S.resumedReceiving(nm), peer: id, category: .notice, tap: .history)
+        case .logout: return noticeBanner(S.loggedOutNotice(nm), peer: id, category: .notice, tap: .history)
+        case .login: return noticeBanner(S.loggedInNotice(nm), peer: id, category: .notice, tap: .history)
         case .url, .text, .tel: return nil
         }
     }
@@ -224,14 +224,14 @@ extension Core {
             try store.savePeer(p)
             try store.wipe()
             a.selfRemoved = true
-        case .pause, .unpause:
-            var paused = false
-            if case .pause = j.content { paused = true }
-            if Int64(j.n) > p.pauseN {
-                p.paused = paused
-                p.pauseN = Int64(j.n)
-                try store.addEvent(paused ? .paused : .resumed, peer: from,
-                                   content: paused ? S.pausedReceiving(p.noticeName) : S.resumedReceiving(p.noticeName), now: now)
+        case .logout, .login:
+            var loggedOut = false
+            if case .logout = j.content { loggedOut = true }
+            if Int64(j.n) > p.logoutN {
+                p.loggedOut = loggedOut
+                p.logoutN = Int64(j.n)
+                try store.addEvent(loggedOut ? .loggedOut : .loggedIn, peer: from,
+                                   content: loggedOut ? S.loggedOutNotice(p.noticeName) : S.loggedInNotice(p.noticeName), now: now)
             }
             try store.savePeer(p)
         case .deny:

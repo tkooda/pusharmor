@@ -75,12 +75,12 @@ class SendFlow(private val store: LocalStore, me: Identity, private val api: Api
         }
     }
 
-    /** "unapproved", "unknown", "gone", "paused" -> coalesced GET /peers; "paused" also sets peers.paused. */
+    /** "unapproved", "unknown", "gone", "logged out" -> coalesced GET /peers; "logged out" also sets peers.logged_out. */
     fun handleResults(results: Map<String, String>) {
         var fetch = false
         for ((id, res) in results) {
-            if (res in setOf("unapproved", "unknown", "gone", "paused")) fetch = true
-            if (res == "paused") store.peer(id)?.let { store.putPeer(it.copy(paused = true)) }
+            if (res in setOf("unapproved", "unknown", "gone", "logged out")) fetch = true
+            if (res == "logged out") store.peer(id)?.let { store.putPeer(it.copy(loggedOut = true)) }
         }
         if (fetch) effects.fetchPeersSoon()
     }
@@ -178,7 +178,7 @@ class ApproveFlow(
         return when {
             r is ApiResult.Ok -> if (store.peer(peerId)?.approveVerified == true) com.pusharmor.protocol.PairDecide.Resend.OK_C_VERIFIED
             else com.pusharmor.protocol.PairDecide.Resend.OK_OTHER
-            r.isPaused -> com.pusharmor.protocol.PairDecide.Resend.PAUSED
+            r.isLoggedOut -> com.pusharmor.protocol.PairDecide.Resend.LOGGED_OUT
             r is ApiResult.Http && r.status == 429 -> com.pusharmor.protocol.PairDecide.Resend.RATE_LIMITED
             r is ApiResult.Http && r.status >= 500 -> com.pusharmor.protocol.PairDecide.Resend.SERVER_ERROR
             r is ApiResult.Http -> com.pusharmor.protocol.PairDecide.Resend.OK_OTHER
@@ -271,8 +271,8 @@ class ReceiveEngine(
             is MessageBody.Approve -> effects.approvedNotice(peerId, peer?.name)
             is MessageBody.Rename -> effects.renamedNotice(peer?.name, peer?.name ?: "")
             is MessageBody.Remove, MessageBody.Delete -> effects.peerListChanged()
-            MessageBody.Pause -> effects.pauseNotice(peerId, true)
-            MessageBody.Unpause -> effects.pauseNotice(peerId, false)
+            MessageBody.Logout -> effects.logoutNotice(peerId, true)
+            MessageBody.Login -> effects.logoutNotice(peerId, false)
             MessageBody.Deny -> effects.deniedNotice(peerId)
             else -> Unit
         }
@@ -314,12 +314,12 @@ class ReceiveEngine(
                     after = { effects.peerChannelDelete(e.targetId); effects.peerListChanged() }
                 }
                 is Effect.SelfRemoved -> after = { effects.selfRemoved(e.deleted) }
-                is Effect.Pause -> {
+                is Effect.Logout -> {
                     if (e.applied) {
-                        store.putPeer(peer.copy(paused = e.paused, pauseN = a.n))
-                        store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = a.peerId, type = if (e.paused) "paused" else "resumed", at = now, read = true))
+                        store.putPeer(peer.copy(loggedOut = e.loggedOut, logoutN = a.n))
+                        store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = a.peerId, type = if (e.loggedOut) "logged_out" else "logged_in", at = now, read = true))
                     }
-                    after = { effects.pauseNotice(a.peerId, e.paused) }
+                    after = { effects.logoutNotice(a.peerId, e.loggedOut) }
                 }
                 Effect.Deny -> {
                     store.putPeer(peer.copy(declined = true))
@@ -343,7 +343,7 @@ class PeersSync(private val store: LocalStore, private val me: Identity) {
                 val old = store.peer(l.id)
                 var p = (old ?: Peer(id = l.id)).copy(
                     platform = l.platform, created = l.created, listSignPub = l.signPub, listEncPub = l.encPub,
-                    paused = l.paused, reachable = l.reachable, listApprovesMe = l.approvesMe, listDeniesMe = l.deniesMe,
+                    loggedOut = l.loggedOut, reachable = l.reachable, listApprovesMe = l.approvesMe, listDeniesMe = l.deniesMe,
                     listAfterVerify = old?.approveVerified == true, missing = false,
                 )
                 if (p.removed && !p.pinned) p = p.copy(removed = false) // listed again: an unruled row
@@ -365,16 +365,16 @@ class PeersSync(private val store: LocalStore, private val me: Identity) {
     }
 }
 
-/** Sign out (pause) and sign in again (unpause): m for every pinned id of the allow set. */
-class PauseFlow(private val store: LocalStore, me: Identity, private val api: Api, private val reconcile: AllowReconcile) {
+/** Log out (logout) and log in again (login): m for every pinned id of the allow set. */
+class LogoutFlow(private val store: LocalStore, me: Identity, private val api: Api, private val reconcile: AllowReconcile) {
     private val outbox = Outbox(store, me)
 
     private fun messages(body: MessageBody): Map<String, String> =
         store.allowSet().mapNotNull { id -> store.peer(id)?.takeIf { it.pinned } }.associate { it.id to outbox.simple(it, body).message }
 
-    fun pause(): ApiResult<Map<String, String>> =
-        reconcile.withMissingRetry { ClockSkew.run({ messages(MessageBody.Pause) }) { api.pause(it) } }
+    fun logout(): ApiResult<Map<String, String>> =
+        reconcile.withMissingRetry { ClockSkew.run({ messages(MessageBody.Logout) }) { api.logout(it) } }
 
-    fun unpause(ticket: String): ApiResult<Map<String, String>> =
-        reconcile.withMissingRetry { ClockSkew.run({ messages(MessageBody.Unpause) }) { api.unpause(ticket, it) } }
+    fun login(ticket: String): ApiResult<Map<String, String>> =
+        reconcile.withMissingRetry { ClockSkew.run({ messages(MessageBody.Login) }) { api.login(ticket, it) } }
 }

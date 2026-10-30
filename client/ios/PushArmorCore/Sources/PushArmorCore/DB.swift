@@ -231,6 +231,13 @@ enum Schema {
         CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
         INSERT INTO me (k) VALUES (1);
         """,
+        """
+        ALTER TABLE me RENAME COLUMN paused TO logged_out;
+        ALTER TABLE peers RENAME COLUMN paused TO logged_out;
+        ALTER TABLE peers RENAME COLUMN pause_n TO logout_n;
+        UPDATE history SET event = 'logged_out' WHERE event = 'paused';
+        UPDATE history SET event = 'logged_in' WHERE event = 'resumed';
+        """,
     ]
 
     static func migrate(_ db: DB) throws {

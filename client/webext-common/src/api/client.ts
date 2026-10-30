@@ -55,8 +55,8 @@ function paTime(ms: number): string {
 
 export class Api {
   private readonly d: ApiDeps;
-  /** Called on 401 "paused" for a signed call (the Worker paused this device). */
-  onPaused: (() => Promise<void>) | null = null;
+  /** Called on 401 "logged out" for a signed call (the Worker logged this device out). */
+  onLoggedOut: (() => Promise<void>) | null = null;
   constructor(d: ApiDeps) {
     this.d = d;
   }
@@ -76,7 +76,7 @@ export class Api {
         if (e instanceof ApiError && e.status === 401 && e.error === "clock skew") {
           throw new ApiError(401, "clock skew twice", e.body, null);
         }
-        if (e instanceof ApiError && e.status === 401 && e.error === "paused" && opts.signer?.id != null) await this.onPaused?.();
+        if (e instanceof ApiError && e.status === 401 && e.error === "logged out" && opts.signer?.id != null) await this.onLoggedOut?.();
         throw e;
       }
     }
@@ -151,7 +151,7 @@ export function errorText(e: unknown): string {
   if (e.status === 401 && e.error === "wrong code") return "That code did not work. Check the newest email from PushArmor and try again.";
   if (e.status === 401 && e.error === "code expired") return "This code has expired. Get a new code to continue.";
   if (e.status === 403 && e.error === "turnstile failed") return "The security check did not finish. Try it again.";
-  if (e.status === 401 && e.error === "paused") return "Signed out. Sign in to resume";
+  if (e.status === 401 && e.error === "logged out") return "Signed out. Sign in to resume";
   if (e.status === 429) return "Too many requests. Try again in " + (e.retryAfter ?? 60) + " s";
   if (e.status === 0) return "Offline. Try again.";
   return "Error: " + (e.error || String(e.status));

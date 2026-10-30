@@ -17,7 +17,7 @@ object UiText {
     /** Peer status line by priority: missing, signed out, unreachable, approves, has not approved. */
     fun status(p: Peer): Pair<Mark, String> = when {
         p.missing -> Mark.OFF to "(missing)"
-        p.paused -> Mark.OFF to "Signed out"
+        p.loggedOut -> Mark.OFF to "Signed out"
         !p.reachable -> Mark.OFF to "Unreachable"
         p.approvesMe -> Mark.OK to "Paired"
         else -> Mark.WAIT to "Has not approved this device"

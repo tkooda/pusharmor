@@ -6,7 +6,7 @@ const P = (n: number) => `'$."' || ?${n} || '"'`;
 export const Q_LIST = `SELECT id, sign_pub, enc_pub, platform, push_type, created, allow,
   json_type(allow, ${P(1)}) IS NOT NULL AS approves_me,
   json_type(deny, ${P(1)}) IS NOT NULL AS denies_me,
-  push IS NOT NULL AS reachable, paused,
+  push IS NOT NULL AS reachable, logged_out,
   CASE WHEN id = ?1 THEN push END AS my_push,
   json_extract(name, ${P(1)}) AS name_for_me
 FROM peers WHERE account = ?2`;
@@ -14,7 +14,7 @@ FROM peers WHERE account = ?2`;
 // Caller + named peers. ?1 me, ?2 acct, then one id per parameter ?3, ?4, ... A VALUES
 // list joined to the primary key reads one row per id; json_each and IN lists add rows
 // read on D1. A repeated id returns a repeated row.
-const Q_CTX_COLS = `id, sign_pub, enc_pub, push_type, push, paused,
+const Q_CTX_COLS = `id, sign_pub, enc_pub, push_type, push, logged_out,
   json_type(allow, ${P(1)}) IS NOT NULL AS approves_me,
   json_type(deny, ${P(1)}) IS NOT NULL AS denies_me,
   CASE WHEN id = ?1 THEN allow END AS my_allow`;
@@ -61,7 +61,7 @@ WHERE (SELECT count(*) FROM peers WHERE account = ?2) < 10
 ON CONFLICT (account, id) DO NOTHING`;
 
 // ?1 me, ?2 acct
-export const Q_SELF = `SELECT sign_pub, enc_pub, platform, push_type, push, push IS NULL AS push_missing, paused, allow
+export const Q_SELF = `SELECT sign_pub, enc_pub, platform, push_type, push, push IS NULL AS push_missing, logged_out, allow
 FROM peers WHERE account = ?2 AND id = ?1`;
 
 // ?1 me, ?2 acct, ?3 push JSON, ?4 push_type
@@ -100,7 +100,7 @@ WHERE account = ?2
        OR json_type(name, ${P(1)}) IS NOT NULL OR json_type(pending, ${P(1)}) IS NOT NULL)`;
 
 // ?1 acct
-export const Q_ACCT = `SELECT id, sign_pub, push_type, push, paused, allow, deny
+export const Q_ACCT = `SELECT id, sign_pub, push_type, push, logged_out, allow, deny
 FROM peers WHERE account = ?1`;
 export const W_DELALL = `DELETE FROM peers WHERE account = ?1`;
 export const W_DELACCT = `DELETE FROM accounts WHERE id = ?1 AND status IS NULL`;
@@ -161,8 +161,8 @@ WHERE id = ?1 AND last_seen_month < ?2`;
 export const W_GONE = `UPDATE peers SET push = NULL, push_type = NULL
 WHERE account = ?2 AND id = ?1 AND push = ?3`;
 
-// ?1 me, ?2 acct, ?3 paused (1 or 0)
-export const W_PAUSE = `UPDATE peers SET paused = ?3 WHERE account = ?2 AND id = ?1`;
+// ?1 me, ?2 acct, ?3 logged_out (1 or 0)
+export const W_LOGOUT = `UPDATE peers SET logged_out = ?3 WHERE account = ?2 AND id = ?1`;
 
 // ?1 me, ?2 acct, ?3 now, ?4 push as read
 export const W_CONFIRM = `UPDATE peers SET push = json_set(push, '$.verified_at', ?3)

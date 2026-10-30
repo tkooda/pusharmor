@@ -94,7 +94,7 @@ fun HistoryEntity.toRow() = HistoryRow(id, Direction.valueOf(direction), peerId,
 fun PeerEntity.toPeer() = Peer(
     id = id, platform = platform, created = created, listSignPub = listSignPub, listEncPub = listEncPub, signPub = signPub, encPub = encPub,
     pairingId = pairingId, approved = approved, deniedByMe = deniedByMe, approveVerified = approveVerified, listApprovesMe = listApprovesMe,
-    listDeniesMe = listDeniesMe, listAfterVerify = listAfterVerify, declined = declined, reachable = reachable, paused = paused, pauseN = pauseN,
+    listDeniesMe = listDeniesMe, listAfterVerify = listAfterVerify, declined = declined, reachable = reachable, loggedOut = loggedOut, logoutN = logoutN,
     hidden = hidden, name = name, nameN = nameN, removed = removed, missing = missing, lastN = lastN, channelId = channelId,
     storedApprove = storedApprove, storedApproveName = storedApproveName, lastApproveResult = lastApproveResult, lastSendAt = lastSendAt, note = note,
     pairAgain = pairAgain,
@@ -103,7 +103,7 @@ fun PeerEntity.toPeer() = Peer(
 /** Keeps the per-peer switches of [old] (they are not part of the protocol view). */
 fun Peer.toEntity(old: PeerEntity?) = PeerEntity(
     id, platform, created, listSignPub, listEncPub, signPub, encPub, pairingId, approved, deniedByMe, approveVerified, listApprovesMe,
-    listDeniesMe, listAfterVerify, declined, reachable, paused, pauseN, hidden, name, nameN, removed, missing, old?.lastN ?: lastN,
+    listDeniesMe, listAfterVerify, declined, reachable, loggedOut, logoutN, hidden, name, nameN, removed, missing, old?.lastN ?: lastN,
     channelId ?: old?.channelId, storedApprove, storedApproveName, lastApproveResult, lastSendAt, note, pairAgain,
     lockScreen = old?.lockScreen ?: true, watch = old?.watch ?: true, hideContent = old?.hideContent ?: false,
 )

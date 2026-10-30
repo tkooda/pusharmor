@@ -197,7 +197,7 @@ function nonceSection() {
     description:
       'OAuth nonce: k = b64url(sha256(sign_pub)), nonce = b64url(sha256("PA-NONCE1\\n" + purpose + "\\n" + k)) ' +
       '(k as its b64url string). Assert k and nonce.',
-    cases: ['register', 'unpause', 'delete-account'].map((purpose) => ({
+    cases: ['register', 'login', 'delete-account'].map((purpose) => ({
       purpose, sign_pub: b64e(N.signPub), ...oauthNonce(purpose, N.signPub),
     })),
   };
@@ -334,7 +334,7 @@ function pairTimeoutSection() {
     ['not_approved_drops_pin', { approve_verified: false, approved: false, resend: null }],
     ['waiting_runs_resend_first', { approve_verified: false, approved: true, resend: null }],
     ['waiting_resend_offline', { approve_verified: false, approved: true, resend: 'offline' }],
-    ['waiting_resend_paused', { approve_verified: false, approved: true, resend: 'paused' }],
+    ['waiting_resend_logged_out', { approve_verified: false, approved: true, resend: 'logged out' }],
     ['waiting_resend_429', { approve_verified: false, approved: true, resend: '429' }],
     ['waiting_resend_5xx', { approve_verified: false, approved: true, resend: '5xx' }],
     ['waiting_resend_200_verified_c_completes', { approve_verified: false, approved: true, resend: '200_c_verified' }],
@@ -344,10 +344,10 @@ function pairTimeoutSection() {
     description:
       'Pairing timeout at 14 days (Pairing flow step 8). input: approve_verified (the other side\'s approve verified), ' +
       'approved (this device approved; with approve_verified false the row is "Waiting for $X"), resend (result of the ' +
-      're-send of POST /v1/approve/$X: null not run yet | offline | paused | 429 | 5xx | 200_c_verified | 200_other). ' +
+      're-send of POST /v1/approve/$X: null not run yet | offline | logged out | 429 | 5xx | 200_c_verified | 200_other). ' +
       'output: keep_pin | drop_pin (drop r, c_N and the pin, show "Pairing timed out. Tap Pair to start again.", then ' +
       'the allow reconcile) | resend (run the re-send first) | keep_waiting (row stays Waiting with Cancel pairing; ' +
-      'retry at next app open, Refresh or unpause) | complete (the verified c completes the pairing).',
+      'retry at next app open, Refresh or login) | complete (the verified c completes the pairing).',
     cases: inputs.map(([name, input]) => ({ name, input, output: pairTimeout(input) })),
   };
 }
@@ -421,7 +421,7 @@ function nameSection() {
   };
 }
 
-const MSG_N = { url: 1, text: 2, tel: 3, approve: 4, deny: 5, remove: 6, rename: 7, delete: 8, pause: 9, unpause: 10 };
+const MSG_N = { url: 1, text: 2, tel: 3, approve: 4, deny: 5, remove: 6, rename: 7, delete: 8, logout: 9, login: 10 };
 
 function typeJson(type, n) {
   switch (type) {
@@ -438,7 +438,7 @@ function typeJson(type, n) {
 const expectValue = {
   url: 'https://example.com/a', text: 'Hello from PushArmor \u00e9', tel: '+1 555-123-4567',
   approve: { name: 'Pixel 8', n: 4 }, rename: { name: 'Work phone', n: 7 }, remove: O.idB64,
-  deny: 1, delete: 1, pause: 1, unpause: 1,
+  deny: 1, delete: 1, logout: 1, login: 1,
 };
 
 function msgCase(name, r, extra) {
@@ -586,7 +586,7 @@ function replaySection() {
     ['repeat_url_no_history_invalid', { h: 5, seen: [5, 4, 3, 2, 1] }, 5, 'url', false],
     ['repeat_text_with_history_represent', { h: 5, seen: [5, 4, 3, 2, 1] }, 3, 'text', true],
     ['repeat_control_type_noop', { h: 5, seen: [5, 4, 3, 2, 1] }, 4, 'approve', false],
-    ['repeat_pause_noop', { h: 5, seen: [5, 4] }, 4, 'pause', false],
+    ['repeat_logout_noop', { h: 5, seen: [5, 4] }, 4, 'logout', false],
     ['n_equals_h_minus_100_invalid', { h: 150, seen: [150] }, 50, 'url', false],
     ['n_equals_h_minus_100_with_history_invalid', { h: 150, seen: [150] }, 50, 'text', true],
     ['n_equals_h_minus_99_accept', { h: 150, seen: [150] }, 51, 'url', false],
@@ -599,7 +599,7 @@ function replaySection() {
       'Replay window per sender: h = highest accepted n, seen = the n values whose bit is set (bit k = n = h - k, ' +
       'k 0..99), listed high to low. Accept iff n > h - 100 and n not seen; on accept with n > h shift (h = n, drop bits ' +
       'past 99), else set the bit. A rejected n: n <= h - 100 -> invalid; seen n of a control type (approve rename ' +
-      'remove delete pause unpause deny) -> noop; seen n of url/text/tel with a History row -> represent; else invalid. ' +
+      'remove delete logout login deny) -> noop; seen n of url/text/tel with a History row -> represent; else invalid. ' +
       'Assert outcome and state_after (equal to state when not accepted).',
     cases: cases.map(([name, state, n, type, historyRow]) => {
       const outcome = replayOutcome(state, n, type, historyRow);
@@ -744,7 +744,7 @@ function mustFailSection() {
   msg('other_account_sender', 'unreadable', { json: url(1), from: Z }, { from: Z, pin: pin(Z) });
   msg('url_from_unruled', 'unreadable', { json: url(1) }, { pin: pin(X, PAIRING_ID, 'unruled') });
   msg('rename_from_unruled', 'unreadable', { json: typeJson('rename', 7) }, { pin: pin(X, PAIRING_ID, 'unruled') });
-  msg('pause_from_denied', 'unreadable', { json: '{"n":1,"pause":1}' }, { pin: pin(X, PAIRING_ID, 'denied') });
+  msg('logout_from_denied', 'unreadable', { json: '{"n":1,"logout":1}' }, { pin: pin(X, PAIRING_ID, 'denied') });
   msg('approve_from_denied', 'unreadable', { json: appr(4), keys: xKeys }, { pin: pin(X, PAIRING_ID, 'denied') });
   msg('approve_not_pinned', 'unreadable', { json: '{"n":1,"approve":' + nameJson(nameObj(O, N, 1, 'Other'), 1) + '}', from: O, keys: { signPub: O.signPub, encPub: O.encPub } }, { from: O, pin: null });
   msg('keys_flag_on_text', 'unreadable', { json: '{"n":1,"text":"hi"}', keys: xKeys });
@@ -771,7 +771,7 @@ function mustFailSection() {
     { window: { h: 1, seen: [1] } });
   msg('remove_id_not_b64url', 'unreadable', { json: '{"n":1,"remove":"' + O.idB64.slice(0, 39) + '+"}' });
   msg('deny_value_true', 'unreadable', { json: '{"n":1,"deny":true}' });
-  msg('pause_value_1.0', 'unreadable', { json: '{"n":1,"pause":1.0}' });
+  msg('logout_value_1.0', 'unreadable', { json: '{"n":1,"logout":1.0}' });
   msg('content_over_2048_bytes', 'unreadable', { json: '{"n":1,"text":"' + 'a'.repeat(2049) + '"}' });
   msg('inflate_over_16384_bytes', 'unreadable', { json: '{"n":1,"text":"' + 'a'.repeat(16400) + '"}' });
   {

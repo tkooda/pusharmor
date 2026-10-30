@@ -1,4 +1,4 @@
-// POST /peers, GET /peers, PATCH/DELETE /peers/$id, POST pause, unpause, confirm.
+// POST /peers, GET /peers, PATCH/DELETE /peers/$id, POST logout, login, confirm.
 import type { Ctx } from "../context";
 import { dayStart, monthStart, nowS } from "../context";
 import {
@@ -35,7 +35,7 @@ interface SelfRow {
   push_type: number | null;
   push: string | null;
   push_missing: number;
-  paused: number;
+  logged_out: number;
   allow: string;
 }
 
@@ -218,31 +218,31 @@ export async function remove(c: Ctx): Promise<Response> {
   return json(200, withPushMissing({ r }, caller!.push === null));
 }
 
-// ---------- POST /peers/$id/pause and /unpause ----------
-async function pauseCommon(c: Ctx, paused: 0 | 1): Promise<Response> {
+// ---------- POST /peers/$id/logout and /login ----------
+async function logoutCommon(c: Ctx, loggedOut: 0 | 1): Promise<Response> {
   const b = parseJsonObject(c.body);
-  if (paused === 1) keysExactly(b, ["m"]);
+  if (loggedOut === 1) keysExactly(b, ["m"]);
   else keysExactly(b, ["ticket", "m"]);
   const m = checkMessageMap(b.m);
   const s = await signedStart(c);
   selfPath(c, s);
   requireAccount(Object.keys(m), s.acct);
   const { caller, byId } = await readCtx(c, s.me, s.acct, Object.keys(m));
-  await callerCheck(c, s, caller, paused === 0);
+  await callerCheck(c, s, caller, loggedOut === 0);
   const missing = myAllowKeys(caller!.my_allow).filter((id) => !(id in m));
   if (missing.length) throw new ApiError(400, "messages missing", { ids: missing });
-  if (paused === 0) await checkTicket(c, b.ticket, "unpause", caller!.sign_pub, s.acct);
-  await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_PAUSE).bind(s.me, s.acct, paused)]);
-  const r = await relayMap(c, s.acct, m, (id) => ctxRelayRow(byId.get(id)), "pause");
+  if (loggedOut === 0) await checkTicket(c, b.ticket, "login", caller!.sign_pub, s.acct);
+  await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_LOGOUT).bind(s.me, s.acct, loggedOut)]);
+  const r = await relayMap(c, s.acct, m, (id) => ctxRelayRow(byId.get(id)), "logout");
   return json(200, withPushMissing({ r }, caller!.push === null));
 }
 
-export function pause(c: Ctx): Promise<Response> {
-  return pauseCommon(c, 1);
+export function logout(c: Ctx): Promise<Response> {
+  return logoutCommon(c, 1);
 }
 
-export function unpause(c: Ctx): Promise<Response> {
-  return pauseCommon(c, 0);
+export function login(c: Ctx): Promise<Response> {
+  return logoutCommon(c, 0);
 }
 
 // ---------- POST /peers/$id/confirm ----------

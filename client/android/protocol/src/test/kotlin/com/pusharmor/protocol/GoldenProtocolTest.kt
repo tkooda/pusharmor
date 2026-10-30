@@ -118,7 +118,7 @@ class GoldenProtocolTest {
             is Effect.Approve -> { assertEquals(value.jsonObject.str("name"), e.name); assertEquals(value.jsonObject.long("n"), e.nameN) }
             is Effect.Rename -> { assertEquals(value.jsonObject.str("name"), e.newName); assertEquals(value.jsonObject.long("n"), e.nameN) }
             is Effect.Remove -> assertEquals(value.jsonPrimitive.content, e.targetId)
-            is Effect.SelfRemoved, is Effect.Pause, Effect.Deny -> assertEquals(name, "1", value.jsonPrimitive.content)
+            is Effect.SelfRemoved, is Effect.Logout, Effect.Deny -> assertEquals(name, "1", value.jsonPrimitive.content)
             is Effect.Drop -> error("drop")
         }
     }
@@ -166,7 +166,7 @@ class GoldenProtocolTest {
             val n = c.long("n")
             val body = when (c.str("type")) {
                 "url" -> MessageBody.Url("https://example.com/"); "text" -> MessageBody.Text("x"); "tel" -> MessageBody.Tel("5551234")
-                "pause" -> MessageBody.Pause
+                "logout" -> MessageBody.Logout
                 "approve" -> MessageBody.Approve(NameEntryClear("QQ", n, "AA"))
                 else -> error(c.str("type"))
             }
@@ -272,7 +272,7 @@ class GoldenProtocolTest {
         for (c in Golden.cases("pair_timeout")) {
             val i = c.obj("input")!!
             val resend = when (i.strOrNull("resend")) {
-                null -> null; "offline" -> PairDecide.Resend.OFFLINE; "paused" -> PairDecide.Resend.PAUSED
+                null -> null; "offline" -> PairDecide.Resend.OFFLINE; "logged out" -> PairDecide.Resend.LOGGED_OUT
                 "429" -> PairDecide.Resend.RATE_LIMITED; "5xx" -> PairDecide.Resend.SERVER_ERROR
                 "200_c_verified" -> PairDecide.Resend.OK_C_VERIFIED; "200_other" -> PairDecide.Resend.OK_OTHER
                 else -> error(i.str("resend"))

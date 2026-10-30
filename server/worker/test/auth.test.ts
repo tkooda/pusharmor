@@ -46,7 +46,7 @@ async function startEmail(email: string, purpose = "register", extra: Record<str
 describe("mailText subject per purpose", () => {
   it("sign-in, resume and account deletion subjects", () => {
     expect(mailText("register", "X").subject).toBe("your PushArmor sign-in code");
-    expect(mailText("unpause", "X").subject).toBe("your PushArmor resume code");
+    expect(mailText("login", "X").subject).toBe("your PushArmor resume code");
     expect(mailText("delete-account", "X").subject).toBe("your PushArmor account deletion code");
   });
 });
@@ -195,7 +195,7 @@ describe("POST /auth/email + verify", () => {
     const tokA = secretString(a.r.body.request_token as string);
     for (let i = 0; i < 2; i++) expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: "AAAAAA" }, { env: e })).status).toBe(401);
     expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: "AAAAAA" }, { env: e })).status).toBe(429);
-    const b = await startEmail(email, "unpause");
+    const b = await startEmail(email, "login");
     const tokB = secretString(b.r.body.request_token as string);
     const code = await deriveCode(S.PA_CODE_SECRET, tokB);
     expect((await call("POST", "/v1/auth/email/verify", { request_token: tokB, code }, { env: e })).status).toBe(200);

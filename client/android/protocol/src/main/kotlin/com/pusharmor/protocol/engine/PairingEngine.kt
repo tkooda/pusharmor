@@ -219,7 +219,7 @@ class PairingEngine(
         val peer = store.peer(peerId) ?: Peer(id = peerId)
         store.putPeer(peer.copy(signPub = B64url.encode(signPub), encPub = B64url.encode(encPub), pairingId = pairingId,
             lastN = 0, approved = false, approveVerified = false, deniedByMe = false, declined = false, removed = false,
-            missing = false, name = null, nameN = 0, pauseN = 0, storedApprove = null, storedApproveName = null, note = null, pairAgain = false))
+            missing = false, name = null, nameN = 0, logoutN = 0, storedApprove = null, storedApproveName = null, note = null, pairAgain = false))
         store.resetCounter(peerId)
         store.putWindow(peerId, pairingId, ReplayWindow.fresh())
     }
@@ -298,7 +298,7 @@ class PairingEngine(
                         SendStep.WAIT_UNTIL
                     }
                     r.status >= 500 || r.isClockSkew -> SendStep.RETRY // the client already re-synced its clock
-                    else -> { // permanent (401 paused included): stays prompted with [Reply] / [Send again]
+                    else -> { // permanent (401 "logged out" included): stays prompted with [Reply] / [Send again]
                         store.putPairing(promptOnFailure(cur).copy(lastSendAt = now, lastResult = r.error))
                         SendStep.STOP
                     }

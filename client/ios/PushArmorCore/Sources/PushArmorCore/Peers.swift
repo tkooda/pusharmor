@@ -5,7 +5,7 @@ public enum ApproveOutcome: Equatable, Sendable {
     case sent                // relayed; a returned c may complete the pairing
     case completed           // a returned c verified: X approves me
     case denied              // "Declined by $X"
-    case result(String)      // gone, unknown, paused, unapproved, failed..
+    case result(String)      // gone, unknown, logged out, unapproved, failed..
     case rateLimited(Int64)  // countdown until
     case network
     case error(Int)
@@ -55,7 +55,7 @@ extension Core {
                 p.listEncPub = en
                 p.platform = e["platform"]?.stringValue ?? p.platform
                 if case .number(let c)? = e["created"] { p.created = Int64(c) }
-                if case .bool(let b)? = e["paused"] { p.paused = b }
+                if case .bool(let b)? = e["logged_out"] { p.loggedOut = b }
                 if case .bool(let b)? = e["reachable"] { p.reachable = b }
                 if case .bool(let b)? = e["approves_me"] { p.getApprovesMe = b }
                 if case .bool(let b)? = e["denies_me"] { p.getDeniesMe = b }
@@ -220,9 +220,9 @@ extension Core {
         let r = await postApprove(p.id, fresh: fresh)
         switch r {
         case .completed: return .cVerified
-        case .network: return ((try? store.me().paused) ?? false) ? .paused : .offline
+        case .network: return ((try? store.me().loggedOut) ?? false) ? .loggedOut : .offline
         case .rateLimited: return .rateLimited
-        case .error(let s) where s == 401: return .paused
+        case .error(let s) where s == 401: return .loggedOut
         case .error(let s) where s >= 500: return .serverError
         default: return .other
         }
