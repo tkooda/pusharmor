@@ -12,7 +12,7 @@
   --plate: #EEF3FA; --fpcell: #FFFFFF;
   --halo: #E3ECF7; --ring: #D5DEE9; --tile-edge: transparent;
   --g-bg: #FFFFFF; --g-line: #747775; --g-ink: #1F1F1F; --a-bg: #000000; --a-ink: #FFFFFF;
-  --rb: 999px; --rc: 12px; --rf: 8px; --ra: 8px; --rp: 16px; --rcell: 10px;
+  --rb: 999px; --rc: 12px; --rf: 8px; --ra: 8px; --rp: 16px; --rcell: 10px; --rl: 28px;
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {

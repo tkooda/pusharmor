@@ -3,10 +3,11 @@ import type { PeerView, StateView } from "../core/rpc.ts";
 import type { SendResult } from "../core/engine.ts";
 import { T } from "../core/texts.ts";
 import { rememberedSelection } from "../model/sendsel.ts";
+import type { Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
 import { type UiEnv, add, clear, group, h, midEllipsis, peerStatus, platformLabel, rpc, sh, shortTime, statusLine } from "./dom.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
-import { haloArt, icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
+import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
 
 const CAP = 2048;
@@ -28,18 +29,26 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   }
   clear(root);
   if (st.reg !== "registered") {
-    const head = st.reg === "paused" ? T.signedOut : st.banner ?? "Sign in to use PushArmor";
+    const going = (await rpc<Restore | null>(env, "signinProgress").catch(() => null))?.step === "code";
+    const head = going ? "Check your email for your code" : st.reg === "paused" ? T.signedOut : st.banner ?? "Sign in to use PushArmor";
     add(
       root,
       h(
         "div",
         { class: "signin" },
-        h("div", { class: "halo-box" }, haloArt(200), h("img", { src: "icons/icon-128.png", width: "64", height: "64", alt: "", class: "big-tile" })),
+        h("img", { src: "icons/icon-128.png", width: "64", height: "64", alt: "", class: "big-tile" }),
         wordmark(env, 24),
         h("div", { class: "banner" }, head),
         h("p", { class: "slogan" }, "Send the page you are on to your other devices in one click."),
-        h("button", { class: "primary big", onclick: () => env.openPage("#login") }, "Sign in"),
-        h("div", { class: "dim" }, "Opens in a new tab."),
+        h("button", {
+          class: "primary big",
+          onclick: async () => {
+            await env.openPage("#login");
+            window.close();
+          },
+        }, going ? "Continue signing in" : "Sign in"),
+        h("div", { class: "opens" }, icon("open", 16), "Opens in a new tab"),
+        h("p", { class: "e2e" }, icon("lock", 20), h("span", {}, "All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.")),
         st.platform === "firefox" && st.receiveNote ? h("div", { class: "dim" }, st.receiveNote) : null,
       ),
     );

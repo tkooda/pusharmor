@@ -24,6 +24,10 @@ const P = {
   received: "M20 5.41L18.59 4 7 15.59V9H5v10h10v-2H8.41z",
   sent: "M9 5v2h6.59L4 18.59 5.41 20 17 8.41V15h2V5z",
   pause: "M6 19h4V5H6v14zm8-14v14h4V5h-4z",
+  lock: "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z",
+  back: "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z",
+  error: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z",
+  history: "M13 3a9 9 0 0 0-9 9H1l4 4 4-4H6a7 7 0 1 1 2.1 5l-1.4 1.4A9 9 0 1 0 13 3zm-1 5v5l4.3 2.5.7-1.2-3.5-2.1V8z",
 } as const;
 
 export type IconName = keyof typeof P;
@@ -99,12 +103,6 @@ export function messagesArt(): SVGElement {
     el("rect", { class: "i-bar", x: 82, y: 96, width: 76, height: 8, rx: 4 }),
     el("rect", { class: "i-bar", x: 82, y: 111, width: 50, height: 8, rx: 4 }),
   );
-}
-
-/** Sign-in halo: one disc with a solid ring (the tile sits on top, in CSS). */
-export function haloArt(size = 200): SVGElement {
-  const c = size / 2;
-  return svg("0 0 " + size + " " + size, size, "illo halo", el("circle", { class: "i-disc", cx: c, cy: c, r: c * 0.6 }));
 }
 
 /** Full-colour Google G (sign-in button). */
