@@ -642,7 +642,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
             GreenButton(onClick = {
                 vm.g.settings.set(Settings.K.LAST_SEND_TO, picked.toList().joinToString(","))
                 scope.launch { val r = vm.send(picked.toList(), text, asText); result = ((result?.first ?: 0) + 1) to r; onSent(r) }
-            }, text = UiText.sendLabel(picked.size), icon = PaIcons.Send,
+            }, text = UiText.sendLabel(picked.size, picked.singleOrNull()?.let { id -> peers.firstOrNull { it.id == id } }?.let(::label)), icon = PaIcons.Send,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp).fillMaxWidth().heightIn(min = 56.dp),
                 enabled = picked.isNotEmpty() && text.isNotEmpty() && bytes <= SizeCap.MAX_CONTENT_BYTES)
         }

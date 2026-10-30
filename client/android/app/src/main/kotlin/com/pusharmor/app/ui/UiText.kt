@@ -33,10 +33,14 @@ object UiText {
         return available.filter { it in ids }
     }
 
-    /** Send button label for [n] checked peers. */
-    fun sendLabel(n: Int): String = when (n) {
+    /** Longest device name shown in the Send button before it is cut with "...", so the button stays one line. */
+    const val SEND_NAME_MAX = 20
+
+    /** Send button label for [n] checked peers; one peer with a known [name] reads Send to "Laptop". */
+    fun sendLabel(n: Int, name: String? = null): String = when (n) {
         0 -> "Send"
-        1 -> "Send to 1 device"
+        1 -> if (name == null) "Send to 1 device"
+            else "Send to \"${if (name.length > SEND_NAME_MAX) name.take(SEND_NAME_MAX - 3).trimEnd() + "..." else name}\""
         else -> "Send to $n devices"
     }
 
