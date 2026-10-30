@@ -94,34 +94,78 @@ export function classify(v: VendorName, status: number, body: string, retryAfter
 }
 
 // Vendor auth alert counters (D1, per UTC hour): auth-type failures vs successes. The hourly cron
-// runs in another isolate, so the counts live in D1. Successes only need to be known as "some",
-// so each isolate writes one success row per vendor and hour.
-const okSeen = new Map<string, number>();
+// runs in another isolate, so the counts live in D1. Only failures of OUR credentials count; a
+// per-token error (a token from another Firebase project, a bad or expired device token) is the
+// caller's problem and must not reach the shared row. Writes are batched per isolate: counts
+// collect in memory and go to D1 at most once per vendor per HEALTH_FLUSH_MS (the first event
+// of a window is written at once, so an hour with any failure or success is never empty).
+// Successes only need to be known as "some", so each isolate counts (and writes at once) one
+// success per vendor and hour.
+export const HEALTH_FLUSH_MS = 60000;
+
+interface Pending {
+  hour: number;
+  auth: number;
+  ok: number;
+  okSeen: boolean;
+  last: number;
+}
+const health = new Map<string, Pending>();
 
 export function resetHealthCache(): void {
-  okSeen.clear();
+  health.clear();
 }
 
 export function isAuthFailure(v: VendorName, status: number, code: string | undefined): boolean {
   if (v === "apns") return code === "apns-403-InvalidProviderToken" || code === "apns-429-TooManyProviderTokenUpdates";
-  if (v === "fcm") return status === 401 || status === 403;
+  if (v === "fcm") return status === 401 || (status === 403 && code !== "fcm-403-SENDER_ID_MISMATCH");
   return false;
 }
 
 export async function recordHealth(env: Env, v: VendorName, ok: boolean, authFailure: boolean, nowMs: number): Promise<void> {
+  if (!ok && !authFailure) return;
   const hour = Math.floor(nowMs / 3600000);
-  let sql: string;
-  if (ok) {
-    if (okSeen.get(v) === hour) return;
-    sql = SQL.W_HEALTH_OK;
-  } else if (authFailure) {
-    sql = SQL.W_HEALTH_AUTH;
-  } else {
-    return;
+  let p = health.get(v);
+  if (!p) {
+    p = { hour, auth: 0, ok: 0, okSeen: false, last: -Infinity };
+    health.set(v, p);
   }
+  const stmts: D1PreparedStatement[] = [];
   try {
-    await env.DB.prepare(sql).bind(v, hour).run();
-    if (ok) okSeen.set(v, hour);
+    if (p.hour !== hour) {
+      // Left-over counts of the previous hour go out with this write.
+      if (p.auth || p.ok) stmts.push(env.DB.prepare(SQL.W_HEALTH_ADD).bind(v, p.hour, p.auth, p.ok));
+      p.hour = hour;
+      p.auth = 0;
+      p.ok = 0;
+      p.okSeen = false;
+      p.last = -Infinity;
+    }
+    // The first success of the hour is written at once: a retry that succeeds right after an
+    // auth failure must not leave the hour looking like "only auth failures".
+    const firstOk = ok && !p.okSeen;
+    if (authFailure) p.auth++;
+    else if (firstOk) {
+      p.okSeen = true;
+      p.ok = 1;
+    }
+    if (!stmts.length && !firstOk && (nowMs - p.last < HEALTH_FLUSH_MS || (!p.auth && !p.ok))) return;
+    const auth = p.auth;
+    const okN = p.ok;
+    if (auth || okN) stmts.push(env.DB.prepare(SQL.W_HEALTH_ADD).bind(v, hour, auth, okN));
+    // Claimed before the await, so concurrent sends in this isolate do not all write.
+    p.auth = 0;
+    p.ok = 0;
+    p.last = nowMs;
+    try {
+      if (stmts.length === 1) await stmts[0].run();
+      else if (stmts.length) await env.DB.batch(stmts);
+    } catch {
+      // Keep the counts for the next call.
+      p.auth += auth;
+      p.ok += okN;
+      p.last = -Infinity;
+    }
   } catch {
     // Health counting must never fail a delivery.
   }
