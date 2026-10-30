@@ -2,7 +2,7 @@
 import type { PeerView, StateView } from "../core/rpc.ts";
 import type { SendResult } from "../core/engine.ts";
 import { T } from "../core/texts.ts";
-import { rememberedSelection, sendToHeader, showAllChip, showCounter } from "../model/sendsel.ts";
+import { canReceiveNow, rememberedSelection, sendDisabled, sendToHeader, showAllChip, showCounter } from "../model/sendsel.ts";
 import type { Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
 import { type UiEnv, add, clear, group, h, midEllipsis, peerStatus, rpc, sh, shortTime } from "./dom.ts";
@@ -94,7 +94,8 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   const head = sh("");
   const chips = h("div", { class: "dchips" });
   const data = await rpc<{ peers: PeerView[] }>(env, "peers");
-  const sendable = data.peers.filter((p) => p.sendable);
+  // Like Android: a device that cannot receive right now is a greyed chip, never selected and not counted.
+  const sendable = data.peers.filter(canReceiveNow);
   const checks: { id: string; chip: HTMLButtonElement }[] = [];
   const on = (c: HTMLElement) => c.classList.contains("on");
   const remembered = rememberedSelection(await rpc<string[]>(env, "sendSel").catch(() => []), sendable.map((p) => p.id));
@@ -116,6 +117,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     const n = count();
     sendLabel.textContent = n > 0 ? "Send to " + n + (n === 1 ? " device" : " devices") : "Send";
     head.textContent = sendToHeader(n, sendable.length);
+    void update();
   };
   const withAll = showAllChip(st.settings.showAll, sendable.length);
   if (withAll) {
@@ -133,9 +135,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   // With one device it is preselected (no "All" chip).
   for (const p of sendable) {
     const pressed = remembered ? remembered.includes(p.id) : allChip !== null || sendable.length === 1;
-    const s = peerStatus(p);
-    const c = chip(platformIcon(p.platform, 16), p.label, pressed, p.greyed !== null);
-    if (s && s.kind === "off") c.title = p.label + ": " + s.word;
+    const c = chip(platformIcon(p.platform, 16), p.label, pressed);
     c.addEventListener("click", () => {
       press(c, !on(c));
       if (allChip) press(allChip, checks.every((x) => on(x.chip)));
@@ -145,7 +145,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     checks.push({ id: p.id, chip: c });
     chips.append(c);
   }
-  for (const p of data.peers.filter((x) => !x.sendable && x.greyed && !x.hidden)) {
+  for (const p of data.peers.filter((x) => !canReceiveNow(x) && x.greyed && !x.hidden)) {
     const s = peerStatus(p);
     const why = s ? s.word : p.greyed ?? "";
     const c = chip(platformIcon(p.platform, 16), p.label, false, true);
@@ -166,7 +166,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     if (field.value !== "") caption.append(icon(TYPE_ICON[type] ?? "notes", 16), T.typeCaption(type));
     asTextRow.hidden = d.type === "text";
     counter.textContent = !showCounter(d.bytes, CAP) ? "" : d.bytes > CAP ? T.tooLong(d.bytes) : T.counter(d.bytes);
-    sendBtn.disabled = d.bytes > CAP || d.bytes === 0;
+    sendBtn.disabled = sendDisabled(d.bytes, CAP, count());
   };
   field.addEventListener("input", () => void update());
   asText.addEventListener("change", () => void update());
@@ -180,7 +180,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     } catch (e) {
       result.textContent = (e as Error).message;
     }
-    sendBtn.disabled = false;
+    await update();
   });
   root.append(field, h("div", { class: "meta" }, caption, counter));
   if (offerCut) {

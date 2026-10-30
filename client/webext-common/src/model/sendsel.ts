@@ -25,3 +25,13 @@ export function showAllChip(setting: boolean, devices: number): boolean {
 export function showCounter(bytes: number, cap: number): boolean {
   return bytes * 10 >= cap * 9;
 }
+
+/** A device can take a send now only if it is sendable and not greyed (signed out, unreachable). */
+export function canReceiveNow(p: { sendable: boolean; greyed: string | null }): boolean {
+  return p.sendable && p.greyed === null;
+}
+
+/** Send is off for empty or over-cap text, and with no device selected. */
+export function sendDisabled(bytes: number, cap: number, selected: number): boolean {
+  return bytes === 0 || bytes > cap || selected === 0;
+}
