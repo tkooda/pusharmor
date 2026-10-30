@@ -1,11 +1,11 @@
 // Rate-limit binding wrappers. A throwing limit() fails open for RL_IP, RL_PEER, RL_ACCT, RL_PAIR,
-// RL_PROBE and fails closed (429) for RL_MAIL, RL_MAIL_ALL, RL_CODE, RL_CODE_ALL.
+// RL_PROBE and fails closed (429) for RL_MAIL_EMAIL, RL_MAIL_IP, RL_MAIL_GLOBAL, RL_CODE.
 import type { Env } from "../env";
 import { rateLimited } from "../errors";
 import type { Log } from "../log";
 
-export type Binding = "RL_IP" | "RL_PEER" | "RL_MAIL" | "RL_MAIL_ALL" | "RL_CODE" | "RL_PAIR" | "RL_PROBE" | "RL_CODE_ALL" | "RL_ACCT";
-const FAIL_CLOSED = new Set<Binding>(["RL_MAIL", "RL_MAIL_ALL", "RL_CODE", "RL_CODE_ALL"]);
+export type Binding = "RL_IP" | "RL_PEER" | "RL_MAIL_EMAIL" | "RL_MAIL_IP" | "RL_MAIL_GLOBAL" | "RL_CODE" | "RL_PAIR" | "RL_PROBE" | "RL_ACCT";
+const FAIL_CLOSED = new Set<Binding>(["RL_MAIL_EMAIL", "RL_MAIL_IP", "RL_MAIL_GLOBAL", "RL_CODE"]);
 
 // Returns true when the call may proceed.
 export async function allow(env: Env, binding: Binding, key: string, log: Log): Promise<boolean> {
