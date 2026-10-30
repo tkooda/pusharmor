@@ -60,6 +60,9 @@ jobs:
         name: Version and listing check
         env:
           GH_TOKEN: ${{ github.token }}
+          # Play gate (I414, I442, Q251), tested before the owner approval.
+          PLAY_CONTACT_OK: ${{ vars.PLAY_CONTACT_OK }}
+          PLAY_PUBLIC_OK: ${{ vars.PLAY_PUBLIC_OK }}
         run: node release/promote.mjs check "$VERSION"
 
   approve:
@@ -84,15 +87,18 @@ jobs:
       contents: write
       id-token: write
     steps:
-      # Hard gate (I414): no Play production release until the owner confirms the
-      # public developer contact details in Play Console are fixed, by setting
-      # the repository variable PLAY_CONTACT_OK to yes.
-      - name: Play contact details confirmed
+      # Hard gate (I414, I442, owner ruling Q251): no Play production release
+      # until the owner sets both repository variables to yes: PLAY_CONTACT_OK
+      # (public developer contact details in Play Console fixed) and
+      # PLAY_PUBLIC_OK (Play may leave internal testing). The check job already
+      # skips this job when either is not yes; this step guards a rerun.
+      - name: Play contact details and public release allowed
         env:
           PLAY_CONTACT_OK: ${{ vars.PLAY_CONTACT_OK }}
+          PLAY_PUBLIC_OK: ${{ vars.PLAY_PUBLIC_OK }}
         run: |
-          if [ "$PLAY_CONTACT_OK" != "yes" ]; then
-            echo "Play: BLOCKED. Fix the public developer contact details in Play Console, then set the repository variable PLAY_CONTACT_OK to yes." | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$PLAY_CONTACT_OK" != "yes" ] || [ "$PLAY_PUBLIC_OK" != "yes" ]; then
+            echo "Play: BLOCKED. Set the repository variables PLAY_CONTACT_OK and PLAY_PUBLIC_OK to yes (contact details fixed in Play Console; Play may leave internal testing)." | tee -a "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -119,6 +125,7 @@ jobs:
         env:
           TOKEN: ${{ steps.auth.outputs.access_token }}
           PLAY_CONTACT_OK: ${{ vars.PLAY_CONTACT_OK }}
+          PLAY_PUBLIC_OK: ${{ vars.PLAY_PUBLIC_OK }}
         run: node release/promote.mjs play "$VERSION"
       # Owner ruling Q248 B: after the store accepted the build, the release
       # is no longer a test build. Runs only when the step above promoted X.Y.Z

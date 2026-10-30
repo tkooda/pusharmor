@@ -143,6 +143,17 @@ export function releaseProblem(platform, version, tagExists, release) {
   return missing.length ? "release " + tag + " lacks " + missing.join(", ") : "";
 }
 
+/** Why Play production is blocked, or "" (I414, I442). PLAY_CONTACT_OK: the
+ *  owner fixed the public developer contact details in Play Console.
+ *  PLAY_PUBLIC_OK (owner ruling Q251): Play may leave internal testing; until
+ *  then nothing targets the production, closed or open track. */
+export function playGateProblem(env) {
+  const bad = [];
+  if (env.PLAY_CONTACT_OK !== "yes") bad.push("PLAY_CONTACT_OK is not yes (fix the public developer contact details in Play Console first)");
+  if (env.PLAY_PUBLIC_OK !== "yes") bad.push("PLAY_PUBLIC_OK is not yes (Play stays on internal testing only)");
+  return bad.join("; ");
+}
+
 /** I439: every tag of X.Y.Z points at one commit. commits maps each platform
  *  to the commit of its tag, or null when it has no tag. error is "" when the
  *  tags agree; missing lists the platforms without a tag. */
@@ -230,9 +241,11 @@ async function check(version) {
     commits[p] = obj ? obj.sha : null;
     const rel = await gh("/releases/tags/" + tag);
     const why = releaseProblem(p, version, ref.status === 200, rel.status === 200 ? rel.json : null);
-    output(p, why ? "false" : "true");
-    summary(why ? "- " + p + ": SKIP (" + why + ")" : "- " + p + ": ready (" + tag + ")");
-    any ||= !why;
+    // I442: the Play gate is tested here, before the owner approval.
+    const gate = p === "android" && !why ? playGateProblem(process.env) : "";
+    output(p, why || gate ? "false" : "true");
+    summary(why ? "- " + p + ": SKIP (" + why + ")" : gate ? "- " + p + ": BLOCKED (" + gate + ")" : "- " + p + ": ready (" + tag + ")");
+    any ||= !why && !gate;
   }
   // I439: one release is one commit on every platform (RELEASING.md, Versions).
   const same = commitProblems(version, commits);
@@ -251,9 +264,10 @@ async function check(version) {
 // ---- Google Play ----
 
 async function play(version) {
-  // Hard gate (I414): the owner sets the repository variable PLAY_CONTACT_OK to
-  // yes once the public developer contact details in Play Console are fixed.
-  if (process.env.PLAY_CONTACT_OK !== "yes") throw new Error("Play blocked: fix the developer contact details in Play Console, then set the repository variable PLAY_CONTACT_OK to yes");
+  // Hard gate (I414, I442, Q251): the owner sets the repository variables
+  // PLAY_CONTACT_OK and PLAY_PUBLIC_OK to yes.
+  const gate = playGateProblem(process.env);
+  if (gate) throw new Error("Play blocked: " + gate);
   const api = "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/" + PACKAGE_NAME;
   const up = "https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/" + PACKAGE_NAME;
   const auth = { Authorization: "Bearer " + process.env.TOKEN };

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { generateKeyPairSync, verify } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { amoToken, ascToken, clearOutput, cmpVersion, commitProblems, contactProblems, listingProblems, readListing, releaseAssets, releaseProblem } from "./promote.mjs";
+import { amoToken, ascToken, clearOutput, cmpVersion, commitProblems, contactProblems, listingProblems, playGateProblem, readListing, releaseAssets, releaseProblem } from "./promote.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 const WF = join(ROOT, ".github", "workflows");
@@ -83,15 +83,31 @@ test("each store job skips a platform without tag and prerelease", () => {
   for (const j of STORE_JOBS) assert.match(jobs.get(j), new RegExp("\\n {4}if: needs\\.check\\.outputs\\." + out[j] + " == 'true'\\n"), j);
 });
 
-test("the Play job is gated on the repository variable PLAY_CONTACT_OK (I414)", () => {
+// I414, I442 and owner ruling Q251: Play production needs both repository
+// variables PLAY_CONTACT_OK and PLAY_PUBLIC_OK set to yes. The check job tests
+// them BEFORE the owner approval (Play shows BLOCKED and its job is skipped);
+// the play job and promote.mjs test them again.
+test("Play is gated on PLAY_CONTACT_OK and PLAY_PUBLIC_OK before the approval (I414, I442, Q251)", () => {
+  const vars = /PLAY_CONTACT_OK: \$\{\{ vars\.PLAY_CONTACT_OK \}\}\n {10}PLAY_PUBLIC_OK: \$\{\{ vars\.PLAY_PUBLIC_OK \}\}\n/;
+  const c = jobs.get("check");
+  assert.match(c, vars);
+  assert.match(c, /\n {8}run: node release\/promote\.mjs check "\$VERSION"\n/);
   const b = jobs.get("play");
   const steps = b.split(/\n {6}- /).slice(1);
-  assert.match(steps[0], /^name: Play contact details confirmed\n/);
-  assert.match(steps[0], /PLAY_CONTACT_OK: \$\{\{ vars\.PLAY_CONTACT_OK \}\}/);
-  assert.match(steps[0], /if \[ "\$PLAY_CONTACT_OK" != "yes" \]; then\n[^\n]*\n {12}exit 1\n/);
-  assert.match(b, /TOKEN: \$\{\{ steps\.auth\.outputs\.access_token \}\}\n {10}PLAY_CONTACT_OK: \$\{\{ vars\.PLAY_CONTACT_OK \}\}\n {8}run: node release\/promote\.mjs play/);
+  assert.match(steps[0], /^name: Play contact details and public release allowed\n/);
+  assert.match(steps[0], vars);
+  assert.match(steps[0], /if \[ "\$PLAY_CONTACT_OK" != "yes" \] \|\| \[ "\$PLAY_PUBLIC_OK" != "yes" \]; then\n[^\n]*\n {12}exit 1\n/);
+  assert.match(b, /TOKEN: \$\{\{ steps\.auth\.outputs\.access_token \}\}\n {10}PLAY_CONTACT_OK: \$\{\{ vars\.PLAY_CONTACT_OK \}\}\n {10}PLAY_PUBLIC_OK: \$\{\{ vars\.PLAY_PUBLIC_OK \}\}\n {8}run: node release\/promote\.mjs play/);
   const src = readFileSync(join(ROOT, "release", "promote.mjs"), "utf8");
-  assert.match(src, /async function play\(version\) \{\n(?: {2}\/\/.*\n)*  if \(process\.env\.PLAY_CONTACT_OK !== "yes"\) throw/);
+  assert.match(src, /async function play\(version\) \{\n(?: {2}\/\/.*\n)*  const gate = playGateProblem\(process\.env\);\n  if \(gate\) throw/);
+  const check = src.slice(src.indexOf("async function check("), src.indexOf("\n}\n", src.indexOf("async function check(")));
+  assert.match(check, /playGateProblem\(process\.env\)/);
+  assert.match(check, /BLOCKED/);
+  assert.equal(playGateProblem({ PLAY_CONTACT_OK: "yes", PLAY_PUBLIC_OK: "yes" }), "");
+  assert.match(playGateProblem({ PLAY_CONTACT_OK: "yes" }), /PLAY_PUBLIC_OK/);
+  assert.doesNotMatch(playGateProblem({ PLAY_CONTACT_OK: "yes" }), /PLAY_CONTACT_OK/);
+  assert.match(playGateProblem({ PLAY_PUBLIC_OK: "yes", PLAY_CONTACT_OK: "YES" }), /PLAY_CONTACT_OK/);
+  assert.match(playGateProblem({}), /PLAY_CONTACT_OK.*PLAY_PUBLIC_OK/);
 });
 
 test("secrets reach only their own store job and are never echoed", () => {

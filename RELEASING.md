@@ -83,10 +83,14 @@ store's release Environment:
 | `chrome`   | `pusharmor-chrome-X.Y.Z.zip` of the prerelease (hash checked) to the public item, then publish (live after review) |
 | `firefox`  | `pusharmor-firefox-X.Y.Z.zip` and the source archive of the prerelease to the listed add-on as a new listed version |
 
-Hard gate: the `play` job fails until the repository variable
-`PLAY_CONTACT_OK` is `yes` (Settings > Secrets and variables > Actions >
-Variables). The owner sets it only after the public developer contact details
-in Play Console are fixed.
+Hard gate: Play stays on internal testing until BOTH repository variables
+`PLAY_CONTACT_OK` and `PLAY_PUBLIC_OK` are `yes` (Settings > Secrets and
+variables > Actions > Variables). The owner sets `PLAY_CONTACT_OK` only after
+the public developer contact details in Play Console are fixed, and
+`PLAY_PUBLIC_OK` only when Play may leave internal testing (owner ruling Q251:
+no production, closed or open track before that). The first job tests both
+before the approval: Play shows BLOCKED and its job is skipped; the other
+stores still go. The `play` job tests them again.
 
 Every job skips a version that is already live or in review, and a version
 older than the one the store has, so a rerun is safe. When one store fails,
