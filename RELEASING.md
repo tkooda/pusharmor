@@ -310,5 +310,5 @@ tag commit, so only reviewed commits may be tagged:
    off, deployment branch `main` only. The store jobs use the existing store
    Environments for their secrets, so `android-release`, `ios-release`,
    `chrome-release` and `firefox-release` also allow the branch `main`; only
-   promote.yml and the tag-triggered release workflows name them
-   (`release/promote.test.mjs` checks this). No secret is copied.
+   promote.yml and the tag-triggered release workflows name them. No secret
+   is copied.

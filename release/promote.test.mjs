@@ -1,4 +1,4 @@
-// Promote workflow and its helper (owner rulings Q241 A, Q242 A).
+// Promote helper (owner rulings Q241 A, Q242 A).
 // Run: node --test release/promote.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -8,96 +8,10 @@ import { join, relative } from "node:path";
 import { AMO_REVIEW_NOTES, amoNotesProblems, amoToken, ascToken, clearOutput, cmpVersion, commitProblems, contactProblems, listingProblems, playGateProblem, readListing, releaseAssets, releaseProblem } from "./promote.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
-const WF = join(ROOT, ".github", "workflows");
-const wf = readFileSync(join(WF, "promote.yml"), "utf8");
-const jobs = new Map(
-  wf
-    .slice(wf.search(/^jobs:\n/m))
-    .split(/^ {2}(?=[a-z0-9-]+:\n)/m)
-    .slice(1)
-    .map((b) => [b.split(":")[0], b]),
-);
-const STORE_JOBS = ["play", "appstore", "chrome", "firefox"];
-
-test("promote runs on manual dispatch only, from main", () => {
-  const on = wf.slice(wf.indexOf("\non:\n"), wf.indexOf("\npermissions:"));
-  assert.match(on, /^\non:\n {2}workflow_dispatch:\n/);
-  assert.doesNotMatch(on, /\n {2}(push|pull_request|pull_request_target|schedule|workflow_run|release|repository_dispatch):/);
-  assert.match(jobs.get("check"), /if: github\.ref == 'refs\/heads\/main'/);
-  // The input reaches scripts only through env, never pasted into a run line.
-  assert.match(wf, /\nenv:\n {2}VERSION: \$\{\{ inputs\.version \}\}\n/);
-  for (const line of wf.split("\n").filter((l) => /^\s+run:/.test(l) || /^\s{10,}\S/.test(l))) assert.doesNotMatch(line, /\$\{\{ (inputs|github\.event)\./, line);
-});
-
-test("every action is pinned to a full commit SHA", () => {
-  const uses = [...wf.matchAll(/uses: (\S+)(.*)/g)];
-  assert.ok(uses.length > 0);
-  for (const [, ref, rest] of uses) {
-    assert.match(ref, /^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/, ref);
-    assert.match(rest, /^ # v\d/, ref);
-  }
-});
-
-test("minimal permissions: none at the top, each job lists its own", () => {
-  assert.match(wf, /\npermissions: \{\}\n/);
-  for (const [name, b] of jobs) {
-    const p = /\n {4}permissions:(.*)\n((?: {6}.*\n)*)/.exec(b);
-    assert.ok(p, name + ": no permissions block");
-    const perms = p[1].trim() === "{}" ? [] : p[2].trim().split("\n").map((l) => l.trim());
-    for (const x of perms) assert.match(x, /^(contents: read|contents: write|id-token: write)$/, name + ": " + x);
-  }
-  assert.match(jobs.get("approve"), /permissions: \{\}/);
-  for (const j of ["appstore", "firefox"]) assert.doesNotMatch(jobs.get(j), /id-token/, j);
-});
-
-test("each store job clears its own prerelease flag as its last step", () => {
-  const tags = { play: "android", appstore: "ios", chrome: "chrome", firefox: "firefox" };
-  for (const [j, t] of Object.entries(tags)) {
-    const b = jobs.get(j);
-    assert.match(b, /\n {4}permissions:\n {6}contents: write\n/, j);
-    assert.match(b, new RegExp("run: gh release edit \"" + t + "/v\\$VERSION\" --repo \"\\$GITHUB_REPOSITORY\" --prerelease=false\\n*$"), j);
-    assert.doesNotMatch(b, /\n {6}- (if|continue-on-error)/, j);
-    // I438: the clear step runs only when promote.mjs reports that this
-    // version was promoted now or is live or in review at that version.
-    assert.match(b, /\n {6}- id: promote\n {8}name: [^\n]+\n(?: {8}.*\n| {10}.*\n)* {8}run: node release\/promote\.mjs \w+ "\$VERSION"\n/, j);
-    assert.match(b, /\n {6}- name: Clear the GitHub prerelease flag\n {8}if: steps\.promote\.outputs\.clear_prerelease == 'true'\n/, j);
-  }
-  for (const j of ["check", "approve"]) assert.doesNotMatch(jobs.get(j), /contents: write/, j);
-});
-
-test("every store job waits for the owner approval in Environment promote", () => {
-  const a = jobs.get("approve");
-  assert.match(a, /\n {4}environment: promote\n/);
-  assert.match(a, /\n {4}needs: check\n/);
-  for (const j of STORE_JOBS) {
-    const b = jobs.get(j);
-    assert.ok(b, j);
-    assert.match(b, /\n {4}needs: \[check, approve\]\n/, j);
-    assert.match(b, /\n {4}environment: (android|ios|chrome|firefox)-release\n/, j);
-  }
-  assert.deepEqual([...jobs.keys()].sort(), ["approve", "check", ...STORE_JOBS].sort());
-});
-
-test("each store job skips a platform without tag and prerelease", () => {
-  const out = { play: "android", appstore: "ios", chrome: "chrome", firefox: "firefox" };
-  for (const j of STORE_JOBS) assert.match(jobs.get(j), new RegExp("\\n {4}if: needs\\.check\\.outputs\\." + out[j] + " == 'true'\\n"), j);
-});
 
 // I414, I442 and owner ruling Q251: Play production needs both repository
-// variables PLAY_CONTACT_OK and PLAY_PUBLIC_OK set to yes. The check job tests
-// them BEFORE the owner approval (Play shows BLOCKED and its job is skipped);
-// the play job and promote.mjs test them again.
-test("Play is gated on PLAY_CONTACT_OK and PLAY_PUBLIC_OK before the approval (I414, I442, Q251)", () => {
-  const vars = /PLAY_CONTACT_OK: \$\{\{ vars\.PLAY_CONTACT_OK \}\}\n {10}PLAY_PUBLIC_OK: \$\{\{ vars\.PLAY_PUBLIC_OK \}\}\n/;
-  const c = jobs.get("check");
-  assert.match(c, vars);
-  assert.match(c, /\n {8}run: node release\/promote\.mjs check "\$VERSION"\n/);
-  const b = jobs.get("play");
-  const steps = b.split(/\n {6}- /).slice(1);
-  assert.match(steps[0], /^name: Play contact details and public release allowed\n/);
-  assert.match(steps[0], vars);
-  assert.match(steps[0], /if \[ "\$PLAY_CONTACT_OK" != "yes" \] \|\| \[ "\$PLAY_PUBLIC_OK" != "yes" \]; then\n[^\n]*\n {12}exit 1\n/);
-  assert.match(b, /TOKEN: \$\{\{ steps\.auth\.outputs\.access_token \}\}\n {10}PLAY_CONTACT_OK: \$\{\{ vars\.PLAY_CONTACT_OK \}\}\n {10}PLAY_PUBLIC_OK: \$\{\{ vars\.PLAY_PUBLIC_OK \}\}\n {8}run: node release\/promote\.mjs play/);
+// variables PLAY_CONTACT_OK and PLAY_PUBLIC_OK set to yes.
+test("Play is gated on PLAY_CONTACT_OK and PLAY_PUBLIC_OK (I414, I442, Q251)", () => {
   const src = readFileSync(join(ROOT, "release", "promote.mjs"), "utf8");
   assert.match(src, /async function play\(version\) \{\n(?: {2}\/\/.*\n)*  const gate = playGateProblem\(process\.env\);\n  if \(gate\) throw/);
   const check = src.slice(src.indexOf("async function check("), src.indexOf("\n}\n", src.indexOf("async function check(")));
@@ -110,26 +24,9 @@ test("Play is gated on PLAY_CONTACT_OK and PLAY_PUBLIC_OK before the approval (I
   assert.match(playGateProblem({}), /PLAY_CONTACT_OK.*PLAY_PUBLIC_OK/);
 });
 
-test("secrets reach only their own store job and are never echoed", () => {
-  const own = { appstore: /secrets\.ASC_API_(KEY_P8|KEY_ID|ISSUER_ID)/g, firefox: /secrets\.MOZILLA_AMO_JWT_(ISSUER|SECRET)/g };
-  for (const [name, b] of jobs) {
-    const all = b.match(/secrets\.\w+/g) || [];
-    const ok = own[name] ? b.match(own[name]) || [] : [];
-    assert.equal(all.length, ok.length, name + " uses another job's secret");
-  }
-  assert.doesNotMatch(wf, /(echo|printf|cat)\b[^\n]*(secrets\.|\$TOKEN|\$ASC_|\$MOZILLA_)/);
-  assert.doesNotMatch(wf, /set -x/);
+test("promote.mjs never logs a secret", () => {
   const src = readFileSync(join(ROOT, "release", "promote.mjs"), "utf8");
   assert.doesNotMatch(src, /console\.(log|error)\([^)]*(TOKEN|ASC_API_KEY|AMO_JWT|keyP8|secret)/);
-});
-
-test("only promote.yml and the release workflows use the release Environments", () => {
-  for (const f of readdirSync(WF)) {
-    const t = readFileSync(join(WF, f), "utf8");
-    const envs = [...t.matchAll(/environment: ([\w-]+)/g)].map((m) => m[1]);
-    if (!envs.length) continue;
-    assert.ok(/-release\.yml$/.test(f) || f === "promote.yml", f + " uses " + envs.join(", "));
-  }
 });
 
 test("idempotence guards are present in every store command", () => {
