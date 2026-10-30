@@ -197,7 +197,7 @@ export function checkWranglerConfig(cfg, siteName) {
   if (cfg.name !== siteName) errs.push("name must be " + siteName);
   if (typeof cfg.compatibility_date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(cfg.compatibility_date)) errs.push("bad compatibility_date");
   const a = cfg.assets || {};
-  const wantAssets = { directory: "./public", not_found_handling: "404-page", html_handling: "auto-trailing-slash" };
+  const wantAssets = { directory: "./dist", not_found_handling: "404-page", html_handling: "auto-trailing-slash" };
   if (JSON.stringify(Object.keys(a).sort()) !== JSON.stringify(Object.keys(wantAssets).sort())) errs.push("assets keys must be directory, not_found_handling, html_handling");
   for (const [k, v] of Object.entries(wantAssets)) if (a[k] !== v) errs.push("assets." + k + " must be " + v);
   if (JSON.stringify(cfg.build) !== JSON.stringify({ command: "node tools/build.mjs" })) errs.push("build must be exactly the command node tools/build.mjs");

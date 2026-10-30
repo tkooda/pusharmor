@@ -1,23 +1,30 @@
-// Release build of the site: fills the build ids from release/public.json into
-// the assets directory in place, then rewrites the SRI and CSP hashes.
-// "wrangler deploy" runs it as the build command from wrangler.jsonc (see site/README.md).
-//   node site/tools/build.mjs [--dir DIR] [--public FILE]
-// DIR defaults to site/public. Fails when a value is missing, empty, malformed
+// Release build of the site: copies site/public to OUT, fills the build ids from
+// release/public.json into OUT, then rewrites the SRI and CSP hashes in OUT.
+// The tracked site/public keeps its placeholders. "wrangler deploy" runs it as the
+// build command from wrangler.jsonc and serves OUT (see site/README.md).
+//   node site/tools/build.mjs [--out OUT] [--public FILE]
+// OUT defaults to site/dist (gitignored) and is replaced. Fails when a value is missing, empty, malformed
 // or a PLACEHOLDER (or a CI dummy without PA_CI_DUMMY=1), or a placeholder is left.
 // A CI dummy skips the format checks.
-import { readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { cpSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PUBLIC_PATH, loadPublic, publicProblems } from "../../release/public.mjs";
 import { computeHashUpdates, placeholderFiles } from "./site-lib.mjs";
 
-// wrangler.jsonc runs this script as its build command, also for "wrangler dev"
-// (WRANGLER_COMMAND=dev). A dev run keeps the placeholders and must not rewrite the tree.
-if (process.env.WRANGLER_COMMAND === "dev") { console.log("site build: skipped for wrangler dev"); process.exit(0); }
-
 const arg = (name) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : undefined; };
-const dir = arg("--dir") || join(dirname(fileURLToPath(import.meta.url)), "..", "public");
+const site = join(dirname(fileURLToPath(import.meta.url)), "..");
+const src = join(site, "public");
+const dir = resolve(arg("--out") || join(site, "dist"));
 const publicPath = arg("--public") || PUBLIC_PATH;
+const outside = (a, b) => relative(a, b).startsWith("..");
+if (!outside(src, dir) || !outside(dir, src)) { console.error("site build failed:\n  - --out must not hold or be inside site/public"); process.exit(1); }
+rmSync(dir, { recursive: true, force: true });
+cpSync(src, dir, { recursive: true });
+
+// wrangler.jsonc runs this script as its build command, also for "wrangler dev"
+// (WRANGLER_COMMAND=dev). A dev run serves the copy with the placeholders kept.
+if (process.env.WRANGLER_COMMAND === "dev") { console.log("site build: ids not filled for wrangler dev, copied to " + dir); process.exit(0); }
 
 function fail(lines) {
   console.error("site build failed:");
