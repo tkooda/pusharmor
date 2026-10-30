@@ -141,7 +141,6 @@ describe("crons", () => {
     expect(cfg.workers_dev).toBe(false);
     expect(cfg.preview_urls).toBe(false);
     expect(cfg.vars.PA_PUSH_TTL_SECONDS).toBe("604800");
-    expect(cfg.vars.PA_PUSH_PAIR_TTL_SECONDS).toBe("2419200");
   });
   it("rate limit bindings match the expected table and the Binding union", () => {
     const cfg = JSON.parse(wranglerText.replace(/^\s*\/\/.*$/gm, ""));

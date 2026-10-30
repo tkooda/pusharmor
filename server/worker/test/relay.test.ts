@@ -243,7 +243,7 @@ describe("DELETE /account (6.5)", () => {
 });
 
 describe("POST /pair/$X (6.7a)", () => {
-  it("relays each kind; iPhone gets apns-collapse-id = pk; others none; TTL 2419200", async () => {
+  it("relays each kind; iPhone gets apns-collapse-id = pk; others none; TTL 604800", async () => {
     const email = randomEmail();
     const n = await newPeer(email);
     const x = await newPeer(email, "ios");
@@ -258,14 +258,14 @@ describe("POST /pair/$X (6.7a)", () => {
     for (const q of apns) {
       expect(q.headers["apns-collapse-id"]).toBe(await pairKey(n.id, x.id));
       const exp = Number(q.headers["apns-expiration"]);
-      expect(exp - Math.floor(Date.now() / 1000)).toBeGreaterThanOrEqual(2419200 - 2);
-      expect(exp - Math.floor(Date.now() / 1000)).toBeLessThanOrEqual(2419200);
+      expect(exp - Math.floor(Date.now() / 1000)).toBeGreaterThanOrEqual(604800 - 2);
+      expect(exp - Math.floor(Date.now() / 1000)).toBeLessThanOrEqual(604800);
     }
     const r = await call("POST", "/v1/pair/" + n.id, { k: "reply", c }, { peer: x });
     expect(r.body).toEqual({ r: "sent" });
     const fcm = vendorRequests("fcm.googleapis.com").filter((q) => q.url.includes("/v1/projects/"));
     const body = JSON.parse(new TextDecoder().decode(fcm[0].body));
-    expect(body.message.android.ttl).toBe("2419200s");
+    expect(body.message.android.ttl).toBe("604800s");
     expect(body.message.android.priority).toBe("HIGH");
     expect(Object.keys(fcm[0].headers).some((h) => h.includes("collapse"))).toBe(false);
     expect(JSON.stringify(body)).not.toContain("collapse");

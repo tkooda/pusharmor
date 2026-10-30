@@ -198,13 +198,13 @@ describe("request shapes: TTL, priority, sizes, no ids in headers", () => {
     expect(mock.requests.filter(isSend("apns")).pop()!.url.startsWith("https://api.sandbox.push.apple.com/3/device/")).toBe(true);
   });
 
-  it("Web Push: VAPID verifies, TTL 604800, urgency, body 3903 bytes at M = 3800; pair TTL 2419200", async () => {
+  it("Web Push: VAPID verifies, TTL 604800, urgency, body 3903 bytes at M = 3800; pair TTL 604800 too", async () => {
     const e = await testEnv();
     const k = await vendorKeys();
     for (const cls of ["send", "deny", "logout", "pair"] as const) {
       await fanout(e, [await target("wp", cls, message(3800))], new Log());
       const req = mock.requests.filter(isSend("wp")).pop()!;
-      expect(req.headers.ttl).toBe(cls === "pair" ? "2419200" : "604800");
+      expect(req.headers.ttl).toBe("604800");
       expect(req.headers.urgency).toBe(cls === "deny" || cls === "logout" ? "normal" : "high");
       expect(req.headers["content-encoding"]).toBe("aes128gcm");
       expect(req.headers.topic).toBeUndefined();
@@ -220,14 +220,15 @@ describe("request shapes: TTL, priority, sizes, no ids in headers", () => {
     }
   });
 
-  it("TTL on all three vendors for class pair is 2419200", async () => {
+  it("TTL on all three vendors for class pair is 604800", async () => {
     const e = await testEnv();
     await fanout(e, [await target("fcm", "pair"), await target("apns", "pair")], new Log());
     const f = JSON.parse(new TextDecoder().decode(mock.requests.filter(isSend("fcm")).pop()!.body));
-    expect(f.message.android.ttl).toBe("2419200s");
+    expect(f.message.android.ttl).toBe("604800s");
     const a = mock.requests.filter(isSend("apns")).pop()!;
     const ttl = Number(a.headers["apns-expiration"]) - Math.floor(Date.now() / 1000);
-    expect(ttl).toBeGreaterThan(2419200 - 3);
+    expect(ttl).toBeGreaterThan(604800 - 3);
+    expect(ttl).toBeLessThanOrEqual(604800);
   });
 
   it("no sender or recipient id in any vendor header (all routes)", async () => {

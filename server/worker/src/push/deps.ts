@@ -34,6 +34,6 @@ export function isNormal(cls: Cls): boolean {
   return cls === "deny" || cls === "logout";
 }
 
-export function ttlFor(cls: Cls, env: { PA_PUSH_TTL_SECONDS: string; PA_PUSH_PAIR_TTL_SECONDS: string }): number {
-  return Number(cls === "pair" ? env.PA_PUSH_PAIR_TTL_SECONDS : env.PA_PUSH_TTL_SECONDS);
+export function ttlFor(env: { PA_PUSH_TTL_SECONDS: string }): number {
+  return Number(env.PA_PUSH_TTL_SECONDS);
 }
