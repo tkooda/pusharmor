@@ -77,3 +77,34 @@ The site has no deploy script. Before a release deploy, run the checks with the 
     PA_RELEASE=1 node --test 'site/tools/test/*.test.mjs'
 
 Do not deploy a release if any check fails or is skipped. `wrangler dev` stays fine for local work. `npx wrangler deploy --dry-run` in `site/` must fail while a placeholder is left.
+
+## About page screenshots
+
+`public/about.html` shows the app screenshots from `public/img/about/<platform>/` (android,
+iphone, chrome, firefox). Each shot is a 1x webp, a 2x webp (`-2x`) and a reduced png fallback.
+To swap them:
+
+1. Put the new store PNGs in a folder per platform, e.g. `SRC/android/03-send.png`. Files whose
+   name contains `BLANK` are skipped.
+2. From the repo root, replace the old files and convert (ImageMagick with webp support):
+
+        SRC=/path/to/screenshots
+        rm -rf site/public/img/about
+        for p in android iphone chrome firefox; do
+          case $p in android|iphone) w=280;; *) w=720;; esac
+          mkdir -p site/public/img/about/$p
+          for f in "$SRC"/$p/*.png; do
+            case "$f" in *BLANK*) continue;; esac
+            n=site/public/img/about/$p/$(basename "$f" .png)
+            convert "$f" -strip -resize ${w}x -quality 85 -define webp:method=6 $n.webp
+            convert "$f" -strip -resize "$((w*2))x>" -quality 80 -define webp:method=6 $n-2x.webp
+            convert "$f" -strip -resize ${w}x -dither None -colors 128 -define png:compression-level=9 PNG8:$n.png
+          done
+        done
+
+3. Edit the `<figure>` list in `public/about.html` to match the file names, with the image
+   `width` and `height` (`identify site/public/img/about/*/*.png`) and an alt text that
+   describes the screen. Only the first tab loads at once; keep `loading="lazy"` on the others.
+4. Run `node site/tools/hashes.mjs` and the checks.
+
+`/about#shots-iphone` (or `-chrome`, `-firefox`) opens that tab.
