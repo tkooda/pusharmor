@@ -67,7 +67,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
       if (on) body.setAttribute("aria-labelledby", "tab-" + t);
     }
     clear(body);
-    if (t === "send") void sendView(env, body, st, prefill);
+    if (t === "send") void sendView(env, body, st, prefill).then(() => prefill !== undefined && body.querySelector("textarea")?.focus());
     if (t === "history") void historyView(env, body, (text) => show("send", text));
     if (t === "peers") void renderPeers(env, body, false);
     if (t === "settings") void settingsView(env, body, st);
@@ -294,17 +294,23 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (tex
   const content = h("div", { class: "content " + (one ? "one" : "clamp"), tabindex: "0" });
   if (r.type === "url") midEllipsis(content, r.content);
   else content.textContent = r.content;
-  const dot = !r.read ? h("span", { class: "dot", title: "unread" }) : null;
+  const dot = !r.read ? h("span", { class: "dot", title: "unread", role: "img", "aria-label": "Unread" }) : null;
   if (dot) row.classList.add("unread");
   const select = () => {
     for (const o of Array.from(row.parentElement?.querySelectorAll(".hrow.sel") ?? [])) if (o !== row) o.classList.remove("sel");
     row.classList.add("sel");
   };
-  content.addEventListener("click", () => {
+  const markRead = () => {
     void rpc(env, "historyRead", { id: r.id });
     row.querySelector(".dot")?.remove();
     row.classList.remove("unread");
     select();
+  };
+  content.addEventListener("click", markRead);
+  content.addEventListener("keydown", (ev: KeyboardEvent) => {
+    if (ev.key !== "Enter" && ev.key !== " ") return;
+    ev.preventDefault();
+    markRead();
   });
   row.addEventListener("click", select);
   const acts = h("div", { class: "actions acts" });
@@ -365,10 +371,9 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promi
         h("button", {
           class: "quiet errtext",
           onclick: () => {
-            clear(confirmDel).append(
-              h("span", {}, "Delete all history? "),
-              h("button", { class: "danger", onclick: async () => { await rpc(env, "historyDeleteAll"); clear(confirmDel); status.textContent = "History deleted"; } }, "Delete"),
-            );
+            const yes = h("button", { class: "danger", onclick: async () => { await rpc(env, "historyDeleteAll"); clear(confirmDel); status.textContent = "History deleted"; } }, "Delete");
+            clear(confirmDel).append(h("span", { role: "alert" }, "Delete all history? "), yes);
+            yes.focus();
           },
         }, "Delete all history"),
         confirmDel,
