@@ -46,7 +46,7 @@
 
 /about
   ! Content-Security-Policy
-  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-vJ1do1dgXpXLWBqEg6ssZWTh9eDQMGEe+Qbxy8sqFkw='; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-g+AKY+HY4JGu14hWX1/sg3IC7KurNEsXZTYrnjR6tLQ='; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
 
 /.well-known/security.txt
   ! Content-Type

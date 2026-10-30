@@ -298,6 +298,73 @@ button.danger { color: #ffffff; background: #b3261e; border-color: #b3261e; }
 .shot figcaption { margin-top: 0.5rem; color: var(--muted); font-size: 0.9rem; text-align: center; }
 .shot-stack { display: grid; gap: 1rem; }
 .shot-wide { max-width: 45rem; margin: 0; }
+.shot-link { display: block; border-radius: 12px; cursor: zoom-in; }
+.shot-link:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
+.lb-open { overflow: hidden; }
+.lightbox {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0.75rem 1rem 1rem;
+  color: #f3f6f9;
+  background: transparent;
+  border: 0;
+}
+.lightbox::backdrop { background: rgba(8, 12, 18, 0.92); }
+.lightbox[open] { display: flex; flex-direction: column; }
+.lb-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.lb-count { margin: 0; font-size: 0.95rem; color: #c9d1dc; }
+.lb-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  min-height: 0;
+}
+.lb-btn {
+  flex: none;
+  display: inline-flex;
+  width: 3rem;
+  height: 3rem;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.lb-btn:hover { background: var(--surface); }
+.lb-btn svg { fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.lightbox .lb-btn:focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
+.lb-fig { display: flex; flex-direction: column; align-items: center; min-width: 0; margin: 0; }
+.lb-fig img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: calc(100vw - 11rem);
+  max-height: calc(100vh - 9rem);
+  max-height: calc(100dvh - 9rem);
+  border-radius: 10px;
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.5);
+}
+.lb-fig figcaption { margin-top: 0.75rem; font-size: 1rem; line-height: 1.5; text-align: center; }
+@media (max-width: 40rem) {
+  .lightbox { padding: 0.5rem 0.75rem 1rem; }
+  .lb-count { font-size: 0.9rem; }
+  .lb-stage { flex-wrap: wrap; align-content: center; gap: 0.75rem 1.5rem; }
+  .lb-fig { order: -1; flex-basis: 100%; }
+  .lb-fig img {
+    max-width: calc(100vw - 1.5rem);
+    max-height: calc(100vh - 12.5rem);
+    max-height: calc(100dvh - 12.5rem);
+  }
+  .lb-fig figcaption { margin-top: 0.5rem; }
+}
 .facts { padding-left: 1.25rem; }
 .facts li { margin: 0.4rem 0; }
 @media (max-width: 30rem) {
