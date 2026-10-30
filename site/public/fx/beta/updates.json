@@ -3,9 +3,9 @@
     "{549aa960-212f-41ba-b28c-7d7d1662bb57}": {
       "updates": [
         {
-          "version": "0.0.15",
-          "update_link": "https://github.com/tkooda/pusharmor/releases/download/firefox/v0.0.15/pusharmor-firefox-beta-0.0.15.xpi",
-          "update_hash": "sha256:512541baa4a71ddc08914db7eb1c9952b90185b1958f6ad01dbfa16a1003ee4a"
+          "version": "0.0.16",
+          "update_link": "https://github.com/tkooda/pusharmor/releases/download/firefox/v0.0.16/pusharmor-firefox-beta-0.0.16.xpi",
+          "update_hash": "sha256:892d52fcd991b50510b04baac69a9855dede3bc04bd0a26da8a6d8d822d5930f"
         }
       ]
     }
