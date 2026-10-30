@@ -64,7 +64,7 @@ class PairingEngine(
             val cN = Ids.commit(me.keys.signPub, me.keys.encPub, rN)
             val msg = PairMessage.seal(PairMessage.Commit(me.idRaw, cN), peerId, enc)
             store.putPairing(PairingRow(peerId, PairRole.N, PairState.COMMITTED, rN, cN, startedAt = now, pendingKind = PairKind.COMMIT, pendingMessage = msg))
-            store.putPeer(peer.copy(note = null, deniedByMe = false))
+            store.putPeer(peer.copy(note = null, deniedByMe = false, pairAgain = false))
             true
         }
         if (ok) effects.schedulePairSend(peerId, replace = true)
@@ -123,6 +123,8 @@ class PairingEngine(
     }
 
     private fun applyCommit(from: String, cN: ByteArray, now: Long, d: com.pusharmor.protocol.PairDecision) {
+        // The row marker for [Pair again], in the same transaction as the decision that fires the notice.
+        if (d.notice == PairNotice.HALF_STATE) store.peer(from)?.let { store.putPeer(it.copy(pairAgain = true)) }
         when (d.entry) {
             EntryChange.CREATED_REPLIED, EntryChange.N_WIPED_X_REPLIED -> {
                 store.pairing(from)?.let { it.r.fill(0); store.deletePairing(from) }
@@ -217,7 +219,7 @@ class PairingEngine(
         val peer = store.peer(peerId) ?: Peer(id = peerId)
         store.putPeer(peer.copy(signPub = B64url.encode(signPub), encPub = B64url.encode(encPub), pairingId = pairingId,
             lastN = 0, approved = false, approveVerified = false, deniedByMe = false, declined = false, removed = false,
-            missing = false, name = null, nameN = 0, pauseN = 0, storedApprove = null, storedApproveName = null, note = null))
+            missing = false, name = null, nameN = 0, pauseN = 0, storedApprove = null, storedApproveName = null, note = null, pairAgain = false))
         store.resetCounter(peerId)
         store.putWindow(peerId, pairingId, ReplayWindow.fresh())
     }
@@ -317,10 +319,22 @@ class PairingEngine(
         store.tx {
             store.pairing(peerId)?.let { it.r.fill(0); store.deletePairing(peerId) }
             dropPairingPin(peerId)
-            store.peer(peerId)?.let { store.putPeer(it.copy(note = null)) }
+            store.peer(peerId)?.let { store.putPeer(it.copy(note = null, pairAgain = false)) }
         }
         effects.peerChannelDelete(peerId)
         effects.reconcileSoon()
+    }
+
+    /**
+     * [Pair again] on a row that got the pair-again notice and is still in the half state: the
+     * Cancel pairing path, then [afterCancel] (the allow reconcile, run to the end), then the Pair path.
+     */
+    fun pairAgain(peerId: String, now: Long, afterCancel: () -> Unit): Boolean {
+        val p = store.peer(peerId) ?: return false
+        if (!p.offersPairAgain) return false
+        cancelPairing(peerId)
+        afterCancel()
+        return tapPair(peerId, now)
     }
 
     /**

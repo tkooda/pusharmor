@@ -22,6 +22,10 @@ class UiTextTest {
         assertEquals(Mark.WAIT to "Has not approved this device", UiText.status(pinned.copy(approveVerified = false)))
     }
 
+    @Test fun pairAgainNotice() {
+        assertEquals("Chrome wants to pair again. Tap Pair again on its row.", UiText.pairAgainNotice("Chrome"))
+    }
+
     @Test fun rememberedSelection() {
         assertEquals(listOf("b", "c"), UiText.rememberedSelection("c,x,b", listOf("a", "b", "c")))
         assertEquals(emptyList<String>(), UiText.rememberedSelection(null, listOf("a")))

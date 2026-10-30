@@ -143,6 +143,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun reply(id: String) = io { g.pairing().tapReply(id) }
     fun sendAgainPair(id: String) = io { g.pairing().sendAgain(id, System.currentTimeMillis()) }
     fun cancelPairing(id: String) = io { g.pairing().cancelPairing(id); g.reconcile().run() }
+    fun pairAgain(id: String) = io {
+        if (!g.pairing().pairAgain(id, System.currentTimeMillis()) { g.reconcile().run() }) message.value = "Cannot pair with this device now"
+    }
     fun approve(id: String) = io {
         val r = g.approve().approve(id)
         if (r !is ApiResult.Ok) message.value = ErrorText.of(r)

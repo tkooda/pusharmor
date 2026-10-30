@@ -10,6 +10,8 @@ import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.room.RoomDatabase
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
@@ -57,6 +59,7 @@ data class PeerEntity(
     @ColumnInfo(name = "last_approve_result") val lastApproveResult: String?,
     @ColumnInfo(name = "last_send_at") val lastSendAt: Long,
     val note: String?,
+    @ColumnInfo(name = "pair_again", defaultValue = "0") val pairAgain: Boolean = false,
     /** Per-peer switches (section 6): lock screen, watch, always hide. */
     @ColumnInfo(name = "lock_screen") val lockScreen: Boolean = true,
     val watch: Boolean = true,
@@ -165,7 +168,7 @@ interface PaDao {
 
 @Database(
     entities = [SelfEntity::class, PeerEntity::class, PairingEntity::class, CapEntity::class, ReplayEntity::class, AllowEntity::class, HistoryEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class PaDatabase : RoomDatabase() {
@@ -174,10 +177,17 @@ abstract class PaDatabase : RoomDatabase() {
     companion object {
         const val NAME = "pusharmor.db"
 
+        /** 1 -> 2: peers.pair_again (row marker for [Pair again]). */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE peers ADD COLUMN pair_again INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun open(context: Context, name: String? = NAME): PaDatabase {
             val b = if (name == null) Room.inMemoryDatabaseBuilder(context, PaDatabase::class.java)
             else Room.databaseBuilder(context, PaDatabase::class.java, name).enableMultiInstanceInvalidation()
-            return b.build()
+            return b.addMigrations(MIGRATION_1_2).build()
         }
     }
 }
