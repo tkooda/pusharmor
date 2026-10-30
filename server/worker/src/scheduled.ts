@@ -1,30 +1,11 @@
-// scheduled(): hourly health check + vendor auth alert, monthly purge.
+// scheduled(): monthly purge and pending expiry.
 import type { Env } from "./env";
-import { CRON_HOURLY, CRON_MONTHLY } from "./crons";
+import { CRON_MONTHLY } from "./crons";
 import * as SQL from "./db/sql";
 import { Log } from "./log";
-import { sendEmail } from "./auth/ses";
-import { deps } from "./push/deps";
-import { mintFcmToken } from "./push/fcm";
-import { apnsMayRemint, mintApnsJwt } from "./push/apns";
-import { mintVapid } from "./push/webpush";
-import { authAlerts, healthSnapshot } from "./push/results";
 
 export const PURGE_IDLE_S = 94608000; // 3 years
 export const PURGE_MAX_CHUNKS = 500;
-
-const fetchFn = ((u: string, i: RequestInit) => deps.fetch(u, i)) as unknown as typeof fetch;
-
-export async function mailOps(env: Env, subject: string, text: string): Promise<void> {
-  // Ops contact = WEBPUSH_VAPID_SUB without "mailto:".
-  const to = env.WEBPUSH_VAPID_SUB.replace(/^mailto:/, "");
-  if (!to) return;
-  try {
-    await sendEmail(env, to, subject, text, fetchFn);
-  } catch {
-    // logged by the caller's line only
-  }
-}
 
 // Returns the number of purged accounts.
 export async function purge(env: Env, nowS: number, log: Log): Promise<number> {
@@ -76,56 +57,11 @@ export async function expirePending(env: Env, nowS: number, log: Log, chunk = PE
   return changed;
 }
 
-export async function healthCheck(env: Env, log: Log): Promise<string[]> {
-  const failed: string[] = [];
-  const check = async (name: string, f: () => Promise<unknown>) => {
-    try {
-      await f();
-    } catch {
-      failed.push(name);
-    }
-  };
-  await check("fcm", () => mintFcmToken(env));
-  // APNs and VAPID are local signing: mint fresh so a broken key shows up (APNs only when
-  // the cached JWT is >= 20 min old, Apple's minimum refresh interval).
-  await check("apns", () => mintApnsJwt(env, apnsMayRemint()));
-  await check("vapid", () => mintVapid(env, "https://fcm.googleapis.com", true));
-  await check("d1", () => env.DB.prepare(SQL.Q_HEALTH).first());
-  // Vendor auth alert: the previous full hour of the shared counts.
-  const hour = Math.floor(deps.now() / 3600000) - 1;
-  // A D1 outage must not stop the health check failed mail below; it shows up there as "d1".
-  let alerts: string[] = [];
-  let snap: Awaited<ReturnType<typeof healthSnapshot>> = {};
-  try {
-    alerts = await authAlerts(env, hour);
-    snap = await healthSnapshot(env, hour);
-  } catch {
-    // No alerts this hour; the d1 check reports the outage.
-  }
-  for (const [v, h] of Object.entries(snap)) {
-    log.extra[`auth_${v}`] = h.auth;
-    log.extra[`ok_${v}`] = h.ok;
-  }
-  try {
-    await env.DB.prepare(SQL.W_HEALTH_PURGE).bind(hour - 48).run();
-  } catch {
-    // Old counter rows are harmless; the next hour retries.
-  }
-  if (failed.length) await mailOps(env, "PushArmor health check failed", "Failed checks: " + failed.join(", ") + "\n");
-  if (alerts.length) await mailOps(env, "PushArmor vendor auth alert", "Only auth failures, no success, in the last hour: " + alerts.join(", ") + "\n");
-  if (failed.length) log.extra.health_failed = failed.join(",");
-  if (alerts.length) log.extra.auth_alert = alerts.join(",");
-  return alerts;
-}
-
 export async function scheduled(controller: ScheduledController, env: Env): Promise<void> {
   const log = new Log();
   log.route = "cron";
   try {
-    if (controller.cron === CRON_HOURLY) {
-      log.route = "cron hourly";
-      await healthCheck(env, log);
-    } else if (controller.cron === CRON_MONTHLY) {
+    if (controller.cron === CRON_MONTHLY) {
       log.route = "cron monthly";
       const now = Math.floor(Date.now() / 1000);
       try {
@@ -135,7 +71,6 @@ export async function scheduled(controller: ScheduledController, env: Env): Prom
       }
     } else {
       log.error = "cron-unknown";
-      await mailOps(env, "PushArmor cron-unknown", "scheduled() got an unknown cron string.\n");
     }
   } catch (e) {
     log.setException(e);

@@ -6,7 +6,7 @@
   "keep_vars": true,
   "preview_urls": false,
   "routes": [{ "pattern": "api.pusharmor.com", "custom_domain": true }],
-  "triggers": { "crons": ["0 * * * *", "0 3 1 * *"] },
+  "triggers": { "crons": ["0 3 1 * *"] },
   "observability": {
     "enabled": true,
     "logs": { "invocation_logs": false },

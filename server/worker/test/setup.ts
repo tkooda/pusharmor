@@ -1,6 +1,5 @@
 import { applyD1Migrations, env } from "cloudflare:test";
 import { afterAll, beforeAll, beforeEach, vi } from "vitest";
-import { resetHealthCache } from "../src/push/results";
 import { captured, installVendorMock, scrubViolations } from "./helpers";
 
 beforeAll(async () => {
@@ -15,8 +14,6 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await env.DB.batch([env.DB.prepare("DELETE FROM peers"), env.DB.prepare("DELETE FROM accounts")]);
-  await env.DB.prepare("DELETE FROM vendor_health").run();
-  resetHealthCache();
   installVendorMock(); // a new transport: empty token and JWKS caches (deps.transportScoped)
 });
 

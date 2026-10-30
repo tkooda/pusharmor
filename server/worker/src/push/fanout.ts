@@ -7,7 +7,7 @@ import * as SQL from "../db/sql";
 import { buildApns, apnsMayRemint } from "./apns";
 import { deps, type Cls, type VendorRequest } from "./deps";
 import { buildFcm } from "./fcm";
-import { classify, isAuthFailure, recordHealth, type Outcome, type VendorName } from "./results";
+import { classify, type Outcome, type VendorName } from "./results";
 import { MintError } from "./tokencache";
 import { buildWebPush } from "./webpush";
 
@@ -153,7 +153,6 @@ async function deliver(env: Env, t: Target, slots: Slots): Promise<Delivery> {
       slots.release();
     }
     last = a.outcome;
-    await recordHealth(env, v, last.kind === "sent", isAuthFailure(v, a.status, last.code), deps.now());
     if (last.kind !== "failed") break;
     if (last.next === "auth" && !authUsed && (v !== "apns" || apnsMayRemint())) {
       authUsed = true;
