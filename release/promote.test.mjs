@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { generateKeyPairSync, verify } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { amoToken, ascToken, cmpVersion, contactProblems, listingProblems, readListing, releaseAssets, releaseProblem } from "./promote.mjs";
+import { amoToken, ascToken, clearOutput, cmpVersion, contactProblems, listingProblems, readListing, releaseAssets, releaseProblem } from "./promote.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 const WF = join(ROOT, ".github", "workflows");
@@ -57,6 +57,10 @@ test("each store job clears its own prerelease flag as its last step", () => {
     assert.match(b, /\n {4}permissions:\n {6}contents: write\n/, j);
     assert.match(b, new RegExp("run: gh release edit \"" + t + "/v\\$VERSION\" --repo \"\\$GITHUB_REPOSITORY\" --prerelease=false\\n*$"), j);
     assert.doesNotMatch(b, /\n {6}- (if|continue-on-error)/, j);
+    // I438: the clear step runs only when promote.mjs reports that this
+    // version was promoted now or is live or in review at that version.
+    assert.match(b, /\n {6}- id: promote\n {8}name: [^\n]+\n(?: {8}.*\n| {10}.*\n)* {8}run: node release\/promote\.mjs \w+ "\$VERSION"\n/, j);
+    assert.match(b, /\n {6}- name: Clear the GitHub prerelease flag\n {8}if: steps\.promote\.outputs\.clear_prerelease == 'true'\n/, j);
   }
   for (const j of ["check", "approve"]) assert.doesNotMatch(jobs.get(j), /contents: write/, j);
 });
@@ -209,4 +213,21 @@ test("store tokens: App Store ES256 and AMO HS256", () => {
   const claims = JSON.parse(Buffer.from(a[1], "base64url"));
   assert.equal(claims.iss, "user:1:2");
   assert.ok(claims.exp - claims.iat <= 300 && claims.jti);
+});
+
+// I438: a SKIP (the store has a newer version, or the same version in another
+// channel) never clears the prerelease flag; only a promotion now or the same
+// version already live or in review does.
+test("store commands report clear_prerelease only for this version", () => {
+  const src = readFileSync(join(ROOT, "release", "promote.mjs"), "utf8");
+  for (const fn of ["play", "appstore", "chrome", "firefox"]) {
+    const i = src.indexOf("async function " + fn + "(");
+    const code = src.slice(i, src.indexOf("\n}\n", i));
+    for (const l of code.split("\n").filter((x) => /SKIP/.test(x))) assert.match(l, /return skip\(|: skip\(|\? skip\(/, fn + ": " + l.trim());
+    assert.doesNotMatch(code, /return summary\(|\n {4}return;\n/, fn);
+    assert.match(code, /\n {2}return [^\n]*\bdone\([^\n]*;$/, fn);
+  }
+  assert.equal(clearOutput(true), "true");
+  assert.equal(clearOutput(false), "false");
+  assert.equal(clearOutput(undefined), "false");
 });

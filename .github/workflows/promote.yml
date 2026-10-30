@@ -13,7 +13,7 @@ name: promote
 # A platform without tag and prerelease X.Y.Z is skipped. Each store is its own
 # job: rerun only the failed one. Every job skips a version that is already
 # live or in review. After its store accepts the build, each job clears the
-# prerelease flag of its own GitHub release. Store jobs use the store's release Environment for its
+# prerelease flag of its own GitHub release (not after a SKIP). Store jobs use the store's release Environment for its
 # secrets (WIF for Play and Chrome Web Store).
 on:
   workflow_dispatch:
@@ -114,15 +114,18 @@ jobs:
           token_format: access_token
           access_token_scopes: https://www.googleapis.com/auth/androidpublisher
           create_credentials_file: false
-      - name: Promote to production
+      - id: promote
+        name: Promote to production
         env:
           TOKEN: ${{ steps.auth.outputs.access_token }}
           PLAY_CONTACT_OK: ${{ vars.PLAY_CONTACT_OK }}
         run: node release/promote.mjs play "$VERSION"
       # Owner ruling Q248 B: after the store accepted the build, the release
-      # is no longer a test build. Runs only when the step above succeeded; a
+      # is no longer a test build. Runs only when the step above promoted X.Y.Z
+      # now or found X.Y.Z live or in review; never after a SKIP (I438). A
       # release that is already a full release is not an error.
       - name: Clear the GitHub prerelease flag
+        if: steps.promote.outputs.clear_prerelease == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release edit "android/v$VERSION" --repo "$GITHUB_REPOSITORY" --prerelease=false
@@ -148,16 +151,19 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: site/.node-version
-      - name: Submit for App Review
+      - id: promote
+        name: Submit for App Review
         env:
           ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
           ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
           ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
         run: node release/promote.mjs appstore "$VERSION"
       # Owner ruling Q248 B: after the store accepted the build, the release
-      # is no longer a test build. Runs only when the step above succeeded; a
+      # is no longer a test build. Runs only when the step above promoted X.Y.Z
+      # now or found X.Y.Z live or in review; never after a SKIP (I438). A
       # release that is already a full release is not an error.
       - name: Clear the GitHub prerelease flag
+        if: steps.promote.outputs.clear_prerelease == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release edit "ios/v$VERSION" --repo "$GITHUB_REPOSITORY" --prerelease=false
@@ -192,14 +198,17 @@ jobs:
           token_format: access_token
           access_token_scopes: https://www.googleapis.com/auth/chromewebstore
           create_credentials_file: false
-      - name: Upload and publish the public zip
+      - id: promote
+        name: Upload and publish the public zip
         env:
           TOKEN: ${{ steps.auth.outputs.access_token }}
         run: node release/promote.mjs chrome "$VERSION"
       # Owner ruling Q248 B: after the store accepted the build, the release
-      # is no longer a test build. Runs only when the step above succeeded; a
+      # is no longer a test build. Runs only when the step above promoted X.Y.Z
+      # now or found X.Y.Z live or in review; never after a SKIP (I438). A
       # release that is already a full release is not an error.
       - name: Clear the GitHub prerelease flag
+        if: steps.promote.outputs.clear_prerelease == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release edit "chrome/v$VERSION" --repo "$GITHUB_REPOSITORY" --prerelease=false
@@ -225,15 +234,18 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: site/.node-version
-      - name: Submit the public zip as a listed version
+      - id: promote
+        name: Submit the public zip as a listed version
         env:
           MOZILLA_AMO_JWT_ISSUER: ${{ secrets.MOZILLA_AMO_JWT_ISSUER }}
           MOZILLA_AMO_JWT_SECRET: ${{ secrets.MOZILLA_AMO_JWT_SECRET }}
         run: node release/promote.mjs firefox "$VERSION"
       # Owner ruling Q248 B: after the store accepted the build, the release
-      # is no longer a test build. Runs only when the step above succeeded; a
+      # is no longer a test build. Runs only when the step above promoted X.Y.Z
+      # now or found X.Y.Z live or in review; never after a SKIP (I438). A
       # release that is already a full release is not an error.
       - name: Clear the GitHub prerelease flag
+        if: steps.promote.outputs.clear_prerelease == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release edit "firefox/v$VERSION" --repo "$GITHUB_REPOSITORY" --prerelease=false

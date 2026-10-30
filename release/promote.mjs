@@ -152,6 +152,13 @@ function summary(line) {
 function output(k, v) {
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, k + "=" + v + "\n");
 }
+// Store commands end with done() when X.Y.Z was promoted now or is already live
+// or in review at X.Y.Z, and with skip() when it was not promoted (I438). Only
+// done() lets the workflow clear the GitHub prerelease flag.
+const done = (line) => (summary(line), true);
+const skip = (line) => (summary(line), false);
+/** Step output clear_prerelease for the result of a store command. */
+export const clearOutput = (promoted) => (promoted === true ? "true" : "false");
 
 // ---- HTTP ----
 
@@ -244,10 +251,12 @@ async function play(version) {
   const live = (prod.releases || []).filter((r) => r.status !== "draft");
   const codes = live.flatMap((r) => (r.versionCodes || []).map(Number));
   let track;
+  let newer = false;
   if (codes.includes(code)) {
     track = "already on production";
   } else if (codes.some((c) => c > code)) {
-    track = "SKIP: production has a newer versionCode (" + Math.max(...codes) + ")";
+    newer = true;
+    track = "production has a newer versionCode (" + Math.max(...codes) + ")";
   } else {
     const body = { track: "production", releases: [{ name: version, versionCodes: [String(code)], status: "completed" }] };
     await http("PUT", e + "/tracks/production", { headers: json, body: JSON.stringify(body) });
@@ -288,7 +297,8 @@ async function play(version) {
   } else {
     await http("DELETE", e, { headers: auth });
   }
-  summary("Play " + version + ": " + track + "; " + text + "; " + images);
+  const line = track + "; " + text + "; " + images;
+  return newer ? skip("Play " + version + ": SKIP, " + line) : done("Play " + version + ": " + line);
 }
 
 // ---- App Store Connect ----
@@ -330,13 +340,11 @@ async function appstore(version) {
   const versions = (await asc("GET", "/v1/apps/" + app + "/appStoreVersions?filter[platform]=IOS&limit=200")).json.data;
   const same = versions.find((v) => v.attributes.versionString === version);
   if (same && ASC_DONE.includes(ascState(same))) {
-    summary("App Store " + version + ": already " + ascState(same) + "; nothing to do");
-    return;
+    return done("App Store " + version + ": already " + ascState(same) + "; nothing to do");
   }
   const newer = versions.find((v) => parseVersion(v.attributes.versionString) && cmpVersion(v.attributes.versionString, version) > 0 && !ASC_EDITABLE.includes(ascState(v)));
   if (newer) {
-    summary("App Store " + version + ": SKIP, " + newer.attributes.versionString + " is already " + ascState(newer));
-    return;
+    return skip("App Store " + version + ": SKIP, " + newer.attributes.versionString + " is already " + ascState(newer));
   }
 
   const want = readListing("appstore");
@@ -420,7 +428,7 @@ async function appstore(version) {
     await asc("POST", "/v1/reviewSubmissionItems", { data: { type: "reviewSubmissionItems", relationships: { reviewSubmission: { data: { type: "reviewSubmissions", id: sub.id } }, appStoreVersion: { data: { type: "appStoreVersions", id: v.id } } } } });
   }
   await asc("PATCH", "/v1/reviewSubmissions/" + sub.id, { data: { type: "reviewSubmissions", id: sub.id, attributes: { submitted: true } } });
-  summary("App Store " + version + ": build " + build + " submitted for review; release " + IOS_RELEASE_TYPE + "; " + images);
+  return done("App Store " + version + ": build " + build + " submitted for review; release " + IOS_RELEASE_TYPE + "; " + images);
 }
 
 // ---- Chrome Web Store (public item) ----
@@ -437,10 +445,10 @@ async function chrome(version) {
   const s = await status();
   const live = crx(s.publishedItemRevisionStatus);
   const sub = s.submittedItemRevisionStatus;
-  if (live.includes(version)) return summary("Chrome " + version + ": already live; nothing to do");
-  if (sub && crx(sub).includes(version) && ["PENDING_REVIEW", "STAGED"].includes(sub.state)) return summary("Chrome " + version + ": already " + sub.state + "; nothing to do");
+  if (live.includes(version)) return done("Chrome " + version + ": already live; nothing to do");
+  if (sub && crx(sub).includes(version) && ["PENDING_REVIEW", "STAGED"].includes(sub.state)) return done("Chrome " + version + ": already " + sub.state + "; nothing to do");
   const newer = [...live, ...crx(sub)].filter((x) => parseVersion(x) && cmpVersion(x, version) > 0);
-  if (newer.length) return summary("Chrome " + version + ": SKIP, store already has " + newer[0]);
+  if (newer.length) return skip("Chrome " + version + ": SKIP, store already has " + newer[0]);
   if (sub && sub.state === "PENDING_REVIEW") throw new Error("Chrome: version " + crx(sub).join(",") + " is in review; cancel it in the dashboard first");
 
   const zip = await releaseFile("chrome", version, "pusharmor-chrome-" + version + ".zip");
@@ -455,7 +463,7 @@ async function chrome(version) {
   r = (await http("POST", api + "/v2/" + item + ":publish", { headers: { ...auth, "Content-Length": "0" } })).json;
   const st = (r && r.state) || "";
   if (!st || ["ITEM_STATE_UNSPECIFIED", "REJECTED", "CANCELLED"].includes(st)) throw new Error("Chrome publish: " + JSON.stringify(r).slice(0, 2000));
-  summary("Chrome " + version + ": public zip uploaded and submitted (" + st + ")");
+  return done("Chrome " + version + ": public zip uploaded and submitted (" + st + ")");
 }
 
 // ---- Firefox AMO (listed add-on) ----
@@ -483,9 +491,14 @@ async function firefox(version) {
     url = j.next ? j.next.slice(api.length) : "";
   }
   const same = versions.find((x) => x.version === version);
-  if (same) return summary("Firefox " + version + ": already on AMO (" + same.channel + ", " + (same.file?.status || "unknown") + "); nothing to do");
+  if (same) {
+    const st = same.channel + ", " + (same.file?.status || "unknown");
+    // Only a listed version that AMO did not disable counts as promoted.
+    if (same.channel === "listed" && same.file?.status !== "disabled") return done("Firefox " + version + ": already on AMO (" + st + "); nothing to do");
+    return skip("Firefox " + version + ": SKIP, " + version + " is already on AMO (" + st + ")");
+  }
   const newer = versions.find((x) => x.channel === "listed" && parseVersion(x.version) && cmpVersion(x.version, version) > 0);
-  if (newer) return summary("Firefox " + version + ": SKIP, AMO already has " + newer.version);
+  if (newer) return skip("Firefox " + version + ": SKIP, AMO already has " + newer.version);
 
   const zip = await releaseFile("firefox", version, "pusharmor-firefox-" + version + ".zip");
   const src = await releaseFile("firefox", version, "pusharmor-firefox-" + version + "-source.zip");
@@ -503,7 +516,7 @@ async function firefox(version) {
   vf.append("upload", u.uuid);
   vf.append("source", new Blob([src]), "pusharmor-firefox-" + version + "-source.zip");
   await amo("POST", "/addon/" + id + "/versions/", vf);
-  summary("Firefox " + version + ": public zip and source submitted as a listed version");
+  return done("Firefox " + version + ": public zip and source submitted as a listed version");
 }
 
 const COMMANDS = { check, play, appstore, chrome, firefox };
@@ -515,7 +528,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.error(bad.join("\n"));
     process.exit(2);
   }
-  COMMANDS[cmd](version).catch((e) => {
+  COMMANDS[cmd](version).then((r) => {
+    if (cmd !== "check") output("clear_prerelease", clearOutput(r));
+  }, (e) => {
     summary("- " + cmd + " " + version + ": FAILED: " + e.message.split("\n")[0].slice(0, 300));
     console.error(e.message);
     process.exit(1);
