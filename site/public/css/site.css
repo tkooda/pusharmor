@@ -195,7 +195,8 @@ button.danger { color: #ffffff; background: #b3261e; border-color: #b3261e; }
 
 .ts-frame { width: 100%; max-width: 22rem; height: 90px; border: 0; }
 .framed, .framed body { overflow: hidden; }
+.framed { color-scheme: light dark; }
+.framed body { margin: 0; background: transparent; }
 .framed body, .framed main { padding: 0; }
-.framed footer { display: none; }
-.framed .status { margin: 0; }
+.framed footer, .framed #status { display: none; }
 .status { min-height: 1.5rem; font-weight: 600; }
