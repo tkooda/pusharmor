@@ -57,6 +57,7 @@ deflate stream is correct) unless the change is intended.
 | `email_hash` | normalization cases (trim ASCII whitespace, reject non-ASCII, ASCII lowercase); `normalized` null = 400 "bad email" | normalized, email_hash, account |
 | `id_order` | id pairs and the lower side (unsigned byte compare) | `lower` |
 | `oauth_nonce` | k and nonce per purpose | k, nonce |
+| `cli_code` | command line login link and 34-char code per purpose (test token_secret) | k16, link, code (Worker and command line client only) |
 | `my_push_sha256` | push objects of every type | my_push_sha256 |
 | `b64url` | strict accept/reject strings | decoded hex, or reject |
 | `pairing` | r_N, r_X, c_N, fingerprint hash and chars, pairing_id, pk, the three pair messages, `fingerprint_cases` (every Crockford symbol) | deterministic values byte for byte; open each pair message, compare plaintext, check the open against c_N |

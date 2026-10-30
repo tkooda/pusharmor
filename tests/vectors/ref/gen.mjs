@@ -4,7 +4,7 @@ import { writeFileSync } from 'node:fs';
 import { deflateRawSync } from 'node:zlib';
 import { b64d, b64e, cat, hexe, sha256 } from './bytes.mjs';
 import { isValidPriv, pubFromPriv, sign } from './p256.mjs';
-import { accountId, emailHash, keyhash, myPushSha256, normalizeEmail, oauthNonce, peerId } from './ids.mjs';
+import { accountId, cliCode, emailHash, keyhash, myPushSha256, normalizeEmail, oauthNonce, peerId } from './ids.mjs';
 import {
   commitBody, commitHash, crockford20, fingerprintHash, keysBody, pairDecide, pairHint, pairKey,
   pairingId, pairTimeout, sealPair,
@@ -200,6 +200,23 @@ function nonceSection() {
     cases: ['register', 'login', 'delete-account'].map((purpose) => ({
       purpose, sign_pub: b64e(N.signPub), ...oauthNonce(purpose, N.signPub),
     })),
+  };
+}
+
+function cliCodeSection() {
+  const tokenSecret = label('TOKEN_SECRET');
+  const cases = [['register', 'r', 2969856], ['login', 'l', 2969857], ['delete-account', 'd', 2969858]].map(([purpose, p, window]) => {
+    const r = cliCode(tokenSecret, N.account, N.signPub, p, window);
+    return { purpose, p, window, sign_pub: b64e(N.signPub), account: b64e(N.account), k16: r.k16, link: 'https://pusharmor.com/auth/cli#' + p + '.' + r.k16, code: r.code };
+  });
+  return {
+    description:
+      'Command line login code. k16 = b64url(sha256(sign_pub)[0..16]) (22 chars); link = "https://pusharmor.com/auth/cli#" + p + "." + k16 ' +
+      '(p = r register, l login, d delete-account); code = b64url(account (9 bytes) || HMAC-SHA256(token_secret, "PA-CLI1\\n" + ' +
+      'b64url(account) + "\\n" + k16 + "\\n" + p + "\\n" + window)[0..16]) (34 chars), window = floor(unix s / 600) in decimal. ' +
+      'token_secret is a test PA_TOKEN_SECRET. Assert k16, link and code (the Worker and the command line client).',
+    token_secret: b64e(tokenSecret),
+    cases,
   };
 }
 
@@ -902,6 +919,7 @@ export function buildGolden() {
     email_hash: emailSection(),
     id_order: idOrderSection(),
     oauth_nonce: nonceSection(),
+    cli_code: cliCodeSection(),
     my_push_sha256: pushSection(),
     b64url: b64Section(),
     pairing: pairingSection(),

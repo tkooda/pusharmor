@@ -6,7 +6,7 @@ import { b64urlEncode } from "../codec/b64url";
 import { pushSha256 } from "../codec/validate";
 import { rawPoint } from "../crypto/ecdsa";
 import { hmac, utf8 } from "../crypto/hash";
-import { keyRef, LABEL_TICKET, openToken, type Purpose, type Ticket } from "../crypto/tokens";
+import { CLI_WINDOW_S, keyRef, keyRef16, LABEL_TICKET, openCliCode, openToken, type Purpose, type Ticket } from "../crypto/tokens";
 import { ApiError } from "../errors";
 import { allow, enforce, enforceAccount } from "../pipeline/limits";
 import { checkKeyhash, checkPaId, checkSig, checkTime } from "../pipeline/signed";
@@ -46,8 +46,18 @@ export async function callerCheck(c: Ctx, s: Signed, row: CallerRow | undefined 
   await enforceAccount(c.env, s.acct, c.log);
 }
 
-// Ticket check: MAC, purpose, k, expiry (and account when given).
+// Ticket check: MAC, purpose, k, expiry (and account when given). A 34-char ticket is a cli
+// code (401 "ticket expired" for an older window, else "bad ticket").
 export async function checkTicket(c: Ctx, ticket: unknown, purpose: Purpose, signPub: string, acct?: string): Promise<Ticket> {
+  if (typeof ticket === "string" && ticket.length === 34) {
+    const raw = rawPoint(signPub);
+    if (!raw) throw new ApiError(401, "bad ticket");
+    const w = Math.floor(nowS() / CLI_WINDOW_S);
+    const o = await openCliCode(c.env.PA_TOKEN_SECRET, ticket, await keyRef16(raw), purpose, w);
+    if (o === "expired") throw new ApiError(401, "ticket expired");
+    if (!o || (acct !== undefined && o.a !== acct)) throw new ApiError(401, "bad ticket");
+    return { a: o.a, k: await keyRef(raw), p: purpose, x: (o.w + 2) * CLI_WINDOW_S };
+  }
   const t = await openToken(c.env.PA_TOKEN_SECRET, LABEL_TICKET, ticket);
   const raw = rawPoint(signPub);
   if (!t || !raw) throw new ApiError(401, "invalid ticket");

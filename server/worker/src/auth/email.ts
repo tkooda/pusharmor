@@ -7,7 +7,9 @@ import { checkCode, deriveCode } from "../crypto/code";
 import { importVerifyKey, rawPoint } from "../crypto/ecdsa";
 import { accountId, emailHash } from "../crypto/ids";
 import {
+  CLI_WINDOW_S,
   keyRef,
+  makeCliCode,
   LABEL_REQUEST_TOKEN,
   makeTicket,
   makeToken,
@@ -55,10 +57,18 @@ export async function checkSignPub(v: unknown): Promise<Uint8Array> {
   return raw;
 }
 
+// cli_k: k16 of the CLI's sign_pub (22 chars), from the /auth/cli link.
+export function checkCliK(v: unknown): string {
+  if (typeof v !== "string" || v.length !== 22 || b64urlDecode(v)?.length !== 16) throw bad();
+  return v;
+}
+
 export async function start(c: Ctx): Promise<Response> {
   const b = parseJsonObject(c.body);
-  keysExactly(b, ["email", "sign_pub", "purpose", "turnstile"]);
-  const raw = await checkSignPub(b.sign_pub);
+  // The /auth/cli page sends cli_k instead of sign_pub; verify then returns a cli code.
+  const cli = "cli_k" in b;
+  keysExactly(b, ["email", cli ? "cli_k" : "sign_pub", "purpose", "turnstile"]);
+  const k = cli ? checkCliK(b.cli_k) : await keyRef(await checkSignPub(b.sign_pub));
   const purpose = checkPurpose(b.purpose);
   if (typeof b.email !== "string" || typeof b.turnstile !== "string" || b.turnstile.length === 0 || b.turnstile.length > 4096) throw bad();
   await verifyTurnstile(c.env, b.turnstile, c.req.headers.get("CF-Connecting-IP"));
@@ -70,7 +80,7 @@ export async function start(c: Ctx): Promise<Response> {
   // IPv6 by its /64 like RL_IP, so one /64 cannot rotate source addresses (I446).
   await enforce(c.env, "RL_MAIL", "mail" + ipKey(c.req.headers.get("CF-Connecting-IP") ?? ""), c.log);
   await enforce(c.env, "RL_MAIL_ALL", "mail:all", c.log);
-  const token = await makeToken(c.env.PA_TOKEN_SECRET, LABEL_REQUEST_TOKEN, { t: nowS(), e: eh, m: email, k: await keyRef(raw), p: purpose });
+  const token = await makeToken(c.env.PA_TOKEN_SECRET, LABEL_REQUEST_TOKEN, { t: nowS(), e: eh, m: email, k, p: purpose, ...(cli ? { c: 1 } : {}) });
   const code = await deriveCode(c.env.PA_CODE_SECRET, token);
   const mail = mailText(purpose, code);
   await sendEmail(c.env, email, mail.subject, mail.text, ((u: string, i: RequestInit) => deps.fetch(u, i)) as unknown as typeof fetch);
@@ -98,6 +108,7 @@ export async function verify(c: Ctx): Promise<Response> {
   const eh = b64urlDecode(rt.e);
   if (!eh || eh.length !== 32) throw new ApiError(401, "wrong code");
   const a = await accountId(c.env.PA_ID_SECRET, eh);
+  if (rt.c === 1) return json(200, { cli_code: await makeCliCode(c.env.PA_TOKEN_SECRET, a, rt.k, purpose, Math.floor(nowS() / CLI_WINDOW_S)), email: rt.m });
   const ticket = await makeTicket(c.env.PA_TOKEN_SECRET, { a, k: rt.k, p: purpose, x: nowS() + TICKET_LIFE_S });
   return json(200, { ticket, email: rt.m });
 }

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { b64d, b64e, hexd, hexe, sha256 } from './bytes.mjs';
 import { isValidPub, pubFromPriv, sign, verify } from './p256.mjs';
-import { accountId, compareIds, emailHash, idMatches, keyhash, myPushSha256, normalizeEmail, oauthNonce, peerId } from './ids.mjs';
+import { accountId, cliCode, compareIds, emailHash, idMatches, keyhash, myPushSha256, normalizeEmail, oauthNonce, peerId } from './ids.mjs';
 import {
   commitHash, crockford20, fingerprintHash, openMatchesCommit, openPair, pairDecide, pairHint, pairKey, pairingId, pairTimeout,
 } from './pairing.mjs';
@@ -79,6 +79,16 @@ test('oauth_nonce', () => {
     const r = oauthNonce(c.purpose, b64d(c.sign_pub));
     assert.equal(r.k, c.k);
     assert.equal(r.nonce, c.nonce);
+  }
+});
+
+test('cli_code', () => {
+  for (const c of G.cli_code.cases) {
+    const r = cliCode(b64d(G.cli_code.token_secret), b64d(c.account), b64d(c.sign_pub), c.p, c.window);
+    assert.equal(r.k16, c.k16);
+    assert.equal('https://pusharmor.com/auth/cli#' + c.p + '.' + r.k16, c.link);
+    assert.equal(r.code, c.code);
+    assert.equal(c.code.length, 34);
   }
 });
 

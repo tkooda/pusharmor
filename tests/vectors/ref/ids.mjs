@@ -45,6 +45,15 @@ export function oauthNonce(purpose, signPub) {
   return { k, nonce: b64e(sha256('PA-NONCE1\n' + purpose + '\n' + k)) };
 }
 
+// Command line login code (Q302): k16 = b64url(sha256(sign_pub)[0..16]),
+// code = b64url(account || HMAC-SHA256(token_secret, "PA-CLI1\n" a "\n" k16 "\n" p "\n" window)[0..16])
+// with a = b64url(account), p = r | l | d, window = floor(unix s / 600) in decimal.
+export function cliCode(tokenSecret, account, signPub, p, window) {
+  const k16 = b64e(sha256(signPub).subarray(0, 16));
+  const mac = hmac(tokenSecret, 'PA-CLI1\n' + b64e(account) + '\n' + k16 + '\n' + p + '\n' + window).subarray(0, 16);
+  return { k16, code: b64e(cat(account, mac)) };
+}
+
 export function pushString(push) {
   if (push.type === 'fcm' || push.type === 'apns' || push.type === 'apns-sandbox') {
     return push.type + '\n' + push.token;
