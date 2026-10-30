@@ -24,7 +24,10 @@ const MIGRATIONS: ((kv: KV) => Promise<void>)[] = [];
 export async function migrateStorage(kv: KV): Promise<void> {
   const raw = (await kv.get([SCHEMA_KEY]))[SCHEMA_KEY];
   let v = typeof raw === "number" && Number.isInteger(raw) && raw >= 1 ? raw : 1;
-  if (v > SCHEMA_VERSION) return;
+  if (v > SCHEMA_VERSION) {
+    console.warn("storage schema v" + v + " is newer than this version (v" + SCHEMA_VERSION + "); data left untouched");
+    return;
+  }
   for (; v < SCHEMA_VERSION; v++) await MIGRATIONS[v - 1]!(kv);
   if (raw !== SCHEMA_VERSION) await kv.set({ [SCHEMA_KEY]: SCHEMA_VERSION });
 }
