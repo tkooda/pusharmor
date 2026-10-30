@@ -88,7 +88,7 @@ describe("rate limits", () => {
     expect((await call("GET", "/v1/peers", undefined, { peer: a, env: e })).status).toBe(200);
     expect((await call("POST", "/v1/send", { v: 1, m: { [b.id]: message() } }, { peer: a, env: e })).status).toBe(200);
     expect((await call("POST", "/v1/peers/" + b.id + "/pause", { m: {} }, { peer: b, env: e })).status).toBe(200);
-    const r = await call("GET", "/v1/peers", undefined, { peer: b, env: e });
+    const r = await call("GET", "/v1/peers", undefined, { peer: a, env: e });
     expect(r.status).toBe(429);
     expect(r.res.headers.get("Retry-After")).toBe("60");
     // Register (new peer or re-register) counts against the same account key.
@@ -99,6 +99,24 @@ describe("rate limits", () => {
     // Another account is not affected.
     const c = await newPeer(randomEmail());
     expect((await call("GET", "/v1/peers", undefined, { peer: c, env: e })).status).toBe(200);
+  });
+
+  it("RL_ACCT (M1): unsigned or badly signed calls with a valid PA-ID do not charge the account", async () => {
+    const email = randomEmail();
+    const a = await newPeer(email);
+    const b = await newPeer(email);
+    const rl = countingLimit(3);
+    const e = await testEnv({ RL_ACCT: rl } as Partial<Env>);
+    const other = await keys();
+    for (let i = 0; i < 10; i++) {
+      expect((await call("GET", "/v1/peers", undefined, { peer: a, env: e, noSig: true })).status).toBe(401);
+      expect((await call("GET", "/v1/peers", undefined, { peer: a, sign: other.sign, env: e })).status).toBe(401);
+    }
+    expect(rl.seen.length).toBe(0);
+    expect((await call("GET", "/v1/peers", undefined, { peer: b, env: e })).status).toBe(200);
+    const k = await keys();
+    const reg = await call("POST", "/v1/peers", { ticket: await ticketFor(email, k.signPub, "register"), sign_pub: k.signPub, enc_pub: k.encPub, platform: "android", push: null }, { sign: k.sign, env: e });
+    expect(reg.status).toBe(200);
   });
 
   it("limit() throwing: open for RL_IP, RL_PEER and RL_ACCT, closed for RL_MAIL / RL_MAIL_ALL / RL_CODE", async () => {
