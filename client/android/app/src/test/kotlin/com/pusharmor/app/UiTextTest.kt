@@ -15,8 +15,8 @@ class UiTextTest {
         approved = true, approveVerified = true)
 
     @Test fun statusPriority() {
-        assertEquals(Mark.OFF to "(missing)", UiText.status(pinned.copy(missing = true, paused = true, reachable = false)))
-        assertEquals(Mark.OFF to "Signed out", UiText.status(pinned.copy(paused = true, reachable = false)))
+        assertEquals(Mark.OFF to "(missing)", UiText.status(pinned.copy(missing = true, loggedOut = true, reachable = false)))
+        assertEquals(Mark.OFF to "Signed out", UiText.status(pinned.copy(loggedOut = true, reachable = false)))
         assertEquals(Mark.OFF to "Unreachable", UiText.status(pinned.copy(reachable = false)))
         assertEquals(Mark.OK to "Paired", UiText.status(pinned))
         assertEquals(Mark.WAIT to "Has not approved this device", UiText.status(pinned.copy(approveVerified = false)))
@@ -32,7 +32,7 @@ class UiTextTest {
     }
 
     @Test fun sendablePrunesDevicesThatCannotReceive() {
-        // "b" turned paused (left canReceive) and "x" is a preselect that never could receive.
+        // "b" turned logged out (left canReceive) and "x" is a preselect that never could receive.
         assertEquals(listOf("c", "a"), UiText.sendable(listOf("c", "b", "x", "a"), listOf("a", "c")))
         assertEquals(emptyList<String>(), UiText.sendable(listOf("b"), listOf("a")))
     }

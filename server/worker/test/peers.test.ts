@@ -16,7 +16,7 @@ describe("POST /peers", () => {
     expect(r.body.id).toBe(peer.id);
     const peers = r.body.peers as Record<string, unknown>[];
     expect(peers).toHaveLength(1);
-    expect(peers[0]).toMatchObject({ id: peer.id, platform: "android", paused: false, approves: 0, approved_by: 0, reachable: true, name_for_me: null });
+    expect(peers[0]).toMatchObject({ id: peer.id, platform: "android", logged_out: false, approves: 0, approved_by: 0, reachable: true, name_for_me: null });
     expect(typeof r.body.my_push_sha256).toBe("string");
     expect(r.body.my_allow).toEqual([]);
     expect(r.body.push_missing).toBeUndefined();
@@ -51,7 +51,7 @@ describe("POST /peers", () => {
     const k2 = await keys();
     const email = randomEmail();
     const base = { sign_pub: k.signPub, enc_pub: k.encPub, platform: "android", push: null };
-    let r = await call("POST", "/v1/peers", { ...base, ticket: await ticketFor(email, k.signPub, "unpause") }, { sign: k.sign });
+    let r = await call("POST", "/v1/peers", { ...base, ticket: await ticketFor(email, k.signPub, "login") }, { sign: k.sign });
     expect(r.body.error).toBe("invalid ticket");
     r = await call("POST", "/v1/peers", { ...base, ticket: await ticketFor(email, k2.signPub, "register") }, { sign: k.sign });
     expect(r.body.error).toBe("invalid ticket");
@@ -110,7 +110,7 @@ describe("POST /peers", () => {
     expect(typeof lr.ticket).toBe("string");
     const lp = lr.peers as Record<string, unknown>[];
     expect(lp).toHaveLength(10);
-    expect(Object.keys(lp[0]).sort()).toEqual(["approved_by", "approves", "created", "enc_pub", "id", "paused", "platform", "reachable", "sign_pub"]);
+    expect(Object.keys(lp[0]).sort()).toEqual(["approved_by", "approves", "created", "enc_pub", "id", "logged_out", "platform", "reachable", "sign_pub"]);
     const n = await env.DB.prepare("SELECT count(*) AS n FROM peers WHERE account = ?1").bind(ok[0].peer.acct).first<{ n: number }>();
     expect(n!.n).toBe(10);
     // Retry with evict and the fresh 10-minute ticket.

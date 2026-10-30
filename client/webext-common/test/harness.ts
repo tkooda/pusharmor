@@ -109,7 +109,7 @@ interface WRow {
   enc_pub: Uint8Array;
   platform: string;
   created: number;
-  paused: boolean;
+  logged_out: boolean;
   allow: Set<string>;
   deny: Set<string>;
   name: Record<string, string>;
@@ -168,7 +168,7 @@ export class MockWorker {
     if (!r) return "unknown";
     if (r.deny.has(from.id)) return "denied";
     if (!r.allow.has(from.id)) return "unapproved";
-    if (r.paused) return "paused";
+    if (r.logged_out) return "logged out";
     if (!r.push) return "gone";
     this.queue.push({ to, m });
     return "sent";
@@ -199,7 +199,7 @@ export class MockWorker {
       if (Math.abs(Number(t) - wnow) > 300_000) return this.reply(401, { error: "clock skew" });
       const id = this.peerId(sp, ep);
       if (!this.rows.has(id)) {
-        this.rows.set(id, { id, sign_pub: sp, enc_pub: ep, platform: body.platform as string, created: Math.floor(this.clock.t / 1000), paused: false, allow: new Set(), deny: new Set(), name: {}, pending: {}, push: false });
+        this.rows.set(id, { id, sign_pub: sp, enc_pub: ep, platform: body.platform as string, created: Math.floor(this.clock.t / 1000), logged_out: false, allow: new Set(), deny: new Set(), name: {}, pending: {}, push: false });
       }
       return this.reply(200, { ...this.listFor(id), id });
     }
@@ -213,8 +213,8 @@ export class MockWorker {
     if (!t || !sig || !(await verify(me.sign_pub, b64urlDecode(sig), reqSignedBytes(method, path, t, ascii(text))))) return this.reply(401, { error: "invalid client signature" });
     if (Math.abs(Number(t) - wnow) > 300_000) return this.reply(401, { error: "clock skew" });
     const withdraw = /^\/v1\/deny\//.test(path) && body.withdraw === 1;
-    const unpause = path === "/v1/peers/" + me.id + "/unpause";
-    if (me.paused && !withdraw && !unpause && !(method === "DELETE" && path === "/v1/peers/" + me.id)) return this.reply(401, { error: "paused" });
+    const login = path === "/v1/peers/" + me.id + "/login";
+    if (me.logged_out && !withdraw && !login && !(method === "DELETE" && path === "/v1/peers/" + me.id)) return this.reply(401, { error: "logged out" });
     let mm: RegExpExecArray | null;
     if (path === "/v1/peers" && method === "GET") return this.reply(200, this.listFor(me.id));
     if ((mm = /^\/v1\/peers\/([^/]+)$/.exec(path)) && method === "PATCH") {
@@ -229,11 +229,11 @@ export class MockWorker {
       }
       return this.reply(200, {});
     }
-    if ((mm = /^\/v1\/peers\/([^/]+)\/(pause|unpause)$/.exec(path)) && method === "POST") {
+    if ((mm = /^\/v1\/peers\/([^/]+)\/(logout|login)$/.exec(path)) && method === "POST") {
       const m = (body.m as Record<string, string>) ?? {};
       const missing = [...me.allow].filter((a) => !(a in m));
       if (missing.length) return this.reply(400, { error: "messages missing", ids: missing });
-      me.paused = mm[2] === "pause";
+      me.logged_out = mm[2] === "logout";
       const r: Record<string, string> = {};
       for (const [to, msg] of Object.entries(m)) r[to] = this.relay(me, to, msg);
       return this.reply(200, { r });
@@ -255,7 +255,7 @@ export class MockWorker {
       if ((body.c as string).length !== 366) return this.reply(400, { error: "bad request" });
       if (!x) return this.reply(200, { r: "unknown" });
       if (x.deny.has(me.id)) return this.reply(200, { r: "denied" });
-      if (x.paused) return this.reply(200, { r: "paused" });
+      if (x.logged_out) return this.reply(200, { r: "logged out" });
       this.queue.push({ to: x.id, m: body.c as string });
       return this.reply(200, { r: "sent" });
     }
@@ -307,7 +307,7 @@ export class MockWorker {
         enc_pub: b64urlEncode(r.enc_pub),
         platform: r.platform,
         created: r.created,
-        paused: r.paused,
+        logged_out: r.logged_out,
         approves: r.allow.size,
         approved_by: [...this.rows.values()].filter((o) => o.allow.has(r.id)).length,
         approves_me: r.allow.has(me),

@@ -125,7 +125,7 @@ public enum PairDecide {
 
     /// Timeout of a pairing row (step 8).
     public enum Resend: String, Sendable {
-        case offline, paused, rateLimited = "429", serverError = "5xx"
+        case offline, loggedOut = "logged out", rateLimited = "429", serverError = "5xx"
         case cVerified = "200_c_verified", other = "200_other"
     }
 

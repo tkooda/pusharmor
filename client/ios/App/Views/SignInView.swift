@@ -74,7 +74,7 @@ struct SignInView: View {
     private var title: String {
         switch purpose {
         case .register: return "Sign in"
-        case .unpause: return "Sign in to resume"
+        case .login: return "Sign in to resume"
         case .deleteAccount: return "Sign in to delete this account"
         }
     }

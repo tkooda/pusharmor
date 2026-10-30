@@ -291,7 +291,7 @@ final class GoldenTests: XCTestCase {
             let v = e["value"] as! J
             XCTAssertEqual(r.name, str(v["name"]), name)
             XCTAssertEqual(f.n, u64(v["n"]), name)
-        case .deny, .delete, .pause, .unpause: XCTAssertEqual(i64(e["value"]), 1, name)
+        case .deny, .delete, .logout, .login: XCTAssertEqual(i64(e["value"]), 1, name)
         }
         XCTAssertEqual(r.windowAfter?.h, max(u64((c["window"] as! J)["h"]), j.n))
         // our sealer: a fresh seal of the same json lands in the same bucket and opens the same way

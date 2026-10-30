@@ -212,14 +212,14 @@ test("send: a URL whose normalized href exceeds the cap is refused before any co
   assert.equal(w.calls.filter((c) => c.path === "/v1/send").length, 0);
 });
 
-test("a 401 paused from any signed call sets reg to paused", async () => {
+test("a 401 logged out from any signed call sets reg to logged_out", async () => {
   const { w, a, b } = await setup();
   await pairAndApprove(w, a, b);
   assert.equal(await a.e.regState(), "registered");
-  w.rows.get(a.id)!.paused = true; // the Worker applied a pause whose reply was lost
+  w.rows.get(a.id)!.logged_out = true; // the Worker applied a logout whose reply was lost
   const r = await a.e.send("hi", false, "all");
   assert.equal(r.sent, 0);
-  assert.equal(await a.e.regState(), "paused");
+  assert.equal(await a.e.regState(), "logged_out");
 });
 
 test("pairing state survives restarts, valid at day 13, expires at day 14", async () => {
@@ -264,7 +264,7 @@ test("two pairings open at once have their own fingerprint and countdown", async
   assert.equal((await allEntries(a.p.storageLocal)).size, 2);
 });
 
-test("allow reconcile: orphan withdrawn across 429 and restart, pinned id never withdrawn, works while paused", async () => {
+test("allow reconcile: orphan withdrawn across 429 and restart, pinned id never withdrawn, works while logged_out", async () => {
   const { w, a, b, clock } = await setup();
   await pairAndApprove(w, a, b);
   const c = await device(w, clock);
@@ -277,28 +277,28 @@ test("allow reconcile: orphan withdrawn across 429 and restart, pinned id never 
   assert.deepEqual(await getAllowSet(a2.p.storageLocal), [b.id]);
   const wd = w.calls.filter((x) => x.path.startsWith("/v1/deny/"));
   assert.ok(wd.every((x) => x.path === "/v1/deny/" + c.id && (x.body as { withdraw: number }).withdraw === 1));
-  // while paused the withdraw passes the gate
-  await a2.e.pause();
+  // while logged_out the withdraw passes the gate
+  await a2.e.logout();
   await a2.p.storageLocal.set({ allow: [b.id, c.id] });
   await a2.e.reconcileAllow();
   assert.deepEqual(await getAllowSet(a2.p.storageLocal), [b.id]);
 });
 
-test("400 messages missing: withdraw the orphan, then one retry of pause succeeds", async () => {
+test("400 messages missing: withdraw the orphan, then one retry of logout succeeds", async () => {
   const { w, a, b, clock } = await setup();
   await pairAndApprove(w, a, b);
   const c = await device(w, clock);
   // stale Worker allow entry for c (a lost approve reply after Cancel pairing)
   w.rows.get(a.id)!.allow.add(c.id);
   await a.p.storageLocal.set({ allow: [b.id] });
-  await a.e.pause();
-  assert.equal(w.rows.get(a.id)!.paused, true);
+  await a.e.logout();
+  assert.equal(w.rows.get(a.id)!.logged_out, true);
   assert.ok(!w.rows.get(a.id)!.allow.has(c.id));
-  const pauses = w.calls.filter((x) => x.path.endsWith("/pause"));
-  assert.equal(pauses.length, 2);
+  const logouts = w.calls.filter((x) => x.path.endsWith("/logout"));
+  assert.equal(logouts.length, 2);
 });
 
-test("stale allow id plus a new open N entry is withdrawn and pause succeeds", async () => {
+test("stale allow id plus a new open N entry is withdrawn and logout succeeds", async () => {
   const { w, a, b, clock } = await setup();
   await pairAndApprove(w, a, b);
   const c = await device(w, clock);
@@ -307,8 +307,8 @@ test("stale allow id plus a new open N entry is withdrawn and pause succeeds", a
   w.rows.get(a.id)!.allow.add(c.id);
   await a.e.fetchPeersNow(); // my_allow has c -> reconcile withdraws it
   assert.ok(!w.rows.get(a.id)!.allow.has(c.id));
-  await a.e.pause();
-  assert.equal(w.rows.get(a.id)!.paused, true);
+  await a.e.logout();
+  assert.equal(w.rows.get(a.id)!.logged_out, true);
   assert.ok(await getEntry(a.p.storageLocal, c.id));
 });
 
@@ -612,7 +612,7 @@ test("Firefox deny notice reads denied this device; wipe leaves no pair keys", a
   assert.equal(a.p.storageLocal.data.registered, undefined);
 });
 
-test("timeout while paused keeps Waiting; the re-fetch after unpause completes the pairing", async () => {
+test("timeout while logged_out keeps Waiting; the re-fetch after login completes the pairing", async () => {
   const { w, a, b, clock } = await setup();
   await refresh(a, b);
   await a.e.pairStart(b.id);
@@ -622,12 +622,12 @@ test("timeout while paused keeps Waiting; the re-fetch after unpause completes t
   await a.e.approve(b.id); // stored
   await b.e.approve(a.id); // relayed push to a lost
   w.take(a.id);
-  await a.e.pause();
+  await a.e.logout();
   clock.t += 15 * DAY;
   await a.e.sweep();
   assert.ok(await getEntry(a.p.storageLocal, b.id)); // Waiting stays
   assert.ok((await a.db.peer(b.id))!.pinned);
-  await a.e.unpause("T");
+  await a.e.login("T");
   assert.ok((await a.db.peer(b.id))!.approves_me);
 });
 

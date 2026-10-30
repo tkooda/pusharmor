@@ -31,8 +31,8 @@ export type Content =
   | { type: "deny" }
   | { type: "remove"; id: string }
   | { type: "delete" }
-  | { type: "pause" }
-  | { type: "unpause" };
+  | { type: "logout" }
+  | { type: "login" };
 
 export type ContentType = Content["type"];
 export const CONTROL_TYPES: ReadonlySet<ContentType> = new Set([
@@ -40,8 +40,8 @@ export const CONTROL_TYPES: ReadonlySet<ContentType> = new Set([
   "rename",
   "remove",
   "delete",
-  "pause",
-  "unpause",
+  "logout",
+  "login",
   "deny",
 ]);
 const TYPE_KEYS: ReadonlySet<string> = new Set([
@@ -53,8 +53,8 @@ const TYPE_KEYS: ReadonlySet<string> = new Set([
   "remove",
   "rename",
   "delete",
-  "pause",
-  "unpause",
+  "logout",
+  "login",
 ]);
 
 /** JSON {"n": n, type: value}. */
@@ -226,7 +226,7 @@ export function parseInnerJson(bytes: Uint8Array): ParsedJson | null {
     }
     default:
       if (!(val instanceof JNum) || val.raw !== "1") return null;
-      return { n, content: { type: t as "deny" | "delete" | "pause" | "unpause" } };
+      return { n, content: { type: t as "deny" | "delete" | "logout" | "login" } };
   }
 }
 

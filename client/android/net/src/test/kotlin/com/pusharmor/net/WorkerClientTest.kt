@@ -46,14 +46,14 @@ class WorkerClientTest {
         assertEquals((clock + 5000).toString(), server.takeRequest().getHeader("PA-Time"))
     }
 
-    @Test fun authStateHookSeesUnknownPeerAndPausedOnSignedCalls() {
+    @Test fun authStateHookSeesUnknownPeerAndLoggedOutOnSignedCalls() {
         val seen = ArrayList<String>()
         val c = WorkerClient({ keys }, { id }, offset, server.url("/"), WorkerClient.defaultHttp(), { clock }, { clock += it }, { seen.add(it) })
         server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"unknown peer\"}"))
-        server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"paused\"}"))
+        server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"logged out\"}"))
         server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"clock skew\"}"))
         c.send(mapOf("x" to "M")); c.peers(); c.send(mapOf("x" to "M"))
-        assertEquals(listOf("unknown peer", "paused"), seen)
+        assertEquals(listOf("unknown peer", "logged out"), seen)
     }
 
     @Test fun retries429WithinBudgetWithSameBytesAndSignature() {
@@ -87,8 +87,8 @@ class WorkerClientTest {
         assertEquals("could not send the email, try again", ErrorText.of(r))
         server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"clock skew\"}"))
         assertTrue(client.peers().isClockSkew)
-        server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"paused\"}"))
-        assertTrue(client.peers().isPaused)
+        server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"logged out\"}"))
+        assertTrue(client.peers().isLoggedOut)
         assertEquals(3, server.requestCount)
         assertTrue(slept.isEmpty())
     }
@@ -109,7 +109,7 @@ class WorkerClientTest {
 
     @Test fun messagesMissingCarriesIds() {
         server.enqueue(MockResponse().setResponseCode(400).setBody("{\"error\":\"messages missing\",\"ids\":[\"a\",\"b\"]}"))
-        val r = client.pause(emptyMap()) as ApiResult.Http
+        val r = client.logout(emptyMap()) as ApiResult.Http
         assertTrue(r.isMessagesMissing)
         assertEquals(listOf("a", "b"), r.ids)
     }

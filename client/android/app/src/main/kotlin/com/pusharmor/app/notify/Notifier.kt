@@ -104,7 +104,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         try { nm.notify(tag, id, n) } catch (e: SecurityException) { /* permission revoked */ }
     }
 
-    /** Fixed-form notices (deny, pause, unpause, could not read, invalid): one id, tag "notice", "OK" only; a tap only dismisses. */
+    /** Fixed-form notices (deny, logout, login, could not read, invalid): one id, tag "notice", "OK" only; a tap only dismisses. */
     fun notice(text: String) {
         val dismiss = dismiss(TAG_NOTICE, NOTICE_ID)
         notify(TAG_NOTICE, NOTICE_ID, NotificationCompat.Builder(context, peersChannel)

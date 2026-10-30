@@ -120,7 +120,7 @@ export class Engine {
     this.p = d.platform;
     this.db = d.db;
     this.api = d.api;
-    this.api.onPaused = () => this.db.setMeta("reg", "paused");
+    this.api.onLoggedOut = () => this.db.setMeta("reg", "logged_out");
     this.vapid = d.vapidPub;
   }
 
@@ -144,8 +144,8 @@ export class Engine {
     return s && s.id ? s : null;
   }
 
-  async regState(): Promise<"registered" | "paused" | null> {
-    return (await this.db.meta<"registered" | "paused">("reg")) ?? null;
+  async regState(): Promise<"registered" | "logged_out" | null> {
+    return (await this.db.meta<"registered" | "logged_out">("reg")) ?? null;
   }
 
   private signerOf(s: SelfKeys) {
@@ -332,13 +332,13 @@ export class Engine {
       case "delete":
         await this.selfRemoved(T.accountDeleted);
         return;
-      case "pause":
-      case "unpause": {
-        await this.db.updatePeer(peer.id, (p) => (p && n > p.pause_n ? { ...p, paused: c.type === "pause", pause_n: n } : null));
-        const id = await this.addEvent(c.type === "pause" ? "paused" : "resumed", peer.id);
+      case "logout":
+      case "login": {
+        await this.db.updatePeer(peer.id, (p) => (p && n > p.logout_n ? { ...p, logged_out: c.type === "logout", logout_n: n } : null));
+        const id = await this.addEvent(c.type === "logout" ? "logged_out" : "logged_in", peer.id);
         if (this.penalized && src === "push") {
           const nm = peerLabel(peer.name);
-          this.p.notify("h:" + id, T.appName, c.type === "pause" ? T.pausedRecv(nm) : T.resumedRecv(nm));
+          this.p.notify("h:" + id, T.appName, c.type === "logout" ? T.loggedOutRecv(nm) : T.loggedInRecv(nm));
         }
         await this.rebuildMenus();
         return;
@@ -358,10 +358,10 @@ export class Engine {
     const nm = await this.peerName(from);
     if (c.type === "approve") this.p.notify("a:" + from, T.appName, T.approved(nm));
     else if (c.type === "rename" || c.type === "remove") this.p.notify("peerchg", T.appName, T.peerChanged);
-    else if (c.type === "pause" || c.type === "unpause" || c.type === "deny") {
-      const ev = c.type === "pause" ? "paused" : c.type === "unpause" ? "resumed" : "denied";
+    else if (c.type === "logout" || c.type === "login" || c.type === "deny") {
+      const ev = c.type === "logout" ? "logged_out" : c.type === "login" ? "logged_in" : "denied";
       const top = (await this.db.history()).find((h) => h.type === "event" && h.event === ev && h.peer === from);
-      const text = c.type === "pause" ? T.pausedRecv(nm) : c.type === "unpause" ? T.resumedRecv(nm) : T.denied(nm);
+      const text = c.type === "logout" ? T.loggedOutRecv(nm) : c.type === "login" ? T.loggedInRecv(nm) : T.denied(nm);
       this.p.notify(top?.id !== undefined ? "h:" + top.id : "drop", T.appName, text);
     }
   }
@@ -803,7 +803,7 @@ export class Engine {
     const peer = await this.db.peer(x);
     if (!self || !e || !e.approve_body || !peer) return null;
     if (peer.approve_verified) return "200_c_verified";
-    if ((await this.regState()) !== "registered") return "paused";
+    if ((await this.regState()) !== "registered") return "logged out";
     let body = e.approve_body;
     const name = await this.myName();
     if (e.approve_name !== name) {
@@ -813,7 +813,7 @@ export class Engine {
     const result = await this.postApprove(x, body, self, true);
     if ((await this.db.peer(x))?.approve_verified) return "200_c_verified";
     if (result === "network") return "offline";
-    if (result.startsWith("401 paused")) return "paused";
+    if (result.startsWith("401 logged out")) return "logged out";
     if (result.startsWith("429")) return "429";
     if (/^5[0-9][0-9]/.test(result)) return "5xx";
     if (/^[0-9]{3}/.test(result)) return "200_other";
@@ -927,7 +927,7 @@ export class Engine {
     if (dropped) await this.reconcileAllow();
   }
 
-  /** Popup open, Refresh, unpause: the re-fetch of waiting rows, then the timeout sweep. */
+  /** Popup open, Refresh, login: the re-fetch of waiting rows, then the timeout sweep. */
   async timeoutCheck(): Promise<void> {
     await this.refetchWaiting();
     await this.sweep();
@@ -1027,7 +1027,7 @@ export class Engine {
           ...row,
           platform,
           created,
-          paused: it.paused === true,
+          logged_out: it.logged_out === true,
           reachable: it.reachable === true,
           denies_me: it.denies_me === true,
           missing: false,
@@ -1098,10 +1098,10 @@ export class Engine {
 
   // ------------------------------------------------------------------ send
 
-  /** The All set (catalog): approved by me, approves me, not hidden, not paused, not missing. */
+  /** The All set (catalog): approved by me, approves me, not hidden, not logged out, not missing. */
   async allSet(): Promise<PeerRow[]> {
     return (await this.db.peers()).filter(
-      (p) => p.pinned && p.ruling === "approved" && p.approves_me && !p.hidden && !p.paused && !p.missing && !p.removed,
+      (p) => p.pinned && p.ruling === "approved" && p.approves_me && !p.hidden && !p.logged_out && !p.missing && !p.removed,
     );
   }
 
@@ -1164,8 +1164,8 @@ export class Engine {
       const nm = await this.peerName(id);
       failures.push({ id, result: res, text: res === "gone" ? T.notDelivered(nm) : nm + ": " + res });
       if (res === "unapproved" || res === "unknown" || res === "gone") trigger = true;
-      if (res === "paused") {
-        await this.db.updatePeer(id, (p) => (p ? { ...p, paused: true } : null));
+      if (res === "logged out") {
+        await this.db.updatePeer(id, (p) => (p ? { ...p, logged_out: true } : null));
       }
     }
     await this.db.addHistory({
@@ -1186,7 +1186,7 @@ export class Engine {
     return out;
   }
 
-  // -------------------------------------------- allow-list m (pause etc.)
+  // -------------------------------------------- allow-list m (logout etc.)
 
   /** The caller's allow list: every id this device approved (pinned). */
   private async allowList(): Promise<PeerRow[]> {
@@ -1249,20 +1249,20 @@ export class Engine {
     }
   }
 
-  /** Sign out = pause (catalog Pause rules). */
-  async pause(): Promise<void> {
+  /** Log out (catalog Logout rules). */
+  async logout(): Promise<void> {
     const self = await this.self();
     if (!self) return;
     await this.reconcileAllow();
-    await this.allowListCall("POST", "/peers/" + self.id + "/pause", self, (m) => ({ m }), async () => ({ type: "pause" }));
-    await this.db.setMeta("reg", "paused");
+    await this.allowListCall("POST", "/peers/" + self.id + "/logout", self, (m) => ({ m }), async () => ({ type: "logout" }));
+    await this.db.setMeta("reg", "logged_out");
   }
 
-  async unpause(ticket: string): Promise<void> {
+  async login(ticket: string): Promise<void> {
     const self = await this.self();
     if (!self) return;
     await this.reconcileAllow();
-    await this.allowListCall("POST", "/peers/" + self.id + "/unpause", self, (m) => ({ ticket, m }), async () => ({ type: "unpause" }));
+    await this.allowListCall("POST", "/peers/" + self.id + "/login", self, (m) => ({ ticket, m }), async () => ({ type: "login" }));
     await this.db.setMeta("reg", "registered");
     await this.fetchPeersNow().catch(() => undefined);
     await this.pushReconcile().catch(() => undefined);
@@ -1397,7 +1397,7 @@ export class Engine {
 
   // -------------------------------------------------------- registration
 
-  /** Keys for sign-in: existing keys (pause) or fresh ones (first sign-in, after a removal). */
+  /** Keys for sign-in: existing keys (logout) or fresh ones (first sign-in, after a removal). */
   async signInKeys(): Promise<SelfKeys> {
     const cur = await this.db.self();
     if (cur) return cur;

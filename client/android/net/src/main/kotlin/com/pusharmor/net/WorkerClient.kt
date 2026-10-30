@@ -53,7 +53,7 @@ class WorkerClient(
     private val http: OkHttpClient = defaultHttp(),
     private val now: () -> Long = System::currentTimeMillis,
     private val sleep: (Long) -> Unit = { Thread.sleep(it) },
-    /** Called for any call signed with PA-ID that gets 401 "unknown peer" or 401 "paused" (the error text). */
+    /** Called for any call signed with PA-ID that gets 401 "unknown peer" or 401 "logged out" (the error text). */
     private val onAuthState: (String) -> Unit = {},
 ) : Api {
     companion object {
@@ -117,7 +117,7 @@ class WorkerClient(
             }
             if (signed && reply != null && reply.status == 401) {
                 val err = (reply.json?.get("error") as? JsonPrimitive)?.content
-                if (err == "unknown peer" || err == "paused") onAuthState(err)
+                if (err == "unknown peer" || err == "logged out") onAuthState(err)
             }
             val retryable = reply == null || reply.status == 429 || reply.status == 503
             if (once || !retryable || attempt >= BACKOFF_MS.size) return reply
@@ -174,11 +174,11 @@ class WorkerClient(
     /** GET /peers from the push handler: one attempt within [ONCE_TIMEOUT_MS]. */
     fun peersOnce() = result(call("GET", "/v1/peers", null, true, once = true), ::peersReply)
 
-    override fun pause(messages: Map<String, String>) =
-        result(call("POST", "/v1/peers/${me()}/pause", obj("m" to map(messages)).toByteArray(), true), ::results)
+    override fun logout(messages: Map<String, String>) =
+        result(call("POST", "/v1/peers/${me()}/logout", obj("m" to map(messages)).toByteArray(), true), ::results)
 
-    override fun unpause(ticket: String, messages: Map<String, String>) =
-        result(call("POST", "/v1/peers/${me()}/unpause", obj("ticket" to str(ticket), "m" to map(messages)).toByteArray(), true), ::results)
+    override fun login(ticket: String, messages: Map<String, String>) =
+        result(call("POST", "/v1/peers/${me()}/login", obj("ticket" to str(ticket), "m" to map(messages)).toByteArray(), true), ::results)
 
     override fun rename(names: Map<String, String>, messages: Map<String, String>) =
         result(call("PATCH", "/v1/peers/${me()}", obj("name" to map(names), "m" to map(messages)).toByteArray(), true), ::results)
@@ -253,7 +253,7 @@ class WorkerClient(
         fun s(k: String) = o[k]!!.jsonPrimitive.content
         fun b(k: String) = o[k]?.jsonPrimitive?.booleanOrNull == true
         fun l(k: String) = o[k]?.jsonPrimitive?.longOrNull ?: 0
-        ListedPeer(s("id"), s("sign_pub"), s("enc_pub"), s("platform"), l("created"), b("paused"), l("approves").toInt(), l("approved_by").toInt(),
+        ListedPeer(s("id"), s("sign_pub"), s("enc_pub"), s("platform"), l("created"), b("logged_out"), l("approves").toInt(), l("approved_by").toInt(),
             b("approves_me"), b("denies_me"), b("reachable"), (o["name_for_me"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content)
     } catch (ex: Exception) {
         null
@@ -267,7 +267,7 @@ object ErrorText {
         ApiResult.Network -> "No connection. Try again."
         is ApiResult.Http -> when {
             r.status == 401 && r.error == "clock skew" -> "This device's clock is off by more than 5 minutes"
-            r.status == 401 && r.error == "paused" -> "Signed out. Sign in to resume"
+            r.status == 401 && r.error == "logged out" -> "Signed out. Sign in to resume"
             r.status == 401 && r.error == "ticket expired" -> "Sign-in expired, sign in again"
             r.status == 401 && r.error == "unknown peer" -> "This device was removed. Sign in again"
             r.status == 400 && r.error == "bad email" -> "Only email addresses with plain ASCII characters are supported."

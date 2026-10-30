@@ -49,7 +49,7 @@ extension Core {
                 try store.setMe("sign_pub", .blob(keys.signer.publicKey))
                 try store.setMe("enc_pub", .blob(keys.decryptor.publicKey))
                 try store.setMe("removed", .int(0))
-                try store.setMe("paused", .int(0))
+                try store.setMe("logged_out", .int(0))
                 try store.setMe("request_token", .null)
                 if let p = push { try store.setMe("last_push_sha256", .text(Ids.pushSha256(p))) }
                 try store.setMe("last_fetch_at", .int(now))
@@ -87,7 +87,7 @@ extension Core {
     /// PATCHed hash; also PATCH when push_missing is set, and on Refresh when my_push_sha256
     /// differs.
     public func reconcilePush(_ current: PushInfo?, refresh: Bool = false) async {
-        guard let cur = current, let me = try? store.me(), me.id != nil, !me.removed, !me.paused else { return }
+        guard let cur = current, let me = try? store.me(), me.id != nil, !me.removed, !me.loggedOut else { return }
         let h = Ids.pushSha256(cur)
         var need = me.lastPushSha256 != h || me.pushMissing
         if refresh, let server = try? store.setting("my_push_sha256"), server != h { need = true }
@@ -95,25 +95,25 @@ extension Core {
         if need { _ = await patchPush(cur) }
     }
 
-    /// Sign out = pause this peer, with a pause message for every allowed peer.
-    public func pause() async throws -> APIOutcome {
+    /// Log out = mark this peer logged out, with a logout message for every allowed peer.
+    public func logout() async throws -> APIOutcome {
         let me = try myId()
-        let out = try await signedWithMessages("POST", "/v1/peers/" + me.text + "/pause") {
-            JOut.obj([("m", JOut.messages(try allowMessages { _, _ in .pause }))]).data
+        let out = try await signedWithMessages("POST", "/v1/peers/" + me.text + "/logout") {
+            JOut.obj([("m", JOut.messages(try allowMessages { _, _ in .logout }))]).data
         }
-        if out.reply?.ok == true { try store.setMe("paused", .int(1)) }
+        if out.reply?.ok == true { try store.setMe("logged_out", .int(1)) }
         return out
     }
 
-    /// Sign in again after a sign out: a fresh "unpause" ticket, unpause messages, then one
+    /// Log in again after a logout: a fresh "login" ticket, login messages, then one
     /// GET /peers and the push reconcile.
-    public func unpause(ticket: String, push: PushInfo?) async throws -> APIOutcome {
+    public func login(ticket: String, push: PushInfo?) async throws -> APIOutcome {
         let me = try myId()
-        let out = try await signedWithMessages("POST", "/v1/peers/" + me.text + "/unpause") {
-            JOut.obj([("ticket", .str(ticket)), ("m", JOut.messages(try allowMessages { _, _ in .unpause }))]).data
+        let out = try await signedWithMessages("POST", "/v1/peers/" + me.text + "/login") {
+            JOut.obj([("ticket", .str(ticket)), ("m", JOut.messages(try allowMessages { _, _ in .login }))]).data
         }
         if out.reply?.ok == true {
-            try store.setMe("paused", .int(0))
+            try store.setMe("logged_out", .int(0))
             await fetchPeers(force: true)
             await resendWaitingApproves()
             await reconcilePush(push)

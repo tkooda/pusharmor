@@ -113,7 +113,7 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onDone
                 style = MaterialTheme.typography.bodyLarge, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
             val status = when {
                 banner != null -> null
-                purpose == "unpause" -> "Signed out. Sign in to resume"
+                purpose == "login" -> "Signed out. Sign in to resume"
                 purpose == "delete-account" -> "Sign in to confirm deleting the account"
                 else -> null
             }
@@ -283,7 +283,7 @@ fun LimitScreen(vm: AppViewModel, onDone: () -> Unit) {
                     leadingContent = { Checkbox(on, null) },
                     headlineContent = { Text("${AppEffects.platformLabel(p.platform)}, added ${AppEffects.dateLabel(p.created)}") },
                     supportingContent = {
-                        Text("approves ${p.approves}, approved by ${p.approvedBy}" + (if (!p.reachable) ", unreachable" else "") + (if (p.paused) ", signed out" else ""))
+                        Text("approves ${p.approves}, approved by ${p.approvedBy}" + (if (!p.reachable) ", unreachable" else "") + (if (p.loggedOut) ", signed out" else ""))
                     },
                 )
             }

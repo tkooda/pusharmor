@@ -9,7 +9,7 @@ export const LABEL_STATE = "PA-ST1\n";
 const LABEL_SEAL = "PA-SEAL1\n";
 const LABEL_PKCE = "PA-PKCE1\n";
 
-export const PURPOSES = ["register", "unpause", "delete-account"] as const;
+export const PURPOSES = ["register", "login", "delete-account"] as const;
 export type Purpose = (typeof PURPOSES)[number];
 export const TICKET_LIFE_S = 120;
 export const TICKET_LIFE_PEER_LIMIT_S = 600;

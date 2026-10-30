@@ -10,7 +10,7 @@ public enum PairNote: String, Sendable {
 /// Result of one POST /pair.
 public enum PairSendResult: Equatable, Sendable {
     case sent
-    case result(String)          // denied | gone | unknown | paused | failed[:..]
+    case result(String)          // denied | gone | unknown | logged out | failed[:..]
     case rateLimited(Int64)      // not_before (unix s)
     case waiting(Int64)          // not_before not reached, nothing sent
     case network

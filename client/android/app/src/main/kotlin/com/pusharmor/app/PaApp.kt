@@ -15,7 +15,7 @@ import com.pusharmor.protocol.engine.AllowReconcile
 import com.pusharmor.protocol.engine.ApproveFlow
 import com.pusharmor.protocol.engine.Identity
 import com.pusharmor.protocol.engine.PairingEngine
-import com.pusharmor.protocol.engine.PauseFlow
+import com.pusharmor.protocol.engine.LogoutFlow
 import com.pusharmor.protocol.engine.PeersSync
 import com.pusharmor.protocol.engine.ReceiveEngine
 import com.pusharmor.protocol.engine.SendFlow
@@ -58,7 +58,7 @@ class Graph(val app: PaApp) {
         http = if (BuildConfig.SCREENSHOT_MODE) ScreenshotMode.guard(WorkerClient.defaultHttp()) else WorkerClient.defaultHttp(),
         onAuthState = ::onAuthState)
 
-    /** 401 "unknown peer": this device was removed; 401 "paused": signed out. Applies to every signed call. */
+    /** 401 "unknown peer": this device was removed; 401 "logged out": signed out. Applies to every signed call. */
     private fun onAuthState(error: String) {
         if (error == "unknown peer") session.selfRemoved(deleted = false, lostKeys = false)
         else settings.set(Settings.K.SIGNED_OUT, true)
@@ -82,5 +82,5 @@ class Graph(val app: PaApp) {
     fun sender() = SendFlow(store, identity()!!, client, effects(true))
     fun sync() = PeersSync(store, identity()!!)
     fun reconcile() = AllowReconcile(store, client) { session.selfRemoved(deleted = false, lostKeys = false) }
-    fun pause() = PauseFlow(store, identity()!!, client, reconcile())
+    fun logoutFlow() = LogoutFlow(store, identity()!!, client, reconcile())
 }

@@ -144,7 +144,7 @@ function compareRaw(a, b) {
 //   approve_verified  the other side's approve verified (entry already ended)
 //   approved          this device approved ("Waiting for $X" when not verified)
 //   resend            result of the re-send of POST /v1/approve/$X:
-//                     null (not run yet) | "offline" | "paused" | "429" |
+//                     null (not run yet) | "offline" | "logged out" | "429" |
 //                     "5xx" | "200_c_verified" | "200_other"
 // output: "keep_pin" | "drop_pin" | "resend" | "keep_waiting" | "complete"
 export function pairTimeout(i) {

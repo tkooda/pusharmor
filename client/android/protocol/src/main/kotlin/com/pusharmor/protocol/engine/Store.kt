@@ -47,7 +47,7 @@ data class HistoryRow(
     val id: Long = 0,
     val direction: Direction,
     val peerId: String?,
-    /** "url" | "text" | "tel" for messages; "denied" | "paused" | "resumed" | "unreadable" | "invalid" for events. */
+    /** "url" | "text" | "tel" for messages; "denied" | "logged_out" | "logged_in" | "unreadable" | "invalid" for events. */
     val type: String,
     val content: String? = null,
     val n: Long? = null,
@@ -127,7 +127,7 @@ interface Effects {
     fun renamedNotice(oldName: String?, newName: String) {}
     fun peerListChanged() {}
     fun deniedNotice(peerId: String) {}
-    fun pauseNotice(peerId: String, paused: Boolean) {}
+    fun logoutNotice(peerId: String, loggedOut: Boolean) {}
     fun selfRemoved(deleted: Boolean) {}
 }
 

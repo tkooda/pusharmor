@@ -87,7 +87,7 @@ describe("rate limits", () => {
     const e = await testEnv({ RL_ACCT: rl } as Partial<Env>);
     expect((await call("GET", "/v1/peers", undefined, { peer: a, env: e })).status).toBe(200);
     expect((await call("POST", "/v1/send", { v: 1, m: { [b.id]: message() } }, { peer: a, env: e })).status).toBe(200);
-    expect((await call("POST", "/v1/peers/" + b.id + "/pause", { m: {} }, { peer: b, env: e })).status).toBe(200);
+    expect((await call("POST", "/v1/peers/" + b.id + "/logout", { m: {} }, { peer: b, env: e })).status).toBe(200);
     const r = await call("GET", "/v1/peers", undefined, { peer: a, env: e });
     expect(r.status).toBe(429);
     expect(r.res.headers.get("Retry-After")).toBe("60");

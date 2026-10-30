@@ -22,8 +22,8 @@ public enum S {
     public static let thisDeviceRemoved = "This device was removed. Sign in again"
     public static let accountDeleted = "Account deleted on another device"
     public static func denied(_ name: String) -> String { "\(name) denied this device" }
-    public static func pausedReceiving(_ name: String) -> String { "\(name) paused receiving" }
-    public static func resumedReceiving(_ name: String) -> String { "\(name) resumed receiving" }
+    public static func loggedOutNotice(_ name: String) -> String { "\(name) paused receiving" }
+    public static func loggedInNotice(_ name: String) -> String { "\(name) resumed receiving" }
     public static func newMessageFrom(_ peer: String) -> String { "New message from \(peer)" }
     public static let pairingFailed = "Pairing failed. Start again on the new device."
     public static let pairingTimedOut = "Pairing timed out. Tap Pair to start again."

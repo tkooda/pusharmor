@@ -1,5 +1,5 @@
 // Sign-in flows (catalog Auth; component-webext section 7 Login): email code,
-// Google and Apple. The ticket then registers, unpauses or deletes.
+// Google and Apple. The ticket then registers, logs in or deletes.
 import { API_BASE, ApiError } from "../api/client.ts";
 import { b64urlEncode } from "../crypto/b64url.ts";
 import { normalizeEmail, oauthK } from "../crypto/labels.ts";
@@ -8,7 +8,7 @@ import type { Engine } from "./engine.ts";
 import { UserError } from "./engine.ts";
 import { T } from "./texts.ts";
 
-export type Purpose = "register" | "unpause" | "delete-account";
+export type Purpose = "register" | "login" | "delete-account";
 export const AUTH_PENDING = "auth_pending";
 export const REQUEST_TOKEN = "request_token";
 const AUTH_PENDING_MS = 10 * 60_000;
@@ -34,7 +34,7 @@ export class Login {
   }
 
   async purpose(): Promise<Purpose> {
-    return (await this.e.regState()) === "paused" ? "unpause" : "register";
+    return (await this.e.regState()) === "logged_out" ? "login" : "register";
   }
 
   async emailStart(email: string, turnstile: string, purpose: Purpose): Promise<void> {
@@ -115,7 +115,7 @@ export class Login {
       if (purpose === "register") {
         const limit = await this.e.register(ticket, email, evict);
         if (limit) return { done: false, limit, ticket: typeof limit.ticket === "string" ? limit.ticket : ticket };
-      } else if (purpose === "unpause") await this.e.unpause(ticket);
+      } else if (purpose === "login") await this.e.login(ticket);
       else await this.e.deleteAccount(ticket);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401 && err.error === "ticket expired") throw new UserError("Sign-in expired, sign in again");

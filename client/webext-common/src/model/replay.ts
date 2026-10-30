@@ -51,7 +51,7 @@ export function replayRecord(s: ReplayState, n: number): ReplayState {
 
 export type ReplayOutcome = "accept" | "invalid" | "noop" | "represent";
 
-const CONTROL = new Set(["approve", "rename", "remove", "delete", "pause", "unpause", "deny"]);
+const CONTROL = new Set(["approve", "rename", "remove", "delete", "logout", "login", "deny"]);
 
 /**
  * Outcome for a parsed message (catalog Replay window): n <= h - 100 ->

@@ -94,7 +94,7 @@ export function pairDecide(i: PairDecideInput): PairDecision {
 
 // ---- Pairing timeout and the N-side hint (Pairing flow step 8) ----
 
-export type ResendResult = null | "offline" | "paused" | "429" | "5xx" | "200_c_verified" | "200_other";
+export type ResendResult = null | "offline" | "logged out" | "429" | "5xx" | "200_c_verified" | "200_other";
 export type TimeoutAction = "keep_pin" | "drop_pin" | "resend" | "keep_waiting" | "complete";
 
 /** Decision for a pairing row past 14 days. */

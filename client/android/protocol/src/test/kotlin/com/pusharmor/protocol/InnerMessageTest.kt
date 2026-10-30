@@ -25,7 +25,7 @@ class InnerMessageTest {
         val bodies = listOf(
             MessageBody.Url("https://example.com/a"), MessageBody.Text("hi \u00e9 \ud83d\ude00"), MessageBody.Tel("+1 555-123-4567"),
             MessageBody.Approve(entry), MessageBody.Rename(entry), MessageBody.Deny, MessageBody.Remove(b.id),
-            MessageBody.Delete, MessageBody.Pause, MessageBody.Unpause,
+            MessageBody.Delete, MessageBody.Logout, MessageBody.Login,
         )
         for (body in bodies) {
             val wire = send(7, body)

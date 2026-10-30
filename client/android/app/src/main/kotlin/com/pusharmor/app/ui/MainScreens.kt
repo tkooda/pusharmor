@@ -575,7 +575,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     // With exactly one device that can receive, it is preselected.
     val canReceive = others(peers, me?.id).filter { it.inAll }.map { it.id }
     var restored by remember { mutableStateOf(shots || picked.isNotEmpty()) }
-    // Only devices that can receive now are sent to and counted: a chosen device that turns paused,
+    // Only devices that can receive now are sent to and counted: a chosen device that turns logged out,
     // unapproved or leaves All drops out, and so does a preselect that cannot receive.
     val sendTo = UiText.sendable(picked, canReceive)
     LaunchedEffect(canReceive) {
@@ -772,8 +772,8 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
         "unreadable" -> "PushArmor received a message it could not read" + if (h.count > 1) " (${h.count})" else ""
         "invalid" -> "Invalid message received" + if (h.count > 1) " (${h.count})" else ""
         "denied" -> "Denied this device"
-        "paused" -> "Paused receiving"
-        "resumed" -> "Resumed receiving"
+        "logged_out" -> "Paused receiving"
+        "logged_in" -> "Resumed receiving"
         else -> h.content.orEmpty()
     }
     val weight = if (unread) FontWeight.Medium else FontWeight.Normal
@@ -781,7 +781,7 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
         .semantics { if (h.content != null) stateDescription = if (expanded) "Expanded" else "Collapsed" }) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             if (event) Box(Modifier.size(40.dp), Alignment.Center) {
-                Icon(when (h.type) { "paused" -> PaIcons.Pause; "resumed" -> PaIcons.Check; else -> PaIcons.Info }, null, tint = cs.onSurfaceVariant)
+                Icon(when (h.type) { "logged_out" -> PaIcons.Pause; "logged_in" -> PaIcons.Check; else -> PaIcons.Info }, null, tint = cs.onSurfaceVariant)
             } else IconTile(when {
                 h.direction == "SENT" -> PaIcons.NorthEast
                 h.type == "url" -> PaIcons.Link

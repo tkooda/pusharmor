@@ -76,7 +76,7 @@ struct RootView: View {
                     .font(.headline)
                     .padding(.top, 24)
                     .padding(.horizontal, 16)
-                SignInView(purpose: .unpause)
+                SignInView(purpose: .login)
             }
         }
     }

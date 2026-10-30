@@ -33,16 +33,16 @@ export async function signedStart(c: Ctx): Promise<Signed> {
 export interface CallerRow {
   sign_pub: string;
   enc_pub: string;
-  paused: number;
+  logged_out: number;
 }
 
 // Steps d, e, f. RL_ACCT is charged only here, after the signature and keyhash pass, so
 // unsigned or badly signed calls with a known PA-ID cannot use up the account's budget.
-export async function callerCheck(c: Ctx, s: Signed, row: CallerRow | undefined | null, allowPaused = false): Promise<void> {
+export async function callerCheck(c: Ctx, s: Signed, row: CallerRow | undefined | null, allowLoggedOut = false): Promise<void> {
   if (!row) throw new ApiError(401, "unknown peer");
   await checkSig(row.sign_pub, c.req.headers, c.method, c.path, s.paTime, c.body);
   await checkKeyhash(s.me, row.sign_pub, row.enc_pub);
-  if (row.paused === 1 && !allowPaused) throw new ApiError(401, "paused");
+  if (row.logged_out === 1 && !allowLoggedOut) throw new ApiError(401, "logged out");
   await enforceAccount(c.env, s.acct, c.log);
 }
 

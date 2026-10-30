@@ -45,8 +45,8 @@ data class PeerEntity(
     @ColumnInfo(name = "list_after_verify") val listAfterVerify: Boolean,
     val declined: Boolean,
     val reachable: Boolean,
-    val paused: Boolean,
-    @ColumnInfo(name = "pause_n") val pauseN: Long,
+    @ColumnInfo(name = "logged_out") val loggedOut: Boolean,
+    @ColumnInfo(name = "logout_n") val logoutN: Long,
     val hidden: Boolean,
     val name: String?,
     @ColumnInfo(name = "name_n") val nameN: Long,
@@ -168,7 +168,7 @@ interface PaDao {
 
 @Database(
     entities = [SelfEntity::class, PeerEntity::class, PairingEntity::class, CapEntity::class, ReplayEntity::class, AllowEntity::class, HistoryEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class PaDatabase : RoomDatabase() {
@@ -184,10 +184,20 @@ abstract class PaDatabase : RoomDatabase() {
             }
         }
 
+        /** 2 -> 3: peers.paused / pause_n -> logged_out / logout_n; history event types follow. */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE peers RENAME COLUMN paused TO logged_out")
+                db.execSQL("ALTER TABLE peers RENAME COLUMN pause_n TO logout_n")
+                db.execSQL("UPDATE history SET type = 'logged_out' WHERE type = 'paused'")
+                db.execSQL("UPDATE history SET type = 'logged_in' WHERE type = 'resumed'")
+            }
+        }
+
         fun open(context: Context, name: String? = NAME): PaDatabase {
             val b = if (name == null) Room.inMemoryDatabaseBuilder(context, PaDatabase::class.java)
             else Room.databaseBuilder(context, PaDatabase::class.java, name).enableMultiInstanceInvalidation()
-            return b.addMigrations(MIGRATION_1_2).build()
+            return b.addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
         }
     }
 }

@@ -145,9 +145,9 @@ describe("result mapping, row by row (vendor-wrap 6)", () => {
 });
 
 describe("request shapes: TTL, priority, sizes, no ids in headers", () => {
-  it("FCM: data {m}, ttl 604800s, HIGH; deny/pause NORMAL; size 3801 at M = 3800", async () => {
+  it("FCM: data {m}, ttl 604800s, HIGH; deny/logout NORMAL; size 3801 at M = 3800", async () => {
     const e = await testEnv();
-    for (const cls of ["send", "approve", "peerchg", "deny", "pause"] as const) {
+    for (const cls of ["send", "approve", "peerchg", "deny", "logout"] as const) {
       const m = message(3800);
       await fanout(e, [await target("fcm", cls, m)], new Log());
       const req = mock.requests.filter(isSend("fcm")).pop()!;
@@ -155,7 +155,7 @@ describe("request shapes: TTL, priority, sizes, no ids in headers", () => {
       const body = JSON.parse(new TextDecoder().decode(req.body));
       expect(body.message.data).toEqual({ m });
       expect(body.message.android.ttl).toBe("604800s");
-      expect(body.message.android.priority).toBe(cls === "deny" || cls === "pause" ? "NORMAL" : "HIGH");
+      expect(body.message.android.priority).toBe(cls === "deny" || cls === "logout" ? "NORMAL" : "HIGH");
       expect(Object.keys(body.message).sort()).toEqual(["android", "data", "token"]);
       expect("m".length + m.length).toBe(3801);
       expect(req.headers.authorization).toBe("Bearer ya29.test-access-token");
@@ -205,11 +205,11 @@ describe("request shapes: TTL, priority, sizes, no ids in headers", () => {
   it("Web Push: VAPID verifies, TTL 604800, urgency, body 3903 bytes at M = 3800; pair TTL 2419200", async () => {
     const e = await testEnv();
     const k = await vendorKeys();
-    for (const cls of ["send", "deny", "pause", "pair"] as const) {
+    for (const cls of ["send", "deny", "logout", "pair"] as const) {
       await fanout(e, [await target("wp", cls, message(3800))], new Log());
       const req = mock.requests.filter(isSend("wp")).pop()!;
       expect(req.headers.ttl).toBe(cls === "pair" ? "2419200" : "604800");
-      expect(req.headers.urgency).toBe(cls === "deny" || cls === "pause" ? "normal" : "high");
+      expect(req.headers.urgency).toBe(cls === "deny" || cls === "logout" ? "normal" : "high");
       expect(req.headers["content-encoding"]).toBe("aes128gcm");
       expect(req.headers.topic).toBeUndefined();
       expect(req.body.length).toBe(3903);

@@ -47,9 +47,9 @@ extension Core {
             switch res {
             case "sent": sent += 1
             case "gone": lines.append(S.notDelivered(label)); due = true
-            case "paused":
+            case "logged out":
                 lines.append(S.signedOutPeer(label))
-                try? store.db.write { if var q = try store.peer(id) { q.paused = true; try store.savePeer(q) } }
+                try? store.db.write { if var q = try store.peer(id) { q.loggedOut = true; try store.savePeer(q) } }
                 due = true
             case "unapproved", "unknown": due = true
             default: break

@@ -12,7 +12,7 @@ export interface ListRow {
   approves_me: number;
   denies_me: number;
   reachable: number;
-  paused: number;
+  logged_out: number;
   my_push: string | null;
   name_for_me: string | null;
 }
@@ -23,7 +23,7 @@ export interface CtxRow {
   enc_pub: string;
   push_type: number | null;
   push: string | null;
-  paused: number;
+  logged_out: number;
   approves_me: number;
   denies_me: number;
   my_allow: string | null;
@@ -59,7 +59,7 @@ export async function listBody(rows: ListRow[], me: string): Promise<Record<stri
       enc_pub: r.enc_pub,
       platform: r.platform,
       created: r.created,
-      paused: r.paused === 1,
+      logged_out: r.logged_out === 1,
       approves: allows.get(r.id)!.size,
       approved_by: approvedBy,
       approves_me: r.approves_me === 1,
@@ -86,7 +86,7 @@ export function limitPeers(rows: ListRow[]): Record<string, unknown>[] {
       approves: allows.get(r.id)!.size,
       approved_by: approvedBy,
       reachable: r.reachable === 1,
-      paused: r.paused === 1,
+      logged_out: r.logged_out === 1,
     };
   });
 }
@@ -109,23 +109,23 @@ export function isUnconfirmedUp(pushType: number | null, push: string | null): b
 export interface RelayRow {
   approves_me: boolean;
   denies_me: boolean;
-  paused: boolean;
+  logged_out: boolean;
   push_type: number | null;
   push: string | null;
 }
 
-// Relay filter, /send order: unknown, denied, unapproved, paused, gone, unconfirmed type 6.
+// Relay filter, /send order: unknown, denied, unapproved, logged out, gone, unconfirmed type 6.
 // Returns a result word, or null when the message goes to the vendor.
 export function relayFilter(row: RelayRow | undefined): string | null {
   if (!row) return "unknown";
   if (row.denies_me) return "denied";
   if (!row.approves_me) return "unapproved";
-  if (row.paused) return "paused";
+  if (row.logged_out) return "logged out";
   if (row.push === null || row.push_type === null) return "gone";
   if (isUnconfirmedUp(row.push_type, row.push)) return "failed";
   return null;
 }
 
 export function ctxRelayRow(r: CtxRow | undefined): RelayRow | undefined {
-  return r && { approves_me: r.approves_me === 1, denies_me: r.denies_me === 1, paused: r.paused === 1, push_type: r.push_type, push: r.push };
+  return r && { approves_me: r.approves_me === 1, denies_me: r.denies_me === 1, logged_out: r.logged_out === 1, push_type: r.push_type, push: r.push };
 }

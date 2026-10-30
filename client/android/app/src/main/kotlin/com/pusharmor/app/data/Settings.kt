@@ -47,7 +47,7 @@ class Settings(private val context: Context) {
         /** Device ids ticked on the last send, comma-separated. */
         val LAST_SEND_TO = stringPreferencesKey("last_send_to")
         val PENDING_EVICT = stringPreferencesKey("pending_evict")
-        /** Purpose of an OAuth flow in a Custom Tab ("register" | "unpause" | "delete-account"). */
+        /** Purpose of an OAuth flow in a Custom Tab ("register" | "login" | "delete-account"). */
         val PENDING_PURPOSE = stringPreferencesKey("pending_purpose")
     }
 

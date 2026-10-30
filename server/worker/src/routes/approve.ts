@@ -25,9 +25,9 @@ export async function readCtxX(c: Ctx, s: Signed, x: string): Promise<{ caller?:
   return { caller: rows.find((r) => r.id === s.me), xr: rows.find((r) => r.id === x) };
 }
 
-// Relays one message to X (paused, gone and unconfirmed checks first). Returns the result word.
+// Relays one message to X (logged out, gone and unconfirmed checks first). Returns the result word.
 export async function relayOne(c: Ctx, s: Signed, xr: CtxRow, msg: string, cls: Cls, pk?: string): Promise<string> {
-  if (xr.paused === 1) return "paused";
+  if (xr.logged_out === 1) return "logged out";
   if (xr.push === null || xr.push_type === null) return "gone";
   if (isUnconfirmedUp(xr.push_type, xr.push)) return "failed";
   const out = await fanout(c.env, [{ id: xr.id, pushType: xr.push_type, push: xr.push, m: msg, cls, pk }], c.log);
@@ -72,7 +72,7 @@ export async function deny(c: Ctx): Promise<Response> {
     if (b.withdraw !== 1) throw bad();
     const s = await signedStart(c);
     const x = targetX(c, s);
-    const self = (await all<{ sign_pub: string; enc_pub: string; paused: number; push: string | null }>(c.log, c.env.DB.prepare(SQL.Q_SELF).bind(s.me, s.acct)))[0];
+    const self = (await all<{ sign_pub: string; enc_pub: string; logged_out: number; push: string | null }>(c.log, c.env.DB.prepare(SQL.Q_SELF).bind(s.me, s.acct)))[0];
     await callerCheck(c, s, self, true);
     await enforce(c.env, "RL_PAIR", "deny:" + s.me + x, c.log);
     const rs = await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_WITHDRAW).bind(s.me, s.acct, x)]);

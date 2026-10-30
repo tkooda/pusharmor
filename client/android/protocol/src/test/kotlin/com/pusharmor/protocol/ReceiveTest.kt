@@ -21,12 +21,12 @@ class ReceiveTest {
         // repeated n with a history row -> re-present
         assertEquals(Inbound.RePresent(77), Receive.decide(ok(1, MessageBody.Text("x")), peer, w, b.id) { 77 })
         // control type seen -> silent duplicate
-        val p = Receive.decide(ok(2, MessageBody.Pause), peer, w, b.id) { null } as Inbound.Accepted
-        assertTrue(Receive.decide(ok(2, MessageBody.Pause), peer, p.window, b.id) { null } is Inbound.Duplicate)
+        val p = Receive.decide(ok(2, MessageBody.Logout), peer, w, b.id) { null } as Inbound.Accepted
+        assertTrue(Receive.decide(ok(2, MessageBody.Logout), peer, p.window, b.id) { null } is Inbound.Duplicate)
         // n <= h - 100 -> invalid
         val far = Receive.decide(ok(300, MessageBody.Text("x")), peer, p.window, b.id) { null } as Inbound.Accepted
         assertEquals(Inbound.Invalid(a.id), Receive.decide(ok(200, MessageBody.Text("x")), peer, far.window, b.id) { 1 })
-        assertEquals(Inbound.Invalid(a.id), Receive.decide(ok(150, MessageBody.Pause), peer, far.window, b.id) { null })
+        assertEquals(Inbound.Invalid(a.id), Receive.decide(ok(150, MessageBody.Logout), peer, far.window, b.id) { null })
     }
 
     @Test fun droppedMessageLeavesWindowUnchanged() {
@@ -76,8 +76,8 @@ class ReceiveTest {
         assertEquals(Effect.SelfRemoved(false), eff(approved, MessageBody.Remove(b.id)))
         assertEquals(Effect.Remove(a.id), eff(approved, MessageBody.Remove(a.id)))
         assertEquals(Effect.SelfRemoved(true), eff(approved, MessageBody.Delete))
-        assertEquals(Effect.Pause(true, true), eff(approved, MessageBody.Pause, 4))
-        assertEquals(Effect.Pause(false, false), eff(approved.copy(pauseN = 9), MessageBody.Unpause, 4))
+        assertEquals(Effect.Logout(true, true), eff(approved, MessageBody.Logout, 4))
+        assertEquals(Effect.Logout(false, false), eff(approved.copy(logoutN = 9), MessageBody.Login, 4))
         assertEquals(Effect.Deny, eff(approved, MessageBody.Deny))
         assertTrue(eff(unruled, MessageBody.Deny) is Effect.Drop)
     }

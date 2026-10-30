@@ -28,7 +28,7 @@ final class AppModel: ObservableObject {
         let approves: Int
         let approvedBy: Int
         let reachable: Bool
-        let paused: Bool
+        let loggedOut: Bool
         let oldInstall: Bool
     }
 
@@ -108,7 +108,7 @@ final class AppModel: ObservableObject {
         if notificationsOff && me.id == nil { phase = .welcome; return }
         if me.removed { phase = .removed; return }
         if me.id == nil { phase = .signIn(.register); return }
-        if me.paused { phase = .signedOut; return }
+        if me.loggedOut { phase = .signedOut; return }
         if me.name == nil { phase = .nameDevice; return }
         phase = .main
         reload()
@@ -246,7 +246,7 @@ final class AppModel: ObservableObject {
         try? store?.setMe("signed_in_email", .text(email))
         switch purpose {
         case .register: await register(ticket: ticket, evict: [])
-        case .unpause: await unpause(ticket: ticket)
+        case .login: await login(ticket: ticket)
         case .deleteAccount: await deleteAccount(ticket: ticket)
         }
     }
@@ -270,7 +270,7 @@ final class AppModel: ObservableObject {
                 func bool(_ k: String) -> Bool { if case .bool(let b)? = e[k] { return b }; return false }
                 return LimitEntry(id: id, platform: e["platform"]?.stringValue ?? "", created: Int64(int("created")),
                                   approves: int("approves"), approvedBy: int("approved_by"), reachable: bool("reachable"),
-                                  paused: bool("paused"), oldInstall: id == old)
+                                  loggedOut: bool("logged_out"), oldInstall: id == old)
             }
             phase = .limitPicker
         case .idCollision:
@@ -319,15 +319,15 @@ final class AppModel: ObservableObject {
         await route()
     }
 
-    func unpause(ticket: String) async {
+    func login(ticket: String) async {
         guard let core = core else { return }
-        _ = try? await core.unpause(ticket: ticket, push: pushInfo)
+        _ = try? await core.login(ticket: ticket, push: pushInfo)
         await route()
     }
 
     func signOut() async {
         guard let core = core else { return }
-        _ = try? await core.pause()
+        _ = try? await core.logout()
         await route()
     }
 

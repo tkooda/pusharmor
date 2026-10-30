@@ -29,8 +29,8 @@ sealed class MessageBody {
     object Deny : MessageBody() { override val key = "deny" }
     data class Remove(val peerId: String) : MessageBody() { override val key = "remove" }
     object Delete : MessageBody() { override val key = "delete" }
-    object Pause : MessageBody() { override val key = "pause" }
-    object Unpause : MessageBody() { override val key = "unpause" }
+    object Logout : MessageBody() { override val key = "logout" }
+    object Login : MessageBody() { override val key = "login" }
 
     /** Control types (no History row; a seen n is a silent duplicate). */
     val isControl: Boolean get() = this !is Url && this !is Text && this !is Tel
@@ -42,7 +42,7 @@ sealed class MessageBody {
         is Approve -> entry.toJson()
         is Rename -> entry.toJson()
         is Remove -> StrictJson.quote(peerId)
-        Deny, Delete, Pause, Unpause -> "1"
+        Deny, Delete, Logout, Login -> "1"
     }
 
     companion object {
@@ -208,8 +208,8 @@ object InnerMessage {
             "remove" -> MessageBody.Remove(((v as? JValue.JString)?.value ?: return null).takeIf { Ids.decodeId(it) != null } ?: return null)
             "deny" -> if (isOne(v)) MessageBody.Deny else return null
             "delete" -> if (isOne(v)) MessageBody.Delete else return null
-            "pause" -> if (isOne(v)) MessageBody.Pause else return null
-            "unpause" -> if (isOne(v)) MessageBody.Unpause else return null
+            "logout" -> if (isOne(v)) MessageBody.Logout else return null
+            "login" -> if (isOne(v)) MessageBody.Login else return null
             else -> return null
         }
         return n to body

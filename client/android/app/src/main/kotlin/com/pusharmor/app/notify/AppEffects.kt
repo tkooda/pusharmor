@@ -43,8 +43,8 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
     override fun renamedNotice(oldName: String?, newName: String) = n.peersNotice("'${oldName ?: "A device"}' renamed to '$newName'", 4)
     override fun peerListChanged() = n.peersNotice("Device list changed", 5)
     override fun deniedNotice(peerId: String) { if (fcm) n.notice("${nameOf(peerId)} denied this device") }
-    override fun pauseNotice(peerId: String, paused: Boolean) {
-        if (fcm) n.notice(if (paused) "${nameOf(peerId)} paused receiving" else "${nameOf(peerId)} resumed receiving")
+    override fun logoutNotice(peerId: String, loggedOut: Boolean) {
+        if (fcm) n.notice(if (loggedOut) "${nameOf(peerId)} paused receiving" else "${nameOf(peerId)} resumed receiving")
     }
     override fun selfRemoved(deleted: Boolean) = g.session.selfRemoved(deleted = deleted, lostKeys = false)
 

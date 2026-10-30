@@ -16,7 +16,7 @@ interface AcctRow {
   sign_pub: string;
   push_type: number | null;
   push: string | null;
-  paused: number;
+  logged_out: number;
   allow: string;
   deny: string;
 }
@@ -60,7 +60,7 @@ export async function deleteAccount(c: Ctx): Promise<Response> {
         x && {
           approves_me: has(x.allow, me.id),
           denies_me: has(x.deny, me.id),
-          paused: x.paused === 1,
+          logged_out: x.logged_out === 1,
           push_type: x.push_type,
           push: x.push,
         }

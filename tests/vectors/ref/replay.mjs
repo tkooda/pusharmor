@@ -2,7 +2,7 @@
 // (h) and a 100-bit bitmap; bit k marks n = h - k as seen. Here the bitmap
 // is carried as the list of seen n values (h - k for every set bit k).
 export const WINDOW = 100;
-export const CONTROL_TYPES = ['approve', 'rename', 'remove', 'delete', 'pause', 'unpause', 'deny'];
+export const CONTROL_TYPES = ['approve', 'rename', 'remove', 'delete', 'logout', 'login', 'deny'];
 
 // -> "fresh" | "seen" | "old"
 export function windowCheck(state, n) {

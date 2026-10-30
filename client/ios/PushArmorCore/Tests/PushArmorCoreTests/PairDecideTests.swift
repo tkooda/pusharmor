@@ -82,7 +82,7 @@ final class PairDecideTests: XCTestCase {
         XCTAssertEqual(PairDecide.timeout(approveVerified: true, approved: true, resend: nil), .keepPin)
         XCTAssertEqual(PairDecide.timeout(approveVerified: false, approved: false, resend: nil), .dropPin)
         XCTAssertEqual(PairDecide.timeout(approveVerified: false, approved: true, resend: nil), .resend)
-        XCTAssertEqual(PairDecide.timeout(approveVerified: false, approved: true, resend: .paused), .keepWaiting)
+        XCTAssertEqual(PairDecide.timeout(approveVerified: false, approved: true, resend: .loggedOut), .keepWaiting)
         XCTAssertEqual(PairDecide.timeout(approveVerified: false, approved: true, resend: .cVerified), .complete)
         XCTAssertEqual(PairDecide.timeout(approveVerified: false, approved: true, resend: .other), .dropPin)
         XCTAssertEqual(PairDecide.hint(approvesMe: true, committedSeconds: 10), .stillHolds)

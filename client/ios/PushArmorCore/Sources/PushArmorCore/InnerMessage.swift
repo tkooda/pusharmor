@@ -36,8 +36,8 @@ public enum MessageContent: Equatable, Sendable {
     case remove(String)
     case rename(NameField)
     case delete
-    case pause
-    case unpause
+    case logout
+    case login
 
     public var typeKey: String {
         switch self {
@@ -49,8 +49,8 @@ public enum MessageContent: Equatable, Sendable {
         case .remove: return "remove"
         case .rename: return "rename"
         case .delete: return "delete"
-        case .pause: return "pause"
-        case .unpause: return "unpause"
+        case .logout: return "logout"
+        case .login: return "login"
         }
     }
 
@@ -66,7 +66,7 @@ public enum MessageContent: Equatable, Sendable {
         switch self {
         case .url(let s), .text(let s), .tel(let s), .remove(let s): return StrictJSON.quote(s)
         case .approve(let f), .rename(let f): return f.json
-        case .deny, .delete, .pause, .unpause: return "1"
+        case .deny, .delete, .logout, .login: return "1"
         }
     }
 }
@@ -116,8 +116,8 @@ public struct InnerJSON: Equatable, Sendable {
             c = key == "approve" ? .approve(f) : .rename(f)
         case "deny": try one(); c = .deny
         case "delete": try one(); c = .delete
-        case "pause": try one(); c = .pause
-        case "unpause": try one(); c = .unpause
+        case "logout": try one(); c = .logout
+        case "login": try one(); c = .login
         default: throw Failure.shape
         }
         switch c {

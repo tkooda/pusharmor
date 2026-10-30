@@ -102,7 +102,7 @@ class Session(private val g: Graph) {
 
     val signedOut: Boolean get() = s.flag(Settings.K.SIGNED_OUT, false) && dao.self() != null
 
-    fun purposeForSignIn(): String = if (signedOut) "unpause" else "register"
+    fun purposeForSignIn(): String = if (signedOut) "login" else "register"
 
     /**
      * Keys are made BEFORE sign-in (sign_pub goes into the auth call); a signed-out device keeps its keys.
@@ -122,7 +122,7 @@ class Session(private val g: Graph) {
     /** A ticket arrived (email code, Google token, or the App Link). */
     fun onTicket(ticket: String, email: String?, evict: List<String>? = null): SignIn {
         if (email != null) s.set(Settings.K.BANNER, null)
-        return if (signedOut) unpause(ticket) else register(ticket, email, evict)
+        return if (signedOut) login(ticket) else register(ticket, email, evict)
     }
 
     private fun register(ticket: String, email: String?, evict: List<String>?): SignIn {
@@ -152,11 +152,11 @@ class Session(private val g: Graph) {
         }
     }
 
-    private fun unpause(ticket: String): SignIn {
-        val r = g.pause().unpause(ticket)
+    private fun login(ticket: String): SignIn {
+        val r = g.logoutFlow().login(ticket)
         if (r !is ApiResult.Ok) return SignIn.Error(ErrorText.of(r))
         s.set(Settings.K.SIGNED_OUT, false)
-        // after a successful unpause: the app-start push reconcile at once, and one GET /peers
+        // after a successful login: the app-start push reconcile at once, and one GET /peers
         g.push.start(g)
         pushReconcile()
         fetchPeers(force = true)
@@ -180,7 +180,7 @@ class Session(private val g: Graph) {
     // ---- sign out / delete ----------------------------------------------------------------
 
     fun signOut(): String? {
-        val r = g.pause().pause()
+        val r = g.logoutFlow().logout()
         if (r !is ApiResult.Ok) return ErrorText.of(r)
         s.set(Settings.K.SIGNED_OUT, true)
         return null
@@ -244,7 +244,7 @@ class Session(private val g: Graph) {
             }
             is ApiResult.Http -> {
                 if (r.isUnknownPeer) selfRemoved(deleted = false, lostKeys = false)
-                if (r.isPaused) s.set(Settings.K.SIGNED_OUT, true)
+                if (r.isLoggedOut) s.set(Settings.K.SIGNED_OUT, true)
                 r.status != 503 && r.status != 429
             }
             ApiResult.Network -> false
@@ -343,13 +343,13 @@ class Session(private val g: Graph) {
         if (currentPushHash() != dao.self()?.pushHash) Work.patchPush(g.app)
     }
 
-    /** true = done, false = retry later, null = permanent (401 "paused"). */
+    /** true = done, false = retry later, null = permanent (401 "logged out"). */
     fun patchPushNow(): Boolean? {
         val p = currentPush()
         val r = g.client.patchPush(p?.first ?: "null")
         return when {
             r is ApiResult.Ok -> { dao.self()?.let { dao.putSelf(it.copy(pushHash = p?.let { x -> Ids.pushSha256(x.second) })) }; true }
-            r.isPaused -> null
+            r.isLoggedOut -> null
             r.isUnknownPeer -> { selfRemoved(deleted = false, lostKeys = false); null }
             r is ApiResult.Http && r.status in 400..499 && r.status != 429 -> null
             else -> false

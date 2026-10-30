@@ -14,7 +14,7 @@ sealed class ApiResult<out T> {
     object Network : ApiResult<Nothing>()
 
     val isClockSkew: Boolean get() = this is Http && status == 401 && error == "clock skew"
-    val isPaused: Boolean get() = this is Http && status == 401 && error == "paused"
+    val isLoggedOut: Boolean get() = this is Http && status == 401 && error == "logged out"
     val isUnknownPeer: Boolean get() = this is Http && status == 401 && error == "unknown peer"
     val isMessagesMissing: Boolean get() = this is Http && status == 400 && error == "messages missing"
 }
@@ -29,7 +29,7 @@ data class ListedPeer(
     val encPub: String,
     val platform: String,
     val created: Long,
-    val paused: Boolean,
+    val loggedOut: Boolean,
     val approves: Int,
     val approvedBy: Int,
     val approvesMe: Boolean,
@@ -48,8 +48,8 @@ interface Api {
     fun withdraw(x: String): ApiResult<ApproveReply>
     fun pair(x: String, kind: String, c: String): ApiResult<String>
     fun peers(): ApiResult<PeersReply>
-    fun pause(messages: Map<String, String>): ApiResult<Map<String, String>>
-    fun unpause(ticket: String, messages: Map<String, String>): ApiResult<Map<String, String>>
+    fun logout(messages: Map<String, String>): ApiResult<Map<String, String>>
+    fun login(ticket: String, messages: Map<String, String>): ApiResult<Map<String, String>>
     fun rename(names: Map<String, String>, messages: Map<String, String>): ApiResult<Map<String, String>>
     fun deletePeer(id: String, messages: Map<String, String>): ApiResult<Map<String, String>>
 

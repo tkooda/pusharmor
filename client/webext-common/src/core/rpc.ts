@@ -39,7 +39,7 @@ export interface PeerView {
 }
 
 export interface StateView {
-  reg: "registered" | "paused" | null;
+  reg: "registered" | "logged_out" | null;
   banner: string | null;
   email: string | null;
   name: string;
@@ -143,7 +143,7 @@ export class Rpc {
         return e.setSettings(a as Partial<Settings>);
       case "signout":
         await this.login.clearProgress();
-        return e.pause();
+        return e.logout();
       case "loginPurpose":
         return this.login.purpose();
       case "signinProgress":
@@ -221,8 +221,8 @@ export class Rpc {
         v.greyed = T.notPairedOn(nm);
         v.actions = ["pair_again", "cancel"];
       } else if (p.ruling === "approved" && p.approves_me) {
-        v.sendable = !p.paused && !p.hidden;
-        if (p.paused) v.greyed = "signed out";
+        v.sendable = !p.logged_out && !p.hidden;
+        if (p.logged_out) v.greyed = "signed out";
         else if (!p.reachable) v.greyed = "unreachable";
       }
       v.actions.push("remove", p.hidden ? "unhide" : "hide");

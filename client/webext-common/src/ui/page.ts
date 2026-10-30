@@ -184,7 +184,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       resetNotes(note("err", "error", (e as Error).message));
     }
   };
-  const title = purpose === "delete-account" ? "Delete account" : purpose === "unpause" ? T.signedOut : "Sign in";
+  const title = purpose === "delete-account" ? "Delete account" : purpose === "login" ? T.signedOut : "Sign in";
   const step1 = h(
     "div",
     { class: "step" },
@@ -381,7 +381,7 @@ interface LimitPeer {
   approves: number;
   approved_by: number;
   reachable: boolean;
-  paused: boolean;
+  logged_out: boolean;
 }
 
 function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>, ticket: string): void {
@@ -396,7 +396,7 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
   for (const p of peers) {
     const box = h("input", { type: "checkbox" }) as HTMLInputElement; // nothing pre-ticked
     boxes.push({ id: p.id, box });
-    const flags = [p.reachable ? "" : "unreachable", p.paused ? "signed out" : ""].filter(Boolean).join(", ");
+    const flags = [p.reachable ? "" : "unreachable", p.logged_out ? "signed out" : ""].filter(Boolean).join(", ");
     list.append(
       h(
         "label",
