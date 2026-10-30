@@ -109,6 +109,42 @@
     ],
     "description": "Strict canonical b64url decoding: RFC 4648 URL alphabet, no \"=\", reject any other char, length mod 4 = 1 and nonzero spare bits. ok true gives hex = the decoded bytes (hex here only, to avoid testing the codec with itself)."
   },
+  "cli_code": {
+    "cases": [
+      {
+        "account": "CuVpna7--Emb",
+        "code": "CuVpna7--EmbC2ZJoWDrTDsCGM0UZVdodw",
+        "k16": "HZg5IIuyFznOzmFDAjKV4w",
+        "link": "https://pusharmor.com/auth/cli#r.HZg5IIuyFznOzmFDAjKV4w",
+        "p": "r",
+        "purpose": "register",
+        "sign_pub": "BBU8HRjDliaMIU-vYpiwaJRkj0ThiOfXU-PoyWSRxf4o1W3uAcxnRzC2Bnwxg41VJ_Ud6C8T-iux4E89qCTPIHY",
+        "window": 2969856
+      },
+      {
+        "account": "CuVpna7--Emb",
+        "code": "CuVpna7--EmbVHIu85WiJwJBNkTKJe9MeQ",
+        "k16": "HZg5IIuyFznOzmFDAjKV4w",
+        "link": "https://pusharmor.com/auth/cli#l.HZg5IIuyFznOzmFDAjKV4w",
+        "p": "l",
+        "purpose": "login",
+        "sign_pub": "BBU8HRjDliaMIU-vYpiwaJRkj0ThiOfXU-PoyWSRxf4o1W3uAcxnRzC2Bnwxg41VJ_Ud6C8T-iux4E89qCTPIHY",
+        "window": 2969857
+      },
+      {
+        "account": "CuVpna7--Emb",
+        "code": "CuVpna7--Embfg3UeDa5xBsZXF8U4l4jLw",
+        "k16": "HZg5IIuyFznOzmFDAjKV4w",
+        "link": "https://pusharmor.com/auth/cli#d.HZg5IIuyFznOzmFDAjKV4w",
+        "p": "d",
+        "purpose": "delete-account",
+        "sign_pub": "BBU8HRjDliaMIU-vYpiwaJRkj0ThiOfXU-PoyWSRxf4o1W3uAcxnRzC2Bnwxg41VJ_Ud6C8T-iux4E89qCTPIHY",
+        "window": 2969858
+      }
+    ],
+    "description": "Command line login code. k16 = b64url(sha256(sign_pub)[0..16]) (22 chars); link = \"https://pusharmor.com/auth/cli#\" + p + \".\" + k16 (p = r register, l login, d delete-account); code = b64url(account (9 bytes) || HMAC-SHA256(token_secret, \"PA-CLI1\\n\" + b64url(account) + \"\\n\" + k16 + \"\\n\" + p + \"\\n\" + window)[0..16]) (34 chars), window = floor(unix s / 600) in decimal. token_secret is a test PA_TOKEN_SECRET. Assert k16, link and code (the Worker and the command line client).",
+    "token_secret": "P0z8Sf7oaGAIVFkwHMUfu6ZbWL8-CGjEt_uY8DiS2yM"
+  },
   "content_cap": {
     "cases": [
       {

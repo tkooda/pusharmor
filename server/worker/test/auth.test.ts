@@ -3,7 +3,7 @@ import type { Env } from "../src/env";
 import { b64urlDecode, b64urlEncode } from "../src/codec/b64url";
 import { deriveCode } from "../src/crypto/code";
 import { utf8 } from "../src/crypto/hash";
-import { keyRef, LABEL_REQUEST_TOKEN, LABEL_TICKET, oauthNonce, openToken } from "../src/crypto/tokens";
+import { CLI_WINDOW_S, keyRef, keyRef16, LABEL_REQUEST_TOKEN, LABEL_TICKET, makeCliCode, oauthNonce, openToken } from "../src/crypto/tokens";
 import { signJwt } from "../src/push/jwt";
 import { mailboxKey, normalizeEmail } from "../src/auth/normalize";
 import { mailText } from "../src/auth/email";
@@ -75,6 +75,29 @@ describe("POST /auth/email + verify", () => {
     expect(v.body.email).toBe(email);
     const t = await openToken(S.PA_TOKEN_SECRET, LABEL_TICKET, secretString(v.body.ticket as string));
     expect(t).toMatchObject({ a: await acctOf(email), k: await keyRef(b64urlDecode(k.signPub)!), p: "register" });
+  });
+
+  it("cli_k: verify returns a cli code that registers the cli peer; cli_k with sign_pub or malformed -> 400", async () => {
+    const email = randomEmail();
+    const k = await keys();
+    const k16 = await keyRef16(b64urlDecode(k.signPub)!);
+    const start = (b: Record<string, unknown>) => call("POST", "/v1/auth/email", { email, purpose: "register", turnstile: "t", ...b });
+    expect((await start({ cli_k: k16, sign_pub: k.signPub })).status).toBe(400);
+    expect((await start({ cli_k: k16.slice(1) })).status).toBe(400);
+    expect((await start({ cli_k: k16.slice(0, 21) + "*" })).status).toBe(400);
+    const r = await start({ cli_k: k16 });
+    expect(r.status).toBe(200);
+    const token = secretString(r.body.request_token as string);
+    const v = await call("POST", "/v1/auth/email/verify", { request_token: token, code: await deriveCode(S.PA_CODE_SECRET, token) });
+    expect(v.status).toBe(200);
+    expect(Object.keys(v.body).sort()).toEqual(["cli_code", "email"]);
+    expect(v.body.email).toBe(email);
+    const code = secretString(v.body.cli_code as string);
+    expect(code).toMatch(/^[A-Za-z0-9_-]{34}$/);
+    const w = Math.floor(Date.now() / 1000 / CLI_WINDOW_S);
+    expect([await makeCliCode(S.PA_TOKEN_SECRET, await acctOf(email), k16, "register", w), await makeCliCode(S.PA_TOKEN_SECRET, await acctOf(email), k16, "register", w - 1)]).toContain(code);
+    const reg = await call("POST", "/v1/peers", { ticket: code, sign_pub: k.signPub, enc_pub: k.encPub, platform: "cli", push: null }, { sign: k.sign });
+    expect(reg.status).toBe(200);
   });
 
   it("non-ASCII email -> 400 bad email with no mail sent", async () => {

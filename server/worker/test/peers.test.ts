@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { env } from "cloudflare:test";
 import { b64urlEncode } from "../src/codec/b64url";
-import { call, initP256, keys, message, newPeer, pushFor, randomEmail, register, row, setAllow, ticketFor, vendorRequests } from "./helpers";
+import { acctOf, call, cliCodeFor, initP256, keys, message, newPeer, pushFor, randomEmail, register, row, setAllow, ticketFor, vendorRequests } from "./helpers";
 import { LABEL_TICKET, makeTicket, openToken } from "../src/crypto/tokens";
 import { TEST_SECRETS as S } from "./secrets";
 import roundSql from "../migrations/0003_round_account_times.sql?raw";
@@ -71,6 +71,36 @@ describe("POST /peers", () => {
     expect(r.body.error).toBe("ticket expired");
     r = await call("POST", "/v1/peers", { ...base, ticket: "x.y" }, { sign: k.sign });
     expect(r.body.error).toBe("invalid ticket");
+  });
+
+  it("cli code as ticket: current and previous window pass; older -> ticket expired; else bad ticket", async () => {
+    const k = await keys();
+    const k2 = await keys();
+    const email = randomEmail();
+    const base = { sign_pub: k.signPub, enc_pub: k.encPub, platform: "cli", push: null };
+    const reg = async (ticket: string) => call("POST", "/v1/peers", { ...base, ticket }, { sign: k.sign });
+    for (const off of [-2, -7]) {
+      const r = await reg(await cliCodeFor(email, k.signPub, "register", off));
+      expect(r.status).toBe(401);
+      expect(r.body.error).toBe("ticket expired");
+    }
+    for (const t of [
+      await cliCodeFor(email, k.signPub, "register", -8),
+      await cliCodeFor(email, k.signPub, "register", 1),
+      await cliCodeFor(email, k.signPub, "login"),
+      await cliCodeFor(email, k2.signPub, "register"),
+      "A".repeat(34),
+      "*".repeat(34),
+    ]) {
+      const r = await reg(t);
+      expect(r.status).toBe(401);
+      expect(r.body.error).toBe("bad ticket");
+    }
+    let r = await reg(await cliCodeFor(email, k.signPub, "register", -1));
+    expect(r.status).toBe(200);
+    expect(r.body.id).toMatch(new RegExp("^" + (await acctOf(email))));
+    r = await reg(await cliCodeFor(email, k.signPub, "register"));
+    expect(r.status).toBe(200);
   });
 
   it("bad signature -> 401 invalid client signature", async () => {

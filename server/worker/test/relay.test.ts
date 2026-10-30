@@ -3,7 +3,7 @@ import { env } from "cloudflare:test";
 import { b64urlEncode } from "../src/codec/b64url";
 import { probeCode } from "../src/routes/common";
 import { pairKey } from "../src/routes/pair";
-import { call, countingLimit, register, initP256, message, newPeer, onVendor, pushFor, randomEmail, row, setAllow, testEnv, ticketFor, vendorRequests, keys, type Peer } from "./helpers";
+import { call, cliCodeFor, countingLimit, register, initP256, message, newPeer, onVendor, pushFor, randomEmail, row, setAllow, testEnv, ticketFor, vendorRequests, keys, type Peer } from "./helpers";
 import { TEST_SECRETS as S } from "./secrets";
 
 beforeAll(initP256);
@@ -136,6 +136,21 @@ describe("logout / login (6.10)", () => {
     r = await call("POST", `/v1/peers/${a.id}/login`, { ticket: await ticketFor(email, a.signPub, "login"), m }, { peer: a });
     expect(r.status).toBe(200);
     expect((await row(a.id))!.logged_out).toBe(0);
+  });
+
+  it("login and DELETE /account accept a cli code of the right purpose and account", async () => {
+    const email = randomEmail();
+    const a = await newPeer(email, "cli", null);
+    await env.DB.prepare("UPDATE peers SET logged_out = 1 WHERE id = ?1").bind(a.id).run();
+    let r = await call("POST", `/v1/peers/${a.id}/login`, { ticket: await cliCodeFor(randomEmail(), a.signPub, "login"), m: {} }, { peer: a });
+    expect(r.body.error).toBe("bad ticket");
+    r = await call("POST", `/v1/peers/${a.id}/login`, { ticket: await cliCodeFor(email, a.signPub, "register"), m: {} }, { peer: a });
+    expect(r.body.error).toBe("bad ticket");
+    r = await call("POST", `/v1/peers/${a.id}/login`, { ticket: await cliCodeFor(email, a.signPub, "login"), m: {} }, { peer: a });
+    expect(r.status).toBe(200);
+    expect((await row(a.id))!.logged_out).toBe(0);
+    r = await call("DELETE", "/v1/account", { ticket: await cliCodeFor(email, a.signPub, "delete-account"), sign_pub: a.signPub, m: {} }, { sign: a.sign });
+    expect(r.body).toEqual({ r: {}, deleted: 1 });
   });
 
   it("logged-out caller may DELETE itself", async () => {
