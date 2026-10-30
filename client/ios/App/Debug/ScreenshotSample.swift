@@ -37,13 +37,12 @@ enum ScreenshotSample {
                 """, [.text(pid), .blob(Data(repeating: 2, count: 65)), .blob(Data(repeating: 3, count: 65)), .int(created),
                       .text(platform), .int(created), .text(name), .blob(Data(repeating: 1, count: 16))])
         }
-        guard let laptop = PeerId(text: id("L")), let desktop = PeerId(text: id("W")), let tablet = PeerId(text: id("T"))
+        guard let laptop = PeerId(text: id("L")), let desktop = PeerId(text: id("W"))
         else { return store }
-        // History times sit just before the 9:41 status bar clock.
+        // History times sit just before the 9:41 status bar clock. Two rows: on the Send tab a third
+        // sits half under the pinned recipients and Send button (03-send).
         let clock = Int64((Calendar.current.date(bySettingHour: 9, minute: 41, second: 0, of: Date()) ?? Date())
             .timeIntervalSince1970)
-        try store.addMessage(dir: .outgoing, peer: tablet, type: "url", content: draft, n: nil, pairingId: nil,
-                             read: true, results: "{\"\(tablet.text)\":\"sent\"}", now: clock - 7200)
         try store.addMessage(dir: .incoming, peer: desktop, type: "text", content: "Meeting moved to 3 pm, room B", n: nil,
                              pairingId: nil, read: true, results: nil, now: clock - 1500)
         try store.addMessage(dir: .incoming, peer: laptop, type: "url", content: link, n: nil, pairingId: nil,
