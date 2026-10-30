@@ -786,3 +786,17 @@ test("approve decided under the old pin is not recorded into a replay row a re-p
   assert.equal(p.approve_verified, false);
   assert.equal(p.approves_me, false);
 });
+
+test("Pair again twice at once: the second call is ignored, one pairing starts", async () => {
+  const { w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  await b.e.cancelPairing(a.id);
+  await a.e.fetchPeersNow();
+  await b.e.pairStart(a.id);
+  await deliver(w, a);
+  const posts = () => w.calls.filter((c) => c.path === "/v1/pair/" + b.id && c.method === "POST").length;
+  const before = posts();
+  const r = await Promise.allSettled([a.e.pairAgain(b.id), a.e.pairAgain(b.id)]);
+  assert.deepEqual(r.map((x) => x.status), ["fulfilled", "fulfilled"]);
+  assert.equal(posts() - before, 1);
+});

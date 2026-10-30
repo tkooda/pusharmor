@@ -113,6 +113,7 @@ export class Engine {
   readonly api: Api;
   readonly vapid: Uint8Array;
   readonly lock = new Lock();
+  private readonly pairingAgain = new Set<string>();
   private fetching: Promise<void> | null = null;
 
   constructor(d: EngineDeps) {
@@ -862,8 +863,14 @@ export class Engine {
 
   /** [Pair again] on a half-state row: Cancel pairing (local drop + allow reconcile), then [Pair]. */
   async pairAgain(x: string): Promise<void> {
-    await this.cancelPairing(x);
-    await this.pairStart(x);
+    if (this.pairingAgain.has(x)) return; // a second click while it runs
+    this.pairingAgain.add(x);
+    try {
+      await this.cancelPairing(x);
+      await this.pairStart(x);
+    } finally {
+      this.pairingAgain.delete(x);
+    }
   }
 
   /** Allow reconcile (I277, I278): withdraw every id in the allow set with no pin. */
