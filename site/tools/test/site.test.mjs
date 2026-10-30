@@ -146,7 +146,7 @@ test("no third-party loaded resource except Turnstile on /turnstile", () => {
         for (const tok of toks) {
           if (!/^https?:/.test(tok)) continue;
           const ok = (r.path === "/turnstile" && tok === TURNSTILE_HOST && (dir === "script-src" || dir === "frame-src")) ||
-            (r.path === "/delete-account" && tok === "https://api.pusharmor.com" && dir === "connect-src");
+            ((r.path === "/delete-account" || r.path === "/auth/cli") && tok === "https://api.pusharmor.com" && dir === "connect-src");
           assert.ok(ok, r.path + ": " + dir + " " + tok);
         }
       }
@@ -602,7 +602,7 @@ test("every page embedding /turnstile is named in the privacy text", () => {
   const pages = htmlFiles.filter((f) => /<iframe[^>]*src="\/turnstile[#"]/.test(read(f)));
   assert.ok(pages.includes("delete-account.html"));
   const p = text("privacy.html");
-  assert.ok(p.includes("Cloudflare's bot check (Turnstile) runs on the email login page and on the delete-account page only"));
+  assert.ok(p.includes("Cloudflare's bot check (Turnstile) runs on the email login page, on the command line login page (/auth/cli), and on the delete-account page only"));
   for (const f of pages) {
     const name = f.replace(/\.html$/, "");
     if (name === "delete-account") continue;
@@ -621,4 +621,29 @@ test("delete-account init: an OAuth #error=<word> hash is handled by the generic
   assert.ok(js.indexOf('h.indexOf("ticket=") >= 0') < js.indexOf("h.length > 1"));
   assert.ok(!/ticket=/.test(js.slice(js.indexOf("h.length > 1"), js.indexOf('await restart("");'))));
   assert.ok(js.includes('"Login did not finish. Try again."'));
+});
+
+test("/auth/cli: headers, labelled inputs, Turnstile iframe, no jargon", () => {
+  const h = headersFor(rules, "/auth/cli");
+  assert.deepEqual(h["cache-control"], ["no-store"]);
+  assert.deepEqual(h["x-robots-tag"], ["noindex"]);
+  const d = cspDirectives(h["content-security-policy"][0]);
+  assert.deepEqual(d["connect-src"], ["https://api.pusharmor.com"]);
+  assert.deepEqual(d["frame-src"], ["'self'"]);
+  const html = read("auth/cli.html");
+  for (const t of tags(html, "input")) assert.ok(tags(html, "label").some((l) => l.attrs.for === t.attrs.id), "label for " + t.attrs.id);
+  assert.match(html, /id="status"[^>]*aria-live="polite"/);
+  assert.equal(tags(html, "iframe")[0].attrs.src, "/turnstile#o=https://pusharmor.com");
+  const t = text("auth/cli.html");
+  for (const s of ["Continue only if you're trying to log in via the pusharmor login command line command.", "Continue with Google", "Continue with Apple", "Email me a code", "Paste this code into your terminal."]) assert.ok(t.includes(s), s);
+  assert.ok(html.includes("<code>pusharmor login</code>"));
+  assert.ok(!/Sign in|Worker|ticket|peer/.test(t));
+});
+
+test("/auth/cli script: /v1/ paths, fragment cleared, cli_code used", () => {
+  const js = read("js/auth-cli.js");
+  assert.ok(js.includes('"/v1/auth/email"') && js.includes('"/v1/auth/email/verify"'));
+  assert.ok(js.includes("r.data.cli_code"));
+  assert.ok(js.indexOf("history.replaceState") < js.indexOf("PA.parseCliResult(h)"));
+  assert.ok(js.includes("navigator.clipboard.writeText"));
 });

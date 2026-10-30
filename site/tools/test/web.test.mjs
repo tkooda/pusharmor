@@ -212,3 +212,33 @@ test("golden vectors (tests/vectors/golden-v1.json): request_sig (PA-Sig)", asyn
     assert.ok(await verify(c.sign_pub, c.sig, bytes), c.name + ": sig");
   }
 });
+
+test("cli link fragment: r/l/d map to purposes; bad letters and lengths fail", () => {
+  const k = "abcdefghijklmnopqrstuv";
+  assert.equal(k.length, 22);
+  assert.deepEqual(PA.parseCliLink("#r." + k), { purpose: "register", k });
+  assert.deepEqual(PA.parseCliLink("#l." + k), { purpose: "login", k });
+  assert.deepEqual(PA.parseCliLink("#d." + k), { purpose: "delete-account", k });
+  assert.equal(PA.parseCliLink("#l.A_-0123456789abcdefghi").k, "A_-0123456789abcdefghi");
+  for (const bad of ["", "#", "#x." + k, "#R." + k, "#l" + k, "#l." + k.slice(1), "#l." + k + "a", "#l.abcdefghijklmnopqrst+v", "l." + k, "#l." + k + "&x=1", null, undefined]) {
+    assert.equal(PA.parseCliLink(bad), null, String(bad));
+  }
+});
+
+test("cli email request body and OAuth start URL", () => {
+  const link = PA.parseCliLink("#l.A_-0123456789abcdefghi");
+  assert.deepEqual(PA.cliEmailBody("a@b.co", link, "TOK"), { email: "a@b.co", cli_k: "A_-0123456789abcdefghi", purpose: "login", turnstile: "TOK" });
+  assert.equal(PA.cliOAuthUrl("google", link), "https://api.pusharmor.com/v1/auth/google?k=A_-0123456789abcdefghi&r=cli&p=login");
+  assert.equal(PA.cliOAuthUrl("apple", PA.parseCliLink("#d.A_-0123456789abcdefghi")), "https://api.pusharmor.com/v1/auth/apple?k=A_-0123456789abcdefghi&r=cli&p=delete-account");
+});
+
+test("cli result fragment: cli_code + email, errors, junk", () => {
+  const code = "0123456789abcdefghijklmnopqrstuvwx";
+  assert.equal(code.length, 34);
+  assert.deepEqual(PA.parseCliResult("#cli_code=" + code + "&email=a%40b.co"), { code, email: "a@b.co" });
+  assert.deepEqual(PA.parseCliResult("#error=cancelled"), { error: "cancelled" });
+  assert.deepEqual(PA.parseCliResult("#error=failed"), { error: "failed" });
+  assert.deepEqual(PA.parseCliResult("#cli_code=short&email=a%40b.co"), { error: "failed" });
+  assert.equal(PA.parseCliResult("#l.abcdefghijklmnopqrstuv"), null);
+  assert.equal(PA.parseCliResult(""), null);
+});
