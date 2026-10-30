@@ -1,10 +1,18 @@
-Sign-in is required. Tap "Sign in with Google" and use the account above,
-or use Sign in with Apple with your own Apple ID. Allow notifications.
-To send and receive, a second device on the same account is needed: install
-the PushArmor extension in Chrome on a computer, sign in with the same
-account, then on both screens tap Pair and check that both show the same
-4-character code. Then share any link or text (Share > PushArmor) and it
-appears on the other device, and the reverse.
-Content is end-to-end encrypted. It uses only standard encryption (export
-compliance set).
-Delete account: Settings > Delete account.
+PushArmor sends links and text between a user's own devices.
+
+SIGN IN
+1. Tap "Sign in with Google" and use the demo account above.
+   (Sign in with Apple with your own Apple ID also works.)
+2. Allow notifications.
+
+PAIR A SECOND DEVICE
+3. On a computer, install the PushArmor extension in Chrome and sign in with the same account.
+4. Tap Pair on both screens. Check that both show the same 4-character code.
+
+SEND
+5. Share any link or text (Share > PushArmor). It appears on the other device.
+6. Send from the computer too. It appears on the phone.
+
+NOTES
+- Content is end-to-end encrypted. The app uses only standard encryption (export compliance set).
+- Delete account: Settings > Delete account.
