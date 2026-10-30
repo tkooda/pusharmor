@@ -81,12 +81,13 @@ Do not deploy a release if any check fails or is skipped. `wrangler dev` stays f
 ## About page screenshots
 
 `public/about.html` shows the app screenshots from `public/img/about/<platform>/` (android,
-iphone, chrome, firefox). Each shot is a 1x webp, a 2x webp (`-2x`) and a reduced png fallback.
+iphone, chrome, firefox). Each shot is one PNG at twice the shown width
+(at most), with no other format.
 To swap them:
 
 1. Put the new store PNGs in a folder per platform, e.g. `SRC/android/03-send.png`. Files whose
    name contains `BLANK` are skipped.
-2. From the repo root, replace the old files and convert (ImageMagick with webp support):
+2. From the repo root, replace the old files and convert (ImageMagick):
 
         SRC=/path/to/screenshots
         rm -rf site/public/img/about
@@ -96,14 +97,13 @@ To swap them:
           for f in "$SRC"/$p/*.png; do
             case "$f" in *BLANK*) continue;; esac
             n=site/public/img/about/$p/$(basename "$f" .png)
-            convert "$f" -strip -resize ${w}x -quality 85 -define webp:method=6 $n.webp
-            convert "$f" -strip -resize "$((w*2))x>" -quality 80 -define webp:method=6 $n-2x.webp
-            convert "$f" -strip -resize ${w}x -dither None -colors 128 -define png:compression-level=9 PNG8:$n.png
+            convert "$f" -strip -resize "$((w*2))x>" -define png:compression-level=9 $n.png
           done
         done
 
 3. Edit the `<figure>` list in `public/about.html` to match the file names, with the image
-   `width` and `height` (`identify site/public/img/about/*/*.png`) and an alt text that
+   shown `width` and `height` (280 wide for phones, 720 for browsers, with the aspect ratio
+   of `identify site/public/img/about/*/*.png`) and an alt text that
    describes the screen. Only the first tab loads at once; keep `loading="lazy"` on the others.
 4. Run `node site/tools/hashes.mjs` and the checks.
 

@@ -60,12 +60,11 @@
     '<div class="lb-bar"><p class="lb-count" id="lb-count" aria-live="polite"></p>' +
     '<button type="button" class="lb-btn lb-close" aria-label="Close">' + chev("M6 6 L18 18 M18 6 L6 18") + "</button></div>" +
     '<div class="lb-stage"><button type="button" class="lb-btn lb-prev" aria-label="Previous screenshot">' + chev("M15 5 L8 12 L15 19") + "</button>" +
-    '<figure class="lb-fig"><picture><source type="image/webp"><img alt=""></picture><figcaption></figcaption></figure>' +
+    '<figure class="lb-fig"><img alt=""><figcaption></figcaption></figure>' +
     '<button type="button" class="lb-btn lb-next" aria-label="Next screenshot">' + chev("M9 5 L16 12 L9 19") + "</button></div>";
   document.body.appendChild(dlg);
 
   var count = dlg.querySelector(".lb-count");
-  var source = dlg.querySelector("source");
   var img = dlg.querySelector("img");
   var cap = dlg.querySelector("figcaption");
   var set = [];
@@ -77,10 +76,8 @@
     at = (i + n) % n;
     var a = set[at];
     var thumb = a.querySelector("img");
-    var srcset = a.querySelector("source").getAttribute("srcset").split(",");
     var fig = a.closest("figure").querySelector("figcaption");
     var platform = a.closest(".shot-panel").querySelector(".panel-title").textContent;
-    source.setAttribute("srcset", srcset[srcset.length - 1].trim().split(/\s+/)[0]);
     img.src = a.getAttribute("href");
     img.alt = thumb.alt;
     img.setAttribute("width", thumb.getAttribute("width"));
