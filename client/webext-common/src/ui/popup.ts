@@ -36,7 +36,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
         h("div", { class: "halo-box" }, haloArt(200), h("img", { src: "icons/icon-128.png", width: "64", height: "64", alt: "", class: "big-tile" })),
         wordmark(env, 24),
         h("div", { class: "banner" }, head),
-        h("p", { class: "slogan" }, "Send the page you are on to your phone in one click."),
+        h("p", { class: "slogan" }, "Send the page you are on to your other devices in one click."),
         h("button", { class: "primary big", onclick: () => env.openPage("#login") }, "Sign in"),
         h("div", { class: "dim" }, "Opens in a new tab."),
         st.platform === "firefox" && st.receiveNote ? h("div", { class: "dim" }, st.receiveNote) : null,
@@ -58,7 +58,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
     if (t === "peers") void renderPeers(env, body, false);
     if (t === "settings") void settingsView(env, body, st);
   };
-  for (const [t, label] of [["send", "Send"], ["history", "History"], ["peers", "Peers"], ["settings", "Settings"]] as [Tab, string][]) {
+  for (const [t, label] of [["send", "Send"], ["history", "History"], ["peers", "Devices"], ["settings", "Settings"]] as [Tab, string][]) {
     const b = h("button", { role: "tab", onclick: () => show(t) }, label);
     b.dataset.tab = t;
     tabs.append(b);
@@ -93,7 +93,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   const count = () => checks.filter((c) => c.box.checked).length;
   const relabel = () => {
     const n = count();
-    sendLabel.textContent = n > 0 ? "Send to " + n + (n === 1 ? " peer" : " peers") : "Send";
+    sendLabel.textContent = n > 0 ? "Send to " + n + (n === 1 ? " device" : " devices") : "Send";
   };
   if (st.settings.showAll) {
     allBox = h("input", { type: "checkbox", checked: true }) as HTMLInputElement;
@@ -177,7 +177,7 @@ export async function historyView(env: UiEnv, root: HTMLElement, resend: (text: 
         { class: "empty" },
         messagesArt(),
         h("div", { class: "e-title" }, "No messages yet"),
-        h("p", {}, "Links and text you send or receive show up here."),
+        h("p", {}, "Everything you send or receive shows up here."),
       ),
     );
     return;

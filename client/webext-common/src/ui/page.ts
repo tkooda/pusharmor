@@ -142,7 +142,7 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
   const boxes: { id: string; box: HTMLInputElement }[] = [];
   const status = h("div", { class: "status" });
   const list = group();
-  root.append(h("h1", {}, "Peer limit reached"), h("div", { class: "lead" }, "Pick peers to remove from this account, then continue."));
+  root.append(h("h1", {}, "Device limit reached"), h("div", { class: "lead" }, "Pick devices to remove from this account, then continue."));
   for (const p of peers) {
     const box = h("input", { type: "checkbox" }) as HTMLInputElement; // nothing pre-ticked
     boxes.push({ id: p.id, box });

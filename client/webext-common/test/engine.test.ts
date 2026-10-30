@@ -57,7 +57,7 @@ test("happy path: commit, automatic reply, open, same fingerprint, approve both,
   assert.equal((await a.db.peer(b.id))!.name, "Chrome");
   const r = await a.e.send("hello there", false, "all");
   assert.equal(r.sent, 1);
-  assert.equal(T.sentToNofM(r.sent, r.total), "Sent to 1 of 1 peers");
+  assert.equal(T.sentToNofM(r.sent, r.total), "Sent to 1 of 1 devices");
   await deliver(w, b);
   const h = (await b.db.history()).find((x) => x.type === "text")!;
   assert.equal(h.content, "hello there");
@@ -539,7 +539,7 @@ test("Firefox deny notice reads denied this device; wipe leaves no pair keys", a
   await b.e.approve(a.id); // b approved a: a's deny is relayed
   await a.e.deny(b.id);
   await deliver(w, b);
-  assert.ok([...b.p.notes.values()].some((n) => n.body === "A peer denied this device"));
+  assert.ok([...b.p.notes.values()].some((n) => n.body === "A device denied this device"));
   await a.e.pairStart(b.id).catch(() => undefined);
   await a.e.wipe();
   assert.ok(Object.keys(a.p.storageLocal.data).every((k) => !k.startsWith("pair")));
@@ -593,10 +593,10 @@ test("N-side hint: approves_me true while committed reads still holds an earlier
   await a.db.putPeer({ ...(await a.db.peer(b.id))!, approves_me: true });
   clock.t += 3 * DAY;
   const v = (await a.e.pairRowView(b.id))!;
-  assert.ok(v.lines.includes(T.stillHolds("A peer")));
+  assert.ok(v.lines.includes(T.stillHolds("A device")));
   await a.db.putPeer({ ...(await a.db.peer(b.id))!, approves_me: false });
-  assert.ok((await a.e.pairRowView(b.id))!.lines.includes(T.noReplyYet("A peer")));
-  assert.equal((await a.e.pairRowView(b.id))!.lines[0], "Pairing with A peer");
+  assert.ok((await a.e.pairRowView(b.id))!.lines.includes(T.noReplyYet("A device")));
+  assert.equal((await a.e.pairRowView(b.id))!.lines[0], "Pairing with A device");
 });
 
 test("clock skew on POST /approve: a new n and new bytes in the retry", async () => {
