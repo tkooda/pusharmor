@@ -47,10 +47,10 @@ export const Q_REG = `SELECT (SELECT status FROM accounts WHERE id = ?1) AS stat
   (SELECT count(*) FROM peers WHERE account = ?1
      AND id IN (SELECT value FROM json_each(?3))) AS evict_found`;
 
-// ?1 acct, ?2 now
-export const W_ACCT = `INSERT INTO accounts (id, created, status, last_seen_month) VALUES (?1, ?2, NULL, ?2)
+// ?1 acct, ?2 dayStart(now), ?3 monthStart(now)
+export const W_ACCT = `INSERT INTO accounts (id, created, status, last_seen_month) VALUES (?1, ?2, NULL, ?3)
 ON CONFLICT (id) DO UPDATE SET last_seen_month = excluded.last_seen_month
-WHERE accounts.last_seen_month < excluded.last_seen_month - 2592000`;
+WHERE accounts.last_seen_month < excluded.last_seen_month`;
 
 // ?1 id, ?2 acct, ?3 sign_pub, ?4 enc_pub, ?5 push_type, ?6 push, ?7 now, ?8 platform
 export const W_REG = `INSERT INTO peers (id, account, sign_pub, enc_pub, platform, push_type, push,
@@ -137,9 +137,9 @@ SET allow = json_remove(allow, ${P(3)}), name = json_remove(name, ${P(3)}),
 WHERE account = ?2 AND id = ?1
 RETURNING 1`;
 
-// ?1 acct, ?2 now
+// ?1 acct, ?2 monthStart(now)
 export const W_SEEN = `UPDATE accounts SET last_seen_month = ?2
-WHERE id = ?1 AND last_seen_month < ?2 - 2592000`;
+WHERE id = ?1 AND last_seen_month < ?2`;
 
 // ?1 id, ?2 acct, ?3 push as read
 export const W_GONE = `UPDATE peers SET push = NULL, push_type = NULL

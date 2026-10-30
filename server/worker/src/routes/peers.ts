@@ -1,6 +1,6 @@
 // POST /peers, GET /peers, PATCH/DELETE /peers/$id, POST pause, unpause, confirm.
 import type { Ctx } from "../context";
-import { nowS } from "../context";
+import { dayStart, monthStart, nowS } from "../context";
 import {
   bad,
   checkMessageMap,
@@ -111,7 +111,7 @@ export async function register(c: Ctx): Promise<Response> {
     const stmts: D1PreparedStatement[] = [];
     for (const e of evict) stmts.push(c.env.DB.prepare(SQL.W_DEL).bind(e, acct), c.env.DB.prepare(SQL.W_PRUNE).bind(e, acct));
     stmts.push(
-      c.env.DB.prepare(SQL.W_ACCT).bind(acct, now),
+      c.env.DB.prepare(SQL.W_ACCT).bind(acct, dayStart(now), monthStart(now)),
       c.env.DB.prepare(SQL.W_REG).bind(id, acct, signPub, encPub, push ? push.pushType : null, push ? push.stored : null, now, platform),
       listStmt,
     );
