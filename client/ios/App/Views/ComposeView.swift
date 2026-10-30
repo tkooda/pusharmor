@@ -153,7 +153,9 @@ struct ComposeView: View {
     @State private var toAll = false
     @State private var selected: Set<String> = []
     @State private var restored = false
-    @State private var visibleHeight: CGFloat = 0
+    /// Global tops of the list and of the pinned send bar; between them is the visible list area.
+    @State private var listTop: CGFloat = 0
+    @State private var barTop: CGFloat = 0
     @State private var chipsHeight: CGFloat = 0
     @FocusState private var editing: Bool
     /// Chip name width: 150 pt at the default text size, wider at large Dynamic Type (L8).
@@ -208,9 +210,7 @@ struct ComposeView: View {
         }
         .contentMargins(.bottom, 12, for: .scrollContent)
         .scrollDismissesKeyboard(.interactively)
-        .onGeometryChange(for: CGFloat.self) { g in
-            g.size.height - g.safeAreaInsets.top - g.safeAreaInsets.bottom
-        } action: { visibleHeight = $0 }
+        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { listTop = $0 }
         .safeAreaInset(edge: .bottom, spacing: 0) { sendBar }
         .onAppear { restoreSelection() }
         .onChange(of: candidates.map { $0.id.text }) { _, _ in restoreSelection() }
@@ -227,7 +227,7 @@ struct ComposeView: View {
     private var messageCard: some View {
         VStack(alignment: .leading, spacing: 6) {
             let h = SendScreenRules.messageHeight(
-                lineHeight: UIFont.preferredFont(forTextStyle: .body).lineHeight, visible: visibleHeight)
+                lineHeight: UIFont.preferredFont(forTextStyle: .body).lineHeight, visible: barTop - listTop)
             TextEditor(text: $text)
                 .focused($editing)
                 .frame(minHeight: h.min, maxHeight: h.max)
@@ -323,6 +323,7 @@ struct ComposeView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(Color(uiColor: .systemGroupedBackground))
+        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { barTop = $0 }
     }
 
     /// The wrapping chip toggles. With the keyboard up only the chosen devices show.
