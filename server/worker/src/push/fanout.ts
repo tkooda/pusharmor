@@ -3,7 +3,6 @@
 import type { Env } from "../env";
 import type { Log } from "../log";
 import * as SQL from "../db/sql";
-import { dbFor } from "../db/shard";
 import { buildApns, apnsMayRemint } from "./apns";
 import { deps, type Cls, type VendorRequest } from "./deps";
 import { buildFcm } from "./fcm";
@@ -193,10 +192,10 @@ export async function fanout(env: Env, targets: Target[], log: Log): Promise<Fan
 
 // Best-effort post-fan-out writes (W_GONE per gone recipient, plus extras such as W_SEEN).
 export async function writeBack(env: Env, acct: string, gone: { id: string; push: string }[], extra: D1PreparedStatement[], log: Log): Promise<void> {
-  const stmts = [...gone.map((g) => dbFor(env, acct).prepare(SQL.W_GONE).bind(g.id, acct, g.push)), ...extra];
+  const stmts = [...gone.map((g) => env.DB.prepare(SQL.W_GONE).bind(g.id, acct, g.push)), ...extra];
   if (!stmts.length) return;
   try {
-    const rs = await dbFor(env, acct).batch(stmts);
+    const rs = await env.DB.batch(stmts);
     for (const r of rs) log.addMeta(r.meta);
   } catch {
     log.gone_write = "failed";

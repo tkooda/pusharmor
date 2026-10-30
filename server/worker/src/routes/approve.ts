@@ -6,7 +6,6 @@ import { parseJsonObject } from "../pipeline/body";
 import { enforce } from "../pipeline/limits";
 import { ApiError } from "../errors";
 import * as SQL from "../db/sql";
-import { dbFor } from "../db/shard";
 import { all, batch } from "../db/d1";
 import { isUnconfirmedUp, type CtxRow } from "../db/rows";
 import { fanout, writeBack } from "../push/fanout";
@@ -22,7 +21,7 @@ export function targetX(c: Ctx, s: Signed): string {
 }
 
 export async function readCtxX(c: Ctx, s: Signed, x: string): Promise<{ caller?: CtxRow; xr?: CtxRow }> {
-  const rows = await all<CtxRow>(c.log, dbFor(c.env, s.acct).prepare(SQL.Q_CTX(1)).bind(s.me, s.acct, x));
+  const rows = await all<CtxRow>(c.log, c.env.DB.prepare(SQL.Q_CTX(1)).bind(s.me, s.acct, x));
   return { caller: rows.find((r) => r.id === s.me), xr: rows.find((r) => r.id === x) };
 }
 
@@ -38,7 +37,7 @@ export async function relayOne(c: Ctx, s: Signed, xr: CtxRow, msg: string, cls: 
 
 // Empty RETURNING: caller gone -> 401 "unknown peer", else X gone -> "unknown".
 async function emptyReturning(c: Ctx, s: Signed): Promise<Response> {
-  const self = await all(c.log, dbFor(c.env, s.acct).prepare(SQL.Q_SELF).bind(s.me, s.acct));
+  const self = await all(c.log, c.env.DB.prepare(SQL.Q_SELF).bind(s.me, s.acct));
   if (!self.length) throw new ApiError(401, "unknown peer");
   return json(200, { r: "unknown" });
 }
@@ -56,7 +55,7 @@ export async function approve(c: Ctx): Promise<Response> {
   if (!xr) return json(200, withPushMissing({ r: "unknown" }, pm));
   await enforce(c.env, "RL_PAIR", "id:" + s.me + x, c.log);
   if (xr.denies_me === 1) return json(200, withPushMissing({ r: "denied" }, pm));
-  const rs = await batch(c.log, dbFor(c.env, s.acct), [dbFor(c.env, s.acct).prepare(SQL.W_APPROVE).bind(s.me, s.acct, x, name, msg, nowS())]);
+  const rs = await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_APPROVE).bind(s.me, s.acct, x, name, msg, nowS())]);
   const ret = rs[0].results[0] as { stored: number; c_x: string | null } | undefined;
   if (!ret) return emptyReturning(c, s);
   if (ret.stored === 1) return json(200, withPushMissing({ r: "stored" }, pm));
@@ -73,10 +72,10 @@ export async function deny(c: Ctx): Promise<Response> {
     if (b.withdraw !== 1) throw bad();
     const s = await signedStart(c);
     const x = targetX(c, s);
-    const self = (await all<{ sign_pub: string; enc_pub: string; paused: number; push: string | null }>(c.log, dbFor(c.env, s.acct).prepare(SQL.Q_SELF).bind(s.me, s.acct)))[0];
+    const self = (await all<{ sign_pub: string; enc_pub: string; paused: number; push: string | null }>(c.log, c.env.DB.prepare(SQL.Q_SELF).bind(s.me, s.acct)))[0];
     await callerCheck(c, s, self, true);
     await enforce(c.env, "RL_PAIR", "deny:" + s.me + x, c.log);
-    const rs = await batch(c.log, dbFor(c.env, s.acct), [dbFor(c.env, s.acct).prepare(SQL.W_WITHDRAW).bind(s.me, s.acct, x)]);
+    const rs = await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_WITHDRAW).bind(s.me, s.acct, x)]);
     if (rs[0].results.length === 0) throw new ApiError(401, "unknown peer");
     return json(200, withPushMissing({ r: "unapproved" }, self!.push === null));
   }
@@ -89,7 +88,7 @@ export async function deny(c: Ctx): Promise<Response> {
   const pm = caller!.push === null;
   if (!xr) return json(200, withPushMissing({ r: "unknown" }, pm));
   await enforce(c.env, "RL_PAIR", "deny:" + s.me + x, c.log);
-  const rs = await batch(c.log, dbFor(c.env, s.acct), [dbFor(c.env, s.acct).prepare(SQL.W_DENY).bind(s.me, s.acct, x)]);
+  const rs = await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_DENY).bind(s.me, s.acct, x)]);
   if (rs[0].results.length === 0) return emptyReturning(c, s);
   let r: string;
   if (xr.denies_me === 1) r = "denied";

@@ -5,7 +5,6 @@ import { rawPoint } from "../crypto/ecdsa";
 import { parseJsonObject } from "../pipeline/body";
 import { checkSig, checkTime } from "../pipeline/signed";
 import * as SQL from "../db/sql";
-import { dbFor } from "../db/shard";
 import { all, batch } from "../db/d1";
 import type { RelayRow } from "../db/rows";
 import { checkTicket, relayMap } from "./common";
@@ -44,9 +43,9 @@ export async function deleteAccount(c: Ctx): Promise<Response> {
   c.log.account = acct;
   requireAccount(Object.keys(m), acct);
 
-  const rows = await all<AcctRow>(c.log, dbFor(c.env, acct).prepare(SQL.Q_ACCT).bind(acct));
+  const rows = await all<AcctRow>(c.log, c.env.DB.prepare(SQL.Q_ACCT).bind(acct));
   const me = rows.find((r) => r.sign_pub === signPub);
-  await batch(c.log, dbFor(c.env, acct), [dbFor(c.env, acct).prepare(SQL.W_DELALL).bind(acct), dbFor(c.env, acct).prepare(SQL.W_DELACCT).bind(acct)]);
+  await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_DELALL).bind(acct), c.env.DB.prepare(SQL.W_DELACCT).bind(acct)]);
 
   let r: Record<string, string>;
   if (!me) {
