@@ -105,7 +105,7 @@ const OFF_WORDS: Record<string, string> = { "(missing)": "(missing)", "signed ou
 export function peerStatus(p: PeerView): { kind: StatusKind; word: string } | null {
   if (p.fingerprint || p.lines.length) return null;
   if (p.greyed) return OFF_WORDS[p.greyed] ? { kind: "off", word: OFF_WORDS[p.greyed]! } : null;
-  return p.approvesMe ? { kind: "ok", word: "Approves this device" } : { kind: "wait", word: "Has not approved this device" };
+  return p.approvesMe ? { kind: "ok", word: "Connected" } : { kind: "wait", word: "Has not approved this device" };
 }
 
 const PLATFORM_LABEL: Record<string, string> = { android: "Android", iphone: "iPhone", chrome: "Chrome", firefox: "Firefox" };
