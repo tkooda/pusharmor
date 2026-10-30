@@ -22,7 +22,7 @@ import { json } from "../http";
 import { parseJsonObject } from "../pipeline/body";
 import { enforce, ipKey } from "../pipeline/limits";
 import { deps } from "../push/deps";
-import { normalizeEmail } from "./normalize";
+import { mailboxKey, normalizeEmail } from "./normalize";
 import { sendEmail } from "./ses";
 import { verifyTurnstile } from "./turnstile";
 
@@ -64,7 +64,8 @@ export async function start(c: Ctx): Promise<Response> {
   await verifyTurnstile(c.env, b.turnstile, c.req.headers.get("CF-Connecting-IP"));
   const email = normalizeEmail(b.email);
   const eh = b64urlEncode(await emailHash(email));
-  await enforce(c.env, "RL_MAIL", "mail:" + eh, c.log);
+  // Per mailbox (+tag and Gmail dot variants share it); a limiter key only, never stored.
+  await enforce(c.env, "RL_MAIL", "mail:" + b64urlEncode(await emailHash(mailboxKey(email))), c.log);
   // Per IP (a limiter key only, never stored): address variants from one IP share this cap.
   // IPv6 by its /64 like RL_IP, so one /64 cannot rotate source addresses (I446).
   await enforce(c.env, "RL_MAIL", "mail" + ipKey(c.req.headers.get("CF-Connecting-IP") ?? ""), c.log);

@@ -7,7 +7,13 @@ export function normalizeEmail(s) {
   for (let i = 0; i < t.length; i++) {
     if (t.charCodeAt(i) > 127) throw new Error("bad email");
   }
-  return t.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
+  const out = t.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
+  // Same checks as the Worker (server/worker/src/auth/normalize.ts).
+  const at = out.indexOf("@");
+  if (out.length > 254 || at < 1 || at !== out.lastIndexOf("@") || at === out.length - 1 || /[\x00-\x20\x7f<>"(),;:\\]/.test(out)) {
+    throw new Error("bad request");
+  }
+  return out;
 }
 
 export function b64url(bytes) {
