@@ -33,6 +33,9 @@ object UiText {
         return available.filter { it in ids }
     }
 
+    /** Chosen ids that can receive now, in the order chosen: what Send counts, names and sends to. */
+    fun sendable(picked: List<String>, canReceive: List<String>): List<String> = picked.filter { it in canReceive }
+
     /** Longest device name shown in the Send button before it is cut with "...", so the button stays one line. */
     const val SEND_NAME_MAX = 20
 
