@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { rememberedSelection, sendToHeader, showAllChip, showCounter } from "../src/model/sendsel.ts";
+import { canReceiveNow, rememberedSelection, sendDisabled, sendToHeader, showAllChip, showCounter } from "../src/model/sendsel.ts";
 
 test("Send view: remembered selection keeps only ids that can still receive", () => {
   assert.deepEqual(rememberedSelection(["a", "gone", "c"], ["a", "b", "c"]), ["a", "c"]);
@@ -29,4 +29,18 @@ test("Send view: byte counter shows from 90 percent of the cap", () => {
   assert.equal(showCounter(1843, 2048), false);
   assert.equal(showCounter(1844, 2048), true);
   assert.equal(showCounter(3000, 2048), true);
+});
+
+test("Send view: greyed devices cannot receive now", () => {
+  assert.equal(canReceiveNow({ sendable: true, greyed: null }), true);
+  assert.equal(canReceiveNow({ sendable: true, greyed: "unreachable" }), false);
+  assert.equal(canReceiveNow({ sendable: true, greyed: "signed out" }), false);
+  assert.equal(canReceiveNow({ sendable: false, greyed: null }), false);
+});
+
+test("Send view: Send is disabled with no device selected", () => {
+  assert.equal(sendDisabled(10, 2048, 0), true);
+  assert.equal(sendDisabled(10, 2048, 1), false);
+  assert.equal(sendDisabled(0, 2048, 1), true);
+  assert.equal(sendDisabled(3000, 2048, 1), true);
 });
