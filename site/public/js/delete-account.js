@@ -28,6 +28,8 @@
     var items = $("steps").children;
     for (var i = 0; i < items.length; i++) {
       items[i].className = i < n - 1 ? "on done" : i === n - 1 ? "on" : "";
+      var tag = items[i].querySelector(".vh");
+      if (tag) tag.textContent = i < n - 1 ? " (completed)" : "";
       if (i === n - 1) items[i].setAttribute("aria-current", "step");
       else items[i].removeAttribute("aria-current");
     }
@@ -115,7 +117,7 @@
     $("signed-in").textContent = typeof email === "string" ? email : "";
     show("confirm");
     say("");
-    $("delete").focus();
+    $("confirm-h").focus();
   }
 
   $("confirm-form").addEventListener("submit", async function (e) {

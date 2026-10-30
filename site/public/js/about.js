@@ -92,6 +92,7 @@
   function step(d) { if (set.length > 1) show(at + d); }
 
   links.forEach(function (a) {
+    a.setAttribute("aria-haspopup", "dialog");
     a.addEventListener("click", function (e) {
       if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
       e.preventDefault();
