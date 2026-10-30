@@ -33,7 +33,7 @@ describe("CORS", () => {
       expect(r.res.headers.get("Access-Control-Allow-Methods")).toBe("POST, DELETE");
       expect(r.res.headers.get("Access-Control-Allow-Headers")).toBe("Content-Type, PA-Time, PA-Sig");
       expect(r.res.headers.get("Access-Control-Allow-Origin")).toBe(ORIGIN);
-      expect(r.res.headers.get("PA-Epoch-Ms")).toMatch(/^[0-9]{13}$/);
+      expect(r.res.headers.get("PA-Epoch")).toMatch(/^[0-9]{10}$/);
     }
     expect((await call("OPTIONS", "/v1/send")).status).toBe(405);
   });

@@ -259,12 +259,12 @@ describe("GET /peers", () => {
     expect(ra.body.my_allow).toEqual([b.id]);
   });
 
-  it("smoke (I270): unsigned GET -> 400 with PA-Epoch-Ms and expose header", async () => {
+  it("smoke (I270): unsigned GET -> 400 with PA-Epoch (unix s) and expose header", async () => {
     const r = await call("GET", "/v1/peers");
     expect(r.status).toBe(400);
     expect(r.body).toEqual({ error: "bad request" });
-    expect(r.res.headers.get("PA-Epoch-Ms")).toMatch(/^[0-9]{13}$/);
-    expect(r.res.headers.get("Access-Control-Expose-Headers")).toBe("PA-Epoch-Ms");
+    expect(r.res.headers.get("PA-Epoch")).toMatch(/^[0-9]{10}$/);
+    expect(r.res.headers.get("Access-Control-Expose-Headers")).toBe("PA-Epoch");
     expect(r.res.headers.get("Cache-Control")).toBe("no-store");
     expect(r.res.headers.get("Strict-Transport-Security")).toBe("max-age=63072000; includeSubDomains");
   });

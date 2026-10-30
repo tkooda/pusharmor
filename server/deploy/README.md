@@ -70,8 +70,8 @@ table to that file, so a new route needs a reviewed edit to `routes.json`.
    `wrangler d1 time-travel restore pusharmor --bookmark=<bookmark>` and stops.
 5. Deploy with --outdir and print the sha256 of that uploaded bundle.
 6. Smoke test: an unsigned GET /v1/peers must return 400 with body
-   {"error":"bad request"}, a 13-digit PA-Epoch-Ms header, and
-   Access-Control-Expose-Headers containing PA-Epoch-Ms. Then send one message
+   {"error":"bad request"}, a 10-digit PA-Epoch header (unix seconds), and
+   Access-Control-Expose-Headers containing PA-Epoch. Then send one message
    between peers of your own accounts and type `ok`.
 7. If step 5 or 6 fails, run `(cd server/worker && npx wrangler rollback)`.
    The previous version must work with the current migrations (N-1 rule).
