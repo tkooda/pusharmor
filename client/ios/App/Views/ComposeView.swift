@@ -37,6 +37,21 @@ enum SendScreenRules {
         return candidates[0].id
     }
 
+    /// Device chips to show, in list order. With the keyboard up only the chosen
+    /// recipients show, so the block stays short and every recipient stays visible.
+    static func visibleChips(_ ids: [String], recipients: Set<String>, keyboardUp: Bool) -> [String] {
+        keyboardUp ? ids.filter { recipients.contains($0) } : ids
+    }
+
+    /// The "All" chip: with the keyboard up it shows only while it is on.
+    static func showsAllChip(available: Bool, on: Bool, keyboardUp: Bool) -> Bool {
+        available && (!keyboardUp || on)
+    }
+
+    /// Height cap for the chip area; past it the chips scroll inside their own area
+    /// (very small screens only) while Send stays pinned.
+    static func chipAreaMaxHeight(keyboardUp: Bool) -> CGFloat { keyboardUp ? 118 : 320 }
+
     /// Quiet line under the message: how it will arrive.
     static func caption(_ type: SendType, asText: Bool) -> (title: String, symbol: String) {
         if asText { return ("Will arrive as text", "text.alignleft") }
@@ -117,6 +132,7 @@ struct ComposeView: View {
     @State private var toAll = false
     @State private var selected: Set<String> = []
     @State private var restored = false
+    @FocusState private var editing: Bool
 
     private var candidates: [Peer] {
         model.peers.filter { $0.state == .approved && $0.pinned && !$0.hidden }
@@ -184,6 +200,7 @@ struct ComposeView: View {
     private var messageCard: some View {
         VStack(alignment: .leading, spacing: 6) {
             TextEditor(text: $text)
+                .focused($editing)
                 .frame(minHeight: 118)
                 .scrollContentBackground(.hidden)
                 .overlay(alignment: .topLeading) {
@@ -197,6 +214,12 @@ struct ComposeView: View {
                     }
                 }
                 .accessibilityLabel("Message")
+                .padding(4)
+                .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(editing ? Color.brandGreen : Color(uiColor: .separator), lineWidth: editing ? 1.5 : 1)
+                )
             if !text.isEmpty {
                 HStack(spacing: 8) {
                     let c = SendScreenRules.caption(detected, asText: asText)
@@ -224,31 +247,12 @@ struct ComposeView: View {
                         .font(.footnote.weight(.semibold))
                         .foregroundColor(.secondaryText)
                         .accessibilityAddTraits(.isHeader)
-                    ChipFlow(spacing: 8) {
-                        if showAll {
-                            Button {
-                                toAll.toggle()
-                            } label: {
-                                chip(title: "All", symbol: "laptopcomputer.and.iphone", on: toAll)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityAddTraits(toAll ? .isSelected : [])
-                        }
-                        ForEach(candidates, id: \.id.text) { p in
-                            let ok = enabled(p)
-                            let on = selected.contains(p.id.text) && ok
-                            Button {
-                                if selected.contains(p.id.text) { selected.remove(p.id.text) } else { selected.insert(p.id.text) }
-                            } label: {
-                                chip(title: model.label(p), symbol: platformSymbol(p.platform), on: on)
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(!ok)
-                            .opacity(ok ? 1 : 0.45)
-                            .accessibilityValue(note(p) ?? "")
-                            .accessibilityAddTraits(on ? .isSelected : [])
-                        }
+                    ViewThatFits(in: .vertical) {
+                        chips
+                        ScrollView { chips }
+                            .scrollBounceBehavior(.basedOnSize)
                     }
+                    .frame(maxHeight: SendScreenRules.chipAreaMaxHeight(keyboardUp: editing))
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -274,6 +278,39 @@ struct ComposeView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(Color(uiColor: .systemGroupedBackground))
+    }
+
+    /// The wrapping chip toggles. With the keyboard up only the chosen devices show.
+    private var chips: some View {
+        let shown = Set(SendScreenRules.visibleChips(
+            candidates.map { $0.id.text },
+            recipients: Set(candidates.filter { selected.contains($0.id.text) && enabled($0) }.map { $0.id.text }),
+            keyboardUp: editing))
+        return ChipFlow(spacing: 8) {
+            if SendScreenRules.showsAllChip(available: showAll, on: toAll, keyboardUp: editing) {
+                Button {
+                    toAll.toggle()
+                } label: {
+                    chip(title: "All", symbol: "laptopcomputer.and.iphone", on: toAll)
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(toAll ? .isSelected : [])
+            }
+            ForEach(candidates.filter { shown.contains($0.id.text) }, id: \.id.text) { p in
+                let ok = enabled(p)
+                let on = selected.contains(p.id.text) && ok
+                Button {
+                    if selected.contains(p.id.text) { selected.remove(p.id.text) } else { selected.insert(p.id.text) }
+                } label: {
+                    chip(title: model.label(p), symbol: platformSymbol(p.platform), on: on)
+                }
+                .buttonStyle(.plain)
+                .disabled(!ok)
+                .opacity(ok ? 1 : 0.45)
+                .accessibilityValue(note(p) ?? "")
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
     }
 
     /// Peers the Send button reaches.

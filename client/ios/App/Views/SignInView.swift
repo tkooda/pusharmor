@@ -98,7 +98,7 @@ struct SignInView: View {
 }
 
 enum WelcomeText {
-    static let intro = "PushArmor sends links, text, and phone numbers between your own devices. All of your data is always end-to-end encrypted, and can never be read by the server or anyone else."
+    static let intro = "Send links or text to your devices. All of your data is always end-to-end encrypted, and can never be read by the server or anyone else."
 }
 
 /// Welcome and sign-in layout: halo, wordmark, one sentence, then the buttons at the bottom.

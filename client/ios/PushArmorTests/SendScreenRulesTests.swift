@@ -40,4 +40,23 @@ final class SendScreenRulesTests: XCTestCase {
         XCTAssertEqual(SendScreenRules.caption(.url, asText: true).title, "Will arrive as text")
         XCTAssertEqual(SendScreenRules.caption(.tel, asText: true).title, "Will arrive as text")
     }
+
+    func testKeyboardUpShowsOnlyChosenDevicesInListOrder() {
+        let ids = ["a", "b", "c", "d"]
+        XCTAssertEqual(SendScreenRules.visibleChips(ids, recipients: ["c", "a"], keyboardUp: false), ids)
+        XCTAssertEqual(SendScreenRules.visibleChips(ids, recipients: ["c", "a"], keyboardUp: true), ["a", "c"])
+        XCTAssertEqual(SendScreenRules.visibleChips(ids, recipients: [], keyboardUp: true), [])
+        XCTAssertEqual(SendScreenRules.visibleChips(ids, recipients: ["x"], keyboardUp: true), [])
+    }
+
+    func testAllChipWithKeyboardUpShowsOnlyWhileOn() {
+        XCTAssertTrue(SendScreenRules.showsAllChip(available: true, on: false, keyboardUp: false))
+        XCTAssertTrue(SendScreenRules.showsAllChip(available: true, on: true, keyboardUp: true))
+        XCTAssertFalse(SendScreenRules.showsAllChip(available: true, on: false, keyboardUp: true))
+        XCTAssertFalse(SendScreenRules.showsAllChip(available: false, on: true, keyboardUp: false))
+    }
+
+    func testChipAreaIsShorterWithKeyboardUp() {
+        XCTAssertLessThan(SendScreenRules.chipAreaMaxHeight(keyboardUp: true), SendScreenRules.chipAreaMaxHeight(keyboardUp: false))
+    }
 }
