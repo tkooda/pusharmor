@@ -92,6 +92,7 @@ test("replay: duplicate re-presents, seen n without row is Invalid, control seen
   await b.e.receive(m1!, "bridge");
   assert.equal((await b.db.history()).length, before);
   // control type seen n: silent no-op
+  await assert.rejects(a.e.rename('Dad"s'), UserError);
   await a.e.rename("Laptop");
   const [rn] = w.take(b.id);
   await b.e.receive(rn!, "push");

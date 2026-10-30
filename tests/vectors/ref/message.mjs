@@ -66,7 +66,8 @@ export function buildMessage({ signPriv, fromId, recipientIdB64, recipientEncPub
 export const nameSignedBytes = (ownerIdB64, recipientIdB64, pairingIdB64, n, nameB64) =>
   Buffer.from('PA-NAME1\n' + ownerIdB64 + '\n' + recipientIdB64 + '\n' + pairingIdB64 + '\n' + n + '\n' + nameB64);
 
-export const isValidName = (name) => /^[\x20-\x7e]{1,32}$/.test(name);
+// Printable ASCII without the double quote.
+export const isValidName = (name) => /^[\x20\x21\x23-\x7e]{1,32}$/.test(name);
 
 // Checks a parsed {name, n, s} object (approve, rename or name entry).
 // Returns { name, n } or null.

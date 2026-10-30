@@ -125,6 +125,14 @@ final class MessageTests: XCTestCase {
         XCTAssertFalse(NameEntry.isValidName(String(repeating: "x", count: 33)))
         XCTAssertFalse(NameEntry.isValidName("a\u{e9}"))
         XCTAssertFalse(NameEntry.isValidName("a\n"))
+        XCTAssertFalse(NameEntry.isValidName("a\"b"))
+        XCTAssertTrue(NameEntry.isValidName("a'b"))
+    }
+
+    func testReceivedNameWithDoubleQuoteIsIgnored() throws {
+        let a = TestPeer(), b = TestPeer()
+        let f = try NameEntry.make(name: "My \"Phone\"", n: 3, owner: a.id, recipient: b.id, pairingId: pid, signer: a.signer)
+        XCTAssertNil(NameEntry.verify(f, owner: a.id, recipient: b.id, pairingId: pid, ownerSignPub: a.signPub))
     }
 
     func testPairMessages() throws {

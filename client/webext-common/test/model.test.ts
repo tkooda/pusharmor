@@ -16,6 +16,7 @@ import {
   encodePair,
   inflateInner,
   makeNameEntry,
+  nameSignedString,
   msgSignedBytes,
   openInner,
   openNameEntry,
@@ -166,6 +167,16 @@ test("name entry seal/open", async () => {
   await assert.rejects(makeNameEntry(a.sign.privateKey, ID_A, ID_B, pid, 4, ""));
   await assert.rejects(makeNameEntry(a.sign.privateKey, ID_A, ID_B, pid, 4, "x".repeat(33)));
   await assert.rejects(makeNameEntry(a.sign.privateKey, ID_A, ID_B, pid, 4, "caf\u00e9"));
+  await assert.rejects(makeNameEntry(a.sign.privateKey, ID_A, ID_B, pid, 4, 'Dad"s'));
+});
+
+test("received name entry with a double quote is ignored", async () => {
+  const { a } = await pair();
+  const pid = new Uint8Array(8).fill(1);
+  const nameB64 = b64urlEncode(ascii('Dad"s'));
+  const s = await sign(a.sign.privateKey, nameSignedString(ID_A, ID_B, pid, 4, nameB64));
+  const e = { name: nameB64, n: 4, s: b64urlEncode(s) };
+  assert.equal(await verifyNameEntry(a.sign_pub, ID_A, ID_B, pid, e), null);
 });
 
 test("pair messages: 366 chars, kinds, commit zero tail", async () => {

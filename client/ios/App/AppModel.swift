@@ -310,7 +310,7 @@ final class AppModel: ObservableObject {
     }
 
     func setName(_ name: String) async {
-        guard let core = core, NameEntry.isValidName(name) else { errorText = "Use 1 to 32 plain ASCII characters."; return }
+        guard let core = core, NameEntry.isValidName(name) else { errorText = "Use 1 to 32 plain ASCII characters, no double quotes."; return }
         if (try? core.store.me().name) == nil {
             try? core.store.setMe("name", .text(name))
         } else {
@@ -484,7 +484,7 @@ final class AppModel: ObservableObject {
         do {
             _ = try await core.rename(name)
         } catch {
-            errorText = "Use 1 to 32 plain ASCII characters."
+            errorText = "Use 1 to 32 plain ASCII characters, no double quotes."
         }
         reload()
     }

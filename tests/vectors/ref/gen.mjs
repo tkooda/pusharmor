@@ -416,7 +416,7 @@ function nameSection() {
       'Name entries. s = owner signature over "PA-NAME1\\n" + owner id + "\\n" + recipient id + "\\n" + pairing id (11 chars) ' +
       '+ "\\n" + n + "\\n" + name (the b64url string). ciphertext = b64url(enc || ct), HPKE to the recipient enc_pub, info ' +
       '"PA-NAME1", aad = recipient 40-char id, at most 1024 chars. Assert signed_string from the fields; open ciphertext ' +
-      'with the recipient enc_priv and compare entry_json; verify s with the owner sign_pub; name 1..32 printable ASCII.',
+      'with the recipient enc_priv and compare entry_json; verify s with the owner sign_pub; name 1..32 printable ASCII, no double quote.',
     cases,
   };
 }
@@ -814,6 +814,7 @@ function mustFailSection() {
   ne('name_entry_signed_n_leading_zero', nameJson(nameObj(X, N, 7, 'Pixel 8', PAIRING_ID, '07'), 7));
   ne('name_entry_name_33_chars', nameJson(nameObj(X, N, 1, 'a'.repeat(33)), 1));
   ne('name_entry_name_control_char', nameJson(nameObj(X, N, 1, 'Pixel\n8'), 1));
+  ne('name_entry_name_double_quote', nameJson(nameObj(X, N, 1, 'Pixel "8"'), 1));
   ne('name_entry_wrong_recipient', nameJson(nameObj(X, O, 1, 'Pixel 8'), 1), { sealFor: O });
   ne('name_entry_over_1024_chars', nameJson(nameObj(X, N, 1, 'Pixel 8'), 1) + ' '.repeat(600));
   {

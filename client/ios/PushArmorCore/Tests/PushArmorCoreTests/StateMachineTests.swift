@@ -693,6 +693,17 @@ final class StateMachineTests: XCTestCase {
         XCTAssertTrue(try x.core.store.me().fetchDue || w.count("GET", "/v1/peers") >= 1)
     }
 
+    func testRenameRefusesDoubleQuote() async throws {
+        let n = try dev("Ndev")
+        do {
+            _ = try await n.core.rename("Bad \"name\"")
+            XCTFail("a name with a double quote was accepted")
+        } catch Core.CoreError.refused(let what) {
+            XCTAssertEqual(what, "name")
+        }
+        XCTAssertEqual(try n.core.store.me().name, "Ndev")
+    }
+
     func testDBMigrationIdempotent() throws {
         let path = NSTemporaryDirectory() + "pa-mig-\(UUID().uuidString).sqlite"
         _ = try Store(path: path)

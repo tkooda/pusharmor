@@ -2055,6 +2055,21 @@
         "receiver": "N"
       },
       {
+        "ciphertext": "BLZXRFwgwFutqcGFunDuIehW3hWTZZeCwOaftj0Gw-ICPfehKeAvegcS-4jM3ahWM7-18OfkwkZm6xb0gVkuqYXxJt1hAVXgD3i-9LXhc4H3jt3WMVg5O4WDUpApLyzZgVJMfU6O33VUm42n_jpEfTpONPpLyKMOV4yWMnDCPkFb4tbDyJTLsaY4nwetyJ0LeRg6V60bwyY2EMZKCKpchHcEm7nCpfN1Rwv8dVClEct8vRO2_qV_nw6Jn0rmxf6joj14ZVyctHXx2kI",
+        "kind": "name_entry",
+        "name": "name_entry_name_double_quote",
+        "outcome": "unreadable",
+        "owner": "X",
+        "pin": {
+          "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
+          "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
+          "pairing_id": "m-8oOwvzZC8",
+          "ruling": "approved",
+          "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
+        },
+        "receiver": "N"
+      },
+      {
         "ciphertext": "BOfqwNA7HDkIJ_rWcb7hpfuI9khDuHU4_hC0nPrmRVSdmfNstQkEWewdExxghdBkzjX3IcO3RA9DeehaupVV-4JqOZlRe-K2oFI5MWi6aJggy1r_zhzD7WweEUn65LeHtRI8H5qui9CLS6Z9EB4piLxnp83Z_lNF0WN9PX7Mh0M9lGwlixoc3Xr-umLHxi7sSslN2oIV_yO6Coh7QEs0HxGnXJs9Xn10i6yHtS0r4GkcAn0A8cZv3JmDp6ozzmbO-Nbf99UOoWI-",
         "kind": "name_entry",
         "name": "name_entry_wrong_recipient",
@@ -2387,7 +2402,7 @@
         "signed_string": "PA-NAME1\nCuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n\nCuVpna7--EmbFH3LCvfiANtnCurGpyStSXIO6AUz\nm-8oOwvzZC8\n9007199254740991\nfn5-fn5-fn5-fn5-fn5-fn5-fn5-fn5-fn5-fn5-fn4"
       }
     ],
-    "description": "Name entries. s = owner signature over \"PA-NAME1\\n\" + owner id + \"\\n\" + recipient id + \"\\n\" + pairing id (11 chars) + \"\\n\" + n + \"\\n\" + name (the b64url string). ciphertext = b64url(enc || ct), HPKE to the recipient enc_pub, info \"PA-NAME1\", aad = recipient 40-char id, at most 1024 chars. Assert signed_string from the fields; open ciphertext with the recipient enc_priv and compare entry_json; verify s with the owner sign_pub; name 1..32 printable ASCII."
+    "description": "Name entries. s = owner signature over \"PA-NAME1\\n\" + owner id + \"\\n\" + recipient id + \"\\n\" + pairing id (11 chars) + \"\\n\" + n + \"\\n\" + name (the b64url string). ciphertext = b64url(enc || ct), HPKE to the recipient enc_pub, info \"PA-NAME1\", aad = recipient 40-char id, at most 1024 chars. Assert signed_string from the fields; open ciphertext with the recipient enc_priv and compare entry_json; verify s with the owner sign_pub; name 1..32 printable ASCII, no double quote."
   },
   "oauth_nonce": {
     "cases": [
