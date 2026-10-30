@@ -43,6 +43,8 @@ export interface Browser {
     onStartup: Event<() => void>;
     onInstalled: Event<(d: { reason: string }) => void>;
     getPlatformInfo(): Promise<{ os: string }>;
+    /** Chrome 116+, Firefox 129+ */
+    getContexts?(f: { contextTypes: string[] }): Promise<{ tabId: number; windowId: number; documentUrl?: string }[]>;
   };
   storage: { local: StorageArea; session: StorageArea };
   notifications: {
@@ -55,9 +57,11 @@ export interface Browser {
     create(p: { url: string; active?: boolean; windowId?: number }): Promise<Tab>;
     query(q: { active: boolean; currentWindow: boolean }): Promise<Tab[]>;
     remove(id: number): Promise<void>;
+    update(id: number, p: { active?: boolean }): Promise<Tab>;
   };
   windows?: {
     getLastFocused(q: { windowTypes: string[] }): Promise<{ id?: number }>;
+    update(id: number, p: { focused?: boolean }): Promise<unknown>;
   };
   alarms: {
     create(name: string, info: { when?: number; delayInMinutes?: number }): void;

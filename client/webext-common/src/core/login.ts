@@ -3,6 +3,7 @@
 import { API_BASE, ApiError } from "../api/client.ts";
 import { b64urlEncode } from "../crypto/b64url.ts";
 import { normalizeEmail, oauthK } from "../crypto/labels.ts";
+import { type Restore, SIGNIN_PROGRESS, restoreStep } from "../model/signin.ts";
 import type { Engine } from "./engine.ts";
 import { UserError } from "./engine.ts";
 import { T } from "./texts.ts";
@@ -44,7 +45,26 @@ export class Login {
       body: { email: n, sign_pub: b64urlEncode(keys.sign_pub), purpose, turnstile },
     });
     if (typeof r.json.request_token !== "string") throw new UserError("Bad reply from the server");
-    await this.e.p.storageSession.set({ [REQUEST_TOKEN]: { token: r.json.request_token, purpose } });
+    await this.e.p.storageSession.set({
+      [REQUEST_TOKEN]: { token: r.json.request_token, purpose },
+      [SIGNIN_PROGRESS]: { v: 1, step: "code", email: email.trim(), purpose, sentAt: this.e.p.now() },
+    });
+  }
+
+  /** Saved sign-in progress for this purpose (storage.session; see model/signin.ts). */
+  async progress(purpose: Purpose): Promise<Restore | null> {
+    const got = await this.e.p.storageSession.get([SIGNIN_PROGRESS, REQUEST_TOKEN]);
+    const rt = got[REQUEST_TOKEN] as { purpose?: string } | undefined;
+    return restoreStep(got[SIGNIN_PROGRESS], this.e.p.now(), purpose, !!rt && rt.purpose === purpose);
+  }
+
+  /** Step 1: keep the typed email so a reopened tab can fill it in. */
+  async draft(email: string, purpose: Purpose): Promise<void> {
+    await this.e.p.storageSession.set({ [SIGNIN_PROGRESS]: { v: 1, step: "email", email: email.slice(0, 320), purpose, sentAt: 0 } });
+  }
+
+  async clearProgress(): Promise<void> {
+    await this.e.p.storageSession.remove([SIGNIN_PROGRESS]);
   }
 
   async emailVerify(code: string, evict?: string[]): Promise<LoginResult> {
@@ -101,6 +121,7 @@ export class Login {
       if (err instanceof ApiError && err.status === 401 && err.error === "ticket expired") throw new UserError("Sign-in expired, sign in again");
       throw err;
     }
+    await this.clearProgress();
     return { done: true };
   }
 }

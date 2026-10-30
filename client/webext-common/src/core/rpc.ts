@@ -140,9 +140,16 @@ export class Rpc {
       case "settings":
         return e.setSettings(a as Partial<Settings>);
       case "signout":
+        await this.login.clearProgress();
         return e.pause();
       case "loginPurpose":
         return this.login.purpose();
+      case "signinProgress":
+        return this.login.progress(a.purpose ? (s("purpose") as Purpose) : await this.login.purpose());
+      case "signinDraft":
+        return this.login.draft(s("email"), s("purpose") as Purpose);
+      case "signinClear":
+        return this.login.clearProgress();
       case "emailStart":
         return this.login.emailStart(s("email"), s("turnstile"), s("purpose") as Purpose);
       case "emailVerify":

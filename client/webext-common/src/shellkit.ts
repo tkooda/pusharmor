@@ -194,7 +194,21 @@ export function uiEnv(b: Browser): UiEnv {
       return t?.url && /^https?:/i.test(t.url) ? t.url : "";
     },
     openPage(hash) {
-      void b.tabs.create({ url: b.runtime.getURL("page.html" + hash), active: true });
+      const url = b.runtime.getURL("page.html" + hash);
+      return (async () => {
+        // An open tab on the same page comes to the front instead of a second copy.
+        try {
+          const open = (await b.runtime.getContexts?.({ contextTypes: ["TAB"] }))?.find((c) => c.documentUrl === url && c.tabId >= 0);
+          if (open) {
+            await b.tabs.update(open.tabId, { active: true });
+            await b.windows?.update(open.windowId, { focused: true });
+            return;
+          }
+        } catch {
+          // fall through: open a new tab
+        }
+        await b.tabs.create({ url, active: true });
+      })();
     },
     openUrl(url) {
       void b.tabs.create({ url, active: true });

@@ -7,8 +7,8 @@ export interface UiEnv {
   call: Call;
   /** URL of the active tab (activeTab), or "" */
   activeUrl(): Promise<string>;
-  /** Opens page.html with the given hash in a full tab. */
-  openPage(hash: string): void;
+  /** Opens page.html with the given hash in a full tab (or shows the tab already open on it). */
+  openPage(hash: string): void | Promise<void>;
   openUrl(url: string): void;
   copy(text: string): Promise<void>;
   /** true in the Beta build (manifest name "PushArmor Beta") */
