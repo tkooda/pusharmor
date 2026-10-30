@@ -160,6 +160,12 @@ to App Store Connect. No review submission.
 
 Test: internal TestFlight testers (no Beta App Review).
 
+The app is iPhone only (`TARGETED_DEVICE_FAMILY: "1"` in
+`client/ios/project.yml`), so promote sends only the 6.9-inch iPhone
+screenshots. App Store Connect can list the 13-inch iPad screenshot slot as
+required while no build is attached to the version; the slot clears once the
+iPhone-only build is attached (promote attaches it before it submits).
+
 The app declares ITSAppUsesNonExemptEncryption = false: it uses only Apple OS
 encryption (CryptoKit), so no export compliance answer is needed.
 
