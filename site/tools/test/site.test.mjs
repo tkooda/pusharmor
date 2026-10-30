@@ -35,7 +35,7 @@ const rules = parseHeaders(read("_headers"));
 function siteFiles() {
   const out = [];
   for (const rel of listFiles(SITE)) {
-    if (rel.startsWith("node_modules/") || rel.startsWith(".wrangler/")) continue;
+    if (rel.startsWith("node_modules/") || rel.startsWith(".wrangler/") || rel.startsWith("dist/")) continue;
     out.push(rel);
   }
   return out;
@@ -266,11 +266,10 @@ test("assetlinks.json is valid and names com.pusharmor", () => {
   for (const f of a[0].target.sha256_cert_fingerprints) assert.match(f, /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
 });
 
-// Builds a copy of site/public with the given public file; returns {dir, r}.
+// Builds site/public into a temp dir with the given public file; returns {dir, r}.
 function buildCopy(publicPath, env = {}) {
   const dir = mkdtempSync(join(tmpdir(), "pa-site-build-"));
-  cpSync(PUB, dir, { recursive: true });
-  const r = spawnSync("node", [join(SITE, "tools", "build.mjs"), "--dir", dir, "--public", publicPath],
+  const r = spawnSync("node", [join(SITE, "tools", "build.mjs"), "--out", dir, "--public", publicPath],
     { encoding: "utf8", env: { ...process.env, PA_CI_DUMMY: "", ...env } });
   return { dir, r };
 }
@@ -290,7 +289,7 @@ test("wrangler.jsonc runs tools/build.mjs on deploy, and the build skips for wra
   assert.match(cfg, /"build"\s*:\s*\{\s*"command"\s*:\s*"node tools\/build\.mjs"\s*\}/);
   const { dir, r } = buildCopy(PUBLIC_PATH, { WRANGLER_COMMAND: "dev" });
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /skipped for wrangler dev/);
+  assert.match(r.stdout, /ids not filled for wrangler dev/);
   assert.deepEqual(placeholderFiles(dir).length, 4);
   const tmp = mkdtempSync(join(tmpdir(), "pa-public-"));
   const d = buildCopy(placeholderPublic(tmp), { WRANGLER_COMMAND: "deploy" });
@@ -330,6 +329,26 @@ test("site build fills every id from a public file and leaves current hashes", (
     assert.ok(readFileSync(join(dir, "_headers"), "utf8").includes("chrome-extension://abcdefghijklmnopabcdefghijklmnop chrome-extension://ponmlkjihgfedcbaponmlkjihgfedcba"));
     assert.deepEqual(JSON.parse(readFileSync(join(dir, ".well-known", "assetlinks.json"), "utf8"))[0].target.sha256_cert_fingerprints, [fp]);
   } finally { rmSync(dir, { recursive: true, force: true }); rmSync(tmp, { recursive: true, force: true }); }
+});
+
+test("site build writes a gitignored output dir and leaves the git tree clean (I429)", (t) => {
+  if (!existsSync(join(REPO, ".git"))) { t.skip("not a git checkout"); return; }
+  const git = (...a) => spawnSync("git", ["-C", REPO, ...a], { encoding: "utf8" });
+  assert.equal(git("check-ignore", "-q", "site/dist/index.html").status, 0, "site/dist must be gitignored");
+  assert.equal(parseJsonc(readFileSync(join(SITE, "wrangler.jsonc"), "utf8")).assets.directory, "./dist");
+  const before = git("status", "--porcelain").stdout;
+  const tmp = mkdtempSync(join(tmpdir(), "pa-public-"));
+  const out = join(tmp, "out");
+  const lp = placeholderPublic(tmp);
+  assert.equal(spawnSync("node", [join(REPO, "release", "ci-dummy.mjs"), lp]).status, 0);
+  try {
+    const r = spawnSync("node", [join(SITE, "tools", "build.mjs"), "--out", out, "--public", lp],
+      { encoding: "utf8", env: { ...process.env, PA_CI_DUMMY: "1" } });
+    assert.equal(git("status", "--porcelain").stdout, before, "the build changed tracked files");
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(placeholderFiles(out), []);
+    assert.equal(placeholderFiles(PUB).length, 4);
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
 test("site build fails on a missing public file or on placeholders", () => {
