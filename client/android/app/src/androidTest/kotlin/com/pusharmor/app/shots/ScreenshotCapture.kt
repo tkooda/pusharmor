@@ -1,9 +1,12 @@
 package com.pusharmor.app.shots
 
 import android.Manifest
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
 import android.graphics.Bitmap
 import android.os.ParcelFileDescriptor
+import android.util.Log
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -59,15 +62,36 @@ class ScreenshotCapture {
         Thread.sleep(ms)
     }
 
-    /** Waits until [text] is on screen (Room reads are async); fails the run after [timeoutMs]. */
+    /** Window roots: every window when FLAG_RETRIEVE_INTERACTIVE_WINDOWS is set, else the active one. */
+    private fun roots(): List<AccessibilityNodeInfo> =
+        inst.uiAutomation.windows.mapNotNull { it.root }.ifEmpty { listOfNotNull(inst.uiAutomation.rootInActiveWindow) }
+
+    /** Walks the tree: Compose's node provider does not implement findAccessibilityNodeInfosByText. */
+    private fun hasText(n: AccessibilityNodeInfo?, text: String): Boolean {
+        if (n == null) return false
+        if (n.text?.contains(text) == true || n.contentDescription?.contains(text) == true) return true
+        return (0 until n.childCount).any { hasText(n.getChild(it), text) }
+    }
+
+    private fun dump(n: AccessibilityNodeInfo?, depth: Int, out: StringBuilder) {
+        if (n == null) return
+        out.append("  ".repeat(depth)).append(n.className).append(" text=").append(n.text)
+            .append(" desc=").append(n.contentDescription).append('\n')
+        for (i in 0 until n.childCount) dump(n.getChild(i), depth + 1, out)
+    }
+
+    /** Waits until [text] is on screen (Room reads are async); on timeout saves a debug shot, logs the tree, fails. */
     private fun awaitText(text: String, timeoutMs: Long = 15_000) {
         val end = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < end) {
-            val found = inst.uiAutomation.rootInActiveWindow?.findAccessibilityNodeInfosByText(text)?.isNotEmpty() == true
-            if (found) return
+            if (roots().any { hasText(it, text) }) return
             Thread.sleep(250)
         }
-        throw AssertionError("not shown within ${timeoutMs}ms: $text")
+        val tree = StringBuilder()
+        roots().forEach { dump(it, 0, tree) }
+        tree.lines().forEach { Log.e("ScreenshotCapture", it) }
+        shot("debug-missing-" + text.replace(Regex("[^A-Za-z0-9]"), "_"))
+        throw AssertionError("not shown within ${timeoutMs}ms: $text (tree in logcat, tag ScreenshotCapture)")
     }
 
     private fun shot(name: String) {
@@ -98,6 +122,9 @@ class ScreenshotCapture {
     @Test fun capture() {
         assumeTrue(InstrumentationRegistry.getArguments().getString("shots") == "1")
         ScreenshotMode.on = true
+        inst.uiAutomation.serviceInfo = inst.uiAutomation.serviceInfo.apply {
+            flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+        }
         inst.uiAutomation.grantRuntimePermission(app.packageName, Manifest.permission.POST_NOTIFICATIONS)
         shell("appops set ${app.packageName} AUTO_REVOKE_PERMISSIONS_IF_UNUSED ignore")
 
