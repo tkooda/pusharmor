@@ -43,6 +43,8 @@
     if (e.origin !== SITE || e.source !== ts.contentWindow) return;
     var d = e.data;
     if (d && d.pa === "turnstile" && typeof d.token === "string") tsToken = d.token;
+    // The widget posts its height (an interactive challenge is taller); fit the frame to it.
+    if (d && d.pa === "turnstile-size" && typeof d.h === "number") ts.style.height = Math.min(600, Math.max(65, Math.ceil(d.h))) + "px";
   });
 
   $("email-form").addEventListener("submit", async function (e) {

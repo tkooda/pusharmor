@@ -42,7 +42,7 @@
 
 /delete-account
   ! Content-Security-Policy
-  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-ZHHw4ltZc2TDoJhR35G3mr9ayxqdKS5ffMLM3Sg7sQY=' 'sha256-EgPxyKz5mn9A/IKfAPY/BiPgGqnbVc+ycdIvPpVq8fI='; connect-src https://api.pusharmor.com; frame-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-ZHHw4ltZc2TDoJhR35G3mr9ayxqdKS5ffMLM3Sg7sQY=' 'sha256-JxrEEhDmpm4xIqFySixR8oF4DjaIiZEh/1aHmQDbwuM='; connect-src https://api.pusharmor.com; frame-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
 
 /.well-known/security.txt
   ! Content-Type
