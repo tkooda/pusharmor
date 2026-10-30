@@ -14,7 +14,7 @@
 <meta property="og:image" content="https://pusharmor.com/apple-touch-icon.png">
 <link rel="icon" href="/favicon.ico" sizes="any" integrity="sha256-WBRVm+oTUTpG8HdmRjQYXSzTkCjwYCVj5PZdJQP73qM=">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" integrity="sha256-TQcTrShS2zw2E6zqzKq9Tlfqd9GGyBSjl/LTQvTeJY8=">
-<link rel="stylesheet" href="/css/site.css" integrity="sha256-1ztU5z3pmH4wTrBwBAdfPvn/3yZzv0YFK57+I6Keawo=">
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-f5vIlPRkLNDCKtmHcczAnfzh+jNygvj7NihjiFZVVxo=">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -32,15 +32,15 @@ Enclave on iPhone, the Android Keystore on Android).</p>
 
 <h2>What each party sees</h2>
 <div class="table-wrap">
-<table class="sees">
-<thead><tr><th scope="col">Party</th><th scope="col">Sees</th><th scope="col">Cannot see</th></tr></thead>
+<table>
+<thead><tr><th>Party</th><th>Sees</th><th>Cannot see</th></tr></thead>
 <tbody>
-<tr><th scope="row">Your devices</th><td data-label="Sees"><ul><li>The messages you send them, after decryption and signature checks</li></ul></td><td data-label="Cannot see"><ul><li>Messages for other devices</li></ul></td></tr>
-<tr><th scope="row">Our relay server (hosted on Cloudflare)</th><td data-label="Sees"><ul><li>A one-way hash of your email address, which is your account ID</li><li>The address itself briefly at sign-in, to send the sign-in code</li><li>Your IP address</li><li>Device public keys</li><li>The addresses your devices use to receive notifications (push tokens or endpoints)</li><li>Encrypted messages and their size</li><li>Who sends to whom inside your account</li></ul></td><td data-label="Cannot see"><ul><li>Message content</li><li>Private keys</li><li>Pairing fingerprints</li></ul></td></tr>
-<tr><th scope="row">Cloudflare</th><td data-label="Sees"><ul><li>Everything our relay server sees, since Cloudflare runs it and its database</li><li>Delivery logs: account ID, device IDs, and send results, for 7 days</li></ul></td><td data-label="Cannot see"><ul><li>Message content</li><li>Private keys</li></ul></td></tr>
-<tr><th scope="row">Push services (Google's and Apple's notification services, Google and Mozilla web push, a UnifiedPush distributor)</th><td data-label="Sees"><ul><li>The push token or endpoint</li><li>The encrypted message</li><li>Undelivered messages, held up to 7 days (pairing requests up to 4 weeks)</li></ul></td><td data-label="Cannot see"><ul><li>Message content</li><li>Keys</li></ul></td></tr>
-<tr><th scope="row">This website</th><td data-label="Sees"><ul><li>Nothing about you: static files, no login, no analytics</li><li>Cloudflare's bot check (Turnstile) runs on the email sign-in page and on the delete-account page only</li></ul></td><td data-label="Cannot see"><ul><li>Keys</li><li>Message content</li></ul></td></tr>
-<tr><th scope="row">AWS SES</th><td data-label="Sees"><ul><li>Your email address when it sends a sign-in code</li></ul></td><td data-label="Cannot see"><ul><li>Anything else</li></ul></td></tr>
+<tr><td>Your devices</td><td>The messages you send them, after decryption and signature checks.</td><td>Messages for other devices.</td></tr>
+<tr><td>Our relay server (hosted on Cloudflare)</td><td>A one-way hash of your email address, which is your account ID (the address itself briefly at sign-in, to send the sign-in code), your IP address, device public keys, the addresses your devices use to receive notifications (push tokens or endpoints), encrypted messages and their size, and who sends to whom inside your account.</td><td>Message content, private keys, and pairing fingerprints.</td></tr>
+<tr><td>Cloudflare</td><td>Everything our relay server sees, since Cloudflare runs it and its database. Delivery logs: account ID, device IDs, and send results, for 7 days.</td><td>Message content, private keys.</td></tr>
+<tr><td>Push services (Google's and Apple's notification services, Google and Mozilla web push, a UnifiedPush distributor)</td><td>The push token or endpoint and the encrypted message; they hold undelivered messages up to 7 days (pairing requests up to 4 weeks).</td><td>Message content, keys.</td></tr>
+<tr><td>This website</td><td>Nothing about you: static files, no login, no analytics. Cloudflare's bot check (Turnstile) runs on the email sign-in page and on the delete-account page only.</td><td>Keys, message content.</td></tr>
+<tr><td>AWS SES</td><td>Your email address when it sends a sign-in code.</td><td>Anything else.</td></tr>
 </tbody>
 </table>
 </div>

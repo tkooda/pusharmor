@@ -472,7 +472,7 @@ test("FAQ texts (I258, I264, I272, WEB6-04) and fixed lines", () => {
   assert.ok(!sup.includes("Only email addresses with plain ASCII characters are supported."));
   assert.ok(sup.includes("No email sign-in code arrived?"));
   const sec = text("security.html");
-  assert.ok(read("security.html").includes('<th scope="col">Cannot see</th>'));
+  assert.ok(read("security.html").includes('<th>Cannot see</th>'));
   assert.ok(!sec.includes("Does not see"));
   assert.ok(sec.includes("The push service and our relay server can show a notification with text of their choosing on every platform; verified content appears only after your device decrypts it."));
   assert.ok(sec.includes("The vendor sees the size of a message (padded to a few standard sizes), not its content."));
