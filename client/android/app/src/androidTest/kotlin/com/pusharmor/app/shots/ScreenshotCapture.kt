@@ -224,7 +224,7 @@ class ScreenshotCapture {
         // Review images (9N, not store shots): Settings, the sign-in screens. Sign out has no confirm
         // dialog here: the button signs out at once, so 92 sets the signed-out flag it sets.
         main("settings", await = "Sign out")
-        repeat(10) { shell("input swipe 540 1500 540 300 300"); inst.waitForIdleSync() }
+        repeat(10) { shellOut("input swipe 540 1500 540 300 300"); inst.waitForIdleSync() }
         settle(1000)
         shot("91-settings")
         g.settings.set(Settings.K.SIGNED_OUT, true)
