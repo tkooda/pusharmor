@@ -71,7 +71,7 @@ export function banSql(id, nowSeconds) {
     throw new Error("bad time");
   }
   return (
-    `INSERT INTO accounts (id, created, status, last_seen_month) VALUES ('${id}', ${nowSeconds}, 'banned', ${nowSeconds}) ON CONFLICT (id) DO UPDATE SET status = 'banned'; ` +
+    `INSERT INTO accounts (id, created, status, last_seen_month) VALUES ('${id}', ${nowSeconds - (nowSeconds % 86400)}, 'banned', ${nowSeconds - (nowSeconds % 2592000)}) ON CONFLICT (id) DO UPDATE SET status = 'banned'; ` +
     `DELETE FROM peers WHERE account = '${id}';`
   );
 }

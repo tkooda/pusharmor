@@ -104,7 +104,7 @@ describe("POST /send", () => {
     expect(a!.s).toBe(stale);
     await call("POST", "/v1/send", { v: 1, m: {} }, { peer: me });
     a = await env.DB.prepare("SELECT last_seen_month AS s FROM accounts WHERE id = ?1").bind(me.acct).first<{ s: number }>();
-    expect(a!.s).toBeGreaterThanOrEqual(now);
+    expect(a!.s).toBe(now - (now % 2592000));
   });
 });
 

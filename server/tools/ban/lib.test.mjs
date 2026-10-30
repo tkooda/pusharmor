@@ -48,7 +48,7 @@ test("banSql refuses bad id and bad time", () => {
 test("banSql exact output", () => {
   assert.equal(
     banSql("AAAAAAAAAAAA", 1761300000),
-    "INSERT INTO accounts (id, created, status, last_seen_month) VALUES ('AAAAAAAAAAAA', 1761300000, 'banned', 1761300000) ON CONFLICT (id) DO UPDATE SET status = 'banned'; " +
+    "INSERT INTO accounts (id, created, status, last_seen_month) VALUES ('AAAAAAAAAAAA', 1761264000, 'banned', 1759968000) ON CONFLICT (id) DO UPDATE SET status = 'banned'; " +
       "DELETE FROM peers WHERE account = 'AAAAAAAAAAAA';",
   );
 });

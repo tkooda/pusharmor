@@ -4,6 +4,7 @@ import { b64urlEncode } from "../src/codec/b64url";
 import { call, initP256, keys, message, newPeer, pushFor, randomEmail, register, row, setAllow, ticketFor, vendorRequests } from "./helpers";
 import { LABEL_TICKET, makeTicket, openToken } from "../src/crypto/tokens";
 import { TEST_SECRETS as S } from "./secrets";
+import roundSql from "../migrations/0003_round_account_times.sql?raw";
 
 beforeAll(initP256);
 
@@ -179,7 +180,22 @@ describe("POST /peers", () => {
     await env.DB.prepare("UPDATE accounts SET last_seen_month = ?1 WHERE id = ?2").bind(now - 40 * 86400, p.acct).run();
     await newPeer(email);
     const a = await env.DB.prepare("SELECT last_seen_month FROM accounts WHERE id = ?1").bind(p.acct).first<{ last_seen_month: number }>();
-    expect(a!.last_seen_month).toBeGreaterThanOrEqual(now);
+    expect(a!.last_seen_month).toBe(now - (now % 2592000));
+  });
+
+  it("account times are coarse: created to the UTC day, last_seen_month to the 30-day period", async () => {
+    const p = await newPeer(randomEmail());
+    const now = Math.floor(Date.now() / 1000);
+    const a = await env.DB.prepare("SELECT created, last_seen_month FROM accounts WHERE id = ?1").bind(p.acct).first<{ created: number; last_seen_month: number }>();
+    expect(a!.created).toBe(now - (now % 86400));
+    expect(a!.last_seen_month).toBe(now - (now % 2592000));
+  });
+
+  it("migration 0003 rounds stored account times", async () => {
+    await env.DB.prepare("INSERT INTO accounts (id, created, status, last_seen_month) VALUES ('ROUNDROUND01', 1761300000, NULL, 1761300123)").run();
+    await env.DB.exec(roundSql.replace(/^--.*$/gm, "").replace(/\s+/g, " ").trim());
+    const a = await env.DB.prepare("SELECT created, last_seen_month FROM accounts WHERE id = 'ROUNDROUND01'").first<{ created: number; last_seen_month: number }>();
+    expect(a).toEqual({ created: 1761264000, last_seen_month: 1759968000 });
   });
 });
 

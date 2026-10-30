@@ -16,3 +16,12 @@ export interface Ctx {
 export function nowS(): number {
   return Math.floor(Date.now() / 1000);
 }
+
+// accounts.created is stored to the UTC day, accounts.last_seen_month to the 30-day period.
+export function dayStart(t: number): number {
+  return t - (t % 86400);
+}
+
+export function monthStart(t: number): number {
+  return t - (t % 2592000);
+}
