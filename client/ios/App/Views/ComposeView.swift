@@ -1,6 +1,25 @@
 import SwiftUI
 import PushArmorCore
 
+/// Remembers which devices the last send went to (F2). Pure rule, tested in RecipientMemoryTests.
+enum RecipientMemory {
+    static let defaultsKey = "lastSelectedDeviceIds"
+
+    /// Remembered ids that still exist and can receive. Empty when none qualify (the default).
+    static func preselect(remembered: [String], candidates: [(id: String, canReceive: Bool)]) -> Set<String> {
+        let ok = Set(candidates.filter { $0.canReceive }.map { $0.id })
+        return Set(remembered).intersection(ok)
+    }
+
+    static func load() -> [String] {
+        UserDefaults.standard.stringArray(forKey: defaultsKey) ?? []
+    }
+
+    static func save(_ ids: Set<String>) {
+        UserDefaults.standard.set(ids.sorted(), forKey: defaultsKey)
+    }
+}
+
 /// Compose box and recipient list (ios section 8.1). Used inside the Home list.
 struct ComposeView: View {
     @EnvironmentObject var model: AppModel
@@ -8,9 +27,20 @@ struct ComposeView: View {
     @State private var asText = false
     @State private var toAll = false
     @State private var selected: Set<String> = []
+    @State private var restored = false
 
     private var candidates: [Peer] {
         model.peers.filter { $0.state == .approved && $0.pinned && !$0.hidden }
+    }
+
+    /// Restore the remembered selection once devices are known. Never overrides a choice made this session.
+    private func restoreSelection() {
+        guard !restored, !candidates.isEmpty else { return }
+        restored = true
+        if !selected.isEmpty { return }
+        selected = RecipientMemory.preselect(
+            remembered: RecipientMemory.load(),
+            candidates: candidates.map { (id: $0.id.text, canReceive: enabled($0)) })
     }
 
     private var detected: SendType { SendDetection.detect(text) }
@@ -30,6 +60,10 @@ struct ComposeView: View {
         VStack(alignment: .leading, spacing: 8) {
             TextEditor(text: $text)
                 .frame(minHeight: 90)
+                .scrollContentBackground(.hidden)
+                .padding(8)
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(.separator), lineWidth: 1))
                 .accessibilityLabel("Message")
             HStack {
                 if !text.isEmpty {
@@ -50,6 +84,9 @@ struct ComposeView: View {
                     .tint(.brandGreen)
             }
         }
+        .onAppear { restoreSelection() }
+        .onChange(of: candidates.map { $0.id.text }) { _, _ in restoreSelection() }
+        .onChange(of: selected) { _, v in if restored { RecipientMemory.save(v) } }
         #if DEBUG
         .onAppear {
             if ScreenshotSample.isOn && text.isEmpty {
