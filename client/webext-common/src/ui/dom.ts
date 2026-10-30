@@ -1,5 +1,6 @@
 // Tiny DOM helpers for the vanilla TypeScript UI (no framework).
 import type { PeerView, Reply, Req } from "../core/rpc.ts";
+import { T } from "../core/texts.ts";
 import type { ThemeStore } from "./theme.ts";
 
 export type Call = (req: Req) => Promise<Reply>;
@@ -234,4 +235,9 @@ export function overflowMenu(label: string, items: { label: string; run: (b: HTM
   });
   wrap.append(btn);
   return wrap;
+}
+
+/** Settings account line: only while logged in (a logged-out profile keeps its email). */
+export function accountLine(st: { email: string | null; reg: string | null }): string | null {
+  return st.email && st.reg !== "logged_out" ? T.signedInAs(st.email) : null;
 }
