@@ -384,7 +384,7 @@ struct PeerRowView: View {
         if p.missing { return (.off, "(missing)") }
         if p.paused { return (.off, "Signed out") }
         if !p.reachable { return (.off, "Unreachable") }
-        if p.approvesMe { return (.approves, "Approves this device") }
+        if p.approvesMe { return (.approves, "Connected") }
         return (.notApproved, "Has not approved this device")
     }
 
