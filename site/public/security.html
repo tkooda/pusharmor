@@ -45,13 +45,12 @@ never leave it.</p>
 </div>
 <p class="note">The push service and our relay server can show a notification with text of their
 choosing on every platform; verified content appears only after your device decrypts it.</p>
-<p class="note">The vendor sees the size of a message (padded to a few standard sizes, called size buckets) and its urgency level, not its
+<p class="note">The vendor sees the size of a message (padded to a few standard sizes), not its
 content.</p>
 
 <h2>How devices trust each other</h2>
-<p>Two devices trust each other only after you pair them and compare the 4-character pairing
-fingerprint on both screens. This check stops a fake pairing in all but about 1 in a million
-tries, and each failed try shows a notice on the other device. Every message is signed by the
+<p>Two devices trust each other only after you pair them by verifying that the 4-character
+pairing fingerprint is identical on both screens. Every message is signed by the
 sending device and checked by the receiving device; repeated or old messages are dropped.</p>
 
 <h2>Reporting a security problem</h2>
