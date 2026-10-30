@@ -102,7 +102,9 @@ store consoles. Chrome Web Store and AMO listing text stays in their
 dashboards.
 
 Each store job clears "Set as a pre-release" on its own GitHub release once
-its store accepts the build. Do the F-Droid step for Android by hand, as below.
+its store accepts the build, or when X.Y.Z is already live or in review there.
+After a SKIP (the store has a newer version) the flag stays set. Do the
+F-Droid step for Android by hand, as below.
 
 ## Worker (`worker/vX.Y.Z`)
 
