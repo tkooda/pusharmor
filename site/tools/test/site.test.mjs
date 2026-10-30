@@ -415,7 +415,7 @@ test("retention: 4 weeks on /privacy and /delete-account; stored list", () => {
   const p = text("privacy.html");
   for (const s of ["platform", "paused", "approve messages", "last-active month",
     "We never sell or share your data with anyone for their own purposes; the services below process it for us.",
-    "We do not store your email address. We keep only a keyed one-way hash of it, which cannot be turned back into the address."]) {
+    "We do not store your email address. We keep only a one-way code made from it, which cannot be turned back into the address."]) {
     assert.ok(p.includes(s), "privacy lacks: " + s);
   }
   for (const s of ["rate limiter", "server database", "peer row", "1 minute"]) assert.ok(!p.includes(s), "privacy has server detail: " + s);
@@ -439,21 +439,21 @@ test("download: every Android channel, release asset names, certificate fingerpr
 test("FAQ texts (I258, I264, I272, WEB6-04) and fixed lines", () => {
   const how = text("how-to.html");
   const sup = text("support.html");
-  assert.ok(how.includes("Peers stay paired until you remove one."));
+  assert.ok(how.includes("Devices stay paired until you remove one."));
   assert.ok(!how.includes("10 min"));
   const both = how + " " + sup;
   for (const m of ["14 days", "10 tries", "24 hours", "15 minutes"]) assert.ok(!both.includes(m), "mechanics: " + m);
   assert.ok(both.includes("wants to pair"));
   assert.ok(both.includes("Tap Cancel pairing on its row"));
   assert.ok(!both.includes("Remove it on this device first"));
-  assert.ok(both.includes("that peer is removed from the account"));
+  assert.ok(both.includes("that device is removed from the account"));
   assert.ok(/" ?Name wants to pair again\. Tap Cancel pairing on its row, then pair\."/.test(both), "Pair again quote closes");
-  assert.ok(sup.includes("On Android, each peer has its own notification channel, so you can set sound and importance per peer in the system settings."));
+  assert.ok(sup.includes("On Android, each paired device has its own notification channel, so you can set sound and importance per device in the system settings."));
   assert.ok(sup.includes("Only email addresses with plain ASCII characters are supported."));
   const sec = text("security.html");
-  assert.ok(sec.includes("The push service and the Worker can show a notification with text of their choosing on every platform; verified content appears only after your device decrypts it."));
+  assert.ok(sec.includes("The push service and our relay server can show a notification with text of their choosing on every platform; verified content appears only after your device decrypts it."));
   assert.ok(sec.includes("The vendor sees the size bucket and the urgency level of a message, not its content."));
-  assert.ok(text("delete-account.html").includes("Deleted at once: all peers (keys, push tokens, names). Kept: the keyed account hash with its ban flag, for banned accounts only, so a banned address stays banned; undelivered pushes at the vendors, up to 7 days (pairing requests up to 4 weeks); copies on your other peers. No login to this site is needed."));
+  assert.ok(text("delete-account.html").includes("Deleted at once: all your devices, with their keys, names and the addresses they use to receive notifications (push tokens). Kept: a one-way code made from your email address (a keyed hash) with its ban flag, for banned accounts only, so a banned address stays banned; undelivered pushes at the vendors, up to 7 days (pairing requests up to 4 weeks); copies on your other devices. No login to this site is needed."));
   assert.ok(text("auth/done.html").includes("Returning to PushArmor... If this tab stays open, the add-on did not receive the sign-in: check it is enabled, then retry"));
 });
 
@@ -570,7 +570,7 @@ test("every page embedding /turnstile is named in the privacy text", () => {
   const pages = htmlFiles.filter((f) => /<iframe[^>]*src="\/turnstile[#"]/.test(read(f)));
   assert.ok(pages.includes("delete-account.html"));
   const p = text("privacy.html");
-  assert.ok(p.includes("Turnstile runs on the email sign-in page and on the delete-account page only"));
+  assert.ok(p.includes("Cloudflare's bot check (Turnstile) runs on the email sign-in page and on the delete-account page only"));
   for (const f of pages) {
     const name = f.replace(/\.html$/, "");
     if (name === "delete-account") continue;

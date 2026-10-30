@@ -34,50 +34,52 @@ process it for us.</p>
 <li><strong>AWS SES</strong>: used for email sign-in only, to send the sign-in code. It sees
 your email address at send time. If a code email bounces, the mail provider keeps that address
 on a suppression list until we clear it.</li>
-<li><strong>Google FCM (Android), Apple APNs (iPhone), Google and Mozilla web push (Chrome,
-Firefox), and a UnifiedPush distributor if you chose one</strong>: used to wake your device.
-They see the push token or endpoint and the encrypted payload only. They hold undelivered
+<li><strong>Google's and Apple's notification services (FCM, APNs) for Android and iPhone, Google
+and Mozilla web push (Chrome, Firefox), and a UnifiedPush distributor if you chose one</strong>:
+used to wake your device. They see the address your device uses to receive notifications (push
+token or endpoint) and the encrypted message only. They hold undelivered
 messages up to 7 days (pairing requests up to 4 weeks).</li>
-<li><strong>Cloudflare</strong>: runs our server code and database, so it can technically see
-everything the server sees: your email address briefly at sign-in (to send the code), your IP address, peer public
+<li><strong>Cloudflare</strong>: runs our relay server and its database, so it can technically see
+everything our relay server sees: your email address briefly at sign-in (to send the code), your IP address, device public
 keys, push tokens and encrypted messages. Cloudflare also keeps our delivery logs for 7 days:
-account id, peer ids and send results; no content, no IP, no email. Turnstile runs on the email
+account id, device ids and send results; no content, no IP, no email. Cloudflare's bot check (Turnstile) runs on the email
 sign-in page and on the delete-account page only.</li>
 <li><strong>Google and Apple sign-in</strong> (if you choose them): used to prove the account.
-We keep only the keyed hash of the address (your account id, see below).</li>
+We keep only a one-way code made from your email address (a keyed hash), which is your account
+id (see below).</li>
 </ul>
 
 <h2>Your email address</h2>
-<p>We do not store your email address. We keep only a keyed one-way hash of it, which cannot be
+<p>We do not store your email address. We keep only a one-way code made from it, which cannot be
 turned back into the address.</p>
-<p>Why we keep the hash: it is your account id. When you sign in on another peer with the same
-address, the hash puts that peer in the same account. It also lets us ban an address that is
-used for abuse, and keeps a banned address banned. The hash is kept until
+<p>Why we keep the code: it is your account id. When you sign in on another device with the same
+address, the code puts that device in the same account. It also lets us ban an address that is
+used for abuse, and keeps a banned address banned. The code is kept until
 you delete the account, or until the 3-year purge below. For a banned account it is kept after
 deletion.</p>
 
 <h2>End-to-end encryption</h2>
-<p>Messages are end-to-end encrypted. Each peer makes its own keys on the device, and the
-private keys stay on the devices. A message is encrypted on the sending peer for the receiving
-peer, so our server sees ciphertext only. We do not store message content or pairing
+<p>Messages are end-to-end encrypted. Each device makes its own keys, and the
+private keys stay on the devices. A message is encrypted on the sending device for the receiving
+device, so our relay server sees only encrypted data (ciphertext). We do not store message content or pairing
 fingerprints.</p>
 
-<h2>What our server stores</h2>
-<p>Our server keeps, until removal:</p>
+<h2>What our relay server stores</h2>
+<p>Our relay server keeps, until removal:</p>
 <ul>
-<li>Per account: the account id (the keyed hash), a banned flag, the created time, and the
+<li>Per account: the account id (the one-way code), a banned flag, the created time, and the
 last-active month.</li>
-<li>Per peer: public keys, push token or endpoint, allow and deny lists, encrypted name entries,
+<li>Per device: public keys, push token or endpoint, allow and deny lists, encrypted name entries,
 created time, platform, paused flag, and pending approve messages (end-to-end encrypted, kept
-until the other peer is removed, denied or withdrawn).</li>
+until the other device is removed, denied or withdrawn).</li>
 </ul>
-<p>An account with no send and no added peer for about 3 years is deleted with its peers
-(banned accounts are kept). This also removes an account that has no peers left.</p>
+<p>An account with no send and no added device for about 3 years is deleted with its devices
+(banned accounts are kept). This also removes an account that has no devices left.</p>
 
 <h2>What stays on your device</h2>
 <ul>
 <li>The address you signed in with, shown as Signed in as (a Hide My Email relay address if you
-chose one), so you can see which address to use on your other peers.</li>
+chose one), so you can see which address to use on your other devices.</li>
 <li>Your history, deleted automatically after the number of days you set (default 30). History is
 device-local and not backed up.</li>
 <li>Your keys.</li>
@@ -85,27 +87,27 @@ device-local and not backed up.</li>
 <p>Lock screen: message content follows the platform setting (Android sensitive notification
 content, iPhone Show Previews) or the in-app switch Show message content on lock screen. With
 Send messages to watch off, Android message notifications are local only (not mirrored to paired
-wearables). Both switches work per peer too. Always hide content (off by default) shows no
+wearables). Both switches work per device too. Always hide content (off by default) shows no
 message content in any notice.</p>
 
 <h2>Tracking</h2>
-<p>No analytics, no ads, no tracking. This site has no third-party scripts, except Turnstile on
-the sign-in and delete-account pages. We set no cookies; Cloudflare security features may set a short-lived
+<p>No analytics, no ads, no tracking. This site has no third-party scripts, except Cloudflare's
+bot check on the sign-in and delete-account pages. We set no cookies; Cloudflare security features may set a short-lived
 one.</p>
 
 <h2>Background transmission (Firefox)</h2>
 <p>The Firefox add-on keeps a push connection to Mozilla (autopush WebSocket) in the background.
-As a fallback, a service worker on pusharmor.com receives encrypted messages and forwards them to
-the add-on inside the browser. Both carry ciphertext only.</p>
+As a fallback, a background script on pusharmor.com (service worker) receives encrypted messages and
+forwards them to the add-on inside the browser. Both carry encrypted data only.</p>
 
 <h2>Deletion</h2>
 <p>Use Delete account in the app or the web flow at
 <a href="/delete-account">pusharmor.com/delete-account</a>. Deletion removes the account and all
-its peers at once. Kept: the keyed account hash with its ban flag, for banned accounts only, so a banned address
+its devices at once. Kept: the one-way code of the address with its ban flag, for banned accounts only, so a banned address
 stays banned; undelivered
 pushes at the vendors, up to 7 days (pairing requests up to 4 weeks); copies on your other
-peers.</p>
-<p>Remove on a peer deletes that one peer only. The account (the keyed hash, created
+devices.</p>
+<p>Remove on a device deletes that one device only. The account (the one-way code, created
 time and last-active month) stays until you delete the account, or until the 3-year purge
 above.</p>
 
@@ -114,7 +116,7 @@ above.</p>
 under 13.</p>
 
 <h2>Privacy requests</h2>
-<p>You can delete your account and all its peers yourself: use Delete account in the app, or
+<p>You can delete your account and all its devices yourself: use Delete account in the app, or
 the web flow at <a href="/delete-account">https://pusharmor.com/delete-account</a>. For help
 with the apps, see the <a href="/support">support page</a>.</p>
 </main>

@@ -100,7 +100,7 @@ test("DELETE /v1/account: headers, body, signature; deleted 0", async () => {
   assert.match(c.init.headers["PA-Time"], /^\d{13}$/);
   const signed = PA.reqSigBytes("DELETE", "/v1/account", c.init.headers["PA-Time"], enc.encode(c.init.body));
   assert.ok(await verify(key.pub, c.init.headers["PA-Sig"], signed));
-  assert.equal(PA.TEXT.noPeers, "No peers were found under this address");
+  assert.equal(PA.TEXT.noPeers, "No devices were found under this address");
 });
 
 test("DELETE /v1/account retried after a lost reply is marked unsure", async () => {
