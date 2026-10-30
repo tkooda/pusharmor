@@ -516,7 +516,7 @@ export class Engine {
     const plat = p.platform.charAt(0).toUpperCase() + p.platform.slice(1);
     const d = new Date(p.created * 1000);
     const mon = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()];
-    return plat + " peer added " + mon + " " + d.getUTCDate();
+    return plat + " device added " + mon + " " + d.getUTCDate();
   }
 
   /** X: send (or re-send) the reply of an authorized entry, same r_X. */
@@ -644,9 +644,9 @@ export class Engine {
     await this.lock.run(async () => {
       const self = await this.self();
       const peer = await this.db.peer(x);
-      if (!self || !peer || peer.removed) throw new UserError("Unknown peer");
+      if (!self || !peer || peer.removed) throw new UserError("Unknown device");
       if (peer.pinned) throw new UserError("Already paired");
-      if (await getEntry(this.p.storageLocal, x)) throw new UserError("A pairing with this peer is already open");
+      if (await getEntry(this.p.storageLocal, x)) throw new UserError("A pairing with this device is already open");
       const rN = randomBytes(32);
       const cN = await commitHash(self.sign_pub, self.enc_pub, rN);
       const msg = await encodePair(b64urlDecode(self.id), { kind: "commit", c_N: cN }, x, peer.enc_pub);
@@ -819,7 +819,7 @@ export class Engine {
   async deny(x: string): Promise<string> {
     const self = await this.self();
     const peer = await this.db.peer(x);
-    if (!self || !peer) throw new UserError("Unknown peer");
+    if (!self || !peer) throw new UserError("Unknown device");
     const pid = peer.pairing_id ?? new Uint8Array(8);
     const n = await this.db.reserveN(x);
     const c = await encodeInner({
@@ -1256,7 +1256,7 @@ export class Engine {
   async rename(name: string): Promise<void> {
     const self = await this.self();
     if (!self) return;
-    if (!/^[\x20-\x7e]{1,32}$/.test(name)) throw new UserError("Name: 1 to 32 plain ASCII characters");
+    if (!/^[\x20-\x7e]{1,32}$/.test(name)) throw new UserError("Use 1 to 32 plain ASCII characters.");
     let names: Record<string, string> = {};
     await this.allowListCall(
       "PATCH",

@@ -83,7 +83,7 @@ const env: UiEnv = {
 const HEADLINES: Record<string, string> = {
   send: "Send the page you are on to your phone in one click.",
   peers: "Pair your devices with a four-character fingerprint.",
-  history: "Links and text from your devices, end to end encrypted.",
+  history: "Links and text from your devices, end-to-end encrypted.",
 };
 
 async function main(): Promise<void> {

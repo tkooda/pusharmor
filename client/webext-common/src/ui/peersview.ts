@@ -38,14 +38,14 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
   for (const p of pairing) root.append(pairCard(env, p, status, redraw));
   if (data.self) root.append(sh("This device"), ownCard(env, data.self.name, st.platform, pairing.length > 0, status));
   const rows = data.peers.filter((p) => !p.fingerprint);
-  if (rows.length) root.append(sh("Peers"), group(...rows.map((p) => peerRow(env, p, status, redraw))));
+  if (rows.length) root.append(sh("Devices"), group(...rows.map((p) => peerRow(env, p, status, redraw))));
   else if (!pairing.length) {
     root.append(
       h(
         "div",
         { class: "empty peers-empty" },
         devicesArt(160),
-        h("div", { class: "e-title" }, "No peers yet"),
+        h("div", { class: "e-title" }, "No devices yet"),
         h("p", {}, "Install PushArmor on your other devices and sign in with the same account. They show up here, ready to pair."),
       ),
     );
