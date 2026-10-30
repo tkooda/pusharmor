@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PushArmor - end-to-end encrypted push between your devices</title>
-<meta name="description" content="Send links and short text between your own devices, end-to-end encrypted. Free and open source, for Android, iPhone, Chrome and Firefox.">
+<meta name="description" content="Send links and notes between your own devices. All of your data is always end-to-end encrypted. Free and open source, for Android, iPhone, Chrome and Firefox.">
 <meta name="theme-color" content="#1F3A5F">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="PushArmor">
 <meta property="og:title" content="PushArmor - end-to-end encrypted push between your devices">
-<meta property="og:description" content="Send links and short text between your own devices, end-to-end encrypted. Free and open source, for Android, iPhone, Chrome and Firefox.">
+<meta property="og:description" content="Send links and notes between your own devices. All of your data is always end-to-end encrypted. Free and open source, for Android, iPhone, Chrome and Firefox.">
 <meta property="og:url" content="https://pusharmor.com/">
 <meta property="og:image" content="https://pusharmor.com/apple-touch-icon.png">
 <link rel="icon" href="/favicon.ico" sizes="any" integrity="sha256-WBRVm+oTUTpG8HdmRjQYXSzTkCjwYCVj5PZdJQP73qM=">
@@ -24,7 +24,7 @@
 </header>
 <main id="main">
 <section class="hero">
-<h1>Send links and text between your own devices, end-to-end encrypted.</h1>
+<h1>Send links and notes between your own devices. All of your data is always end-to-end encrypted.</h1>
 <p class="lead">PushArmor runs on Android, iPhone, Chrome and Firefox. Pair your devices once,
 then send a link or a short note from one to another, or to all of them.</p>
 <p class="cta"><a class="button primary" href="/download">Get PushArmor</a> <a class="button secondary" href="/how-to">How it works</a></p>
@@ -33,7 +33,7 @@ then send a link or a short note from one to another, or to all of them.</p>
 
 <figure class="diagram">
 <svg viewBox="0 0 600 240" role="img" aria-labelledby="dg-t">
-<title id="dg-t">A link goes from your browser, through the PushArmor relay, to your phone. It is encrypted the whole way.</title>
+<title id="dg-t">A link goes from one of your devices to another, through the PushArmor relay. It is encrypted the whole way.</title>
 <rect class="d-box" x="10" y="40" width="170" height="120" rx="10"/>
 <path class="d-line" d="M10 64 H180"/>
 <circle class="d-fill" cx="26" cy="52" r="4"/><circle class="d-fill" cx="40" cy="52" r="4"/><circle class="d-fill" cx="54" cy="52" r="4"/>
@@ -50,27 +50,28 @@ then send a link or a short note from one to another, or to all of them.</p>
 <path class="d-line" d="M369 100 H449"/><path class="d-head" d="M456 100 L444 93 V107 Z"/>
 <g transform="translate(204 100)"><circle class="d-lock-bg" r="17"/><path class="d-shackle" d="M-5 -2 V-6 A5 5 0 0 1 5 -6 V-2"/><rect class="d-lock" x="-8" y="-3" width="16" height="12" rx="2"/></g>
 <g transform="translate(409 100)"><circle class="d-lock-bg" r="17"/><path class="d-shackle" d="M-5 -2 V-6 A5 5 0 0 1 5 -6 V-2"/><rect class="d-lock" x="-8" y="-3" width="16" height="12" rx="2"/></g>
-<text class="d-label" x="95" y="212">Your browser</text>
+<text class="d-label" x="95" y="212">Your device</text>
 <text class="d-label" x="300" y="212">Relay</text>
 <text class="d-sub" x="300" y="234">sees ciphertext only</text>
-<text class="d-label" x="508" y="212">Your phone</text>
+<text class="d-label" x="508" y="212">Your other</text>
+<text class="d-label" x="508" y="236">device</text>
 </svg>
 <figcaption>Each message is encrypted on the sending device for the receiving device. The relay
-and the push services carry ciphertext only. Only your receiving device can read it.</figcaption>
+and the push services carry ciphertext only. Only your receiving device can ever read it.</figcaption>
 </figure>
 
 <section class="features" aria-label="Features">
 <div class="card">
 <svg class="icon" width="32" height="32" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11 V7 a4 4 0 0 1 8 0 V11"/></svg>
 <h2>End-to-end encrypted</h2>
-<p>Each device makes its own keys, and the private keys never leave it. Our server cannot read
-your links or text.</p>
+<p>Each device makes its own keys, and the private keys never leave it. All of your data is always end-to-end
+encrypted, and can never be read by the server or anyone else.</p>
 </div>
 <div class="card">
 <svg class="icon" width="32" height="32" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="2" y="4" width="14" height="10" rx="1.5"/><path d="M5 18 H13"/><rect x="17" y="8" width="5" height="12" rx="1.5"/></svg>
 <h2>Your own devices only</h2>
-<p>You send only to devices on your own account, after you pair them and compare a short
-fingerprint. There are no contacts and no strangers.</p>
+<p>Messages can only ever be read by the devices you paired on your own account, after you
+compare a short fingerprint. There are no contacts and no strangers.</p>
 </div>
 <div class="card">
 <svg class="icon" width="32" height="32" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 7 L3 12 L8 17"/><path d="M16 7 L21 12 L16 17"/><path d="M14 4 L10 20"/></svg>
@@ -86,9 +87,9 @@ fingerprint. There are no contacts and no strangers.</p>
 <li>Before two peers trust each other, you compare a 4-character pairing fingerprint on both
 screens. If it matches, the pairing is genuine.</li>
 <li>Each message is encrypted on the sending peer for the receiving peer and signed by the
-sender. Only the receiving peer can decrypt it.</li>
-<li>Our server (a Cloudflare Worker) and the push services only carry ciphertext. They cannot
-read your messages. Your peers check every signature and drop old or repeated messages.</li>
+sender. Only your receiving device can ever read it.</li>
+<li>Our server (a Cloudflare Worker) and the push services only ever carry encrypted data and
+can never read your messages. Your peers check every signature and drop old or repeated messages.</li>
 <li>We do not store your email address, only a keyed one-way hash of it. The hash is your account
 id: it puts all your peers in one account.</li>
 </ul>
