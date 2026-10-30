@@ -138,17 +138,6 @@ pre code { padding: 0; font-size: 0.9rem; white-space: pre; background: none; bo
 .table-wrap { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; }
 th, td { text-align: left; vertical-align: top; padding: 0.5rem; border-bottom: 1px solid var(--line); }
-.sees ul { margin: 0; padding-left: 1.1rem; }
-.sees li + li { margin-top: 0.25rem; }
-.sees tbody th { font-weight: 600; }
-@media (max-width: 40rem) {
-  .sees thead { display: none; }
-  .sees, .sees tbody, .sees tr, .sees th, .sees td { display: block; width: 100%; }
-  .sees tr { margin: 0 0 1rem; padding: 0.75rem 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
-  .sees th, .sees td { padding: 0.25rem 0; border: 0; }
-  .sees tbody th { font-size: 1.05rem; }
-  .sees td::before { content: attr(data-label); display: block; margin-top: 0.5rem; font-weight: 600; color: var(--muted); font-size: 0.9rem; }
-}
 .note { color: var(--muted); }
 .warn { color: var(--warn); }
 form { margin: 1rem 0; }
