@@ -198,8 +198,8 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onDo
     }
 }
 
-/** Six mono code cells over one text field. Screen readers hear the typed digits and "n of 6 entered";
- *  a content description would replace the digits, so the visible prompt above is the label. */
+/** Six mono code cells over one text field. Screen readers hear the typed digits and "Code, n of 6 entered";
+ *  a content description would replace the digits, so the label rides in the state description. */
 @Composable
 private fun CodeCells(code: String, onChange: (String) -> Unit) {
     val x = LocalPaExtra.current
