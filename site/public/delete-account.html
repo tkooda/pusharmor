@@ -14,9 +14,9 @@
 <meta property="og:image" content="https://pusharmor.com/apple-touch-icon.png">
 <link rel="icon" href="/favicon.ico" sizes="any" integrity="sha256-WBRVm+oTUTpG8HdmRjQYXSzTkCjwYCVj5PZdJQP73qM=">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" integrity="sha256-TQcTrShS2zw2E6zqzKq9Tlfqd9GGyBSjl/LTQvTeJY8=">
-<link rel="stylesheet" href="/css/site.css" integrity="sha256-J7Rd6Txm5YG82tBpkrGpyYFhZi0uAWUn5A+UcYaR2wQ=">
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-2f67LZ29CBVqjT4/VUpP9z33NXqH1GJD0FRO7TkiclI=">
 <script src="/js/pa-web.js" integrity="sha256-ABqfeUhsaaHL2D0Cr4udEr+rGOrVTcNWq5RvUWrLXgk=" defer></script>
-<script src="/js/delete-account.js" integrity="sha256-3H7o+e4LMqzqUm8pVIEruaFLp+NbXrtG9yiegB8KByg=" defer></script>
+<script src="/js/delete-account.js" integrity="sha256-fy9xg8BMjdCb1OJE8ArR/aBxMOpMkoq7hYq3j0rvx9A=" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -41,9 +41,9 @@
 
 <div class="da-card">
 <ol id="steps" class="da-steps">
-<li class="on" aria-current="step">Prove</li>
-<li>Confirm</li>
-<li>Done</li>
+<li class="on" aria-current="step">Prove<span class="vh"></span></li>
+<li>Confirm<span class="vh"></span></li>
+<li>Done<span class="vh"></span></li>
 </ol>
 
 <section id="prove" hidden>
@@ -72,7 +72,7 @@
 </section>
 
 <section id="confirm" class="da-danger" hidden>
-<h2>Delete this account?</h2>
+<h2 id="confirm-h" tabindex="-1">Delete this account?</h2>
 <p class="da-who"><span id="signed-in"></span></p>
 <p class="sub">This deletes every device on the account. You cannot undo this.</p>
 <p class="da-info">Signed in with Apple and chose Hide My Email? Then the address above is your private Apple relay address. Find it in iOS Settings &gt; Apple ID &gt; Sign in with Apple.</p>

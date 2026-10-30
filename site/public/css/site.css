@@ -449,3 +449,8 @@ button.danger { color: #ffffff; background: #b3261e; border-color: #b3261e; }
 @media (max-width: 30rem) {
   .da-card { padding: 1.25rem 1rem 1.5rem; }
 }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.da-card h2:focus-visible { outline: none; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
