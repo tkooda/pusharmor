@@ -267,9 +267,9 @@ object ErrorText {
         ApiResult.Network -> "No connection. Try again."
         is ApiResult.Http -> when {
             r.status == 401 && r.error == "clock skew" -> "This device's clock is off by more than 5 minutes"
-            r.status == 401 && r.error == "logged out" -> "Signed out. Sign in to resume"
-            r.status == 401 && r.error == "ticket expired" -> "Sign-in expired, sign in again"
-            r.status == 401 && r.error == "unknown peer" -> "This device was removed. Sign in again"
+            r.status == 401 && r.error == "logged out" -> "Logged out. Log in to resume"
+            r.status == 401 && r.error == "ticket expired" -> "Login expired, log in again"
+            r.status == 401 && r.error == "unknown peer" -> "This device was removed. Log in again"
             r.status == 400 && r.error == "bad email" -> "Only email addresses with plain ASCII characters are supported."
             r.status == 400 && r.error == "push endpoint not allowed" -> "This browser's push service is not supported yet"
             r.status == 413 -> "Too long"

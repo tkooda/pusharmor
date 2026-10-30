@@ -22,7 +22,7 @@
   var box = document.getElementById("ts");
   var status = document.getElementById("status");
   var framed = parentOrigin !== null && window.parent !== window;
-  // In an iframe of an allowed host (extension sign-in, delete-account page): the widget
+  // In an iframe of an allowed host (extension login, delete-account page): the widget
   // only, so the frame has no scrollbar. The host shows the status itself.
   if (framed) {
     document.documentElement.className = "framed";

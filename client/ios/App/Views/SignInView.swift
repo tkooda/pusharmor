@@ -12,7 +12,7 @@ struct SignInView: View {
 
     var body: some View {
         BrandLayout(text: purpose == .register ? WelcomeText.intro : title, footer: S.sameAccount) {
-                SignInWithAppleButton(.signIn) { request in
+                SignInWithAppleButton(.continue) { request in
                     request.requestedScopes = [.email]
                     request.nonce = try? model.nonce(purpose)
                 } onCompletion: { result in
@@ -25,7 +25,7 @@ struct SignInView: View {
                 Button {
                     Task { await GoogleSignIn().signIn(purpose: purpose, model: model) }
                 } label: {
-                    Text("Sign in with Google")
+                    Text("Continue with Google")
                 }
                 .buttonStyle(GoogleButtonStyle())
 
@@ -50,7 +50,7 @@ struct SignInView: View {
                     Button {
                         showEmail = true
                     } label: {
-                        Label("Email code", systemImage: "envelope.fill")
+                        Label("Email me a code", systemImage: "envelope.fill")
                             .font(.headline)
                             .frame(maxWidth: .infinity, minHeight: 36)
                     }
@@ -73,9 +73,9 @@ struct SignInView: View {
 
     private var title: String {
         switch purpose {
-        case .register: return "Sign in"
-        case .login: return "Sign in to resume"
-        case .deleteAccount: return "Sign in to delete this account"
+        case .register: return "Log in"
+        case .login: return "Log in to resume"
+        case .deleteAccount: return "Log in to delete this account"
         }
     }
 
@@ -86,7 +86,7 @@ struct SignInView: View {
               let idToken = String(data: tokenData, encoding: .utf8)
         else {
             if case .failure(let e) = result, (e as? ASAuthorizationError)?.code == .canceled { return }
-            model.errorText = "Sign-in failed"
+            model.errorText = "Login failed"
             return
         }
         var code: String?

@@ -61,7 +61,7 @@ public final class Core: @unchecked Sendable {
     // MARK: signed calls
 
     /// A signed call with PA-ID. Applies the client-wide reply rules: 401 "unknown peer" takes
-    /// the self-removed path, 401 "logged out" marks this device signed out, "push_missing"
+    /// the self-removed path, 401 "logged out" marks this device logged out, "push_missing"
     /// sets me.push_missing.
     public func signed(_ method: String, _ path: String, body: Data = Data(), retry: Bool = true,
                        timeout: Double = 15) async -> APIOutcome {

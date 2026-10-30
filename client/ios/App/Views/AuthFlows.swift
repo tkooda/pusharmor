@@ -21,7 +21,7 @@ final class GoogleSignIn: NSObject, ASWebAuthenticationPresentationContextProvid
         let clientId = AppEnvironment.shared.googleClientId
         let suffix = ".apps.googleusercontent.com"
         guard clientId.hasSuffix(suffix), clientId.count > suffix.count else {
-            model.errorText = "Sign-in failed"
+            model.errorText = "Login failed"
             return
         }
         let scheme = "com.googleusercontent.apps." + String(clientId.dropLast(suffix.count))
@@ -29,7 +29,7 @@ final class GoogleSignIn: NSObject, ASWebAuthenticationPresentationContextProvid
         let pkce = PKCE.make()
         let state = PKCE.make().verifier
         guard let nonce = try? model.nonce(purpose) else {
-            model.errorText = "Sign-in failed"
+            model.errorText = "Login failed"
             return
         }
         let url = GoogleOAuth.authURL(clientId: clientId, redirect: redirect, pkce: pkce, nonce: nonce, state: state)
@@ -54,7 +54,7 @@ final class GoogleSignIn: NSObject, ASWebAuthenticationPresentationContextProvid
               items.first(where: { $0.name == "state" })?.value == state,
               let code = items.first(where: { $0.name == "code" })?.value
         else {
-            model.errorText = "Sign-in failed"
+            model.errorText = "Login failed"
             return
         }
 
@@ -66,7 +66,7 @@ final class GoogleSignIn: NSObject, ASWebAuthenticationPresentationContextProvid
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let idToken = obj["id_token"] as? String
         else {
-            model.errorText = "Sign-in failed"
+            model.errorText = "Login failed"
             return
         }
         await model.googleToken(idToken: idToken, purpose: purpose)

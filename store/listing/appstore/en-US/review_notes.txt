@@ -1,12 +1,12 @@
 PushArmor sends links and text between a user's own devices.
 
-SIGN IN
-1. Tap "Sign in with Google" and use the demo account above.
-   (Sign in with Apple with your own Apple ID also works.)
+LOG IN
+1. Tap "Continue with Google" and use the demo account above.
+   ("Continue with Apple" with your own Apple ID also works.)
 2. Allow notifications.
 
 PAIR A SECOND DEVICE
-3. On a computer, install the PushArmor extension and sign in with the same account.
+3. On a computer, install the PushArmor extension and log in with the same account.
    Chrome: sign in to Chrome with the demo account, then open
    https://chromewebstore.google.com/detail/bbchgkmnbljneepmgddcbdkgnjinkjim
    Firefox (no browser sign-in needed): open

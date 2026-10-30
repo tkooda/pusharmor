@@ -271,7 +271,7 @@ test("AMO listed version: approval notes from store/listing/amo/review_notes.txt
   assert.equal(relative(ROOT, AMO_REVIEW_NOTES), join("store", "listing", "amo", "review_notes.txt"));
   assert.deepEqual(amoNotesProblems(), []);
   const notes = readFileSync(AMO_REVIEW_NOTES, "utf8");
-  assert.match(notes, /Sign in with Google/);
+  assert.match(notes, /Continue with Google/);
   assert.match(notes, /demo account given in the Developer Hub/);
   assert.match(notes, /Android app|second Firefox profile/);
   assert.match(notes, /Right-click/);

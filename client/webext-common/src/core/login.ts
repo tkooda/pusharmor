@@ -71,7 +71,7 @@ export class Login {
     const c = cleanCode(code);
     if (!c) throw new UserError("Enter the 6-character code");
     const st = (await this.e.p.storageSession.get([REQUEST_TOKEN]))[REQUEST_TOKEN] as { token: string; purpose: Purpose } | undefined;
-    if (!st) throw new UserError("Sign-in expired, sign in again");
+    if (!st) throw new UserError("Login expired, log in again");
     const r = await this.e.api.call("POST", "/auth/email/verify", { body: { request_token: st.token, code: c } });
     const ticket = typeof r.json.ticket === "string" ? r.json.ticket : "";
     const email = typeof r.json.email === "string" ? r.json.email : null;
@@ -109,7 +109,7 @@ export class Login {
   }
 
   async complete(purpose: Purpose, ticket: string, email: string | null, evict?: string[]): Promise<LoginResult> {
-    if (!TICKET_RE.test(ticket)) throw new UserError("Sign-in failed, try again");
+    if (!TICKET_RE.test(ticket)) throw new UserError("Login failed, try again");
     if (email !== null) await this.e.db.setMeta("email", email);
     try {
       if (purpose === "register") {
@@ -118,7 +118,7 @@ export class Login {
       } else if (purpose === "login") await this.e.login(ticket);
       else await this.e.deleteAccount(ticket);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401 && err.error === "ticket expired") throw new UserError("Sign-in expired, sign in again");
+      if (err instanceof ApiError && err.status === 401 && err.error === "ticket expired") throw new UserError("Login expired, log in again");
       throw err;
     }
     await this.clearProgress();

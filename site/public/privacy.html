@@ -36,13 +36,13 @@ used to wake your device. They see the address your device uses to receive notif
 token or endpoint), and pass along the encrypted message, which they cannot read. They hold undelivered
 messages up to 7 days (pairing requests up to 4 weeks).</li>
 <li><strong>Cloudflare</strong>: runs our relay server and its database, so it can technically see
-everything our relay server sees: your email address briefly at sign-in (to send the code), your IP address, device public
+everything our relay server sees: your email address briefly at login (to send the code), your IP address, device public
 keys, push tokens, and encrypted messages it cannot read. Our delivery logs on Cloudflare are set to be kept for 7 days:
 account ID, device IDs, and send results; no content, no IP, no email. Cloudflare's bot check (Turnstile) runs on the email
-sign-in page and on the delete-account page only.</li>
-<li><strong>Google and Apple sign-in</strong> (if you choose them): used to prove the account.
+login page and on the delete-account page only.</li>
+<li><strong>Google and Apple login</strong> (if you choose them): used to prove the account.
 We keep only a one-way hash of your email address, which is your account ID (see below).</li>
-<li><strong>AWS SES</strong>: used for email sign-in only, to send the sign-in code. It sees
+<li><strong>AWS SES</strong>: used for email login only, to send the login code. It sees
 your email address at send time, and we send it nothing else. If a code email bounces, AWS may keep that address
 on its own suppression list.</li>
 </ul>
@@ -50,7 +50,7 @@ on its own suppression list.</li>
 <h2>Your email address</h2>
 <p>We do not store your email address. We keep only a one-way hash of it, which cannot be
 turned back into the address.</p>
-<p>Why we need the hash: it is your account ID. When you sign in on another device with the same
+<p>Why we need the hash: it is your account ID. When you log in on another device with the same
 address, the hash puts that device in the same account. If an address is banned for abuse, we
 store its account ID so it stays banned, even after the account is deleted.</p>
 
@@ -76,7 +76,7 @@ until the other device is removed, denied, or withdrawn, or 30 days pass).</li>
 
 <h2>What stays on your device</h2>
 <ul>
-<li>The address you signed in with, shown as Signed in as (a Hide My Email relay address if you
+<li>The address you logged in with, shown as Logged in as (a Hide My Email relay address if you
 chose one), so you can see which address to use on your other devices.</li>
 <li>Your history, deleted automatically after the number of days you set (default 30). History is
 device-local and not backed up.</li>
@@ -90,7 +90,7 @@ message content in any notice.</p>
 
 <h2>Tracking</h2>
 <p>No analytics, no ads, no tracking, ever. This site has no third-party scripts, except Cloudflare's
-bot check on the sign-in and delete-account pages. We set no cookies; Cloudflare security features may set a short-lived
+bot check on the login and delete-account pages. We set no cookies; Cloudflare security features may set a short-lived
 one.</p>
 
 <h2>Background transmission (Firefox)</h2>

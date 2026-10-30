@@ -117,9 +117,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.Main) { onDone() }
             }
             is Session.SignIn.Limit -> { limitTicket = r.limit.ticket; message.value = null; limit.value = r.limit }
-            Session.SignIn.NeedNewTicket -> message.value = "Please sign in again"
+            Session.SignIn.NeedNewTicket -> message.value = "Please log in again"
             is Session.SignIn.Error -> {
-                if (r.text == "Sign-in expired, sign in again") limit.value = limit.value // ticks kept
+                if (r.text == "Login expired, log in again") limit.value = limit.value // ticks kept
                 message.value = r.text
             }
         }

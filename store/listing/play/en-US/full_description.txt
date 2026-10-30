@@ -10,6 +10,6 @@ Share a page from your browser to your phone, or send a note from your phone to 
 
 Works with the PushArmor apps for Android and iPhone, and the PushArmor browser extension for Chrome and Firefox.
 
-Sign in with Google, Apple, or an email code. Pair a new device once by checking that both screens show the same short code.
+Log in with Google, Apple, or an email code. Pair a new device once by checking that both screens show the same short code.
 
 Made by Ion Echo, LLC.

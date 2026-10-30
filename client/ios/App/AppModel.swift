@@ -16,9 +16,9 @@ final class AppModel: ObservableObject {
         case limitPicker
         case nameDevice
         case main
-        case removed                    // "This device was removed. Sign in again"
+        case removed                    // "This device was removed. Log in again"
         case banned
-        case signedOut                  // "Signed out. Sign in to resume"
+        case signedOut                  // "Logged out. Log in to resume"
     }
 
     struct LimitEntry: Identifiable, Hashable {
@@ -219,7 +219,7 @@ final class AppModel: ObservableObject {
         case .badEmail: errorText = S.badEmail
         case .emailSendFailed: errorText = S.emailSendFailed
         case .rateLimited(let s): errorText = "Try again in \(s) s"
-        default: errorText = "Sign-in failed"
+        default: errorText = "Login failed"
         }
     }
 
@@ -240,7 +240,7 @@ final class AppModel: ObservableObject {
 
     func finishTicket(_ r: AuthResult, purpose: AuthPurpose) async {
         guard case .ticket(let ticket, let email) = r else {
-            errorText = r == .badEmail ? S.badEmail : "Sign-in failed"
+            errorText = r == .badEmail ? S.badEmail : "Login failed"
             return
         }
         try? store?.setMe("signed_in_email", .text(email))
@@ -286,10 +286,10 @@ final class AppModel: ObservableObject {
                     return
                 }
             }
-            errorText = "Sign-in failed"
+            errorText = "Login failed"
         case .banned: phase = .banned
         case .ticketExpired: errorText = S.signInExpired; phase = .signIn(.register)
-        case .failed, .network: errorText = "Sign-in failed"
+        case .failed, .network: errorText = "Login failed"
         }
     }
 

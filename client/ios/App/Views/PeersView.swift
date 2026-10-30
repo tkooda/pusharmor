@@ -392,7 +392,7 @@ struct PeerRowView: View {
 
     private var status: (kind: StatusKind, text: String) {
         if p.missing { return (.off, "(missing)") }
-        if p.loggedOut { return (.off, "Signed out") }
+        if p.loggedOut { return (.off, "Logged out") }
         if !p.reachable { return (.off, "Unreachable") }
         if p.approvesMe { return (.approves, "Paired") }
         return (.notApproved, "Has not approved this device")

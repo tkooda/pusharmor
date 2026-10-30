@@ -396,7 +396,7 @@ struct ComposeView: View {
         let label = model.label(p)
         if p.missing { return "(missing)" }
         if p.notPairedOnPeer { return p.declinedByPeer ? S.declinedBy(label) : S.notPairedOn(label) }
-        if p.loggedOut { return "Signed out" }
+        if p.loggedOut { return "Logged out" }
         return nil
     }
 

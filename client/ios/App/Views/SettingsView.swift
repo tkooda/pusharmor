@@ -122,9 +122,9 @@ struct SettingsView: View {
 
                 Section("Account") {
                     if confirmSignOut {
-                        Text("Sign out of this device? Keys, paired devices, names, and history stay on this device.")
+                        Text("Log out of this device? Keys, paired devices, names, and history stay on this device.")
                         HStack {
-                            Button("Sign out", role: .destructive) {
+                            Button("Log out", role: .destructive) {
                                 confirmSignOut = false
                                 Task { await model.signOut() }
                             }
@@ -132,10 +132,10 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.borderless)
                     } else {
-                        Button("Sign out") { confirmSignOut = true }
+                        Button("Log out") { confirmSignOut = true }
                     }
                     if confirmDeleteAccount {
-                        Text("Delete this account? You must sign in again to confirm. This cannot be undone.")
+                        Text("Delete this account? You must log in again to confirm. This cannot be undone.")
                         HStack {
                             Button("Continue", role: .destructive) {
                                 confirmDeleteAccount = false
