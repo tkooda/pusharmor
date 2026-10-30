@@ -78,7 +78,7 @@ store's release Environment:
 | `chrome`   | `pusharmor-chrome-X.Y.Z.zip` of the prerelease (hash checked) to the public item, then publish (live after review) |
 | `firefox`  | `pusharmor-firefox-X.Y.Z.zip` and the source archive of the prerelease to the listed add-on as a new listed version |
 
-Hard gate (I414): the `play` job fails until the repository variable
+Hard gate: the `play` job fails until the repository variable
 `PLAY_CONTACT_OK` is `yes` (Settings > Secrets and variables > Actions >
 Variables). The owner sets it only after the public developer contact details
 in Play Console are fixed.
@@ -88,7 +88,7 @@ older than the one the store has, so a rerun is safe. When one store fails,
 rerun only that job ("Re-run failed jobs"); the others are not redone. Each
 job ends with one summary line per store.
 
-Listings (owner ruling Q242 A): `store/listing/play/en-US/*.txt`,
+Listings: `store/listing/play/en-US/*.txt`,
 `store/listing/appstore/en-US/*.txt` and the screenshots in
 `store/screenshots/{play,appstore}/en-US/` are the source for those stores;
 promote sends them (Play: only when they differ). Change them in a normal
@@ -249,8 +249,8 @@ tag commit, so only reviewed commits may be tagged:
 3. Environments `android-sign`, `android-release`, `ios-release`,
    `chrome-release`, `firefox-release`: "Deployment branches and tags" =
    selected tags only, `android/v*` for both Android environments, `ios/v*`,
-   `chrome/v*`, `firefox/v*`. Required reviewers are optional (owner ruling
-   Q200: the store promotion is the human gate).
+   `chrome/v*`, `firefox/v*`. Required reviewers are optional
+   because the store promotion is the human gate.
 4. Secrets only as environment secrets, never repository or organization
    secrets (names and environments: `release/names.json` "github_secrets"):
    `ANDROID_*` in `android-sign`, `ASC_*` in `ios-release`, `MOZILLA_AMO_*` in

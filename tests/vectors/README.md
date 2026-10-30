@@ -55,12 +55,12 @@ deflate stream is correct) unless the change is intended.
 |---|---|---|
 | `keys` | test `id_secret`; peers N, X, O (account A), Z (account B), S (sign_pub = enc_pub); raw private scalars, 65-byte SEC1 publics, account, keyhash, id | publics from scalars; account, keyhash, id byte for byte |
 | `email_hash` | normalization cases (trim ASCII whitespace, reject non-ASCII, ASCII lowercase); `normalized` null = 400 "bad email" | normalized, email_hash, account |
-| `id_order` | id pairs and the lower side (unsigned byte compare, I232) | `lower` |
+| `id_order` | id pairs and the lower side (unsigned byte compare) | `lower` |
 | `oauth_nonce` | k and nonce per purpose | k, nonce |
 | `my_push_sha256` | push objects of every type | my_push_sha256 |
 | `b64url` | strict accept/reject strings | decoded hex, or reject |
 | `pairing` | r_N, r_X, c_N, fingerprint hash and chars, pairing_id, pk, the three pair messages, `fingerprint_cases` (every Crockford symbol) | deterministic values byte for byte; open each pair message, compare plaintext, check the open against c_N |
-| `pair_decide` | pure decision on a commit push (rules 3a-3e, I239) | all four output fields |
+| `pair_decide` | pure decision on a commit push (rules 3a-3e) | all four output fields |
 | `pair_timeout` | timeout decision for a pairing row (step 8) | output |
 | `pair_hint` | N-side hint line in state committed | output |
 | `request_sig` | PA-Sig cases with the exact signed bytes | signed_bytes from the fields; sig verifies |
