@@ -5,7 +5,7 @@ import { T } from "../core/texts.ts";
 import { canReceiveNow, rememberedSelection, sendDisabled, sendToHeader, showAllChip, showCounter } from "../model/sendsel.ts";
 import type { Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
-import { type UiEnv, add, clear, failView, group, h, midEllipsis, nextTabIndex, peerStatus, rpc, sh, shortTime } from "./dom.ts";
+import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, nextTabIndex, peerStatus, rpc, sh, shortTime } from "./dom.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
 import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
@@ -358,7 +358,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promi
   const ff = st.platform === "firefox";
   const acct = add(
     h("div", { class: "txt" }),
-    st.email ? h("div", { class: "t1" }, T.signedInAs(st.email)) : null,
+    accountLine(st) ? h("div", { class: "t1" }, accountLine(st)) : null,
     ff && st.receiveMode ? h("div", { class: "t2" }, "Receive mode: " + st.receiveMode) : null,
     ff && st.receiveNote ? h("div", { class: "t2" }, st.receiveNote) : null,
   );

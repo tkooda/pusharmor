@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { PeerView } from "../src/core/rpc.ts";
-import { fitMiddle, nextTabIndex, peerStatus, platformLabel, shortTime } from "../src/ui/dom.ts";
+import { accountLine, fitMiddle, nextTabIndex, peerStatus, platformLabel, shortTime } from "../src/ui/dom.ts";
 
 const peer = (o: Partial<PeerView>): PeerView => ({
   id: "x", label: "Phone", platform: "android", lines: [], actions: [], countdown: null, fingerprint: null, pk: null,
@@ -148,4 +148,10 @@ test("Log out asks first: the confirm text, a Log out and a Cancel button, then 
   assert.ok(popup.slice(first, first + 200).includes("yes, no"));
   assert.ok(popup.includes('h("button", { onclick: () => clear(confirmOut) }, "Cancel")'));
   assert.equal(popup.split('rpc(env, "signout")').length, 2, "only one signout call");
+});
+
+test("settings account line is hidden while logged out", () => {
+  assert.equal(accountLine({ email: "a@b.co", reg: "registered" }), "Logged in as a@b.co");
+  assert.equal(accountLine({ email: "a@b.co", reg: "logged_out" }), null);
+  assert.equal(accountLine({ email: null, reg: "registered" }), null);
 });
