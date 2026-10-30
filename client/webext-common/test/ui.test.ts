@@ -121,3 +121,9 @@ test("popup views render into a per-show pane, so a stale tab cannot mix rows in
   assert.doesNotMatch(pop, /(sendView|historyView|renderPeers|settingsView)\(env, body/);
 });
 
+test("firefox background retries a failed start on every use of ready (alarms, push, messages)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const bg = readFileSync(new URL("../../firefox/src/background.ts", import.meta.url), "utf8");
+  assert.match(bg, /const whenReady = \(\) => \(ready = ready\.catch\(\(\) => init\(\)\)\)/);
+  assert.doesNotMatch(bg, /ready\.then\(/);
+});
