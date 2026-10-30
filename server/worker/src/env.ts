@@ -38,6 +38,7 @@ export interface Env {
   PA_OAUTH_REDIRECT_ANDROID: string;
   PA_OAUTH_REDIRECT_WEB: string;
   PA_WEB_ORIGINS: string;
+  PA_LOG_SAMPLE?: string;
 
   PA_ID_SECRET: string;
   PA_CODE_SECRET: string;

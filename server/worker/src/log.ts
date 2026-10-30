@@ -10,6 +10,13 @@ export interface RecipientLog {
   retry: boolean;
 }
 
+// PA_LOG_SAMPLE as a rate; anything but a number in 0..1 logs every line.
+export function sampleRate(v: string | undefined): number {
+  if (v === undefined || !/^[0-9.]+$/.test(v)) return 1;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 && n <= 1 ? n : 1;
+}
+
 export class Log {
   route = "";
   status = 0;
@@ -71,7 +78,24 @@ export class Log {
     return JSON.stringify(o);
   }
 
-  emit(): void {
+  // A line worth keeping whatever the sample rate: server errors, client errors other than
+  // 429, rate-limit binding errors, failed write-backs, endpoint rejects, and any recipient
+  // that was not delivered on the first attempt.
+  notable(): boolean {
+    if (this.exception || this.rl_error.length || this.gone_write || this.endpoint_reject) return true;
+    if (this.status >= 400 && this.status !== 429) return true;
+    return this.recipients.some((r) => r.result !== "sent" || r.retry);
+  }
+
+  // Workers Logs bills every line, so plain successes and 429s are sampled at `rate` (0..1).
+  // A sampled line carries "sample": 1/rate, to scale counts back up.
+  emit(rate = 1): void {
+    if (rate >= 1 || this.notable()) {
+      console.log(this.line());
+      return;
+    }
+    if (rate <= 0 || Math.random() >= rate) return;
+    this.extra.sample = Math.round(1 / rate);
     console.log(this.line());
   }
 }

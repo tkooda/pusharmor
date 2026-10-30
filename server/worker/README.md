@@ -46,6 +46,20 @@ No test hooks in release builds: `src/` exports nothing that only tests call, an
 `server/deploy/check-bundle.mjs` (deploy step 0) fails a bundle holding test code or a
 test route.
 
+## Logs
+
+One JSON line per request (`src/log.ts`), allow-listed fields only. Workers Logs bills every
+line, so the Worker samples in code with `PA_LOG_SAMPLE` (wrangler.jsonc, 0.01):
+
+- always logged: 5xx and exceptions, 4xx other than 429, rate-limit binding errors, failed
+  gone write-backs, rejected push endpoints, any recipient not delivered on the first try,
+  and every cron run;
+- sampled at 1 in 100: plain successes and 429s; such a line has `"sample": 100`, so
+  multiply counts and `rows_read` / `rows_written` by it.
+
+`head_sampling_rate` stays 1: head sampling is decided before the request runs and would
+drop errors as well. For a debugging session set `PA_LOG_SAMPLE` to 1 and deploy.
+
 ## Deploy
 
 Only with `server/deploy/deploy.sh worker/vX.Y.Z` from a clean checkout of that

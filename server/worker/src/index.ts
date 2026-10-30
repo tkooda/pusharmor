@@ -3,7 +3,7 @@ import type { Env } from "./env";
 import type { Ctx } from "./context";
 import { ApiError } from "./errors";
 import { errorResponse, finish, json, preflight } from "./http";
-import { Log } from "./log";
+import { Log, sampleRate } from "./log";
 import { readBody } from "./pipeline/body";
 import { enforce, ipKey } from "./pipeline/limits";
 import { route } from "./router";
@@ -46,7 +46,7 @@ export async function handle(req: Request, env: Env, exec: ExecutionContext): Pr
   }
   res = finish(res, path, req.headers.get("Origin"), env.PA_WEB_ORIGINS);
   log.status = res.status;
-  log.emit();
+  log.emit(sampleRate(env.PA_LOG_SAMPLE));
   return res;
 }
 
