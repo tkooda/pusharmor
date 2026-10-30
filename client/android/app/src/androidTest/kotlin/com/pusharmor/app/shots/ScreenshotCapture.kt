@@ -20,6 +20,7 @@ import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
 import androidx.test.runner.lifecycle.Stage
 import com.pusharmor.app.PaApp
 import com.pusharmor.app.ScreenshotMode
+import com.pusharmor.app.data.Settings
 import com.pusharmor.app.keys.KeystoreKeyOps
 import com.pusharmor.app.ui.MainActivity
 import com.pusharmor.protocol.ContentType
@@ -219,5 +220,19 @@ class ScreenshotCapture {
 
         main("history", await = "Meeting moved")
         shot("05-history")
+
+        // Review images (9N, not store shots): Settings, the sign-in screens. Sign out has no confirm
+        // dialog here: the button signs out at once, so 92 sets the signed-out flag it sets.
+        main("settings", await = "Sign out")
+        repeat(3) { shell("input swipe 540 1500 540 300 300"); inst.waitForIdleSync() }
+        settle(1000)
+        shot("91-settings")
+        g.settings.set(Settings.K.SIGNED_OUT, true)
+        main(await = "Sign in with Google")
+        shot("92-signed-out")
+        g.settings.set(Settings.K.SIGNED_OUT, false)
+        g.store.wipeRegistration()
+        main(await = "Sign in with Google")
+        shot("90-signin")
     }
 }

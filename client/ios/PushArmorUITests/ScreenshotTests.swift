@@ -71,6 +71,29 @@ final class ScreenshotTests: XCTestCase {
         XCTFail("the sample notification banner was not on screen in 3 attempts")
     }
 
+    /// Review images (not store shots): the sign-in screen, Settings, and the Sign out confirm.
+    func testCaptureReviewScreenshots() {
+        var app = launch(["-PAScreenshotsSignIn"])
+        XCTAssertTrue(labelled(app, "Sign in with Google").waitForExistence(timeout: 30))
+        sleep(1)
+        shot("90-signin")
+        app.terminate()
+
+        app = launch()
+        let tab = app.tabBars.buttons["Settings"]
+        XCTAssertTrue(tab.waitForExistence(timeout: 30))
+        tab.tap()
+        let signOut = app.buttons["Sign out"]
+        XCTAssertTrue(signOut.waitForExistence(timeout: 10))
+        for _ in 0..<6 where !signOut.isHittable { app.swipeUp() }
+        sleep(1)
+        shot("91-settings")
+        signOut.tap()
+        XCTAssertTrue(labelled(app, "Sign out of this device?").waitForExistence(timeout: 10))
+        sleep(1)
+        shot("92-signout-confirm")
+    }
+
     /// Any element whose label contains the text (a peer row reads as one combined element).
     private func labelled(_ app: XCUIApplication, _ text: String) -> XCUIElement {
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch

@@ -1,12 +1,14 @@
 #!/bin/bash
 # Store screenshots on a running emulator or device (workflow screenshots.yml).
-# Usage: bash tools/screenshots.sh <out-dir>   (run from client/android)
+# Usage: bash tools/screenshots.sh <out-dir> [review-dir]   (run from client/android)
 # Installs the play debug app and its test APK (not connectedAndroidTest: that uninstalls
 # the app at the end), turns off the network, puts the status bar in demo mode (full Wi-Fi and
 # signal with no "no internet" mark: "fully true"), runs
-# shots.ScreenshotCapture with "-e shots 1" and pulls the PNGs into <out-dir>.
+# shots.ScreenshotCapture with "-e shots 1" and pulls the PNGs into <out-dir>. PNGs named 9N-*
+# are review images: moved to [review-dir] when given, else dropped.
 set -euo pipefail
 out="${1:?usage: $0 <out-dir>}"
+review="${2:-}"
 pkg=com.pusharmor
 # A freshly booted emulator often shows "Pixel Launcher isn't responding" over every shot: hide
 # error dialogs, and stop the home app so a dialog that is already up goes away.
@@ -32,4 +34,5 @@ demo exit
 echo "$log" | grep -q '^OK (1 test)' || { echo "error: screenshot run failed" >&2; exit 1; }
 mkdir -p "$out"
 adb pull "/sdcard/Android/data/$pkg/files/shots/." "$out/"
-ls -l "$out"
+if [ -n "$review" ]; then mkdir -p "$review"; mv "$out"/9[0-9]-*.png "$review/"; else rm -f "$out"/9[0-9]-*.png; fi
+ls -l "$out" ${review:+"$review"}
