@@ -36,3 +36,25 @@ test("a failed database open does not stick: the next call tries again, the call
   assert.equal(reply.ok, false);
   assert.match(reply.error ?? "", /database/i);
 });
+
+test("a start that fails after the database opened closes the connection", async () => {
+  const { IDBFactory, IDBDatabase } = await import("fake-indexeddb");
+  const g = globalThis as { indexedDB?: unknown };
+  const saved = g.indexedDB;
+  g.indexedDB = new IDBFactory();
+  let closed = 0;
+  const orig = IDBDatabase.prototype.close;
+  IDBDatabase.prototype.close = function (this: InstanceType<typeof IDBDatabase>) {
+    closed++;
+    return orig.call(this);
+  };
+  try {
+    const boot = lazyBoot(() => ({ storageLocal: { get: () => Promise.reject(new Error("boom")), set: async () => undefined } }) as never, new Uint8Array(0));
+    await assert.rejects(boot(), /boom/);
+    await assert.rejects(boot(), /boom/);
+    assert.equal(closed, 2); // one per failed try
+  } finally {
+    IDBDatabase.prototype.close = orig;
+    g.indexedDB = saved;
+  }
+});

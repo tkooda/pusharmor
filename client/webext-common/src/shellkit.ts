@@ -112,24 +112,30 @@ export function lazyBoot(make: () => Platform, vapid: Uint8Array): () => Promise
     if (!p) {
       p = (async () => {
         const platform = make();
-        const db = new Db(await openDb());
-        let offset: number | null = null;
-        const api = new Api({
-          fetch: (i, init) => platform.fetch(i, init),
-          now: () => platform.now(),
-          sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-          getOffset: async () => {
-            if (offset === null) offset = (await db.meta<number>("offset")) ?? 0;
-            return offset;
-          },
-          setOffset: async (o) => {
-            offset = o;
-            await db.setMeta("offset", o);
-          },
-        });
-        await migrateStorage(platform.storageLocal);
-        const engine = new Engine({ platform, db, api, vapidPub: vapid });
-        return { engine, rpc: new Rpc(engine) };
+        const idb = await openDb();
+        try {
+          const db = new Db(idb);
+          let offset: number | null = null;
+          const api = new Api({
+            fetch: (i, init) => platform.fetch(i, init),
+            now: () => platform.now(),
+            sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+            getOffset: async () => {
+              if (offset === null) offset = (await db.meta<number>("offset")) ?? 0;
+              return offset;
+            },
+            setOffset: async (o) => {
+              offset = o;
+              await db.setMeta("offset", o);
+            },
+          });
+          await migrateStorage(platform.storageLocal);
+          const engine = new Engine({ platform, db, api, vapidPub: vapid });
+          return { engine, rpc: new Rpc(engine) };
+        } catch (e) {
+          idb.close(); // a failed start must not leak the connection (one per Retry)
+          throw e;
+        }
       })();
       // A failed open (storage blocked, quota, private mode) must not stay cached: the next call tries again.
       p.catch(() => {
