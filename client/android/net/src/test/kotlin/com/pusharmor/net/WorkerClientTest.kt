@@ -107,6 +107,15 @@ class WorkerClientTest {
         assertTrue(String(reg.body.readByteArray()).contains("\"push\":null"))
     }
 
+    @Test fun peersParsesCliPlatformAndListening() {
+        fun e(id: String, platform: String, extra: String) =
+            "{\"id\":\"$id\",\"sign_pub\":\"s\",\"enc_pub\":\"e\",\"platform\":\"$platform\",\"created\":1$extra}"
+        server.enqueue(ok("{\"peers\":[" + e("a", "cli", ",\"listening\":false") + "," + e("b", "cli", ",\"listening\":true") + "," + e("c", "android", "") + "]}"))
+        val ps = (client.peers() as ApiResult.Ok).value.peers
+        assertEquals(listOf("cli", "cli", "android"), ps.map { it.platform })
+        assertEquals(listOf(false, true, true), ps.map { it.listening })
+    }
+
     @Test fun messagesMissingCarriesIds() {
         server.enqueue(MockResponse().setResponseCode(400).setBody("{\"error\":\"messages missing\",\"ids\":[\"a\",\"b\"]}"))
         val r = client.logout(emptyMap()) as ApiResult.Http

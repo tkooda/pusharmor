@@ -57,6 +57,7 @@ extension Core {
                 if case .number(let c)? = e["created"] { p.created = Int64(c) }
                 if case .bool(let b)? = e["logged_out"] { p.loggedOut = b }
                 if case .bool(let b)? = e["reachable"] { p.reachable = b }
+                if case .bool(let b)? = e["listening"] { p.listening = b } else { p.listening = true }
                 if case .bool(let b)? = e["approves_me"] { p.getApprovesMe = b }
                 if case .bool(let b)? = e["denies_me"] { p.getDeniesMe = b }
                 p.getAt = now

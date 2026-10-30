@@ -75,12 +75,16 @@ class SendFlow(private val store: LocalStore, me: Identity, private val api: Api
         }
     }
 
-    /** "unapproved", "unknown", "gone", "logged out" -> coalesced GET /peers; "logged out" also sets peers.logged_out. */
+    /**
+     * "unapproved", "unknown", "gone", "logged out", "not listening" -> coalesced GET /peers;
+     * "logged out" also sets peers.logged_out, "not listening" clears peers.listening.
+     */
     fun handleResults(results: Map<String, String>) {
         var fetch = false
         for ((id, res) in results) {
-            if (res in setOf("unapproved", "unknown", "gone", "logged out")) fetch = true
+            if (res in setOf("unapproved", "unknown", "gone", "logged out", "not listening")) fetch = true
             if (res == "logged out") store.peer(id)?.let { store.putPeer(it.copy(loggedOut = true)) }
+            if (res == "not listening") store.peer(id)?.let { store.putPeer(it.copy(listening = false)) }
         }
         if (fetch) effects.fetchPeersSoon()
     }
@@ -343,7 +347,7 @@ class PeersSync(private val store: LocalStore, private val me: Identity) {
                 val old = store.peer(l.id)
                 var p = (old ?: Peer(id = l.id)).copy(
                     platform = l.platform, created = l.created, listSignPub = l.signPub, listEncPub = l.encPub,
-                    loggedOut = l.loggedOut, reachable = l.reachable, listApprovesMe = l.approvesMe, listDeniesMe = l.deniesMe,
+                    loggedOut = l.loggedOut, listening = l.listening, reachable = l.reachable, listApprovesMe = l.approvesMe, listDeniesMe = l.deniesMe,
                     listAfterVerify = old?.approveVerified == true, missing = false,
                 )
                 if (p.removed && !p.pinned) p = p.copy(removed = false) // listed again: an unruled row

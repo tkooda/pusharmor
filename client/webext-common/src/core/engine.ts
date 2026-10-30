@@ -1001,7 +1001,7 @@ export class Engine {
       const ep = typeof it.enc_pub === "string" ? b64urlTryDecode(it.enc_pub) : null;
       if (!id || id.length !== ID_LEN || !sp || !ep) continue;
       if (!(await validPeerEntry(id, sp, ep, acct))) continue;
-      const platform = (["android", "ios", "chrome", "firefox"] as const).includes(it.platform as Platform4) ? (it.platform as Platform4) : "android";
+      const platform = (["android", "ios", "chrome", "firefox", "cli"] as const).includes(it.platform as Platform4) ? (it.platform as Platform4) : "android";
       const created = typeof it.created === "number" ? it.created : 0;
       const snap = await this.db.peer(it.id);
       if (snap?.removed) continue;
@@ -1029,6 +1029,7 @@ export class Engine {
           platform,
           created,
           logged_out: it.logged_out === true,
+          listening: it.listening !== false,
           reachable: it.reachable === true,
           denies_me: it.denies_me === true,
           missing: false,
@@ -1099,10 +1100,10 @@ export class Engine {
 
   // ------------------------------------------------------------------ send
 
-  /** The All set (catalog): approved by me, approves me, not hidden, not logged out, not missing. */
+  /** The All set (catalog): approved by me, approves me, not hidden, not logged out, listening, not missing. */
   async allSet(): Promise<PeerRow[]> {
     return (await this.db.peers()).filter(
-      (p) => p.pinned && p.ruling === "approved" && p.approves_me && !p.hidden && !p.logged_out && !p.missing && !p.removed,
+      (p) => p.pinned && p.ruling === "approved" && p.approves_me && !p.hidden && !p.logged_out && p.listening !== false && !p.missing && !p.removed,
     );
   }
 
@@ -1163,10 +1164,13 @@ export class Engine {
         continue;
       }
       const nm = await this.peerName(id);
-      failures.push({ id, result: res, text: res === "gone" ? T.notDelivered(nm) : nm + ": " + res });
+      failures.push({ id, result: res, text: res === "gone" ? T.notDelivered(nm) : res === "not listening" ? nm + ": " + T.sendOnly : nm + ": " + res });
       if (res === "unapproved" || res === "unknown" || res === "gone") trigger = true;
       if (res === "logged out") {
         await this.db.updatePeer(id, (p) => (p ? { ...p, logged_out: true } : null));
+      }
+      if (res === "not listening") {
+        await this.db.updatePeer(id, (p) => (p ? { ...p, listening: false } : null));
       }
     }
     await this.db.addHistory({

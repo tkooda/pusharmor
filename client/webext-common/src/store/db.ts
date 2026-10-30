@@ -23,7 +23,7 @@ export interface WpKeys {
 }
 
 export type Ruling = "approved" | "denied" | "none";
-export type Platform4 = "android" | "ios" | "chrome" | "firefox";
+export type Platform4 = "android" | "ios" | "chrome" | "firefox" | "cli";
 
 export interface PeerRow {
   id: string;
@@ -43,6 +43,7 @@ export interface PeerRow {
   removed: boolean;
   missing: boolean;
   logged_out: boolean;
+  listening?: boolean; // cli only: false = send only; absent = listening
   logout_n: number; // n of the last applied logout / login
   pinned: boolean; // true only when a pairing pinned the keys
   approve_verified: boolean; // the peer's approve verified on this device

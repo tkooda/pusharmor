@@ -29,6 +29,8 @@ data class Peer(
     val declined: Boolean = false,
     val reachable: Boolean = true,
     val loggedOut: Boolean = false,
+    /** A "cli" peer that has not run its listen command recently (GET /peers "listening": false): send only. */
+    val listening: Boolean = true,
     val logoutN: Long = 0,
     val hidden: Boolean = false,
     val name: String? = null,
@@ -64,7 +66,7 @@ data class Peer(
     val offersPairAgain: Boolean get() = pairAgain && (waiting || notPairedOnPeer)
 
     /** Member of the catalog "All" set. */
-    val inAll: Boolean get() = pinned && approved && approvesMe && !hidden && !loggedOut && !missing && !removed
+    val inAll: Boolean get() = pinned && approved && approvesMe && !hidden && !loggedOut && listening && !missing && !removed
 }
 
 /** The catalog "All" set (one definition for every client). */

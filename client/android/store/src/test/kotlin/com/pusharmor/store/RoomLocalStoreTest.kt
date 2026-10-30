@@ -32,6 +32,15 @@ class RoomLocalStoreTest {
         db.close()
     }
 
+    @Test fun cliPlatformAndListeningRoundTrip() {
+        val s = RoomLocalStore(Room.inMemoryDatabaseBuilder(ctx, PaDatabase::class.java).allowMainThreadQueries().build())
+        s.putPeer(Peer(id = "p", platform = "cli", listening = false))
+        assertEquals("cli", s.peer("p")!!.platform)
+        assertEquals(false, s.peer("p")!!.listening)
+        s.putPeer(s.peer("p")!!.copy(listening = true))
+        assertEquals(true, s.peer("p")!!.listening)
+    }
+
     @Test fun counterReservedFromTwoDatabaseInstancesIsDistinct() {
         // Two Room instances on the same file stand in for two processes sharing the store.
         val a = RoomLocalStore(Room.databaseBuilder(ctx, PaDatabase::class.java, "c.db").enableMultiInstanceInvalidation().allowMainThreadQueries().build())

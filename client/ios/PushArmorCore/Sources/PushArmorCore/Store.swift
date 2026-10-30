@@ -38,6 +38,8 @@ public struct Peer: Sendable {
     public var reachable: Bool
     public var loggedOut: Bool
     public var logoutN: Int64
+    /// False for a "cli" device that has not run its listen command recently: send only.
+    public var listening: Bool
     public var platform: String?
     public var created: Int64?
     public var name: String?
@@ -76,7 +78,10 @@ public struct Peer: Sendable {
     public var declinedByPeer: Bool { notPairedOnPeer && getDeniesMe == true }
 
     /// Member of "All" (catalog Pairing flow, the one definition).
-    public var inAll: Bool { pinned && state == .approved && approvesMe && !hidden && !loggedOut && !missing }
+    public var inAll: Bool { pinned && state == .approved && approvesMe && !hidden && !loggedOut && !missing && listening }
+
+    /// A send target on the Send screen: approves me, listed, and listening.
+    public var canReceive: Bool { approvesMe && !missing && listening }
 
     /// $name / $X in notices: the peer name if known, else "A device".
     public var noticeName: String { name ?? "A device" }
@@ -85,7 +90,7 @@ public struct Peer: Sendable {
         self.id = id
         state = .unruled
         missing = false; listed = false; approveVerified = false; deniedMeMsg = false
-        reachable = false; loggedOut = false; logoutN = 0; nameN = 0; pendingN = 0
+        reachable = false; loggedOut = false; logoutN = 0; listening = true; nameN = 0; pendingN = 0
         hidden = false; lockShow = true; alwaysHide = false; lastN = 0; approvePromptN = 0
     }
 }
@@ -181,6 +186,7 @@ public final class Store: @unchecked Sendable {
         p.getDeniesMe = r.int("get_denies_me").map { $0 != 0 }
         p.getAt = r.int("get_at"); p.deniedMeMsg = r.bool("denied_me_msg")
         p.reachable = r.bool("reachable"); p.loggedOut = r.bool("logged_out"); p.logoutN = r.int("logout_n") ?? 0
+        p.listening = r.bool("listening")
         p.platform = r.text("platform"); p.created = r.int("created")
         p.name = r.text("name"); p.nameN = r.int("name_n") ?? 0
         p.pendingName = r.text("pending_name"); p.pendingN = r.int("pending_n") ?? 0
@@ -219,6 +225,7 @@ public final class Store: @unchecked Sendable {
         cols.append(("reachable", .bool(p.reachable)))
         cols.append(("logged_out", .bool(p.loggedOut)))
         cols.append(("logout_n", .int(p.logoutN)))
+        cols.append(("listening", .bool(p.listening)))
         cols.append(("platform", .opt(p.platform)))
         cols.append(("created", .opt(p.created)))
         cols.append(("name", .opt(p.name)))

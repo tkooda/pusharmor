@@ -41,6 +41,7 @@ public enum S {
     public static func sentToOne(_ x: String) -> String { "Sent to \"\(x)\"" }
     public static func notDelivered(_ x: String) -> String { "Not delivered to \(x): open PushArmor on it" }
     public static func signedOutPeer(_ x: String) -> String { "\(x) is logged out" }
+    public static func sendOnlyPeer(_ x: String) -> String { "\(x): Send only" }
     public static let emailSendFailed = "could not send the email, try again"
     public static let clockOff = "This device's clock is off by more than 5 minutes"
     public static let badEmail = "Only email addresses with plain ASCII characters are supported."
@@ -199,6 +200,7 @@ public enum PeerLabel {
         case "ios": return "iPhone"
         case "chrome": return "Chrome"
         case "firefox": return "Firefox"
+        case "cli": return "Command line"
         default: return "Unknown"
         }
     }

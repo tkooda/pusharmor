@@ -17,10 +17,11 @@ object UiText {
     /** Settings > Log out asks first; the buttons are "Log out" and "Cancel". */
     const val LOGOUT_CONFIRM = "Log out of this device? Keys, paired devices, names, and history stay on this device."
 
-    /** Peer status line by priority: missing, signed out, unreachable, approves, has not approved. */
+    /** Peer status line by priority: missing, signed out, send only, unreachable, approves, has not approved. */
     fun status(p: Peer): Pair<Mark, String> = when {
         p.missing -> Mark.OFF to "(missing)"
         p.loggedOut -> Mark.OFF to "Logged out"
+        !p.listening -> Mark.OFF to "Send only"
         !p.reachable -> Mark.OFF to "Unreachable"
         p.approvesMe -> Mark.OK to "Paired"
         else -> Mark.WAIT to "Has not approved this device"

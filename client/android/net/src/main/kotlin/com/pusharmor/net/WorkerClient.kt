@@ -254,7 +254,8 @@ class WorkerClient(
         fun b(k: String) = o[k]?.jsonPrimitive?.booleanOrNull == true
         fun l(k: String) = o[k]?.jsonPrimitive?.longOrNull ?: 0
         ListedPeer(s("id"), s("sign_pub"), s("enc_pub"), s("platform"), l("created"), b("logged_out"), l("approves").toInt(), l("approved_by").toInt(),
-            b("approves_me"), b("denies_me"), b("reachable"), (o["name_for_me"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content)
+            b("approves_me"), b("denies_me"), b("reachable"), (o["name_for_me"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content,
+            o["listening"]?.jsonPrimitive?.booleanOrNull != false)
     } catch (ex: Exception) {
         null
     }

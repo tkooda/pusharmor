@@ -52,7 +52,7 @@ export interface StateView {
 
 function created(p: PeerRow): string {
   const d = new Date(p.created * 1000);
-  return p.platform.charAt(0).toUpperCase() + p.platform.slice(1) + ", added " + d.toISOString().slice(0, 10);
+  return (p.platform === "cli" ? "Command line" : p.platform.charAt(0).toUpperCase() + p.platform.slice(1)) + ", added " + d.toISOString().slice(0, 10);
 }
 
 export class Rpc {
@@ -221,8 +221,9 @@ export class Rpc {
         v.greyed = T.notPairedOn(nm);
         v.actions = ["pair_again", "cancel"];
       } else if (p.ruling === "approved" && p.approves_me) {
-        v.sendable = !p.logged_out && !p.hidden;
+        v.sendable = !p.logged_out && !p.hidden && p.listening !== false;
         if (p.logged_out) v.greyed = "logged out";
+        else if (p.listening === false) v.greyed = "send only";
         else if (!p.reachable) v.greyed = "unreachable";
       }
       v.actions.push("remove", p.hidden ? "unhide" : "hide");

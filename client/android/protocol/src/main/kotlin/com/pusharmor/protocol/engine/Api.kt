@@ -36,6 +36,8 @@ data class ListedPeer(
     val deniesMe: Boolean,
     val reachable: Boolean,
     val nameForMe: String?,
+    /** "listening" of a "cli" entry; absent for other platforms (true). */
+    val listening: Boolean = true,
 )
 
 data class PeersReply(val myPushSha256: String?, val myAllow: List<String>, val peers: List<ListedPeer>)

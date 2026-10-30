@@ -805,3 +805,37 @@ test("Pair again twice at once: the second call is ignored, one pairing starts",
   assert.deepEqual(r.map((x) => x.status), ["fulfilled", "fulfilled"]);
   assert.equal(posts() - before, 1);
 });
+
+test("cli peer: platform kept, listening parsed; send only is out of All and not sendable", async () => {
+  const { w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  w.rows.get(b.id)!.platform = "cli";
+  await refresh(a, b);
+  let p = (await a.db.peer(b.id))!;
+  assert.equal(p.platform, "cli");
+  assert.equal(p.listening, true);
+  assert.equal((await a.e.allSet()).length, 1);
+  w.rows.get(b.id)!.listening = false;
+  await refresh(a, b);
+  p = (await a.db.peer(b.id))!;
+  assert.equal(p.listening, false);
+  assert.equal((await a.e.allSet()).length, 0);
+  const v = (await new Rpc(a.e).peers()).peers.find((x) => x.id === b.id)!;
+  assert.equal(v.sendable, false);
+  assert.equal(v.greyed, "send only");
+  assert.equal((await a.e.send("hi", false, [b.id])).sent, 0); // not a target
+  w.rows.get(b.id)!.listening = true;
+  await refresh(a, b);
+  assert.equal((await a.e.allSet()).length, 1);
+});
+
+test("send result not listening shows Send only and marks the peer send only", async () => {
+  const { w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  w.inject.push({ match: /POST \/v1\/send/, status: 200, body: { r: { [b.id]: "not listening" } }, times: 1 });
+  const r = await a.e.send("hi", false, "all");
+  assert.equal(r.sent, 0);
+  assert.equal(r.failures[0]!.text, "Chrome: Send only");
+  assert.equal((await a.db.peer(b.id))!.listening, false);
+  assert.equal((await a.e.allSet()).length, 0);
+});

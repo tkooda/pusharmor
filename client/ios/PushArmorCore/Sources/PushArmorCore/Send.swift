@@ -51,6 +51,10 @@ extension Core {
                 lines.append(S.signedOutPeer(label))
                 try? store.db.write { if var q = try store.peer(id) { q.loggedOut = true; try store.savePeer(q) } }
                 due = true
+            case "not listening":
+                lines.append(S.sendOnlyPeer(label))
+                try? store.db.write { if var q = try store.peer(id) { q.listening = false; try store.savePeer(q) } }
+                due = true
             case "unapproved", "unknown": due = true
             default: break
             }

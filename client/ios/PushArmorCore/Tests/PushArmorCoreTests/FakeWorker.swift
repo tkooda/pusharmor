@@ -16,6 +16,7 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
         var pending: [String: String] = [:]
         var loggedOut = false
         var push = true
+        var listening: Bool? = nil     // set only for platform "cli"
     }
 
     let lock = NSLock()
@@ -85,12 +86,14 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
         case ("GET", "peers"):
             var list: [JOut] = []
             for r in rows.values.sorted(by: { $0.id.text < $1.id.text }) where r.id.account == me.id.account {
-                list.append(.obj([("id", .str(r.id.text)), ("sign_pub", .str(B64URL.encode(r.signPub))),
+                var e: [(String, JOut)] = [("id", .str(r.id.text)), ("sign_pub", .str(B64URL.encode(r.signPub))),
                                   ("enc_pub", .str(B64URL.encode(r.encPub))), ("platform", .str(r.platform)),
                                   ("created", .int(r.created)), ("logged_out", .bool(r.loggedOut)),
                                   ("approves", .int(Int64(r.allow.count))), ("approved_by", .int(0)),
                                   ("approves_me", .bool(r.allow[idT] != nil)), ("denies_me", .bool(r.deny[idT] != nil)),
-                                  ("reachable", .bool(r.push)), ("name_for_me", r.name[idT].map { .str($0) } ?? .null)]))
+                                  ("reachable", .bool(r.push)), ("name_for_me", r.name[idT].map { .str($0) } ?? .null)]
+                if let l = r.listening { e.append(("listening", .bool(l))) }
+                list.append(.obj(e))
             }
             return reply(200, JOut.obj([("my_push_sha256", .null), ("my_allow", .arr(me.allow.keys.sorted().map { .str($0) })),
                                         ("peers", .arr(list))]).text)
@@ -133,6 +136,7 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
                 if xr.deny[idT] != nil { res.append((k, .str("denied"))); continue }
                 if xr.allow[idT] == nil { res.append((k, .str("unapproved"))); continue }
                 if xr.loggedOut { res.append((k, .str("logged out"))); continue }
+                if xr.listening == false { res.append((k, .str("not listening"))); continue }
                 if !xr.push { res.append((k, .str("gone"))); continue }
                 relay(k, v.stringValue!)
                 res.append((k, .str("sent")))

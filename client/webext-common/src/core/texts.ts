@@ -23,6 +23,7 @@ export const T = {
   keysLost: "This device lost its keys. Log in again",
   logoutConfirm: "Log out of this device? Keys, paired devices, names, and history stay on this device.",
   signedOut: "Logged out. Log in to resume",
+  sendOnly: "Send only",
   pairFailed: "Pairing failed. Start again on the new device.",
   pairTimedOut: "Pairing timed out. Tap Pair to start again.",
   pairing: "Pairing...",

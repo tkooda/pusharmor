@@ -9,6 +9,9 @@ import com.pusharmor.app.ui.AuthLinkActivity
 import com.pusharmor.app.ui.CodeInput
 import com.pusharmor.app.ui.ShareActivity
 import com.pusharmor.app.ui.pairingScrollTop
+import com.pusharmor.app.ui.platformIcon
+import com.pusharmor.app.ui.theme.PaIcons
+import com.pusharmor.app.notify.AppEffects
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -22,6 +25,12 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], application = android.app.Application::class)
 class AppLogicTest {
+    @Test fun cliPlatformLabelAndIcon() {
+        assertEquals("Command line", AppEffects.platformLabel("cli"))
+        assertEquals(PaIcons.Terminal, platformIcon("cli"))
+        assertEquals(PaIcons.Devices, platformIcon("other"))
+    }
+
     @Test fun lockScreenWatchHidePolicy() {
         // effective = main AND peer
         assertFalse(Policy.of(true, true, true, true, false, false).privateOnLockScreen)

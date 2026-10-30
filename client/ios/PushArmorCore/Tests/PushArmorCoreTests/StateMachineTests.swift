@@ -708,7 +708,7 @@ final class StateMachineTests: XCTestCase {
         let path = NSTemporaryDirectory() + "pa-mig-\(UUID().uuidString).sqlite"
         _ = try Store(path: path)
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 2)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 3)
         XCTAssertEqual(try s.db.one("PRAGMA journal_mode")?.text("journal_mode"), "wal")
         XCTAssertNil(try s.me().id)
     }
@@ -730,13 +730,71 @@ final class StateMachineTests: XCTestCase {
             try s.db.exec("PRAGMA user_version = 1")
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 2)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 3)
         XCTAssertTrue(try s.me().loggedOut)
         let p = try s.db.one("SELECT logged_out, logout_n FROM peers WHERE id = 'p1'")
         XCTAssertEqual(p?.int("logged_out"), 1)
         XCTAssertEqual(p?.int("logout_n"), 7)
         let ev = try s.db.query("SELECT event FROM history ORDER BY created_local").map { $0.text("event") }
         XCTAssertEqual(ev, ["logged_out", "logged_in"])
+    }
+
+    func testDBMigrationAddsListeningDefaultTrue() throws {
+        let path = NSTemporaryDirectory() + "pa-mig3-\(UUID().uuidString).sqlite"
+        // Rebuild a version 2 file: no listening column, user_version 2.
+        do {
+            let s = try Store(path: path)
+            try s.db.exec("ALTER TABLE peers DROP COLUMN listening")
+            try s.db.exec("INSERT INTO peers (id, platform) VALUES ('p1', 'android')")
+            try s.db.exec("PRAGMA user_version = 2")
+        }
+        let s = try Store(path: path)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 3)
+        XCTAssertEqual(try s.db.one("SELECT listening FROM peers WHERE id = 'p1'")?.int("listening"), 1)
+        let a = TestPeer()
+        var p = Peer(id: a.id); p.listening = false; try s.savePeer(p)
+        XCTAssertEqual(try s.peer(a.id)?.listening, false)
+    }
+
+    func testCliPeerListeningParsedAndSendOnlyExcluded() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        w.rows[x.id.text]!.platform = "cli"
+        w.rows[x.id.text]!.listening = true
+        await n.core.fetchPeers(force: true)
+        var p = try n.core.store.peer(x.id)!
+        XCTAssertEqual(p.platform, "cli")
+        XCTAssertTrue(p.listening)
+        XCTAssertTrue(p.inAll)
+        XCTAssertTrue(p.canReceive)
+        // a cli device that stopped listening: send only, out of All and not a send target
+        w.rows[x.id.text]!.listening = false
+        await n.core.fetchPeers(force: true)
+        p = try n.core.store.peer(x.id)!
+        XCTAssertFalse(p.listening)
+        XCTAssertFalse(p.inAll)
+        XCTAssertFalse(p.canReceive)
+        XCTAssertEqual(try n.core.allSet().count, 0)
+        // the key absent (another platform) reads as listening
+        w.rows[x.id.text]!.listening = nil
+        await n.core.fetchPeers(force: true)
+        XCTAssertTrue(try n.core.store.peer(x.id)!.listening)
+    }
+
+    func testSendNotListeningShowsSendOnly() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        await n.core.fetchPeers(force: true)
+        w.rows[x.id.text]!.platform = "cli"
+        w.rows[x.id.text]!.listening = false
+        let rep = try await n.core.send("hi", as: .text, to: [x.id], allCount: 1)
+        XCTAssertEqual(rep.results[x.id.text], "not listening")
+        let label = PeerLabel.label(try n.core.store.peer(x.id))
+        XCTAssertEqual(rep.toast, "Sent to 0 of 1 devices\n" + S.sendOnlyPeer(label))
+        XCTAssertTrue(S.sendOnlyPeer("Xdev").hasSuffix("Send only"))
+        XCTAssertFalse(try n.core.store.peer(x.id)!.listening)
+        XCTAssertTrue(try n.core.store.me().fetchDue)
+        XCTAssertTrue(w.take(x.id).isEmpty)
     }
 
     func testLockScreenBody() {
