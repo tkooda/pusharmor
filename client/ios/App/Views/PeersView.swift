@@ -404,7 +404,9 @@ struct PeerRowView: View {
                 .padding(.vertical, 4)
                 .contentShape(Rectangle())
                 .onTapGesture { Task { await model.tapGreyed() } }
-                .opacity(0.5)
+                .opacity(0.6)
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isButton)
         } else {
             DisclosureGroup(isExpanded: Binding(
                 get: { isExpanded },
