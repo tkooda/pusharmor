@@ -4,17 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Security - PushArmor</title>
-<meta name="description" content="The PushArmor threat model: what our server, Cloudflare and the push services can and cannot see.">
+<meta name="description" content="The PushArmor threat model: what our server, Cloudflare, and the push services can and cannot see.">
 <meta name="theme-color" content="#1F3A5F">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="PushArmor">
 <meta property="og:title" content="Security - PushArmor">
-<meta property="og:description" content="The PushArmor threat model: what our server, Cloudflare and the push services can and cannot see.">
+<meta property="og:description" content="The PushArmor threat model: what our server, Cloudflare, and the push services can and cannot see.">
 <meta property="og:url" content="https://pusharmor.com/security">
 <meta property="og:image" content="https://pusharmor.com/apple-touch-icon.png">
 <link rel="icon" href="/favicon.ico" sizes="any" integrity="sha256-WBRVm+oTUTpG8HdmRjQYXSzTkCjwYCVj5PZdJQP73qM=">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" integrity="sha256-TQcTrShS2zw2E6zqzKq9Tlfqd9GGyBSjl/LTQvTeJY8=">
-<link rel="stylesheet" href="/css/site.css" integrity="sha256-lqi51+gq3Lv13m725e9rMXjW4osknrDRTQmBZT+NyhM=">
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-bxA6j7iTServtuLcPR/gleYJ3DJYYlW/u2VggVRiWbI=">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -35,8 +35,8 @@ never leave it.</p>
 <thead><tr><th>Party</th><th>Sees</th><th>Does not see</th></tr></thead>
 <tbody>
 <tr><td>Your devices</td><td>The messages you send them, after decryption and signature checks.</td><td>Messages for other devices.</td></tr>
-<tr><td>Our relay server (hosted on Cloudflare)</td><td>A one-way code made from your email address (a keyed hash), which is your account id (the address itself briefly at sign-in, to send the code), your IP address, device public keys, the addresses your devices use to receive notifications (push tokens or endpoints), encrypted messages and their size, and who sends to whom inside your account.</td><td>Message content, private keys, pairing fingerprints.</td></tr>
-<tr><td>Cloudflare</td><td>Everything our relay server sees, since Cloudflare runs it and its database. Delivery logs: account id, device ids and send results, for 7 days.</td><td>Message content, private keys.</td></tr>
+<tr><td>Our relay server (hosted on Cloudflare)</td><td>A one-way hash of your email address, which is your account ID (the address itself briefly at sign-in, to send the sign-in code), your IP address, device public keys, the addresses your devices use to receive notifications (push tokens or endpoints), encrypted messages and their size, and who sends to whom inside your account.</td><td>Message content, private keys, and pairing fingerprints.</td></tr>
+<tr><td>Cloudflare</td><td>Everything our relay server sees, since Cloudflare runs it and its database. Delivery logs: account ID, device IDs, and send results, for 7 days.</td><td>Message content, private keys.</td></tr>
 <tr><td>Push services (Google's and Apple's notification services, Google and Mozilla web push, a UnifiedPush distributor)</td><td>The push token or endpoint and the encrypted message; they hold undelivered messages up to 7 days (pairing requests up to 4 weeks).</td><td>Message content, keys.</td></tr>
 <tr><td>This website</td><td>Nothing about you: static files, no login, no analytics. Cloudflare's bot check (Turnstile) runs on the email sign-in page and on the delete-account page only.</td><td>Keys, message content.</td></tr>
 <tr><td>AWS SES</td><td>Your email address when it sends a sign-in code.</td><td>Anything else.</td></tr>

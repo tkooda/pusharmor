@@ -4,17 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Download - PushArmor</title>
-<meta name="description" content="Get PushArmor for Android, iPhone, Chrome and Firefox. Coming soon.">
+<meta name="description" content="Get PushArmor for Android, iPhone, Chrome, and Firefox. Coming soon.">
 <meta name="theme-color" content="#1F3A5F">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="PushArmor">
 <meta property="og:title" content="Download - PushArmor">
-<meta property="og:description" content="Get PushArmor for Android, iPhone, Chrome and Firefox. Coming soon.">
+<meta property="og:description" content="Get PushArmor for Android, iPhone, Chrome, and Firefox. Coming soon.">
 <meta property="og:url" content="https://pusharmor.com/download">
 <meta property="og:image" content="https://pusharmor.com/apple-touch-icon.png">
 <link rel="icon" href="/favicon.ico" sizes="any" integrity="sha256-WBRVm+oTUTpG8HdmRjQYXSzTkCjwYCVj5PZdJQP73qM=">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" integrity="sha256-TQcTrShS2zw2E6zqzKq9Tlfqd9GGyBSjl/LTQvTeJY8=">
-<link rel="stylesheet" href="/css/site.css" integrity="sha256-lqi51+gq3Lv13m725e9rMXjW4osknrDRTQmBZT+NyhM=">
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-bxA6j7iTServtuLcPR/gleYJ3DJYYlW/u2VggVRiWbI=">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -25,9 +25,9 @@
 <main id="main">
 <h1>Download</h1>
 
-<p>PushArmor is not released yet. The apps and add-ons are coming soon.</p>
+<p>PushArmor is not released yet. The apps and add-ons are coming soon. <a href="/about">See screenshots of each app</a>.</p>
 
-<h2>Android</h2>
+<h2 id="android">Android</h2>
 <ul>
 <li>Google Play <span class="soon">Coming soon</span></li>
 <li>F-Droid <span class="soon">Coming soon</span></li>
@@ -37,9 +37,9 @@
 
 <h2>iPhone and browsers</h2>
 <ul>
-<li>iPhone: App Store <span class="soon">Coming soon</span></li>
-<li>Chrome: Chrome Web Store <span class="soon">Coming soon</span></li>
-<li>Firefox: addons.mozilla.org <span class="soon">Coming soon</span></li>
+<li id="iphone">iPhone: App Store <span class="soon">Coming soon</span></li>
+<li id="chrome">Chrome: Chrome Web Store <span class="soon">Coming soon</span></li>
+<li id="firefox">Firefox: addons.mozilla.org <span class="soon">Coming soon</span></li>
 </ul>
 
 <h2>Android APKs from GitHub</h2>
@@ -62,8 +62,9 @@ fingerprint.</p>
 </tbody>
 </table>
 </div>
-<p class="note">To check the certificate of an installed or downloaded APK, run
-<code>apksigner verify --print-certs</code> on it and compare the SHA-256 digest.</p>
+<p class="note">To check the certificate of an installed or downloaded APK, run this command on
+it and compare the SHA-256 digest:</p>
+<pre><code>apksigner verify --print-certs</code></pre>
 </main>
 <footer>
 <a href="/privacy">Privacy</a> <a href="/terms">Terms</a> <a href="/support">Support</a> <a href="/delete-account">Delete account</a> <a href="https://github.com/tkooda/pusharmor">Source code on GitHub</a>
