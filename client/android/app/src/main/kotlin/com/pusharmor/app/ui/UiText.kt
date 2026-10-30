@@ -89,6 +89,9 @@ object UiText {
     /** Notice when a device in the half state sends a new pairing request. */
     fun pairAgainNotice(x: String): String = "$x wants to pair again. Tap Pair again on its row."
 
+    /** Screen reader state of the sign-in code field: "2 of 6 entered". */
+    fun codeState(n: Int): String = "$n of 6 entered"
+
     /** "1 day", "30 days". */
     fun days(d: Int): String = if (d == 1) "1 day" else "$d days"
 

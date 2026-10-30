@@ -22,6 +22,11 @@ class UiTextTest {
         assertEquals(Mark.WAIT to "Has not approved this device", UiText.status(pinned.copy(approveVerified = false)))
     }
 
+    @Test fun codeFieldState() {
+        assertEquals("0 of 6 entered", UiText.codeState(0))
+        assertEquals("4 of 6 entered", UiText.codeState(4))
+    }
+
     @Test fun pairAgainNotice() {
         assertEquals("Chrome wants to pair again. Tap Pair again on its row.", UiText.pairAgainNotice("Chrome"))
     }
