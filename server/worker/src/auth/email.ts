@@ -20,7 +20,7 @@ import {
 import { ApiError } from "../errors";
 import { json } from "../http";
 import { parseJsonObject } from "../pipeline/body";
-import { enforce } from "../pipeline/limits";
+import { enforce, ipKey } from "../pipeline/limits";
 import { deps } from "../push/deps";
 import { normalizeEmail } from "./normalize";
 import { sendEmail } from "./ses";
@@ -66,7 +66,8 @@ export async function start(c: Ctx): Promise<Response> {
   const eh = b64urlEncode(await emailHash(email));
   await enforce(c.env, "RL_MAIL", "mail:" + eh, c.log);
   // Per IP (a limiter key only, never stored): address variants from one IP share this cap.
-  await enforce(c.env, "RL_MAIL", "mailip:" + (c.req.headers.get("CF-Connecting-IP") ?? ""), c.log);
+  // IPv6 by its /64 like RL_IP, so one /64 cannot rotate source addresses (I446).
+  await enforce(c.env, "RL_MAIL", "mail" + ipKey(c.req.headers.get("CF-Connecting-IP") ?? ""), c.log);
   await enforce(c.env, "RL_MAIL_ALL", "mail:all", c.log);
   const token = await makeToken(c.env.PA_TOKEN_SECRET, LABEL_REQUEST_TOKEN, { t: nowS(), e: eh, m: email, k: await keyRef(raw), p: purpose });
   const code = await deriveCode(c.env.PA_CODE_SECRET, token);

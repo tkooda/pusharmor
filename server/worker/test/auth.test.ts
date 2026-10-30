@@ -103,6 +103,17 @@ describe("POST /auth/email + verify", () => {
     expect(st).toEqual([200, 200, 429]);
   });
 
+  it("RL_MAIL per IP: IPv6 addresses in one /64 share the limit (I446)", async () => {
+    const k = await keys();
+    const st = [];
+    const e = await testEnv({ RL_MAIL: countingLimit(2) });
+    for (let i = 0; i < 3; i++) {
+      const ip = `2001:db8:446:1::${(i + 1).toString(16)}:${(i * 7 + 3).toString(16)}`;
+      st.push((await call("POST", "/v1/auth/email", { email: randomEmail(), sign_pub: k.signPub, purpose: "register", turnstile: "t" }, { ip, env: e })).status);
+    }
+    expect(st).toEqual([200, 200, 429]);
+  });
+
   it("request_token tamper and expiry; RL_CODE 5 per minute", async () => {
     const { r } = await startEmail(randomEmail());
     const token = r.body.request_token as string;
