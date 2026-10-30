@@ -134,3 +134,18 @@ test("firefox background drops autopush when start() throws, so the retry starts
   assert.match(bg, /try \{\s*await autopush\.start\(\);\s*\} catch \(e\) \{[^}]*autopush\.stop\(\);\s*autopush = null;\s*throw e;/);
   assert.match(bg, /if \(!isAndroid && !autopush\)/);
 });
+
+test("Log out asks first: the confirm text, a Log out and a Cancel button, then the signout call", async () => {
+  const { readFileSync } = await import("node:fs");
+  const rd = (f: string) => readFileSync(new URL("../src/" + f, import.meta.url), "utf8");
+  const texts = rd("core/texts.ts");
+  assert.ok(texts.includes('logoutConfirm: "Log out of this device? Keys, paired devices, names, and history stay on this device."'));
+  const popup = rd("ui/popup.ts");
+  const first = popup.indexOf("T.logoutConfirm");
+  assert.ok(first > 0);
+  const call = popup.indexOf('rpc(env, "signout")');
+  assert.ok(call > 0 && call < first, "the signout call sits in the confirm's Log out button");
+  assert.ok(popup.slice(first, first + 200).includes("yes, no"));
+  assert.ok(popup.includes('h("button", { onclick: () => clear(confirmOut) }, "Cancel")'));
+  assert.equal(popup.split('rpc(env, "signout")').length, 2, "only one signout call");
+});
