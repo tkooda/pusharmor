@@ -92,8 +92,10 @@ main { padding: 1rem 0 2.5rem; }
 footer {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 0 0.25rem;
   padding: 1rem 0 2rem;
+  text-align: center;
   border-top: 1px solid var(--line);
   color: var(--muted);
   font-size: 0.9rem;
@@ -102,7 +104,7 @@ footer a {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
-  padding: 0 0.75rem 0 0;
+  padding: 0 0.375rem;
 }
 footer .fine { flex-basis: 100%; margin: 0.25rem 0 0; }
 a { color: var(--link); }
@@ -174,8 +176,9 @@ button.secondary, .button.secondary { color: var(--link); background: transparen
 button.danger { color: #ffffff; background: #b3261e; border-color: #b3261e; }
 
 /* Home page. */
-.hero { padding: 1.5rem 0 0.5rem; }
-.hero h1 { font-size: clamp(1.9rem, 5vw, 2.8rem); line-height: 1.15; margin: 0.5rem 0 1rem; max-width: 40rem; }
+.hero { padding: 1.5rem 0 0.5rem; text-align: center; }
+.hero h1 { font-size: clamp(1.9rem, 5vw, 2.8rem); line-height: 1.15; margin: 0.5rem auto 1rem; max-width: 40rem; }
+.hero p { margin-left: auto; margin-right: auto; }
 .lead { font-size: 1.15rem; color: var(--muted); }
 .cta { margin: 1.25rem 0 0.25rem; }
 .diagram { margin: 2rem 0 1rem; padding: 1.25rem 1rem 1rem; background: var(--surface); border-radius: 12px; }
@@ -200,16 +203,6 @@ button.danger { color: #ffffff; background: #b3261e; border-color: #b3261e; }
 .card h2 { margin: 0.5rem 0 0.5rem; font-size: 1.1rem; }
 .card p { margin: 0; }
 .card .icon { width: 2rem; height: 2rem; fill: none; stroke: var(--green); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.callout {
-  margin: 2.5rem 0 0.5rem;
-  padding: 1.25rem 1.5rem;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-left: 4px solid var(--green);
-  border-radius: 12px;
-}
-.callout h2 { margin-top: 0; }
-.callout p:last-child { margin-bottom: 0; }
 
 /* Download page. */
 .soon {
