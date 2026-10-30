@@ -33,11 +33,11 @@ and only ever see the minimum needed to do their part.</p>
 <li><strong>Google's and Apple's notification services (FCM, APNs) for Android and iPhone, Google
 and Mozilla web push (Chrome, Firefox), and a UnifiedPush distributor if you chose one</strong>:
 used to wake your device. They see the address your device uses to receive notifications (push
-token or endpoint) and the encrypted message only. They hold undelivered
+token or endpoint), and pass along the encrypted message, which they cannot read. They hold undelivered
 messages up to 7 days (pairing requests up to 4 weeks).</li>
 <li><strong>Cloudflare</strong>: runs our relay server and its database, so it can technically see
 everything our relay server sees: your email address briefly at sign-in (to send the code), your IP address, device public
-keys, push tokens, and encrypted messages. Cloudflare also keeps our delivery logs for 7 days:
+keys, push tokens, and encrypted messages it cannot read. Cloudflare also keeps our delivery logs for 7 days:
 account ID, device IDs, and send results; no content, no IP, no email. Cloudflare's bot check (Turnstile) runs on the email
 sign-in page and on the delete-account page only.</li>
 <li><strong>Google and Apple sign-in</strong> (if you choose them): used to prove the account.
@@ -59,7 +59,7 @@ store its account ID so it stays banned, even after the account is deleted.</p>
 the devices you send to can ever decrypt them, and each one checks that the message really came
 from the device it claims to be from. Each device makes its own keys, and the private keys never
 leave the devices. A message is encrypted on the sending device for the receiving device, so our
-relay server sees only encrypted data (ciphertext). We do not store (and can't ever even see)
+relay server only passes along encrypted data it cannot read (ciphertext). We do not store (and can't ever even see)
 message content or pairing fingerprints.</p>
 
 <h2>What our relay server stores</h2>
