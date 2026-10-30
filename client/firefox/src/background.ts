@@ -63,7 +63,14 @@ async function init(): Promise<void> {
       clearTimer: (t) => clearTimeout(t as ReturnType<typeof setTimeout>),
       uuid: () => crypto.randomUUID(),
     });
-    await autopush.start();
+    try {
+      await autopush.start();
+    } catch (e) {
+      // a failed start is not kept: the next init() builds and starts a new client
+      autopush.stop();
+      autopush = null;
+      throw e;
+    }
   }
   await engine.start();
 }

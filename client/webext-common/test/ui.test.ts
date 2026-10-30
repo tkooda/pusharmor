@@ -127,3 +127,10 @@ test("firefox background retries a failed start on every use of ready (alarms, p
   assert.match(bg, /const whenReady = \(\) => \(ready = ready\.catch\(\(\) => init\(\)\)\)/);
   assert.doesNotMatch(bg, /ready\.then\(/);
 });
+
+test("firefox background drops autopush when start() throws, so the retry starts it again", async () => {
+  const { readFileSync } = await import("node:fs");
+  const bg = readFileSync(new URL("../../firefox/src/background.ts", import.meta.url), "utf8");
+  assert.match(bg, /try \{\s*await autopush\.start\(\);\s*\} catch \(e\) \{[^}]*autopush\.stop\(\);\s*autopush = null;\s*throw e;/);
+  assert.match(bg, /if \(!isAndroid && !autopush\)/);
+});
