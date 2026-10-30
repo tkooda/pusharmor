@@ -130,6 +130,11 @@ F-Droid step for Android by hand, as below.
    `CLOUDFLARE_ACCOUNT_ID=... server/deploy/deploy.sh worker/vX.Y.Z`
    (`server/deploy/README.md`: preflight, backup, migrations, deploy, smoke test).
 
+Log volume: the Worker logs every request while `PA_LOG_SAMPLE` is `"1"`. When Workers Logs
+events near the account's included 20M per month, or the logs overage passes a few dollars a
+month, change that one line in `server/worker/wrangler.jsonc` to `"PA_LOG_SAMPLE": "0.1"` and
+release a new Worker tag. Errors are always logged (`server/worker/README.md`, Logs).
+
 ## Android (`android/vX.Y.Z`)
 
 CI: signed play and foss APKs, mapping files and hashes in the GitHub

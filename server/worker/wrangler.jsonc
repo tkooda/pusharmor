@@ -12,10 +12,9 @@
   "routes": [{ "pattern": "api.pusharmor.com", "custom_domain": true }],
   "limits": { "cpu_ms": 2000 },
   "triggers": { "crons": ["0 * * * *", "0 3 1 * *"] },
-  // Workers Logs bills each line. head_sampling_rate stays 1 because head sampling is decided
-  // before the request runs and would drop errors too; instead the Worker samples in code
-  // (PA_LOG_SAMPLE): every error and every non-delivered recipient is logged, plain successes
-  // and 429s at 1 in 100 with "sample": 100 on the line. Invocation logs stay off.
+  // Workers Logs bills each line. head_sampling_rate stays 1 (head sampling is decided before
+  // the request runs and would drop errors too). PA_LOG_SAMPLE samples plain successes and 429s
+  // in code; errors are always logged. It is 1 (log all) during launch; see README "Logs".
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1,
@@ -49,6 +48,6 @@
     "PA_OAUTH_REDIRECT_ANDROID": "https://pusharmor.com/auth/android",
     "PA_OAUTH_REDIRECT_WEB": "https://pusharmor.com/delete-account",
     "PA_WEB_ORIGINS": "[\"https://pusharmor.com\"]",
-    "PA_LOG_SAMPLE": "0.01"
+    "PA_LOG_SAMPLE": "1"
   }
 }
