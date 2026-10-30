@@ -9,7 +9,7 @@ struct MainView: View {
         TabView(selection: $tab) {
             HomeView()
                 .tabBarMaterial()
-                .tabItem { Label("Home", systemImage: "house") }
+                .tabItem { Label("Send", systemImage: "paperplane") }
                 .tag(0)
             PeersView()
                 .tabBarMaterial()
@@ -41,65 +41,50 @@ struct MainView: View {
     }
 }
 
-/// Banners, compose and history in one list.
+/// The Send tab: standard large title, compose, history (ComposeView).
 struct HomeView: View {
+    var body: some View {
+        NavigationStack {
+            ComposeView()
+                .navigationTitle("Send")
+        }
+    }
+}
+
+/// Locked, notifications-off and push-failure notices at the top of the Send tab.
+struct HomeBanners: View {
     @EnvironmentObject var model: AppModel
 
     var body: some View {
-        NavigationStack {
-            List {
-                if model.lockedLine != nil || model.notificationsOff || model.pushRegisterFailed {
-                    Section {
-                        if let line = model.lockedLine {
-                            HStack {
-                                Text(line)
-                                Spacer()
-                                Button {
-                                    model.lockedLine = nil
-                                } label: {
-                                    Image(systemName: "xmark.circle")
-                                }
-                                .buttonStyle(.borderless)
-                                .accessibilityLabel("Dismiss")
-                            }
+        if model.lockedLine != nil || model.notificationsOff || model.pushRegisterFailed {
+            Section {
+                if let line = model.lockedLine {
+                    HStack {
+                        Text(line)
+                        Spacer()
+                        Button {
+                            model.lockedLine = nil
+                        } label: {
+                            Image(systemName: "xmark.circle")
                         }
-                        if model.notificationsOff {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(S.notificationsOff).foregroundColor(.red)
-                                Button("Open notification settings") { model.openNotificationSettings() }
-                                    .buttonStyle(.borderless)
-                            }
-                        }
-                        if model.pushRegisterFailed {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Push registration failed").foregroundColor(.red)
-                                Button("Retry") { model.retryPushRegistration() }
-                                    .buttonStyle(.borderless)
-                            }
-                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Dismiss")
                     }
                 }
-                Section("Send") {
-                    ComposeView()
+                if model.notificationsOff {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(S.notificationsOff).foregroundColor(.red)
+                        Button("Open notification settings") { model.openNotificationSettings() }
+                            .buttonStyle(.borderless)
+                    }
                 }
-                HistoryView()
-            }
-            .contentMargins(.bottom, 12, for: .scrollContent)
-            .navigationTitle("PushArmor")
-            // A custom header, not a toolbar item: iOS 26 wraps bar items in a glass bubble.
-            .toolbar(.hidden, for: .navigationBar)
-            .safeAreaInset(edge: .top, spacing: 0) {
-                HStack(spacing: 8) {
-                    BrandTileView(size: 30)
-                    Wordmark(size: 22)
-                    Spacer(minLength: 0)
+                if model.pushRegisterFailed {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Push registration failed").foregroundColor(.red)
+                        Button("Retry") { model.retryPushRegistration() }
+                            .buttonStyle(.borderless)
+                    }
                 }
-                .padding(.horizontal, 20)
-                .frame(minHeight: 44)
-                .padding(.bottom, 4)
-                .background(Color(uiColor: .systemGroupedBackground))
-                .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(.isHeader)
             }
         }
     }
