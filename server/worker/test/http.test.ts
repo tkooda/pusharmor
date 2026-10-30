@@ -119,11 +119,11 @@ describe("rate limits", () => {
     expect(reg.status).toBe(200);
   });
 
-  it("limit() throwing: open for RL_IP, RL_PEER and RL_ACCT, closed for RL_MAIL / RL_MAIL_ALL / RL_CODE", async () => {
+  it("limit() throwing: open for RL_IP, RL_PEER and RL_ACCT, closed for RL_MAIL_EMAIL / RL_MAIL_IP / RL_MAIL_GLOBAL / RL_CODE", async () => {
     const p = await newPeer(randomEmail());
     const e = { ...(await testEnv()), RL_IP: throwing, RL_PEER: throwing, RL_ACCT: throwing } as Env;
     expect((await call("GET", "/v1/peers", undefined, { peer: p, env: e })).status).toBe(200);
-    for (const b of ["RL_MAIL", "RL_MAIL_ALL"] as const) {
+    for (const b of ["RL_MAIL_EMAIL", "RL_MAIL_IP", "RL_MAIL_GLOBAL"] as const) {
       const k = await keys();
       const e2 = { ...(await testEnv()), [b]: throwing } as Env;
       const r = await call("POST", "/v1/auth/email", { email: randomEmail(), sign_pub: k.signPub, purpose: "register", turnstile: "tok" }, { env: e2 });
@@ -147,8 +147,8 @@ describe("crons", () => {
     const cfg = JSON.parse(wranglerText.replace(/^\s*\/\/.*$/gm, ""));
     const got = Object.fromEntries(cfg.ratelimits.map((r: { name: string; simple: { limit: number; period: number } }) => [r.name, [r.simple.limit, r.simple.period]]));
     expect(got).toEqual({
-      RL_IP: [100, 60], RL_PEER: [60, 60], RL_MAIL: [2, 60], RL_MAIL_ALL: [100, 60],
-      RL_CODE: [5, 60], RL_PAIR: [1, 60], RL_PROBE: [2, 60], RL_CODE_ALL: [30, 60], RL_ACCT: [120, 60],
+      RL_IP: [100, 60], RL_PEER: [60, 60], RL_MAIL_EMAIL: [2, 60], RL_MAIL_IP: [10, 60], RL_MAIL_GLOBAL: [600, 60],
+      RL_CODE: [5, 60], RL_PAIR: [1, 60], RL_PROBE: [2, 60], RL_ACCT: [120, 60],
     });
     const union = /export type Binding = ([^;]+);/.exec(limitsSrc)![1].match(/RL_[A-Z_]+/g)!;
     expect([...union].sort()).toEqual(Object.keys(got).sort());

@@ -7,12 +7,12 @@ export interface Env {
   DB: D1Database;
   RL_IP: RateLimit;
   RL_PEER: RateLimit;
-  RL_MAIL: RateLimit;
-  RL_MAIL_ALL: RateLimit;
+  RL_MAIL_EMAIL: RateLimit;
+  RL_MAIL_IP: RateLimit;
+  RL_MAIL_GLOBAL: RateLimit;
   RL_CODE: RateLimit;
   RL_PAIR: RateLimit;
   RL_PROBE: RateLimit;
-  RL_CODE_ALL: RateLimit;
   RL_ACCT: RateLimit;
 
   PA_ALLOWED_PUSH_ENDPOINT_PREFIXES: string;

@@ -75,11 +75,11 @@ export async function start(c: Ctx): Promise<Response> {
   const email = normalizeEmail(b.email);
   const eh = b64urlEncode(await emailHash(email));
   // Per mailbox (+tag and Gmail dot variants share it); a limiter key only, never stored.
-  await enforce(c.env, "RL_MAIL", "mail:" + b64urlEncode(await emailHash(mailboxKey(email))), c.log);
+  await enforce(c.env, "RL_MAIL_EMAIL", "mail:" + b64urlEncode(await emailHash(mailboxKey(email))), c.log);
   // Per IP (a limiter key only, never stored): address variants from one IP share this cap.
   // IPv6 by its /64 like RL_IP, so one /64 cannot rotate source addresses (I446).
-  await enforce(c.env, "RL_MAIL", "mail" + ipKey(c.req.headers.get("CF-Connecting-IP") ?? ""), c.log);
-  await enforce(c.env, "RL_MAIL_ALL", "mail:all", c.log);
+  await enforce(c.env, "RL_MAIL_IP", "mail" + ipKey(c.req.headers.get("CF-Connecting-IP") ?? ""), c.log);
+  await enforce(c.env, "RL_MAIL_GLOBAL", "mail:all", c.log);
   const token = await makeToken(c.env.PA_TOKEN_SECRET, LABEL_REQUEST_TOKEN, { t: nowS(), e: eh, m: email, k, p: purpose, ...(cli ? { c: 1 } : {}) });
   const code = await deriveCode(c.env.PA_CODE_SECRET, token);
   const mail = mailText(purpose, code);
@@ -97,13 +97,11 @@ export async function verify(c: Ctx): Promise<Response> {
   }
   const purpose = checkPurpose(rt.p);
   if (nowS() - rt.t > REQUEST_TOKEN_LIFE_S) throw new ApiError(401, "code expired");
-  // Per request token, so wrong guesses on one token cannot lock out a later token for the same email;
-  // codeall: is the looser cap over every token of one email. It is checked before the code, so a
-  // correct guess cannot pass once the cap is spent; the limit binding has no read-only check, so
-  // this also charges the one correct guess of a register code. Keyed per purpose, so guesses on register
+  // One cap over every token of one email. It is checked before the code, so a correct guess
+  // cannot pass once the cap is spent; the limit binding has no read-only check, so this also
+  // charges the one correct guess of a register code. Keyed per purpose, so guesses on register
   // tokens cannot lock out a login or delete code for the same email (I408).
-  await enforce(c.env, "RL_CODE", "code:" + rt.e + ":" + b.request_token.slice(b.request_token.lastIndexOf(".") + 1), c.log);
-  await enforce(c.env, "RL_CODE_ALL", "codeall:" + purpose + ":" + rt.e, c.log);
+  await enforce(c.env, "RL_CODE", "code:" + purpose + ":" + rt.e, c.log);
   if (!(await checkCode(c.env.PA_CODE_SECRET, b.request_token, b.code))) throw new ApiError(401, "wrong code");
   const eh = b64urlDecode(rt.e);
   if (!eh || eh.length !== 32) throw new ApiError(401, "wrong code");

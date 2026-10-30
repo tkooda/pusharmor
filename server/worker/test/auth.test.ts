@@ -122,29 +122,29 @@ describe("POST /auth/email + verify", () => {
     expect((await startEmail(randomEmail())).r).toMatchObject({ status: 502, body: { error: "email send failed" } });
   });
 
-  it("RL_MAIL: 2 per 60 s per email_hash", async () => {
+  it("RL_MAIL_EMAIL: 2 per 60 s per email_hash", async () => {
     const email = randomEmail();
-    const e = await testEnv({ RL_MAIL: countingLimit(2) });
+    const e = await testEnv({ RL_MAIL_EMAIL: countingLimit(2) });
     expect((await startEmail(email, "register", {}, e)).r.status).toBe(200);
     expect((await startEmail(email, "register", {}, e)).r.status).toBe(200);
     expect((await startEmail(email, "register", {}, e)).r.status).toBe(429);
   });
 
-  it("RL_MAIL per IP: address variants from one IP hit the limit (I306)", async () => {
+  it("RL_MAIL_IP: address variants from one IP hit the limit (I306)", async () => {
     const k = await keys();
     const ip = "198.51.100.77";
     const st = [];
-    const e = await testEnv({ RL_MAIL: countingLimit(2) });
+    const e = await testEnv({ RL_MAIL_IP: countingLimit(2) });
     for (let i = 0; i < 3; i++) {
       st.push((await call("POST", "/v1/auth/email", { email: `v+${i}@example.com`, sign_pub: k.signPub, purpose: "register", turnstile: "t" }, { ip, env: e })).status);
     }
     expect(st).toEqual([200, 200, 429]);
   });
 
-  it("RL_MAIL per IP: IPv6 addresses in one /64 share the limit (I446)", async () => {
+  it("RL_MAIL_IP: IPv6 addresses in one /64 share the limit (I446)", async () => {
     const k = await keys();
     const st = [];
-    const e = await testEnv({ RL_MAIL: countingLimit(2) });
+    const e = await testEnv({ RL_MAIL_IP: countingLimit(2) });
     for (let i = 0; i < 3; i++) {
       const ip = `2001:db8:446:1::${(i + 1).toString(16)}:${(i * 7 + 3).toString(16)}`;
       st.push((await call("POST", "/v1/auth/email", { email: randomEmail(), sign_pub: k.signPub, purpose: "register", turnstile: "t" }, { ip, env: e })).status);
@@ -152,12 +152,12 @@ describe("POST /auth/email + verify", () => {
     expect(st).toEqual([200, 200, 429]);
   });
 
-  it("RL_MAIL per mailbox: +tag and Gmail dot variants share the per-address limit", async () => {
+  it("RL_MAIL_EMAIL per mailbox: +tag and Gmail dot variants share the per-address limit", async () => {
     const k = await keys();
     const base = randomEmail().split("@")[0];
     const variants = [`${base}.x+1@gmail.com`, `${base}x+2@googlemail.com`, `${base}.X@gmail.com`];
     const st = [];
-    const e = await testEnv({ RL_MAIL: countingLimit(2) });
+    const e = await testEnv({ RL_MAIL_EMAIL: countingLimit(2) });
     for (const email of variants) {
       st.push((await call("POST", "/v1/auth/email", { email, sign_pub: k.signPub, purpose: "register", turnstile: "t" }, { ip: freshIp(), env: e })).status);
     }
@@ -180,40 +180,30 @@ describe("POST /auth/email + verify", () => {
     expect(last).toBe(429);
   });
 
-  it("RL_CODE is per request token: 5 wrong on token A, correct code on token B -> 200 (I293)", async () => {
+  it("RL_CODE is per email over all tokens: 5 wrong on token A, then token B of the same email -> 429", async () => {
     const email = randomEmail();
     const e = await testEnv({ RL_CODE: countingLimit(5) });
     const a = await startEmail(email);
     const tokA = secretString(a.r.body.request_token as string);
     for (let i = 0; i < 5; i++) expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: "AAAAAA" }, { env: e })).status).toBe(401);
-    expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: "AAAAAA" }, { env: e })).status).toBe(429);
     const b = await startEmail(email);
     const tokB = secretString(b.r.body.request_token as string);
     const code = await deriveCode(S.PA_CODE_SECRET, tokB);
-    const r = await call("POST", "/v1/auth/email/verify", { request_token: tokB, code }, { env: e });
-    expect(r.status).toBe(200);
+    expect((await call("POST", "/v1/auth/email/verify", { request_token: tokB, code }, { env: e })).status).toBe(429);
   });
 
-  it("RL_CODE_ALL: the per-email cap over all tokens still bites (I293)", async () => {
-    const email = randomEmail();
-    const { r } = await startEmail(email);
-    const tok = r.body.request_token as string;
-    const e = { ...(await testEnv()), RL_CODE: { limit: async () => ({ success: true }) }, RL_CODE_ALL: { limit: async () => ({ success: false }) } } as Env;
-    expect((await call("POST", "/v1/auth/email/verify", { request_token: tok, code: "AAAAAA" }, { env: e })).status).toBe(429);
-  });
-
-  it("RL_CODE_ALL is checked before the code: a correct code is refused while the email cap is spent (I400)", async () => {
+  it("RL_CODE is checked before the code: a correct code is refused while the email cap is spent (I400)", async () => {
     const { r } = await startEmail(randomEmail());
     const tok = r.body.request_token as string;
-    const e = { ...(await testEnv()), RL_CODE_ALL: { limit: async () => ({ success: false }) } } as Env;
+    const e = { ...(await testEnv()), RL_CODE: { limit: async () => ({ success: false }) } } as Env;
     const code = await deriveCode(S.PA_CODE_SECRET, tok);
     expect((await call("POST", "/v1/auth/email/verify", { request_token: tok, code }, { env: e })).status).toBe(429);
   });
 
-  it("RL_CODE_ALL is per purpose: a spent register cap does not block a login code for the same email (I408)", async () => {
+  it("RL_CODE is per purpose: a spent register cap does not block a login code for the same email (I408)", async () => {
     const email = randomEmail();
     const all = countingLimit(2);
-    const e = await testEnv({ RL_CODE_ALL: all });
+    const e = await testEnv({ RL_CODE: all });
     const a = await startEmail(email, "register");
     const tokA = secretString(a.r.body.request_token as string);
     for (let i = 0; i < 2; i++) expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: "AAAAAA" }, { env: e })).status).toBe(401);
