@@ -14,6 +14,13 @@ test("normalizeEmail trims and lowercases", () => {
   assert.equal(normalizeEmail(" A@B.Com "), "a@b.com");
 });
 
+test("normalizeEmail applies the Worker address checks", () => {
+  for (const bad of ["", "@b.com", "a@", "a@b@c.com", "a b@c.com", 'a"b@c.com', "a<b@c.com", "a;b@c.com", "a\\b@c.com", "a@" + "b".repeat(253)]) {
+    assert.throws(() => normalizeEmail(bad), /bad request/, bad);
+  }
+  assert.equal(normalizeEmail("A.B+tag@Gmail.com"), "a.b+tag@gmail.com");
+});
+
 test("normalizeEmail rejects non-ASCII", () => {
   assert.throws(() => normalizeEmail("\u00c9@b.com"), /bad email/);
 });

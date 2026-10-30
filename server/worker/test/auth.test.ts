@@ -5,9 +5,9 @@ import { deriveCode } from "../src/crypto/code";
 import { utf8 } from "../src/crypto/hash";
 import { keyRef, LABEL_REQUEST_TOKEN, LABEL_TICKET, oauthNonce, openToken } from "../src/crypto/tokens";
 import { signJwt } from "../src/push/jwt";
-import { normalizeEmail } from "../src/auth/normalize";
+import { mailboxKey, normalizeEmail } from "../src/auth/normalize";
 import { mailText } from "../src/auth/email";
-import { acctOf, call, countingLimit, initP256, keys, message, mock, newPeer, onVendor, randomEmail, secretString, setAllow, testEnv, vendorRequests } from "./helpers";
+import { acctOf, call, countingLimit, freshIp, initP256, keys, message, mock, newPeer, onVendor, randomEmail, secretString, setAllow, testEnv, vendorRequests } from "./helpers";
 import { TEST_SECRETS as S } from "./secrets";
 
 beforeAll(initP256);
@@ -19,6 +19,21 @@ describe("email normalization", () => {
     expect(() => normalizeEmail("a@b\u00fc.com")).toThrow("bad email");
     expect(() => normalizeEmail("\u0130nfo@b.com")).toThrow("bad email");
     expect(normalizeEmail("x@privaterelay.appleid.com")).toBe("x@privaterelay.appleid.com");
+  });
+
+  it("address specials -> 400; identity keeps +tags and dots", () => {
+    for (const bad of ['a"b@c.com', "a<b@c.com", "a>b@c.com", "a(b@c.com", "a)b@c.com", "a,b@c.com", "a;b@c.com", "a:b@c.com", "a\\b@c.com"]) {
+      expect(() => normalizeEmail(bad), bad).toThrow();
+    }
+    expect(normalizeEmail("A.B+tag@Gmail.com")).toBe("a.b+tag@gmail.com");
+  });
+
+  it("mailboxKey: +tags dropped and Gmail dots removed, for common providers only", () => {
+    expect(mailboxKey("a.b+x@gmail.com")).toBe("ab@gmail.com");
+    expect(mailboxKey("a.b+x@googlemail.com")).toBe("ab@gmail.com");
+    expect(mailboxKey("a.b+x@outlook.com")).toBe("a.b@outlook.com");
+    expect(mailboxKey("a.b+x@example.com")).toBe("a.b+x@example.com");
+    expect(mailboxKey("+x@gmail.com")).toBe("+x@gmail.com");
   });
 });
 
@@ -110,6 +125,18 @@ describe("POST /auth/email + verify", () => {
     for (let i = 0; i < 3; i++) {
       const ip = `2001:db8:446:1::${(i + 1).toString(16)}:${(i * 7 + 3).toString(16)}`;
       st.push((await call("POST", "/v1/auth/email", { email: randomEmail(), sign_pub: k.signPub, purpose: "register", turnstile: "t" }, { ip, env: e })).status);
+    }
+    expect(st).toEqual([200, 200, 429]);
+  });
+
+  it("RL_MAIL per mailbox: +tag and Gmail dot variants share the per-address limit", async () => {
+    const k = await keys();
+    const base = randomEmail().split("@")[0];
+    const variants = [`${base}.x+1@gmail.com`, `${base}x+2@googlemail.com`, `${base}.X@gmail.com`];
+    const st = [];
+    const e = await testEnv({ RL_MAIL: countingLimit(2) });
+    for (const email of variants) {
+      st.push((await call("POST", "/v1/auth/email", { email, sign_pub: k.signPub, purpose: "register", turnstile: "t" }, { ip: freshIp(), env: e })).status);
     }
     expect(st).toEqual([200, 200, 429]);
   });
