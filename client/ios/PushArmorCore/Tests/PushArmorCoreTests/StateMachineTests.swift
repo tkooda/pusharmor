@@ -425,6 +425,57 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(try x.core.store.pairing(n.id)?.role, .x)
     }
 
+    func testPairAgainNoticeText() {
+        XCTAssertEqual(S.pairAgain("Ndev"), "Ndev wants to pair again. Tap Pair again on its row.")
+    }
+
+    func testPairAgainOnHalfStateStartsFreshPairing() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        try n.core.store.dropPin(x.id)                                     // N lost its half, pairs again
+        _ = try await n.core.startPair(x.id)
+        let commit = w.take(x.id)[0]
+        w.rows[n.id.text]!.allow = [:]
+        clock.now += 10
+        await x.core.fetchPeers(force: true)
+        let r = await x.core.receive(commit, mode: .nse)
+        XCTAssertEqual(r.banner?.body, S.pairAgain("Ndev"))
+        let before = try x.core.store.peer(n.id)!
+        XCTAssertTrue(x.core.offersPairAgain(before))                     // the row shows Pair again
+        let oldPid = before.pairingId
+        // one tap: Cancel pairing (awaited, allow withdrawn), then Pair
+        let v = try await x.core.pairAgain(n.id)
+        XCTAssertEqual(v, .sent)
+        let p = try x.core.store.peer(n.id)!
+        XCTAssertFalse(p.pinned)
+        XCTAssertNil(p.pairingId)
+        XCTAssertEqual(p.lastN, 0)
+        XCTAssertNil(p.note)
+        XCTAssertNil(try x.core.store.replay(n.id))
+        XCTAssertNil(w.rows[x.id.text]!.allow[n.id.text])
+        XCTAssertFalse(x.core.offersPairAgain(p))
+        XCTAssertEqual(try x.core.store.pairing(n.id)?.role, .n)          // new pairing started
+        XCTAssertEqual(try x.core.store.pairing(n.id)?.state, .committed)
+        // both sides hold a committed entry: the existing crossing rule settles it
+        await n.drainInbox(w)
+        if n.id < x.id {
+            clock.now += 61                                                // lower id waits; N taps Send again
+            _ = await n.core.sendAgain(x.id)
+            await x.drainInbox(w)                                          // X wipes its entry, replies
+            await n.drainInbox(w)
+            await x.drainInbox(w)
+        } else {
+            await x.drainInbox(w)                                          // N replied: X sends the open
+            await n.drainInbox(w)
+        }
+        XCTAssertEqual(try x.core.store.pairing(n.id)?.state, .shown)
+        XCTAssertEqual(try n.core.store.pairing(x.id)?.state, .shown)
+        let fp = try x.core.store.peer(n.id)!.fingerprint
+        XCTAssertNotNil(fp)
+        XCTAssertEqual(fp, try n.core.store.peer(x.id)!.fingerprint)
+        XCTAssertNotEqual(try x.core.store.peer(n.id)!.pairingId, oldPid)
+    }
+
     func testWaitingRowGets3dNoticeOnCommitFromX() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try await pairToShown(n, x)

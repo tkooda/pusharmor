@@ -12,7 +12,7 @@ public enum S {
     public static let pairCommit = "A new device wants to pair. Open PushArmor."
     public static func pairOpen(_ fp: String) -> String { "New device: compare \(fp)" }
     public static let pairReply = "Pairing fingerprint ready. Open PushArmor."
-    public static func pairAgain(_ x: String) -> String { "\(x) wants to pair again. Tap Cancel pairing on its row, then pair." }
+    public static func pairAgain(_ x: String) -> String { "\(x) wants to pair again. Tap Pair again on its row." }
     public static func pairCrossing(_ x: String) -> String { "Pairing with \(x) in progress. Open PushArmor." }
     public static func approved(_ name: String) -> String { "\(name) approved this device" }
     public static func renamed(_ old: String, _ new: String) -> String { "'\(old)' renamed to '\(new)'" }
