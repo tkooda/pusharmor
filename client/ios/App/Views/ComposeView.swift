@@ -52,6 +52,18 @@ enum SendScreenRules {
     /// (very small screens only) while Send stays pinned.
     static func chipAreaMaxHeight(keyboardUp: Bool) -> CGFloat { keyboardUp ? 118 : 320 }
 
+    /// Space the message list spends on rows and margins besides the message field itself
+    /// (top margin, row padding, caption line, "Send as text" row, bottom margin).
+    static let messageChrome: CGFloat = 150
+
+    /// Message field height bounds (F20). It starts 4 text lines tall (plus the editor's
+    /// 8 pt insets) and grows with its text until it fills the visible list area above the
+    /// pinned chips and Send; past that it scrolls inside itself.
+    static func messageHeight(lineHeight: CGFloat, visible: CGFloat) -> (min: CGFloat, max: CGFloat) {
+        let low = (lineHeight * 4 + 16).rounded()
+        return (low, max(low, (visible - messageChrome).rounded(.down)))
+    }
+
     /// Quiet line under the message: how it will arrive.
     static func caption(_ type: SendType, asText: Bool) -> (title: String, symbol: String) {
         if asText { return ("Will arrive as text", "text.alignleft") }
@@ -132,6 +144,7 @@ struct ComposeView: View {
     @State private var toAll = false
     @State private var selected: Set<String> = []
     @State private var restored = false
+    @State private var visibleHeight: CGFloat = 0
     @FocusState private var editing: Bool
 
     private var candidates: [Peer] {
@@ -183,6 +196,9 @@ struct ComposeView: View {
         }
         .contentMargins(.bottom, 12, for: .scrollContent)
         .scrollDismissesKeyboard(.interactively)
+        .onGeometryChange(for: CGFloat.self) { g in
+            g.size.height - g.safeAreaInsets.top - g.safeAreaInsets.bottom
+        } action: { visibleHeight = $0 }
         .safeAreaInset(edge: .bottom, spacing: 0) { sendBar }
         .onAppear { restoreSelection() }
         .onChange(of: candidates.map { $0.id.text }) { _, _ in restoreSelection() }
@@ -199,9 +215,11 @@ struct ComposeView: View {
 
     private var messageCard: some View {
         VStack(alignment: .leading, spacing: 6) {
+            let h = SendScreenRules.messageHeight(
+                lineHeight: UIFont.preferredFont(forTextStyle: .body).lineHeight, visible: visibleHeight)
             TextEditor(text: $text)
                 .focused($editing)
-                .frame(minHeight: 118)
+                .frame(minHeight: h.min, maxHeight: h.max)
                 .scrollContentBackground(.hidden)
                 .overlay(alignment: .topLeading) {
                     if text.isEmpty {
