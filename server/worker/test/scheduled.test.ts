@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createScheduledController, env } from "cloudflare:test";
 import { purge, PURGE_IDLE_S, PURGE_MAX_CHUNKS, scheduled } from "../src/scheduled";
 import { Log } from "../src/log";
-import { captured, testEnv } from "./helpers";
+import { captured, meterD1, testEnv } from "./helpers";
 
 const NOW = Math.floor(Date.now() / 1000);
 
@@ -42,10 +42,11 @@ describe("purge (Q159)", () => {
     await fill(250, NOW - PURGE_IDLE_S - 10, "I");
     await fill(2000, NOW, "Z");
     const log = new Log();
-    expect(await purge(await testEnv(), NOW, log)).toBe(250);
+    const m = await meterD1(async () => purge(await testEnv(), NOW, log));
+    expect(m.result).toBe(250);
     expect(log.extra.chunks).toBe(3);
     // One pass over the table per statement (2 statements per chunk), not one per chunk.
-    expect(log.rows_read).toBeLessThan(2 * 4250 + 2000);
+    expect(m.rows_read).toBeLessThan(2 * 4250 + 2000);
     const left = await env.DB.prepare("SELECT count(*) AS n FROM accounts").first<{ n: number }>();
     expect(left!.n).toBe(4000);
   });

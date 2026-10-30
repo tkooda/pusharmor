@@ -18,7 +18,7 @@ export async function send(c: Ctx): Promise<Response> {
   if (paId !== null && paId in m) throw bad();
   const s = await signedStart(c);
   requireAccount(Object.keys(m), s.acct);
-  const rows = await all<CtxRow>(c.log, c.env.DB.prepare(SQL.Q_CTX_SEND(Object.keys(m).length)).bind(s.me, s.acct, ...Object.keys(m)));
+  const rows = await all<CtxRow>(c.env.DB.prepare(SQL.Q_CTX_SEND(Object.keys(m).length)).bind(s.me, s.acct, ...Object.keys(m)));
   const byId = new Map(rows.map((r) => [r.id, r]));
   const caller = byId.get(s.me);
   await callerCheck(c, s, caller);

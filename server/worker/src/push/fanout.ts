@@ -204,8 +204,7 @@ export async function writeBack(env: Env, acct: string, out: FanoutOut, extra: D
   ];
   if (!stmts.length) return;
   try {
-    const rs = await env.DB.batch(stmts);
-    for (const r of rs) log.addMeta(r.meta);
+    await env.DB.batch(stmts);
   } catch {
     log.gone_write = "failed";
   }

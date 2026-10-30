@@ -46,9 +46,9 @@ export async function deleteAccount(c: Ctx): Promise<Response> {
   c.log.account = acct;
   requireAccount(Object.keys(m), acct);
 
-  const rows = await all<AcctRow>(c.log, c.env.DB.prepare(SQL.Q_ACCT).bind(acct));
+  const rows = await all<AcctRow>(c.env.DB.prepare(SQL.Q_ACCT).bind(acct));
   const me = rows.find((r) => r.sign_pub === signPub);
-  await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_DELALL).bind(acct), c.env.DB.prepare(SQL.W_DELACCT).bind(acct)]);
+  await batch(c.env.DB, [c.env.DB.prepare(SQL.W_DELALL).bind(acct), c.env.DB.prepare(SQL.W_DELACCT).bind(acct)]);
 
   let r: Record<string, string>;
   if (!me) {

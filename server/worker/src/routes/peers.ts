@@ -83,9 +83,7 @@ export async function register(c: Ctx): Promise<Response> {
   await enforceAccount(c.env, acct, c.log);
 
   const reg = (
-    await all<{ status: string | null; old_sign: string | null; old_enc: string | null; old_platform: string | null; old_confirmed_push: string | null; evict_found: number }>(
-      c.log,
-      c.env.DB.prepare(SQL.Q_REG).bind(acct, id, JSON.stringify(evict)),
+    await all<{ status: string | null; old_sign: string | null; old_enc: string | null; old_platform: string | null; old_confirmed_push: string | null; evict_found: number }>(c.env.DB.prepare(SQL.Q_REG).bind(acct, id, JSON.stringify(evict)),
     )
   )[0];
   if (reg.status === "banned") throw new ApiError(403, "banned");
@@ -100,9 +98,9 @@ export async function register(c: Ctx): Promise<Response> {
     // Re-register.
     if (reg.old_platform !== platform) throw bad();
     if (skipPushWrite(reg.old_confirmed_push, push)) {
-      rows = await all<ListRow>(c.log, listStmt);
+      rows = await all<ListRow>(listStmt);
     } else {
-      const rs = await batch(c.log, c.env.DB, [
+      const rs = await batch(c.env.DB, [
         c.env.DB.prepare(SQL.W_PUSH).bind(id, acct, push ? push.stored : null, push ? push.pushType : null),
         listStmt,
       ]);
@@ -117,7 +115,7 @@ export async function register(c: Ctx): Promise<Response> {
       c.env.DB.prepare(SQL.W_REG).bind(id, acct, signPub, encPub, push ? push.pushType : null, push ? push.stored : null, now, platform),
       listStmt,
     );
-    const rs = await batch(c.log, c.env.DB, stmts);
+    const rs = await batch(c.env.DB, stmts);
     const regRes = rs[rs.length - 2];
     rows = rs[rs.length - 1].results as ListRow[];
     // No change: a concurrent duplicate already inserted this peer (its row is in the list), or the limit is hit.
@@ -141,7 +139,7 @@ export async function register(c: Ctx): Promise<Response> {
 export async function list(c: Ctx): Promise<Response> {
   if (c.body.length !== 0) throw bad();
   const s = await signedStart(c);
-  const rows = await all<ListRow>(c.log, c.env.DB.prepare(SQL.Q_LIST).bind(s.me, s.acct));
+  const rows = await all<ListRow>(c.env.DB.prepare(SQL.Q_LIST).bind(s.me, s.acct));
   const self = rows.find((r) => r.id === s.me);
   await callerCheck(c, s, self);
   return json(200, withPushMissing(await listBody(rows, s.me), self!.my_push === null));
@@ -152,11 +150,11 @@ function selfPath(c: Ctx, s: { me: string }): void {
 }
 
 async function readSelf(c: Ctx, me: string, acct: string): Promise<SelfRow | undefined> {
-  return (await all<SelfRow>(c.log, c.env.DB.prepare(SQL.Q_SELF).bind(me, acct)))[0];
+  return (await all<SelfRow>(c.env.DB.prepare(SQL.Q_SELF).bind(me, acct)))[0];
 }
 
 async function readCtx(c: Ctx, me: string, acct: string, ids: string[]): Promise<{ caller?: CtxRow; byId: Map<string, CtxRow> }> {
-  const rows = await all<CtxRow>(c.log, c.env.DB.prepare(SQL.Q_CTX(ids.length)).bind(me, acct, ...ids));
+  const rows = await all<CtxRow>(c.env.DB.prepare(SQL.Q_CTX(ids.length)).bind(me, acct, ...ids));
   const byId = new Map(rows.map((r) => [r.id, r]));
   return { caller: byId.get(me), byId };
 }
@@ -173,7 +171,7 @@ export async function patch(c: Ctx): Promise<Response> {
     await callerCheck(c, s, self);
     if (push) checkPushPlatform(self!.platform as never, push);
     if (!skipPushWrite(self!.push_verified_at === null ? null : self!.push, push)) {
-      await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_PUSH).bind(s.me, s.acct, push ? push.stored : null, push ? push.pushType : null)]);
+      await batch(c.env.DB, [c.env.DB.prepare(SQL.W_PUSH).bind(s.me, s.acct, push ? push.stored : null, push ? push.pushType : null)]);
       if (push && push.pushType === 6) scheduleProbe(c, s.acct, s.me, push.fields);
     }
     return json(200, withPushMissing({}, push === null));
@@ -187,7 +185,7 @@ export async function patch(c: Ctx): Promise<Response> {
     const self = await readSelf(c, s.me, s.acct);
     await callerCheck(c, s, self);
     if (self!.platform !== "cli") throw bad();
-    if (self!.push_failed !== null) await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_LISTEN).bind(s.me, s.acct)]);
+    if (self!.push_failed !== null) await batch(c.env.DB, [c.env.DB.prepare(SQL.W_LISTEN).bind(s.me, s.acct)]);
     return json(200, withPushMissing({}, self!.push === null));
   }
   keysExactly(b, ["name", "m"]);
@@ -203,7 +201,7 @@ export async function patch(c: Ctx): Promise<Response> {
   if (kept.length) {
     const args: unknown[] = [s.me, s.acct];
     for (const [id, entry] of kept) args.push(id, entry);
-    const rs = await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_NAME(kept.length)).bind(...args)]);
+    const rs = await batch(c.env.DB, [c.env.DB.prepare(SQL.W_NAME(kept.length)).bind(...args)]);
     if (rs[0].results.length === 0) {
       if (!(await readSelf(c, s.me, s.acct))) throw new ApiError(401, "unknown peer");
       throw bad();
@@ -224,7 +222,7 @@ export async function remove(c: Ctx): Promise<Response> {
   const { caller, byId } = await readCtx(c, s.me, s.acct, [target, ...Object.keys(m)]);
   await callerCheck(c, s, caller, target === s.me);
   if (byId.has(target)) {
-    await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_DEL).bind(target, s.acct), c.env.DB.prepare(SQL.W_PRUNE).bind(target, s.acct)]);
+    await batch(c.env.DB, [c.env.DB.prepare(SQL.W_DEL).bind(target, s.acct), c.env.DB.prepare(SQL.W_PRUNE).bind(target, s.acct)]);
   }
   const r = await relayMap(c, s.acct, m, (id) => ctxRelayRow(byId.get(id)), "peerchg");
   return json(200, withPushMissing({ r }, caller!.push === null));
@@ -244,7 +242,7 @@ async function logoutCommon(c: Ctx, loggedOut: 0 | 1): Promise<Response> {
   const missing = myAllowKeys(caller!.my_allow).filter((id) => !(id in m));
   if (missing.length) throw new ApiError(400, "messages missing", { ids: missing });
   if (loggedOut === 0) await checkTicket(c, b.ticket, "login", caller!.sign_pub, s.acct);
-  await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_LOGOUT).bind(s.me, s.acct, loggedOut)]);
+  await batch(c.env.DB, [c.env.DB.prepare(SQL.W_LOGOUT).bind(s.me, s.acct, loggedOut)]);
   const r = await relayMap(c, s.acct, m, (id) => ctxRelayRow(byId.get(id)), "logout");
   return json(200, withPushMissing({ r }, caller!.push === null));
 }
@@ -274,7 +272,7 @@ export async function confirm(c: Ctx): Promise<Response> {
     ctEqualStr(b.code, await probeCode(c.env.PA_CONFIRM_SECRET, s.me, fields, w)) ||
     ctEqualStr(b.code, await probeCode(c.env.PA_CONFIRM_SECRET, s.me, fields, w - 1));
   if (!ok) throw new ApiError(401, "wrong code");
-  await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_CONFIRM).bind(s.me, s.acct, now, self!.push)]);
+  await batch(c.env.DB, [c.env.DB.prepare(SQL.W_CONFIRM).bind(s.me, s.acct, now, self!.push)]);
   return json(200, {});
 }
 

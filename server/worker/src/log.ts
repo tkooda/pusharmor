@@ -26,8 +26,6 @@ export class Log {
   peer?: string;
   body_bytes?: number;
   recipients: RecipientLog[] = [];
-  rows_read = 0;
-  rows_written = 0;
   rl?: string;
   rl_error: string[] = [];
   gone_write?: "failed";
@@ -35,12 +33,6 @@ export class Log {
   exception?: string;
   extra: Record<string, string | number> = {};
   private readonly t0 = Date.now();
-
-  addMeta(meta: { rows_read?: number; rows_written?: number } | undefined): void {
-    if (!meta) return;
-    this.rows_read += meta.rows_read ?? 0;
-    this.rows_written += meta.rows_written ?? 0;
-  }
 
   // Exceptions: class name and stack frames only, never the message text.
   setException(e: unknown): void {
@@ -65,10 +57,6 @@ export class Log {
     if (this.peer) o.peer = this.peer;
     if (this.body_bytes !== undefined) o.body_bytes = this.body_bytes;
     if (this.recipients.length) o.recipients = this.recipients;
-    if (this.rows_read || this.rows_written) {
-      o.rows_read = this.rows_read;
-      o.rows_written = this.rows_written;
-    }
     if (this.rl) o.rl = this.rl;
     if (this.rl_error.length) o["rl-error"] = this.rl_error;
     if (this.gone_write) o.gone_write = this.gone_write;
