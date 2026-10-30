@@ -87,6 +87,10 @@ nav a {
 }
 nav a:hover { color: var(--link); }
 nav a[aria-current="page"] { border-bottom-color: var(--green); font-weight: 600; }
+@media (max-width: 30rem) {
+  nav { margin: 0 -0.4rem; }
+  nav a { padding: 0 0.4rem; font-size: 0.95rem; }
+}
 
 main { padding: 1rem 0 2.5rem; }
 footer {

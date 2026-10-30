@@ -464,10 +464,11 @@ test("FAQ texts (I258, I264, I272, WEB6-04) and fixed lines", () => {
   const both = how + " " + sup;
   for (const m of ["14 days", "10 tries", "24 hours", "15 minutes"]) assert.ok(!both.includes(m), "mechanics: " + m);
   assert.ok(both.includes("wants to pair"));
-  assert.ok(both.includes("Tap Cancel pairing on its row"));
+  assert.ok(both.includes("an earlier pairing did not finish. Tap Pair again on its row."));
   assert.ok(!both.includes("Remove it on this device first"));
   assert.ok(both.includes("that device is removed from the account"));
-  assert.ok(/" ?Name wants to pair again\. Tap Cancel pairing on its row, then pair\."/.test(both), "Pair again quote closes");
+  assert.ok(/" ?Name wants to pair again"/.test(both), "Pair again quote closes");
+  assert.ok(text("security.html").includes("A notification is only a prompt: if one looks wrong, open PushArmor and read the message there."));
   assert.ok(sup.includes("On Android, each paired device has its own notification channel, so you can set sound and importance per device in the system settings."));
   assert.ok(!sup.includes("Only email addresses with plain ASCII characters are supported."));
   assert.ok(sup.includes("No email sign-in code arrived?"));
