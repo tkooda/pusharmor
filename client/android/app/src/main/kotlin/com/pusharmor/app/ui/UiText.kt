@@ -14,6 +14,9 @@ import com.pusharmor.protocol.ContentType
 object UiText {
     enum class Mark { OK, WAIT, OFF }
 
+    /** Settings > Log out asks first; the buttons are "Log out" and "Cancel". */
+    const val LOGOUT_CONFIRM = "Log out of this device? Keys, paired devices, names, and history stay on this device."
+
     /** Peer status line by priority: missing, signed out, unreachable, approves, has not approved. */
     fun status(p: Peer): Pair<Mark, String> = when {
         p.missing -> Mark.OFF to "(missing)"

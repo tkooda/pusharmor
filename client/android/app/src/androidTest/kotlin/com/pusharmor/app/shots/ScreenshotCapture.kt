@@ -221,8 +221,8 @@ class ScreenshotCapture {
         main("history", await = "Meeting moved")
         shot("05-history")
 
-        // Review images (9N, not store shots): Settings, the sign-in screens. Sign out has no confirm
-        // dialog here: the button signs out at once, so 92 sets the signed-out flag it sets.
+        // Review images (9N, not store shots): Settings, the log-in screens. Log out asks to confirm
+        // first and then calls the Worker, so 92 sets the logged-out flag that it sets.
         main("settings", await = "Log out")
         repeat(10) { shellOut("input swipe 540 1500 540 300 300"); inst.waitForIdleSync() }
         settle(1000)

@@ -48,4 +48,26 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.buttons["Hide"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Remove"].exists)
     }
+
+    func testLogOutAsksFirstAndCancelKeepsTheDevice() {
+        let app = launch()
+        let tab = app.tabBars.buttons["Settings"]
+        XCTAssertTrue(tab.waitForExistence(timeout: 30))
+        tab.tap()
+        let logOut = app.buttons["Log out"]
+        // the list is lazy: the button exists only once scrolled near
+        for _ in 0..<10 where !(logOut.exists && logOut.isHittable) { app.swipeUp() }
+        XCTAssertTrue(logOut.isHittable)
+        logOut.tap()
+        let question = app.staticTexts[
+            "Log out of this device? Keys, paired devices, names, and history stay on this device."]
+        XCTAssertTrue(question.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Log out"].exists)
+        let cancel = app.buttons["Cancel"]
+        XCTAssertTrue(cancel.exists)
+        cancel.tap()
+        XCTAssertFalse(question.waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["Log out"].exists)
+        XCTAssertTrue(app.tabBars.buttons["Settings"].exists)
+    }
 }

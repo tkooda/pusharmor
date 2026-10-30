@@ -354,6 +354,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promi
   days.addEventListener("change", save);
   const status = h("div", { class: "status", role: "status" });
   const confirmDel = h("div", { class: "confirm-inline" });
+  const confirmOut = h("div", { class: "confirm-inline" });
   const ff = st.platform === "firefox";
   const acct = add(
     h("div", { class: "txt" }),
@@ -393,17 +394,27 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promi
       "div",
       { class: "btns" },
       h("button", {
-        onclick: async () => {
-          try {
-            await rpc(env, "signout");
-            status.textContent = T.signedOut;
-          } catch (e) {
-            status.textContent = (e as Error).message;
-          }
+        onclick: () => {
+          const yes = h("button", {
+            class: "danger",
+            onclick: async () => {
+              clear(confirmOut);
+              try {
+                await rpc(env, "signout");
+                status.textContent = T.signedOut;
+              } catch (e) {
+                status.textContent = (e as Error).message;
+              }
+            },
+          }, "Log out");
+          const no = h("button", { onclick: () => clear(confirmOut) }, "Cancel");
+          clear(confirmOut).append(h("span", { role: "alert" }, T.logoutConfirm + " "), yes, no);
+          yes.focus();
         },
       }, "Log out"),
       h("button", { class: "danger", onclick: () => env.openPage("#login=delete-account") }, "Delete account"),
     ),
+    confirmOut,
     status,
   );
 }

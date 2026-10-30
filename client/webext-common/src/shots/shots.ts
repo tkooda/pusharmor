@@ -124,7 +124,11 @@ async function main(): Promise<void> {
   if (tab === "settings" || tab === "signout") {
     await new Promise((done) => setTimeout(done, 500));
     // the Log out and Delete account buttons sit at the bottom of the Settings tab
-    if (tab === "signout") [...document.querySelectorAll("button")].find((b) => b.textContent === "Log out")?.click();
+    // the first click opens the confirm; the second (the confirm's Log out) logs out
+    for (let i = 0; i < 2 && tab === "signout"; i++) {
+      [...document.querySelectorAll("button")].filter((b) => b.textContent === "Log out").pop()?.click();
+      await new Promise((done) => setTimeout(done, 300));
+    }
     await new Promise((done) => setTimeout(done, 300));
     document.querySelector(".btns")?.parentElement?.lastElementChild?.scrollIntoView({ block: "end" });
   }
