@@ -13,7 +13,7 @@ import com.pusharmor.protocol.engine.PairNoticeKind
 class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
     private val n get() = g.notifier
 
-    private fun nameOf(peerId: String): String = g.dao.peer(peerId)?.name ?: "A peer"
+    private fun nameOf(peerId: String): String = g.dao.peer(peerId)?.name ?: "A device"
 
     override fun schedulePairSend(peerId: String, replace: Boolean) = Work.pairSend(g.app, peerId, replace)
     override fun reconcileSoon() = Work.reconcile(g.app)
@@ -23,10 +23,10 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
     override fun peerChannelRename(peerId: String) = n.renamePeerChannel(peerId)
 
     override fun pairNotice(peerId: String, pk: String, kind: PairNoticeKind, fingerprint: String?) {
-        val x = g.dao.peer(peerId)?.let { it.name ?: "${platformLabel(it.platform)} peer added ${dateLabel(it.created)}" } ?: "A peer"
+        val x = g.dao.peer(peerId)?.let { it.name ?: "${platformLabel(it.platform)} device added ${dateLabel(it.created)}" } ?: "A device"
         when (kind) {
-            PairNoticeKind.COMMIT -> n.pairNotice(pk, "A new peer wants to pair. Open PushArmor.", peerId)
-            PairNoticeKind.COMPARE -> n.pairNotice(pk, "New peer: compare ${fingerprint ?: ""}", peerId)
+            PairNoticeKind.COMMIT -> n.pairNotice(pk, "A new device wants to pair. Open PushArmor.", peerId)
+            PairNoticeKind.COMPARE -> n.pairNotice(pk, "New device: compare ${fingerprint ?: ""}", peerId)
             PairNoticeKind.READY -> if (fcm) n.pairNotice(pk, "Pairing fingerprint ready. Open PushArmor.", peerId)
             PairNoticeKind.IN_PROGRESS -> if (fcm) n.pairNotice(pk, "Pairing with $x in progress. Open PushArmor.", peerId)
             PairNoticeKind.PAIR_AGAIN -> n.pairNotice(pk, "$x wants to pair again. Tap Cancel pairing on its row, then pair.", peerId, highlight = true, ok = true)
@@ -38,9 +38,9 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
     override fun invalidMessage() { if (fcm) n.notice(Notifier.INVALID) }
     override fun showContent(historyId: Long, peerId: String, content: ShownContent) = n.content(historyId, peerId, content)
     override fun rePresent(historyId: Long) = n.rePresent(historyId)
-    override fun approvedNotice(peerId: String, name: String?) = n.peersNotice("${name ?: "A peer"} approved this device", 3)
-    override fun renamedNotice(oldName: String?, newName: String) = n.peersNotice("'${oldName ?: "A peer"}' renamed to '$newName'", 4)
-    override fun peerListChanged() = n.peersNotice("Peer list changed", 5)
+    override fun approvedNotice(peerId: String, name: String?) = n.peersNotice("${name ?: "A device"} approved this device", 3)
+    override fun renamedNotice(oldName: String?, newName: String) = n.peersNotice("'${oldName ?: "A device"}' renamed to '$newName'", 4)
+    override fun peerListChanged() = n.peersNotice("Device list changed", 5)
     override fun deniedNotice(peerId: String) { if (fcm) n.notice("${nameOf(peerId)} denied this device") }
     override fun pauseNotice(peerId: String, paused: Boolean) {
         if (fcm) n.notice(if (paused) "${nameOf(peerId)} paused receiving" else "${nameOf(peerId)} resumed receiving")

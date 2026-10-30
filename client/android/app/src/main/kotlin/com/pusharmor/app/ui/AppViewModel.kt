@@ -139,7 +139,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ---- peers ----
 
     fun refresh() = io { if (!g.session.refresh()) message.value = null }
-    fun pair(id: String) = io { if (!g.pairing().tapPair(id, System.currentTimeMillis())) message.value = "Cannot pair with this peer now" }
+    fun pair(id: String) = io { if (!g.pairing().tapPair(id, System.currentTimeMillis())) message.value = "Cannot pair with this device now" }
     fun reply(id: String) = io { g.pairing().tapReply(id) }
     fun sendAgainPair(id: String) = io { g.pairing().sendAgain(id, System.currentTimeMillis()) }
     fun cancelPairing(id: String) = io { g.pairing().cancelPairing(id); g.reconcile().run() }
@@ -180,8 +180,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val sent = out.sent
         when {
             recipients.size == 1 && sent == 1 -> "Sent"
-            sent == out.total && sent == recipients.size -> "Delivered to $sent peers"
-            else -> "Sent to $sent of ${out.total} peers"
+            sent == out.total && sent == recipients.size -> "Delivered to $sent devices"
+            else -> "Sent to $sent of ${out.total} devices"
         }
     }
 

@@ -134,7 +134,7 @@ import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
 
-private fun label(p: Peer) = p.name ?: "${AppEffects.platformLabel(p.platform)} peer added ${AppEffects.dateLabel(p.created)}"
+private fun label(p: Peer) = p.name ?: "${AppEffects.platformLabel(p.platform)} device added ${AppEffects.dateLabel(p.created)}"
 
 /** Peers other than self; none until self is known, so the own device never shows as a peer. */
 internal fun others(peers: List<Peer>, selfId: String?): List<Peer> = if (selfId == null) emptyList() else peers.filter { it.id != selfId }
@@ -197,7 +197,7 @@ fun PeersScreen(vm: AppViewModel) {
     }
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            PaTopBar("Peers", actions = {
+            PaTopBar("Devices", actions = {
                 IconButton(onClick = { vm.refresh() }, enabled = canRefresh) { Icon(PaIcons.Refresh, "Refresh") }
             })
             LazyColumn(Modifier.weight(1f), state = state, contentPadding = PaddingValues(bottom = 16.dp)) {
@@ -216,13 +216,13 @@ fun PeersScreen(vm: AppViewModel) {
                 item(key = "self-header") { SectionHeader("This device") }
                 item(key = "self") { HeroCard(me?.name ?: "", plain = pairing.isNotEmpty()) { renaming = true } }
                 if (plain.isNotEmpty()) {
-                    item(key = "peers-header") { SectionHeader("Peers") }
+                    item(key = "peers-header") { SectionHeader("Devices") }
                     itemsIndexed(plain, key = { _, p -> p.id }) { i, p ->
                         PeerRow(vm, p, now, p.id == highlight, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, plain.size)) { confirmRemove = p }
                     }
                 } else if (pairing.isEmpty()) {
                     item(key = "empty") {
-                        EmptyState({ DevicesIllustration() }, "No peers yet",
+                        EmptyState({ DevicesIllustration() }, "No devices yet",
                             "Install PushArmor on your other devices and sign in with the same account. They show up here, ready to pair.", top = 52.dp) {
                             FilledTonalButton(onClick = { vm.refresh() }, enabled = canRefresh) {
                                 Icon(PaIcons.Refresh, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Refresh")
@@ -237,7 +237,7 @@ fun PeersScreen(vm: AppViewModel) {
     confirmRemove?.let { p ->
         val x = label(p)
         AlertDialog(onDismissRequest = { confirmRemove = null },
-            text = { Text("Remove $x from this account? $x must sign in again and pair with every peer again.") },
+            text = { Text("Remove $x from this account? $x must sign in again and pair with every device again.") },
             confirmButton = { TextButton(onClick = { vm.remove(p.id); confirmRemove = null }) { Text("Remove") } },
             dismissButton = { TextButton(onClick = { confirmRemove = null }) { Text("Cancel") } })
     }
@@ -250,7 +250,7 @@ private fun RenameDialog(current: String, onSave: (String) -> Unit, onDismiss: (
     var typed by remember { mutableStateOf(current) }
     val error = UiText.nameError(typed)
     AlertDialog(onDismissRequest = onDismiss,
-        text = { OutlinedTextField(typed, { typed = it.take(32) }, label = { Text("Peer name") }, singleLine = true,
+        text = { OutlinedTextField(typed, { typed = it.take(32) }, label = { Text("Device name") }, singleLine = true,
             isError = error != null, supportingText = error?.let { { Text(it) } }) },
         confirmButton = { TextButton(onClick = { onSave(typed); onDismiss() }, enabled = error == null) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
@@ -288,7 +288,7 @@ private fun HeroCard(name: String, plain: Boolean, onEdit: () -> Unit) {
 private fun Banners(vm: AppViewModel, banner: String?) {
     val context = LocalContext.current
     val n = vm.g.notifier
-    if (!n.enabled() || n.mainChannelsBlocked()) BannerRow("Notifications are off; messages will not be shown", "Fix", fault = true, PaIcons.NotificationsOff) {
+    if (!n.enabled() || n.mainChannelsBlocked()) BannerRow("Notifications are off. Messages will not be shown", "Fix", fault = true, PaIcons.NotificationsOff) {
         context.startActivity(Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
     }
     n.blockedChannelPeer(vm.peerEntities.collectAsState().value)?.let { BannerRow("Messages from $it are blocked", "Fix", fault = true, PaIcons.NotificationsOff) {
@@ -304,7 +304,7 @@ private fun Banners(vm: AppViewModel, banner: String?) {
     val s = vm.g.settings
     val upAt = s.get(Settings.K.UP_REGISTERED_AT)
     if (s.get(Settings.K.PUSH_TYPE) == "unifiedpush" && upAt != null && !s.flag(Settings.K.UP_VERIFIED, false) && System.currentTimeMillis() - upAt > 10 * 60_000) {
-        BannerRow("This push server did not deliver; check your UnifiedPush app", "Retry", fault = true, PaIcons.Info) { vm.retryPush() }
+        BannerRow("This push server did not deliver. Check your UnifiedPush app", "Retry", fault = true, PaIcons.Info) { vm.retryPush() }
         if (vm.g.push.hasPlayServices) TextButton(onClick = { vm.switchPush(toUp = false) }) { Text("Switch back to Google") }
     }
     val st = remember { try { PackageManagerCompat.getUnusedAppRestrictionsStatus(context).get(2, java.util.concurrent.TimeUnit.SECONDS) } catch (e: Exception) { 0 } }
@@ -448,7 +448,7 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
                 }
             }
             prompted -> {
-                Text("A new peer wants to pair.", style = body, color = cs.onSurfaceVariant)
+                Text("A new device wants to pair.", style = body, color = cs.onSurfaceVariant)
                 Spacer(Modifier.height(12.dp))
                 GreenButton(onClick = { vm.reply(p.id) }, text = "Reply", icon = null, modifier = Modifier.fillMaxWidth())
             }
@@ -661,7 +661,7 @@ fun HistoryScreen(vm: AppViewModel, onPeer: (String) -> Unit) {
         PaTopBar("History")
         if (rows.isEmpty()) {
             EmptyState({ MessagesIllustration() }, "No messages yet",
-                "Links and text you send or receive show up here. Share a link from any app to send it to your peers.", top = 110.dp)
+                "Everything you send or receive shows up here. Share a link from any app to send it to your devices.", top = 110.dp)
             return@Column
         }
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
@@ -818,7 +818,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
             SectionHeader("This device")
             GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
-                SettingRow("Peer name", me?.name ?: "", m, trailing = { Icon(PaIcons.Edit, null, tint = cs.onSurfaceVariant) }) { renaming = true }
+                SettingRow("Device name", me?.name ?: "", m, trailing = { Icon(PaIcons.Edit, null, tint = cs.onSurfaceVariant) }) { renaming = true }
             })
             SectionHeader("Sending")
             GroupedList(listOf<@Composable (Modifier) -> Unit>(
@@ -838,7 +838,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                     }
                 }
                 add { m ->
-                    SwitchRow("Show message content on lock screen", b(Settings.K.LOCK_SCREEN, true), sub = "When off, the lock screen shows 'New message' only",
+                    SwitchRow("Show message content on lock screen", b(Settings.K.LOCK_SCREEN, true), sub = "When off, the lock screen shows only \"New message\".",
                         modifier = m.then(pad)) { vm.setPref(Settings.K.LOCK_SCREEN, it) }
                 }
                 add { m ->
@@ -847,7 +847,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                     }
                 }
                 add { m ->
-                    SwitchRow("Send messages to watch", b(Settings.K.WATCH, true), sub = "When off, the watch gets no notice at all",
+                    SwitchRow("Send messages to watch", b(Settings.K.WATCH, true), sub = "When off, nothing is sent to your watch.",
                         modifier = m.then(pad)) { vm.setPref(Settings.K.WATCH, it) }
                 }
                 add { m -> SwitchRow("Always hide content", b(Settings.K.HIDE_CONTENT, false), modifier = m.then(pad)) { vm.setPref(Settings.K.HIDE_CONTENT, it) } }
@@ -870,7 +870,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             me?.email?.let { email ->
                 GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
                     SettingRow("Signed in as $email", modifier = m,
-                        sub = if (email.endsWith("@privaterelay.appleid.com")) "iOS Settings > Apple ID > Sign in with Apple, and appleid.apple.com > Hide My Email, list the address to use on another peer." else null,
+                        sub = if (email.endsWith("@privaterelay.appleid.com")) "iOS Settings > Apple ID > Sign in with Apple, and appleid.apple.com > Hide My Email, list the address to use on another device." else null,
                         onClick = null)
                 })
             }

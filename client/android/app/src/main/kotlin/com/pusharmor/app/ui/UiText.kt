@@ -29,8 +29,8 @@ object UiText {
     /** Send button label for [n] checked peers. */
     fun sendLabel(n: Int): String = when (n) {
         0 -> "Send"
-        1 -> "Send to 1 peer"
-        else -> "Send to $n peers"
+        1 -> "Send to 1 device"
+        else -> "Send to $n devices"
     }
 
     /** Spoken form of a fingerprint: "Pairing fingerprint K, 7, Q, D". */
@@ -51,7 +51,7 @@ object UiText {
     }
 
     /** Rename field error: null when [name] is a valid peer name (same rule and text as Session.rename). */
-    fun nameError(name: String): String? = if (NameEntry.isValidName(name)) null else "1 to 32 printable ASCII characters"
+    fun nameError(name: String): String? = if (NameEntry.isValidName(name)) null else "Use 1 to 32 plain ASCII characters."
 
     /** "1 day", "30 days". */
     fun days(d: Int): String = if (d == 1) "1 day" else "$d days"

@@ -26,8 +26,8 @@ class UiTextTest {
         assertEquals("2048 / 2048", UiText.counter(2048))
         assertEquals("Too long (2049 / 2048)", UiText.counter(2049))
         assertEquals("Send", UiText.sendLabel(0))
-        assertEquals("Send to 1 peer", UiText.sendLabel(1))
-        assertEquals("Send to 2 peers", UiText.sendLabel(2))
+        assertEquals("Send to 1 device", UiText.sendLabel(1))
+        assertEquals("Send to 2 devices", UiText.sendLabel(2))
     }
 
     @Test fun fingerprintIsReadPerCharacter() {
@@ -47,9 +47,9 @@ class UiTextTest {
     @Test fun renameFieldError() {
         assertEquals(null, UiText.nameError("Phone"))
         assertEquals(null, UiText.nameError("x".repeat(32)))
-        assertEquals("1 to 32 printable ASCII characters", UiText.nameError(""))
-        assertEquals("1 to 32 printable ASCII characters", UiText.nameError("Caf\u00e9"))
-        assertEquals("1 to 32 printable ASCII characters", UiText.nameError("x".repeat(33)))
+        assertEquals("Use 1 to 32 plain ASCII characters.", UiText.nameError(""))
+        assertEquals("Use 1 to 32 plain ASCII characters.", UiText.nameError("Caf\u00e9"))
+        assertEquals("Use 1 to 32 plain ASCII characters.", UiText.nameError("x".repeat(33)))
     }
 
     @Test fun middleEllipsisKeepsStartAndEnd() {
