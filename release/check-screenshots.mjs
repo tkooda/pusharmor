@@ -1,11 +1,12 @@
 // Store screenshot check (workflow screenshots.yml):
-//   node release/check-screenshots.mjs <android|ios|chrome> <dir> [--flatten]
+//   node release/check-screenshots.mjs <android|ios|chrome|firefox> <dir> [--flatten]
 // Every file in <dir> must be an 8-bit PNG named NN-name.png (ASCII: two digits, a dash,
 // then a-z, 0-9 and dashes), RGB with no alpha channel, not one single color, in a size
 // and count the store takes:
 //   android  2-8 at 1080x1920 (Google Play phone)
 //   ios      3-10 at 1320x2868 or 1290x2796 (App Store 6.9" / 6.7" iPhone)
 //   chrome   1-5 at 1280x800 (Chrome Web Store)
+//   firefox  1-5 at 1280x800 (addons.mozilla.org)
 // --flatten first rewrites each RGBA PNG as RGB, composited over white.
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -16,6 +17,7 @@ export const RULES = {
   android: { min: 2, max: 8, sizes: [[1080, 1920]] },
   ios: { min: 3, max: 10, sizes: [[1320, 2868], [1290, 2796]] },
   chrome: { min: 1, max: 5, sizes: [[1280, 800]] },
+  firefox: { min: 1, max: 5, sizes: [[1280, 800]] },
 };
 const SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const NAME = /^[0-9]{2}-[a-z0-9-]+\.png$/;
@@ -109,7 +111,7 @@ export function flattenPng(buf) {
 /** Problems with the screenshots in dir for platform; an empty list passes. */
 export function checkDir(platform, dir) {
   const rule = RULES[platform];
-  if (!rule) return ["unknown platform " + JSON.stringify(platform) + " (android, ios or chrome)"];
+  if (!rule) return ["unknown platform " + JSON.stringify(platform) + " (android, ios, chrome or firefox)"];
   const bad = [];
   const files = readdirSync(dir).sort();
   for (const f of files) {
@@ -144,7 +146,7 @@ export function checkDir(platform, dir) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [platform, dir] = process.argv.slice(2).filter((a) => a !== "--flatten");
   if (!platform || !dir) {
-    console.error("usage: node release/check-screenshots.mjs <android|ios|chrome> <dir> [--flatten]");
+    console.error("usage: node release/check-screenshots.mjs <android|ios|chrome|firefox> <dir> [--flatten]");
     process.exit(2);
   }
   if (process.argv.includes("--flatten")) {
