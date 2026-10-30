@@ -13,7 +13,7 @@ struct MainView: View {
                 .tag(0)
             PeersView()
                 .tabBarMaterial()
-                .tabItem { Label("Peers", systemImage: "person.2") }
+                .tabItem { Label("Devices", systemImage: "person.2") }
                 .tag(1)
             SettingsView()
                 .tabBarMaterial()

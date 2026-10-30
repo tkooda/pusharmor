@@ -78,8 +78,8 @@ public struct Peer: Sendable {
     /// Member of "All" (catalog Pairing flow, the one definition).
     public var inAll: Bool { pinned && state == .approved && approvesMe && !hidden && !paused && !missing }
 
-    /// $name / $X in notices: the peer name if known, else "A peer".
-    public var noticeName: String { name ?? "A peer" }
+    /// $name / $X in notices: the peer name if known, else "A device".
+    public var noticeName: String { name ?? "A device" }
 
     init(id: PeerId) {
         self.id = id

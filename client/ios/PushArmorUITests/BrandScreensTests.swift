@@ -17,12 +17,12 @@ final class BrandScreensTests: XCTestCase {
 
     func testSendButtonCountsSelectedPeers() {
         let app = launch()
-        XCTAssertTrue(app.buttons["Send to 1 peer"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Send to 1 device"].waitForExistence(timeout: 30))
     }
 
     func testPairingCardShowsTheFingerprintCells() {
         let app = launch(["-PAScreenshotsPairing"])
-        let tab = app.tabBars.buttons["Peers"]
+        let tab = app.tabBars.buttons["Devices"]
         XCTAssertTrue(tab.waitForExistence(timeout: 30))
         tab.tap()
         let cells = app.descendants(matching: .any)["Pairing fingerprint K, 7, Q, D"]
@@ -34,7 +34,7 @@ final class BrandScreensTests: XCTestCase {
 
     func testUnpairedPeerActionsHaveAVisibleButton() {
         let app = launch(["-PAScreenshotsPairing"])
-        let tab = app.tabBars.buttons["Peers"]
+        let tab = app.tabBars.buttons["Devices"]
         XCTAssertTrue(tab.waitForExistence(timeout: 30))
         tab.tap()
         let more = app.buttons["More actions"]

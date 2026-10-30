@@ -47,7 +47,7 @@ struct SettingsView: View {
 
                 let hidden = model.peers.filter { $0.hidden }
                 if !hidden.isEmpty {
-                    Section("Hidden peers") {
+                    Section("Hidden devices") {
                         ForEach(hidden, id: \.id.text) { p in
                             HStack {
                                 Text(model.label(p))
@@ -98,17 +98,17 @@ struct SettingsView: View {
                 Section {
                     Toggle(S.lockScreenSwitch, isOn: boolBinding(SettingKey.lockShow, true))
                         .tint(.brandGreen)
-                    Text("Uses iOS Show Previews: set it to When Unlocked to hide content on the lock screen. The Apple Watch shows notices while the iPhone is locked, so it follows this choice. This switch " + S.lockScreenHelp + "; use Always hide content for the rest.")
+                    Text("Follows the iOS Show Previews setting. Set it to When Unlocked to hide content on the lock screen. Your Apple Watch follows this choice. To hide content at all times, turn on Always hide content.")
                         .font(.caption).foregroundColor(.secondaryText)
                     Toggle(S.alwaysHide, isOn: boolBinding(SettingKey.alwaysHide, false))
                         .tint(.brandGreen)
-                    Text("Every notice shows \"New message from $peer\" with no content.")
+                    Text("Every notification shows \"New message from\" and the device name, with no content.")
                         .font(.caption).foregroundColor(.secondaryText)
                 }
 
                 Section("Account") {
                     if confirmSignOut {
-                        Text("Sign out of this device? Keys, pins, names and history stay on this device.")
+                        Text("Sign out of this device? Keys, paired devices, names and history stay on this device.")
                         HStack {
                             Button("Sign out", role: .destructive) {
                                 confirmSignOut = false
@@ -137,7 +137,7 @@ struct SettingsView: View {
 
                 Section("About") {
                     LabeledContent("Version", value: version)
-                    Text("Licence: MIT")
+                    Text("License: MIT")
                     if let u = URL(string: "https://github.com/pusharmor/pusharmor") {
                         Link("Source", destination: u)
                     }
