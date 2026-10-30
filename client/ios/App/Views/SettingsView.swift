@@ -150,6 +150,12 @@ struct SettingsView: View {
                 }
 
                 Section("About") {
+                    HStack(spacing: 8) {
+                        BrandTileView(size: 30)
+                        Wordmark(size: 22)
+                        Spacer(minLength: 0)
+                    }
+                    .accessibilityElement(children: .combine)
                     LabeledContent("Version", value: version)
                     Text("License: MIT")
                     if let u = URL(string: "https://github.com/pusharmor/pusharmor") {
