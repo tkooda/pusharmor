@@ -475,6 +475,7 @@ test("FAQ texts (I258, I264, I272, WEB6-04) and fixed lines", () => {
   const sec = text("security.html");
   assert.ok(read("security.html").includes('<th scope="col">Cannot see</th>'));
   assert.ok(!sec.includes("Does not see"));
+  assert.ok(sec.includes("commits to its values (by sending only their SHA-256 hash) before seeing the other's"));
   assert.ok(sec.includes("The push service and our relay server can show a notification with text of their choosing on every platform; verified content appears only after your device decrypts it."));
   assert.ok(sec.includes("The push service sees the size of a message (padded to a few standard sizes), not its content."));
   const del = text("delete-account.html");
