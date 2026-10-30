@@ -26,7 +26,8 @@
     "PA_OAUTH_REDIRECT_FIREFOX": "Firefox OAuth redirect URL",
     "PA_OAUTH_REDIRECT_ANDROID": "Android OAuth redirect URL",
     "PA_OAUTH_REDIRECT_WEB": "web OAuth redirect URL",
-    "PA_WEB_ORIGINS": "JSON list of web origins allowed by CORS"
+    "PA_WEB_ORIGINS": "JSON list of web origins allowed by CORS",
+    "PA_LOG_SAMPLE": "share of plain-success and 429 request log lines kept (0..1); errors are always logged"
   },
   "cloudflare_secrets": {
     "PA_ID_SECRET": "HMAC key for account ids",
