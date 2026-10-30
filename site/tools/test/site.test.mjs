@@ -43,7 +43,7 @@ function siteFiles() {
 
 test("every site file is ASCII", () => {
   for (const rel of siteFiles()) {
-    if (/\.(png|ico)$/.test(rel)) continue; // binary images
+    if (/\.(png|ico|webp)$/.test(rel)) continue; // binary images
     const buf = readFileSync(join(SITE, rel));
     const bad = buf.findIndex((b) => b > 127);
     assert.equal(bad, -1, rel + " has a non-ASCII byte at " + bad);
@@ -428,20 +428,21 @@ test("fdroid/android.txt: 2 lines, versionName then versionCode", () => {
   assert.match(lines[1], /^\d+$/);
 });
 
-test("retention: 4 weeks on /privacy and /delete-account; stored list", () => {
+test("retention: 4 weeks on /privacy; stored list", () => {
   assert.ok(text("privacy.html").includes("4 weeks"));
-  assert.ok(text("delete-account.html").includes("4 weeks"));
   const p = text("privacy.html");
   for (const s of ["platform", "paused", "approve messages", "last-active month",
     "We will never sell or share your data. The services below run parts of PushArmor for us and only ever see the minimum needed to do their part.",
-    "We do not store your email address. We keep only a one-way code made from it, which cannot be turned back into the address."]) {
+    "We do not store your email address. We keep only a one-way hash of it, which cannot be turned back into the address.",
+    "If an address is banned for abuse, we store its account ID so it stays banned, even after the account is deleted.",
+    "PushArmor is operated by Ion Echo, LLC at PushArmor.com."]) {
     assert.ok(p.includes(s), "privacy lacks: " + s);
   }
   for (const s of ["rate limiter", "server database", "peer row", "1 minute"]) assert.ok(!p.includes(s), "privacy has server detail: " + s);
 });
 
 test("minimum age 13 on /terms and /privacy (Q227 A)", () => {
-  assert.ok(text("terms.html").includes("You must be at least 13 to use PushArmor."));
+  assert.ok(text("terms.html").includes("You must be at least 13 years old to use PushArmor."));
   assert.ok(text("privacy.html").includes("PushArmor is for people aged 13 and over."));
 });
 
@@ -468,11 +469,19 @@ test("FAQ texts (I258, I264, I272, WEB6-04) and fixed lines", () => {
   assert.ok(both.includes("that device is removed from the account"));
   assert.ok(/" ?Name wants to pair again\. Tap Cancel pairing on its row, then pair\."/.test(both), "Pair again quote closes");
   assert.ok(sup.includes("On Android, each paired device has its own notification channel, so you can set sound and importance per device in the system settings."));
-  assert.ok(sup.includes("Only email addresses with plain ASCII characters are supported."));
+  assert.ok(!sup.includes("Only email addresses with plain ASCII characters are supported."));
+  assert.ok(sup.includes("No email sign-in code arrived?"));
   const sec = text("security.html");
   assert.ok(sec.includes("The push service and our relay server can show a notification with text of their choosing on every platform; verified content appears only after your device decrypts it."));
   assert.ok(sec.includes("The vendor sees the size of a message (padded to a few standard sizes, called size buckets) and its urgency level, not its content."));
-  assert.ok(text("delete-account.html").includes("Deleted at once: all your devices, with their keys, names and the addresses they use to receive notifications (push tokens). Kept: a one-way code made from your email address (a keyed hash) with its ban flag, for banned accounts only, so a banned address stays banned; undelivered pushes at the vendors, up to 7 days (pairing requests up to 4 weeks); copies on your other devices. No login to this site is needed."));
+  const del = text("delete-account.html");
+  for (const s of ["You can also delete your account from the apps.",
+    "Deleted right away: all your devices, with their keys, names, and notification addresses.",
+    "Not deleted: messages already on your other devices, and messages still waiting to be delivered, which expire within 7 days.",
+    "If the address was banned for abuse, we store its account ID so it stays banned."]) {
+    assert.ok(del.includes(s), "delete-account lacks: " + s);
+  }
+  for (const s of ["one-way code", "keyed hash", "ban flag", "vendors", "4 weeks", "No login"]) assert.ok(!del.includes(s), "delete-account jargon: " + s);
   assert.ok(text("auth/done.html").includes("Returning to PushArmor... If this tab stays open, the add-on did not receive the sign-in: check it is enabled, then retry"));
 });
 

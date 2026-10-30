@@ -4,17 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PushArmor - end-to-end encrypted push between your devices</title>
-<meta name="description" content="Send links and notes between your own devices. All of your data is always end-to-end encrypted. Free and open source, for Android, iPhone, Chrome and Firefox.">
+<meta name="description" content="Send links and notes between your own devices. All of your data is always end-to-end encrypted. Free and open source, for Android, iPhone, Chrome, and Firefox.">
 <meta name="theme-color" content="#1F3A5F">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="PushArmor">
 <meta property="og:title" content="PushArmor - end-to-end encrypted push between your devices">
-<meta property="og:description" content="Send links and notes between your own devices. All of your data is always end-to-end encrypted. Free and open source, for Android, iPhone, Chrome and Firefox.">
+<meta property="og:description" content="Send links and notes between your own devices. All of your data is always end-to-end encrypted. Free and open source, for Android, iPhone, Chrome, and Firefox.">
 <meta property="og:url" content="https://pusharmor.com/">
 <meta property="og:image" content="https://pusharmor.com/apple-touch-icon.png">
 <link rel="icon" href="/favicon.ico" sizes="any" integrity="sha256-WBRVm+oTUTpG8HdmRjQYXSzTkCjwYCVj5PZdJQP73qM=">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" integrity="sha256-TQcTrShS2zw2E6zqzKq9Tlfqd9GGyBSjl/LTQvTeJY8=">
-<link rel="stylesheet" href="/css/site.css" integrity="sha256-lqi51+gq3Lv13m725e9rMXjW4osknrDRTQmBZT+NyhM=">
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-bxA6j7iTServtuLcPR/gleYJ3DJYYlW/u2VggVRiWbI=">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -25,10 +25,10 @@
 <main id="main">
 <section class="hero">
 <h1>Send links and notes between your own devices, always end-to-end encrypted.</h1>
-<p class="lead">PushArmor runs on Android, iPhone, Chrome and Firefox. Pair your devices once,
+<p class="lead">PushArmor runs on Android, iPhone, Chrome, and Firefox. Pair your devices once,
 then send a link or a short note from one to another, or to all of them.</p>
 <p class="cta"><a class="button primary" href="/download">Get PushArmor</a> <a class="button secondary" href="/how-to">How it works</a></p>
-<p class="note">Free and open source. Coming soon to the app stores.</p>
+<p class="note">Free and open source. Coming soon to the app stores. <a href="/about">See the apps</a>.</p>
 </section>
 
 <figure class="diagram">
@@ -70,30 +70,24 @@ encrypted, and can never be read by the server or anyone else.</p>
 <div class="card">
 <svg class="icon" width="32" height="32" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="2" y="4" width="14" height="10" rx="1.5"/><path d="M5 18 H13"/><rect x="17" y="8" width="5" height="12" rx="1.5"/></svg>
 <h2>Your own devices only</h2>
-<p>Messages can only ever be read by the devices you paired on your own account, after you
-compare a short fingerprint. There are no contacts and no strangers.</p>
+<p>Messages can only ever be read by the devices you paired on your own account. You pair
+each new device once, by checking that both screens show the same short fingerprint. There are
+no contacts and no strangers.</p>
 </div>
 <div class="card">
 <svg class="icon" width="32" height="32" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 7 L3 12 L8 17"/><path d="M16 7 L21 12 L16 17"/><path d="M14 4 L10 20"/></svg>
 <h2>Free and open source</h2>
-<p>No ads, no analytics, no tracking. The full source code is on
+<p>No ads, no analytics, no tracking. We will never sell or share your data. The full source code is on
 <a href="https://github.com/tkooda/pusharmor">GitHub</a> under the MIT license.</p>
 </div>
 </section>
 
-<h2>End-to-end encryption in one screen</h2>
-<ul>
-<li>Each device makes its own keys. The private keys never leave the device.</li>
-<li>Before two devices trust each other, you compare a 4-character pairing fingerprint on both
-screens. If it matches, the pairing is genuine.</li>
-<li>Each message is encrypted on the sending device for the receiving device and signed by the
-sender. Only your receiving device can ever read it.</li>
-<li>Our relay server (hosted on Cloudflare) and the push services only ever carry encrypted data and
-can never read your messages. Your devices check every signature and drop old or repeated messages.</li>
-<li>We do not store your email address, only a one-way code made from it. That code is your account
-id: it puts all your devices in one account.</li>
-</ul>
-<p>Read the <a href="/security">threat model</a> for what each party can and cannot see.</p>
+<section class="callout">
+<h2>How PushArmor keeps your messages private</h2>
+<p>See how each message is protected, what our relay server and the push services can see,
+and how your devices check each other.</p>
+<p><a class="button primary" href="/security">Read the security page</a></p>
+</section>
 
 </main>
 <footer>
