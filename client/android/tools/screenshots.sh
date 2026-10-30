@@ -8,7 +8,12 @@
 set -euo pipefail
 out="${1:?usage: $0 <out-dir>}"
 pkg=com.pusharmor
+# A freshly booted emulator often shows "Pixel Launcher isn't responding" over every shot: hide
+# error dialogs, and stop the home app so a dialog that is already up goes away.
+adb shell settings put global hide_error_dialogs 1
 ./gradlew --no-daemon --stacktrace :app:installPlayDebug :app:installPlayDebugAndroidTest
+home="$(adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME | tail -n 1 | cut -d/ -f1 | tr -d '\r')"
+[ -n "$home" ] && adb shell am force-stop "$home" || true
 adb shell svc wifi disable || true
 adb shell svc data disable || true
 adb shell settings put global sysui_demo_allowed 1
