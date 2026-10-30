@@ -69,6 +69,8 @@ async function init(): Promise<void> {
 }
 
 let ready = init();
+// a failed start is tried again by the next use (message, alarm or push)
+const whenReady = () => (ready = ready.catch(() => init()));
 
 // timer drift above 60 s (laptop sleep) or "online": reconnect at once
 let lastTick = Date.now();
@@ -80,7 +82,7 @@ setInterval(() => {
 addEventListener("online", () => autopush?.reconnectNow());
 
 async function extra(msg: Req): Promise<unknown> {
-  await (ready = ready.catch(() => init())); // a failed start is tried again by the next message
+  await whenReady();
   const { engine } = await boot();
   const a = msg.args ?? {};
   if (msg.op === "fx-sub") {
@@ -112,7 +114,7 @@ browser.runtime.onMessage.addListener(
 );
 browser.notifications.onClicked.addListener(onNotificationClick(browser, boot));
 browser.alarms.onAlarm.addListener((a) => {
-  void ready.then(boot).then(async ({ engine }) => {
+  void whenReady().then(boot).then(async ({ engine }) => {
     if (a.name === "fetch") await engine.onFetchAlarm();
     else if (a.name.startsWith("pair:")) {
       const id = a.name.slice(5);
@@ -121,7 +123,7 @@ browser.alarms.onAlarm.addListener((a) => {
     }
   });
 });
-browser.runtime.onStartup.addListener(() => void ready);
+browser.runtime.onStartup.addListener(() => void whenReady());
 browser.runtime.onInstalled.addListener((d) => {
   // the site SW fallback is set up at install, on desktop and on Android
   if (d.reason === "install") void browser.tabs.create({ url: SETUP_URL, active: true });
@@ -131,7 +133,7 @@ browser.webRequest?.onBeforeRequest.addListener(
     const r = readForward(d);
     if (r.m !== null) {
       const m = r.m;
-      void ready.then(boot).then(({ engine }) => engine.receive(m, "push"));
+      void whenReady().then(boot).then(({ engine }) => engine.receive(m, "push"));
     }
     return r.cancel ? { cancel: true } : {};
   },
