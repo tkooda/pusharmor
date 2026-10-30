@@ -86,3 +86,20 @@ test("popup tabs are a full tab widget; headings, main landmark, reduced motion"
   for (const f of ["popup.html", "page.html"]) assert.match(rd(f), /<main id="app">/);
   assert.match(rd("style.css"), /prefers-reduced-motion: reduce/);
 });
+
+test("focus moves sensibly on view change, dialogs and errors", async () => {
+  const { readFileSync } = await import("node:fs");
+  const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
+  const page = rd("page.ts");
+  assert.match(page, /heading\.focus\(\)/); // done step and limit view
+  assert.match(page, /h\("h1", \{ tabindex: "-1" \}/);
+  const peers = rd("peersview.ts");
+  assert.match(peers, /await redraw\(msg, p\.id\)/); // focus returns to the row after an action
+  assert.match(peers, /\.sh"\)\)\?\.focus\(\)/); // or the first heading when the row is gone
+  assert.match(peers, /edit\.focus\(\)/); // after Rename
+  assert.match(peers, /\.keep"\)\?\.focus\(\)/); // remove confirm
+  const pop = rd("popup.ts");
+  assert.match(pop, /yes\.focus\(\)/); // delete all history confirm
+  assert.match(pop, /"aria-label": "Unread"/);
+  assert.match(pop, /content\.addEventListener\("keydown"/); // keyboard marks read
+});

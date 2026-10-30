@@ -28,16 +28,17 @@ const inMenu = (p: PeerView, a: string): boolean => MENU.has(a) || (a === "cance
 const rank = (a: string): number => (ACTION_ORDER.indexOf(a) + 1 || ACTION_ORDER.length + 1);
 
 /** Draws the list again; a message is announced in the new status region. */
-type Redraw = (message?: string) => Promise<void>;
+type Redraw = (message?: string, focusId?: string) => Promise<void>;
 
-export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, highlight?: string, message?: string): Promise<void> {
+export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, highlight?: string, message?: string, focusId?: string): Promise<void> {
   const status = h("div", { class: "status", role: "status" });
   const [data, st] = await Promise.all([
     rpc<{ self: { id: string; name: string } | null; peers: PeerView[] }>(env, "peers"),
     rpc<StateView>(env, "state"),
   ]);
   clear(root);
-  const redraw: Redraw = (msg) => renderPeers(env, root, full, undefined, msg);
+  // focusId: the list was rebuilt after an action, so put focus back on that row (or the first heading if it is gone).
+  const redraw: Redraw = (msg, focusId) => renderPeers(env, root, full, undefined, msg, focusId);
   const pairing = data.peers.filter((p) => p.fingerprint);
   for (const p of pairing) root.append(pairCard(env, p, status, redraw));
   if (data.self) root.append(sh("This device"), ownCard(env, data.self.name, st.platform, pairing.length > 0, status));
@@ -59,6 +60,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
     row?.scrollIntoView({ block: "center" });
     row?.classList.add("pulse");
   }
+  if (focusId !== undefined) (document.getElementById("peer-" + focusId) ?? root.querySelector<HTMLElement>(".sh"))?.focus();
   const refresh = h("button", { class: "quiet" }, icon("refresh", 18), h("span", { class: "lbl" }, "Refresh")) as HTMLButtonElement;
   refresh.addEventListener("click", async () => {
     greyFor(refresh, 60_000);
@@ -77,7 +79,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
 /** This device: the navy hero, or the plain variant while a pairing card shows. */
 function ownCard(env: UiEnv, name: string, platform: string, plain: boolean, status: HTMLElement): HTMLElement {
   const card = h("div", { class: "own hero" + (plain ? " plain" : "") });
-  const show = (nm: string) => {
+  const show = (nm: string, refocus = false) => {
     const edit = h("button", { class: "quiet ib", "aria-label": "Rename", title: "Rename" }, icon("edit", 20));
     edit.addEventListener("click", () => editing(nm));
     card.classList.remove("editing");
@@ -87,6 +89,7 @@ function ownCard(env: UiEnv, name: string, platform: string, plain: boolean, sta
       h("div", { class: "txt" }, h("div", { class: "t1 name" }, nm), h("div", { class: "t2" }, platformLabel(platform) + ", this device")),
       edit,
     );
+    if (refocus) edit.focus();
   };
   const editing = (nm: string) => {
     const input = h("input", { value: nm, maxlength: "32", "aria-label": "Name of this device" }) as HTMLInputElement;
@@ -97,7 +100,7 @@ function ownCard(env: UiEnv, name: string, platform: string, plain: boolean, sta
           try {
             await rpc(env, "rename", { name: input.value });
             status.textContent = "Renamed";
-            show(input.value);
+            show(input.value, true);
           } catch (e) {
             status.textContent = (e as Error).message;
           }
@@ -125,7 +128,7 @@ function menuFor(env: UiEnv, p: PeerView, box: HTMLElement, status: HTMLElement,
 
 function peerRow(env: UiEnv, p: PeerView, status: HTMLElement, redraw: Redraw): HTMLElement {
   const dim = p.greyed !== null && p.greyed !== "signed out";
-  const row = h("div", { class: "prow peer" + (dim ? " off" : ""), id: "peer-" + p.id });
+  const row = h("div", { class: "prow peer" + (dim ? " off" : ""), id: "peer-" + p.id, tabindex: "-1" });
   const col = h("div", { class: "txt" });
   const head = h("div", { class: "t1 name" }, p.label + (p.hidden ? " (hidden)" : ""));
   if (p.greyed) head.addEventListener("click", () => void rpc(env, "greyedTap"));
@@ -145,7 +148,7 @@ function peerRow(env: UiEnv, p: PeerView, status: HTMLElement, redraw: Redraw): 
 
 /** Pairing card with the fingerprint plate (rendered before This device). */
 function pairCard(env: UiEnv, p: PeerView, status: HTMLElement, redraw: Redraw): HTMLElement {
-  const card = h("div", { class: "pair", id: "peer-" + p.id });
+  const card = h("div", { class: "pair", id: "peer-" + p.id, tabindex: "-1" });
   const chars = Array.from(p.fingerprint ?? "");
   const head = h(
     "div",
@@ -198,13 +201,14 @@ async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, box
             } catch (e) {
               rmsg = (e as Error).message;
             }
-            await redraw(rmsg);
+            await redraw(rmsg, p.id);
           },
         }, "Remove"),
-        h("button", { onclick: () => confirm.remove() }, "Keep"),
+        h("button", { class: "keep", onclick: () => { confirm.remove(); b.focus(); } }, "Keep"),
       ),
     );
     box.append(confirm);
+    confirm.querySelector<HTMLElement>(".keep")?.focus(); // the safe choice; the question is read with it
     return;
   }
   const op = a === "pair_again" ? "pairAgain" : a === "send_again" ? "sendAgain" : a === "approve_again" ? "approve" : a === "unhide" || a === "hide" ? "hide" : a;
@@ -218,5 +222,5 @@ async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, box
   } catch (e) {
     msg = (e as Error).message;
   }
-  await redraw(msg);
+  await redraw(msg, p.id);
 }

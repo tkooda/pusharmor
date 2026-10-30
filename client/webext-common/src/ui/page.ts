@@ -340,17 +340,19 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     if (r.done) {
       clearTimeout(tick);
       const deleted = purpose === "delete-account";
+      const heading = h("h1", { tabindex: "-1" }, deleted ? "Account deleted" : "You are signed in");
       clear(card).append(
         h("div", { class: "l-brand" }, wordmark(env, 24)),
         h(
           "div",
           { class: "step done" },
           h("div", { class: "ok" }, icon("check", 32)),
-          h("h1", {}, deleted ? "Account deleted" : "You are signed in"),
+          heading,
           h("p", { class: "sub" }, "You can close this tab."),
           h("button", { type: "button", class: "big", onclick: () => window.close() }, "Close tab"),
         ),
       );
+      heading.focus(); // the old controls are gone: read the result
     } else if (ff) {
       resetNotes(note("", "info", "Finish signing in in the new tab."));
     }
@@ -381,7 +383,8 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
   const boxes: { id: string; box: HTMLInputElement }[] = [];
   const status = h("div", { class: "status", role: "status" });
   const list = group();
-  root.append(h("h1", {}, "Device limit reached"), h("div", { class: "lead" }, "Pick devices to remove from this account, then continue."));
+  const heading = h("h1", { tabindex: "-1" }, "Device limit reached");
+  root.append(heading, h("div", { class: "lead" }, "Pick devices to remove from this account, then continue."));
   for (const p of peers) {
     const box = h("input", { type: "checkbox" }) as HTMLInputElement; // nothing pre-ticked
     boxes.push({ id: p.id, box });
@@ -407,7 +410,8 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
           const evict = boxes.filter((b) => b.box.checked).map((b) => b.id);
           try {
             const r = await rpc<LoginResult>(env, "evict", { ticket, evict });
-            if (r.done) clear(root).append(h("div", { class: "banner" }, "Signed in. You can close this tab."));
+            if (r.done) clear(root).append(h("div", { class: "banner", role: "status", tabindex: "-1" }, "Signed in. You can close this tab."));
+            if (r.done) root.querySelector<HTMLElement>(".banner")?.focus();
             else if (r.limit) limitView(env, root, r.limit, r.ticket ?? ticket);
           } catch (e) {
             status.textContent = (e as Error).message;
@@ -419,4 +423,5 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
     ),
     status,
   );
+  heading.focus();
 }
