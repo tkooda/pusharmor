@@ -23,7 +23,6 @@ import { ApiError } from "../errors";
 import { checkSig, checkTime } from "../pipeline/signed";
 import { enforceAccount } from "../pipeline/limits";
 import * as SQL from "../db/sql";
-import { dbFor } from "../db/shard";
 import { all, batch } from "../db/d1";
 import { ctxRelayRow, limitPeers, listBody, myAllowKeys, type CtxRow, type ListRow } from "../db/rows";
 import { callerCheck, checkTicket, probeCode, relayMap, scheduleProbe, signedStart, withPushMissing } from "./common";
@@ -83,11 +82,10 @@ export async function register(c: Ctx): Promise<Response> {
   if (evict.includes(id)) throw bad();
   await enforceAccount(c.env, acct, c.log);
 
-  const db = dbFor(c.env, acct);
   const reg = (
     await all<{ status: string | null; old_sign: string | null; old_enc: string | null; old_platform: string | null; old_push: string | null; evict_found: number }>(
       c.log,
-      db.prepare(SQL.Q_REG).bind(acct, id, JSON.stringify(evict)),
+      c.env.DB.prepare(SQL.Q_REG).bind(acct, id, JSON.stringify(evict)),
     )
   )[0];
   if (reg.status === "banned") throw new ApiError(403, "banned");
@@ -95,7 +93,7 @@ export async function register(c: Ctx): Promise<Response> {
   if (reg.old_sign !== null && (reg.old_sign !== signPub || reg.old_enc !== encPub)) throw new ApiError(409, "id collision");
 
   const now = nowS();
-  const listStmt = db.prepare(SQL.Q_LIST).bind(id, acct);
+  const listStmt = c.env.DB.prepare(SQL.Q_LIST).bind(id, acct);
   let rows: ListRow[];
   let pushWritten = false;
   if (reg.old_sign !== null) {
@@ -104,8 +102,8 @@ export async function register(c: Ctx): Promise<Response> {
     if (skipPushWrite(reg.old_push, push)) {
       rows = await all<ListRow>(c.log, listStmt);
     } else {
-      const rs = await batch(c.log, db, [
-        db.prepare(SQL.W_PUSH).bind(id, acct, push ? push.stored : null, push ? push.pushType : null),
+      const rs = await batch(c.log, c.env.DB, [
+        c.env.DB.prepare(SQL.W_PUSH).bind(id, acct, push ? push.stored : null, push ? push.pushType : null),
         listStmt,
       ]);
       rows = rs[1].results as ListRow[];
@@ -113,13 +111,13 @@ export async function register(c: Ctx): Promise<Response> {
     }
   } else {
     const stmts: D1PreparedStatement[] = [];
-    for (const e of evict) stmts.push(db.prepare(SQL.W_DEL).bind(e, acct), db.prepare(SQL.W_PRUNE).bind(e, acct));
+    for (const e of evict) stmts.push(c.env.DB.prepare(SQL.W_DEL).bind(e, acct), c.env.DB.prepare(SQL.W_PRUNE).bind(e, acct));
     stmts.push(
-      db.prepare(SQL.W_ACCT).bind(acct, dayStart(now), monthStart(now)),
-      db.prepare(SQL.W_REG).bind(id, acct, signPub, encPub, push ? push.pushType : null, push ? push.stored : null, now, platform),
+      c.env.DB.prepare(SQL.W_ACCT).bind(acct, dayStart(now), monthStart(now)),
+      c.env.DB.prepare(SQL.W_REG).bind(id, acct, signPub, encPub, push ? push.pushType : null, push ? push.stored : null, now, platform),
       listStmt,
     );
-    const rs = await batch(c.log, db, stmts);
+    const rs = await batch(c.log, c.env.DB, stmts);
     const regRes = rs[rs.length - 2];
     rows = rs[rs.length - 1].results as ListRow[];
     // No change: a concurrent duplicate already inserted this peer (its row is in the list), or the limit is hit.
@@ -143,8 +141,7 @@ export async function register(c: Ctx): Promise<Response> {
 export async function list(c: Ctx): Promise<Response> {
   if (c.body.length !== 0) throw bad();
   const s = await signedStart(c);
-  const db = dbFor(c.env, s.acct);
-  const rows = await all<ListRow>(c.log, db.prepare(SQL.Q_LIST).bind(s.me, s.acct));
+  const rows = await all<ListRow>(c.log, c.env.DB.prepare(SQL.Q_LIST).bind(s.me, s.acct));
   const self = rows.find((r) => r.id === s.me);
   await callerCheck(c, s, self);
   return json(200, withPushMissing(await listBody(rows, s.me), self!.my_push === null));
@@ -155,11 +152,11 @@ function selfPath(c: Ctx, s: { me: string }): void {
 }
 
 async function readSelf(c: Ctx, me: string, acct: string): Promise<SelfRow | undefined> {
-  return (await all<SelfRow>(c.log, dbFor(c.env, acct).prepare(SQL.Q_SELF).bind(me, acct)))[0];
+  return (await all<SelfRow>(c.log, c.env.DB.prepare(SQL.Q_SELF).bind(me, acct)))[0];
 }
 
 async function readCtx(c: Ctx, me: string, acct: string, ids: string[]): Promise<{ caller?: CtxRow; byId: Map<string, CtxRow> }> {
-  const rows = await all<CtxRow>(c.log, dbFor(c.env, acct).prepare(SQL.Q_CTX(ids.length)).bind(me, acct, ...ids));
+  const rows = await all<CtxRow>(c.log, c.env.DB.prepare(SQL.Q_CTX(ids.length)).bind(me, acct, ...ids));
   const byId = new Map(rows.map((r) => [r.id, r]));
   return { caller: byId.get(me), byId };
 }
@@ -176,7 +173,7 @@ export async function patch(c: Ctx): Promise<Response> {
     await callerCheck(c, s, self);
     if (push && !fitsPlatform(self!.platform as never, push.pushType)) throw bad();
     if (!skipPushWrite(self!.push, push)) {
-      await batch(c.log, dbFor(c.env, s.acct), [dbFor(c.env, s.acct).prepare(SQL.W_PUSH).bind(s.me, s.acct, push ? push.stored : null, push ? push.pushType : null)]);
+      await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_PUSH).bind(s.me, s.acct, push ? push.stored : null, push ? push.pushType : null)]);
       if (push && push.pushType === 6) scheduleProbe(c, s.acct, s.me, push.fields);
     }
     return json(200, withPushMissing({}, push === null));
@@ -194,7 +191,7 @@ export async function patch(c: Ctx): Promise<Response> {
   if (kept.length) {
     const args: unknown[] = [s.me, s.acct];
     for (const [id, entry] of kept) args.push(id, entry);
-    const rs = await batch(c.log, dbFor(c.env, s.acct), [dbFor(c.env, s.acct).prepare(SQL.W_NAME(kept.length)).bind(...args)]);
+    const rs = await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_NAME(kept.length)).bind(...args)]);
     if (rs[0].results.length === 0) {
       if (!(await readSelf(c, s.me, s.acct))) throw new ApiError(401, "unknown peer");
       throw bad();
@@ -215,7 +212,7 @@ export async function remove(c: Ctx): Promise<Response> {
   const { caller, byId } = await readCtx(c, s.me, s.acct, [target, ...Object.keys(m)]);
   await callerCheck(c, s, caller, target === s.me);
   if (byId.has(target)) {
-    await batch(c.log, dbFor(c.env, s.acct), [dbFor(c.env, s.acct).prepare(SQL.W_DEL).bind(target, s.acct), dbFor(c.env, s.acct).prepare(SQL.W_PRUNE).bind(target, s.acct)]);
+    await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_DEL).bind(target, s.acct), c.env.DB.prepare(SQL.W_PRUNE).bind(target, s.acct)]);
   }
   const r = await relayMap(c, s.acct, m, (id) => ctxRelayRow(byId.get(id)), "peerchg");
   return json(200, withPushMissing({ r }, caller!.push === null));
@@ -235,7 +232,7 @@ async function pauseCommon(c: Ctx, paused: 0 | 1): Promise<Response> {
   const missing = myAllowKeys(caller!.my_allow).filter((id) => !(id in m));
   if (missing.length) throw new ApiError(400, "messages missing", { ids: missing });
   if (paused === 0) await checkTicket(c, b.ticket, "unpause", caller!.sign_pub, s.acct);
-  await batch(c.log, dbFor(c.env, s.acct), [dbFor(c.env, s.acct).prepare(SQL.W_PAUSE).bind(s.me, s.acct, paused)]);
+  await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_PAUSE).bind(s.me, s.acct, paused)]);
   const r = await relayMap(c, s.acct, m, (id) => ctxRelayRow(byId.get(id)), "pause");
   return json(200, withPushMissing({ r }, caller!.push === null));
 }
@@ -266,7 +263,7 @@ export async function confirm(c: Ctx): Promise<Response> {
     ctEqualStr(b.code, await probeCode(c.env.PA_CONFIRM_SECRET, s.me, fields, w)) ||
     ctEqualStr(b.code, await probeCode(c.env.PA_CONFIRM_SECRET, s.me, fields, w - 1));
   if (!ok) throw new ApiError(401, "wrong code");
-  await batch(c.log, dbFor(c.env, s.acct), [dbFor(c.env, s.acct).prepare(SQL.W_CONFIRM).bind(s.me, s.acct, now, self!.push)]);
+  await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_CONFIRM).bind(s.me, s.acct, now, self!.push)]);
   return json(200, {});
 }
 

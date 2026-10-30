@@ -1,6 +1,5 @@
 import type { Env } from "../env";
 import * as SQL from "../db/sql";
-import { globalDb } from "../db/shard";
 
 // Vendor status -> result word (vendor-wrap section 6).
 export type VendorName = "fcm" | "apns" | "wp" | "up";
@@ -135,7 +134,7 @@ export async function recordHealth(env: Env, v: VendorName, ok: boolean, authFai
   try {
     if (p.hour !== hour) {
       // Left-over counts of the previous hour go out with this write.
-      if (p.auth || p.ok) stmts.push(globalDb(env).prepare(SQL.W_HEALTH_ADD).bind(v, p.hour, p.auth, p.ok));
+      if (p.auth || p.ok) stmts.push(env.DB.prepare(SQL.W_HEALTH_ADD).bind(v, p.hour, p.auth, p.ok));
       p.hour = hour;
       p.auth = 0;
       p.ok = 0;
@@ -153,14 +152,14 @@ export async function recordHealth(env: Env, v: VendorName, ok: boolean, authFai
     if (!stmts.length && !firstOk && (nowMs - p.last < HEALTH_FLUSH_MS || (!p.auth && !p.ok))) return;
     const auth = p.auth;
     const okN = p.ok;
-    if (auth || okN) stmts.push(globalDb(env).prepare(SQL.W_HEALTH_ADD).bind(v, hour, auth, okN));
+    if (auth || okN) stmts.push(env.DB.prepare(SQL.W_HEALTH_ADD).bind(v, hour, auth, okN));
     // Claimed before the await, so concurrent sends in this isolate do not all write.
     p.auth = 0;
     p.ok = 0;
     p.last = nowMs;
     try {
       if (stmts.length === 1) await stmts[0].run();
-      else if (stmts.length) await globalDb(env).batch(stmts);
+      else if (stmts.length) await env.DB.batch(stmts);
     } catch {
       // Keep the counts for the next call.
       p.auth += auth;
@@ -180,7 +179,7 @@ export async function authAlerts(env: Env, hour: number): Promise<string[]> {
 
 export async function healthSnapshot(env: Env, hour: number): Promise<Record<string, { auth: number; ok: number }>> {
   const out: Record<string, { auth: number; ok: number }> = {};
-  const rs = await globalDb(env).prepare(SQL.Q_HEALTH_HOUR).bind(hour).all<{ vendor: string; auth: number; ok: number }>();
+  const rs = await env.DB.prepare(SQL.Q_HEALTH_HOUR).bind(hour).all<{ vendor: string; auth: number; ok: number }>();
   for (const r of rs.results) out[r.vendor] = { auth: r.auth, ok: r.ok };
   return out;
 }
