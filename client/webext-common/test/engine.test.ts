@@ -58,6 +58,10 @@ test("happy path: commit, automatic reply, open, same fingerprint, approve both,
   const r = await a.e.send("hello there", false, "all");
   assert.equal(r.sent, 1);
   assert.equal(T.sentToNofM(r.sent, r.total), "Sent to 1 of 1 devices");
+  // History names the one recipient (F22).
+  const out = (await new Rpc(a.e).history()).find((x) => x.dir === "out")!;
+  assert.deepEqual(out.targets, [b.id]);
+  assert.equal(T.sentToOne(out.sender), 'Sent to "Chrome"');
   await deliver(w, b);
   const h = (await b.db.history()).find((x) => x.type === "text")!;
   assert.equal(h.content, "hello there");

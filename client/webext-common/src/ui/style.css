@@ -177,6 +177,8 @@ body.page .foot { position: static; }
 .hrow.sel, .hrow:focus-within { background: var(--s1); }
 .hmeta { display: flex; gap: 8px; font-size: 12px; line-height: 16px; color: var(--ink2); }
 .hmeta .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hmeta .who.one { display: inline-flex; white-space: pre; }
+.hmeta .who.one .nm { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .hmeta button.peerlink { display: block; height: auto; padding: 0; border: 0; background: none; color: inherit; font-weight: inherit; text-align: left; cursor: pointer; }
 .hmeta button.peerlink:hover { background: none; text-decoration: underline; }
 .hmeta button.peerlink:focus-visible { outline-offset: 1px; }
