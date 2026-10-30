@@ -7,15 +7,23 @@ import PushArmorCore
 struct PushArmorApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(AppearancePreference.storageKey) private var appearance = AppearancePreference.system.rawValue
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(delegate.model)
+                .onAppear { AppearancePreference(stored: appearance).apply() }
                 .task { await delegate.model.start() }
         }
+        .onChange(of: appearance) { _, v in
+            AppearancePreference(stored: v).apply()
+        }
         .onChange(of: scenePhase) { _, p in
-            if p == .active { Task { await delegate.model.onForeground() } }
+            if p == .active {
+                AppearancePreference(stored: appearance).apply()
+                Task { await delegate.model.onForeground() }
+            }
         }
     }
 }

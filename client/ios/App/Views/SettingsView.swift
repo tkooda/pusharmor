@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var confirmDeleteHistory = false
     @State private var confirmSignOut = false
     @State private var confirmDeleteAccount = false
+    @AppStorage(AppearancePreference.storageKey) private var appearance = AppearancePreference.system.rawValue
 
     private var dayChoices: [Int] { Array(Set([1, 7, 30, 90, 365, model.historyDays])).sorted() }
     private var email: String? { model.me?.signedInEmail }
@@ -93,6 +94,19 @@ struct SettingsView: View {
                             Text(S.relayHelp).font(.caption).foregroundColor(.secondaryText)
                         }
                     }
+                }
+
+                Section {
+                    Picker("Theme", selection: Binding(
+                        get: { AppearancePreference(stored: appearance) },
+                        set: { appearance = $0.rawValue }
+                    )) {
+                        ForEach(AppearancePreference.allCases) { Text($0.title).tag($0) }
+                    }
+                } header: {
+                    Text("Appearance")
+                } footer: {
+                    Text("Dark uses a true black background.")
                 }
 
                 Section {
