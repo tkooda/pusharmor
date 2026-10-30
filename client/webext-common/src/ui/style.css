@@ -43,6 +43,8 @@ button svg { flex: none; }
 button.primary { background: var(--green); color: var(--on-green); border: 0; box-shadow: inset 0 0 0 1px var(--cta-edge); font-weight: 600; }
 button.primary:hover { background: var(--green); filter: brightness(1.04); }
 button.big { height: 40px; width: 100%; }
+button.big .lbl { display: inline-flex; min-width: 0; white-space: pre; }
+button.big .lbl .who { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 button.quiet { border-color: transparent; padding: 0 10px; }
 button.tonal { background: var(--pc); color: var(--onpc); border-color: transparent; }
 button.danger { border-color: var(--err); color: var(--err); }

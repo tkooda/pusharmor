@@ -115,7 +115,9 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   const count = () => checks.filter((c) => on(c.chip)).length;
   const relabel = () => {
     const n = count();
-    sendLabel.textContent = n > 0 ? "Send to " + n + (n === 1 ? " device" : " devices") : "Send";
+    const one = n === 1 ? sendable.find((p) => p.id === checks.find((c) => on(c.chip))!.id) : undefined;
+    if (one) sendLabel.replaceChildren('Send to "', h("span", { class: "who" }, one.label), '"');
+    else sendLabel.textContent = n > 0 ? "Send to " + n + " devices" : "Send";
     head.textContent = sendToHeader(n, sendable.length);
     void update();
   };
