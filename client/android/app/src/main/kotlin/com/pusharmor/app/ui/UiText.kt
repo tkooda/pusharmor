@@ -42,9 +42,16 @@ object UiText {
     /** Send button label for [n] checked peers; one peer with a known [name] reads Send to "Laptop". */
     fun sendLabel(n: Int, name: String? = null): String = when (n) {
         0 -> "Send"
-        1 -> if (name == null) "Send to 1 device"
-            else "Send to \"${if (name.length > SEND_NAME_MAX) name.take(SEND_NAME_MAX - 3).trimEnd() + "..." else name}\""
+        1 -> if (name == null) "Send to 1 device" else "Send to \"${cutName(name)}\""
         else -> "Send to $n devices"
+    }
+
+    private fun cutName(name: String) = if (name.length > SEND_NAME_MAX) name.take(SEND_NAME_MAX - 3).trimEnd() + "..." else name
+
+    /** History title of a sent row (F22): reached its one device reads Sent to "Laptop", cut like the Send button; else "Sent". */
+    fun sentTitle(results: Map<String, String>, nameOf: (String) -> String): String {
+        val only = results.entries.singleOrNull()
+        return if (only?.value == "sent") "Sent to \"${cutName(nameOf(only.key))}\"" else "Sent"
     }
 
     /** Header above the device chips: "Send to (6 of 9)". */

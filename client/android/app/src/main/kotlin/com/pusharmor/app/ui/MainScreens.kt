@@ -145,6 +145,7 @@ import com.pusharmor.protocol.Peer
 import com.pusharmor.protocol.SizeCap
 import com.pusharmor.protocol.engine.PairingEngine
 import com.pusharmor.protocol.engine.PairingRow
+import com.pusharmor.store.toRow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.DateFormat
@@ -786,7 +787,7 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
     val cs = MaterialTheme.colorScheme
     val event = h.type !in CONTENT_TYPES
     val unread = !h.read && !event
-    val who = h.peerId?.let { nameOf(it) } ?: if (h.direction == "SENT") "Sent" else "Unknown sender"
+    val who = h.peerId?.let { nameOf(it) } ?: if (h.direction == "SENT") UiText.sentTitle(h.toRow().results, nameOf) else "Unknown sender"
     val time = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(h.at))
     val body = when (h.type) {
         "unreadable" -> "PushArmor received a message it could not read" + if (h.count > 1) " (${h.count})" else ""

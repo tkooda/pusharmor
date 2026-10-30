@@ -109,7 +109,9 @@ class ScreenshotCapture {
     )
 
     private fun history(dir: String, peer: String, type: String, content: String, at: Long, read: Boolean) =
-        HistoryEntity(direction = dir, peerId = peer, type = type, content = content, n = null, pairingId = null, at = at,
+        if (dir == "SENT") HistoryEntity(direction = dir, peerId = null, type = type, content = content, n = null, pairingId = null, at = at,
+            read = read, results = "{\"$peer\":\"sent\"}", count = 1) // as SendFlow stores it: no peer id, one result
+        else HistoryEntity(direction = dir, peerId = peer, type = type, content = content, n = null, pairingId = null, at = at,
             read = read, results = "{}", count = 1)
 
     private fun main(route: String? = null, await: String) {

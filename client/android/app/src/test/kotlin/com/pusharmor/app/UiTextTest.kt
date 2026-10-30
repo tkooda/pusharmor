@@ -57,6 +57,15 @@ class UiTextTest {
         assertEquals("Send to \"12345678901234567890\"", UiText.sendLabel(1, "12345678901234567890"))
     }
 
+    @Test fun sentTitleNamesTheOneRecipient() {
+        val names = mapOf("a" to "Laptop", "b" to "Android device added 2026-10-29")
+        assertEquals("Sent to \"Laptop\"", UiText.sentTitle(mapOf("a" to "sent"), names::getValue))
+        assertEquals("Sent to \"Android device ad...\"", UiText.sentTitle(mapOf("b" to "sent"), names::getValue))
+        assertEquals("Sent", UiText.sentTitle(mapOf("a" to "sent", "b" to "sent"), names::getValue))
+        assertEquals("Sent", UiText.sentTitle(mapOf("a" to "unreachable"), names::getValue))
+        assertEquals("Sent", UiText.sentTitle(emptyMap(), names::getValue))
+    }
+
     @Test fun sendScreenRules() {
         assertEquals("Send to (6 of 9)", UiText.sendToHeader(6, 9))
         assertEquals("Send to (0 of 1)", UiText.sendToHeader(0, 1))
