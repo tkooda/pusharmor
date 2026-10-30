@@ -17,10 +17,19 @@ const SHOTS = [
   ["02-peers-fingerprint", "peers"],
   ["03-history-received-link", "history"],
 ];
+// --review=<dir>: also write review images (sign-in, Settings, Sign out) there; not store shots.
+const REVIEW = [
+  ["90-signin", "signin.html#email"],
+  ["91-settings", "shots.html#settings"],
+  ["92-signout", "shots.html#signout"],
+  ["93-signin-popup", "signin.html#popup"],
+];
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".json": "application/json" };
 
 const firefox = process.argv.includes("--firefox");
-const [out, bin0] = process.argv.slice(2).filter((a) => a !== "--firefox");
+const reviewArg = process.argv.find((a) => a.startsWith("--review="));
+const reviewOut = reviewArg?.slice("--review=".length);
+const [out, bin0] = process.argv.slice(2).filter((a) => a !== "--firefox" && a !== reviewArg);
 const chrome = bin0 ?? (firefox ? process.env.FIREFOX ?? "firefox" : process.env.CHROME ?? "google-chrome");
 if (!out) {
   console.error("usage: node shots.mjs <out-dir> [--firefox] [browser binary]");
@@ -32,6 +41,7 @@ if (!existsSync(join(root, "shots.html"))) {
   process.exit(1);
 }
 mkdirSync(out, { recursive: true });
+if (reviewOut) mkdirSync(reviewOut, { recursive: true });
 
 const server = createServer((req, res) => {
   const path = decodeURIComponent(new URL(req.url ?? "/", "http://x").pathname);
@@ -46,7 +56,7 @@ const server = createServer((req, res) => {
   }
   let body = readFileSync(file);
   // Firefox draws the tab switch after the screenshot is taken; a slow image holds the load event.
-  if (firefox && path === "/shots.html") {
+  if (firefox && (path === "/shots.html" || path === "/signin.html")) {
     body = body.toString().replace("</body>", '<img src="hold.png" alt="" style="position:absolute;width:1px;height:1px;opacity:0"><style>.frame{scrollbar-width:none}</style></body>');
   }
   res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" }).end(body);
@@ -56,10 +66,17 @@ const port = server.address().port;
 
 const PIX = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
 const run = promisify(execFile);
+// ?platform=firefox (and ?ff for the sign-in page) before the #fragment
+const ffPage = (page) => {
+  const [path, hash] = page.split("#");
+  return `${path}${path.includes("?") ? "&" : "?"}platform=firefox&ff#${hash}`;
+};
 let failed = false;
-for (const [name, tab] of SHOTS) {
+const jobs = SHOTS.map(([name, tab]) => [name, "shots.html#" + tab, out]);
+if (reviewOut) jobs.push(...REVIEW.map(([name, page]) => [name, page, reviewOut]));
+for (const [name, page, dir] of jobs) {
   const profile = mkdtempSync(join(tmpdir(), "pa-shots-"));
-  const png = resolve(out, name + ".png");
+  const png = resolve(dir, name + ".png");
   try {
     if (firefox) {
       writeFileSync(join(profile, "user.js"), [
@@ -67,11 +84,11 @@ for (const [name, tab] of SHOTS) {
         ["font.name.monospace.x-western", "DejaVu Sans Mono"], ["font.default.x-western", "sans-serif"],
       ].map(([k, v]) => `user_pref("${k}", "${v}");`).join("\n") + "\n");
       await run(chrome, ["--headless", "--no-remote", "--profile", profile, "--window-size=1280,800",
-        "--screenshot", png, `http://127.0.0.1:${port}/shots.html?platform=firefox#${tab}`], { timeout: 90_000 });
+        "--screenshot", png, `http://127.0.0.1:${port}/${ffPage(page)}`], { timeout: 90_000 });
     } else await run(chrome, [
       "--headless=new", "--hide-scrollbars", "--force-device-scale-factor=1", "--window-size=1280,800",
       "--virtual-time-budget=3000", "--no-first-run", "--no-default-browser-check", "--disable-gpu",
-      "--user-data-dir=" + profile, "--screenshot=" + png, `http://127.0.0.1:${port}/shots.html#${tab}`,
+      "--user-data-dir=" + profile, "--screenshot=" + png, `http://127.0.0.1:${port}/${page}`,
     ], { timeout: 60_000 });
     console.log("wrote", png);
   } catch (e) {

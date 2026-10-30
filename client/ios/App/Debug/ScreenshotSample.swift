@@ -6,10 +6,12 @@ import PushArmorCore
 /// Store screenshot mode (debug builds only; tools/check-release-bundle.sh fails on it in a
 /// release app). The launch argument -PAScreenshots opens a sample database in the temporary
 /// directory: no App Group, no Keychain, no Core, so no Worker call. -PAScreenshotsPairing
-/// adds an open pairing; -PAScreenshotsNotify posts a local sample notification.
+/// adds an open pairing; -PAScreenshotsNotify posts a local sample notification;
+/// -PAScreenshotsSignIn opens the sign-in screen (review images only).
 enum ScreenshotSample {
     private static let args = ProcessInfo.processInfo.arguments
     static var isOn: Bool { args.contains("-PAScreenshots") }
+    static var signIn: Bool { args.contains("-PAScreenshotsSignIn") }
 
     /// Compose box prefill.
     static let draft = "https://example.com/guide/hiking-trails"

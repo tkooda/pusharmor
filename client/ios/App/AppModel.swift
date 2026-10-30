@@ -68,7 +68,7 @@ final class AppModel: ObservableObject {
             UNUserNotificationCenter.current().setNotificationCategories(BannerContent.categories())
             store = try? ScreenshotSample.makeStore()
             core = nil
-            phase = .main
+            phase = ScreenshotSample.signIn ? .signIn(.register) : .main
             reload()
             started = true
             await ScreenshotSample.notifyIfAsked()

@@ -113,11 +113,21 @@ async function main(): Promise<void> {
   if (q.has("bare")) document.documentElement.classList.add("bare");
   const tab = location.hash.slice(1) || "send";
   if (tab === "signin") state.reg = null;
+  // review images (shots.mjs --review): Settings with an account, and after Sign out
+  if (tab === "settings" || tab === "signout") state.email = "sam@example.com";
   document.getElementById("headline")!.textContent = HEADLINES[tab] ?? "";
   await mountPopup(env, document.getElementById("app")!);
   // let the first (Send) view finish drawing before switching tabs
   await new Promise((done) => setTimeout(done, 500));
-  if (tab !== "send") (document.querySelector('[data-tab="' + tab + '"]') as HTMLElement | null)?.click();
+  const open = tab === "signout" ? "settings" : tab;
+  if (open !== "send") (document.querySelector('[data-tab="' + open + '"]') as HTMLElement | null)?.click();
+  if (tab === "settings" || tab === "signout") {
+    await new Promise((done) => setTimeout(done, 500));
+    // the Sign out and Delete account buttons sit at the bottom of the Settings tab
+    if (tab === "signout") [...document.querySelectorAll("button")].find((b) => b.textContent === "Sign out")?.click();
+    await new Promise((done) => setTimeout(done, 300));
+    document.querySelector(".btns")?.parentElement?.lastElementChild?.scrollIntoView({ block: "end" });
+  }
 }
 
 void main();

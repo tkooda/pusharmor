@@ -3,7 +3,8 @@ name: screenshots
 # Store screenshots with sample data, on manual dispatch only. Each job runs the
 # debug-only screenshot mode of its client (no Worker call, generic sample peers
 # and example.com links), checks the PNGs with release/check-screenshots.mjs
-# (flattened to RGB first) and uploads them as screenshots-<platform>.
+# (flattened to RGB first) and uploads them as screenshots-<platform>. Review images of the
+# sign-in and Settings screens (names 9N-*, not store shots) go to a separate review-<platform>.
 on:
   workflow_dispatch:
 
@@ -59,13 +60,19 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot-save -noaudio -no-boot-anim
           working-directory: client/android
-          script: bash tools/screenshots.sh "${{ runner.temp }}/shots/android"
+          script: bash tools/screenshots.sh "${{ runner.temp }}/shots/android" "${{ runner.temp }}/review/android"
       - name: Check the screenshots
         run: node release/check-screenshots.mjs android "$RUNNER_TEMP/shots/android" --flatten
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: screenshots-android
           path: ${{ runner.temp }}/shots/android/
+          retention-days: 14
+          if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: review-android
+          path: ${{ runner.temp }}/review/android/
           retention-days: 14
           if-no-files-found: error
 
@@ -114,13 +121,19 @@ jobs:
           ' PushArmorCore/Package.resolved "$s/Package.resolved"
       - name: Screenshots on the simulator
         working-directory: client/ios
-        run: bash tools/screenshots.sh "$RUNNER_TEMP/shots/ios"
+        run: bash tools/screenshots.sh "$RUNNER_TEMP/shots/ios" "iPhone 17 Pro Max" "$RUNNER_TEMP/review/ios"
       - name: Check the screenshots
         run: node release/check-screenshots.mjs ios "$RUNNER_TEMP/shots/ios" --flatten
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: screenshots-ios
           path: ${{ runner.temp }}/shots/ios/
+          retention-days: 14
+          if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: review-ios
+          path: ${{ runner.temp }}/review/ios/
           retention-days: 14
           if-no-files-found: error
 
@@ -147,13 +160,19 @@ jobs:
         working-directory: client/webext-common
         run: |
           google-chrome --version
-          node shots.mjs "$RUNNER_TEMP/shots/chrome" google-chrome
+          node shots.mjs "$RUNNER_TEMP/shots/chrome" google-chrome --review="$RUNNER_TEMP/review/chrome"
       - name: Check the screenshots
         run: node release/check-screenshots.mjs chrome "$RUNNER_TEMP/shots/chrome" --flatten
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: screenshots-chrome
           path: ${{ runner.temp }}/shots/chrome/
+          retention-days: 14
+          if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: review-chrome
+          path: ${{ runner.temp }}/review/chrome/
           retention-days: 14
           if-no-files-found: error
 
@@ -184,12 +203,18 @@ jobs:
         working-directory: client/webext-common
         run: |
           firefox --version
-          node shots.mjs "$RUNNER_TEMP/shots/firefox" --firefox firefox
+          node shots.mjs "$RUNNER_TEMP/shots/firefox" --firefox firefox --review="$RUNNER_TEMP/review/firefox"
       - name: Check the screenshots
         run: node release/check-screenshots.mjs firefox "$RUNNER_TEMP/shots/firefox" --flatten
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: screenshots-firefox
           path: ${{ runner.temp }}/shots/firefox/
+          retention-days: 14
+          if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: review-firefox
+          path: ${{ runner.temp }}/review/firefox/
           retention-days: 14
           if-no-files-found: error
