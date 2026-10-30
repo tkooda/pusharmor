@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { generateKeyPairSync, verify } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { amoToken, ascToken, clearOutput, cmpVersion, commitProblems, contactProblems, listingProblems, playGateProblem, readListing, releaseAssets, releaseProblem } from "./promote.mjs";
+import { AMO_REVIEW_NOTES, amoNotesProblems, amoToken, ascToken, clearOutput, cmpVersion, commitProblems, contactProblems, listingProblems, playGateProblem, readListing, releaseAssets, releaseProblem } from "./promote.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 const WF = join(ROOT, ".github", "workflows");
@@ -263,4 +263,22 @@ test("promote check: all tags of X.Y.Z on one commit, missing platforms listed",
   const check = src.slice(src.indexOf("async function check("), src.indexOf("\n}\n", src.indexOf("async function check(")));
   assert.match(check, /commitProblems\(version, /);
   assert.match(check, /if \(same\.error\) throw new Error\(same\.error\)/);
+});
+
+// I440: the AMO listed version carries reviewer notes from the repo (no
+// credentials: the demo account stays in the Developer Hub).
+test("AMO listed version: approval notes from store/listing/amo/review_notes.txt", () => {
+  assert.equal(relative(ROOT, AMO_REVIEW_NOTES), join("store", "listing", "amo", "review_notes.txt"));
+  assert.deepEqual(amoNotesProblems(), []);
+  const notes = readFileSync(AMO_REVIEW_NOTES, "utf8");
+  assert.match(notes, /Sign in with Google/);
+  assert.match(notes, /demo account given in the Developer Hub/);
+  assert.match(notes, /Android app|second Firefox profile/);
+  assert.match(notes, /Right-click/);
+  assert.doesNotMatch(notes, /password\s*[:=]|@gmail\.com/i);
+  const src = readFileSync(join(ROOT, "release", "promote.mjs"), "utf8");
+  const ff = src.slice(src.indexOf("async function firefox("), src.indexOf("\n}\n", src.indexOf("async function firefox(")));
+  assert.match(ff, /vf\.append\("approval_notes", readFileSync\(AMO_REVIEW_NOTES, "utf8"\)\.trim\(\)\);\n {2}await amo\("POST", "\/addon\/" \+ id \+ "\/versions\/", vf\)/);
+  const check = src.slice(src.indexOf("async function check("), src.indexOf("\n}\n", src.indexOf("async function check(")));
+  assert.match(check, /\.\.\.amoNotesProblems\(\)/);
 });

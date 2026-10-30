@@ -51,6 +51,24 @@ export const LISTING = {
   },
 };
 export const SCREENSHOTS = { play: "android", appstore: "ios" };
+// Notes for the AMO reviewers, sent with each listed version (I440). No
+// credentials: the demo account stays in the AMO Developer Hub.
+export const AMO_REVIEW_NOTES = join(STORE_DIR, "listing", "amo", "review_notes.txt");
+
+/** Problems with the AMO reviewer notes; empty passes. */
+export function amoNotesProblems(file = AMO_REVIEW_NOTES) {
+  let raw;
+  try {
+    raw = readFileSync(file, "utf8");
+  } catch {
+    return ["amo/review_notes.txt: missing"];
+  }
+  const bad = [];
+  if (!raw.trim()) bad.push("amo/review_notes.txt: empty");
+  if (/[^\x09\x0a\x20-\x7e]/.test(raw)) bad.push("amo/review_notes.txt: not plain ASCII");
+  bad.push(...contactProblems(raw, "amo/review_notes.txt"));
+  return bad;
+}
 
 /** Contact data that must stay console-only (owner rule): phone numbers and
  *  any address at the project or company domains. */
@@ -251,7 +269,7 @@ async function check(version) {
   const same = commitProblems(version, commits);
   if (same.missing.length) summary("- WARNING: " + version + " has no tag for " + same.missing.join(", ") + "; every release should tag all four platforms on one commit");
   if (same.error) throw new Error(same.error);
-  const bad = [...listingProblems("play"), ...listingProblems("appstore")];
+  const bad = [...listingProblems("play"), ...listingProblems("appstore"), ...amoNotesProblems()];
   for (const b of bad) summary("- listing: " + b);
   const pub = loadPublic();
   for (const k of ["google_play_wif_provider", "google_play_wif_service_account", "google_cws_wif_provider", "google_cws_wif_service_account", "google_cws_publisher_id", "google_chrome_extension_id", "mozilla_firefox_addon_id"]) {
@@ -548,6 +566,8 @@ async function firefox(version) {
   const vf = new FormData();
   vf.append("upload", u.uuid);
   vf.append("source", new Blob([src]), "pusharmor-firefox-" + version + "-source.zip");
+  // Notes for the reviewers (I440); the demo account is in the Developer Hub.
+  vf.append("approval_notes", readFileSync(AMO_REVIEW_NOTES, "utf8").trim());
   await amo("POST", "/addon/" + id + "/versions/", vf);
   return done("Firefox " + version + ": public zip and source submitted as a listed version");
 }

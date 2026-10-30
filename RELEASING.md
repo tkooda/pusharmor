@@ -81,7 +81,7 @@ store's release Environment:
 | `play`     | Play versionCode of X.Y.Z (already on the internal track) to production, status completed; listing text and phone screenshots |
 | `appstore` | TestFlight build of X.Y.Z on the version page X.Y.Z, version page text, app name, subtitle, privacy URL, review notes, 6.9-inch screenshots; submits for App Review, release after approval |
 | `chrome`   | `pusharmor-chrome-X.Y.Z.zip` of the prerelease (hash checked) to the public item, then publish (live after review) |
-| `firefox`  | `pusharmor-firefox-X.Y.Z.zip` and the source archive of the prerelease to the listed add-on as a new listed version |
+| `firefox`  | `pusharmor-firefox-X.Y.Z.zip` and the source archive of the prerelease to the listed add-on as a new listed version, with the reviewer notes of `store/listing/amo/review_notes.txt` |
 
 Hard gate: Play stays on internal testing until BOTH repository variables
 `PLAY_CONTACT_OK` and `PLAY_PUBLIC_OK` are `yes` (Settings > Secrets and
@@ -108,7 +108,9 @@ project or company domains. Promote never sets or overwrites a contact field
 API (the test checks the payloads). Contact details, the App Review contact
 and demo account, tester lists, the age rating, App Privacy and Data safety stay in the
 store consoles. Chrome Web Store and AMO listing text stays in their
-dashboards.
+dashboards. The AMO reviewer notes (`store/listing/amo/review_notes.txt`)
+name no credentials; enter the demo account for the AMO reviewers in the
+Developer Hub.
 
 Each store job clears "Set as a pre-release" on its own GitHub release once
 its store accepts the build, or when X.Y.Z is already live or in review there.
