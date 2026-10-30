@@ -192,6 +192,19 @@ class AppLogicTest {
 
     private fun source(path: String) = java.io.File("src/main/kotlin/com/pusharmor/app/$path").readText()
 
+    @Test fun shareNeverSendsOnItsOwn() {
+        // Another app can start ShareActivity: it only hands the text to SendScreen, which sends on the Send tap alone (I445).
+        val share = source("ui/ShareActivity.kt")
+        assertTrue(share.contains("SendScreen("))
+        assertFalse(Regex("""\bsend\(""").containsMatchIn(share))
+        val main = source("ui/MainScreens.kt")
+        val sends = Regex("""vm\.send\(""").findAll(main).map { it.range.first }.toList()
+        assertEquals(1, sends.size)
+        val screen = main.indexOf("fun SendScreen(")
+        val button = main.indexOf("GreenButton(onClick", screen)
+        assertTrue(screen in 0 until button && sends[0] > button && sends[0] < main.indexOf("text = UiText.sendLabel", button))
+    }
+
     @Test fun lastSendSelectionNeverBlocksTheMainThread() {
         // The Send screen reads and saves its last selection on the main thread: only suspending DataStore calls (I434).
         for (name in listOf("lastSendTo", "saveSendTo")) {
