@@ -6,10 +6,18 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import android.view.View
+import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.compose.ui.platform.ViewRootForTest
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
 import com.pusharmor.app.PaApp
 import com.pusharmor.app.ScreenshotMode
 import com.pusharmor.app.keys.KeystoreKeyOps
@@ -66,13 +74,6 @@ class ScreenshotCapture {
     private fun roots(): List<AccessibilityNodeInfo> =
         inst.uiAutomation.windows.mapNotNull { it.root }.ifEmpty { listOfNotNull(inst.uiAutomation.rootInActiveWindow) }
 
-    /** Walks the tree: Compose's node provider does not implement findAccessibilityNodeInfosByText. */
-    private fun hasText(n: AccessibilityNodeInfo?, text: String): Boolean {
-        if (n == null) return false
-        if (n.text?.contains(text) == true || n.contentDescription?.contains(text) == true) return true
-        return (0 until n.childCount).any { hasText(n.getChild(it), text) }
-    }
-
     private fun dump(n: AccessibilityNodeInfo?, depth: Int, out: StringBuilder) {
         if (n == null) return
         out.append("  ".repeat(depth)).append(n.className).append(" text=").append(n.text)
@@ -80,11 +81,41 @@ class ScreenshotCapture {
         for (i in 0 until n.childCount) dump(n.getChild(i), depth + 1, out)
     }
 
-    /** Waits until [text] is on screen (Room reads are async); on timeout saves a debug shot, logs the tree, fails. */
+    /** Compose roots under [v]: each AndroidComposeView is a ViewRootForTest. */
+    private fun composeRoots(v: View): List<ViewRootForTest> = when (v) {
+        is ViewRootForTest -> listOf(v)
+        is ViewGroup -> (0 until v.childCount).flatMap { composeRoots(v.getChildAt(it)) }
+        else -> emptyList()
+    }
+
+    private fun nodeHas(n: SemanticsNode, text: String): Boolean =
+        n.config.getOrNull(SemanticsProperties.Text)?.any { it.text.contains(text) } == true ||
+            n.config.getOrNull(SemanticsProperties.ContentDescription)?.any { it.contains(text) } == true ||
+            n.children.any { nodeHas(it, text) }
+
+    /**
+     * True when the resumed activity's Compose semantics tree holds [text]: the list state as
+     * composed, read on the main thread, with no dependence on the accessibility node cache.
+     */
+    private fun composed(text: String): Boolean {
+        var found = false
+        inst.runOnMainSync {
+            found = ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED)
+                .flatMap { composeRoots(it.window.decorView) }
+                .any { nodeHas(it.semanticsOwner.unmergedRootSemanticsNode, text) }
+        }
+        return found
+    }
+
+    /**
+     * Waits until [text] is composed (Room reads are async): polls the Compose tree after each
+     * main-thread idle; on timeout saves a debug shot, logs the accessibility tree, fails.
+     */
     private fun awaitText(text: String, timeoutMs: Long = 15_000) {
         val end = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < end) {
-            if (roots().any { hasText(it, text) }) return
+            inst.waitForIdleSync()
+            if (composed(text)) return
             Thread.sleep(250)
         }
         val tree = StringBuilder()
