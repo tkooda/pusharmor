@@ -11,7 +11,6 @@ import {
   isId,
   keysExactly,
   requireAccount,
-  storedWithoutVerified,
   type PushValue,
 } from "../codec/validate";
 import { parseJsonObject } from "../pipeline/body";
@@ -34,6 +33,7 @@ interface SelfRow {
   platform: string;
   push_type: number | null;
   push: string | null;
+  push_verified_at: number | null;
   push_missing: number;
   logged_out: number;
   allow: string;
@@ -45,11 +45,10 @@ function pushOrNull(c: Ctx, v: unknown): Promise<PushValue | null> {
   return checkPush(v, c.env.PA_ALLOWED_PUSH_ENDPOINT_PREFIXES, c.env.PA_ALLOWED_UP_HOSTS, (r) => (c.log.endpoint_reject = r));
 }
 
-// PATCH skip rule: stored push confirmed and equal to the incoming push without verified_at.
-function skipPushWrite(stored: string | null, incoming: PushValue | null): boolean {
-  if (stored === null || incoming === null) return false;
-  const s = storedWithoutVerified(stored);
-  return s.verified && s.base === incoming.stored;
+// PATCH skip rule: stored push confirmed (push_verified_at set) and equal to the incoming push.
+// confirmed is the stored push, or null while push_verified_at is NULL.
+function skipPushWrite(confirmed: string | null, incoming: PushValue | null): boolean {
+  return confirmed !== null && incoming !== null && confirmed === incoming.stored;
 }
 
 // ---------- POST /peers ----------
@@ -84,7 +83,7 @@ export async function register(c: Ctx): Promise<Response> {
   await enforceAccount(c.env, acct, c.log);
 
   const reg = (
-    await all<{ status: string | null; old_sign: string | null; old_enc: string | null; old_platform: string | null; old_push: string | null; evict_found: number }>(
+    await all<{ status: string | null; old_sign: string | null; old_enc: string | null; old_platform: string | null; old_confirmed_push: string | null; evict_found: number }>(
       c.log,
       c.env.DB.prepare(SQL.Q_REG).bind(acct, id, JSON.stringify(evict)),
     )
@@ -100,7 +99,7 @@ export async function register(c: Ctx): Promise<Response> {
   if (reg.old_sign !== null) {
     // Re-register.
     if (reg.old_platform !== platform) throw bad();
-    if (skipPushWrite(reg.old_push, push)) {
+    if (skipPushWrite(reg.old_confirmed_push, push)) {
       rows = await all<ListRow>(c.log, listStmt);
     } else {
       const rs = await batch(c.log, c.env.DB, [
@@ -173,7 +172,7 @@ export async function patch(c: Ctx): Promise<Response> {
     const self = await readSelf(c, s.me, s.acct);
     await callerCheck(c, s, self);
     if (push) checkPushPlatform(self!.platform as never, push);
-    if (!skipPushWrite(self!.push, push)) {
+    if (!skipPushWrite(self!.push_verified_at === null ? null : self!.push, push)) {
       await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_PUSH).bind(s.me, s.acct, push ? push.stored : null, push ? push.pushType : null)]);
       if (push && push.pushType === 6) scheduleProbe(c, s.acct, s.me, push.fields);
     }
@@ -269,7 +268,6 @@ export async function confirm(c: Ctx): Promise<Response> {
   await callerCheck(c, s, self);
   if (self!.push === null || self!.push_type !== 6) throw bad();
   const fields = JSON.parse(self!.push) as Record<string, unknown>;
-  delete fields.verified_at;
   const now = nowS();
   const w = Math.floor(now / 300);
   const ok =

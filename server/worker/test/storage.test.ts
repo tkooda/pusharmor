@@ -156,7 +156,7 @@ describe("migration 0005 on existing rows", () => {
     await env.DB.prepare("DROP TABLE peers").run();
     await env.DB.prepare(peersSql).run();
     for (const r of before.results) {
-      const cols = Object.keys(r).filter((k) => k !== PUSH_FAILED_COL);
+      const cols = Object.keys(r).filter((k) => k !== PUSH_FAILED_COL && k !== "push_verified_at");
       const oldCols = cols.map((k) => (k === "logged_out" ? "paused" : k));
       await env.DB.prepare(`INSERT INTO peers (${oldCols.join(", ")}) VALUES (${cols.map((_, i) => "?" + (i + 1)).join(", ")})`)
         .bind(...cols.map((k) => (r as Record<string, unknown>)[k])).run();
@@ -187,5 +187,18 @@ describe("migration 0006 on existing rows", () => {
     await expect(env.DB.prepare("UPDATE peers SET platform = 'linux' WHERE id = ?1").bind(a.id).run()).rejects.toThrow();
     await expect(env.DB.prepare("UPDATE peers SET name = ?1 WHERE id = ?2").bind(JSON.stringify({ x: message(NAME_JSON_MAX) }), a.id).run())
       .rejects.toThrow(/pa-json-cap/);
+  });
+});
+
+describe("migration 0007 on existing rows", () => {
+  it("moves push verified_at to push_verified_at and strips the key; unconfirmed rows keep NULL", async () => {
+    const [a, b] = await family(2);
+    const q = (prefix: string) => env.TEST_MIGRATIONS.find((m) => m.name.startsWith(prefix))!.queries;
+    for (const s of q("0006")) await env.DB.prepare(s).run();
+    await env.DB.prepare("UPDATE peers SET push_type = 6, push = ?1 WHERE id = ?2").bind('{"type":"unifiedpush","endpoint":"e","verified_at":77}', a.id).run();
+    await env.DB.prepare("UPDATE peers SET push_type = 6, push = ?1 WHERE id = ?2").bind('{"type":"unifiedpush","endpoint":"f"}', b.id).run();
+    for (const s of q("0007")) await env.DB.prepare(s).run();
+    expect(await row(a.id)).toMatchObject({ push: '{"type":"unifiedpush","endpoint":"e"}', push_verified_at: 77, push_failed_since: null });
+    expect(await row(b.id)).toMatchObject({ push: '{"type":"unifiedpush","endpoint":"f"}', push_verified_at: null });
   });
 });

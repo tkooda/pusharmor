@@ -114,7 +114,7 @@ describe("POST /peers", () => {
     expect(r.body.error).toBe("invalid client signature");
   });
 
-  it("re-register keeps a confirmed identical push and verified_at; other platform -> 400", async () => {
+  it("re-register keeps a confirmed identical push and push_verified_at; other platform -> 400", async () => {
     const email = randomEmail();
     const k = await keys();
     const push = pushFor("android", "unifiedpush");
@@ -122,13 +122,13 @@ describe("POST /peers", () => {
     let r = await call("POST", "/v1/peers", body, { sign: k.sign });
     expect(r.status).toBe(200);
     const id = r.body.id as string;
-    await env.DB.prepare("UPDATE peers SET push = json_set(push, '$.verified_at', 123) WHERE id = ?1").bind(id).run();
+    await env.DB.prepare("UPDATE peers SET push_verified_at = 123 WHERE id = ?1").bind(id).run();
     r = await call("POST", "/v1/peers", { ...body, ticket: await ticketFor(email, k.signPub, "register") }, { sign: k.sign });
     expect(r.status).toBe(200);
-    expect(JSON.parse((await row(id))!.push as string).verified_at).toBe(123);
+    expect((await row(id))!.push_verified_at).toBe(123);
     r = await call("POST", "/v1/peers", { ...body, platform: "chrome", push: null, ticket: await ticketFor(email, k.signPub, "register") }, { sign: k.sign });
     expect(r.status).toBe(400);
-    expect(JSON.parse((await row(id))!.push as string).verified_at).toBe(123);
+    expect((await row(id))!.push_verified_at).toBe(123);
   });
 
   it("banned account -> 403 (before peer limit)", async () => {
@@ -301,11 +301,11 @@ describe("PATCH /peers/$id push", () => {
     expect(vendorRequests("ntfy.sh")).toHaveLength(1);
     r = await call("PATCH", "/v1/peers/" + p.id, { push }, { peer: p });
     expect(vendorRequests("ntfy.sh")).toHaveLength(2);
-    await env.DB.prepare("UPDATE peers SET push = json_set(push, '$.verified_at', 5) WHERE id = ?1").bind(p.id).run();
+    await env.DB.prepare("UPDATE peers SET push_verified_at = 5 WHERE id = ?1").bind(p.id).run();
     r = await call("PATCH", "/v1/peers/" + p.id, { push }, { peer: p });
     expect(r.status).toBe(200);
     expect(vendorRequests("ntfy.sh")).toHaveLength(2);
-    expect(JSON.parse((await row(p.id))!.push as string).verified_at).toBe(5);
+    expect((await row(p.id))!.push_verified_at).toBe(5);
   });
 
   it("tokens with / or ? are rejected; endpoint not allowed", async () => {

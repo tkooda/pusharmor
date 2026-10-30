@@ -19,7 +19,7 @@ FROM peers WHERE account = ?2`;
 // Caller + named peers. ?1 me, ?2 acct, then one id per parameter ?3, ?4, ... A VALUES
 // list joined to the primary key reads one row per id; json_each and IN lists add rows
 // read on D1. A repeated id returns a repeated row.
-const Q_CTX_COLS = `id, sign_pub, enc_pub, platform, ${PF}, push_type, push, logged_out,
+const Q_CTX_COLS = `id, sign_pub, enc_pub, platform, ${PF}, push_type, push, push_verified_at, logged_out,
   json_type(allow, ${P(1)}) IS NOT NULL AS approves_me,
   json_type(deny, ${P(1)}) IS NOT NULL AS denies_me,
   CASE WHEN id = ?1 THEN allow END AS my_allow`;
@@ -48,7 +48,7 @@ export const Q_REG = `SELECT (SELECT status FROM accounts WHERE id = ?1) AS stat
   (SELECT sign_pub FROM peers WHERE account = ?1 AND id = ?2) AS old_sign,
   (SELECT enc_pub FROM peers WHERE account = ?1 AND id = ?2) AS old_enc,
   (SELECT platform FROM peers WHERE account = ?1 AND id = ?2) AS old_platform,
-  (SELECT push FROM peers WHERE account = ?1 AND id = ?2) AS old_push,
+  (SELECT CASE WHEN push_verified_at IS NOT NULL THEN push END FROM peers WHERE account = ?1 AND id = ?2) AS old_confirmed_push,
   (SELECT count(*) FROM peers WHERE account = ?1
      AND id IN (SELECT value FROM json_each(?3))) AS evict_found`;
 
@@ -66,11 +66,11 @@ WHERE (SELECT count(*) FROM peers WHERE account = ?2) < 10
 ON CONFLICT (account, id) DO NOTHING`;
 
 // ?1 me, ?2 acct
-export const Q_SELF = `SELECT sign_pub, enc_pub, platform, push_type, push, push IS NULL AS push_missing, logged_out, allow, ${PF}
+export const Q_SELF = `SELECT sign_pub, enc_pub, platform, push_type, push, push_verified_at, push IS NULL AS push_missing, logged_out, allow, ${PF}
 FROM peers WHERE account = ?2 AND id = ?1`;
 
 // ?1 me, ?2 acct, ?3 push JSON, ?4 push_type
-export const W_PUSH = `UPDATE peers SET push = ?3, push_type = ?4 WHERE account = ?2 AND id = ?1`;
+export const W_PUSH = `UPDATE peers SET push = ?3, push_type = ?4, push_verified_at = NULL WHERE account = ?2 AND id = ?1`;
 
 // W_NAME for 1..9 pairs: ?1 me, ?2 acct, then (?3 id, ?4 entry), (?5, ?6), ...
 const wNameCache = new Map<number, string>();
@@ -105,7 +105,7 @@ WHERE account = ?2
        OR json_type(name, ${P(1)}) IS NOT NULL OR json_type(pending, ${P(1)}) IS NOT NULL)`;
 
 // ?1 acct
-export const Q_ACCT = `SELECT id, sign_pub, platform, ${PF}, push_type, push, logged_out, allow, deny
+export const Q_ACCT = `SELECT id, sign_pub, platform, ${PF}, push_type, push, push_verified_at, logged_out, allow, deny
 FROM peers WHERE account = ?1`;
 export const W_DELALL = `DELETE FROM peers WHERE account = ?1`;
 export const W_DELACCT = `DELETE FROM accounts WHERE id = ?1 AND status IS NULL`;
@@ -163,7 +163,7 @@ export const W_SEEN = `UPDATE accounts SET last_seen_month = ?2
 WHERE id = ?1 AND last_seen_month < ?2`;
 
 // ?1 id, ?2 acct, ?3 push as read
-export const W_GONE = `UPDATE peers SET push = NULL, push_type = NULL
+export const W_GONE = `UPDATE peers SET push = NULL, push_type = NULL, push_verified_at = NULL
 WHERE account = ?2 AND id = ?1 AND push = ?3`;
 
 // cli listen report: clears push_failed (the caller writes only when it is set). ?1 me, ?2 acct
@@ -178,7 +178,7 @@ WHERE account = ?2 AND id = ?1 AND platform = 'cli' AND ${PUSH_FAILED_COL} IS NU
 export const W_LOGOUT = `UPDATE peers SET logged_out = ?3 WHERE account = ?2 AND id = ?1`;
 
 // ?1 me, ?2 acct, ?3 now, ?4 push as read
-export const W_CONFIRM = `UPDATE peers SET push = json_set(push, '$.verified_at', ?3)
+export const W_CONFIRM = `UPDATE peers SET push_verified_at = ?3
 WHERE account = ?2 AND id = ?1 AND push = ?4`;
 
 // Purge (monthly). ?1 = now - 94608000, ?2 = last purged id of this run ('' to start). The
