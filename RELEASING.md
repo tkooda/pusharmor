@@ -206,7 +206,8 @@ Promote:
    dashboard, the public item: upload `pusharmor-chrome-X.Y.Z.zip` from the
    prerelease, submit for review, publish.
 2. GitHub: the promote job clears "Set as a pre-release"; by hand, clear it.
-3. The collect workflow (daily) publishes the store CRX as the release
+3. The collect workflow (on each chrome/v or firefox/v tag push, or run by hand
+   once the store serves the new version) publishes the store CRX as the release
    `store/chrome/vX.Y.Z` after it checks it against the release file hashes. It
    takes the tag of the version the public item serves, so promoting an older
    test tag works.
