@@ -51,7 +51,9 @@ content.</p>
 
 <h2>How devices trust each other</h2>
 <p>Two devices trust each other only after you pair them by verifying that the 4-character
-pairing fingerprint is identical on both screens. Every message is signed by the
+pairing fingerprint is identical on both screens.</p>
+<p>The pairing fingerprint is not a code sent to your devices, and it is never sent over the network. Pairing uses short authentication string (SAS) verification with a commit-then-reveal exchange: each device computes the 4-character fingerprint on its own from both devices' public keys and a fresh random value from each device, and commits to its values (by sending only their SHA-256 hash) before seeing the other's, so no one, including our relay server, can steer the result.</p>
+<p>Every message is signed by the
 sending device and checked by the receiving device; repeated or old messages are ignored (replay protection).
 A message that fails this check is never shown; History lists it as "PushArmor received a
 message it could not read". Messages you read inside PushArmor passed this check. A notification
