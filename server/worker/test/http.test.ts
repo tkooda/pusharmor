@@ -127,9 +127,37 @@ describe("logging", () => {
     const o = JSON.parse(lines[0]);
     expect(o.route).toBe("POST /v1/peers");
     expect(o.status).toBe(200);
-    expect(Object.keys(o).every((x) => ["ts", "route", "status", "ms", "error", "colo", "account", "peer", "body_bytes", "recipients", "rows_read", "rows_written", "rl", "rl-error", "gone_write", "endpoint_reject", "exception"].includes(x))).toBe(true);
+    expect(Object.keys(o).every((x) => ["ts", "route", "status", "ms", "error", "colo", "account", "peer", "body_bytes", "recipients", "rows_read", "rows_written", "rl", "rl-error", "gone_write", "endpoint_reject", "exception", "sample"].includes(x))).toBe(true);
     expect(lines[0]).not.toContain(email);
     expect(lines[0]).not.toContain(k.signPub);
+  });
+
+  it("log sampling (I448): plain successes and 429s sampled, other errors always logged", async () => {
+    const off = await testEnv({ PA_LOG_SAMPLE: "0" } as Partial<Env>);
+    const k = await keys();
+    let before = captured.length;
+    const ok = await call("POST", "/v1/peers", { ticket: await ticketFor(randomEmail(), k.signPub, "register"), sign_pub: k.signPub, enc_pub: k.encPub, platform: "android", push: null }, { sign: k.sign, env: off });
+    expect(ok.status).toBe(200);
+    expect(captured.slice(before)).toHaveLength(0);
+    before = captured.length;
+    expect((await call("POST", "/v1/peers", { x: 1 }, { env: off })).status).toBe(400);
+    expect(captured.slice(before)).toHaveLength(1);
+    before = captured.length;
+    const limited = await call("GET", "/v1/peers", undefined, { env: { ...off, RL_IP: countingLimit(0) } });
+    expect(limited.status).toBe(429);
+    expect(captured.slice(before)).toHaveLength(0);
+    // Sampled lines carry the scale factor; a bad rate logs everything.
+    const all = await testEnv({ PA_LOG_SAMPLE: "junk" } as Partial<Env>);
+    before = captured.length;
+    expect((await call("GET", "/v1/peers", undefined, { env: { ...all, RL_IP: countingLimit(0) } })).status).toBe(429);
+    expect(captured.slice(before)).toHaveLength(1);
+    const half = await testEnv({ PA_LOG_SAMPLE: "0.5" } as Partial<Env>);
+    before = captured.length;
+    for (let i = 0; i < 40; i++) await call("GET", "/v1/peers", undefined, { env: { ...half, RL_IP: countingLimit(0) } });
+    const lines = captured.slice(before).map((l) => JSON.parse(l));
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.length).toBeLessThan(40);
+    for (const o of lines) expect(o.sample).toBe(2);
   });
 
   it("D1 failure -> 503 unavailable, exception logged without message text", async () => {
