@@ -128,7 +128,7 @@ export async function register(c: Ctx): Promise<Response> {
     }
     pushWritten = push !== null;
   }
-  if (pushWritten && push && push.pushType === 6) scheduleProbe(c, id, push.fields);
+  if (pushWritten && push && push.pushType === 6) scheduleProbe(c, acct, id, push.fields);
   const body = await listBody(rows, id);
   body.id = id;
   const self = rows.find((r) => r.id === id);
@@ -172,7 +172,7 @@ export async function patch(c: Ctx): Promise<Response> {
     if (push && !fitsPlatform(self!.platform as never, push.pushType)) throw bad();
     if (!skipPushWrite(self!.push, push)) {
       await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_PUSH).bind(s.me, s.acct, push ? push.stored : null, push ? push.pushType : null)]);
-      if (push && push.pushType === 6) scheduleProbe(c, s.me, push.fields);
+      if (push && push.pushType === 6) scheduleProbe(c, s.acct, s.me, push.fields);
     }
     return json(200, withPushMissing({}, push === null));
   }

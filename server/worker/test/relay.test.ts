@@ -3,7 +3,7 @@ import { env } from "cloudflare:test";
 import { b64urlEncode } from "../src/codec/b64url";
 import { probeCode } from "../src/routes/common";
 import { pairKey } from "../src/routes/pair";
-import { call, initP256, message, newPeer, onVendor, pushFor, randomEmail, row, setAllow, testEnv, ticketFor, vendorRequests, keys, type Peer } from "./helpers";
+import { call, countingLimit, register, initP256, message, newPeer, onVendor, pushFor, randomEmail, row, setAllow, testEnv, ticketFor, vendorRequests, keys, type Peer } from "./helpers";
 import { TEST_SECRETS as S } from "./secrets";
 
 beforeAll(initP256);
@@ -279,14 +279,22 @@ describe("UnifiedPush probe and confirm (7.6, 6.11)", () => {
     expect(typeof j((await row(p.id))!.push).verified_at).toBe("number");
     // RL_PROBE: 2 per 60 s; the third push change sends no probe and still succeeds. A counting
     // stub stands in for the binding, whose fixed 60 s window can roll over mid-test (I363).
-    const seen: string[] = [];
-    const e = await testEnv({ RL_PROBE: { limit: async ({ key }) => ({ success: seen.push(key) <= 2 }) } });
+    const rl = countingLimit(2);
+    const seen = rl.seen;
+    const e = await testEnv({ RL_PROBE: rl });
     for (let i = 0; i < 3; i++) {
       const rr = await call("PATCH", "/v1/peers/" + p.id, { push: pushFor("android", "unifiedpush") }, { peer: p, env: e });
       expect(rr.status).toBe(200);
     }
-    expect(seen).toEqual(Array(3).fill("probe:" + p.id));
+    expect(seen).toEqual(["probe:" + p.id, "probeacct:" + p.acct, "probe:" + p.id, "probeacct:" + p.acct, "probe:" + p.id]);
     expect(vendorRequests("up.example.org")).toHaveLength(3);
+  });
+
+  it("RL_PROBE per account: new peer ids in one account share the probe limit", async () => {
+    const email = randomEmail();
+    const e = await testEnv({ RL_PROBE: countingLimit(2) });
+    for (let i = 0; i < 3; i++) expect((await register(email, "android", pushFor("android", "unifiedpush"), {}, e)).r.status).toBe(200);
+    expect(vendorRequests("up.example.org")).toHaveLength(2);
   });
 
   it("confirm on a non-type-6 push -> 400", async () => {

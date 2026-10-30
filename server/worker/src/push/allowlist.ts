@@ -52,7 +52,7 @@ function commonPrefix(a: string, b: string): number {
 
 const IPV4 = /^[0-9]+(\.[0-9]+){3}$/;
 
-// UnifiedPush rule: https, port 443, no userinfo, DNS hostname not in the reject list.
+// UnifiedPush rule: https, port 443, no userinfo, DNS hostname with a dot, not in the reject list.
 // Returns null when accepted, else a reason word (logged instead of the host).
 export function checkUnifiedPushEndpoint(endpoint: string): string | null {
   const auth = rawAuthority(endpoint);
@@ -66,6 +66,7 @@ export function checkUnifiedPushEndpoint(endpoint: string): string | null {
   let host = u.hostname.toLowerCase();
   if (host.endsWith(".")) host = host.slice(0, -1);
   if (host === "" || host.split(".").some((l) => l === "")) return "label";
+  if (!host.includes(".")) return "label"; // single-label names are not public DNS names
   if (IPV4.test(host)) return "ip-literal";
   const rawHost = (colon >= 0 ? auth.slice(0, colon) : auth).toLowerCase().replace(/\.$/, "");
   if (IPV4.test(rawHost)) return "ip-literal";
