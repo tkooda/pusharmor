@@ -3,6 +3,7 @@
 import { Api } from "./api/client.ts";
 import { MENU_PAGE, MENU_PARENTS, MENU_SEL, MENU_URL, clickTarget, menuSend } from "./core/actions.ts";
 import { Engine } from "./core/engine.ts";
+import { migrateStorage } from "./core/state.ts";
 import { Rpc, type Req } from "./core/rpc.ts";
 import type { PushFields } from "./crypto/labels.ts";
 import type { KV, MenuPeer, Platform } from "./platform.ts";
@@ -126,6 +127,7 @@ export function lazyBoot(make: () => Platform, vapid: Uint8Array): () => Promise
             await db.setMeta("offset", o);
           },
         });
+        await migrateStorage(platform.storageLocal);
         const engine = new Engine({ platform, db, api, vapidPub: vapid });
         return { engine, rpc: new Rpc(engine) };
       })();
