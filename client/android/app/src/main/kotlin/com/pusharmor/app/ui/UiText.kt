@@ -19,7 +19,7 @@ object UiText {
         p.missing -> Mark.OFF to "(missing)"
         p.paused -> Mark.OFF to "Signed out"
         !p.reachable -> Mark.OFF to "Unreachable"
-        p.approvesMe -> Mark.OK to "Connected"
+        p.approvesMe -> Mark.OK to "Paired"
         else -> Mark.WAIT to "Has not approved this device"
     }
 
