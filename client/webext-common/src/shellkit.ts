@@ -203,6 +203,7 @@ export function uiEnv(b: Browser): UiEnv {
           if (open) {
             await b.tabs.update(open.tabId, { active: true });
             await b.windows?.update(open.windowId, { focused: true });
+            await b.tabs.reload(open.tabId); // a stale page (e.g. the done card) starts over
             return;
           }
         } catch {
