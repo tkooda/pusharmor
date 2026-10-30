@@ -362,6 +362,8 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promi
     ff && st.receiveMode ? h("div", { class: "t2" }, "Receive mode: " + st.receiveMode) : null,
     ff && st.receiveNote ? h("div", { class: "t2" }, st.receiveNote) : null,
   );
+  const acctHead = acct.childNodes.length ? sh("Account") : null;
+  const acctBox = acct.childNodes.length ? group(h("div", { class: "srow acct" }, acct)) : null;
   add(
     root,
     sh("Appearance"),
@@ -388,8 +390,8 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promi
         confirmDel,
       ),
     ),
-    acct.childNodes.length ? sh("Account") : null,
-    acct.childNodes.length ? group(h("div", { class: "srow acct" }, acct)) : null,
+    acctHead,
+    acctBox,
     h(
       "div",
       { class: "btns" },
@@ -401,6 +403,8 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promi
               clear(confirmOut);
               try {
                 await rpc(env, "signout");
+                acctHead?.remove();
+                acctBox?.remove();
                 status.textContent = T.signedOut;
               } catch (e) {
                 status.textContent = (e as Error).message;
