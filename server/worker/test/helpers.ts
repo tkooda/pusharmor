@@ -180,9 +180,10 @@ export function pushFor(platform: string, kind?: string): Record<string, unknown
       return { type: "webpush", endpoint: secretString("https://fcm.googleapis.com/fcm/send/" + b64urlEncode(randBytes(24))), p256dh: p256, auth };
     case "firefox":
       return { type: "webpush", endpoint: secretString("https://updates.push.services.mozilla.com/wpush/v2/" + b64urlEncode(randBytes(24))), p256dh: p256, auth };
-    case "unifiedpush":
     case "cli":
-      return { type: "unifiedpush", endpoint: secretString("https://up.example.org/push/" + b64urlEncode(randBytes(24))), p256dh: p256, auth };
+      return { type: "unifiedpush", endpoint: secretString("https://ntfy.sh/up" + b64urlEncode(randBytes(9)) + "?up=1"), p256dh: p256, auth };
+    case "unifiedpush":
+      return { type: "unifiedpush", endpoint: secretString("https://ntfy.sh/push/" + b64urlEncode(randBytes(24))), p256dh: p256, auth };
   }
   throw new Error("platform");
 }
@@ -312,7 +313,7 @@ function defaultResponse(r: MockReq): Response {
   }
   if (u.hostname === "fcm.googleapis.com" && u.pathname.startsWith("/v1/")) return Response.json({ name: "projects/test-project/messages/0:1" });
   if (u.hostname === "api.push.apple.com" || u.hostname === "api.sandbox.push.apple.com") return new Response(null, { status: 200 });
-  if (u.hostname === "fcm.googleapis.com" || u.hostname === "updates.push.services.mozilla.com" || u.hostname === "up.example.org") {
+  if (u.hostname === "fcm.googleapis.com" || u.hostname === "updates.push.services.mozilla.com" || u.hostname === "ntfy.sh") {
     return new Response(null, { status: 201 });
   }
   if (u.hostname === "challenges.cloudflare.com") return Response.json({ success: true, hostname: "pusharmor.com", action: "email" });

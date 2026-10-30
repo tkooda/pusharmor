@@ -41,6 +41,20 @@ describe("POST /send", () => {
     expect(vendorRequests("api.push.apple.com")).toHaveLength(1);
   });
 
+  it("ntfy 507 -> not listening; push kept, no retry", async () => {
+    const email = randomEmail();
+    const me = await newPeer(email);
+    const x = await newPeer(email, "cli", pushFor("cli"));
+    await setAllow(x, [me.id]);
+    await env.DB.prepare("UPDATE peers SET push = json_set(push, '$.verified_at', 1) WHERE id = ?1").bind(x.id).run();
+    const before = vendorRequests("ntfy.sh").length;
+    onVendor((q) => q.url.startsWith("https://ntfy.sh/"), () => new Response('{"code":50701}', { status: 507 }));
+    const r = await call("POST", "/v1/send", { v: 1, m: { [x.id]: message(512) } }, { peer: me });
+    expect(r.body.r).toEqual({ [x.id]: "not listening" });
+    expect(vendorRequests("ntfy.sh").length).toBe(before + 1);
+    expect((await row(x.id))!.push).not.toBeNull();
+  });
+
   it("v must be 1; foreign prefix -> 400", async () => {
     const me = await newPeer(randomEmail());
     expect((await call("POST", "/v1/send", { v: 2, m: {} }, { peer: me })).status).toBe(400);
@@ -279,7 +293,7 @@ describe("POST /pair/$X (6.7a)", () => {
 describe("UnifiedPush probe and confirm (7.6, 6.11)", () => {
   it("probe carries {probe: code}; confirm current and previous window; wrong code; RL_PROBE", async () => {
     const p = await newPeer(randomEmail(), "android", pushFor("android", "unifiedpush"));
-    const probes = vendorRequests("up.example.org");
+    const probes = vendorRequests("ntfy.sh");
     expect(probes).toHaveLength(1);
     expect(probes[0].headers["content-encoding"]).toBe("aes128gcm");
     const push = j((await row(p.id))!.push);
@@ -302,14 +316,14 @@ describe("UnifiedPush probe and confirm (7.6, 6.11)", () => {
       expect(rr.status).toBe(200);
     }
     expect(seen).toEqual(["probe:" + p.id, "probeacct:" + p.acct, "probe:" + p.id, "probeacct:" + p.acct, "probe:" + p.id]);
-    expect(vendorRequests("up.example.org")).toHaveLength(3);
+    expect(vendorRequests("ntfy.sh")).toHaveLength(3);
   });
 
   it("RL_PROBE per account: new peer ids in one account share the probe limit", async () => {
     const email = randomEmail();
     const e = await testEnv({ RL_PROBE: countingLimit(2) });
     for (let i = 0; i < 3; i++) expect((await register(email, "android", pushFor("android", "unifiedpush"), {}, e)).r.status).toBe(200);
-    expect(vendorRequests("up.example.org")).toHaveLength(2);
+    expect(vendorRequests("ntfy.sh")).toHaveLength(2);
   });
 
   it("confirm on a non-type-6 push -> 400", async () => {

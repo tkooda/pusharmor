@@ -67,5 +67,7 @@ export const VENDOR_ROWS: VendorRow[] = [
   { name: "up 410", vendor: "up", status: 410, result: "gone", attempts: 1 },
   { name: "up 413", vendor: "up", status: 413, result: "failed:up-413", attempts: 1 },
   { name: "up 503", vendor: "up", status: 503, result: "failed:up-503", attempts: 4 },
+  { name: "up 507 (ntfy: no subscriber)", vendor: "up", status: 507, body: "{\"code\":50701}", result: "not listening", attempts: 1 },
+  { name: "wp 507", vendor: "wp", status: 507, result: "failed:wp-507", attempts: 4 },
   { name: "up 302", vendor: "up", status: 302, result: "failed:up-3xx", attempts: 1 },
 ];

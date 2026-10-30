@@ -1,7 +1,7 @@
 // Request validators: ids, keys, messages, name entries, "m" maps, push objects.
 import { ApiError } from "../errors";
 import { b64urlDecode, isB64url } from "./b64url";
-import { checkUnifiedPushEndpoint, checkWebpushEndpoint, prefixes, type EndpointReject } from "../push/allowlist";
+import { checkUnifiedPushEndpoint, checkWebpushEndpoint, cliTopicOk, prefixes, type EndpointReject } from "../push/allowlist";
 import { importEcdhPub, rawPoint } from "../crypto/ecdsa";
 import { sha256, utf8 } from "../crypto/hash";
 import { b64urlEncode } from "./b64url";
@@ -98,7 +98,7 @@ function str(o: Record<string, unknown>, k: string): string {
 }
 
 // Validates a push object (section 7.4) and returns its stored form and type.
-export async function checkPush(v: unknown, allowedPrefixes: string, onReject: (r: EndpointReject) => void): Promise<PushValue> {
+export async function checkPush(v: unknown, allowedPrefixes: string, upHosts: string, onReject: (r: EndpointReject) => void): Promise<PushValue> {
   if (!v || typeof v !== "object" || Array.isArray(v)) throw bad();
   const o = v as Record<string, unknown>;
   const type = str(o, "type");
@@ -131,7 +131,7 @@ export async function checkPush(v: unknown, allowedPrefixes: string, onReject: (
       throw new ApiError(400, "push endpoint not allowed");
     }
   } else {
-    const reason = checkUnifiedPushEndpoint(endpoint);
+    const reason = checkUnifiedPushEndpoint(endpoint, prefixes(upHosts));
     if (reason) {
       onReject({ reason });
       throw new ApiError(400, "push endpoint not allowed");
@@ -144,6 +144,12 @@ export async function checkPush(v: unknown, allowedPrefixes: string, onReject: (
 
 export function fitsPlatform(platform: Platform, pushType: number): boolean {
   return PLATFORM_TYPES[platform].includes(pushType);
+}
+
+// Platform rules for a push: type per platform (400), and the cli topic form.
+export function checkPushPlatform(platform: Platform, push: PushValue): void {
+  if (!fitsPlatform(platform, push.pushType)) throw bad();
+  if (platform === "cli" && !cliTopicOk(push.fields.endpoint)) throw new ApiError(400, "push endpoint not allowed");
 }
 
 // my_push_sha256 = b64url(first 16 bytes of sha256(type "\n" token) or
