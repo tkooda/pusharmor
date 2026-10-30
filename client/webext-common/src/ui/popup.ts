@@ -5,7 +5,7 @@ import { T } from "../core/texts.ts";
 import { canReceiveNow, rememberedSelection, sendDisabled, sendToHeader, showAllChip, showCounter } from "../model/sendsel.ts";
 import type { Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
-import { type UiEnv, add, clear, group, h, midEllipsis, nextTabIndex, peerStatus, rpc, sh, shortTime } from "./dom.ts";
+import { type UiEnv, add, clear, failView, group, h, midEllipsis, nextTabIndex, peerStatus, rpc, sh, shortTime } from "./dom.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
 import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
@@ -25,8 +25,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   try {
     [st] = await Promise.all([rpc<StateView>(env, "popupOpen"), startTheme(env.theme)]);
   } catch (e) {
-    root.setAttribute("role", "alert");
-    root.textContent = (e as Error).message;
+    failView(root, (e as Error).message, () => void mountPopup(env, root));
     return;
   }
   clear(root);

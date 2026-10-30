@@ -101,6 +101,9 @@ export interface Booted {
   rpc: Rpc;
 }
 
+/** Shown by the UI (with Retry) when the local database cannot be opened. */
+export const BOOT_ERROR = "PushArmor could not open its local database. Close this window and try again, or restart the browser.";
+
 /** Lazy init inside handlers (no top-level await in the entry files). */
 export function lazyBoot(make: () => Platform, vapid: Uint8Array): () => Promise<Booted> {
   let p: Promise<Booted> | null = null;
@@ -126,6 +129,10 @@ export function lazyBoot(make: () => Platform, vapid: Uint8Array): () => Promise
         const engine = new Engine({ platform, db, api, vapidPub: vapid });
         return { engine, rpc: new Rpc(engine) };
       })();
+      // A failed open (storage blocked, quota, private mode) must not stay cached: the next call tries again.
+      p.catch(() => {
+        p = null;
+      });
     }
     return p;
   };
@@ -143,7 +150,7 @@ export function onRuntimeMessage(boot: () => Promise<Booted>, extra?: (msg: Req,
     }
     void boot()
       .then((b) => b.rpc.handle(m, sender.tab?.id))
-      .then(sendResponse);
+      .then(sendResponse, () => sendResponse({ ok: false, error: BOOT_ERROR }));
     return true;
   };
 }

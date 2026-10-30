@@ -291,3 +291,5 @@ body.page #app > h1, body.page #app > .lead, body.page #app > .banner { padding:
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+.fail { padding: 16px; }
+.fail p { margin: 0 0 12px; }
