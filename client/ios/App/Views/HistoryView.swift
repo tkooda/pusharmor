@@ -136,11 +136,35 @@ struct HistoryRowView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-                .onTapGesture { tap() }
             }
             .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
         }
+        // The whole row is one tap target and one VoiceOver button; the sender link is
+        // a named action.
+        .contentShape(Rectangle())
+        .onTapGesture { tap() }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(a11yLabel)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { tap() }
+        .accessibilityActions {
+            if !unknown && !outgoing, let id = row.peerId {
+                Button("Show \(senderName)") { model.highlightPeer = id }
+            }
+        }
+    }
+
+    private var a11yLabel: String {
+        [unread ? "Unread" : nil, senderName, timeLabel, contentText, resultsSummary]
+            .compactMap { $0 }
+            .joined(separator: ", ")
+    }
+
+    private var timeLabel: String {
+        let d = Date(timeIntervalSince1970: TimeInterval(row.createdLocal))
+        if Calendar.current.isDateInToday(d) { return d.formatted(date: .omitted, time: .shortened) }
+        if Calendar.current.isDateInYesterday(d) { return "Yesterday" }
+        return d.formatted(.dateTime.month().day())
     }
 
     private var senderText: Text {

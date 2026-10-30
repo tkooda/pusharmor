@@ -31,7 +31,7 @@ final class ScreenshotTests: XCTestCase {
 
     func testCaptureStoreScreenshots() {
         var app = launch()
-        XCTAssertTrue(app.staticTexts["Meeting moved to 3 pm, room B"].waitForExistence(timeout: 30))
+        XCTAssertTrue(labelled(app, "Meeting moved to 3 pm, room B").waitForExistence(timeout: 30))
         sleep(1)
         shot("03-send")
         peersTab(app)
