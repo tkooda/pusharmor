@@ -59,6 +59,17 @@ class ScreenshotCapture {
         Thread.sleep(ms)
     }
 
+    /** Waits until [text] is on screen (Room reads are async); fails the run after [timeoutMs]. */
+    private fun awaitText(text: String, timeoutMs: Long = 15_000) {
+        val end = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < end) {
+            val found = inst.uiAutomation.rootInActiveWindow?.findAccessibilityNodeInfosByText(text)?.isNotEmpty() == true
+            if (found) return
+            Thread.sleep(250)
+        }
+        throw AssertionError("not shown within ${timeoutMs}ms: $text")
+    }
+
     private fun shot(name: String) {
         val bmp: Bitmap = inst.uiAutomation.takeScreenshot()
         val dir = File(app.getExternalFilesDir(null), "shots").apply { mkdirs() }
@@ -77,9 +88,10 @@ class ScreenshotCapture {
         HistoryEntity(direction = dir, peerId = peer, type = type, content = content, n = null, pairingId = null, at = at,
             read = read, results = "{}", count = 1)
 
-    private fun main(route: String? = null) {
+    private fun main(route: String? = null, await: String) {
         val i = if (route == null) Intent(app, MainActivity::class.java) else MainActivity.openIntent(app, route)
         app.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+        awaitText(await)
         settle()
     }
 
@@ -109,7 +121,7 @@ class ScreenshotCapture {
         val link = "https://example.com/recipes/lentil-soup"
         val linkId = g.dao.insertHistory(history("RECEIVED", laptop, "url", link, clock - 2 * 60_000, false))
 
-        main()
+        main(await = "Work desktop")
         shot("01-peers")
 
         // 02: the link heads-up over the app.
@@ -121,7 +133,7 @@ class ScreenshotCapture {
 
         ScreenshotMode.sendText = "https://example.com/recipes/weeknight-pasta"
         ScreenshotMode.sendTo = listOf(laptop, desktop, tablet)
-        main("send")
+        main("send", await = "Tablet")
         shot("03-send")
 
         g.dao.putPeer(paired(newLaptop, "chrome", "New laptop", secs - 50 * 86400).copy(signPub = null, encPub = null, pairingId = null,
@@ -129,10 +141,10 @@ class ScreenshotCapture {
         g.dao.putPairing(PairingEntity(peerId = newLaptop, role = "X", state = "SHOWN", r = ByteArray(32), cN = null,
             peerSignPub = null, peerEncPub = null, peerR = null, startedAt = now, pendingKind = null, pendingMessage = null,
             notBefore = 0, authorized = true, fingerprint = "K7QD", lastSendAt = now, lastResult = null))
-        main()
+        main(await = "Pair with new device")
         shot("04-pairing")
 
-        main("history")
+        main("history", await = "Meeting moved")
         shot("05-history")
     }
 }
