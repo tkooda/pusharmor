@@ -2,6 +2,8 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { env } from "cloudflare:test";
 import { b64urlEncode } from "../src/codec/b64url";
 import { call, initP256, keys, message, newPeer, pushFor, randomEmail, register, row, setAllow, ticketFor, vendorRequests } from "./helpers";
+import { LABEL_TICKET, makeTicket, openToken } from "../src/crypto/tokens";
+import { TEST_SECRETS as S } from "./secrets";
 
 beforeAll(initP256);
 
@@ -117,6 +119,27 @@ describe("POST /peers", () => {
     const r2 = await call("POST", "/v1/peers", body, k);
     expect(r2.status).toBe(200);
     expect(await row(ok[0].peer.id)).toBeNull();
+  });
+
+  it("peer limit: the renewed ticket never outlives 30 minutes from the first ticket", async () => {
+    const email = randomEmail();
+    for (let i = 0; i < 10; i++) await newPeer(email, "android", null);
+    const k = await keys();
+    const now = Math.floor(Date.now() / 1000);
+    const renew = async (t: string) => {
+      const r = await call("POST", "/v1/peers", { ticket: t, sign_pub: k.signPub, enc_pub: k.encPub, platform: "android", push: null }, { sign: k.sign });
+      expect(r.body.error).toBe("peer limit");
+      return (await openToken(S.PA_TOKEN_SECRET, LABEL_TICKET, r.body.ticket))!;
+    };
+    // A fresh 120 s ticket: renewal keeps the first issue time and gives the usual 600 s.
+    const first = await renew(await ticketFor(email, k.signPub, "register"));
+    expect(first.i).toBeGreaterThanOrEqual(now - 2);
+    expect(first.x).toBeGreaterThanOrEqual(now + 598);
+    // A renewed ticket issued 29 minutes ago: the next one ends 30 minutes after the first.
+    const old = { a: first.a as string, k: first.k as string, p: "register" as const, x: now + 60, i: now - 29 * 60 };
+    const second = await renew(await makeTicket(S.PA_TOKEN_SECRET, old));
+    expect(second.i).toBe(now - 29 * 60);
+    expect(second.x).toBe(now + 60);
   });
 
   it("duplicate concurrent first-time registration of one peer: both 200, one row (I305)", async () => {

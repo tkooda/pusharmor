@@ -18,7 +18,7 @@ import { parseJsonObject } from "../pipeline/body";
 import { importEcdhPub, importVerifyKey, rawPoint } from "../crypto/ecdsa";
 import { peerId } from "../crypto/ids";
 import { ctEqualStr } from "../crypto/hash";
-import { makeTicket, TICKET_LIFE_PEER_LIMIT_S } from "../crypto/tokens";
+import { makeTicket, TICKET_LIFE_PEER_LIMIT_S, TICKET_LIFE_S, TICKET_RENEW_MAX_S } from "../crypto/tokens";
 import { ApiError } from "../errors";
 import { checkSig, checkTime } from "../pipeline/signed";
 import * as SQL from "../db/sql";
@@ -120,7 +120,10 @@ export async function register(c: Ctx): Promise<Response> {
     rows = rs[rs.length - 1].results as ListRow[];
     // No change: a concurrent duplicate already inserted this peer (its row is in the list), or the limit is hit.
     if (regRes.meta.changes === 0 && !rows.some((r) => r.id === id)) {
-      const fresh = await makeTicket(c.env.PA_TOKEN_SECRET, { a: acct, k: ticket.k, p: "register", x: now + TICKET_LIFE_PEER_LIMIT_S });
+      // Renewal keeps the first issue time, so the email or OAuth proof cannot be kept alive forever.
+      const i = typeof ticket.i === "number" ? ticket.i : ticket.x - TICKET_LIFE_S;
+      const x = Math.min(now + TICKET_LIFE_PEER_LIMIT_S, i + TICKET_RENEW_MAX_S);
+      const fresh = await makeTicket(c.env.PA_TOKEN_SECRET, { a: acct, k: ticket.k, p: "register", x, i });
       throw new ApiError(409, "peer limit", { ticket: fresh, peers: limitPeers(rows) });
     }
     pushWritten = push !== null;
