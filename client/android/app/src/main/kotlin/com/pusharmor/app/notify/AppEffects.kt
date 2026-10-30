@@ -1,6 +1,7 @@
 package com.pusharmor.app.notify
 
 import com.pusharmor.app.Graph
+import com.pusharmor.app.ui.UiText
 import com.pusharmor.app.work.Work
 import com.pusharmor.protocol.ShownContent
 import com.pusharmor.protocol.engine.Effects
@@ -29,7 +30,7 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
             PairNoticeKind.COMPARE -> n.pairNotice(pk, "New device: compare ${fingerprint ?: ""}", peerId)
             PairNoticeKind.READY -> if (fcm) n.pairNotice(pk, "Pairing fingerprint ready. Open PushArmor.", peerId)
             PairNoticeKind.IN_PROGRESS -> if (fcm) n.pairNotice(pk, "Pairing with $x in progress. Open PushArmor.", peerId)
-            PairNoticeKind.PAIR_AGAIN -> n.pairNotice(pk, "$x wants to pair again. Tap Cancel pairing on its row, then pair.", peerId, highlight = true, ok = true)
+            PairNoticeKind.PAIR_AGAIN -> n.pairNotice(pk, UiText.pairAgainNotice(x), peerId, highlight = true, ok = true)
         }
     }
 
