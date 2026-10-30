@@ -121,8 +121,8 @@ smoke() {
   code="$(curl -sS -D "$TMP/headers" -o "$TMP/body" -w '%{http_code}' "$API_BASE/peers")" || return 1
   [ "$code" = "400" ] || { echo "smoke: expected HTTP 400, got $code" >&2; return 1; }
   [ "$(cat "$TMP/body")" = '{"error":"bad request"}' ] || { echo "smoke: unexpected body" >&2; return 1; }
-  tr -d '\r' <"$TMP/headers" | grep -Eiq '^PA-Epoch-Ms: [0-9]{13}$' || { echo "smoke: PA-Epoch-Ms missing or malformed" >&2; return 1; }
-  tr -d '\r' <"$TMP/headers" | grep -i '^Access-Control-Expose-Headers:' | grep -iq 'PA-Epoch-Ms' || { echo "smoke: Access-Control-Expose-Headers lacks PA-Epoch-Ms" >&2; return 1; }
+  tr -d '\r' <"$TMP/headers" | grep -Eiq '^PA-Epoch: [0-9]{10}$' || { echo "smoke: PA-Epoch missing or malformed" >&2; return 1; }
+  tr -d '\r' <"$TMP/headers" | grep -i '^Access-Control-Expose-Headers:' | grep -iq 'PA-Epoch' || { echo "smoke: Access-Control-Expose-Headers lacks PA-Epoch" >&2; return 1; }
 }
 smoke || rollback_hint
 echo "smoke test passed."

@@ -5,8 +5,8 @@ export default {
       status: 503,
       headers: {
         "Content-Type": "application/json",
-        "PA-Epoch-Ms": String(Date.now()),
-        "Access-Control-Expose-Headers": "PA-Epoch-Ms",
+        "PA-Epoch": String(Math.floor(Date.now() / 1000)),
+        "Access-Control-Expose-Headers": "PA-Epoch",
         "Cache-Control": "no-store",
         "Strict-Transport-Security": "max-age=63072000; includeSubDomains",
         "Retry-After": "300",
