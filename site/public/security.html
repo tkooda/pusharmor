@@ -26,8 +26,9 @@
 <h1>Security and threat model</h1>
 <p>Your devices don't need to trust our relay server. Messages are encrypted on your device, and can only
 ever be decrypted by your own paired devices. Each app and add-on checks everything the server sends, so the server
-cannot change a message or pose as one of your devices. Keys are made on each device and the private keys
-never leave it.</p>
+cannot change a message or pose as one of your devices. Keys are made on each device, and the private keys used to decrypt and sign messages never
+leave it. Where the device supports it, they are kept in its hardware key storage (the Secure
+Enclave on iPhone, the Android Keystore on Android).</p>
 
 <h2>What each party sees</h2>
 <div class="table-wrap">
