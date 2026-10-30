@@ -56,6 +56,13 @@ object UiText {
     /** With the keyboard up only the selected device chips show, so the block stays short and every recipient stays visible. */
     fun chipVisible(selected: Boolean, keyboardUp: Boolean): Boolean = selected || !keyboardUp
 
+    /**
+     * With the keyboard up the caption and "Send as text" rows ([extrasPx]) hide when they would leave the message
+     * field less than [fieldMinPx] (2 lines) of the [areaPx] above Send; the device chips ([chipsPx]) always keep their space.
+     */
+    fun sendExtrasShown(keyboardUp: Boolean, areaPx: Int, chipsPx: Int, extrasPx: Int, fieldMinPx: Int): Boolean =
+        !keyboardUp || areaPx - chipsPx - extrasPx >= fieldMinPx
+
     /** The byte counter shows only from 90 percent of the cap (and over it, as "Too long"). */
     fun showCounter(bytes: Int): Boolean = bytes * 10 >= SizeCap.MAX_CONTENT_BYTES * 9
 
