@@ -5,7 +5,7 @@ import { env } from "cloudflare:test";
 import { b64urlEncode } from "../src/codec/b64url";
 import { probeCode } from "../src/routes/common";
 import fixture from "./d1-cost.json";
-import { call, captured, initP256, keys, message, newPeer, pushFor, randomEmail, register, setAllow, ticketFor, type CallResult, type Peer } from "./helpers";
+import { call, initP256, keys, message, newPeer, pushFor, randomEmail, meterD1, register, setAllow, ticketFor, type CallResult, type Peer } from "./helpers";
 import { TEST_SECRETS as S } from "./secrets";
 import { PUSH_FAILED_COL } from "../src/db/sql";
 
@@ -40,11 +40,8 @@ async function pending(me: Peer, others: Peer[], q: number): Promise<void> {
 }
 
 async function measured(run: () => Promise<CallResult>): Promise<{ rows_read: number; rows_written: number; status: number }> {
-  const before = captured.length;
-  const r = await run();
-  const lines = captured.slice(before).map((l) => JSON.parse(l)).filter((o) => o.route && o.route !== "cron");
-  const last = lines[lines.length - 1];
-  return { rows_read: last.rows_read ?? 0, rows_written: last.rows_written ?? 0, status: r.status };
+  const m = await meterD1(run);
+  return { rows_read: m.rows_read, rows_written: m.rows_written, status: m.result.status };
 }
 
 const ghost = (p: Peer) => p.acct + b64urlEncode(crypto.getRandomValues(new Uint8Array(21)));

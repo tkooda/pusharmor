@@ -19,7 +19,6 @@ export async function purge(env: Env, nowS: number, log: Log): Promise<number> {
       env.DB.prepare(SQL.W_PURGE_ACCOUNTS).bind(cutoff, last),
     ]);
     chunks++;
-    for (const r of rs) log.addMeta(r.meta);
     const ids = (rs[1].results as { id: string }[]).map((r) => r.id);
     purged += ids.length;
     if (ids.length < SQL.PURGE_CHUNK) break;
@@ -46,7 +45,6 @@ export async function expirePending(env: Env, nowS: number, log: Log, chunk = PE
       env.DB.prepare(SQL.W_PENDING_EXPIRE).bind(last, chunk, cutoff, nowS),
     ]);
     chunks++;
-    for (const r of rs) log.addMeta(r.meta);
     changed += rs[1].meta.changes;
     const head = rs[0].results[0] as { n: number; last: string | null } | undefined;
     if (!head || head.n < chunk || head.last === null) break;

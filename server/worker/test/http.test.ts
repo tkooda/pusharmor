@@ -167,7 +167,7 @@ describe("logging", () => {
     const o = JSON.parse(lines[0]);
     expect(o.route).toBe("POST /v1/peers");
     expect(o.status).toBe(200);
-    expect(Object.keys(o).every((x) => ["ts", "route", "status", "ms", "error", "colo", "account", "peer", "body_bytes", "recipients", "rows_read", "rows_written", "rl", "rl-error", "gone_write", "endpoint_reject", "exception", "sample"].includes(x))).toBe(true);
+    expect(Object.keys(o).every((x) => ["ts", "route", "status", "ms", "error", "colo", "account", "peer", "body_bytes", "recipients", "rl", "rl-error", "gone_write", "endpoint_reject", "exception", "sample"].includes(x))).toBe(true);
     expect(lines[0]).not.toContain(email);
     expect(lines[0]).not.toContain(k.signPub);
   });

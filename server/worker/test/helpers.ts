@@ -358,3 +358,41 @@ export function decodeJwt(jwt: string): { header: Record<string, unknown>; claim
   const dec = (s: string) => JSON.parse(atob(s.replace(/-/g, "+").replace(/_/g, "/")));
   return { header: dec(h), claims: dec(c) };
 }
+
+// D1 cost meter: sums meta.rows_read / rows_written of every all() and batch() on the test D1
+// while run() is in flight (the Worker calls D1 only through these two).
+export async function meterD1<T>(run: () => Promise<T>): Promise<{ result: T; rows_read: number; rows_written: number }> {
+  const db = baseEnv.DB;
+  let rows_read = 0;
+  let rows_written = 0;
+  const add = (m: { rows_read?: number; rows_written?: number } | undefined) => {
+    rows_read += m?.rows_read ?? 0;
+    rows_written += m?.rows_written ?? 0;
+  };
+  const wrap = (s: D1PreparedStatement): D1PreparedStatement => {
+    const bind = s.bind.bind(s);
+    const allFn = s.all.bind(s);
+    s.bind = (...v: unknown[]) => wrap(bind(...v));
+    s.all = (async () => {
+      const r = await allFn();
+      add(r.meta);
+      return r;
+    }) as D1PreparedStatement["all"];
+    return s;
+  };
+  const prepare = db.prepare;
+  const batch = db.batch;
+  db.prepare = (q: string) => wrap(prepare.call(db, q));
+  db.batch = (async (stmts: D1PreparedStatement[]) => {
+    const rs = await batch.call(db, stmts);
+    for (const r of rs) add(r.meta);
+    return rs;
+  }) as D1Database["batch"];
+  try {
+    const result = await run();
+    return { result, rows_read, rows_written };
+  } finally {
+    db.prepare = prepare;
+    db.batch = batch;
+  }
+}

@@ -34,7 +34,8 @@ platform packages, so no install script is needed.
 Tests run in the workerd pool with a local D1 (migrations applied from empty), the local
 rate-limit binding simulation, and a local vendor mock that replays recorded FCM, APNs and
 Web Push replies. No test calls a real vendor. `test/d1-cost.json` holds the measured
-`rows_read` / `rows_written` per endpoint; the D1 cost test fails when they change. The
+D1 `rows_read` / `rows_written` per endpoint (summed from the D1 result meta in the test, not
+logged); the D1 cost test fails when they change. The
 golden test reads `../../tests/vectors/golden-v1.json`.
 
 ## Secrets
@@ -58,7 +59,7 @@ the request runs and would drop errors as well. Sampling is done in code with th
   binding errors, failed gone write-backs, rejected push endpoints, any recipient not
   delivered on the first try, and every cron run;
 - logged at the rate: plain successes and 429s; when the rate is below 1 such a line has
-  `"sample": N` (N = 1 / rate), so multiply counts and `rows_read` / `rows_written` by N.
+  `"sample": N` (N = 1 / rate), so multiply counts by N.
 
 Now `PA_LOG_SAMPLE` is `"1"` (every line), for launch and the first users.
 
