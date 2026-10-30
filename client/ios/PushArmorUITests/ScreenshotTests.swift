@@ -84,8 +84,9 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(tab.waitForExistence(timeout: 30))
         tab.tap()
         let signOut = app.buttons["Sign out"]
-        XCTAssertTrue(signOut.waitForExistence(timeout: 10))
-        for _ in 0..<6 where !signOut.isHittable { app.swipeUp() }
+        // the list is lazy: the button exists only once scrolled near
+        for _ in 0..<10 where !(signOut.exists && signOut.isHittable) { app.swipeUp() }
+        XCTAssertTrue(signOut.isHittable)
         sleep(1)
         shot("91-settings")
         signOut.tap()
