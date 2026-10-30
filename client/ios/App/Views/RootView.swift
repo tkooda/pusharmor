@@ -1,9 +1,11 @@
 import SwiftUI
+import UIKit
 import PushArmorCore
 
 /// Root screen: one view per AppModel.Phase, plus the shared error alert and toast.
 struct RootView: View {
     @EnvironmentObject var model: AppModel
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         content
@@ -22,8 +24,11 @@ struct RootView: View {
             }
             .animation(.default, value: model.toast)
             .task(id: model.toast) {
-                guard model.toast != nil else { return }
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                guard let t = model.toast else { return }
+                // VoiceOver reads the toast; slow readers get it on screen for longer.
+                UIAccessibility.post(notification: .announcement, argument: t)
+                let slow = UIAccessibility.isVoiceOverRunning || typeSize.isAccessibilitySize
+                try? await Task.sleep(nanoseconds: slow ? 8_000_000_000 : 4_000_000_000)
                 if !Task.isCancelled { model.toast = nil }
             }
             .alert("PushArmor", isPresented: Binding(
