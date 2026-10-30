@@ -3,7 +3,7 @@ PushArmor sends links and short notes between your own devices.
 Share a page from your browser to your phone, or send a note from your phone to your computer. It works between any devices you pair, and it stays private.
 
 - All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.
-- Each device makes its own keys. Our relay only ever sees encrypted data.
+- Each device makes its own keys. Our relay server only ever sees encrypted data.
 - Your devices only. Messages can only ever be read by the devices you paired.
 - No ads, no tracking, no analytics.
 - Free and open source.
