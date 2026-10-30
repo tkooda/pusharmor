@@ -27,7 +27,6 @@ export async function signedStart(c: Ctx): Promise<Signed> {
   c.log.peer = me;
   c.log.account = me.slice(0, 12);
   await enforce(c.env, "RL_PEER", "id:" + me, c.log);
-  await enforceAccount(c.env, me.slice(0, 12), c.log);
   return { me, acct: me.slice(0, 12), paTime };
 }
 
@@ -37,12 +36,14 @@ export interface CallerRow {
   paused: number;
 }
 
-// Steps d, e, f.
+// Steps d, e, f. RL_ACCT is charged only here, after the signature and keyhash pass, so
+// unsigned or badly signed calls with a known PA-ID cannot use up the account's budget.
 export async function callerCheck(c: Ctx, s: Signed, row: CallerRow | undefined | null, allowPaused = false): Promise<void> {
   if (!row) throw new ApiError(401, "unknown peer");
   await checkSig(row.sign_pub, c.req.headers, c.method, c.path, s.paTime, c.body);
   await checkKeyhash(s.me, row.sign_pub, row.enc_pub);
   if (row.paused === 1 && !allowPaused) throw new ApiError(401, "paused");
+  await enforceAccount(c.env, s.acct, c.log);
 }
 
 // Ticket check: MAC, purpose, k, expiry (and account when given).
