@@ -57,6 +57,10 @@ class AppLogicTest {
         // Unknown only with an Unknown row; filter resets to All with no rows left
         assertFalse(HistoryFilter.chips(rows.dropLast(1)) { it }.contains(Chip.Unknown))
         assertEquals(Chip.All, HistoryFilter.effective(rows.dropLast(1), Chip.Unknown))
+        // a sent row has no peer id and is not Unknown
+        val sent = HistoryFilter.Row(null, false)
+        assertFalse(HistoryFilter.chips(listOf(HistoryFilter.Row("a", true), sent)) { it }.contains(Chip.Unknown))
+        assertFalse(HistoryFilter.matches(sent, Chip.Unknown))
     }
 
     @Test fun shareDirectTargetOnlyFromAllSet() {
