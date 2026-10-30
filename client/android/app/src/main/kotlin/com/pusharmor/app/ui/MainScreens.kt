@@ -32,7 +32,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
@@ -82,14 +81,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.layout
@@ -108,7 +100,6 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.PackageManagerCompat
 import androidx.core.content.IntentCompat
@@ -710,6 +701,7 @@ private fun DeviceChip(icon: ImageVector, name: String, selected: Boolean, enabl
 }
 
 /** History: filter chips, day groups, newest first, unread dot, expanded row actions. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HistoryScreen(vm: AppViewModel, onPeer: (String) -> Unit) {
     val rows by vm.history.collectAsState()
@@ -729,9 +721,8 @@ fun HistoryScreen(vm: AppViewModel, onPeer: (String) -> Unit) {
                 "Everything you send or receive shows up here. Share a link from any app to send it to your devices.", top = 110.dp)
             return@Column
         }
-        val chipScroll = rememberScrollState()
-        Row(Modifier.fillMaxWidth().horizontalFade(chipScroll).horizontalScroll(chipScroll).padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             for (c in HistoryFilter.chips(frows, ::nameOf)) {
                 val t = when (c) { HistoryFilter.Chip.All -> "All"; HistoryFilter.Chip.Unknown -> "Unknown"; is HistoryFilter.Chip.PeerChip -> c.name }
                 PaChip(eff == c, t) { chip = c }
@@ -765,18 +756,6 @@ private fun PaChip(selected: Boolean, text: String, onClick: () -> Unit) {
         colors = FilterChipDefaults.filterChipColors(containerColor = LocalPaExtra.current.tile, selectedContainerColor = cs.secondaryContainer),
         border = FilterChipDefaults.filterChipBorder(enabled = true, selected = selected, borderColor = cs.outline, selectedBorderColor = Color.Transparent))
 }
-
-/** Fades the edge(s) of a horizontally scrolling row that still have content beyond them. */
-private fun Modifier.horizontalFade(state: ScrollState, fade: Dp = 32.dp): Modifier = this
-    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-    .drawWithContent {
-        drawContent()
-        val w = fade.toPx()
-        if (state.canScrollBackward) drawRect(Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = 0f, endX = w),
-            size = Size(w, size.height), blendMode = BlendMode.DstOut)
-        if (state.canScrollForward) drawRect(Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = size.width - w, endX = size.width),
-            topLeft = Offset(size.width - w, 0f), size = Size(w, size.height), blendMode = BlendMode.DstOut)
-    }
 
 private val CONTENT_TYPES = setOf("url", "text", "tel")
 
