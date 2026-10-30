@@ -40,6 +40,10 @@ class UiTextTest {
         assertEquals("Send", UiText.sendLabel(0))
         assertEquals("Send to 1 device", UiText.sendLabel(1))
         assertEquals("Send to 2 devices", UiText.sendLabel(2))
+        assertEquals("Send to \"Laptop\"", UiText.sendLabel(1, "Laptop"))
+        assertEquals("Send to 2 devices", UiText.sendLabel(2, "Laptop"))
+        assertEquals("Send to \"Android device ad...\"", UiText.sendLabel(1, "Android device added 2026-10-29"))
+        assertEquals("Send to \"12345678901234567890\"", UiText.sendLabel(1, "12345678901234567890"))
     }
 
     @Test fun sendScreenRules() {
