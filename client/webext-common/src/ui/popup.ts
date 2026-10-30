@@ -2,13 +2,14 @@
 import type { PeerView, StateView } from "../core/rpc.ts";
 import type { SendResult } from "../core/engine.ts";
 import { T } from "../core/texts.ts";
-import { rememberedSelection } from "../model/sendsel.ts";
+import { rememberedSelection, sendToHeader, showAllChip, showCounter } from "../model/sendsel.ts";
 import type { Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
-import { type UiEnv, add, clear, group, h, midEllipsis, peerStatus, platformLabel, rpc, sh, shortTime, statusLine } from "./dom.ts";
+import { type UiEnv, add, clear, group, h, midEllipsis, peerStatus, rpc, sh, shortTime } from "./dom.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
 import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
+import { THEME_CHOICES, parseTheme, setTheme, startTheme } from "./theme.ts";
 
 const CAP = 2048;
 type Tab = "send" | "history" | "peers" | "settings";
@@ -22,7 +23,7 @@ export function wordmark(env: UiEnv, size: number): HTMLElement {
 export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   let st: StateView;
   try {
-    st = await rpc<StateView>(env, "popupOpen");
+    [st] = await Promise.all([rpc<StateView>(env, "popupOpen"), startTheme(env.theme)]);
   } catch (e) {
     root.textContent = (e as Error).message;
     return;
@@ -83,71 +84,95 @@ const TYPE_ICON: Record<string, IconName> = { url: "link", tel: "call", text: "n
 export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, prefill?: string, offerCut = false): Promise<void> {
   const field = h("textarea", { rows: "3", "aria-label": "Text to send" }) as HTMLTextAreaElement;
   field.value = prefill ?? (await env.activeUrl().catch(() => ""));
-  const badge = h("span", { class: "badge" });
+  const caption = h("span", { class: "caption" });
   const counter = h("span", { class: "counter" });
-  const asText = h("input", { type: "checkbox", role: "switch" }) as HTMLInputElement;
+  const asText = h("input", { type: "checkbox" }) as HTMLInputElement;
+  const asTextRow = h("label", { class: "astext" }, asText, h("span", {}, "Send as text"));
   const sendLabel = h("span", { class: "lbl" }, "Send");
   const sendBtn = h("button", { class: "primary big" }, icon("send", 18), sendLabel) as HTMLButtonElement;
   const result = h("div", { class: "result" });
-  const targets = group();
+  const head = sh("");
+  const chips = h("div", { class: "dchips" });
   const data = await rpc<{ peers: PeerView[] }>(env, "peers");
   const sendable = data.peers.filter((p) => p.sendable);
-  const checks: { id: string; box: HTMLInputElement }[] = [];
+  const checks: { id: string; chip: HTMLButtonElement }[] = [];
+  const on = (c: HTMLElement) => c.classList.contains("on");
   const remembered = rememberedSelection(await rpc<string[]>(env, "sendSel").catch(() => []), sendable.map((p) => p.id));
-  const save = () => void rpc(env, "sendSelSet", { ids: checks.filter((c) => c.box.checked).map((c) => c.id) }).catch(() => undefined);
-  let allBox: HTMLInputElement | null = null;
-  const target = (glyph: Node, name: string, sub: (Node | string)[], box: HTMLInputElement, dim = false) =>
-    h("label", { class: "prow target" + (dim ? " off" : "") }, h("div", { class: "av" }, glyph), h("div", { class: "txt" }, h("div", { class: "t1 name" }, name), ...sub.map((s) => h("div", { class: "t2" }, s))), box);
-  const sub = (p: PeerView): (Node | string)[] => {
-    const s = peerStatus(p);
-    return [platformLabel(p.platform), ...(s && s.kind === "off" ? [statusLine(s.kind, s.word)] : [])];
+  const save = () => void rpc(env, "sendSelSet", { ids: checks.filter((c) => on(c.chip)).map((c) => c.id) }).catch(() => undefined);
+  let allChip: HTMLButtonElement | null = null;
+  // A toggle chip: platform icon, or a check while selected (CSS); long names end in "...".
+  const press = (c: HTMLElement, v: boolean) => {
+    c.setAttribute("aria-pressed", String(v));
+    c.classList.toggle("on", v);
   };
-  const count = () => checks.filter((c) => c.box.checked).length;
+  const chip = (glyph: Node, name: string, pressed: boolean, dim = false): HTMLButtonElement => {
+    const c = h("button", { type: "button", class: "chip dchip" + (dim ? " off" : ""), title: name },
+      h("span", { class: "pi" }, glyph), h("span", { class: "ck" }, icon("check", 16)), h("span", { class: "nm" }, name)) as HTMLButtonElement;
+    press(c, pressed);
+    return c;
+  };
+  const count = () => checks.filter((c) => on(c.chip)).length;
   const relabel = () => {
     const n = count();
     sendLabel.textContent = n > 0 ? "Send to " + n + (n === 1 ? " device" : " devices") : "Send";
+    head.textContent = sendToHeader(n, sendable.length);
   };
-  if (st.settings.showAll) {
-    allBox = h("input", { type: "checkbox", checked: remembered === null || remembered.length === sendable.length }) as HTMLInputElement;
-    allBox.addEventListener("change", () => {
-      for (const c of checks) c.box.checked = allBox!.checked;
+  const withAll = showAllChip(st.settings.showAll, sendable.length);
+  if (withAll) {
+    allChip = chip(icon("devices", 16), "All", remembered === null || remembered.length === sendable.length);
+    allChip.addEventListener("click", () => {
+      const v = !on(allChip!);
+      press(allChip!, v);
+      for (const c of checks) press(c.chip, v);
       relabel();
       save();
     });
-    targets.append(target(icon("devices", 18), "All", [], allBox));
+    chips.append(allChip);
   }
-  // "All" sends to every sendable peer, so its rows show ticked; unticking one row leaves "All".
+  // "All" sends to every sendable peer, so its chips show selected; deselecting one leaves "All".
+  // With one device it is preselected (no "All" chip).
   for (const p of sendable) {
-    const box = h("input", { type: "checkbox", checked: remembered ? remembered.includes(p.id) : allBox !== null }) as HTMLInputElement;
-    box.addEventListener("change", () => {
-      if (allBox) allBox.checked = checks.every((c) => c.box.checked);
+    const pressed = remembered ? remembered.includes(p.id) : allChip !== null || sendable.length === 1;
+    const s = peerStatus(p);
+    const c = chip(platformIcon(p.platform, 16), p.label, pressed, p.greyed !== null);
+    if (s && s.kind === "off") c.title = p.label + ": " + s.word;
+    c.addEventListener("click", () => {
+      press(c, !on(c));
+      if (allChip) press(allChip, checks.every((x) => on(x.chip)));
       relabel();
       save();
     });
-    checks.push({ id: p.id, box });
-    targets.append(target(platformIcon(p.platform), p.label, sub(p), box, p.greyed !== null));
+    checks.push({ id: p.id, chip: c });
+    chips.append(c);
   }
   for (const p of data.peers.filter((x) => !x.sendable && x.greyed && !x.hidden)) {
     const s = peerStatus(p);
-    const box = h("input", { type: "checkbox", disabled: true, "aria-hidden": "true", tabindex: "-1" }) as HTMLInputElement;
-    const row = target(platformIcon(p.platform), p.label, [platformLabel(p.platform), s ? statusLine(s.kind, s.word) : p.greyed ?? ""], box, true);
-    row.classList.add("greyed");
-    row.addEventListener("click", () => void rpc(env, "greyedTap"));
-    targets.append(row);
+    const why = s ? s.word : p.greyed ?? "";
+    const c = chip(platformIcon(p.platform, 16), p.label, false, true);
+    c.classList.add("greyed");
+    c.setAttribute("aria-disabled", "true");
+    c.removeAttribute("aria-pressed");
+    c.title = p.label + ": " + why;
+    c.addEventListener("click", () => {
+      result.textContent = p.label + ": " + why;
+      void rpc(env, "greyedTap");
+    });
+    chips.append(c);
   }
   const update = async () => {
     const d = await rpc<{ type: string; bytes: number }>(env, "detect", { text: field.value });
     const type = asText.checked ? "text" : d.type;
-    clear(badge).append(icon(TYPE_ICON[type] ?? "notes", 14), T.typeBadge(type));
-    counter.textContent = d.bytes > CAP ? T.tooLong(d.bytes) : T.counter(d.bytes);
-    counter.classList.toggle("red", d.bytes >= CAP * 0.9);
+    clear(caption);
+    if (field.value !== "") caption.append(icon(TYPE_ICON[type] ?? "notes", 16), T.typeCaption(type));
+    asTextRow.hidden = d.type === "text";
+    counter.textContent = !showCounter(d.bytes, CAP) ? "" : d.bytes > CAP ? T.tooLong(d.bytes) : T.counter(d.bytes);
     sendBtn.disabled = d.bytes > CAP || d.bytes === 0;
   };
   field.addEventListener("input", () => void update());
   asText.addEventListener("change", () => void update());
   sendBtn.addEventListener("click", async () => {
     sendBtn.disabled = true;
-    const to = allBox?.checked ? "all" : checks.filter((c) => c.box.checked).map((c) => c.id);
+    const to = allChip && on(allChip) ? "all" : checks.filter((c) => on(c.chip)).map((c) => c.id);
     try {
       const r = await rpc<SendResult>(env, "send", { text: field.value, asText: asText.checked, targets: to });
       clear(result).append(h("div", {}, T.sentToNofM(r.sent, r.total)), ...r.failures.map((f) => h("div", { class: "dim" }, f.text)));
@@ -157,7 +182,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     }
     sendBtn.disabled = false;
   });
-  root.append(field, h("div", { class: "meta" }, badge, counter));
+  root.append(field, h("div", { class: "meta" }, caption, counter));
   if (offerCut) {
     root.append(
       h("div", { class: "cut" }, h("button", {
@@ -175,7 +200,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
       }, "Send the first 2048 bytes")),
     );
   }
-  root.append(group(h("label", { class: "srow" }, h("span", {}, "Send as text"), asText)), sh("Send to"), targets, h("div", { class: "foot send-foot" }, result, sendBtn));
+  root.append(asTextRow, head, chips, h("div", { class: "foot send-foot" }, result, sendBtn));
   relabel();
   await update();
 }
@@ -292,6 +317,10 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promi
   const autoOpen = h("input", { type: "checkbox", role: "switch", checked: s.autoOpen }) as HTMLInputElement;
   const days = h("select", { "aria-label": "History auto-delete" }) as HTMLSelectElement;
   for (const d of [1, 7, 30, 90, 365]) days.append(h("option", { value: String(d), selected: d === s.historyDays }, d + (d === 1 ? " day" : " days")));
+  const theme = h("select", { "aria-label": "Theme" }) as HTMLSelectElement;
+  const pref = parseTheme(await env.theme.get().catch(() => undefined));
+  for (const [v, label] of THEME_CHOICES) theme.append(h("option", { value: v, selected: v === pref }, label));
+  theme.addEventListener("change", () => void setTheme(env.theme, parseTheme(theme.value)));
   const save = () => void rpc(env, "settings", { showAll: showAll.checked, autoOpen: autoOpen.checked, historyDays: Number(days.value) });
   showAll.addEventListener("change", save);
   autoOpen.addEventListener("change", save);
@@ -307,6 +336,8 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promi
   );
   add(
     root,
+    sh("Appearance"),
+    group(h("div", { class: "srow" }, h("div", { class: "txt" }, h("div", {}, "Theme"), h("div", { class: "t2" }, "Dark uses a true black background.")), theme)),
     sh("Sending"),
     group(
       h("label", { class: "srow" }, h("span", {}, 'Show "All" option'), showAll),

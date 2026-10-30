@@ -149,7 +149,7 @@ export function errorText(e: unknown): string {
   if (e.status === 400 && e.error === "push endpoint not allowed") return "This browser's push service is not supported yet";
   if (e.status === 401 && e.error === "ticket expired") return "Sign-in expired, sign in again";
   if (e.status === 401 && e.error === "wrong code") return "That code did not work. Check the newest email from PushArmor and try again.";
-  if (e.status === 401 && e.error === "code expired") return "This code has expired. We will send you a new one.";
+  if (e.status === 401 && e.error === "code expired") return "This code has expired. Get a new code to continue.";
   if (e.status === 403 && e.error === "turnstile failed") return "The security check did not finish. Try it again.";
   if (e.status === 401 && e.error === "paused") return "Signed out. Sign in to resume";
   if (e.status === 429) return "Too many requests. Try again in " + (e.retryAfter ?? 60) + " s";

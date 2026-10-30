@@ -9,6 +9,7 @@ import { detectType } from "../model/detect.ts";
 import { utf8Len } from "../model/padding.ts";
 import type { HistoryRow } from "../store/db.ts";
 import type { UiEnv } from "../ui/dom.ts";
+import { memoryThemeStore } from "../ui/theme.ts";
 import { mountPopup } from "../ui/popup.ts";
 
 export const MARKER = "PA_SCREENSHOTS";
@@ -41,6 +42,18 @@ const peers: PeerView[] = [
   },
 ];
 
+// ?n=1|3|9: that many other devices on the Send tab (some selected); default: the store set above.
+const q = new URLSearchParams(location.search);
+const MORE: [string, string][] = [["iPad", "iphone"], ["Home PC", "chrome"], ["MacBook", "chrome"], ["Kitchen tablet", "android"], ["Office laptop", "firefox"], ["Spare phone", "android"]];
+let sendSel: string[] = [];
+if (q.has("n")) {
+  const n = Number(q.get("n"));
+  const base = [paired(PHONE, "Phone", "android"), paired(DESKTOP, "Work desktop", "firefox"), paired(TABLET, "Tablet", "android")];
+  const more = MORE.map(([label, platform], i) => paired(id(String(i)), label, platform, label === "Kitchen tablet" ? "unreachable" : null));
+  peers.splice(0, peers.length, ...[...base, ...more].slice(0, n));
+  sendSel = n === 1 ? [] : n === 3 ? [PHONE, DESKTOP] : [PHONE, DESKTOP, id("0"), id("1"), id("2"), id("5")];
+}
+
 const history: (HistoryRow & { sender: string })[] = [
   { id: 5, dir: "in", peer: PHONE, type: "url", content: "https://www.example.com/recipes/2026/10/weeknight-lemon-pasta", n: 1, pairing_id: null,
     received: now - 2 * 60_000, read: false, sender: "Phone" },
@@ -64,6 +77,8 @@ function reply(req: Req): unknown {
       return { self: { id: id("C"), name: "Laptop" }, peers };
     case "history":
       return history;
+    case "sendSel":
+      return sendSel;
     case "detect":
       return { type: detectType(text), bytes: utf8Len(text) };
     default:
@@ -78,6 +93,7 @@ const env: UiEnv = {
   openUrl: () => undefined,
   copy: async () => undefined,
   beta: false,
+  theme: memoryThemeStore(new URLSearchParams(location.search).get("theme")),
 };
 
 const HEADLINES: Record<string, string> = {
@@ -88,6 +104,8 @@ const HEADLINES: Record<string, string> = {
 
 async function main(): Promise<void> {
   document.documentElement.dataset.mode = MARKER;
+  // ?bare: the popup alone at its real height (no store frame)
+  if (q.has("bare")) document.documentElement.classList.add("bare");
   const tab = location.hash.slice(1) || "send";
   if (tab === "signin") state.reg = null;
   document.getElementById("headline")!.textContent = HEADLINES[tab] ?? "";

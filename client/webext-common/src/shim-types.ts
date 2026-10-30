@@ -46,7 +46,11 @@ export interface Browser {
     /** Chrome 116+, Firefox 129+ */
     getContexts?(f: { contextTypes: string[] }): Promise<{ tabId: number; windowId: number; documentUrl?: string }[]>;
   };
-  storage: { local: StorageArea; session: StorageArea };
+  storage: {
+    local: StorageArea;
+    session: StorageArea;
+    onChanged: Event<(changes: Record<string, { newValue?: unknown }>, area: string) => void>;
+  };
   notifications: {
     create(id: string, opts: { type: "basic"; iconUrl?: string; title: string; message: string }): Promise<string>;
     clear(id: string): Promise<boolean>;

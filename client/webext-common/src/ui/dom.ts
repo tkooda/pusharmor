@@ -1,5 +1,6 @@
 // Tiny DOM helpers for the vanilla TypeScript UI (no framework).
 import type { PeerView, Reply, Req } from "../core/rpc.ts";
+import type { ThemeStore } from "./theme.ts";
 
 export type Call = (req: Req) => Promise<Reply>;
 
@@ -13,6 +14,8 @@ export interface UiEnv {
   copy(text: string): Promise<void>;
   /** true in the Beta build (manifest name "PushArmor Beta") */
   beta: boolean;
+  /** Theme choice (storage.local, written by the UI directly) */
+  theme: ThemeStore;
 }
 
 type Attrs = Record<string, string | boolean | ((ev: Event) => void)>;

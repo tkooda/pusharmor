@@ -8,6 +8,7 @@ import type { Reply, Req, StateView } from "../core/rpc.ts";
 import { DEFAULT_SETTINGS } from "../core/engine.ts";
 import type { Restore } from "../model/signin.ts";
 import type { UiEnv } from "../ui/dom.ts";
+import { memoryThemeStore } from "../ui/theme.ts";
 import { SITE, mountPage } from "../ui/page.ts";
 import { mountPopup } from "../ui/popup.ts";
 
@@ -52,6 +53,7 @@ const env: UiEnv = {
   openUrl: () => undefined,
   copy: async () => undefined,
   beta: true,
+  theme: memoryThemeStore(new URLSearchParams(location.search).get("theme")),
 };
 
 const wait = (ms: number) => new Promise((done) => setTimeout(done, ms));

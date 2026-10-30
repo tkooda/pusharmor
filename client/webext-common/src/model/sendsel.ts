@@ -10,3 +10,18 @@ export function rememberedSelection(saved: unknown, sendable: string[]): string[
   const ok = sendable.filter((id) => saved.includes(id));
   return ok.length ? ok : null;
 }
+
+/** Header above the device chips: "Send to (6 of 9)". */
+export function sendToHeader(picked: number, total: number): string {
+  return "Send to (" + picked + " of " + total + ")";
+}
+
+/** The "All" chip shows only with 2 or more devices (one device is preselected instead). */
+export function showAllChip(setting: boolean, devices: number): boolean {
+  return setting && devices > 1;
+}
+
+/** The byte counter shows only from 90 percent of the cap (and over it, as "Too long"). */
+export function showCounter(bytes: number, cap: number): boolean {
+  return bytes * 10 >= cap * 9;
+}

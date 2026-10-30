@@ -7,11 +7,13 @@ import { type UiEnv, add, clear, group, h, rpc } from "./dom.ts";
 import { clampFrameHeight, type Restore, resendLeftMs } from "../model/signin.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
+import { startTheme } from "./theme.ts";
 import { historyView, sendView, wordmark } from "./popup.ts";
 
 export const SITE = "https://pusharmor.com";
 
 export async function mountPage(env: UiEnv, root: HTMLElement, hash: string, selfOrigin: string): Promise<void> {
+  await startTheme(env.theme);
   clear(root);
   const [route, arg] = hash.replace(/^#/, "").split("=");
   document.body.classList.toggle("signin-bg", route === "login");
@@ -33,7 +35,7 @@ export async function mountPage(env: UiEnv, root: HTMLElement, hash: string, sel
 
 const E2E = "All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.";
 const CODE_HELP = "Paste or type the code. Spaces and dashes are fine.";
-const ENDS_FLOW = ["Sign-in expired, sign in again", "This code has expired. We will send you a new one."];
+const ENDS_FLOW = ["Sign-in expired, sign in again", "This code has expired. Get a new code to continue."];
 
 /** One message listener per page (a hash change mounts the view again). */
 let onFrameMessage: ((ev: MessageEvent) => void) | null = null;
@@ -77,6 +79,15 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   const frameHelp = h("p", { class: "help", hidden: true });
   const sendHelp = h("p", { class: "help", hidden: true });
   const s1notes = h("div", { class: "notes" });
+  // Step 1 notes: an optional new note first, then the lasting ones (banner, Firefox setup, receive note).
+  const resetNotes = (first?: HTMLElement) =>
+    add(
+      clear(s1notes),
+      first,
+      st.banner && st.banner !== title ? note("", "info", st.banner) : null,
+      ff && !st.reg ? note("", "info", T.ffFinishSetup) : null,
+      st.receiveNote ? note("", "info", st.receiveNote) : null,
+    );
   if (onFrameMessage) window.removeEventListener("message", onFrameMessage);
   onFrameMessage = (ev: MessageEvent) => {
     if (ev.origin !== SITE || ev.source !== frame.contentWindow) return;
@@ -115,6 +126,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       setHelp(frameHelp, "Finish the check above first.", true);
       return;
     }
+    clearTimeout(draftTimer); // a late draft save must not overwrite the step 2 record
     sendBtn.disabled = true;
     sendBtn.textContent = "Sending...";
     try {
@@ -137,11 +149,11 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     token = "";
   };
   const oauth = (provider: string) => async () => {
-    clear(s1notes);
+    resetNotes();
     try {
       await done(await rpc<LoginResult>(env, "oauth", { provider, purpose }));
     } catch (e) {
-      s1notes.append(note("err", "error", (e as Error).message));
+      resetNotes(note("err", "error", (e as Error).message));
     }
   };
   const title = purpose === "delete-account" ? "Delete account" : purpose === "unpause" ? T.signedOut : "Sign in";
@@ -151,12 +163,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     h("p", { class: "step-n" }, "Step 1 of 2"),
     h("h1", {}, title),
     h("p", { class: "sub" }, purpose === "delete-account" ? "Sign in to the account you want to delete." : "Use the same account on every device you want to pair."),
-    add(
-      s1notes,
-      st.banner && st.banner !== title ? note("", "info", st.banner) : null,
-      ff && !st.reg ? note("", "info", T.ffFinishSetup) : null,
-      st.receiveNote ? note("", "info", st.receiveNote) : null,
-    ),
+    resetNotes(),
     h(
       "div",
       { class: "oauth" },
@@ -190,7 +197,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   const chip = h("span", { class: "who" });
   const s2notes = h("div", { class: "notes" });
   const signBtn = h("button", { type: "submit", class: "primary big" }, "Sign in") as HTMLButtonElement;
-  const resend = h("button", { type: "button", class: "text" }, "Resend code") as HTMLButtonElement;
+  const resend = h("button", { type: "button", class: "text" }, "Get a new code") as HTMLButtonElement;
   let sentAt = 0;
   let tick = 0;
   let busy = false;
@@ -198,7 +205,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     clearTimeout(tick);
     const left = resendLeftMs(sentAt, Date.now());
     resend.disabled = left > 0;
-    resend.textContent = left > 0 ? "Resend code in " + clock(left) : "Resend code";
+    resend.textContent = left > 0 ? "Get a new code in " + clock(left) : "Get a new code";
     if (left > 0 && !step2.hidden) tick = setTimeout(countdown, ((left - 1) % 1000) + 1) as unknown as number;
   };
   const verify = async () => {
@@ -211,7 +218,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       const msg = (e as Error).message;
       if (ENDS_FLOW.includes(msg)) {
         showEmail(email.value);
-        clear(s1notes).append(note("err", "error", msg));
+        resetNotes(note("err", "error", msg));
       } else {
         codeField.classList.add("bad");
         setHelp(codeHelp, msg === "Enter the 6-character code" ? "Enter the 6-character code from the email." : msg, true);
@@ -285,7 +292,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     step1.hidden = false;
     step2.hidden = true;
     back.hidden = true;
-    clear(s1notes);
+    resetNotes();
     if (tokenUsed || !token) freshFrame(); // a used token, or a frame first loaded while hidden
     if (!value) email.focus();
   };
@@ -324,7 +331,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
         ),
       );
     } else if (ff) {
-      clear(s1notes).append(note("", "info", "Finish signing in in the new tab."));
+      resetNotes(note("", "info", "Finish signing in in the new tab."));
     }
   };
 
@@ -332,7 +339,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   if (saved && saved.step === "code") showCode(saved.email, saved.sentAt, true);
   else if (saved) {
     email.value = saved.email;
-    if (saved.note === "expired") s1notes.prepend(note("", "history", "Your last code has expired. We will send you a new one."));
+    if (saved.note === "expired") s1notes.prepend(note("", "history", "Your last code has expired. Get a new code to continue."));
   }
 }
 
