@@ -11,10 +11,11 @@ beforeAll(initP256);
 const j = (s: unknown) => JSON.parse(s as string);
 const NOW = Math.floor(Date.now() / 1000);
 
-// The CREATE TRIGGER statement of migration 0004 (the test runner keeps a file as one query).
+// The last CREATE TRIGGER statement of the migrations (0005 recreates the 0004 trigger; the
+// test runner keeps a file as one query).
 function triggerSql(): string {
   const all = env.TEST_MIGRATIONS.flatMap((m) => m.queries).join("\n");
-  return all.slice(all.indexOf("CREATE TRIGGER peers_json_cap"));
+  return all.slice(all.lastIndexOf("CREATE TRIGGER peers_json_cap"));
 }
 
 async function family(n: number): Promise<Peer[]> {
@@ -138,5 +139,32 @@ describe("migration 0004 on existing rows (I448)", () => {
     expect(j((await row(b.id))!.pending)).toEqual({});
     expect(j((await row(b.id))!.name)).toEqual({});
     expect(j((await row(c.id))!.pending)).toEqual({ [a.id]: [NOW, "CCCC"] });
+  });
+});
+
+describe("migration 0005 on existing rows", () => {
+  it("rebuilds peers: platform iphone -> ios, other columns kept, cap trigger kept", async () => {
+    const [a, b] = await family(2);
+    const before = await env.DB.prepare("SELECT * FROM peers ORDER BY id").all();
+    // Back to the 0001 table (platform 'iphone' allowed) with the 0004 trigger, then seed an old row.
+    const q = (prefix: string) => env.TEST_MIGRATIONS.find((m) => m.name.startsWith(prefix))!.queries;
+    const create0001 = q("0001").join("\n");
+    const peersSql = create0001.slice(create0001.indexOf("CREATE TABLE peers"));
+    await env.DB.prepare("DROP TABLE peers").run();
+    await env.DB.prepare(peersSql).run();
+    for (const r of before.results) {
+      const cols = Object.keys(r);
+      await env.DB.prepare(`INSERT INTO peers (${cols.join(", ")}) VALUES (${cols.map((_, i) => "?" + (i + 1)).join(", ")})`)
+        .bind(...cols.map((k) => (r as Record<string, unknown>)[k])).run();
+    }
+    await env.DB.prepare("UPDATE peers SET platform = 'iphone', push_type = 2, push = ?1 WHERE id = ?2").bind('{"type":"apns"}', b.id).run();
+    await env.DB.prepare(triggerSql()).run();
+    for (const s of q("0005")) await env.DB.prepare(s).run();
+
+    expect((await row(a.id))!.platform).toBe("android");
+    expect(await row(b.id)).toMatchObject({ platform: "ios", push_type: 2, push: '{"type":"apns"}', sign_pub: b.signPub });
+    await expect(env.DB.prepare("UPDATE peers SET platform = 'iphone' WHERE id = ?1").bind(a.id).run()).rejects.toThrow();
+    await expect(env.DB.prepare("UPDATE peers SET name = ?1 WHERE id = ?2").bind(JSON.stringify({ x: message(NAME_JSON_MAX) }), a.id).run())
+      .rejects.toThrow(/pa-json-cap/);
   });
 });

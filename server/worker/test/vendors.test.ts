@@ -15,7 +15,7 @@ import { VENDOR_ROWS } from "./vendor-fixtures";
 
 beforeAll(initP256);
 
-const platformOf = { fcm: "android", apns: "iphone", wp: "chrome", up: "unifiedpush" } as const;
+const platformOf = { fcm: "android", apns: "ios", wp: "chrome", up: "unifiedpush" } as const;
 
 async function target(v: "fcm" | "apns" | "wp" | "up", cls: Target["cls"] = "send", m = message(512)): Promise<Target> {
   const push = pushFor(platformOf[v] === "unifiedpush" ? "android" : platformOf[v], v === "up" ? "unifiedpush" : undefined);
@@ -238,7 +238,7 @@ describe("request shapes: TTL, priority, sizes, no ids in headers", () => {
     const email = randomEmail();
     const me = await newPeer(email);
     const peers: Peer[] = [];
-    for (const pl of ["android", "iphone", "chrome", "firefox"]) peers.push(await newPeer(email, pl));
+    for (const pl of ["android", "ios", "chrome", "firefox"]) peers.push(await newPeer(email, pl));
     for (const p of peers) await setAllow(p, [me.id]);
     const m: Record<string, string> = {};
     for (const p of peers) m[p.id] = message(512);

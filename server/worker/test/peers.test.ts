@@ -33,7 +33,7 @@ describe("POST /peers", () => {
   });
 
   it("platform vs push type mismatch -> 400", async () => {
-    const { r } = await register(randomEmail(), "iphone", pushFor("android"));
+    const { r } = await register(randomEmail(), "ios", pushFor("android"));
     expect(r.status).toBe(400);
     expect(r.body).toEqual({ error: "bad request" });
   });

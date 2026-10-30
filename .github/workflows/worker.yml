@@ -68,6 +68,12 @@ jobs:
             exit 0
           fi
           echo "previous Worker: $tag"
+          # Intended break: migration 0005 renames peers.paused to logged_out and platform
+          # 'iphone' to 'ios'; a Worker below 0.0.19 cannot read it. Skip until 0.0.19 is tagged.
+          if [ "$(printf '%s\n' "${tag#worker/v}" 0.0.19 | sort -V | head -n1)" != 0.0.19 ]; then
+            echo "previous Worker $tag is below 0.0.19: migration 0005 is an intended break, skipping"
+            exit 0
+          fi
           prev="$RUNNER_TEMP/prev"
           git worktree add --detach "$prev" "$tag"
           rm -rf "$prev/server/worker/migrations"

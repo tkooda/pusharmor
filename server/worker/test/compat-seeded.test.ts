@@ -8,6 +8,8 @@ import { call, initP256, message, newPeer, randomEmail, row, testEnv } from "./h
 // this file into the previous worker/v tag and runs it there with the current migrations, so a
 // migration or row format that the previous Worker cannot read fails CI before a deploy. Use
 // only long-standing helpers and routes here: the file must run against the previous tree.
+// Migration 0005 (paused -> logged_out, platform 'iphone' -> 'ios') breaks this expectation on
+// purpose for a previous Worker below 0.0.19; worker.yml skips the job until then.
 
 beforeAll(initP256);
 

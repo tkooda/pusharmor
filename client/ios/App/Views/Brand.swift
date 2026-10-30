@@ -32,7 +32,7 @@ extension Color {
 /// SF Symbol for a peer platform.
 func platformSymbol(_ platform: String?) -> String {
     switch platform {
-    case "iphone": return "iphone"
+    case "ios": return "iphone"
     case "android": return "smartphone"
     case "chrome": return "laptopcomputer"
     case "firefox": return "desktopcomputer"

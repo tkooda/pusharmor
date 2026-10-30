@@ -17,7 +17,7 @@ test("peer status line by priority, replaced by pairing and note lines", () => {
   assert.equal(peerStatus(peer({ greyed: "Declined by Phone" })), null); // note line takes its place
   assert.equal(peerStatus(peer({ lines: ["Pairing with Phone"] })), null);
   assert.equal(peerStatus(peer({ fingerprint: "K7QD" })), null);
-  assert.equal(platformLabel("iphone"), "iPhone");
+  assert.equal(platformLabel("ios"), "iPhone");
   assert.equal(platformLabel("firefox"), "Firefox");
 });
 

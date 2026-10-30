@@ -49,7 +49,7 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
     override fun selfRemoved(deleted: Boolean) = g.session.selfRemoved(deleted = deleted, lostKeys = false)
 
     companion object {
-        fun platformLabel(p: String) = when (p) { "android" -> "Android"; "iphone" -> "iPhone"; "chrome" -> "Chrome"; "firefox" -> "Firefox"; else -> p }
+        fun platformLabel(p: String) = when (p) { "android" -> "Android"; "ios" -> "iPhone"; "chrome" -> "Chrome"; "firefox" -> "Firefox"; else -> p }
         fun dateLabel(created: Long): String = java.text.SimpleDateFormat("MMM d", java.util.Locale.US).format(java.util.Date(created * 1000))
     }
 }
