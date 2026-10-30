@@ -37,6 +37,8 @@ public enum S {
         "Remove \(x) from this account? \(x) must sign in again and pair with every device again."
     }
     public static func sentTo(_ n: Int, _ m: Int) -> String { "Sent to \(n) of \(m) devices" }
+    /// History line for a message that reached its one recipient (F22).
+    public static func sentToOne(_ x: String) -> String { "Sent to \"\(x)\"" }
     public static func notDelivered(_ x: String) -> String { "Not delivered to \(x): open PushArmor on it" }
     public static func signedOutPeer(_ x: String) -> String { "\(x) is signed out" }
     public static let emailSendFailed = "could not send the email, try again"

@@ -93,13 +93,26 @@ struct HistoryRowView: View {
         isEvent && row.count > 1 ? "\(row.content) (\(row.count))" : row.content
     }
 
-    private var resultsSummary: String? {
+    private var results: [String: String]? {
         guard outgoing, let r = row.results,
-              let d = r.data(using: .utf8),
-              let obj = try? JSONSerialization.jsonObject(with: d) as? [String: String]
+              let d = r.data(using: .utf8)
         else { return nil }
+        return try? JSONSerialization.jsonObject(with: d) as? [String: String]
+    }
+
+    private var resultsSummary: String? {
+        guard let obj = results else { return nil }
+        if let name = soleRecipientName { return S.sentToOne(name) }
         let sent = obj.values.filter { $0 == "sent" }.count
         return S.sentTo(sent, obj.count)
+    }
+
+    /// The one recipient's name when the message went to exactly one device and reached it (F22).
+    private var soleRecipientName: String? {
+        guard let obj = results, obj.count == 1, let only = obj.first, only.value == "sent",
+              let p = model.peers.first(where: { $0.id.text == only.key })
+        else { return nil }
+        return PeerLabel.label(p)
     }
 
     var body: some View {
@@ -131,7 +144,15 @@ struct HistoryRowView: View {
                     content
                         .font(isEvent ? .subheadline : .body)
                         .foregroundColor(.secondaryText)
-                    if let s = resultsSummary {
+                    if let name = soleRecipientName {
+                        // The name truncates inside the quotes; the line stays one line.
+                        HStack(spacing: 0) {
+                            Text("Sent to \"").fixedSize()
+                            Text(name).lineLimit(1).truncationMode(.tail)
+                            Text("\"").fixedSize()
+                        }
+                        .font(.caption).foregroundColor(.secondaryText)
+                    } else if let s = resultsSummary {
                         Text(s).font(.caption).foregroundColor(.secondaryText)
                     }
                 }
