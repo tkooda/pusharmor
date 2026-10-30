@@ -13,6 +13,8 @@ export const PURPOSES = ["register", "unpause", "delete-account"] as const;
 export type Purpose = (typeof PURPOSES)[number];
 export const TICKET_LIFE_S = 120;
 export const TICKET_LIFE_PEER_LIMIT_S = 600;
+// A ticket renewed at the peer limit never lives past this many seconds from the first ticket.
+export const TICKET_RENEW_MAX_S = 1800;
 export const REQUEST_TOKEN_LIFE_S = 900;
 export const STATE_LIFE_S = 600;
 
@@ -50,6 +52,7 @@ export interface Ticket {
   k: string;
   p: Purpose;
   x: number; // expiry, unix s
+  i?: number; // first ticket's issue time, unix s (set on peer-limit renewal)
   s?: string; // sealed Apple refresh token (delete-account only)
 }
 
