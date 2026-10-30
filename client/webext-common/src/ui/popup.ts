@@ -5,7 +5,7 @@ import { T } from "../core/texts.ts";
 import { canReceiveNow, rememberedSelection, sendDisabled, sendToHeader, showAllChip, showCounter } from "../model/sendsel.ts";
 import type { Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
-import { type UiEnv, add, clear, group, h, midEllipsis, peerStatus, rpc, sh, shortTime } from "./dom.ts";
+import { type UiEnv, add, clear, group, h, midEllipsis, nextTabIndex, peerStatus, rpc, sh, shortTime } from "./dom.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
 import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
@@ -56,13 +56,15 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
     );
     return;
   }
-  const body = h("div", { class: "body" });
+  const body = h("div", { class: "body", id: "panel", role: "tabpanel" });
   const tabs = h("div", { class: "tabs", role: "tablist" });
   const show = (t: Tab, prefill?: string) => {
     for (const b of Array.from(tabs.children)) {
       const on = (b as HTMLElement).dataset.tab === t;
       b.classList.toggle("on", on);
       b.setAttribute("aria-selected", String(on));
+      b.setAttribute("tabindex", on ? "0" : "-1"); // roving: one tab stop, arrows move within
+      if (on) body.setAttribute("aria-labelledby", "tab-" + t);
     }
     clear(body);
     if (t === "send") void sendView(env, body, st, prefill);
@@ -71,10 +73,18 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
     if (t === "settings") void settingsView(env, body, st);
   };
   for (const [t, label] of [["send", "Send"], ["history", "History"], ["peers", "Devices"], ["settings", "Settings"]] as [Tab, string][]) {
-    const b = h("button", { role: "tab", onclick: () => show(t) }, label);
+    const b = h("button", { role: "tab", id: "tab-" + t, "aria-controls": "panel", onclick: () => show(t) }, label);
     b.dataset.tab = t;
     tabs.append(b);
   }
+  tabs.addEventListener("keydown", (ev: KeyboardEvent) => {
+    const all = Array.from(tabs.children) as HTMLElement[];
+    const to = nextTabIndex(ev.key, all.indexOf(document.activeElement as HTMLElement), all.length);
+    if (to === null || !all[to]) return;
+    ev.preventDefault();
+    all[to].focus();
+    show(all[to].dataset.tab as Tab);
+  });
   const top = h("div", { class: "top" }, h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), tabs);
   root.append(top, body);
   show("send");

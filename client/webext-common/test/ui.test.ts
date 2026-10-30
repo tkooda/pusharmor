@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { PeerView } from "../src/core/rpc.ts";
-import { fitMiddle, peerStatus, platformLabel, shortTime } from "../src/ui/dom.ts";
+import { fitMiddle, nextTabIndex, peerStatus, platformLabel, shortTime } from "../src/ui/dom.ts";
 
 const peer = (o: Partial<PeerView>): PeerView => ({
   id: "x", label: "Phone", platform: "android", lines: [], actions: [], countdown: null, fingerprint: null, pk: null,
@@ -62,4 +62,27 @@ test("status and error text is announced: live regions and field errors wired to
   assert.match(page, /setHelp\(emailHelp, bad, true, email\)/);
   assert.match(page, /setHelp\(codeHelp, msg[^\n]*, true, code\)/);
   assert.match(rd("peersview.ts"), /await redraw\(msg\)/); // the message survives the redraw
+});
+
+test("tab keys: arrows wrap, Home and End jump, others pass", () => {
+  assert.equal(nextTabIndex("ArrowRight", 3, 4), 0);
+  assert.equal(nextTabIndex("ArrowRight", 0, 4), 1);
+  assert.equal(nextTabIndex("ArrowLeft", 0, 4), 3);
+  assert.equal(nextTabIndex("Home", 2, 4), 0);
+  assert.equal(nextTabIndex("End", 0, 4), 3);
+  assert.equal(nextTabIndex("a", 0, 4), null);
+});
+
+test("popup tabs are a full tab widget; headings, main landmark, reduced motion", async () => {
+  const { readFileSync } = await import("node:fs");
+  const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
+  const pop = rd("popup.ts");
+  assert.match(pop, /role: "tabpanel"/);
+  assert.match(pop, /"aria-controls": "panel"/);
+  assert.match(pop, /"aria-labelledby", "tab-"/);
+  assert.match(pop, /setAttribute\("tabindex", on \? "0" : "-1"\)/);
+  assert.match(pop, /tabs\.addEventListener\("keydown"/);
+  assert.match(rd("dom.ts"), /h\("h2", \{ class: "sh"/);
+  for (const f of ["popup.html", "page.html"]) assert.match(rd(f), /<main id="app">/);
+  assert.match(rd("style.css"), /prefers-reduced-motion: reduce/);
 });

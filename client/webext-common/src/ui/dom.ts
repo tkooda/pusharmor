@@ -66,9 +66,18 @@ export function add(el: HTMLElement, ...kids: (Node | string | null | undefined 
   return el;
 }
 
-/** A section header (caps by CSS; the DOM text stays sentence case). */
+/** A section header (caps by CSS; the DOM text stays sentence case). A heading, and focusable by script. */
 export function sh(text: string): HTMLElement {
-  return h("div", { class: "sh" }, text);
+  return h("h2", { class: "sh", tabindex: "-1" }, text);
+}
+
+/** The tab an arrow, Home or End key moves to, or null for any other key (tab widget pattern). */
+export function nextTabIndex(key: string, i: number, n: number): number | null {
+  if (key === "ArrowRight") return (i + 1) % n;
+  if (key === "ArrowLeft") return (i - 1 + n) % n;
+  if (key === "Home") return 0;
+  if (key === "End") return n - 1;
+  return null;
 }
 
 /** A bordered group card holding rows. */
