@@ -5,7 +5,7 @@
   "use strict";
 
   // The fixed VAPID public key (b64url of the 65-byte point), same as Chrome and autopush.
-  var VAPID_PUBLIC_KEY = "VAPID_PUBLIC_KEY_PLACEHOLDER";
+  var VAPID_PUBLIC_KEY = "BCxadZ_SCcdg9fAFFWwHORksD5COPO9uTITHN2eKJ1uwECu_74P9u_xC12xrJONqhmnI77KQBYAYhiqwCoHEAxc";
   var SUBSCRIBE_TIMEOUT_MS = 15000; // register + ready + subscribe together
 
   var status = document.getElementById("status");
