@@ -18,4 +18,34 @@ final class RecipientMemoryTests: XCTestCase {
     func testNothingRememberedGivesEmptyDefault() {
         XCTAssertTrue(RecipientMemory.preselect(remembered: [], candidates: cands).isEmpty)
     }
+
+    override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: RecipientMemory.defaultsKey)
+        super.tearDown()
+    }
+
+    /// Sending remembers the recipients (L7).
+    @MainActor
+    func testSendRemembersRecipients() async {
+        UserDefaults.standard.removeObject(forKey: RecipientMemory.defaultsKey)
+        let sent = await RecipientMemory.send(["c", "a"]) { true }
+        XCTAssertTrue(sent)
+        XCTAssertEqual(RecipientMemory.load(), ["a", "c"])
+    }
+
+    /// A failed send reports false, so the Send screen keeps the draft.
+    @MainActor
+    func testFailedSendReportsNotSent() async {
+        let sent = await RecipientMemory.send(["a"]) { false }
+        XCTAssertFalse(sent)
+    }
+
+    /// With no Core nothing is sent, so the draft is kept.
+    @MainActor
+    func testModelSendWithoutCoreReportsNotSent() async {
+        let model = AppModel()
+        XCTAssertNil(model.core)
+        let sent = await model.send("hi", asText: true, toAll: false, peerIds: ["a"])
+        XCTAssertFalse(sent)
+    }
 }

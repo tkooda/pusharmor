@@ -422,14 +422,18 @@ final class AppModel: ObservableObject {
 
     // MARK: send
 
-    func send(_ text: String, asText: Bool, toAll: Bool, peerIds: [String]) async {
-        guard let core = core else { return }
+    /// True when sent; false (draft kept) when not.
+    @discardableResult
+    func send(_ text: String, asText: Bool, toAll: Bool, peerIds: [String]) async -> Bool {
+        guard let core = core else { return false }
         let type: SendType = asText ? .text : SendDetection.detect(text)
         let all = allSet
         let ids = toAll ? all.map { $0.id } : peerIds.compactMap { PeerId(text: $0) }
+        var sent = false
         do {
             let rep = try await core.send(text, as: type, to: ids, allCount: all.count)
             toast = rep.toast
+            sent = true
         } catch Core.SendError.clockOff {
             toast = S.clockOff
         } catch Core.SendError.emailSendFailed {
@@ -440,6 +444,7 @@ final class AppModel: ObservableObject {
             toast = "Not sent, try again"
         }
         reload()
+        return sent
     }
 
     // MARK: history

@@ -18,6 +18,14 @@ enum RecipientMemory {
     static func save(_ ids: Set<String>) {
         UserDefaults.standard.set(ids.sorted(), forKey: defaultsKey)
     }
+
+    /// The Send button: remembers the selection on send only, so an abandoned selection
+    /// is not restored (L7), then sends. True when sent, so the draft clears only then.
+    @MainActor
+    static func send(_ ids: Set<String>, _ run: () async -> Bool) async -> Bool {
+        save(ids)
+        return await run()
+    }
 }
 
 /// Pure Send screen rules (F12, F13). Tested in SendScreenRulesTests.
@@ -293,12 +301,13 @@ struct ComposeView: View {
                 let a = asText
                 let all = toAll && showAll
                 let ids = all ? [] : candidates.filter { selected.contains($0.id.text) && enabled($0) }.map { $0.id.text }
-                // Remembered on send only, so an abandoned selection is not restored (L7).
-                RecipientMemory.save(selected)
+                let sel = selected
                 Task {
-                    await model.send(t, asText: a, toAll: all, peerIds: ids)
-                    text = ""
-                    asText = false
+                    // A failed send keeps the draft, so "Not sent, try again" can be retried.
+                    if await RecipientMemory.send(sel, { await model.send(t, asText: a, toAll: all, peerIds: ids) }) {
+                        text = ""
+                        asText = false
+                    }
                 }
             } label: {
                 Label {
