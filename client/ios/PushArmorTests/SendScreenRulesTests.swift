@@ -45,8 +45,12 @@ final class SendScreenRulesTests: XCTestCase {
         let ids = ["a", "b", "c", "d"]
         XCTAssertEqual(SendScreenRules.visibleChips(ids, recipients: ["c", "a"], keyboardUp: false), ids)
         XCTAssertEqual(SendScreenRules.visibleChips(ids, recipients: ["c", "a"], keyboardUp: true), ["a", "c"])
-        XCTAssertEqual(SendScreenRules.visibleChips(ids, recipients: [], keyboardUp: true), [])
-        XCTAssertEqual(SendScreenRules.visibleChips(ids, recipients: ["x"], keyboardUp: true), [])
+    }
+
+    func testKeyboardUpWithNoneChosenShowsAllDevices() {
+        let ids = ["a", "b", "c", "d"]
+        XCTAssertEqual(SendScreenRules.visibleChips(ids, recipients: [], keyboardUp: true), ids)
+        XCTAssertEqual(SendScreenRules.visibleChips(ids, recipients: ["x"], keyboardUp: true), ids)
     }
 
     func testAllChipWithKeyboardUpShowsOnlyWhileOn() {

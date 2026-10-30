@@ -39,8 +39,10 @@ enum SendScreenRules {
 
     /// Device chips to show, in list order. With the keyboard up only the chosen
     /// recipients show, so the block stays short and every recipient stays visible.
+    /// With none chosen all show, so a device can still be chosen.
     static func visibleChips(_ ids: [String], recipients: Set<String>, keyboardUp: Bool) -> [String] {
-        keyboardUp ? ids.filter { recipients.contains($0) } : ids
+        let chosen = ids.filter { recipients.contains($0) }
+        return keyboardUp && !chosen.isEmpty ? chosen : ids
     }
 
     /// The "All" chip: with the keyboard up it shows only while it is on.
