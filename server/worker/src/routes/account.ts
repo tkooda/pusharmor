@@ -18,6 +18,7 @@ interface AcctRow {
   push_failed: number | null;
   push_type: number | null;
   push: string | null;
+  push_verified_at: number | null;
   logged_out: number;
   allow: string;
   deny: string;
@@ -66,6 +67,7 @@ export async function deleteAccount(c: Ctx): Promise<Response> {
           listening: isListening(x.platform, x.push_failed),
           push_type: x.push_type,
           push: x.push,
+          push_verified_at: x.push_verified_at,
         }
       );
     };

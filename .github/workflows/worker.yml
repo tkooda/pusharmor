@@ -82,5 +82,6 @@ jobs:
           cp server/worker/test/compat-seeded.test.ts "$prev/server/worker/test/"
           cd "$prev/server/worker"
           npm ci --ignore-scripts
-          # d1-cost is skipped: a new index can change rows_read
-          npx --no-install vitest run --exclude 'test/d1-cost.test.ts'
+          # d1-cost is skipped: a new index can change rows_read. storage is skipped: its migration
+          # tests copy peers rows column by column, so a column added by a later migration breaks them.
+          npx --no-install vitest run --exclude 'test/d1-cost.test.ts' --exclude 'test/storage.test.ts'

@@ -31,6 +31,7 @@ export interface CtxRow {
   push_failed: number | null;
   push_type: number | null;
   push: string | null;
+  push_verified_at: number | null;
   logged_out: number;
   approves_me: number;
   denies_me: number;
@@ -57,7 +58,7 @@ export async function listBody(rows: ListRow[], me: string): Promise<Record<stri
   const allows = new Map(rows.map((r) => [r.id, new Set(allowKeys(r.allow))]));
   const self = rows.find((r) => r.id === me);
   let myPush: string | null = null;
-  if (self && self.my_push) myPush = await pushSha256(stripVerified(self.my_push));
+  if (self && self.my_push) myPush = await pushSha256(JSON.parse(self.my_push) as Record<string, unknown>);
   const peers = rows.map((r) => {
     let approvedBy = 0;
     for (const s of allows.values()) if (s.has(r.id)) approvedBy++;
@@ -100,19 +101,8 @@ export function limitPeers(rows: ListRow[]): Record<string, unknown>[] {
   });
 }
 
-function stripVerified(push: string): Record<string, unknown> {
-  const o = JSON.parse(push) as Record<string, unknown>;
-  delete o.verified_at;
-  return o;
-}
-
-export function isUnconfirmedUp(pushType: number | null, push: string | null): boolean {
-  if (pushType !== 6 || push === null) return false;
-  try {
-    return !("verified_at" in JSON.parse(push));
-  } catch {
-    return true;
-  }
+export function isUnconfirmedUp(pushType: number | null, verifiedAt: number | null): boolean {
+  return pushType === 6 && verifiedAt === null;
 }
 
 export interface RelayRow {
@@ -122,6 +112,7 @@ export interface RelayRow {
   listening: boolean;
   push_type: number | null;
   push: string | null;
+  push_verified_at: number | null;
 }
 
 // Relay filter, /send order: unknown, denied, unapproved, logged out, not listening, gone,
@@ -134,7 +125,7 @@ export function relayFilter(row: RelayRow | undefined): string | null {
   if (row.logged_out) return "logged out";
   if (!row.listening) return "not listening";
   if (row.push === null || row.push_type === null) return "gone";
-  if (isUnconfirmedUp(row.push_type, row.push)) return "failed";
+  if (isUnconfirmedUp(row.push_type, row.push_verified_at)) return "failed";
   return null;
 }
 
@@ -147,6 +138,7 @@ export function ctxRelayRow(r: CtxRow | undefined): RelayRow | undefined {
       listening: isListening(r.platform, r.push_failed),
       push_type: r.push_type,
       push: r.push,
+      push_verified_at: r.push_verified_at,
     }
   );
 }

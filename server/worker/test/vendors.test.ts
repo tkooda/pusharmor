@@ -19,7 +19,6 @@ const platformOf = { fcm: "android", apns: "ios", wp: "chrome", up: "unifiedpush
 
 async function target(v: "fcm" | "apns" | "wp" | "up", cls: Target["cls"] = "send", m = message(512)): Promise<Target> {
   const push = pushFor(platformOf[v] === "unifiedpush" ? "android" : platformOf[v], v === "up" ? "unifiedpush" : undefined);
-  if (v === "up") (push as Record<string, unknown>).verified_at = 1;
   const pushType = v === "fcm" ? 1 : v === "apns" ? 2 : v === "up" ? 6 : 3;
   return { id: "id-" + v, pushType, push: JSON.stringify(push), m, cls };
 }

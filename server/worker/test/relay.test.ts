@@ -49,7 +49,7 @@ describe("POST /send", () => {
     const up = await newPeer(email, "android", pushFor("android", "unifiedpush"));
     for (const p of [x, up]) {
       await setAllow(p, [me.id]);
-      await env.DB.prepare("UPDATE peers SET push = json_set(push, '$.verified_at', 1) WHERE id = ?1").bind(p.id).run();
+      await env.DB.prepare("UPDATE peers SET push_verified_at = 1 WHERE id = ?1").bind(p.id).run();
     }
     const send = async () => (await call("POST", "/v1/send", { v: 1, m: { [x.id]: message(512), [up.id]: message(512) } }, { peer: me })).body.r;
     const before = vendorRequests("ntfy.sh").length;
@@ -318,7 +318,7 @@ describe("UnifiedPush probe and confirm (7.6, 6.11)", () => {
     const r = await call("POST", `/v1/peers/${p.id}/confirm`, { code: prev }, { peer: p });
     expect(r.status).toBe(200);
     expect(r.body).toEqual({});
-    expect(typeof j((await row(p.id))!.push).verified_at).toBe("number");
+    expect(typeof (await row(p.id))!.push_verified_at).toBe("number");
     // RL_PROBE: 2 per 60 s; the third push change sends no probe and still succeeds. A counting
     // stub stands in for the binding, whose fixed 60 s window can roll over mid-test (I363).
     const rl = countingLimit(2);

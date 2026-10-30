@@ -162,11 +162,3 @@ export async function pushSha256(fields: Record<string, unknown>): Promise<strin
       : `${t}\n${fields.token}`;
   return b64urlEncode((await sha256(utf8(s))).slice(0, 16));
 }
-
-// Stored push JSON without verified_at, for the PATCH skip rule.
-export function storedWithoutVerified(stored: string): { base: string; verified: boolean } {
-  const o = JSON.parse(stored) as Record<string, unknown>;
-  const verified = "verified_at" in o;
-  delete o.verified_at;
-  return { base: JSON.stringify(o), verified };
-}
