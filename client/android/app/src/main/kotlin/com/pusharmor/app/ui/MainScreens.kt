@@ -630,8 +630,8 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = ex.tile, unfocusedContainerColor = ex.tile,
                         focusedBorderColor = cs.primary, unfocusedBorderColor = cs.outline))
+                val counter = UiText.showCounter(bytes)
                 if (extras) Column(Modifier.onSizeChanged { extrasPx = it.height }) {
-                    val counter = UiText.showCounter(bytes)
                     if (text.isNotEmpty() || counter) {
                         Row(Modifier.padding(start = 32.dp, end = 32.dp, top = 6.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically) {
@@ -647,6 +647,10 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                             Text("Send as text", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
                         }
                     }
+                } else if (counter) {
+                    // The counter does not give way: with the keyboard up it still says why Send is greyed.
+                    Text(UiText.counter(bytes), Modifier.padding(start = 32.dp, end = 32.dp, top = 6.dp).fillMaxWidth(),
+                        style = MaterialTheme.typography.bodySmall, color = cs.error, textAlign = TextAlign.End)
                 }
                 val chips = others(peers, me?.id).filter { it.pinned }
                 Column(Modifier.onSizeChanged { chipsPx = it.height }) {
