@@ -39,6 +39,7 @@ export interface Env {
   PA_OAUTH_REDIRECT_FIREFOX: string;
   PA_OAUTH_REDIRECT_ANDROID: string;
   PA_OAUTH_REDIRECT_WEB: string;
+  PA_OAUTH_REDIRECT_CLI: string;
   PA_WEB_ORIGINS: string;
   PA_LOG_SAMPLE: string;
 

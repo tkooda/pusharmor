@@ -51,6 +51,7 @@
     "PA_OAUTH_REDIRECT_FIREFOX": "https://pusharmor.com/auth/done",
     "PA_OAUTH_REDIRECT_ANDROID": "https://pusharmor.com/auth/android",
     "PA_OAUTH_REDIRECT_WEB": "https://pusharmor.com/delete-account",
+    "PA_OAUTH_REDIRECT_CLI": "https://pusharmor.com/auth/cli",
     "PA_WEB_ORIGINS": "[\"https://pusharmor.com\"]",
     "PA_LOG_SAMPLE": "1"
   }

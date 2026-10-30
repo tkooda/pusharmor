@@ -27,6 +27,7 @@
     "PA_OAUTH_REDIRECT_FIREFOX": "Firefox OAuth redirect URL",
     "PA_OAUTH_REDIRECT_ANDROID": "Android OAuth redirect URL",
     "PA_OAUTH_REDIRECT_WEB": "web OAuth redirect URL",
+    "PA_OAUTH_REDIRECT_CLI": "command line login OAuth redirect URL (the /auth/cli page)",
     "PA_WEB_ORIGINS": "JSON list of web origins allowed by CORS",
     "PA_LOG_SAMPLE": "share of plain-success and 429 request log lines kept (0..1); errors are always logged"
   },

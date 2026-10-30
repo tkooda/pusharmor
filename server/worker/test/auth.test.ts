@@ -310,6 +310,38 @@ describe("Google", () => {
     expect((await call("GET", `/v1/auth/google/callback?code=x&state=${state.slice(0, -2)}AA`)).status).toBe(400);
   });
 
+  it("cli: k16 start, callback returns to /auth/cli with a cli code that registers the cli peer; Apple start allowed", async () => {
+    const g = await idp("RS256");
+    serveJwks("www.googleapis.com", g);
+    const k = await keys();
+    const k16 = await keyRef16(b64urlDecode(k.signPub)!);
+    const kr = await keyRef(b64urlDecode(k.signPub)!);
+    expect((await call("GET", `/v1/auth/google?k=${kr}&r=cli&p=register`)).status).toBe(400);
+    expect((await call("GET", `/v1/auth/google?k=${k16}&r=firefox&p=register`)).status).toBe(400);
+    expect((await call("GET", `/v1/auth/google?k=${k16}&r=cli&p=register&u=https://pusharmor.com/auth/cli`)).status).toBe(400);
+    expect((await call("GET", `/v1/auth/apple?k=${k16}&r=cli&p=login`)).status).toBe(302);
+    const s = await call("GET", `/v1/auth/google?k=${k16}&r=cli&p=register`);
+    expect(s.status).toBe(302);
+    const loc = new URL(s.res.headers.get("Location")!);
+    expect(loc.searchParams.get("nonce")).toBe(await oauthNonce("register", k16));
+    const state = secretString(loc.searchParams.get("state")!);
+    const email = randomEmail();
+    onVendor((r) => r.url === "https://oauth2.googleapis.com/token" && new TextDecoder().decode(r.body).includes("authorization_code"), async () =>
+      Response.json({ id_token: await idToken(g, { iss: "accounts.google.com", aud: "google-web-client", exp: Math.floor(Date.now() / 1000) + 60, nonce: await oauthNonce("register", k16), email, email_verified: "true" }) }),
+    );
+    const cb = await call("GET", `/v1/auth/google/callback?code=${secretString("authcode123")}&state=${state}`);
+    expect(cb.status).toBe(302);
+    const to = cb.res.headers.get("Location")!;
+    const m = /^https:\/\/pusharmor\.com\/auth\/cli#cli_code=([A-Za-z0-9_-]{34})&email=(.*)$/.exec(to);
+    expect(m).not.toBeNull();
+    expect(decodeURIComponent(m![2])).toBe(email);
+    const code = secretString(m![1]);
+    const w = Math.floor(Date.now() / 1000 / CLI_WINDOW_S);
+    expect([await makeCliCode(S.PA_TOKEN_SECRET, await acctOf(email), k16, "register", w), await makeCliCode(S.PA_TOKEN_SECRET, await acctOf(email), k16, "register", w - 1)]).toContain(code);
+    const reg = await call("POST", "/v1/peers", { ticket: code, sign_pub: k.signPub, enc_pub: k.encPub, platform: "cli", push: null }, { sign: k.sign });
+    expect(reg.status).toBe(200);
+  });
+
   it("valid state: provider error, missing code, failed exchange -> 302 with #error; bad state stays 400 (I306)", async () => {
     const k = await keys();
     const kr = await keyRef(b64urlDecode(k.signPub)!);
