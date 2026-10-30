@@ -38,6 +38,17 @@ describe("POST /peers", () => {
     expect(r.body).toEqual({ error: "bad request" });
   });
 
+  it("platform cli: push type 6 or null; other push types -> 400", async () => {
+    expect((await register(randomEmail(), "cli", pushFor("cli"))).r.status).toBe(200);
+    const { r } = await register(randomEmail(), "cli", null);
+    expect(r.status).toBe(200);
+    expect((r.body.peers as { platform: string }[])[0].platform).toBe("cli");
+    for (const kind of ["android", "ios", "chrome", "firefox"]) {
+      expect((await register(randomEmail(), "cli", pushFor(kind))).r.status).toBe(400);
+    }
+    expect((await register(randomEmail(), "android", pushFor("cli"))).r.status).toBe(200);
+  });
+
   it("sign_pub equal to enc_pub -> 400", async () => {
     const k = await keys();
     const email = randomEmail();
