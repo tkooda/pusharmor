@@ -26,7 +26,7 @@ import { ApiError } from "../errors";
 import { json, redirect } from "../http";
 import { parseJsonObject } from "../pipeline/body";
 import { deps } from "../push/deps";
-import { checkCliK, checkPurpose, checkSignPub } from "./email";
+import { checkCliK, checkCliPurpose, checkPurpose, checkSignPub } from "./email";
 import { verifyIdToken, type Provider } from "./jwks";
 import { normalizeEmail } from "./normalize";
 
@@ -138,8 +138,10 @@ export async function oauthStart(c: Ctx, p: ProviderCfg): Promise<Response> {
   const purpose = checkPurpose(q.get("p"));
   if (r === null || !(CLIENTS as readonly string[]).includes(r)) throw bad();
   // cli: k is the k16 from the /auth/cli link.
-  if (r === "cli") checkCliK(k);
-  else if (k === null || k.length !== 43 || b64urlDecode(k)?.length !== 32) throw bad();
+  if (r === "cli") {
+    checkCliK(k);
+    checkCliPurpose(purpose);
+  } else if (k === null || k.length !== 43 || b64urlDecode(k)?.length !== 32) throw bad();
   if (r === "web" && purpose !== "delete-account") throw bad();
   const want = q.get("u");
   redirectFor(c.env, r as Client, want);
@@ -182,7 +184,7 @@ export async function oauthCallback(c: Ctx, p: ProviderCfg, params: URLSearchPar
     if (st.r === "cli") {
       const normalized = normalizeEmail(email);
       const a = await accountId(c.env.PA_ID_SECRET, await emailHash(normalized));
-      const code = await makeCliCode(c.env.PA_TOKEN_SECRET, a, st.k, purpose, Math.floor(nowS() / CLI_WINDOW_S));
+      const code = await makeCliCode(c.env.PA_TOKEN_SECRET, a, st.k, checkCliPurpose(purpose), Math.floor(nowS() / CLI_WINDOW_S));
       return redirect(`${target}#cli_code=${code}&email=${encodeURIComponent(normalized)}`);
     }
     const sealed = p.name === "apple" && purpose === "delete-account" ? await sealApple(c.env, ex.refresh_token, clientId) : undefined;

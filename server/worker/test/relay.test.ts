@@ -165,7 +165,7 @@ describe("logout / login (6.10)", () => {
     expect((await row(a.id))!.logged_out).toBe(0);
   });
 
-  it("login and DELETE /account accept a cli code of the right purpose and account", async () => {
+  it("login accepts a cli code of the right purpose and account; DELETE /account takes no cli code", async () => {
     const email = randomEmail();
     const a = await newPeer(email, "cli", null);
     await env.DB.prepare("UPDATE peers SET logged_out = 1 WHERE id = ?1").bind(a.id).run();
@@ -176,8 +176,9 @@ describe("logout / login (6.10)", () => {
     r = await call("POST", `/v1/peers/${a.id}/login`, { ticket: await cliCodeFor(email, a.signPub, "login"), m: {} }, { peer: a });
     expect(r.status).toBe(200);
     expect((await row(a.id))!.logged_out).toBe(0);
-    r = await call("DELETE", "/v1/account", { ticket: await cliCodeFor(email, a.signPub, "delete-account"), sign_pub: a.signPub, m: {} }, { sign: a.sign });
-    expect(r.body).toEqual({ r: {}, deleted: 1 });
+    r = await call("DELETE", "/v1/account", { ticket: await cliCodeFor(email, a.signPub, "login"), sign_pub: a.signPub, m: {} }, { sign: a.sign });
+    expect(r.status).toBe(401);
+    expect(await row(a.id)).not.toBeNull();
   });
 
   it("logged-out caller may DELETE itself", async () => {

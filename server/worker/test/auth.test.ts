@@ -77,12 +77,13 @@ describe("POST /auth/email + verify", () => {
     expect(t).toMatchObject({ a: await acctOf(email), k: await keyRef(b64urlDecode(k.signPub)!), p: "register" });
   });
 
-  it("cli_k: verify returns a cli code that registers the cli peer; cli_k with sign_pub or malformed -> 400", async () => {
+  it("cli_k: verify returns a cli code that registers the cli peer; cli_k with sign_pub, malformed or delete-account -> 400", async () => {
     const email = randomEmail();
     const k = await keys();
     const k16 = await keyRef16(b64urlDecode(k.signPub)!);
     const start = (b: Record<string, unknown>) => call("POST", "/v1/auth/email", { email, purpose: "register", turnstile: "t", ...b });
     expect((await start({ cli_k: k16, sign_pub: k.signPub })).status).toBe(400);
+    expect((await start({ cli_k: k16, purpose: "delete-account" })).status).toBe(400);
     expect((await start({ cli_k: k16.slice(1) })).status).toBe(400);
     expect((await start({ cli_k: k16.slice(0, 21) + "*" })).status).toBe(400);
     const r = await start({ cli_k: k16 });
@@ -310,6 +311,7 @@ describe("Google", () => {
     expect((await call("GET", `/v1/auth/google?k=${k16}&r=firefox&p=register`)).status).toBe(400);
     expect((await call("GET", `/v1/auth/google?k=${k16}&r=cli&p=register&u=https://pusharmor.com/auth/cli`)).status).toBe(400);
     expect((await call("GET", `/v1/auth/apple?k=${k16}&r=cli&p=login`)).status).toBe(302);
+    expect((await call("GET", `/v1/auth/google?k=${k16}&r=cli&p=delete-account`)).status).toBe(400);
     const s = await call("GET", `/v1/auth/google?k=${k16}&r=cli&p=register`);
     expect(s.status).toBe(302);
     const loc = new URL(s.res.headers.get("Location")!);

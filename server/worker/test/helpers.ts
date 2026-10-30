@@ -5,7 +5,7 @@ import type { Env } from "../src/env";
 import { b64urlEncode } from "../src/codec/b64url";
 import { utf8 } from "../src/crypto/hash";
 import { accountId, emailHash, peerId } from "../src/crypto/ids";
-import { CLI_WINDOW_S, keyRef, keyRef16, makeCliCode, makeTicket, type Purpose } from "../src/crypto/tokens";
+import { CLI_WINDOW_S, keyRef, keyRef16, makeCliCode, makeTicket, type CliPurpose, type Purpose } from "../src/crypto/tokens";
 import { signedBytes } from "../src/pipeline/signed";
 import { deps } from "../src/push/deps";
 import { TEST_SECRETS as S } from "./secrets";
@@ -158,7 +158,7 @@ export async function ticketFor(email: string, signPub: string, purpose: Purpose
 }
 
 // cli code for window floor(now / 600) + wOffset.
-export async function cliCodeFor(email: string, signPub: string, purpose: Purpose, wOffset = 0): Promise<string> {
+export async function cliCodeFor(email: string, signPub: string, purpose: CliPurpose, wOffset = 0): Promise<string> {
   const { b64urlDecode } = await import("../src/codec/b64url");
   const w = Math.floor(Date.now() / 1000 / CLI_WINDOW_S) + wOffset;
   return makeCliCode(S.PA_TOKEN_SECRET, await acctOf(email), await keyRef16(b64urlDecode(signPub)!), purpose, w);

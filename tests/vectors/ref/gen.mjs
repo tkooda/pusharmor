@@ -205,7 +205,7 @@ function nonceSection() {
 
 function cliCodeSection() {
   const tokenSecret = label('TOKEN_SECRET');
-  const cases = [['register', 'r', 2969856], ['login', 'l', 2969857], ['delete-account', 'd', 2969858]].map(([purpose, p, window]) => {
+  const cases = [['register', 'r', 2969856], ['login', 'l', 2969857]].map(([purpose, p, window]) => {
     const r = cliCode(tokenSecret, N.account, N.signPub, p, window);
     return { purpose, p, window, sign_pub: b64e(N.signPub), account: b64e(N.account), k16: r.k16, link: 'https://pusharmor.com/auth/cli#' + p + '.' + r.k16, code: r.code };
   });

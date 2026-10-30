@@ -1,4 +1,4 @@
-// /auth/cli: log in for the command line. Link fragment #<r|l|d>.<k16>; email code or OAuth
+// /auth/cli: log in for the command line. Link fragment #<r|l>.<k16>; email code or OAuth
 // returns a one-time cli_code to paste into the terminal. Needs /js/pa-web.js.
 (function () {
   "use strict";
