@@ -21,6 +21,8 @@ extension Color {
     static let illoHalo = Color("IlloHalo")
     static let illoRing = Color("IlloRing")
     static let tileEdge = Color("TileEdge")
+    /// 1 pt edge on custom cards: visible on the light page and on true black.
+    static let cardEdge = Color("CardEdge")
     /// The app icon tile; the same in light and dark.
     static let brandNavy = Color(red: 0x1F / 255, green: 0x3A / 255, blue: 0x5F / 255)
 }
@@ -276,6 +278,7 @@ struct FingerprintPlate: View {
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity)
         .background(Color.plate, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.cardEdge, lineWidth: 1))
     }
 
     private var chars: [String] { code.map(String.init) }
