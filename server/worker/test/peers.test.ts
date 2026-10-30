@@ -4,6 +4,7 @@ import { b64urlEncode } from "../src/codec/b64url";
 import { acctOf, call, cliCodeFor, initP256, keys, message, newPeer, pushFor, randomEmail, register, row, setAllow, ticketFor, vendorRequests } from "./helpers";
 import { LABEL_TICKET, makeTicket, openToken } from "../src/crypto/tokens";
 import { TEST_SECRETS as S } from "./secrets";
+import { PUSH_FAILED_COL } from "../src/db/sql";
 import roundSql from "../migrations/0003_round_account_times.sql?raw";
 
 beforeAll(initP256);
@@ -384,6 +385,31 @@ describe("cli push endpoint (Q307)", () => {
     expect(r.status).toBe(200);
     r = await call("POST", "/v1/peers", { ticket: await ticketFor(p.email, p.signPub, "register"), sign_pub: p.signPub, enc_pub: p.encPub, platform: "cli", push: pushFor("android", "unifiedpush") }, { sign: p.sign });
     expect(r.body.error).toBe("push endpoint not allowed");
+  });
+});
+
+describe("PATCH /peers/$id listening (cli)", () => {
+  it("clears push_failed_since only when set; non-cli -> 400; GET shows listening for cli peers", async () => {
+    const email = randomEmail();
+    const p = await newPeer(email, "cli", null);
+    const a = await newPeer(email);
+    const list = async () => ((await call("GET", "/v1/peers", undefined, { peer: a })).body.peers as Record<string, unknown>[]);
+    let peers = await list();
+    expect(peers.find((x) => x.id === p.id)!.listening).toBe(true);
+    expect("listening" in peers.find((x) => x.id === a.id)!).toBe(false);
+    await env.DB.prepare(`UPDATE peers SET ${PUSH_FAILED_COL} = 5 WHERE id = ?1`).bind(p.id).run();
+    expect((await list()).find((x) => x.id === p.id)!.listening).toBe(false);
+    let r = await call("PATCH", "/v1/peers/" + p.id, { listening: true }, { peer: p });
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual({ push_missing: true });
+    expect((await row(p.id))![PUSH_FAILED_COL]).toBeNull();
+    expect((await list()).find((x) => x.id === p.id)!.listening).toBe(true);
+    r = await call("PATCH", "/v1/peers/" + p.id, { listening: true }, { peer: p });
+    expect(r.status).toBe(200);
+    expect((await call("PATCH", "/v1/peers/" + a.id, { listening: true }, { peer: a })).status).toBe(400);
+    expect((await call("PATCH", "/v1/peers/" + p.id, { listening: false }, { peer: p })).status).toBe(400);
+    expect((await call("PATCH", "/v1/peers/" + p.id, { listening: true, push: null }, { peer: p })).status).toBe(400);
+    expect((await call("PATCH", "/v1/peers/" + a.id, { listening: true }, { peer: p })).status).toBe(400);
   });
 });
 

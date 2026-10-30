@@ -37,6 +37,7 @@ interface SelfRow {
   push_missing: number;
   logged_out: number;
   allow: string;
+  push_failed: number | null;
 }
 
 function pushOrNull(c: Ctx, v: unknown): Promise<PushValue | null> {
@@ -177,6 +178,18 @@ export async function patch(c: Ctx): Promise<Response> {
       if (push && push.pushType === 6) scheduleProbe(c, s.acct, s.me, push.fields);
     }
     return json(200, withPushMissing({}, push === null));
+  }
+  if ("listening" in b) {
+    // cli listen report: clears push_failed when set (no write otherwise).
+    keysExactly(b, ["listening"]);
+    if (b.listening !== true) throw bad();
+    const s = await signedStart(c);
+    selfPath(c, s);
+    const self = await readSelf(c, s.me, s.acct);
+    await callerCheck(c, s, self);
+    if (self!.platform !== "cli") throw bad();
+    if (self!.push_failed !== null) await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_LISTEN).bind(s.me, s.acct)]);
+    return json(200, withPushMissing({}, self!.push === null));
   }
   keysExactly(b, ["name", "m"]);
   const names = checkNameMap(b.name);

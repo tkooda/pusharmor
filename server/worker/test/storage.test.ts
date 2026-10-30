@@ -1,5 +1,6 @@
 // Stored JSON caps and pending expiry (I448).
 import { beforeAll, describe, expect, it } from "vitest";
+import { PUSH_FAILED_COL } from "../src/db/sql";
 import { env } from "cloudflare:test";
 import { NAME_JSON_MAX, PENDING_JSON_MAX, PENDING_TTL_S } from "../src/db/sql";
 import { expirePending } from "../src/scheduled";
@@ -11,11 +12,13 @@ beforeAll(initP256);
 const j = (s: unknown) => JSON.parse(s as string);
 const NOW = Math.floor(Date.now() / 1000);
 
-// The last CREATE TRIGGER statement of the migrations (0005 recreates the 0004 trigger; the
-// test runner keeps a file as one query).
+// The last CREATE TRIGGER statement of the migrations (0005 and 0006 recreate the 0004 trigger),
+// up to its END.
 function triggerSql(): string {
   const all = env.TEST_MIGRATIONS.flatMap((m) => m.queries).join("\n");
-  return all.slice(all.lastIndexOf("CREATE TRIGGER peers_json_cap"));
+  const t = all.slice(all.lastIndexOf("CREATE TRIGGER peers_json_cap"));
+  const end = /\nEND;?/.exec(t)!;
+  return t.slice(0, end.index + end[0].length);
 }
 
 async function family(n: number): Promise<Peer[]> {
@@ -153,7 +156,7 @@ describe("migration 0005 on existing rows", () => {
     await env.DB.prepare("DROP TABLE peers").run();
     await env.DB.prepare(peersSql).run();
     for (const r of before.results) {
-      const cols = Object.keys(r);
+      const cols = Object.keys(r).filter((k) => k !== PUSH_FAILED_COL);
       const oldCols = cols.map((k) => (k === "logged_out" ? "paused" : k));
       await env.DB.prepare(`INSERT INTO peers (${oldCols.join(", ")}) VALUES (${cols.map((_, i) => "?" + (i + 1)).join(", ")})`)
         .bind(...cols.map((k) => (r as Record<string, unknown>)[k])).run();
@@ -167,7 +170,7 @@ describe("migration 0005 on existing rows", () => {
     await expect(env.DB.prepare("UPDATE peers SET platform = 'iphone' WHERE id = ?1").bind(a.id).run()).rejects.toThrow();
     await expect(env.DB.prepare("UPDATE peers SET name = ?1 WHERE id = ?2").bind(JSON.stringify({ x: message(NAME_JSON_MAX) }), a.id).run())
       .rejects.toThrow(/pa-json-cap/);
-    for (const s of q("0006")) await env.DB.prepare(s).run();
+    for (const s of [...q("0006"), ...q("0007")]) await env.DB.prepare(s).run();
   });
 });
 
@@ -177,7 +180,7 @@ describe("migration 0006 on existing rows", () => {
     await env.DB.prepare("UPDATE peers SET logged_out = 1 WHERE id = ?1").bind(b.id).run();
     const before = await env.DB.prepare("SELECT * FROM peers ORDER BY id").all();
     const q = (prefix: string) => env.TEST_MIGRATIONS.find((m) => m.name.startsWith(prefix))!.queries;
-    for (const s of q("0006")) await env.DB.prepare(s).run();
+    for (const s of [...q("0006"), ...q("0007")]) await env.DB.prepare(s).run();
     expect((await env.DB.prepare("SELECT * FROM peers ORDER BY id").all()).results).toEqual(before.results);
     expect(await row(b.id)).toMatchObject({ logged_out: 1 });
     await env.DB.prepare("UPDATE peers SET platform = 'cli' WHERE id = ?1").bind(a.id).run();

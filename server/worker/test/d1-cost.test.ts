@@ -7,6 +7,7 @@ import { probeCode } from "../src/routes/common";
 import fixture from "./d1-cost.json";
 import { call, captured, initP256, keys, message, newPeer, pushFor, randomEmail, register, setAllow, ticketFor, type CallResult, type Peer } from "./helpers";
 import { TEST_SECRETS as S } from "./secrets";
+import { PUSH_FAILED_COL } from "../src/db/sql";
 
 beforeAll(initP256);
 
@@ -72,6 +73,7 @@ for (const n of NS) {
     },
   });
   scenarios.push({ endpoint: "GET /peers", n, k: 0, q: 0, run: async () => { const ps = await account(n); return measured(() => call("GET", "/v1/peers", undefined, { peer: ps[0] })); } });
+  scenarios.push({ endpoint: "PATCH listening", n, k: 0, q: 0, run: async () => { const ps = await account(n - 1); const me = await newPeer(ps[0]?.email ?? randomEmail(), "cli", null); await env.DB.prepare(`UPDATE peers SET ${PUSH_FAILED_COL} = 1 WHERE id = ?1`).bind(me.id).run(); return measured(() => call("PATCH", "/v1/peers/" + me.id, { listening: true }, { peer: me })); } });
   scenarios.push({ endpoint: "PATCH push", n, k: 0, q: 0, run: async () => { const ps = await account(n); return measured(() => call("PATCH", "/v1/peers/" + ps[0].id, { push: pushFor("android") }, { peer: ps[0] })); } });
   scenarios.push({
     endpoint: "PATCH rename", n, k: n - 1, q: 0,
