@@ -32,8 +32,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import com.pusharmor.app.ui.theme.FingerprintText
@@ -191,16 +192,18 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onDo
     }
 }
 
-/** Six mono code cells over one text field; the field keeps the "Code" label for screen readers. */
+/** Six mono code cells over one text field. Screen readers hear the typed digits and "n of 6 entered";
+ *  a content description would replace the digits, so the visible prompt above is the label. */
 @Composable
 private fun CodeCells(code: String, onChange: (String) -> Unit) {
     val x = LocalPaExtra.current
     val cs = MaterialTheme.colorScheme
-    BasicTextField(code, onChange, Modifier.fillMaxWidth().semantics { contentDescription = "Code" }, singleLine = true,
+    BasicTextField(code, onChange, Modifier.fillMaxWidth().semantics { stateDescription = UiText.codeState(code.length) }, singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
         decorationBox = { inner ->
             Box {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
+                // The cells repeat the field text, so they are hidden from screen readers.
+                Row(Modifier.fillMaxWidth().clearAndSetSemantics {}, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
                     for (i in 0 until 6) {
                         val shape = RoundedCornerShape(12.dp)
                         Box(Modifier.weight(1f, fill = false).widthIn(max = 52.dp).fillMaxWidth().heightIn(min = 60.dp).clip(shape).background(x.fpCell)
