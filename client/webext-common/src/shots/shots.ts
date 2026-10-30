@@ -21,9 +21,15 @@ const TABLET = id("T");
 const NEW_LAPTOP = id("N");
 const now = Date.now();
 
+// ?platform=firefox: the popup runs on Firefox (this device, and the new laptop); the
+// work desktop is then the Chrome one. Default: the Chrome set.
+const q = new URLSearchParams(location.search);
+const THIS = q.get("platform") === "firefox" ? "firefox" : "chrome";
+const OTHER = THIS === "firefox" ? "chrome" : "firefox";
+
 const state: StateView = {
   reg: "registered", banner: null, email: null, name: "Laptop", settings: DEFAULT_SETTINGS,
-  platform: "chrome", isAndroid: false, receiveMode: null, receiveNote: null,
+  platform: THIS, isAndroid: false, receiveMode: null, receiveNote: null,
 };
 
 const paired = (pid: string, label: string, platform: string, greyed: string | null = null): PeerView => ({
@@ -33,22 +39,21 @@ const paired = (pid: string, label: string, platform: string, greyed: string | n
 
 const peers: PeerView[] = [
   paired(PHONE, "Phone", "android"),
-  paired(DESKTOP, "Work desktop", "firefox"),
+  paired(DESKTOP, "Work desktop", OTHER),
   paired(TABLET, "Tablet", "android", "unreachable"),
   {
-    id: NEW_LAPTOP, label: "New laptop", platform: "chrome", lines: [T.fingerprint("K7QD")],
+    id: NEW_LAPTOP, label: "New laptop", platform: THIS, lines: [T.fingerprint("K7QD")],
     actions: ["cancel", "approve", "deny", "remove", "hide"], countdown: formatCountdown(PAIRING_TIMEOUT_MS - 60_000),
     fingerprint: "K7QD", pk: null, greyed: null, hidden: false, sendable: false, approvesMe: false,
   },
 ];
 
 // ?n=1|3|9: that many other devices on the Send tab (some selected); default: the store set above.
-const q = new URLSearchParams(location.search);
 const MORE: [string, string][] = [["iPad", "iphone"], ["Home PC", "chrome"], ["MacBook", "chrome"], ["Kitchen tablet", "android"], ["Office laptop", "firefox"], ["Spare phone", "android"]];
 let sendSel: string[] = [];
 if (q.has("n")) {
   const n = Number(q.get("n"));
-  const base = [paired(PHONE, "Phone", "android"), paired(DESKTOP, "Work desktop", "firefox"), paired(TABLET, "Tablet", "android")];
+  const base = [paired(PHONE, "Phone", "android"), paired(DESKTOP, "Work desktop", OTHER), paired(TABLET, "Tablet", "android")];
   const more = MORE.map(([label, platform], i) => paired(id(String(i)), label, platform, label === "Kitchen tablet" ? "unreachable" : null));
   peers.splice(0, peers.length, ...[...base, ...more].slice(0, n));
   sendSel = n === 1 ? [] : n === 3 ? [PHONE, DESKTOP] : [PHONE, DESKTOP, id("0"), id("1"), id("2"), id("5")];
