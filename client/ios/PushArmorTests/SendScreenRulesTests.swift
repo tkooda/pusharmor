@@ -80,4 +80,18 @@ final class SendScreenRulesTests: XCTestCase {
         XCTAssertEqual(SendScreenRules.sendTitle(count: 1, soleName: nil), "Send to 1 device")
         XCTAssertEqual(SendScreenRules.sendTitle(count: 3, soleName: nil), "Send to 3 devices")
     }
+
+    /// The Send button clears the draft only when the send succeeded (f7db107). The view is
+    /// SwiftUI state, so this reads its source: the only draft clear sits inside the success branch.
+    func testFailedSendKeepsTheDraft() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("App/Views/ComposeView.swift")
+        let src = try String(contentsOf: url, encoding: .utf8)
+        let guarded = try NSRegularExpression(
+            pattern: #"if await RecipientMemory\.send\(sel, \{[^\n]*\}\) \{\s*text = \"\""#)
+        XCTAssertEqual(guarded.numberOfMatches(in: src, range: NSRange(src.startIndex..., in: src)), 1)
+        // The @State declaration plus the guarded clear; no other clear of the draft.
+        XCTAssertEqual(src.components(separatedBy: "text = \"\"").count - 1, 2)
+    }
 }
