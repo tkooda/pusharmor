@@ -37,9 +37,9 @@ class Session(private val g: Graph) {
     companion object {
         const val REMOVED = "This device was removed. Sign in again"
         const val LOST_KEYS = "This device lost its keys. Sign in again"
-        const val DELETED = "Account deleted on another peer"
-        const val KEYS_UNAVAILABLE = "Keys unavailable; restart your phone"
-        const val NO_GOOGLE_PUSH = "This build has no Google push; install a UnifiedPush app or reinstall from Play"
+        const val DELETED = "Account deleted on another device"
+        const val KEYS_UNAVAILABLE = "Keys unavailable. Restart this device."
+        const val NO_GOOGLE_PUSH = "This build has no Google push. Install a UnifiedPush app or reinstall from Play"
         const val REFRESH_GREY_MS = 60_000L
     }
 
@@ -314,7 +314,7 @@ class Session(private val g: Graph) {
 
     /** Rename this device: PATCH name entries + rename messages for every pinned allow id. */
     fun rename(newName: String): String? {
-        if (!NameEntry.isValidName(newName)) return "1 to 32 printable ASCII characters"
+        if (!NameEntry.isValidName(newName)) return "Use 1 to 32 plain ASCII characters."
         val me = g.identity() ?: return "No keys"
         val self = dao.self() ?: return "No keys"
         dao.putSelf(self.copy(name = newName))
@@ -378,7 +378,7 @@ class Session(private val g: Graph) {
         val stale = ShortcutManagerCompat.getDynamicShortcuts(ctx).map { it.id }.filter { it !in ids }
         if (stale.isNotEmpty()) ShortcutManagerCompat.removeDynamicShortcuts(ctx, stale)
         for (p in all) {
-            val label = p.name ?: "Peer"
+            val label = p.name ?: "Device"
             val sc = ShortcutInfoCompat.Builder(ctx, p.id).setShortLabel(label).setLongLived(true)
                 .setIcon(IconCompat.createWithResource(ctx, R.drawable.ic_notify))
                 .setCategories(setOf("com.pusharmor.category.SHARE_TARGET"))

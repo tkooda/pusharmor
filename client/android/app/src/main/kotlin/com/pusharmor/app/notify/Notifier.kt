@@ -51,7 +51,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         val msg = settings.get(Settings.K.CH_MESSAGES) ?: randomChannelId().also { settings.set(Settings.K.CH_MESSAGES, it) }
         val peers = settings.get(Settings.K.CH_PEERS) ?: randomChannelId().also { settings.set(Settings.K.CH_PEERS, it) }
         nm.createNotificationChannel(NotificationChannel(msg, "Messages", NotificationManager.IMPORTANCE_HIGH))
-        nm.createNotificationChannel(NotificationChannel(peers, "Peers", NotificationManager.IMPORTANCE_DEFAULT))
+        nm.createNotificationChannel(NotificationChannel(peers, "Devices", NotificationManager.IMPORTANCE_DEFAULT))
     }
 
     val messagesChannel: String get() = settings.get(Settings.K.CH_MESSAGES)!!
@@ -61,13 +61,13 @@ class Notifier(private val context: Context, private val settings: Settings, pri
     fun createPeerChannel(peerId: String) {
         val p = dao.peer(peerId) ?: return
         val id = p.channelId ?: randomChannelId().also { dao.putPeer(p.copy(channelId = it)) }
-        nm.createNotificationChannel(NotificationChannel(id, p.name ?: "Peer", NotificationManager.IMPORTANCE_HIGH))
+        nm.createNotificationChannel(NotificationChannel(id, p.name ?: "Device", NotificationManager.IMPORTANCE_HIGH))
     }
 
     fun renamePeerChannel(peerId: String) {
         val p = dao.peer(peerId) ?: return
         val id = p.channelId ?: return
-        nm.createNotificationChannel(NotificationChannel(id, p.name ?: "Peer", NotificationManager.IMPORTANCE_HIGH))
+        nm.createNotificationChannel(NotificationChannel(id, p.name ?: "Device", NotificationManager.IMPORTANCE_HIGH))
     }
 
     fun deletePeerChannel(peerId: String) {
@@ -81,7 +81,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
 
     fun blockedChannelPeer(peers: List<PeerEntity>): String? = peers.firstOrNull { p ->
         p.channelId?.let { nm.getNotificationChannel(it)?.importance == NotificationManager.IMPORTANCE_NONE } == true
-    }?.let { it.name ?: "a peer" }
+    }?.let { it.name ?: "a device" }
 
     fun mainChannelsBlocked(): Boolean = listOfNotNull(settings.get(Settings.K.CH_MESSAGES), settings.get(Settings.K.CH_PEERS))
         .any { nm.getNotificationChannel(it)?.importance == NotificationManager.IMPORTANCE_NONE }
@@ -149,7 +149,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
             .setGroup(GROUP_PREFIX + channel).setLocalOnly(policy.localOnly)
         val open = action(historyId, "item")
         if (policy.hideAll) {
-            b.setContentTitle("New message from ${peer?.name ?: "a peer"}").setContentIntent(open)
+            b.setContentTitle("New message from ${peer?.name ?: "a device"}").setContentIntent(open)
         } else {
             val (title, body) = when {
                 c.type == ContentType.URL && !c.showAsText -> "Link" to (c.href ?: c.value)

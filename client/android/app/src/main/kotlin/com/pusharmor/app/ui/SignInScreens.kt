@@ -104,7 +104,7 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onDone
             Spacer(Modifier.height(8.dp))
             Wordmark(34.sp)
             Spacer(Modifier.height(12.dp))
-            Text("Links and text from your devices, end to end encrypted.", Modifier.widthIn(max = 320.dp),
+            Text("Links and text from your devices. All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.", Modifier.widthIn(max = 320.dp),
                 style = MaterialTheme.typography.bodyLarge, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
             val status = when {
                 banner != null -> null
@@ -262,7 +262,7 @@ fun LimitScreen(vm: AppViewModel, onDone: () -> Unit) {
     val ticked = remember { mutableStateListOf<String>() }
     val l = limit ?: return
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        Text("This account has 10 peers. Pick peers to remove.", Modifier.padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 16.dp),
+        Text("This account has 10 devices. Pick devices to remove.", Modifier.padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 16.dp),
             style = MaterialTheme.typography.titleMedium)
         LazyColumn(Modifier.weight(1f)) {
             itemsIndexed(l.peers, key = { _, p -> p.id }) { i, p ->

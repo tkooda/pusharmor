@@ -32,7 +32,7 @@ class PairingEngine(
     private val random: (Int) -> ByteArray,
 ) {
     companion object {
-        const val PAIRING_FAILED = "Pairing failed. Start again on the new peer."
+        const val PAIRING_FAILED = "Pairing failed. Start again on the new device."
         const val TIMED_OUT = "Pairing timed out. Tap Pair to start again."
         const val SEND_AGAIN_MS = 60_000L
 

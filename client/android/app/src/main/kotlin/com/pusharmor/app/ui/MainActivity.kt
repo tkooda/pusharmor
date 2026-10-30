@@ -167,7 +167,7 @@ private fun App(vm: AppViewModel) {
             Column {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 NavigationBar(containerColor = x.tile, tonalElevation = 0.dp) {
-                    for ((r, l, i) in listOf(Triple("peers", "Peers", PaIcons.Devices), Triple("send", "Send", PaIcons.Send),
+                    for ((r, l, i) in listOf(Triple("peers", "Devices", PaIcons.Devices), Triple("send", "Send", PaIcons.Send),
                         Triple("history", "History", PaIcons.History), Triple("settings", "Settings", PaIcons.Settings))) {
                         NavigationBarItem(selected = route == r, onClick = { nav.navigate(r) { launchSingleTop = true } },
                             icon = { Icon(i, null) }, label = { Text(l) },
