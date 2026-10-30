@@ -183,6 +183,7 @@ struct PeerPendingLines: View {
         if showCancel && model.offersPairAgain(p) {
             Button("Pair again") { Task { await model.pairAgain(p) } }
                 .buttonStyle(.bordered)
+                .disabled(model.pairAgainBusy.contains(p.id.text))
         } else if showCancel && model.offersCancel(p) {
             Button("Cancel pairing") { Task { await model.cancelPairing(p) } }
                 .buttonStyle(.bordered)
@@ -358,6 +359,7 @@ struct PairingCardView: View {
                 if cancel && model.offersPairAgain(p) {
                     Button("Pair again") { Task { await model.pairAgain(p) } }
                         .buttonStyle(.bordered)
+                        .disabled(model.pairAgainBusy.contains(p.id.text))
                         .font(.subheadline)
                 } else if cancel {
                     Button("Cancel pairing") { Task { await model.cancelPairing(p) } }

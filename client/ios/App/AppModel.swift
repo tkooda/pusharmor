@@ -47,6 +47,8 @@ final class AppModel: ObservableObject {
     @Published var refreshGreyUntil: Date = .distantPast
     @Published var highlightPeer: String?
     @Published var showHistory = false
+    /// Peer ids with a Pair again call running; their Pair again buttons are disabled.
+    @Published var pairAgainBusy: Set<String> = []
 
     let env = AppEnvironment.shared
     private(set) var core: Core?
@@ -346,7 +348,16 @@ final class AppModel: ObservableObject {
     func sendAgain(_ p: Peer) async { _ = await core?.sendAgain(p.id); reload() }
     func reply(_ p: Peer) async { _ = await core?.tapReply(p.id); reload() }
     func cancelPairing(_ p: Peer) async { await core?.cancelPairing(p.id); reload() }
-    func pairAgain(_ p: Peer) async { _ = try? await core?.pairAgain(p.id); reload() }
+    /// Pair again: one run per peer at a time (I435); a failure shows a toast (I436).
+    func pairAgain(_ p: Peer) async {
+        guard let core = core, !pairAgainBusy.contains(p.id.text) else { return }
+        pairAgainBusy.insert(p.id.text)
+        defer { pairAgainBusy.remove(p.id.text) }
+        let r: Result<PairSendResult, Error>
+        do { r = .success(try await core.pairAgain(p.id)) } catch { r = .failure(error) }
+        if let t = Core.pairAgainToast(r) { toast = t }
+        reload()
+    }
     func remove(_ p: Peer) async { _ = try? await core?.removePeer(p.id); reload() }
     func localDelete(_ p: Peer) async { await core?.localDelete(p.id); reload() }
     func setHidden(_ p: Peer, _ h: Bool) { try? core?.setHidden(p.id, h); reload() }
