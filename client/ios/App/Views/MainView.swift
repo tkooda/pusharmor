@@ -73,14 +73,14 @@ struct HomeBanners: View {
                 }
                 if model.notificationsOff {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(S.notificationsOff).foregroundColor(.red)
+                        Text(S.notificationsOff).foregroundColor(.errorText)
                         Button("Open notification settings") { model.openNotificationSettings() }
                             .buttonStyle(.borderless)
                     }
                 }
                 if model.pushRegisterFailed {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Push registration failed").foregroundColor(.red)
+                        Text("Push registration failed").foregroundColor(.errorText)
                         Button("Retry") { model.retryPushRegistration() }
                             .buttonStyle(.borderless)
                     }

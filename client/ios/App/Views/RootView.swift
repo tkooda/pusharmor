@@ -91,7 +91,7 @@ struct WelcomeView: View {
                 .buttonStyle(GreenButtonStyle())
             if model.notificationsOff {
                 Text(S.notificationsOff)
-                    .foregroundColor(.red)
+                    .foregroundColor(.errorText)
                     .multilineTextAlignment(.center)
                 Button("Open notification settings") { model.openNotificationSettings() }
                     .buttonStyle(.bordered)
