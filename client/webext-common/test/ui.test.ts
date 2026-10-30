@@ -61,7 +61,7 @@ test("status and error text is announced: live regions and field errors wired to
   assert.match(page, /describe\(code, codeHelp/);
   assert.match(page, /setHelp\(emailHelp, bad, true, email\)/);
   assert.match(page, /setHelp\(codeHelp, msg[^\n]*, true, code\)/);
-  assert.match(rd("peersview.ts"), /await redraw\(msg\)/); // the message survives the redraw
+  assert.match(rd("peersview.ts"), /await redraw\(msg, p\.id\)/); // the message survives the redraw
 });
 
 test("tab keys: arrows wrap, Home and End jump, others pass", () => {
