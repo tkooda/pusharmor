@@ -577,6 +577,9 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     // With exactly one device that can receive, it is preselected.
     val canReceive = others(peers, me?.id).filter { it.inAll }.map { it.id }
     var restored by remember { mutableStateOf(shots || picked.isNotEmpty()) }
+    // Only devices that can receive now are sent to and counted: a chosen device that turns paused,
+    // unapproved or leaves All drops out, and so does a preselect that cannot receive.
+    val sendTo = UiText.sendable(picked, canReceive)
     LaunchedEffect(canReceive) {
         if (!restored && canReceive.isNotEmpty()) {
             restored = true
@@ -623,7 +626,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                     }
                 }
                 val chips = others(peers, me?.id).filter { it.pinned }
-                SectionHeader(UiText.sendToHeader(picked.size, canReceive.size))
+                SectionHeader(UiText.sendToHeader(sendTo.size, canReceive.size))
                 FlowRow(Modifier.rowPad.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (UiText.showAllChip(showAll, all.size, keyboardUp)) {
                         val on = picked.containsAll(all.map { it.id })
@@ -632,7 +635,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                     for (p in chips) {
                         val ok = p.inAll
                         if (!UiText.chipVisible(ok && p.id in picked, keyboardUp)) continue
-                        DeviceChip(platformIcon(p.platform), label(p), p.id in picked, ok, if (ok) null else UiText.status(p).second) {
+                        DeviceChip(platformIcon(p.platform), label(p), p.id in sendTo, ok, if (ok) null else UiText.status(p).second) {
                             if (!ok) { vm.tapGreyed(); scope.launch { snack.showSnackbar("${label(p)}: ${UiText.status(p).second}") } }
                             else if (p.id in picked) picked.remove(p.id) else picked.add(p.id)
                         }
@@ -640,11 +643,11 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                 }
             }
             GreenButton(onClick = {
-                vm.g.settings.set(Settings.K.LAST_SEND_TO, picked.toList().joinToString(","))
-                scope.launch { val r = vm.send(picked.toList(), text, asText); result = ((result?.first ?: 0) + 1) to r; onSent(r) }
-            }, text = UiText.sendLabel(picked.size, picked.singleOrNull()?.let { id -> peers.firstOrNull { it.id == id } }?.let(::label)), icon = PaIcons.Send,
+                vm.g.settings.set(Settings.K.LAST_SEND_TO, sendTo.joinToString(","))
+                scope.launch { val r = vm.send(sendTo, text, asText); result = ((result?.first ?: 0) + 1) to r; onSent(r) }
+            }, text = UiText.sendLabel(sendTo.size, sendTo.singleOrNull()?.let { id -> peers.firstOrNull { it.id == id } }?.let(::label)), icon = PaIcons.Send,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp).fillMaxWidth().heightIn(min = 56.dp),
-                enabled = picked.isNotEmpty() && text.isNotEmpty() && bytes <= SizeCap.MAX_CONTENT_BYTES)
+                enabled = sendTo.isNotEmpty() && text.isNotEmpty() && bytes <= SizeCap.MAX_CONTENT_BYTES)
         }
         SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp))
     }
