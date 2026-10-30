@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
@@ -552,7 +553,8 @@ fun SwitchRow(text: String, checked: Boolean, enabled: Boolean = true, sub: Stri
 
 private val Modifier.rowPad get() = this.padding(horizontal = 16.dp)
 
-/** Send: field, type tag and counter, "Send as text", recipient group, green send bar. */
+/** Send: field, type caption and counter, "Send as text", device chips, green Send pinned at the bottom (above the keyboard). */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null, title: String? = null, onSent: (String) -> Unit = {}) {
     val shots = BuildConfig.SCREENSHOT_MODE && ScreenshotMode.on && title != null
@@ -565,12 +567,14 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     val all = vm.allPeers()
     val picked = remember { mutableStateListOf<String>().apply { preselect?.let { add(it) }; if (shots) addAll(ScreenshotMode.sendTo) } }
     // Last selection (local only): applied once the device list has loaded, unless a preselect or the screenshot data already chose.
+    // With exactly one device that can receive, it is preselected.
     val canReceive = others(peers, me?.id).filter { it.inAll }.map { it.id }
     var restored by remember { mutableStateOf(shots || picked.isNotEmpty()) }
     LaunchedEffect(canReceive) {
         if (!restored && canReceive.isNotEmpty()) {
             restored = true
             picked.addAll(UiText.rememberedSelection(vm.g.settings.get(Settings.K.LAST_SEND_TO), canReceive))
+            if (picked.isEmpty() && canReceive.size == 1) picked.add(canReceive[0])
         }
     }
     val scope = rememberCoroutineScope()
@@ -582,87 +586,82 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     LaunchedEffect(result) { result?.let { snack.showSnackbar(it.second) } }
     val detected = Detect.type(text)
     val type = if (asText) ContentType.TEXT else detected
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().imePadding()) {
         Column(Modifier.fillMaxSize()) {
             title?.let { PaTopBar(it) }
-            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(top = if (title == null) 16.dp else 0.dp, bottom = 96.dp)) {
-                OutlinedTextField(text, { text = it }, modifier = Modifier.rowPad.fillMaxWidth(), minLines = 3, label = { Text("Message") },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = ex.tile, unfocusedContainerColor = ex.tile,
-                        focusedBorderColor = cs.primary, unfocusedBorderColor = cs.outline))
-                Row(Modifier.rowPad.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    TypeTag(type)
-                    Text(UiText.counter(bytes), style = MaterialTheme.typography.bodySmall,
-                        color = if (SizeCap.isNearCap(text)) cs.error else cs.onSurfaceVariant)
+            // The field takes the free space and shrinks first (to 3 lines) when the keyboard is up.
+            OutlinedTextField(text, { text = it }, modifier = Modifier.rowPad.fillMaxWidth().weight(1f, fill = title != null)
+                .heightIn(min = 120.dp).padding(top = if (title == null) 16.dp else 0.dp), minLines = 3, label = { Text("Message") },
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = ex.tile, unfocusedContainerColor = ex.tile,
+                    focusedBorderColor = cs.primary, unfocusedBorderColor = cs.outline))
+            val counter = UiText.showCounter(bytes)
+            if (text.isNotEmpty() || counter) {
+                Row(Modifier.padding(start = 32.dp, end = 32.dp, top = 6.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    if (text.isNotEmpty()) TypeCaption(type) else Spacer(Modifier.width(1.dp))
+                    if (counter) Text(UiText.counter(bytes), style = MaterialTheme.typography.bodySmall, color = cs.error)
                 }
-                if (detected != ContentType.TEXT) {
-                    Spacer(Modifier.height(12.dp))
-                    GroupedList(listOf<@Composable (Modifier) -> Unit> { m -> SwitchRow("Send as text", asText, modifier = m.padding(horizontal = 16.dp)) { asText = it } })
-                }
-                SectionHeader("Send to")
-                val recipients = buildList<@Composable (Modifier) -> Unit> {
-                    if (showAll && all.size > 1) add { m ->
-                        RecipientRow(PaIcons.Devices, "All", null, picked.containsAll(all.map { it.id }), true, null, m) { on ->
-                            picked.clear(); if (on) picked.addAll(all.map { it.id })
-                        }
-                    }
-                    for (p in others(peers, me?.id).filter { it.pinned }) add { m ->
-                        val ok = p.inAll
-                        RecipientRow(platformIcon(p.platform), label(p), AppEffects.platformLabel(p.platform), p.id in picked, ok,
-                            if (ok) null else UiText.status(p), m) { if (it) picked.add(p.id) else picked.remove(p.id) }
-                    }
-                }
-                GroupedList(recipients)
             }
-        }
-        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-            .background(Brush.verticalGradient(0f to Color.Transparent, 0.22f to cs.background))
-            .padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 16.dp)) {
+            if (detected != ContentType.TEXT) {
+                Row(Modifier.rowPad.fillMaxWidth().heightIn(min = 40.dp).toggleable(asText, role = Role.Checkbox) { asText = it },
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(asText, null)
+                    Spacer(Modifier.width(12.dp))
+                    Text("Send as text", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                }
+            }
+            val chips = others(peers, me?.id).filter { it.pinned }
+            SectionHeader(UiText.sendToHeader(picked.size, canReceive.size))
+            FlowRow(Modifier.rowPad.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (UiText.showAllChip(showAll, all.size)) {
+                    val on = picked.containsAll(all.map { it.id })
+                    DeviceChip(PaIcons.Devices, "All", on, true) { picked.clear(); if (!on) picked.addAll(all.map { it.id }) }
+                }
+                for (p in chips) {
+                    val ok = p.inAll
+                    DeviceChip(platformIcon(p.platform), label(p), p.id in picked, ok, if (ok) null else UiText.status(p).second) {
+                        if (!ok) { vm.tapGreyed(); scope.launch { snack.showSnackbar("${label(p)}: ${UiText.status(p).second}") } }
+                        else if (p.id in picked) picked.remove(p.id) else picked.add(p.id)
+                    }
+                }
+            }
             GreenButton(onClick = {
                 vm.g.settings.set(Settings.K.LAST_SEND_TO, picked.toList().joinToString(","))
                 scope.launch { val r = vm.send(picked.toList(), text, asText); result = ((result?.first ?: 0) + 1) to r; onSent(r) }
-            }, text = UiText.sendLabel(picked.size), icon = PaIcons.Send, modifier = Modifier.fillMaxWidth(),
+            }, text = UiText.sendLabel(picked.size), icon = PaIcons.Send,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp).fillMaxWidth().heightIn(min = 56.dp),
                 enabled = picked.isNotEmpty() && text.isNotEmpty() && bytes <= SizeCap.MAX_CONTENT_BYTES)
         }
         SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp))
     }
 }
 
-/** Detected type, not a button: "URL", "Phone" or "Text" shown in caps. */
+/** Detected type as quiet supporting text, not a control: "Will open as a link". */
 @Composable
-private fun TypeTag(type: ContentType) {
-    val ex = LocalPaExtra.current
-    val (icon, word) = when (type) {
-        ContentType.URL -> PaIcons.Link to "URL"
-        ContentType.TEL -> PaIcons.Call to "Phone"
-        ContentType.TEXT -> PaIcons.Notes to "Text"
+private fun TypeCaption(type: ContentType) {
+    val cs = MaterialTheme.colorScheme
+    val icon = when (type) {
+        ContentType.URL -> PaIcons.Link
+        ContentType.TEL -> PaIcons.Call
+        ContentType.TEXT -> PaIcons.Notes
     }
-    Row(Modifier.heightIn(min = 28.dp).clip(RoundedCornerShape(8.dp)).background(ex.iconTileBg).padding(horizontal = 10.dp)
-        .semantics(mergeDescendants = true) { contentDescription = word },
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Icon(icon, null, Modifier.size(16.dp), tint = ex.iconTileFg)
-        Text(word.uppercase(), Modifier.clearAndSetSemantics {}, style = MaterialTheme.typography.labelMedium, color = ex.iconTileFg)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Icon(icon, null, Modifier.size(16.dp), tint = cs.onSurfaceVariant)
+        Text(UiText.typeCaption(type), style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
     }
 }
 
-/** One recipient: icon tile, name, platform (and status when it cannot receive), checkbox; the row toggles. */
+/** One device toggle chip; a device that cannot receive is dimmed and a tap explains why (and refreshes the list). */
 @Composable
-private fun RecipientRow(icon: ImageVector, name: String, platform: String?, checked: Boolean, enabled: Boolean,
-                         status: Pair<UiText.Mark, String>?, modifier: Modifier, onChange: (Boolean) -> Unit) {
-    val sup: (@Composable () -> Unit)? = if (platform == null) null else { {
-        Column(Modifier.alpha(if (enabled) 1f else 0.5f)) {
-            Text(platform)
-            status?.let { (k, w) -> StatusLine(k, w) }
-        }
-    } }
-    ListItem(
-        modifier = modifier.toggleable(checked, enabled = enabled, role = Role.Checkbox, onValueChange = onChange),
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        leadingContent = { IconTile(icon, dim = !enabled) },
-        headlineContent = { Text(name, Modifier.alpha(if (enabled) 1f else 0.5f), fontWeight = FontWeight.Medium) },
-        supportingContent = sup,
-        trailingContent = { Checkbox(checked, null, enabled = enabled) },
-    )
+private fun DeviceChip(icon: ImageVector, name: String, selected: Boolean, enabled: Boolean, status: String? = null, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    FilterChip(selected = selected && enabled, onClick = onClick,
+        modifier = Modifier.alpha(if (enabled) 1f else 0.5f).semantics { if (status != null) contentDescription = "$name, $status" },
+        label = { Text(name, Modifier.widthIn(max = 150.dp), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        leadingIcon = { Icon(if (selected && enabled) PaIcons.Check else icon, null, Modifier.size(18.dp)) },
+        colors = FilterChipDefaults.filterChipColors(containerColor = LocalPaExtra.current.tile, selectedContainerColor = cs.secondaryContainer),
+        border = FilterChipDefaults.filterChipBorder(enabled = true, selected = selected && enabled, borderColor = cs.outline, selectedBorderColor = Color.Transparent))
 }
 
 /** History: filter chips, day groups, newest first, unread dot, expanded row actions. */

@@ -2,13 +2,14 @@ package com.pusharmor.app
 
 import com.pusharmor.app.ui.UiText
 import com.pusharmor.app.ui.UiText.Mark
+import com.pusharmor.protocol.ContentType
 import com.pusharmor.protocol.Peer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.ZoneOffset
 
-/** Screen text rules: status priority, counter, send label, fingerprint label, days, middle ellipsis. */
+/** Screen text rules: status priority, counter, send label, send screen rules, fingerprint label, days, middle ellipsis. */
 class UiTextTest {
     private val pinned = Peer(id = "p", platform = "chrome", signPub = "s", encPub = "e", pairingId = ByteArray(16),
         approved = true, approveVerified = true)
@@ -35,6 +36,20 @@ class UiTextTest {
         assertEquals("Send", UiText.sendLabel(0))
         assertEquals("Send to 1 device", UiText.sendLabel(1))
         assertEquals("Send to 2 devices", UiText.sendLabel(2))
+    }
+
+    @Test fun sendScreenRules() {
+        assertEquals("Send to (6 of 9)", UiText.sendToHeader(6, 9))
+        assertEquals("Send to (0 of 1)", UiText.sendToHeader(0, 1))
+        assertEquals(false, UiText.showAllChip(true, 1))
+        assertEquals(true, UiText.showAllChip(true, 2))
+        assertEquals(false, UiText.showAllChip(false, 5))
+        assertEquals(false, UiText.showCounter(1843))
+        assertEquals(true, UiText.showCounter(1844))
+        assertEquals(true, UiText.showCounter(2049))
+        assertEquals("Will open as a link", UiText.typeCaption(ContentType.URL))
+        assertEquals("Will open as a phone number", UiText.typeCaption(ContentType.TEL))
+        assertEquals("Will arrive as text", UiText.typeCaption(ContentType.TEXT))
     }
 
     @Test fun fingerprintIsReadPerCharacter() {
