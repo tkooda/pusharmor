@@ -476,6 +476,64 @@ final class StateMachineTests: XCTestCase {
         XCTAssertNotEqual(try x.core.store.peer(n.id)!.pairingId, oldPid)
     }
 
+    /// X on a half-state row: N re-paired and X got the commit with Pair again offered.
+    private func halfStateRow() async throws -> (n: Device, x: Device) {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        try n.core.store.dropPin(x.id)
+        _ = try await n.core.startPair(x.id)
+        let commit = w.take(x.id)[0]
+        w.rows[n.id.text]!.allow = [:]
+        clock.now += 10
+        await x.core.fetchPeers(force: true)
+        _ = await x.core.receive(commit, mode: .nse)
+        XCTAssertTrue(x.core.offersPairAgain(try x.core.store.peer(n.id)!))
+        return (n, x)
+    }
+
+    func testPairAgainSecondTapChangesNothing() async throws {
+        let (n, x) = try await halfStateRow()
+        let v = try await x.core.pairAgain(n.id)
+        XCTAssertEqual(v, .sent)
+        let entry = try x.core.store.pairing(n.id)
+        XCTAssertNotNil(entry)
+        XCTAssertFalse(w.take(n.id).isEmpty)                             // the commit went out
+        do {
+            _ = try await x.core.pairAgain(n.id)
+            XCTFail("second Pair again must not run")
+        } catch let e as Core.PairStartError {
+            XCTAssertEqual(e, .notOffered)
+        }
+        XCTAssertEqual(try x.core.store.pairing(n.id), entry)             // the sent commit is kept
+        XCTAssertTrue(w.take(n.id).isEmpty)
+        XCTAssertNil(Core.pairAgainToast(.failure(Core.PairStartError.notOffered)))
+    }
+
+    func testPairAgainRefusedKeepsRow() async throws {
+        let (n, x) = try await halfStateRow()
+        try x.core.store.db.exec("UPDATE peers SET list_enc_pub = NULL WHERE id = ?", [.text(n.id.text)])
+        let before = try x.core.store.peer(n.id)!
+        do {
+            _ = try await x.core.pairAgain(n.id)
+            XCTFail("Pair again must refuse an unlisted peer")
+        } catch let e as Core.PairStartError {
+            XCTAssertEqual(e, .notListed)
+            XCTAssertEqual(Core.pairAgainToast(.failure(e)), S.cannotPairNow)
+        }
+        let after = try x.core.store.peer(n.id)!
+        XCTAssertEqual(after.pinned, before.pinned)                       // nothing dropped
+        XCTAssertTrue(x.core.offersPairAgain(after))
+    }
+
+    func testPairAgainToastText() {
+        XCTAssertNil(Core.pairAgainToast(.success(.sent)))
+        XCTAssertNil(Core.pairAgainToast(.success(.rateLimited(5))))
+        XCTAssertEqual(Core.pairAgainToast(.success(.network)), S.pairNotSent)
+        XCTAssertEqual(Core.pairAgainToast(.success(.error(500))), S.pairNotSent)
+        XCTAssertEqual(Core.pairAgainToast(.success(.result("gone"))), S.cannotPairNow)
+        XCTAssertEqual(Core.pairAgainToast(.failure(Core.PairStartError.tooManyOpen)), S.cannotPairNow)
+    }
+
     func testWaitingRowGets3dNoticeOnCommitFromX() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try await pairToShown(n, x)
