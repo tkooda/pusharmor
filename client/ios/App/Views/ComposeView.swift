@@ -212,7 +212,6 @@ struct ComposeView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) { sendBar }
         .onAppear { restoreSelection() }
         .onChange(of: candidates.map { $0.id.text }) { _, _ in restoreSelection() }
-        .onChange(of: selected) { _, v in if restored { RecipientMemory.save(v) } }
         #if DEBUG
         .onAppear {
             if ScreenshotSample.isOn && text.isEmpty {
@@ -292,6 +291,8 @@ struct ComposeView: View {
                 let a = asText
                 let all = toAll && showAll
                 let ids = all ? [] : candidates.filter { selected.contains($0.id.text) && enabled($0) }.map { $0.id.text }
+                // Remembered on send only, so an abandoned selection is not restored (L7).
+                RecipientMemory.save(selected)
                 Task {
                     await model.send(t, asText: a, toAll: all, peerIds: ids)
                     text = ""
