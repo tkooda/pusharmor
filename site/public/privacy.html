@@ -14,7 +14,7 @@
 <meta property="og:image" content="https://pusharmor.com/apple-touch-icon.png">
 <link rel="icon" href="/favicon.ico" sizes="any" integrity="sha256-WBRVm+oTUTpG8HdmRjQYXSzTkCjwYCVj5PZdJQP73qM=">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" integrity="sha256-TQcTrShS2zw2E6zqzKq9Tlfqd9GGyBSjl/LTQvTeJY8=">
-<link rel="stylesheet" href="/css/site.css" integrity="sha256-J7Rd6Txm5YG82tBpkrGpyYFhZi0uAWUn5A+UcYaR2wQ=">
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-2f67LZ29CBVqjT4/VUpP9z33NXqH1GJD0FRO7TkiclI=">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -37,14 +37,14 @@ token or endpoint), and pass along the encrypted message, which they cannot read
 messages up to 7 days (pairing requests up to 4 weeks).</li>
 <li><strong>Cloudflare</strong>: runs our relay server and its database, so it can technically see
 everything our relay server sees: your email address briefly at sign-in (to send the code), your IP address, device public
-keys, push tokens, and encrypted messages it cannot read. Cloudflare also keeps our delivery logs for 7 days:
+keys, push tokens, and encrypted messages it cannot read. Our delivery logs on Cloudflare are set to be kept for 7 days:
 account ID, device IDs, and send results; no content, no IP, no email. Cloudflare's bot check (Turnstile) runs on the email
 sign-in page and on the delete-account page only.</li>
 <li><strong>Google and Apple sign-in</strong> (if you choose them): used to prove the account.
 We keep only a one-way hash of your email address, which is your account ID (see below).</li>
 <li><strong>AWS SES</strong>: used for email sign-in only, to send the sign-in code. It sees
-your email address at send time. If a code email bounces, the mail provider keeps that address
-on a suppression list until we clear it.</li>
+your email address at send time, and we send it nothing else. If a code email bounces, AWS may keep that address
+on its own suppression list.</li>
 </ul>
 
 <h2>Your email address</h2>
@@ -96,7 +96,7 @@ one.</p>
 <h2>Background transmission (Firefox)</h2>
 <p>The Firefox add-on keeps a push connection to Mozilla (autopush WebSocket) in the background.
 As a fallback, a background script on PushArmor.com (service worker) receives encrypted messages and
-forwards them to the add-on inside the browser. Both carry encrypted data only.</p>
+intercepts them locally and hands them to the add-on inside the browser. Both carry encrypted data only.</p>
 
 <h2>Deletion</h2>
 <p>You can delete your account from the apps, or with the web flow at

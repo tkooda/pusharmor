@@ -14,7 +14,7 @@
 <meta property="og:image" content="https://pusharmor.com/apple-touch-icon.png">
 <link rel="icon" href="/favicon.ico" sizes="any" integrity="sha256-WBRVm+oTUTpG8HdmRjQYXSzTkCjwYCVj5PZdJQP73qM=">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" integrity="sha256-TQcTrShS2zw2E6zqzKq9Tlfqd9GGyBSjl/LTQvTeJY8=">
-<link rel="stylesheet" href="/css/site.css" integrity="sha256-J7Rd6Txm5YG82tBpkrGpyYFhZi0uAWUn5A+UcYaR2wQ=">
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-2f67LZ29CBVqjT4/VUpP9z33NXqH1GJD0FRO7TkiclI=">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -28,7 +28,7 @@
 ever be decrypted by your own paired devices. Each app and add-on checks everything the server sends, so the server
 cannot change a message or pose as one of your devices. Each device makes two P-256 key pairs, one for signing (ECDSA) and one for encryption (HPKE), and the private keys used to decrypt and sign messages never
 leave it. Where the device supports it, they are kept in its hardware key storage (the Secure
-Enclave on iPhone, the Android Keystore on Android).</p>
+Enclave on iPhone, the Android Keystore on Android). (The one exception is a short-lived throwaway key that the web delete-account page holds in your browser tab while you sign in with Google or Apple. It is not a device key, and it cannot read messages.)</p>
 
 <h2>What each party sees</h2>
 <div class="table-wrap">
@@ -37,10 +37,10 @@ Enclave on iPhone, the Android Keystore on Android).</p>
 <tbody>
 <tr><th scope="row">Your devices</th><td data-label="Sees">The messages you send them, after decryption and signature checks.</td><td data-label="Cannot see">Messages for other devices.</td></tr>
 <tr><th scope="row">Our relay server (hosted on Cloudflare)</th><td data-label="Sees"><ul><li>A one-way (keyed) hash of your email address, which is your account ID</li><li>The address itself briefly at sign-in, to send the sign-in code</li><li>Your IP address</li><li>Device public keys</li><li>The push tokens (FCM, APNs) and web push endpoint URLs your devices use to receive notifications</li><li>Encrypted messages it cannot read (ciphertext), and their size</li><li>Who sends to whom inside your account</li></ul></td><td data-label="Cannot see"><ul><li>Message content</li><li>Private keys</li><li>Pairing fingerprints</li></ul></td></tr>
-<tr><th scope="row">Cloudflare</th><td data-label="Sees">Everything our relay server sees, since Cloudflare runs it and its database. Delivery logs: account ID, device IDs, and send results, for 7 days.</td><td data-label="Cannot see">Message content and private keys.</td></tr>
+<tr><th scope="row">Cloudflare</th><td data-label="Sees">Everything our relay server sees, since Cloudflare runs it and its database. Our delivery logs, which we set to keep for 7 days: account ID, device IDs, and send results.</td><td data-label="Cannot see">Message content and private keys.</td></tr>
 <tr><th scope="row">Push services (Firebase Cloud Messaging (FCM), Apple Push Notification service (APNs), Google and Mozilla web push, and a UnifiedPush distributor)</th><td data-label="Sees"><ul><li>The push token (FCM, APNs) or web push endpoint URL</li><li>The encrypted message they cannot read (ciphertext)</li><li>Undelivered messages, held up to 7 days (pairing requests up to 4 weeks)</li></ul></td><td data-label="Cannot see">Message content and keys.</td></tr>
 <tr><th scope="row">This website</th><td data-label="Sees">Nothing about you: static files, no login, no analytics. Cloudflare's bot check (Turnstile) runs on the email sign-in page and on the delete-account page only.</td><td data-label="Cannot see">Keys and message content.</td></tr>
-<tr><th scope="row">AWS SES</th><td data-label="Sees">Your email address when it sends a sign-in code.</td><td data-label="Cannot see">Anything else.</td></tr>
+<tr><th scope="row">AWS SES</th><td data-label="Sees">Your email address when it sends a sign-in code.</td><td data-label="Cannot see">Message content and keys. We send it nothing else.</td></tr>
 </tbody>
 </table>
 </div>
