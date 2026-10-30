@@ -51,12 +51,28 @@ function note(kind: "" | "err", ic: "info" | "history" | "error", text: string):
   return h("div", { class: "note" + (kind ? " " + kind : ""), role: kind ? "alert" : "status" }, icon(ic, 20), h("span", {}, text));
 }
 
-function setHelp(el: HTMLElement, text: string, bad: boolean): void {
+/**
+ * Help or error text under a field. An error is announced (role alert); when the
+ * field is given, it is marked invalid while the error shows. Wire the field to
+ * the text once with describe().
+ */
+function setHelp(el: HTMLElement, text: string, bad: boolean, field?: HTMLElement): void {
   clear(el);
   el.classList.toggle("bad", bad);
+  if (bad) el.setAttribute("role", "alert");
+  else el.removeAttribute("role");
+  if (field) {
+    if (bad) field.setAttribute("aria-invalid", "true");
+    else field.removeAttribute("aria-invalid");
+  }
   if (bad) el.append(icon("error", 18));
   el.append(h("span", {}, text));
   el.hidden = text === "";
+}
+
+function describe(field: HTMLElement, help: HTMLElement, id: string): void {
+  help.id = id;
+  field.setAttribute("aria-describedby", id);
 }
 
 const clock = (ms: number): string => Math.floor(ms / 60_000) + ":" + String(Math.floor((ms % 60_000) / 1000)).padStart(2, "0");
@@ -71,6 +87,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   const email = h("input", { type: "email", autocomplete: "email", spellcheck: "false" }) as HTMLInputElement;
   const emailField = field(email, "Email address");
   const emailHelp = h("p", { class: "help", hidden: true });
+  describe(email, emailHelp, "email-help");
   let token = "";
   let tokenUsed = false;
   const newFrame = () =>
@@ -78,6 +95,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   let frame = newFrame();
   const frameHelp = h("p", { class: "help", hidden: true });
   const sendHelp = h("p", { class: "help", hidden: true });
+  describe(frame, frameHelp, "frame-help");
   const s1notes = h("div", { class: "notes" });
   // Step 1 notes: an optional new note first, then the lasting ones (banner, Firefox setup, receive note).
   const resetNotes = (first?: HTMLElement) =>
@@ -107,18 +125,19 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   let draftTimer = 0;
   email.addEventListener("input", () => {
     emailField.classList.remove("bad");
-    setHelp(emailHelp, "", false);
+    setHelp(emailHelp, "", false, email);
     clearTimeout(draftTimer);
     draftTimer = setTimeout(() => void rpc(env, "signinDraft", { email: email.value, purpose }).catch(() => undefined), 300) as unknown as number;
   });
   const sendBtn = h("button", { type: "submit", class: "primary big" }, "Email me a code") as HTMLButtonElement;
+  describe(sendBtn, sendHelp, "send-help");
   const sendCode = async () => {
     setHelp(sendHelp, "", false);
     const v = email.value.trim();
     const bad = v === "" ? "Enter your email address." : /[^\x00-\x7f]/.test(v) ? T.badEmail : !/^[^@\s]+@[^@\s]+$/.test(v) ? "Check the email address." : "";
     if (bad) {
       emailField.classList.add("bad");
-      setHelp(emailHelp, bad, true);
+      setHelp(emailHelp, bad, true, email);
       email.focus();
       return;
     }
@@ -144,6 +163,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   };
   const freshFrame = () => {
     const f = newFrame();
+    f.setAttribute("aria-describedby", "frame-help");
     frame.replaceWith(f);
     frame = f;
     token = "";
@@ -194,6 +214,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   const code = h("input", { class: "code", maxlength: "20", autocomplete: "one-time-code", autocapitalize: "characters", spellcheck: "false" }) as HTMLInputElement;
   const codeField = field(code, "6-character code", " code");
   const codeHelp = h("p", { class: "help" });
+  describe(code, codeHelp, "code-help");
   const chip = h("span", { class: "who" });
   const s2notes = h("div", { class: "notes" });
   const signBtn = h("button", { type: "submit", class: "primary big" }, "Sign in") as HTMLButtonElement;
@@ -221,7 +242,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
         resetNotes(note("err", "error", msg));
       } else {
         codeField.classList.add("bad");
-        setHelp(codeHelp, msg === "Enter the 6-character code" ? "Enter the 6-character code from the email." : msg, true);
+        setHelp(codeHelp, msg === "Enter the 6-character code" ? "Enter the 6-character code from the email." : msg, true, code);
       }
     } finally {
       busy = false;
@@ -230,7 +251,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   };
   code.addEventListener("input", () => {
     codeField.classList.remove("bad");
-    setHelp(codeHelp, CODE_HELP, false);
+    setHelp(codeHelp, CODE_HELP, false, code);
     const cleaned = code.value.replace(/[\s-]/g, "");
     if (cleaned.length === 6) void verify();
   });
@@ -307,7 +328,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     }
     code.value = "";
     codeField.classList.remove("bad");
-    setHelp(codeHelp, CODE_HELP, false);
+    setHelp(codeHelp, CODE_HELP, false, code);
     step1.hidden = true;
     step2.hidden = false;
     back.hidden = false;
@@ -358,7 +379,7 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
   document.body.classList.remove("signin-bg");
   const peers = (Array.isArray(body.peers) ? body.peers : []) as LimitPeer[];
   const boxes: { id: string; box: HTMLInputElement }[] = [];
-  const status = h("div", { class: "status" });
+  const status = h("div", { class: "status", role: "status" });
   const list = group();
   root.append(h("h1", {}, "Device limit reached"), h("div", { class: "lead" }, "Pick devices to remove from this account, then continue."));
   for (const p of peers) {

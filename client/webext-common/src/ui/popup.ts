@@ -25,6 +25,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   try {
     [st] = await Promise.all([rpc<StateView>(env, "popupOpen"), startTheme(env.theme)]);
   } catch (e) {
+    root.setAttribute("role", "alert");
     root.textContent = (e as Error).message;
     return;
   }
@@ -90,7 +91,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   const asTextRow = h("label", { class: "astext" }, asText, h("span", {}, "Send as text"));
   const sendLabel = h("span", { class: "lbl" }, "Send");
   const sendBtn = h("button", { class: "primary big" }, icon("send", 18), sendLabel) as HTMLButtonElement;
-  const result = h("div", { class: "result" });
+  const result = h("div", { class: "result", role: "status" });
   const head = sh("");
   const chips = h("div", { class: "dchips" });
   const data = await rpc<{ peers: PeerView[] }>(env, "peers");
@@ -327,7 +328,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promi
   showAll.addEventListener("change", save);
   autoOpen.addEventListener("change", save);
   days.addEventListener("change", save);
-  const status = h("div", { class: "status" });
+  const status = h("div", { class: "status", role: "status" });
   const confirmDel = h("div", { class: "confirm-inline" });
   const ff = st.platform === "firefox";
   const acct = add(
