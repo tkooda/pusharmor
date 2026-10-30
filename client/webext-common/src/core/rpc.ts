@@ -236,10 +236,13 @@ export class Rpc {
     const peers = new Map((await e.db.peers()).map((p) => [p.id, p]));
     return (await e.db.history()).map((r) => {
       const p = r.peer ? peers.get(r.peer) : undefined;
-      let sender = T.unknownSender;
+      let sender: string = T.unknownSender;
       if (r.peer) {
         const nm = p?.name ?? r.peer_name ?? null;
         sender = (nm ?? T.aPeer) + (!p || p.removed ? " (removed)" : "");
+      } else if (r.dir === "out" && r.targets?.length === 1) {
+        // A message to one device: History names it (Sent to "Laptop").
+        sender = peers.get(r.targets[0]!)?.name ?? T.aPeer;
       }
       return { ...r, sender };
     });

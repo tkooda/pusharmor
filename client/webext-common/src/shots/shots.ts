@@ -65,7 +65,7 @@ const history: (HistoryRow & { sender: string })[] = [
   { id: 4, dir: "in", peer: DESKTOP, type: "text", content: "Meeting moved to 3 pm, room B", n: 1, pairing_id: null,
     received: now - 25 * 60_000, read: true, sender: "Work desktop" },
   { id: 3, dir: "out", peer: null, type: "url", content: "https://example.com/guide/hiking-trails", n: null, pairing_id: null,
-    received: now - 40 * 60_000, read: true, results: { [TABLET]: "sent" }, targets: [TABLET], sender: "" },
+    received: now - 40 * 60_000, read: true, results: { [TABLET]: "sent" }, targets: [TABLET], sender: "Tablet" },
   { id: 2, dir: "in", peer: TABLET, type: "event", event: "paused", content: "", n: null, pairing_id: null,
     received: now - 50 * 60_000, read: true, sender: "Tablet" },
   { id: 1, dir: "in", peer: PHONE, type: "text", content: "Pick up basil and lemons on the way home", n: 1, pairing_id: null,
