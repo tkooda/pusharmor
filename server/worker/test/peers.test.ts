@@ -284,6 +284,8 @@ describe("PATCH /peers/$id push", () => {
       "https://svc.internal/x",
       "https://1.0.0.10.in-addr.arpa/x",
       "https://localhost/x",
+      "https://intranet/x",
+      "https://intranet./x",
     ];
     for (const endpoint of bad) {
       const r = await call("PATCH", "/v1/peers/" + p.id, { push: { ...up, endpoint } }, { peer: p });

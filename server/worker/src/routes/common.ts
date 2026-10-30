@@ -88,13 +88,15 @@ export async function probeCode(secret: string, id: string, fields: Record<strin
 }
 
 // Sends the UnifiedPush probe after the reply (ctx.waitUntil); never fails the call.
-export function scheduleProbe(c: Ctx, id: string, fields: Record<string, string>): void {
+// Limited per peer id and per account: a new enc_pub gives a new id, not a new account.
+export function scheduleProbe(c: Ctx, acct: string, id: string, fields: Record<string, string>): void {
   const env = c.env;
   const log = c.log;
   c.exec.waitUntil(
     (async () => {
       try {
         if (!(await allow(env, "RL_PROBE", "probe:" + id, log))) return;
+        if (!(await allow(env, "RL_PROBE", "probeacct:" + acct, log))) return;
         const code = await probeCode(env.PA_CONFIRM_SECRET, id, fields, Math.floor(nowS() / 300));
         await sendProbe(env, { endpoint: fields.endpoint, p256dh: fields.p256dh, auth: fields.auth }, code);
       } catch {
