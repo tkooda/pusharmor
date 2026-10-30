@@ -21,6 +21,13 @@ class UiTextTest {
         assertEquals(Mark.WAIT to "Has not approved this device", UiText.status(pinned.copy(approveVerified = false)))
     }
 
+    @Test fun rememberedSelection() {
+        assertEquals(listOf("b", "c"), UiText.rememberedSelection("c,x,b", listOf("a", "b", "c")))
+        assertEquals(emptyList<String>(), UiText.rememberedSelection(null, listOf("a")))
+        assertEquals(emptyList<String>(), UiText.rememberedSelection("", listOf("a")))
+        assertEquals(emptyList<String>(), UiText.rememberedSelection("x,y", listOf("a")))
+    }
+
     @Test fun counterAndSendLabel() {
         assertEquals("39 / 2048", UiText.counter(39))
         assertEquals("2048 / 2048", UiText.counter(2048))

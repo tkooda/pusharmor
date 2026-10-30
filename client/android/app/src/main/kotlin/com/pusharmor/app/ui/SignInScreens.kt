@@ -104,7 +104,7 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onDone
             Spacer(Modifier.height(8.dp))
             Wordmark(34.sp)
             Spacer(Modifier.height(12.dp))
-            Text("Links and text from your devices. All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.", Modifier.widthIn(max = 320.dp),
+            Text("Send links or text to your devices. All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.", Modifier.widthIn(max = 320.dp),
                 style = MaterialTheme.typography.bodyLarge, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
             val status = when {
                 banner != null -> null

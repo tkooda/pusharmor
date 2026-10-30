@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
@@ -78,6 +79,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -94,6 +101,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.PackageManagerCompat
 import androidx.core.content.IntentCompat
@@ -386,11 +394,12 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
         when {
             !p.pinned -> Row(inset.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 FilledTonalButton(onClick = { vm.pair(p.id) }, Modifier.heightIn(min = 48.dp)) { Text("Pair") }
-                TextButton(onClick = { vm.deny(p.id) }) { Text("Deny") }
+                OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.heightIn(min = 48.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)) { Text("Deny") }
             }
-            p.notPairedOnPeer -> Row(inset.padding(bottom = 8.dp)) { TextButton(onClick = { vm.cancelPairing(p.id) }) { Text("Cancel pairing") } }
+            p.notPairedOnPeer -> Row(inset.padding(bottom = 8.dp)) { OutlinedButton(onClick = { vm.cancelPairing(p.id) }, Modifier.heightIn(min = 48.dp)) { Text("Cancel pairing") } }
             p.waiting -> Row(inset.padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { vm.cancelPairing(p.id) }) { Text("Cancel pairing") }
+                OutlinedButton(onClick = { vm.cancelPairing(p.id) }, Modifier.heightIn(min = 48.dp)) { Text("Cancel pairing") }
                 WaitingSendAgain(vm, p, now)
             }
         }
@@ -422,7 +431,7 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             IconTile(platformIcon(p.platform))
             Column {
-                Text(if (shown || prompted) "Pair with $x?" else x, style = MaterialTheme.typography.titleMedium)
+                Text(if (shown || prompted) "Pair with new device: \"$x\"" else x, style = MaterialTheme.typography.titleMedium)
                 Text(AppEffects.platformLabel(p.platform), style = body, color = cs.onSurfaceVariant)
             }
         }
@@ -437,7 +446,8 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.weight(1f).heightIn(min = 48.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, cs.outline)) { Text("Deny") }
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = cs.error),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, cs.error)) { Text("Deny") }
                     GreenButton(onClick = { vm.approve(p.id) }, text = "Approve", icon = PaIcons.Check, modifier = Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(12.dp))
@@ -473,7 +483,7 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
             layout(c.maxWidth, pl.height) { pl.place(-extra / 2, 0) }
         }, color = cs.outlineVariant)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = { vm.cancelPairing(p.id) }) { Text("Cancel pairing") }
+            OutlinedButton(onClick = { vm.cancelPairing(p.id) }, Modifier.heightIn(min = 48.dp)) { Text("Cancel pairing") }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(PaIcons.Schedule, null, Modifier.size(16.dp), tint = cs.onSurfaceVariant)
                 Text("Times out in " + Countdown.format(row.startedAt, now), style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
@@ -510,7 +520,7 @@ private fun FingerprintPlate(code: String, x: String) {
             for (c in code) cell(c, Modifier.weight(1f, fill = false).widthIn(max = 64.dp).fillMaxWidth())
         }
         Spacer(Modifier.height(12.dp))
-        Text("Check that $x shows this same code.", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
+        Text("Verify that \"$x\" shows this same code.", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
     }
 }
 
@@ -553,6 +563,15 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     val me by vm.self.collectAsState()
     val all = vm.allPeers()
     val picked = remember { mutableStateListOf<String>().apply { preselect?.let { add(it) }; if (shots) addAll(ScreenshotMode.sendTo) } }
+    // Last selection (local only): applied once the device list has loaded, unless a preselect or the screenshot data already chose.
+    val canReceive = others(peers, me?.id).filter { it.inAll }.map { it.id }
+    var restored by remember { mutableStateOf(shots || picked.isNotEmpty()) }
+    LaunchedEffect(canReceive) {
+        if (!restored && canReceive.isNotEmpty()) {
+            restored = true
+            picked.addAll(UiText.rememberedSelection(vm.g.settings.get(Settings.K.LAST_SEND_TO), canReceive))
+        }
+    }
     val scope = rememberCoroutineScope()
     val bytes = SizeCap.utf8Size(text)
     val showAll = vm.g.settings.showAll
@@ -599,6 +618,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
             .background(Brush.verticalGradient(0f to Color.Transparent, 0.22f to cs.background))
             .padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 16.dp)) {
             GreenButton(onClick = {
+                vm.g.settings.set(Settings.K.LAST_SEND_TO, picked.toList().joinToString(","))
                 scope.launch { val r = vm.send(picked.toList(), text, asText); result = ((result?.first ?: 0) + 1) to r; onSent(r) }
             }, text = UiText.sendLabel(picked.size), icon = PaIcons.Send, modifier = Modifier.fillMaxWidth(),
                 enabled = picked.isNotEmpty() && text.isNotEmpty() && bytes <= SizeCap.MAX_CONTENT_BYTES)
@@ -664,7 +684,8 @@ fun HistoryScreen(vm: AppViewModel, onPeer: (String) -> Unit) {
                 "Everything you send or receive shows up here. Share a link from any app to send it to your devices.", top = 110.dp)
             return@Column
         }
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
+        val chipScroll = rememberScrollState()
+        Row(Modifier.fillMaxWidth().horizontalFade(chipScroll).horizontalScroll(chipScroll).padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for (c in HistoryFilter.chips(frows, ::nameOf)) {
                 val t = when (c) { HistoryFilter.Chip.All -> "All"; HistoryFilter.Chip.Unknown -> "Unknown"; is HistoryFilter.Chip.PeerChip -> c.name }
@@ -694,11 +715,23 @@ fun HistoryScreen(vm: AppViewModel, onPeer: (String) -> Unit) {
 @Composable
 private fun PaChip(selected: Boolean, text: String, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
-    FilterChip(selected = selected, onClick = onClick, label = { Text(text) },
+    FilterChip(selected = selected, onClick = onClick, label = { Text(text, maxLines = 1, softWrap = false) },
         leadingIcon = if (selected) { { Icon(PaIcons.Check, null, Modifier.size(18.dp)) } } else null,
         colors = FilterChipDefaults.filterChipColors(containerColor = LocalPaExtra.current.tile, selectedContainerColor = cs.secondaryContainer),
         border = FilterChipDefaults.filterChipBorder(enabled = true, selected = selected, borderColor = cs.outline, selectedBorderColor = Color.Transparent))
 }
+
+/** Fades the edge(s) of a horizontally scrolling row that still have content beyond them. */
+private fun Modifier.horizontalFade(state: ScrollState, fade: Dp = 32.dp): Modifier = this
+    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        val w = fade.toPx()
+        if (state.canScrollBackward) drawRect(Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = 0f, endX = w),
+            size = Size(w, size.height), blendMode = BlendMode.DstOut)
+        if (state.canScrollForward) drawRect(Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = size.width - w, endX = size.width),
+            topLeft = Offset(size.width - w, 0f), size = Size(w, size.height), blendMode = BlendMode.DstOut)
+    }
 
 private val CONTENT_TYPES = setOf("url", "text", "tel")
 
