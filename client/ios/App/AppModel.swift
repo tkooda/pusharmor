@@ -346,6 +346,7 @@ final class AppModel: ObservableObject {
     func sendAgain(_ p: Peer) async { _ = await core?.sendAgain(p.id); reload() }
     func reply(_ p: Peer) async { _ = await core?.tapReply(p.id); reload() }
     func cancelPairing(_ p: Peer) async { await core?.cancelPairing(p.id); reload() }
+    func pairAgain(_ p: Peer) async { _ = try? await core?.pairAgain(p.id); reload() }
     func remove(_ p: Peer) async { _ = try? await core?.removePeer(p.id); reload() }
     func localDelete(_ p: Peer) async { await core?.localDelete(p.id); reload() }
     func setHidden(_ p: Peer, _ h: Bool) { try? core?.setHidden(p.id, h); reload() }
@@ -400,6 +401,9 @@ final class AppModel: ObservableObject {
         // No Core (it failed to start): Cancel pairing would do nothing, so it is not offered.
         return false
     }
+
+    /// Pair again replaces Cancel pairing on a half-state row (no Core: not offered).
+    func offersPairAgain(_ p: Peer) -> Bool { core?.offersPairAgain(p) ?? false }
 
     var allSet: [Peer] { peers.filter { $0.inAll } }
 

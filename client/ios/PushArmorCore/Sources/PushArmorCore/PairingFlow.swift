@@ -4,6 +4,7 @@ import Foundation
 public enum PairNote: String, Sendable {
     case failed      // "Pairing failed. Start again on the new peer."
     case timedOut    // "Pairing timed out. Tap Pair to start again."
+    case pairAgain   // the half-state notice fired: the row offers Pair again
 }
 
 /// Result of one POST /pair.
@@ -76,6 +77,10 @@ extension Core {
                     if var q = p { q.note = PairNote.failed.rawValue; try store.savePeer(q) }
                 case .unchanged, .none:
                     break
+                }
+                if out.notice == .halfState, var q = try store.peer(from) {
+                    q.note = PairNote.pairAgain.rawValue
+                    try store.savePeer(q)
                 }
                 return (out, try store.pairing(from), try store.peer(from))
             }
@@ -303,6 +308,19 @@ extension Core {
     /// Whether a row offers Cancel pairing.
     public func offersCancel(_ p: Peer) -> Bool {
         (try? store.pairing(p.id)) != nil || p.notPairedOnPeer
+    }
+
+    /// Whether a row offers Pair again in place of Cancel pairing: the half-state notice
+    /// fired for it and it still offers Cancel pairing.
+    public func offersPairAgain(_ p: Peer) -> Bool {
+        p.note == PairNote.pairAgain.rawValue && offersCancel(p)
+    }
+
+    /// [Pair again] on a half-state row: Cancel pairing (local drop and the allow
+    /// reconcile, awaited), then [Pair].
+    public func pairAgain(_ x: PeerId) async throws -> PairSendResult {
+        await cancelPairing(x)
+        return try await startPair(x)
     }
 
     /// 14-day timeout check (app open and Refresh; no background timer).

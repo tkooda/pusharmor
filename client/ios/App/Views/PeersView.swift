@@ -180,7 +180,10 @@ struct PeerPendingLines: View {
                 }
             }
         }
-        if showCancel && model.offersCancel(p) {
+        if showCancel && model.offersPairAgain(p) {
+            Button("Pair again") { Task { await model.pairAgain(p) } }
+                .buttonStyle(.bordered)
+        } else if showCancel && model.offersCancel(p) {
             Button("Cancel pairing") { Task { await model.cancelPairing(p) } }
                 .buttonStyle(.bordered)
         }
@@ -352,7 +355,11 @@ struct PairingCardView: View {
                 .padding(.top, 12)
                 .padding(.horizontal, -16)
             HStack {
-                if cancel {
+                if cancel && model.offersPairAgain(p) {
+                    Button("Pair again") { Task { await model.pairAgain(p) } }
+                        .buttonStyle(.bordered)
+                        .font(.subheadline)
+                } else if cancel {
                     Button("Cancel pairing") { Task { await model.cancelPairing(p) } }
                         .buttonStyle(.bordered)
                         .font(.subheadline)
