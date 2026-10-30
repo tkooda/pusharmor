@@ -2,6 +2,7 @@
 import type { PeerView, StateView } from "../core/rpc.ts";
 import type { SendResult } from "../core/engine.ts";
 import { T } from "../core/texts.ts";
+import { rememberedSelection } from "../model/sendsel.ts";
 import type { HistoryRow } from "../store/db.ts";
 import { type UiEnv, add, clear, group, h, midEllipsis, peerStatus, platformLabel, rpc, sh, shortTime, statusLine } from "./dom.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
@@ -83,6 +84,8 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   const data = await rpc<{ peers: PeerView[] }>(env, "peers");
   const sendable = data.peers.filter((p) => p.sendable);
   const checks: { id: string; box: HTMLInputElement }[] = [];
+  const remembered = rememberedSelection(await rpc<string[]>(env, "sendSel").catch(() => []), sendable.map((p) => p.id));
+  const save = () => void rpc(env, "sendSelSet", { ids: checks.filter((c) => c.box.checked).map((c) => c.id) }).catch(() => undefined);
   let allBox: HTMLInputElement | null = null;
   const target = (glyph: Node, name: string, sub: (Node | string)[], box: HTMLInputElement, dim = false) =>
     h("label", { class: "prow target" + (dim ? " off" : "") }, h("div", { class: "av" }, glyph), h("div", { class: "txt" }, h("div", { class: "t1 name" }, name), ...sub.map((s) => h("div", { class: "t2" }, s))), box);
@@ -96,19 +99,21 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     sendLabel.textContent = n > 0 ? "Send to " + n + (n === 1 ? " device" : " devices") : "Send";
   };
   if (st.settings.showAll) {
-    allBox = h("input", { type: "checkbox", checked: true }) as HTMLInputElement;
+    allBox = h("input", { type: "checkbox", checked: remembered === null || remembered.length === sendable.length }) as HTMLInputElement;
     allBox.addEventListener("change", () => {
       for (const c of checks) c.box.checked = allBox!.checked;
       relabel();
+      save();
     });
     targets.append(target(icon("devices", 18), "All", [], allBox));
   }
   // "All" sends to every sendable peer, so its rows show ticked; unticking one row leaves "All".
   for (const p of sendable) {
-    const box = h("input", { type: "checkbox", checked: allBox !== null }) as HTMLInputElement;
+    const box = h("input", { type: "checkbox", checked: remembered ? remembered.includes(p.id) : allBox !== null }) as HTMLInputElement;
     box.addEventListener("change", () => {
-      if (allBox && !box.checked) allBox.checked = false;
+      if (allBox) allBox.checked = checks.every((c) => c.box.checked);
       relabel();
+      save();
     });
     checks.push({ id: p.id, box });
     targets.append(target(platformIcon(p.platform), p.label, sub(p), box, p.greyed !== null));

@@ -145,7 +145,7 @@ function pairCard(env: UiEnv, p: PeerView, status: HTMLElement, redraw: Redraw):
     "div",
     { class: "pair-head" },
     h("div", { class: "av" }, platformIcon(p.platform)),
-    h("div", { class: "txt" }, h("div", { class: "pair-title" }, "Pair with " + p.label + "?"), h("div", { class: "t2" }, platformLabel(p.platform))),
+    h("div", { class: "txt" }, h("div", { class: "pair-title" }, 'Pair with new device: "' + p.label + '"'), h("div", { class: "t2" }, platformLabel(p.platform))),
   );
   const more = menuFor(env, p, card, status, redraw);
   if (more) head.append(more);
@@ -156,7 +156,7 @@ function pairCard(env: UiEnv, p: PeerView, status: HTMLElement, redraw: Redraw):
       { class: "plate" },
       h("div", { class: "plate-label", "aria-hidden": "true" }, shield(13), T.fingerprint("").trim()),
       h("div", { class: "cells", role: "img", "aria-label": T.fingerprint(chars.join(", ")) }, ...chars.map((c) => h("span", { class: "cell", "aria-hidden": "true" }, c))),
-      h("p", {}, "Check that " + p.label + " shows this same code."),
+      h("p", {}, 'Verify that "' + p.label + '" shows this same code.'),
     ),
   );
   if (p.pk) void rpc(env, "fingerprintShown", { pk: p.pk }).catch(() => undefined);
@@ -164,10 +164,10 @@ function pairCard(env: UiEnv, p: PeerView, status: HTMLElement, redraw: Redraw):
   const main = [...p.actions].filter((a) => !MENU.has(a) && a !== "cancel").sort((x, y) => rank(x) - rank(y));
   // Deny left, Approve right, equal width.
   const order = main.includes("deny") ? ["deny", ...main.filter((a) => a !== "deny")] : main;
-  if (order.length) card.append(h("div", { class: "pair-acts" }, ...order.map((a) => actionButton(env, a, p, card, status, redraw))));
+  if (order.length) card.append(h("div", { class: "pair-acts" }, ...order.map((a) => actionButton(env, a, p, card, status, redraw, a === "deny" ? "danger" : ACTION_CLASS[a] ?? ""))));
   if (p.actions.includes("deny") && p.actions.includes("approve")) card.append(h("div", { class: "hint" }, icon("info", 14), "Codes do not match? Tap Deny."));
   const foot = h("div", { class: "pair-foot" });
-  if (p.actions.includes("cancel")) foot.append(actionButton(env, "cancel", p, card, status, redraw, "quiet"));
+  if (p.actions.includes("cancel")) foot.append(actionButton(env, "cancel", p, card, status, redraw, ""));
   if (p.countdown) foot.append(h("span", { class: "t2 countdown" }, T.countdownLeft(p.countdown)));
   if (foot.firstChild) card.append(foot);
   return card;
