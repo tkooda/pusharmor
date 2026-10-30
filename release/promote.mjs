@@ -143,6 +143,16 @@ export function releaseProblem(platform, version, tagExists, release) {
   return missing.length ? "release " + tag + " lacks " + missing.join(", ") : "";
 }
 
+/** I439: every tag of X.Y.Z points at one commit. commits maps each platform
+ *  to the commit of its tag, or null when it has no tag. error is "" when the
+ *  tags agree; missing lists the platforms without a tag. */
+export function commitProblems(version, commits) {
+  const missing = PLATFORMS.filter((p) => !commits[p]);
+  const have = PLATFORMS.filter((p) => commits[p]);
+  const error = new Set(have.map((p) => commits[p])).size > 1 ? "tags of " + version + " are on different commits: " + have.map((p) => p + "/v" + version + " " + commits[p].slice(0, 12)).join(", ") : "";
+  return { error, missing };
+}
+
 // ---- output ----
 
 function summary(line) {
@@ -210,15 +220,24 @@ async function check(version) {
     });
   summary("### Promote " + version);
   let any = false;
+  const commits = {};
   for (const p of PLATFORMS) {
     const tag = p + "/v" + version;
     const ref = await gh("/git/ref/tags/" + tag);
+    let obj = ref.status === 200 ? ref.json.object : null;
+    // An annotated tag points at a tag object; its object is the commit.
+    if (obj && obj.type === "tag") obj = (await gh("/git/tags/" + obj.sha)).json?.object || null;
+    commits[p] = obj ? obj.sha : null;
     const rel = await gh("/releases/tags/" + tag);
     const why = releaseProblem(p, version, ref.status === 200, rel.status === 200 ? rel.json : null);
     output(p, why ? "false" : "true");
     summary(why ? "- " + p + ": SKIP (" + why + ")" : "- " + p + ": ready (" + tag + ")");
     any ||= !why;
   }
+  // I439: one release is one commit on every platform (RELEASING.md, Versions).
+  const same = commitProblems(version, commits);
+  if (same.missing.length) summary("- WARNING: " + version + " has no tag for " + same.missing.join(", ") + "; every release should tag all four platforms on one commit");
+  if (same.error) throw new Error(same.error);
   const bad = [...listingProblems("play"), ...listingProblems("appstore")];
   for (const b of bad) summary("- listing: " + b);
   const pub = loadPublic();

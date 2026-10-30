@@ -26,7 +26,10 @@ workflow in its first job):
 - A new version (no tag of it yet) is greater than every existing tag of any
   platform. A version that already has a tag stays open to other platforms at
   its commit, also after newer versions are tagged.
-- Platforms may skip numbers (a Worker-only fix needs no Android tag).
+- Every release tags ALL FOUR client platforms (`android`, `ios`, `chrome`,
+  `firefox`) on ONE commit, so the public clients of a release are one build of
+  one commit. Only `worker/vX.Y.Z` may stand alone (a Worker-only fix needs no
+  client tag).
 - X.Y.Z has no leading zeros; Y and Z are at most 999; X is at most 2099.
 - The version files at the tag commit hold X.Y.Z: `release/version.properties`
   (Android), `client/chrome/manifest.json`, `client/firefox/manifest.json`,
@@ -65,8 +68,10 @@ draft; it never changes a published release.
 Actions > promote > Run workflow (also in the GitHub phone app), on `main`,
 with the version X.Y.Z. The first job checks, per platform, the tag
 `<platform>/vX.Y.Z` and its published GitHub release with the needed assets; a
-platform without them is skipped (a SKIP line in the summary). It also checks
-the listing files. Then the run waits for the owner's approval (Environment
+platform without them is skipped (a SKIP line in the summary). It refuses to
+run when the tags of X.Y.Z point at different commits, and it lists the client
+platforms that have no tag of X.Y.Z as a WARNING line. It also checks the
+listing files. Then the run waits for the owner's approval (Environment
 `promote`, the owner is the required reviewer): one tap on "Review
 deployments" > Approve. The store jobs then run in parallel, each with the
 store's release Environment:
