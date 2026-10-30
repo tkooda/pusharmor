@@ -31,9 +31,6 @@ process it for us.</p>
 
 <h2>Services we use</h2>
 <ul>
-<li><strong>AWS SES</strong>: used for email sign-in only, to send the sign-in code. It sees
-your email address at send time. If a code email bounces, the mail provider keeps that address
-on a suppression list until we clear it.</li>
 <li><strong>Google's and Apple's notification services (FCM, APNs) for Android and iPhone, Google
 and Mozilla web push (Chrome, Firefox), and a UnifiedPush distributor if you chose one</strong>:
 used to wake your device. They see the address your device uses to receive notifications (push
@@ -47,6 +44,9 @@ sign-in page and on the delete-account page only.</li>
 <li><strong>Google and Apple sign-in</strong> (if you choose them): used to prove the account.
 We keep only a one-way code made from your email address (a keyed hash), which is your account
 id (see below).</li>
+<li><strong>AWS SES</strong>: used for email sign-in only, to send the sign-in code. It sees
+your email address at send time. If a code email bounces, the mail provider keeps that address
+on a suppression list until we clear it.</li>
 </ul>
 
 <h2>Your email address</h2>
