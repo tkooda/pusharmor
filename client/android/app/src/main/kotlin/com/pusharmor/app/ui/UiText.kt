@@ -8,6 +8,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Date
 import com.pusharmor.protocol.SizeCap
+import com.pusharmor.protocol.ContentType
 
 /** Pure text rules of the screens (unit tested without a device). */
 object UiText {
@@ -37,6 +38,22 @@ object UiText {
         0 -> "Send"
         1 -> "Send to 1 device"
         else -> "Send to $n devices"
+    }
+
+    /** Header above the device chips: "Send to (6 of 9)". */
+    fun sendToHeader(picked: Int, total: Int): String = "Send to ($picked of $total)"
+
+    /** The "All" chip shows only with 2 or more devices (one device is preselected instead). */
+    fun showAllChip(setting: Boolean, devices: Int): Boolean = setting && devices > 1
+
+    /** The byte counter shows only from 90 percent of the cap (and over it, as "Too long"). */
+    fun showCounter(bytes: Int): Boolean = bytes * 10 >= SizeCap.MAX_CONTENT_BYTES * 9
+
+    /** Quiet caption for the detected type, present tense. */
+    fun typeCaption(type: ContentType): String = when (type) {
+        ContentType.URL -> "Will open as a link"
+        ContentType.TEL -> "Will open as a phone number"
+        ContentType.TEXT -> "Will arrive as text"
     }
 
     /** Spoken form of a fingerprint: "Pairing fingerprint K, 7, Q, D". */

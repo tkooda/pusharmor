@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.CircularProgressIndicator
@@ -196,7 +197,8 @@ private fun App(vm: AppViewModel) {
                 }
             }
         }) { pad ->
-            NavHost(nav, startDestination = "peers", modifier = Modifier.padding(pad)) {
+            // Consumed, so the Send screen's imePadding does not count the bottom bar twice.
+            NavHost(nav, startDestination = "peers", modifier = Modifier.padding(pad).consumeWindowInsets(pad)) {
                 composable("peers") { PeersScreen(vm) }
                 composable("send") { SendScreen(vm, title = "Send") }
                 composable("history") { HistoryScreen(vm) { id -> vm.highlight.value = id; nav.navigate("peers") } }
