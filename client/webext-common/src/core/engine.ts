@@ -468,7 +468,11 @@ export class Engine {
         await this.endEntry(from, T.pairFailed, false);
         return this.dropEvent("unreadable", null, src);
       case "notice": {
-        if (d.notice === "half") return this.pairNotice(pkX, T.pairHalf(name));
+        if (d.notice === "half") {
+          const cur = await getEntry(this.p.storageLocal, from);
+          if (cur && !cur.half) await this.p.storageLocal.set({ [pairKeyOf(from)]: { ...cur, half: true } satisfies PairEntry });
+          return this.pairNotice(pkX, T.pairHalf(name));
+        }
         if (d.notice === "crossing") {
           const pkN = await pairingKey(b64urlDecode(self.id), b64urlDecode(from));
           return this.pairNotice(pkN, T.pairCrossing(name));
@@ -854,6 +858,12 @@ export class Engine {
     });
     await this.rebuildMenus();
     await this.reconcileAllow();
+  }
+
+  /** [Pair again] on a half-state row: Cancel pairing (local drop + allow reconcile), then [Pair]. */
+  async pairAgain(x: string): Promise<void> {
+    await this.cancelPairing(x);
+    await this.pairStart(x);
   }
 
   /** Allow reconcile (I277, I278): withdraw every id in the allow set with no pin. */
@@ -1354,7 +1364,7 @@ export class Engine {
     const nm = peerLabel(peer.name);
     const t = now(this.p);
     const lines: string[] = [];
-    const actions: string[] = ["cancel"];
+    const actions: string[] = e.half && peer.pinned ? ["pair_again", "cancel"] : ["cancel"];
     const countdown = formatCountdown(e.started + PAIRING_TIMEOUT_MS - t);
     if (e.approved && !peer.approve_verified) {
       lines.push(T.waiting(nm));

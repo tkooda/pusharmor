@@ -385,13 +385,75 @@ test("commit from a fully paired peer: plain drop (Chrome silent); half state sh
   a.p.notes.clear();
   await deliver(w, a);
   const pk = await pairingKey(b64urlDecode(b.id), b64urlDecode(a.id));
-  assert.match(a.p.notes.get("p:" + pk)!.body, /wants to pair again\. Tap Cancel pairing on its row, then pair\.$/);
+  assert.match(a.p.notes.get("p:" + pk)!.body, /wants to pair again\. Tap Pair again on its row\.$/);
   assert.equal(await getEntry(a.p.storageLocal, b.id), null); // no entry
   assert.ok((await a.db.peer(b.id))!.pinned); // pin unchanged
   // Cancel pairing on a, then a fresh pairing works
   await a.e.cancelPairing(b.id);
   await b.e.pairSendAgain(a.id); // too early (60 s)
   assert.equal(w.queue.length, 0);
+});
+
+test("Pair again on the half-state row: old entry, pin and pairing id dropped, fresh pairing completes", async () => {
+  const { clock, w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  await b.e.cancelPairing(a.id);
+  await a.e.fetchPeersNow();
+  await b.e.pairStart(a.id);
+  await deliver(w, a); // half notice on a
+  const row = (await new Rpc(a.e).peers()).peers.find((v) => v.id === b.id)!;
+  assert.deepEqual(row.actions.slice(0, 2), ["pair_again", "cancel"]);
+  const oldPid = (await a.db.peer(b.id))!.pairing_id;
+  assert.ok(oldPid);
+  await a.e.pairAgain(b.id);
+  const pa = (await a.db.peer(b.id))!;
+  assert.equal(pa.pinned, false);
+  assert.equal(pa.pairing_id, null);
+  assert.equal(pa.last_n, 0);
+  assert.ok(!w.rows.get(a.id)!.allow.has(b.id)); // the cancel's reconcile landed first
+  const e = (await getEntry(a.p.storageLocal, b.id))!;
+  assert.equal(e.role, "N");
+  assert.equal(e.state, "committed");
+  assert.ok(w.calls.some((c) => c.path === "/v1/pair/" + b.id && c.method === "POST"));
+  // crossing commits: the higher id replies to a resent commit (Send again, as today), then the new pairing completes
+  clock.t += 61_000;
+  await a.e.pairSendAgain(b.id);
+  await b.e.pairSendAgain(a.id);
+  for (let i = 0; i < 4; i++) {
+    await deliver(w, b);
+    await deliver(w, a);
+  }
+  const fa = (await a.e.pairRowView(b.id))?.fingerprint;
+  const fb = (await b.e.pairRowView(a.id))?.fingerprint;
+  assert.ok(fa && fa === fb);
+  await a.e.approve(b.id);
+  await b.e.approve(a.id);
+  await deliver(w, a);
+  await deliver(w, b);
+  assert.ok((await a.db.peer(b.id))!.approves_me);
+  assert.ok((await b.db.peer(a.id))!.approves_me);
+  assert.notEqual((await a.db.peer(b.id))!.pairing_id, oldPid);
+});
+
+test("half notice during an open pairing: the row offers Pair again", async () => {
+  const { w, a, b } = await setup();
+  await refresh(a, b);
+  await a.e.pairStart(b.id);
+  await deliver(w, b);
+  await deliver(w, a);
+  await deliver(w, b); // both shown and pinned
+  await a.e.approve(b.id); // a Waiting
+  assert.deepEqual((await a.e.pairRowView(b.id))!.actions.slice(0, 1), ["cancel"]);
+  await b.e.cancelPairing(a.id);
+  await b.e.pairStart(a.id);
+  a.p.notes.clear();
+  await deliver(w, a);
+  assert.ok([...a.p.notes.values()].some((n) => /wants to pair again\. Tap Pair again on its row\.$/.test(n.body)));
+  assert.deepEqual((await a.e.pairRowView(b.id))!.actions.slice(0, 2), ["pair_again", "cancel"]);
+});
+
+test("half notice text names the device and the Pair again button", () => {
+  assert.equal(T.pairHalf("Phone"), "Phone wants to pair again. Tap Pair again on its row.");
 });
 
 test("commit from a pinned and fully approved peer is a plain drop", async () => {

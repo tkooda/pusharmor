@@ -7,7 +7,7 @@ export const T = {
   pairCommit: "A new device wants to pair. Open PushArmor.",
   pairReply: "Pairing fingerprint ready. Open PushArmor.",
   pairOpen: (fp: string) => "New device: compare " + fp,
-  pairHalf: (x: string) => x + " wants to pair again. Tap Cancel pairing on its row, then pair.",
+  pairHalf: (x: string) => x + " wants to pair again. Tap Pair again on its row.",
   pairCrossing: (x: string) => "Pairing with " + x + " in progress. Open PushArmor.",
   approved: (name: string) => name + " approved this device",
   peerChanged: "Device list changed",
