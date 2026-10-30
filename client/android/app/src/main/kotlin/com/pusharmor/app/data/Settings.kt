@@ -24,6 +24,8 @@ class Settings(private val context: Context) {
         val DIRECT_SHARE = booleanPreferencesKey("direct_share")
         val LOCK_SCREEN = booleanPreferencesKey("lock_screen")
         val WATCH = booleanPreferencesKey("watch")
+        /** "system" | "light" | "dark"; absent = system. */
+        val THEME = stringPreferencesKey("theme")
         val HIDE_CONTENT = booleanPreferencesKey("hide_content")
         /** "fcm" | "unifiedpush" | absent */
         val PUSH_TYPE = stringPreferencesKey("push_type")
