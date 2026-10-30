@@ -7,7 +7,6 @@ privately.
 - End-to-end encrypted. Each device makes its own keys. Our relay sees only
   scrambled data.
 - Your devices only. Messages go only to devices you paired on your account.
-- Links and text only. No files.
 - No ads, no tracking, no analytics.
 - Free and open source.
 
