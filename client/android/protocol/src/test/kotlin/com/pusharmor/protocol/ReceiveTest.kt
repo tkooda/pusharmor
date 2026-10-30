@@ -81,4 +81,16 @@ class ReceiveTest {
         assertEquals(Effect.Deny, eff(approved, MessageBody.Deny))
         assertTrue(eff(unruled, MessageBody.Deny) is Effect.Drop)
     }
+
+    @Test fun signedNameWithDoubleQuoteIsDropped() {
+        val approved = a.asPeer(pid)
+        val w = ReplayWindow.fresh()
+        val nameB64 = com.pusharmor.crypto.B64url.encode("Al \"x\"".toByteArray(Charsets.US_ASCII))
+        fun entry(n: Long) = NameEntryClear(nameB64, n,
+            com.pusharmor.crypto.B64url.encode(a.keys.sign(NameEntry.signedBytes(a.id, b.id, pid, n, nameB64))))
+        assertEquals(null, NameEntry.verify(entry(3), a.keys.signPub, a.id, b.id, pid))
+        fun eff(body: MessageBody, n: Long) = (Receive.decide(ok(n, body), approved, w, b.id) { null } as Inbound.Accepted).effect
+        assertTrue(eff(MessageBody.Approve(entry(3)), 3) is Effect.Drop)
+        assertTrue(eff(MessageBody.Rename(entry(4)), 4) is Effect.Drop)
+    }
 }

@@ -172,7 +172,7 @@ export interface ParsedJson {
 }
 
 export function isPrintableName(name: string): boolean {
-  return name.length >= 1 && name.length <= 32 && /^[\x20-\x7e]+$/.test(name);
+  return name.length >= 1 && name.length <= 32 && /^[\x20\x21\x23-\x7e]+$/.test(name);
 }
 
 function parseEntry(v: JValue | undefined): NameEntry | null {

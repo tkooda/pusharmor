@@ -12,7 +12,7 @@ struct NameDeviceView: View {
             TextField("Name this device", text: $name)
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
-            Text("1 to 32 plain ASCII characters.")
+            Text("1 to 32 plain ASCII characters, no double quotes.")
                 .font(.caption)
                 .foregroundColor(.secondaryText)
             Button("Save") { Task { await model.setName(name) } }

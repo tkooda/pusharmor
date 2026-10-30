@@ -28,6 +28,7 @@ import {
   encodeInner,
   encodePair,
   isPairWire,
+  isPrintableName,
   makeNameEntry,
   openNameEntry,
   openPair,
@@ -1273,7 +1274,7 @@ export class Engine {
   async rename(name: string): Promise<void> {
     const self = await this.self();
     if (!self) return;
-    if (!/^[\x20-\x7e]{1,32}$/.test(name)) throw new UserError("Use 1 to 32 plain ASCII characters.");
+    if (!isPrintableName(name)) throw new UserError("Use 1 to 32 plain ASCII characters, no double quote.");
     let names: Record<string, string> = {};
     await this.allowListCall(
       "PATCH",

@@ -98,7 +98,7 @@ object UiText {
     }
 
     /** Rename field error: null when [name] is a valid peer name (same rule and text as Session.rename). */
-    fun nameError(name: String): String? = if (NameEntry.isValidName(name)) null else "Use 1 to 32 plain ASCII characters."
+    fun nameError(name: String): String? = if (NameEntry.isValidName(name)) null else "Use 1 to 32 plain ASCII characters, no double quotes."
 
     /** Notice when a device in the half state sends a new pairing request. */
     fun pairAgainNotice(x: String): String = "$x wants to pair again. Tap Pair again on its row."

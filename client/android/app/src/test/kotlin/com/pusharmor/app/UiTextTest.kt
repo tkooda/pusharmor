@@ -107,9 +107,10 @@ class UiTextTest {
     @Test fun renameFieldError() {
         assertEquals(null, UiText.nameError("Phone"))
         assertEquals(null, UiText.nameError("x".repeat(32)))
-        assertEquals("Use 1 to 32 plain ASCII characters.", UiText.nameError(""))
-        assertEquals("Use 1 to 32 plain ASCII characters.", UiText.nameError("Caf\u00e9"))
-        assertEquals("Use 1 to 32 plain ASCII characters.", UiText.nameError("x".repeat(33)))
+        assertEquals("Use 1 to 32 plain ASCII characters, no double quotes.", UiText.nameError(""))
+        assertEquals("Use 1 to 32 plain ASCII characters, no double quotes.", UiText.nameError("Caf\u00e9"))
+        assertEquals("Use 1 to 32 plain ASCII characters, no double quotes.", UiText.nameError("x".repeat(33)))
+        assertEquals("Use 1 to 32 plain ASCII characters, no double quotes.", UiText.nameError("My \"phone\""))
     }
 
     @Test fun middleEllipsisKeepsStartAndEnd() {

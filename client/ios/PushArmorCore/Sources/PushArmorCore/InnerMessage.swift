@@ -238,10 +238,10 @@ public enum NameEntry {
     public static let info = Bytes.ascii("PA-NAME1")
     public static let maxWire = 1024
 
-    /// 1..32 printable ASCII.
+    /// 1..32 printable ASCII, no double quote.
     public static func isValidName(_ s: String) -> Bool {
         let u = Array(s.utf8)
-        return (1 ... 32).contains(u.count) && u.allSatisfy { $0 >= 0x20 && $0 <= 0x7e }
+        return (1 ... 32).contains(u.count) && u.allSatisfy { $0 >= 0x20 && $0 <= 0x7e && $0 != 0x22 }
     }
 
     /// "PA-NAME1\n" + owner id + "\n" + recipient id + "\n" + pairing id + "\n" + n + "\n" + name

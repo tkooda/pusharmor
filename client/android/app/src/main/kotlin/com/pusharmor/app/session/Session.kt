@@ -173,7 +173,7 @@ class Session(private val g: Graph) {
 
     private fun defaultName(): String {
         val n = SysSettings.Global.getString(g.app.contentResolver, SysSettings.Global.DEVICE_NAME).orEmpty()
-            .filter { it.code in 0x20..0x7e }.trim().take(32)
+            .filter { it.code in 0x20..0x7e && it != '"' }.trim().take(32)
         return n.ifEmpty { "Android" }
     }
 
@@ -314,7 +314,7 @@ class Session(private val g: Graph) {
 
     /** Rename this device: PATCH name entries + rename messages for every pinned allow id. */
     fun rename(newName: String): String? {
-        if (!NameEntry.isValidName(newName)) return "Use 1 to 32 plain ASCII characters."
+        if (!NameEntry.isValidName(newName)) return "Use 1 to 32 plain ASCII characters, no double quotes."
         val me = g.identity() ?: return "No keys"
         val self = dao.self() ?: return "No keys"
         dao.putSelf(self.copy(name = newName))
