@@ -291,13 +291,14 @@ struct PairingCardView: View {
         // Destructive role for VoiceOver; the tint and ink keep the design's neutral look.
         Button(role: .destructive) { Task { await model.deny(p) } } label: {
             Text("Deny")
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color.red)
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.bordered)
-        .tint(.accentColor)
+        .tint(.red)
         .controlSize(.large)
         .buttonBorderShape(.capsule)
+        .overlay(Capsule().stroke(Color.red, lineWidth: 1))
     }
 
     @ViewBuilder
@@ -353,7 +354,7 @@ struct PairingCardView: View {
             HStack {
                 if cancel {
                     Button("Cancel pairing") { Task { await model.cancelPairing(p) } }
-                        .buttonStyle(.borderless)
+                        .buttonStyle(.bordered)
                         .font(.subheadline)
                 }
                 Spacer()

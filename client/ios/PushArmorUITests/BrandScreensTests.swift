@@ -29,7 +29,7 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(cells.waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Approve"].exists)
         XCTAssertTrue(app.buttons["Deny"].exists)
-        XCTAssertTrue(app.staticTexts["Check that New laptop shows this same code."].exists)
+        XCTAssertTrue(app.staticTexts["Verify that \"New laptop\" shows this same code."].exists)
     }
 
     func testUnpairedPeerActionsHaveAVisibleButton() {

@@ -42,7 +42,7 @@ final class ScreenshotTests: XCTestCase {
 
         app = launch(["-PAScreenshotsPairing"])
         peersTab(app)
-        XCTAssertTrue(labelled(app, "Pair with New laptop?").waitForExistence(timeout: 10))
+        XCTAssertTrue(labelled(app, "Pair with new device: \"New laptop\"").waitForExistence(timeout: 10))
         sleep(1)
         shot("04-pairing")
         app.terminate()
