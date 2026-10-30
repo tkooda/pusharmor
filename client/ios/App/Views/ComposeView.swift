@@ -152,6 +152,7 @@ struct ComposeView: View {
     @State private var selected: Set<String> = []
     @State private var restored = false
     @State private var visibleHeight: CGFloat = 0
+    @State private var chipsHeight: CGFloat = 0
     @FocusState private var editing: Bool
 
     private var candidates: [Peer] {
@@ -272,12 +273,12 @@ struct ComposeView: View {
                         .font(.footnote.weight(.semibold))
                         .foregroundColor(.secondaryText)
                         .accessibilityAddTraits(.isHeader)
-                    ViewThatFits(in: .vertical) {
-                        chips
-                        ScrollView { chips }
-                            .scrollBounceBehavior(.basedOnSize)
+                    // Hugs the chips up to the cap, so the message field gets the rest.
+                    ScrollView {
+                        chips.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { chipsHeight = $0 }
                     }
-                    .frame(maxHeight: SendScreenRules.chipAreaMaxHeight(keyboardUp: editing))
+                    .scrollBounceBehavior(.basedOnSize)
+                    .frame(height: min(chipsHeight, SendScreenRules.chipAreaMaxHeight(keyboardUp: editing)))
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
