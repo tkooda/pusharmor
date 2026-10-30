@@ -18,7 +18,6 @@ export interface Env {
   PA_ALLOWED_PUSH_ENDPOINT_PREFIXES: string;
   PA_ALLOWED_UP_HOSTS: string;
   PA_PUSH_TTL_SECONDS: string;
-  PA_PUSH_PAIR_TTL_SECONDS: string;
   GOOGLE_FCM_PROJECT_ID: string;
   APPLE_APNS_TOPIC: string;
   APPLE_APNS_KEY_ID: string;

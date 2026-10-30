@@ -45,7 +45,6 @@
     "PA_ALLOWED_PUSH_ENDPOINT_PREFIXES": "[\"https://fcm.googleapis.com/fcm/send/\",\"https://fcm.googleapis.com/wp/\",\"https://updates.push.services.mozilla.com/wpush/v1/\",\"https://updates.push.services.mozilla.com/wpush/v2/\"]",
     "PA_ALLOWED_UP_HOSTS": "[\"ntfy.sh\"]",
     "PA_PUSH_TTL_SECONDS": "604800",
-    "PA_PUSH_PAIR_TTL_SECONDS": "2419200",
     "CLOUDFLARE_TURNSTILE_HOSTNAME": "pusharmor.com",
     "CLOUDFLARE_TURNSTILE_ACTION": "email",
     "PA_OAUTH_REDIRECT_FIREFOX": "https://pusharmor.com/auth/done",

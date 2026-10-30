@@ -49,7 +49,7 @@ export async function buildWebPush(
     method: "POST",
     headers: {
       Authorization: `vapid t=${jwt}, k=${env.WEBPUSH_VAPID_PUBLIC_KEY}`,
-      TTL: String(ttlFor(cls, env)),
+      TTL: String(ttlFor(env)),
       Urgency: isNormal(cls) ? "normal" : "high",
       "Content-Encoding": "aes128gcm",
       "Content-Type": "application/octet-stream",

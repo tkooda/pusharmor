@@ -48,7 +48,7 @@ export async function buildFcm(env: Env, push: { token: string }, m: string, cls
     message: {
       token: push.token,
       data: { m },
-      android: { priority: isNormal(cls) ? "NORMAL" : "HIGH", ttl: `${ttlFor(cls, env)}s` },
+      android: { priority: isNormal(cls) ? "NORMAL" : "HIGH", ttl: `${ttlFor(env)}s` },
     },
   };
   return {

@@ -48,7 +48,7 @@ export async function buildApns(
     "apns-push-type": "alert",
     "apns-topic": env.APPLE_APNS_TOPIC,
     "apns-priority": "10",
-    "apns-expiration": String(Math.floor(deps.now() / 1000) + ttlFor(cls, env)),
+    "apns-expiration": String(Math.floor(deps.now() / 1000) + ttlFor(env)),
   };
   if (cls === "pair" && pk) headers["apns-collapse-id"] = pk;
   return { url: `https://${host}/3/device/${push.token}`, method: "POST", headers, body: apnsPayload(m) };
