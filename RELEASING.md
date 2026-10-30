@@ -3,17 +3,22 @@
 A tag builds ONE platform and uploads it to that platform's test channel and to
 a GitHub prerelease. A tag never publishes to a public channel. After testing
 on devices, the owner promotes the same build with the promote workflow (below)
-or by hand in each store console. Nothing is rebuilt for the promotion. The site deploys from main on its own
-(Cloudflare Workers Builds, build command EMPTY: `wrangler deploy` runs the
-build from `wrangler.jsonc` into the gitignored `site/dist`, so the tree stays clean); it has no tag.
+or by hand in each store console. Nothing is rebuilt for the promotion. The
+site has no tag and a push to main does NOT deploy it: deploy it by hand with
+`npx wrangler deploy` in `site/` (`wrangler.jsonc` runs the build into the
+gitignored `site/dist` first, so the tree stays clean; `site/README.md`).
 
 | Tag              | CI uploads to (test channel)                          | Owner promotes (promote workflow or by hand)    |
 |------------------|-------------------------------------------------------|-------------------------------------------------|
 | `android/vX.Y.Z` | Play internal track, GitHub prerelease (Obtainium)    | Play production, GitHub release, F-Droid        |
-| `ios/vX.Y.Z`     | TestFlight (no review submission), GitHub prerelease  | App Store (manual release), GitHub release      |
+| `ios/vX.Y.Z`     | TestFlight (no review submission), GitHub prerelease  | App Store (see NOTE), GitHub release            |
 | `chrome/vX.Y.Z`  | private "PushArmor Beta" item, GitHub prerelease      | public zip to the public item, GitHub release   |
 | `firefox/vX.Y.Z` | unlisted "PushArmor Beta" add-on, GitHub prerelease   | public zip to the listed add-on, GitHub release |
 | `worker/vX.Y.Z`  | nothing (build and tests only)                        | `server/deploy/deploy.sh worker/vX.Y.Z`         |
+
+NOTE: the App Store release type (release by hand in App Store Connect, or
+automatically after approval) waits for an owner decision. Until then promote
+uses `IOS_RELEASE_TYPE` in `release/promote.mjs` as it is (`AFTER_APPROVAL`).
 
 ## Versions
 
