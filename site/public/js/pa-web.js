@@ -160,6 +160,31 @@
     return /^[\x00-\x7f]*$/.test(s);
   }
 
+  // /auth/cli helpers. Link fragment: <r|l|d>.<22 chars of [A-Za-z0-9_-]>.
+  var CLI_PURPOSE = { r: "register", l: "login", d: "delete-account" };
+
+  function parseCliLink(hash) {
+    var m = /^#([rld])\.([A-Za-z0-9_-]{22})$/.exec(hash || "");
+    return m ? { purpose: CLI_PURPOSE[m[1]], k: m[2] } : null;
+  }
+
+  // Result fragment from the OAuth return: #cli_code=<34 chars>&email=<email> or #error=<word>.
+  function parseCliResult(hash) {
+    var p = new URLSearchParams((hash || "").replace(/^#/, ""));
+    var code = p.get("cli_code");
+    if (code !== null) return /^[A-Za-z0-9_-]{34}$/.test(code) ? { code: code, email: p.get("email") || "" } : { error: "failed" };
+    var err = p.get("error");
+    return err !== null ? { error: err } : null;
+  }
+
+  function cliEmailBody(email, link, token) {
+    return { email: email, cli_k: link.k, purpose: link.purpose, turnstile: token };
+  }
+
+  function cliOAuthUrl(provider, link) {
+    return API + "/v1/auth/" + provider + "?k=" + encodeURIComponent(link.k) + "&r=cli&p=" + link.purpose;
+  }
+
   g.PA = {
     API: API,
     TEXT: TEXT,
@@ -172,6 +197,10 @@
     loadKey: loadKey,
     Client: Client,
     errorText: errorText,
-    isAscii: isAscii
+    isAscii: isAscii,
+    parseCliLink: parseCliLink,
+    parseCliResult: parseCliResult,
+    cliEmailBody: cliEmailBody,
+    cliOAuthUrl: cliOAuthUrl
   };
 })(this);

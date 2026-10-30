@@ -39,7 +39,7 @@ messages up to 7 days (pairing requests up to 4 weeks).</li>
 everything our relay server sees: your email address briefly at login (to send the code), your IP address, device public
 keys, push tokens, and encrypted messages it cannot read. Our delivery logs on Cloudflare are set to be kept for 7 days:
 account ID, device IDs, and send results; no content, no IP, no email. Cloudflare's bot check (Turnstile) runs on the email
-login page and on the delete-account page only.</li>
+login page, on the command line login page (/auth/cli), and on the delete-account page only.</li>
 <li><strong>Google and Apple login</strong> (if you choose them): used to prove the account.
 We keep only a one-way hash of your email address, which is your account ID (see below).</li>
 <li><strong>AWS SES</strong>: used for email login only, to send the login code. It sees
