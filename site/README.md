@@ -61,8 +61,8 @@ Try a build (the tree stays clean; `--out DIR` writes elsewhere):
 
     node site/tools/build.mjs
 
-Deploy is done by Cloudflare Workers Builds from the main branch, or by hand with
-`npx wrangler deploy` in `site/`. `wrangler.jsonc` sets the build command `node tools/build.mjs`
+Deploy is manual: run `npx wrangler deploy` in `site/` (a push to main does not deploy).
+`wrangler.jsonc` sets the build command `node tools/build.mjs`
 (run in `site/`) and the assets directory `./dist`, so `wrangler deploy` builds `dist/` first and
 fails while a placeholder is left, with no dashboard setting needed. `wrangler dev` copies
 `public/` to `dist/` without filling the ids (`WRANGLER_COMMAND=dev`), so it serves the
