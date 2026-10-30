@@ -414,7 +414,7 @@ test("retention: 4 weeks on /privacy and /delete-account; stored list", () => {
   assert.ok(text("delete-account.html").includes("4 weeks"));
   const p = text("privacy.html");
   for (const s of ["platform", "paused", "approve messages", "last-active month",
-    "We will never sell or share your data. The services below run parts of PushArmor for us and only ever see the minimum required for them to function.",
+    "We will never sell or share your data. The services below run parts of PushArmor for us and only ever see the minimum needed to do their part.",
     "We do not store your email address. We keep only a one-way code made from it, which cannot be turned back into the address."]) {
     assert.ok(p.includes(s), "privacy lacks: " + s);
   }
