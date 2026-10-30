@@ -121,6 +121,8 @@ export class Rpc {
         return e.deny(s("id"));
       case "cancel":
         return e.cancelPairing(s("id"));
+      case "pairAgain":
+        return e.pairAgain(s("id"));
       case "remove":
         return e.remove(s("id"));
       case "localDelete":
@@ -217,7 +219,7 @@ export class Rpc {
         v.actions = ["cancel"];
       } else if (p.approve_verified && p.get_after_verify && !p.approves_me) {
         v.greyed = T.notPairedOn(nm);
-        v.actions = ["cancel"];
+        v.actions = ["pair_again", "cancel"];
       } else if (p.ruling === "approved" && p.approves_me) {
         v.sendable = !p.paused && !p.hidden;
         if (p.paused) v.greyed = "signed out";

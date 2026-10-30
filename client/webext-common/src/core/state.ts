@@ -30,6 +30,7 @@ export interface PairEntry {
   approve_name?: string; // own name when approve_body was built
   approve_result?: string;
   approve_last?: number;
+  half?: boolean; // the device started a new pairing while this one was open (row offers Pair again)
 }
 
 export const pairKeyOf = (id: string) => PAIR_PREFIX + id;

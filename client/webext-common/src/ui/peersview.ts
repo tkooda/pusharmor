@@ -6,6 +6,7 @@ import { devicesArt, icon, platformIcon, shield } from "./icons.ts";
 
 const ACTION_LABEL: Record<string, string> = {
   pair: "Pair",
+  pair_again: "Pair again",
   deny: "Deny",
   approve: "Approve",
   reply: "Reply",
@@ -18,10 +19,12 @@ const ACTION_LABEL: Record<string, string> = {
   localDelete: "Delete",
 };
 // Display order of a row's actions: the main action first, the row tools last.
-const ACTION_ORDER = ["pair", "approve", "approve_again", "reply", "send_again", "deny", "cancel", "localDelete", "remove", "hide", "unhide"];
-const ACTION_CLASS: Record<string, string> = { pair: "tonal", approve: "primary", reply: "tonal" };
+const ACTION_ORDER = ["pair", "pair_again", "approve", "approve_again", "reply", "send_again", "deny", "cancel", "localDelete", "remove", "hide", "unhide"];
+const ACTION_CLASS: Record<string, string> = { pair: "tonal", pair_again: "tonal", approve: "primary", reply: "tonal" };
 // Row tools live in the overflow menu.
 const MENU = new Set(["remove", "hide", "unhide", "localDelete"]);
+// With Pair again on the row, Cancel pairing moves to the overflow menu.
+const inMenu = (p: PeerView, a: string): boolean => MENU.has(a) || (a === "cancel" && p.actions.includes("pair_again"));
 const rank = (a: string): number => (ACTION_ORDER.indexOf(a) + 1 || ACTION_ORDER.length + 1);
 
 type Redraw = () => Promise<void>;
@@ -112,7 +115,7 @@ function actionButton(env: UiEnv, a: string, p: PeerView, box: HTMLElement, stat
 }
 
 function menuFor(env: UiEnv, p: PeerView, box: HTMLElement, status: HTMLElement, redraw: Redraw): HTMLElement | null {
-  const items = [...p.actions].filter((a) => MENU.has(a)).sort((x, y) => rank(x) - rank(y));
+  const items = [...p.actions].filter((a) => inMenu(p, a)).sort((x, y) => rank(x) - rank(y));
   if (!items.length) return null;
   return overflowMenu(p.label, items.map((a) => ({ label: ACTION_LABEL[a] ?? a, run: (b) => void act(env, a, p, b, box, status, redraw) })), icon("more", 20));
 }
@@ -129,7 +132,7 @@ function peerRow(env: UiEnv, p: PeerView, status: HTMLElement, redraw: Redraw): 
   else if (p.greyed) col.append(h("div", { class: "t2 line" }, p.greyed));
   for (const l of p.lines) col.append(h("div", { class: "t2 line" }, l));
   if (p.countdown) col.append(h("div", { class: "t2 countdown" }, T.countdownLeft(p.countdown)));
-  const main = [...p.actions].filter((a) => !MENU.has(a)).sort((x, y) => rank(x) - rank(y));
+  const main = [...p.actions].filter((a) => !inMenu(p, a)).sort((x, y) => rank(x) - rank(y));
   if (main.length) col.append(h("div", { class: "actions" }, ...main.map((a) => actionButton(env, a, p, col, status, redraw, ACTION_CLASS[a] ?? "quiet"))));
   row.append(h("div", { class: "av" }, platformIcon(p.platform)), col);
   const more = menuFor(env, p, col, status, redraw);
@@ -199,7 +202,7 @@ async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, box
     box.append(confirm);
     return;
   }
-  const op = a === "send_again" ? "sendAgain" : a === "approve_again" ? "approve" : a === "unhide" || a === "hide" ? "hide" : a;
+  const op = a === "pair_again" ? "pairAgain" : a === "send_again" ? "sendAgain" : a === "approve_again" ? "approve" : a === "unhide" || a === "hide" ? "hide" : a;
   const args: Record<string, unknown> = { id: p.id };
   if (op === "hide") args.hidden = a === "hide";
   if (a === "send_again" || a === "approve_again") greyFor(b, 60_000);
