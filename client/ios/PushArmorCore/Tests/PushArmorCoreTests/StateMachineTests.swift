@@ -715,9 +715,11 @@ final class StateMachineTests: XCTestCase {
 
     func testDBMigrationRenamesPauseColumns() throws {
         let path = NSTemporaryDirectory() + "pa-mig2-\(UUID().uuidString).sqlite"
-        // Rebuild a version 1 file: the old column names, old event words and user_version 1.
+        // Rebuild a version 1 file: the old column names, old event words, no listening column
+        // (migration 3) and user_version 1.
         do {
             let s = try Store(path: path)
+            try s.db.exec("ALTER TABLE peers DROP COLUMN listening")
             try s.db.exec("ALTER TABLE me RENAME COLUMN logged_out TO paused")
             try s.db.exec("ALTER TABLE peers RENAME COLUMN logged_out TO paused")
             try s.db.exec("ALTER TABLE peers RENAME COLUMN logout_n TO pause_n")
