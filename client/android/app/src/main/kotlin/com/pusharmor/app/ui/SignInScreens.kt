@@ -32,7 +32,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
@@ -74,7 +76,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.Role
@@ -117,7 +121,7 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onDone
             status?.let { Spacer(Modifier.height(12.dp)); Text(it, color = cs.onSurfaceVariant, textAlign = TextAlign.Center) }
         }
         Column(Modifier.fillMaxWidth()) {
-        vm.message.collectAsState().value?.let { Text(it, Modifier.fillMaxWidth().padding(bottom = 12.dp), color = cs.error, textAlign = TextAlign.Center) }
+        vm.message.collectAsState().value?.let { Text(it, Modifier.fillMaxWidth().padding(bottom = 12.dp).semantics { liveRegion = LiveRegionMode.Polite }, color = cs.error, textAlign = TextAlign.Center) }
         Column(Modifier.fillMaxWidth().padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             val g = if (x.dark) Triple(Color(0xFF131314), Color(0xFF8E918F), Color(0xFFE3E3E3)) else Triple(Color.White, Color(0xFF747775), Color(0xFF1F1F1F))
             OutlinedButton(onClick = {
@@ -165,12 +169,14 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onDo
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (stage) {
                 0 -> {
-                    OutlinedTextField(email, { email = it }, label = { Text("Email address") }, singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), modifier = Modifier.fillMaxWidth())
-                    GreenButton(onClick = {
+                    val next = {
                         if (email.any { it.code > 127 }) error = "Only email addresses with plain ASCII characters are supported."
                         else { error = null; stage = 1 }
-                    }, text = "Next", icon = null, modifier = Modifier.fillMaxWidth())
+                    }
+                    OutlinedTextField(email, { email = it }, label = { Text("Email address") }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(onNext = { next() }), modifier = Modifier.fillMaxWidth())
+                    GreenButton(onClick = next, text = "Next", icon = null, modifier = Modifier.fillMaxWidth())
                 }
                 1 -> TurnstileView { token ->
                     scope.launch {
@@ -187,7 +193,7 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onDo
                     }
                 }
             }
-            (error ?: msg)?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            (error ?: msg)?.let { Text(it, Modifier.semantics { liveRegion = LiveRegionMode.Polite }, color = MaterialTheme.colorScheme.error) }
         }
     }
 }
@@ -282,7 +288,7 @@ fun LimitScreen(vm: AppViewModel, onDone: () -> Unit) {
                 )
             }
         }
-        vm.message.collectAsState().value?.let { Text(it, Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.error) }
+        vm.message.collectAsState().value?.let { Text(it, Modifier.padding(horizontal = 16.dp).semantics { liveRegion = LiveRegionMode.Polite }, color = MaterialTheme.colorScheme.error) }
         Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
             verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { vm.cancelLimit() }) { Text("Cancel") }

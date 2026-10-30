@@ -96,11 +96,14 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -373,11 +376,12 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
     val lines = listOfNotNull(p.note, stateText)
     Column(modifier.then(if (highlighted) Modifier.background(cs.secondaryContainer) else Modifier)) {
         ListItem(
-            modifier = Modifier.clickable { if (grey) vm.tapGreyed() else detail = !detail },
+            modifier = Modifier.clickable(role = Role.Button) { if (grey) vm.tapGreyed() else detail = !detail }
+                .semantics { if (!grey) stateDescription = if (detail) "Expanded" else "Collapsed" },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             leadingContent = { IconTile(platformIcon(p.platform), dim = grey) },
             headlineContent = {
-                Text(x, Modifier.alpha(if (grey) 0.5f else 1f), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                Text(x, Modifier.alpha(if (grey) 0.6f else 1f), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
             },
             supportingContent = {
                 Column {
@@ -774,7 +778,8 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
         else -> h.content.orEmpty()
     }
     val weight = if (unread) FontWeight.Medium else FontWeight.Normal
-    Column(modifier.clickable { onOpen(); vm.markRead(h.id) }) {
+    Column(modifier.clickable(role = Role.Button) { onOpen(); vm.markRead(h.id) }
+        .semantics { if (h.content != null) stateDescription = if (expanded) "Expanded" else "Collapsed" }) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             if (event) Box(Modifier.size(40.dp), Alignment.Center) {
                 Icon(when (h.type) { "paused" -> PaIcons.Pause; "resumed" -> PaIcons.Check; else -> PaIcons.Info }, null, tint = cs.onSurfaceVariant)
@@ -941,7 +946,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                     border = androidx.compose.foundation.BorderStroke(1.dp, cs.error),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = cs.error)) { Text("Delete account") }
             }
-            vm.message.collectAsState().value?.let { Text(it, Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), color = cs.error) }
+            vm.message.collectAsState().value?.let { Text(it, Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp).semantics { liveRegion = LiveRegionMode.Polite }, color = cs.error) }
         }
     }
     if (renaming) RenameDialog(me?.name ?: "", onSave = { vm.rename(it) }) { renaming = false }
