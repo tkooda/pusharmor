@@ -8,6 +8,8 @@ extension Color {
     static let ctaEdge = Color("CTAEdge")
     static let secondaryText = Color("SecondaryText")
     static let success = Color("Success")
+    static let errorText = Color("ErrorText")
+    static let warningText = Color("WarningText")
     static let armorText = Color("ArmorText")
     static let iconTileBg = Color("IconTileBg")
     static let iconTileFg = Color("IconTileFg")

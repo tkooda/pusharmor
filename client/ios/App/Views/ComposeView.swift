@@ -256,7 +256,7 @@ struct ComposeView: View {
                     if SendScreenRules.showsCounter(text) {
                         Text(counter)
                             .font(.footnote)
-                            .foregroundColor(.red)
+                            .foregroundColor(.errorText)
                     }
                 }
             }

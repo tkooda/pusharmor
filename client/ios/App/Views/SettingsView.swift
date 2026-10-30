@@ -62,7 +62,7 @@ struct SettingsView: View {
 
                 Section("Notifications") {
                     if model.notificationsOff {
-                        Text(S.notificationsOff).foregroundColor(.red)
+                        Text(S.notificationsOff).foregroundColor(.errorText)
                         Button("Open notification settings") { model.openNotificationSettings() }
                     } else {
                         Label {

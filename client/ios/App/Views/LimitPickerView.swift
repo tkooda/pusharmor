@@ -20,10 +20,10 @@ struct LimitPickerView: View {
                                 Text("approves \(e.approves), approved by \(e.approvedBy)")
                                     .font(.caption).foregroundColor(.secondaryText)
                                 if !e.reachable {
-                                    Text("unreachable").font(.caption).foregroundColor(.orange)
+                                    Text("unreachable").font(.caption).foregroundColor(.warningText)
                                 }
                                 if e.paused {
-                                    Text("signed out").font(.caption).foregroundColor(.orange)
+                                    Text("signed out").font(.caption).foregroundColor(.warningText)
                                 }
                             }
                         }

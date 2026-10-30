@@ -203,7 +203,7 @@ struct PeerPendingLines: View {
     private func failure(_ s: String) -> some View {
         Label(s, systemImage: "exclamationmark.circle")
             .font(.footnote)
-            .foregroundColor(.red)
+            .foregroundColor(.errorText)
     }
 }
 
@@ -295,14 +295,14 @@ struct PairingCardView: View {
         // Destructive role for VoiceOver; the tint and ink keep the design's neutral look.
         Button(role: .destructive) { Task { await model.deny(p) } } label: {
             Text("Deny")
-                .foregroundStyle(Color.red)
+                .foregroundStyle(Color.errorText)
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.bordered)
         .tint(.red)
         .controlSize(.large)
         .buttonBorderShape(.capsule)
-        .overlay(Capsule().stroke(Color.red, lineWidth: 1))
+        .overlay(Capsule().stroke(Color.errorText, lineWidth: 1))
     }
 
     @ViewBuilder
