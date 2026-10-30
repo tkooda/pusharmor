@@ -21,6 +21,7 @@ import { ctEqualStr } from "../crypto/hash";
 import { makeTicket, TICKET_LIFE_PEER_LIMIT_S, TICKET_LIFE_S, TICKET_RENEW_MAX_S } from "../crypto/tokens";
 import { ApiError } from "../errors";
 import { checkSig, checkTime } from "../pipeline/signed";
+import { enforceAccount } from "../pipeline/limits";
 import * as SQL from "../db/sql";
 import { all, batch } from "../db/d1";
 import { ctxRelayRow, limitPeers, listBody, myAllowKeys, type CtxRow, type ListRow } from "../db/rows";
@@ -79,6 +80,7 @@ export async function register(c: Ctx): Promise<Response> {
   c.log.peer = id;
   requireAccount(evict, acct);
   if (evict.includes(id)) throw bad();
+  await enforceAccount(c.env, acct, c.log);
 
   const reg = (
     await all<{ status: string | null; old_sign: string | null; old_enc: string | null; old_platform: string | null; old_push: string | null; evict_found: number }>(

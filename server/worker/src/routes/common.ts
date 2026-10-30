@@ -8,7 +8,7 @@ import { rawPoint } from "../crypto/ecdsa";
 import { hmac, utf8 } from "../crypto/hash";
 import { keyRef, LABEL_TICKET, openToken, type Purpose, type Ticket } from "../crypto/tokens";
 import { ApiError } from "../errors";
-import { allow, enforce } from "../pipeline/limits";
+import { allow, enforce, enforceAccount } from "../pipeline/limits";
 import { checkKeyhash, checkPaId, checkSig, checkTime } from "../pipeline/signed";
 import { relayFilter, type RelayRow } from "../db/rows";
 import { fanout, sendProbe, writeBack, type Target } from "../push/fanout";
@@ -27,6 +27,7 @@ export async function signedStart(c: Ctx): Promise<Signed> {
   c.log.peer = me;
   c.log.account = me.slice(0, 12);
   await enforce(c.env, "RL_PEER", "id:" + me, c.log);
+  await enforceAccount(c.env, me.slice(0, 12), c.log);
   return { me, acct: me.slice(0, 12), paTime };
 }
 
