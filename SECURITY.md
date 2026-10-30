@@ -2,11 +2,10 @@
 
 ## Reporting a vulnerability
 
-Please report security problems privately. Do not open a public issue.
+Report security problems privately with GitHub private vulnerability
+reporting: https://github.com/tkooda/pusharmor/security/advisories/new
 
-- GitHub private vulnerability reporting:
-  https://github.com/tkooda/pusharmor/security/advisories/new
-- Or the contact listed in https://pusharmor.com/.well-known/security.txt
+Do not open a public issue.
 
 Include the affected part (site, Worker, Chrome or Firefox extension, Android
 or iPhone app), the version, and the steps to reproduce.

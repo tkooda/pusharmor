@@ -1,14 +1,49 @@
-# pusharmor
-Push URLs and text between devices securely.
+# PushArmor
 
-Website: https://pusharmor.com
+PushArmor sends links and short notes between your own devices. All of your
+data is always end-to-end encrypted, and can never be read by the server or
+anyone else.
 
-## License and security
+Platforms: Android, iPhone, Chrome, and Firefox.
 
-- License: MIT, see [LICENSE](LICENSE).
-- To report a security problem, see [SECURITY.md](SECURITY.md).
+- Website: https://pusharmor.com
+- Security model: https://pusharmor.com/security
+- Privacy policy: https://pusharmor.com/privacy
+
+## Build from source
+
+Each part builds on its own. The CI workflows in `.github/workflows/` run the
+exact commands.
+
+- Chrome and Firefox extensions (`client/webext-common`, shared by
+  `client/chrome` and `client/firefox`):
+  `npm ci --ignore-scripts && npm run typecheck && npm test && npm run build -- --dev`
+- Android (`client/android`):
+  `./gradlew :app:assemblePlayDebug :app:assembleFossDebug`
+- iPhone (`client/ios`, needs Xcode on macOS):
+  `swift test --package-path client/ios/PushArmorCore`, then
+  `xcodebuild build -project PushArmor.xcodeproj -scheme PushArmor -configuration Debug -destination "generic/platform=iOS Simulator" CODE_SIGNING_ALLOWED=NO`
+- Worker (`server/worker`): `npm ci --ignore-scripts && npm run typecheck && npm test`
+- Site (`site`): `npm ci --ignore-scripts && node --test 'site/tools/test/*.test.mjs'`
+
+See the README in each directory for details.
+
+## Support and security
+
+- Questions, bugs, and ideas: open a GitHub issue. There is no email support.
+- Security reports: use GitHub private vulnerability reporting, see
+  [SECURITY.md](SECURITY.md). Do not open a public issue.
+- Contributing: see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+MIT, see [LICENSE](LICENSE).
 
 ## Releasing
+
+Per-platform tags `<platform>/vX.Y.Z` on one version line, test channels,
+manual promotion and the release protection setup: `RELEASING.md`.
+
 
 Per-platform tags `<platform>/vX.Y.Z` on one version line, test channels,
 manual promotion and the release protection setup: `RELEASING.md`.
