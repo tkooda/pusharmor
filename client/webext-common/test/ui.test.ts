@@ -112,3 +112,12 @@ test("a failed start shows the error with a Retry button in the popup and the ta
   assert.match(rd("popup.ts"), /failView\(root, \(e as Error\)\.message, \(\) => void mountPopup\(env, root\)\)/);
   assert.match(rd("page.ts"), /failView\(root, \(e as Error\)\.message, \(\) => void mountPage\(/);
 });
+
+test("popup views render into a per-show pane, so a stale tab cannot mix rows into the current one", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  assert.match(pop, /const pane = h\("div"/);
+  assert.match(pop, /body\.append\(pane\)/);
+  assert.doesNotMatch(pop, /(sendView|historyView|renderPeers|settingsView)\(env, body/);
+});
+

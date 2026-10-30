@@ -65,11 +65,14 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
       b.setAttribute("tabindex", on ? "0" : "-1"); // roving: one tab stop, arrows move within
       if (on) body.setAttribute("aria-labelledby", "tab-" + t);
     }
+    // each view renders into its own pane; a stale view (earlier tab, still awaiting) appends to a detached pane
+    const pane = h("div", { style: "display:contents" });
     clear(body);
-    if (t === "send") void sendView(env, body, st, prefill).then(() => prefill !== undefined && body.querySelector("textarea")?.focus());
-    if (t === "history") void historyView(env, body, (text) => show("send", text));
-    if (t === "peers") void renderPeers(env, body, false);
-    if (t === "settings") void settingsView(env, body, st);
+    body.append(pane);
+    if (t === "send") void sendView(env, pane, st, prefill).then(() => prefill !== undefined && pane.querySelector("textarea")?.focus());
+    if (t === "history") void historyView(env, pane, (text) => show("send", text));
+    if (t === "peers") void renderPeers(env, pane, false);
+    if (t === "settings") void settingsView(env, pane, st);
   };
   for (const [t, label] of [["send", "Send"], ["history", "History"], ["peers", "Devices"], ["settings", "Settings"]] as [Tab, string][]) {
     const b = h("button", { role: "tab", id: "tab-" + t, "aria-controls": "panel", onclick: () => show(t) }, label);
