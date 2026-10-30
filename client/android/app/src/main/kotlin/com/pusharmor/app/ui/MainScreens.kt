@@ -362,6 +362,7 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
     val x = label(p)
     var detail by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
+    val pairingAgain by vm.pairingAgain.collectAsState()
     val grey = p.missing || !p.reachable
     val cs = MaterialTheme.colorScheme
     // Pairing and note lines replace the status line (catalog order).
@@ -409,11 +410,11 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)) { Text("Deny") }
             }
             p.notPairedOnPeer -> Row(inset.padding(bottom = 8.dp)) {
-                if (p.offersPairAgain) OutlinedButton(onClick = { vm.pairAgain(p.id) }, Modifier.heightIn(min = 48.dp)) { Text("Pair again") }
+                if (p.offersPairAgain) OutlinedButton(onClick = { vm.pairAgain(p.id) }, Modifier.heightIn(min = 48.dp), enabled = p.id !in pairingAgain) { Text("Pair again") }
                 else OutlinedButton(onClick = { vm.cancelPairing(p.id) }, Modifier.heightIn(min = 48.dp)) { Text("Cancel pairing") }
             }
             p.waiting -> Row(inset.padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (p.offersPairAgain) OutlinedButton(onClick = { vm.pairAgain(p.id) }, Modifier.heightIn(min = 48.dp)) { Text("Pair again") }
+                if (p.offersPairAgain) OutlinedButton(onClick = { vm.pairAgain(p.id) }, Modifier.heightIn(min = 48.dp), enabled = p.id !in pairingAgain) { Text("Pair again") }
                 else OutlinedButton(onClick = { vm.cancelPairing(p.id) }, Modifier.heightIn(min = 48.dp)) { Text("Cancel pairing") }
                 WaitingSendAgain(vm, p, now)
             }

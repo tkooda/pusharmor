@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -143,8 +144,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun reply(id: String) = io { g.pairing().tapReply(id) }
     fun sendAgainPair(id: String) = io { g.pairing().sendAgain(id, System.currentTimeMillis()) }
     fun cancelPairing(id: String) = io { g.pairing().cancelPairing(id); g.reconcile().run() }
-    fun pairAgain(id: String) = io {
-        if (!g.pairing().pairAgain(id, System.currentTimeMillis()) { g.reconcile().run() }) message.value = "Cannot pair with this device now"
+    /** Peer ids with a Pair again call running; their button is greyed so a second tap cannot cancel the first. */
+    val pairingAgain = MutableStateFlow<Set<String>>(emptySet())
+    fun pairAgain(id: String) {
+        if (id in pairingAgain.value) return
+        pairingAgain.update { it + id }
+        io {
+            try {
+                val offered = g.store.peer(id)?.offersPairAgain == true
+                if (!g.pairing().pairAgain(id, System.currentTimeMillis()) { g.reconcile().run() }) {
+                    // Past the offer check the old pairing is already cancelled; say so, the row is now a plain Pair row.
+                    message.value = if (offered) "The old pairing was cancelled, but a new one could not start. Tap Pair to try again."
+                        else "Cannot pair with this device now"
+                }
+            } finally {
+                pairingAgain.update { it - id }
+            }
+        }
     }
     fun approve(id: String) = io {
         val r = g.approve().approve(id)
