@@ -7,7 +7,7 @@ import {
   checkNameMap,
   checkPlatform,
   checkPush,
-  fitsPlatform,
+  checkPushPlatform,
   isId,
   keysExactly,
   requireAccount,
@@ -41,7 +41,7 @@ interface SelfRow {
 
 function pushOrNull(c: Ctx, v: unknown): Promise<PushValue | null> {
   if (v === null) return Promise.resolve(null);
-  return checkPush(v, c.env.PA_ALLOWED_PUSH_ENDPOINT_PREFIXES, (r) => (c.log.endpoint_reject = r));
+  return checkPush(v, c.env.PA_ALLOWED_PUSH_ENDPOINT_PREFIXES, c.env.PA_ALLOWED_UP_HOSTS, (r) => (c.log.endpoint_reject = r));
 }
 
 // PATCH skip rule: stored push confirmed and equal to the incoming push without verified_at.
@@ -63,7 +63,7 @@ export async function register(c: Ctx): Promise<Response> {
   if (signPub === encPub) throw bad();
   const platform = checkPlatform(b.platform);
   const push = await pushOrNull(c, b.push);
-  if (push && !fitsPlatform(platform, push.pushType)) throw bad();
+  if (push) checkPushPlatform(platform, push);
   let evict: string[] = [];
   if (b.evict !== undefined) {
     if (!Array.isArray(b.evict) || b.evict.length > 9 || !b.evict.every(isId)) throw bad();
@@ -171,7 +171,7 @@ export async function patch(c: Ctx): Promise<Response> {
     selfPath(c, s);
     const self = await readSelf(c, s.me, s.acct);
     await callerCheck(c, s, self);
-    if (push && !fitsPlatform(self!.platform as never, push.pushType)) throw bad();
+    if (push) checkPushPlatform(self!.platform as never, push);
     if (!skipPushWrite(self!.push, push)) {
       await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_PUSH).bind(s.me, s.acct, push ? push.stored : null, push ? push.pushType : null)]);
       if (push && push.pushType === 6) scheduleProbe(c, s.acct, s.me, push.fields);

@@ -118,7 +118,7 @@ async function attempt(v: VendorName, req: VendorRequest, timeoutMs: number): Pr
 }
 
 interface Delivery {
-  result: string; // sent | gone | failed:$code
+  result: string; // sent | gone | not listening | failed:$code
   code?: string;
   retried: boolean;
 }
@@ -169,6 +169,7 @@ async function deliver(env: Env, t: Target, slots: Slots): Promise<Delivery> {
   const retried = retries > 0 || authUsed;
   if (last.kind === "sent") return { result: "sent", retried };
   if (last.kind === "gone") return { result: "gone", code: last.code, retried };
+  if (last.kind === "not listening") return { result: "not listening", code: last.code, retried };
   return { result: "failed:" + (last.code ?? "net"), code: last.code, retried };
 }
 

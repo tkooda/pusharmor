@@ -5,7 +5,7 @@ import * as SQL from "../db/sql";
 export type VendorName = "fcm" | "apns" | "wp" | "up";
 
 export interface Outcome {
-  kind: "sent" | "gone" | "failed";
+  kind: "sent" | "gone" | "failed" | "not listening";
   code?: string; // vendor code, e.g. "fcm-404-UNREGISTERED"
   next: "none" | "retry" | "auth";
   retryAfterMs?: number;
@@ -85,7 +85,8 @@ export function classify(v: VendorName, status: number, body: string, retryAfter
     }
     return { kind: "failed", code: code(v, status, reason), next: "none" };
   }
-  // wp and up
+  // wp and up. ntfy 507: no subscriber of an "up" topic in the last 24 h.
+  if (v === "up" && status === 507) return { kind: "not listening", code: code(v, status), next: "none" };
   if (status >= 200 && status < 300) return { kind: "sent", next: "none" };
   if (status === 404 || status === 410) return { kind: "gone", code: code(v, status), next: "none" };
   if (status === 401 || status === 403) return { kind: "failed", code: code(v, status), next: "auth" };

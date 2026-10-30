@@ -297,13 +297,13 @@ describe("PATCH /peers/$id push", () => {
     const push = pushFor("android", "unifiedpush");
     let r = await call("PATCH", "/v1/peers/" + p.id, { push }, { peer: p });
     expect(r.status).toBe(200);
-    expect(vendorRequests("up.example.org")).toHaveLength(1);
+    expect(vendorRequests("ntfy.sh")).toHaveLength(1);
     r = await call("PATCH", "/v1/peers/" + p.id, { push }, { peer: p });
-    expect(vendorRequests("up.example.org")).toHaveLength(2);
+    expect(vendorRequests("ntfy.sh")).toHaveLength(2);
     await env.DB.prepare("UPDATE peers SET push = json_set(push, '$.verified_at', 5) WHERE id = ?1").bind(p.id).run();
     r = await call("PATCH", "/v1/peers/" + p.id, { push }, { peer: p });
     expect(r.status).toBe(200);
-    expect(vendorRequests("up.example.org")).toHaveLength(2);
+    expect(vendorRequests("ntfy.sh")).toHaveLength(2);
     expect(JSON.parse((await row(p.id))!.push as string).verified_at).toBe(5);
   });
 
@@ -334,8 +334,11 @@ describe("PATCH /peers/$id push", () => {
       "https://.example.com/x",
       "https://10.0.0.1/x",
       "https://[::1]/x",
-      "https://up.example.org:8443/x",
-      "http://up.example.org/x",
+      "https://ntfy.sh:8443/x",
+      "http://ntfy.sh/x",
+      "https://up.example.org/x",
+      "https://ntfy.sh.example.org/x",
+      "https://sub.ntfy.sh/x",
       "https://x.workers.dev/x",
       "https://printer.local/x",
       "https://svc.internal/x",
@@ -349,10 +352,38 @@ describe("PATCH /peers/$id push", () => {
       expect(r.status, endpoint).toBe(400);
       expect(r.body.error).toBe("push endpoint not allowed");
     }
-    for (const endpoint of ["https://Push.Example.Org./x", "https://up.example.org:443/x"]) {
+    for (const endpoint of ["https://NTFY.sh./x", "https://ntfy.sh:443/x"]) {
       const r = await call("PATCH", "/v1/peers/" + p.id, { push: { ...up, endpoint } }, { peer: p });
       expect(r.status, endpoint).toBe(200);
     }
+  });
+});
+
+describe("cli push endpoint (Q307)", () => {
+  it("only https://<allowed host>/up<12 chars>?up=1", async () => {
+    const p = await newPeer(randomEmail(), "cli", null);
+    const up = pushFor("cli");
+    const t = "AbC-_123xyz9";
+    for (const endpoint of [
+      `https://ntfy.sh/up${t}`,
+      `https://ntfy.sh/up${t}?up=0`,
+      `https://ntfy.sh/up${t}?up=1&x=1`,
+      `https://ntfy.sh/up${t}1?up=1`,
+      `https://ntfy.sh/up${t.slice(1)}?up=1`,
+      `https://ntfy.sh/x${t}?up=1`,
+      `https://ntfy.sh/up${t.slice(1)}*?up=1`,
+      `https://ntfy.sh:443/up${t}?up=1`,
+      `https://ntfy.sh/a/up${t}?up=1`,
+      `https://up.example.org/up${t}?up=1`,
+    ]) {
+      const r = await call("PATCH", "/v1/peers/" + p.id, { push: { ...up, endpoint } }, { peer: p });
+      expect(r.status, endpoint).toBe(400);
+      expect(r.body.error).toBe("push endpoint not allowed");
+    }
+    let r = await call("PATCH", "/v1/peers/" + p.id, { push: { ...up, endpoint: `https://ntfy.sh/up${t}?up=1` } }, { peer: p });
+    expect(r.status).toBe(200);
+    r = await call("POST", "/v1/peers", { ticket: await ticketFor(p.email, p.signPub, "register"), sign_pub: p.signPub, enc_pub: p.encPub, platform: "cli", push: pushFor("android", "unifiedpush") }, { sign: p.sign });
+    expect(r.body.error).toBe("push endpoint not allowed");
   });
 });
 

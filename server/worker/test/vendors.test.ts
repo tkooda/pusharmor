@@ -25,7 +25,7 @@ async function target(v: "fcm" | "apns" | "wp" | "up", cls: Target["cls"] = "sen
 }
 
 const isSend = (v: string) => (r: { url: string }) =>
-  v === "fcm" ? r.url.includes("/messages:send") : v === "apns" ? r.url.includes("/3/device/") : v === "wp" ? r.url.startsWith("https://fcm.googleapis.com/fcm/send/") : r.url.startsWith("https://up.example.org/");
+  v === "fcm" ? r.url.includes("/messages:send") : v === "apns" ? r.url.includes("/3/device/") : v === "wp" ? r.url.startsWith("https://fcm.googleapis.com/fcm/send/") : r.url.startsWith("https://ntfy.sh/");
 
 describe("result mapping, row by row (vendor-wrap 6)", () => {
   for (const row of VENDOR_ROWS) {
