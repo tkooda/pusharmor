@@ -174,6 +174,7 @@ export function pushFor(platform: string, kind?: string): Record<string, unknown
     case "firefox":
       return { type: "webpush", endpoint: secretString("https://updates.push.services.mozilla.com/wpush/v2/" + b64urlEncode(randBytes(24))), p256dh: p256, auth };
     case "unifiedpush":
+    case "cli":
       return { type: "unifiedpush", endpoint: secretString("https://up.example.org/push/" + b64urlEncode(randBytes(24))), p256dh: p256, auth };
   }
   throw new Error("platform");

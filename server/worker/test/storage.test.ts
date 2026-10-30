@@ -167,5 +167,22 @@ describe("migration 0005 on existing rows", () => {
     await expect(env.DB.prepare("UPDATE peers SET platform = 'iphone' WHERE id = ?1").bind(a.id).run()).rejects.toThrow();
     await expect(env.DB.prepare("UPDATE peers SET name = ?1 WHERE id = ?2").bind(JSON.stringify({ x: message(NAME_JSON_MAX) }), a.id).run())
       .rejects.toThrow(/pa-json-cap/);
+    for (const s of q("0006")) await env.DB.prepare(s).run();
+  });
+});
+
+describe("migration 0006 on existing rows", () => {
+  it("rebuilds peers: platform cli allowed, other columns kept, cap trigger kept", async () => {
+    const [a, b] = await family(2);
+    await env.DB.prepare("UPDATE peers SET logged_out = 1 WHERE id = ?1").bind(b.id).run();
+    const before = await env.DB.prepare("SELECT * FROM peers ORDER BY id").all();
+    const q = (prefix: string) => env.TEST_MIGRATIONS.find((m) => m.name.startsWith(prefix))!.queries;
+    for (const s of q("0006")) await env.DB.prepare(s).run();
+    expect((await env.DB.prepare("SELECT * FROM peers ORDER BY id").all()).results).toEqual(before.results);
+    expect(await row(b.id)).toMatchObject({ logged_out: 1 });
+    await env.DB.prepare("UPDATE peers SET platform = 'cli' WHERE id = ?1").bind(a.id).run();
+    await expect(env.DB.prepare("UPDATE peers SET platform = 'linux' WHERE id = ?1").bind(a.id).run()).rejects.toThrow();
+    await expect(env.DB.prepare("UPDATE peers SET name = ?1 WHERE id = ?2").bind(JSON.stringify({ x: message(NAME_JSON_MAX) }), a.id).run())
+      .rejects.toThrow(/pa-json-cap/);
   });
 });
