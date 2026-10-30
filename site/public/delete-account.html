@@ -4,18 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Delete account - PushArmor</title>
-<meta name="description" content="Delete your PushArmor account and all its peers.">
+<meta name="description" content="Delete your PushArmor account and all its devices.">
 <meta name="theme-color" content="#1F3A5F">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="PushArmor">
 <meta property="og:title" content="Delete account - PushArmor">
-<meta property="og:description" content="Delete your PushArmor account and all its peers.">
+<meta property="og:description" content="Delete your PushArmor account and all its devices.">
 <meta property="og:url" content="https://pusharmor.com/delete-account">
 <meta property="og:image" content="https://pusharmor.com/apple-touch-icon.png">
 <link rel="icon" href="/favicon.ico" sizes="any" integrity="sha256-WBRVm+oTUTpG8HdmRjQYXSzTkCjwYCVj5PZdJQP73qM=">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" integrity="sha256-TQcTrShS2zw2E6zqzKq9Tlfqd9GGyBSjl/LTQvTeJY8=">
 <link rel="stylesheet" href="/css/site.css" integrity="sha256-LLVjIg5FDy8B6CiNdcenZ4QJ6YhuvkKKultGZbGfMOw=">
-<script src="/js/pa-web.js" integrity="sha256-QesJhsOnRtWqXBKR8+6uagoEKqerjzS4lWZWNXuhcgU=" defer></script>
+<script src="/js/pa-web.js" integrity="sha256-ZHHw4ltZc2TDoJhR35G3mr9ayxqdKS5ffMLM3Sg7sQY=" defer></script>
 <script src="/js/delete-account.js" integrity="sha256-EgPxyKz5mn9A/IKfAPY/BiPgGqnbVc+ycdIvPpVq8fI=" defer></script>
 </head>
 <body>
@@ -28,9 +28,10 @@
 <h1>Delete your PushArmor account</h1>
 <p>This page deletes the PushArmor account of an email address. You can also use Delete account
 in the app.</p>
-<p>Deleted at once: all peers (keys, push tokens, names). Kept: the keyed account hash with
+<p>Deleted at once: all your devices, with their keys, names and the addresses they use to receive
+notifications (push tokens). Kept: a one-way code made from your email address (a keyed hash) with
 its ban flag, for banned accounts only, so a banned address stays banned; undelivered pushes at the vendors, up to 7 days (pairing
-requests up to 4 weeks); copies on your other peers. No login to this site is needed.</p>
+requests up to 4 weeks); copies on your other devices. No login to this site is needed.</p>
 
 <p id="status" class="status" role="status" aria-live="polite"></p>
 
@@ -55,7 +56,7 @@ requests up to 4 weeks); copies on your other peers. No login to this site is ne
 <h2>2. Delete</h2>
 <p id="signed-in"></p>
 <p class="note">If you signed in with Apple and chose Hide My Email, the app shows the address
-under Signed in as. Use that address on your other peers. Find it in iOS Settings &gt; Apple ID
+under Signed in as. Use that address on your other devices. Find it in iOS Settings &gt; Apple ID
 &gt; Sign in with Apple, or at appleid.apple.com &gt; Hide My Email.</p>
 <form id="confirm-form">
 <button id="delete" type="submit" class="danger">Delete account</button>
