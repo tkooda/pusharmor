@@ -23,8 +23,8 @@ class UiTextTest {
     }
 
     @Test fun codeFieldState() {
-        assertEquals("0 of 6 entered", UiText.codeState(0))
-        assertEquals("4 of 6 entered", UiText.codeState(4))
+        assertEquals("Code, 0 of 6 entered", UiText.codeState(0))
+        assertEquals("Code, 4 of 6 entered", UiText.codeState(4))
     }
 
     @Test fun pairAgainNotice() {
