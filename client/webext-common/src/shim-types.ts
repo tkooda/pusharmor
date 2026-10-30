@@ -61,6 +61,7 @@ export interface Browser {
     create(p: { url: string; active?: boolean; windowId?: number }): Promise<Tab>;
     query(q: { active: boolean; currentWindow: boolean }): Promise<Tab[]>;
     remove(id: number): Promise<void>;
+    reload(id: number): Promise<void>;
     update(id: number, p: { active?: boolean }): Promise<Tab>;
   };
   windows?: {
