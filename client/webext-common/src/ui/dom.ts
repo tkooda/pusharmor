@@ -36,6 +36,13 @@ export function clear(el: HTMLElement): HTMLElement {
   return el;
 }
 
+/** An error message with a Retry button in place of the view (the background could not start). */
+export function failView(root: HTMLElement, message: string, retry: () => void): void {
+  const btn = h("button", { class: "primary", onclick: retry }, "Retry");
+  clear(root).append(h("div", { class: "fail", role: "alert" }, h("p", {}, message), btn));
+  btn.focus();
+}
+
 export async function rpc<T>(env: UiEnv, op: string, args?: Record<string, unknown>): Promise<T> {
   const r = await env.call(args ? { op, args } : { op });
   if (!r || !r.ok) throw new Error(r?.error ?? "No reply");

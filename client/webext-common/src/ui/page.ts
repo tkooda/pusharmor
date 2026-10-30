@@ -3,7 +3,7 @@
 import type { LoginResult, Purpose } from "../core/login.ts";
 import type { StateView } from "../core/rpc.ts";
 import { T } from "../core/texts.ts";
-import { type UiEnv, add, clear, group, h, rpc } from "./dom.ts";
+import { type UiEnv, add, clear, failView, group, h, rpc } from "./dom.ts";
 import { clampFrameHeight, type Restore, resendLeftMs } from "../model/signin.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
@@ -13,6 +13,14 @@ import { historyView, sendView, wordmark } from "./popup.ts";
 export const SITE = "https://pusharmor.com";
 
 export async function mountPage(env: UiEnv, root: HTMLElement, hash: string, selfOrigin: string): Promise<void> {
+  try {
+    await mountRoute(env, root, hash, selfOrigin);
+  } catch (e) {
+    failView(root, (e as Error).message, () => void mountPage(env, root, hash, selfOrigin));
+  }
+}
+
+async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigin: string): Promise<void> {
   await startTheme(env.theme);
   clear(root);
   const [route, arg] = hash.replace(/^#/, "").split("=");

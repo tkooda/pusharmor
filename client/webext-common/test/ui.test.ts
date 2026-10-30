@@ -103,3 +103,12 @@ test("focus moves sensibly on view change, dialogs and errors", async () => {
   assert.match(pop, /"aria-label": "Unread"/);
   assert.match(pop, /content\.addEventListener\("keydown"/); // keyboard marks read
 });
+
+test("a failed start shows the error with a Retry button in the popup and the tab", async () => {
+  const { readFileSync } = await import("node:fs");
+  const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
+  assert.match(rd("dom.ts"), /export function failView/);
+  assert.match(rd("dom.ts"), /"Retry"/);
+  assert.match(rd("popup.ts"), /failView\(root, \(e as Error\)\.message, \(\) => void mountPopup\(env, root\)\)/);
+  assert.match(rd("page.ts"), /failView\(root, \(e as Error\)\.message, \(\) => void mountPage\(/);
+});

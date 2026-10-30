@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { uiEnv } from "../src/shellkit.ts";
+import { lazyBoot, onRuntimeMessage, uiEnv } from "../src/shellkit.ts";
 
 test("openPage: an open tab on the same page is focused and reloaded", async () => {
   const log: string[] = [];
@@ -20,4 +20,19 @@ test("openPage: an open tab on the same page is focused and reloaded", async () 
   };
   await uiEnv(b as never).openPage("#signin");
   assert.deepEqual(log, ["update 7", "window 3", "reload 7"]);
+});
+
+test("a failed database open does not stick: the next call tries again, the caller gets an error reply", async () => {
+  assert.equal(typeof (globalThis as { indexedDB?: unknown }).indexedDB, "undefined"); // node: the open fails
+  const boot = lazyBoot(() => ({}) as never, new Uint8Array(0));
+  const first = boot();
+  await assert.rejects(first);
+  const second = boot();
+  assert.notEqual(second, first); // a rejected promise is not cached
+  await assert.rejects(second);
+  const reply = await new Promise<{ ok?: boolean; error?: string }>((resolve) => {
+    onRuntimeMessage(boot)({ op: "state" }, {} as never, resolve as never);
+  });
+  assert.equal(reply.ok, false);
+  assert.match(reply.error ?? "", /database/i);
 });

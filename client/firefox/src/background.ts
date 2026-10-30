@@ -19,7 +19,14 @@ const vapid = b64urlTryDecode(VAPID_PUBLIC_KEY) ?? new Uint8Array(0);
 let isAndroid = false;
 let autopush: Autopush | null = null;
 let dbp: Promise<Db> | null = null;
-const db = () => (dbp ??= openDb().then((d) => new Db(d)));
+const db = () =>
+  (dbp ??= openDb().then(
+    (d) => new Db(d),
+    (e) => {
+      dbp = null; // a failed open is not cached
+      throw e;
+    },
+  ));
 
 const boot = lazyBoot(() => firefoxPlatform({ isAndroid, autopush: () => autopush, db }), vapid);
 
@@ -61,7 +68,7 @@ async function init(): Promise<void> {
   await engine.start();
 }
 
-const ready = init();
+let ready = init();
 
 // timer drift above 60 s (laptop sleep) or "online": reconnect at once
 let lastTick = Date.now();
@@ -73,7 +80,7 @@ setInterval(() => {
 addEventListener("online", () => autopush?.reconnectNow());
 
 async function extra(msg: Req): Promise<unknown> {
-  await ready;
+  await (ready = ready.catch(() => init())); // a failed start is tried again by the next message
   const { engine } = await boot();
   const a = msg.args ?? {};
   if (msg.op === "fx-sub") {
