@@ -164,7 +164,8 @@ struct ComposeView: View {
     /// Global tops of the list and of the pinned send bar; between them is the visible list area.
     @State private var listTop: CGFloat = 0
     @State private var barTop: CGFloat = 0
-    @State private var chipsHeight: CGFloat = 0
+    /// Starts at one chip row (chip minHeight), so the chips do not flicker in from 0.
+    @State private var chipsHeight: CGFloat = 34
     @FocusState private var editing: Bool
     /// Chip name width: 150 pt at the default text size, wider at large Dynamic Type (L8).
     @ScaledMetric(relativeTo: .subheadline) private var chipNameWidth: CGFloat = 150
