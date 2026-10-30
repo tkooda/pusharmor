@@ -1,5 +1,8 @@
 package com.pusharmor.app
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import okhttp3.OkHttpClient
 import java.io.IOException
 
@@ -10,6 +13,9 @@ import java.io.IOException
  */
 object ScreenshotMode {
     @Volatile var on = false
+
+    /** Draws the top bar title with alpha 0 (the 02 heads-up card leaves a sliver of its first letter); Compose state, so the open screen redraws. */
+    var hideTitle by mutableStateOf(false)
 
     /** Send tab prefill for the screenshot run: message text and checked peer ids. */
     @Volatile var sendText = ""

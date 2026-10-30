@@ -149,7 +149,11 @@ fun PaTopBar(title: String, navigationIcon: @Composable () -> Unit = {}, actions
     val x = LocalPaExtra.current
     val bg = if (x.dark) MaterialTheme.colorScheme.background else x.tile
     TopAppBar(
-        title = { Text(title, style = MaterialTheme.typography.headlineSmall) },
+        title = {
+            // Screenshot fixture only: hides the title under the system heads-up card (02-notification).
+            val hide = com.pusharmor.app.BuildConfig.SCREENSHOT_MODE && com.pusharmor.app.ScreenshotMode.hideTitle
+            Text(title, Modifier.alpha(if (hide) 0f else 1f), style = MaterialTheme.typography.headlineSmall)
+        },
         navigationIcon = navigationIcon,
         actions = { actions() },
         windowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),

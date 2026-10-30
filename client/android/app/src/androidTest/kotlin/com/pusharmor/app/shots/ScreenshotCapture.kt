@@ -196,9 +196,11 @@ class ScreenshotCapture {
         // 02: the link heads-up over the app.
         snoozeOthers()
         g.notifier.createPeerChannel(laptop) // a paired peer has its own channel
+        inst.runOnMainSync { ScreenshotMode.hideTitle = true }
         g.notifier.content(linkId, laptop, ShownContent(ContentType.URL, link, href = link, host = "example.com"))
         settle(3000)
         shot("02-notification")
+        inst.runOnMainSync { ScreenshotMode.hideTitle = false }
 
         ScreenshotMode.sendText = "https://example.com/recipes/weeknight-pasta"
         ScreenshotMode.sendTo = listOf(laptop, desktop, tablet)
