@@ -44,7 +44,10 @@ object UiText {
     fun sendToHeader(picked: Int, total: Int): String = "Send to ($picked of $total)"
 
     /** The "All" chip shows only with 2 or more devices (one device is preselected instead). */
-    fun showAllChip(setting: Boolean, devices: Int): Boolean = setting && devices > 1
+    fun showAllChip(setting: Boolean, devices: Int, keyboardUp: Boolean = false): Boolean = setting && devices > 1 && !keyboardUp
+
+    /** With the keyboard up only the selected device chips show, so the block stays short and every recipient stays visible. */
+    fun chipVisible(selected: Boolean, keyboardUp: Boolean): Boolean = selected || !keyboardUp
 
     /** The byte counter shows only from 90 percent of the cap (and over it, as "Too long"). */
     fun showCounter(bytes: Int): Boolean = bytes * 10 >= SizeCap.MAX_CONTENT_BYTES * 9
