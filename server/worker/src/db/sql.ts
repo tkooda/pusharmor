@@ -204,11 +204,3 @@ export const W_PENDING_EXPIRE = `UPDATE peers SET pending = (
 WHERE (account, id) IN (${PENDING_CHUNK_ROWS})
   AND EXISTS (SELECT 1 FROM json_each(peers.pending) j WHERE j.type <> 'array' OR json_extract(j.value, '$[0]') < ?3)`;
 
-export const Q_HEALTH = `SELECT 1 AS ok`;
-
-// Vendor auth counters, added in one write per isolate flush. ?1 vendor, ?2 hour, ?3 auth, ?4 ok.
-// The hour rows older than 48 h are dropped by the cron.
-export const W_HEALTH_ADD = `INSERT INTO vendor_health (vendor, hour, auth, ok) VALUES (?1, ?2, ?3, ?4)
-  ON CONFLICT (vendor, hour) DO UPDATE SET auth = auth + excluded.auth, ok = ok + excluded.ok`;
-export const Q_HEALTH_HOUR = `SELECT vendor, auth, ok FROM vendor_health WHERE hour = ?1 ORDER BY vendor`;
-export const W_HEALTH_PURGE = `DELETE FROM vendor_health WHERE hour < ?1`;

@@ -1,5 +1,4 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { env } from "cloudflare:test";
 import { b64urlDecode } from "../src/codec/b64url";
 import { utf8 } from "../src/crypto/hash";
 import { BUDGET_MS, fanout, SUBREQUEST_WORST_CASE, type Target } from "../src/push/fanout";
@@ -8,8 +7,6 @@ import { deps } from "../src/push/deps";
 import { mintFcmToken } from "../src/push/fcm";
 import { getToken, MAX_TOKENS, peekToken } from "../src/push/tokencache";
 import { Log } from "../src/log";
-import { authAlerts, HEALTH_FLUSH_MS, isAuthFailure, recordHealth } from "../src/push/results";
-import { healthCheck } from "../src/scheduled";
 import { call, decodeJwt, initP256, message, mock, newPeer, onVendor, pushFor, randomEmail, row, setAllow, testEnv, vendorKeys, vendorRequests, type Peer } from "./helpers";
 import { VENDOR_ROWS } from "./vendor-fixtures";
 
@@ -252,100 +249,6 @@ describe("request shapes: TTL, priority, sizes, no ids in headers", () => {
       }
     }
     expect(await row(me.id)).not.toBeNull();
-  });
-});
-
-describe("vendor auth alert (I274)", () => {
-  it("only APNs 403 InvalidProviderToken for an hour -> the ops mail is built", async () => {
-    const e = await testEnv();
-    const hour = Math.floor(deps.now() / 3600000) - 1;
-    const t = hour * 3600000 + 1000;
-    await recordHealth(env, "apns", false, true, t);
-    await recordHealth(env, "apns", false, true, t);
-    await recordHealth(env, "fcm", true, false, t);
-    expect(await authAlerts(env, hour)).toEqual(["apns"]);
-    const log = new Log();
-    await healthCheck(e, log);
-    const mails = vendorRequests("email.us-east-1.amazonaws.com");
-    const texts = mails.map((x) => JSON.parse(new TextDecoder().decode(x.body)).Content.Simple.Subject.Data);
-    expect(texts).toContain("PushArmor vendor auth alert");
-    expect(log.extra.auth_alert).toBe("apns");
-    expect(env.DB).toBeTruthy();
-  });
-});
-
-describe("health ok cache (I374)", () => {
-  it("a failed ok write does not suppress the next ok write in the hour", async () => {
-    const hour = Math.floor(deps.now() / 3600000) - 1;
-    const t = hour * 3600000 + 1000;
-    const broken = { DB: { prepare: () => { throw new Error("d1 down"); } } } as unknown as typeof env;
-    await recordHealth(broken, "fcm", true, false, t);
-    await recordHealth(env, "fcm", true, false, t);
-    await recordHealth(env, "fcm", false, true, t);
-    expect(await authAlerts(env, hour)).toEqual([]);
-  });
-});
-
-describe("vendor health: only our credential failures, throttled writes (I448)", () => {
-  const fcmBody = (status: string, errorCode?: string) =>
-    JSON.stringify({ error: { status, details: errorCode ? [{ errorCode }] : [] } });
-
-  it("per-token errors are not auth failures; credential errors are", () => {
-    expect(isAuthFailure("fcm", 403, "fcm-403-SENDER_ID_MISMATCH")).toBe(false);
-    expect(isAuthFailure("fcm", 404, "fcm-404-UNREGISTERED")).toBe(false);
-    expect(isAuthFailure("fcm", 400, "fcm-400-INVALID_ARGUMENT")).toBe(false);
-    expect(isAuthFailure("apns", 400, "apns-400-BadDeviceToken")).toBe(false);
-    expect(isAuthFailure("apns", 410, "apns-410-Unregistered")).toBe(false);
-    expect(isAuthFailure("fcm", 401, "fcm-401")).toBe(true);
-    expect(isAuthFailure("fcm", 401, "fcm-401-THIRD_PARTY_AUTH_ERROR")).toBe(true);
-    expect(isAuthFailure("fcm", 403, "fcm-403")).toBe(true);
-    expect(isAuthFailure("apns", 403, "apns-403-InvalidProviderToken")).toBe(true);
-  });
-
-  it("attacker: 9 peers with FCM tokens from a foreign project write no health row", async () => {
-    const e = await testEnv();
-    onVendor(isSend("fcm"), () => new Response(fcmBody("PERMISSION_DENIED", "SENDER_ID_MISMATCH"), { status: 403 }), 999);
-    const base = await target("fcm");
-    const ts: Target[] = [];
-    for (let i = 0; i < 9; i++) ts.push({ ...base, id: "id-fcm-" + i });
-    for (let k = 0; k < 5; k++) {
-      const out = await fanout(e, ts, new Log());
-      expect(Object.values(out.results).every((r) => r === "failed:fcm-403-SENDER_ID_MISMATCH")).toBe(true);
-    }
-    const rows = await env.DB.prepare("SELECT vendor, auth, ok FROM vendor_health").all();
-    expect(rows.results).toEqual([]);
-  });
-
-  it("a burst of credential failures writes at most once per vendor per flush window per isolate", async () => {
-    let writes = 0;
-    const counting = { DB: { prepare: (sql: string) => { writes++; return env.DB.prepare(sql); }, batch: (s: D1PreparedStatement[]) => { writes++; return env.DB.batch(s); } } } as unknown as typeof env;
-    const hour = Math.floor(deps.now() / 3600000) - 1;
-    const t = hour * 3600000 + 1000;
-    for (let i = 0; i < 50; i++) await recordHealth(counting, "fcm", false, true, t + i);
-    expect(writes).toBe(1);
-    expect(await authAlerts(env, hour)).toEqual(["fcm"]);
-    // The first success of the hour goes out at once (no false alert after a good retry).
-    for (let i = 0; i < 50; i++) await recordHealth(counting, "fcm", true, false, t + i);
-    expect(writes).toBe(2);
-    expect(await authAlerts(env, hour)).toEqual([]);
-    await recordHealth(counting, "fcm", false, true, t + HEALTH_FLUSH_MS);
-    expect(writes).toBe(3);
-    const r = await env.DB.prepare("SELECT auth, ok FROM vendor_health WHERE vendor = 'fcm' AND hour = ?1").bind(hour).first();
-    expect(r).toEqual({ auth: 51, ok: 1 });
-    expect(await authAlerts(env, hour)).toEqual([]);
-  });
-
-  it("counts left from the previous hour are written when the hour changes", async () => {
-    const hour = Math.floor(deps.now() / 3600000) - 2;
-    const t = hour * 3600000 + 1000;
-    await recordHealth(env, "apns", false, true, t);
-    await recordHealth(env, "apns", false, true, t + 1);
-    await recordHealth(env, "apns", false, true, t + 2);
-    await recordHealth(env, "apns", true, false, (hour + 1) * 3600000 + 5);
-    const old = await env.DB.prepare("SELECT auth, ok FROM vendor_health WHERE vendor = 'apns' AND hour = ?1").bind(hour).first();
-    expect(old).toEqual({ auth: 3, ok: 0 });
-    const cur = await env.DB.prepare("SELECT auth, ok FROM vendor_health WHERE vendor = 'apns' AND hour = ?1").bind(hour + 1).first();
-    expect(cur).toEqual({ auth: 0, ok: 1 });
   });
 });
 

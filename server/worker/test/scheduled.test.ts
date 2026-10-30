@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createScheduledController, env } from "cloudflare:test";
 import { purge, PURGE_IDLE_S, PURGE_MAX_CHUNKS, scheduled } from "../src/scheduled";
 import { Log } from "../src/log";
-import { captured, mock, testEnv, vendorRequests } from "./helpers";
+import { captured, testEnv } from "./helpers";
 
 const NOW = Math.floor(Date.now() / 1000);
 
@@ -62,34 +62,9 @@ describe("purge (Q159)", () => {
 });
 
 describe("scheduled()", () => {
-  it("unknown cron logs cron-unknown and mails ops", async () => {
+  it("unknown cron logs cron-unknown", async () => {
     const before = captured.length;
     await scheduled(createScheduledController({ cron: "5 5 5 5 5" }), await testEnv());
     expect(captured.slice(before).some((l) => JSON.parse(l).error === "cron-unknown")).toBe(true);
-    const mails = vendorRequests("email.us-east-1.amazonaws.com");
-    expect(mails).toHaveLength(1);
-    expect(JSON.parse(new TextDecoder().decode(mails[0].body)).Destination.ToAddresses).toEqual(["ops@example.com"]);
-  });
-
-  it("hourly health check mints tokens and runs SELECT 1; failure mails ops", async () => {
-    await scheduled(createScheduledController({ cron: "0 * * * *" }), await testEnv());
-    expect(vendorRequests("oauth2.googleapis.com")).toHaveLength(1);
-    expect(vendorRequests("email.us-east-1.amazonaws.com")).toHaveLength(0);
-    mock.clock += 21 * 60 * 1000;
-    await scheduled(createScheduledController({ cron: "0 * * * *" }), await testEnv({ APPLE_APNS_KEY_P8: "broken" }));
-    const mails = vendorRequests("email.us-east-1.amazonaws.com");
-    expect(mails).toHaveLength(1);
-    expect(JSON.parse(new TextDecoder().decode(mails[0].body)).Content.Simple.Body.Text.Data).toContain("apns");
-  });
-
-  it("D1 outage: the health check failed mail is still sent (I402)", async () => {
-    const down = () => {
-      throw new Error("D1 down");
-    };
-    const DB = { prepare: down, batch: down, exec: down } as unknown as D1Database;
-    await scheduled(createScheduledController({ cron: "0 * * * *" }), await testEnv({ DB }));
-    const mails = vendorRequests("email.us-east-1.amazonaws.com");
-    expect(mails).toHaveLength(1);
-    expect(JSON.parse(new TextDecoder().decode(mails[0].body)).Content.Simple.Body.Text.Data).toContain("d1");
   });
 });
