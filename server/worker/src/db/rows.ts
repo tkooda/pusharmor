@@ -1,6 +1,11 @@
 // Row -> API object mapping and the relay filter.
 import { pushSha256 } from "../codec/validate";
 
+// False only for a cli peer whose push endpoint failed (ntfy 507) since its last listen report.
+export function isListening(platform: string, pushFailed: number | null): boolean {
+  return platform !== "cli" || pushFailed === null;
+}
+
 export interface ListRow {
   id: string;
   sign_pub: string;
@@ -9,6 +14,7 @@ export interface ListRow {
   push_type: number | null;
   created: number;
   allow: string;
+  push_failed: number | null;
   approves_me: number;
   denies_me: number;
   reachable: number;
@@ -21,6 +27,8 @@ export interface CtxRow {
   id: string;
   sign_pub: string;
   enc_pub: string;
+  platform: string;
+  push_failed: number | null;
   push_type: number | null;
   push: string | null;
   logged_out: number;
@@ -66,6 +74,7 @@ export async function listBody(rows: ListRow[], me: string): Promise<Record<stri
       denies_me: r.denies_me === 1,
       reachable: r.reachable === 1,
       name_for_me: r.name_for_me ?? null,
+      ...(r.platform === "cli" ? { listening: isListening(r.platform, r.push_failed) } : {}),
     };
   });
   return { my_push_sha256: myPush, my_allow: self ? allowKeys(self.allow) : [], peers };
@@ -110,22 +119,34 @@ export interface RelayRow {
   approves_me: boolean;
   denies_me: boolean;
   logged_out: boolean;
+  listening: boolean;
   push_type: number | null;
   push: string | null;
 }
 
-// Relay filter, /send order: unknown, denied, unapproved, logged out, gone, unconfirmed type 6.
+// Relay filter, /send order: unknown, denied, unapproved, logged out, not listening, gone,
+// unconfirmed type 6.
 // Returns a result word, or null when the message goes to the vendor.
 export function relayFilter(row: RelayRow | undefined): string | null {
   if (!row) return "unknown";
   if (row.denies_me) return "denied";
   if (!row.approves_me) return "unapproved";
   if (row.logged_out) return "logged out";
+  if (!row.listening) return "not listening";
   if (row.push === null || row.push_type === null) return "gone";
   if (isUnconfirmedUp(row.push_type, row.push)) return "failed";
   return null;
 }
 
 export function ctxRelayRow(r: CtxRow | undefined): RelayRow | undefined {
-  return r && { approves_me: r.approves_me === 1, denies_me: r.denies_me === 1, logged_out: r.logged_out === 1, push_type: r.push_type, push: r.push };
+  return (
+    r && {
+      approves_me: r.approves_me === 1,
+      denies_me: r.denies_me === 1,
+      logged_out: r.logged_out === 1,
+      listening: isListening(r.platform, r.push_failed),
+      push_type: r.push_type,
+      push: r.push,
+    }
+  );
 }

@@ -88,7 +88,7 @@ export async function relayMap(
   }
   const out = await fanout(c.env, targets, c.log);
   Object.assign(results, out.results);
-  await writeBack(c.env, acct, out.gone, extraWrites, c.log);
+  await writeBack(c.env, acct, out, extraWrites, c.log);
   return results;
 }
 

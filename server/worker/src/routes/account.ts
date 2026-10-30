@@ -6,7 +6,7 @@ import { parseJsonObject } from "../pipeline/body";
 import { checkSig, checkTime } from "../pipeline/signed";
 import * as SQL from "../db/sql";
 import { all, batch } from "../db/d1";
-import type { RelayRow } from "../db/rows";
+import { isListening, type RelayRow } from "../db/rows";
 import { checkTicket, relayMap } from "./common";
 import { json } from "../http";
 import { revokeAppleSealed } from "../auth/apple";
@@ -14,6 +14,8 @@ import { revokeAppleSealed } from "../auth/apple";
 interface AcctRow {
   id: string;
   sign_pub: string;
+  platform: string;
+  push_failed: number | null;
   push_type: number | null;
   push: string | null;
   logged_out: number;
@@ -61,6 +63,7 @@ export async function deleteAccount(c: Ctx): Promise<Response> {
           approves_me: has(x.allow, me.id),
           denies_me: has(x.deny, me.id),
           logged_out: x.logged_out === 1,
+          listening: isListening(x.platform, x.push_failed),
           push_type: x.push_type,
           push: x.push,
         }

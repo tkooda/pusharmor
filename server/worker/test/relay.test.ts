@@ -5,6 +5,7 @@ import { probeCode } from "../src/routes/common";
 import { pairKey } from "../src/routes/pair";
 import { call, cliCodeFor, countingLimit, register, initP256, message, newPeer, onVendor, pushFor, randomEmail, row, setAllow, testEnv, ticketFor, vendorRequests, keys, type Peer } from "./helpers";
 import { TEST_SECRETS as S } from "./secrets";
+import { PUSH_FAILED_COL } from "../src/db/sql";
 
 beforeAll(initP256);
 const j = (s: unknown) => JSON.parse(s as string);
@@ -41,18 +42,30 @@ describe("POST /send", () => {
     expect(vendorRequests("api.push.apple.com")).toHaveLength(1);
   });
 
-  it("ntfy 507 -> not listening; push kept, no retry", async () => {
+  it("ntfy 507 -> not listening; a cli peer then gets no push until its listen report", async () => {
     const email = randomEmail();
     const me = await newPeer(email);
     const x = await newPeer(email, "cli", pushFor("cli"));
-    await setAllow(x, [me.id]);
-    await env.DB.prepare("UPDATE peers SET push = json_set(push, '$.verified_at', 1) WHERE id = ?1").bind(x.id).run();
+    const up = await newPeer(email, "android", pushFor("android", "unifiedpush"));
+    for (const p of [x, up]) {
+      await setAllow(p, [me.id]);
+      await env.DB.prepare("UPDATE peers SET push = json_set(push, '$.verified_at', 1) WHERE id = ?1").bind(p.id).run();
+    }
+    const send = async () => (await call("POST", "/v1/send", { v: 1, m: { [x.id]: message(512), [up.id]: message(512) } }, { peer: me })).body.r;
     const before = vendorRequests("ntfy.sh").length;
-    onVendor((q) => q.url.startsWith("https://ntfy.sh/"), () => new Response('{"code":50701}', { status: 507 }));
-    const r = await call("POST", "/v1/send", { v: 1, m: { [x.id]: message(512) } }, { peer: me });
-    expect(r.body.r).toEqual({ [x.id]: "not listening" });
-    expect(vendorRequests("ntfy.sh").length).toBe(before + 1);
+    onVendor((q) => q.url.startsWith("https://ntfy.sh/"), () => new Response('{"code":50701}', { status: 507 }), 2);
+    expect(await send()).toEqual({ [x.id]: "not listening", [up.id]: "not listening" });
+    expect(vendorRequests("ntfy.sh").length).toBe(before + 2);
+    const since = (await row(x.id))![PUSH_FAILED_COL] as number;
+    expect(Math.abs(since - Math.floor(Date.now() / 1000))).toBeLessThan(5);
+    expect((await row(up.id))![PUSH_FAILED_COL]).toBeNull();
     expect((await row(x.id))!.push).not.toBeNull();
+    // While set: no POST to the cli endpoint, the value is kept.
+    expect(await send()).toEqual({ [x.id]: "not listening", [up.id]: "sent" });
+    expect(vendorRequests("ntfy.sh").length).toBe(before + 3);
+    expect((await row(x.id))![PUSH_FAILED_COL]).toBe(since);
+    expect((await call("PATCH", "/v1/peers/" + x.id, { listening: true }, { peer: x })).status).toBe(200);
+    expect(await send()).toEqual({ [x.id]: "sent", [up.id]: "sent" });
   });
 
   it("v must be 1; foreign prefix -> 400", async () => {

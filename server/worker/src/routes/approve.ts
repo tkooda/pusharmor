@@ -7,7 +7,7 @@ import { enforce } from "../pipeline/limits";
 import { ApiError } from "../errors";
 import * as SQL from "../db/sql";
 import { all, batch } from "../db/d1";
-import { isUnconfirmedUp, type CtxRow } from "../db/rows";
+import { isListening, isUnconfirmedUp, type CtxRow } from "../db/rows";
 import { fanout, writeBack } from "../push/fanout";
 import type { Cls } from "../push/deps";
 import { callerCheck, signedStart, withPushMissing, type Signed } from "./common";
@@ -25,13 +25,14 @@ export async function readCtxX(c: Ctx, s: Signed, x: string): Promise<{ caller?:
   return { caller: rows.find((r) => r.id === s.me), xr: rows.find((r) => r.id === x) };
 }
 
-// Relays one message to X (logged out, gone and unconfirmed checks first). Returns the result word.
+// Relays one message to X (logged out, not listening, gone and unconfirmed checks first). Returns the result word.
 export async function relayOne(c: Ctx, s: Signed, xr: CtxRow, msg: string, cls: Cls, pk?: string): Promise<string> {
   if (xr.logged_out === 1) return "logged out";
+  if (!isListening(xr.platform, xr.push_failed)) return "not listening";
   if (xr.push === null || xr.push_type === null) return "gone";
   if (isUnconfirmedUp(xr.push_type, xr.push)) return "failed";
   const out = await fanout(c.env, [{ id: xr.id, pushType: xr.push_type, push: xr.push, m: msg, cls, pk }], c.log);
-  await writeBack(c.env, s.acct, out.gone, [], c.log);
+  await writeBack(c.env, s.acct, out, [], c.log);
   return out.results[xr.id];
 }
 

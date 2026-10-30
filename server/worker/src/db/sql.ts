@@ -2,8 +2,13 @@
 // for one id: '$."' || ?n || '"'. Ids are validated b64url, so they cannot leave the path.
 const P = (n: number) => `'$."' || ?${n} || '"'`;
 
+// cli peers: unix s of the first ntfy 507 on the push endpoint (migrations/0007); rows carry it
+// as push_failed. While set, the Worker sends the peer nothing ("not listening").
+export const PUSH_FAILED_COL = "push_failed_since";
+const PF = `${PUSH_FAILED_COL} AS push_failed`;
+
 // GET /peers; tail of POST /peers. ?1 me, ?2 acct
-export const Q_LIST = `SELECT id, sign_pub, enc_pub, platform, push_type, created, allow,
+export const Q_LIST = `SELECT id, sign_pub, enc_pub, platform, push_type, created, allow, ${PF},
   json_type(allow, ${P(1)}) IS NOT NULL AS approves_me,
   json_type(deny, ${P(1)}) IS NOT NULL AS denies_me,
   push IS NOT NULL AS reachable, logged_out,
@@ -14,7 +19,7 @@ FROM peers WHERE account = ?2`;
 // Caller + named peers. ?1 me, ?2 acct, then one id per parameter ?3, ?4, ... A VALUES
 // list joined to the primary key reads one row per id; json_each and IN lists add rows
 // read on D1. A repeated id returns a repeated row.
-const Q_CTX_COLS = `id, sign_pub, enc_pub, push_type, push, logged_out,
+const Q_CTX_COLS = `id, sign_pub, enc_pub, platform, ${PF}, push_type, push, logged_out,
   json_type(allow, ${P(1)}) IS NOT NULL AS approves_me,
   json_type(deny, ${P(1)}) IS NOT NULL AS denies_me,
   CASE WHEN id = ?1 THEN allow END AS my_allow`;
@@ -61,7 +66,7 @@ WHERE (SELECT count(*) FROM peers WHERE account = ?2) < 10
 ON CONFLICT (account, id) DO NOTHING`;
 
 // ?1 me, ?2 acct
-export const Q_SELF = `SELECT sign_pub, enc_pub, platform, push_type, push, push IS NULL AS push_missing, logged_out, allow
+export const Q_SELF = `SELECT sign_pub, enc_pub, platform, push_type, push, push IS NULL AS push_missing, logged_out, allow, ${PF}
 FROM peers WHERE account = ?2 AND id = ?1`;
 
 // ?1 me, ?2 acct, ?3 push JSON, ?4 push_type
@@ -100,7 +105,7 @@ WHERE account = ?2
        OR json_type(name, ${P(1)}) IS NOT NULL OR json_type(pending, ${P(1)}) IS NOT NULL)`;
 
 // ?1 acct
-export const Q_ACCT = `SELECT id, sign_pub, push_type, push, logged_out, allow, deny
+export const Q_ACCT = `SELECT id, sign_pub, platform, ${PF}, push_type, push, logged_out, allow, deny
 FROM peers WHERE account = ?1`;
 export const W_DELALL = `DELETE FROM peers WHERE account = ?1`;
 export const W_DELACCT = `DELETE FROM accounts WHERE id = ?1 AND status IS NULL`;
@@ -160,6 +165,14 @@ WHERE id = ?1 AND last_seen_month < ?2`;
 // ?1 id, ?2 acct, ?3 push as read
 export const W_GONE = `UPDATE peers SET push = NULL, push_type = NULL
 WHERE account = ?2 AND id = ?1 AND push = ?3`;
+
+// cli listen report: clears push_failed (the caller writes only when it is set). ?1 me, ?2 acct
+export const W_LISTEN = `UPDATE peers SET ${PUSH_FAILED_COL} = NULL
+WHERE account = ?2 AND id = ?1 AND ${PUSH_FAILED_COL} IS NOT NULL`;
+
+// ntfy 507 on a cli peer: sets push_failed once. ?1 id, ?2 acct, ?3 now
+export const W_PUSH_FAILED = `UPDATE peers SET ${PUSH_FAILED_COL} = ?3
+WHERE account = ?2 AND id = ?1 AND platform = 'cli' AND ${PUSH_FAILED_COL} IS NULL`;
 
 // ?1 me, ?2 acct, ?3 logged_out (1 or 0)
 export const W_LOGOUT = `UPDATE peers SET logged_out = ?3 WHERE account = ?2 AND id = ?1`;
