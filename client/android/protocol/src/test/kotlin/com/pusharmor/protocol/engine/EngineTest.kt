@@ -375,4 +375,22 @@ class EngineTest {
         assertTrue(x.effects.log.any { it.startsWith("represent:") })
         assertFalse(x.effects.log.contains("invalid"))
     }
+
+    @Test fun cliPeerNotListeningIsSendOnly() {
+        pairShown(); approveBoth(); n.fetch()
+        x.platform = "cli"; x.listening = false
+        // the relay result clears listening and asks for a GET /peers
+        val out = n.send.send(listOf(x.id), ContentType.TEXT, "a", t0)
+        assertEquals(mapOf(x.id to "not listening"), out.results)
+        assertFalse(n.store.peer(x.id)!!.listening)
+        assertTrue(n.effects.log.contains("fetch"))
+        // GET /peers keeps platform "cli" and listening false: out of All
+        n.fetch()
+        assertEquals("cli", n.store.peer(x.id)!!.platform)
+        assertFalse(n.store.peer(x.id)!!.inAll)
+        assertTrue(com.pusharmor.protocol.allSet(n.store.peers()).none { it.id == x.id })
+        x.listening = true
+        n.fetch()
+        assertTrue(n.store.peer(x.id)!!.inAll)
+    }
 }

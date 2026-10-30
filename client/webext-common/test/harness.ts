@@ -110,6 +110,7 @@ interface WRow {
   platform: string;
   created: number;
   logged_out: boolean;
+  listening?: boolean;
   allow: Set<string>;
   deny: Set<string>;
   name: Record<string, string>;
@@ -308,6 +309,7 @@ export class MockWorker {
         platform: r.platform,
         created: r.created,
         logged_out: r.logged_out,
+        ...(r.platform === "cli" ? { listening: r.listening !== false } : {}),
         approves: r.allow.size,
         approved_by: [...this.rows.values()].filter((o) => o.allow.has(r.id)).length,
         approves_me: r.allow.has(me),

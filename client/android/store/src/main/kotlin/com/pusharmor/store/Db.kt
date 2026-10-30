@@ -64,6 +64,7 @@ data class PeerEntity(
     @ColumnInfo(name = "lock_screen") val lockScreen: Boolean = true,
     val watch: Boolean = true,
     @ColumnInfo(name = "hide_content") val hideContent: Boolean = false,
+    @ColumnInfo(defaultValue = "1") val listening: Boolean = true,
 )
 
 @Entity(tableName = "pairing")
@@ -168,7 +169,7 @@ interface PaDao {
 
 @Database(
     entities = [SelfEntity::class, PeerEntity::class, PairingEntity::class, CapEntity::class, ReplayEntity::class, AllowEntity::class, HistoryEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class PaDatabase : RoomDatabase() {
@@ -194,10 +195,17 @@ abstract class PaDatabase : RoomDatabase() {
             }
         }
 
+        /** 3 -> 4: peers.listening ("cli" peers that do not listen are send only). */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE peers ADD COLUMN listening INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
         fun open(context: Context, name: String? = NAME): PaDatabase {
             val b = if (name == null) Room.inMemoryDatabaseBuilder(context, PaDatabase::class.java)
             else Room.databaseBuilder(context, PaDatabase::class.java, name).enableMultiInstanceInvalidation()
-            return b.addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+            return b.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
         }
     }
 }

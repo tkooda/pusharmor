@@ -26,7 +26,7 @@ export function showCounter(bytes: number, cap: number): boolean {
   return bytes * 10 >= cap * 9;
 }
 
-/** A device can take a send now only if it is sendable and not greyed (logged out, unreachable). */
+/** A device can take a send now only if it is sendable and not greyed (logged out, send only, unreachable). */
 export function canReceiveNow(p: { sendable: boolean; greyed: string | null }): boolean {
   return p.sendable && p.greyed === null;
 }

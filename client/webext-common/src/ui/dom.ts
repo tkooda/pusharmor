@@ -116,10 +116,10 @@ export function statusLine(kind: StatusKind, word: string): HTMLElement {
   return el;
 }
 
-const OFF_WORDS: Record<string, string> = { "(missing)": "(missing)", "logged out": "Logged out", unreachable: "Unreachable" };
+const OFF_WORDS: Record<string, string> = { "(missing)": "(missing)", "logged out": "Logged out", "send only": T.sendOnly, unreachable: "Unreachable" };
 
 /**
- * The peer status line by priority (missing, logged out, unreachable, approves,
+ * The peer status line by priority (missing, logged out, send only, unreachable, approves,
  * has not approved), or null when pairing or note lines take its place.
  */
 export function peerStatus(p: PeerView): { kind: StatusKind; word: string } | null {
@@ -128,7 +128,7 @@ export function peerStatus(p: PeerView): { kind: StatusKind; word: string } | nu
   return p.approvesMe ? { kind: "ok", word: "Paired" } : { kind: "wait", word: "Has not approved this device" };
 }
 
-const PLATFORM_LABEL: Record<string, string> = { android: "Android", ios: "iPhone", chrome: "Chrome", firefox: "Firefox" };
+const PLATFORM_LABEL: Record<string, string> = { android: "Android", ios: "iPhone", chrome: "Chrome", firefox: "Firefox", cli: "Command line" };
 export function platformLabel(platform: string): string {
   return PLATFORM_LABEL[platform] ?? platform;
 }

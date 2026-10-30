@@ -147,8 +147,9 @@ private fun label(p: Peer) = p.name ?: "${AppEffects.platformLabel(p.platform)} 
 /** Peers other than self; none until self is known, so the own device never shows as a peer. */
 internal fun others(peers: List<Peer>, selfId: String?): List<Peer> = if (selfId == null) emptyList() else peers.filter { it.id != selfId }
 
-private fun platformIcon(platform: String): ImageVector = when (platform) {
+internal fun platformIcon(platform: String): ImageVector = when (platform) {
     "chrome" -> PaIcons.Laptop
+    "cli" -> PaIcons.Terminal
     "firefox" -> PaIcons.Desktop
     "android", "ios" -> PaIcons.Smartphone
     else -> PaIcons.Devices

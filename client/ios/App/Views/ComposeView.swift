@@ -201,7 +201,7 @@ struct ComposeView: View {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !SizeCap.isOver(text) && hasRecipient
     }
 
-    private func enabled(_ p: Peer) -> Bool { p.approvesMe && !p.missing }
+    private func enabled(_ p: Peer) -> Bool { p.canReceive }
 
     var body: some View {
         List {
@@ -397,6 +397,7 @@ struct ComposeView: View {
         if p.missing { return "(missing)" }
         if p.notPairedOnPeer { return p.declinedByPeer ? S.declinedBy(label) : S.notPairedOn(label) }
         if p.loggedOut { return "Logged out" }
+        if !p.listening { return "Send only" }
         return nil
     }
 

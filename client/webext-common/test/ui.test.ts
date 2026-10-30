@@ -12,6 +12,7 @@ test("peer status line by priority, replaced by pairing and note lines", () => {
   assert.deepEqual(peerStatus(peer({ greyed: "(missing)" })), { kind: "off", word: "(missing)" });
   assert.deepEqual(peerStatus(peer({ greyed: "logged out" })), { kind: "off", word: "Logged out" });
   assert.deepEqual(peerStatus(peer({ greyed: "unreachable" })), { kind: "off", word: "Unreachable" });
+  assert.deepEqual(peerStatus(peer({ greyed: "send only" })), { kind: "off", word: "Send only" });
   assert.deepEqual(peerStatus(peer({})), { kind: "ok", word: "Paired" });
   assert.deepEqual(peerStatus(peer({ approvesMe: false, sendable: false })), { kind: "wait", word: "Has not approved this device" });
   assert.equal(peerStatus(peer({ greyed: "Declined by Phone" })), null); // note line takes its place
@@ -19,6 +20,7 @@ test("peer status line by priority, replaced by pairing and note lines", () => {
   assert.equal(peerStatus(peer({ fingerprint: "K7QD" })), null);
   assert.equal(platformLabel("ios"), "iPhone");
   assert.equal(platformLabel("firefox"), "Firefox");
+  assert.equal(platformLabel("cli"), "Command line");
 });
 
 test("middle ellipsis keeps head and tail with exactly one ...", () => {

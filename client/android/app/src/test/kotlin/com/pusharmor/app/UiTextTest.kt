@@ -17,9 +17,19 @@ class UiTextTest {
     @Test fun statusPriority() {
         assertEquals(Mark.OFF to "(missing)", UiText.status(pinned.copy(missing = true, loggedOut = true, reachable = false)))
         assertEquals(Mark.OFF to "Logged out", UiText.status(pinned.copy(loggedOut = true, reachable = false)))
+        assertEquals(Mark.OFF to "Logged out", UiText.status(pinned.copy(loggedOut = true, listening = false)))
+        assertEquals(Mark.OFF to "Send only", UiText.status(pinned.copy(listening = false, reachable = false)))
         assertEquals(Mark.OFF to "Unreachable", UiText.status(pinned.copy(reachable = false)))
         assertEquals(Mark.OK to "Paired", UiText.status(pinned))
         assertEquals(Mark.WAIT to "Has not approved this device", UiText.status(pinned.copy(approveVerified = false)))
+    }
+
+    @Test fun sendOnlyPeerIsNotInAllNorSelectable() {
+        val ok = pinned.copy(id = "a", listApprovesMe = true, listAfterVerify = true)
+        val cli = ok.copy(id = "c", platform = "cli", listening = false)
+        assertTrue(ok.inAll)
+        assertEquals(listOf("a"), com.pusharmor.protocol.allSet(listOf(ok, cli)).map { it.id })
+        assertEquals(listOf("a"), UiText.sendable(listOf("c", "a"), listOf(ok, cli).filter { it.inAll }.map { it.id }))
     }
 
     @Test fun codeFieldState() {

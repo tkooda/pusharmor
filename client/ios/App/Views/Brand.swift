@@ -36,6 +36,7 @@ func platformSymbol(_ platform: String?) -> String {
     case "android": return "smartphone"
     case "chrome": return "laptopcomputer"
     case "firefox": return "desktopcomputer"
+    case "cli": return "terminal"
     default: return "questionmark.circle"
     }
 }

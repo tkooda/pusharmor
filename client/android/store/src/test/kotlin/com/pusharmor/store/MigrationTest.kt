@@ -51,4 +51,21 @@ class MigrationTest {
             c.moveToNext(); assertEquals("logged_in", c.getString(0))
         }
     }
+
+    @Test fun migrate3To4AddsListeningTrue() {
+        helper.createDatabase("m4.db", 3).apply {
+            execSQL(
+                "INSERT INTO peers (id, platform, created, approved, denied_by_me, approve_verified, approves_me, denies_me, list_after_verify, " +
+                    "declined, reachable, logged_out, logout_n, hidden, name_n, removed, missing, last_n, last_send_at, pair_again, lock_screen, watch, hide_content) " +
+                    "VALUES ('p', 'chrome', 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0)",
+            )
+            close()
+        }
+        val db = helper.runMigrationsAndValidate("m4.db", 4, true, PaDatabase.MIGRATION_3_4)
+        db.query("SELECT platform, listening FROM peers WHERE id = 'p'").use { c ->
+            c.moveToFirst()
+            assertEquals("chrome", c.getString(0))
+            assertEquals(1, c.getInt(1))
+        }
+    }
 }

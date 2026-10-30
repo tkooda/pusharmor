@@ -127,7 +127,7 @@ function menuFor(env: UiEnv, p: PeerView, box: HTMLElement, status: HTMLElement,
 }
 
 function peerRow(env: UiEnv, p: PeerView, status: HTMLElement, redraw: Redraw): HTMLElement {
-  const dim = p.greyed !== null && p.greyed !== "logged out";
+  const dim = p.greyed !== null && p.greyed !== "logged out" && p.greyed !== "send only";
   const row = h("div", { class: "prow peer" + (dim ? " off" : ""), id: "peer-" + p.id, tabindex: "-1" });
   const col = h("div", { class: "txt" });
   const head = h("div", { class: "t1 name" }, p.label + (p.hidden ? " (hidden)" : ""));

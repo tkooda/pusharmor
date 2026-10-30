@@ -238,6 +238,9 @@ enum Schema {
         UPDATE history SET event = 'logged_out' WHERE event = 'paused';
         UPDATE history SET event = 'logged_in' WHERE event = 'resumed';
         """,
+        """
+        ALTER TABLE peers ADD COLUMN listening INTEGER NOT NULL DEFAULT 1;
+        """,
     ]
 
     static func migrate(_ db: DB) throws {
