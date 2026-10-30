@@ -59,4 +59,14 @@ final class SendScreenRulesTests: XCTestCase {
     func testChipAreaIsShorterWithKeyboardUp() {
         XCTAssertLessThan(SendScreenRules.chipAreaMaxHeight(keyboardUp: true), SendScreenRules.chipAreaMaxHeight(keyboardUp: false))
     }
+
+    func testMessageFieldStartsAtFourLinesAndStopsAtTheVisibleArea() {
+        let h = SendScreenRules.messageHeight(lineHeight: 22, visible: 600)
+        XCTAssertEqual(h.min, 104)
+        XCTAssertEqual(h.max, 600 - SendScreenRules.messageChrome)
+        // Keyboard up on a small screen: never below the 4 line start.
+        XCTAssertEqual(SendScreenRules.messageHeight(lineHeight: 22, visible: 120).max, 104)
+        // Before the first layout pass the visible height is 0.
+        XCTAssertEqual(SendScreenRules.messageHeight(lineHeight: 22, visible: 0).max, 104)
+    }
 }
