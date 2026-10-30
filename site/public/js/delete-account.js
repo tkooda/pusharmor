@@ -20,9 +20,17 @@
 
   function show(step) {
     $("prove").hidden = step !== "prove" && step !== "code";
+    $("start").hidden = step !== "prove";
     $("code-form").hidden = step !== "code";
     $("confirm").hidden = step !== "confirm";
     $("done").hidden = step !== "done";
+    var n = step === "confirm" ? 2 : step === "done" ? 3 : 1;
+    var items = $("steps").children;
+    for (var i = 0; i < items.length; i++) {
+      items[i].className = i < n - 1 ? "on done" : i === n - 1 ? "on" : "";
+      if (i === n - 1) items[i].setAttribute("aria-current", "step");
+      else items[i].removeAttribute("aria-current");
+    }
   }
 
   async function restart(text) {
@@ -51,7 +59,7 @@
     e.preventDefault();
     var email = $("email").value.trim();
     if (!PA.isAscii(email)) { say(PA.TEXT.badEmail); return; }
-    if (!tsToken) { say("Wait for the robot check above to finish, then try again"); return; }
+    if (!tsToken) { say("Wait for the check above the button to finish, then try again."); return; }
     var token = tsToken;
     freshTurnstile();
     say("Sending code...");
@@ -59,8 +67,9 @@
       { email: email, sign_pub: key.pub, purpose: PURPOSE, turnstile: token }, null);
     if (r.status === 200 && typeof r.data.request_token === "string") {
       requestToken = r.data.request_token;
+      $("sent-to").textContent = "We sent a 6-character code to " + email + ".";
       show("code");
-      say("Code sent. Enter the 6-character code from the email.");
+      say("");
       $("code").focus();
     } else {
       say(PA.errorText(r));
@@ -80,6 +89,17 @@
     }
   });
 
+  $("other-email").addEventListener("click", function () {
+    $("code").value = "";
+    show("prove");
+    say("");
+    $("email").focus();
+  });
+
+  $("cancel").addEventListener("click", function () {
+    restart("").then(function () { $("google").focus(); });
+  });
+
   function oauth(provider) {
     return async function () {
       await PA.saveKey(sessionStorage, key);
@@ -92,7 +112,7 @@
 
   function signedIn(t, email) {
     ticket = t;
-    $("signed-in").textContent = "Signed in as " + (typeof email === "string" ? email : "");
+    $("signed-in").textContent = typeof email === "string" ? email : "";
     show("confirm");
     say("");
     $("delete").focus();
@@ -106,7 +126,8 @@
       // A retried DELETE after a lost reply sees deleted 0: the first try did the delete.
       $("result").textContent = r.data.deleted === 0 && !r.unsure ? PA.TEXT.noPeers : PA.TEXT.deleted;
       show("done");
-      say("Done.");
+      say("");
+      $("done-h").focus();
     } else if (r.status === 401 && (r.data.error === "ticket expired" || r.data.error === "invalid ticket")) {
       freshTurnstile();
       await restart(PA.TEXT.expired);

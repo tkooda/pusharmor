@@ -133,7 +133,7 @@
     expired: "Sign-in expired, sign in again",
     clock: "This device's clock is off by more than 5 minutes",
     noPeers: "No devices were found under this address",
-    deleted: "Your other devices will show This device was removed and need a new sign-in; pairings are not kept.",
+    deleted: "Your other devices will show \"This device was removed\" and ask for a new sign-in. Pairings are not kept.",
     mailFailed: "Could not send the email, try again",
     network: "Could not reach PushArmor, try again"
   };
