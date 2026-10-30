@@ -42,6 +42,8 @@ class Settings(private val context: Context) {
         val LAST_REFRESH = longPreferencesKey("last_refresh")
         val KS_ERROR_BOOT = longPreferencesKey("ks_error_boot")
         val FLAVOR_NOTICE_SHOWN = booleanPreferencesKey("flavor_notice_shown")
+        /** Device ids ticked on the last send, comma-separated. */
+        val LAST_SEND_TO = stringPreferencesKey("last_send_to")
         val PENDING_EVICT = stringPreferencesKey("pending_evict")
         /** Purpose of an OAuth flow in a Custom Tab ("register" | "unpause" | "delete-account"). */
         val PENDING_PURPOSE = stringPreferencesKey("pending_purpose")

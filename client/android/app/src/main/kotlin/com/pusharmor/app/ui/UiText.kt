@@ -26,6 +26,12 @@ object UiText {
     fun counter(bytes: Int): String =
         if (bytes > SizeCap.MAX_CONTENT_BYTES) "Too long ($bytes / 2048)" else "$bytes / 2048"
 
+    /** Remembered recipient ids ("a,b,c") that can still receive; empty when none, so the default stays. */
+    fun rememberedSelection(remembered: String?, available: List<String>): List<String> {
+        val ids = remembered.orEmpty().split(',').filter { it.isNotEmpty() }.toSet()
+        return available.filter { it in ids }
+    }
+
     /** Send button label for [n] checked peers. */
     fun sendLabel(n: Int): String = when (n) {
         0 -> "Send"
