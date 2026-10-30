@@ -55,7 +55,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: site/.node-version
-      - name: Run the latest worker/v tag's vitest suite on the current migrations
+      - name: Run the latest worker/v tag's vitest suite, plus the seeded-rows test, on the current migrations
         run: |
           # the newest worker/v tag on another commit than HEAD
           head="$(git rev-parse HEAD)"
@@ -72,6 +72,8 @@ jobs:
           git worktree add --detach "$prev" "$tag"
           rm -rf "$prev/server/worker/migrations"
           cp -R server/worker/migrations "$prev/server/worker/migrations"
+          # rows in the current production format, read by the previous Worker (I449)
+          cp server/worker/test/compat-seeded.test.ts "$prev/server/worker/test/"
           cd "$prev/server/worker"
           npm ci --ignore-scripts
           # d1-cost is skipped: a new index can change rows_read
