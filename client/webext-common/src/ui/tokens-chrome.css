@@ -1,32 +1,48 @@
 /* Chrome tokens (copied to the build as tokens.css; style.css uses them). */
 :root {
-  --bg: #FFFFFF; --s1: #F8F9FA; --s2: #F1F3F4; --s3: #E8EAED;
-  --ink: #1F1F1F; --ink2: #5F6368; --line: #E3E3E3; --ctl: #747775;
+  --bg: #E8EAED; --card: #FFFFFF; --s1: #F1F3F4; --s2: #E8EAED; --s3: #DADCE0;
+  --ink: #1F1F1F; --ink2: #5F6368; --line: #CAD2DB; --ctl: #747775;
   --primary: #1F3A5F; --onp: #FFFFFF; --pc: #D9E5F4; --onpc: #0E2238;
-  --success: #157A4A; --err: #B42318; --errc: #FCE8E6; --onerrc: #5F1209;
+  --success: #136C42; --err: #B42318; --errc: #FCE8E6; --onerrc: #5F1209;
   --armor: #1F3A5F;
   --green: #34C77B; --on-green: #0E2238; --cta-edge: #157A4A;
   --beta: #F5B83D; --on-beta: #3A2A00;
   --avbg: #E6EDF6; --avfg: #1F3A5F;
   --hero: #1F3A5F; --hero-line: #1F3A5F; --onhero: #FFFFFF; --onhero2: #C4D3E6; --heroav: #2B4A75;
-  --plate: #EEF3FA; --fpcell: #FFFFFF;
+  --plate: #EEF3FA; --fpcell: #FFFFFF; --signin: #EEF3FA;
   --halo: #E3ECF7; --ring: #D5DEE9; --tile-edge: transparent;
   --g-bg: #FFFFFF; --g-line: #747775; --g-ink: #1F1F1F; --a-bg: #000000; --a-ink: #FFFFFF;
   --rb: 999px; --rc: 12px; --rf: 8px; --ra: 8px; --rp: 16px; --rcell: 10px; --rl: 28px;
   color-scheme: light dark;
 }
+/* Dark: true black page. Follows the system unless the Theme setting says Light;
+   the Theme setting Dark applies it on any system (data-theme, see theme.ts). */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #202124; --s1: #28292C; --s2: #2D2E31; --s3: #3A3B3F;
-    --ink: #E3E3E3; --ink2: #A8ABB0; --line: #3C4043; --ctl: #8E918F;
+  :root:not([data-theme="light"]) {
+    --bg: #000000; --card: #1C1E22; --s1: #24272C; --s2: #2A2E34; --s3: #33373E;
+    --ink: #E3E3E3; --ink2: #A7B3C0; --line: #2C3137; --ctl: #8E918F;
     --primary: #A9C8F0; --onp: #0E2238; --pc: #28466E; --onpc: #D9E5F4;
     --success: #5FD89A; --err: #FF8A80; --errc: #4A1A16; --onerrc: #FFDAD5;
-    --armor: #F4F7FA; --cta-edge: transparent;
-    --avbg: #22354F; --avfg: #A9C8F0;
+    --armor: #F3F6FA; --cta-edge: transparent;
+    --avbg: #1E2C40; --avfg: #A9C8F0;
     --hero: #1B3150; --hero-line: #2B4770; --onhero: #F4F7FA; --onhero2: #B8C8DC; --heroav: #284468;
-    /* plate and cells use the host neutrals in dark (no navy plate on grey) */
-    --plate: #2D2E31; --fpcell: #202124;
+    --plate: #0F1823; --fpcell: #000000; --signin: #000000;
     --halo: #13233A; --ring: #5F6368; --tile-edge: #4A6D9E;
     --g-bg: #131314; --g-line: #8E918F; --g-ink: #E3E3E3; --a-bg: #FFFFFF; --a-ink: #000000;
+    color-scheme: dark;
   }
 }
+:root[data-theme="dark"] {
+  --bg: #000000; --card: #1C1E22; --s1: #24272C; --s2: #2A2E34; --s3: #33373E;
+  --ink: #E3E3E3; --ink2: #A7B3C0; --line: #2C3137; --ctl: #8E918F;
+  --primary: #A9C8F0; --onp: #0E2238; --pc: #28466E; --onpc: #D9E5F4;
+  --success: #5FD89A; --err: #FF8A80; --errc: #4A1A16; --onerrc: #FFDAD5;
+  --armor: #F3F6FA; --cta-edge: transparent;
+  --avbg: #1E2C40; --avfg: #A9C8F0;
+  --hero: #1B3150; --hero-line: #2B4770; --onhero: #F4F7FA; --onhero2: #B8C8DC; --heroav: #284468;
+  --plate: #0F1823; --fpcell: #000000; --signin: #000000;
+  --halo: #13233A; --ring: #5F6368; --tile-edge: #4A6D9E;
+  --g-bg: #131314; --g-line: #8E918F; --g-ink: #E3E3E3; --a-bg: #FFFFFF; --a-ink: #000000;
+  color-scheme: dark;
+}
+:root[data-theme="light"] { color-scheme: light; }

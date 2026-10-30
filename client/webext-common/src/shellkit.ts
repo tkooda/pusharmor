@@ -9,6 +9,7 @@ import type { KV, MenuPeer, Platform } from "./platform.ts";
 import type { Browser, MenuInfo, MessageSender, Tab } from "./shim-types.ts";
 import { Db, openDb } from "./store/db.ts";
 import type { UiEnv } from "./ui/dom.ts";
+import { THEME_KEY } from "./ui/theme.ts";
 
 export const ICON = "icons/icon-128.png";
 
@@ -217,5 +218,14 @@ export function uiEnv(b: Browser): UiEnv {
       await navigator.clipboard.writeText(text);
     },
     beta: b.runtime.getManifest().name === "PushArmor Beta",
+    theme: {
+      get: async () => (await b.storage.local.get([THEME_KEY]))[THEME_KEY],
+      set: (pref) => b.storage.local.set({ [THEME_KEY]: pref }),
+      onChange(cb) {
+        b.storage.onChanged.addListener((ch, area) => {
+          if (area === "local" && THEME_KEY in ch) cb(ch[THEME_KEY]!.newValue);
+        });
+      },
+    },
   };
 }

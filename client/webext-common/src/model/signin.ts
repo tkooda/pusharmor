@@ -3,7 +3,7 @@
 export const SIGNIN_PROGRESS = "signin_progress";
 /** Restore step 2 only while the code still works: Worker REQUEST_TOKEN_LIFE_S 900 s less 60 s. */
 export const RESTORE_MS = 14 * 60_000;
-/** "Resend code" waits this long after a send. */
+/** "Get a new code" waits this long after a send. */
 export const RESEND_MS = 60_000;
 export const FRAME_MIN = 65;
 export const FRAME_MAX = 600;
@@ -48,7 +48,7 @@ export function restoreStep(saved: unknown, now: number, purpose: string, hasReq
   return { step: live ? "code" : "email", email: p.email, note: live ? "restored" : "expired", sentAt: p.sentAt };
 }
 
-/** ms until "Resend code" is enabled again. */
+/** ms until "Get a new code" is enabled again. */
 export function resendLeftMs(sentAt: number, now: number): number {
   return Math.max(0, sentAt + RESEND_MS - now);
 }

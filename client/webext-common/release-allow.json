@@ -1,7 +1,7 @@
 {
   "entries": {
-    "chrome": ["icons/icon-128.png", "icons/icon-16.png", "icons/icon-32.png", "icons/icon-48.png", "manifest.json", "page.html", "page.js", "popup.html", "popup.js", "style.css", "sw.js", "tokens.css"],
-    "firefox": ["background.html", "background.js", "cs.js", "icons/icon-128.png", "icons/icon-16.png", "icons/icon-32.png", "icons/icon-48.png", "manifest.json", "page.html", "page.js", "popup.html", "popup.js", "style.css", "tokens.css"]
+    "chrome": ["icons/icon-128.png", "icons/icon-16.png", "icons/icon-32.png", "icons/icon-48.png", "manifest.json", "page.html", "page.js", "popup.html", "popup.js", "style.css", "sw.js", "theme.js", "tokens.css"],
+    "firefox": ["background.html", "background.js", "cs.js", "icons/icon-128.png", "icons/icon-16.png", "icons/icon-32.png", "icons/icon-48.png", "manifest.json", "page.html", "page.js", "popup.html", "popup.js", "style.css", "theme.js", "tokens.css"]
   },
   "ops": [
     "approve", "authDone", "cancel", "deny", "detect", "emailStart", "emailVerify", "evict", "fingerprintShown",

@@ -31,7 +31,7 @@ h1 { margin: 0 0 8px; font-size: 22px; line-height: 28px; font-weight: 600; colo
 
 /* Section headers and group cards. */
 .sh { font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.7px; text-transform: uppercase; color: var(--ink2); padding: 16px 20px 6px; }
-.grp { margin: 0 16px; border: 1px solid var(--line); border-radius: var(--rc); background: var(--bg); overflow: hidden; }
+.grp { margin: 0 16px; border: 1px solid var(--line); border-radius: var(--rc); background: var(--card); overflow: hidden; }
 .grp > * + * { border-top: 1px solid var(--line); }
 .grp:empty { display: none; }
 
@@ -55,7 +55,7 @@ button.ib { width: 32px; height: 32px; padding: 0; color: var(--ink2); border-ra
 .btns { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px 0; }
 
 /* Fields. */
-input, textarea, select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--ctl); border-radius: var(--rf); }
+input, textarea, select { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--ctl); border-radius: var(--rf); }
 input, select { height: 36px; padding: 0 12px; }
 select { height: 32px; padding: 0 8px; }
 textarea { display: block; width: calc(100% - 32px); margin: 12px 16px 0; border-radius: var(--rc); padding: 10px 12px; font-size: 14px; line-height: 20px; resize: none; }
@@ -88,13 +88,13 @@ label.srow { cursor: pointer; }
 
 /* Overflow menu. */
 .more { position: relative; }
-.menu { position: absolute; right: 0; top: 34px; z-index: 4; min-width: 140px; padding: 4px 0; background: var(--bg); border: 1px solid var(--line); border-radius: var(--rf); display: flex; flex-direction: column; }
+.menu { position: absolute; right: 0; top: 34px; z-index: 4; min-width: 140px; padding: 4px 0; background: var(--card); border: 1px solid var(--line); border-radius: var(--rf); display: flex; flex-direction: column; }
 .menu button { border: 0; border-radius: 0; height: 32px; justify-content: flex-start; color: var(--ink); font-weight: 400; padding: 0 14px; }
 .menu button:focus-visible { outline-offset: -2px; }
 
 /* This device hero. */
 .own.hero { --hav: #FFFFFF; margin: 0 16px; border-radius: var(--rc); background: var(--hero); border: 1px solid var(--hero-line); position: relative; overflow: hidden; display: flex; align-items: center; gap: 12px; padding: 12px 8px 12px 14px; min-height: 60px; }
-.own.hero.plain { --hero: var(--bg); --hero-line: var(--line); --onhero: var(--ink); --onhero2: var(--ink2); --heroav: var(--avbg); --hav: var(--avfg); }
+.own.hero.plain { --hero: var(--card); --hero-line: var(--line); --onhero: var(--ink); --onhero2: var(--ink2); --heroav: var(--avbg); --hav: var(--avfg); }
 .own .hav { width: 36px; height: 36px; border-radius: var(--ra); background: var(--heroav); color: var(--hav); display: grid; place-items: center; flex: none; }
 .own .txt { flex: 1; position: relative; }
 .own .t1 { color: var(--onhero); }
@@ -107,7 +107,7 @@ label.srow { cursor: pointer; }
 .own.editing button { color: var(--onhero); border-color: var(--onhero2); }
 
 /* Pairing card. */
-.pair { margin: 12px 16px 4px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--rc); padding: 14px 14px 4px; }
+.pair { margin: 12px 16px 4px; background: var(--card); border: 1px solid var(--line); border-radius: var(--rc); padding: 14px 14px 4px; }
 .pair-head { display: flex; align-items: center; gap: 12px; }
 .pair-head .txt { flex: 1; }
 .pair-title { font-size: 15px; line-height: 20px; font-weight: 500; }
@@ -141,16 +141,28 @@ body.page .foot { position: static; }
 .illo .i-disc { fill: var(--halo); stroke: var(--ring); stroke-width: 1.5; }
 .illo .i-fill { fill: var(--halo); }
 .illo .i-orbit { fill: none; stroke: var(--ring); stroke-width: 1.5; stroke-dasharray: 3 7; stroke-linecap: round; }
-.illo .i-sat, .illo .i-card { fill: var(--bg); stroke: var(--ring); stroke-width: 1.5; }
+.illo .i-sat, .illo .i-card { fill: var(--card); stroke: var(--ring); stroke-width: 1.5; }
 .illo .i-glyph { fill: var(--avfg); }
 .illo .i-chip { fill: var(--avbg); }
 .illo .i-bar { fill: var(--s3); }
 
 /* Send view. */
-.meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 16px 10px; }
-.badge { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px 0 6px; border-radius: var(--rf); background: var(--avbg); color: var(--avfg); font-size: 11px; font-weight: 500; letter-spacing: 0.4px; text-transform: uppercase; }
-.counter { font-size: 12px; line-height: 16px; color: var(--ink2); }
-.counter.red { color: var(--err); }
+.meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 18px 4px; min-height: 26px; }
+.caption { display: inline-flex; align-items: center; gap: 6px; min-height: 16px; font-size: 12px; line-height: 16px; color: var(--ink2); }
+.caption svg { flex: none; }
+.astext { display: flex; align-items: center; gap: 10px; padding: 2px 16px 0 18px; min-height: 28px; font-size: 13px; color: var(--ink2); cursor: pointer; }
+.astext[hidden] { display: none; }
+.dchips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px; }
+.chip.dchip { height: 30px; padding: 0 12px 0 8px; gap: 6px; background: var(--card); border-color: var(--ctl); color: var(--ink); font-size: 13px; font-weight: 500; }
+.chip.dchip:hover { background: var(--s1); }
+.dchip .nm { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.dchip .pi, .dchip .ck { display: inline-flex; color: var(--ink2); }
+.dchip .ck, .dchip.on .pi { display: none; }
+.dchip.on .ck { display: inline-flex; color: var(--onpc); }
+.chip.dchip.on, .chip.dchip.on:hover { background: var(--pc); border-color: var(--pc); color: var(--onpc); }
+.dchip.off { opacity: 0.5; }
+.dchip.greyed { cursor: default; }
+.counter { font-size: 12px; line-height: 16px; color: var(--err); }
 .cut { padding: 0 16px 10px; }
 
 /* History. */
@@ -175,7 +187,7 @@ body.page .foot { position: static; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); margin-top: 22px; }
 .hrow .acts { display: none; margin-top: 8px; }
 .hrow.sel .acts, .hrow:focus-within .acts { display: flex; }
-button.ac { height: 28px; padding: 0 10px 0 8px; gap: 5px; font-size: 12px; color: var(--ink); background: var(--bg); }
+button.ac { height: 28px; padding: 0 10px 0 8px; gap: 5px; font-size: 12px; color: var(--ink); background: var(--card); }
 button.ac svg { color: var(--primary); }
 
 /* Not-registered popup: welcome card (sizes scoped here, other views keep their density). */
@@ -193,10 +205,10 @@ button.ac svg { color: var(--primary); }
 
 /* Full tab: sign-in card on the plate, one step at a time. */
 .banner { font-weight: 600; margin: 8px 0; }
-body.page.signin-bg { background: var(--plate); }
+body.page.signin-bg { background: var(--signin); }
 body.page.signin-bg #app { max-width: none; padding: 32px 16px; }
 .login { display: flex; flex-direction: column; align-items: center; font-size: 16px; line-height: 24px; }
-.l-card { position: relative; width: 100%; max-width: 448px; padding: 32px 40px 36px; border-radius: var(--rl); background: var(--bg); }
+.l-card { position: relative; width: 100%; max-width: 448px; padding: 32px 40px 36px; border-radius: var(--rl); background: var(--card); border: 1px solid var(--line); }
 .l-brand { display: flex; justify-content: center; margin-bottom: 20px; }
 .login .step { display: flex; flex-direction: column; }
 .login .step[hidden] { display: none; }
@@ -221,7 +233,7 @@ button.google:hover, button.apple:hover { filter: brightness(0.97); }
 .code-form { margin-top: 24px; }
 .field { position: relative; }
 .login .field input { display: block; width: 100%; height: 56px; padding: 0 16px; font-size: 18px; color: var(--ink); }
-.field label { position: absolute; left: 12px; top: 28px; transform: translateY(-50%); padding: 0 4px; background: var(--bg); color: var(--ink2); font-size: 18px; line-height: 24px; pointer-events: none; transition: top 0.15s, font-size 0.15s; }
+.field label { position: absolute; left: 12px; top: 28px; transform: translateY(-50%); padding: 0 4px; background: var(--card); color: var(--ink2); font-size: 18px; line-height: 24px; pointer-events: none; transition: top 0.15s, font-size 0.15s; }
 .field input:focus + label, .field input:not(:placeholder-shown) + label { top: 0; font-size: 14px; line-height: 16px; }
 .field input:focus + label { color: var(--primary); }
 .field.bad input, .field.bad input:focus { border-color: var(--err); box-shadow: inset 0 0 0 1px var(--err); }
@@ -233,10 +245,13 @@ button.google:hover, button.apple:hover { filter: brightness(0.97); }
 .help.bad { color: var(--err); }
 .help svg { flex: none; margin-top: 1px; }
 .ts-frame { display: block; width: 100%; min-width: 300px; height: 80px; margin-top: 16px; border: 0; color-scheme: light dark; }
+/* The security check follows the Theme setting too (an iframe takes its scheme from this element). */
+:root[data-theme="light"] .ts-frame { color-scheme: light; }
+:root[data-theme="dark"] .ts-frame { color-scheme: dark; }
 .email-form button.primary, .code-form button.primary { margin-top: 20px; }
-.who { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; height: 36px; margin-top: 16px; padding: 0 14px 0 5px; border: 1px solid var(--line); border-radius: var(--rb); font-size: 15px; font-weight: 500; }
-.who .addr { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.who .ava { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--avbg); color: var(--avfg); display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+.login .who { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; height: 36px; margin-top: 16px; padding: 0 14px 0 5px; border: 1px solid var(--line); border-radius: var(--rb); font-size: 15px; font-weight: 500; }
+.login .who .addr { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.login .who .ava { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--avbg); color: var(--avfg); display: grid; place-items: center; font-size: 13px; font-weight: 700; }
 .center { display: flex; justify-content: center; }
 .links { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px; margin: 8px -8px 0; }
 .login button.text { border: 0; padding: 0 8px; font-size: 15px; }
@@ -251,6 +266,19 @@ button.google:hover, button.apple:hover { filter: brightness(0.97); }
 @media (max-width: 480px) {
   body.page.signin-bg #app { padding: 24px 12px; }
   .l-card { padding: 24px 16px; }
+}
+/* Short windows (a 1280x800 screen): tighter spacing keeps the encryption line in view. */
+@media (min-width: 481px) and (max-height: 900px) {
+  body.page.signin-bg #app { padding: 12px 16px; }
+  .l-card { padding: 20px 40px 24px; }
+  .l-brand { margin-bottom: 8px; }
+  .notes { margin-top: 12px; }
+  .note { padding: 10px 16px; }
+  .oauth { margin-top: 16px; }
+  .or { margin: 12px 0; }
+  .ts-frame { margin-top: 12px; }
+  .email-form button.primary { margin-top: 16px; }
+  .login > .e2e { margin-top: 12px; }
 }
 .lead { margin-bottom: 12px; }
 body.page #app > h1, body.page #app > .lead, body.page #app > .banner { padding: 0 16px; }

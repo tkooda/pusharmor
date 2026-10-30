@@ -126,6 +126,7 @@ async function shell(name, entries, iife, target, manifestFix) {
   };
   await build({ ...common, entryPoints: entries.map((e) => join(root, "src", e + ".ts")), outdir: out, format: "esm" });
   for (const [outName, src] of iife) await build({ ...common, entryPoints: { [outName]: join(root, "src", src + ".ts") }, outdir: out, format: "iife" });
+  await build({ ...common, entryPoints: { theme: join(here, "src", "ui", "themeboot.ts") }, outdir: out, format: "iife" });
   if (shots && name === "chrome") {
     await build({ ...common, entryPoints: { shots: join(here, "src", "shots", "shots.ts") }, outdir: out, format: "esm" });
     writeFileSync(join(out, "shots.html"), readFileSync(join(here, "src", "shots", "shots.html")));
