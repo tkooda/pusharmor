@@ -71,10 +71,10 @@ final class ScreenshotTests: XCTestCase {
         XCTFail("the sample notification banner was not on screen in 3 attempts")
     }
 
-    /// Review images (not store shots): the sign-in screen, Settings, and the Sign out confirm.
+    /// Review images (not store shots): the sign-in screen, Settings, and the Log out confirm.
     func testCaptureReviewScreenshots() {
         var app = launch(["-PAScreenshotsSignIn"])
-        XCTAssertTrue(labelled(app, "Sign in with Google").waitForExistence(timeout: 30))
+        XCTAssertTrue(labelled(app, "Continue with Google").waitForExistence(timeout: 30))
         sleep(1)
         shot("90-signin")
         app.terminate()
@@ -83,14 +83,14 @@ final class ScreenshotTests: XCTestCase {
         let tab = app.tabBars.buttons["Settings"]
         XCTAssertTrue(tab.waitForExistence(timeout: 30))
         tab.tap()
-        let signOut = app.buttons["Sign out"]
+        let signOut = app.buttons["Log out"]
         // the list is lazy: the button exists only once scrolled near
         for _ in 0..<10 where !(signOut.exists && signOut.isHittable) { app.swipeUp() }
         XCTAssertTrue(signOut.isHittable)
         sleep(1)
         shot("91-settings")
         signOut.tap()
-        XCTAssertTrue(labelled(app, "Sign out of this device?").waitForExistence(timeout: 10))
+        XCTAssertTrue(labelled(app, "Log out of this device?").waitForExistence(timeout: 10))
         sleep(1)
         shot("92-signout-confirm")
     }

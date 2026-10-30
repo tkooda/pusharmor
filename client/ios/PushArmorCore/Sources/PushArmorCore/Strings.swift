@@ -19,11 +19,11 @@ public enum S {
     public static func approved(_ name: String) -> String { "\(name) approved this device" }
     public static func renamed(_ old: String, _ new: String) -> String { "'\(old)' renamed to '\(new)'" }
     public static let peerListChanged = "Device list changed"
-    public static let thisDeviceRemoved = "This device was removed. Sign in again"
+    public static let thisDeviceRemoved = "This device was removed. Log in again"
     public static let accountDeleted = "Account deleted on another device"
     public static func denied(_ name: String) -> String { "\(name) denied this device" }
-    public static func loggedOutNotice(_ name: String) -> String { "\(name) paused receiving" }
-    public static func loggedInNotice(_ name: String) -> String { "\(name) resumed receiving" }
+    public static func loggedOutNotice(_ name: String) -> String { "\(name) logged out" }
+    public static func loggedInNotice(_ name: String) -> String { "\(name) logged in" }
     public static func newMessageFrom(_ peer: String) -> String { "New message from \(peer)" }
     public static let pairingFailed = "Pairing failed. Start again on the new device."
     public static let pairingTimedOut = "Pairing timed out. Tap Pair to start again."
@@ -34,21 +34,21 @@ public enum S {
     public static func declinedBy(_ x: String) -> String { "Declined by \(x)" }
     public static func pairingFingerprint(_ fp: String) -> String { "Pairing fingerprint \(fp)" }
     public static func removeConfirm(_ x: String) -> String {
-        "Remove \(x) from this account? \(x) must sign in again and pair with every device again."
+        "Remove \(x) from this account? \(x) must log in again and pair with every device again."
     }
     public static func sentTo(_ n: Int, _ m: Int) -> String { "Sent to \(n) of \(m) devices" }
     /// History line for a message that reached its one recipient (F22).
     public static func sentToOne(_ x: String) -> String { "Sent to \"\(x)\"" }
     public static func notDelivered(_ x: String) -> String { "Not delivered to \(x): open PushArmor on it" }
-    public static func signedOutPeer(_ x: String) -> String { "\(x) is signed out" }
+    public static func signedOutPeer(_ x: String) -> String { "\(x) is logged out" }
     public static let emailSendFailed = "could not send the email, try again"
     public static let clockOff = "This device's clock is off by more than 5 minutes"
     public static let badEmail = "Only email addresses with plain ASCII characters are supported."
-    public static let signInExpired = "Sign-in expired, sign in again"
-    public static let signedOutResume = "Signed out. Sign in to resume"
+    public static let signInExpired = "Login expired, log in again"
+    public static let signedOutResume = "Logged out. Log in to resume"
     public static let notificationsOff = "Notifications are off. This device cannot receive"
-    public static func signedInAs(_ email: String) -> String { "Signed in as \(email)" }
-    public static let relayHelp = "To sign in on another device, use this address. Find it in iOS Settings > Apple ID > Sign in with Apple, or at appleid.apple.com > Hide My Email."
+    public static func signedInAs(_ email: String) -> String { "Logged in as \(email)" }
+    public static let relayHelp = "To log in on another device, use this address. Find it in iOS Settings > Apple ID > Sign in with Apple, or at appleid.apple.com > Hide My Email."
     public static func receivedWhileLocked(_ n: Int) -> String { "\(n) messages received while locked" }
     public static let thisPhoneOldInstall = "(this phone, old install)"
     public static let tooLongShare = "Send the first 2048 bytes"
@@ -60,7 +60,7 @@ public enum S {
     public static let newPeerWantsToPair = "A new device wants to pair."
     public static func timesOutIn(_ t: String) -> String { "Times out in \(t)" }
     public static let sameAccount = "Use the same account on every device you want to pair."
-    public static let noPeersBody = "Install PushArmor on your other devices and sign in with the same account. They show up here, ready to pair."
+    public static let noPeersBody = "Install PushArmor on your other devices and log in with the same account. They show up here, ready to pair."
     public static let noMessagesBody = "Everything you send or receive shows up here."
 }
 

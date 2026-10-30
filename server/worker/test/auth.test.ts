@@ -44,9 +44,9 @@ async function startEmail(email: string, purpose = "register", extra: Record<str
 }
 
 describe("mailText subject per purpose", () => {
-  it("sign-in, resume and account deletion subjects", () => {
-    expect(mailText("register", "X").subject).toBe("your PushArmor sign-in code");
-    expect(mailText("login", "X").subject).toBe("your PushArmor resume code");
+  it("login, log in again and account deletion subjects", () => {
+    expect(mailText("register", "X").subject).toBe("your PushArmor login code");
+    expect(mailText("login", "X").subject).toBe("your PushArmor code to log in again");
     expect(mailText("delete-account", "X").subject).toBe("your PushArmor account deletion code");
   });
 });
@@ -64,7 +64,7 @@ describe("POST /auth/email + verify", () => {
     expect(mail.ConfigurationSetName).toBe("test-config-set");
     const code = await deriveCode(S.PA_CODE_SECRET, token);
     expect(mail.Content.Simple.Body.Text.Data).toContain(code);
-    expect(mail.Content.Simple.Subject.Data).toBe("your PushArmor sign-in code");
+    expect(mail.Content.Simple.Subject.Data).toBe("your PushArmor login code");
     expect(mail.Content.Simple.Body.Text.Data).toContain("Nothing happens unless this code is entered within 15 minutes. If you did not request it, ignore this email.");
     const ts = vendorRequests("challenges.cloudflare.com");
     expect(new URLSearchParams(new TextDecoder().decode(ts[0].body)).get("response")).toBe("turnstile-token");
@@ -187,7 +187,7 @@ describe("POST /auth/email + verify", () => {
     expect((await call("POST", "/v1/auth/email/verify", { request_token: tok, code }, { env: e })).status).toBe(429);
   });
 
-  it("RL_CODE_ALL is per purpose: a spent sign-in cap does not block a resume code for the same email (I408)", async () => {
+  it("RL_CODE_ALL is per purpose: a spent register cap does not block a login code for the same email (I408)", async () => {
     const email = randomEmail();
     const all = countingLimit(2);
     const e = await testEnv({ RL_CODE_ALL: all });
@@ -199,7 +199,7 @@ describe("POST /auth/email + verify", () => {
     const tokB = secretString(b.r.body.request_token as string);
     const code = await deriveCode(S.PA_CODE_SECRET, tokB);
     expect((await call("POST", "/v1/auth/email/verify", { request_token: tokB, code }, { env: e })).status).toBe(200);
-    // the cap still bites per purpose: the sign-in token stays refused, even with its correct code
+    // the cap still bites per purpose: the register token stays refused, even with its correct code
     expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: await deriveCode(S.PA_CODE_SECRET, tokA) }, { env: e })).status).toBe(429);
   });
 });

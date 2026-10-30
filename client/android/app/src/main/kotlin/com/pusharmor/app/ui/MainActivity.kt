@@ -152,7 +152,7 @@ private fun App(vm: AppViewModel) {
         }
         Session.Start.KEYS_UNAVAILABLE -> {
             BlockingState(PaIcons.Info, Session.KEYS_UNAVAILABLE, Modifier.safeDrawingPadding()) {
-                GreenButton(onClick = { vm.io { vm.g.session.selfRemoved(deleted = false, lostKeys = true); vm.boot() } }, text = "Sign in again", icon = null)
+                GreenButton(onClick = { vm.io { vm.g.session.selfRemoved(deleted = false, lostKeys = true); vm.boot() } }, text = "Log in again", icon = null)
             }
             return
         }

@@ -471,7 +471,7 @@ test("FAQ texts (I258, I264, I272, WEB6-04) and fixed lines", () => {
   assert.ok(text("security.html").includes("A notification is only a prompt: if one looks wrong, open PushArmor and read the message there."));
   assert.ok(sup.includes("On Android, each paired device has its own notification channel, so you can set sound and importance per device in the system settings."));
   assert.ok(!sup.includes("Only email addresses with plain ASCII characters are supported."));
-  assert.ok(sup.includes("No email sign-in code arrived?"));
+  assert.ok(sup.includes("No email login code arrived?"));
   const sec = text("security.html");
   assert.ok(read("security.html").includes('<th scope="col">Cannot see</th>'));
   assert.ok(!sec.includes("Does not see"));
@@ -486,7 +486,7 @@ test("FAQ texts (I258, I264, I272, WEB6-04) and fixed lines", () => {
     assert.ok(del.includes(s), "delete-account lacks: " + s);
   }
   for (const s of ["one-way code", "keyed hash", "ban flag", "vendors", "4 weeks", "No login"]) assert.ok(!del.includes(s), "delete-account jargon: " + s);
-  assert.ok(text("auth/done.html").includes("Returning to PushArmor... If this tab stays open, the add-on did not receive the sign-in: check it is enabled, then retry"));
+  assert.ok(text("auth/done.html").includes("Returning to PushArmor... If this tab stays open, the add-on did not receive the login: check it is enabled, then retry"));
 });
 
 test("every page footer links the public source repository", () => {
@@ -602,7 +602,7 @@ test("every page embedding /turnstile is named in the privacy text", () => {
   const pages = htmlFiles.filter((f) => /<iframe[^>]*src="\/turnstile[#"]/.test(read(f)));
   assert.ok(pages.includes("delete-account.html"));
   const p = text("privacy.html");
-  assert.ok(p.includes("Cloudflare's bot check (Turnstile) runs on the email sign-in page and on the delete-account page only"));
+  assert.ok(p.includes("Cloudflare's bot check (Turnstile) runs on the email login page and on the delete-account page only"));
   for (const f of pages) {
     const name = f.replace(/\.html$/, "");
     if (name === "delete-account") continue;
@@ -612,7 +612,7 @@ test("every page embedding /turnstile is named in the privacy text", () => {
 
 test("delete-account init: a hash without ticket= is cleared with a retry message", () => {
   const js = read("js/delete-account.js");
-  assert.ok(/h\.length > 1\) \{\s*history\.replaceState\(null, "", location\.pathname\);\s*await restart\("Sign-in did not finish/.test(js));
+  assert.ok(/h\.length > 1\) \{\s*history\.replaceState\(null, "", location\.pathname\);\s*await restart\("Login did not finish/.test(js));
 });
 
 test("delete-account init: an OAuth #error=<word> hash is handled by the generic hash branch (I306)", () => {
@@ -620,5 +620,5 @@ test("delete-account init: an OAuth #error=<word> hash is handled by the generic
   // The ticket branch is keyed on "ticket="; any other non-empty hash (#error=cancelled, #error=failed) is cleared with the retry text.
   assert.ok(js.indexOf('h.indexOf("ticket=") >= 0') < js.indexOf("h.length > 1"));
   assert.ok(!/ticket=/.test(js.slice(js.indexOf("h.length > 1"), js.indexOf('await restart("");'))));
-  assert.ok(js.includes('"Sign-in did not finish. Try again."'));
+  assert.ok(js.includes('"Login did not finish. Try again."'));
 });

@@ -43,7 +43,7 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
 
 const E2E = "All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.";
 const CODE_HELP = "Paste or type the code. Spaces and dashes are fine.";
-const ENDS_FLOW = ["Sign-in expired, sign in again", "This code has expired. Get a new code to continue."];
+const ENDS_FLOW = ["Login expired, log in again", "This code has expired. Get a new code to continue."];
 
 /** One message listener per page (a hash change mounts the view again). */
 let onFrameMessage: ((ev: MessageEvent) => void) | null = null;
@@ -184,21 +184,21 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       resetNotes(note("err", "error", (e as Error).message));
     }
   };
-  const title = purpose === "delete-account" ? "Delete account" : purpose === "login" ? T.signedOut : "Sign in";
+  const title = purpose === "delete-account" ? "Delete account" : purpose === "login" ? T.signedOut : "Log in";
   const step1 = h(
     "div",
     { class: "step" },
     h("p", { class: "step-n" }, "Step 1 of 2"),
     h("h1", {}, title),
-    h("p", { class: "sub" }, purpose === "delete-account" ? "Sign in to the account you want to delete." : "Use the same account on every device you want to pair."),
+    h("p", { class: "sub" }, purpose === "delete-account" ? "Log in to the account you want to delete." : "Use the same account on every device you want to pair."),
     resetNotes(),
     h(
       "div",
       { class: "oauth" },
-      h("button", { type: "button", class: "big google", onclick: oauth("google") }, googleLogo(), "Sign in with Google"),
-      h("button", { type: "button", class: "big apple", onclick: oauth("apple") }, appleLogo(), "Sign in with Apple"),
+      h("button", { type: "button", class: "big google", onclick: oauth("google") }, googleLogo(), "Continue with Google"),
+      h("button", { type: "button", class: "big apple", onclick: oauth("apple") }, appleLogo(), "Continue with Apple"),
     ),
-    h("div", { class: "or" }, "or sign in with email"),
+    h("div", { class: "or" }, "or"),
     h(
       "form",
       {
@@ -225,7 +225,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   describe(code, codeHelp, "code-help");
   const chip = h("span", { class: "who" });
   const s2notes = h("div", { class: "notes" });
-  const signBtn = h("button", { type: "submit", class: "primary big" }, "Sign in") as HTMLButtonElement;
+  const signBtn = h("button", { type: "submit", class: "primary big" }, "Log in") as HTMLButtonElement;
   const resend = h("button", { type: "button", class: "text" }, "Get a new code") as HTMLButtonElement;
   let sentAt = 0;
   let tick = 0;
@@ -348,7 +348,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     if (r.done) {
       clearTimeout(tick);
       const deleted = purpose === "delete-account";
-      const heading = h("h1", { tabindex: "-1" }, deleted ? "Account deleted" : "You are signed in");
+      const heading = h("h1", { tabindex: "-1" }, deleted ? "Account deleted" : "You are logged in");
       clear(card).append(
         h("div", { class: "l-brand" }, wordmark(env, 24)),
         h(
@@ -362,7 +362,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       );
       heading.focus(); // the old controls are gone: read the result
     } else if (ff) {
-      resetNotes(note("", "info", "Finish signing in in the new tab."));
+      resetNotes(note("", "info", "Finish logging in in the new tab."));
     }
   };
 
@@ -396,7 +396,7 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
   for (const p of peers) {
     const box = h("input", { type: "checkbox" }) as HTMLInputElement; // nothing pre-ticked
     boxes.push({ id: p.id, box });
-    const flags = [p.reachable ? "" : "unreachable", p.logged_out ? "signed out" : ""].filter(Boolean).join(", ");
+    const flags = [p.reachable ? "" : "unreachable", p.logged_out ? "logged out" : ""].filter(Boolean).join(", ");
     list.append(
       h(
         "label",
@@ -418,12 +418,12 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
           const evict = boxes.filter((b) => b.box.checked).map((b) => b.id);
           try {
             const r = await rpc<LoginResult>(env, "evict", { ticket, evict });
-            if (r.done) clear(root).append(h("div", { class: "banner", role: "status", tabindex: "-1" }, "Signed in. You can close this tab."));
+            if (r.done) clear(root).append(h("div", { class: "banner", role: "status", tabindex: "-1" }, "Logged in. You can close this tab."));
             if (r.done) root.querySelector<HTMLElement>(".banner")?.focus();
             else if (r.limit) limitView(env, root, r.limit, r.ticket ?? ticket);
           } catch (e) {
             status.textContent = (e as Error).message;
-            if (status.textContent === "Sign-in expired, sign in again") env.openPage("#login");
+            if (status.textContent === "Login expired, log in again") env.openPage("#login");
           }
         },
       }, "Remove and continue"),

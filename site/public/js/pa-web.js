@@ -130,10 +130,10 @@
 
   var TEXT = {
     badEmail: "Only email addresses with plain ASCII characters are supported.",
-    expired: "Sign-in expired, sign in again",
+    expired: "Login expired, log in again",
     clock: "This device's clock is off by more than 5 minutes",
     noPeers: "No devices were found under this address",
-    deleted: "Your other devices will show \"This device was removed\" and ask for a new sign-in. Pairings are not kept.",
+    deleted: "Your other devices will show \"This device was removed\" and ask for a new login. Pairings are not kept.",
     mailFailed: "Could not send the email, try again",
     network: "Could not reach PushArmor, try again"
   };

@@ -51,7 +51,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
         { class: "empty peers-empty" },
         devicesArt(160),
         h("div", { class: "e-title" }, "No devices yet"),
-        h("p", {}, "Install PushArmor on your other devices and sign in with the same account. They show up here, ready to pair."),
+        h("p", {}, "Install PushArmor on your other devices and log in with the same account. They show up here, ready to pair."),
       ),
     );
   }
@@ -127,7 +127,7 @@ function menuFor(env: UiEnv, p: PeerView, box: HTMLElement, status: HTMLElement,
 }
 
 function peerRow(env: UiEnv, p: PeerView, status: HTMLElement, redraw: Redraw): HTMLElement {
-  const dim = p.greyed !== null && p.greyed !== "signed out";
+  const dim = p.greyed !== null && p.greyed !== "logged out";
   const row = h("div", { class: "prow peer" + (dim ? " off" : ""), id: "peer-" + p.id, tabindex: "-1" });
   const col = h("div", { class: "txt" });
   const head = h("div", { class: "t1 name" }, p.label + (p.hidden ? " (hidden)" : ""));

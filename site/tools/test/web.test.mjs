@@ -144,13 +144,13 @@ test("second clock skew stops with the clock text", async () => {
   assert.equal(PA.errorText(r), "This device's clock is off by more than 5 minutes");
 });
 
-test("expired or invalid ticket -> Sign-in expired, sign in again (WEB6-01)", async () => {
+test("expired or invalid ticket -> Login expired, log in again (WEB6-01)", async () => {
   const key = await PA.newKey();
   for (const e of ["ticket expired", "invalid ticket"]) {
     const api = fakeApi([{ status: 401, body: { error: e } }]);
     const r = await api.client.deleteAccount(key, "T");
     assert.equal(api.calls.length, 1);
-    assert.equal(PA.errorText(r), "Sign-in expired, sign in again");
+    assert.equal(PA.errorText(r), "Login expired, log in again");
   }
 });
 

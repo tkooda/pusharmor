@@ -62,7 +62,7 @@ struct RootView: View {
             VStack(spacing: 20) {
                 Text(S.thisDeviceRemoved)
                     .multilineTextAlignment(.center)
-                Button("Sign in") { model.phase = .signIn(.register) }
+                Button("Log in") { model.phase = .signIn(.register) }
                     .buttonStyle(.borderedProminent)
             }
             .padding(24)

@@ -34,7 +34,7 @@ test("Send view: byte counter shows from 90 percent of the cap", () => {
 test("Send view: greyed devices cannot receive now", () => {
   assert.equal(canReceiveNow({ sendable: true, greyed: null }), true);
   assert.equal(canReceiveNow({ sendable: true, greyed: "unreachable" }), false);
-  assert.equal(canReceiveNow({ sendable: true, greyed: "signed out" }), false);
+  assert.equal(canReceiveNow({ sendable: true, greyed: "logged out" }), false);
   assert.equal(canReceiveNow({ sendable: false, greyed: null }), false);
 });
 

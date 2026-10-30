@@ -16,7 +16,7 @@ class UiTextTest {
 
     @Test fun statusPriority() {
         assertEquals(Mark.OFF to "(missing)", UiText.status(pinned.copy(missing = true, loggedOut = true, reachable = false)))
-        assertEquals(Mark.OFF to "Signed out", UiText.status(pinned.copy(loggedOut = true, reachable = false)))
+        assertEquals(Mark.OFF to "Logged out", UiText.status(pinned.copy(loggedOut = true, reachable = false)))
         assertEquals(Mark.OFF to "Unreachable", UiText.status(pinned.copy(reachable = false)))
         assertEquals(Mark.OK to "Paired", UiText.status(pinned))
         assertEquals(Mark.WAIT to "Has not approved this device", UiText.status(pinned.copy(approveVerified = false)))

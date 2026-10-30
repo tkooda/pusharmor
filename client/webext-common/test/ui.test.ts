@@ -10,7 +10,7 @@ const peer = (o: Partial<PeerView>): PeerView => ({
 
 test("peer status line by priority, replaced by pairing and note lines", () => {
   assert.deepEqual(peerStatus(peer({ greyed: "(missing)" })), { kind: "off", word: "(missing)" });
-  assert.deepEqual(peerStatus(peer({ greyed: "signed out" })), { kind: "off", word: "Signed out" });
+  assert.deepEqual(peerStatus(peer({ greyed: "logged out" })), { kind: "off", word: "Logged out" });
   assert.deepEqual(peerStatus(peer({ greyed: "unreachable" })), { kind: "off", word: "Unreachable" });
   assert.deepEqual(peerStatus(peer({})), { kind: "ok", word: "Paired" });
   assert.deepEqual(peerStatus(peer({ approvesMe: false, sendable: false })), { kind: "wait", word: "Has not approved this device" });

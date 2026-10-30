@@ -231,7 +231,7 @@ fun PeersScreen(vm: AppViewModel) {
                 } else if (pairing.isEmpty()) {
                     item(key = "empty") {
                         EmptyState({ DevicesIllustration() }, "No devices yet",
-                            "Install PushArmor on your other devices and sign in with the same account. They show up here, ready to pair.", top = 52.dp) {
+                            "Install PushArmor on your other devices and log in with the same account. They show up here, ready to pair.", top = 52.dp) {
                             FilledTonalButton(onClick = { vm.refresh() }, enabled = canRefresh) {
                                 Icon(PaIcons.Refresh, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Refresh")
                             }
@@ -245,7 +245,7 @@ fun PeersScreen(vm: AppViewModel) {
     confirmRemove?.let { p ->
         val x = label(p)
         AlertDialog(onDismissRequest = { confirmRemove = null },
-            text = { Text("Remove $x from this account? $x must sign in again and pair with every device again.") },
+            text = { Text("Remove $x from this account? $x must log in again and pair with every device again.") },
             confirmButton = { TextButton(onClick = { vm.remove(p.id); confirmRemove = null }) { Text("Remove") } },
             dismissButton = { TextButton(onClick = { confirmRemove = null }) { Text("Cancel") } })
     }
@@ -772,8 +772,8 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
         "unreadable" -> "PushArmor received a message it could not read" + if (h.count > 1) " (${h.count})" else ""
         "invalid" -> "Invalid message received" + if (h.count > 1) " (${h.count})" else ""
         "denied" -> "Denied this device"
-        "logged_out" -> "Paused receiving"
-        "logged_in" -> "Resumed receiving"
+        "logged_out" -> "Logged out"
+        "logged_in" -> "Logged in"
         else -> h.content.orEmpty()
     }
     val weight = if (unread) FontWeight.Medium else FontWeight.Normal
@@ -933,14 +933,14 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             SectionHeader("Account")
             me?.email?.let { email ->
                 GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
-                    SettingRow("Signed in as $email", modifier = m,
+                    SettingRow("Logged in as $email", modifier = m,
                         sub = if (email.endsWith("@privaterelay.appleid.com")) "iOS Settings > Apple ID > Sign in with Apple, and appleid.apple.com > Hide My Email, list the address to use on another device." else null,
                         onClick = null)
                 })
             }
             Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(onClick = { vm.signOut(onSignedOut) }, Modifier.heightIn(min = 48.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, cs.outline)) { Text("Sign out") }
+                    border = androidx.compose.foundation.BorderStroke(1.dp, cs.outline)) { Text("Log out") }
                 OutlinedButton(onClick = onDeleteAccount, Modifier.heightIn(min = 48.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, cs.error),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = cs.error)) { Text("Delete account") }

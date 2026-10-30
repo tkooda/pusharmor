@@ -35,7 +35,7 @@ final class ShareModel: ObservableObject {
     func load() async {
         let env = AppEnvironment.shared
         guard let store = try? env.openStore(), let keys = try? env.keychain.load(), (try? store.me().id) != nil else {
-            step = .failed("Open PushArmor and sign in first.")
+            step = .failed("Open PushArmor and log in first.")
             return
         }
         core = env.makeCore(store: store, keys: keys)

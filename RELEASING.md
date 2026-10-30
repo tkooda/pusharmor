@@ -228,7 +228,7 @@ Test: install the Beta XPI from the prerelease link once. Auto-update: copy the
 updates.json asset to `site/public/fx/beta/updates.json` in a site commit (the
 Beta manifest's update_url is `https://pusharmor.com/fx/beta/updates.json`,
 `release/constants.json`). Do not install the public add-on and the Beta add-on
-in the same Firefox profile: both handle the sign-in page.
+in the same Firefox profile: both handle the login page.
 
 Promote:
 

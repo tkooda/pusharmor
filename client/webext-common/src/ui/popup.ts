@@ -31,7 +31,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   clear(root);
   if (st.reg !== "registered") {
     const going = (await rpc<Restore | null>(env, "signinProgress").catch(() => null))?.step === "code";
-    const head = going ? "Check your email for your code" : st.reg === "logged_out" ? T.signedOut : st.banner ?? "Sign in to use PushArmor";
+    const head = going ? "Check your email for your code" : st.reg === "logged_out" ? T.signedOut : st.banner ?? "Log in to use PushArmor";
     add(
       root,
       h(
@@ -47,7 +47,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
             await env.openPage("#login");
             window.close();
           },
-        }, going ? "Continue signing in" : "Sign in"),
+        }, going ? "Continue logging in" : "Log in"),
         h("div", { class: "opens" }, icon("open", 16), "Opens in a new tab"),
         h("p", { class: "e2e" }, icon("lock", 20), h("span", {}, "All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.")),
         st.platform === "firefox" && st.receiveNote ? h("div", { class: "dim" }, st.receiveNote) : null,
@@ -401,7 +401,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promi
             status.textContent = (e as Error).message;
           }
         },
-      }, "Sign out"),
+      }, "Log out"),
       h("button", { class: "danger", onclick: () => env.openPage("#login=delete-account") }, "Delete account"),
     ),
     status,

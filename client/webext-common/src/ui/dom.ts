@@ -115,10 +115,10 @@ export function statusLine(kind: StatusKind, word: string): HTMLElement {
   return el;
 }
 
-const OFF_WORDS: Record<string, string> = { "(missing)": "(missing)", "signed out": "Signed out", unreachable: "Unreachable" };
+const OFF_WORDS: Record<string, string> = { "(missing)": "(missing)", "logged out": "Logged out", unreachable: "Unreachable" };
 
 /**
- * The peer status line by priority (missing, signed out, unreachable, approves,
+ * The peer status line by priority (missing, logged out, unreachable, approves,
  * has not approved), or null when pairing or note lines take its place.
  */
 export function peerStatus(p: PeerView): { kind: StatusKind; word: string } | null {

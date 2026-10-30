@@ -153,7 +153,7 @@
     }
     if (h.length > 1) {
       history.replaceState(null, "", location.pathname);
-      await restart("Sign-in did not finish. Try again.");
+      await restart("Login did not finish. Try again.");
       return;
     }
     await restart("");

@@ -23,7 +23,7 @@ struct LimitPickerView: View {
                                     Text("unreachable").font(.caption).foregroundColor(.warningText)
                                 }
                                 if e.loggedOut {
-                                    Text("signed out").font(.caption).foregroundColor(.warningText)
+                                    Text("logged out").font(.caption).foregroundColor(.warningText)
                                 }
                             }
                         }

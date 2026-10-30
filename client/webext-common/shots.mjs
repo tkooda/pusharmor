@@ -17,7 +17,7 @@ const SHOTS = [
   ["02-peers-fingerprint", "peers"],
   ["03-history-received-link", "history"],
 ];
-// --review=<dir>: also write review images (sign-in, Settings, Sign out) there; not store shots.
+// --review=<dir>: also write review images (sign-in, Settings, Log out) there; not store shots.
 const REVIEW = [
   ["90-signin", "signin.html#email"],
   ["91-settings", "shots.html#settings"],

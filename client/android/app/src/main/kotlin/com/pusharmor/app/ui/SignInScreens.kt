@@ -113,8 +113,8 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onDone
                 style = MaterialTheme.typography.bodyLarge, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
             val status = when {
                 banner != null -> null
-                purpose == "login" -> "Signed out. Sign in to resume"
-                purpose == "delete-account" -> "Sign in to confirm deleting the account"
+                purpose == "login" -> "Logged out. Log in to resume"
+                purpose == "delete-account" -> "Log in to confirm deleting the account"
                 else -> null
             }
             banner?.let { Spacer(Modifier.height(12.dp)); Text(it, color = cs.error, textAlign = TextAlign.Center) }
@@ -131,16 +131,16 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onDone
                 }
             }, Modifier.fillMaxWidth().heightIn(min = 48.dp), border = BorderStroke(1.dp, g.second),
                 colors = ButtonDefaults.outlinedButtonColors(containerColor = g.first, contentColor = g.third)) {
-                Icon(PaIcons.GoogleG, null, Modifier.size(20.dp), tint = Color.Unspecified); Spacer(Modifier.width(10.dp)); Text("Sign in with Google")
+                Icon(PaIcons.GoogleG, null, Modifier.size(20.dp), tint = Color.Unspecified); Spacer(Modifier.width(10.dp)); Text("Continue with Google")
             }
             val a = if (x.dark) Color.White to Color.Black else Color.Black to Color.White
             Button(onClick = { customTab(context, vm.oauthUrl("apple", purpose)) }, Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = a.first, contentColor = a.second)) {
-                Icon(PaIcons.Apple, null, Modifier.size(18.dp)); Spacer(Modifier.width(10.dp)); Text("Sign in with Apple")
+                Icon(PaIcons.Apple, null, Modifier.size(18.dp)); Spacer(Modifier.width(10.dp)); Text("Continue with Apple")
             }
             OutlinedButton(onClick = onEmail, Modifier.fillMaxWidth().heightIn(min = 48.dp), border = BorderStroke(1.dp, cs.outline),
                 colors = ButtonDefaults.outlinedButtonColors(containerColor = x.tile)) {
-                Icon(PaIcons.Mail, null, Modifier.size(18.dp)); Spacer(Modifier.width(10.dp)); Text("Sign in with email")
+                Icon(PaIcons.Mail, null, Modifier.size(18.dp)); Spacer(Modifier.width(10.dp)); Text("Email me a code")
             }
             Text("Use the same account on every device you want to pair.", Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
@@ -165,7 +165,7 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onDo
     val scope = rememberCoroutineScope()
     val msg by vm.message.collectAsState()
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        PaTopBar("Sign in with email", navigationIcon = { IconButton(onClick = onBack) { Icon(PaIcons.ArrowBack, "Back") } })
+        PaTopBar("Log in with email", navigationIcon = { IconButton(onClick = onBack) { Icon(PaIcons.ArrowBack, "Back") } })
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (stage) {
                 0 -> {
@@ -283,7 +283,7 @@ fun LimitScreen(vm: AppViewModel, onDone: () -> Unit) {
                     leadingContent = { Checkbox(on, null) },
                     headlineContent = { Text("${AppEffects.platformLabel(p.platform)}, added ${AppEffects.dateLabel(p.created)}") },
                     supportingContent = {
-                        Text("approves ${p.approves}, approved by ${p.approvedBy}" + (if (!p.reachable) ", unreachable" else "") + (if (p.loggedOut) ", signed out" else ""))
+                        Text("approves ${p.approves}, approved by ${p.approvedBy}" + (if (!p.reachable) ", unreachable" else "") + (if (p.loggedOut) ", logged out" else ""))
                     },
                 )
             }
@@ -292,7 +292,7 @@ fun LimitScreen(vm: AppViewModel, onDone: () -> Unit) {
         Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
             verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { vm.cancelLimit() }) { Text("Cancel") }
-            GreenButton(onClick = { vm.evict(ticked.toList(), onDone) }, text = "Remove and sign in", icon = null, enabled = ticked.isNotEmpty())
+            GreenButton(onClick = { vm.evict(ticked.toList(), onDone) }, text = "Remove and log in", icon = null, enabled = ticked.isNotEmpty())
         }
     }
 }

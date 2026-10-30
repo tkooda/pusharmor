@@ -31,15 +31,15 @@ const ENDING = "Nothing happens unless this code is entered within 15 minutes. I
 export function mailText(purpose: Purpose, code: string): { subject: string; text: string } {
   const what =
     purpose === "register"
-      ? "Your PushArmor sign-in code is"
+      ? "Your PushArmor login code is"
       : purpose === "login"
-        ? "Your PushArmor code to resume receiving is"
+        ? "Your PushArmor code to log in again is"
         : "Your PushArmor code to delete your account is";
   const subject =
     purpose === "register"
-      ? "your PushArmor sign-in code"
+      ? "your PushArmor login code"
       : purpose === "login"
-        ? "your PushArmor resume code"
+        ? "your PushArmor code to log in again"
         : "your PushArmor account deletion code";
   return { subject, text: `${what}:\n\n${code}\n\n${ENDING}\n` };
 }
@@ -90,8 +90,8 @@ export async function verify(c: Ctx): Promise<Response> {
   // Per request token, so wrong guesses on one token cannot lock out a later token for the same email;
   // codeall: is the looser cap over every token of one email. It is checked before the code, so a
   // correct guess cannot pass once the cap is spent; the limit binding has no read-only check, so
-  // this also charges the one correct guess of a sign-in. Keyed per purpose, so guesses on sign-in
-  // tokens cannot lock out a resume or delete code for the same email (I408).
+  // this also charges the one correct guess of a register code. Keyed per purpose, so guesses on register
+  // tokens cannot lock out a login or delete code for the same email (I408).
   await enforce(c.env, "RL_CODE", "code:" + rt.e + ":" + b.request_token.slice(b.request_token.lastIndexOf(".") + 1), c.log);
   await enforce(c.env, "RL_CODE_ALL", "codeall:" + purpose + ":" + rt.e, c.log);
   if (!(await checkCode(c.env.PA_CODE_SECRET, b.request_token, b.code))) throw new ApiError(401, "wrong code");

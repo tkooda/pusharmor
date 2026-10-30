@@ -222,7 +222,7 @@ export class Rpc {
         v.actions = ["pair_again", "cancel"];
       } else if (p.ruling === "approved" && p.approves_me) {
         v.sendable = !p.logged_out && !p.hidden;
-        if (p.logged_out) v.greyed = "signed out";
+        if (p.logged_out) v.greyed = "logged out";
         else if (!p.reachable) v.greyed = "unreachable";
       }
       v.actions.push("remove", p.hidden ? "unhide" : "hide");

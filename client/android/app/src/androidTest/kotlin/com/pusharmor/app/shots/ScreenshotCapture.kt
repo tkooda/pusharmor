@@ -223,16 +223,16 @@ class ScreenshotCapture {
 
         // Review images (9N, not store shots): Settings, the sign-in screens. Sign out has no confirm
         // dialog here: the button signs out at once, so 92 sets the signed-out flag it sets.
-        main("settings", await = "Sign out")
+        main("settings", await = "Log out")
         repeat(10) { shellOut("input swipe 540 1500 540 300 300"); inst.waitForIdleSync() }
         settle(1000)
         shot("91-settings")
         g.settings.set(Settings.K.SIGNED_OUT, true)
-        main(await = "Sign in with Google")
+        main(await = "Continue with Google")
         shot("92-signed-out")
         g.settings.set(Settings.K.SIGNED_OUT, false)
         g.store.wipeRegistration()
-        main(await = "Sign in with Google")
+        main(await = "Continue with Google")
         shot("90-signin")
     }
 }
