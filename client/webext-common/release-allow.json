@@ -7,6 +7,6 @@
     "approve", "authDone", "cancel", "deny", "detect", "emailStart", "emailVerify", "evict", "fingerprintShown",
     "fx-msg", "fx-sub", "greyedTap", "hide", "history", "historyDeleteAll", "historyOpened", "historyRead",
     "localDelete", "loginPurpose", "oauth", "pair", "peers", "popupOpen", "refresh", "remove", "rename", "reply",
-    "send", "sendAgain", "settings", "signout", "state"
+    "send", "sendAgain", "sendSel", "sendSelSet", "settings", "signout", "state"
   ]
 }

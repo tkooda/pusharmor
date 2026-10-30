@@ -1,6 +1,7 @@
 // Runtime messages {op, args} from the UI pages to the background engine
 // (component-webext section 3: UI pages never touch keys or counters).
 import { formatCountdown, PAIRING_TIMEOUT_MS } from "../model/countdown.ts";
+import { SEND_SEL_KEY } from "../model/sendsel.ts";
 import { detectType } from "../model/detect.ts";
 import { utf8Len } from "../model/padding.ts";
 import type { HistoryRow, PeerRow } from "../store/db.ts";
@@ -98,6 +99,11 @@ export class Rpc {
       case "historyDeleteAll":
         await e.db.clear(["history"]);
         await e.updateBadge();
+        return null;
+      case "sendSel":
+        return ((await e.p.storageLocal.get([SEND_SEL_KEY]))[SEND_SEL_KEY] as string[] | undefined) ?? [];
+      case "sendSelSet":
+        await e.p.storageLocal.set({ [SEND_SEL_KEY]: Array.isArray(a.ids) ? (a.ids as unknown[]).map(String) : [] });
         return null;
       case "detect":
         return { type: detectType(s("text")), bytes: utf8Len(s("text")) };
