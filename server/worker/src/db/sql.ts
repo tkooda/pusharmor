@@ -1,4 +1,6 @@
-// Every SQL statement of the Worker (component design section 6). P(n) is the JSON path
+// Every SQL statement of the Worker (component design section 6). Each user statement is
+// scoped to one account (run on dbFor(env, acct), src/db/shard.ts); only the cron purge,
+// pending expiry and the vendor_health counters span accounts. Keep it that way. P(n) is the JSON path
 // for one id: '$."' || ?n || '"'. Ids are validated b64url, so they cannot leave the path.
 const P = (n: number) => `'$."' || ?${n} || '"'`;
 
