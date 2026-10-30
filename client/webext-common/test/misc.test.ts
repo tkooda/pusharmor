@@ -58,6 +58,7 @@ test("fx/fwd catch: only the SW fetch, body concatenated, over 3800 bytes droppe
   assert.deepEqual(readForward({ ...base, tabId: 3 }), { m: null, cancel: false });
   assert.deepEqual(readForward({ ...base, type: "main_frame" }), { m: null, cancel: false });
   assert.deepEqual(readForward({ ...base, originUrl: "https://evil.example/" }), { m: null, cancel: false });
+  assert.deepEqual(readForward({ ...base, originUrl: undefined, requestBody: { raw: [raw("AB")] } }), { m: null, cancel: false }); // no origin: not the site SW
   assert.deepEqual(readForward({ ...base, requestBody: { raw: [raw("A".repeat(3801))] } }), { m: null, cancel: true });
 });
 

@@ -6,12 +6,12 @@ export const FWD_MAX = 3800;
 
 /**
  * Returns the forwarded M when the request is the site SW fetch (tabId -1,
- * type xmlhttprequest, origin under https://pusharmor.com/fx/ when known), or
+ * type xmlhttprequest, origin under https://pusharmor.com/fx/ required), or
  * null to let the page see the normal 404. tooLarge: cancel without delivery.
  */
 export function readForward(d: WebRequestDetails): { m: string | null; cancel: boolean } {
   if (d.tabId !== -1 || d.type !== "xmlhttprequest" || d.method !== "POST") return { m: null, cancel: false };
-  if (d.originUrl !== undefined && !d.originUrl.startsWith("https://pusharmor.com/fx/")) return { m: null, cancel: false };
+  if (d.originUrl === undefined || !d.originUrl.startsWith("https://pusharmor.com/fx/")) return { m: null, cancel: false };
   const parts = d.requestBody?.raw ?? [];
   let total = 0;
   for (const p of parts) total += p.bytes ? p.bytes.byteLength : 0;
