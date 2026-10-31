@@ -138,4 +138,22 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertFalse(app.buttons["Cancel"].exists)
         XCTAssertTrue(app.buttons["Delete account"].exists)
     }
+
+    /// I569: scrolled to the end, the last About row sits above the tab bar, not under it.
+    func testAboutEndsAboveTheTabBar() {
+        let app = launch()
+        let tab = app.tabBars.buttons["Settings"]
+        XCTAssertTrue(tab.waitForExistence(timeout: 30))
+        tab.tap()
+        let last = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Privacy policy")).firstMatch
+        // the list is lazy: the row exists only once scrolled near; then swipe on to the end
+        for _ in 0..<10 where !(last.exists && last.isHittable) { app.swipeUp() }
+        app.swipeUp()
+        app.swipeUp()
+        sleep(1)
+        XCTAssertTrue(last.isHittable)
+        let bar = app.tabBars.firstMatch
+        XCTAssertTrue(bar.exists)
+        XCTAssertLessThanOrEqual(last.frame.maxY, bar.frame.minY)
+    }
 }
