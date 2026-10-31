@@ -42,12 +42,14 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   if (my !== mounts) return;
   if (st.updateRequired) {
     clear(root).append(updateCard(env));
+    root.querySelector<HTMLElement>("button.primary")?.focus(); // I495: start on the one action
     return;
   }
   if (st.reg !== "registered") {
     const going = (await rpc<Restore | null>(env, "signinProgress").catch(() => null))?.step === "code";
     if (my !== mounts) return;
     clear(root).append(signinCard(env, st, going, false));
+    root.querySelector<HTMLElement>("button.primary")?.focus(); // I495
     return;
   }
   // Q338: no paired device yet: one screen in place of Send, History, and Devices

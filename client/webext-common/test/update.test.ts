@@ -34,6 +34,9 @@ class N {
     this.on[k] = f;
   }
   focus() {}
+  querySelector() {
+    return null;
+  }
   get classList() {
     return { toggle() {} };
   }

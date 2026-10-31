@@ -367,3 +367,10 @@ test("Send with every device greyed says no device can receive now (I494)", asyn
   const { readFileSync } = await import("node:fs");
   assert.match(readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8"), /!sendable\.length && chips\.childElementCount \? h\("p", \{ class: "dim nosend" \}, "No device can receive messages right now\."\)/);
 });
+
+test("popup update and log in screens start with focus on their button (I495)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  assert.match(pop, /append\(updateCard\(env\)\);\s*root\.querySelector<HTMLElement>\("button\.primary"\)\?\.focus\(\);/);
+  assert.match(pop, /append\(signinCard\(env, st, going, false\)\);\s*root\.querySelector<HTMLElement>\("button\.primary"\)\?\.focus\(\);/);
+});
