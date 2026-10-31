@@ -155,6 +155,10 @@ internal fun platformIcon(platform: String): ImageVector = when (platform) {
     else -> PaIcons.Devices
 }
 
+/** Send scrolls when the area above Send cannot hold the chips, the caption rows, and a field of [fieldMinPx]. */
+internal fun sendScrolls(areaPx: Int, chipsPx: Int, extrasPx: Int, fieldMinPx: Int): Boolean =
+    areaPx > 0 && areaPx < chipsPx + extrasPx + fieldMinPx
+
 /** Scroll the Peers list to the top when a pairing card is added, unless a highlight scroll is still due. */
 internal fun pairingScrollTop(before: Int, after: Int, aiming: Boolean): Boolean = !aiming && after > before
 
@@ -603,18 +607,23 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     var chipsPx by remember { mutableIntStateOf(0) }
     var extrasPx by remember { mutableIntStateOf(0) }
     // 2 text lines + 16 dp padding above and below them + 8 dp for the label on the border (+ 16 dp top padding without a title).
-    val twoLinesPx = with(LocalDensity.current) {
-        (MaterialTheme.typography.bodyLarge.lineHeight * 2).roundToPx() + (if (title == null) 56.dp else 40.dp).roundToPx()
-    }
+    val density = LocalDensity.current
+    val lineHeight = MaterialTheme.typography.bodyLarge.lineHeight
+    val linesPx = { n: Int -> with(density) { (lineHeight * n).roundToPx() + (if (title == null) 56.dp else 40.dp).roundToPx() } }
+    val twoLinesPx = linesPx(2)
     val extras = UiText.sendExtrasShown(keyboardUp, areaPx, chipsPx, extrasPx, twoLinesPx)
+    // Landscape or a large font: when the field cannot keep 4 lines (2 with the keyboard up) above the chips,
+    // the page scrolls instead, so the field stays usable and every chip can be reached (I520).
+    val scrolls = sendScrolls(areaPx, chipsPx, if (extras) extrasPx else 0, if (keyboardUp) twoLinesPx else linesPx(4))
     Box(Modifier.fillMaxSize().imePadding()) {
         Column(Modifier.fillMaxSize()) {
             title?.let { PaTopBar(it) }
-            // The page never scrolls: chips and Send keep their space, and the field gets what is left.
-            Column(Modifier.weight(1f).fillMaxWidth().onSizeChanged { areaPx = it.height }) {
+            // Chips and Send keep their space, and the field gets what is left; when that is too little, the page scrolls.
+            Column(Modifier.weight(1f).fillMaxWidth().onSizeChanged { areaPx = it.height }
+                .then(if (scrolls) Modifier.verticalScroll(rememberScrollState()) else Modifier)) {
                 // The field starts at 4 lines and grows with its text up to the free space, then scrolls inside;
                 // with the keyboard up it shrinks first, to 2 lines while the chips still fit.
-                OutlinedTextField(text, { text = it }, modifier = Modifier.rowPad.fillMaxWidth().weight(1f, fill = false)
+                OutlinedTextField(text, { text = it }, modifier = Modifier.rowPad.fillMaxWidth().then(if (scrolls) Modifier else Modifier.weight(1f, fill = false))
                     .padding(top = if (title == null) 16.dp else 0.dp), minLines = 4, label = { Text("Message") },
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = ex.tile, unfocusedContainerColor = ex.tile,
