@@ -266,7 +266,7 @@ final class GoldenTests: XCTestCase {
                                    hasHistory: { _, n in hist.contains(n) })
     }
 
-    func checkMessageCase(_ c: J) throws {
+    func checkMessageCase(_ c: J, reseal: Bool = true) throws {
         let name = str(c["name"])
         let me = pid(str(c["receiver"]))
         let plain = try decryptor(str(c["receiver"])).hpkeOpen(wire: b(c["message"]), info: InnerMessage.info, aad: Bytes.ascii(me.text))
@@ -294,6 +294,7 @@ final class GoldenTests: XCTestCase {
         case .deny, .delete, .logout, .login: XCTAssertEqual(i64(e["value"]), 1, name)
         }
         XCTAssertEqual(r.windowAfter?.h, max(u64((c["window"] as! J)["h"]), j.n))
+        guard reseal else { return }
         // our sealer: a fresh seal of the same json lands in the same bucket and opens the same way
         let x = peer(str(c["from"]))
         let signer = SoftwareSigner(key: try P256.Signing.PrivateKey(rawRepresentation: b(x["sign_priv"])))
@@ -312,6 +313,31 @@ final class GoldenTests: XCTestCase {
         for c in cs {
             try checkMessageCase(c)
             XCTAssertEqual(str(c["message"]).count, Int(i64(c["wire_chars"])))
+        }
+    }
+
+    // MARK: must_decode (Q327: lenient receivers)
+
+    func testMustDecode() throws {
+        let md = section("must_decode")
+        let ms = md["messages"] as! [J]
+        XCTAssertFalse(ms.isEmpty)
+        // the json carries unknown keys, so a reseal of the parsed message is not byte-comparable
+        for c in ms { try checkMessageCase(c, reseal: false) }
+        let es = md["name_entries"] as! [J]
+        XCTAssertFalse(es.isEmpty)
+        for c in es {
+            let name = str(c["name"]), e = c["expect"] as! J
+            let pin = pinState(c["pin"])!
+            let me = pid(str(c["receiver"]))
+            let raw = try decryptor(str(c["receiver"])).hpkeOpen(wire: b(c["ciphertext"]), info: NameEntry.info,
+                                                                  aad: Bytes.ascii(me.text))
+            XCTAssertEqual(String(decoding: raw, as: UTF8.self), str(c["entry_json"]), name)
+            let v = NameEntry.openVerified(str(c["ciphertext"]), me: me, key: decryptor(str(c["receiver"])),
+                                           owner: pid(str(c["owner"])), ownerSignPub: pin.signPub, pairingId: pin.pairingId)
+            XCTAssertEqual(e["ok"] as? Bool, true, name)
+            XCTAssertEqual(v?.name, str(e["name"]), name)
+            XCTAssertEqual(v?.n, u64(e["n"]), name)
         }
     }
 
