@@ -63,7 +63,7 @@ enum SendScreenRules {
     static func chipAreaMaxHeight(keyboardUp: Bool) -> CGFloat { keyboardUp ? 118 : 320 }
 
     /// Space the message list spends on rows and margins besides the message field itself
-    /// (top margin, row padding, caption line, "Send as text" row, bottom margin).
+    /// (top margin, row padding, caption line with "Send as text", bottom margin).
     static let messageChrome: CGFloat = 150
 
     /// Message field height bounds (F20). It starts 4 text lines tall (plus the editor's
@@ -209,12 +209,6 @@ struct ComposeView: View {
             HomeBanners()
             Section {
                 messageCard
-                if !text.isEmpty && detected != .text {
-                    Toggle("Send as text", isOn: $asText)
-                        .font(.subheadline)
-                        .foregroundColor(.secondaryText)
-                        .tint(.brandGreen)
-                }
             }
         }
         .contentMargins(.bottom, 12, for: .scrollContent)
@@ -275,6 +269,14 @@ struct ComposeView: View {
                         Text(counter)
                             .font(.footnote)
                             .foregroundColor(.errorText)
+                    }
+                    // I617: on the hint row, at the far right
+                    if detected != .text {
+                        Toggle("Send as text", isOn: $asText)
+                            .font(.footnote)
+                            .foregroundColor(.secondaryText)
+                            .tint(.brandGreen)
+                            .fixedSize()
                     }
                 }
             }
