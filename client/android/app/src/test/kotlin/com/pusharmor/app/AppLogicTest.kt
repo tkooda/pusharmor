@@ -302,7 +302,8 @@ class AppLogicTest {
     }
 
     @Test fun largeFontAndLandscapeLayout() {
-        assertTrue(source("ui/MainActivity.kt").contains("label = { Text(l, maxLines = 1, softWrap = false"))
+        val act = source("ui/MainActivity.kt")
+        assertTrue(act.contains("label = { NavLabel(l) }") && act.contains("Text(text, maxLines = 1, softWrap = false"))
         val main = source("ui/MainScreens.kt")
         val hist = main.substring(main.indexOf("fun HistoryScreen("))
         assertTrue(hist.substring(0, hist.indexOf("\"No messages yet\"")).contains("verticalScroll(rememberScrollState())"))
