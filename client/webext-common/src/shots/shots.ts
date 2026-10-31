@@ -99,7 +99,8 @@ function reply(req: Req): unknown {
       state.reg = "logged_out";
       return null;
     case "send":
-      throw new Error("Could not reach the relay server. Check your connection and try again.");
+      if (q.has("senderr")) throw new Error("Could not reach the relay server. Check your connection and try again.");
+      return { sent: 2, total: 2, failures: [] };
     case "sendSel":
       return sendSel;
     case "detect":
@@ -149,6 +150,19 @@ async function main(): Promise<void> {
   if (open !== "send") (document.querySelector('[data-tab="' + open + '"]') as HTMLElement | null)?.click();
   if (q.has("senderr")) {
     document.querySelector<HTMLElement>(".send-foot button.primary")?.click();
+    await new Promise((done) => setTimeout(done, 300));
+  }
+  // ?sendok: Send succeeds (the message at the bottom); late, so the 2 s message is still up for the screenshot
+  if (q.has("sendok")) {
+    await new Promise((done) => setTimeout(done, 1700));
+    document.querySelector<HTMLElement>(".send-foot button.primary")?.click();
+    await new Promise((done) => setTimeout(done, 300));
+  }
+  // ?confirm: the Remove confirm of the first device (from its overflow menu)
+  if (q.has("confirm")) {
+    await new Promise((done) => setTimeout(done, 500));
+    document.querySelector<HTMLElement>(".prow .more button")?.click();
+    [...document.querySelectorAll<HTMLElement>("[role=menuitem]")].find((b) => b.textContent === "Remove")?.click();
     await new Promise((done) => setTimeout(done, 300));
   }
   // ?open: the newest History row is opened (its actions show)
