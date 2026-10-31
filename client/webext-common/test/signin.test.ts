@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { RESEND_MS, RESTORE_MS, clampFrameHeight, readProgress, resendLeftMs, restoreStep } from "../src/model/signin.ts";
+import { AUTH_RESULT_MS, RESEND_MS, RESTORE_MS, clampFrameHeight, readAuthResult, readProgress, resendLeftMs, restoreStep } from "../src/model/signin.ts";
 
 const T0 = 1_800_000_000_000;
 const code = (o: Record<string, unknown> = {}) => ({ v: 1, step: "code", email: "sam@example.com", purpose: "register", sentAt: T0, ...o });
@@ -50,4 +50,14 @@ test("Turnstile frame height is clamped to 65..600; junk is ignored", () => {
   assert.equal(clampFrameHeight(Number.POSITIVE_INFINITY), null);
   assert.equal(clampFrameHeight("120"), null);
   assert.equal(clampFrameHeight(undefined), null);
+});
+
+test("login result from the background: well formed and recent only (I456)", () => {
+  assert.deepEqual(readAuthResult({ done: true, at: T0 }, T0 + 1000), { done: true, at: T0 });
+  assert.deepEqual(readAuthResult({ done: false, limit: { peers: [] }, ticket: "t", at: T0 }, T0), { done: false, limit: { peers: [] }, ticket: "t", at: T0 });
+  assert.equal(readAuthResult({ done: false, error: "Login expired, log in again", at: T0 }, T0)?.error, "Login expired, log in again");
+  assert.equal(readAuthResult({ done: true, at: T0 }, T0 + AUTH_RESULT_MS + 1), null);
+  assert.equal(readAuthResult({ done: true, at: T0 + 1 }, T0), null);
+  assert.equal(readAuthResult({ done: "yes", at: T0 }, T0), null);
+  assert.equal(readAuthResult(undefined, T0), null);
 });
