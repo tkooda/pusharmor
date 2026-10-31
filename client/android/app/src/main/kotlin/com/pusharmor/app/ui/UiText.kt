@@ -16,6 +16,8 @@ object UiText {
 
     /** Settings > Log out asks first; the buttons are "Log out" and "Cancel". */
     const val LOGOUT_CONFIRM = "Log out of this device? Keys, paired devices, names, and history stay on this device."
+    /** Same words as iOS: Delete account asks first and says what follows (I477). */
+    const val DELETE_CONFIRM = "Delete this account? You must log in again to confirm. This cannot be undone."
 
     /** Peer status line by priority: missing, signed out, send only, unreachable, approves, has not approved. */
     fun status(p: Peer): Pair<Mark, String> = when {
