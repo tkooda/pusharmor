@@ -4,7 +4,7 @@ import type { LoginResult, Purpose } from "../core/login.ts";
 import type { StateView } from "../core/rpc.ts";
 import { T } from "../core/texts.ts";
 import { type UiEnv, add, clear, failView, group, h, rpc } from "./dom.ts";
-import { clampFrameHeight, type Restore, resendLeftMs } from "../model/signin.ts";
+import { AUTH_RESULT, clampFrameHeight, readAuthResult, type Restore, resendLeftMs } from "../model/signin.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
 import { startTheme } from "./theme.ts";
@@ -22,6 +22,8 @@ export async function mountPage(env: UiEnv, root: HTMLElement, hash: string, sel
 
 async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigin: string): Promise<void> {
   await startTheme(env.theme);
+  stopAuthWatch?.();
+  stopAuthWatch = null;
   clear(root);
   const [route, arg] = hash.replace(/^#/, "").split("=");
   document.body.classList.toggle("signin-bg", route === "login");
@@ -47,6 +49,8 @@ const ENDS_FLOW = ["Login expired, log in again", "This code has expired. Get a 
 
 /** One message listener per page (a hash change mounts the view again). */
 let onFrameMessage: ((ev: MessageEvent) => void) | null = null;
+/** Stops the storage.session watch of the previous login view. */
+let stopAuthWatch: (() => void) | null = null;
 
 /** Outlined field with a floating label (the label floats while the field has text or focus). */
 function field(input: HTMLInputElement, label: string, extra = ""): HTMLElement {
@@ -367,6 +371,19 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   };
 
   add(root, h("div", { class: "login" }, card, h("p", { class: "e2e" }, icon("lock", 20), h("span", {}, E2E))));
+  // Firefox: Google or Apple finishes in the background (authDone), which leaves the result in storage.session.
+  const session = env.session;
+  if (ff && session) {
+    const take = async (v: unknown) => {
+      const r = readAuthResult(v, Date.now());
+      if (!r) return;
+      await session.remove(AUTH_RESULT);
+      if (r.error) resetNotes(note("err", "error", r.error));
+      else await done(r);
+    };
+    stopAuthWatch = session.watch(AUTH_RESULT, (v) => void take(v));
+    void session.get(AUTH_RESULT).then(take);
+  }
   if (saved && saved.step === "code") showCode(saved.email, saved.sentAt, true);
   else if (saved) {
     email.value = saved.email;

@@ -10,6 +10,8 @@ import { allEntries, getAllowSet, getEntry } from "../src/core/state.ts";
 import { encodeInner } from "../src/model/message.ts";
 import { IDBFactory } from "fake-indexeddb";
 import { Clock, FakePlatform, MockWorker, deliver, device, makeEngine, pairAndApprove, refresh, restart } from "./harness.ts";
+import { AUTH_PENDING, Login } from "../src/core/login.ts";
+import { AUTH_RESULT, readAuthResult } from "../src/model/signin.ts";
 
 const DAY = 86400_000;
 
@@ -854,4 +856,30 @@ test("send result not listening shows Send only and marks the peer send only", a
   assert.equal(r.failures[0]!.text, "Chrome: Send only");
   assert.equal((await a.db.peer(b.id))!.listening, false);
   assert.equal((await a.e.allSet()).length, 0);
+});
+
+test("Firefox Google login: authDone leaves the result for the login tab (done, device limit, error) (I456)", async () => {
+  const clock = new Clock();
+  const w = new MockWorker(clock);
+  const TICKET = "ticket=" + "t".repeat(20);
+  const run = async (inject?: { status: number; body: Record<string, unknown> }) => {
+    const p = new FakePlatform("firefox", w, clock);
+    const { e } = await makeEngine(p, new IDBFactory(), clock);
+    if (inject) w.inject.push({ match: /POST \/v1\/peers$/, ...inject, times: 1 });
+    await p.storageSession.set({ [AUTH_PENDING]: { tabId: 7, purpose: "register", until: clock.t + 60_000 } });
+    await new Login(e).authDone(7, TICKET).catch(() => undefined);
+    return readAuthResult((await p.storageSession.get([AUTH_RESULT]))[AUTH_RESULT], clock.t);
+  };
+  assert.equal((await run())?.done, true);
+  const limit = await run({ status: 409, body: { error: "peer limit", peers: [], ticket: "x".repeat(20) } });
+  assert.equal(limit?.done, false);
+  assert.deepEqual(limit?.limit?.peers, []);
+  const expired = await run({ status: 401, body: { error: "ticket expired" } });
+  assert.equal(expired?.error, "Login expired, log in again");
+  // another tab id: nothing is written
+  const p = new FakePlatform("firefox", w, clock);
+  const { e } = await makeEngine(p, new IDBFactory(), clock);
+  await p.storageSession.set({ [AUTH_PENDING]: { tabId: 7, purpose: "register", until: clock.t + 60_000 } });
+  await new Login(e).authDone(8, TICKET);
+  assert.equal((await p.storageSession.get([AUTH_RESULT]))[AUTH_RESULT], undefined);
 });
