@@ -925,7 +925,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     Column(Modifier.fillMaxSize()) {
         PaTopBar("Settings", navigationIcon = { onBack?.let { IconButton(onClick = it) { Icon(PaIcons.ArrowBack, "Back") } } })
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
-            SectionHeader("This device")
+            SectionHeader("Device name")
             GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
                 SettingRow("Device name", me?.name ?: "", m, trailing = { Icon(PaIcons.Edit, null, tint = cs.onSurfaceVariant) }) { renaming = true }
             })
