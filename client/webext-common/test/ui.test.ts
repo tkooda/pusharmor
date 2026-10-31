@@ -323,3 +323,9 @@ test("History filter chips keep focus on the pressed chip after the redraw (I486
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
   assert.match(pop, /draw\(\);\s*\(chipsBox\.children\[i\] as HTMLElement \| undefined\)\?\.focus\(\);/);
 });
+
+test("Rename this device: Enter saves, Esc keeps the old name and focus (I487)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pv = readFileSync(new URL("../src/ui/peersview.ts", import.meta.url), "utf8");
+  assert.match(pv, /if \(ev\.key === "Enter"\) save\.click\(\);\s*else if \(ev\.key === "Escape"\) show\(nm, true\);/);
+});

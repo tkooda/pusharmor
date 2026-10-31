@@ -107,9 +107,14 @@ export function ownCard(env: UiEnv, name: string, platform: string, status: HTML
   };
   const editing = (nm: string) => {
     const input = h("input", { value: nm, maxlength: "32", "aria-label": "Name of this device" }) as HTMLInputElement;
-    clear(card).append(
-      input,
-      h("button", {
+    // I487: Enter saves, Esc keeps the old name
+    input.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") save.click();
+      else if (ev.key === "Escape") show(nm, true);
+      else return;
+      ev.preventDefault();
+    });
+    const save = h("button", {
         onclick: async () => {
           try {
             await rpc(env, "rename", { name: input.value });
@@ -119,8 +124,8 @@ export function ownCard(env: UiEnv, name: string, platform: string, status: HTML
             status.textContent = (e as Error).message;
           }
         },
-      }, "Rename"),
-    );
+      }, "Rename");
+    clear(card).append(input, save);
     card.classList.add("editing");
     input.focus();
   };
