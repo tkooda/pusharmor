@@ -283,7 +283,7 @@ fun LimitScreen(vm: AppViewModel, onDone: () -> Unit) {
     // Back is Cancel, not an app exit (I478).
     androidx.activity.compose.BackHandler { vm.cancelLimit() }
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        Text("This account has 10 devices. Pick devices to remove.", Modifier.padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 16.dp),
+        Text("This account has too many devices. Choose the ones to remove.", Modifier.padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 16.dp),
             style = MaterialTheme.typography.titleMedium)
         LazyColumn(Modifier.weight(1f)) {
             itemsIndexed(l.peers, key = { _, p -> p.id }) { i, p ->

@@ -697,7 +697,7 @@ private fun DeviceChip(icon: ImageVector, name: String, selected: Boolean, enabl
     val cs = MaterialTheme.colorScheme
     FilterChip(selected = selected && enabled, onClick = onClick,
         modifier = Modifier.alpha(if (enabled) 1f else 0.5f).semantics { if (status != null) contentDescription = "$name, $status" },
-        label = { Text(name, Modifier.widthIn(max = 150.dp), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        label = { Text(name, Modifier.widthIn(max = 240.dp), maxLines = 1, overflow = TextOverflow.Ellipsis) },
         leadingIcon = { Icon(if (selected && enabled) PaIcons.Check else icon, null, Modifier.size(18.dp)) },
         colors = FilterChipDefaults.filterChipColors(containerColor = LocalPaExtra.current.tile, selectedContainerColor = cs.secondaryContainer),
         border = FilterChipDefaults.filterChipBorder(enabled = true, selected = selected && enabled, borderColor = cs.outline, selectedBorderColor = Color.Transparent))

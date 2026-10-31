@@ -108,10 +108,10 @@ class WorkerClientTest {
 
     @Test fun errorTextSentencesEndWithAPeriod() {
         val cases = listOf(401 to "clock skew", 401 to "logged out", 401 to "ticket expired", 401 to "unknown peer", 400 to "bad email",
-            400 to "push endpoint not allowed", 413 to null, 429 to null, 502 to null, 403 to "banned")
+            400 to "push endpoint not allowed", 413 to null, 429 to null, 502 to null, 403 to "banned", 409 to "some code", 500 to null)
         for ((status, error) in cases) {
             val t = ErrorText.of(ApiResult.Http(status, error))
-            assertTrue(t, t.endsWith(".") && t[0].isUpperCase() && !t.contains("browser"))
+            assertTrue(t, t.endsWith(".") && t[0].isUpperCase() && !t.contains("browser") && !t.contains("code") && !t.contains("Error:"))
         }
         assertEquals("No connection. Try again.", ErrorText.of(ApiResult.Network))
     }
