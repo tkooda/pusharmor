@@ -175,6 +175,8 @@ class UiFitTest {
         shadowOf(Looper.getMainLooper()).idle()
         assertNotNull(state.currentSnackbarData)
         key = "b"
+        // Applied by hand: a scheduled apply can be lost after an activity recreate in an earlier test of this JVM.
+        androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
         shadowOf(Looper.getMainLooper()).idle()
         // The note about the last send does not stay over a new message (I572).
         assertNull(state.currentSnackbarData)

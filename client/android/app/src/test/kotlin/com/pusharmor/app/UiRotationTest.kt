@@ -14,7 +14,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.test.core.app.ApplicationProvider
 import com.pusharmor.app.ui.PermissionGate
 import com.pusharmor.app.notify.HistoryFilter
-import com.pusharmor.app.ui.RenameDialog
+import com.pusharmor.app.ui.NameEditRow
 import com.pusharmor.app.ui.chipSaver
 import androidx.compose.runtime.saveable.SaverScope
 import org.junit.Assert.assertEquals
@@ -54,13 +54,21 @@ class UiRotationTest {
     private fun nodes() = windows().flatMap { roots(it) }.flatMap { flat(it.semanticsOwner.unmergedRootSemanticsNode) }
     private fun field() = nodes().first { it.config.getOrNull(SemanticsActions.SetText) != null }
 
+    // Reads only this test's activity: windows left by earlier tests may still show "Phone".
+    private var host: android.app.Activity? = null
+    private fun own() = roots(host!!.window.decorView).flatMap { flat(it.semanticsOwner.unmergedRootSemanticsNode) }
+    private fun ownField() = own().first { it.config.getOrNull(SemanticsActions.SetText) != null }
+
     @Test fun renameTypedTextSurvivesRotation() {
-        UiHostActivity.content = { RenameDialog("Phone", {}, {}) }
-        val c = Robolectric.buildActivity(UiHostActivity::class.java).setup(); idle()
-        field().config[SemanticsActions.SetText].action?.invoke(AnnotatedString("Kitchen")); idle()
-        c.recreate(); idle()
+        UiHostActivity.content = { NameEditRow("Phone") {} }
+        val c = Robolectric.buildActivity(UiHostActivity::class.java).setup(); host = c.get(); idle()
+        // The pencil row starts the in-place edit (I601); a rotation keeps it open.
+        own().first { it.config.getOrNull(SemanticsActions.OnClick) != null }.config[SemanticsActions.OnClick].action?.invoke()
+        c.recreate(); host = c.get(); idle()
+        ownField().config[SemanticsActions.SetText].action?.invoke(AnnotatedString("Kitchen")); idle()
+        c.recreate(); host = c.get(); idle()
         // The typed name stays; it no longer goes back to "Phone" (I523).
-        assertEquals("Kitchen", field().config[SemanticsProperties.EditableText].text)
+        assertEquals("Kitchen", ownField().config[SemanticsProperties.EditableText].text)
         c.pause().stop().destroy()
     }
 

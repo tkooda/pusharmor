@@ -211,6 +211,27 @@ class UiTextTest {
         assertEquals("Messages you send or receive show here.", UiText.SEND_FIRST_CTA)
     }
 
+    @Test fun renameInPlaceStartsCancelsSavesAndValidates() {
+        val e = com.pusharmor.app.ui.NameEdit()
+        e.start("Phone")
+        // Editing starts with the whole name selected (I601).
+        assertTrue(e.editing)
+        assertEquals(androidx.compose.ui.text.TextRange(0, 5), e.typed.selection)
+        // Empty or too long: an error, and Save keeps editing and returns nothing.
+        for (bad in listOf("", "x".repeat(33))) {
+            e.typed = androidx.compose.ui.text.input.TextFieldValue(bad)
+            assertTrue(e.error != null)
+            assertEquals(null, e.save())
+            assertTrue(e.editing)
+        }
+        e.cancel()
+        assertEquals(false, e.editing)
+        e.start("Phone"); e.typed = androidx.compose.ui.text.input.TextFieldValue("Kitchen")
+        assertEquals(null, e.error)
+        assertEquals("Kitchen", e.save())
+        assertEquals(false, e.editing)
+    }
+
     @Test fun hibernationBannerSaysWhyItMatters() {
         assertTrue(UiText.HIBERNATION_BANNER.contains("receive messages"))
         assertTrue(UiText.HIBERNATION_BANNER.contains("Manage app if unused"))

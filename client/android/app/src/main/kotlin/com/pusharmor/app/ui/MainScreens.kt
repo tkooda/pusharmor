@@ -37,6 +37,8 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -85,6 +87,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.layout
@@ -98,7 +102,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -291,16 +298,48 @@ internal fun FirstDeviceSteps(modifier: Modifier = Modifier) {
     }
 }
 
-/** Rename this device: one field, same save call as before. */
+/**
+ * This device's name, renamed in place (I601): the pencil turns the name into a field with its text selected,
+ * Cancel and Save beside it. Done saves, Back cancels; an invalid name shows why and Save is greyed.
+ */
 @Composable
-internal fun RenameDialog(current: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
-    var typed by rememberSaveable { mutableStateOf(current) }
-    val error = UiText.nameError(typed)
-    AlertDialog(onDismissRequest = onDismiss,
-        text = { OutlinedTextField(typed, { typed = it.take(32) }, label = { Text("Device name") }, singleLine = true,
-            isError = error != null, supportingText = error?.let { { Text(it) } }) },
-        confirmButton = { TextButton(onClick = { onSave(typed); onDismiss() }, enabled = error == null) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+internal fun NameEditRow(current: String, modifier: Modifier = Modifier, onSave: (String) -> Unit) {
+    val st = rememberSaveable(saver = NameEdit.Saver) { NameEdit() }
+    val cs = MaterialTheme.colorScheme
+    if (!st.editing) {
+        SettingRow("Device name", current, modifier, trailing = { Icon(PaIcons.Edit, null, tint = cs.onSurfaceVariant) }) { st.start(current) }
+        return
+    }
+    val error = st.error
+    val focus = remember { FocusRequester() }
+    fun save() { st.save()?.let(onSave) }
+    androidx.activity.compose.BackHandler { st.cancel() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    Row(modifier.padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.Top) {
+        OutlinedTextField(st.typed, { st.typed = it }, Modifier.weight(1f).focusRequester(focus), label = { Text("Device name") }, singleLine = true,
+            isError = error != null, supportingText = error?.let { { Text(it) } },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { save() }))
+        IconButton(onClick = { st.cancel() }, Modifier.padding(top = 4.dp)) { Icon(PaIcons.Close, "Cancel") }
+        IconButton(onClick = { save() }, Modifier.padding(top = 4.dp), enabled = error == null) { Icon(PaIcons.Check, "Save name") }
+    }
+}
+
+/** In-place rename state (I601): Start selects the name, Cancel drops the edit, Save returns the name only when it is valid. */
+internal class NameEdit(editing: Boolean = false, typed: TextFieldValue = TextFieldValue()) {
+    var editing by mutableStateOf(editing)
+    var typed by mutableStateOf(typed)
+    /** Empty, too long, or not plain ASCII: the reason, shown under the field; Save is greyed. */
+    val error: String? get() = UiText.nameError(typed.text)
+    fun start(current: String) { typed = TextFieldValue(current, TextRange(0, current.length)); editing = true }
+    fun cancel() { editing = false }
+    fun save(): String? = typed.text.takeIf { error == null }?.also { editing = false }
+
+    companion object {
+        /** Kept through a rotation (I523). */
+        val Saver = listSaver<NameEdit, Any>(
+            save = { listOf(it.editing, it.typed.text, it.typed.selection.start, it.typed.selection.end) },
+            restore = { NameEdit(it[0] as Boolean, TextFieldValue(it[1] as String, TextRange(it[2] as Int, it[3] as Int))) })
+    }
 }
 
 @Composable
@@ -946,7 +985,6 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     val prefs by vm.prefs.collectAsState()
     val context = LocalContext.current
     val me by vm.self.collectAsState()
-    var renaming by rememberSaveable { mutableStateOf(false) }
     var confirmHistory by rememberSaveable { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     val running by vm.running.collectAsState()
@@ -965,7 +1003,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
             SectionHeader("Device name")
             GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
-                SettingRow("Device name", me?.name ?: "", m, trailing = { Icon(PaIcons.Edit, null, tint = cs.onSurfaceVariant) }) { renaming = true }
+                NameEditRow(me?.name ?: "", m) { vm.rename(it) }
             })
             SectionHeader("Appearance")
             GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
@@ -1038,7 +1076,6 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             }
         }
     }
-    if (renaming) RenameDialog(me?.name ?: "", onSave = { vm.rename(it) }) { renaming = false }
     if (pickDays) ChoiceDialog("Keep messages for", listOf(1, 7, 30, 90, 365), days, { UiText.days(it) }, onDismiss = { pickDays = false }) {
         vm.setPref(Settings.K.HISTORY_DAYS, it)
     }
