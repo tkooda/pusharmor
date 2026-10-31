@@ -41,6 +41,7 @@ export interface Env {
   PA_OAUTH_REDIRECT_CLI: string;
   PA_WEB_ORIGINS: string;
   PA_LOG_SAMPLE: string;
+  PA_MIN_CLIENT?: string;
 
   PA_ID_SECRET: string;
   PA_CODE_SECRET: string;

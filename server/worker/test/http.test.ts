@@ -31,7 +31,7 @@ describe("CORS", () => {
       const r = await call("OPTIONS", p, undefined, { headers: { Origin: ORIGIN } });
       expect(r.status).toBe(204);
       expect(r.res.headers.get("Access-Control-Allow-Methods")).toBe("POST, DELETE");
-      expect(r.res.headers.get("Access-Control-Allow-Headers")).toBe("Content-Type, PA-Time, PA-Sig");
+      expect(r.res.headers.get("Access-Control-Allow-Headers")).toBe("Content-Type, PA-Time, PA-Sig, PA-Client");
       expect(r.res.headers.get("Access-Control-Allow-Origin")).toBe(ORIGIN);
       expect(r.res.headers.get("PA-Epoch")).toMatch(/^[0-9]{10}$/);
     }
@@ -155,6 +155,35 @@ describe("crons", () => {
   });
 });
 
+describe("PA-Client (Q328)", () => {
+  it("logged when well formed, 'invalid' when malformed, absent when missing", async () => {
+    const seen: unknown[] = [];
+    for (const h of ["android/0.0.19", "cli/1.2.3", "android/0.0.19 x", null]) {
+      const before = captured.length;
+      await call("GET", "/v1/nope", undefined, h === null ? {} : { headers: { "PA-Client": h } });
+      seen.push(JSON.parse(captured.slice(before)[0]).client);
+    }
+    expect(seen).toEqual(["android/0.0.19", "cli/1.2.3", "invalid", undefined]);
+  });
+
+  it("426 only when PA_MIN_CLIENT is set and the version is lower", async () => {
+    const p = await newPeer(randomEmail());
+    const min = await testEnv({ PA_MIN_CLIENT: "0.1.10" } as Partial<Env>);
+    const st = async (h: string | null, e: Env) => (await call("GET", "/v1/peers", undefined, { peer: p, env: e, headers: h === null ? {} : { "PA-Client": h } }));
+    const r = await st("ios/0.1.9", min);
+    expect(r.status).toBe(426);
+    expect(r.body).toEqual({ error: "update required" });
+    expect(r.res.headers.get("PA-Epoch")).toMatch(/^[0-9]{10}$/);
+    expect((await st("chrome/0.0.99", min)).status).toBe(426);
+    for (const h of ["ios/0.1.10", "web/0.2.0", "cli/1.0.0", "ios/0.1", null]) expect((await st(h, min)).status, String(h)).toBe(200);
+    const unset = await testEnv();
+    expect((await st("android/0.0.1", unset)).status).toBe(200);
+    expect((await st("android/0.0.1", await testEnv({ PA_MIN_CLIENT: "junk" } as Partial<Env>))).status).toBe(200);
+    // Preflight carries no PA-Client and is never refused.
+    expect((await call("OPTIONS", "/v1/account", undefined, { env: min, headers: { Origin: ORIGIN } })).status).toBe(204);
+  });
+});
+
 describe("logging", () => {
   it("one JSON line per request with allow-listed fields", async () => {
     const before = captured.length;
@@ -166,7 +195,7 @@ describe("logging", () => {
     const o = JSON.parse(lines[0]);
     expect(o.route).toBe("POST /v1/peers");
     expect(o.status).toBe(200);
-    expect(Object.keys(o).every((x) => ["ts", "route", "status", "ms", "error", "colo", "account", "peer", "body_bytes", "recipients", "rl", "rl-error", "gone_write", "endpoint_reject", "exception", "sample"].includes(x))).toBe(true);
+    expect(Object.keys(o).every((x) => ["ts", "route", "status", "ms", "error", "colo", "client", "account", "peer", "body_bytes", "recipients", "rl", "rl-error", "gone_write", "endpoint_reject", "exception", "sample"].includes(x))).toBe(true);
     expect(lines[0]).not.toContain(email);
     expect(lines[0]).not.toContain(k.signPub);
   });
