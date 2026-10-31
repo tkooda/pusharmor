@@ -29,6 +29,7 @@ final class ShareModel: ObservableObject {
     private(set) var type: SendType = .text
     private weak var context: NSExtensionContext?
     private var core: Core?
+    private var sending = false
 
     init(context: NSExtensionContext?) { self.context = context }
 
@@ -69,7 +70,9 @@ final class ShareModel: ObservableObject {
     }
 
     func send(to ids: [PeerId]) async {
-        guard let core = core else { return }
+        // One send per share (I473): a second tap while the first is on its way does nothing.
+        guard let core = core, !sending else { return }
+        sending = true
         do {
             let rep = try await core.send(text, as: type, to: ids, allCount: all.count)
             step = .done(rep.toast)

@@ -346,6 +346,24 @@ extension Core {
         }
     }
 
+    /// The toast after a Log out, Remove, Deny, or Approve call (I473): nil when it went through,
+    /// so a failed call never looks like a silent no-op; the button stays for a retry.
+    public static func failText(_ out: APIOutcome?) -> String? {
+        guard let out = out else { return S.notDone }
+        if out.reply?.ok == true { return nil }
+        if out.isClockSkew { return S.clockOff }
+        return out.reply == nil ? S.noConnection : S.notDone
+    }
+
+    /// Same for an ApproveOutcome (Approve, Deny): the relay server's answers are not failures.
+    public static func failText(_ o: ApproveOutcome?) -> String? {
+        switch o {
+        case .network?: return S.noConnection
+        case .error?, nil: return S.notDone
+        default: return nil
+        }
+    }
+
     /// 14-day timeout check (app open and Refresh; no background timer).
     public func checkTimeouts() async {
         let now = clock()

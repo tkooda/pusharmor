@@ -53,6 +53,16 @@ final class AppModel: ObservableObject {
     @Published var showHistory = false
     /// Peer ids with a Pair again call running; their Pair again buttons are disabled.
     @Published var pairAgainBusy: Set<String> = []
+    /// Keys of taps still running ("send", "logout", "pair:<id>", ...); their buttons are disabled (I473).
+    @Published var busy: Set<String> = []
+
+    /// Runs [body] unless the same key is still running, so a second tap does not run twice (I473).
+    func once(_ key: String, _ body: () async -> Void) async {
+        guard !busy.contains(key) else { return }
+        busy.insert(key)
+        defer { busy.remove(key) }
+        await body()
+    }
 
     let env = AppEnvironment.shared
     private(set) var core: Core?
@@ -240,6 +250,10 @@ final class AppModel: ObservableObject {
     }
 
     func emailVerify(_ code: String, purpose: AuthPurpose) async {
+        await once("verify") { await emailVerifyOnce(code, purpose: purpose) }
+    }
+
+    private func emailVerifyOnce(_ code: String, purpose: AuthPurpose) async {
         guard let t = requestToken ?? (try? store?.me().requestToken) ?? nil else { phase = .signIn(purpose); return }
         await finishTicket(await auth.emailVerify(requestToken: t, code: code), purpose: purpose)
     }
@@ -311,6 +325,10 @@ final class AppModel: ObservableObject {
 
     /// Limit picker submit: after 10 min the ticket is expired; ticks are kept.
     func submitEvict() async {
+        await once("evict") { await submitEvictOnce() }
+    }
+
+    private func submitEvictOnce() async {
         guard let t = limitTicket else { return }
         if Date().timeIntervalSince(t.at) > 600 {
             errorText = S.signInExpired
@@ -343,8 +361,12 @@ final class AppModel: ObservableObject {
 
     func signOut() async {
         guard let core = core else { return }
-        _ = try? await core.logout()
-        await route()
+        await once("logout") {
+            let out = try? await core.logout()
+            await route()
+            // Still signed in: the call failed, say so (no registration left routes to log in instead).
+            if phase == .main, let t = Core.failText(out) { toast = t }
+        }
     }
 
     func deleteAccount(ticket: String) async {
@@ -360,7 +382,15 @@ final class AppModel: ObservableObject {
 
     func label(_ p: Peer) -> String { PeerLabel.label(p) }
 
-    func pair(_ p: Peer) async { _ = try? await core?.startPair(p.id); reload() }
+    func pair(_ p: Peer) async {
+        guard let core = core else { return }
+        await once("pair:" + p.id.text) {
+            let r: Result<PairSendResult, Error>
+            do { r = .success(try await core.startPair(p.id)) } catch { r = .failure(error) }
+            if let t = Core.pairAgainToast(r) { toast = t }
+            reload()
+        }
+    }
     func sendAgain(_ p: Peer) async { _ = await core?.sendAgain(p.id); reload() }
     func reply(_ p: Peer) async { _ = await core?.tapReply(p.id); reload() }
     func cancelPairing(_ p: Peer) async { await core?.cancelPairing(p.id); reload() }
@@ -374,7 +404,14 @@ final class AppModel: ObservableObject {
         if let t = Core.pairAgainToast(r) { toast = t }
         reload()
     }
-    func remove(_ p: Peer) async { _ = try? await core?.removePeer(p.id); reload() }
+    func remove(_ p: Peer) async {
+        guard let core = core else { return }
+        await once("remove:" + p.id.text) {
+            let out = try? await core.removePeer(p.id)
+            reload()
+            if phase == .main, let t = Core.failText(out) { toast = t }
+        }
+    }
     func localDelete(_ p: Peer) async { await core?.localDelete(p.id); reload() }
     func setHidden(_ p: Peer, _ h: Bool) { try? core?.setHidden(p.id, h); reload() }
     func setPeerSwitches(_ p: Peer, lockShow: Bool? = nil, alwaysHide: Bool? = nil) {
@@ -383,15 +420,25 @@ final class AppModel: ObservableObject {
     }
 
     func approve(_ p: Peer) async -> ApproveOutcome? {
-        let r = await core?.approve(p.id)
-        // the app removes the reply notice once N shows the fingerprint
-        reload()
+        var r: ApproveOutcome?
+        await once("approve:" + p.id.text) {
+            r = await core?.approve(p.id)
+            // the app removes the reply notice once N shows the fingerprint
+            reload()
+            if phase == .main, let t = Core.failText(r) { toast = t }
+        }
         return r
     }
 
     func approveSendAgain(_ p: Peer) async { _ = await core?.postApprove(p.id, fresh: false); reload() }
 
-    func deny(_ p: Peer) async { _ = await core?.deny(p.id); reload() }
+    func deny(_ p: Peer) async {
+        await once("deny:" + p.id.text) {
+            let r = await core?.deny(p.id)
+            reload()
+            if phase == .main, let t = Core.failText(r) { toast = t }
+        }
+    }
 
     func refresh() async {
         guard Date() >= refreshGreyUntil, let core = core else { return }
@@ -451,7 +498,10 @@ final class AppModel: ObservableObject {
     /// True when sent; false (draft kept) when not.
     @discardableResult
     func send(_ text: String, asText: Bool, toAll: Bool, peerIds: [String]) async -> Bool {
-        guard let core = core else { return false }
+        // One send per tap (I473): a second tap while the first is on its way keeps the draft and does nothing.
+        guard let core = core, !busy.contains("send") else { return false }
+        busy.insert("send")
+        defer { busy.remove("send") }
         let type: SendType = asText ? .text : SendDetection.detect(text)
         let all = allSet
         let ids = toAll ? all.map { $0.id } : peerIds.compactMap { PeerId(text: $0) }
