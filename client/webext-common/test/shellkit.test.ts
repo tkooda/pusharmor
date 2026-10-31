@@ -89,3 +89,27 @@ test("context menu rebuilds run one after another: the last list wins, no duplic
   assert.ok(!ids.some((id) => id.endsWith("|all") || id.endsWith("|A")));
   assert.ok(ids.some((id) => id.endsWith("|B")));
 });
+
+test("a menu click after a wipe shows the error in a notification, no unhandled rejection (I558)", async () => {
+  const { onMenuClick } = await import("../src/shellkit.ts");
+  const { UserError } = await import("../src/core/engine.ts");
+  const { T } = await import("../src/core/texts.ts");
+  const notes: string[] = [];
+  const engine = {
+    send: async () => {
+      throw new UserError(T.signedOut);
+    },
+    p: { notify: (id: string, _t: string, body: string) => void notes.push(id + ": " + body), setBadge: () => undefined },
+  };
+  const rejected: unknown[] = [];
+  const onRej = (e: unknown) => void rejected.push(e);
+  process.on("unhandledRejection", onRej);
+  try {
+    onMenuClick({} as never, async () => ({ engine }) as never, async () => "")({ menuItemId: "pa-page|all", pageUrl: "https://example.com/" } as never);
+    await new Promise((r) => setTimeout(r, 20));
+  } finally {
+    process.off("unhandledRejection", onRej);
+  }
+  assert.deepEqual(rejected, []);
+  assert.deepEqual(notes, ["send-result: " + T.signedOut]);
+});

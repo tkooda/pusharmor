@@ -1,8 +1,8 @@
 // Shared wiring for the two shells. The shell passes in its "browser"
 // namespace object; nothing here reads a browser global.
-import { Api } from "./api/client.ts";
+import { Api, errorText } from "./api/client.ts";
 import { MENU_PAGE, MENU_PARENTS, MENU_SEL, MENU_URL, clickTarget, menuSend } from "./core/actions.ts";
-import { Engine } from "./core/engine.ts";
+import { Engine, UserError } from "./core/engine.ts";
 import { migrateStorage } from "./core/state.ts";
 import { Rpc, type Req } from "./core/rpc.ts";
 import type { PushFields } from "./crypto/labels.ts";
@@ -195,7 +195,14 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
       else text = await readSelection(tab, info.selectionText ?? "");
       if (!text) return;
       const { engine } = await boot();
-      const r = await menuSend(engine, text, child, parent === MENU_SEL);
+      let r: Awaited<ReturnType<typeof menuSend>>;
+      try {
+        r = await menuSend(engine, text, child, parent === MENU_SEL);
+      } catch (err) {
+        // I558: a send that fails (logged out after a wipe) says why
+        engine.p.notify("send-result", "PushArmor", err instanceof UserError ? err.message : errorText(err));
+        return;
+      }
       if (r.overCap !== null) {
         await b.tabs.create({ url: b.runtime.getURL("page.html#send=" + encodeURIComponent(r.overCap)), active: true });
         return;
