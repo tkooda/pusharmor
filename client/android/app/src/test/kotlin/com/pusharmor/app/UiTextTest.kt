@@ -114,10 +114,6 @@ class UiTextTest {
         assertEquals("30 days", UiText.days(30))
     }
 
-    @Test fun logoutConfirmText() {
-        assertEquals("Log out of this device? Keys, paired devices, names, and history stay on this device.", UiText.LOGOUT_CONFIRM)
-    }
-
     @Test fun renameFieldError() {
         assertEquals(null, UiText.nameError("Phone"))
         assertEquals(null, UiText.nameError("x".repeat(32)))

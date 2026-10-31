@@ -875,7 +875,6 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     val me by vm.self.collectAsState()
     var renaming by rememberSaveable { mutableStateOf(false) }
     var confirmHistory by rememberSaveable { mutableStateOf(false) }
-    var confirmLogout by rememberSaveable { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     val running by vm.running.collectAsState()
     var pickDays by rememberSaveable { mutableStateOf(false) }
@@ -959,7 +958,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             // Wraps to two lines at a large font instead of squeezing both buttons (I480).
             FlowRow(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = { confirmLogout = true }, Modifier.heightIn(min = 48.dp), enabled = "logout" !in running,
+                OutlinedButton(onClick = { vm.signOut(onSignedOut) }, Modifier.heightIn(min = 48.dp), enabled = "logout" !in running,
                     border = androidx.compose.foundation.BorderStroke(1.dp, cs.outline)) { Text("Log out") }
                 OutlinedButton(onClick = { confirmDelete = true }, Modifier.heightIn(min = 48.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, cs.error),
@@ -1002,12 +1001,6 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     if (confirmHistory) AlertDialog(onDismissRequest = { confirmHistory = false }, text = { Text("Delete all history?") },
         confirmButton = { TextButton(onClick = { vm.deleteAllHistory(); confirmHistory = false }) { Text("Delete") } },
         dismissButton = { TextButton(onClick = { confirmHistory = false }) { Text("Cancel") } })
-    if (confirmLogout) AlertDialog(onDismissRequest = { confirmLogout = false }, text = { Text(UiText.LOGOUT_CONFIRM) },
-        confirmButton = {
-            TextButton(onClick = { confirmLogout = false; vm.signOut(onSignedOut) },
-                colors = ButtonDefaults.textButtonColors(contentColor = cs.error)) { Text("Log out") }
-        },
-        dismissButton = { TextButton(onClick = { confirmLogout = false }) { Text("Cancel") } })
     if (confirmDelete) AlertDialog(onDismissRequest = { confirmDelete = false }, text = { Text(UiText.DELETE_CONFIRM) },
         confirmButton = {
             TextButton(onClick = { confirmDelete = false; onDeleteAccount() },
