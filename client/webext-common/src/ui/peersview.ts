@@ -127,6 +127,7 @@ export function ownCard(env: UiEnv, name: string, platform: string, status: HTML
             show(input.value, true);
           } catch (e) {
             status.textContent = (e as Error).message;
+            status.scrollIntoView({ block: "nearest" }); // the line sits below the fold
           }
         },
       }, "Rename");
