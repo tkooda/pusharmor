@@ -21,9 +21,9 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #000000; --card: #1C1E22; --s1: #24272C; --s2: #2A2E34; --s3: #33373E;
-    --ink: #E3E3E3; --ink2: #A7B3C0; --line: #2C3137; --ctl: #8E918F;
+    --ink: #E3E3E3; --ink2: #A7B3C0; --sh: #CBD3DC; --line: #2C3137; --ctl: #8E918F;
     --primary: #A9C8F0; --onp: #0E2238; --pc: #28466E; --onpc: #D9E5F4;
-    --success: #5FD89A; --err: #FF8A80; --errc: #4A1A16; --onerrc: #FFDAD5;
+    --success: #5FD89A; --err: #FFB4AB; --errc: #4A1A16; --onerrc: #FFDAD5;
     --armor: #F3F6FA; --cta-edge: transparent;
     --avbg: #1E2C40; --avfg: #A9C8F0;
     --hero: #1B3150; --hero-line: #2B4770; --onhero: #F4F7FA; --onhero2: #B8C8DC; --heroav: #284468;
@@ -35,9 +35,9 @@
 }
 :root[data-theme="dark"] {
   --bg: #000000; --card: #1C1E22; --s1: #24272C; --s2: #2A2E34; --s3: #33373E;
-  --ink: #E3E3E3; --ink2: #A7B3C0; --line: #2C3137; --ctl: #8E918F;
+  --ink: #E3E3E3; --ink2: #A7B3C0; --sh: #CBD3DC; --line: #2C3137; --ctl: #8E918F;
   --primary: #A9C8F0; --onp: #0E2238; --pc: #28466E; --onpc: #D9E5F4;
-  --success: #5FD89A; --err: #FF8A80; --errc: #4A1A16; --onerrc: #FFDAD5;
+  --success: #5FD89A; --err: #FFB4AB; --errc: #4A1A16; --onerrc: #FFDAD5;
   --armor: #F3F6FA; --cta-edge: transparent;
   --avbg: #1E2C40; --avfg: #A9C8F0;
   --hero: #1B3150; --hero-line: #2B4770; --onhero: #F4F7FA; --onhero2: #B8C8DC; --heroav: #284468;

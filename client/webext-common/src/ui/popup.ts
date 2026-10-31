@@ -372,7 +372,8 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
   const ff = st.platform === "firefox";
   const acct = add(
     h("div", { class: "txt" }),
-    accountLine(st) ? h("div", { class: "t1" }, accountLine(st)) : null,
+    // "Logged in as" dim, the email on its own line (long ones end in "...")
+    ...(accountLine(st) ? [h("div", { class: "t2" }, "Logged in as"), h("div", { class: "t1 email", title: st.email ?? "" }, st.email ?? "")] : []),
     ff && st.receiveMode ? h("div", { class: "t2" }, "Receive mode: " + st.receiveMode) : null,
     ff && st.receiveNote ? h("div", { class: "t2" }, st.receiveNote) : null,
   );
