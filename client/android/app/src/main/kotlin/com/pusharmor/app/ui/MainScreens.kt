@@ -33,6 +33,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -914,6 +915,8 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     val running by vm.running.collectAsState()
     var pickDays by rememberSaveable { mutableStateOf(false) }
     var pickTheme by rememberSaveable { mutableStateOf(false) }
+    var pickPush by rememberSaveable { mutableStateOf(false) }
+    val up = prefs?.get(Settings.K.PUSH_TYPE) == "unifiedpush"
     val themePref = ThemePref.parse(prefs?.get(Settings.K.THEME))
     fun b(k: androidx.datastore.preferences.core.Preferences.Key<Boolean>, d: Boolean) = prefs?.get(k) ?: d
     val cs = MaterialTheme.colorScheme
@@ -968,15 +971,10 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                         modifier = m.then(pad)) { vm.setPref(Settings.K.WATCH, it) }
                 }
                 if (vm.g.push.hasPlayServices) add { m ->
-                    val up = prefs?.get(Settings.K.PUSH_TYPE) == "unifiedpush"
-                    Column(m.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                        Text("Push method", style = MaterialTheme.typography.bodyLarge)
-                        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            PaChip(!up, "Google (default)") { if (up) vm.switchPush(false) }
-                            PaChip(up, "UnifiedPush app") { if (!up) vm.switchPush(true) }
-                        }
-                        if (up && UnifiedPushSupport.distributors(context).size > 1) for (d in UnifiedPushSupport.distributors(context)) {
-                            TextButton(onClick = { UnifiedPushSupport.pick(vm.g, d) }) { Text(d) }
+                    Column(m) {
+                        SettingRow("Push method", pushLabel(up), Modifier) { pickPush = true }
+                        if (up && UnifiedPushSupport.distributors(context).size > 1) Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
+                            for (d in UnifiedPushSupport.distributors(context)) TextButton(onClick = { UnifiedPushSupport.pick(vm.g, d) }) { Text(d) }
                         }
                     }
                 }
@@ -1007,38 +1005,44 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
         }
     }
     if (renaming) RenameDialog(me?.name ?: "", onSave = { vm.rename(it) }) { renaming = false }
-    if (pickDays) AlertDialog(onDismissRequest = { pickDays = false }, title = { Text("Keep messages for") },
-        text = {
-            Column {
-                for (d in listOf(1, 7, 30, 90, 365)) Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                    .selectable(selected = days == d, role = Role.RadioButton) { vm.setPref(Settings.K.HISTORY_DAYS, d); pickDays = false },
-                    verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(days == d, null)
-                    Spacer(Modifier.width(12.dp))
-                    Text(UiText.days(d))
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = { pickDays = false }) { Text("Cancel") } })
-    if (pickTheme) AlertDialog(onDismissRequest = { pickTheme = false }, title = { Text("Theme") },
-        text = {
-            Column {
-                for (t in ThemePref.entries) Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                    .selectable(selected = themePref == t, role = Role.RadioButton) { vm.setTheme(t); pickTheme = false },
-                    verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(themePref == t, null)
-                    Spacer(Modifier.width(12.dp))
-                    Text(t.label)
-                }
-                Text("Dark uses a true black background.", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium,
-                    color = cs.onSurfaceVariant)
-            }
-        },
-        confirmButton = { TextButton(onClick = { pickTheme = false }) { Text("Cancel") } })
+    if (pickDays) ChoiceDialog("Keep messages for", listOf(1, 7, 30, 90, 365), days, { UiText.days(it) }, onDismiss = { pickDays = false }) {
+        vm.setPref(Settings.K.HISTORY_DAYS, it)
+    }
+    if (pickTheme) ChoiceDialog("Theme", ThemePref.entries, themePref, { it.label }, note = "Dark uses a true black background.",
+        onDismiss = { pickTheme = false }) { vm.setTheme(it) }
+    if (pickPush) ChoiceDialog("Push method", listOf(false, true), up, ::pushLabel, onDismiss = { pickPush = false }) { if (it != up) vm.switchPush(it) }
     if (confirmHistory) AlertDialog(onDismissRequest = { confirmHistory = false }, text = { Text("Delete all history?") },
         confirmButton = { TextButton(onClick = { vm.deleteAllHistory(); confirmHistory = false }) { Text("Delete") } },
         dismissButton = { TextButton(onClick = { confirmHistory = false }) { Text("Cancel") } })
     if (confirmDelete) DeleteAccountDialog(onConfirm = { confirmDelete = false; onDeleteAccount() }) { confirmDelete = false }
+}
+
+private fun pushLabel(up: Boolean) = if (up) "UnifiedPush app" else "Google (default)"
+
+/**
+ * Standard single-choice dialog (I602): radio rows, each row the tap target; OK applies the choice, Cancel keeps the old one.
+ * The choice is kept by its index, so it stays through a rotation.
+ */
+@Composable
+internal fun <T> ChoiceDialog(title: String, options: List<T>, current: T, label: (T) -> String, note: String? = null,
+                              onDismiss: () -> Unit, onChoose: (T) -> Unit) {
+    var picked by rememberSaveable { mutableIntStateOf(options.indexOf(current)) }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(title) },
+        text = {
+            Column(Modifier.selectableGroup()) {
+                options.forEachIndexed { i, o ->
+                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(selected = i == picked, role = Role.RadioButton) { picked = i },
+                        verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(i == picked, null)
+                        Spacer(Modifier.width(12.dp))
+                        Text(label(o))
+                    }
+                }
+                note?.let { Text(it, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+        },
+        confirmButton = { TextButton(onClick = { options.getOrNull(picked)?.let(onChoose); onDismiss() }) { Text("OK") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
 }
 
 /** Delete account confirmation: a standard dialog with a title, a red Continue, and Cancel (I603). */

@@ -8,6 +8,9 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.pusharmor.app.UiHostActivity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -21,7 +24,8 @@ import org.robolectric.shadows.ShadowDialog
 
 /** Dialogs are stock Material3 AlertDialogs with TextButtons (I603). */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], application = android.app.Application::class)
+// TestApp: it keeps Room's invalidation service unbound, which a Room open left running by an earlier test can reach.
+@Config(sdk = [34], application = com.pusharmor.app.TestApp::class)
 class DialogsTest {
     private fun roots(v: View): List<ViewRootForTest> = when (v) {
         is ViewRootForTest -> listOf(v)
@@ -63,5 +67,22 @@ class DialogsTest {
         assertEquals(0 to 1, confirmed to dismissed)
         click("Continue")
         assertEquals(1 to 1, confirmed to dismissed)
+    }
+
+    @Test fun choiceDialogAppliesOnOkOnly() {
+        var open by mutableStateOf(true)
+        val chosen = mutableListOf<String>()
+        show { if (open) ChoiceDialog("Theme", listOf("A", "B", "C"), "A", { it }, onDismiss = { open = false }) { chosen.add(it) } }
+        assertTrue(texts().containsAll(listOf("Theme", "A", "B", "C", "OK", "Cancel")))
+        // A row tap only moves the radio; Cancel keeps the old value (I602).
+        click("B")
+        assertEquals(listOf<String>(), chosen)
+        click("Cancel")
+        assertEquals(listOf<String>(), chosen)
+        open = true
+        idle()
+        click("C")
+        click("OK")
+        assertEquals(listOf("C"), chosen)
     }
 }
