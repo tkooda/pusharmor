@@ -72,7 +72,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -164,8 +166,9 @@ fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -
     val highlight by vm.highlight.collectAsState()
     val prefs by vm.prefs.collectAsState()
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
-    var confirmRemove by remember { mutableStateOf<Peer?>(null) }
-    var pairHowTo by remember { mutableStateOf(false) }
+    // Saved, so both dialogs stay open through a rotation (I523); the device by its id.
+    var confirmRemove by rememberSaveable { mutableStateOf<String?>(null) }
+    var pairHowTo by rememberSaveable { mutableStateOf(false) }
     // A failed remove, pair or deny puts its error in vm.message. Take it when shown, not on
     // dismiss, so leaving Peers does not leave it set (I426); counted like the Send result.
     val snack = remember { SnackbarHostState() }
@@ -228,7 +231,7 @@ fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -
                 if (plain.isNotEmpty()) {
                     item(key = "peers-header") { SectionHeader(if (firstDevice) "Waiting to pair" else "Other devices") }
                     itemsIndexed(plain, key = { _, p -> p.id }) { i, p ->
-                        PeerRow(vm, p, now, p.id == highlight, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, plain.size)) { confirmRemove = p }
+                        PeerRow(vm, p, now, p.id == highlight, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, plain.size)) { confirmRemove = p.id }
                     }
                 } else if (pairing.isEmpty() && firstDevice) {
                     item(key = "waiting") {
@@ -254,7 +257,7 @@ fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -
         }
         SnackbarHost(snack, Modifier.align(Alignment.BottomCenter))
     }
-    confirmRemove?.let { p ->
+    peers.firstOrNull { it.id == confirmRemove }?.let { p ->
         val x = label(p)
         AlertDialog(onDismissRequest = { confirmRemove = null },
             text = { Text("Remove $x from this account? $x must log in again and pair with every device again.") },
@@ -268,8 +271,8 @@ fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -
 
 /** Rename this device: one field, same save call as before. */
 @Composable
-private fun RenameDialog(current: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
-    var typed by remember { mutableStateOf(current) }
+internal fun RenameDialog(current: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    var typed by rememberSaveable { mutableStateOf(current) }
     val error = UiText.nameError(typed)
     AlertDialog(onDismissRequest = onDismiss,
         text = { OutlinedTextField(typed, { typed = it.take(32) }, label = { Text("Device name") }, singleLine = true,
@@ -562,11 +565,14 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     val peers by vm.peers.collectAsState()
     val me by vm.self.collectAsState()
     val all = vm.allPeers()
-    val picked = remember { mutableStateListOf<String>().apply { preselect?.let { add(it) }; if (shots) addAll(ScreenshotMode.sendTo) } }
+    // Saved, so the chosen devices stay chosen through a rotation (I523).
+    val picked = rememberSaveable(saver = listSaver({ it.toList() }, { it.toMutableStateList() })) {
+        mutableStateListOf<String>().apply { preselect?.let { add(it) }; if (shots) addAll(ScreenshotMode.sendTo) }
+    }
     // Last selection (local only): applied once the device list has loaded, unless a preselect or the screenshot data already chose.
     // With exactly one device that can receive, it is preselected.
     val canReceive = others(peers, me?.id).filter { it.inAll }.map { it.id }
-    var restored by remember { mutableStateOf(shots || picked.isNotEmpty()) }
+    var restored by rememberSaveable { mutableStateOf(shots || picked.isNotEmpty()) }
     // Only devices that can receive now are sent to and counted: a chosen device that turns logged out,
     // unapproved or leaves All drops out, and so does a preselect that cannot receive.
     val sendTo = UiText.sendable(picked, canReceive)
@@ -709,7 +715,7 @@ private fun DeviceChip(icon: ImageVector, name: String, selected: Boolean, enabl
 fun HistoryScreen(vm: AppViewModel, onPeer: (String) -> Unit) {
     val rows by vm.history.collectAsState()
     val peers by vm.peers.collectAsState()
-    var chip by remember { mutableStateOf<HistoryFilter.Chip>(HistoryFilter.Chip.All) }
+    var chip by rememberSaveable(stateSaver = chipSaver) { mutableStateOf<HistoryFilter.Chip>(HistoryFilter.Chip.All) }
     var dir by rememberSaveable { mutableStateOf<String?>(null) }
     var open by rememberSaveable { mutableStateOf<Long?>(null) }
     fun nameOf(id: String) = peers.firstOrNull { it.id == id }?.let { (it.name ?: label(it)) + if (it.removed) " (removed)" else "" } ?: "(removed)"
@@ -753,6 +759,12 @@ fun HistoryScreen(vm: AppViewModel, onPeer: (String) -> Unit) {
         }
     }
 }
+
+/** Saves the History device filter through a rotation (I523). */
+internal val chipSaver = listSaver<HistoryFilter.Chip, String>(
+    save = { c -> when (c) { HistoryFilter.Chip.All -> listOf("all"); HistoryFilter.Chip.Unknown -> listOf("unknown"); is HistoryFilter.Chip.PeerChip -> listOf("peer", c.peerId, c.name) } },
+    restore = { l -> when (l[0]) { "unknown" -> HistoryFilter.Chip.Unknown; "peer" -> HistoryFilter.Chip.PeerChip(l[1], l[2]); else -> HistoryFilter.Chip.All } },
+)
 
 @Composable
 internal fun PaChip(selected: Boolean, text: String, onClick: () -> Unit) {

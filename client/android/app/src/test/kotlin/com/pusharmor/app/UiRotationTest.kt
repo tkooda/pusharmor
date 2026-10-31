@@ -8,11 +8,19 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.platform.ViewRootForTest
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.text.AnnotatedString
 import androidx.test.core.app.ApplicationProvider
 import com.pusharmor.app.ui.PermissionGate
+import com.pusharmor.app.notify.HistoryFilter
+import com.pusharmor.app.ui.RenameDialog
+import com.pusharmor.app.ui.chipSaver
+import androidx.compose.runtime.saveable.SaverScope
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -44,6 +52,17 @@ class UiRotationTest {
 
     private fun flat(n: SemanticsNode): List<SemanticsNode> = listOf(n) + n.children.flatMap { flat(it) }
     private fun nodes() = windows().flatMap { roots(it) }.flatMap { flat(it.semanticsOwner.unmergedRootSemanticsNode) }
+    private fun field() = nodes().first { it.config.getOrNull(SemanticsActions.SetText) != null }
+
+    @Test fun renameTypedTextSurvivesRotation() {
+        UiHostActivity.content = { RenameDialog("Phone", {}, {}) }
+        val c = Robolectric.buildActivity(UiHostActivity::class.java).setup(); idle()
+        field().config[SemanticsActions.SetText].action?.invoke(AnnotatedString("Kitchen")); idle()
+        c.recreate(); idle()
+        // The typed name stays; it no longer goes back to "Phone" (I523).
+        assertEquals("Kitchen", field().config[SemanticsProperties.EditableText].text)
+        c.pause().stop().destroy()
+    }
 
     @Test fun notificationPermissionAskedOncePerVisit() {
         val app = ApplicationProvider.getApplicationContext<android.app.Application>()
@@ -55,5 +74,20 @@ class UiRotationTest {
         c.recreate(); idle()
         assertNull(shadowOf(c.get()).lastRequestedPermission)
         c.pause().stop().destroy()
+    }
+
+    @Test fun historyDeviceFilterSurvivesRotation() {
+        val scope = SaverScope { true }
+        for (c in listOf(HistoryFilter.Chip.All, HistoryFilter.Chip.Unknown, HistoryFilter.Chip.PeerChip("p1", "Laptop"))) {
+            val saved = with(chipSaver) { scope.save(c) }!!
+            assertEquals(c, chipSaver.restore(saved))
+        }
+    }
+
+    @Test fun sendChoiceAndDevicesDialogsSurviveRotation() {
+        val main = java.io.File("src/main/kotlin/com/pusharmor/app/ui/MainScreens.kt").readText()
+        // Send chip choice, Devices Remove and "Pair a new device" dialogs, History filter (I523).
+        for (v in listOf("val picked = rememberSaveable", "var restored by rememberSaveable", "var confirmRemove by rememberSaveable",
+            "var pairHowTo by rememberSaveable", "var chip by rememberSaveable")) assertTrue(v, main.contains(v))
     }
 }
