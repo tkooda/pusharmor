@@ -908,6 +908,15 @@ DEFAULT_SERVER = "https://api.pusharmor.com"
 DEFAULT_NTFY = "https://ntfy.sh"
 STATE_VERSION = 1
 EXIT_OK, EXIT_ERR, EXIT_USAGE, EXIT_LOGIN, EXIT_SEND, EXIT_TEMP = 0, 1, 2, 3, 4, 75
+EXIT_CODES = (
+    (EXIT_OK, "success"),
+    (EXIT_ERR, "error: a failed request, or a damaged or unreadable file on this device"),
+    (EXIT_USAGE, "wrong command line, or the command needs a terminal"),
+    (EXIT_LOGIN, "not logged in, logged out, or this device was removed"),
+    (EXIT_SEND, "send failed for at least one device, or there is no device to send to"),
+    (EXIT_TEMP, "the relay server is busy or unreachable; try again later"),
+    (130, "stopped with Ctrl-C"),
+)
 UPDATE_HOW = "run pipx upgrade pusharmor, or get the new pusharmor.py from https://pusharmor.com/download"
 CODE_TRIES = 3
 LINK_LIFE_S = 600
@@ -2335,7 +2344,9 @@ COMMANDS = {
 
 def build_parser():
     p = argparse.ArgumentParser(prog="pusharmor", description="PushArmor: send links and text to your own "
-                                "devices, end-to-end encrypted. See https://pusharmor.com")
+                                "devices, end-to-end encrypted. See https://pusharmor.com",
+                                epilog="exit codes:\n" + "\n".join("  %-3d %s" % c for c in EXIT_CODES),
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--config", metavar="DIR", help="config dir (default: $PUSHARMOR_CONFIG, else "
                    "$XDG_CONFIG_HOME/pusharmor, else ~/.config/pusharmor)")
     p.add_argument("--version", action="version", version="pusharmor " + VERSION)
