@@ -38,7 +38,9 @@ workflow in its first job):
 - X.Y.Z has no leading zeros; Y and Z are at most 999; X is at most 2099.
 - The version files at the tag commit hold X.Y.Z: `release/version.properties`
   (Android), `client/chrome/manifest.json`, `client/firefox/manifest.json`,
-  `client/ios/project.yml`.
+  `client/ios/project.yml`, `client/cli/pusharmor.py` (VERSION and the version
+  comment on line 2), and `site/public/download.html` (the pusharmor.py release
+  URL and the SHA-256 of `client/cli/pusharmor.py` at the tag commit).
 - `ci-ok` of the ci workflow succeeded on the tag commit (a push run; `gh api`
   with actions: read). The release workflow waits up to 40 minutes for it.
 
