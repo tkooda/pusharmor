@@ -92,9 +92,9 @@ const FILES = [
   },
   {
     path: "client/cli/pusharmor.py",
-    get: (s) => [/^VERSION = "([^"]*)"$/m.exec(s)?.[1]],
-    want: (v) => [v],
-    set: (s, v) => s.replace(/^VERSION = "[^"]*"$/m, 'VERSION = "' + v + '"'),
+    get: (s) => [/^VERSION = "([^"]*)"$/m.exec(s)?.[1], /^# PushArmor command-line client, version (.*)$/m.exec(s)?.[1]],
+    want: (v) => [v, v],
+    set: (s, v) => s.replace(/^VERSION = "[^"]*"$/m, 'VERSION = "' + v + '"').replace(/^(# PushArmor command-line client, version ).*$/m, "$1" + v),
   },
   ...["client/chrome/manifest.json", "client/firefox/manifest.json"].map((path) => ({
     path,
