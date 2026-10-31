@@ -318,9 +318,12 @@ def _bad_constant(_):
 
 
 def parse_strict(b):
-    """Raises ValueError on invalid UTF-8, bad JSON, a duplicate key or trailing data."""
-    return json.loads(bytes(b).decode("utf-8"), object_pairs_hook=_pairs,
-                      parse_int=_Num, parse_float=_Num, parse_constant=_bad_constant)
+    """Raises ValueError on invalid UTF-8, bad JSON, a duplicate key, trailing data, or too deep nesting."""
+    try:
+        return json.loads(bytes(b).decode("utf-8"), object_pairs_hook=_pairs,
+                          parse_int=_Num, parse_float=_Num, parse_constant=_bad_constant)
+    except RecursionError:
+        raise ValueError("json: nested too deeply")
 
 
 def counter_n(v):
@@ -1185,11 +1188,13 @@ def _toml_loads(text):
 
 
 def toml_loads(text):
-    if tomllib is None:
-        return _toml_loads(text)
     try:
+        if tomllib is None:
+            return _toml_loads(text)
         return tomllib.loads(text)
-    except tomllib.TOMLDecodeError as e:
+    except RecursionError:
+        raise TomlError("nested too deeply")
+    except ValueError as e:  # tomllib.TOMLDecodeError
         raise TomlError(str(e))
 
 
@@ -1386,7 +1391,7 @@ class Api:
                 status, hdrs, data = 0, {}, b""
             try:
                 j = json.loads(data) if data else {}
-            except ValueError:
+            except (ValueError, RecursionError):
                 j = {}
             j = j if isinstance(j, dict) else {}
             if status == 426:
@@ -1466,7 +1471,7 @@ class Stream:
             self.backoff = 1
             try:
                 ev = json.loads(line)
-            except ValueError:
+            except (ValueError, RecursionError):
                 continue
             if not isinstance(ev, dict) or ev.get("event") != "message":
                 continue
