@@ -36,6 +36,14 @@ class UiTextTest {
         assertEquals(listOf("a"), UiText.sendable(listOf("c", "a"), listOf(ok, cli).filter { it.inAll }.map { it.id }))
     }
 
+    @Test fun emailErrorClearsWhenValid() {
+        val e = "Enter a valid email address."
+        assertEquals(null, UiText.emailErrorAfterEdit(e, "a@b.com"))
+        assertEquals(e, UiText.emailErrorAfterEdit(e, "a b@c"))
+        assertEquals(e, UiText.emailErrorAfterEdit(e, "a@"))
+        assertEquals(null, UiText.emailErrorAfterEdit(null, "a@"))
+    }
+
     @Test fun codeFieldState() {
         assertEquals("Code, 0 of 6 entered", UiText.codeState(0))
         assertEquals("Code, 4 of 6 entered", UiText.codeState(4))

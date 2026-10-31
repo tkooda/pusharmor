@@ -182,7 +182,7 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onDo
                         else { error = null; stage = 1 }
                     }
                     val invalid = UiText.emailFieldError(email)
-                    OutlinedTextField(email, { email = it }, label = { Text("Email address") }, singleLine = true, isError = invalid,
+                    OutlinedTextField(email, { email = it; error = UiText.emailErrorAfterEdit(error, it) }, label = { Text("Email address") }, singleLine = true, isError = invalid,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
                         keyboardActions = KeyboardActions(onNext = { next() }),
                         modifier = Modifier.fillMaxWidth().semantics { if (invalid) this.error("Not a valid email address") })
