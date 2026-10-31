@@ -72,7 +72,7 @@ export const isValidName = (name) => /^[\x20\x21\x23-\x7e]{1,32}$/.test(name);
 // Checks a parsed {name, n, s} object (approve, rename or name entry).
 // Returns { name, n } or null.
 export function checkNameObject(o, ownerIdB64, recipientIdB64, pairingIdB64, signPub) {
-  if (!(o instanceof Map) || o.size !== 3 || !o.has('name') || !o.has('n') || !o.has('s')) return null;
+  if (!(o instanceof Map) || !o.has('name') || !o.has('n') || !o.has('s')) return null;
   const nameB64 = o.get('name');
   const s = o.get('s');
   const n = counterN(o.get('n'));
@@ -154,11 +154,12 @@ export function receiveMessage(ctx, message) {
   } catch {
     return bad('inflate or json');
   }
-  if (!(obj instanceof Map) || obj.size !== 2 || !obj.has('n')) return bad('shape');
+  if (!(obj instanceof Map) || !obj.has('n')) return bad('shape');
   const n = counterN(obj.get('n'));
   if (n === null) return bad('n');
-  const type = [...obj.keys()].find((k) => k !== 'n');
-  if (!TYPES.includes(type)) return bad('type');
+  // Unknown keys are ignored; the type is the first known type key in TYPES order.
+  const type = TYPES.find((k) => obj.has(k));
+  if (!type) return bad('type');
   const value = obj.get(type);
   if ((flag === 1) !== (type === 'approve')) return bad('keys flag and type');
   const pidB64 = b64e(pairingId);
