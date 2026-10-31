@@ -164,6 +164,7 @@ fun PeersScreen(vm: AppViewModel) {
     val prefs by vm.prefs.collectAsState()
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     var confirmRemove by remember { mutableStateOf<Peer?>(null) }
+    var pairHowTo by remember { mutableStateOf(false) }
     // A failed remove, pair or deny puts its error in vm.message. Take it when shown, not on
     // dismiss, so leaving Peers does not leave it set (I426); counted like the Send result.
     val snack = remember { SnackbarHostState() }
@@ -219,7 +220,7 @@ fun PeersScreen(vm: AppViewModel) {
                     }
                 }
                 if (plain.isNotEmpty()) {
-                    item(key = "peers-header") { SectionHeader("Devices") }
+                    item(key = "peers-header") { SectionHeader("Other devices") }
                     itemsIndexed(plain, key = { _, p -> p.id }) { i, p ->
                         PeerRow(vm, p, now, p.id == highlight, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, plain.size)) { confirmRemove = p }
                     }
@@ -233,6 +234,11 @@ fun PeersScreen(vm: AppViewModel) {
                         }
                     }
                 }
+                if (plain.isNotEmpty() || pairing.isNotEmpty()) item(key = "pair-new") {
+                    OutlinedButton(onClick = { pairHowTo = true }, Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp).fillMaxWidth().heightIn(min = 48.dp)) {
+                        Text("Pair a new device")
+                    }
+                }
             }
         }
         SnackbarHost(snack, Modifier.align(Alignment.BottomCenter))
@@ -244,6 +250,9 @@ fun PeersScreen(vm: AppViewModel) {
             confirmButton = { TextButton(onClick = { vm.remove(p.id); confirmRemove = null }) { Text("Remove") } },
             dismissButton = { TextButton(onClick = { confirmRemove = null }) { Text("Cancel") } })
     }
+    if (pairHowTo) AlertDialog(onDismissRequest = { pairHowTo = false }, title = { Text("Pair a new device") },
+        text = { Text("1. Install PushArmor on the other device.\n2. Log in with the same account.\n3. It appears here. Tap Pair.") },
+        confirmButton = { TextButton(onClick = { pairHowTo = false }) { Text("OK") } })
 }
 
 /** Rename this device: one field, same save call as before. */
