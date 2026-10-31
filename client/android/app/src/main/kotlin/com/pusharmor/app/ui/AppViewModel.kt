@@ -237,6 +237,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun remove(id: String) = once("remove:$id") { g.session.removePeer(id)?.let { message.value = it } }
     fun localDelete(id: String) = io { g.session.localDelete(id) }
     fun setHidden(id: String, hidden: Boolean) = io { g.session.setHidden(id, hidden) }
+    fun setShareShown(id: String, shown: Boolean) = io { g.settings.setShareShown(id, shown); g.session.updateShortcuts() }
     fun tapGreyed() = io { g.session.fetchPeers() }
     fun setPeerSwitch(id: String, lock: Boolean? = null, watch: Boolean? = null, hide: Boolean? = null) = io {
         g.dao.peer(id)?.let { p -> g.dao.putPeer(p.copy(lockScreen = lock ?: p.lockScreen, watch = watch ?: p.watch, hideContent = hide ?: p.hideContent)) }
@@ -270,7 +271,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun <T> setPref(key: androidx.datastore.preferences.core.Preferences.Key<T>, v: T?) = io {
         g.settings.set(key, v)
-        if (key == Settings.K.DIRECT_SHARE) g.session.updateShortcuts()
         if (key == Settings.K.HISTORY_DAYS) g.session.purgeHistory()
     }
 
