@@ -11,9 +11,9 @@ import sys
 
 
 def check_python(version_info=None):
-    """Exit before any import that needs Python 3.11 (this file's syntax parses on 3.6 and later)."""
-    if tuple(version_info or sys.version_info)[:2] < (3, 11):
-        sys.stderr.write("PushArmor needs Python 3.11 or later.\n")
+    """Exit before any import that needs Python 3.9 (this file's syntax parses on 3.6 and later)."""
+    if tuple(version_info or sys.version_info)[:2] < (3, 9):
+        sys.stderr.write("PushArmor needs Python 3.9 or later.\n")
         sys.exit(2)
 
 
@@ -898,10 +898,17 @@ import string
 import subprocess
 import tempfile
 import time
-import tomllib
 import urllib.error
 import urllib.parse
 import urllib.request
+
+try:
+    import tomllib
+except ImportError:  # Python 3.9 and 3.10
+    try:
+        import tomli as tomllib
+    except ImportError:
+        tomllib = None
 
 SITE = "https://pusharmor.com"
 DEFAULT_SERVER = "https://api.pusharmor.com"
@@ -975,7 +982,7 @@ def ask_yes(question, default=False):
     return default if a == "" else a in ("y", "yes")
 
 
-# ---- TOML writer (tables, strings, ints, bools, lists); tomllib reads ----
+# ---- TOML writer (tables, strings, ints, bools, lists); tomllib, tomli, or _toml_loads reads ----
 
 _BARE = re.compile(r"[A-Za-z0-9_-]+")
 
@@ -1015,6 +1022,160 @@ def toml_dumps(d, prefix=""):
             name = prefix + key(k)
             out += "\n[" + name + "]\n" + toml_dumps(v, name + ".")
     return out
+
+
+class TomlError(ValueError):
+    pass
+
+
+_TESC = {'"': '"', "\\": "\\", "b": "\b", "t": "\t", "n": "\n", "f": "\f", "r": "\r"}
+_TINT = re.compile(r"[+-]?(?:0|[1-9][0-9]*)(?![0-9A-Za-z_.:+-])")
+
+
+def _toml_loads(text):
+    """Reads what toml_dumps writes, plus comments and blank lines. Used when tomllib and tomli are missing."""
+    root, seen = {}, set()
+    cur, i, n = root, 0, len(text)
+
+    def err(msg):
+        raise TomlError("%s (line %d)" % (msg, text.count("\n", 0, i) + 1))
+
+    def ws():
+        nonlocal i
+        while i < n and text[i] in " \t":
+            i += 1
+
+    def eol():
+        nonlocal i
+        ws()
+        if i < n and text[i] == "#":
+            while i < n and text[i] != "\n":
+                if text[i] < " " and text[i] != "\t":
+                    err("control character in comment")
+                i += 1
+        if i < n and text[i] != "\n":
+            err("expected end of line")
+        i += 1
+
+    def sval():
+        nonlocal i
+        i += 1
+        out = []
+        while True:
+            if i >= n or text[i] == "\n":
+                err("unterminated string")
+            ch = text[i]
+            i += 1
+            if ch == '"':
+                return "".join(out)
+            if ch == "\\":
+                e = text[i:i + 1]
+                if e in _TESC:
+                    out.append(_TESC[e])
+                    i += 1
+                elif e in ("u", "U"):
+                    w = 4 if e == "u" else 8
+                    h = text[i + 1:i + 1 + w]
+                    if len(h) != w or not all(c in "0123456789abcdefABCDEF" for c in h):
+                        err("bad escape")
+                    o = int(h, 16)
+                    if 0xD800 <= o < 0xE000 or o > 0x10FFFF:
+                        err("bad escape")
+                    out.append(chr(o))
+                    i += 1 + w
+                else:
+                    err("bad escape")
+            elif (ch < " " and ch != "\t") or ch == "\x7f":
+                err("control character in string")
+            else:
+                out.append(ch)
+
+    def key():
+        nonlocal i
+        if i < n and text[i] == '"':
+            return sval()
+        m = _BARE.match(text, i)
+        if not m:
+            err("expected a key")
+        i = m.end()
+        return m.group()
+
+    def value():
+        nonlocal i
+        if i < n and text[i] == '"':
+            return sval()
+        if i < n and text[i] == "[":
+            i += 1
+            out = []
+            while True:
+                ws()
+                if i < n and text[i] == "]":
+                    i += 1
+                    return out
+                out.append(value())
+                ws()
+                if i < n and text[i] == ",":
+                    i += 1
+                elif not (i < n and text[i] == "]"):
+                    err("expected , or ]")
+        for word, v in (("true", True), ("false", False)):
+            if text.startswith(word, i) and not _BARE.match(text, i + len(word)):
+                i += len(word)
+                return v
+        m = _TINT.match(text, i)
+        if not m:
+            err("unsupported value")
+        i = m.end()
+        return int(m.group())
+
+    while i < n:
+        ws()
+        if i >= n or text[i] in "#\n":
+            eol()
+            continue
+        if text[i] == "[":
+            i += 1
+            ws()
+            path = [key()]
+            ws()
+            while i < n and text[i] == ".":
+                i += 1
+                ws()
+                path.append(key())
+                ws()
+            if i >= n or text[i] != "]":
+                err("expected ]")
+            i += 1
+            if tuple(path) in seen:
+                err("table defined twice")
+            seen.add(tuple(path))
+            cur = root
+            for k in path:
+                cur = cur.setdefault(k, {})
+                if not isinstance(cur, dict):
+                    err("key is not a table")
+            eol()
+            continue
+        k = key()
+        ws()
+        if i >= n or text[i] != "=":
+            err("expected =")
+        i += 1
+        ws()
+        if k in cur:
+            err("duplicate key")
+        cur[k] = value()
+        eol()
+    return root
+
+
+def toml_loads(text):
+    if tomllib is None:
+        return _toml_loads(text)
+    try:
+        return tomllib.loads(text)
+    except tomllib.TOMLDecodeError as e:
+        raise TomlError(str(e))
 
 
 # ---- files ----
@@ -1059,8 +1220,8 @@ def check_private(path, want):
 def read_toml(path):
     try:
         with open(path, "rb") as f:
-            return tomllib.load(f)
-    except tomllib.TOMLDecodeError as e:
+            return toml_loads(f.read().decode("utf-8"))
+    except TomlError as e:
         raise Fail("%s is not valid TOML: %s" % (path, e))
     except UnicodeDecodeError:
         raise Fail("%s is not valid UTF-8 text. It is damaged." % path)

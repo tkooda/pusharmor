@@ -6,7 +6,6 @@ import os
 import sys
 import threading
 import time
-import tomllib
 
 import pytest
 
@@ -52,13 +51,13 @@ def run(cfg, *argv):
 
 
 def state(cfg):
-    with open(os.path.join(cfg, "devices.toml"), "rb") as f:
-        return tomllib.load(f)
+    with open(os.path.join(cfg, "devices.toml"), encoding="utf-8") as f:
+        return pa.toml_loads(f.read())
 
 
 def my_id(cfg):
-    with open(os.path.join(cfg, "keys", "private.toml"), "rb") as f:
-        return tomllib.load(f)["id"]
+    with open(os.path.join(cfg, "keys", "private.toml"), encoding="utf-8") as f:
+        return pa.toml_loads(f.read())["id"]
 
 
 def login(monkeypatch, cfg):
@@ -146,7 +145,31 @@ def test_toml_round_trip():
          "l": [1, 2], "ls": ["a", "b c"], "empty": [],
          "peers": {"AbC-_9": {"x": "y", "seen": [3, 2]}, "needs quote": {}}, "pairs": {}}
     text = pa.toml_dumps(d)
-    assert text.isascii() and tomllib.loads(text) == d
+    assert text.isascii() and pa.toml_loads(text) == d
+    assert pa._toml_loads(text) == d
+    assert pa._toml_loads(pa.KEY_HEADER + text) == d
+
+
+def test_toml_fallback_reader():
+    text = ('# settings\n\n  server = "https://r.example"  # mine\nntfy = "https://n.example"\n'
+            '[a]\nx = [ 1 , -2 ]\n[ a . "b c" ]\ny = true\n')
+    want = {"server": "https://r.example", "ntfy": "https://n.example", "a": {"x": [1, -2], "b c": {"y": True}}}
+    assert pa._toml_loads(text) == want
+    if pa.tomllib is not None:
+        assert pa.tomllib.loads(text) == want
+    for bad in ('x = 1\nx = 2\n', '[a]\n[a]\n', 'x = "a\n', 'x = 1.5\n', 'x = 01\n', 'x = "\\q"\n',
+                'x = "\\ud800"\n', 'x = truex\n', 'x = 1 y\n', 'x 1\n', '[a\n', 'x = [1 2]\n',
+                'x = 1\n[x]\n', "x = 'lit'\n"):
+        with pytest.raises(pa.TomlError):
+            pa._toml_loads(bad)
+
+
+def test_bad_toml_file(tmp_path):
+    p = tmp_path / "settings.toml"
+    p.write_text("server = \n")
+    with pytest.raises(pa.Fail) as e:
+        pa.read_toml(str(p))
+    assert "is not valid TOML" in str(e.value)
 
 
 def make_keys(cfg, dmode=0o700, fmode=0o600):
@@ -464,7 +487,7 @@ def test_damaged_state_file_is_one_line_exit_1(monkeypatch, tmp_path, net, capsy
 def test_wrong_key_length_is_damaged(monkeypatch, tmp_path, net, capsys):
     cfg = _logged_in(monkeypatch, tmp_path, net)
     path = cfg / "keys" / "private.toml"
-    d = tomllib.loads(path.read_text())
+    d = pa.toml_loads(path.read_text())
     d["sign_key"] = pa.b64e(b"\x01" * 31)
     path.write_text(pa.KEY_HEADER + pa.toml_dumps(d))
     path.chmod(0o600)

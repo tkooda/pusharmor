@@ -49,5 +49,5 @@ Run `pusharmor COMMAND --help` for details. Files live in `~/.config/pusharmor`
 ## Needs
 
 - Linux or macOS. Windows is not supported yet.
-- Python 3.11 or newer.
+- Python 3.9 or newer.
 - The `cryptography` package (version 3.4 or newer). pipx installs it for you.
