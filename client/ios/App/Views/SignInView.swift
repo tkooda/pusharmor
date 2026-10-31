@@ -30,12 +30,21 @@ struct SignInView: View {
                 .buttonStyle(GoogleButtonStyle())
 
                 if showEmail {
+                    // Red border while non-empty and not a valid address, updated on every edit (I468).
+                    let invalid = !email.isEmpty && !Ids.looksLikeEmail(email)
                     TextField("Email address", text: $email)
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .textFieldStyle(.roundedBorder)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .strokeBorder(Color.errorText, lineWidth: 1.5)
+                                .opacity(invalid ? 1 : 0)
+                                .allowsHitTesting(false)
+                        )
+                        .accessibilityValue(invalid ? email + ", " + S.emailInvalid : email)
                     Button {
                         if Ids.normalizeEmail(email) == nil {
                             model.errorText = S.badEmail

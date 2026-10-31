@@ -51,6 +51,7 @@ public enum S {
     public static let storeRepaired = "Local data was found corrupted and repaired. Please log in again."
     public static let updateRequired = "Update PushArmor to continue"
     public static let clockOff = "This device's clock is off by more than 5 minutes"
+    public static let emailInvalid = "Not a valid email address"
     public static let badEmail = "Only email addresses with plain ASCII characters are supported."
     public static let signInExpired = "Login expired, log in again"
     public static let signedOutResume = "Logged out. Log in to resume"
