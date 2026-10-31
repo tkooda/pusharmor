@@ -197,7 +197,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     }
     await update();
   });
-  root.append(field, h("div", { class: "meta" }, caption, counter));
+  root.append(field, h("div", { class: "meta" }, caption, asTextRow, counter));
   if (offerCut) {
     root.append(
       h("div", { class: "cut" }, h("button", {
@@ -215,7 +215,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
       }, "Send the first 2048 bytes")),
     );
   }
-  root.append(asTextRow, head, chips, h("div", { class: "foot send-foot" }, result, sendBtn));
+  root.append(head, chips, h("div", { class: "foot send-foot" }, result, sendBtn));
   relabel();
   await update();
 }
