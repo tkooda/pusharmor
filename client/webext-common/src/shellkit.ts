@@ -236,6 +236,17 @@ export function uiEnv(b: Browser): UiEnv {
       await navigator.clipboard.writeText(text);
     },
     beta: b.runtime.getManifest().name === "PushArmor Beta",
+    session: {
+      get: async (key) => (await b.storage.session.get([key]))[key],
+      remove: (key) => b.storage.session.remove([key]),
+      watch(key, cb) {
+        const f = (ch: Record<string, { newValue?: unknown }>, area: string) => {
+          if (area === "session" && key in ch) cb(ch[key]!.newValue);
+        };
+        b.storage.onChanged.addListener(f);
+        return () => b.storage.onChanged.removeListener(f);
+      },
+    },
     theme: {
       get: async () => (await b.storage.local.get([THEME_KEY]))[THEME_KEY],
       set: (pref) => b.storage.local.set({ [THEME_KEY]: pref }),
