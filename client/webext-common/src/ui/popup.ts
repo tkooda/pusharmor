@@ -410,10 +410,10 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promi
     sh("Appearance"),
     group(h("div", { class: "srow" }, h("div", { class: "txt" }, h("div", {}, "Theme"), h("div", { class: "t2" }, "Dark uses a true black background.")), theme)),
     sh("Sending"),
-    group(
-      h("label", { class: "srow" }, h("span", {}, 'Show "All" option'), showAll),
-      h("label", { class: "srow" }, h("span", {}, "Open links automatically"), autoOpen),
-    ),
+    group(h("label", { class: "srow" }, h("span", {}, 'Show "All" option'), showAll)),
+    // received links on this device
+    sh("Receiving"),
+    group(h("label", { class: "srow" }, h("span", {}, "Open links automatically"), autoOpen)),
     sh("History"),
     group(
       h("div", { class: "srow" }, h("span", {}, "History auto-delete"), days),
