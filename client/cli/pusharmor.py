@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# PushArmor command-line client, version 0.0.19
+# PushArmor command-line client, version 0.0.20
 """PushArmor command-line client.
 
 The top part is the core layer: encodings, keys, signed requests, HPKE,
@@ -33,7 +33,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature, encode_dss_signature
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-VERSION = "0.0.19"
+VERSION = "0.0.20"
 
 # ---- encodings ----
 
