@@ -39,7 +39,7 @@ class Resp:
             self.pos = ids.index(since) + 1 if since in ids else 0
         self.opened = False
 
-    def readline(self):
+    def readline(self, limit=-1):
         if not self.opened:
             self.opened = True
             return b'{"event":"open"}\n'

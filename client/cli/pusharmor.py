@@ -1451,13 +1451,17 @@ class Api:
 
 # ---- ntfy stream (UnifiedPush endpoint https://<ntfy>/<topic>?up=1) ----
 
+NTFY_LINE_CAP = 65536  # far above the largest push; a longer line is skipped, not held in memory
+
+
 class Stream:
     def __init__(self, ntfy, topic, keys, since, timeout, poll=False):
         self.url = ntfy.rstrip("/") + "/" + topic + "/json"
         self.keys, self.since, self.timeout, self.poll = keys, since, timeout, poll
-        self.resp, self.backoff, self.delay = None, 1, False
+        self.resp, self.backoff, self.delay, self.in_long_line = None, 1, False, False
 
     def connect(self):
+        self.in_long_line = False
         q = {"poll": "1"} if self.poll else {}
         if self.since:
             q["since"] = self.since
@@ -1486,7 +1490,7 @@ class Stream:
                     self.delay = True
                     continue
             try:
-                line = self.resp.readline()
+                line = self.resp.readline(NTFY_LINE_CAP)
             except TimeoutError:
                 self.close(False)
                 continue
@@ -1499,6 +1503,9 @@ class Stream:
                     return None
                 continue
             self.backoff = 1
+            was_long, self.in_long_line = self.in_long_line, not line.endswith(b"\n")
+            if was_long or self.in_long_line:
+                continue
             try:
                 ev = json.loads(line)
             except (ValueError, RecursionError):
