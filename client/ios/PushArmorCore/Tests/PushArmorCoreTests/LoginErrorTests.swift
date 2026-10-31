@@ -8,6 +8,7 @@ final class LoginErrorTests: XCTestCase {
         XCTAssertEqual(S.loginError(.badEmail), S.badEmail)
         XCTAssertEqual(S.loginError(.emailSendFailed), S.emailSendFailed)
         XCTAssertEqual(S.loginError(.rateLimited(30)), "Too many requests. Try again in 30 seconds.")
+        XCTAssertEqual(S.loginError(.rateLimited(1)), "Too many requests. Try again in 1 second.")
         XCTAssertEqual(S.loginError(.failed(401, "wrong code")), S.wrongCode)
         XCTAssertEqual(S.loginError(.failed(401, "code expired")), S.codeExpired)
         XCTAssertEqual(S.loginError(.failed(500, nil)), "Login failed.")

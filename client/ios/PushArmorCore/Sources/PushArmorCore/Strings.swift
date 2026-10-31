@@ -80,7 +80,7 @@ public enum S {
         case .network: return noConnection
         case .badEmail: return badEmail
         case .emailSendFailed: return emailSendFailed
-        case .rateLimited(let s): return "Too many requests. Try again in \(s) seconds."
+        case .rateLimited(let s): return "Too many requests. Try again in \(s) \(s == 1 ? "second" : "seconds")."
         case .failed(401, "wrong code"?): return wrongCode
         case .failed(401, "code expired"?): return codeExpired
         default: return loginFailed
