@@ -457,10 +457,10 @@ export interface LimitPeer {
 
 const devices = (n: number): string => n + (n === 1 ? " device" : " devices");
 
-/** Device limit row, second line: "Added Oct 2, 2026. Approved 3 devices and approved by 1 device. Unreachable." */
+/** Device limit row, second line: "Added Oct 2, 2026. Trusts 3 devices. Trusted by 1. Unreachable." */
 export function limitLine(p: LimitPeer): string {
   const added = new Date(p.created * 1000).toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
-  return ["Added " + added + ".", "Approved " + devices(p.approves) + " and approved by " + devices(p.approved_by) + ".", p.reachable ? "" : "Unreachable.", p.logged_out ? "Logged out." : ""]
+  return ["Added " + added + ".", "Trusts " + devices(p.approves) + ".", "Trusted by " + p.approved_by + ".", p.reachable ? "" : "Unreachable.", p.logged_out ? "Logged out." : ""]
     .filter(Boolean)
     .join(" ");
 }
