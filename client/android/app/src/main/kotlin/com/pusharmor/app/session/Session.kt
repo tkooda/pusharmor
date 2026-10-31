@@ -180,6 +180,8 @@ class Session(private val g: Graph) {
     // ---- sign out / delete ----------------------------------------------------------------
 
     fun signOut(): String? {
+        // No registration left (removed meanwhile): nothing to tell the relay server; still end at log in (I465).
+        if (g.identity() == null) { s.set(Settings.K.SIGNED_OUT, true); return null }
         val r = g.logoutFlow().logout()
         if (r !is ApiResult.Ok) return ErrorText.of(r)
         s.set(Settings.K.SIGNED_OUT, true)
