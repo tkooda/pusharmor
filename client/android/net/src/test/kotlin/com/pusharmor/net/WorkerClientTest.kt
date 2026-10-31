@@ -25,10 +25,11 @@ class WorkerClientTest {
 
     @After fun stop() = server.shutdown()
 
-    private fun ok(body: String = "{\"r\":{}}", epoch: Long = clock) = MockResponse().setBody(body).setHeader("PA-Epoch-Ms", epoch.toString())
+    /** [epoch] in unix seconds, as the Worker sends PA-Epoch (Q331). */
+    private fun ok(body: String = "{\"r\":{}}", epoch: Long = clock / 1000) = MockResponse().setBody(body).setHeader("PA-Epoch", epoch.toString())
 
     @Test fun signsExactBodyBytesAndSyncsOffset() {
-        server.enqueue(ok(epoch = clock + 5000))
+        server.enqueue(ok(epoch = clock / 1000 + 5))
         val r = client.send(mapOf("x" to "M"))
         assertTrue(r is ApiResult.Ok)
         val req = server.takeRequest()
@@ -40,11 +41,22 @@ class WorkerClientTest {
         assertEquals("{\"v\":1,\"m\":{\"x\":\"M\"}}", String(body))
         val sig = B64url.decode(req.getHeader("PA-Sig")!!)
         assertTrue(P256.verify(keys.signPub, Ids.requestSigningBytes("POST", "/v1/send", t, body), sig))
-        assertEquals(5000L, offset.offsetMs)
+        assertEquals(5L, offset.offsetS)
         assertEquals("android/0.0.0", req.getHeader("PA-Client"))
         server.enqueue(ok())
         client.peers()
         assertEquals((clock + 5000).toString(), server.takeRequest().getHeader("PA-Time"))
+    }
+
+    @Test fun clockSkewReplyResyncsOffsetInSecondsAndOldHeaderIsIgnored() {
+        server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"clock skew\"}").setHeader("PA-Epoch", (clock / 1000 - 600).toString()))
+        assertTrue(client.peers().isClockSkew)
+        assertEquals(-600L, offset.offsetS)
+        server.enqueue(MockResponse().setBody("{}").setHeader("PA-Epoch-Ms", (clock + 9000).toString()))
+        client.peers()
+        assertEquals(-600L, offset.offsetS)
+        server.takeRequest()
+        assertEquals((clock - 600_000).toString(), server.takeRequest().getHeader("PA-Time"))
     }
 
     @Test fun paClientOnEveryRequestAnd426Text() {
