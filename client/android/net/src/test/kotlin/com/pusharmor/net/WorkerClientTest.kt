@@ -71,6 +71,19 @@ class WorkerClientTest {
         assertEquals(2, server.requestCount)
     }
 
+    @Test fun http426CallsUpdateHookOnSignedAndUnsignedCalls() {
+        var n = 0
+        val c = WorkerClient({ keys }, { id }, offset, server.url("/"), WorkerClient.defaultHttp(), { clock }, { clock += it }, onUpdateRequired = { n++ })
+        server.enqueue(ok("{\"request_token\":\"rt\"}"))
+        c.authEmail("a@b.com", "k", "register", "t")
+        assertEquals(0, n)
+        server.enqueue(MockResponse().setResponseCode(426).setBody("{\"error\":\"update required\"}"))
+        server.enqueue(MockResponse().setResponseCode(426))
+        c.peers(); c.authEmail("a@b.com", "k", "register", "t")
+        assertEquals(2, n)
+        assertEquals(3, server.requestCount)
+    }
+
     @Test fun authStateHookSeesUnknownPeerAndLoggedOutOnSignedCalls() {
         val seen = ArrayList<String>()
         val c = WorkerClient({ keys }, { id }, offset, server.url("/"), WorkerClient.defaultHttp(), { clock }, { clock += it }, { seen.add(it) })

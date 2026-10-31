@@ -244,6 +244,26 @@ class AppLogicTest {
         assertEquals("a,b", kotlinx.coroutines.runBlocking { s.lastSendTo() })
     }
 
+    @Test fun http426ShowsUpdateScreenUntilVersionChanges() {
+        val ctx = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val s = com.pusharmor.app.data.Settings(ctx)
+        assertFalse(s.updateRequired("0.0.19"))
+        s.markUpdateRequired("0.0.19")
+        assertTrue(s.updateRequired("0.0.19"))
+        assertTrue(s.updateRequired("0.0.19")) // every launch of the same version
+        assertFalse(s.updateRequired("0.0.20")) // a new version clears the mark
+        assertNull(s.get(com.pusharmor.app.data.Settings.K.UPDATE_REQUIRED))
+        // The app hook marks it; the main screen and the share sheet gate on it before anything else.
+        assertTrue(source("PaApp.kt").contains("onUpdateRequired = { settings.markUpdateRequired(BuildConfig.VERSION_NAME) }"))
+        val act = source("ui/MainActivity.kt")
+        val app = act.substring(act.indexOf("private fun App("))
+        assertTrue(app.substring(0, app.indexOf("vm.start.collectAsState()")).contains("UPDATE_REQUIRED) == com.pusharmor.app.BuildConfig.VERSION_NAME) { UpdateScreen("))
+        assertTrue(act.contains("\"Please update PushArmor\"") && act.contains("\"https://pusharmor.com/download\""))
+        val share = source("ui/ShareActivity.kt")
+        assertTrue(share.indexOf("updateRequired(") in 0 until share.indexOf("canShare("))
+        assertTrue(source("ui/AppViewModel.kt").contains("g.settings.updateRequired(com.pusharmor.app.BuildConfig.VERSION_NAME)"))
+    }
+
     @Test fun largeFontAndLandscapeLayout() {
         assertTrue(source("ui/MainActivity.kt").contains("label = { Text(l, maxLines = 1, softWrap = false"))
         val main = source("ui/MainScreens.kt")

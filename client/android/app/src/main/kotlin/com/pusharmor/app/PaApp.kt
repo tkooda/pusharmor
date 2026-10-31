@@ -56,7 +56,8 @@ class Graph(val app: PaApp) {
 
     val client = WorkerClient({ keysOrNull ?: error("no keys") }, { dao.self()?.id }, offset, BuildConfig.API_BASE.toHttpUrl(),
         http = if (BuildConfig.SCREENSHOT_MODE) ScreenshotMode.guard(WorkerClient.defaultHttp()) else WorkerClient.defaultHttp(),
-        onAuthState = ::onAuthState, paClient = "android/${BuildConfig.VERSION_NAME}")
+        onAuthState = ::onAuthState, paClient = "android/${BuildConfig.VERSION_NAME}",
+        onUpdateRequired = { settings.markUpdateRequired(BuildConfig.VERSION_NAME) })
 
     /** 401 "unknown peer": this device was removed; 401 "logged out": signed out. Applies to every signed call. */
     private fun onAuthState(error: String) {

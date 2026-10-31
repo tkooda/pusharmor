@@ -88,6 +88,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private fun setStart(s: Session.Start) { signInPurpose.value = purpose(); start.value = s }
 
     fun boot(fromMain: Boolean = true) = io {
+        g.settings.updateRequired(com.pusharmor.app.BuildConfig.VERSION_NAME)
         val s = g.session.startup(fromMain)
         setStart(s)
         if (s == Session.Start.READY) g.session.onAppOpen(System.currentTimeMillis())
