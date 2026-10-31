@@ -16,6 +16,8 @@ const TICKET_RE = /^[A-Za-z0-9_.-]{16,4096}$/;
 
 export interface LoginResult {
   done: boolean;
+  /** Firefox: the login tab goes here (Google or Apple) and comes back through authDone. */
+  url?: string;
   limit?: Record<string, unknown>; // 409 "peer limit" body for the picker
   ticket?: string;
 }
@@ -85,28 +87,36 @@ export class Login {
     return API_BASE + "/v1/auth/" + provider + "?k=" + encodeURIComponent(k) + "&r=" + r + "&p=" + purpose;
   }
 
-  /** Starts Google or Apple sign-in. Chrome finishes here; Firefox finishes in authDone. */
-  async oauthStart(provider: "google" | "apple", purpose: Purpose): Promise<LoginResult> {
+  /**
+   * Starts Google or Apple sign-in. Chrome finishes here (launchWebAuthFlow). Firefox (Q337):
+   * the login tab itself goes to the provider (the page follows the returned url) and comes
+   * back through authDone; a call without a tab opens a new one.
+   */
+  async oauthStart(provider: "google" | "apple", purpose: Purpose, tabId?: number): Promise<LoginResult> {
     const url = await this.oauthUrl(provider, purpose);
     const redirect = await this.e.p.authFlow(url);
     if (redirect !== null) {
       const f = parseFragment(redirect);
       return this.complete(purpose, f.ticket ?? "", f.email ?? null);
     }
-    const tabId = await this.e.p.openTab(url, true);
-    await this.e.p.storageSession.set({ [AUTH_PENDING]: { tabId, purpose, until: this.e.p.now() + AUTH_PENDING_MS } });
-    return { done: false };
+    const tab = tabId ?? (await this.e.p.openTab(url, true));
+    await this.e.p.storageSession.set({ [AUTH_PENDING]: { tabId: tab, purpose, until: this.e.p.now() + AUTH_PENDING_MS } });
+    return tabId === undefined ? { done: false } : { done: false, url };
   }
 
-  /** Firefox: the /auth/done content script relayed the fragment from tab tabId. */
+  /** Firefox: the /auth/done content script relayed the fragment from tab tabId (the login tab). */
   async authDone(tabId: number | undefined, hash: string): Promise<LoginResult> {
     const pend = (await this.e.p.storageSession.get([AUTH_PENDING]))[AUTH_PENDING] as { tabId: number | null; purpose: Purpose; until: number } | undefined;
     if (!pend || tabId === undefined || pend.tabId !== tabId || this.e.p.now() > pend.until) return { done: false };
     await this.e.p.storageSession.remove([AUTH_PENDING]); // consumed once
-    this.e.p.closeTab(tabId);
     const f = parseFragment("#" + hash.replace(/^#/, ""));
-    // The content script drops the reply: the login view reads the result from storage.session.
-    const report = (r: Omit<AuthResult, "at">) => this.e.p.storageSession.set({ [AUTH_RESULT]: { ...r, at: this.e.p.now() } });
+    // The content script drops the reply: the login view reads the result from storage.session
+    // when the tab is back on page.html (and any other open login view updates too).
+    const back = pend.purpose === "delete-account" ? "#login=delete-account" : "#login";
+    const report = async (r: Omit<AuthResult, "at">) => {
+      await this.e.p.storageSession.set({ [AUTH_RESULT]: { ...r, at: this.e.p.now() } });
+      this.e.p.showPage(tabId, back);
+    };
     try {
       const r = await this.complete(pend.purpose, f.ticket ?? "", f.email ?? null);
       await report(r);

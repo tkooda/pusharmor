@@ -29,7 +29,8 @@ export interface Platform {
   clearAllNotifications(): Promise<void>;
   /** Opens a tab; resolves to its id when known. */
   openTab(url: string, active: boolean): Promise<number | null>;
-  closeTab(tabId: number): void;
+  /** Loads the extension page page.html + hash in tab tabId (Firefox sign-in returns to its tab). */
+  showPage(tabId: number, hash: string): void;
   /** Chrome: identity.launchWebAuthFlow; resolves to the final redirect URL. Firefox: null (tab flow). */
   authFlow(url: string): Promise<string | null>;
   /** Auto-open in the last focused normal window; false when no window exists. */

@@ -183,7 +183,10 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   const oauth = (provider: string) => async () => {
     resetNotes();
     try {
-      await done(await rpc<LoginResult>(env, "oauth", { provider, purpose }));
+      const r = await rpc<LoginResult>(env, "oauth", { provider, purpose });
+      // Firefox: this tab goes to Google or Apple and comes back with the result (Q337)
+      if (r.url) location.assign(r.url);
+      else await done(r);
     } catch (e) {
       resetNotes(note("err", "error", (e as Error).message));
     }
@@ -365,8 +368,6 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
         ),
       );
       heading.focus(); // the old controls are gone: read the result
-    } else if (ff) {
-      resetNotes(note("", "info", "Finish logging in in the new tab."));
     }
   };
 
