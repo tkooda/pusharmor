@@ -95,6 +95,29 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.buttons["Rename"].waitForExistence(timeout: 10))
     }
 
+    /// I609: the device name shows once; Rename edits it inline with Cancel and Save, no dialog.
+    func testRenameIsInline() {
+        let app = launch()
+        let tab = app.tabBars.buttons["Settings"]
+        XCTAssertTrue(tab.waitForExistence(timeout: 30))
+        tab.tap()
+        let rename = app.buttons["Rename"]
+        XCTAssertTrue(rename.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Copy"].exists)
+        XCTAssertFalse(app.buttons["Save"].exists)
+        XCTAssertFalse(app.textFields.firstMatch.exists)
+        rename.tap()
+        let field = app.textFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Save"].exists)
+        XCTAssertFalse(app.buttons["Rename"].exists)
+        XCTAssertFalse(app.alerts.firstMatch.exists)
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(rename.waitForExistence(timeout: 5))
+        XCTAssertFalse(field.exists)
+        XCTAssertFalse(app.buttons["Save"].exists)
+    }
+
     /// I468: the email field is marked invalid while non-empty and not a valid address.
     func testEmailFieldMarksInvalidLive() {
         let app = launch(["-PAScreenshotsSignIn"])

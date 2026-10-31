@@ -180,26 +180,6 @@ struct IconTile: View {
     }
 }
 
-/// The This device row: name, a dim "This device" caption, and Rename.
-struct DeviceRow: View {
-    let name: String
-    let rename: () -> Void
-
-    var body: some View {
-        HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(name)
-                Text("This device")
-                    .font(.footnote)
-                    .foregroundColor(.secondaryText)
-            }
-            Spacer(minLength: 8)
-            Button("Rename", action: rename)
-                .buttonStyle(.borderless)
-        }
-    }
-}
-
 /// The pairing fingerprint on a tinted plate: caps label, one cell per character, check line.
 struct FingerprintPlate: View {
     let code: String
