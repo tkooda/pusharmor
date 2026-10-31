@@ -410,23 +410,38 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (tex
     row.classList.add("unread");
     col.append(h("span", { class: "sr", role: "img", "aria-label": "Unread" }));
   }
+  // I620: a tap on the selected row (not its buttons) collapses it; another row selects.
+  const sync = () => content.setAttribute("aria-expanded", String(row.classList.contains("sel")));
   const select = () => {
     for (const o of Array.from(row.parentElement?.querySelectorAll(".hrow.sel") ?? [])) if (o !== row) o.classList.remove("sel");
+    row.classList.remove("closed");
     row.classList.add("sel");
+    sync();
+  };
+  const collapse = () => {
+    row.classList.remove("sel");
+    row.classList.add("closed");
+    sync();
   };
   const markRead = () => {
+    if (row.classList.contains("sel")) return collapse();
     void rpc(env, "historyRead", { id: r.id });
     row.querySelector(".sr")?.remove();
     row.classList.remove("unread");
     select();
   };
-  content.addEventListener("click", markRead);
+  sync();
   content.addEventListener("keydown", (ev: KeyboardEvent) => {
     if (ev.key !== "Enter" && ev.key !== " ") return;
     ev.preventDefault();
     markRead();
   });
-  row.addEventListener("click", select);
+  row.addEventListener("click", (ev: Event) => {
+    const t = ev.target as Element | null;
+    if (t?.closest(".acts, .peerlink")) return;
+    if (t?.closest(".content") || row.classList.contains("sel")) markRead();
+    else select();
+  });
   const acts = h("div", { class: "actions acts" });
   if (r.type === "url") acts.append(h("button", { class: "ac", onclick: () => env.openUrl(r.content) }, icon("open", 15), "Open"));
   acts.append(
