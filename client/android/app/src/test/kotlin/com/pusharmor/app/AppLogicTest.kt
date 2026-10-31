@@ -5,6 +5,8 @@ import com.pusharmor.app.notify.HistoryFilter
 import com.pusharmor.app.notify.HistoryFilter.Chip
 import com.pusharmor.app.notify.Notifier
 import com.pusharmor.app.notify.Policy
+import com.pusharmor.app.session.Session
+import com.pusharmor.app.ui.AppViewModel
 import com.pusharmor.app.ui.AuthLinkActivity
 import com.pusharmor.app.ui.CodeInput
 import com.pusharmor.app.ui.ShareActivity
@@ -234,5 +236,14 @@ class AppLogicTest {
         val s = com.pusharmor.app.data.Settings(ctx)
         kotlinx.coroutines.runBlocking { s.saveSendTo(listOf("a", "b")) }
         assertEquals("a,b", kotlinx.coroutines.runBlocking { s.lastSendTo() })
+    }
+
+    @Test fun removedOrLoggedOutWhileOpenLeavesTheSignedInScreens() {
+        assertTrue(AppViewModel.needsReboot(Session.Start.READY, selfPresent = false, signedOut = false)) // device removed
+        assertTrue(AppViewModel.needsReboot(Session.Start.READY, selfPresent = true, signedOut = true)) // logged out
+        assertFalse(AppViewModel.needsReboot(Session.Start.READY, selfPresent = true, signedOut = false))
+        assertFalse(AppViewModel.needsReboot(Session.Start.SIGNED_OUT, selfPresent = true, signedOut = true))
+        assertFalse(AppViewModel.needsReboot(Session.Start.SIGN_IN, selfPresent = false, signedOut = false))
+        assertFalse(AppViewModel.needsReboot(null, selfPresent = false, signedOut = false))
     }
 }
