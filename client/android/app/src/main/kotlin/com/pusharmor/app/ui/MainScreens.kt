@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -742,8 +743,7 @@ fun HistoryScreen(vm: AppViewModel, onPeer: (String) -> Unit) {
             }
             return@Column
         }
-        FlowRow(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        ChipRow(Modifier.padding(top = 4.dp, bottom = 8.dp)) {
             for (c in HistoryFilter.chips(frows, ::nameOf)) {
                 val t = when (c) { HistoryFilter.Chip.All -> "All"; HistoryFilter.Chip.Unknown -> "Unknown"; is HistoryFilter.Chip.PeerChip -> c.name }
                 PaChip(eff == c, t) { chip = c }
@@ -767,6 +767,13 @@ fun HistoryScreen(vm: AppViewModel, onPeer: (String) -> Unit) {
             }
         }
     }
+}
+
+/** One row of filter chips that scrolls sideways, so a long device name never wraps Sent or Received onto a second line (I571). */
+@Composable
+internal fun ChipRow(modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
+    Row(modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp), content = content)
 }
 
 /** Saves the History device filter through a rotation (I523). */

@@ -21,6 +21,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.pusharmor.app.ui.ChipRow
 import com.pusharmor.app.ui.NavLabel
 import com.pusharmor.app.ui.PaChip
 import com.pusharmor.app.ui.UiText
@@ -135,5 +136,15 @@ class UiFitTest {
         assertFalse(sendScrolls(areaPx = 1400, chipsPx = 300, extrasPx = 100, fieldMinPx = 300))
         // Not measured yet: no scroll.
         assertFalse(sendScrolls(areaPx = 0, chipsPx = 0, extrasPx = 0, fieldMinPx = 300))
+    }
+
+    @Test fun historyFilterChipsStayOnOneRow() {
+        val names = listOf("All", "Laptop", "Kitchen tablet on the fridge 32", "Sent", "Received")
+        val c = show("w411dp-h891dp-xxhdpi", 1.0f) {
+            ChipRow { for (t in names) PaChip(t == "All", t) {} }
+        }
+        val tops = names.map { t -> nodes(c.get()).first { n -> n.config.getOrNull(SemanticsProperties.Text)?.any { it.text == t } == true }.positionInRoot.y }
+        // One row: Received does not drop to a line of its own (I571).
+        assertEquals(tops.toString(), 1, tops.toSet().size)
     }
 }
