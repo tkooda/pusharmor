@@ -7,6 +7,8 @@ import { T } from "../core/texts.ts";
 export const API_BASE = "https://api.pusharmor.com";
 export const RETRY_DELAYS_MS = [500, 1500, 3000];
 export const RETRY_BUDGET_MS = 8000;
+/** One request (headers and body) may take this long before it is aborted (I556). */
+export const FETCH_TIMEOUT_MS = 15000;
 
 export class ApiError extends Error {
   readonly status: number; // 0 = network error
@@ -118,18 +120,29 @@ export class Api {
       headers["PA-Sig"] = await paSig(opts.signer.key, method, fullPath, t, bodyBytes);
     }
     let res: Response;
+    let t = "";
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), FETCH_TIMEOUT_MS);
     try {
-      const init: RequestInit = { method, headers, redirect: "manual", credentials: "omit", cache: "no-store" };
-      if (bodyText !== "") init.body = bodyText;
-      res = await this.d.fetch(API_BASE + fullPath, init);
-    } catch {
-      throw new ApiError(0, "network", {}, null);
+      try {
+        const init: RequestInit = { method, headers, redirect: "manual", credentials: "omit", cache: "no-store", signal: abort.signal };
+        if (bodyText !== "") init.body = bodyText;
+        res = await this.d.fetch(API_BASE + fullPath, init);
+      } catch {
+        throw new ApiError(0, "network", {}, null);
+      }
+      try {
+        t = await res.text();
+      } catch {
+        if (abort.signal.aborted) throw new ApiError(0, "network", {}, null);
+      }
+    } finally {
+      clearTimeout(timer);
     }
     const epoch = res.headers.get("PA-Epoch");
     if (epoch && /^[0-9]{1,13}$/.test(epoch)) await this.d.setOffset(Number(epoch) - Math.floor(this.d.now() / 1000));
     let json: Record<string, unknown> = {};
     try {
-      const t = await res.text();
       if (t) {
         const v = JSON.parse(t) as unknown;
         if (v && typeof v === "object" && !Array.isArray(v)) json = v as Record<string, unknown>;
@@ -164,6 +177,6 @@ export function errorText(e: unknown): string {
   if (e.status === 403 && e.error === "turnstile failed") return "The security check did not finish. Try it again.";
   if (e.status === 401 && e.error === "logged out") return "Logged out. Log in to resume.";
   if (e.status === 429) return "Too many requests. Try again in " + (e.retryAfter ?? 60) + " seconds.";
-  if (e.status === 0) return "Offline. Try again.";
+  if (e.status === 0) return "Could not reach the relay server. Check your connection.";
   return "Something went wrong. Try again.";
 }

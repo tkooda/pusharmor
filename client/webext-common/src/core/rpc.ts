@@ -87,7 +87,8 @@ export class Rpc {
         void e.retryPendingLogout().catch(() => undefined); // full tab open (Q368)
         return this.state();
       case "popupOpen":
-        await e.onPopupOpen();
+        // I556: draw from the local state at once; the network work runs behind it
+        void e.onPopupOpen().catch(() => undefined);
         return this.state();
       case "peers":
         return this.peers();
