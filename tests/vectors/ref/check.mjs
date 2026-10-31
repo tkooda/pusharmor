@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { b64d, b64e, hexd, hexe, sha256 } from './bytes.mjs';
 import { isValidPub, pubFromPriv, sign, verify } from './p256.mjs';
-import { accountId, cliCode, compareIds, emailHash, idMatches, keyhash, myPushSha256, normalizeEmail, oauthNonce, peerId } from './ids.mjs';
+import { accountId, cliCode, compareIds, emailHash, idMatches, keyhash, mailboxKey, myPushSha256, normalizeEmail, oauthNonce, peerId } from './ids.mjs';
 import {
   commitHash, crockford20, fingerprintHash, openMatchesCommit, openPair, pairDecide, pairHint, pairKey, pairingId, pairTimeout,
 } from './pairing.mjs';
@@ -56,6 +56,16 @@ test('keys', () => {
     const kh = keyhash(q.signPub, q.encPub);
     assert.equal(b64e(kh), p.keyhash);
     assert.equal(b64e(peerId(ID_SECRET, acct, kh)), p.id);
+  }
+});
+
+test('mailbox', () => {
+  for (const c of G.mailbox.cases) {
+    const n = normalizeEmail(c.input);
+    assert.equal(n, c.normalized, c.input);
+    assert.equal(mailboxKey(n), c.mailbox, c.input);
+    assert.equal(b64e(emailHash(c.mailbox)), c.email_hash);
+    assert.equal(b64e(accountId(ID_SECRET, emailHash(c.mailbox))), c.account);
   }
 });
 

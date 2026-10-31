@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import {
   normalizeEmail,
+  mailboxKey,
   emailHash,
   accountId,
   assertAccountId,
@@ -30,7 +31,7 @@ if (!secret) {
 
 let id;
 try {
-  id = await accountId(secret, await emailHash(normalizeEmail(email)));
+  id = await accountId(secret, await emailHash(mailboxKey(normalizeEmail(email))));
   assertAccountId(id);
 } catch (e) {
   console.error(e.message);

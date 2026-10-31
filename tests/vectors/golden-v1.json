@@ -422,6 +422,151 @@
       }
     }
   },
+  "mailbox": {
+    "cases": [
+      {
+        "account": "NJsb8q1Is8ZR",
+        "email_hash": "oSa5jLVcJgkDjb7ZJA7IqfauDGWO3RctFkWyi3RboJs",
+        "input": "A.B.C+Tag@Gmail.com",
+        "mailbox": "abc@gmail.com",
+        "normalized": "a.b.c+tag@gmail.com"
+      },
+      {
+        "account": "OXOCoMcbyoxw",
+        "email_hash": "rLNqkFEaENhCqGdeGtQH-eMrrUgqbWEcg0ODeY9M9qU",
+        "input": "a.b+x+y@googlemail.com",
+        "mailbox": "ab@gmail.com",
+        "normalized": "a.b+x+y@googlemail.com"
+      },
+      {
+        "account": "NJsb8q1Is8ZR",
+        "email_hash": "oSa5jLVcJgkDjb7ZJA7IqfauDGWO3RctFkWyi3RboJs",
+        "input": "abc@gmail.com",
+        "mailbox": "abc@gmail.com",
+        "normalized": "abc@gmail.com"
+      },
+      {
+        "account": "92dlEpZrw04w",
+        "email_hash": "JtoJ4U4-6B1A-N5AdK6wFtnotPh5q89hgmb8Lw7DFPc",
+        "input": "+tag@gmail.com",
+        "mailbox": "+tag@gmail.com",
+        "normalized": "+tag@gmail.com"
+      },
+      {
+        "account": "iqkYBJRhKaOu",
+        "email_hash": "Sf9R4onvv1LpFltLzd-y3pfcfwV0ahfP0g0J_oYmAxs",
+        "input": "..@gmail.com",
+        "mailbox": "..@gmail.com",
+        "normalized": "..@gmail.com"
+      },
+      {
+        "account": "3MCFeEUC_e1f",
+        "email_hash": "ix9CH3clUk1yExnEOzr56RBRLkP_dU8nnIU3kqF_Qp4",
+        "input": "A.B+tag@outlook.com",
+        "mailbox": "a.b@outlook.com",
+        "normalized": "a.b+tag@outlook.com"
+      },
+      {
+        "account": "6vW80f1_av9O",
+        "email_hash": "rgVDKnQ4M1BFVSsmGypjVn3YiGvuJsJ1TFX0QdAoIbQ",
+        "input": "a.b+tag@hotmail.com",
+        "mailbox": "a.b@hotmail.com",
+        "normalized": "a.b+tag@hotmail.com"
+      },
+      {
+        "account": "q-JuzF5mpwfV",
+        "email_hash": "geRQMpduLOJtkpeJFGQUiU2uIYhi4Y5EWfIzt3Mweos",
+        "input": "a.b+tag@live.com",
+        "mailbox": "a.b@live.com",
+        "normalized": "a.b+tag@live.com"
+      },
+      {
+        "account": "2pFWBsS8xoek",
+        "email_hash": "QlntB_4OoIbV6b-Beap7AiohxWsBtM0y_opq5VIbP0U",
+        "input": "a.b+tag@msn.com",
+        "mailbox": "a.b@msn.com",
+        "normalized": "a.b+tag@msn.com"
+      },
+      {
+        "account": "Y3Y4eDLjJYJk",
+        "email_hash": "9e38kG8XCIh629toxA2p7IsW0DsVY6mCwNjqg_Rz41Y",
+        "input": "a.b+tag@icloud.com",
+        "mailbox": "a.b@icloud.com",
+        "normalized": "a.b+tag@icloud.com"
+      },
+      {
+        "account": "-aYqLr9pqYUt",
+        "email_hash": "HHr0an44fObgtAlwTmarWw-fRK2MaCYWWL1N73W6UXE",
+        "input": "a.b+tag@me.com",
+        "mailbox": "a.b@me.com",
+        "normalized": "a.b+tag@me.com"
+      },
+      {
+        "account": "II5zPLLVw2se",
+        "email_hash": "YekYhdQ_7fP0S3hg5FvUrQiCd5JbylAbe1bm3WniJMY",
+        "input": "a.b+tag@mac.com",
+        "mailbox": "a.b@mac.com",
+        "normalized": "a.b+tag@mac.com"
+      },
+      {
+        "account": "syD6qqRKzvOL",
+        "email_hash": "tnkgQDR2L4zyVAh4FqyvkEkbqYf_E0rzKZdgl5U5ICU",
+        "input": "a.b+tag@fastmail.com",
+        "mailbox": "a.b@fastmail.com",
+        "normalized": "a.b+tag@fastmail.com"
+      },
+      {
+        "account": "nVS0OL8wsA-9",
+        "email_hash": "x4Ab2Gq7KTI4b5l-LioZcYTZQE8E6QMNxDzJ8iy5JZU",
+        "input": "a.b+tag@proton.me",
+        "mailbox": "a.b@proton.me",
+        "normalized": "a.b+tag@proton.me"
+      },
+      {
+        "account": "tyP_joVb3JzK",
+        "email_hash": "Db2kQoiFLXL0MafbndK_gohxLDHMjwXhraJP27FtFMo",
+        "input": "a.b+tag@protonmail.com",
+        "mailbox": "a.b@protonmail.com",
+        "normalized": "a.b+tag@protonmail.com"
+      },
+      {
+        "account": "gLVaiW80yH33",
+        "email_hash": "nZodukE6H2UoJ1bwqwVQXjn-xkvOahWPpNoomOqk3KQ",
+        "input": "a.b+tag@protonmail.ch",
+        "mailbox": "a.b@protonmail.ch",
+        "normalized": "a.b+tag@protonmail.ch"
+      },
+      {
+        "account": "jO83MF6G8rld",
+        "email_hash": "qJ2vDWUUjIu2ZjkPd3lTVhMawWgrrKqJQLsTOpyAufU",
+        "input": "a.b+tag@pm.me",
+        "mailbox": "a.b@pm.me",
+        "normalized": "a.b+tag@pm.me"
+      },
+      {
+        "account": "VY37Wys-dvqt",
+        "email_hash": "NXW7Umizz-vh5-W2WdmtaxA7yX__-wXbSW4S18wrTOg",
+        "input": "a.b+tag@example.com",
+        "mailbox": "a.b+tag@example.com",
+        "normalized": "a.b+tag@example.com"
+      },
+      {
+        "account": "MP2cCJZ1y1IF",
+        "email_hash": "5CW5qES1PYIqRSe0b3c-15rQfv2KCQvbFhnK0RLcbAM",
+        "input": "a.b+tag@mail.gmail.com",
+        "mailbox": "a.b+tag@mail.gmail.com",
+        "normalized": "a.b+tag@mail.gmail.com"
+      },
+      {
+        "account": "BDRIHUrRQ-eS",
+        "email_hash": "6O93MmU55jkz0vTWOA2AhfrGJBKKPnqIC3FkpSvxeX4",
+        "input": "a.b+tag@gmail.co",
+        "mailbox": "a.b+tag@gmail.co",
+        "normalized": "a.b+tag@gmail.co"
+      }
+    ],
+    "description": "Account identity (Worker and command line ban tool). mailbox = normalized address with, at gmail.com googlemail.com outlook.com hotmail.com live.com msn.com icloud.com me.com mac.com fastmail.com proton.me protonmail.com protonmail.ch pm.me only: the local part cut at its first \"+\" (when that is not the first char); at gmail.com and googlemail.com also every \".\" removed from the local part (kept when that leaves it empty) and the domain set to gmail.com. Other domains (subdomains included) are unchanged. email_hash = sha256(\"PA-ACCT1\\n\" || mailbox), account = HMAC-SHA256(keys.id_secret, email_hash)[0..9]. Login codes still go to the normalized address. Assert normalized, mailbox, email_hash and account."
+  },
   "messages": {
     "cases": [
       {
