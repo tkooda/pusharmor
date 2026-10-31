@@ -377,7 +377,7 @@ test("popup update and log in screens start with focus on their button (I495)", 
 
 test("full tab History Send to... sets the #send= hash (I497)", async () => {
   const { readFileSync } = await import("node:fs");
-  assert.match(readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8"), /historyView\(env, root, \(text\) => \(location\.hash = "#send=" \+ encodeURIComponent\(text\)\), arg\)/);
+  assert.match(readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8"), /historyView\(env, view, \(text\) => \(location\.hash = "#send=" \+ encodeURIComponent\(text\)\), arg\)/);
 });
 
 test("login page with a banner gives one reason, not also You are logged out (I498)", async () => {
@@ -396,4 +396,11 @@ test("login page at 320px: the 300px security check fits in the card (I459)", as
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
   assert.match(css, /@media \(max-width: 360px\) \{\s*body\.page\.signin-bg #app \{ padding-inline: 8px; \}\s*\.ts-frame \{ width: calc\(100% \+ 32px\); margin-inline: -16px; \}/);
+});
+
+test("full tab Devices, History, and Send show the brand on top (I500)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const page = readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8");
+  assert.match(page, /root\.append\(h\("div", \{ class: "head" \}, h\("img", \{ src: "icons\/icon-32\.png"[^)]*\), wordmark\(env, 16\)\), view\);/);
+  assert.match(page, /return renderPeers\(env, view, true/);
 });

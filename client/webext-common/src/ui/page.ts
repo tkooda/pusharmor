@@ -43,8 +43,11 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
   }
   // Q338: no paired device yet shows the first-device screen (the same as the popup)
   if (!data.peers.some((p) => p.paired)) return firstPairView(env, root, st, () => mountPage(env, root, hash, selfOrigin), false);
+  // I500: the brand on top, as in the popup; the view draws below it
+  const view = h("div", {});
+  root.append(h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), view);
   // I497: Send to... sets the #send= hash (the hashchange mounts it), so a reload keeps the draft
-  if (route === "history") return historyView(env, root, (text) => (location.hash = "#send=" + encodeURIComponent(text)), arg);
+  if (route === "history") return historyView(env, view, (text) => (location.hash = "#send=" + encodeURIComponent(text)), arg);
   if (route === "send") {
     let text = "";
     try {
@@ -52,10 +55,10 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
     } catch {
       text = "";
     }
-    return sendView(env, root, st, text, true);
+    return sendView(env, view, st, text, true);
   }
   // Devices; also a missing or unknown hash
-  return renderPeers(env, root, true, route === "peers" ? arg : undefined);
+  return renderPeers(env, view, true, route === "peers" ? arg : undefined);
 }
 
 const E2E = "All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.";
