@@ -2,14 +2,20 @@
 html { font: 13px/1.4 system-ui, sans-serif; }
 *, *::before, *::after { box-sizing: border-box; }
 /* Popup: one fixed size in static CSS, so the browser sizes the popup before any script runs
-   and no tab or late render resizes it; the header stays on top while the rest scrolls. */
-body { margin: 0; width: 400px; height: 560px; overflow-x: hidden; overflow-y: auto; background: var(--bg); color: var(--ink); }
-#app { min-height: 100%; display: flex; flex-direction: column; }
-#panel { flex: 1; display: flex; flex-direction: column; }
+   and no tab or late render resizes it. Only the content area under the header scrolls. */
+body { margin: 0; width: 400px; height: 560px; overflow: hidden; background: var(--bg); color: var(--ink); }
+#app { height: 100%; display: flex; flex-direction: column; }
+#app > .top { flex: none; }
+#panel { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; display: flex; flex-direction: column; }
+#app > .signin, #app > .fail { flex: 1; min-height: 0; overflow-y: auto; }
+/* a tab's view: its rows keep their height (the content area scrolls instead) */
+.pane { display: contents; }
+#panel > *, .pane > * { flex-shrink: 0; }
+.loading { padding: 48px 16px; text-align: center; color: var(--ink2); }
 /* Fills the space above a view's footer; at the end of a view it is the bottom padding. */
 .grow { flex: 1; min-height: 16px; }
 body.page { width: auto; height: auto; overflow: visible; }
-body.page #app { display: block; min-height: 0; }
+body.page #app { display: block; height: auto; }
 body.page #app { max-width: 640px; margin: 0 auto; padding: 24px 0 40px; }
 p { margin: 0; }
 h1 { margin: 0 0 8px; font-size: 22px; line-height: 28px; font-weight: 600; color: var(--ink); }
@@ -23,7 +29,7 @@ h1 { margin: 0 0 8px; font-size: 22px; line-height: 28px; font-weight: 600; colo
 .status:not(:empty) { padding: 8px 16px; }
 
 /* Header and tabs (sticky while the content scrolls). */
-.top { position: sticky; top: 0; z-index: 3; background: var(--bg); }
+.top { z-index: 3; background: var(--bg); }
 .head { height: 52px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 16px; }
 .brand { display: inline-flex; align-items: center; gap: 8px; }
 .wm { font-weight: 700; font-size: 16px; letter-spacing: -0.3px; white-space: nowrap; }

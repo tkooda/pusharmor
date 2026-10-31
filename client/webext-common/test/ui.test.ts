@@ -171,3 +171,14 @@ test("popup size is fixed in static CSS: no viewport-relative width, one height 
   assert.doesNotMatch(body, /vw|max-height/);
   assert.match(readFileSync(new URL("../src/ui/popup.html", import.meta.url), "utf8"), /<link rel="stylesheet" href="style.css">/);
 });
+
+test("popup header stays mounted: only the content area scrolls, reset on each tab, with a loading line (I464)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  assert.match(/\nbody \{([^}]*)\}/.exec(css)![1]!, /overflow: hidden;/);
+  assert.match(css, /#panel \{[^}]*overflow-y: auto;/);
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  assert.match(pop, /body\.scrollTop = 0;/);
+  assert.match(pop, /class: "loading", role: "status" \}, "Loading\.\.\."/);
+  assert.match(pop, /clear\(body\);/); // a tab switch replaces the content area only
+});
