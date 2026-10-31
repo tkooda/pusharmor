@@ -1,0 +1,57 @@
+name: cli
+
+# Command-line client tests and build. Called by ci.yml (pull requests, main
+# pushes) and by cli-release.yml before the release jobs; workflow_dispatch runs
+# it on any branch by hand. ci.yml only runs on pull requests and on main, so
+# this file also runs on a push to any other branch that touches the client or
+# this file; that way a branch run shows up in gh run list before a pull
+# request exists. Python 3.11 runs with the oldest supported cryptography and
+# Python 3.13 with the newest.
+on:
+  workflow_call:
+  workflow_dispatch:
+  push:
+    branches-ignore:
+      - main
+    paths:
+      - "client/cli/**"
+      - ".github/workflows/cli.yml"
+
+permissions: {}
+
+jobs:
+  cli:
+    name: tests and build (Python ${{ matrix.python }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python: "3.11"
+            cryptography: "cryptography==3.4.8"
+          - python: "3.13"
+            cryptography: "cryptography"
+    defaults:
+      run:
+        working-directory: client/cli
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install
+        env:
+          CRYPTOGRAPHY: ${{ matrix.cryptography }}
+        run: |
+          python -m pip install --upgrade pip pytest build
+          python -m pip install --upgrade "$CRYPTOGRAPHY"
+          python -c "import cryptography; print(cryptography.__version__)"
+      - name: Tests
+        run: python -m pytest
+      - name: Build sdist and wheel
+        run: python -m build
