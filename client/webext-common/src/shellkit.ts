@@ -133,6 +133,7 @@ export function lazyBoot(make: () => Platform, vapid: Uint8Array): () => Promise
           });
           await migrateStorage(platform.storageLocal);
           const engine = new Engine({ platform, db, api, vapidPub: vapid });
+          void engine.retryPendingLogout().catch(() => undefined); // background start (Q368)
           return { engine, rpc: new Rpc(engine) };
         } catch (e) {
           idb.close(); // a failed start must not leak the connection (one per Retry)

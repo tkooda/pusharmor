@@ -84,6 +84,7 @@ export class Rpc {
     const e = this.e;
     switch (req.op) {
       case "state":
+        void e.retryPendingLogout().catch(() => undefined); // full tab open (Q368)
         return this.state();
       case "popupOpen":
         await e.onPopupOpen();
@@ -149,7 +150,10 @@ export class Rpc {
         return e.setSettings(a as Partial<Settings>);
       case "signout":
         await this.login.clearProgress();
-        return e.logout();
+        // Q368: logged out here at once; the relay server call runs after and is retried
+        await e.logoutLocal();
+        void e.retryPendingLogout().catch(() => undefined);
+        return null;
       case "loginPurpose":
         return this.login.purpose();
       case "signinProgress":

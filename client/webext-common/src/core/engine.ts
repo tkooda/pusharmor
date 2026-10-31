@@ -110,6 +110,9 @@ function approveRow(n: number, name: string | null, pairingId: Uint8Array): (cur
   };
 }
 
+/** meta key: a Log out the relay server has not confirmed yet (Q368). */
+const LOGOUT_PENDING = "logout_pending";
+
 export class Engine {
   readonly p: Platform;
   readonly db: Db;
@@ -118,6 +121,7 @@ export class Engine {
   readonly lock = new Lock();
   private readonly pairingAgain = new Set<string>();
   private fetching: Promise<void> | null = null;
+  private loggingOut: Promise<void> | null = null;
   private authN = 0;
 
   constructor(d: EngineDeps) {
@@ -1279,14 +1283,46 @@ export class Engine {
     }
   }
 
-  /** Log out (catalog Logout rules). */
+  /** Log out (catalog Logout rules): logged out here at once, then the relay server call. */
   async logout(): Promise<void> {
-    const self = await this.self();
+    await this.logoutLocal();
+    await this.retryPendingLogout();
+  }
+
+  /**
+   * Log out click (Q368): logged out here at once, with the relay server call kept as
+   * pending so it is sent now and again on later opens until it goes through.
+   */
+  async logoutLocal(): Promise<void> {
     // no keys on this device: nothing to log out on the relay server; drop what is left
-    if (!self) return this.wipe();
-    await this.reconcileAllow();
-    await this.allowListCall("POST", "/peers/" + self.id + "/logout", self, (m) => ({ m }), async () => ({ type: "logout" }));
+    if (!(await this.self())) return this.wipe();
+    await this.db.setMeta(LOGOUT_PENDING, true);
     await this.setReg("logged_out");
+  }
+
+  /** Sends a pending logout; one at a time. */
+  retryPendingLogout(): Promise<void> {
+    return (this.loggingOut ??= this.sendPendingLogout().finally(() => {
+      this.loggingOut = null;
+    }));
+  }
+
+  /**
+   * It stays pending on no reply, 429, 5xx, or clock skew; it is dropped once the relay
+   * server answered otherwise, or when this device was removed or logged in again.
+   */
+  private async sendPendingLogout(): Promise<void> {
+    if (!(await this.db.meta(LOGOUT_PENDING))) return;
+    const self = await this.self();
+    if (self && (await this.regState()) === "logged_out") {
+      try {
+        await this.reconcileAllow();
+        await this.allowListCall("POST", "/peers/" + self.id + "/logout", self, (m) => ({ m }), async () => ({ type: "logout" }));
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status === 0 || e.status === 429 || e.status >= 500 || e.error.startsWith("clock skew")) return;
+      }
+    }
+    await this.db.del("meta", LOGOUT_PENDING);
   }
 
   async login(ticket: string): Promise<void> {
@@ -1295,6 +1331,7 @@ export class Engine {
     await this.reconcileAllow();
     await this.allowListCall("POST", "/peers/" + self.id + "/login", self, (m) => ({ ticket, m }), async () => ({ type: "login" }));
     await this.setReg("registered");
+    await this.db.del("meta", LOGOUT_PENDING);
     await this.fetchPeersNow().catch(() => undefined);
     await this.pushReconcile().catch(() => undefined);
     await this.timeoutCheck();
@@ -1376,7 +1413,7 @@ export class Engine {
   async wipe(): Promise<void> {
     await this.p.storageLocal.remove([REG_MARKER]);
     await this.db.clear(["keys", "peers", "replay"]);
-    for (const k of ["reg", "push_hash", "listed", "my_push_sha256", "fetch_pending", "last_fetch"]) await this.db.del("meta", k);
+    for (const k of ["reg", LOGOUT_PENDING, "push_hash", "listed", "my_push_sha256", "fetch_pending", "last_fetch"]) await this.db.del("meta", k);
     const all = await this.p.storageLocal.get(null);
     const drop = Object.keys(all).filter((k) => k.startsWith(PAIR_PREFIX) || k.startsWith(PAIR_MSG_PREFIX) || k === PAIR_AUTO || k === ALLOW_SET || k === NET_NOT_BEFORE);
     await this.p.storageLocal.remove(drop);
@@ -1516,6 +1553,7 @@ export class Engine {
 
   /** Popup open: re-fetch waiting approves, timeouts, reconcile, gone recovery. */
   async onPopupOpen(): Promise<void> {
+    void this.retryPendingLogout().catch(() => undefined);
     if ((await this.regState()) !== "registered") return;
     await this.timeoutCheck();
     await this.reconcileAllow();

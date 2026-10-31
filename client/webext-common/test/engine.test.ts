@@ -971,3 +971,45 @@ test("popup and full tab views mount again on AUTH_CHANGED (I465)", async () => 
   assert.match(rd("popup.ts"), /session\?\.watch\(AUTH_CHANGED/);
   assert.match(rd("page.ts"), /session\?\.watch\(AUTH_CHANGED/);
 });
+
+test("Log out is local at once; the relay server logout stays pending and is retried until it goes through (Q368)", async () => {
+  const { w, a, b, clock } = await setup();
+  await pairAndApprove(w, a, b);
+  const rpc = new Rpc(a.e);
+  w.inject.push({ match: /POST \/v1\/peers\/[^/]+\/logout$/, status: 500, body: { error: "internal" }, times: 2 });
+  const r = await rpc.handle({ op: "signout" });
+  assert.equal(r.ok, true);
+  assert.equal(await a.e.regState(), "logged_out"); // logged out here before any reply
+  await a.e.retryPendingLogout(); // the call that the click started
+  assert.equal(w.rows.get(a.id)!.logged_out, false);
+  assert.equal(await a.db.meta("logout_pending"), true);
+  // the next open sends it again; 500 once more keeps it pending
+  await rpc.handle({ op: "state" });
+  await a.e.retryPendingLogout();
+  assert.equal(await a.db.meta("logout_pending"), true);
+  // background start sends it and it goes through
+  const a2 = await restart(a, clock);
+  await a2.e.retryPendingLogout();
+  assert.equal(w.rows.get(a.id)!.logged_out, true);
+  assert.equal(await a2.db.meta("logout_pending"), undefined);
+  const n = w.calls.filter((x) => x.path.endsWith("/logout")).length;
+  await a2.e.retryPendingLogout();
+  assert.equal(w.calls.filter((x) => x.path.endsWith("/logout")).length, n); // nothing left to send
+});
+
+test("a pending logout is dropped on a 4xx answer and on log in again (Q368)", async () => {
+  const { w, a } = await setup();
+  w.inject.push({ match: /POST \/v1\/peers\/[^/]+\/logout$/, status: 400, body: { error: "bad request" }, times: 1 });
+  await a.e.logout();
+  assert.equal(await a.e.regState(), "logged_out");
+  assert.equal(await a.db.meta("logout_pending"), undefined);
+  w.inject.push({ match: /POST \/v1\/peers\/[^/]+\/logout$/, status: 503, body: { error: "busy" }, times: 9 });
+  await a.e.logoutLocal();
+  await a.e.retryPendingLogout();
+  assert.equal(await a.db.meta("logout_pending"), true);
+  w.inject = [];
+  w.rows.get(a.id)!.logged_out = true;
+  await a.e.login("T");
+  assert.equal(await a.e.regState(), "registered");
+  assert.equal(await a.db.meta("logout_pending"), undefined);
+});
