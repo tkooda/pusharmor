@@ -145,6 +145,19 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertEqual((del.frame.minX + out.frame.maxX) / 2, app.windows.firstMatch.frame.midX, accuracy: 8)
     }
 
+    /// I611: empty History offers Send a message, which opens the Send tab.
+    func testEmptyHistoryOffersSend() {
+        let app = launch(["-PAScreenshotsNoHistory"])
+        let history = app.tabBars.buttons["History"]
+        XCTAssertTrue(history.waitForExistence(timeout: 30))
+        history.tap()
+        XCTAssertTrue(app.staticTexts["Messages you send or receive show here."].waitForExistence(timeout: 10))
+        let send = app.buttons["Send a message"]
+        XCTAssertTrue(send.exists)
+        send.tap()
+        XCTAssertTrue(app.navigationBars["Send"].waitForExistence(timeout: 5))
+    }
+
     /// I468: the email field is marked invalid while non-empty and not a valid address.
     func testEmailFieldMarksInvalidLive() {
         let app = launch(["-PAScreenshotsSignIn"])
