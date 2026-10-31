@@ -36,6 +36,8 @@ h1 { margin: 0 0 8px; font-size: 22px; line-height: 28px; font-weight: 600; colo
 .wm .p { color: #34C77B; }
 .wm .a { color: var(--armor); }
 .beta { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 5px; background: var(--beta); color: var(--on-beta); font-size: 11px; font-weight: 700; letter-spacing: 0.3px; }
+.setup-bar { display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: var(--pc); color: var(--onpc); font-size: 13px; line-height: 18px; }
+.setup-bar button { flex: none; margin-left: auto; height: 32px; background: var(--bg); }
 .tabs { display: flex; height: 40px; padding: 0 6px; border-bottom: 1px solid var(--line); }
 .tabs button { height: auto; border: 0; border-radius: 0; background: none; color: var(--ink2); font-weight: 500; padding: 0 12px; position: relative; }
 .tabs button:hover { background: none; color: var(--ink); }
