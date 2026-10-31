@@ -26,7 +26,7 @@ public protocol PlatformHooks: AnyObject {
 public enum SettingKey {
     public static let showAll = "show_all"                 // default on
     public static let lockShow = "lock_show"               // main switch, default on
-    public static let alwaysHide = "always_hide"           // main switch, default off
+    public static let showContent = "show_content"         // main switch, default on (was always_hide, inverted)
     public static let historyDays = "history_days"         // default 30
 }
 

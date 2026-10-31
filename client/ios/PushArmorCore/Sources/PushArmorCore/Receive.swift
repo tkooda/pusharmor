@@ -32,7 +32,7 @@ public struct ReceiveResult: Sendable {
 extension Core {
     var lockSettings: (show: Bool, always: Bool) {
         ((try? store.boolSetting(SettingKey.lockShow, default: true)) ?? true,
-         (try? store.boolSetting(SettingKey.alwaysHide, default: false)) ?? false)
+         !((try? store.boolSetting(SettingKey.showContent, default: true)) ?? true))
     }
 
     /// The 6.2 banner for a History message row.

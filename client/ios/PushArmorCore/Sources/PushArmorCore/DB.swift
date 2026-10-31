@@ -245,6 +245,12 @@ enum Schema {
         """
         UPDATE me SET clock_offset = clock_offset / 1000;
         """,
+        // Always hide content became Show message content in notifications, inverted.
+        """
+        INSERT OR IGNORE INTO settings (key, value)
+          SELECT 'show_content', CASE value WHEN '1' THEN '0' ELSE '1' END FROM settings WHERE key = 'always_hide';
+        DELETE FROM settings WHERE key = 'always_hide';
+        """,
     ]
 
     static func migrate(_ db: DB) throws {

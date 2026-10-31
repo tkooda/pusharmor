@@ -128,21 +128,19 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    // Was Always hide content, inverted; lock screen applies only while content shows (I610).
+                    Toggle(S.showContentSwitch, isOn: boolBinding(SettingKey.showContent, true))
+                        .tint(.brandGreen)
+                    Text("When off, every notification shows \"New message from\" and the device name, with no content.")
+                        .font(.caption).foregroundColor(.secondaryText)
                     Toggle(S.lockScreenSwitch, isOn: boolBinding(SettingKey.lockShow, true))
                         .tint(.brandGreen)
-                    Text("Follows the iOS Show Previews setting. Set it to When Unlocked to hide content on the lock screen. Your Apple Watch follows this choice. To hide content at all times, turn on Always hide content.")
-                        .font(.caption).foregroundColor(.secondaryText)
-                    Toggle(S.alwaysHide, isOn: boolBinding(SettingKey.alwaysHide, false))
-                        .tint(.brandGreen)
-                    Text("Every notification shows \"New message from\" and the device name, with no content.")
+                        .disabled(!model.boolSetting(SettingKey.showContent, true))
+                    Text("Follows the iOS Show Previews setting. Set it to When Unlocked to hide content on the lock screen. Your Apple Watch follows this choice.")
                         .font(.caption).foregroundColor(.secondaryText)
                 }
 
                 Section("Account") {
-                    if !confirmDeleteAccount {
-                        // Log out acts at once (Q367); it hides while the Delete account confirm shows (I457).
-                        Button("Log out") { Task { await model.signOut() } }
-                    }
                     if confirmDeleteAccount {
                         Text("Delete this account? You must log in again to confirm. This cannot be undone.")
                         HStack {
@@ -154,7 +152,14 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.borderless)
                     } else {
-                        Button("Delete account", role: .destructive) { confirmDeleteAccount = true }
+                        // One centered row, Delete account then Log out (I610). Log out acts at once (Q367);
+                        // it hides while the Delete account confirm shows (I457). Stacks at large text sizes.
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 32) { accountButtons }
+                            VStack(spacing: 12) { accountButtons }
+                        }
+                        .buttonStyle(.borderless)
+                        .frame(maxWidth: .infinity)
                     }
                 }
 
@@ -180,6 +185,11 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .safeAreaInset(edge: .bottom, spacing: 0) { ToastBanner() }
         }
+    }
+
+    @ViewBuilder private var accountButtons: some View {
+        Button("Delete account", role: .destructive) { confirmDeleteAccount = true }
+        Button("Log out") { Task { await model.signOut() } }
     }
 
     private func saveName() {
