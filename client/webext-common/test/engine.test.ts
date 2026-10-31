@@ -1013,3 +1013,15 @@ test("a pending logout is dropped on a 4xx answer and on log in again (Q368)", a
   assert.equal(await a.e.regState(), "registered");
   assert.equal(await a.db.meta("logout_pending"), undefined);
 });
+
+test("Chrome sign-in window closed: Sign-in was closed. Try again. (I496)", async () => {
+  const clock = new Clock();
+  const w = new MockWorker(clock);
+  const p = new FakePlatform("chrome", w, clock);
+  const { e } = await makeEngine(p, new IDBFactory(), clock);
+  p.authFlow = async () => {
+    throw new Error("The user did not approve access.");
+  };
+  const r = await new Rpc(e).handle({ op: "oauth", args: { provider: "apple", purpose: "register" } });
+  assert.deepEqual(r, { ok: false, error: "Sign-in was closed. Try again." });
+});

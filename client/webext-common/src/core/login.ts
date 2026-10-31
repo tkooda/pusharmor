@@ -94,7 +94,11 @@ export class Login {
    */
   async oauthStart(provider: "google" | "apple", purpose: Purpose, tabId?: number): Promise<LoginResult> {
     const url = await this.oauthUrl(provider, purpose);
-    const redirect = await this.e.p.authFlow(url);
+    const redirect = await this.e.p.authFlow(url).catch((e: unknown) => {
+      // I496: Chrome rejects with "The user did not approve access." when the window is closed
+      if (e instanceof Error && /did not approve|closed|cancel/i.test(e.message)) throw new UserError("Sign-in was closed. Try again.");
+      throw e;
+    });
     if (redirect !== null) {
       const f = parseFragment(redirect);
       return this.complete(purpose, f.ticket ?? "", f.email ?? null);
