@@ -39,12 +39,10 @@ struct MainView: View {
                 .tabItem { Label("History", systemImage: "clock") }
                 .tag(3)
             PeersView()
-                .safeAreaInset(edge: .bottom, spacing: 0) { ToastBanner() }
                 .tabBarMaterial()
                 .tabItem { Label("Devices", systemImage: "person.2") }
                 .tag(1)
             SettingsView()
-                .safeAreaInset(edge: .bottom, spacing: 0) { ToastBanner() }
                 .tabBarMaterial()
                 .tabItem { Label("Settings", systemImage: "gear") }
                 .tag(2)
