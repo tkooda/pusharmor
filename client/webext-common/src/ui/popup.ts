@@ -408,8 +408,6 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
   const status = h("div", { class: "status", role: "status" });
   const self = (await rpc<{ self: { id: string; name: string } | null }>(env, "peers").catch(() => null))?.self ?? null;
   const confirmDel = h("div", { class: "confirm-inline" });
-  // The Log out confirm replaces the button row inside the Account card: text first, buttons under it.
-  const confirmOut = h("div", { class: "confirm-out", hidden: true });
   const ff = st.platform === "firefox";
   const acct = add(
     h("div", { class: "txt" }),
@@ -419,39 +417,24 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     ff && st.receiveNote ? h("div", { class: "t2" }, st.receiveNote) : null,
   );
   const acctRow = acct.childNodes.length ? h("div", { class: "srow acct" }, acct) : null;
-  const logOut = h("button", {}, "Log out") as HTMLButtonElement;
+  const logOut = h("button", {
+    onclick: async () => {
+      try {
+        await rpc(env, "signout");
+        // the logout is done: read the state again, which shows the logged-out view
+        await reload();
+      } catch (e) {
+        status.textContent = (e as Error).message;
+      }
+    },
+  }, "Log out") as HTMLButtonElement;
   const btns = h("div", { class: "btns" }, logOut, h("button", { class: "danger", onclick: () => env.openPage("#login=delete-account") }, "Delete account"));
-  const closeConfirm = () => {
-    clear(confirmOut).hidden = true;
-    btns.hidden = false;
-  };
-  logOut.addEventListener("click", () => {
-    const yes = h("button", {
-      class: "danger",
-      onclick: async () => {
-        closeConfirm();
-        try {
-          await rpc(env, "signout");
-          // the logout is done: read the state again, which shows the logged-out view
-          await reload();
-        } catch (e) {
-          status.textContent = (e as Error).message;
-        }
-      },
-    }, "Log out");
-    const no = h("button", { onclick: () => { closeConfirm(); logOut.focus(); } }, "Cancel");
-    btns.hidden = true;
-    clear(confirmOut).append(h("p", { role: "alert" }, T.logoutConfirm), h("div", { class: "actions" }, yes, no));
-    confirmOut.hidden = false;
-    no.focus(); // I471: the safe choice first
-  });
   // I471: Esc cancels a confirm
   const onEsc = (cancel: () => void) => (ev: KeyboardEvent) => {
     if (ev.key !== "Escape") return;
     ev.preventDefault();
     cancel();
   };
-  confirmOut.addEventListener("keydown", onEsc(() => { closeConfirm(); logOut.focus(); }));
   const delAll = h("button", { class: "quiet errtext" }, "Delete all history") as HTMLButtonElement;
   const closeDel = () => {
     clear(confirmDel);
@@ -497,7 +480,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
       h("div", { class: "srow" }, delAll, confirmDel),
     ),
     sh("Account"),
-    group(acctRow, h("div", { class: "srow acct-acts" }, btns, confirmOut)),
+    group(acctRow, h("div", { class: "srow acct-acts" }, btns)),
     status,
     h("div", { class: "grow" }),
   );

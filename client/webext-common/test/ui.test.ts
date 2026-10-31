@@ -102,8 +102,7 @@ test("focus moves sensibly on view change, dialogs and errors", async () => {
   assert.match(peers, /\.keep"\)\?\.focus\(\)/); // remove confirm
   const pop = rd("popup.ts");
   assert.doesNotMatch(pop, /yes\.focus\(\)/); // I471: confirms start on Cancel, not on the destructive button
-  assert.equal(pop.match(/no\.focus\(\)/g)?.length, 2); // Log out and Delete all history
-  assert.match(pop, /confirmOut\.addEventListener\("keydown", onEsc/); // Esc cancels
+  assert.equal(pop.match(/no\.focus\(\)/g)?.length, 1); // Delete all history
   assert.match(pop, /confirmDel\.addEventListener\("keydown", onEsc/);
   assert.match(pop, /h\("button", \{ onclick: closeDel \}, "Cancel"\)/);
   assert.match(pop, /"aria-label": "Unread"/);
@@ -141,22 +140,16 @@ test("firefox background drops autopush when start() throws, so the retry starts
   assert.match(bg, /if \(!isAndroid && !autopush\)/);
 });
 
-test("Log out asks first: the confirm text, a Log out and a Cancel button, then the signout call", async () => {
+test("Log out acts at once: no confirm, one signout call, Delete account still opens its page (Q367)", async () => {
   const { readFileSync } = await import("node:fs");
   const rd = (f: string) => readFileSync(new URL("../src/" + f, import.meta.url), "utf8");
-  const texts = rd("core/texts.ts");
-  assert.ok(texts.includes('logoutConfirm: "Log out of this device? Keys, paired devices, names, and history stay on this device."'));
+  assert.doesNotMatch(rd("core/texts.ts"), /logoutConfirm/);
   const popup = rd("ui/popup.ts");
-  const first = popup.indexOf("T.logoutConfirm");
-  assert.ok(first > 0);
-  const call = popup.indexOf('rpc(env, "signout")');
-  assert.ok(call > 0 && call < first, "the signout call sits in the confirm's Log out button");
-  assert.ok(popup.slice(first, first + 200).includes("yes, no"));
-  assert.ok(popup.includes('h("button", { onclick: () => { closeConfirm(); logOut.focus(); } }, "Cancel")'));
-  // I457: the confirm sits inside the Account card, text above the buttons, and replaces the button row
-  assert.ok(popup.includes('group(acctRow, h("div", { class: "srow acct-acts" }, btns, confirmOut))'));
-  assert.ok(popup.includes('h("p", { role: "alert" }, T.logoutConfirm), h("div", { class: "actions" }, yes, no)'));
-  assert.ok(popup.includes("btns.hidden = true;"));
+  assert.doesNotMatch(popup, /logoutConfirm|confirmOut|closeConfirm/);
+  assert.doesNotMatch(rd("ui/style.css"), /confirm-out/);
+  assert.ok(popup.includes('const logOut = h("button", {\n    onclick: async () => {\n      try {\n        await rpc(env, "signout");'));
+  assert.ok(popup.includes('group(acctRow, h("div", { class: "srow acct-acts" }, btns))'));
+  assert.ok(popup.includes('env.openPage("#login=delete-account")'));
   assert.equal(popup.split('rpc(env, "signout")').length, 2, "only one signout call");
 });
 

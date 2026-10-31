@@ -102,9 +102,7 @@ label.srow { cursor: pointer; }
 .srow.acct, .srow.acct-acts { display: block; }
 .acct .email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acct-acts .btns { padding: 0; }
-.btns[hidden], .confirm-out[hidden], button.errtext[hidden] { display: none; }
-.confirm-out p { font-size: 13px; line-height: 18px; overflow-wrap: anywhere; }
-.confirm-out .actions { margin-top: 8px; }
+.btns[hidden], button.errtext[hidden] { display: none; }
 .confirm, .confirm-inline { margin-top: 8px; font-size: 13px; }
 .confirm-inline { display: flex; align-items: center; gap: 8px; margin-top: 0; }
 .confirm-inline:empty { display: none; }
