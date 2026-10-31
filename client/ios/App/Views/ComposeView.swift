@@ -303,7 +303,7 @@ struct ComposeView: View {
                 let ids = all ? [] : candidates.filter { selected.contains($0.id.text) && enabled($0) }.map { $0.id.text }
                 let sel = selected
                 Task {
-                    // A failed send keeps the draft, so "Not sent, try again" can be retried.
+                    // A failed send keeps the draft, so "Not sent. Try again." can be retried.
                     if await RecipientMemory.send(sel, { await model.send(t, asText: a, toAll: all, peerIds: ids) }) {
                         text = ""
                         asText = false

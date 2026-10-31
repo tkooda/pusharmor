@@ -13,7 +13,7 @@ public enum S {
     public static func pairOpen(_ fp: String) -> String { "New device: compare \(fp)" }
     public static let pairReply = "Pairing fingerprint ready. Open PushArmor."
     public static func pairAgain(_ x: String) -> String { "\(x) wants to pair again. Tap Pair again on its row." }
-    public static let cannotPairNow = "Cannot pair with this device now"
+    public static let cannotPairNow = "Cannot pair with this device now."
     public static let pairNotSent = "Pairing not sent. Tap Send again in a minute."
     public static let noConnection = "No connection. Try again."
     public static let notDone = "Something went wrong. Try again."
@@ -21,15 +21,15 @@ public enum S {
     public static func approved(_ name: String) -> String { "\(name) approved this device" }
     public static func renamed(_ old: String, _ new: String) -> String { "'\(old)' renamed to '\(new)'" }
     public static let peerListChanged = "Device list changed"
-    public static let thisDeviceRemoved = "This device was removed. Log in again"
-    public static let accountDeleted = "Account deleted on another device"
+    public static let thisDeviceRemoved = "This device was removed. Log in again."
+    public static let accountDeleted = "Account deleted on another device."
     public static func denied(_ name: String) -> String { "\(name) denied this device" }
     public static func loggedOutNotice(_ name: String) -> String { "\(name) logged out" }
     public static func loggedInNotice(_ name: String) -> String { "\(name) logged in" }
     public static func newMessageFrom(_ peer: String) -> String { "New message from \(peer)" }
     public static let pairingFailed = "Pairing failed. Start again on the new device."
     public static let pairingTimedOut = "Pairing timed out. Tap Pair to start again."
-    public static func waiting(_ x: String) -> String { "Waiting for \(x): open PushArmor there and approve" }
+    public static func waiting(_ x: String) -> String { "Waiting for \(x): open PushArmor there and approve." }
     public static func noReplyYet(_ x: String) -> String { "No reply yet. Open PushArmor on \(x), or tap Send again." }
     public static func stillHolds(_ x: String) -> String { "\(x) still holds an earlier pairing. On \(x), tap Cancel pairing, then tap Send again." }
     public static func notPairedOn(_ x: String) -> String { "Not paired on \(x)" }
@@ -44,7 +44,7 @@ public enum S {
     public static func notDelivered(_ x: String) -> String { "Not delivered to \(x): open PushArmor on it" }
     public static func signedOutPeer(_ x: String) -> String { "\(x) is logged out" }
     public static func sendOnlyPeer(_ x: String) -> String { "\(x): Send only" }
-    public static let emailSendFailed = "could not send the email, try again"
+    public static let emailSendFailed = "Could not send the email. Try again."
     public static let pairHowTo1 = "Install PushArmor on the other device."
     public static let pairHowTo2 = "Log in with the same account."
     public static let pairHowTo3 = "It appears here. Tap Pair."
@@ -54,12 +54,12 @@ public enum S {
     public static let firstPairWaiting = "Waiting for another device to log in."
     public static let storeRepaired = "Local data was found corrupted and repaired. Please log in again."
     public static let updateRequired = "Update PushArmor to continue"
-    public static let clockOff = "This device's clock is off by more than 5 minutes"
+    public static let clockOff = "This device's clock is off by more than 5 minutes."
     public static let emailInvalid = "Not a valid email address"
     public static let badEmail = "Only email addresses with plain ASCII characters are supported."
-    public static let signInExpired = "Login expired, log in again"
-    public static let signedOutResume = "Logged out. Log in to resume"
-    public static let notificationsOff = "Notifications are off. This device cannot receive"
+    public static let signInExpired = "Login expired. Log in again."
+    public static let signedOutResume = "Logged out. Log in to resume."
+    public static let notificationsOff = "Notifications are off. This device cannot receive messages."
     public static let relayHelp = "To log in on another device, use this address. Find it in iOS Settings > Apple ID > Sign in with Apple, or at appleid.apple.com > Hide My Email."
     public static func receivedWhileLocked(_ n: Int) -> String { "\(n) messages received while locked" }
     public static let thisPhoneOldInstall = "(this phone, old install)"
