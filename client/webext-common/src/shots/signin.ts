@@ -4,6 +4,7 @@
 //   ?ff         Firefox platform (tokens come from the build, so pair it with the Firefox dist)
 //   ?ts=<url>   load this URL in the Turnstile frame (a local copy of site/public/turnstile.html)
 //   ?bounds     outline the Turnstile frame (the widget does not load in headless Chrome)
+//   ?resume     a logged-out device logging in again; ?setup the Firefox setup note
 import type { Reply, Req, StateView } from "../core/rpc.ts";
 import { DEFAULT_SETTINGS } from "../core/engine.ts";
 import type { Restore } from "../model/signin.ts";
@@ -21,7 +22,7 @@ const EMAIL = "sam@example.com";
 
 const state: StateView = {
   reg: null, banner: null, email: null, name: "Laptop", settings: DEFAULT_SETTINGS,
-  platform: q.has("ff") ? "firefox" : "chrome", isAndroid: false, receiveMode: null, receiveNote: null,
+  platform: q.has("ff") ? "firefox" : "chrome", isAndroid: false, receiveMode: null, receiveNote: null, setupNeeded: q.has("setup"),
 };
 
 function progress(): Restore | null {
@@ -36,7 +37,7 @@ function reply(req: Req): Reply {
     case "state":
       return { ok: true, data: state };
     case "loginPurpose":
-      return { ok: true, data: "register" };
+      return { ok: true, data: q.has("resume") ? "login" : "register" };
     case "signinProgress":
       return { ok: true, data: progress() };
     case "emailVerify":

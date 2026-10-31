@@ -48,6 +48,8 @@ export interface StateView {
   isAndroid: boolean;
   receiveMode: string | null;
   receiveNote: string | null;
+  /** Firefox without direct push: the setup tab has not delivered a push subscription yet. */
+  setupNeeded: boolean;
 }
 
 function created(p: PeerRow): string {
@@ -182,6 +184,10 @@ export class Rpc {
       isAndroid: e.p.isAndroid,
       receiveMode: (await e.db.meta<string>("receive_mode")) ?? null,
       receiveNote: (await e.db.meta<string>("receive_note")) ?? null,
+      setupNeeded:
+        e.p.platformName === "firefox" &&
+        (e.p.isAndroid || ((await e.db.meta<string>("receive_mode")) ?? "direct") !== "direct") &&
+        !(await e.db.meta("fallback_push")),
     };
   }
 

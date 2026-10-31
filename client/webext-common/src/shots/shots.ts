@@ -29,7 +29,7 @@ const OTHER = THIS === "firefox" ? "chrome" : "firefox";
 
 const state: StateView = {
   reg: "registered", banner: null, email: null, name: "Laptop", settings: DEFAULT_SETTINGS,
-  platform: THIS, isAndroid: false, receiveMode: null, receiveNote: null,
+  platform: THIS, isAndroid: false, receiveMode: null, receiveNote: null, setupNeeded: false,
 };
 
 const paired = (pid: string, label: string, platform: string, greyed: string | null = null): PeerView => ({

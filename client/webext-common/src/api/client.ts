@@ -158,7 +158,7 @@ export function errorText(e: unknown): string {
   if (e.status === 401 && e.error === "wrong code") return "That code did not work. Check the newest email from PushArmor and try again.";
   if (e.status === 401 && e.error === "code expired") return "This code has expired. Get a new code to continue.";
   if (e.status === 403 && e.error === "turnstile failed") return "The security check did not finish. Try it again.";
-  if (e.status === 401 && e.error === "logged out") return "Logged out. Log in to resume";
+  if (e.status === 401 && e.error === "logged out") return "Logged out. Log in to resume.";
   if (e.status === 429) return "Too many requests. Try again in " + (e.retryAfter ?? 60) + " s";
   if (e.status === 0) return "Offline. Try again.";
   return "Error: " + (e.error || String(e.status));
