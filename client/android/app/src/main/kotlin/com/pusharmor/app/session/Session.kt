@@ -43,6 +43,9 @@ class Session(private val g: Graph) {
         const val KEYS_UNAVAILABLE = "Keys unavailable. Restart this device."
         const val NO_GOOGLE_PUSH = "This build has no Google push. Install a UnifiedPush app or reinstall from Play."
         const val REFRESH_GREY_MS = 60_000L
+
+        /** Refresh text for a GET /peers that did not settle (I517): its relay server error, else the connection text. */
+        fun refreshError(failure: ApiResult<*>?): String = ErrorText.of(failure ?: ApiResult.Network)
     }
 
     private val s get() = g.settings
@@ -249,13 +252,17 @@ class Session(private val g: Graph) {
      * [inPush]: from the 10 s push handler (I299): one short attempt, the reconcile and any
      * retry go to WorkManager.
      */
+    /** Result of the last GET /peers that did not settle, for the Refresh message. */
+    @Volatile private var lastFetchFailure: ApiResult<*>? = null
+
     fun fetchPeers(force: Boolean = false, inPush: Boolean = false): Boolean {
         if (g.identity() == null) return true
         val now = System.currentTimeMillis()
         val last = s.get(Settings.K.LAST_FETCH) ?: 0
         if (!force && now - last < Work.FETCH_WINDOW_MS) { Work.fetchPeers(g.app, s); return true }
         s.set(Settings.K.LAST_FETCH, now)
-        val ok = when (val r = if (inPush) g.client.peersOnce() else g.client.peers()) {
+        val r = if (inPush) g.client.peersOnce() else g.client.peers()
+        val ok = when (r) {
             is ApiResult.Ok -> {
                 g.sync().merge(r.value)
                 if (r.pushMissing || (r.value.myPushSha256 != currentPushHash() && currentPushHash() != null)) Work.patchPush(g.app)
@@ -271,17 +278,19 @@ class Session(private val g: Graph) {
             ApiResult.Network -> false
         }
         if (!ok && inPush) Work.fetchPeers(g.app, s)
+        if (!ok) lastFetchFailure = r
         return ok
     }
 
-    /** Refresh button (greyed 60 s): GET /peers, push hash check, reconcile, approve re-fetch. */
-    fun refresh(): Boolean {
+    /** Refresh button (greyed 60 s): GET /peers, push hash check, reconcile, approve re-fetch. Returns the error text, or null. */
+    fun refresh(): String? {
         val now = System.currentTimeMillis()
-        if (now - (s.get(Settings.K.LAST_REFRESH) ?: 0) < REFRESH_GREY_MS) return false
+        if (now - (s.get(Settings.K.LAST_REFRESH) ?: 0) < REFRESH_GREY_MS) return null
         s.set(Settings.K.LAST_REFRESH, now)
-        fetchPeers(force = true)
+        lastFetchFailure = null
+        val ok = fetchPeers(force = true)
         refetchWaiting()
-        return true
+        return if (ok) null else refreshError(lastFetchFailure)
     }
 
     /** "Waiting for $X": re-send the same approve on app open and Refresh (I265). */

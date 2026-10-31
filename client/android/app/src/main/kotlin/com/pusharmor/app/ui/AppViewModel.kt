@@ -171,7 +171,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- peers ----
 
-    fun refresh() = io { if (!g.session.refresh()) message.value = null }
+    fun refresh() = io { g.session.refresh()?.let { message.value = it } } // offline says so (I517)
     fun pair(id: String) = once("pair:$id") { if (!g.pairing().tapPair(id, System.currentTimeMillis())) message.value = "Cannot pair with this device now." }
     fun reply(id: String) = io { g.pairing().tapReply(id) }
     fun sendAgainPair(id: String) = io { g.pairing().sendAgain(id, System.currentTimeMillis()) }

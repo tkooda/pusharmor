@@ -231,6 +231,14 @@ class AppLogicTest {
         assertFalse(tooLong.contains("Too long ("))
     }
 
+    @Test fun refreshFailureSaysWhy() {
+        // I517: Refresh offline shows the connection text; a busy relay server shows its own text.
+        assertEquals("No connection. Try again.", Session.refreshError(com.pusharmor.protocol.engine.ApiResult.Network))
+        assertEquals("No connection. Try again.", Session.refreshError(null))
+        assertEquals("Something went wrong. Try again.", Session.refreshError(com.pusharmor.protocol.engine.ApiResult.Http(503, null)))
+        assertTrue(source("ui/AppViewModel.kt").contains("fun refresh() = io { g.session.refresh()?.let { message.value = it } }"))
+    }
+
     @Test fun shareNeverSendsOnItsOwn() {
         // Another app can start ShareActivity: it only hands the text to SendScreen, which sends on the Send tap alone (I445).
         val share = source("ui/ShareActivity.kt")
