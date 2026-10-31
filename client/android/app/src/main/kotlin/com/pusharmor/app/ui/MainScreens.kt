@@ -54,6 +54,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -67,6 +68,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
@@ -216,45 +218,43 @@ fun PeersScreen(vm: AppViewModel) {
         if (pairingScrollTop(shownPairing, pairing.size, aiming = highlight != null && highlight != aimed)) state.scrollToItem(0)
         shownPairing = pairing.size
     }
-    Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize()) {
-            PaTopBar("Devices", actions = {
-                IconButton(onClick = { vm.refresh() }, enabled = canRefresh) { Icon(PaIcons.Refresh, "Refresh") }
-            })
-            // The first banner card keeps the same gap under the top bar as the cards on the other tabs (I614).
-            LazyColumn(Modifier.weight(1f), state = state, contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
-                item(key = "banners") {
-                    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Banners(vm, prefs?.get(Settings.K.BANNER))
-                    }
+    // Pair a new device is a floating button, so it stays in reach however long the list is (I615).
+    Scaffold(containerColor = MaterialTheme.colorScheme.background, contentWindowInsets = WindowInsets(0), topBar = {
+        PaTopBar("Devices", actions = {
+            IconButton(onClick = { vm.refresh() }, enabled = canRefresh) { Icon(PaIcons.Refresh, "Refresh") }
+        })
+    }, floatingActionButton = {
+        ExtendedFloatingActionButton(onClick = { pairHowTo = true }, icon = { Icon(PaIcons.Add, null) }, text = { Text("Pair a new device") })
+    }) { inner ->
+        // The first banner card keeps the same gap under the top bar as the cards on the other tabs (I614).
+        // The bottom padding keeps the last row clear of the floating button.
+        LazyColumn(Modifier.padding(inner).fillMaxSize(), state = state, contentPadding = PaddingValues(top = 8.dp, bottom = FAB_SPACE + 16.dp)) {
+            item(key = "banners") {
+                Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Banners(vm, prefs?.get(Settings.K.BANNER))
                 }
-                if (firstDevice) item(key = "steps") {
-                    Column { SectionHeader(UiText.FIRST_DEVICE_TITLE); FirstDeviceSteps() }
+            }
+            if (firstDevice) item(key = "steps") {
+                Column { SectionHeader(UiText.FIRST_DEVICE_TITLE); FirstDeviceSteps() }
+            }
+            if (pairing.isNotEmpty()) {
+                item(key = "pairing-header") { SectionHeader("Pairing") }
+                itemsIndexed(pairing, key = { _, p -> "pair-" + p.id }) { i, p ->
+                    val row = rows.first { it.peerId == p.id }
+                    PairingCard(vm, p, row, now, Modifier.padding(top = if (i > 0) 12.dp else 0.dp))
                 }
-                if (pairing.isNotEmpty()) {
-                    item(key = "pairing-header") { SectionHeader("Pairing") }
-                    itemsIndexed(pairing, key = { _, p -> "pair-" + p.id }) { i, p ->
-                        val row = rows.first { it.peerId == p.id }
-                        PairingCard(vm, p, row, now, Modifier.padding(top = if (i > 0) 12.dp else 0.dp))
-                    }
+            }
+            if (plain.isNotEmpty()) {
+                item(key = "peers-header") { SectionHeader(if (firstDevice) "Waiting to pair" else "Other devices") }
+                itemsIndexed(plain, key = { _, p -> p.id }) { i, p ->
+                    PeerRow(vm, p, now, p.id == highlight, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, plain.size)) { confirmRemove = p.id }
                 }
-                if (plain.isNotEmpty()) {
-                    item(key = "peers-header") { SectionHeader(if (firstDevice) "Waiting to pair" else "Other devices") }
-                    itemsIndexed(plain, key = { _, p -> p.id }) { i, p ->
-                        PeerRow(vm, p, now, p.id == highlight, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, plain.size)) { confirmRemove = p.id }
-                    }
-                } else if (pairing.isEmpty() && firstDevice) {
-                    item(key = "waiting-header") { SectionHeader("Waiting to pair") }
-                    item(key = "waiting") {
-                        ListItem(modifier = Modifier.padding(horizontal = 16.dp), colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            leadingContent = { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 3.dp) },
-                            headlineContent = { Text(UiText.FIRST_DEVICE_WAITING, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) })
-                    }
-                }
-                if (!firstDevice && (plain.isNotEmpty() || pairing.isNotEmpty())) item(key = "pair-new") {
-                    OutlinedButton(onClick = { pairHowTo = true }, Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp).fillMaxWidth().heightIn(min = 48.dp)) {
-                        Text("Pair a new device")
-                    }
+            } else if (pairing.isEmpty() && firstDevice) {
+                item(key = "waiting-header") { SectionHeader("Waiting to pair") }
+                item(key = "waiting") {
+                    ListItem(modifier = Modifier.padding(horizontal = 16.dp), colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        leadingContent = { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 3.dp) },
+                        headlineContent = { Text(UiText.FIRST_DEVICE_WAITING, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) })
                 }
             }
         }
@@ -274,6 +274,9 @@ fun PeersScreen(vm: AppViewModel) {
         },
         confirmButton = { TextButton(onClick = { pairHowTo = false }) { Text("OK") } })
 }
+
+/** Height of the Devices floating button with its margin, kept clear by the list and the snackbar (I615). */
+internal val FAB_SPACE = 72.dp
 
 /** First-device steps (I607): one card, a filled numbered circle per step, dividers between the steps, as on iOS. */
 @Composable

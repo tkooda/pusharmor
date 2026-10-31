@@ -273,8 +273,9 @@ private fun App(vm: AppViewModel) {
                 composable("settings") { SettingsScreen(vm, onDeleteAccount = { vm.message.value = null; deleting = true }, onSignedOut = {}) }
             }
             }
-            // On Send it sits above the Send button, never over it (I596).
-            SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).imePadding().padding(bottom = if (route == "send") SEND_BUTTON_SPACE else 0.dp))
+            // On Send it sits above the Send button (I596), on Devices above the Pair a new device button (I615).
+            val clear = when (route) { "send" -> SEND_BUTTON_SPACE; "peers" -> FAB_SPACE; else -> 0.dp }
+            SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).imePadding().padding(bottom = clear))
             }
         }
     }
