@@ -1,7 +1,7 @@
 /* Chrome tokens (copied to the build as tokens.css; style.css uses them). */
 :root {
-  --bg: #E8EAED; --card: #FFFFFF; --s1: #F1F3F4; --s2: #E8EAED; --s3: #DADCE0;
-  --ink: #1F1F1F; --ink2: #5F6368; --line: #CAD2DB; --ctl: #747775;
+  --bg: #F1F3F4; --card: #FFFFFF; --s1: #F1F3F4; --s2: #E8EAED; --s3: #DADCE0;
+  --ink: #1F1F1F; --ink2: #4A4F55; --line: #CAD2DB; --ctl: #747775;
   --primary: #1F3A5F; --onp: #FFFFFF; --pc: #D9E5F4; --onpc: #0E2238;
   --success: #136C42; --err: #B42318; --errc: #FCE8E6; --onerrc: #5F1209;
   --armor: #1F3A5F;
@@ -10,7 +10,7 @@
   --avbg: #E6EDF6; --avfg: #1F3A5F;
   --hero: #1F3A5F; --hero-line: #1F3A5F; --onhero: #FFFFFF; --onhero2: #C4D3E6; --heroav: #2B4A75;
   --plate: #EEF3FA; --fpcell: #FFFFFF; --signin: #EEF3FA;
-  --halo: #E3ECF7; --ring: #D5DEE9; --tile-edge: transparent;
+  --halo: #D9E5F4; --ring: #738399; --tile-edge: transparent;
   --g-bg: #FFFFFF; --g-line: #747775; --g-ink: #1F1F1F; --a-bg: #000000; --a-ink: #FFFFFF;
   --rb: 999px; --rc: 12px; --rf: 8px; --ra: 8px; --rp: 16px; --rcell: 10px; --rl: 28px;
   color-scheme: light dark;
@@ -27,7 +27,7 @@
     --avbg: #1E2C40; --avfg: #A9C8F0;
     --hero: #1B3150; --hero-line: #2B4770; --onhero: #F4F7FA; --onhero2: #B8C8DC; --heroav: #284468;
     --plate: #0F1823; --fpcell: #000000; --signin: #000000;
-    --halo: #13233A; --ring: #5F6368; --tile-edge: #4A6D9E;
+    --halo: #1B3050; --ring: #7D8A99; --tile-edge: #4A6D9E;
     --g-bg: #131314; --g-line: #8E918F; --g-ink: #E3E3E3; --a-bg: #FFFFFF; --a-ink: #000000;
     color-scheme: dark;
   }
@@ -41,7 +41,7 @@
   --avbg: #1E2C40; --avfg: #A9C8F0;
   --hero: #1B3150; --hero-line: #2B4770; --onhero: #F4F7FA; --onhero2: #B8C8DC; --heroav: #284468;
   --plate: #0F1823; --fpcell: #000000; --signin: #000000;
-  --halo: #13233A; --ring: #5F6368; --tile-edge: #4A6D9E;
+  --halo: #1B3050; --ring: #7D8A99; --tile-edge: #4A6D9E;
   --g-bg: #131314; --g-line: #8E918F; --g-ink: #E3E3E3; --a-bg: #FFFFFF; --a-ink: #000000;
   color-scheme: dark;
 }
