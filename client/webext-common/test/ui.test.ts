@@ -182,3 +182,11 @@ test("popup header stays mounted: only the content area scrolls, reset on each t
   assert.match(pop, /class: "loading", role: "status" \}, "Loading\.\.\."/);
   assert.match(pop, /clear\(body\);/); // a tab switch replaces the content area only
 });
+
+test("Settings: Open links automatically sits under Receiving, not Sending (I463)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  const recv = pop.indexOf('sh("Receiving")');
+  assert.ok(recv > pop.indexOf('sh("Sending")'));
+  assert.ok(pop.indexOf('"Open links automatically"') > recv);
+});
