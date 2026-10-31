@@ -84,6 +84,12 @@ class AppLogicTest {
         assertNull(ShareActivity.directTarget("hidden", emptyList()))
     }
 
+    @Test fun shareOnlyWhenSignedIn() {
+        assertTrue(ShareActivity.canShare(registered = true, signedOut = false))
+        assertFalse(ShareActivity.canShare(registered = true, signedOut = true)) // logged out keeps its keys and self row
+        assertFalse(ShareActivity.canShare(registered = false, signedOut = false))
+    }
+
     @Test fun shareIgnoresPeerExtra() {
         val i = android.content.Intent().putExtra("peer", "hidden")
         val id = i.getStringExtra(androidx.core.content.pm.ShortcutManagerCompat.EXTRA_SHORTCUT_ID)
