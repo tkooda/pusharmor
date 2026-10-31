@@ -384,3 +384,10 @@ test("login page with a banner gives one reason, not also You are logged out (I4
   const { readFileSync } = await import("node:fs");
   assert.match(readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8"), /resuming && !banner \? "You are logged out\. Log in to resume\."/);
 });
+
+test("login step 2 links stay inside the card and stack centered when narrow (I499)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  assert.match(css, /\.links \{ display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px; margin: 8px 0 0; \}/);
+  assert.match(css, /@media \(max-width: 480px\) \{(\n  [^\n]*)*\n  \.links \{ flex-direction: column; align-items: center; \}/);
+});

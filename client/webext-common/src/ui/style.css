@@ -293,7 +293,7 @@ button.google:hover, button.apple:hover { filter: brightness(0.97); }
 .login .who .addr { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .login .who .ava { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--avbg); color: var(--avfg); display: grid; place-items: center; font-size: 13px; font-weight: 700; }
 .center { display: flex; justify-content: center; }
-.links { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px; margin: 8px -8px 0; }
+.links { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px; margin: 8px 0 0; }
 .login button.text { border: 0; padding: 0 8px; font-size: 15px; }
 .login button.text:disabled { opacity: 1; color: var(--ink2); }
 .login button.back { position: absolute; left: 12px; top: 12px; width: 48px; padding: 0; border: 0; border-radius: 50%; color: var(--ink2); }
@@ -307,6 +307,8 @@ button.google:hover, button.apple:hover { filter: brightness(0.97); }
   body.page.signin-bg #app { padding: 24px 12px; }
   .l-card { padding: 24px 16px; }
   .login > .e2e { padding: 0 17px; }
+  /* I499: on a narrow card the two step 2 links stack, centered, inside the card */
+  .links { flex-direction: column; align-items: center; }
 }
 /* Short windows (a 1280x800 screen): tighter spacing keeps the encryption line in view. */
 @media (min-width: 481px) and (max-height: 900px) {
