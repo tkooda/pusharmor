@@ -39,22 +39,21 @@ final class BrandScreensTests: XCTestCase {
     }
 
     func testPairingCardShowsTheFingerprintCells() {
+        // no paired device yet: the first-pair screen holds the pairing card (Q338)
         let app = launch(["-PAScreenshotsPairing"])
-        let tab = app.tabBars.buttons["Devices"]
-        XCTAssertTrue(tab.waitForExistence(timeout: 30))
-        tab.tap()
+        XCTAssertTrue(app.navigationBars["Pair your first device"].waitForExistence(timeout: 30))
         let cells = app.descendants(matching: .any)["Pairing fingerprint K, 7, Q, D"]
         XCTAssertTrue(cells.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.tabBars.firstMatch.exists)
         XCTAssertTrue(app.buttons["Approve"].exists)
         XCTAssertTrue(app.buttons["Deny"].exists)
         XCTAssertTrue(app.staticTexts["Verify that \"New laptop\" shows this same code."].exists)
     }
 
     func testUnpairedPeerActionsHaveAVisibleButton() {
+        // no paired device yet: the first-pair screen holds the pairing card (Q338)
         let app = launch(["-PAScreenshotsPairing"])
-        let tab = app.tabBars.buttons["Devices"]
-        XCTAssertTrue(tab.waitForExistence(timeout: 30))
-        tab.tap()
+        XCTAssertTrue(app.navigationBars["Pair your first device"].waitForExistence(timeout: 30))
         let more = app.buttons["More actions"]
         XCTAssertTrue(more.waitForExistence(timeout: 10))
         more.tap()
@@ -83,16 +82,6 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.buttons["Rename"].waitForExistence(timeout: 10))
     }
 
-    /// I462: with no paired device, Send says how to pair one and opens Devices.
-    func testSendWithNoPairedDeviceGuidesToDevices() {
-        let app = launch(["-PAScreenshotsPairing"])
-        XCTAssertTrue(app.staticTexts["Pair a device first"].waitForExistence(timeout: 30))
-        XCTAssertTrue(app.staticTexts["Install PushArmor on the other device."].exists)
-        XCTAssertTrue(app.staticTexts["It appears in Devices. Tap Pair."].exists)
-        app.buttons["Open Devices"].tap()
-        XCTAssertTrue(app.navigationBars["Devices"].waitForExistence(timeout: 10))
-    }
-
     /// I468: the email field is marked invalid while non-empty and not a valid address.
     func testEmailFieldMarksInvalidLive() {
         let app = launch(["-PAScreenshotsSignIn"])
@@ -107,6 +96,29 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue((field.value as? String ?? "").contains("Not a valid email address"))
         field.typeText("@example.com")
         XCTAssertFalse((field.value as? String ?? "").contains("Not a valid email address"))
+    }
+
+    /// Q338: zero devices: the first-pair screen with the steps and a waiting line, no tabs,
+    /// and Settings behind the gear.
+    func testFirstPairScreenWithNoDevice() {
+        let app = launch(["-PAScreenshotsEmpty"])
+        XCTAssertTrue(app.navigationBars["Pair your first device"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["Install PushArmor on another device."].exists)
+        XCTAssertTrue(app.staticTexts["Log in with the same account."].exists)
+        XCTAssertTrue(app.staticTexts["When it shows below, tap Pair and approve it."].exists)
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@",
+            "Waiting for another device to log in.")).firstMatch.exists)
+        XCTAssertFalse(app.tabBars.firstMatch.exists)
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
+    }
+
+    /// Q338: with a paired device the normal tabs show, on Send.
+    func testPairedDeviceShowsTabsOnSend() {
+        let app = launch()
+        XCTAssertTrue(app.tabBars.buttons["Send"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.navigationBars["Send"].exists)
+        XCTAssertFalse(app.navigationBars["Pair your first device"].exists)
     }
 
     func testLogOutAsksFirstAndCancelKeepsTheDevice() {

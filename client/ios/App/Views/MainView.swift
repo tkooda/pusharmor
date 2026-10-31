@@ -6,6 +6,28 @@ struct MainView: View {
     @State private var tab = 0
 
     var body: some View {
+        Group {
+            if model.needsFirstPair {
+                FirstPairView()
+            } else {
+                tabs
+            }
+        }
+        // the first pairing done: the tabs open on Send (Q338)
+        .onChange(of: model.needsFirstPair) { _, v in
+            if !v { tab = 0 }
+        }
+        .sheet(isPresented: Binding(
+            get: { model.detailRow != nil },
+            set: { if !$0 { model.detailRow = nil } }
+        )) {
+            if let row = model.detailRow {
+                MessageDetailView(row: row)
+            }
+        }
+    }
+
+    private var tabs: some View {
         TabView(selection: $tab) {
             HomeView()
                 .tabBarMaterial()
@@ -27,7 +49,6 @@ struct MainView: View {
         .onAppear {
             if model.highlightPeer != nil { tab = 1 }
             if model.showHistory { tab = 3; model.showHistory = false }
-            if model.showDevices { tab = 1; model.showDevices = false }
         }
         .onChange(of: model.highlightPeer) { _, v in
             if v != nil { tab = 1 }
@@ -35,16 +56,56 @@ struct MainView: View {
         .onChange(of: model.showHistory) { _, v in
             if v { tab = 3; model.showHistory = false }
         }
-        .onChange(of: model.showDevices) { _, v in
-            if v { tab = 1; model.showDevices = false }
-        }
-        .sheet(isPresented: Binding(
-            get: { model.detailRow != nil },
-            set: { if !$0 { model.detailRow = nil } }
-        )) {
-            if let row = model.detailRow {
-                MessageDetailView(row: row)
+    }
+}
+
+/// Q338: logged in with no paired device. Three steps, the devices waiting to pair (the
+/// Devices pairing card and its actions), and Settings behind the gear.
+struct FirstPairView: View {
+    @EnvironmentObject var model: AppModel
+    @State private var showSettings = false
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Label(S.firstPairStep1, systemImage: "1.circle.fill")
+                    Label(S.firstPairStep2, systemImage: "2.circle.fill")
+                    Label(S.firstPairStep3, systemImage: "3.circle.fill")
+                }
+                Section("Waiting to pair") {
+                    let waiting = model.waitingToPair
+                    if waiting.isEmpty {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text(S.firstPairWaiting)
+                                .foregroundColor(.secondaryText)
+                        }
+                        .accessibilityElement(children: .combine)
+                    } else {
+                        ForEach(waiting, id: \.id.text) { p in
+                            PairingCardView(p: p)
+                                .listRowInsets(EdgeInsets(top: 18, leading: 16, bottom: 4, trailing: 16))
+                        }
+                    }
+                }
             }
+            .contentMargins(.bottom, 12, for: .scrollContent)
+            .refreshable { await model.refresh() }
+            .navigationTitle("Pair your first device")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showSettings = true } label: { Image(systemName: "gearshape") }
+                        .accessibilityLabel("Settings")
+                }
+            }
+            .sheet(isPresented: $showSettings) { SettingsView() }
+            // Taps meant for the Devices or History tab: this screen already shows the
+            // waiting devices, and the tabs must open on Send after the first pairing.
+            .onAppear { model.highlightPeer = nil; model.showHistory = false }
+            .onChange(of: model.highlightPeer) { _, v in if v != nil { model.highlightPeer = nil } }
+            .onChange(of: model.showHistory) { _, v in if v { model.showHistory = false } }
         }
     }
 }
