@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AUTH_RESULT_MS, RESEND_MS, RESTORE_MS, clampFrameHeight, readAuthResult, readProgress, resendLeftMs, restoreStep, sendLeftMs } from "../src/model/signin.ts";
+import { AUTH_RESULT_MS, RESEND_MS, RESTORE_MS, clampFrameHeight, formatWait, readAuthResult, readProgress, resendLeftMs, restoreStep, sendLeftMs } from "../src/model/signin.ts";
 
 const T0 = 1_800_000_000_000;
 const code = (o: Record<string, unknown> = {}) => ({ v: 1, step: "code", email: "sam@example.com", purpose: "register", sentAt: T0, ...o });
@@ -81,4 +81,14 @@ test("Email me a code waits out the countdown only for the address just sent to"
   assert.equal(sendLeftMs(T0, "sam@example.com", "sam@example.com", T0 + 60_000), 0);
   assert.equal(sendLeftMs(T0, "sam@example.com", "other@example.com", T0 + 18_000), 0);
   assert.equal(sendLeftMs(0, "", "sam@example.com", T0), 0);
+});
+
+test("wait text: seconds up to 60, whole minutes rounded up above, singular forms", () => {
+  assert.equal(formatWait(1_000), "1 second");
+  assert.equal(formatWait(500), "1 second");
+  assert.equal(formatWait(42_000), "42 seconds");
+  assert.equal(formatWait(60_000), "60 seconds");
+  assert.equal(formatWait(61_000), "2 minutes");
+  assert.equal(formatWait(120_000), "2 minutes");
+  assert.equal(formatWait(121_000), "3 minutes");
 });
