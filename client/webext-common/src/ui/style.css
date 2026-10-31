@@ -98,7 +98,7 @@ input[role=switch]:checked::before { left: 16px; background: var(--onp); }
 label.srow { cursor: pointer; }
 .srow.acct, .srow.acct-acts { display: block; }
 .acct .email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.acct-acts .btns { padding: 0; }
+.acct-acts .btns { padding: 0; flex-wrap: nowrap; justify-content: center; }
 .btns[hidden], button.errtext[hidden] { display: none; }
 
 /* Overflow menu. */

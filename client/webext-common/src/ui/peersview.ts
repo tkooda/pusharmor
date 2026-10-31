@@ -126,8 +126,9 @@ export function ownCard(env: UiEnv, name: string, platform: string): HTMLElement
             toast((e as Error).message, "err");
           }
         },
-      }, "Rename");
-    clear(card).append(input, save);
+      }, "Save");
+    const cancel = h("button", { class: "quiet", onclick: () => show(nm, true) }, "Cancel");
+    clear(card).append(input, save, cancel);
     card.classList.add("editing");
     input.focus();
   };
