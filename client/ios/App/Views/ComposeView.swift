@@ -156,7 +156,8 @@ struct ChipFlow: Layout {
 /// above the tab bar (and above the keyboard).
 struct ComposeView: View {
     @EnvironmentObject var model: AppModel
-    @State private var text = ""
+    /// The draft survives process death (I504); the system restores it with the scene.
+    @SceneStorage("sendDraft") private var text = ""
     @State private var asText = false
     @State private var toAll = false
     @State private var selected: Set<String> = []
