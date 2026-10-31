@@ -35,7 +35,9 @@ final class ShareModel: ObservableObject {
 
     func load() async {
         let env = AppEnvironment.shared
-        guard let store = try? env.openStore(), let keys = try? env.keychain.load(), (try? store.me().id) != nil else {
+        // Logged out keeps the id and keys: it must not offer a send that cannot go through (I470).
+        guard let store = try? env.openStore(), let keys = try? env.keychain.load(), let me = try? store.me(),
+              me.id != nil, !me.loggedOut, !me.removed else {
             step = .failed("Open PushArmor and log in first.")
             return
         }
