@@ -5,7 +5,9 @@ import android.net.Uri
 import android.provider.Settings as SysSettings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -811,6 +813,11 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
     var chip by rememberSaveable(stateSaver = chipSaver) { mutableStateOf<HistoryFilter.Chip>(HistoryFilter.Chip.All) }
     var dir by rememberSaveable { mutableStateOf<String?>(null) }
     var open by rememberSaveable { mutableStateOf<Long?>(null) }
+    // I621: the ids checked in multi-select; empty means the mode is off. Leaving the screen ends it.
+    var picked by rememberSaveable { mutableStateOf(listOf<Long>()) }
+    var confirmDeleteSel by rememberSaveable { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = picked.isNotEmpty()) { picked = emptyList() }
+    DisposableEffect(Unit) { onDispose { picked = emptyList() } }
     fun nameOf(id: String) = peers.firstOrNull { it.id == id }?.let { (it.name ?: label(it)) + if (it.removed) " (removed)" else "" } ?: "(removed)"
     val frows = rows.map { HistoryFilter.Row(it.peerId, it.direction == "RECEIVED") }
     val eff = HistoryFilter.effective(frows, chip)
@@ -851,6 +858,18 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
             PaChip(dir == "RECEIVED", "Received") { dir = if (dir == "RECEIVED") null else "RECEIVED" }
         }
         val shown = rows.filter { HistoryFilter.matches(HistoryFilter.Row(it.peerId, it.direction == "RECEIVED"), eff) && (dir == null || it.direction == dir) }
+        // Rows that were deleted or filtered away leave the selection; none left ends the mode.
+        val shownIds = shown.map { it.id }.toSet()
+        if (picked.any { it !in shownIds }) picked = picked.filter { it in shownIds }
+        if (picked.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.End) {
+            FilledTonalButton(onClick = { confirmDeleteSel = true }, Modifier.heightIn(min = 48.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer)) { Text(deleteSelectedLabel(picked.size)) }
+        }
+        if (confirmDeleteSel && picked.isNotEmpty()) AlertDialog(onDismissRequest = { confirmDeleteSel = false },
+            title = { Text(deleteSelectedTitle(picked.size)) }, text = { Text("This deletes the selected messages from this device.") },
+            confirmButton = { TextButton(onClick = { vm.deleteHistory(picked); picked = emptyList(); confirmDeleteSel = false }) { Text("Delete") } },
+            dismissButton = { TextButton(onClick = { confirmDeleteSel = false }) { Text("Cancel") } })
         val days = shown.groupBy { UiText.day(it.at) }
         // A row just sent from the Send tab: scrolled to and flashed once (I596); a filter that hides it is cleared.
         LaunchedEffect(flashId, shown) {
@@ -873,7 +892,7 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
                 }
                 itemsIndexed(group, key = { _, h -> h.id }) { i, h ->
                     val fill = if (open == h.id) ex.expandedRow else ex.tile
-                    HistoryRow(vm, h, open == h.id, ::nameOf, onPeer,
+                    HistoryRow(vm, h, open == h.id, picked.isNotEmpty(), h.id in picked, { picked = toggleSelected(picked, h.id) }, ::nameOf, onPeer,
                         Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, group.size,
                             if (glowId == h.id) lerp(fill, MaterialTheme.colorScheme.secondaryContainer, glow.value) else fill)) { open = toggleOpenRow(open, h.id) }
                 }
@@ -884,6 +903,15 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
 
 /** Tapping the open History row closes it; tapping another opens that one (I620). */
 internal fun toggleOpenRow(open: Long?, id: Long): Long? = if (open == id) null else id
+
+/** Multi-select (I621): a long-press or tap toggles [id]; the mode is on while the list is not empty. */
+internal fun toggleSelected(picked: List<Long>, id: Long): List<Long> = if (id in picked) picked - id else picked + id
+
+/** "Delete 1 selected", "Delete 3 selected" (I621). */
+internal fun deleteSelectedLabel(n: Int): String = "Delete $n selected"
+
+/** The confirm title: "Delete 1 message?", "Delete 3 messages?" (I621). */
+internal fun deleteSelectedTitle(n: Int): String = if (n == 1) "Delete 1 message?" else "Delete $n messages?"
 
 /** LazyColumn index of History row [id], given the row ids of each day group under its day header (I596). */
 internal fun historyItemIndex(days: List<List<Long>>, id: Long): Int {
@@ -925,7 +953,9 @@ internal fun PaChip(selected: Boolean, text: String, onClick: () -> Unit) {
 private val CONTENT_TYPES = setOf("url", "text", "tel")
 
 @Composable
-private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, expanded: Boolean, nameOf: (String) -> String,
+@OptIn(ExperimentalFoundationApi::class)
+private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, expanded: Boolean, selecting: Boolean, checked: Boolean,
+                       onSelect: () -> Unit, nameOf: (String) -> String,
                        onPeer: (String) -> Unit, modifier: Modifier, onOpen: () -> Unit) {
     val context = LocalContext.current
     val cs = MaterialTheme.colorScheme
@@ -943,12 +973,13 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
     }
     // Unread: bold text, no dot, so the time column stays aligned (F32).
     val weight = if (unread) FontWeight.Bold else FontWeight.Normal
-    Column(modifier.clickable(role = Role.Button) { onOpen(); vm.markRead(h.id) }
+    Column(modifier.combinedClickable(role = Role.Button, onLongClick = onSelect) { if (selecting) onSelect() else { onOpen(); vm.markRead(h.id) } }
         .semantics {
-            val st = listOfNotNull(if (unread) "Unread" else null, h.content?.let { if (expanded) "Expanded" else "Collapsed" })
+            val st = listOfNotNull(if (unread) "Unread" else null, if (selecting) (if (checked) "Selected" else "Not selected") else h.content?.let { if (expanded) "Expanded" else "Collapsed" })
             if (st.isNotEmpty()) stateDescription = st.joinToString(", ")
         }) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            if (selecting) Checkbox(checked = checked, onCheckedChange = null, modifier = Modifier.align(Alignment.CenterVertically))
             if (event) Box(Modifier.size(40.dp), Alignment.Center) {
                 Icon(when (h.type) { "logged_out" -> PaIcons.Pause; "logged_in" -> PaIcons.Check; else -> PaIcons.Info }, null, tint = cs.onSurfaceVariant)
             } else IconTile(when {
@@ -984,7 +1015,7 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
             }
         }
         val hc = h.content
-        if (expanded && hc != null) {
+        if (expanded && !selecting && hc != null) {
             Row(Modifier.padding(start = 72.dp, end = 16.dp, bottom = 8.dp).horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (h.type == "url") com.pusharmor.protocol.UrlCheck.parse(hc)?.let { u ->
