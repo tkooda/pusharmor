@@ -176,7 +176,7 @@ body.page .foot { position: static; }
 .chip { height: 28px; padding: 0 12px; border-color: var(--ctl); color: var(--ink2); font-size: 12px; flex: none; gap: 4px; }
 .chip.on { background: var(--pc); border-color: var(--pc); color: var(--onpc); padding-left: 8px; }
 .hist-list { margin-top: 6px; }
-.hrow { display: grid; grid-template-columns: 32px minmax(0, 1fr) 8px; gap: 12px; padding: 10px 16px; align-items: start; }
+.hrow { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 12px; padding: 10px 16px; align-items: start; }
 .hrow.event { align-items: center; }
 .hrow.sel, .hrow:focus-within { background: var(--s1); }
 .hmeta { display: flex; gap: 8px; font-size: 12px; line-height: 16px; color: var(--ink2); }
@@ -192,7 +192,7 @@ body.page .foot { position: static; }
 .content.clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; }
 .content.ev { font-size: 13px; color: var(--ink2); }
 .hrow.unread .content, .hrow.unread .who { font-weight: 600; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); margin-top: 22px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .hrow .acts { display: none; margin-top: 8px; }
 .hrow.sel .acts, .hrow:focus-within .acts { display: flex; }
 button.ac { height: 28px; padding: 0 10px 0 8px; gap: 5px; font-size: 12px; color: var(--ink); background: var(--card); }
