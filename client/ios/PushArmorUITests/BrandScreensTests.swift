@@ -62,8 +62,9 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.buttons["Remove"].exists)
     }
 
-    /// F25, F31: Devices has no This device row; the rename lives in Settings.
-    func testRenameInSettings() {
+    /// F25, F30, F31: Devices has no This device row and offers the pairing how-to; the
+    /// rename lives in Settings.
+    func testPairHowToAndRenameInSettings() {
         let app = launch()
         let tab = app.tabBars.buttons["Devices"]
         XCTAssertTrue(tab.waitForExistence(timeout: 30))
@@ -71,6 +72,13 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "Work desktop"))
             .firstMatch.waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["Rename"].exists)
+        let pair = app.buttons["Pair a new device"]
+        for _ in 0..<5 where !(pair.exists && pair.isHittable) { app.swipeUp() }
+        pair.tap()
+        XCTAssertTrue(app.staticTexts["Install PushArmor on the other device."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Log in with the same account."].exists)
+        XCTAssertTrue(app.staticTexts["It appears here. Tap Pair."].exists)
+        app.buttons["Done"].tap()
         app.tabBars.buttons["Settings"].tap()
         XCTAssertTrue(app.buttons["Rename"].waitForExistence(timeout: 10))
     }
