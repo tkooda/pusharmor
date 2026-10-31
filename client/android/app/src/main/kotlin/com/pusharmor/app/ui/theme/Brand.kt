@@ -152,7 +152,9 @@ fun PaTopBar(title: String, navigationIcon: @Composable () -> Unit = {}, actions
         title = {
             // Screenshot fixture only: hides the title under the system heads-up card (02-notification).
             val hide = com.pusharmor.app.BuildConfig.SCREENSHOT_MODE && com.pusharmor.app.ScreenshotMode.hideTitle
-            Text(title, Modifier.alpha(if (hide) 0f else 1f), style = MaterialTheme.typography.headlineSmall)
+            // One line: a large font ends the title in an ellipsis, never a second line cut off by the bar (I519).
+            Text(title, Modifier.alpha(if (hide) 0f else 1f), style = MaterialTheme.typography.headlineSmall,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         },
         navigationIcon = navigationIcon,
         actions = { actions() },
