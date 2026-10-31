@@ -34,6 +34,7 @@ export class MemKV implements KV {
 
 export class FakePlatform implements Platform {
   platformName: "chrome" | "firefox";
+  appVersion = "0.0.19";
   isAndroid = false;
   notes = new Map<string, { title: string; body: string }>();
   noteLog: { id: string; body: string }[] = [];
@@ -136,7 +137,7 @@ function sha(...p: Uint8Array[]) {
 export class MockWorker {
   rows = new Map<string, WRow>();
   queue: { to: string; m: string }[] = [];
-  calls: { method: string; path: string; body: unknown }[] = [];
+  calls: { method: string; path: string; body: unknown; client: string | null }[] = [];
   inject: Injected[] = [];
   skewMs = 0;
   readonly clock: Clock;
@@ -181,7 +182,7 @@ export class MockWorker {
     const method = init.method ?? "GET";
     const text = typeof init.body === "string" ? init.body : "";
     const body = text ? (JSON.parse(text) as Record<string, unknown>) : {};
-    this.calls.push({ method, path, body });
+    this.calls.push({ method, path, body, client: new Headers(init.headers).get("PA-Client") });
     for (const inj of this.inject) {
       if (inj.times > 0 && inj.match.test(method + " " + path)) {
         inj.times--;
@@ -333,6 +334,7 @@ export async function makeEngine(p: FakePlatform, factory: IDBFactory, clock: Cl
   const db = new Db(await openDb(factory));
   let offset = 0;
   const api = new Api({
+    client: p.platformName + "/" + p.appVersion,
     fetch: (i, init) => p.fetch(i, init),
     now: clock.now,
     sleep: async (ms) => {

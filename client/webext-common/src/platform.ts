@@ -17,6 +17,8 @@ export interface MenuPeer {
 
 export interface Platform {
   platformName: "chrome" | "firefox";
+  /** Manifest version (x.y.z). */
+  appVersion: string;
   isAndroid: boolean;
   pushSubscribe(vapidPub: Uint8Array): Promise<PushFields>;
   pushCurrent(): Promise<PushFields | null>;

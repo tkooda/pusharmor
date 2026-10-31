@@ -2,7 +2,7 @@
 // counters, replay state and Worker calls. Every operation reads state at
 // start and commits before it returns, so a stopped service worker loses
 // nothing.
-import { type ApiReply, Api, ApiError } from "../api/client.ts";
+import { type ApiReply, Api, ApiError, UPDATE_REQUIRED } from "../api/client.ts";
 import { b64urlDecode, b64urlEncode, b64urlTryDecode } from "../crypto/b64url.ts";
 import { equal, randomBytes } from "../crypto/bytes.ts";
 import { generateKeySet, isValidPub } from "../crypto/keys.ts";
@@ -565,6 +565,7 @@ export class Engine {
 
   private async callFailure(e: unknown): Promise<{ result: string; notBefore?: number }> {
     if (e instanceof ApiError) {
+      if (e.status === 426) return { result: UPDATE_REQUIRED };
       if (e.status === 401 && e.error === "unknown peer") await this.selfRemoved(T.removed);
       if ((e.status === 429 || e.status === 503) && e.retryAfter !== null) {
         return { result: String(e.status), notBefore: now(this.p) + Math.max(30, e.retryAfter) * 1000 };
