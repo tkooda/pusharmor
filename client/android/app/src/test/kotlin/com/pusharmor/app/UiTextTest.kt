@@ -22,6 +22,10 @@ class UiTextTest {
         assertEquals(Mark.OFF to "Unreachable", UiText.status(pinned.copy(reachable = false)))
         assertEquals(Mark.OK to "Paired", UiText.status(pinned))
         assertEquals(Mark.WAIT to "Has not approved this device", UiText.status(pinned.copy(approveVerified = false)))
+        // A device that logged in but is not paired here yet (Pair and Deny row, I526).
+        val fresh = pinned.copy(signPub = null, encPub = null, pairingId = null, approved = false, approveVerified = false)
+        assertEquals(Mark.WAIT to "Ready to pair", UiText.status(fresh))
+        assertEquals(Mark.OFF to "Logged out", UiText.status(fresh.copy(loggedOut = true)))
     }
 
     @Test fun sendOnlyPeerIsNotInAllNorSelectable() {

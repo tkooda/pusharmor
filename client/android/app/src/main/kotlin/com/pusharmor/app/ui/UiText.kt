@@ -21,12 +21,13 @@ object UiText {
     const val APPLE_RELAY_HINT = "To log in on another device, use this address. Find it on an iPhone in Settings, under your name, in Sign in with Apple. " +
         "You can also find it at appleid.apple.com, in Hide My Email."
 
-    /** Peer status line by priority: missing, signed out, send only, unreachable, approves, has not approved. */
+    /** Peer status line by priority: missing, signed out, send only, unreachable, ready to pair (not paired here), approves, has not approved. */
     fun status(p: Peer): Pair<Mark, String> = when {
         p.missing -> Mark.OFF to "(missing)"
         p.loggedOut -> Mark.OFF to "Logged out"
         !p.listening -> Mark.OFF to "Send only"
         !p.reachable -> Mark.OFF to "Unreachable"
+        !p.pinned -> Mark.WAIT to "Ready to pair" // a Pair and Deny row (I526), same word as the extensions
         p.approvesMe -> Mark.OK to "Paired"
         else -> Mark.WAIT to "Has not approved this device"
     }
