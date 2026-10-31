@@ -449,6 +449,8 @@ test("This device is a plain settings group row, not a navy hero (I585)", async 
   assert.doesNotMatch(rd("peersview.ts"), /hero|wmk/);
   for (const f of ["tokens-chrome.css", "tokens-firefox.css"]) assert.doesNotMatch(rd(f), /hero/);
   assert.match(rd("peersview.ts"), /class: "srow own"/);
+  assert.match(rd("popup.ts"), /sh\("Device name"\)/);
+  assert.doesNotMatch(rd("popup.ts"), /sh\("This device"\)/);
 });
 
 test("Rename error is scrolled into view like the other Settings status lines (I567)", async () => {
