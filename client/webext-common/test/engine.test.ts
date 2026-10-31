@@ -217,8 +217,8 @@ test("PA-Client on every relay server call; 426 shows the update text", async ()
   assert.ok(w.calls.some((c) => c.client === "firefox/0.0.19"));
   w.inject.push({ match: /POST \/v1\/send/, status: 426, body: { error: "update required" }, times: 1 });
   const r = await a.e.send("again", false, "all");
-  assert.equal(r.error, "Update PushArmor to continue");
-  assert.equal(errorText(new ApiError(426, "update required", {}, null)), "Update PushArmor to continue");
+  assert.equal(r.error, "Update PushArmor to continue.");
+  assert.equal(errorText(new ApiError(426, "update required", {}, null)), "Update PushArmor to continue.");
 });
 
 test("send: a URL whose normalized href exceeds the cap is refused before any counter or call", async () => {
