@@ -22,9 +22,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
@@ -81,7 +79,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.layout
@@ -167,8 +164,7 @@ fun PeersScreen(vm: AppViewModel) {
     val prefs by vm.prefs.collectAsState()
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     var confirmRemove by remember { mutableStateOf<Peer?>(null) }
-    var renaming by remember { mutableStateOf(false) }
-    // A failed rename, remove, pair or deny puts its error in vm.message. Take it when shown, not on
+    // A failed remove, pair or deny puts its error in vm.message. Take it when shown, not on
     // dismiss, so leaving Peers does not leave it set (I426); counted like the Send result.
     val snack = remember { SnackbarHostState() }
     val msg by vm.message.collectAsState()
@@ -189,12 +185,12 @@ fun PeersScreen(vm: AppViewModel) {
     // The highlight scrolls once per visit; leaving the screen clears it.
     var aimed by remember { mutableStateOf<String?>(null) }
     DisposableEffect(Unit) { onDispose { vm.highlight.value = null } }
-    // Item order: banners, [pairing header, cards], self header, self, [peers header, peers].
+    // Item order: banners, [pairing header, cards], [peers header, peers].
     LaunchedEffect(highlight, list.size) {
         highlight?.takeIf { it != aimed }?.let { h ->
             val pi = pairing.indexOfFirst { it.id == h }
             val base = if (pairing.isEmpty()) 1 else 2 + pairing.size
-            val idx = if (pi >= 0) 2 + pi else plain.indexOfFirst { it.id == h }.takeIf { it >= 0 }?.let { base + 3 + it }
+            val idx = if (pi >= 0) 2 + pi else plain.indexOfFirst { it.id == h }.takeIf { it >= 0 }?.let { base + 1 + it }
             idx?.let { state.animateScrollToItem(it); aimed = h }
         }
     }
@@ -222,8 +218,6 @@ fun PeersScreen(vm: AppViewModel) {
                         PairingCard(vm, p, row, now, Modifier.padding(top = if (i > 0) 12.dp else 0.dp))
                     }
                 }
-                item(key = "self-header") { SectionHeader("This device") }
-                item(key = "self") { HeroCard(me?.name ?: "", plain = pairing.isNotEmpty()) { renaming = true } }
                 if (plain.isNotEmpty()) {
                     item(key = "peers-header") { SectionHeader("Devices") }
                     itemsIndexed(plain, key = { _, p -> p.id }) { i, p ->
@@ -250,7 +244,6 @@ fun PeersScreen(vm: AppViewModel) {
             confirmButton = { TextButton(onClick = { vm.remove(p.id); confirmRemove = null }) { Text("Remove") } },
             dismissButton = { TextButton(onClick = { confirmRemove = null }) { Text("Cancel") } })
     }
-    if (renaming) RenameDialog(me?.name ?: "", onSave = { vm.rename(it) }) { renaming = false }
 }
 
 /** Rename this device: one field, same save call as before. */
@@ -263,34 +256,6 @@ private fun RenameDialog(current: String, onSave: (String) -> Unit, onDismiss: (
             isError = error != null, supportingText = error?.let { { Text(it) } }) },
         confirmButton = { TextButton(onClick = { onSave(typed); onDismiss() }, enabled = error == null) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
-}
-
-/** This device: navy hero card, or the plain tile while a pairing card is on screen. */
-@Composable
-private fun HeroCard(name: String, plain: Boolean, onEdit: () -> Unit) {
-    val x = LocalPaExtra.current
-    val cs = MaterialTheme.colorScheme
-    val shape = RoundedCornerShape(24.dp)
-    Box(Modifier.padding(horizontal = 16.dp).fillMaxWidth().heightIn(min = 82.dp).clip(shape)
-        .background(if (plain) x.tile else x.hero)
-        .border(1.dp, if (plain) x.cardEdge else x.heroBorder, shape)) {
-        // matchParentSize: the watermark must not set the card height (82 dp row, not 120 dp).
-        if (!plain) Box(Modifier.matchParentSize()) {
-            Icon(painterResource(R.drawable.ic_notify), null, tint = Color.White.copy(alpha = 0.04f),
-                modifier = Modifier.requiredSize(120.dp).align(Alignment.CenterEnd).offset(x = (-96).dp, y = 10.dp).rotate(-12f))
-        }
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 4.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Box(Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(if (plain) x.iconTileBg else x.heroIconBg), Alignment.Center) {
-                Icon(PaIcons.Smartphone, null, tint = if (plain) x.iconTileFg else Color.White, modifier = Modifier.size(24.dp))
-            }
-            Column(Modifier.weight(1f)) {
-                Text(name, style = MaterialTheme.typography.titleMedium, color = if (plain) cs.onSurface else x.onHero)
-                Text("Android, this device", style = MaterialTheme.typography.bodyMedium, color = if (plain) cs.onSurfaceVariant else x.onHero2)
-            }
-            IconButton(onClick = onEdit) { Icon(PaIcons.Edit, "Rename", tint = if (plain) cs.onSurfaceVariant else x.onHero2) }
-        }
-    }
 }
 
 @Composable
