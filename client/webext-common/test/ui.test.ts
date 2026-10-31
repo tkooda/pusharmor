@@ -293,3 +293,19 @@ test("one request per click; a failed tab view shows Retry (I473)", async () => 
   assert.match(page, /if \(btn\.disabled\) return;\s+btn\.disabled = true;/); // Remove and continue
   assert.match(rd("popup.ts"), /ready\.catch\(\(e\) => pane\.isConnected && failView\(pane, \(e as Error\)\.message, \(\) => show\(t, prefill\)\)\)/);
 });
+
+test("copy: device limit rows read as sentences; desktop says Click; status lines end with a period (I474)", async () => {
+  const { limitLine } = await import("../src/ui/page.ts");
+  const created = new Date(2026, 9, 2, 12).getTime() / 1000;
+  const added = new Date(created * 1000).toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
+  assert.equal(limitLine({ id: "x", platform: "android", created, approves: 3, approved_by: 1, reachable: true, logged_out: false }), "Added " + added + ". Approved 3 devices and approved by 1 device.");
+  assert.equal(limitLine({ id: "x", platform: "ios", created, approves: 0, approved_by: 0, reachable: false, logged_out: true }), "Added " + added + ". Approved 0 devices and approved by 0 devices. Unreachable. Logged out.");
+  const { T } = await import("../src/core/texts.ts");
+  for (const [k, v] of Object.entries(T)) {
+    const s = typeof v === "function" ? (v as (x: string) => string)("X") : v;
+    assert.doesNotMatch(s, /\bTap\b|\btap\b/, k);
+    if (/[.!?] /.test(s)) assert.match(s, /[.!?]$/, k); // a multi-sentence text ends with a period
+  }
+  assert.equal(T.loginExpired, "Login expired. Log in again.");
+  assert.equal(T.notificationsOff, "Notifications are off. This device cannot receive messages.");
+});

@@ -1463,7 +1463,7 @@ export class Engine {
       const idb = b64urlTryDecode(id);
       // the id must carry our own keyhash, or peers drop every message from us
       if (!idb || idb.length !== ID_LEN || !equal(idb.subarray(ACCOUNT_LEN, ACCOUNT_LEN + KEYHASH_LEN), await keyhash(keys.sign_pub, keys.enc_pub)))
-        throw new UserError("Bad reply from the server");
+        throw new UserError(T.badReply);
       await this.db.put("keys", { ...keys, id }, "self");
       await this.p.storageLocal.set({ [REG_MARKER]: { id, registered: true } });
       await this.db.setMeta("reg", "registered");

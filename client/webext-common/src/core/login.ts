@@ -46,7 +46,7 @@ export class Login {
     const r = await this.e.api.call("POST", "/auth/email", {
       body: { email: n, sign_pub: b64urlEncode(keys.sign_pub), purpose, turnstile },
     });
-    if (typeof r.json.request_token !== "string") throw new UserError("Bad reply from the server");
+    if (typeof r.json.request_token !== "string") throw new UserError(T.badReply);
     await this.e.p.storageSession.set({
       [REQUEST_TOKEN]: { token: r.json.request_token, purpose },
       [SIGNIN_PROGRESS]: { v: 1, step: "code", email: email.trim(), purpose, sentAt: this.e.p.now() },
@@ -73,7 +73,7 @@ export class Login {
     const c = cleanCode(code);
     if (!c) throw new UserError("Enter the 6-character code");
     const st = (await this.e.p.storageSession.get([REQUEST_TOKEN]))[REQUEST_TOKEN] as { token: string; purpose: Purpose } | undefined;
-    if (!st) throw new UserError("Login expired, log in again");
+    if (!st) throw new UserError(T.loginExpired);
     const r = await this.e.api.call("POST", "/auth/email/verify", { body: { request_token: st.token, code: c } });
     const ticket = typeof r.json.ticket === "string" ? r.json.ticket : "";
     const email = typeof r.json.email === "string" ? r.json.email : null;
@@ -137,7 +137,7 @@ export class Login {
       } else if (purpose === "login") await this.e.login(ticket);
       else await this.e.deleteAccount(ticket);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401 && err.error === "ticket expired") throw new UserError("Login expired, log in again");
+      if (err instanceof ApiError && err.status === 401 && err.error === "ticket expired") throw new UserError(T.loginExpired);
       throw err;
     }
     await this.clearProgress();
