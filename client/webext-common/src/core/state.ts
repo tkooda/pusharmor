@@ -8,6 +8,8 @@ export const PAIR_AUTO = "pair_auto";
 export const PAIR_MSG_PREFIX = "pairmsg:";
 export const ALLOW_SET = "allow";
 export const NET_NOT_BEFORE = "net_not_before";
+/** storage.local: the extension version that got HTTP 426. It stops counting once the version changes. */
+export const UPDATE_NEEDED = "update_needed";
 export const REG_MARKER = "registered";
 export const SCHEMA_KEY = "schema";
 /** Layout version of the storage.local keys. Unversioned installs (no key) are v1. */

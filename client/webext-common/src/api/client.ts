@@ -61,6 +61,8 @@ export class Api {
   private readonly d: ApiDeps;
   /** Called on 401 "logged out" for a signed call (the Worker logged this device out). */
   onLoggedOut: (() => Promise<void>) | null = null;
+  /** Called on HTTP 426 (this version is too old for the relay server). */
+  onUpdateRequired: (() => Promise<void>) | null = null;
   constructor(d: ApiDeps) {
     this.d = d;
   }
@@ -73,6 +75,7 @@ export class Api {
       try {
         return await this.withRetries(method, path, bodyText, opts);
       } catch (e) {
+        if (e instanceof ApiError && e.status === 426) await this.onUpdateRequired?.().catch(() => undefined);
         if (e instanceof ApiError && e.status === 401 && e.error === "clock skew" && opts.signer && skews === 0) {
           skews++;
           continue;

@@ -22,7 +22,7 @@ const EMAIL = "sam@example.com";
 
 const state: StateView = {
   reg: null, banner: null, email: null, name: "Laptop", settings: DEFAULT_SETTINGS,
-  platform: q.has("ff") ? "firefox" : "chrome", isAndroid: false, receiveMode: null, receiveNote: null, setupNeeded: q.has("setup"),
+  platform: q.has("ff") ? "firefox" : "chrome", isAndroid: false, receiveMode: null, receiveNote: null, setupNeeded: q.has("setup"), updateRequired: q.has("update"),
 };
 
 function progress(): Restore | null {
