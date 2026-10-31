@@ -251,7 +251,8 @@ body.page.signin-bg #app { max-width: none; padding: 32px 16px; }
 .l-brand { display: flex; justify-content: center; margin-bottom: 20px; }
 .login .step { display: flex; flex-direction: column; }
 .login .step[hidden] { display: none; }
-.step-n { text-align: center; font-size: 14px; line-height: 20px; font-weight: 600; color: var(--ink2); }
+/* I459: the step counter sits 12px below the brand and 12px above the heading */
+.step-n { margin: -8px 0 4px; text-align: center; font-size: 14px; line-height: 20px; font-weight: 600; color: var(--ink2); }
 .login h1 { margin: 8px 0 0; font-size: 28px; line-height: 36px; font-weight: 500; text-align: center; }
 .login .sub { margin-top: 8px; font-size: 16px; line-height: 24px; color: var(--ink2); text-align: center; }
 .notes { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
@@ -320,6 +321,7 @@ button.google:hover, button.apple:hover { filter: brightness(0.97); }
   body.page.signin-bg #app { padding: 32px 16px 12px; }
   .l-card { padding: 20px 40px 24px; }
   .l-brand { margin-bottom: 12px; }
+  .step-n { margin-top: 0; }
   .notes { margin-top: 12px; }
   .note { padding: 10px 16px; }
   .oauth { margin-top: 16px; }

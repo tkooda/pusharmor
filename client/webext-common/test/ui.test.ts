@@ -419,3 +419,14 @@ test("first-device screen: after the first pairing, focus goes to the selected t
   assert.match(pop, /root\.querySelector<HTMLElement>\("\[role='tab'\]\[aria-selected='true'\]"\) \?\? root\.querySelector<HTMLElement>\("h1"\)/);
   assert.match(pop, /to\?\.focus\(\);/);
 });
+
+test("login page: the step counter has even space above and below (I459)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  // 20px brand gap - 8px = 12px above; 4px + the heading's 8px = 12px below
+  assert.match(css, /\.l-brand \{[^}]*margin-bottom: 20px;/);
+  assert.match(css, /\.step-n \{ margin: -8px 0 4px;/);
+  assert.match(css, /\.login h1 \{ margin: 8px 0 0;/);
+  // short windows: 12px brand gap, no pull-up
+  assert.match(css, /\.l-brand \{ margin-bottom: 12px; \}\n\s*\.step-n \{ margin-top: 0; \}/);
+});
