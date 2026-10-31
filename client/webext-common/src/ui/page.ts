@@ -109,14 +109,20 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   const sendHelp = h("p", { class: "help", hidden: true });
   describe(frame, frameHelp, "frame-help");
   const s1notes = h("div", { class: "notes" });
-  // Step 1 notes: an optional new note first, then the lasting ones (banner, Firefox setup, receive note).
+  // Step 1 shows one note at a time: a new note first, else the banner, the Firefox setup note
+  // (only while setup is still needed, with a button that opens it again), or the receive note.
+  const setupNote = () => {
+    const n = note("", "info", T.ffFinishSetup);
+    n.append(h("button", { type: "button", class: "text", onclick: () => env.openUrl(SITE + "/fx/setup") }, "Open setup"));
+    return n;
+  };
   const resetNotes = (first?: HTMLElement) =>
     add(
       clear(s1notes),
-      first,
-      st.banner && st.banner !== title ? note("", "info", st.banner) : null,
-      ff && !st.reg ? note("", "info", T.ffFinishSetup) : null,
-      st.receiveNote ? note("", "info", st.receiveNote) : null,
+      first ??
+        (st.banner && st.banner !== T.signedOut ? note("", "info", st.banner) : null) ??
+        (ff && st.setupNeeded ? setupNote() : null) ??
+        (st.receiveNote ? note("", "info", st.receiveNote) : null),
     );
   if (onFrameMessage) window.removeEventListener("message", onFrameMessage);
   onFrameMessage = (ev: MessageEvent) => {
@@ -191,13 +197,15 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       resetNotes(note("err", "error", (e as Error).message));
     }
   };
-  const title = purpose === "delete-account" ? "Delete account" : purpose === "login" ? T.signedOut : "Log in";
+  const title = purpose === "delete-account" ? "Delete account" : "Log in";
+  // resuming (logged out) is not a setup: no step counter, and the body says why
+  const resuming = purpose === "login";
   const step1 = h(
     "div",
     { class: "step" },
-    h("p", { class: "step-n" }, "Step 1 of 2"),
+    resuming ? null : h("p", { class: "step-n" }, "Step 1 of 2"),
     h("h1", {}, title),
-    h("p", { class: "sub" }, purpose === "delete-account" ? "Log in to the account you want to delete." : "Use the same account on every device you want to pair."),
+    h("p", { class: "sub" }, purpose === "delete-account" ? "Log in to the account you want to delete." : resuming ? "You are logged out. Log in to resume." : "Use the same account on every device you want to pair."),
     resetNotes(),
     h(
       "div",
@@ -283,7 +291,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   const step2 = h(
     "div",
     { class: "step", hidden: true },
-    h("p", { class: "step-n" }, "Step 2 of 2"),
+    resuming ? null : h("p", { class: "step-n" }, "Step 2 of 2"),
     h("h1", {}, "Check your email"),
     h("div", { class: "center" }, chip),
     h("p", { class: "sub" }, "We sent a 6-character code to this address. It can take a minute to arrive."),
