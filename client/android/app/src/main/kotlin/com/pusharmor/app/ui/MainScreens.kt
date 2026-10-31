@@ -880,13 +880,15 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
     }
 }
 
+/** Outlined action chip (History Copy and Share; Settings Log out and Delete account, I606); [error] paints it red. */
 @Composable
-private fun RowAction(text: String, icon: ImageVector, onClick: () -> Unit) {
+private fun RowAction(text: String, icon: ImageVector, enabled: Boolean = true, error: Boolean = false, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
-    AssistChip(onClick = onClick, label = { Text(text) },
-        leadingIcon = { Icon(icon, null, Modifier.size(18.dp), tint = cs.primary) },
-        colors = AssistChipDefaults.assistChipColors(containerColor = LocalPaExtra.current.tile),
-        border = AssistChipDefaults.assistChipBorder(enabled = true, borderColor = cs.outline))
+    AssistChip(onClick = onClick, label = { Text(text) }, enabled = enabled,
+        leadingIcon = { Icon(icon, null, Modifier.size(18.dp)) },
+        colors = AssistChipDefaults.assistChipColors(containerColor = LocalPaExtra.current.tile, leadingIconContentColor = if (error) cs.error else cs.primary,
+            labelColor = if (error) cs.error else cs.onSurface),
+        border = AssistChipDefaults.assistChipBorder(enabled = enabled, borderColor = cs.outline))
 }
 
 /** A plain settings row (no icon tile); [onClick] null makes it static text. */
@@ -992,14 +994,11 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                     }
                 })
             }
-            // Wraps to two lines at a large font instead of squeezing both buttons (I480).
-            FlowRow(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+            // Wraps to two lines at a large font instead of squeezing both buttons (I480); centred, Delete account on the left (I606).
+            FlowRow(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = { vm.signOut(onSignedOut) }, Modifier.heightIn(min = 48.dp), enabled = "logout" !in running,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, cs.outline)) { Text("Log out") }
-                OutlinedButton(onClick = { confirmDelete = true }, Modifier.heightIn(min = 48.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, cs.error),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = cs.error)) { Text("Delete account") }
+                RowAction("Delete account", PaIcons.Delete, error = true) { confirmDelete = true }
+                RowAction("Log out", PaIcons.Logout, enabled = "logout" !in running) { vm.signOut(onSignedOut) }
                 // Log out on a slow or missing connection: visible progress beside the buttons (I473).
                 if ("logout" in running) androidx.compose.material3.CircularProgressIndicator(Modifier.size(24.dp).align(Alignment.CenterVertically).semantics { contentDescription = "Logging out" })
             }

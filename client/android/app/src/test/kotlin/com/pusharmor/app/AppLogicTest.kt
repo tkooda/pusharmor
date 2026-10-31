@@ -251,6 +251,17 @@ class AppLogicTest {
         assertTrue(card.contains("Row(Modifier.fillMaxWidth().padding(top = 12.dp)"))
     }
 
+    @Test fun accountButtonsMatchHistoryActions() {
+        // I606: Delete account left, Log out right, centred, in the History Copy and Share chip style.
+        val main = source("ui/MainScreens.kt")
+        val settings = main.substring(main.indexOf("fun SettingsScreen("))
+        val del = settings.indexOf("RowAction(\"Delete account\", PaIcons.Delete, error = true)")
+        val out = settings.indexOf("RowAction(\"Log out\", PaIcons.Logout")
+        assertTrue(del in 0 until out)
+        assertTrue(settings.substring(0, del).contains("horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)"))
+        assertTrue(main.contains("RowAction(\"Copy\", PaIcons.ContentCopy)"))
+    }
+
     @Test fun transientMessagesUseTheOneSnackbar() {
         // I603: one SnackbarHost for the signed-in screens, fed by vm.message, which it takes at once (so none
         // comes back on another screen later, I527). Toasts only where the screen closes at once.
@@ -323,7 +334,7 @@ class AppLogicTest {
         val main = source("ui/MainScreens.kt")
         val hist = main.substring(main.indexOf("fun HistoryScreen("))
         assertTrue(hist.substring(0, hist.indexOf("\"No messages yet\"")).contains("verticalScroll(rememberScrollState())"))
-        assertTrue(main.contains("FlowRow(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp)"))
+        assertTrue(main.contains("FlowRow(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp)"))
     }
 
     @Test fun permissionAndBannersRecheckedOnResume() {
@@ -344,7 +355,7 @@ class AppLogicTest {
 
     @Test fun deleteAccountAsksFirstAndCanBeCancelled() {
         val main = source("ui/MainScreens.kt")
-        assertTrue(main.contains("OutlinedButton(onClick = { confirmDelete = true }"))
+        assertTrue(main.contains("RowAction(\"Delete account\", PaIcons.Delete, error = true) { confirmDelete = true }"))
         assertTrue(main.contains("confirmDelete = false; onDeleteAccount()"))
         assertTrue(com.pusharmor.app.ui.UiText.DELETE_CONFIRM.contains("cannot be undone"))
         val act = source("ui/MainActivity.kt")
