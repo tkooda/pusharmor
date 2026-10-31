@@ -13,5 +13,8 @@ final class LoginErrorTests: XCTestCase {
         XCTAssertEqual(S.loginError(.failed(500, nil)), "Login failed.")
         XCTAssertTrue(S.pushRegistrationFailed.hasSuffix("."))
         XCTAssertEqual(S.updateRequired, "Update PushArmor to continue.")
+        XCTAssertEqual(S.approved("Ndev"), "Ndev approved this device.")
+        XCTAssertEqual(S.loggedOutNotice("Ndev"), "Ndev logged out.")
+        XCTAssertEqual(S.loggedInNotice("Ndev"), "Ndev logged in.")
     }
 }

@@ -18,14 +18,14 @@ public enum S {
     public static let noConnection = "No connection. Try again."
     public static let notDone = "Something went wrong. Try again."
     public static func pairCrossing(_ x: String) -> String { "Pairing with \(x) in progress. Open PushArmor." }
-    public static func approved(_ name: String) -> String { "\(name) approved this device" }
+    public static func approved(_ name: String) -> String { "\(name) approved this device." }
     public static func renamed(_ old: String, _ new: String) -> String { "'\(old)' renamed to '\(new)'" }
     public static let peerListChanged = "Device list changed"
     public static let thisDeviceRemoved = "This device was removed. Log in again."
     public static let accountDeleted = "Account deleted on another device."
     public static func denied(_ name: String) -> String { "\(name) denied this device" }
-    public static func loggedOutNotice(_ name: String) -> String { "\(name) logged out" }
-    public static func loggedInNotice(_ name: String) -> String { "\(name) logged in" }
+    public static func loggedOutNotice(_ name: String) -> String { "\(name) logged out." }
+    public static func loggedInNotice(_ name: String) -> String { "\(name) logged in." }
     public static func newMessageFrom(_ peer: String) -> String { "New message from \(peer)" }
     public static let pairingFailed = "Pairing failed. Start again on the new device."
     public static let pairingTimedOut = "Pairing timed out. Tap Pair to start again."
