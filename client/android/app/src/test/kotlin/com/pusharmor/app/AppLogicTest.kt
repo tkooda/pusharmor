@@ -244,6 +244,13 @@ class AppLogicTest {
         assertEquals("a,b", kotlinx.coroutines.runBlocking { s.lastSendTo() })
     }
 
+    @Test fun backStaysInTheApp() {
+        val sign = source("ui/SignInScreens.kt")
+        assertTrue(sign.contains("BackHandler(onBack = onBack)")) // Email screen
+        assertTrue(sign.contains("BackHandler { vm.cancelLimit() }")) // device limit
+        assertTrue(source("ui/MainActivity.kt").contains("popUpTo(\"peers\") { saveState = true }"))
+    }
+
     @Test fun deleteAccountAsksFirstAndCanBeCancelled() {
         val main = source("ui/MainScreens.kt")
         assertTrue(main.contains("OutlinedButton(onClick = { confirmDelete = true }"))
