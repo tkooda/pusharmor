@@ -85,6 +85,9 @@ function reply(req: Req): unknown {
       return { self: { id: id("C"), name: "Laptop" }, peers };
     case "history":
       return history;
+    case "signout":
+      state.reg = "logged_out";
+      return null;
     case "sendSel":
       return sendSel;
     case "detect":
