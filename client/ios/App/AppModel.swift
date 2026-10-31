@@ -39,6 +39,8 @@ final class AppModel: ObservableObject {
     @Published var history: [HistoryRow] = []
     @Published var toast: String?
     @Published var errorText: String?
+    /// The relay server answered 426 (Q328): this version is too old.
+    @Published var updateRequired = false
     @Published var lockedLine: String?
     @Published var notificationsOff = false
     @Published var pushRegisterFailed = false

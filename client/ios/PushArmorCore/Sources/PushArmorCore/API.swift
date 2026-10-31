@@ -109,7 +109,12 @@ public enum RetryPolicy {
 /// The Worker API client: PA-Sig signing, PA-Epoch-Ms offset, retry policy.
 public final class APIClient: @unchecked Sendable {
     public static let defaultBase = URL(string: "https://api.pusharmor.com")!
+    /// "ios/<CFBundleShortVersionString>", sent as PA-Client on every request (Q328).
+    public static let defaultClient = "ios/" + ((Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0.0.0")
+    /// Posted (any thread) when the Worker answers 426: this app version is too old (Q328).
+    public static let upgradeRequired = Notification.Name("PushArmorUpgradeRequired")
     let base: URL
+    let client: String
     let transport: HTTPTransport
     let clockMs: @Sendable () -> Int64
     let sleep: @Sendable (Double) async -> Void
@@ -118,9 +123,11 @@ public final class APIClient: @unchecked Sendable {
     public var onOffset: (@Sendable (Int64) -> Void)?
 
     public init(base: URL = APIClient.defaultBase, transport: HTTPTransport = URLSessionTransport(), offsetMs: Int64 = 0,
+                client: String = APIClient.defaultClient,
                 clockMs: @escaping @Sendable () -> Int64 = { Int64(Date().timeIntervalSince1970 * 1000) },
                 sleep: @escaping @Sendable (Double) async -> Void = { try? await Task.sleep(nanoseconds: UInt64($0 * 1e9)) }) {
         self.base = base
+        self.client = client
         self.transport = transport
         self._offset = offsetMs
         self.clockMs = clockMs
@@ -154,7 +161,7 @@ public final class APIClient: @unchecked Sendable {
         let start = clockMs()
         var retries = 0
         while true {
-            var headers = ["Content-Type": "application/json"]
+            var headers = ["Content-Type": "application/json", "PA-Client": client]
             if case .signed(let signer, let id) = auth {
                 if let h = try? RequestSigning.headers(signer: signer, peerId: id, method: method, path: path,
                                                        timeMs: workerNowMs, body: body) {
@@ -167,6 +174,7 @@ public final class APIClient: @unchecked Sendable {
                 let r = try await transport.perform(method: method, url: URL(string: path, relativeTo: base)!.absoluteURL,
                                                     headers: headers, body: body, timeout: timeout)
                 if let e = r.headers["pa-epoch-ms"], let ms = Int64(e) { setOffset(ms - clockMs()) }
+                if r.status == 426 { NotificationCenter.default.post(name: APIClient.upgradeRequired, object: self) }
                 reply = APIReply(status: r.status, body: r.body)
                 status = r.status
             } catch {
