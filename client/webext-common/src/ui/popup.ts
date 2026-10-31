@@ -77,7 +77,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
     if (t === "send") ready = sendView(env, pane, st, prefill).then(() => prefill !== undefined && pane.querySelector("textarea")?.focus());
     if (t === "history") ready = historyView(env, pane, (text) => show("send", text));
     if (t === "peers") ready = renderPeers(env, pane, false);
-    if (t === "settings") ready = settingsView(env, pane, st);
+    if (t === "settings") ready = settingsView(env, pane, st, () => mountPopup(env, root));
     void ready.catch(() => undefined).finally(() => {
       clearTimeout(slow);
       wait.remove();
@@ -350,7 +350,7 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (tex
   return row;
 }
 
-async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promise<void> {
+async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload: () => Promise<void>): Promise<void> {
   const s = st.settings;
   const showAll = h("input", { type: "checkbox", role: "switch", checked: s.showAll }) as HTMLInputElement;
   const autoOpen = h("input", { type: "checkbox", role: "switch", checked: s.autoOpen }) as HTMLInputElement;
@@ -390,8 +390,8 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promi
         closeConfirm();
         try {
           await rpc(env, "signout");
-          acctRow?.remove();
-          status.textContent = T.signedOut;
+          // the logout is done: read the state again, which shows the logged-out view
+          await reload();
         } catch (e) {
           status.textContent = (e as Error).message;
         }
