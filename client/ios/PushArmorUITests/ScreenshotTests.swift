@@ -70,7 +70,7 @@ final class ScreenshotTests: XCTestCase {
         XCTFail("the sample notification banner was not on screen in 3 attempts")
     }
 
-    /// Review images (not store shots): the sign-in screen, Settings, and the Log out confirm.
+    /// Review images (not store shots): the sign-in screen, Settings, and the first-pair screen.
     func testCaptureReviewScreenshots() {
         var app = launch(["-PAScreenshotsSignIn"])
         XCTAssertTrue(labelled(app, "Continue with Google").waitForExistence(timeout: 30))
@@ -88,10 +88,6 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(signOut.isHittable)
         sleep(1)
         shot("91-settings")
-        signOut.tap()
-        XCTAssertTrue(labelled(app, "Log out of this device?").waitForExistence(timeout: 10))
-        sleep(1)
-        shot("92-signout-confirm")
         app.terminate()
 
         // Q338 first-pair screen, light and dark (-appearance sets the stored theme)

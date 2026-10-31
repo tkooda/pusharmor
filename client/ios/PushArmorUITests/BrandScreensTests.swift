@@ -121,7 +121,8 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertFalse(app.navigationBars["Pair your first device"].exists)
     }
 
-    func testLogOutAsksFirstAndCancelKeepsTheDevice() {
+    /// Q367: Log out acts at once; no confirm shows and Delete account stays.
+    func testLogOutAsksNothing() {
         let app = launch()
         let tab = app.tabBars.buttons["Settings"]
         XCTAssertTrue(tab.waitForExistence(timeout: 30))
@@ -133,16 +134,8 @@ final class BrandScreensTests: XCTestCase {
         logOut.tap()
         let question = app.staticTexts[
             "Log out of this device? Keys, paired devices, names, and history stay on this device."]
-        XCTAssertTrue(question.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["Log out"].exists)
-        // I457: only the confirm shows; one Log out button, no Delete account meanwhile
-        XCTAssertEqual(app.buttons.matching(identifier: "Log out").count, 1)
-        XCTAssertFalse(app.buttons["Delete account"].exists)
-        let cancel = app.buttons["Cancel"]
-        XCTAssertTrue(cancel.exists)
-        cancel.tap()
-        XCTAssertFalse(question.waitForExistence(timeout: 2))
-        XCTAssertTrue(app.buttons["Log out"].exists)
-        XCTAssertTrue(app.tabBars.buttons["Settings"].exists)
+        XCTAssertFalse(question.waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["Cancel"].exists)
+        XCTAssertTrue(app.buttons["Delete account"].exists)
     }
 }

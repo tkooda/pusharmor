@@ -7,7 +7,6 @@ struct SettingsView: View {
     @State private var name = ""
     @FocusState private var nameFocused: Bool
     @State private var confirmDeleteHistory = false
-    @State private var confirmSignOut = false
     @State private var confirmDeleteAccount = false
     @AppStorage(AppearancePreference.storageKey) private var appearance = AppearancePreference.system.rawValue
 
@@ -136,19 +135,9 @@ struct SettingsView: View {
                 }
 
                 Section("Account") {
-                    if confirmSignOut {
-                        Text("Log out of this device? Keys, paired devices, names, and history stay on this device.")
-                        HStack {
-                            Button("Log out", role: .destructive) {
-                                confirmSignOut = false
-                                Task { await model.signOut() }
-                            }
-                            Button("Cancel") { confirmSignOut = false }
-                        }
-                        .buttonStyle(.borderless)
-                    } else if !confirmDeleteAccount {
-                        // One confirm at a time; the other Account button hides meanwhile (I457).
-                        Button("Log out") { confirmSignOut = true }
+                    if !confirmDeleteAccount {
+                        // Log out acts at once (Q367); it hides while the Delete account confirm shows (I457).
+                        Button("Log out") { Task { await model.signOut() } }
                             .disabled(model.busy.contains("logout"))
                     }
                     if confirmDeleteAccount {
@@ -161,7 +150,7 @@ struct SettingsView: View {
                             Button("Cancel") { confirmDeleteAccount = false }
                         }
                         .buttonStyle(.borderless)
-                    } else if !confirmSignOut {
+                    } else {
                         Button("Delete account", role: .destructive) { confirmDeleteAccount = true }
                     }
                 }
