@@ -58,3 +58,34 @@ test("a start that fails after the database opened closes the connection", async
     g.indexedDB = saved;
   }
 });
+
+/** Fake menus API: removeAll settles later (async, as in the browser); a duplicate id is an error. */
+function fakeMenus() {
+  const items = new Map<string, string>();
+  const errors: string[] = [];
+  const menus = {
+    removeAll: async () => {
+      await null;
+      items.clear();
+    },
+    create: (p: { id: string; title: string }) => {
+      if (items.has(p.id)) errors.push("duplicate id " + p.id);
+      items.set(p.id, p.title);
+    },
+  };
+  return { items, errors, menus };
+}
+
+test("context menu rebuilds run one after another: the last list wins, no duplicate ids (I557)", async () => {
+  const { basePlatform } = await import("../src/shellkit.ts");
+  const m = fakeMenus();
+  const b = { runtime: { getManifest: () => ({ version: "0.0.19" }) }, storage: { local: {}, session: {} }, menus: m.menus };
+  const p = basePlatform(b as never, "firefox", false, {} as never);
+  p.menusRebuild([{ id: "A", name: "Old" }], true);
+  p.menusRebuild([{ id: "B", name: "New" }], false);
+  await new Promise((r) => setTimeout(r, 20));
+  assert.deepEqual(m.errors, []);
+  const ids = [...m.items.keys()];
+  assert.ok(!ids.some((id) => id.endsWith("|all") || id.endsWith("|A")));
+  assert.ok(ids.some((id) => id.endsWith("|B")));
+});

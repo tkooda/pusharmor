@@ -27,6 +27,8 @@ export function basePlatform(b: Browser, name: "chrome" | "firefox", isAndroid: 
     remove: (k) => a.remove(k),
   });
   const menus = b.menus ?? b.contextMenus;
+  // I557: one rebuild at a time, so two in flight cannot mix their items
+  let menuChain: Promise<void> = Promise.resolve();
   return {
     platformName: name,
     appVersion: b.runtime.getManifest().version,
@@ -74,13 +76,16 @@ export function basePlatform(b: Browser, name: "chrome" | "firefox", isAndroid: 
     },
     menusRebuild(peers: MenuPeer[], showAll: boolean) {
       if (!menus) return;
-      void menus.removeAll().then(() => {
-        for (const [id, title, ctx] of MENU_PARENTS) {
-          menus.create({ id, title, contexts: [ctx] });
-          if (showAll) menus.create({ id: id + "|all", parentId: id, title: "All devices", contexts: [ctx] });
-          for (const p of peers) menus.create({ id: id + "|" + p.id, parentId: id, title: p.name, contexts: [ctx] });
-        }
-      });
+      menuChain = menuChain
+        .then(() => menus.removeAll())
+        .then(() => {
+          for (const [id, title, ctx] of MENU_PARENTS) {
+            menus.create({ id, title, contexts: [ctx] });
+            if (showAll) menus.create({ id: id + "|all", parentId: id, title: "All devices", contexts: [ctx] });
+            for (const p of peers) menus.create({ id: id + "|" + p.id, parentId: id, title: p.name, contexts: [ctx] });
+          }
+        })
+        .catch(() => undefined);
     },
     setBadge(text) {
       void (b.action ?? b.browserAction)?.setBadgeText({ text });
