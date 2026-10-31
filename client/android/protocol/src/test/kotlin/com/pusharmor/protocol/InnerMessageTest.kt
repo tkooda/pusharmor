@@ -102,10 +102,12 @@ class InnerMessageTest {
         for (j in listOf(
             "{\"n\":1.0,\"text\":\"a\"}", "{\"n\":1e0,\"text\":\"a\"}", "{\"n\":0,\"text\":\"a\"}",
             "{\"n\":1,\"n\":1,\"text\":\"a\"}", "{\"n\":1,\"text\":\"a\",\"text\":\"b\"}", "{\"n\":1}",
-            "{\"n\":1,\"text\":\"a\",\"url\":\"b\"}", "{\"n\":1,\"x\":\"a\"}", "{\"n\":1,\"deny\":2}",
+            "{\"n\":1,\"x\":\"a\"}", "{\"n\":1,\"deny\":2}",
             "{\"n\":\"1\",\"text\":\"a\"}", "{\"n\":1,\"text\":1}",
             "{\"n\":1,\"approve\":{\"name\":\"x\",\"n\":1,\"s\":\"y\"}}", // approve needs keys flag 1
         )) assertTrue(j, open(sendJson(j)) is OpenResult.Fail)
+        // Q327: unknown keys are ignored; the first known type key (url before text) wins
+        assertEquals(MessageBody.Url("b"), (open(sendJson("{\"n\":1,\"text\":\"a\",\"url\":\"b\",\"x\":0}")) as OpenResult.Ok).body)
         assertEquals(FailReason.PADDING, (open(sendJson("{\"n\":1,\"text\":\"a\"}", nonZeroPad = true)) as OpenResult.Fail).reason)
     }
 
