@@ -49,11 +49,16 @@ export function firefoxPlatform(ctx: FxCtx): Platform {
     return ((await db.meta<string>("receive_mode")) ?? "direct") === "direct";
   };
   return basePlatform(browser, "firefox", ctx.isAndroid, {
-    async pushSubscribe() {
+    async pushSubscribe(_vapid, quiet) {
       if (!(await direct())) {
         const f = await fallback();
         if (!f) {
-          await browser.tabs.create({ url: SETUP_URL, active: true }); // loss state: reopen /fx/setup
+          // loss state: reopen /fx/setup once per state change (I555); the popup shows a button instead
+          const db = await ctx.db();
+          if (!quiet && !(await db.meta("setup_opened"))) {
+            await db.setMeta("setup_opened", true);
+            await browser.tabs.create({ url: SETUP_URL, active: true });
+          }
           throw new Error("no fallback subscription");
         }
         return f;
@@ -76,6 +81,7 @@ export function firefoxPlatform(ctx: FxCtx): Platform {
       await ctx.autopush()?.unregister();
       const db = await ctx.db();
       await db.del("meta", "fallback_push");
+      await db.del("meta", "setup_opened");
     },
   });
 }

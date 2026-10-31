@@ -48,6 +48,7 @@ async function init(): Promise<void> {
       },
       onMode: async (mode) => {
         await d.setMeta("receive_mode", mode);
+        await d.del("meta", "setup_opened"); // a new mode may open setup once again (I555)
         if ((await engine.regState()) === "registered") await engine.pushReconcile(true).catch(() => undefined);
       },
       workerReachable: async () => {

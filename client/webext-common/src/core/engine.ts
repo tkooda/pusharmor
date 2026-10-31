@@ -1101,11 +1101,11 @@ export class Engine {
   // ------------------------------------------------------------------ push
 
   /** Gone recovery: compare the current subscription with the last PATCHed hash. */
-  async pushReconcile(force = false): Promise<void> {
+  async pushReconcile(force = false, quiet = false): Promise<void> {
     const self = await this.self();
     if (!self || (await this.regState()) !== "registered") return;
     let cur = await this.currentPush();
-    if (!cur || force) cur = await this.subscribePush();
+    if (!cur || force) cur = await this.subscribePush(quiet);
     if (!cur) return;
     const h = await pushHash(cur);
     const last = await this.db.meta<string>("push_hash");
@@ -1119,9 +1119,9 @@ export class Engine {
     return this.p.pushCurrent();
   }
 
-  async subscribePush(): Promise<PushFields | null> {
+  async subscribePush(quiet = false): Promise<PushFields | null> {
     try {
-      return await this.p.pushSubscribe(this.vapid);
+      return await this.p.pushSubscribe(this.vapid, quiet);
     } catch {
       return null;
     }
@@ -1557,6 +1557,6 @@ export class Engine {
     if ((await this.regState()) !== "registered") return;
     await this.timeoutCheck();
     await this.reconcileAllow();
-    await this.pushReconcile().catch(() => undefined);
+    await this.pushReconcile(false, true).catch(() => undefined); // I555: no setup tab from the popup
   }
 }

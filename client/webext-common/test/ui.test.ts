@@ -430,3 +430,14 @@ test("login page: the step counter has even space above and below (I459)", async
   // short windows: 12px brand gap, no pull-up
   assert.match(css, /\.l-brand \{ margin-bottom: 12px; \}\n\s*\.step-n \{ margin-top: 0; \}/);
 });
+
+test("popup shows a Finish Firefox setup prompt with a button while setup is needed, on both views (I555)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  assert.match(pop, /if \(st\.platform !== "firefox" \|\| !st\.setupNeeded\) return null;/);
+  assert.match(pop, /"Finish Firefox setup so this device can receive messages\."/);
+  assert.match(pop, /onclick: \(\) => env\.openUrl\("https:\/\/pusharmor\.com\/fx\/setup"\) \}, "Finish Firefox setup"\)/);
+  assert.equal(pop.match(/setupBar\(env, st\)\)?, (tabs|panel)\)/g)?.length, 2); // tabs view and first-device view
+  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  assert.match(css, /\.setup-bar \{/);
+});

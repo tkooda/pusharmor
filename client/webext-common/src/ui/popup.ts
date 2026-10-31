@@ -99,9 +99,20 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
     all[to].focus();
     show(all[to].dataset.tab as Tab);
   });
-  const top = h("div", { class: "top" }, h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), tabs);
+  const top = h("div", { class: "top" }, h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), setupBar(env, st), tabs);
   root.append(top, body);
   show("send");
+}
+
+/** I555: Firefox setup is not finished; the setup tab opens only from this button, never on popup open. */
+function setupBar(env: UiEnv, st: StateView): HTMLElement | null {
+  if (st.platform !== "firefox" || !st.setupNeeded) return null;
+  return h(
+    "div",
+    { class: "setup-bar", role: "status" },
+    h("span", {}, "Finish Firefox setup so this device can receive messages."),
+    h("button", { onclick: () => env.openUrl("https://pusharmor.com/fx/setup") }, "Finish Firefox setup"),
+  );
 }
 
 /** HTTP 426 (Q349): this version no longer works with the relay server. */
@@ -576,6 +587,6 @@ export async function firstPairView(env: UiEnv, root: HTMLElement, st: StateView
       void settingsView(env, panel, st, () => mountPopup(env, root));
     } else void draw();
   });
-  clear(root).append(h("div", { class: "top" }, h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16), gear)), panel);
+  clear(root).append(h("div", { class: "top" }, h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16), gear), setupBar(env, st)), panel);
   await draw();
 }

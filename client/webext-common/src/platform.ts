@@ -20,7 +20,8 @@ export interface Platform {
   /** Manifest version (x.y.z). */
   appVersion: string;
   isAndroid: boolean;
-  pushSubscribe(vapidPub: Uint8Array): Promise<PushFields>;
+  /** quiet: never open a tab (Firefox setup) for this call. */
+  pushSubscribe(vapidPub: Uint8Array, quiet?: boolean): Promise<PushFields>;
   pushCurrent(): Promise<PushFields | null>;
   pushUnsubscribe(): Promise<void>;
   /** Basic notification; re-creating the same id replaces it. */
