@@ -246,3 +246,19 @@ test("login page: one note at a time, setup note only while needed with Open set
   assert.match(texts, /ffFinishSetup: "Finish setup in the Firefox setup tab\.",/);
   assert.match(texts, /signedOut: "Logged out\. Log in to resume\.",/);
 });
+
+test("Turnstile loads only when the email field is used; a send waits for the check (I467)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const page = readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(page, /let frame = newFrame\(\);/); // no frame at mount
+  assert.match(page, /let frame: HTMLElement = h\("div", \{ class: "ts-slot", hidden: true \}\);/);
+  assert.match(page, /email\.addEventListener\("focus", loadFrame\);/);
+  assert.match(page, /email\.addEventListener\("input", loadFrame\);/); // paste and autofill fire input
+  assert.match(page, /"Waiting for the security check\.\.\."/);
+  const oauth = page.slice(page.indexOf("const oauth ="), page.indexOf("const oauth =") + 400);
+  assert.doesNotMatch(oauth, /loadFrame|freshFrame/);
+  for (const b of ["chrome", "firefox"]) {
+    const m = readFileSync(new URL("../../" + b + "/manifest.json", import.meta.url), "utf8");
+    assert.match(m, /frame-src https:\/\/pusharmor\.com/);
+  }
+});

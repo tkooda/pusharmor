@@ -104,7 +104,12 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   let tokenUsed = false;
   const newFrame = () =>
     h("iframe", { src: SITE + "/turnstile#o=" + encodeURIComponent(selfOrigin), class: "ts-frame", title: "Security check" }) as HTMLIFrameElement;
-  let frame = newFrame();
+  // Turnstile loads only once the email field is used (focus, typing, paste, or autofill), never
+  // for Google or Apple; until then an empty slot holds its place.
+  let frame: HTMLElement = h("div", { class: "ts-slot", hidden: true });
+  let frameLoaded = false;
+  /** Resolves a send that waits for the check. */
+  let tokenWaiter: (() => void) | null = null;
   const frameHelp = h("p", { class: "help", hidden: true });
   const sendHelp = h("p", { class: "help", hidden: true });
   describe(frame, frameHelp, "frame-help");
@@ -126,12 +131,13 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     );
   if (onFrameMessage) window.removeEventListener("message", onFrameMessage);
   onFrameMessage = (ev: MessageEvent) => {
-    if (ev.origin !== SITE || ev.source !== frame.contentWindow) return;
+    if (ev.origin !== SITE || ev.source !== (frame as HTMLIFrameElement).contentWindow) return;
     const d = ev.data as { pa?: string; token?: unknown; h?: unknown };
     if (!d) return;
     if (d.pa === "turnstile" && typeof d.token === "string") {
       token = d.token;
       tokenUsed = false;
+      tokenWaiter?.();
       setHelp(frameHelp, "", false);
     }
     if (d.pa === "turnstile-size") {
@@ -141,6 +147,13 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   };
   window.addEventListener("message", onFrameMessage);
   let draftTimer = 0;
+  const loadFrame = () => {
+    if (frameLoaded) return;
+    frameLoaded = true;
+    freshFrame();
+  };
+  email.addEventListener("focus", loadFrame);
+  email.addEventListener("input", loadFrame);
   email.addEventListener("input", () => {
     emailField.classList.remove("bad");
     setHelp(emailHelp, "", false, email);
@@ -160,8 +173,21 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       return;
     }
     if (!token || tokenUsed) {
-      setHelp(frameHelp, "Finish the check above first.", true);
-      return;
+      // wait for the security check (it may still be loading), with the button saying so
+      loadFrame();
+      sendBtn.disabled = true;
+      sendBtn.textContent = "Waiting for the security check...";
+      const ok = await new Promise<boolean>((done) => {
+        tokenWaiter = () => done(true);
+        setTimeout(() => done(false), 60_000);
+      });
+      tokenWaiter = null;
+      sendBtn.disabled = false;
+      sendBtn.textContent = "Email me a code";
+      if (!ok) {
+        setHelp(frameHelp, "Finish the check above first.", true);
+        return;
+      }
     }
     clearTimeout(draftTimer); // a late draft save must not overwrite the step 2 record
     sendBtn.disabled = true;
@@ -326,6 +352,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   );
   resend.addEventListener("click", () => {
     showEmail(email.value);
+    loadFrame();
     frame.focus();
   });
 
@@ -337,7 +364,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     step2.hidden = true;
     back.hidden = true;
     resetNotes();
-    if (tokenUsed || !token) freshFrame(); // a used token, or a frame first loaded while hidden
+    if (frameLoaded && (tokenUsed || !token)) freshFrame(); // a used token, or a frame first loaded while hidden
     if (!value) email.focus();
   };
   const showCode = (addr: string, at: number, restored: boolean) => {
