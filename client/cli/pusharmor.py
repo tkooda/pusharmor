@@ -2552,14 +2552,11 @@ def cmd_send(cx, args):
             m[pid] = seal_msg(cx.keys, pid, p, reserve(p), type_, value)
     j = cx.api.call("POST", "/v1/send", {"v": 1, "m": m})
     res = j.get("r") if isinstance(j.get("r"), dict) else {}
-    why = {"gone": "not delivered, open PushArmor on it", "not listening": "send only, it is not listening",
-           "unapproved": "not paired", "denied": "denied this device", "unknown": "no longer on this account",
-           "failed": "delivery failed"}
     failed = [pid for pid in m if res.get(pid) != "sent"]
     with cx.store.state() as d:
         for pid in failed:
             r = res.get(pid, "failed")
-            log("%s: %s" % (names[pid], why.get(r, r)))
+            log("%s: %s" % (names[pid], SEND_WHY.get(r, SEND_FAILED)))
             p = d["peers"].get(pid)
             if p and r == "logged out":
                 p["logged_out"] = True
@@ -2567,6 +2564,14 @@ def cmd_send(cx, args):
                 p["listening"] = False
     log("Sent to %d of %d device%s." % (len(m) - len(failed), len(m), "" if len(m) == 1 else "s"))
     return EXIT_SEND if failed else EXIT_OK
+
+
+# /v1/send result word -> sentence for one device; any other word (failed, failed:CODE, ...) is SEND_FAILED.
+SEND_WHY = {"gone": "Not delivered. Open PushArmor on it.", "not listening": "Send only. It does not receive messages.",
+            "logged out": "Logged out. Log in on it to receive messages.",
+            "unapproved": "Not paired. Run pusharmor pair to pair it.", "denied": "It declined this device.",
+            "unknown": "It is no longer on this account."}
+SEND_FAILED = "Not delivered. Try again."
 
 
 def cmd_rename(cx, args):
