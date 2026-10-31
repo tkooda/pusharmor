@@ -67,6 +67,9 @@ struct HistoryView: View {
 struct HistoryRowView: View {
     let row: HistoryRow
     @EnvironmentObject var model: AppModel
+    @Environment(\.dynamicTypeSize) private var typeSize
+    /// The event icon grows with the text, like IconTile (I505).
+    @ScaledMetric private var eventIcon: CGFloat = 30
 
     private var peer: Peer? { row.peerId.flatMap { id in model.peers.first { $0.id.text == id } } }
     private var outgoing: Bool { row.dir == .outgoing }
@@ -121,15 +124,18 @@ struct HistoryRowView: View {
             if isEvent {
                 Image(systemName: iconName)
                     .foregroundColor(.secondaryText)
-                    .frame(width: 30, height: 30)
+                    .frame(width: eventIcon, height: eventIcon)
                     .accessibilityHidden(true)
             } else {
                 IconTile(iconName)
             }
             VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline) {
+                // at accessibility sizes the time goes under the name, so the name is not squeezed (I505)
+                let header = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2))
+                    : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+                header {
                     sender
-                    Spacer(minLength: 8)
+                    if !typeSize.isAccessibilitySize { Spacer(minLength: 8) }
                     time
                         .font(.subheadline.monospacedDigit())
                         .fontWeight(unread ? .semibold : nil)
@@ -146,7 +152,7 @@ struct HistoryRowView: View {
                         // The name truncates inside the quotes; the line stays one line.
                         HStack(spacing: 0) {
                             Text("Sent to \"").fixedSize()
-                            Text(name).lineLimit(1).truncationMode(.tail)
+                            Text(name).lineLimit(typeSize.isAccessibilitySize ? 2 : 1).truncationMode(.tail)
                             Text("\"").fixedSize()
                         }
                         .font(.caption).foregroundColor(.secondaryText)
