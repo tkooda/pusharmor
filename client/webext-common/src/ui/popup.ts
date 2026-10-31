@@ -529,14 +529,20 @@ export async function firstPairView(env: UiEnv, root: HTMLElement, st: StateView
       add(
         clear(panel),
         h("h1", { class: "fp-title", tabindex: "-1" }, "Pair your first device"),
-        h("ol", { class: "howto fp-steps" }, h("li", {}, "Install PushArmor on another device."), h("li", {}, "Log in with the same account."), h("li", {}, "Click Pair on it here.")),
+        h(
+          "ol",
+          { class: "grp fp-steps" },
+          ...["Install PushArmor on another device.", "Log in with the same account.", "When it shows below, click Pair and approve it."].map((t, i) =>
+            h("li", {}, h("span", { class: "fp-num", "aria-hidden": "true" }, String(i + 1)), h("span", {}, t)),
+          ),
+        ),
         sh("Waiting to pair"),
         ...waiting.filter((p) => p.fingerprint).map((p) => pairCard(env, p, draw)),
         waiting.some((p) => !p.fingerprint)
           ? group(...waiting.filter((p) => !p.fingerprint).map((p) => peerRow(env, p, draw)))
           : waiting.length
             ? null
-            : h("p", { class: "fp-wait" }, "No devices yet. They show up here after they log in."),
+            : group(h("div", { class: "fp-wait", role: "status" }, h("span", { class: "fp-spin", "aria-hidden": "true" }), "Waiting for another device to log in.")),
         h("div", { class: "grow" }),
       );
       const row = document.getElementById("peer-" + (focusId ?? rowId?.slice(5)));
