@@ -58,7 +58,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
     row?.classList.add("pulse");
   }
   if (focusId !== undefined) (document.getElementById("peer-" + focusId) ?? root.querySelector<HTMLElement>(".sh"))?.focus();
-  const refresh = h("button", { class: "quiet" }, icon("refresh", 18), h("span", { class: "lbl" }, "Refresh")) as HTMLButtonElement;
+  const refresh = h("button", {}, icon("refresh", 18), h("span", { class: "lbl" }, "Refresh")) as HTMLButtonElement;
   refresh.addEventListener("click", async () => {
     greyFor(refresh, 60_000);
     try {
@@ -68,7 +68,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
       status.textContent = (e as Error).message;
     }
   });
-  root.append(status, h("div", { class: "grow" }), add(h("div", { class: "foot bar" }, refresh), !full && h("button", { class: "quiet", onclick: () => env.openPage("#peers") }, "Open full view")));
+  root.append(status, h("div", { class: "grow" }), add(h("div", { class: "foot bar" }, refresh), !full && h("button", { onclick: () => env.openPage("#peers") }, "Open full view")));
   // Text put in a live region after it is in the page is announced; text present at insert is not.
   if (message) setTimeout(() => (status.textContent = message), 50);
 }

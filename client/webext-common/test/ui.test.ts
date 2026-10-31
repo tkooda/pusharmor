@@ -213,3 +213,13 @@ test("Settings polish: dim label and email line, brighter dark headers and error
     assert.equal(t.split("--sh: #CBD3DC;").length, 3, b + ": both dark blocks");
   }
 });
+
+test("Devices footer: Refresh and Open full view share one outlined style in the brand accent; balanced empty text (I461)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
+  const css = rd("style.css");
+  assert.match(css, /\.foot\.bar button \{[^}]*color: var\(--accent, var\(--primary\)\);/);
+  assert.match(css, /\.empty p \{[^}]*text-wrap: balance;/);
+  assert.doesNotMatch(rd("peersview.ts"), /class: "quiet", onclick: \(\) => env\.openPage\("#peers"\)/);
+  for (const b of ["chrome", "firefox"]) assert.equal(rd("tokens-" + b + ".css").split("--accent: #34C77B;").length, 3);
+});
