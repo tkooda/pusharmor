@@ -130,15 +130,15 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onCanc
             val g = if (x.dark) Triple(Color(0xFF131314), Color(0xFF8E918F), Color(0xFFE3E3E3)) else Triple(Color.White, Color(0xFF747775), Color(0xFF1F1F1F))
             OutlinedButton(onClick = {
                 scope.launch {
-                    val token = if (vm.g.push.hasPlayServices) GoogleSignIn.idToken(context as Activity, vm.g.session.nonce(purpose)) else null
-                    if (token != null) vm.googleToken(token, purpose, onDone) else customTab(context, vm.oauthUrl("google", purpose))
+                    val token = if (vm.g.push.hasPlayServices) GoogleSignIn.idToken(context as Activity, vm.nonce(purpose) ?: return@launch) else null
+                    if (token != null) vm.googleToken(token, purpose, onDone) else vm.oauthUrl("google", purpose)?.let { customTab(context, it) }
                 }
             }, Modifier.fillMaxWidth().heightIn(min = 48.dp), border = BorderStroke(1.dp, g.second),
                 colors = ButtonDefaults.outlinedButtonColors(containerColor = g.first, contentColor = g.third)) {
                 Icon(PaIcons.GoogleG, null, Modifier.size(20.dp), tint = Color.Unspecified); Spacer(Modifier.width(10.dp)); Text("Continue with Google")
             }
             val a = if (x.dark) Color.White to Color.Black else Color.Black to Color.White
-            Button(onClick = { customTab(context, vm.oauthUrl("apple", purpose)) }, Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            Button(onClick = { scope.launch { vm.oauthUrl("apple", purpose)?.let { customTab(context, it) } } }, Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = a.first, contentColor = a.second)) {
                 Icon(PaIcons.Apple, null, Modifier.size(18.dp)); Spacer(Modifier.width(10.dp)); Text("Continue with Apple")
             }
