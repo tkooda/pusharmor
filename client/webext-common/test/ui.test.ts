@@ -223,22 +223,31 @@ test("Devices footer: Refresh and Open full view share one outlined style in the
   for (const b of ["chrome", "firefox"]) assert.equal(rd("tokens-" + b + ".css").split("--accent: #34C77B;").length, 3);
 });
 
-test("no paired device: popup and page show the first-device screen, which switches to the tabs after the first pairing (Q338)", async () => {
+test("no paired device: the tabs stay, and Devices shows the first-pair content, live (I612)", async () => {
   const { readFileSync } = await import("node:fs");
-  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
-  assert.match(pop, /if \(first && !first\.peers\.some\(\(p\) => p\.paired\)\) return firstPairView\(env, root, st, \(\) => mountPopup\(env, root\), true\);/);
-  assert.match(pop, /"Pair your first device"/);
-  assert.match(pop, /"Install PushArmor on another device\."/);
-  assert.match(pop, /"When it shows below, click Pair and approve it\."/);
-  assert.match(pop, /class: "fp-num"/);
-  assert.match(pop, /class: "fp-spin"[^)]*\), "Waiting for another device to log in\."/);
-  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
+  const pop = rd("popup.ts");
+  const pv = rd("peersview.ts");
+  assert.doesNotMatch(pop, /firstPairView|const first = /);
+  assert.doesNotMatch(rd("page.ts"), /firstPairView/);
+  assert.match(pv, /if \(!data\.peers\.some\(\(p\) => p\.paired\)\) \{/);
+  assert.match(pv, /"Pair your first device"/);
+  assert.match(pv, /"Install PushArmor on another device\."/);
+  assert.match(pv, /"When it shows below, click Pair and approve it\."/);
+  assert.match(pv, /class: "fp-num"/);
+  assert.match(pv, /class: "fp-spin"[^)]*\), "Waiting for another device to log in\."/);
+  assert.match(pv, /JSON\.stringify\(now\.peers\) === key/); // the live read redraws only on a change
+  const css = rd("style.css");
   assert.match(css, /\.fp-spin \{[^}]*animation: fpspin/);
   assert.match(css, /prefers-reduced-motion: reduce\) \{\s*\*, \*::before, \*::after \{ animation: none !important/); // the spinner stops
-  assert.match(pop, /if \(data\.peers\.some\(\(p\) => p\.paired\)\) \{\s*clearInterval\(timer\);\s*await onPaired\(\);/);
-  assert.match(pop, /"aria-label": "Settings"/);
-  const page = readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8");
-  assert.match(page, /return firstPairView\(env, root, st, \(\) => mountPage\(env, root, hash, selfOrigin\), false\)/);
+});
+
+test("logged out: no tabs, a gear opens Settings without the account actions (I612)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  assert.match(pop, /"aria-label": "Settings", title: "Settings", "aria-pressed": "false" \}, icon\("settings", 20\)\) as HTMLButtonElement;\s*gear\.addEventListener/);
+  assert.match(pop, /const loggedIn = st\.reg === "registered";/);
+  assert.match(pop, /\.\.\.\(loggedIn \? \[sh\("Account"\)/);
 });
 
 test("login page: one note at a time, setup note only while needed with Open setup, resume has no step counter (I459)", async () => {
@@ -277,7 +286,7 @@ test("full tab account views are gated on login; no hash shows Devices (I470)", 
   const route = page.slice(page.indexOf("async function mountRoute"), page.indexOf("const E2E"));
   const gate = route.indexOf('if (st.reg !== "registered")');
   assert.ok(gate > 0);
-  for (const v of ["historyView(", "sendView(", "renderPeers(", "firstPairView("]) assert.ok(route.indexOf(v) > gate, v);
+  for (const v of ["historyView(", "sendView(", "renderPeers("]) assert.ok(route.indexOf(v) > gate, v);
   assert.match(route, /signinCard\(env, st, going, true\)/);
   assert.doesNotMatch(route, /h\("div", \{\}, "PushArmor"\)/); // the old blank page
 });
@@ -308,13 +317,6 @@ test("copy: device limit rows read as sentences; desktop says Click; status line
   }
   assert.equal(T.loginExpired, "Login expired. Log in again.");
   assert.equal(T.notificationsOff, "Notifications are off. This device cannot receive messages.");
-});
-
-test("first-device screen: the live read redraws only on a change and keeps focus (I484)", async () => {
-  const { readFileSync } = await import("node:fs");
-  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
-  assert.match(pop, /if \(focusId === undefined && key === last\) return;/);
-  assert.match(pop, /\(same \?\? row \?\? panel\.querySelector<HTMLElement>\("\.fp-title"\)\)\?\.focus\(\);/);
 });
 
 test("full tab Send: the cut offer shows only while the text is over 2048 bytes (I485)", async () => {
@@ -381,7 +383,7 @@ test("popup update and log in screens start with focus on their button (I495)", 
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
   assert.match(pop, /append\(updateCard\(env\)\);\s*root\.querySelector<HTMLElement>\("button\.primary"\)\?\.focus\(\);/);
-  assert.match(pop, /append\(signinCard\(env, st, going, false\)\);\s*root\.querySelector<HTMLElement>\("button\.primary"\)\?\.focus\(\);/);
+  assert.match(pop, /clear\(root\)\.append\(h\("div", \{ class: "top" \}[^\n]*, panel\);\s*root\.querySelector<HTMLElement>\("button\.primary"\)\?\.focus\(\); \/\/ I495/);
 });
 
 test("full tab History Send to... sets the #send= hash (I497)", async () => {
@@ -421,14 +423,6 @@ test("Device limit Remove and continue ends on the same done card (I501)", async
   assert.equal(page.match(/doneCard\(env, /g)?.length, 2);
 });
 
-test("first-device screen: after the first pairing, focus goes to the selected tab or the heading, not BODY (I537)", async () => {
-  const { readFileSync } = await import("node:fs");
-  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
-  assert.match(pop, /await onPaired\(\);\s*\/\/ I537[^\n]*\n\s*if \(!document\.activeElement \|\| document\.activeElement === document\.body\) \{/);
-  assert.match(pop, /root\.querySelector<HTMLElement>\("\[role='tab'\]\[aria-selected='true'\]"\) \?\? root\.querySelector<HTMLElement>\("h1"\)/);
-  assert.match(pop, /to\?\.focus\(\);/);
-});
-
 test("login page: the step counter has even space above and below (I459)", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
@@ -446,7 +440,7 @@ test("popup shows a Finish Firefox setup prompt with a button while setup is nee
   assert.match(pop, /if \(st\.platform !== "firefox" \|\| !st\.setupNeeded\) return null;/);
   assert.match(pop, /"Finish Firefox setup so this device can receive messages\."/);
   assert.match(pop, /onclick: \(\) => env\.openUrl\("https:\/\/pusharmor\.com\/fx\/setup"\) \}, "Finish Firefox setup"\)/);
-  assert.equal(pop.match(/setupBar\(env, st\)\)?, (tabs|panel)\)/g)?.length, 2); // tabs view and first-device view
+  assert.equal(pop.match(/setupBar\(env, st\)\)?, (tabs|panel)\)/g)?.length, 1); // the tabs view
   const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
   assert.match(css, /\.setup-bar \{/);
 });
@@ -497,5 +491,5 @@ test("empty screens have a call to action button (I611)", async () => {
   assert.match(page, /route === "pair"/);
   assert.match(rd("peersview.ts"), /hidden: !open/);
   // the first-device screen still replaces the tabs until the first pairing
-  assert.match(pop, /return firstPairView\(env, root, st, \(\) => mountPopup\(env, root\), true\)/);
+  assert.doesNotMatch(pop, /firstPairView/); // I612: the tabs always show when logged in
 });

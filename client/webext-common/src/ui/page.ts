@@ -1,7 +1,7 @@
 // Full extension tab: login, Peers full view, limit picker, over-cap send
 // (long flows run in a tab because a popup closes on blur, I029).
 import type { LoginResult, Purpose } from "../core/login.ts";
-import type { PeerView, StateView } from "../core/rpc.ts";
+import type { StateView } from "../core/rpc.ts";
 import { T } from "../core/texts.ts";
 import { type UiEnv, add, clear, failView, group, h, platformLabel, rpc } from "./dom.ts";
 import { AUTH_CHANGED, AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResult, type Restore, formatWait, resendLeftMs, sendLeftMs } from "../model/signin.ts";
@@ -9,7 +9,7 @@ import { toast } from "./dialog.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
 import { startTheme } from "./theme.ts";
-import { firstPairView, historyView, sendView, type Nav, signinCard, updateCard, wordmark } from "./popup.ts";
+import { historyView, sendView, type Nav, signinCard, updateCard, wordmark } from "./popup.ts";
 
 export const SITE = "https://pusharmor.com";
 
@@ -35,15 +35,13 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
   if (route === "login") return loginView(env, root, arg ?? null, selfOrigin);
   // I465: these views show account data; a login state change loads the tab again
   stopAuthWatch = env.session?.watch(AUTH_CHANGED, () => location.reload()) ?? null;
-  const [st, data] = await Promise.all([rpc<StateView>(env, "state"), rpc<{ peers: PeerView[] }>(env, "peers")]);
+  const st = await rpc<StateView>(env, "state");
   // I470: the account views need a logged-in device; logged out shows the log in prompt
   if (st.reg !== "registered") {
     const going = (await rpc<Restore | null>(env, "signinProgress").catch(() => null))?.step === "code";
     root.append(signinCard(env, st, going, true));
     return;
   }
-  // Q338: no paired device yet shows the first-device screen (the same as the popup)
-  if (!data.peers.some((p) => p.paired)) return firstPairView(env, root, st, () => mountPage(env, root, hash, selfOrigin), false);
   // I500: the brand on top, as in the popup; the view draws below it
   const view = h("div", {});
   root.append(h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), view);

@@ -1,6 +1,5 @@
 // Toolbar popup: Send, History, Peers, Settings (component-webext section 7).
 import type { PeerView, StateView } from "../core/rpc.ts";
-import type { Redraw } from "./peersview.ts";
 import type { SendResult } from "../core/engine.ts";
 import { T } from "../core/texts.ts";
 import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter } from "../model/sendsel.ts";
@@ -10,7 +9,7 @@ import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, n
 import { confirmDialog, toast } from "./dialog.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
 import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
-import { ownCard, pairCard, peerRow, renderPeers } from "./peersview.ts";
+import { ownCard, renderPeers } from "./peersview.ts";
 import { THEME_CHOICES, parseTheme, setTheme, startTheme } from "./theme.ts";
 
 const CAP = 2048;
@@ -49,15 +48,20 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   if (st.reg !== "registered") {
     const going = (await rpc<Restore | null>(env, "signinProgress").catch(() => null))?.step === "code";
     if (my !== mounts) return;
-    clear(root).append(signinCard(env, st, going, false));
+    // I612: logged out has no tabs; the gear opens Settings (the ones that need no account)
+    const panel = h("div", { class: "body", id: "panel" }, signinCard(env, st, going, false));
+    const gear = h("button", { class: "quiet ib gear", "aria-label": "Settings", title: "Settings", "aria-pressed": "false" }, icon("settings", 20)) as HTMLButtonElement;
+    gear.addEventListener("click", () => {
+      const open = gear.getAttribute("aria-pressed") !== "true";
+      gear.setAttribute("aria-pressed", String(open));
+      if (open) void settingsView(env, clear(panel), st, () => mountPopup(env, root));
+      else clear(panel).append(signinCard(env, st, going, false));
+    });
+    clear(root).append(h("div", { class: "top" }, h("div", { class: "head" }, gear)), panel);
     root.querySelector<HTMLElement>("button.primary")?.focus(); // I495
     return;
   }
-  // Q338: no paired device yet: one screen in place of Send, History, and Devices
-  const first = await rpc<{ peers: PeerView[] }>(env, "peers").catch(() => null);
-  if (my !== mounts) return;
   clear(root);
-  if (first && !first.peers.some((p) => p.paired)) return firstPairView(env, root, st, () => mountPopup(env, root), true);
   const body = h("div", { class: "body", id: "panel", role: "tabpanel" });
   const tabs = h("div", { class: "tabs", role: "tablist" });
   const nav: Nav = { toDevices: () => show("peers", undefined, true), toSend: () => show("send") };
@@ -453,7 +457,9 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
   showAll.addEventListener("change", save);
   autoOpen.addEventListener("change", save);
   days.addEventListener("change", save);
-  const self = (await rpc<{ self: { id: string; name: string } | null }>(env, "peers").catch(() => null))?.self ?? null;
+  // I612: logged out, the settings that need an account (device name, Log out, Delete account) are not offered
+  const loggedIn = st.reg === "registered";
+  const self = loggedIn ? (await rpc<{ self: { id: string; name: string } | null }>(env, "peers").catch(() => null))?.self ?? null : null;
   const ff = st.platform === "firefox";
   const acct = add(
     h("div", { class: "txt" }),
@@ -504,92 +510,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
       h("div", { class: "srow" }, h("span", {}, "Keep messages for"), days),
       h("div", { class: "srow" }, delAll),
     ),
-    sh("Account"),
-    group(acctRow, h("div", { class: "srow acct-acts" }, btns)),
+    ...(loggedIn ? [sh("Account"), group(acctRow, h("div", { class: "srow acct-acts" }, btns))] : []),
     h("div", { class: "grow" }),
   );
-}
-
-/**
- * Q338: logged in with no paired device. Three steps, the devices waiting to pair (live, with
- * their Pair actions), and Settings behind the gear (popup only). The first pairing calls onPaired.
- */
-export async function firstPairView(env: UiEnv, root: HTMLElement, st: StateView, onPaired: () => Promise<void>, withSettings: boolean): Promise<void> {
-  const panel = h("div", { class: "body", id: "panel" });
-  let inSettings = false;
-  let busy = false;
-  let last = "";
-  let lastErr = "";
-  const draw: Redraw = async (focusId) => {
-    if (busy || inSettings || !panel.isConnected) return;
-    busy = true;
-    try {
-      const data = await rpc<{ peers: PeerView[] }>(env, "peers");
-      if (data.peers.some((p) => p.paired)) {
-        clearInterval(timer);
-        await onPaired();
-        // I537: the new view replaced the focused button; focus its selected tab, else its heading
-        if (!document.activeElement || document.activeElement === document.body) {
-          const to = root.querySelector<HTMLElement>("[role='tab'][aria-selected='true']") ?? root.querySelector<HTMLElement>("h1");
-          if (to && !to.hasAttribute("tabindex")) to.setAttribute("tabindex", "-1");
-          to?.focus();
-        }
-        return;
-      }
-      const waiting = data.peers.filter((p) => !p.hidden);
-      // N1: the live read redraws only on a change, and keeps focus where it was
-      const key = JSON.stringify(waiting);
-      if (focusId === undefined && key === last) return;
-      last = key;
-      const act = document.activeElement instanceof HTMLElement && panel.contains(document.activeElement) ? document.activeElement : null;
-      const rowId = act?.closest("[id^='peer-']")?.id;
-      const actText = act?.textContent;
-      add(
-        clear(panel),
-        h("h1", { class: "fp-title", tabindex: "-1" }, "Pair your first device"),
-        h(
-          "ol",
-          { class: "grp fp-steps" },
-          ...["Install PushArmor on another device.", "Log in with the same account.", "When it shows below, click Pair and approve it."].map((t, i) =>
-            h("li", {}, h("span", { class: "fp-num", "aria-hidden": "true" }, String(i + 1)), h("span", {}, t)),
-          ),
-        ),
-        sh("Waiting to pair"),
-        ...waiting.filter((p) => p.fingerprint).map((p) => pairCard(env, p, draw)),
-        waiting.some((p) => !p.fingerprint)
-          ? group(...waiting.filter((p) => !p.fingerprint).map((p) => peerRow(env, p, draw)))
-          : waiting.length
-            ? null
-            : group(h("div", { class: "fp-wait", role: "status" }, h("span", { class: "fp-spin", "aria-hidden": "true" }), "Waiting for another device to log in.")),
-        h("div", { class: "grow" }),
-      );
-      const row = document.getElementById("peer-" + (focusId ?? rowId?.slice(5)));
-      if (focusId !== undefined || act) {
-        const same = act ? [...(row ?? panel).querySelectorAll<HTMLElement>("button, select, input")].find((b) => b.textContent === actText) : undefined;
-        (same ?? row ?? panel.querySelector<HTMLElement>(".fp-title"))?.focus();
-      }
-      lastErr = "";
-    } catch (e) {
-      // the live read runs every few seconds: show a new error once
-      if ((e as Error).message !== lastErr) toast((lastErr = (e as Error).message), "err");
-    } finally {
-      busy = false;
-    }
-  };
-  // live: new devices arrive by push into the local list; read it again every few seconds
-  const timer = setInterval(() => (panel.isConnected ? void draw() : clearInterval(timer)), 3000);
-  const gear = withSettings
-    ? (h("button", { class: "quiet ib gear", "aria-label": "Settings", title: "Settings", "aria-pressed": "false" }, icon("settings", 20)) as HTMLButtonElement)
-    : null;
-  gear?.addEventListener("click", () => {
-    inSettings = !inSettings;
-    gear.setAttribute("aria-pressed", String(inSettings));
-    if (inSettings) {
-      last = "";
-      clear(panel);
-      void settingsView(env, panel, st, () => mountPopup(env, root));
-    } else void draw();
-  });
-  clear(root).append(h("div", { class: "top" }, h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16), gear), setupBar(env, st)), panel);
-  await draw();
 }

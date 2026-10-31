@@ -30,6 +30,8 @@ const rank = (a: string): number => (ACTION_ORDER.indexOf(a) + 1 || ACTION_ORDER
 
 /** I490: Refresh stays grey until then, across redraws of the list. */
 let refreshUntil = 0;
+/** I612: the live read of the first-pair content. */
+let fpTimer: ReturnType<typeof setInterval> | null = null;
 
 /** Draws the list again, with focus on that row after an action. */
 export type Redraw = (focusId?: string) => Promise<void>;
@@ -40,21 +42,60 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
   // focusId: the list was rebuilt after an action, so put focus back on that row (or the first heading if it is gone).
   const redraw: Redraw = (focusId) => renderPeers(env, root, full, undefined, focusId);
   const pairing = data.peers.filter((p) => p.fingerprint);
-  for (const p of pairing) root.append(pairCard(env, p, redraw));
   const rows = data.peers.filter((p) => !p.fingerprint);
-  if (rows.length) root.append(sh("Other devices"), group(...rows.map((p) => peerRow(env, p, redraw))));
-  else if (!pairing.length) {
+  if (fpTimer) clearInterval(fpTimer);
+  fpTimer = null;
+  if (!data.peers.some((p) => p.paired)) {
+    // I612: no paired device yet: the first-pair steps and the devices waiting to pair (live)
+    const waiting = data.peers.filter((p) => !p.hidden);
     root.append(
+      h("h1", { class: "fp-title", tabindex: "-1" }, "Pair your first device"),
       h(
-        "div",
-        { class: "empty peers-empty" },
-        devicesArt(120),
-        h("div", { class: "e-title" }, "No devices yet"),
-        h("p", {}, "Install PushArmor on your other devices and log in with the same account. They show up here, ready to pair."),
+        "ol",
+        { class: "grp fp-steps" },
+        ...["Install PushArmor on another device.", "Log in with the same account.", "When it shows below, click Pair and approve it."].map((t, i) =>
+          h("li", {}, h("span", { class: "fp-num", "aria-hidden": "true" }, String(i + 1)), h("span", {}, t)),
+        ),
       ),
+      sh("Waiting to pair"),
+      ...waiting.filter((p) => p.fingerprint).map((p) => pairCard(env, p, redraw)),
+      ...(waiting.some((p) => !p.fingerprint)
+        ? [group(...waiting.filter((p) => !p.fingerprint).map((p) => peerRow(env, p, redraw)))]
+        : waiting.length
+          ? []
+          : [group(h("div", { class: "fp-wait", role: "status" }, h("span", { class: "fp-spin", "aria-hidden": "true" }), "Waiting for another device to log in."))]),
     );
+    // new devices arrive by push into the local list: read it again every few seconds, redraw on a change
+    const key = JSON.stringify(data.peers);
+    const timer = setInterval(async () => {
+      if (!root.isConnected) return void clearInterval(timer);
+      try {
+        const now = await rpc<{ peers: PeerView[] }>(env, "peers");
+        if (JSON.stringify(now.peers) === key || !root.isConnected) return;
+        const refocus = !document.activeElement || document.activeElement === document.body;
+        await renderPeers(env, root, full);
+        if (refocus) root.querySelector<HTMLElement>(".fp-title, .sh")?.focus();
+      } catch {
+        // the next read tries again
+      }
+    }, 3000);
+    fpTimer = timer;
+  } else {
+    for (const p of pairing) root.append(pairCard(env, p, redraw));
+    if (rows.length) root.append(sh("Other devices"), group(...rows.map((p) => peerRow(env, p, redraw))));
+    else if (!pairing.length) {
+      root.append(
+        h(
+          "div",
+          { class: "empty peers-empty" },
+          devicesArt(120),
+          h("div", { class: "e-title" }, "No devices yet"),
+          h("p", {}, "Install PushArmor on your other devices and log in with the same account. They show up here, ready to pair."),
+        ),
+      );
+    }
+    root.append(pairNew(openPair));
   }
-  root.append(pairNew(openPair));
   if (highlight) {
     const row = document.getElementById("peer-" + highlight);
     row?.scrollIntoView({ block: "center" });
