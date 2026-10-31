@@ -161,3 +161,13 @@ test("settings account line is hidden while logged out", () => {
   assert.equal(accountLine({ email: "a@b.co", reg: "logged_out" }), null);
   assert.equal(accountLine({ email: null, reg: "registered" }), null);
 });
+
+test("popup size is fixed in static CSS: no viewport-relative width, one height on every tab (I458)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  const body = /\nbody \{([^}]*)\}/.exec(css)![1]!;
+  assert.match(body, /width: 400px;/);
+  assert.match(body, /height: 560px;/);
+  assert.doesNotMatch(body, /vw|max-height/);
+  assert.match(readFileSync(new URL("../src/ui/popup.html", import.meta.url), "utf8"), /<link rel="stylesheet" href="style.css">/);
+});

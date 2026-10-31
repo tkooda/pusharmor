@@ -1,8 +1,15 @@
 /* Popup and full tab. Colours and radii come from tokens.css (per browser). */
 html { font: 13px/1.4 system-ui, sans-serif; }
 *, *::before, *::after { box-sizing: border-box; }
-body { margin: 0; width: min(400px, 100vw); max-height: 600px; overflow-y: auto; background: var(--bg); color: var(--ink); }
-body.page { width: auto; max-height: none; overflow: visible; }
+/* Popup: one fixed size in static CSS, so the browser sizes the popup before any script runs
+   and no tab or late render resizes it; the header stays on top while the rest scrolls. */
+body { margin: 0; width: 400px; height: 560px; overflow-x: hidden; overflow-y: auto; background: var(--bg); color: var(--ink); }
+#app { min-height: 100%; display: flex; flex-direction: column; }
+#panel { flex: 1; display: flex; flex-direction: column; }
+/* Fills the space above a view's footer; at the end of a view it is the bottom padding. */
+.grow { flex: 1; min-height: 16px; }
+body.page { width: auto; height: auto; overflow: visible; }
+body.page #app { display: block; min-height: 0; }
 body.page #app { max-width: 640px; margin: 0 auto; padding: 24px 0 40px; }
 p { margin: 0; }
 h1 { margin: 0 0 8px; font-size: 22px; line-height: 28px; font-weight: 600; color: var(--ink); }
@@ -137,15 +144,15 @@ label.srow { cursor: pointer; }
 .pair-foot .countdown { margin-left: auto; }
 
 /* Footers (Peers tools, Send button). */
-.foot { position: sticky; bottom: 0; z-index: 2; background: var(--bg); border-top: 1px solid var(--line); margin-top: 16px; }
+.foot { position: sticky; bottom: 0; z-index: 2; background: var(--bg); border-top: 1px solid var(--line); }
 .foot.bar { display: flex; align-items: center; justify-content: space-between; padding: 8px; }
 .send-foot { padding: 12px 16px 16px; }
 .result { margin-bottom: 8px; font-size: 13px; }
 body.page .foot { position: static; }
 
 /* Empty states and illustrations. */
-.empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 72px 40px 0; }
-.peers-empty { padding-top: 52px; }
+.empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 40px 40px 0; }
+.peers-empty { padding-top: 32px; }
 .e-title { margin: 16px 0 6px; font-size: 17px; line-height: 24px; font-weight: 600; }
 .empty p { font-size: 13px; line-height: 18px; color: var(--ink2); max-width: 300px; }
 .illo .i-disc { fill: var(--halo); stroke: var(--ring); stroke-width: 1.5; }

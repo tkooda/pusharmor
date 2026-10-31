@@ -215,7 +215,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
       }, "Send the first 2048 bytes")),
     );
   }
-  root.append(head, chips, h("div", { class: "foot send-foot" }, result, sendBtn));
+  root.append(head, chips, h("div", { class: "grow" }), h("div", { class: "foot send-foot" }, result, sendBtn));
   relabel();
   await update();
 }
@@ -233,6 +233,7 @@ export async function historyView(env: UiEnv, root: HTMLElement, resend: (text: 
         h("div", { class: "e-title" }, "No messages yet"),
         h("p", {}, "Everything you send or receive shows up here."),
       ),
+      h("div", { class: "grow" }),
     );
     return;
   }
@@ -252,7 +253,7 @@ export async function historyView(env: UiEnv, root: HTMLElement, resend: (text: 
     for (const r of f.rows) list.append(historyRow(env, r, resend, now));
   };
   draw();
-  root.append(chipsBox, list);
+  root.append(chipsBox, list, h("div", { class: "grow" }));
   if (focus) document.getElementById("h-" + focus)?.scrollIntoView({ block: "center" });
 }
 
@@ -424,5 +425,6 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promi
     sh("Account"),
     group(acctRow, h("div", { class: "srow acct-acts" }, btns, confirmOut)),
     status,
+    h("div", { class: "grow" }),
   );
 }

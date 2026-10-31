@@ -45,7 +45,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
       h(
         "div",
         { class: "empty peers-empty" },
-        devicesArt(160),
+        devicesArt(120),
         h("div", { class: "e-title" }, "No devices yet"),
         h("p", {}, "Install PushArmor on your other devices and log in with the same account. They show up here, ready to pair."),
       ),
@@ -68,7 +68,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
       status.textContent = (e as Error).message;
     }
   });
-  root.append(status, add(h("div", { class: "foot bar" }, refresh), !full && h("button", { class: "quiet", onclick: () => env.openPage("#peers") }, "Open full view")));
+  root.append(status, h("div", { class: "grow" }), add(h("div", { class: "foot bar" }, refresh), !full && h("button", { class: "quiet", onclick: () => env.openPage("#peers") }, "Open full view")));
   // Text put in a live region after it is in the page is announced; text present at insert is not.
   if (message) setTimeout(() => (status.textContent = message), 50);
 }
