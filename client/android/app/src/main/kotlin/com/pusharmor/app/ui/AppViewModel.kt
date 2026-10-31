@@ -252,6 +252,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Returns the toast text. */
     suspend fun send(recipients: List<String>, text: String, asText: Boolean): String = withContext(Dispatchers.IO) {
+        if (com.pusharmor.app.BuildConfig.SCREENSHOT_MODE && com.pusharmor.app.ScreenshotMode.on) com.pusharmor.app.ScreenshotMode.sendResult?.let { return@withContext it }
         val type = if (asText) ContentType.TEXT else Detect.type(text)
         val value = if (type == ContentType.TEXT) text else text.trim()
         val out = g.sender().send(recipients, type, value, System.currentTimeMillis())

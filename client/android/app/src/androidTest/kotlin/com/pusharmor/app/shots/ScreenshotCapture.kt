@@ -23,6 +23,8 @@ import com.pusharmor.app.ScreenshotMode
 import com.pusharmor.app.data.Settings
 import com.pusharmor.app.keys.KeystoreKeyOps
 import com.pusharmor.app.ui.MainActivity
+import com.pusharmor.protocol.engine.ApiResult
+import com.pusharmor.net.ErrorText
 import com.pusharmor.protocol.ContentType
 import com.pusharmor.protocol.ShownContent
 import com.pusharmor.store.HistoryEntity
@@ -243,10 +245,12 @@ class ScreenshotCapture {
         ScreenshotMode.sendText = "https://example.com/recipes/weeknight-pasta"
         ScreenshotMode.sendTo = listOf(laptop, desktop, tablet)
         main("send", await = "Tablet")
+        ScreenshotMode.sendResult = ErrorText.of(ApiResult.Network)
         tap("Send to 3 devices")
         awaitText("No connection")
         settle(500)
         shot("96-send-error")
+        ScreenshotMode.sendResult = null
 
         // Review images (9N, not store shots): Settings, the log-in screens. Log out asks to confirm
         // first and then calls the Worker, so 92 sets the logged-out flag that it sets.
