@@ -14,14 +14,14 @@ struct RootView: View {
             .onReceive(NotificationCenter.default.publisher(for: APIClient.upgradeRequired).receive(on: RunLoop.main)) { _ in
                 model.updateRequired = true
             }
-            .overlay(alignment: .bottom) {
+            .overlay(alignment: .top) { // top: at the bottom it covered the Send button and the tab bar (I577)
                 if let t = model.toast, !model.updateRequired {
                     Text(t)
                         .font(.callout)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
                         .background(.thinMaterial, in: Capsule())
-                        .padding(.bottom, 24)
+                        .padding(.top, 8)
                         .padding(.horizontal, 16)
                         .transition(.opacity)
                         .allowsHitTesting(false)
