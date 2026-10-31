@@ -241,7 +241,7 @@ fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -
                 } else if (pairing.isEmpty() && firstDevice) {
                     item(key = "waiting") {
                         Text(UiText.FIRST_DEVICE_WAITING, Modifier.padding(start = 32.dp, end = 32.dp, top = 24.dp),
-                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else if (pairing.isEmpty()) {
                     item(key = "empty") {
