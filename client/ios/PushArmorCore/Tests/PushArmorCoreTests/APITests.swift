@@ -21,6 +21,27 @@ final class APITests: XCTestCase {
         XCTAssertEqual(rec.sleeps, [2, 1.5])
     }
 
+    /// I554: an extreme retry_after is clamped to 0...3600 before any sleep or clock sum.
+    func testExtremeRetryAfterIsClamped() async {
+        func ra(_ v: String) -> Int? { APIReply(status: 429, body: Data("{\"retry_after\":\(v)}".utf8)).retryAfter }
+        XCTAssertEqual(ra("-5"), 0)
+        XCTAssertEqual(ra("9223372036854775807"), 3600)
+        XCTAssertEqual(ra("-9223372036854775808"), 0)
+        XCTAssertEqual(ra("3600"), 3600)
+        XCTAssertEqual(RetryPolicy.delay(retriesDone: 0, status: 429, retryAfter: ra("-5"), elapsed: 0), 0)
+        let w = FakeWorker(), rec = Recorder()
+        let api = client(w, rec)
+        w.script("POST", "/v1/auth/email", 429, "{\"error\":\"rate limited\",\"retry_after\":-5}")
+        w.script("POST", "/v1/auth/email", 200, "{\"request_token\":\"rt\"}")
+        let r = await AuthClient(api: api).emailStart(email: "a@b.com", signPub: SoftwareSigner().publicKey, purpose: .register, turnstile: "t")
+        XCTAssertEqual(r, .requestToken("rt"))
+        XCTAssertEqual(rec.sleeps, [0])
+        w.script("POST", "/v1/auth/email", 429, "{\"error\":\"rate limited\",\"retry_after\":9223372036854775807}")
+        let r2 = await AuthClient(api: api).emailStart(email: "a@b.com", signPub: SoftwareSigner().publicKey, purpose: .register, turnstile: "t")
+        XCTAssertEqual(r2, .rateLimited(3600))
+        XCTAssertEqual(rec.sleeps, [0])
+    }
+
     func testNoRetryOn502AndLongRetryAfter() async {
         let w = FakeWorker(), rec = Recorder()
         let api = client(w, rec)

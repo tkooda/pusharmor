@@ -68,8 +68,9 @@ public struct APIReply: Sendable {
     public let json: JSONValue?
     public var ok: Bool { (200 ..< 300).contains(status) }
     public var error: String? { json?["error"]?.stringValue }
+    /// Clamped to 0...3600 so a bad relay reply cannot trap a sleep or a clock sum (I554).
     public var retryAfter: Int? {
-        if case .number(let t)? = json?["retry_after"], let v = Int(t) { return v }
+        if case .number(let t)? = json?["retry_after"], let v = Int(t) { return min(max(v, 0), 3600) }
         return nil
     }
     public init(status: Int, body: Data) {
