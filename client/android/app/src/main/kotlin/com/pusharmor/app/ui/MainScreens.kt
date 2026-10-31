@@ -33,7 +33,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -675,7 +674,7 @@ private fun DeviceChip(icon: ImageVector, name: String, selected: Boolean, enabl
         border = FilterChipDefaults.filterChipBorder(enabled = true, selected = selected && enabled, borderColor = cs.outline, selectedBorderColor = Color.Transparent))
 }
 
-/** History: filter chips, day groups, newest first, unread dot, expanded row actions. */
+/** History: filter chips, day groups, newest first, unread rows bold, expanded row actions. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HistoryScreen(vm: AppViewModel, onPeer: (String) -> Unit) {
@@ -751,9 +750,13 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
         "logged_in" -> "Logged in"
         else -> h.content.orEmpty()
     }
-    val weight = if (unread) FontWeight.Medium else FontWeight.Normal
+    // Unread: bold text, no dot, so the time column stays aligned (F32).
+    val weight = if (unread) FontWeight.Bold else FontWeight.Normal
     Column(modifier.clickable(role = Role.Button) { onOpen(); vm.markRead(h.id) }
-        .semantics { if (h.content != null) stateDescription = if (expanded) "Expanded" else "Collapsed" }) {
+        .semantics {
+            val st = listOfNotNull(if (unread) "Unread" else null, h.content?.let { if (expanded) "Expanded" else "Collapsed" })
+            if (st.isNotEmpty()) stateDescription = st.joinToString(", ")
+        }) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             if (event) Box(Modifier.size(40.dp), Alignment.Center) {
                 Icon(when (h.type) { "logged_out" -> PaIcons.Pause; "logged_in" -> PaIcons.Check; else -> PaIcons.Info }, null, tint = cs.onSurfaceVariant)
@@ -788,7 +791,6 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
                     }
                 }
             }
-            if (unread) Box(Modifier.padding(top = 6.dp).size(8.dp).clip(CircleShape).background(cs.primary).semantics { contentDescription = "Unread" })
         }
         val hc = h.content
         if (expanded && hc != null) {
