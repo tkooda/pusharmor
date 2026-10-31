@@ -4,6 +4,7 @@
   "use strict";
 
   var API = "https://api.pusharmor.com";
+  var VERSION = "0.0.19";
   var KEY_ITEM = "pa-del-key";
   var enc = new TextEncoder();
 
@@ -64,7 +65,7 @@
 
   // API client. opts: {fetch, sleep, now} (injectable for tests).
   // Retries: up to 3 on 429, 503 and network errors; backoff 0.5, 1.5, 3 s; 8 s budget;
-  // Retry-After honored when it fits the budget. Offset re-synced from every PA-Epoch-Ms.
+  // Retry-After honored when it fits the budget. Offset re-synced from every PA-Epoch (seconds).
   function Client(opts) {
     opts = opts || {};
     this.fetch = opts.fetch || g.fetch.bind(g);
@@ -86,7 +87,7 @@
     var start = this.now();
     var unsure = false;
     for (var attempt = 0; ; attempt++) {
-      var headers = { "Content-Type": "application/json" };
+      var headers = { "Content-Type": "application/json", "PA-Client": "web/" + VERSION };
       if (key) {
         var t = this.paTime();
         headers["PA-Time"] = t;
@@ -101,8 +102,8 @@
       }
       var retryAfter = 0;
       if (res) {
-        var epoch = res.headers.get("PA-Epoch-Ms");
-        if (epoch && /^[0-9]+$/.test(epoch)) this.offset = Number(epoch) - this.now();
+        var epoch = res.headers.get("PA-Epoch");
+        if (epoch && /^[0-9]+$/.test(epoch)) this.offset = Number(epoch) * 1000 - this.now();
         try { data = await res.json(); } catch (e) { data = {}; }
         if (!data || typeof data !== "object") data = {};
         if (res.status !== 429 && res.status !== 503) return { status: res.status, data: data, unsure: unsure };
@@ -118,7 +119,7 @@
   };
 
   // DELETE /v1/account with empty m. On 401 "clock skew" the offset is already re-synced
-  // from that reply's PA-Epoch-Ms; re-sign and retry once.
+  // from that reply's PA-Epoch; re-sign and retry once.
   Client.prototype.deleteAccount = async function (key, ticket) {
     var obj = { ticket: ticket, sign_pub: key.pub, m: {} };
     var r = await this.request("DELETE", "/v1/account", obj, key);
@@ -135,13 +136,15 @@
     noPeers: "No devices were found under this address",
     deleted: "Your other devices will show \"This device was removed\" and ask for a new login. Pairings are not kept.",
     mailFailed: "Could not send the email, try again",
-    network: "Could not reach PushArmor, try again"
+    network: "Could not reach PushArmor, try again",
+    update: "Update PushArmor to continue"
   };
 
   // User text for a failed call.
   function errorText(r) {
     var e = r.data && r.data.error;
     if (r.status === 0) return TEXT.network;
+    if (r.status === 426) return TEXT.update;
     if (e === "bad email") return TEXT.badEmail;
     if (e === "ticket expired" || e === "invalid ticket") return TEXT.expired;
     if (e === "clock skew") return TEXT.clock;
