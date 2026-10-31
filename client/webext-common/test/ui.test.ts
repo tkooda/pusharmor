@@ -266,3 +266,14 @@ test("Turnstile loads only when the email field is used; a send waits for the ch
     assert.match(m, /frame-src https:\/\/pusharmor\.com/);
   }
 });
+
+test("full tab account views are gated on login; no hash shows Devices (I470)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const page = readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8");
+  const route = page.slice(page.indexOf("async function mountRoute"), page.indexOf("const E2E"));
+  const gate = route.indexOf('if (st.reg !== "registered")');
+  assert.ok(gate > 0);
+  for (const v of ["historyView(", "sendView(", "renderPeers(", "firstPairView("]) assert.ok(route.indexOf(v) > gate, v);
+  assert.match(route, /signinCard\(env, st, going, true\)/);
+  assert.doesNotMatch(route, /h\("div", \{\}, "PushArmor"\)/); // the old blank page
+});
