@@ -57,7 +57,7 @@ const server = createServer((req, res) => {
   let body = readFileSync(file);
   // Firefox draws the tab switch after the screenshot is taken; a slow image holds the load event.
   if (firefox && (path === "/shots.html" || path === "/signin.html")) {
-    body = body.toString().replace("</body>", '<img src="hold.png" alt="" style="position:absolute;width:1px;height:1px;opacity:0"><style>.frame{scrollbar-width:none}</style></body>');
+    body = body.toString().replace("</body>", '<img src="hold.png" alt="" style="position:absolute;width:1px;height:1px;opacity:0"><style>.frame,.frame *{scrollbar-width:none}</style></body>');
   }
   res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" }).end(body);
 });
