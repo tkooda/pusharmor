@@ -37,6 +37,7 @@ class Session(private val g: Graph) {
     companion object {
         /** A call that needs this device's keys, with none set up (I528). */
         const val NO_KEYS = "This device is not logged in. Log in again."
+        const val BAD_REPLY = "Could not log in. Try again."
         const val REMOVED = "This device was removed. Log in again."
         const val LOST_KEYS = "This device lost its keys. Log in again."
         const val DELETED = "Account deleted on another device."
@@ -138,7 +139,7 @@ class Session(private val g: Graph) {
             is WorkerClient.RegisterResult.Ok -> {
                 val id = r.registered.id
                 val raw = Ids.decodeId(id)
-                if (raw == null || !raw.copyOfRange(9, 21).contentEquals(Ids.keyhash(k.signPub, k.encPub))) return SignIn.Error("Bad reply")
+                if (raw == null || !raw.copyOfRange(9, 21).contentEquals(Ids.keyhash(k.signPub, k.encPub))) return SignIn.Error(BAD_REPLY)
                 dao.putSelf(SelfEntity(id = id, accountPrefix = raw.copyOf(9), email = email, name = defaultName()))
                 g.sync().merge(r.registered.peers)
                 s.set(Settings.K.SIGNED_OUT, false)
