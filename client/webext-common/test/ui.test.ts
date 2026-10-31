@@ -239,7 +239,7 @@ test("login page: one note at a time, setup note only while needed with Open set
   const { readFileSync } = await import("node:fs");
   const page = readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8");
   assert.doesNotMatch(page, /Finish logging in in the new tab/);
-  assert.match(page, /first \?\?\s*\(st\.banner/); // the first available note only
+  assert.match(page, /first \?\?\s*\(banner \? note/); // the first available note only
   assert.match(page, /ff && st\.setupNeeded \? setupNote\(\)/);
   assert.match(page, /"Open setup"/);
   assert.match(page, /resuming \? null : h\("p", \{ class: "step-n" \}, "Step 1 of 2"\)/);
@@ -378,4 +378,9 @@ test("popup update and log in screens start with focus on their button (I495)", 
 test("full tab History Send to... sets the #send= hash (I497)", async () => {
   const { readFileSync } = await import("node:fs");
   assert.match(readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8"), /historyView\(env, root, \(text\) => \(location\.hash = "#send=" \+ encodeURIComponent\(text\)\), arg\)/);
+});
+
+test("login page with a banner gives one reason, not also You are logged out (I498)", async () => {
+  const { readFileSync } = await import("node:fs");
+  assert.match(readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8"), /resuming && !banner \? "You are logged out\. Log in to resume\."/);
 });

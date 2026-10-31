@@ -136,11 +136,13 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     n.append(h("button", { type: "button", class: "text", onclick: () => env.openUrl(SITE + "/fx/setup") }, "Open setup"));
     return n;
   };
+  // I498: a banner (device removed, keys lost) is the one reason shown; the body does not add "logged out"
+  const banner = st.banner && st.banner !== T.signedOut ? st.banner : null;
   const resetNotes = (first?: HTMLElement) =>
     add(
       clear(s1notes),
       first ??
-        (st.banner && st.banner !== T.signedOut ? note("", "info", st.banner) : null) ??
+        (banner ? note("", "info", banner) : null) ??
         (ff && st.setupNeeded ? setupNote() : null) ??
         (st.receiveNote ? note("", "info", st.receiveNote) : null),
     );
@@ -250,7 +252,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     { class: "step" },
     resuming ? null : h("p", { class: "step-n" }, "Step 1 of 2"),
     h("h1", {}, title),
-    h("p", { class: "sub" }, purpose === "delete-account" ? "Log in to the account you want to delete." : resuming ? "You are logged out. Log in to resume." : "Use the same account on every device you want to pair."),
+    h("p", { class: "sub" }, purpose === "delete-account" ? "Log in to the account you want to delete." : resuming && !banner ? "You are logged out. Log in to resume." : "Use the same account on every device you want to pair."),
     resetNotes(),
     h(
       "div",
