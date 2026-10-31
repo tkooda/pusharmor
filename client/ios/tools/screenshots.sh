@@ -4,7 +4,9 @@
 # xcodegen generate). Boots the device (default iPhone 17 Pro Max, 1320x2868), sets the
 # status bar to 9:41, runs PushArmorUITests/ScreenshotTests with PA_SHOTS=1 and exports
 # its screenshot attachments as <out-dir>/NN-name.png. Attachments named 9N-* are review
-# images: written to [review-dir] when given, else dropped.
+# images: written to [review-dir] when given, else dropped. With PA_SHOTS_ALL=1 it runs only
+# ScreenshotTests/testCaptureAllScreens (every screen, light and dark, NN-screen-<theme>,
+# none named 9N-*) into <out-dir>.
 set -euo pipefail
 out="${1:?usage: $0 <out-dir> [device name]}"
 name="${2:-iPhone 17 Pro Max}"
@@ -26,9 +28,12 @@ xcrun simctl status_bar "$udid" override --time 9:41 --dataNetwork wifi --wifiMo
   --cellularMode active --cellularBars 4 --batteryState discharging --batteryLevel 100
 tmp="$(mktemp -d)"
 rb="$tmp/shots.xcresult"
-TEST_RUNNER_PA_SHOTS=1 xcodebuild test -project PushArmor.xcodeproj -scheme PushArmor \
+all="${PA_SHOTS_ALL:-}"
+only=PushArmorUITests/ScreenshotTests
+[ "$all" != 1 ] || only=PushArmorUITests/ScreenshotTests/testCaptureAllScreens
+TEST_RUNNER_PA_SHOTS=1 TEST_RUNNER_PA_SHOTS_ALL="$all" xcodebuild test -project PushArmor.xcodeproj -scheme PushArmor \
   -destination "platform=iOS Simulator,id=$udid" -disableAutomaticPackageResolution \
-  -only-testing:PushArmorUITests/ScreenshotTests -resultBundlePath "$rb"
+  -only-testing:"$only" -resultBundlePath "$rb"
 xcrun xcresulttool export attachments --path "$rb" --output-path "$tmp/att"
 mkdir -p "$out"
 [ -z "$review" ] || mkdir -p "$review"

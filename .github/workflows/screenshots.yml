@@ -5,8 +5,15 @@ name: screenshots
 # and example.com links), checks the PNGs with release/check-screenshots.mjs
 # (flattened to RGB first) and uploads them as screenshots-<platform>. Review images of the
 # sign-in and Settings screens (names 9N-*, not store shots) go to a separate review-<platform>.
+# With ios_all_screens only the iOS job runs: every screen in light and dark (not store shots,
+# not checked) goes to screens-ios.
 on:
   workflow_dispatch:
+    inputs:
+      ios_all_screens:
+        description: "iOS only: every screen in light and dark (screens-ios), no store shots"
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -22,6 +29,7 @@ jobs:
   android:
     name: Android (emulator API 35, 1080x1920)
     runs-on: ubuntu-24.04
+    if: ${{ !inputs.ios_all_screens }}
     timeout-minutes: 45
     permissions:
       contents: read
@@ -120,26 +128,42 @@ jobs:
               sys.exit("resolved packages differ from PushArmorCore/Package.resolved")
           ' PushArmorCore/Package.resolved "$s/Package.resolved"
       - name: Screenshots on the simulator
+        if: ${{ !inputs.ios_all_screens }}
         working-directory: client/ios
         run: bash tools/screenshots.sh "$RUNNER_TEMP/shots/ios" "iPhone 17 Pro Max" "$RUNNER_TEMP/review/ios"
       - name: Check the screenshots
+        if: ${{ !inputs.ios_all_screens }}
         run: node release/check-screenshots.mjs ios "$RUNNER_TEMP/shots/ios" --flatten
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !inputs.ios_all_screens }}
         with:
           name: screenshots-ios
           path: ${{ runner.temp }}/shots/ios/
           retention-days: 14
           if-no-files-found: error
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !inputs.ios_all_screens }}
         with:
           name: review-ios
           path: ${{ runner.temp }}/review/ios/
+          retention-days: 14
+          if-no-files-found: error
+      - name: Every screen on the simulator, light and dark
+        if: ${{ inputs.ios_all_screens }}
+        working-directory: client/ios
+        run: PA_SHOTS_ALL=1 bash tools/screenshots.sh "$RUNNER_TEMP/screens/ios" "iPhone 17 Pro Max"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ inputs.ios_all_screens }}
+        with:
+          name: screens-ios
+          path: ${{ runner.temp }}/screens/ios/
           retention-days: 14
           if-no-files-found: error
 
   chrome:
     name: Chrome (popup, 1280x800)
     runs-on: ubuntu-24.04
+    if: ${{ !inputs.ios_all_screens }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -179,6 +203,7 @@ jobs:
   firefox:
     name: Firefox (popup, 1280x800)
     runs-on: ubuntu-24.04
+    if: ${{ !inputs.ios_all_screens }}
     timeout-minutes: 15
     permissions:
       contents: read

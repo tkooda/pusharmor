@@ -8,11 +8,18 @@ import PushArmorCore
 /// directory: no App Group, no Keychain, no Core, so no Worker call. -PAScreenshotsPairing
 /// adds an open pairing; -PAScreenshotsNotify posts a local sample notification;
 /// -PAScreenshotsSignIn opens the sign-in screen (review images only); -PAScreenshotsEmpty
-/// has no other device at all (the first-pair screen).
+/// has no other device at all (the first-pair screen). Screen review only: -PAScreenshotsNoHistory
+/// has no messages; -PAScreenshotsSent shows send results that stay on screen;
+/// -PAScreenshotsUpdate opens the update-required screen.
 enum ScreenshotSample {
     private static let args = ProcessInfo.processInfo.arguments
     static var isOn: Bool { args.contains("-PAScreenshots") }
     static var signIn: Bool { args.contains("-PAScreenshotsSignIn") }
+    static var update: Bool { args.contains("-PAScreenshotsUpdate") }
+    /// The send results toast for a send to all three sample devices (I564 lines).
+    static var sentToast: String? {
+        args.contains("-PAScreenshotsSent") ? [S.sentTo(2, 3), S.signedOutPeer("Tablet")].joined(separator: "\n") : nil
+    }
 
     /// Compose box prefill.
     static let draft = "https://example.com/guide/hiking-trails"
@@ -54,6 +61,7 @@ enum ScreenshotSample {
                 """, [.text(pid), .blob(Data(repeating: 2, count: 65)), .blob(Data(repeating: 3, count: 65)), .int(created),
                       .text(platform), .int(created), .text(name), .blob(Data(repeating: 1, count: 16))])
         }
+        if args.contains("-PAScreenshotsNoHistory") { return store }
         guard let laptop = PeerId(text: id("L")), let desktop = PeerId(text: id("W"))
         else { return store }
         // History times sit just before the 9:41 status bar clock (History tab).
@@ -63,6 +71,9 @@ enum ScreenshotSample {
                              pairingId: nil, read: true, results: nil, now: clock - 1500)
         try store.addMessage(dir: .incoming, peer: laptop, type: "url", content: link, n: nil, pairingId: nil,
                              read: false, results: nil, now: clock - 120)
+        let results = "{\"\(id("L"))\":\"sent\",\"\(id("W"))\":\"sent\",\"\(id("T"))\":\"logged out\"}"
+        try store.addMessage(dir: .outgoing, peer: laptop, type: "url", content: draft, n: nil, pairingId: nil,
+                             read: true, results: results, now: clock - 600)
         return store
     }
 

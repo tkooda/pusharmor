@@ -107,6 +107,80 @@ final class ScreenshotTests: XCTestCase {
         }
     }
 
+    /// Screen review (not store shots): every screen in light and dark, as NN-screen-<theme>.
+    /// Runs only with PA_SHOTS_ALL=1 too (tools/screenshots.sh with PA_SHOTS_ALL=1).
+    func testCaptureAllScreens() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["PA_SHOTS_ALL"] == "1", "all-screens run only")
+        for theme in ["light", "dark"] {
+            var app = launch(["-PAScreenshotsSignIn", "-appearance", theme])
+            XCTAssertTrue(labelled(app, "Continue with Google").waitForExistence(timeout: 30))
+            sleep(1)
+            shot("01-signin-\(theme)")
+            app.terminate()
+
+            app = launch(["-PAScreenshotsEmpty", "-appearance", theme])
+            XCTAssertTrue(app.navigationBars["Pair your first device"].waitForExistence(timeout: 30))
+            sleep(1)
+            shot("02-firstpair-empty-\(theme)")
+            app.terminate()
+
+            app = launch(["-PAScreenshotsPairing", "-appearance", theme])
+            XCTAssertTrue(labelled(app, "Pair with new device: \"New laptop\"").waitForExistence(timeout: 30))
+            sleep(1)
+            shot("03-firstpair-fingerprint-\(theme)")
+            app.terminate()
+
+            app = launch(["-appearance", theme])
+            XCTAssertTrue(app.buttons["Send to \"Laptop\""].waitForExistence(timeout: 30))
+            sleep(1)
+            shot("05-send-\(theme)")
+            peersTab(app)
+            XCTAssertTrue(labelled(app, "Work desktop").waitForExistence(timeout: 10))
+            sleep(1)
+            shot("04-devices-\(theme)")
+            app.tabBars.buttons["History"].tap()
+            XCTAssertTrue(labelled(app, "Meeting moved to 3 pm").waitForExistence(timeout: 10))
+            sleep(1)
+            shot("08-history-\(theme)")
+            app.tabBars.buttons["Settings"].tap()
+            XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
+            // every Settings section, one screen per page, then About at the end of the list
+            let last = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Privacy policy")).firstMatch
+            for page in 1...8 {
+                sleep(1)
+                shot("09-settings-\(page)-\(theme)")
+                if last.exists && last.isHittable { break }
+                app.swipeUp()
+            }
+            app.swipeUp()
+            app.swipeUp()
+            sleep(1)
+            shot("10-about-\(theme)")
+            app.terminate()
+
+            app = launch(["-PAScreenshotsSent", "-appearance", theme])
+            XCTAssertTrue(labelled(app, "Sent to 2 of 3 devices").waitForExistence(timeout: 30))
+            sleep(1)
+            shot("06-send-results-\(theme)")
+            app.terminate()
+
+            app = launch(["-PAScreenshotsNoHistory", "-appearance", theme])
+            let history = app.tabBars.buttons["History"]
+            XCTAssertTrue(history.waitForExistence(timeout: 30))
+            history.tap()
+            XCTAssertTrue(app.staticTexts["No messages yet"].waitForExistence(timeout: 10))
+            sleep(1)
+            shot("07-history-empty-\(theme)")
+            app.terminate()
+
+            app = launch(["-PAScreenshotsUpdate", "-appearance", theme])
+            XCTAssertTrue(app.buttons["Update"].waitForExistence(timeout: 30))
+            sleep(1)
+            shot("11-update-required-\(theme)")
+            app.terminate()
+        }
+    }
+
     /// Any element whose label contains the text (a peer row reads as one combined element).
     private func labelled(_ app: XCUIApplication, _ text: String) -> XCUIElement {
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
