@@ -279,18 +279,20 @@ internal fun resumeTick(): Int {
 
 /** POST_NOTIFICATIONS on first open; explainer with retry; permanently denied -> app notification settings. */
 @Composable
-private fun PermissionGate(content: @Composable () -> Unit) {
+internal fun PermissionGate(content: @Composable () -> Unit) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     fun granted() = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
     var ok by remember { mutableStateOf(granted()) }
-    var asked by remember { mutableStateOf(false) }
+    // Saved, so a rotation while the system dialog is up does not ask a second time (I522).
+    var launched by rememberSaveable { mutableStateOf(false) }
+    var asked by rememberSaveable { mutableStateOf(false) }
     var skipped by rememberSaveable { mutableStateOf(false) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok = it; asked = true }
     // Allowed or revoked in system settings meanwhile: checked again on each return to the app (I479).
     val tick = resumeTick()
     androidx.compose.runtime.LaunchedEffect(tick) { ok = granted() }
     if (ok || skipped) { content(); return }
-    if (!asked) { androidx.compose.runtime.LaunchedEffect(Unit) { launcher.launch(Manifest.permission.POST_NOTIFICATIONS) } }
+    if (!launched) { androidx.compose.runtime.LaunchedEffect(Unit) { launched = true; launcher.launch(Manifest.permission.POST_NOTIFICATIONS) } }
     val activity = ctx as? android.app.Activity
     val permanent = asked && activity != null && !activity.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)
     BlockingState(PaIcons.NotificationsOff, "PushArmor shows each message as a notification. Allow notifications to receive messages. Also turn off \"Pause app activity if unused\" for PushArmor.",
