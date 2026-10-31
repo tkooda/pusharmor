@@ -33,7 +33,7 @@ enum ScreenshotSample {
         for suffix in ["", "-wal", "-shm"] { try? FileManager.default.removeItem(atPath: path + suffix) }
         let store = try Store(path: path)
         let now = Int64(Date().timeIntervalSince1970)
-        try store.setMe("id", .text(id("S")))
+        try store.setMe("id", .text("Kx3mQ9vTbR2wYp7LdZ4hNc8sJf5aUe1GoXi6VtBy"))  // mixed characters: a repeated one looks wrong in review images
         try store.setMe("name", .text("iPhone"))
         if args.contains("-PAScreenshotsEmpty") { return store }
         // 04-pairing: the pairing card only. Paired rows below them would sit under
