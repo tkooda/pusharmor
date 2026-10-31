@@ -39,6 +39,11 @@ enum ScreenshotSample {
     /// This device is iPhone 15. With -PAScreenshotsPairWaiting only Galaxy S23 waits to pair
     /// (Pair / Deny); with -PAScreenshotsPairFingerprint it shows the fingerprint (Deny / Approve).
     static var store: Bool { args.contains("-PAScreenshotsStore") }
+    /// -PAScreenshotsDetail: History opens with message 1 in its detail sheet (a received link
+    /// opens in the browser on a tap, so the sheet is how its actions show).
+    static func detail(_ rows: [HistoryRow]) -> HistoryRow? {
+        args.contains("-PAScreenshotsDetail") ? rows.first { $0.content.contains("Union_Station") } : nil
+    }
 
     private enum StoreIds {
         static let me = "C3RTU52QbLiuXe5HyI7Kqb8zQTUNsNBHpLkp0Z5P"
