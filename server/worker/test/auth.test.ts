@@ -77,6 +77,20 @@ describe("POST /auth/email + verify", () => {
     expect(t).toMatchObject({ a: await acctOf(email), k: await keyRef(b64urlDecode(k.signPub)!), p: "register" });
   });
 
+  it("account is the collapsed mailbox; the code goes to the address as typed (Q334)", async () => {
+    const base = randomEmail().split("@")[0];
+    const typed = `${base.slice(0, 3)}.${base.slice(3)}+news@googlemail.com`;
+    const { r } = await startEmail(typed);
+    expect(r.status).toBe(200);
+    const token = secretString(r.body.request_token as string);
+    const mail = JSON.parse(new TextDecoder().decode(vendorRequests("email.us-east-1.amazonaws.com").pop()!.body));
+    expect(mail.Destination.ToAddresses).toEqual([typed]);
+    const v = await call("POST", "/v1/auth/email/verify", { request_token: token, code: await deriveCode(S.PA_CODE_SECRET, token) });
+    expect(v.body.email).toBe(typed);
+    const t = await openToken(S.PA_TOKEN_SECRET, LABEL_TICKET, secretString(v.body.ticket as string));
+    expect(t!.a).toBe(await acctOf(base + "@gmail.com"));
+  });
+
   it("cli_k: verify returns a cli code that registers the cli peer; cli_k with sign_pub, malformed or delete-account -> 400", async () => {
     const email = randomEmail();
     const k = await keys();
@@ -253,6 +267,11 @@ describe("Google", () => {
     expect(r.status).toBe(200);
     expect(r.body.email).toBe(email);
     secretString(r.body.ticket as string);
+    // OAuth emails collapse to the same mailbox identity (Q334).
+    const base = email.split("@")[0];
+    const tagged = await call("POST", "/v1/auth/google/token", { id_token: await idToken(g, { ...good, email: `${base}+x@Outlook.com` }), sign_pub: k.signPub, purpose: "register" });
+    expect(tagged.body.email).toBe(`${base}+x@outlook.com`);
+    expect((await openToken(S.PA_TOKEN_SECRET, LABEL_TICKET, secretString(tagged.body.ticket as string)))!.a).toBe(await acctOf(base + "@outlook.com"));
     const cases: [Record<string, unknown>, string][] = [
       [{ ...good, iss: "https://evil.example" }, "invalid id_token"],
       [{ ...good, aud: "other" }, "invalid id_token"],

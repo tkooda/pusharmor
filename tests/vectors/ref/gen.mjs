@@ -4,7 +4,7 @@ import { writeFileSync } from 'node:fs';
 import { deflateRawSync } from 'node:zlib';
 import { b64d, b64e, cat, hexe, sha256 } from './bytes.mjs';
 import { isValidPriv, pubFromPriv, sign } from './p256.mjs';
-import { accountId, cliCode, emailHash, keyhash, myPushSha256, normalizeEmail, oauthNonce, peerId } from './ids.mjs';
+import { accountId, cliCode, emailHash, keyhash, mailboxKey, myPushSha256, normalizeEmail, oauthNonce, peerId } from './ids.mjs';
 import {
   commitBody, commitHash, crockford20, fingerprintHash, keysBody, pairDecide, pairHint, pairKey,
   pairingId, pairTimeout, sealPair,
@@ -165,6 +165,31 @@ function emailSection() {
       if (norm === null) return { input, normalized: null, email_hash: null, account: null };
       const eh = emailHash(norm);
       return { input, normalized: norm, email_hash: b64e(eh), account: b64e(accountId(ID_SECRET, eh)) };
+    }),
+  };
+}
+
+function mailboxSection() {
+  const inputs = [
+    'A.B.C+Tag@Gmail.com', 'a.b+x+y@googlemail.com', 'abc@gmail.com', '+tag@gmail.com', '..@gmail.com',
+    'A.B+tag@outlook.com', 'a.b+tag@hotmail.com', 'a.b+tag@live.com', 'a.b+tag@msn.com', 'a.b+tag@icloud.com',
+    'a.b+tag@me.com', 'a.b+tag@mac.com', 'a.b+tag@fastmail.com', 'a.b+tag@proton.me', 'a.b+tag@protonmail.com',
+    'a.b+tag@protonmail.ch', 'a.b+tag@pm.me', 'a.b+tag@example.com', 'a.b+tag@mail.gmail.com', 'a.b+tag@gmail.co',
+  ];
+  return {
+    description:
+      'Account identity (Worker and command line ban tool). mailbox = normalized address with, at gmail.com googlemail.com ' +
+      'outlook.com hotmail.com live.com msn.com icloud.com me.com mac.com fastmail.com proton.me protonmail.com protonmail.ch ' +
+      'pm.me only: the local part cut at its first "+" (when that is not the first char); at gmail.com and googlemail.com ' +
+      'also every "." removed from the local part (kept when that leaves it empty) and the domain set to gmail.com. ' +
+      'Other domains (subdomains included) are unchanged. email_hash = sha256("PA-ACCT1\\n" || mailbox), account = ' +
+      'HMAC-SHA256(keys.id_secret, email_hash)[0..9]. Login codes still go to the normalized address. Assert normalized, ' +
+      'mailbox, email_hash and account.',
+    cases: inputs.map((input) => {
+      const norm = normalizeEmail(input);
+      const mb = mailboxKey(norm);
+      const eh = emailHash(mb);
+      return { input, normalized: norm, mailbox: mb, email_hash: b64e(eh), account: b64e(accountId(ID_SECRET, eh)) };
     }),
   };
 }
@@ -958,6 +983,7 @@ export function buildGolden() {
       'and HPKE ephemeral keys use DeriveKeyPair(ikmE) only to make this file reproducible.',
     keys: keysSection(),
     email_hash: emailSection(),
+    mailbox: mailboxSection(),
     id_order: idOrderSection(),
     oauth_nonce: nonceSection(),
     cli_code: cliCodeSection(),

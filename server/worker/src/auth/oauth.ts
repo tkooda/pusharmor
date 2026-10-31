@@ -28,7 +28,7 @@ import { parseJsonObject } from "../pipeline/body";
 import { deps } from "../push/deps";
 import { checkCliK, checkCliPurpose, checkPurpose, checkSignPub } from "./email";
 import { verifyIdToken, type Provider } from "./jwks";
-import { normalizeEmail } from "./normalize";
+import { mailboxKey, normalizeEmail } from "./normalize";
 
 export const CLIENTS = ["chrome", "firefox", "android", "web", "cli"] as const;
 export type Client = (typeof CLIENTS)[number];
@@ -117,7 +117,7 @@ export async function postForm(url: string, form: Record<string, string>): Promi
 
 async function ticketReply(env: Env, email: string, k: string, p: Purpose, sealed?: string): Promise<{ ticket: string; email: string }> {
   const normalized = normalizeEmail(email);
-  const a = await accountId(env.PA_ID_SECRET, await emailHash(normalized));
+  const a = await accountId(env.PA_ID_SECRET, await emailHash(mailboxKey(normalized)));
   const t: { a: string; k: string; p: Purpose; x: number; s?: string } = { a, k, p, x: nowS() + TICKET_LIFE_S };
   if (sealed) t.s = sealed;
   return { ticket: await makeTicket(env.PA_TOKEN_SECRET, t), email: normalized };
@@ -183,7 +183,7 @@ export async function oauthCallback(c: Ctx, p: ProviderCfg, params: URLSearchPar
     const email = await verifyIdToken(ex.id_token, { provider: p.name, auds: p.webAuds(c.env), nonce: await oauthNonce(purpose, st.k) });
     if (st.r === "cli") {
       const normalized = normalizeEmail(email);
-      const a = await accountId(c.env.PA_ID_SECRET, await emailHash(normalized));
+      const a = await accountId(c.env.PA_ID_SECRET, await emailHash(mailboxKey(normalized)));
       const code = await makeCliCode(c.env.PA_TOKEN_SECRET, a, st.k, checkCliPurpose(purpose), Math.floor(nowS() / CLI_WINDOW_S));
       return redirect(`${target}#cli_code=${code}&email=${encodeURIComponent(normalized)}`);
     }
