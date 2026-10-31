@@ -19,48 +19,6 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    Toggle("Show \"All\" option", isOn: boolBinding(SettingKey.showAll, true))
-                        .tint(.brandGreen)
-                }
-
-                Section("History") {
-                    Picker("Keep messages for", selection: Binding(
-                        get: { model.historyDays },
-                        set: { model.setHistoryDays($0) }
-                    )) {
-                        ForEach(dayChoices, id: \.self) { Text($0 == 1 ? "1 day" : "\($0) days").tag($0) }
-                    }
-                    Button("Delete all history", role: .destructive) { confirmDeleteHistory = true }
-                }
-
-                let hidden = model.peers.filter { $0.hidden }
-                if !hidden.isEmpty {
-                    Section("Hidden devices") {
-                        ForEach(hidden, id: \.id.text) { p in
-                            HStack {
-                                Text(model.label(p))
-                                Spacer()
-                                Button("Unhide") { model.setHidden(p, false) }
-                                    .buttonStyle(.borderless)
-                            }
-                        }
-                    }
-                }
-
-                Section("Notifications") {
-                    if model.notificationsOff {
-                        Text(S.notificationsOff).foregroundColor(.errorText)
-                        Button("Open notification settings") { model.openNotificationSettings() }
-                    } else {
-                        Label {
-                            Text("Notifications are on")
-                        } icon: {
-                            Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.success)
-                        }
-                    }
-                }
-
                 // This device and its rename live here, not in Devices (F25); logged out, the
                 // device name and account rows hide (I612).
                 if model.phase == .main {
@@ -118,7 +76,22 @@ struct SettingsView: View {
                     Text("Dark uses a true black background.")
                 }
 
-                Section {
+                Section("Sending") {
+                    Toggle("Show an \"All\" button when choosing devices", isOn: boolBinding(SettingKey.showAll, true))
+                        .tint(.brandGreen)
+                }
+
+                Section("Notifications") {
+                    if model.notificationsOff {
+                        Text(S.notificationsOff).foregroundColor(.errorText)
+                        Button("Open notification settings") { model.openNotificationSettings() }
+                    } else {
+                        Label {
+                            Text("Notifications are on")
+                        } icon: {
+                            Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.success)
+                        }
+                    }
                     // Was Always hide content, inverted; lock screen applies only while content shows (I610).
                     Toggle(S.showContentSwitch, isOn: boolBinding(SettingKey.showContent, true))
                         .tint(.brandGreen)
@@ -129,6 +102,30 @@ struct SettingsView: View {
                         .disabled(!model.boolSetting(SettingKey.showContent, true))
                     Text("Follows the iOS Show Previews setting. Set it to When Unlocked to hide content on the lock screen. Your Apple Watch follows this choice.")
                         .font(.caption).foregroundColor(.secondaryText)
+                }
+
+                Section("History") {
+                    Picker("Keep messages for", selection: Binding(
+                        get: { model.historyDays },
+                        set: { model.setHistoryDays($0) }
+                    )) {
+                        ForEach(dayChoices, id: \.self) { Text($0 == 1 ? "1 day" : "\($0) days").tag($0) }
+                    }
+                    Button("Delete all history", role: .destructive) { confirmDeleteHistory = true }
+                }
+
+                let hidden = model.peers.filter { $0.hidden }
+                if !hidden.isEmpty {
+                    Section("Hidden devices") {
+                        ForEach(hidden, id: \.id.text) { p in
+                            HStack {
+                                Text(model.label(p))
+                                Spacer()
+                                Button("Unhide") { model.setHidden(p, false) }
+                                    .buttonStyle(.borderless)
+                            }
+                        }
+                    }
                 }
 
                 if model.phase == .main {
