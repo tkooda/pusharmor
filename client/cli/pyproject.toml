@@ -1,14 +1,15 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pusharmor"
-version = "0.0.0"
+dynamic = ["version"]
 description = "PushArmor command-line client"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
+dependencies = ["cryptography>=3.4"]
 
 [project.urls]
 Homepage = "https://pusharmor.com"
@@ -18,3 +19,6 @@ pusharmor = "pusharmor:main"
 
 [tool.setuptools]
 py-modules = ["pusharmor"]
+
+[tool.setuptools.dynamic]
+version = { attr = "pusharmor.VERSION" }
