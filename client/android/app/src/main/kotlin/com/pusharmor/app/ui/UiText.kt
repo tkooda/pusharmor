@@ -90,6 +90,16 @@ object UiText {
             at >= 1 && at == s.lastIndexOf('@') && at < s.length - 1
     }
 
+    /** Resend rule of the relay server: 2 sends per 60 s per address, so a code may be sent again 60 s after the last one. */
+    const val RESEND_MS = 60_000L
+
+    /** ms until a code may be sent to [email] again; only the address just sent to (or limited) waits. */
+    fun sendLeftMs(until: Long, sentTo: String, email: String, now: Long): Long =
+        if (sentTo.isEmpty() || sentTo != email.trim().lowercase()) 0L else maxOf(0L, until - now)
+
+    /** Send button label: [label] alone, or "[label] in 42 seconds" while the countdown runs. */
+    fun sendLabel(label: String, leftMs: Long): String = if (leftMs > 0) label + " in " + com.pusharmor.net.ErrorText.wait(leftMs) else label
+
     /** Red border while the field is non-empty and not a valid email; empty keeps the normal border (I468). */
     fun emailFieldError(input: String): Boolean = input.isNotEmpty() && !emailValid(input)
 
