@@ -179,6 +179,11 @@ describe("PA-Client (Q328)", () => {
     const unset = await testEnv();
     expect((await st("android/0.0.1", unset)).status).toBe(200);
     expect((await st("android/0.0.1", await testEnv({ PA_MIN_CLIENT: "junk" } as Partial<Env>))).status).toBe(200);
+    // A per-platform floor blocks only the listed platforms.
+    const per = await testEnv({ PA_MIN_CLIENT: "android=0.0.22, ios=0.0.20" } as Partial<Env>);
+    expect((await st("android/0.0.21", per)).status).toBe(426);
+    expect((await st("ios/0.0.19", per)).status).toBe(426);
+    for (const h of ["android/0.0.22", "ios/0.0.20", "chrome/0.0.1", "cli/0.0.1"]) expect((await st(h, per)).status, h).toBe(200);
     // Preflight carries no PA-Client and is never refused.
     expect((await call("OPTIONS", "/v1/account", undefined, { env: min, headers: { Origin: ORIGIN } })).status).toBe(204);
   });

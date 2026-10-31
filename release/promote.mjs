@@ -172,7 +172,7 @@ export function playGateProblem(env) {
   return bad.join("; ");
 }
 
-/** I439: every tag of X.Y.Z points at one commit. commits maps each platform
+/** I439: every tag of X.Y.Z points at one commit (a platform may have none: Q384 A). commits maps each platform
  *  to the commit of its tag, or null when it has no tag. error is "" when the
  *  tags agree; missing lists the platforms without a tag. */
 export function commitProblems(version, commits) {
@@ -267,7 +267,7 @@ async function check(version) {
   }
   // I439: one release is one commit on every platform (RELEASING.md, Versions).
   const same = commitProblems(version, commits);
-  if (same.missing.length) summary("- WARNING: " + version + " has no tag for " + same.missing.join(", ") + "; every release should tag all four platforms on one commit");
+  if (same.missing.length) summary("- NOTE: " + version + " has no tag for " + same.missing.join(", ") + "; fine when that platform did not change (one shared counter, platforms skip numbers)");
   if (same.error) throw new Error(same.error);
   const bad = [...listingProblems("play"), ...listingProblems("appstore"), ...amoNotesProblems()];
   for (const b of bad) summary("- listing: " + b);

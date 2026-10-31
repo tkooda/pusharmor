@@ -1,5 +1,8 @@
 // Release tags (owner ruling Q209 B): <platform>/vX.Y.Z, one shared version line.
-//   node release/tag.mjs PLATFORM X.Y.Z   owner: stamp the version files, or tag HEAD
+//   node release/tag.mjs X.Y.Z PLATFORM...  owner: stamp the version files of those
+//                                          platforms, or tag HEAD (PLATFORM X.Y.Z with
+//                                          one platform also works; "all" = android
+//                                          ios chrome firefox; platforms are required)
 //   node release/tag.mjs --check TAG       release jobs: the checked-out tag obeys
 //                                          the rules; prints X.Y.Z
 //   node release/tag.mjs --ci TAG          first release job: ci-ok is green on the
@@ -8,7 +11,9 @@
 // commit, and a commit carries one version); a new version (no tag of it yet) is
 // greater than every existing tag; the version files at the commit hold X.Y.Z
 // (stampProblems), and /download holds the SHA-256 of pusharmor.py at the commit.
-// Platforms may skip numbers. Android versionCode and the iOS build number are
+// One shared counter, but a release tags only the platforms that changed (Q384 A):
+// platforms skip numbers, so each platform's version files are stamped and checked
+// for that platform alone. Android versionCode and the iOS build number are
 // buildNumber(X.Y.Z) = X * 1000000 + Y * 1000 + Z, so they grow with the version.
 // Tag mode fetches the tags of origin first (when a remote origin exists). When
 // the version files do not hold X.Y.Z it writes them and stops: commit, then
@@ -24,6 +29,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+export const CLIENTS = ["android", "ios", "chrome", "firefox"];
 export const PLATFORMS = ["android", "ios", "chrome", "firefox", "worker", "cli"];
 
 /** [major, minor, patch] of X.Y.Z (no leading zeros), or null. */
@@ -89,24 +95,28 @@ const cliSha256 = (root) => createHash("sha256").update(readFileSync(join(root, 
 const FILES = [
   {
     path: "release/version.properties",
+    platforms: ["android"],
     get: (s) => [/^versionName=(.*)$/m.exec(s)?.[1], /^versionCode=(.*)$/m.exec(s)?.[1]],
     want: (v) => [v, String(buildNumber(v))],
     set: (s, v) => s.replace(/^versionName=.*$/m, "versionName=" + v).replace(/^versionCode=.*$/m, "versionCode=" + buildNumber(v)),
   },
   {
     path: "client/cli/pusharmor.py",
+    platforms: ["cli"],
     get: (s) => [/^VERSION = "([^"]*)"$/m.exec(s)?.[1], /^# PushArmor command-line client, version (.*)$/m.exec(s)?.[1]],
     want: (v) => [v, v],
     set: (s, v) => s.replace(/^VERSION = "[^"]*"$/m, 'VERSION = "' + v + '"').replace(/^(# PushArmor command-line client, version ).*$/m, "$1" + v),
   },
-  ...["client/chrome/manifest.json", "client/firefox/manifest.json"].map((path) => ({
-    path,
+  ...["chrome", "firefox"].map((pl) => ({
+    path: "client/" + pl + "/manifest.json",
+    platforms: [pl],
     get: (s) => [JSON.parse(s).version],
     want: (v) => [v],
     set: (s, v) => s.replace(/("version": )"[^"]*"/, "$1" + JSON.stringify(v)),
   })),
   {
     path: "client/ios/project.yml",
+    platforms: ["ios"],
     get: (s) => [/^ *MARKETING_VERSION: "(.*)"$/m.exec(s)?.[1], /^ *CURRENT_PROJECT_VERSION: "(.*)"$/m.exec(s)?.[1]],
     want: (v) => [v, String(buildNumber(v))],
     set: (s, v) => s.replace(/^( *MARKETING_VERSION: ).*$/m, '$1"' + v + '"').replace(/^( *CURRENT_PROJECT_VERSION: ).*$/m, '$1"' + buildNumber(v) + '"'),
@@ -115,16 +125,19 @@ const FILES = [
   // SHA-256 of pusharmor.py (stamp writes pusharmor.py first).
   {
     path: "site/public/download.html",
+    platforms: ["cli"],
     get: (s) => [[...new Set([...s.matchAll(/\/releases\/download\/cli\/v([^/"<]*)\/pusharmor\.py/g)].map((m) => m[1]))].join(", "), /<code id="cli-sha256">([^<]*)<\/code>/.exec(s)?.[1]],
     want: (v, root) => [v, cliSha256(root)],
     set: (s, v, root) => s.replaceAll(/(\/releases\/download\/cli\/v)[^/"<]*(\/pusharmor\.py)/g, "$1" + v + "$2").replace(/(<code id="cli-sha256">)[^<]*/, "$1" + cliSha256(root)),
   },
 ];
 
-/** One line per version file under root that does not hold X.Y.Z. */
-export function stampProblems(root, version) {
+const filesOf = (platforms) => FILES.filter((f) => f.platforms.some((p) => platforms.includes(p)));
+
+/** One line per version file of platforms under root that does not hold X.Y.Z. */
+export function stampProblems(root, version, platforms = PLATFORMS) {
   const bad = [];
-  for (const f of FILES) {
+  for (const f of filesOf(platforms)) {
     const got = f.get(readFileSync(join(root, f.path), "utf8"));
     const want = f.want(version, root);
     if (JSON.stringify(got) !== JSON.stringify(want)) bad.push(f.path + " holds " + got.join(" / ") + ", want " + want.join(" / "));
@@ -132,9 +145,9 @@ export function stampProblems(root, version) {
   return bad;
 }
 
-/** Writes X.Y.Z into every version file under root. */
-export function stamp(root, version) {
-  for (const f of FILES) {
+/** Writes X.Y.Z into the version files of platforms under root. */
+export function stamp(root, version, platforms = PLATFORMS) {
+  for (const f of filesOf(platforms)) {
     const p = join(root, f.path);
     writeFileSync(p, f.set(readFileSync(p, "utf8"), version, root));
   }
@@ -226,7 +239,7 @@ function check(tag) {
   if (!self.annotated) bad.push(tag + " is a lightweight tag; create release tags with node release/tag.mjs");
   if (self.commit !== git(["rev-parse", "HEAD"])) bad.push("HEAD is not the commit of " + tag);
   bad.push(...tagProblems(p.version, self.commit, tags.filter((t) => t.name !== tag && t.date <= self.date)));
-  bad.push(...stampProblems(git(["rev-parse", "--show-toplevel"]), p.version));
+  bad.push(...stampProblems(git(["rev-parse", "--show-toplevel"]), p.version, [p.platform]));
   if (bad.length) fail(bad);
   console.log(p.version);
 }
@@ -244,9 +257,9 @@ function checkCi(tag) {
   console.log(CI_JOB + " succeeded on " + commit.slice(0, 12));
 }
 
-function tagHead(platform, version) {
-  const bad = formatProblems(platform, version);
-  if (bad.length) fail(bad);
+function tagHead(platforms, version) {
+  const bad = platforms.flatMap((p) => formatProblems(p, version));
+  if (bad.length) fail([...new Set(bad)]);
   const root = git(["rev-parse", "--show-toplevel"]);
   if (git(["status", "--porcelain"]) !== "") fail(["the working tree is not clean"]);
   if (git(["remote"]).split("\n").includes("origin")) {
@@ -257,36 +270,50 @@ function tagHead(platform, version) {
     }
   }
   const tags = allTags();
-  const name = platform + "/v" + version;
+  const names = platforms.map((p) => p + "/v" + version);
   const head = git(["rev-parse", "HEAD"]);
-  if (stampProblems(root, version).length) {
-    // A new release commit: X.Y.Z must be new and greater than every tag.
+  if (stampProblems(root, version, platforms).length) {
+    // A new release commit: X.Y.Z must be new and greater than every tag of any platform.
     const bad = tagProblems(version, "(new commit)", tags);
     if (bad.length) fail(bad);
-    stamp(root, version);
-    console.log("stamped " + version + " into the version files; nothing tagged.");
+    stamp(root, version, platforms);
+    console.log("stamped " + version + " into the version files of " + platforms.join(", ") + "; nothing tagged.");
     console.log("review and commit them (git commit -am \"release " + version + "\"), then rerun:");
-    console.log("  node release/tag.mjs " + platform + " " + version);
+    console.log("  node release/tag.mjs " + version + " " + platforms.join(" "));
     process.exit(1);
   }
-  const bad2 = tagProblems(version, head, tags.filter((t) => t.name !== name));
-  const own = tags.find((t) => t.name === name);
-  if (own && own.commit !== head) bad2.push("tag " + name + " already exists at another commit");
+  const bad2 = tagProblems(version, head, tags.filter((t) => !names.includes(t.name)));
+  for (const n of names) {
+    const own = tags.find((t) => t.name === n);
+    if (own && own.commit !== head) bad2.push("tag " + n + " already exists at another commit");
+  }
   if (bad2.length) fail(bad2);
   const ci = ciProblems(head);
   if (ci.length) fail(ci);
-  if (!own) git(["tag", "-a", name, "-m", platform + " " + version, head]);
-  console.log((own ? "tag exists: " : "tagged: ") + name + " at " + head.slice(0, 12));
-  console.log("push it to start the " + platform + " release: git push origin " + name);
+  for (const n of names) {
+    const own = tags.some((t) => t.name === n);
+    if (!own) git(["tag", "-a", n, "-m", n.replace("/v", " "), head]);
+    console.log((own ? "tag exists: " : "tagged: ") + n + " at " + head.slice(0, 12));
+  }
+  console.log("push them to start the releases: git push origin " + names.join(" "));
+}
+
+/** { version, platforms } from "X.Y.Z PLATFORM..." or "PLATFORM X.Y.Z", or null. */
+export function parseTagArgs(args) {
+  const v = args.filter((a) => /^[0-9]/.test(a));
+  const rest = args.filter((a) => !/^[0-9]/.test(a));
+  if (v.length !== 1 || !rest.length || args.some((a) => a.startsWith("-"))) return null;
+  const platforms = [...new Set(rest.flatMap((a) => (a === "all" ? CLIENTS : [a])))];
+  return { version: v[0], platforms };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
   if (args.length === 2 && args[0] === "--check") check(args[1]);
   else if (args.length === 2 && args[0] === "--ci") checkCi(args[1]);
-  else if (args.length === 2 && !args[0].startsWith("-")) tagHead(args[0], args[1]);
+  else if (parseTagArgs(args)) tagHead(parseTagArgs(args).platforms, parseTagArgs(args).version);
   else {
-    console.error("usage: node release/tag.mjs PLATFORM X.Y.Z | --check PLATFORM/vX.Y.Z | --ci PLATFORM/vX.Y.Z");
+    console.error("usage: node release/tag.mjs X.Y.Z PLATFORM... (or all) | --check PLATFORM/vX.Y.Z | --ci PLATFORM/vX.Y.Z");
     process.exit(2);
   }
 }
