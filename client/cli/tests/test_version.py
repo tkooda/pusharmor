@@ -30,3 +30,17 @@ def test_check_runs_before_other_imports():
     src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "pusharmor.py")).read()
     assert src.index("\ncheck_python()\n") < src.index("import tomllib")
     assert src.index("\ncheck_python()\n") < src.index("from cryptography")
+
+
+def test_broken_cryptography_exits_1_with_one_line(tmp_path):
+    import subprocess
+    fake = tmp_path / "cryptography"
+    fake.mkdir()
+    (fake / "__init__.py").write_text("raise ModuleNotFoundError(\"No module named '_cffi_backend'\")\n")
+    env = dict(os.environ, PYTHONPATH=str(tmp_path))
+    r = subprocess.run([sys.executable, os.path.join(os.path.dirname(HERE), "pusharmor.py"), "--help"],
+                       env=env, capture_output=True, text=True)
+    assert r.returncode == 1 and r.stdout == ""
+    assert r.stderr == pa.CRYPTO_MISSING + "\n"
+    assert r.stderr == ("PushArmor needs the Python cryptography package. Install it with: "
+                        "python3 -m pip install --user cryptography (or: pipx install PushArmor).\n")

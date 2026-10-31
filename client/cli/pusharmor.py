@@ -27,11 +27,20 @@ import re
 import unicodedata
 import zlib
 
-from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature, encode_dss_signature
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+CRYPTO_MISSING = ("PushArmor needs the Python cryptography package. Install it with: "
+                  "python3 -m pip install --user cryptography (or: pipx install PushArmor).")
+
+try:
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature, encode_dss_signature
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+except (KeyboardInterrupt, SystemExit):
+    raise
+except BaseException:  # missing, or broken: no _cffi_backend is ImportError, a Rust panic is BaseException
+    sys.stderr.write(CRYPTO_MISSING + "\n")
+    sys.exit(1)
 
 VERSION = "0.0.20"
 
