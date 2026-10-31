@@ -149,6 +149,7 @@ struct SettingsView: View {
                     } else if !confirmDeleteAccount {
                         // One confirm at a time; the other Account button hides meanwhile (I457).
                         Button("Log out") { confirmSignOut = true }
+                            .disabled(model.busy.contains("logout"))
                     }
                     if confirmDeleteAccount {
                         Text("Delete this account? You must log in again to confirm. This cannot be undone.")

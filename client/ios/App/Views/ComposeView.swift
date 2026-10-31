@@ -326,7 +326,7 @@ struct ComposeView: View {
                 }
             }
             .buttonStyle(GreenButtonStyle())
-            .disabled(!canSend)
+            .disabled(!canSend || model.busy.contains("send"))
             .accessibilityLabel(sendLabel)
         }
         .padding(.horizontal, 16)
