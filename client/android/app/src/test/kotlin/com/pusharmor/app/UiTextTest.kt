@@ -44,6 +44,11 @@ class UiTextTest {
         assertEquals(null, UiText.emailErrorAfterEdit(null, "a@"))
     }
 
+    @Test fun shareTooLongIsSentence() {
+        assertEquals("This link is too long to send: 2100 bytes. The limit is 2048 bytes.", UiText.shareTooLong(2100, text = false))
+        assertEquals("This text is too long to send: 3000 bytes. The limit is 2048 bytes.", UiText.shareTooLong(3000, text = true))
+    }
+
     @Test fun codeFieldState() {
         assertEquals("Code, 0 of 6 entered", UiText.codeState(0))
         assertEquals("Code, 4 of 6 entered", UiText.codeState(4))

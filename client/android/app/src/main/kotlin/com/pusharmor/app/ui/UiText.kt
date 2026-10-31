@@ -41,6 +41,10 @@ object UiText {
     fun counter(bytes: Int): String =
         if (bytes > SizeCap.MAX_CONTENT_BYTES) "Too long ($bytes / 2048)" else "$bytes / 2048"
 
+    /** Share sheet over the cap (I530): one full sentence, then Close (and for text, Send the first 2048 bytes). */
+    fun shareTooLong(bytes: Int, text: Boolean): String =
+        "This ${if (text) "text" else "link"} is too long to send: $bytes bytes. The limit is 2048 bytes."
+
     /** Remembered recipient ids ("a,b,c") that can still receive; empty when none, so the default stays. */
     fun rememberedSelection(remembered: String?, available: List<String>): List<String> {
         val ids = remembered.orEmpty().split(',').filter { it.isNotEmpty() }.toSet()

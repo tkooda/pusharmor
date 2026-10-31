@@ -223,6 +223,14 @@ class AppLogicTest {
         assertTrue(com.pusharmor.app.ui.UiText.APPLE_RELAY_HINT.endsWith("."))
     }
 
+    @Test fun shareTooLongHasClose() {
+        // I530: a link over the cap has a way out besides Back.
+        val share = source("ui/ShareActivity.kt")
+        val tooLong = share.substring(share.indexOf("if (tooLong && cut == null)"), share.indexOf("SendScreen("))
+        assertTrue(tooLong.contains("UiText.shareTooLong(") && tooLong.contains("OutlinedButton(onClick = { finish() }) { Text(\"Close\") }"))
+        assertFalse(tooLong.contains("Too long ("))
+    }
+
     @Test fun shareNeverSendsOnItsOwn() {
         // Another app can start ShareActivity: it only hands the text to SendScreen, which sends on the Send tap alone (I445).
         val share = source("ui/ShareActivity.kt")

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
@@ -67,12 +68,9 @@ class ShareActivity : ComponentActivity() {
                 var cut by remember { mutableStateOf<String?>(null) }
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (tooLong && cut == null) {
-                        if (type == ContentType.TEXT) {
-                            Text("Too long (${SizeCap.utf8Size(text)} / 2048)")
-                            Button(onClick = { cut = SizeCap.truncateUtf8(text) }) { Text("Send the first 2048 bytes") }
-                        } else {
-                            Text("Too long (${SizeCap.utf8Size(text)} / 2048)")
-                        }
+                        Text(UiText.shareTooLong(SizeCap.utf8Size(text), type == ContentType.TEXT))
+                        if (type == ContentType.TEXT) Button(onClick = { cut = SizeCap.truncateUtf8(text) }) { Text("Send the first 2048 bytes") }
+                        OutlinedButton(onClick = { finish() }) { Text("Close") }
                     } else {
                         SendScreen(vm, cut ?: text, preselect = direct, onDevices = {
                             startActivity(MainActivity.openIntent(this@ShareActivity, "peers").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); finish()
