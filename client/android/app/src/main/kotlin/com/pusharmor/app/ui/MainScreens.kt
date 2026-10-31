@@ -620,7 +620,7 @@ private val Modifier.rowPad get() = this.padding(horizontal = 16.dp)
 /** Send: field, type caption and counter, "Send as text", device chips, green Send pinned at the bottom (above the keyboard). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null, title: String? = null, onPair: () -> Unit = {}, onSent: (AppViewModel.SendResult) -> Unit = {}) {
+fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null, title: String? = null, inDialog: Boolean = false, onPair: () -> Unit = {}, onSent: (AppViewModel.SendResult) -> Unit = {}) {
     val shots = BuildConfig.SCREENSHOT_MODE && ScreenshotMode.on && title != null
     var text by rememberSaveable { mutableStateOf(if (shots) ScreenshotMode.sendText else initial) }
     var asText by rememberSaveable { mutableStateOf(false) }
@@ -679,11 +679,13 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     // Landscape or a large font: when the field cannot keep 4 lines (2 with the keyboard up) above the chips,
     // the page scrolls instead, so the field stays usable and every chip can be reached (I520).
     val scrolls = sendScrolls(areaPx, chipsPx, if (extras) extrasPx else 0, if (keyboardUp) twoLinesPx else linesPx(4))
-    Box(Modifier.fillMaxSize().imePadding()) {
-        Column(Modifier.fillMaxSize()) {
+    // In the share sheet dialog it is as tall as its content, up to the dialog's limit (I597).
+    val fill = if (inDialog) Modifier.fillMaxWidth() else Modifier.fillMaxSize()
+    Box(fill.imePadding()) {
+        Column(fill) {
             title?.let { PaTopBar(it) }
             // Chips and Send keep their space, and the field gets what is left; when that is too little, the page scrolls.
-            Column(Modifier.weight(1f).fillMaxWidth().onSizeChanged { areaPx = it.height }
+            Column(Modifier.weight(1f, fill = !inDialog).fillMaxWidth().onSizeChanged { areaPx = it.height }
                 .then(if (scrolls) Modifier.verticalScroll(rememberScrollState()) else Modifier)) {
                 // The field starts at 4 lines and grows with its text up to the free space, then scrolls inside;
                 // with the keyboard up it shrinks first, to 2 lines while the chips still fit.

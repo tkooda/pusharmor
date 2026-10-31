@@ -2,6 +2,7 @@ package com.pusharmor.app.ui
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -10,18 +11,24 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.lifecycle.lifecycleScope
@@ -43,7 +50,11 @@ class ShareActivity : ComponentActivity() {
         val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: intent.getStringExtra(Intent.EXTRA_SUBJECT)
         if (text == null) { finish(); return }
         // The dialog shows at once: a placeholder until the peer read returns, never a blank box.
-        setContent { AppTheme(vm) { Surface(color = MaterialTheme.colorScheme.background) { CircularProgressIndicator(Modifier.padding(24.dp)) } } }
+        setContent { Frame { CircularProgressIndicator(Modifier.padding(24.dp)) } }
+        // A floating dialog nearly as wide as the screen, as tall as its content (I597); a tap outside cancels.
+        // After setContent: installing the window's views resets a floating window to wrap its content.
+        window.setLayout((resources.displayMetrics.widthPixels * DIALOG_WIDTH).toInt(), WindowManager.LayoutParams.WRAP_CONTENT)
+        setFinishOnTouchOutside(true)
         lifecycleScope.launch {
             // Room refuses main-thread reads.
             val update = withContext(Dispatchers.IO) { vm.g.settings.updateRequired(com.pusharmor.app.BuildConfig.VERSION_NAME) }
@@ -66,23 +77,35 @@ class ShareActivity : ComponentActivity() {
         val tooLong = SizeCap.utf8Size(text) > SizeCap.MAX_CONTENT_BYTES
         val type = Detect.type(text)
         setContent {
-            AppTheme(vm) { Surface(color = MaterialTheme.colorScheme.background) {
+            Frame {
                 var cut by remember { mutableStateOf<String?>(null) }
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (tooLong && cut == null) {
+                Column {
+                    Text("Send", Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp), style = MaterialTheme.typography.headlineSmall)
+                    if (tooLong && cut == null) Column(Modifier.verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(UiText.shareTooLong(SizeCap.utf8Size(text), type == ContentType.TEXT))
                         // Dialog buttons at the end, as in a standard dialog (I603).
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
                             TextButton(onClick = { finish() }) { Text("Close") }
                             if (type == ContentType.TEXT) TextButton(onClick = { cut = SizeCap.truncateUtf8(text) }) { Text("Send the first 2048 bytes") }
                         }
-                    } else {
-                        SendScreen(vm, cut ?: text, preselect = direct, onPair = {
+                    } else Column(Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
+                        SendScreen(vm, cut ?: text, preselect = direct, inDialog = true, onPair = {
                             startActivity(MainActivity.openIntent(this@ShareActivity, "peers").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); finish()
                         }) { r -> if (r.text == ErrorText.UPDATE) showUpdate() else if (r.ok) toastAndFinish(r.text) }
                     }
                 }
-            } }
+            }
+        }
+    }
+
+    /** The dialog card: stock Material3 dialog shape and color, at most 90% of the screen tall (I597). */
+    @Composable
+    private fun Frame(content: @Composable () -> Unit) {
+        AppTheme(vm) {
+            Surface(Modifier.fillMaxWidth().heightIn(max = LocalConfiguration.current.screenHeightDp.dp * DIALOG_MAX_HEIGHT),
+                shape = AlertDialogDefaults.shape, color = AlertDialogDefaults.containerColor, tonalElevation = AlertDialogDefaults.TonalElevation,
+                content = content)
         }
     }
 
@@ -93,10 +116,14 @@ class ShareActivity : ComponentActivity() {
         /** Preselected target: a shortcut id that is in the All set, else the only All peer, else null. Never sent without a tap. */
         fun directTarget(shortcutId: String?, allIds: List<String>): String? =
             if (shortcutId != null && shortcutId in allIds) shortcutId else allIds.singleOrNull()
+
+        /** Dialog width and largest height, as parts of the screen (I597). */
+        const val DIALOG_WIDTH = 0.94f
+        const val DIALOG_MAX_HEIGHT = 0.9f
     }
 
     private fun showUpdate() {
-        setContent { AppTheme(vm) { Surface(color = MaterialTheme.colorScheme.background) { UpdateScreen(Modifier.padding(vertical = 24.dp)) } } }
+        setContent { Frame { UpdateScreen(Modifier.padding(vertical = 24.dp)) } }
     }
 
     /** A send that reached a device returns the user to the sharing app; this activity is gone, so a Toast says so (I596). */
