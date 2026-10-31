@@ -153,8 +153,12 @@ body.page .foot { position: static; }
 .head .gear { margin-left: auto; }
 .head .gear[aria-pressed="true"] { color: var(--primary); background: var(--s1); }
 .fp-title { margin: 0; padding: 16px 20px 0; font-size: 18px; line-height: 24px; }
-.fp-steps { margin: 10px 16px 0; }
-.fp-wait { padding: 4px 20px 0; font-size: 13px; line-height: 18px; color: var(--ink2); }
+.fp-steps { list-style: none; margin: 12px 16px 0; padding: 0; font-size: 13px; line-height: 20px; }
+.fp-steps li { display: flex; align-items: flex-start; gap: 12px; padding: 10px 14px; }
+.fp-num { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--primary); color: var(--onp); font-size: 12px; font-weight: 600; line-height: 1; }
+.fp-wait { display: flex; align-items: center; gap: 12px; padding: 12px 14px; font-size: 13px; line-height: 18px; color: var(--ink2); }
+.fp-spin { flex: none; width: 16px; height: 16px; box-sizing: border-box; border: 2px solid var(--line); border-top-color: var(--ink2); border-radius: 50%; animation: fpspin 0.9s linear infinite; }
+@keyframes fpspin { to { transform: rotate(360deg); } }
 .e-title { margin: 16px 0 6px; font-size: 17px; line-height: 24px; font-weight: 600; }
 .empty p { font-size: 13px; line-height: 18px; color: var(--ink2); max-width: 300px; text-wrap: balance; }
 .illo .i-disc { fill: var(--halo); stroke: var(--ring); stroke-width: 1.5; }

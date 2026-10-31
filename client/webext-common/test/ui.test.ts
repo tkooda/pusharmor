@@ -229,7 +229,12 @@ test("no paired device: popup and page show the first-device screen, which switc
   assert.match(pop, /if \(first && !first\.peers\.some\(\(p\) => p\.paired\)\) return firstPairView\(env, root, st, \(\) => mountPopup\(env, root\), true\);/);
   assert.match(pop, /"Pair your first device"/);
   assert.match(pop, /"Install PushArmor on another device\."/);
-  assert.match(pop, /"No devices yet\. They show up here after they log in\."/);
+  assert.match(pop, /"When it shows below, click Pair and approve it\."/);
+  assert.match(pop, /class: "fp-num"/);
+  assert.match(pop, /class: "fp-spin"[^)]*\), "Waiting for another device to log in\."/);
+  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  assert.match(css, /\.fp-spin \{[^}]*animation: fpspin/);
+  assert.match(css, /prefers-reduced-motion: reduce\) \{\s*\*, \*::before, \*::after \{ animation: none !important/); // the spinner stops
   assert.match(pop, /if \(data\.peers\.some\(\(p\) => p\.paired\)\) \{\s*clearInterval\(timer\);\s*await onPaired\(\);/);
   assert.match(pop, /"aria-label": "Settings"/);
   const page = readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8");
