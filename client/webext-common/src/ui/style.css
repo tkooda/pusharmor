@@ -129,6 +129,7 @@ label.srow { cursor: pointer; }
 .own.editing { gap: 8px; }
 .own.editing input { flex: 1; min-width: 0; }
 .own.editing button { color: var(--onhero); border-color: var(--onhero2); }
+.own.editing button:hover { background: rgba(255, 255, 255, 0.14); }
 
 /* Pair a new device: the button and its how-to steps. */
 .pairnew { padding: 12px 16px 0; }
