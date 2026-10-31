@@ -199,3 +199,17 @@ test("Log out confirmed: the popup reads the state again and shows the logged-ou
   assert.match(pop.slice(call, call + 200), /await reload\(\);/);
   assert.match(pop, /settingsView\(env, pane, st, \(\) => mountPopup\(env, root\)\)/);
 });
+
+test("Settings polish: dim label and email line, brighter dark headers and error text, drawn select (I460)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
+  assert.match(rd("popup.ts"), /h\("div", \{ class: "t2" \}, "Logged in as"\), h\("div", \{ class: "t1 email"/);
+  const css = rd("style.css");
+  assert.match(css, /\.acct \.email \{[^}]*text-overflow: ellipsis;/);
+  assert.match(css, /select \{[^}]*appearance: none;/);
+  for (const b of ["chrome", "firefox"]) {
+    const t = rd("tokens-" + b + ".css");
+    assert.equal(t.split("--err: #FFB4AB;").length, 3, b + ": both dark blocks");
+    assert.equal(t.split("--sh: #CBD3DC;").length, 3, b + ": both dark blocks");
+  }
+});
