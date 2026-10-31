@@ -63,7 +63,7 @@ export interface Browser {
     query(q: { active: boolean; currentWindow: boolean }): Promise<Tab[]>;
     remove(id: number): Promise<void>;
     reload(id: number): Promise<void>;
-    update(id: number, p: { active?: boolean }): Promise<Tab>;
+    update(id: number, p: { active?: boolean; url?: string }): Promise<Tab>;
   };
   windows?: {
     getLastFocused(q: { windowTypes: string[] }): Promise<{ id?: number }>;

@@ -76,7 +76,10 @@ export class FakePlatform implements Platform {
     this.opened.push(url);
     return 1;
   }
-  closeTab() {}
+  shown: { tab: number; hash: string }[] = [];
+  showPage(tab: number, hash: string) {
+    this.shown.push({ tab, hash });
+  }
   async authFlow() {
     return null;
   }
