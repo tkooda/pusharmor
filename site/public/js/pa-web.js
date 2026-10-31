@@ -137,7 +137,7 @@
     deleted: "Your other devices will show \"This device was removed\" and ask for a new login. Pairings are not kept.",
     mailFailed: "Could not send the email, try again",
     network: "Could not reach PushArmor, try again",
-    update: "Update PushArmor to continue"
+    update: "Update PushArmor to continue."
   };
 
   // User text for a failed call.
