@@ -65,6 +65,24 @@ fingerprint.</p>
 <p class="note">To check the certificate of an installed or downloaded APK, run this command on
 it and compare the SHA-256 digest:</p>
 <pre><code>apksigner verify --print-certs</code></pre>
+
+<h2 id="cli">Command line</h2>
+<p>The command-line client runs on Linux and macOS. It needs Python 3.11 or later.
+Install it from <a href="https://pypi.org/project/pusharmor/">PyPI</a>:</p>
+<pre><code>pip3 install PushArmor</code></pre>
+<p>Or download the single file
+<a href="https://github.com/tkooda/pusharmor/releases/download/cli/v0.0.19/pusharmor.py">pusharmor.py</a>
+from GitHub Releases. It needs the cryptography package:</p>
+<pre><code>pip3 install cryptography</code></pre>
+<p>Check the downloaded file against this SHA-256 value.</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th scope="col">File</th><th scope="col">SHA-256</th></tr></thead>
+<tbody>
+<tr><td>pusharmor.py</td><td><code id="cli-sha256">04fce3982c52bae2a91497d2fb4df847c7a8ba72667eb14746d40cf985ee74c3</code></td></tr>
+</tbody>
+</table>
+</div>
 </main>
 <footer>
 <a href="/privacy">Privacy</a> <a href="/terms">Terms</a> <a href="/support">Support</a> <a href="https://github.com/tkooda/pusharmor">Source code on GitHub</a>

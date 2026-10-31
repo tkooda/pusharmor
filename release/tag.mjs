@@ -7,7 +7,7 @@
 // Rules: a version is bound to one commit (every tag of X.Y.Z points at the same
 // commit, and a commit carries one version); a new version (no tag of it yet) is
 // greater than every existing tag; the version files at the commit hold X.Y.Z
-// (stampProblems).
+// (stampProblems), and /download holds the SHA-256 of pusharmor.py at the commit.
 // Platforms may skip numbers. Android versionCode and the iOS build number are
 // buildNumber(X.Y.Z) = X * 1000000 + Y * 1000 + Z, so they grow with the version.
 // Tag mode fetches the tags of origin first (when a remote origin exists). When
@@ -19,6 +19,7 @@
 // the ci workflow (ci.yml, push event) on the commit; any run or attempt counts.
 // They read it with gh api (GH_TOKEN with actions: read; --check needs no token).
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -82,6 +83,8 @@ export function tagProblems(version, commit, tags) {
   return bad;
 }
 
+const cliSha256 = (root) => createHash("sha256").update(readFileSync(join(root, "client/cli/pusharmor.py"))).digest("hex");
+
 // The version files, relative to the repo root: how to read and write X.Y.Z there.
 const FILES = [
   {
@@ -108,6 +111,14 @@ const FILES = [
     want: (v) => [v, String(buildNumber(v))],
     set: (s, v) => s.replace(/^( *MARKETING_VERSION: ).*$/m, '$1"' + v + '"').replace(/^( *CURRENT_PROJECT_VERSION: ).*$/m, '$1"' + buildNumber(v) + '"'),
   },
+  // The command-line row of /download: X.Y.Z in each release asset URL and the
+  // SHA-256 of pusharmor.py (stamp writes pusharmor.py first).
+  {
+    path: "site/public/download.html",
+    get: (s) => [[...new Set([...s.matchAll(/\/releases\/download\/cli\/v([^/"<]*)\/pusharmor\.py/g)].map((m) => m[1]))].join(", "), /<code id="cli-sha256">([^<]*)<\/code>/.exec(s)?.[1]],
+    want: (v, root) => [v, cliSha256(root)],
+    set: (s, v, root) => s.replaceAll(/(\/releases\/download\/cli\/v)[^/"<]*(\/pusharmor\.py)/g, "$1" + v + "$2").replace(/(<code id="cli-sha256">)[^<]*/, "$1" + cliSha256(root)),
+  },
 ];
 
 /** One line per version file under root that does not hold X.Y.Z. */
@@ -115,7 +126,7 @@ export function stampProblems(root, version) {
   const bad = [];
   for (const f of FILES) {
     const got = f.get(readFileSync(join(root, f.path), "utf8"));
-    const want = f.want(version);
+    const want = f.want(version, root);
     if (JSON.stringify(got) !== JSON.stringify(want)) bad.push(f.path + " holds " + got.join(" / ") + ", want " + want.join(" / "));
   }
   return bad;
@@ -125,7 +136,7 @@ export function stampProblems(root, version) {
 export function stamp(root, version) {
   for (const f of FILES) {
     const p = join(root, f.path);
-    writeFileSync(p, f.set(readFileSync(p, "utf8"), version));
+    writeFileSync(p, f.set(readFileSync(p, "utf8"), version, root));
   }
 }
 
