@@ -5,7 +5,7 @@ name: cli
 # it on any branch by hand. ci.yml only runs on pull requests and on main, so
 # this file also runs on a push to any other branch that touches the client or
 # this file; that way a branch run shows up in gh run list before a pull
-# request exists. Python 3.11 runs with the oldest supported cryptography and
+# request exists. Python 3.9 runs with the oldest supported cryptography and
 # Python 3.13 with the newest.
 on:
   workflow_call:
@@ -30,7 +30,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - python: "3.11"
+          - python: "3.9"
             cryptography: "cryptography==3.4.8"
           - python: "3.13"
             cryptography: "cryptography"
