@@ -35,7 +35,7 @@ export const T = {
   declinedBy: (x: string) => "Declined by " + x,
   fingerprint: (fp: string) => "Pairing fingerprint " + fp,
   removeConfirm: (x: string) => "Remove " + x + " from this account? " + x + " must log in again and pair with every device again.",
-  sentToNofM: (n: number, m: number) => "Sent to " + n + " of " + m + " devices",
+  sentToNofM: (n: number, m: number) => "Sent to " + n + " of " + m + (m === 1 ? " device" : " devices"),
   sentToOne: (x: string) => 'Sent to "' + x + '"',
   notDelivered: (x: string) => "Not delivered to " + x + ": open PushArmor on it.",
   tooLong: (n: number) => "Too long (" + n + " / 2048)",

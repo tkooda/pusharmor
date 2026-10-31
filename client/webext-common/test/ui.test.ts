@@ -354,3 +354,11 @@ test("Devices row with the Remove confirm keeps the icon beside the name (I491)"
   const { readFileSync } = await import("node:fs");
   assert.match(readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8"), /\.prow:has\(\.confirm\) > :not\(\.txt\) \{ align-self: start; \}/);
 });
+
+test("Send result names the one device; counts read singular for one (I493)", async () => {
+  const { T } = await import("../src/core/texts.ts");
+  assert.equal(T.sentToNofM(0, 1), "Sent to 0 of 1 device");
+  assert.equal(T.sentToNofM(1, 2), "Sent to 1 of 2 devices");
+  const { readFileSync } = await import("node:fs");
+  assert.match(readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8"), /one \? T\.sentToOne\(one\.label\) : T\.sentToNofM\(r\.sent, r\.total\)/);
+});
