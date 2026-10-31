@@ -62,6 +62,19 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.buttons["Remove"].exists)
     }
 
+    /// F25, F31: Devices has no This device row; the rename lives in Settings.
+    func testRenameInSettings() {
+        let app = launch()
+        let tab = app.tabBars.buttons["Devices"]
+        XCTAssertTrue(tab.waitForExistence(timeout: 30))
+        tab.tap()
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "Work desktop"))
+            .firstMatch.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Rename"].exists)
+        app.tabBars.buttons["Settings"].tap()
+        XCTAssertTrue(app.buttons["Rename"].waitForExistence(timeout: 10))
+    }
+
     func testLogOutAsksFirstAndCancelKeepsTheDevice() {
         let app = launch()
         let tab = app.tabBars.buttons["Settings"]

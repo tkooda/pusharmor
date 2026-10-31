@@ -4,8 +4,6 @@ import PushArmorCore
 struct PeersView: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var renaming = false
-    @State private var newName = ""
     @State private var pulseId: String?
     @State private var pulseOn = false
     @State private var expanded: String?
@@ -38,16 +36,14 @@ struct PeersView: View {
                             }
                         }
                     }
-                    Section("This device") {
-                        thisDeviceRow(plain: !pairing.isEmpty)
-                    }
                     if listed.isEmpty && pairing.isEmpty {
                         Section {
                             emptyState
                                 .listRowBackground(Color.clear)
                         }
                     } else if !listed.isEmpty {
-                        Section("Devices") {
+                        // No sub-header: the large title already says Devices (F31).
+                        Section {
                             ForEach(listed, id: \.id.text) { p in
                                 PeerRowView(p: p, isExpanded: Binding(
                                     get: { expanded == p.id.text },
@@ -106,36 +102,6 @@ struct PeersView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 24)
-    }
-
-    @ViewBuilder
-    private func thisDeviceRow(plain: Bool) -> some View {
-        if renaming {
-            VStack(alignment: .leading, spacing: 8) {
-                TextField("Name this device", text: $newName)
-                    .textFieldStyle(.roundedBorder)
-                    .autocorrectionDisabled()
-                HStack {
-                    Button("Save") {
-                        let n = newName
-                        Task {
-                            await model.rename(n)
-                            renaming = false
-                        }
-                    }
-                    .disabled(!NameEntry.isValidName(newName))
-                    Button("Cancel") { renaming = false }
-                }
-                .buttonStyle(.borderless)
-            }
-        } else {
-            HeroCell(name: model.me?.name ?? "This device", plain: plain) {
-                newName = model.me?.name ?? ""
-                renaming = true
-            }
-            .listRowInsets(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 20))
-            .listRowBackground(plain ? nil : HeroBackground())
-        }
     }
 
     private func highlight(_ proxy: ScrollViewProxy) {
