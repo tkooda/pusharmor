@@ -21,6 +21,14 @@ struct PeersView: View {
     }
 
     var body: some View {
+        if model.needsFirstPair {
+            FirstPairView()
+        } else {
+            devices
+        }
+    }
+
+    @ViewBuilder private var devices: some View {
         let pairing = visible.filter { inPairing($0) }
         // A pinned peer that pairs again keeps its row (switches, Hide, Remove) under its card.
         let listed = visible.filter { $0.pinned || !inPairing($0) }
