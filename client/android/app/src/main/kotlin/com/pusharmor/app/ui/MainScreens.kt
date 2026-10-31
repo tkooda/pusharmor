@@ -1038,10 +1038,15 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     if (confirmHistory) AlertDialog(onDismissRequest = { confirmHistory = false }, text = { Text("Delete all history?") },
         confirmButton = { TextButton(onClick = { vm.deleteAllHistory(); confirmHistory = false }) { Text("Delete") } },
         dismissButton = { TextButton(onClick = { confirmHistory = false }) { Text("Cancel") } })
-    if (confirmDelete) AlertDialog(onDismissRequest = { confirmDelete = false }, text = { Text(UiText.DELETE_CONFIRM) },
+    if (confirmDelete) DeleteAccountDialog(onConfirm = { confirmDelete = false; onDeleteAccount() }) { confirmDelete = false }
+}
+
+/** Delete account confirmation: a standard dialog with a title, a red Continue, and Cancel (I603). */
+@Composable
+internal fun DeleteAccountDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Delete account") }, text = { Text(UiText.DELETE_CONFIRM) },
         confirmButton = {
-            TextButton(onClick = { confirmDelete = false; onDeleteAccount() },
-                colors = ButtonDefaults.textButtonColors(contentColor = cs.error)) { Text("Continue") }
+            TextButton(onClick = onConfirm, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Continue") }
         },
-        dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } })
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
 }

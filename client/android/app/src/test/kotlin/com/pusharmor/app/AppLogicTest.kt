@@ -231,7 +231,7 @@ class AppLogicTest {
         // I530: a link over the cap has a way out besides Back.
         val share = source("ui/ShareActivity.kt")
         val tooLong = share.substring(share.indexOf("if (tooLong && cut == null)"), share.indexOf("SendScreen("))
-        assertTrue(tooLong.contains("UiText.shareTooLong(") && tooLong.contains("OutlinedButton(onClick = { finish() }) { Text(\"Close\") }"))
+        assertTrue(tooLong.contains("UiText.shareTooLong(") && tooLong.contains("TextButton(onClick = { finish() }) { Text(\"Close\") }"))
         assertFalse(tooLong.contains("Too long ("))
     }
 
