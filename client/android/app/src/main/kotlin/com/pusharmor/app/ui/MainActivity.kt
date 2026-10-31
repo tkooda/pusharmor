@@ -226,14 +226,25 @@ private fun App(vm: AppViewModel) {
         // The app's one place for transient messages: above the bottom bar, and above the keyboard when it is up.
         // Taken as soon as it is set, so no screen finds an old one later; a new message replaces the one shown.
         val snack = remember { SnackbarHostState() }
-        androidx.compose.runtime.LaunchedEffect(Unit) {
-            var shown: kotlinx.coroutines.Job? = null
-            vm.message.collect { m ->
-                if (m != null) { vm.message.value = null; shown?.cancel(); shown = launch { snack.showSnackbar(m, duration = SnackbarDuration.Short) } }
-            }
-        }
         // One back step to Devices, then out: Back does not walk every visited tab.
         fun tab(r: String) = nav.navigate(r) { popUpTo("peers") { saveState = true }; launchSingleTop = true; restoreState = true }
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            var shown: kotlinx.coroutines.Job? = null
+            launch {
+                vm.message.collect { m ->
+                    if (m != null) { vm.message.value = null; shown?.cancel(); shown = launch { snack.showSnackbar(m, duration = SnackbarDuration.Short) } }
+                }
+            }
+            // A send that reached a device: History, scrolled to the new row, and a 2 s note.
+            vm.sent.collect { r ->
+                if (r != null) {
+                    vm.sent.value = null
+                    vm.flashRow.value = r.historyId
+                    tab("history")
+                    shown?.cancel(); shown = launch { kotlinx.coroutines.withTimeoutOrNull(SENT_SNACK_MS) { snack.showSnackbar(r.text) } }
+                }
+            }
+        }
         // Send and History with no paired device: to Devices, which shows the first-pair steps.
         val pair = { tab("peers") }
         Scaffold(containerColor = MaterialTheme.colorScheme.background, topBar = {
@@ -262,11 +273,18 @@ private fun App(vm: AppViewModel) {
                 composable("settings") { SettingsScreen(vm, onDeleteAccount = { vm.message.value = null; deleting = true }, onSignedOut = {}) }
             }
             }
-            SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).imePadding())
+            // On Send it sits above the Send button, never over it.
+            SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).imePadding().padding(bottom = if (route == "send") SEND_BUTTON_SPACE else 0.dp))
             }
         }
     }
 }
+
+/** How long the note after a send stays. */
+internal const val SENT_SNACK_MS = 2000L
+
+/** Height of the Send screen's button with its padding, kept clear by the snackbar. */
+private val SEND_BUTTON_SPACE = 84.dp
 
 /** Bottom bar tabs (route, label, icon), in the order of every client: Send, History, Devices, Settings. */
 internal val NAV_TABS = listOf(Triple("send", "Send", PaIcons.Send), Triple("history", "History", PaIcons.History),
