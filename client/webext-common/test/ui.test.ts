@@ -453,3 +453,14 @@ test("Rename error is scrolled into view like the other Settings status lines (I
   const pv = readFileSync(new URL("../src/ui/peersview.ts", import.meta.url), "utf8");
   assert.match(pv, /status\.textContent = \(e as Error\)\.message;\s*status\.scrollIntoView\(\{ block: "nearest" \}\);[^\n]*\n\s*\}\s*\},\s*\}, "Rename"\)/);
 });
+
+test("Login security note has a card fill that differs from the light page background", async () => {
+  const { readFileSync } = await import("node:fs");
+  const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
+  const rule = rd("style.css").match(/^\.signin \.e2e \{[^}]*\}/m)?.[0] ?? "";
+  assert.match(rule, /background: var\(--card\)/); // --s1 equals --bg in light, so the note had no visible card
+  for (const f of ["tokens-chrome.css", "tokens-firefox.css"]) {
+    const light = rd(f).match(/--bg: (#[0-9A-Fa-f]+); --card: (#[0-9A-Fa-f]+)/);
+    assert.notEqual(light?.[1], light?.[2]);
+  }
+});
