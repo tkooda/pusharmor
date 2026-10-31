@@ -708,7 +708,7 @@ final class StateMachineTests: XCTestCase {
         let path = NSTemporaryDirectory() + "pa-mig-\(UUID().uuidString).sqlite"
         _ = try Store(path: path)
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 3)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 4)
         XCTAssertEqual(try s.db.one("PRAGMA journal_mode")?.text("journal_mode"), "wal")
         XCTAssertNil(try s.me().id)
     }
@@ -732,7 +732,7 @@ final class StateMachineTests: XCTestCase {
             try s.db.exec("PRAGMA user_version = 1")
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 3)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 4)
         XCTAssertTrue(try s.me().loggedOut)
         let p = try s.db.one("SELECT logged_out, logout_n FROM peers WHERE id = 'p1'")
         XCTAssertEqual(p?.int("logged_out"), 1)
@@ -751,11 +751,24 @@ final class StateMachineTests: XCTestCase {
             try s.db.exec("PRAGMA user_version = 2")
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 3)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 4)
         XCTAssertEqual(try s.db.one("SELECT listening FROM peers WHERE id = 'p1'")?.int("listening"), 1)
         let a = TestPeer()
         var p = Peer(id: a.id); p.listening = false; try s.savePeer(p)
         XCTAssertEqual(try s.peer(a.id)?.listening, false)
+    }
+
+    func testDBMigrationClockOffsetToSeconds() throws {
+        let path = NSTemporaryDirectory() + "pa-mig4-\(UUID().uuidString).sqlite"
+        // Rebuild a version 3 file holding a ms offset (Q331).
+        do {
+            let s = try Store(path: path)
+            try s.db.exec("UPDATE me SET clock_offset = -7500")
+            try s.db.exec("PRAGMA user_version = 3")
+        }
+        let s = try Store(path: path)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 4)
+        XCTAssertEqual(try s.me().clockOffset, -7)
     }
 
     func testCliPeerListeningParsedAndSendOnlyExcluded() async throws {

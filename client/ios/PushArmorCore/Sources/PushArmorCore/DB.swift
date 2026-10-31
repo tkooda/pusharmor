@@ -241,6 +241,10 @@ enum Schema {
         """
         ALTER TABLE peers ADD COLUMN listening INTEGER NOT NULL DEFAULT 1;
         """,
+        // Q331: clock_offset is now unix seconds (was ms).
+        """
+        UPDATE me SET clock_offset = clock_offset / 1000;
+        """,
     ]
 
     static func migrate(_ db: DB) throws {

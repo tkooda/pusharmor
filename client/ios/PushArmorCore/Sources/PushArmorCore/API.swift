@@ -106,7 +106,7 @@ public enum RetryPolicy {
     }
 }
 
-/// The Worker API client: PA-Sig signing, PA-Epoch-Ms offset, retry policy.
+/// The Worker API client: PA-Sig signing, PA-Epoch offset (unix seconds, Q331), retry policy.
 public final class APIClient: @unchecked Sendable {
     public static let defaultBase = URL(string: "https://api.pusharmor.com")!
     /// "ios/<CFBundleShortVersionString>", sent as PA-Client on every request (Q328).
@@ -122,19 +122,20 @@ public final class APIClient: @unchecked Sendable {
     private var _offset: Int64
     public var onOffset: (@Sendable (Int64) -> Void)?
 
-    public init(base: URL = APIClient.defaultBase, transport: HTTPTransport = URLSessionTransport(), offsetMs: Int64 = 0,
+    public init(base: URL = APIClient.defaultBase, transport: HTTPTransport = URLSessionTransport(), offsetS: Int64 = 0,
                 client: String = APIClient.defaultClient,
                 clockMs: @escaping @Sendable () -> Int64 = { Int64(Date().timeIntervalSince1970 * 1000) },
                 sleep: @escaping @Sendable (Double) async -> Void = { try? await Task.sleep(nanoseconds: UInt64($0 * 1e9)) }) {
         self.base = base
         self.client = client
         self.transport = transport
-        self._offset = offsetMs
+        self._offset = offsetS
         self.clockMs = clockMs
         self.sleep = sleep
     }
 
-    public var offsetMs: Int64 {
+    /// Worker clock minus local clock, in seconds.
+    public var offsetS: Int64 {
         lock.lock(); defer { lock.unlock() }
         return _offset
     }
@@ -146,8 +147,8 @@ public final class APIClient: @unchecked Sendable {
         onOffset?(o)
     }
 
-    /// Estimate of Worker time in ms.
-    public var workerNowMs: Int64 { clockMs() + offsetMs }
+    /// Estimate of Worker time in ms (PA-Time stays ms).
+    public var workerNowMs: Int64 { clockMs() + offsetS * 1000 }
 
     public enum Auth {
         case none
@@ -173,7 +174,7 @@ public final class APIClient: @unchecked Sendable {
             do {
                 let r = try await transport.perform(method: method, url: URL(string: path, relativeTo: base)!.absoluteURL,
                                                     headers: headers, body: body, timeout: timeout)
-                if let e = r.headers["pa-epoch-ms"], let ms = Int64(e) { setOffset(ms - clockMs()) }
+                if let e = r.headers["pa-epoch"], let sec = Int64(e) { setOffset(sec - clockMs() / 1000) }
                 if r.status == 426 { NotificationCenter.default.post(name: APIClient.upgradeRequired, object: self) }
                 reply = APIReply(status: r.status, body: r.body)
                 status = r.status
