@@ -8,7 +8,6 @@
   --green: #34C77B; --on-green: #0E2238; --cta-edge: #157A4A;
   --beta: #F5B83D; --on-beta: #3A2A00;
   --avbg: #E6EDF6; --avfg: #1F3A5F;
-  --hero: #1F3A5F; --hero-line: #1F3A5F; --onhero: #FFFFFF; --onhero2: #C4D3E6; --heroav: #2B4A75;
   --plate: #EEF3FA; --fpcell: #FFFFFF; --signin: #EEF3FA;
   --halo: #D9E5F4; --ring: #738399; --tile-edge: transparent;
   --g-bg: #FFFFFF; --g-line: #747775; --g-ink: #1F1F1F; --a-bg: #000000; --a-ink: #FFFFFF;
@@ -25,7 +24,6 @@
     --success: #5FD89A; --err: #FFB4AB; --errc: #4A1A16; --onerrc: #FFDAD5;
     --armor: #F3F6FA; --cta-edge: transparent;
     --avbg: #1E2C40; --avfg: #A9C8F0;
-    --hero: #1B3150; --hero-line: #2B4770; --onhero: #F4F7FA; --onhero2: #B8C8DC; --heroav: #284468;
     --plate: #0F1823; --fpcell: #000000; --signin: #000000;
     --halo: #1B3050; --ring: #7D8A99; --tile-edge: #4A6D9E;
     --g-bg: #131314; --g-line: #8E918F; --g-ink: #E3E3E3; --a-bg: #FFFFFF; --a-ink: #000000;
@@ -39,7 +37,6 @@
   --success: #5FD89A; --err: #FFB4AB; --errc: #4A1A16; --onerrc: #FFDAD5;
   --armor: #F3F6FA; --cta-edge: transparent;
   --avbg: #1E2C40; --avfg: #A9C8F0;
-  --hero: #1B3150; --hero-line: #2B4770; --onhero: #F4F7FA; --onhero2: #B8C8DC; --heroav: #284468;
   --plate: #0F1823; --fpcell: #000000; --signin: #000000;
   --halo: #1B3050; --ring: #7D8A99; --tile-edge: #4A6D9E;
   --g-bg: #131314; --g-line: #8E918F; --g-ink: #E3E3E3; --a-bg: #FFFFFF; --a-ink: #000000;
