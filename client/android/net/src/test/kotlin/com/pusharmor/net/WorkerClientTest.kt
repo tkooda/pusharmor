@@ -106,10 +106,20 @@ class WorkerClientTest {
         assertEquals(4, server.requestCount)
     }
 
+    @Test fun errorTextSentencesEndWithAPeriod() {
+        val cases = listOf(401 to "clock skew", 401 to "logged out", 401 to "ticket expired", 401 to "unknown peer", 400 to "bad email",
+            400 to "push endpoint not allowed", 413 to null, 429 to null, 502 to null, 403 to "banned")
+        for ((status, error) in cases) {
+            val t = ErrorText.of(ApiResult.Http(status, error))
+            assertTrue(t, t.endsWith(".") && t[0].isUpperCase() && !t.contains("browser"))
+        }
+        assertEquals("No connection. Try again.", ErrorText.of(ApiResult.Network))
+    }
+
     @Test fun no502RetryAndPermanentErrors() {
         server.enqueue(MockResponse().setResponseCode(502).setBody("{\"error\":\"email send failed\"}"))
         val r = client.authEmail("a@b.com", "k", "register", "t")
-        assertEquals("could not send the email, try again", ErrorText.of(r))
+        assertEquals("Could not send the email. Try again.", ErrorText.of(r))
         server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"clock skew\"}"))
         assertTrue(client.peers().isClockSkew)
         server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"logged out\"}"))

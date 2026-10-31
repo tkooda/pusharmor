@@ -281,14 +281,14 @@ private fun RenameDialog(current: String, onSave: (String) -> Unit, onDismiss: (
 private fun Banners(vm: AppViewModel, banner: String?) {
     val context = LocalContext.current
     val n = vm.g.notifier
-    if (!n.enabled() || n.mainChannelsBlocked()) BannerRow("Notifications are off. Messages will not be shown", "Fix", fault = true, PaIcons.NotificationsOff) {
+    if (!n.enabled() || n.mainChannelsBlocked()) BannerRow("Notifications are off. Messages will not be shown.", "Fix", fault = true, PaIcons.NotificationsOff) {
         context.startActivity(Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
     }
-    n.blockedChannelPeer(vm.peerEntities.collectAsState().value)?.let { BannerRow("Messages from $it are blocked", "Fix", fault = true, PaIcons.NotificationsOff) {
+    n.blockedChannelPeer(vm.peerEntities.collectAsState().value)?.let { BannerRow("Messages from $it are blocked.", "Fix", fault = true, PaIcons.NotificationsOff) {
         context.startActivity(Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
     } }
     if (banner?.startsWith("no_distributor") == true) {
-        BannerRow("Install a UnifiedPush app (we suggest ntfy)", "Get", fault = false, PaIcons.Info) {
+        BannerRow("Install a UnifiedPush app (we suggest ntfy).", "Get", fault = false, PaIcons.Info) {
             val url = if (vm.g.push.hasPlayServices) "https://play.google.com/store/apps/details?id=io.heckel.ntfy" else "https://f-droid.org/packages/io.heckel.ntfy/"
             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         }
@@ -297,17 +297,17 @@ private fun Banners(vm: AppViewModel, banner: String?) {
     val s = vm.g.settings
     val upAt = s.get(Settings.K.UP_REGISTERED_AT)
     if (s.get(Settings.K.PUSH_TYPE) == "unifiedpush" && upAt != null && !s.flag(Settings.K.UP_VERIFIED, false) && System.currentTimeMillis() - upAt > 10 * 60_000) {
-        BannerRow("This push server did not deliver. Check your UnifiedPush app", "Retry", fault = true, PaIcons.Info) { vm.retryPush() }
+        BannerRow("This push server did not deliver. Check your UnifiedPush app.", "Retry", fault = true, PaIcons.Info) { vm.retryPush() }
         if (vm.g.push.hasPlayServices) TextButton(onClick = { vm.switchPush(toUp = false) }) { Text("Switch back to Google") }
     }
     val st = remember { try { PackageManagerCompat.getUnusedAppRestrictionsStatus(context).get(2, java.util.concurrent.TimeUnit.SECONDS) } catch (e: Exception) { 0 } }
     if (st == androidx.core.content.UnusedAppRestrictionsConstants.API_31) {
-        BannerRow("Android may pause this app when unused", "Settings", fault = false, PaIcons.Info) {
+        BannerRow("Android may pause this app when unused.", "Settings", fault = false, PaIcons.Info) {
             context.startActivity(IntentCompat.createManageUnusedAppRestrictionsIntent(context, context.packageName))
         }
     }
     val am = context.getSystemService(android.app.ActivityManager::class.java)
-    if (am.isBackgroundRestricted) BannerRow("Battery setting Restricted delays messages", "Settings", fault = false, PaIcons.Info) {
+    if (am.isBackgroundRestricted) BannerRow("Battery setting Restricted delays messages.", "Settings", fault = false, PaIcons.Info) {
         context.startActivity(Intent(SysSettings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName)))
     }
 }
@@ -346,7 +346,7 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
     val stateText = when {
         !p.pinned -> null
         p.notPairedOnPeer -> if (p.listDeniesMe) "Declined by $x" else "Not paired on $x"
-        p.waiting -> "Waiting for $x: open PushArmor there and approve"
+        p.waiting -> "Waiting for $x: open PushArmor there and approve."
         p.missing -> null
         p.declined -> "Declined by $x"
         else -> null
@@ -433,7 +433,7 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
         Spacer(Modifier.height(16.dp))
         when {
             row.state == PairState.SHOWN && p.waiting -> {
-                Text("Waiting for $x: open PushArmor there and approve", style = body, color = cs.onSurfaceVariant)
+                Text("Waiting for $x: open PushArmor there and approve.", style = body, color = cs.onSurfaceVariant)
                 WaitingSendAgain(vm, p, now)
             }
             row.state == PairState.SHOWN -> {

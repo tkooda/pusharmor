@@ -41,7 +41,7 @@ class ActionActivity : Activity() {
             "open" -> {
                 val u = UrlCheck.parse(content) ?: return openHistory(id)
                 val i = Intent(Intent.ACTION_VIEW, Uri.parse(u.href)).addCategory(Intent.CATEGORY_BROWSABLE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                try { startActivity(i) } catch (e: ActivityNotFoundException) { Toast.makeText(this, "No app can open this link", Toast.LENGTH_SHORT).show() }
+                try { startActivity(i) } catch (e: ActivityNotFoundException) { Toast.makeText(this, "No app can open this link.", Toast.LENGTH_SHORT).show() }
             }
             "dial" -> startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(content))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             "share" -> startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, content), null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
