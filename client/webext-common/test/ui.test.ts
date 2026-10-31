@@ -447,3 +447,9 @@ test("Rename on the navy hero keeps a dark hover fill so the white label stays r
   const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
   assert.match(css, /\.own\.editing button:hover \{[^}]*background: rgba\(255, 255, 255, 0\.\d+\);/);
 });
+
+test("Rename error is scrolled into view like the other Settings status lines (I567)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pv = readFileSync(new URL("../src/ui/peersview.ts", import.meta.url), "utf8");
+  assert.match(pv, /status\.textContent = \(e as Error\)\.message;\s*status\.scrollIntoView\(\{ block: "nearest" \}\);[^\n]*\n\s*\}\s*\},\s*\}, "Rename"\)/);
+});
