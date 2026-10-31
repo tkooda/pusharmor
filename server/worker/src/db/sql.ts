@@ -116,7 +116,7 @@ export const NAME_JSON_MAX = 6000;
 export const PENDING_JSON_MAX = 16000;
 export const JSON_CAP_ERROR = "pa-json-cap";
 // A pending entry is [store time, c]; the monthly cron drops it this long after the store.
-// Longer than the 14-day pairing timeout, so a waiting re-fetch still finds it.
+// Longer than the 30-day pairing timeout, so a waiting re-fetch still finds it.
 export const PENDING_TTL_S = 2592000;
 
 // Lazy cleanup of pending entries whose peer row is gone. ?2 acct. json() keeps an array

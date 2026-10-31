@@ -384,7 +384,7 @@ function pairTimeoutSection() {
   ];
   return {
     description:
-      'Pairing timeout at 14 days (Pairing flow step 8). input: approve_verified (the other side\'s approve verified), ' +
+      'Pairing timeout at 30 days (Pairing flow step 8). input: approve_verified (the other side\'s approve verified), ' +
       'approved (this device approved; with approve_verified false the row is "Waiting for $X"), resend (result of the ' +
       're-send of POST /v1/approve/$X: null not run yet | offline | logged out | 429 | 5xx | 200_c_verified | 200_other). ' +
       'output: keep_pin | drop_pin (drop r, c_N and the pin, show "Pairing timed out. Tap Pair to start again.", then ' +

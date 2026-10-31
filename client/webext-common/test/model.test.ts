@@ -264,7 +264,7 @@ test("phone detection and URL rules", () => {
 
 test("pairing countdown formatting", () => {
   const H = 3600e3;
-  assert.equal(formatCountdown(14 * 24 * H), "14 days");
+  assert.equal(formatCountdown(30 * 24 * H), "30 days");
   assert.equal(formatCountdown(24 * H), "1 day");
   assert.equal(formatCountdown(24 * H - 1), "23 hours");
   assert.equal(formatCountdown(60 * 60e3), "1 hour");

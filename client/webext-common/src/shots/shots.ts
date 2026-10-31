@@ -4,7 +4,7 @@
 import type { PeerView, Reply, Req, StateView } from "../core/rpc.ts";
 import { T } from "../core/texts.ts";
 import { DEFAULT_SETTINGS } from "../core/engine.ts";
-import { PAIRING_TIMEOUT_MS, formatCountdown } from "../model/countdown.ts";
+import { PAIRING_TIMEOUT_DAYS, formatCountdown } from "../model/countdown.ts";
 import { detectType } from "../model/detect.ts";
 import { utf8Len } from "../model/padding.ts";
 import type { HistoryRow } from "../store/db.ts";
@@ -43,7 +43,7 @@ const peers: PeerView[] = [
   paired(TABLET, "Tablet", "android", "unreachable"),
   {
     id: NEW_LAPTOP, label: "New laptop", platform: THIS, lines: [T.fingerprint("K7QD")],
-    actions: ["cancel", "approve", "deny", "remove", "hide"], countdown: formatCountdown(PAIRING_TIMEOUT_MS - 60_000),
+    actions: ["cancel", "approve", "deny", "remove", "hide"], countdown: formatCountdown(PAIRING_TIMEOUT_DAYS * 86400e3 - 60_000),
     fingerprint: "K7QD", pk: null, greyed: null, hidden: false, sendable: false, approvesMe: false, paired: false,
   },
 ];

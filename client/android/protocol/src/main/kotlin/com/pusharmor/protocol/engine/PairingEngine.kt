@@ -349,7 +349,7 @@ class PairingEngine(
     }
 
     /**
-     * Timeout check (14 days). [refetch] runs the approve re-send for a "Waiting for $X" row
+     * Timeout check (30 days). [refetch] runs the approve re-send for a "Waiting for $X" row
      * and reports its outcome. Returns the decision taken.
      */
     fun checkTimeout(peerId: String, now: Long, refetch: (String) -> PairDecide.Resend): PairDecide.Timeout? {

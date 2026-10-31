@@ -1,6 +1,6 @@
 // Runtime messages {op, args} from the UI pages to the background engine
 // (component-webext section 3: UI pages never touch keys or counters).
-import { formatCountdown, PAIRING_TIMEOUT_MS } from "../model/countdown.ts";
+import { formatCountdown, PAIRING_TIMEOUT_DAYS } from "../model/countdown.ts";
 import { SEND_SEL_KEY } from "../model/sendsel.ts";
 import { detectType } from "../model/detect.ts";
 import { utf8Len } from "../model/padding.ts";
@@ -268,5 +268,5 @@ export class Rpc {
 }
 
 export function countdownFor(started: number, now: number): string {
-  return formatCountdown(started + PAIRING_TIMEOUT_MS - now);
+  return formatCountdown(started + PAIRING_TIMEOUT_DAYS * 86400e3 - now);
 }

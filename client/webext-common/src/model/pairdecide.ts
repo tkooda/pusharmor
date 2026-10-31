@@ -97,7 +97,7 @@ export function pairDecide(i: PairDecideInput): PairDecision {
 export type ResendResult = null | "offline" | "logged out" | "429" | "5xx" | "200_c_verified" | "200_other";
 export type TimeoutAction = "keep_pin" | "drop_pin" | "resend" | "keep_waiting" | "complete";
 
-/** Decision for a pairing row past 14 days. */
+/** Decision for a pairing row past 30 days. */
 export function pairTimeout(approveVerified: boolean, approved: boolean, resend: ResendResult): TimeoutAction {
   if (approveVerified) return "keep_pin";
   if (!approved) return "drop_pin";
