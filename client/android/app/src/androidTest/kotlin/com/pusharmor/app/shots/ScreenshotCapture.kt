@@ -133,6 +133,20 @@ class ScreenshotCapture {
         return (0 until n.childCount).any { hasText(n.getChild(it), text) }
     }
 
+    /** Clicks the first node whose text holds [text], or its nearest clickable parent. */
+    private fun tap(text: String) {
+        fun find(n: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+            if (n == null) return null
+            if (n.text?.contains(text) == true || n.contentDescription?.contains(text) == true) return n
+            for (i in 0 until n.childCount) find(n.getChild(i))?.let { return it }
+            return null
+        }
+        var n = roots().firstNotNullOfOrNull { find(it) } ?: throw AssertionError("nothing to tap: $text")
+        while (!n.isClickable) n = n.parent ?: throw AssertionError("not clickable: $text")
+        assertTrue(n.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+        inst.waitForIdleSync()
+    }
+
     private fun shot(name: String) {
         // A system "... isn't responding" dialog over the app spoils the shot: fail instead.
         if (!name.startsWith("debug-")) assertTrue("system dialog over $name", roots().none { hasText(it, "t responding") })
@@ -220,6 +234,19 @@ class ScreenshotCapture {
 
         main("history", await = "Meeting moved")
         shot("05-history")
+
+        // Review images (I590, short device names): a row opened in History, and a failed send.
+        tap("lentil")
+        awaitText("Copy")
+        settle(1000)
+        shot("97-history-open")
+        ScreenshotMode.sendText = "https://example.com/recipes/weeknight-pasta"
+        ScreenshotMode.sendTo = listOf(laptop, desktop, tablet)
+        main("send", await = "Tablet")
+        tap("Send to 3 devices")
+        awaitText("No connection")
+        settle(500)
+        shot("96-send-error")
 
         // Review images (9N, not store shots): Settings, the log-in screens. Log out asks to confirm
         // first and then calls the Worker, so 92 sets the logged-out flag that it sets.
