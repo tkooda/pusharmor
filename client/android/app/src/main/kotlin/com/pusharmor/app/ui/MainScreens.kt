@@ -135,6 +135,7 @@ import com.pusharmor.protocol.engine.PairingRow
 import com.pusharmor.store.toRow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.update
 import java.text.DateFormat
 import java.util.Date
 
@@ -338,6 +339,7 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
     var detail by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     val pairingAgain by vm.pairingAgain.collectAsState()
+    val running by vm.running.collectAsState()
     val grey = p.missing || !p.reachable
     val cs = MaterialTheme.colorScheme
     // Pairing and note lines replace the status line (catalog order).
@@ -380,8 +382,8 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
         val inset = Modifier.padding(start = 72.dp, end = 16.dp)
         when {
             !p.pinned -> Row(inset.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                FilledTonalButton(onClick = { vm.pair(p.id) }, Modifier.heightIn(min = 48.dp)) { Text("Pair") }
-                OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.heightIn(min = 48.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                FilledTonalButton(onClick = { vm.pair(p.id) }, Modifier.heightIn(min = 48.dp), enabled = "pair:${p.id}" !in running) { Text("Pair") }
+                OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.heightIn(min = 48.dp), enabled = "deny:${p.id}" !in running, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)) { Text("Deny") }
             }
             p.notPairedOnPeer -> Row(inset.padding(bottom = 8.dp)) {
@@ -402,8 +404,9 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
 @Composable
 private fun WaitingSendAgain(vm: AppViewModel, p: Peer, now: Long) {
     val r = p.lastApproveResult
+    val running by vm.running.collectAsState()
     if (r != null && r != "sent" && r != "stored" && r != "denied") {
-        TextButton(onClick = { vm.approve(p.id) }, enabled = now - p.lastSendAt >= 60_000) { Text("Send again") }
+        TextButton(onClick = { vm.approve(p.id) }, enabled = now - p.lastSendAt >= 60_000 && "approve:${p.id}" !in running) { Text("Send again") }
     }
 }
 
@@ -417,6 +420,7 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
     val shown = row.state == PairState.SHOWN && !p.waiting
     val prompted = row.role == PairRole.X && row.state == PairState.PROMPTED
     val body = MaterialTheme.typography.bodyMedium
+    val running by vm.running.collectAsState()
     Column(modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(shape).background(ex.tile).border(1.dp, ex.pairBorder, shape)
         .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -436,10 +440,11 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
                 FingerprintPlate(row.fingerprint.orEmpty(), x)
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.weight(1f).heightIn(min = 48.dp),
+                    OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.weight(1f).heightIn(min = 48.dp), enabled = "deny:${p.id}" !in running,
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = cs.error),
                         border = androidx.compose.foundation.BorderStroke(1.dp, cs.error)) { Text("Deny") }
-                    GreenButton(onClick = { vm.approve(p.id) }, text = "Approve", icon = PaIcons.Check, modifier = Modifier.weight(1f))
+                    GreenButton(onClick = { vm.approve(p.id) }, text = "Approve", icon = PaIcons.Check, modifier = Modifier.weight(1f),
+                        enabled = "approve:${p.id}" !in running)
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
@@ -650,12 +655,19 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                     }
                 }
             }
+            val running by vm.running.collectAsState()
             GreenButton(onClick = {
-                scope.launch { vm.g.settings.saveSendTo(sendTo) }
-                scope.launch { val r = vm.send(sendTo, text, asText); result = ((result?.first ?: 0) + 1) to r; onSent(r) }
+                // One send per tap: a second tap while the first is on its way does not send twice (I473).
+                if (AppViewModel.claim(vm.running, "send")) {
+                    scope.launch { vm.g.settings.saveSendTo(sendTo) }
+                    scope.launch {
+                        try { val r = vm.send(sendTo, text, asText); result = ((result?.first ?: 0) + 1) to r; onSent(r) }
+                        finally { vm.running.update { it - "send" } }
+                    }
+                }
             }, text = UiText.sendLabel(sendTo.size, sendTo.singleOrNull()?.let { id -> peers.firstOrNull { it.id == id } }?.let(::label)), icon = PaIcons.Send,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp).fillMaxWidth().heightIn(min = 56.dp),
-                enabled = sendTo.isNotEmpty() && text.isNotEmpty() && bytes <= SizeCap.MAX_CONTENT_BYTES)
+                enabled = sendTo.isNotEmpty() && text.isNotEmpty() && bytes <= SizeCap.MAX_CONTENT_BYTES && "send" !in running)
         }
         SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp))
     }
@@ -857,6 +869,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     var renaming by remember { mutableStateOf(false) }
     var confirmHistory by remember { mutableStateOf(false) }
     var confirmLogout by remember { mutableStateOf(false) }
+    val running by vm.running.collectAsState()
     var pickDays by remember { mutableStateOf(false) }
     var pickTheme by remember { mutableStateOf(false) }
     val themePref = ThemePref.parse(prefs?.get(Settings.K.THEME))
@@ -936,7 +949,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                 })
             }
             Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = { confirmLogout = true }, Modifier.heightIn(min = 48.dp),
+                OutlinedButton(onClick = { confirmLogout = true }, Modifier.heightIn(min = 48.dp), enabled = "logout" !in running,
                     border = androidx.compose.foundation.BorderStroke(1.dp, cs.outline)) { Text("Log out") }
                 OutlinedButton(onClick = onDeleteAccount, Modifier.heightIn(min = 48.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, cs.error),
