@@ -132,6 +132,15 @@ async function main(): Promise<void> {
     await new Promise((done) => setTimeout(done, 300));
     document.querySelector(".btns")?.parentElement?.lastElementChild?.scrollIntoView({ block: "end" });
   }
+  // store frame: scale the popup (layout zoom, so text stays sharp) to the height under the
+  // 96px band; the popup height follows its content, so measure it
+  if (!q.has("bare")) {
+    await new Promise((done) => setTimeout(done, 300));
+    const frame = document.querySelector<HTMLElement>(".frame")!;
+    frame.style.zoom = "1";
+    const h = frame.offsetHeight;
+    frame.style.zoom = String(Math.min((800 - 96 - 16) / h, 1280 / 400));
+  }
 }
 
 void main();

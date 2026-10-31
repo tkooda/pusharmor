@@ -7,12 +7,13 @@
 <link rel="stylesheet" href="style.css">
 <style>
   html, body { margin: 0; width: 1280px; height: 800px; max-height: none; overflow: hidden; color-scheme: light; }
-  body { padding: 0; background: #1F3A5F; display: flex; align-items: center; justify-content: center; gap: 72px; }
-  .side { width: 460px; color: #FFFFFF; font: 20px system-ui, sans-serif; }
-  .side h1 { margin: 0 0 20px; color: #FFFFFF; font-size: 56px; line-height: 1.1; letter-spacing: -1px; }
+  body { padding: 0; background: #1F3A5F; display: flex; flex-direction: column; align-items: center; }
+  .side { box-sizing: border-box; width: 100%; height: 96px; flex: none; padding: 0 40px; display: flex; align-items: center; justify-content: space-between; gap: 32px; color: #FFFFFF; font: 20px system-ui, sans-serif; }
+  .side h1 { margin: 0; color: #FFFFFF; font-size: 44px; line-height: 1.1; letter-spacing: -1px; white-space: nowrap; }
   .side h1 .push { color: #34C77B; }
-  .side p { margin: 0; font-size: 30px; line-height: 1.3; }
-  .frame { zoom: 1.1; width: 400px; height: 600px; overflow-y: auto; background: var(--bg); border-radius: 8px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45); }
+  .side p { margin: 0; font-size: 26px; line-height: 1.25; text-align: right; }
+  /* shots.ts sets the zoom so the popup, at its real height, fills the area under the band */
+  .frame { zoom: 1; width: 400px; max-height: 600px; overflow-y: auto; background: var(--bg); border-radius: 8px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45); }
   html.bare, html.bare body { width: 400px; height: auto; background: #808890; display: block; }
   html.bare body { color-scheme: inherit; }
   html.bare .side { display: none; }
