@@ -17,7 +17,7 @@ const SHOTS = [
   ["02-peers-fingerprint", "peers"],
   ["03-history-received-link", "history"],
 ];
-// --popup=<dir>: the six About-page popup shots (400x560 popup alone, captured at 2x: 800x1120 files).
+// --popup=<dir>: the About-page popup shots (plus the send message and the Remove confirm) (400x560 popup alone, captured at 2x: 800x1120 files).
 // --review=<dir>: also write review images (sign-in, Settings, Log out) there; not store shots.
 const REVIEW = [
   ["90-signin", "signin.html#email"],
@@ -32,6 +32,8 @@ const POPUP = [
   ["07-devices", "shots.html?bare&n=9#peers"],
   ["08-send-error", "shots.html?bare&n=3&senderr#send"],
   ["09-history-open", "shots.html?bare&open#history"],
+  ["10-send-done", "shots.html?bare&n=3&sendok#send"],
+  ["11-remove-confirm", "shots.html?bare&n=3&confirm#peers"],
 ];
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".json": "application/json" };
 
