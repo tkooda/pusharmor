@@ -1,14 +1,14 @@
 // Full extension tab: login, Peers full view, limit picker, over-cap send
 // (long flows run in a tab because a popup closes on blur, I029).
 import type { LoginResult, Purpose } from "../core/login.ts";
-import type { StateView } from "../core/rpc.ts";
+import type { PeerView, StateView } from "../core/rpc.ts";
 import { T } from "../core/texts.ts";
 import { type UiEnv, add, clear, failView, group, h, rpc } from "./dom.ts";
 import { AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResult, type Restore, resendLeftMs } from "../model/signin.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
 import { startTheme } from "./theme.ts";
-import { historyView, sendView, wordmark } from "./popup.ts";
+import { firstPairView, historyView, sendView, wordmark } from "./popup.ts";
 
 export const SITE = "https://pusharmor.com";
 
@@ -28,6 +28,11 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
   const [route, arg] = hash.replace(/^#/, "").split("=");
   document.body.classList.toggle("signin-bg", route === "login");
   if (route === "login") return loginView(env, root, arg ?? null, selfOrigin);
+  if (route === "peers" || route === "history" || route === "send") {
+    // Q338: no paired device yet shows the first-device screen (the same as the popup)
+    const [st, data] = await Promise.all([rpc<StateView>(env, "state"), rpc<{ peers: PeerView[] }>(env, "peers")]);
+    if (st.reg === "registered" && !data.peers.some((p) => p.paired)) return firstPairView(env, root, st, () => mountPage(env, root, hash, selfOrigin), false);
+  }
   if (route === "peers") return renderPeers(env, root, true, arg);
   if (route === "history") return historyView(env, root, (text) => void mountPage(env, root, "#send=" + encodeURIComponent(text), selfOrigin), arg);
   if (route === "send") {

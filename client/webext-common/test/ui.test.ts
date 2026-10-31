@@ -5,7 +5,7 @@ import { accountLine, fitMiddle, nextTabIndex, peerStatus, platformLabel, shortT
 
 const peer = (o: Partial<PeerView>): PeerView => ({
   id: "x", label: "Phone", platform: "android", lines: [], actions: [], countdown: null, fingerprint: null, pk: null,
-  greyed: null, hidden: false, sendable: true, approvesMe: true, ...o,
+  greyed: null, hidden: false, sendable: true, approvesMe: true, paired: true, ...o,
 });
 
 test("peer status line by priority, replaced by pairing and note lines", () => {
@@ -224,13 +224,17 @@ test("Devices footer: Refresh and Open full view share one outlined style in the
   for (const b of ["chrome", "firefox"]) assert.equal(rd("tokens-" + b + ".css").split("--accent: #34C77B;").length, 3);
 });
 
-test("Send with no device to send to shows how to pair one and opens Devices (I462)", async () => {
+test("no paired device: popup and page show the first-device screen, which switches to the tabs after the first pairing (Q338)", async () => {
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
-  assert.match(pop, /"Pair a device first"/);
-  assert.match(pop, /"Install PushArmor on the other device\."/);
-  assert.match(pop, /"Open Devices"/);
-  assert.match(pop, /sendView\(env, pane, st, prefill, false, \(\) => show\("peers"\)\)/);
+  assert.match(pop, /if \(first && !first\.peers\.some\(\(p\) => p\.paired\)\) return firstPairView\(env, root, st, \(\) => mountPopup\(env, root\), true\);/);
+  assert.match(pop, /"Pair your first device"/);
+  assert.match(pop, /"Install PushArmor on another device\."/);
+  assert.match(pop, /"No devices yet\. They show up here after they log in\."/);
+  assert.match(pop, /if \(data\.peers\.some\(\(p\) => p\.paired\)\) \{\s*clearInterval\(timer\);\s*await onPaired\(\);/);
+  assert.match(pop, /"aria-label": "Settings"/);
+  const page = readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8");
+  assert.match(page, /return firstPairView\(env, root, st, \(\) => mountPage\(env, root, hash, selfOrigin\), false\)/);
 });
 
 test("login page: one note at a time, setup note only while needed with Open setup, resume has no step counter (I459)", async () => {

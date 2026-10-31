@@ -1,5 +1,6 @@
 // Toolbar popup: Send, History, Peers, Settings (component-webext section 7).
 import type { PeerView, StateView } from "../core/rpc.ts";
+import type { Redraw } from "./peersview.ts";
 import type { SendResult } from "../core/engine.ts";
 import { T } from "../core/texts.ts";
 import { canReceiveNow, rememberedSelection, sendDisabled, sendToHeader, showAllChip, showCounter } from "../model/sendsel.ts";
@@ -7,8 +8,8 @@ import type { Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
 import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, nextTabIndex, peerStatus, rpc, sh, shortTime } from "./dom.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
-import { devicesArt, icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
-import { ownCard, renderPeers } from "./peersview.ts";
+import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
+import { ownCard, pairCard, peerRow, renderPeers } from "./peersview.ts";
 import { THEME_CHOICES, parseTheme, setTheme, startTheme } from "./theme.ts";
 
 const CAP = 2048;
@@ -55,6 +56,9 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
     );
     return;
   }
+  // Q338: no paired device yet: one screen in place of Send, History, and Devices
+  const first = await rpc<{ peers: PeerView[] }>(env, "peers").catch(() => null);
+  if (first && !first.peers.some((p) => p.paired)) return firstPairView(env, root, st, () => mountPopup(env, root), true);
   const body = h("div", { class: "body", id: "panel", role: "tabpanel" });
   const tabs = h("div", { class: "tabs", role: "tablist" });
   const show = (t: Tab, prefill?: string) => {
@@ -74,7 +78,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
     const wait = h("div", { class: "loading", role: "status" }, "Loading...");
     const slow = setTimeout(() => pane.isConnected && !pane.firstChild && body.prepend(wait), 150);
     let ready: Promise<unknown> = Promise.resolve();
-    if (t === "send") ready = sendView(env, pane, st, prefill, false, () => show("peers")).then(() => prefill !== undefined && pane.querySelector("textarea")?.focus());
+    if (t === "send") ready = sendView(env, pane, st, prefill).then(() => prefill !== undefined && pane.querySelector("textarea")?.focus());
     if (t === "history") ready = historyView(env, pane, (text) => show("send", text));
     if (t === "peers") ready = renderPeers(env, pane, false);
     if (t === "settings") ready = settingsView(env, pane, st, () => mountPopup(env, root));
@@ -103,7 +107,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
 
 const TYPE_ICON: Record<string, IconName> = { url: "link", tel: "call", text: "notes" };
 
-export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, prefill?: string, offerCut = false, openDevices?: () => void): Promise<void> {
+export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, prefill?: string, offerCut = false): Promise<void> {
   const field = h("textarea", { rows: "3", "aria-label": "Text to send" }) as HTMLTextAreaElement;
   field.value = prefill ?? (await env.activeUrl().catch(() => ""));
   const caption = h("span", { class: "caption" });
@@ -118,21 +122,6 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   const data = await rpc<{ peers: PeerView[] }>(env, "peers");
   // Like Android: a device that cannot receive right now is a greyed chip, never selected and not counted.
   const sendable = data.peers.filter(canReceiveNow);
-  // No device to send to (and none greyed): say how to pair one instead of an empty Send form.
-  if (!sendable.length && !data.peers.some((x) => x.greyed && !x.hidden)) {
-    root.append(
-      h(
-        "div",
-        { class: "empty send-empty" },
-        devicesArt(96),
-        h("div", { class: "e-title" }, "Pair a device first"),
-        h("ol", { class: "howto" }, h("li", {}, "Install PushArmor on the other device."), h("li", {}, "Log in with the same account."), h("li", {}, "Open Devices here and tap Pair on it.")),
-        h("button", { class: "tonal", onclick: () => (openDevices ? openDevices() : void env.openPage("#peers")) }, icon("devices", 18), "Open Devices"),
-      ),
-      h("div", { class: "grow" }),
-    );
-    return;
-  }
   const checks: { id: string; chip: HTMLButtonElement }[] = [];
   const on = (c: HTMLElement) => c.classList.contains("on");
   const remembered = rememberedSelection(await rpc<string[]>(env, "sendSel").catch(() => []), sendable.map((p) => p.id));
@@ -452,4 +441,62 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     status,
     h("div", { class: "grow" }),
   );
+}
+
+/**
+ * Q338: logged in with no paired device. Three steps, the devices waiting to pair (live, with
+ * their Pair actions), and Settings behind the gear (popup only). The first pairing calls onPaired.
+ */
+export async function firstPairView(env: UiEnv, root: HTMLElement, st: StateView, onPaired: () => Promise<void>, withSettings: boolean): Promise<void> {
+  const panel = h("div", { class: "body", id: "panel" });
+  const status = h("div", { class: "status", role: "status" });
+  let inSettings = false;
+  let busy = false;
+  const draw: Redraw = async (msg) => {
+    if (busy || inSettings || !panel.isConnected) return;
+    busy = true;
+    try {
+      const data = await rpc<{ peers: PeerView[] }>(env, "peers");
+      if (data.peers.some((p) => p.paired)) {
+        clearInterval(timer);
+        await onPaired();
+        return;
+      }
+      const waiting = data.peers.filter((p) => !p.hidden);
+      add(
+        clear(panel),
+        h("h1", { class: "fp-title" }, "Pair your first device"),
+        h("ol", { class: "howto fp-steps" }, h("li", {}, "Install PushArmor on another device."), h("li", {}, "Log in with the same account."), h("li", {}, "Approve it here.")),
+        sh("Waiting to pair"),
+        ...waiting.filter((p) => p.fingerprint).map((p) => pairCard(env, p, status, draw)),
+        waiting.some((p) => !p.fingerprint)
+          ? group(...waiting.filter((p) => !p.fingerprint).map((p) => peerRow(env, p, status, draw)))
+          : waiting.length
+            ? null
+            : h("p", { class: "fp-wait" }, "No devices yet. They show up here after they log in."),
+        status,
+        h("div", { class: "grow" }),
+      );
+      if (msg) setTimeout(() => (status.textContent = msg), 50);
+    } catch (e) {
+      status.textContent = (e as Error).message;
+    } finally {
+      busy = false;
+    }
+  };
+  // live: new devices arrive by push into the local list; read it again every few seconds
+  const timer = setInterval(() => (panel.isConnected ? void draw() : clearInterval(timer)), 3000);
+  const gear = withSettings
+    ? (h("button", { class: "quiet ib gear", "aria-label": "Settings", title: "Settings", "aria-pressed": "false" }, icon("settings", 20)) as HTMLButtonElement)
+    : null;
+  gear?.addEventListener("click", () => {
+    inSettings = !inSettings;
+    gear.setAttribute("aria-pressed", String(inSettings));
+    if (inSettings) {
+      clear(panel);
+      void settingsView(env, panel, st, () => mountPopup(env, root));
+    } else void draw();
+  });
+  clear(root).append(h("div", { class: "top" }, h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16), gear)), panel);
+  await draw();
 }

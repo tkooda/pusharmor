@@ -928,3 +928,18 @@ test("Firefox Google login in the same tab: the login tab goes to the provider a
   await d.login.authDone(3, TICKET).catch(() => undefined);
   assert.deepEqual(d.p.shown, [{ tab: 3, hash: "#login=delete-account" }]);
 });
+
+test("devices list: paired only after both sides approve; a listed device waits with Pair (Q338)", async () => {
+  const clock = new Clock();
+  const w = new MockWorker(clock);
+  const a = await device(w, clock);
+  const peers = async () => ((await new Rpc(a.e).handle({ op: "peers" })).data as { peers: { id: string; paired: boolean; actions: string[] }[] }).peers;
+  assert.deepEqual(await peers(), []); // zero devices: the first-device screen
+  const b = await device(w, clock, "firefox");
+  await refresh(a, b);
+  const waiting = (await peers()).find((p) => p.id === b.id)!;
+  assert.equal(waiting.paired, false);
+  assert.ok(waiting.actions.includes("pair"));
+  await pairAndApprove(w, a, b);
+  assert.equal((await peers()).find((p) => p.id === b.id)!.paired, true); // the screen switches to the tabs
+});

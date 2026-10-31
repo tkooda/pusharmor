@@ -165,8 +165,12 @@ body.page .foot { position: static; }
 /* Empty states and illustrations. */
 .empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 40px 40px 0; }
 .peers-empty { padding-top: 32px; }
-.send-empty { padding-top: 24px; }
-.send-empty .howto { text-align: left; margin: 12px 0 16px; }
+/* First-device screen (Q338) */
+.head .gear { margin-left: auto; }
+.head .gear[aria-pressed="true"] { color: var(--primary); background: var(--s1); }
+.fp-title { margin: 0; padding: 16px 20px 0; font-size: 18px; line-height: 24px; }
+.fp-steps { margin: 10px 16px 0; }
+.fp-wait { padding: 4px 20px 0; font-size: 13px; line-height: 18px; color: var(--ink2); }
 .e-title { margin: 16px 0 6px; font-size: 17px; line-height: 24px; font-weight: 600; }
 .empty p { font-size: 13px; line-height: 18px; color: var(--ink2); max-width: 300px; text-wrap: balance; }
 .illo .i-disc { fill: var(--halo); stroke: var(--ring); stroke-width: 1.5; }

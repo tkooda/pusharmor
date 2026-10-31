@@ -28,7 +28,7 @@ const inMenu = (p: PeerView, a: string): boolean => MENU.has(a) || (a === "cance
 const rank = (a: string): number => (ACTION_ORDER.indexOf(a) + 1 || ACTION_ORDER.length + 1);
 
 /** Draws the list again; a message is announced in the new status region. */
-type Redraw = (message?: string, focusId?: string) => Promise<void>;
+export type Redraw = (message?: string, focusId?: string) => Promise<void>;
 
 export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, highlight?: string, message?: string, focusId?: string): Promise<void> {
   const status = h("div", { class: "status", role: "status" });
@@ -140,7 +140,7 @@ function menuFor(env: UiEnv, p: PeerView, box: HTMLElement, status: HTMLElement,
   return overflowMenu(p.label, items.map((a) => ({ label: ACTION_LABEL[a] ?? a, run: (b) => void act(env, a, p, b, box, status, redraw) })), icon("more", 20));
 }
 
-function peerRow(env: UiEnv, p: PeerView, status: HTMLElement, redraw: Redraw): HTMLElement {
+export function peerRow(env: UiEnv, p: PeerView, status: HTMLElement, redraw: Redraw): HTMLElement {
   const dim = p.greyed !== null && p.greyed !== "logged out" && p.greyed !== "send only";
   const row = h("div", { class: "prow peer" + (dim ? " off" : ""), id: "peer-" + p.id, tabindex: "-1" });
   const col = h("div", { class: "txt" });
@@ -161,7 +161,7 @@ function peerRow(env: UiEnv, p: PeerView, status: HTMLElement, redraw: Redraw): 
 }
 
 /** Pairing card with the fingerprint plate (rendered before This device). */
-function pairCard(env: UiEnv, p: PeerView, status: HTMLElement, redraw: Redraw): HTMLElement {
+export function pairCard(env: UiEnv, p: PeerView, status: HTMLElement, redraw: Redraw): HTMLElement {
   const card = h("div", { class: "pair", id: "peer-" + p.id, tabindex: "-1" });
   const chars = Array.from(p.fingerprint ?? "");
   const head = h(
