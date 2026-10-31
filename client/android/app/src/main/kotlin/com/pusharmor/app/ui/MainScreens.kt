@@ -156,7 +156,7 @@ internal fun pairingScrollTop(before: Int, after: Int, aiming: Boolean): Boolean
 
 /** Peers screen (section 8): banners, pairing cards, This device, the peer group. */
 @Composable
-fun PeersScreen(vm: AppViewModel) {
+fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -> Unit = {}) {
     val peers by vm.peers.collectAsState()
     val rows by vm.pairings.collectAsState()
     val highlight by vm.highlight.collectAsState()
@@ -185,12 +185,13 @@ fun PeersScreen(vm: AppViewModel) {
     // The highlight scrolls once per visit; leaving the screen clears it.
     var aimed by remember { mutableStateOf<String?>(null) }
     DisposableEffect(Unit) { onDispose { vm.highlight.value = null } }
-    // Item order: banners, [pairing header, cards], [peers header, peers].
+    // Item order: banners, [steps], [pairing header, cards], [peers header, peers].
     LaunchedEffect(highlight, list.size) {
         highlight?.takeIf { it != aimed }?.let { h ->
             val pi = pairing.indexOfFirst { it.id == h }
-            val base = if (pairing.isEmpty()) 1 else 2 + pairing.size
-            val idx = if (pi >= 0) 2 + pi else plain.indexOfFirst { it.id == h }.takeIf { it >= 0 }?.let { base + 1 + it }
+            val st = if (firstDevice) 1 else 0
+            val base = if (pairing.isEmpty()) 1 + st else 2 + st + pairing.size
+            val idx = if (pi >= 0) 2 + st + pi else plain.indexOfFirst { it.id == h }.takeIf { it >= 0 }?.let { base + 1 + it }
             idx?.let { state.animateScrollToItem(it); aimed = h }
         }
     }
@@ -202,14 +203,18 @@ fun PeersScreen(vm: AppViewModel) {
     }
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            PaTopBar("Devices", actions = {
+            PaTopBar(if (firstDevice) UiText.FIRST_DEVICE_TITLE else "Devices", actions = {
                 IconButton(onClick = { vm.refresh() }, enabled = canRefresh) { Icon(PaIcons.Refresh, "Refresh") }
+                if (firstDevice) IconButton(onClick = onSettings) { Icon(PaIcons.Settings, "Settings") }
             })
             LazyColumn(Modifier.weight(1f), state = state, contentPadding = PaddingValues(bottom = 16.dp)) {
                 item(key = "banners") {
                     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Banners(vm, prefs?.get(Settings.K.BANNER))
                     }
+                }
+                if (firstDevice) item(key = "steps") {
+                    Text(UiText.FIRST_DEVICE_STEPS, Modifier.padding(start = 32.dp, end = 32.dp, top = 8.dp), style = MaterialTheme.typography.bodyLarge)
                 }
                 if (pairing.isNotEmpty()) {
                     item(key = "pairing-header") { SectionHeader("Pairing") }
@@ -219,9 +224,14 @@ fun PeersScreen(vm: AppViewModel) {
                     }
                 }
                 if (plain.isNotEmpty()) {
-                    item(key = "peers-header") { SectionHeader("Other devices") }
+                    item(key = "peers-header") { SectionHeader(if (firstDevice) "Waiting to pair" else "Other devices") }
                     itemsIndexed(plain, key = { _, p -> p.id }) { i, p ->
                         PeerRow(vm, p, now, p.id == highlight, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, plain.size)) { confirmRemove = p }
+                    }
+                } else if (pairing.isEmpty() && firstDevice) {
+                    item(key = "waiting") {
+                        Text(UiText.FIRST_DEVICE_WAITING, Modifier.padding(start = 32.dp, end = 32.dp, top = 24.dp),
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else if (pairing.isEmpty()) {
                     item(key = "empty") {
@@ -233,7 +243,7 @@ fun PeersScreen(vm: AppViewModel) {
                         }
                     }
                 }
-                if (plain.isNotEmpty() || pairing.isNotEmpty()) item(key = "pair-new") {
+                if (!firstDevice && (plain.isNotEmpty() || pairing.isNotEmpty())) item(key = "pair-new") {
                     OutlinedButton(onClick = { pairHowTo = true }, Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp).fillMaxWidth().heightIn(min = 48.dp)) {
                         Text("Pair a new device")
                     }
@@ -840,7 +850,7 @@ private fun SettingRow(title: String, sub: String? = null, modifier: Modifier, c
 
 /** Settings (section 8): one group per section. */
 @Composable
-fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: () -> Unit) {
+fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: () -> Unit, onBack: (() -> Unit)? = null) {
     val prefs by vm.prefs.collectAsState()
     val context = LocalContext.current
     val me by vm.self.collectAsState()
@@ -856,7 +866,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     val pad = Modifier.padding(horizontal = 16.dp)
     val external: @Composable () -> Unit = { Icon(PaIcons.OpenInNew, null, tint = cs.onSurfaceVariant) }
     Column(Modifier.fillMaxSize()) {
-        PaTopBar("Settings")
+        PaTopBar("Settings", navigationIcon = { onBack?.let { IconButton(onClick = it) { Icon(PaIcons.ArrowBack, "Back") } } })
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
             SectionHeader("This device")
             GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
