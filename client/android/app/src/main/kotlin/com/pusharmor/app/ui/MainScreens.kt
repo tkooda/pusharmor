@@ -221,7 +221,8 @@ fun PeersScreen(vm: AppViewModel) {
             PaTopBar("Devices", actions = {
                 IconButton(onClick = { vm.refresh() }, enabled = canRefresh) { Icon(PaIcons.Refresh, "Refresh") }
             })
-            LazyColumn(Modifier.weight(1f), state = state, contentPadding = PaddingValues(bottom = 16.dp)) {
+            // The first banner card keeps the same gap under the top bar as the cards on the other tabs (I614).
+            LazyColumn(Modifier.weight(1f), state = state, contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
                 item(key = "banners") {
                     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Banners(vm, prefs?.get(Settings.K.BANNER))
