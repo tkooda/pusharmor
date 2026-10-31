@@ -12,8 +12,8 @@ import java.security.KeyPair
 object NameEntry {
     const val MAX_CIPHERTEXT_CHARS = 1024
 
-    /** Name: 1..32 printable ASCII (0x20..0x7E). */
-    fun isValidName(name: String): Boolean = name.length in 1..32 && name.all { it.code in 0x20..0x7e }
+    /** Name: 1..32 printable ASCII (0x20..0x7E) except the double quote. */
+    fun isValidName(name: String): Boolean = name.length in 1..32 && name.all { it.code in 0x20..0x7e && it != '"' }
 
     /** "PA-NAME1\n" + owner id + "\n" + recipient id + "\n" + pairing id (11-char b64url) + "\n" + n + "\n" + name */
     fun signedBytes(ownerId: String, recipientId: String, pairingId: ByteArray, n: Long, nameB64: String): ByteArray =

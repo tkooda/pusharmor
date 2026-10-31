@@ -4,8 +4,9 @@
 // Fails when a zip holds a source map or a test/ entry, when the Chrome manifest has a
 // "key", when the manifest name is not "PushArmor" ("PushArmor Beta" for a *-beta.zip),
 // when a Firefox manifest has a gecko update_url other than the Beta one
-// (release/constants.json; only *-beta.zip has it), or when the manifest, a .js or a .html holds a public.json placeholder
-// ("PLACEHOLDER_..." or "placeholder-..."), a CI dummy (unless PA_CI_DUMMY=1), or a
+// (release/constants.json; only *-beta.zip has it) or a gecko id that is not a
+// lowercase GUID in braces, or when the manifest, a .js or a .html holds a public.json placeholder
+// ("PLACEHOLDER_...", "placeholder-..." or the placeholder gecko id), a CI dummy (unless PA_CI_DUMMY=1), or a
 // local endpoint ("://localhost" or "127.0.0.1"), or the screenshot mode marker
 // "PA_SCREENSHOTS" (src/shots, dev builds only). The bare word "localhost" is allowed:
 // the auto-open host rule names it to reject it.
@@ -17,6 +18,7 @@ import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { inflateRawSync } from "node:zlib";
+import { GECKO_ID_RE, GECKO_PLACEHOLDER_ID, isDummy } from "../../release/public.mjs";
 
 export const ALLOW = JSON.parse(readFileSync(new URL("./release-allow.json", import.meta.url), "utf8"));
 const BETA_UPDATE_URL = JSON.parse(readFileSync(new URL("../../release/constants.json", import.meta.url), "utf8")).firefox_beta_update_url;
@@ -84,12 +86,14 @@ export function checkZip(buf, { chrome, beta = false, dummyOk = process.env.PA_C
     if (m.name !== name) bad.push("manifest.json: name is " + JSON.stringify(m.name) + ", want " + JSON.stringify(name));
     const update = m.browser_specific_settings?.gecko?.update_url;
     if (!chrome && update !== (beta ? BETA_UPDATE_URL : undefined)) bad.push("manifest.json: gecko update_url is " + JSON.stringify(update ?? null));
+    const id = m.browser_specific_settings?.gecko?.id;
+    if (!chrome && id !== undefined && !GECKO_ID_RE.test(id)) bad.push("manifest.json: gecko id " + JSON.stringify(id) + " is not a lowercase GUID");
   }
   for (const [name, data] of files) {
     if (!/\.(js|html|json)$/.test(name)) continue;
     const s = data.toString("latin1");
-    if (/placeholder[_-]/i.test(s)) bad.push(name + ": holds a PLACEHOLDER value");
-    if (!dummyOk && /ci-fork-dummy/i.test(s)) bad.push(name + ": holds a CI dummy (allowed only with PA_CI_DUMMY=1)");
+    if (/placeholder[_-]/i.test(s) || s.includes(GECKO_PLACEHOLDER_ID)) bad.push(name + ": holds a PLACEHOLDER value");
+    if (!dummyOk && isDummy(s)) bad.push(name + ": holds a CI dummy (allowed only with PA_CI_DUMMY=1)");
     if (/:\/\/localhost|127\.0\.0\.1/i.test(s)) bad.push(name + ": names a local endpoint");
     if (s.includes("PA_SCREENSHOTS")) bad.push(name + ": holds the screenshot mode (src/shots)");
     if (!name.endsWith(".js")) continue;

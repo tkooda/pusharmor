@@ -10,17 +10,23 @@ export interface RecipientLog {
   retry: boolean;
 }
 
+// PA_LOG_SAMPLE as a rate; anything but a number in 0..1 logs every line.
+export function sampleRate(v: string | undefined): number {
+  if (v === undefined || !/^[0-9.]+$/.test(v)) return 1;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 && n <= 1 ? n : 1;
+}
+
 export class Log {
   route = "";
   status = 0;
   error?: string;
   colo?: string;
+  client?: string;
   account?: string;
   peer?: string;
   body_bytes?: number;
   recipients: RecipientLog[] = [];
-  rows_read = 0;
-  rows_written = 0;
   rl?: string;
   rl_error: string[] = [];
   gone_write?: "failed";
@@ -28,12 +34,6 @@ export class Log {
   exception?: string;
   extra: Record<string, string | number> = {};
   private readonly t0 = Date.now();
-
-  addMeta(meta: { rows_read?: number; rows_written?: number } | undefined): void {
-    if (!meta) return;
-    this.rows_read += meta.rows_read ?? 0;
-    this.rows_written += meta.rows_written ?? 0;
-  }
 
   // Exceptions: class name and stack frames only, never the message text.
   setException(e: unknown): void {
@@ -54,14 +54,11 @@ export class Log {
     };
     if (this.error) o.error = this.error;
     if (this.colo) o.colo = this.colo;
+    if (this.client) o.client = this.client;
     if (this.account) o.account = this.account;
     if (this.peer) o.peer = this.peer;
     if (this.body_bytes !== undefined) o.body_bytes = this.body_bytes;
     if (this.recipients.length) o.recipients = this.recipients;
-    if (this.rows_read || this.rows_written) {
-      o.rows_read = this.rows_read;
-      o.rows_written = this.rows_written;
-    }
     if (this.rl) o.rl = this.rl;
     if (this.rl_error.length) o["rl-error"] = this.rl_error;
     if (this.gone_write) o.gone_write = this.gone_write;
@@ -71,7 +68,24 @@ export class Log {
     return JSON.stringify(o);
   }
 
-  emit(): void {
+  // A line worth keeping whatever the sample rate: server errors, client errors other than
+  // 429, rate-limit binding errors, failed write-backs, endpoint rejects, and any recipient
+  // that was not delivered on the first attempt.
+  notable(): boolean {
+    if (this.exception || this.rl_error.length || this.gone_write || this.endpoint_reject) return true;
+    if (this.status >= 400 && this.status !== 429) return true;
+    return this.recipients.some((r) => r.result !== "sent" || r.retry);
+  }
+
+  // Workers Logs bills every line, so plain successes and 429s are sampled at `rate` (0..1).
+  // A sampled line carries "sample": 1/rate, to scale counts back up.
+  emit(rate = 1): void {
+    if (rate >= 1 || this.notable()) {
+      console.log(this.line());
+      return;
+    }
+    if (rate <= 0 || Math.random() >= rate) return;
+    this.extra.sample = Math.round(1 / rate);
     console.log(this.line());
   }
 }

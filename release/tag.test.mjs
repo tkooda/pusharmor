@@ -2,6 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync, execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { chmodSync, cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -12,6 +13,7 @@ const CLI = join(import.meta.dirname, "tag.mjs");
 
 test("tag names: <platform>/vX.Y.Z only, no rc tags, no leading zeros", () => {
   assert.deepEqual(parseTag("chrome/v1.2.3"), { platform: "chrome", version: "1.2.3" });
+  assert.deepEqual(parseTag("cli/v0.0.19"), { platform: "cli", version: "0.0.19" });
   assert.deepEqual(parseTag("worker/v0.0.10"), { platform: "worker", version: "0.0.10" });
   for (const t of ["chrome/v1.2", "chrome/v1.2.3-rc1", "chrome/1.2.3", "chrome-v1.2.3", "site/v1.2.3", "chrome/v1.02.3", "chrome/v1.2.3 ", "v1.2.3"]) {
     assert.equal(parseTag(t), null, t);
@@ -22,7 +24,7 @@ test("format: minor and patch <= 999, major <= 2099, known platform", () => {
   assert.deepEqual(formatProblems("ios", "2099.999.999"), []);
   assert.deepEqual(formatProblems("ios", "1.1000.0"), ["1.1000.0: minor and patch must be <= 999"]);
   assert.deepEqual(formatProblems("ios", "2100.0.0"), ["2100.0.0: major must be <= 2099"]);
-  assert.deepEqual(formatProblems("site", "1.0.0"), ['unknown platform "site" (one of android, ios, chrome, firefox, worker)']);
+  assert.deepEqual(formatProblems("site", "1.0.0"), ['unknown platform "site" (one of android, ios, chrome, firefox, worker, cli)']);
   assert.equal(formatProblems("ios", "1.0").length, 1);
 });
 
@@ -75,7 +77,18 @@ test("another platform may join a version already bound to the commit, also afte
 
 test("the committed version files agree with each other", () => {
   const v = readFileSync(join(REPO, "release/version.properties"), "utf8").match(/^versionName=(.*)$/m)[1];
-  assert.deepEqual(stampProblems(REPO, v), []);
+  // Between releases /download keeps the SHA-256 of the released pusharmor.py.
+  assert.deepEqual(stampProblems(REPO, v).filter((l) => !l.startsWith("site/public/download.html holds " + v + " / ")), []);
+});
+
+test("the version comment on line 2 of pusharmor.py must match VERSION", (t) => {
+  const { d, bin } = scratch();
+  t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
+  const py = join(d, "client/cli/pusharmor.py");
+  const v = /^VERSION = "([^"]*)"$/m.exec(readFileSync(py, "utf8"))[1];
+  assert.equal(readFileSync(py, "utf8").split("\n")[1], "# PushArmor command-line client, version " + v);
+  writeFileSync(py, readFileSync(py, "utf8").replace(/^(# PushArmor command-line client, version ).*$/m, "$19.9.9"));
+  assert.deepEqual(stampProblems(d, v).filter((l) => l.startsWith("client/cli/")), ["client/cli/pusharmor.py holds " + v + " / 9.9.9, want " + v + " / " + v]);
 });
 
 test("ci-ok: any successful run or attempt counts; running, missing and failed jobs do not", () => {
@@ -140,7 +153,7 @@ test("ci-ok wait: polls a running CI and a failing gh api until the deadline, st
 // answers one ci run whose ci-ok jobs are ci.jobs (status TAB conclusion lines).
 function scratch() {
   const d = mkdtempSync(join(tmpdir(), "pa-tag-"));
-  for (const f of ["release/version.properties", "client/chrome/manifest.json", "client/firefox/manifest.json", "client/ios/project.yml"]) {
+  for (const f of ["release/version.properties", "client/chrome/manifest.json", "client/firefox/manifest.json", "client/ios/project.yml", "client/cli/pusharmor.py", "site/public/download.html"]) {
     mkdirSync(join(d, dirname(f)), { recursive: true });
     cpSync(join(REPO, f), join(d, f));
   }
@@ -170,6 +183,12 @@ test("CLI: stamp, commit, tag; second platform at the same commit; check mode", 
   assert.deepEqual(stampProblems(d, "1.2.3"), []);
   assert.match(readFileSync(join(d, "release/version.properties"), "utf8"), /^versionCode=1002003$/m);
   assert.match(readFileSync(join(d, "client/ios/project.yml"), "utf8"), /CURRENT_PROJECT_VERSION: "1002003"/);
+  assert.match(readFileSync(join(d, "client/cli/pusharmor.py"), "utf8"), /^VERSION = "1\.2\.3"$/m);
+  assert.match(readFileSync(join(d, "client/cli/pusharmor.py"), "utf8"), /^# PushArmor command-line client, version 1\.2\.3$/m);
+  const page = readFileSync(join(d, "site/public/download.html"), "utf8");
+  assert.ok(page.includes('href="https://github.com/tkooda/pusharmor/releases/download/cli/v1.2.3/pusharmor.py"'));
+  assert.ok(!/releases\/download\/cli\/v(?!1\.2\.3\/)/.test(page));
+  assert.ok(page.includes('<code id="cli-sha256">' + createHash("sha256").update(readFileSync(join(d, "client/cli/pusharmor.py"))).digest("hex") + "</code>"));
   git("commit", "-q", "-am", "release 1.2.3");
   r = run("android", "1.2.3");
   assert.equal(r.status, 0, r.stderr);
@@ -202,6 +221,24 @@ test("CLI: stamp, commit, tag; second platform at the same commit; check mode", 
   r = run("--check", "chrome-v1.2.3");
   assert.equal(r.status, 1);
   assert.match(r.stderr, /is not <platform>\/vX\.Y\.Z/);
+});
+
+test("CLI check: /download holds the SHA-256 of pusharmor.py at the commit", (t) => {
+  const { d, git, run, bin } = scratch();
+  t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
+  run("cli", "1.3.0");
+  git("commit", "-q", "-am", "release 1.3.0");
+  git("tag", "-a", "cli/v1.3.0", "-m", "cli 1.3.0");
+  let r = run("--check", "cli/v1.3.0");
+  assert.equal(r.status, 0, r.stderr);
+  const py = join(d, "client/cli/pusharmor.py");
+  writeFileSync(py, readFileSync(py, "utf8") + "\n");
+  git("commit", "-q", "-am", "edit pusharmor.py");
+  git("tag", "-f", "-a", "cli/v1.3.0", "-m", "cli 1.3.0");
+  r = run("--check", "cli/v1.3.0");
+  assert.equal(r.status, 1);
+  const sha = createHash("sha256").update(readFileSync(py)).digest("hex");
+  assert.match(r.stderr, new RegExp("site/public/download\\.html holds 1\\.3\\.0 / [0-9a-f]{64}, want 1\\.3\\.0 / " + sha));
 });
 
 test("CLI check: a rerun of an older tag ignores tags created after it", (t) => {

@@ -21,6 +21,27 @@ final class APITests: XCTestCase {
         XCTAssertEqual(rec.sleeps, [2, 1.5])
     }
 
+    /// I554: an extreme retry_after is clamped to 0...3600 before any sleep or clock sum.
+    func testExtremeRetryAfterIsClamped() async {
+        func ra(_ v: String) -> Int? { APIReply(status: 429, body: Data("{\"retry_after\":\(v)}".utf8)).retryAfter }
+        XCTAssertEqual(ra("-5"), 0)
+        XCTAssertEqual(ra("9223372036854775807"), 3600)
+        XCTAssertEqual(ra("-9223372036854775808"), 0)
+        XCTAssertEqual(ra("3600"), 3600)
+        XCTAssertEqual(RetryPolicy.delay(retriesDone: 0, status: 429, retryAfter: ra("-5"), elapsed: 0), 0)
+        let w = FakeWorker(), rec = Recorder()
+        let api = client(w, rec)
+        w.script("POST", "/v1/auth/email", 429, "{\"error\":\"rate limited\",\"retry_after\":-5}")
+        w.script("POST", "/v1/auth/email", 200, "{\"request_token\":\"rt\"}")
+        let r = await AuthClient(api: api).emailStart(email: "a@b.com", signPub: SoftwareSigner().publicKey, purpose: .register, turnstile: "t")
+        XCTAssertEqual(r, .requestToken("rt"))
+        XCTAssertEqual(rec.sleeps, [0])
+        w.script("POST", "/v1/auth/email", 429, "{\"error\":\"rate limited\",\"retry_after\":9223372036854775807}")
+        let r2 = await AuthClient(api: api).emailStart(email: "a@b.com", signPub: SoftwareSigner().publicKey, purpose: .register, turnstile: "t")
+        XCTAssertEqual(r2, .rateLimited(3600))
+        XCTAssertEqual(rec.sleeps, [0])
+    }
+
     func testNoRetryOn502AndLongRetryAfter() async {
         let w = FakeWorker(), rec = Recorder()
         let api = client(w, rec)
@@ -38,10 +59,43 @@ final class APITests: XCTestCase {
 
     func testOffsetResyncedFromEveryReply() async {
         let w = FakeWorker(), rec = Recorder()
-        w.epochMs = 1761300000000 + 7000
+        w.epoch = 1761300000 + 7
         let api = client(w, rec)
         _ = await api.call("GET", "/v1/x", auth: .none)
-        XCTAssertEqual(api.offsetMs, 7000)
+        XCTAssertEqual(api.offsetS, 7)
         XCTAssertEqual(api.workerNowMs, 1761300007000)
+        // PA-Epoch is unix seconds (Q331); a clock ahead gives a negative offset
+        w.epoch = 1761300000 - 400
+        _ = await api.call("GET", "/v1/x", auth: .none)
+        XCTAssertEqual(api.offsetS, -400)
+    }
+
+    /// Q328: every request carries PA-Client; a 426 reply posts upgradeRequired once and is not retried.
+    func testClientHeaderAnd426() async {
+        let w = FakeWorker(), rec = Recorder()
+        let api = APIClient(base: URL(string: "https://api.test")!, transport: w, client: "ios/1.2.3",
+                            clockMs: { 1761300000000 }, sleep: { rec.sleeps.append($0) })
+        _ = await api.call("GET", "/v1/x", auth: .none)
+        XCTAssertEqual(w.lastHeaders["PA-Client"], "ios/1.2.3")
+        XCTAssertTrue(APIClient.defaultClient.hasPrefix("ios/"))
+        let posted = expectation(forNotification: APIClient.upgradeRequired, object: api)
+        w.script("POST", "/v1/send", 426, "{\"error\":\"upgrade required\"}")
+        let r = await api.call("POST", "/v1/send", auth: .none)
+        XCTAssertEqual(r.reply?.status, 426)
+        XCTAssertEqual(w.count("POST", "/v1/send"), 1)
+        XCTAssertEqual(rec.sleeps, [])
+        await fulfillment(of: [posted], timeout: 1)
+    }
+
+    /// Q349: a version marked by a 426 stays marked on every check; another version clears it.
+    func testUpdateGateKeepsTheMarkUntilTheVersionChanges() throws {
+        let d = try XCTUnwrap(UserDefaults(suiteName: "UpdateGateTests"))
+        d.removeObject(forKey: UpdateGate.key)
+        XCTAssertFalse(UpdateGate.required(d, version: "0.0.19"))
+        UpdateGate.mark(d, version: "0.0.19")
+        XCTAssertTrue(UpdateGate.required(d, version: "0.0.19"))
+        XCTAssertTrue(UpdateGate.required(d, version: "0.0.19"))
+        XCTAssertFalse(UpdateGate.required(d, version: "0.0.20"))
+        XCTAssertNil(d.string(forKey: UpdateGate.key))
     }
 }

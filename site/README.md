@@ -8,7 +8,8 @@ on /turnstile.
 Layout:
 
     site/
-      public/              served as is (assets directory)
+      public/              tracked source, with placeholders for the build ids
+      dist/                build output served by wrangler (assets directory, gitignored)
         _headers           security headers per path
         css/site.css       the one stylesheet
         js/                page scripts (SRI-pinned, hashed in the page CSP)
@@ -17,7 +18,7 @@ Layout:
         .well-known/       security.txt, assetlinks.json
       wrangler.jsonc       assets-only config (the site checks allow no other keys)
       tools/hashes.mjs     rewrites SRI integrity attributes and CSP script hashes
-      tools/build.mjs      fills the build ids from release/public.json (release deploy)
+      tools/build.mjs      copies public/ to dist/ and fills the build ids there (deploy)
       tools/test/          site checks (node --test)
 
 ## Install
@@ -39,9 +40,10 @@ Firefox manifest, golden vectors, Worker wrangler version) are skipped until tho
 
 ## Build ids (release/public.json)
 
-The site files hold placeholders, not ids. `site/tools/build.mjs` fills them from the
-tracked `release/public.json` (edit it in a normal commit) in place and rewrites the
-hashes:
+The site files hold placeholders, not ids. `site/tools/build.mjs` copies `site/public` to
+`site/dist` (gitignored, replaced on each run), fills the ids there from the tracked
+`release/public.json` (edit it in a normal commit) and rewrites the hashes there. The
+tracked files keep their placeholders, so a build or deploy leaves `git status` clean:
 
 - `cloudflare_turnstile_sitekey` -> `data-sitekey` in `public/turnstile.html`.
 - `webpush_vapid_public_key` -> `VAPID_PUBLIC_KEY` in `public/js/fx-setup.js`.
@@ -55,18 +57,54 @@ It fails when a value is missing, empty, malformed or a PLACEHOLDER, or a CI dum
 links and APK hashes (`public/download.html`) and the F-Droid version
 (`public/fdroid/android.txt`) are edited by hand in the release PR.
 
-Try a build without touching the tree:
+Try a build (the tree stays clean; `--out DIR` writes elsewhere):
 
-    cp -r site/public /tmp/site && node site/tools/build.mjs --dir /tmp/site
+    node site/tools/build.mjs
 
-Deploy is done by Cloudflare Workers Builds from the main branch. `wrangler.jsonc` sets the build
-command `node tools/build.mjs` (run in `site/`), so `wrangler deploy` fails while a placeholder is
-left, with no dashboard setting needed. `wrangler dev` skips the build (`WRANGLER_COMMAND=dev`) and
-keeps the placeholders. The Workers Builds build command must be EMPTY: a second run of the build
-fails because the placeholders are already gone.
+Deploy is manual: run `npx wrangler deploy` in `site/` (a push to main does not deploy).
+`wrangler.jsonc` sets the build command `node tools/build.mjs`
+(run in `site/`) and the assets directory `./dist`, so `wrangler deploy` builds `dist/` first and
+fails while a placeholder is left, with no dashboard setting needed. `wrangler dev` copies
+`public/` to `dist/` without filling the ids (`WRANGLER_COMMAND=dev`), so it serves the
+placeholders. Keep the Workers Builds build command EMPTY: `wrangler deploy` already runs the build.
+
+`node site/tools/hashes.mjs --check` and the site checks read the tracked `site/public` (with the
+placeholders). The build rewrites the hashes in `dist/` for the filled values, then checks that
+they settled and that no placeholder is left.
 
 The site has no deploy script. Before a release deploy, run the checks with the release gate on:
 
     PA_RELEASE=1 node --test 'site/tools/test/*.test.mjs'
 
 Do not deploy a release if any check fails or is skipped. `wrangler dev` stays fine for local work. `npx wrangler deploy --dry-run` in `site/` must fail while a placeholder is left.
+
+## About page screenshots
+
+`public/about.html` shows the app screenshots from `public/img/about/<platform>/` (android,
+iphone, chrome, firefox). Each shot is one PNG at twice the shown width
+(at most), with no other format.
+To swap them:
+
+1. Put the new store PNGs in a folder per platform, e.g. `SRC/android/03-send.png`. Files whose
+   name contains `BLANK` are skipped.
+2. From the repo root, replace the old files and convert (ImageMagick):
+
+        SRC=/path/to/screenshots
+        rm -rf site/public/img/about
+        for p in android iphone chrome firefox; do
+          case $p in android|iphone) w=280;; *) w=720;; esac
+          mkdir -p site/public/img/about/$p
+          for f in "$SRC"/$p/*.png; do
+            case "$f" in *BLANK*) continue;; esac
+            n=site/public/img/about/$p/$(basename "$f" .png)
+            convert "$f" -strip -resize "$((w*2))x>" -define png:compression-level=9 $n.png
+          done
+        done
+
+3. Edit the `<figure>` list in `public/about.html` to match the file names, with the image
+   shown `width` and `height` (280 wide for phones, 720 for browsers, with the aspect ratio
+   of `identify site/public/img/about/*/*.png`) and an alt text that
+   describes the screen. Only the first tab loads at once; keep `loading="lazy"` on the others.
+4. Run `node site/tools/hashes.mjs` and the checks.
+
+`/about#shots-iphone` (or `-chrome`, `-firefox`) opens that tab.

@@ -13,27 +13,27 @@
 <meta property="og:image" content="https://pusharmor.com/apple-touch-icon.png">
 <link rel="icon" href="/favicon.ico" sizes="any" integrity="sha256-WBRVm+oTUTpG8HdmRjQYXSzTkCjwYCVj5PZdJQP73qM=">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" integrity="sha256-TQcTrShS2zw2E6zqzKq9Tlfqd9GGyBSjl/LTQvTeJY8=">
-<link rel="stylesheet" href="/css/site.css" integrity="sha256-LLVjIg5FDy8B6CiNdcenZ4QJ6YhuvkKKultGZbGfMOw=">
-<script src="/js/pa-web.js" integrity="sha256-QesJhsOnRtWqXBKR8+6uagoEKqerjzS4lWZWNXuhcgU=" defer></script>
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-Dcp1dNsQodcGTBjig2sKl5LIngbDNKgkkcjJUigzVhU=">
+<script src="/js/pa-web.js" integrity="sha256-WeBwA66sVPgUKvEWdu3VMovUYzL1GDgwKDJhSUJdgnI=" defer></script>
 <script src="/js/fx-setup.js" integrity="sha256-eqEHNVxV389cASI1SVt1t9taL5EfOMcrpFrdEebXqIg=" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header>
 <a class="brand" href="/"><svg class="mark" width="26" height="32" viewBox="130 100 252 312" aria-hidden="true" focusable="false"><path fill-rule="evenodd" d="M256 108 L376 150 V250 C376 330 322 382 256 406 C190 382 136 330 136 250 V150 Z M256 168 L318 236 H280 V334 H232 V236 H194 Z"/></svg><span><span class="push">Push</span><span class="armor">Armor</span></span></a>
-<nav aria-label="Main"><a href="/how-to">How to</a> <a href="/download">Download</a> <a href="/security">Security</a> <a href="/support">Support</a></nav>
+<nav aria-label="Main"><a href="/how-to">How to</a> <a href="/download">Download</a> <a href="/security">Security</a> <a href="/support">Support</a> <a href="/about">About</a></nav>
 </header>
 <main id="main">
 <h1>Set up PushArmor for Firefox</h1>
-<p>The PushArmor add-on uses a service worker on pusharmor.com to receive encrypted messages
+<p>The PushArmor add-on uses a background script on PushArmor.com to receive encrypted messages
 when its own push connection is not available, and always on Firefox for Android. This needs
-notifications for pusharmor.com. The service worker only sees encrypted messages and hands them
-to the add-on.</p>
+notifications for PushArmor.com. The background script only passes along encrypted messages it cannot
+read to the add-on.</p>
 <p><button id="start" type="button">Turn on notifications</button> <button id="retry" type="button" class="secondary" hidden>Retry</button></p>
 <p id="status" class="status" role="status" aria-live="polite"></p>
 </main>
 <footer>
-<a href="/privacy">Privacy</a> <a href="/terms">Terms</a> <a href="/support">Support</a> <a href="/delete-account">Delete account</a> <a href="https://github.com/tkooda/pusharmor">Source code on GitHub</a>
+<a href="/privacy">Privacy</a> <a href="/terms">Terms</a> <a href="/support">Support</a> <a href="https://github.com/tkooda/pusharmor">Source code on GitHub</a>
 <p class="fine">PushArmor is a free, open source project.</p>
 </footer>
 </body>

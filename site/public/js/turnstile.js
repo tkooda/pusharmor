@@ -21,13 +21,22 @@
   var parentOrigin = allowedOrigin(new URLSearchParams(location.hash.slice(1)).get("o"));
   var box = document.getElementById("ts");
   var status = document.getElementById("status");
-  // In the delete-account iframe: widget and status only, so the fixed-height frame has no scrollbar.
-  if (parentOrigin === "https://pusharmor.com" && window.parent !== window) {
+  var framed = parentOrigin !== null && window.parent !== window;
+  // In an iframe of an allowed host (extension login, delete-account page): the widget
+  // only, so the frame has no scrollbar. The host shows the status itself.
+  if (framed) {
     document.documentElement.className = "framed";
+    // Post the widget height so the host can size the frame (an interactive challenge
+    // grows taller than 65 px). Older hosts ignore this message.
+    if (typeof ResizeObserver === "function") {
+      new ResizeObserver(function () {
+        window.parent.postMessage({ pa: "turnstile-size", h: Math.ceil(box.getBoundingClientRect().height) }, parentOrigin);
+      }).observe(box);
+    }
   }
 
   function send(token) {
-    if (parentOrigin && window.parent !== window) {
+    if (framed) {
       window.parent.postMessage({ pa: "turnstile", token: token }, parentOrigin);
     }
     if (window.paTurnstile && typeof window.paTurnstile.postMessage === "function") {
@@ -44,6 +53,8 @@
     var id = window.turnstile.render(box, {
       sitekey: box.getAttribute("data-sitekey"),
       action: "email",
+      size: "flexible",
+      theme: "auto",
       "refresh-expired": "manual",
       callback: send,
       "expired-callback": function () {

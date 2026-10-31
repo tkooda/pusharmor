@@ -6,9 +6,9 @@ import { b64urlEncode } from "../codec/b64url";
 import { pushSha256 } from "../codec/validate";
 import { rawPoint } from "../crypto/ecdsa";
 import { hmac, utf8 } from "../crypto/hash";
-import { keyRef, LABEL_TICKET, openToken, type Purpose, type Ticket } from "../crypto/tokens";
+import { CLI_WINDOW_S, keyRef, keyRef16, LABEL_TICKET, openCliCode, openToken, type Purpose, type Ticket } from "../crypto/tokens";
 import { ApiError } from "../errors";
-import { allow, enforce } from "../pipeline/limits";
+import { allow, enforce, enforceAccount } from "../pipeline/limits";
 import { checkKeyhash, checkPaId, checkSig, checkTime } from "../pipeline/signed";
 import { relayFilter, type RelayRow } from "../db/rows";
 import { fanout, sendProbe, writeBack, type Target } from "../push/fanout";
@@ -33,19 +33,31 @@ export async function signedStart(c: Ctx): Promise<Signed> {
 export interface CallerRow {
   sign_pub: string;
   enc_pub: string;
-  paused: number;
+  logged_out: number;
 }
 
-// Steps d, e, f.
-export async function callerCheck(c: Ctx, s: Signed, row: CallerRow | undefined | null, allowPaused = false): Promise<void> {
+// Steps d, e, f. RL_ACCT is charged only here, after the signature and keyhash pass, so
+// unsigned or badly signed calls with a known PA-ID cannot use up the account's budget.
+export async function callerCheck(c: Ctx, s: Signed, row: CallerRow | undefined | null, allowLoggedOut = false): Promise<void> {
   if (!row) throw new ApiError(401, "unknown peer");
   await checkSig(row.sign_pub, c.req.headers, c.method, c.path, s.paTime, c.body);
   await checkKeyhash(s.me, row.sign_pub, row.enc_pub);
-  if (row.paused === 1 && !allowPaused) throw new ApiError(401, "paused");
+  if (row.logged_out === 1 && !allowLoggedOut) throw new ApiError(401, "logged out");
+  await enforceAccount(c.env, s.acct, c.log);
 }
 
-// Ticket check: MAC, purpose, k, expiry (and account when given).
+// Ticket check: MAC, purpose, k, expiry (and account when given). A 34-char ticket is a cli
+// code (401 "ticket expired" for an older window, else "bad ticket").
 export async function checkTicket(c: Ctx, ticket: unknown, purpose: Purpose, signPub: string, acct?: string): Promise<Ticket> {
+  if (typeof ticket === "string" && ticket.length === 34 && purpose !== "delete-account") {
+    const raw = rawPoint(signPub);
+    if (!raw) throw new ApiError(401, "bad ticket");
+    const w = Math.floor(nowS() / CLI_WINDOW_S);
+    const o = await openCliCode(c.env.PA_TOKEN_SECRET, ticket, await keyRef16(raw), purpose, w);
+    if (o === "expired") throw new ApiError(401, "ticket expired");
+    if (!o || (acct !== undefined && o.a !== acct)) throw new ApiError(401, "bad ticket");
+    return { a: o.a, k: await keyRef(raw), p: purpose, x: (o.w + 2) * CLI_WINDOW_S };
+  }
   const t = await openToken(c.env.PA_TOKEN_SECRET, LABEL_TICKET, ticket);
   const raw = rawPoint(signPub);
   if (!t || !raw) throw new ApiError(401, "invalid ticket");
@@ -76,7 +88,7 @@ export async function relayMap(
   }
   const out = await fanout(c.env, targets, c.log);
   Object.assign(results, out.results);
-  await writeBack(c.env, acct, out.gone, extraWrites, c.log);
+  await writeBack(c.env, acct, out, extraWrites, c.log);
   return results;
 }
 
@@ -88,13 +100,15 @@ export async function probeCode(secret: string, id: string, fields: Record<strin
 }
 
 // Sends the UnifiedPush probe after the reply (ctx.waitUntil); never fails the call.
-export function scheduleProbe(c: Ctx, id: string, fields: Record<string, string>): void {
+// Limited per peer id and per account: a new enc_pub gives a new id, not a new account.
+export function scheduleProbe(c: Ctx, acct: string, id: string, fields: Record<string, string>): void {
   const env = c.env;
   const log = c.log;
   c.exec.waitUntil(
     (async () => {
       try {
         if (!(await allow(env, "RL_PROBE", "probe:" + id, log))) return;
+        if (!(await allow(env, "RL_PROBE", "probeacct:" + acct, log))) return;
         const code = await probeCode(env.PA_CONFIRM_SECRET, id, fields, Math.floor(nowS() / 300));
         await sendProbe(env, { endpoint: fields.endpoint, p256dh: fields.p256dh, auth: fields.auth }, code);
       } catch {

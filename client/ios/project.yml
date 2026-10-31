@@ -13,8 +13,8 @@ configFiles:
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    MARKETING_VERSION: "0.0.9"
-    CURRENT_PROJECT_VERSION: "9"
+    MARKETING_VERSION: "0.0.20"
+    CURRENT_PROJECT_VERSION: "20"
     APP_BUNDLE_ID: com.pusharmor.app            # repo constant after the store bootstrap
     CODE_SIGN_STYLE: Automatic
   configs:
@@ -48,7 +48,7 @@ targets:
         CFBundleDisplayName: PushArmor
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        ITSAppUsesNonExemptEncryption: true   # end-to-end encryption (owner ruling Q216 A)
+        ITSAppUsesNonExemptEncryption: false   # uses only Apple OS encryption (CryptoKit) (owner ruling Q236 A)
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         PAAppGroup: group.$(APP_BUNDLE_ID)
@@ -69,6 +69,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS: NO   # colours are named in App/Views/Brand.swift
       configs:
         Debug:
           APS_ENVIRONMENT: development

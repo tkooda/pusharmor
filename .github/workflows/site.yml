@@ -28,10 +28,12 @@ jobs:
         run: node site/tools/hashes.mjs --check
       - name: Site checks
         run: node --test 'site/tools/test/*.test.mjs'
-      # Proves the release build fills every id. Built with CI dummies, so the
-      # output is thrown away (never uploaded).
-      - name: Release build of a copy with CI dummies
+      # Proves the release build fills every id into the gitignored site/dist and
+      # leaves the tree clean. Built with CI dummies, so the output is thrown away
+      # (never uploaded).
+      - name: Release build with CI dummies leaves the tree clean
         run: |
-          node release/ci-dummy.mjs
-          cp -R site/public "$RUNNER_TEMP/site"
-          PA_CI_DUMMY=1 node site/tools/build.mjs --dir "$RUNNER_TEMP/site"
+          cp release/public.json "$RUNNER_TEMP/public.json"
+          node release/ci-dummy.mjs "$RUNNER_TEMP/public.json"
+          PA_CI_DUMMY=1 node site/tools/build.mjs --public "$RUNNER_TEMP/public.json"
+          test -z "$(git status --porcelain)" || { git status --porcelain; exit 1; }

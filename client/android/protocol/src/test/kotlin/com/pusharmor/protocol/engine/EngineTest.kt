@@ -157,20 +157,39 @@ class EngineTest {
         assertFalse(x.id in n.allow)
     }
 
-    @Test fun messagesMissingWithdrawsThenRetriesAndPauseWorksWhilePausedWithdraw() {
+    @Test fun messagesMissingWithdrawsThenRetriesAndLogoutWorksWhileLoggedOutWithdraw() {
         pairShown()
         n.approve.approve(x.id)
         n.pairing.cancelPairing(x.id) // approve lost reply case: allow holds X, no pin
         n.store.replaceAllowSet(emptyList()) // stale local set: the Worker still has X
-        val pause = PauseFlow(n.store, n.me, n.api, n.reconcile)
-        val r = pause.pause()
+        val logout = LogoutFlow(n.store, n.me, n.api, n.reconcile)
+        val r = logout.logout()
         assertTrue(r is ApiResult.Ok)
-        assertEquals(listOf("pause", "withdraw:${x.id}", "pause"), n.calls.filter { it == "pause" || it.startsWith("withdraw") })
-        assertTrue(n.paused)
-        // a withdraw passes the pause gate
+        assertEquals(listOf("logout", "withdraw:${x.id}", "logout"), n.calls.filter { it == "logout" || it.startsWith("withdraw") })
+        assertTrue(n.loggedOut)
+        // a withdraw passes the logout gate
         n.allow.add("y"); n.store.addAllow("y")
         n.reconcile.run()
         assertFalse("y" in n.allow)
+    }
+
+    /** Q368: a pending logout stays pending on no reply, 429, 5xx, and clock skew; it settles on any other answer. */
+    @Test fun pendingLogoutRetriesUntilTheRelayServerAnswers() {
+        val logout = LogoutFlow(n.store, n.me, n.api, n.reconcile)
+        n.offline = true
+        assertFalse(logout.sendPending())
+        assertFalse(n.loggedOut)
+        n.offline = false
+        n.rateLimitNext = 1
+        assertFalse(logout.sendPending())
+        n.skewNext = 2
+        assertFalse(logout.sendPending())
+        assertFalse(n.loggedOut)
+        assertFalse(LogoutFlow.settled(ApiResult.Http(503, "busy")))
+        assertTrue(logout.sendPending())
+        assertTrue(n.loggedOut)
+        assertTrue(logout.sendPending()) // already logged out on the relay server (401 "logged out"): settled
+        assertTrue(LogoutFlow.settled(ApiResult.Http(401, "unknown peer")))
     }
 
     @Test fun capElevenThPromptedAndSurvivesRestart() {
@@ -264,16 +283,16 @@ class EngineTest {
         assertTrue(n.effects.log.contains("reconcile"))
     }
 
-    @Test fun timeoutWhilePausedKeepsWaitingThenRefetchCompletes() {
+    @Test fun timeoutWhileLoggedOutKeepsWaitingThenRefetchCompletes() {
         pairShown()
         n.approve.approve(x.id)
         x.approve.approve(n.id)
         n.deliver(t0, drop = true)
-        n.paused = true
+        n.loggedOut = true
         val day = 24 * 3600_000L
         assertEquals(PairDecide.Timeout.KEEP_WAITING, n.pairing.checkTimeout(x.id, t0 + 15 * day, n.approve::refetch))
         assertTrue(n.store.peer(x.id)!!.pinned)
-        n.paused = false
+        n.loggedOut = false
         assertEquals(PairDecide.Timeout.COMPLETE, n.pairing.checkTimeout(x.id, t0 + 15 * day, n.approve::refetch))
         assertTrue(n.store.peer(x.id)!!.approveVerified)
         assertNull(n.store.pairing(x.id))
@@ -311,6 +330,61 @@ class EngineTest {
         assertEquals(PairRole.N, n.store.pairing(x.id)!!.role) // unchanged
     }
 
+    @Test fun pairAgainMarkerOnlyFromHalfStateCommitAndClearedByCancelOrPair() {
+        pairShown()
+        n.approve.approve(x.id)
+        assertTrue(n.store.peer(x.id)!!.waiting)
+        assertFalse(n.store.peer(x.id)!!.offersPairAgain) // plain waiting row keeps Cancel pairing
+        assertFalse(n.pairing.pairAgain(x.id, t0) {})
+        x.pairing.cancelPairing(n.id); x.fetch()
+        x.pairing.tapPair(n.id, t0); x.runPairSends(t0)
+        n.deliver(t0)
+        assertTrue(n.store.peer(x.id)!!.offersPairAgain)
+        n.pairing.cancelPairing(x.id)
+        assertFalse(n.store.peer(x.id)!!.pairAgain) // cleared by Cancel pairing
+        n.store.putPeer(n.store.peer(x.id)!!.copy(pairAgain = true))
+        assertTrue(n.pairing.tapPair(x.id, t0 + 1))
+        assertFalse(n.store.peer(x.id)!!.pairAgain) // cleared by starting a pair
+    }
+
+    @Test fun pairAgainOnHalfStateCancelsThenStartsFreshPairing() {
+        pairShown()
+        n.approve.approve(x.id) // N waiting; X never approves
+        x.pairing.cancelPairing(n.id); x.fetch()
+        x.pairing.tapPair(n.id, t0); x.runPairSends(t0)
+        n.deliver(t0)
+        assertTrue(n.store.peer(x.id)!!.waiting) // the half state row
+        assertTrue(n.store.peer(x.id)!!.offersPairAgain) // marker set with the notice
+        val oldPid = n.store.peer(x.id)!!.pairingId!!
+        val oldCommit = n.store.pairing(x.id)!!.cN!!.copyOf()
+        var reconciled = false
+        assertTrue(n.pairing.pairAgain(x.id, t0 + 1000) { n.reconcile.run(); reconciled = true })
+        assertTrue(reconciled) // the cancel's reconcile lands before the new pairing starts
+        assertFalse(x.id in n.allow)
+        val p = n.store.peer(x.id)!!
+        assertFalse(p.pairAgain) // marker cleared
+        assertFalse(p.pinned) // old pin and pairing id dropped
+        assertNull(p.pairingId)
+        val row = n.store.pairing(x.id)!!
+        assertEquals(PairRole.N, row.role)
+        assertEquals(PairState.COMMITTED, row.state) // new pairing started
+        assertFalse(row.cN!!.contentEquals(oldCommit))
+        assertFalse(n.pairing.pairAgain(x.id, t0 + 1000) {}) // not a half state now
+        // it completes as a fresh pairing. The two commits cross; lower id stays N. When X is the
+        // lower id it already sent its commit, so X uses Send again (60 s), as after a two-step cancel.
+        var t1 = t0 + 1000
+        repeat(3) { n.runPairSends(t1); x.runPairSends(t1); x.deliver(t1); n.deliver(t1) }
+        if (x.store.pairing(n.id)!!.let { it.role == PairRole.N && it.state == PairState.COMMITTED }) {
+            t1 += PairingEngine.SEND_AGAIN_MS
+            assertTrue(x.pairing.sendAgain(n.id, t1))
+            repeat(3) { n.runPairSends(t1); x.runPairSends(t1); x.deliver(t1); n.deliver(t1) }
+        }
+        assertEquals(PairState.SHOWN, n.store.pairing(x.id)!!.state)
+        assertEquals(PairState.SHOWN, x.store.pairing(n.id)!!.state)
+        assertEquals(n.store.pairing(x.id)!!.fingerprint, x.store.pairing(n.id)!!.fingerprint)
+        assertFalse(oldPid.contentEquals(n.store.peer(x.id)!!.pairingId!!))
+    }
+
     @Test fun replayGivesInvalidAndHistoryDuplicateRepresents() {
         pairShown(); approveBoth(); n.fetch()
         n.send.send(listOf(x.id), ContentType.TEXT, "once", t0)
@@ -319,5 +393,23 @@ class EngineTest {
         x.inbox.add(m); x.deliver(t0)
         assertTrue(x.effects.log.any { it.startsWith("represent:") })
         assertFalse(x.effects.log.contains("invalid"))
+    }
+
+    @Test fun cliPeerNotListeningIsSendOnly() {
+        pairShown(); approveBoth(); n.fetch()
+        x.platform = "cli"; x.listening = false
+        // the relay result clears listening and asks for a GET /peers
+        val out = n.send.send(listOf(x.id), ContentType.TEXT, "a", t0)
+        assertEquals(mapOf(x.id to "not listening"), out.results)
+        assertFalse(n.store.peer(x.id)!!.listening)
+        assertTrue(n.effects.log.contains("fetch"))
+        // GET /peers keeps platform "cli" and listening false: out of All
+        n.fetch()
+        assertEquals("cli", n.store.peer(x.id)!!.platform)
+        assertFalse(n.store.peer(x.id)!!.inAll)
+        assertTrue(com.pusharmor.protocol.allSet(n.store.peers()).none { it.id == x.id })
+        x.listening = true
+        n.fetch()
+        assertTrue(n.store.peer(x.id)!!.inAll)
     }
 }

@@ -7,24 +7,68 @@ struct CodeEntryView: View {
     @EnvironmentObject var model: AppModel
     @State private var raw = ""
     @State private var busy = false
+    @FocusState private var focused: Bool
+    @ScaledMetric private var scaled: CGFloat = 28
+    // Six cells share the width: past about 44 pt a monospaced glyph no longer fits a cell.
+    private var cellSize: CGFloat { min(scaled, 44) }
+
+    private var chars: [String] { EmailCode.clean(raw).map(String.init) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Enter the code")
                 .font(.title2.bold())
             Text("We sent a code to \(email).")
-            TextField("Code", text: $raw)
-                .textFieldStyle(.roundedBorder)
-                .font(.title3.monospaced())
-                .textInputAutocapitalization(.characters)
-                .autocorrectionDisabled()
-                .textContentType(.oneTimeCode)
-                .onChange(of: raw) { _, new in handle(new) }
+            ZStack {
+                HStack(spacing: 8) {
+                    ForEach(0 ..< EmailCode.length, id: \.self) { i in
+                        Text(i < chars.count ? chars[i] : " ")
+                            .font(.system(size: cellSize, weight: .semibold, design: .monospaced))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                            .foregroundStyle(Color.primary)
+                            .frame(maxWidth: .infinity, minHeight: cellSize * 2)
+                            .background(Color.fpCell, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(focused && i == min(chars.count, EmailCode.length - 1) ? Color.accentColor : Color(.systemGray),
+                                            lineWidth: focused && i == min(chars.count, EmailCode.length - 1) ? 2 : 1)
+                            )
+                    }
+                }
+                .accessibilityHidden(true)
+                // The field takes the typing and the one-time code; the cells show it.
+                TextField("Code", text: $raw)
+                    .focused($focused)
+                    .foregroundStyle(Color.clear)
+                    .tint(.clear)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    .textContentType(.oneTimeCode)
+                    .keyboardType(.asciiCapable)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // VoiceOver reads the entered characters one by one, as the cells show them (I507)
+                    .accessibilityValue(CodeEntryView.spoken(chars))
+                    .onChange(of: raw) { old, new in
+                        // typing is echoed by the keyboard; a pasted or filled code is read out here
+                        let added = EmailCode.clean(new).count - EmailCode.clean(old).count
+                        if added > 1 { AccessibilityNotification.Announcement(CodeEntryView.spoken(EmailCode.clean(new).map(String.init))).post() }
+                        handle(new)
+                    }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { focused = true }
+            .onAppear { focused = true }
             if busy { ProgressView() }
-            Button("Back") { model.phase = .signIn(purpose) }
+            Button("Back") { model.leaveCode(purpose) }
             Spacer()
         }
         .padding(24)
+    }
+
+    /// VoiceOver text for the entered characters, for example "A 7 K, 3 of 6" (I507).
+    static func spoken(_ chars: [String]) -> String {
+        chars.isEmpty ? "Empty" : chars.joined(separator: " ") + ", \(chars.count) of \(EmailCode.length)"
     }
 
     private func handle(_ input: String) {

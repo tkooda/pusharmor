@@ -27,9 +27,9 @@ env:
   SDK_PACKAGES: platforms;android-36 build-tools;35.0.0 build-tools;34.0.0 platform-tools
   PACKAGE_NAME: com.pusharmor
   # Status of the Play internal track release. Play accepts only draft while the
-  # app has never been published. The owner changes this to completed once, after
-  # the first manual publish in Play Console.
-  PLAY_INTERNAL_STATUS: draft
+  # app has never been published; the first release was published by hand, so
+  # later tags roll out to internal testers on their own.
+  PLAY_INTERNAL_STATUS: completed
 
 jobs:
   # Fails early: the tag rule, version files and ci-ok before any test or build.
@@ -410,6 +410,7 @@ jobs:
             echo "Play reports versionCode $code, not the tag's"
             exit 1
           fi
-          body="$(jq -nc --arg c "$code" --arg s "$PLAY_INTERNAL_STATUS" '{track: "internal", releases: [{versionCodes: [$c], status: $s}]}')"
+          body="$(jq -nc --arg c "$code" --arg s "$PLAY_INTERNAL_STATUS" --arg n "$VERSION" '{track: "internal", releases: [{name: $n, versionCodes: [$c], status: $s}]}')"
           call -X PUT -H "$auth" -H "Content-Type: application/json" --data "$body" "$api/edits/$edit/tracks/internal"
-          call -X POST -H "$auth" "$api/edits/$edit:commit"
+          # Content-Length: 0: a POST with no body gets HTTP 411 from the Google front end.
+          call -X POST -H "$auth" -H "Content-Length: 0" "$api/edits/$edit:commit"

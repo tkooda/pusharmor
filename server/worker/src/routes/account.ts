@@ -6,7 +6,7 @@ import { parseJsonObject } from "../pipeline/body";
 import { checkSig, checkTime } from "../pipeline/signed";
 import * as SQL from "../db/sql";
 import { all, batch } from "../db/d1";
-import type { RelayRow } from "../db/rows";
+import { isListening, type RelayRow } from "../db/rows";
 import { checkTicket, relayMap } from "./common";
 import { json } from "../http";
 import { revokeAppleSealed } from "../auth/apple";
@@ -14,9 +14,12 @@ import { revokeAppleSealed } from "../auth/apple";
 interface AcctRow {
   id: string;
   sign_pub: string;
+  platform: string;
+  push_failed: number | null;
   push_type: number | null;
   push: string | null;
-  paused: number;
+  push_verified_at: number | null;
+  logged_out: number;
   allow: string;
   deny: string;
 }
@@ -43,9 +46,9 @@ export async function deleteAccount(c: Ctx): Promise<Response> {
   c.log.account = acct;
   requireAccount(Object.keys(m), acct);
 
-  const rows = await all<AcctRow>(c.log, c.env.DB.prepare(SQL.Q_ACCT).bind(acct));
+  const rows = await all<AcctRow>(c.env.DB.prepare(SQL.Q_ACCT).bind(acct));
   const me = rows.find((r) => r.sign_pub === signPub);
-  await batch(c.log, c.env.DB, [c.env.DB.prepare(SQL.W_DELALL).bind(acct), c.env.DB.prepare(SQL.W_DELACCT).bind(acct)]);
+  await batch(c.env.DB, [c.env.DB.prepare(SQL.W_DELALL).bind(acct), c.env.DB.prepare(SQL.W_DELACCT).bind(acct)]);
 
   let r: Record<string, string>;
   if (!me) {
@@ -60,9 +63,11 @@ export async function deleteAccount(c: Ctx): Promise<Response> {
         x && {
           approves_me: has(x.allow, me.id),
           denies_me: has(x.deny, me.id),
-          paused: x.paused === 1,
+          logged_out: x.logged_out === 1,
+          listening: isListening(x.platform, x.push_failed),
           push_type: x.push_type,
           push: x.push,
+          push_verified_at: x.push_verified_at,
         }
       );
     };

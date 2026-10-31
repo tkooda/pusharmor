@@ -24,7 +24,8 @@ final class StateMachineTests: XCTestCase {
         await n.core.fetchPeers(force: true)
         XCTAssertEqual(try n.core.allSet().map { $0.id }, [x.id])
         let rep = try await n.core.send("https://example.com/a", as: .url, to: [x.id], allCount: 1)
-        XCTAssertEqual(rep.toast, "Sent to 1 of 1 peers")
+        XCTAssertEqual(rep.toast, "Sent to 1 of 1 device")
+        XCTAssertEqual(S.sentToOne("Laptop"), "Sent to \"Laptop\"")
         let pushed = w.take(x.id)
         XCTAssertEqual(pushed.count, 1)
         let r = await x.core.receive(pushed[0], mode: .nse)
@@ -99,10 +100,10 @@ final class StateMachineTests: XCTestCase {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try n.core.store.db.write {
             try n.core.store.db.exec("""
-                INSERT INTO peers (id, state, approve_verified, approve_verified_at, paused, pause_n, name, name_n)
+                INSERT INTO peers (id, state, approve_verified, approve_verified_at, logged_out, logout_n, name, name_n)
                 VALUES ('\(x.id.text)', 'approved', 1, 5, 1, 7, 'Xdev', 3)
                 ON CONFLICT(id) DO UPDATE SET state = 'approved', approve_verified = 1, approve_verified_at = 5,
-                  paused = 1, pause_n = 7, name = 'Xdev', name_n = 3
+                  logged_out = 1, logout_n = 7, name = 'Xdev', name_n = 3
                 """)
         }
         n.core.selfRemoved()
@@ -110,8 +111,8 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(p.state, .unruled)
         XCTAssertFalse(p.approveVerified)
         XCTAssertNil(p.approveVerifiedAt)
-        XCTAssertFalse(p.paused)
-        XCTAssertEqual(p.pauseN, 0)
+        XCTAssertFalse(p.loggedOut)
+        XCTAssertEqual(p.logoutN, 0)
         XCTAssertNil(p.name)
         XCTAssertEqual(p.nameN, 0)
     }
@@ -194,15 +195,54 @@ final class StateMachineTests: XCTestCase {
         try await pairFully(n, x)
         // the Worker still has o in n's allow (a lost reply), unknown to the local set
         w.rows[n.id.text]!.allow[o.id.text] = true
-        let out = try await n.core.pause()
+        let out = try await n.core.logout()
         XCTAssertEqual(out.reply?.status, 200)
         XCTAssertEqual(w.count("POST", "/v1/deny/" + o.id.text), 1)       // withdraw
-        XCTAssertEqual(w.count("POST", "/v1/peers/" + n.id.text + "/pause"), 2)  // refused once, retried once
-        XCTAssertTrue(try n.core.store.me().paused)
-        // a withdraw sent while paused succeeds
+        XCTAssertEqual(w.count("POST", "/v1/peers/" + n.id.text + "/logout"), 2)  // refused once, retried once
+        XCTAssertTrue(try n.core.store.me().loggedOut)
+        // a withdraw sent while logged out succeeds
         try n.core.store.allowAdd([o.id.text])
         await n.core.allowReconcile()
         XCTAssertFalse(try n.core.store.allowSet().contains(o.id.text))
+    }
+
+    /// Q368: Log out is local at once; a failed relay server call stays pending and is retried.
+    func testLogoutLocalFirstThenPendingRetry() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        let path = "/v1/peers/" + n.id.text + "/logout"
+        try n.core.logoutLocal()
+        XCTAssertTrue(try n.core.store.me().loggedOut)
+        XCTAssertTrue(n.core.logoutPending)
+        w.offline = true
+        await n.core.retryPendingLogout()
+        XCTAssertTrue(try n.core.store.me().loggedOut)            // still logged out here
+        XCTAssertTrue(n.core.logoutPending)                       // kept for the next try
+        XCTAssertFalse(w.rows[n.id.text]!.loggedOut)
+        w.offline = false
+        w.script("POST", path, 503, "{\"error\":\"busy\"}")
+        w.script("POST", path, 503, "{\"error\":\"busy\"}")
+        w.script("POST", path, 503, "{\"error\":\"busy\"}")
+        w.script("POST", path, 503, "{\"error\":\"busy\"}")
+        await n.core.retryPendingLogout()
+        XCTAssertTrue(n.core.logoutPending)                       // 5xx: kept
+        await n.core.retryPendingLogout()
+        XCTAssertFalse(n.core.logoutPending)
+        XCTAssertTrue(w.rows[n.id.text]!.loggedOut)
+        XCTAssertTrue(try n.core.store.me().loggedOut)
+        let sent = w.count("POST", path)
+        await n.core.retryPendingLogout()                         // nothing pending: no call
+        XCTAssertEqual(w.count("POST", path), sent)
+    }
+
+    /// Q368: a pending logout is dropped once this device logs in again.
+    func testPendingLogoutDroppedAfterLoggingInAgain() async throws {
+        let n = try dev("Ndev")
+        try n.core.logoutLocal()
+        try n.core.store.setMe("logged_out", .int(0))
+        await n.core.retryPendingLogout()
+        XCTAssertFalse(n.core.logoutPending)
+        XCTAssertEqual(w.count("POST", "/v1/peers/" + n.id.text + "/logout"), 0)
     }
 
     func testStaleAllowIdPlusOpenNEntryWithdrawnPauseSucceeds() async throws {
@@ -213,7 +253,7 @@ final class StateMachineTests: XCTestCase {
         try n.core.store.allowAdd([x.id.text])
         await n.core.allowReconcile()
         XCTAssertNil(w.rows[n.id.text]!.allow[x.id.text])
-        let out = try await n.core.pause()
+        let out = try await n.core.logout()
         XCTAssertEqual(out.reply?.status, 200)
     }
 
@@ -425,6 +465,128 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(try x.core.store.pairing(n.id)?.role, .x)
     }
 
+    func testPairAgainNoticeText() {
+        XCTAssertEqual(S.pairAgain("Ndev"), "Ndev wants to pair again. Tap Pair again on its row.")
+    }
+
+    func testPairAgainOnHalfStateStartsFreshPairing() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        try n.core.store.dropPin(x.id)                                     // N lost its half, pairs again
+        _ = try await n.core.startPair(x.id)
+        let commit = w.take(x.id)[0]
+        w.rows[n.id.text]!.allow = [:]
+        clock.now += 10
+        await x.core.fetchPeers(force: true)
+        let r = await x.core.receive(commit, mode: .nse)
+        XCTAssertEqual(r.banner?.body, S.pairAgain("Ndev"))
+        let before = try x.core.store.peer(n.id)!
+        XCTAssertTrue(x.core.offersPairAgain(before))                     // the row shows Pair again
+        let oldPid = before.pairingId
+        // one tap: Cancel pairing (awaited, allow withdrawn), then Pair
+        let v = try await x.core.pairAgain(n.id)
+        XCTAssertEqual(v, .sent)
+        let p = try x.core.store.peer(n.id)!
+        XCTAssertFalse(p.pinned)
+        XCTAssertNil(p.pairingId)
+        XCTAssertEqual(p.lastN, 0)
+        XCTAssertNil(p.note)
+        XCTAssertNil(try x.core.store.replay(n.id))
+        XCTAssertNil(w.rows[x.id.text]!.allow[n.id.text])
+        XCTAssertFalse(x.core.offersPairAgain(p))
+        XCTAssertEqual(try x.core.store.pairing(n.id)?.role, .n)          // new pairing started
+        XCTAssertEqual(try x.core.store.pairing(n.id)?.state, .committed)
+        // both sides hold a committed entry: the existing crossing rule settles it
+        await n.drainInbox(w)
+        if n.id < x.id {
+            clock.now += 61                                                // lower id waits; N taps Send again
+            _ = await n.core.sendAgain(x.id)
+            await x.drainInbox(w)                                          // X wipes its entry, replies
+            await n.drainInbox(w)
+            await x.drainInbox(w)
+        } else {
+            await x.drainInbox(w)                                          // N replied: X sends the open
+            await n.drainInbox(w)
+        }
+        XCTAssertEqual(try x.core.store.pairing(n.id)?.state, .shown)
+        XCTAssertEqual(try n.core.store.pairing(x.id)?.state, .shown)
+        let fp = try x.core.store.peer(n.id)!.fingerprint
+        XCTAssertNotNil(fp)
+        XCTAssertEqual(fp, try n.core.store.peer(x.id)!.fingerprint)
+        XCTAssertNotEqual(try x.core.store.peer(n.id)!.pairingId, oldPid)
+    }
+
+    /// X on a half-state row: N re-paired and X got the commit with Pair again offered.
+    private func halfStateRow() async throws -> (n: Device, x: Device) {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        try n.core.store.dropPin(x.id)
+        _ = try await n.core.startPair(x.id)
+        let commit = w.take(x.id)[0]
+        w.rows[n.id.text]!.allow = [:]
+        clock.now += 10
+        await x.core.fetchPeers(force: true)
+        _ = await x.core.receive(commit, mode: .nse)
+        XCTAssertTrue(x.core.offersPairAgain(try x.core.store.peer(n.id)!))
+        return (n, x)
+    }
+
+    func testPairAgainSecondTapChangesNothing() async throws {
+        let (n, x) = try await halfStateRow()
+        let v = try await x.core.pairAgain(n.id)
+        XCTAssertEqual(v, .sent)
+        let entry = try x.core.store.pairing(n.id)
+        XCTAssertNotNil(entry)
+        XCTAssertFalse(w.take(n.id).isEmpty)                             // the commit went out
+        do {
+            _ = try await x.core.pairAgain(n.id)
+            XCTFail("second Pair again must not run")
+        } catch let e as Core.PairStartError {
+            XCTAssertEqual(e, .notOffered)
+        }
+        XCTAssertEqual(try x.core.store.pairing(n.id), entry)             // the sent commit is kept
+        XCTAssertTrue(w.take(n.id).isEmpty)
+        XCTAssertNil(Core.pairAgainToast(.failure(Core.PairStartError.notOffered)))
+    }
+
+    func testPairAgainRefusedKeepsRow() async throws {
+        let (n, x) = try await halfStateRow()
+        try x.core.store.db.exec("UPDATE peers SET list_enc_pub = NULL WHERE id = ?", [.text(n.id.text)])
+        let before = try x.core.store.peer(n.id)!
+        do {
+            _ = try await x.core.pairAgain(n.id)
+            XCTFail("Pair again must refuse an unlisted peer")
+        } catch let e as Core.PairStartError {
+            XCTAssertEqual(e, .notListed)
+            XCTAssertEqual(Core.pairAgainToast(.failure(e)), S.cannotPairNow)
+        }
+        let after = try x.core.store.peer(n.id)!
+        XCTAssertEqual(after.pinned, before.pinned)                       // nothing dropped
+        XCTAssertTrue(x.core.offersPairAgain(after))
+    }
+
+    func testPairAgainToastText() {
+        XCTAssertNil(Core.pairAgainToast(.success(.sent)))
+        XCTAssertNil(Core.pairAgainToast(.success(.rateLimited(5))))
+        XCTAssertEqual(Core.pairAgainToast(.success(.network)), S.pairNotSent)
+        XCTAssertEqual(Core.pairAgainToast(.success(.error(500))), S.pairNotSent)
+        XCTAssertEqual(Core.pairAgainToast(.success(.result("gone"))), S.cannotPairNow)
+        XCTAssertEqual(Core.pairAgainToast(.failure(Core.PairStartError.tooManyOpen)), S.cannotPairNow)
+    }
+
+    func testFailedCallShowsAToast() {
+        func reply(_ status: Int, _ body: String) -> APIOutcome { .reply(APIReply(status: status, body: Data(body.utf8))) }
+        XCTAssertNil(Core.failText(reply(200, "{}")))
+        XCTAssertEqual(Core.failText(APIOutcome.network), S.noConnection)
+        XCTAssertEqual(Core.failText(reply(500, "{\"error\":\"x\"}")), S.notDone)
+        XCTAssertEqual(Core.failText(reply(401, "{\"error\":\"clock skew\"}")), S.clockOff)
+        XCTAssertEqual(Core.failText(nil as APIOutcome?), S.notDone)              // threw before any reply
+        XCTAssertNil(Core.failText(ApproveOutcome.denied))
+        XCTAssertNil(Core.failText(ApproveOutcome.result("gone")))
+        XCTAssertEqual(Core.failText(ApproveOutcome.network), S.noConnection)
+        XCTAssertEqual(Core.failText(ApproveOutcome.error(500)), S.notDone)
+    }
+
     func testWaitingRowGets3dNoticeOnCommitFromX() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try await pairToShown(n, x)
@@ -437,7 +599,7 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(r.first?.banner?.body, S.pairAgain(PeerLabel.label(try n.core.store.peer(x.id))))   // no name yet
     }
 
-    func testTimeoutWhilePausedKeepsWaitingThenCompletesAfterUnpause() async throws {
+    func testTimeoutWhileLoggedOutKeepsWaitingThenCompletesAfterLogin() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try await pairToShown(n, x)
         let v12 = await n.core.approve(x.id)
@@ -445,19 +607,19 @@ final class StateMachineTests: XCTestCase {
         let v13 = await x.core.approve(n.id)
         XCTAssertEqual(v13, .completed)
         _ = w.take(n.id)                                                // lost approve push
-        _ = try await n.core.pause()
+        _ = try await n.core.logout()
         clock.now += 14 * 86400 + 1
         await n.core.checkTimeouts()
         XCTAssertNotNil(try n.core.store.pairing(x.id))                 // stays Waiting
         XCTAssertTrue(try n.core.store.peer(x.id)!.pinned)
-        _ = try await n.core.unpause(ticket: "t", push: nil)
+        _ = try await n.core.login(ticket: "t", push: nil)
         XCTAssertTrue(try n.core.store.peer(x.id)!.approveVerified)
         XCTAssertNil(try n.core.store.pairing(x.id))
         await n.core.checkTimeouts()
         XCTAssertTrue(try n.core.store.peer(x.id)!.pinned)
     }
 
-    func testTimeoutFoundWhilePausedDropsLocallyAndWithdraws() async throws {
+    func testTimeoutFoundWhileLoggedOutDropsLocallyAndWithdraws() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         await n.core.fetchPeers(force: true)
         await x.core.fetchPeers(force: true)
@@ -465,20 +627,20 @@ final class StateMachineTests: XCTestCase {
         await x.drainInbox(w)
         await n.drainInbox(w)
         await x.drainInbox(w)                                           // both shown, X approves nothing
-        // N's allow set holds X (an approve was being prepared), then N signs out
+        // N's allow set holds X (an approve was being prepared), then N logs out
         try n.core.store.allowAdd([x.id.text])
         w.rows[n.id.text]!.allow[x.id.text] = true
-        w.rows[n.id.text]!.paused = true
-        try n.core.store.setMe("paused", .int(1))
+        w.rows[n.id.text]!.loggedOut = true
+        try n.core.store.setMe("logged_out", .int(1))
         clock.now += 14 * 86400 + 1
         let callsBefore = w.calls.count
         await n.core.checkTimeouts()
         XCTAssertFalse(try n.core.store.peer(x.id)!.pinned)
         XCTAssertEqual(try n.core.store.peer(x.id)!.note, PairNote.timedOut.rawValue)
-        // nothing sent except through the reconcile: one withdraw, accepted while paused
+        // nothing sent except through the reconcile: one withdraw, accepted while logged out
         XCTAssertEqual(w.calls.count - callsBefore, 1)
         XCTAssertNil(w.rows[n.id.text]!.allow[x.id.text])
-        let out = try await n.core.unpause(ticket: "t", push: nil)
+        let out = try await n.core.login(ticket: "t", push: nil)
         XCTAssertEqual(out.reply?.status, 200)
     }
 
@@ -550,15 +712,15 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(try n.core.store.peer(x.id)?.state, .removed)
     }
 
-    func testPauseNoticeEventsAndOrdering() async throws {
+    func testLogoutNoticeEventsAndOrdering() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try await pairFully(n, x)
-        _ = try await n.core.pause()
+        _ = try await n.core.logout()
         let r = await x.drainInbox(w)
-        XCTAssertEqual(r.first?.banner?.body, S.pausedReceiving("Ndev"))
+        XCTAssertEqual(r.first?.banner?.body, S.loggedOutNotice("Ndev"))
         XCTAssertEqual(r.first?.banner?.category, .notice)
-        XCTAssertTrue(try x.core.store.peer(n.id)!.paused)
-        XCTAssertEqual(try x.core.store.history().first?.event, .paused)
+        XCTAssertTrue(try x.core.store.peer(n.id)!.loggedOut)
+        XCTAssertEqual(try x.core.store.history().first?.event, .loggedOut)
         XCTAssertFalse(try x.core.store.peer(n.id)!.inAll)
     }
 
@@ -583,13 +745,176 @@ final class StateMachineTests: XCTestCase {
         XCTAssertTrue(try x.core.store.me().fetchDue || w.count("GET", "/v1/peers") >= 1)
     }
 
+    func testRenameRefusesDoubleQuote() async throws {
+        let n = try dev("Ndev")
+        do {
+            _ = try await n.core.rename("Bad \"name\"")
+            XCTFail("a name with a double quote was accepted")
+        } catch Core.CoreError.refused(let what) {
+            XCTAssertEqual(what, "name")
+        }
+        XCTAssertEqual(try n.core.store.me().name, "Ndev")
+    }
+
     func testDBMigrationIdempotent() throws {
         let path = NSTemporaryDirectory() + "pa-mig-\(UUID().uuidString).sqlite"
         _ = try Store(path: path)
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 1)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 4)
         XCTAssertEqual(try s.db.one("PRAGMA journal_mode")?.text("journal_mode"), "wal")
         XCTAssertNil(try s.me().id)
+    }
+
+    func testDBMigrationRenamesPauseColumns() throws {
+        let path = NSTemporaryDirectory() + "pa-mig2-\(UUID().uuidString).sqlite"
+        // Rebuild a version 1 file: the old column names, old event words, no listening column
+        // (migration 3) and user_version 1.
+        do {
+            let s = try Store(path: path)
+            try s.db.exec("ALTER TABLE peers DROP COLUMN listening")
+            try s.db.exec("ALTER TABLE me RENAME COLUMN logged_out TO paused")
+            try s.db.exec("ALTER TABLE peers RENAME COLUMN logged_out TO paused")
+            try s.db.exec("ALTER TABLE peers RENAME COLUMN logout_n TO pause_n")
+            try s.db.exec("UPDATE me SET paused = 1")
+            try s.db.exec("INSERT INTO peers (id, paused, pause_n) VALUES ('p1', 1, 7)")
+            try s.db.exec("""
+                INSERT INTO history (dir, type, content, event, created_local)
+                VALUES ('in', 'event', 'a', 'paused', 1), ('in', 'event', 'b', 'resumed', 2)
+                """)
+            try s.db.exec("PRAGMA user_version = 1")
+        }
+        let s = try Store(path: path)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 4)
+        XCTAssertTrue(try s.me().loggedOut)
+        let p = try s.db.one("SELECT logged_out, logout_n FROM peers WHERE id = 'p1'")
+        XCTAssertEqual(p?.int("logged_out"), 1)
+        XCTAssertEqual(p?.int("logout_n"), 7)
+        let ev = try s.db.query("SELECT event FROM history ORDER BY created_local").map { $0.text("event") }
+        XCTAssertEqual(ev, ["logged_out", "logged_in"])
+    }
+
+    func testDBMigrationAddsListeningDefaultTrue() throws {
+        let path = NSTemporaryDirectory() + "pa-mig3-\(UUID().uuidString).sqlite"
+        // Rebuild a version 2 file: no listening column, user_version 2.
+        do {
+            let s = try Store(path: path)
+            try s.db.exec("ALTER TABLE peers DROP COLUMN listening")
+            try s.db.exec("INSERT INTO peers (id, platform) VALUES ('p1', 'android')")
+            try s.db.exec("PRAGMA user_version = 2")
+        }
+        let s = try Store(path: path)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 4)
+        XCTAssertEqual(try s.db.one("SELECT listening FROM peers WHERE id = 'p1'")?.int("listening"), 1)
+        let a = TestPeer()
+        var p = Peer(id: a.id); p.listening = false; try s.savePeer(p)
+        XCTAssertEqual(try s.peer(a.id)?.listening, false)
+    }
+
+    func testDBMigrationClockOffsetToSeconds() throws {
+        let path = NSTemporaryDirectory() + "pa-mig4-\(UUID().uuidString).sqlite"
+        // Rebuild a version 3 file holding a ms offset (Q331).
+        do {
+            let s = try Store(path: path)
+            try s.db.exec("UPDATE me SET clock_offset = -7500")
+            try s.db.exec("PRAGMA user_version = 3")
+        }
+        let s = try Store(path: path)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 4)
+        XCTAssertEqual(try s.me().clockOffset, -7)
+    }
+
+    /// Q332: a corrupt pa.sqlite runs onCorrupt and is recreated empty; a healthy one is kept.
+    func testCorruptStoreRepaired() async throws {
+        let path = NSTemporaryDirectory() + "pa-bad-\(UUID().uuidString).sqlite"
+        try Data(repeating: 0x5a, count: 4096).write(to: URL(fileURLWithPath: path))
+        var called = 0
+        let r = try await StoreRepair.open(path: path) { called += 1 }
+        XCTAssertTrue(r.repaired)
+        XCTAssertEqual(called, 1)
+        XCTAssertNil(try r.store.me().id)
+        XCTAssertEqual(try r.store.db.one("PRAGMA user_version")?.int("user_version"), 4)
+        try r.store.setMe("name", .text("kept"))
+        let r2 = try await StoreRepair.open(path: path) { called += 1 }
+        XCTAssertFalse(r2.repaired)
+        XCTAssertEqual(called, 1)
+        XCTAssertEqual(try r2.store.me().name, "kept")
+    }
+
+    /// Q332: the best-effort DELETE of this device is signed with the surviving keys and
+    /// retried once on clock skew.
+    func testDeleteSelfAfterCorruption() async {
+        let w = FakeWorker(), p = TestPeer()
+        w.add(p.id, signPub: p.signPub, encPub: p.encPub)
+        let api = APIClient(base: URL(string: "https://api.test")!, transport: w, clockMs: { 1761300000000 }, sleep: { _ in })
+        w.script("DELETE", "/v1/peers/", 401, "{\"error\":\"clock skew\"}")
+        let ok = await StoreRepair.deleteSelf(api: api, signer: p.signer, id: p.id)
+        XCTAssertTrue(ok)
+        XCTAssertEqual(w.count("DELETE", "/v1/peers/" + p.id.text), 2)
+        XCTAssertNil(w.rows[p.id.text])
+        w.offline = true
+        let ok2 = await StoreRepair.deleteSelf(api: api, signer: p.signer, id: p.id)
+        XCTAssertFalse(ok2)
+    }
+
+    func testCliPeerListeningParsedAndSendOnlyExcluded() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        w.rows[x.id.text]!.platform = "cli"
+        w.rows[x.id.text]!.listening = true
+        await n.core.fetchPeers(force: true)
+        var p = try n.core.store.peer(x.id)!
+        XCTAssertEqual(p.platform, "cli")
+        XCTAssertTrue(p.listening)
+        XCTAssertTrue(p.inAll)
+        XCTAssertTrue(p.canReceive)
+        // a cli device that stopped listening: send only, out of All and not a send target
+        w.rows[x.id.text]!.listening = false
+        await n.core.fetchPeers(force: true)
+        p = try n.core.store.peer(x.id)!
+        XCTAssertFalse(p.listening)
+        XCTAssertFalse(p.inAll)
+        XCTAssertFalse(p.canReceive)
+        XCTAssertEqual(try n.core.allSet().count, 0)
+        // the key absent (another platform) reads as listening
+        w.rows[x.id.text]!.listening = nil
+        await n.core.fetchPeers(force: true)
+        XCTAssertTrue(try n.core.store.peer(x.id)!.listening)
+    }
+
+    func testSendFailureResultsEachShowALine() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        await n.core.fetchPeers(force: true)
+        let label = PeerLabel.label(try n.core.store.peer(x.id))
+        w.rows[x.id.text]!.allow[n.id.text] = nil
+        var rep = try await n.core.send("hi", as: .text, to: [x.id], allCount: 1)
+        XCTAssertEqual(rep.lines, [label + ": Not paired. Pair with it to send messages."])
+        w.rows[x.id.text]!.allow[n.id.text] = true
+        w.rows[x.id.text]!.deny[n.id.text] = true
+        rep = try await n.core.send("hi", as: .text, to: [x.id], allCount: 1)
+        XCTAssertEqual(rep.lines, [label + ": It declined this device."])
+        w.rows[x.id.text] = nil
+        rep = try await n.core.send("hi", as: .text, to: [x.id], allCount: 1)
+        XCTAssertEqual(rep.lines, [label + ": It is no longer on this account."])
+        XCTAssertEqual(S.signedOutPeer("A"), "A: Logged out. Log in on it to receive messages.")
+        XCTAssertEqual(S.notDelivered("A"), "Not delivered to A: open PushArmor on it.")
+        XCTAssertEqual(S.notDeliveredRetry("A"), "A: Not delivered. Try again.")
+    }
+
+    func testSendNotListeningShowsSendOnly() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        await n.core.fetchPeers(force: true)
+        w.rows[x.id.text]!.platform = "cli"
+        w.rows[x.id.text]!.listening = false
+        let rep = try await n.core.send("hi", as: .text, to: [x.id], allCount: 1)
+        XCTAssertEqual(rep.results[x.id.text], "not listening")
+        let label = PeerLabel.label(try n.core.store.peer(x.id))
+        XCTAssertEqual(rep.toast, "Sent to 0 of 1 device\n" + S.sendOnlyPeer(label))
+        XCTAssertTrue(S.sendOnlyPeer("Xdev").hasSuffix("Send only. It does not receive messages."))
+        XCTAssertFalse(try n.core.store.peer(x.id)!.listening)
+        XCTAssertTrue(try n.core.store.me().fetchDue)
+        XCTAssertTrue(w.take(x.id).isEmpty)
     }
 
     func testLockScreenBody() {

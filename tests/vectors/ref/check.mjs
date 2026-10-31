@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { b64d, b64e, hexd, hexe, sha256 } from './bytes.mjs';
 import { isValidPub, pubFromPriv, sign, verify } from './p256.mjs';
-import { accountId, compareIds, emailHash, idMatches, keyhash, myPushSha256, normalizeEmail, oauthNonce, peerId } from './ids.mjs';
+import { accountId, cliCode, compareIds, emailHash, idMatches, keyhash, mailboxKey, myPushSha256, normalizeEmail, oauthNonce, peerId } from './ids.mjs';
 import {
   commitHash, crockford20, fingerprintHash, openMatchesCommit, openPair, pairDecide, pairHint, pairKey, pairingId, pairTimeout,
 } from './pairing.mjs';
@@ -59,6 +59,16 @@ test('keys', () => {
   }
 });
 
+test('mailbox', () => {
+  for (const c of G.mailbox.cases) {
+    const n = normalizeEmail(c.input);
+    assert.equal(n, c.normalized, c.input);
+    assert.equal(mailboxKey(n), c.mailbox, c.input);
+    assert.equal(b64e(emailHash(c.mailbox)), c.email_hash);
+    assert.equal(b64e(accountId(ID_SECRET, emailHash(c.mailbox))), c.account);
+  }
+});
+
 test('email_hash', () => {
   for (const c of G.email_hash.cases) {
     const n = normalizeEmail(c.input);
@@ -79,6 +89,16 @@ test('oauth_nonce', () => {
     const r = oauthNonce(c.purpose, b64d(c.sign_pub));
     assert.equal(r.k, c.k);
     assert.equal(r.nonce, c.nonce);
+  }
+});
+
+test('cli_code', () => {
+  for (const c of G.cli_code.cases) {
+    const r = cliCode(b64d(G.cli_code.token_secret), b64d(c.account), b64d(c.sign_pub), c.p, c.window);
+    assert.equal(r.k16, c.k16);
+    assert.equal('https://pusharmor.com/auth/cli#' + c.p + '.' + r.k16, c.link);
+    assert.equal(r.code, c.code);
+    assert.equal(c.code.length, 34);
   }
 });
 
@@ -182,7 +202,7 @@ function checkFullMessage(c) {
 
 test('messages', () => {
   assert.deepEqual(G.messages.cases.map((c) => c.type).sort(),
-    ['approve', 'delete', 'deny', 'pause', 'remove', 'rename', 'tel', 'text', 'unpause', 'url']);
+    ['approve', 'delete', 'deny', 'login', 'logout', 'remove', 'rename', 'tel', 'text', 'url']);
   for (const c of G.messages.cases) {
     checkFullMessage(c);
     assert.equal(c.message.length, c.wire_chars);
@@ -250,6 +270,18 @@ test('url_parse', () => {
 
 test('phone', () => {
   for (const c of G.phone.cases) assert.equal(isPhone(c.input), c.phone, JSON.stringify(c.input));
+});
+
+test('must_decode', () => {
+  for (const c of G.must_decode.messages) {
+    const got = receiveMessage(ctxFor(c), c.message);
+    assert.deepEqual({ outcome: got.outcome, type: got.type, n: got.n, value: got.value }, c.expect, c.name);
+  }
+  for (const c of G.must_decode.name_entries) {
+    const r = peer(c.receiver);
+    const owner = peer(c.owner);
+    assert.deepEqual(openNameEntry(c.ciphertext, r.id, r.encPriv, owner.id, pinOf(c.pin)[owner.id]), c.expect, c.name);
+  }
 });
 
 function mustFailOutcome(c) {

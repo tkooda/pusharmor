@@ -10,6 +10,7 @@ import { deleteAccount } from "./routes/account";
 import { approve, deny } from "./routes/approve";
 import { pair } from "./routes/pair";
 import { send } from "./routes/send";
+import { health } from "./routes/health";
 
 export type Handler = (c: Ctx) => Promise<Response>;
 
@@ -32,14 +33,15 @@ export const ROUTES: Route[] = [
   { method: "GET", path: "/v1/peers", handler: peers.list },
   { method: "PATCH", path: "/v1/peers/:id", handler: peers.patch },
   { method: "DELETE", path: "/v1/peers/:id", handler: peers.remove },
-  { method: "POST", path: "/v1/peers/:id/pause", handler: peers.pause },
-  { method: "POST", path: "/v1/peers/:id/unpause", handler: peers.unpause },
+  { method: "POST", path: "/v1/peers/:id/logout", handler: peers.logout },
+  { method: "POST", path: "/v1/peers/:id/login", handler: peers.login },
   { method: "POST", path: "/v1/peers/:id/confirm", handler: peers.confirm },
   { method: "DELETE", path: "/v1/account", handler: deleteAccount },
   { method: "POST", path: "/v1/approve/:id", handler: approve },
   { method: "POST", path: "/v1/deny/:id", handler: deny },
   { method: "POST", path: "/v1/pair/:id", handler: pair },
   { method: "POST", path: "/v1/send", handler: send },
+  { method: "GET", path: "/v1/health", handler: health },
   { method: "OPTIONS", path: "/v1/auth/email", handler: "preflight" },
   { method: "OPTIONS", path: "/v1/auth/email/verify", handler: "preflight" },
   { method: "OPTIONS", path: "/v1/account", handler: "preflight" },

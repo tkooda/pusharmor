@@ -28,8 +28,10 @@ data class Peer(
     /** A signed deny from this peer was received ("Declined by $X"). */
     val declined: Boolean = false,
     val reachable: Boolean = true,
-    val paused: Boolean = false,
-    val pauseN: Long = 0,
+    val loggedOut: Boolean = false,
+    /** A "cli" peer that has not run its listen command recently (GET /peers "listening": false): send only. */
+    val listening: Boolean = true,
+    val logoutN: Long = 0,
     val hidden: Boolean = false,
     val name: String? = null,
     val nameN: Long = 0,
@@ -46,6 +48,8 @@ data class Peer(
     val lastSendAt: Long = 0,
     /** Row line after an aborted or timed-out pairing ("Pairing failed. ..." / "Pairing timed out. ..."). */
     val note: String? = null,
+    /** This device got the "wants to pair again" notice for this row; cleared by Cancel pairing and by a new pairing. */
+    val pairAgain: Boolean = false,
 ) {
     val pinned: Boolean get() = signPub != null && encPub != null && pairingId != null
 
@@ -58,8 +62,11 @@ data class Peer(
     /** Pinned row with no open entry that offers Cancel pairing ("Not paired on $X" / "Declined by $X"). */
     val notPairedOnPeer: Boolean get() = pinned && approveVerified && listAfterVerify && !listApprovesMe
 
+    /** Row offers [Pair again]: the pair-again notice fired and the row is still in the half state. */
+    val offersPairAgain: Boolean get() = pairAgain && (waiting || notPairedOnPeer)
+
     /** Member of the catalog "All" set. */
-    val inAll: Boolean get() = pinned && approved && approvesMe && !hidden && !paused && !missing && !removed
+    val inAll: Boolean get() = pinned && approved && approvesMe && !hidden && !loggedOut && listening && !missing && !removed
 }
 
 /** The catalog "All" set (one definition for every client). */

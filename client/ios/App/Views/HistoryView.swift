@@ -1,7 +1,7 @@
 import SwiftUI
 import PushArmorCore
 
-/// History section: filter control and rows. Used inside the Home list.
+/// History section: filter control and rows. Used inside the History tab list.
 struct HistoryView: View {
     @EnvironmentObject var model: AppModel
     @State private var filter: HistoryFilter = .all
@@ -18,12 +18,22 @@ struct HistoryView: View {
 
     var body: some View {
         let rows = HistoryFilter.apply(effective, model.history)
-        Section("History") {
+        Section {
             if options.count > 1 {
                 filterControl
             }
             if rows.isEmpty {
-                Text("No messages yet").foregroundColor(.secondary)
+                VStack(spacing: 8) {
+                    MessagesIllustration()
+                    Text("No messages yet")
+                        .font(.title2.weight(.semibold))
+                    Text(S.noMessagesBody)
+                        .font(.subheadline)
+                        .foregroundColor(.secondaryText)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
             }
             ForEach(rows, id: \.rowid) { row in
                 HistoryRowView(row: row)
@@ -57,6 +67,9 @@ struct HistoryView: View {
 struct HistoryRowView: View {
     let row: HistoryRow
     @EnvironmentObject var model: AppModel
+    @Environment(\.dynamicTypeSize) private var typeSize
+    /// The event icon grows with the text, like IconTile (I505).
+    @ScaledMetric private var eventIcon: CGFloat = 30
 
     private var peer: Peer? { row.peerId.flatMap { id in model.peers.first { $0.id.text == id } } }
     private var outgoing: Bool { row.dir == .outgoing }
@@ -74,61 +87,144 @@ struct HistoryRowView: View {
     private var iconName: String {
         if outgoing { return "paperplane" }
         if unknown { return "app.badge" }
-        switch peer?.platform {
-        case "iphone": return "iphone"
-        case "android": return "smartphone"
-        case "chrome", "firefox": return "laptopcomputer"
-        default: return "questionmark.circle"
-        }
+        return platformSymbol(peer?.platform)
     }
+
+    private var unread: Bool { !row.read && !isEvent && !outgoing }
 
     private var contentText: String {
         isEvent && row.count > 1 ? "\(row.content) (\(row.count))" : row.content
     }
 
-    private var resultsSummary: String? {
+    private var results: [String: String]? {
         guard outgoing, let r = row.results,
-              let d = r.data(using: .utf8),
-              let obj = try? JSONSerialization.jsonObject(with: d) as? [String: String]
+              let d = r.data(using: .utf8)
         else { return nil }
+        return try? JSONSerialization.jsonObject(with: d) as? [String: String]
+    }
+
+    private var resultsSummary: String? {
+        guard let obj = results else { return nil }
+        if let name = soleRecipientName { return S.sentToOne(name) }
         let sent = obj.values.filter { $0 == "sent" }.count
         return S.sentTo(sent, obj.count)
     }
 
+    /// The one recipient's name when the message went to exactly one device and reached it (F22).
+    private var soleRecipientName: String? {
+        guard let obj = results, obj.count == 1, let only = obj.first, only.value == "sent",
+              let p = model.peers.first(where: { $0.id.text == only.key })
+        else { return nil }
+        return PeerLabel.label(p)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        // Unread rows are bold, with no marker column, so the times line up (F32).
         HStack(alignment: .top, spacing: 10) {
-            Button {
-                if !unknown && !outgoing, let id = row.peerId { model.highlightPeer = id }
-            } label: {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: iconName)
-                        .frame(width: 24)
-                        .foregroundColor(.secondary)
-                    Text(senderName)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+            if isEvent {
+                Image(systemName: iconName)
+                    .foregroundColor(.secondaryText)
+                    .frame(width: eventIcon, height: eventIcon)
+                    .accessibilityHidden(true)
+            } else {
+                IconTile(iconName)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                // at accessibility sizes the time goes under the name, so the name is not squeezed (I505)
+                let header = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2))
+                    : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+                header {
+                    sender
+                    if !typeSize.isAccessibilitySize { Spacer(minLength: 8) }
+                    time
+                        .font(.subheadline.monospacedDigit())
+                        .fontWeight(unread ? .semibold : nil)
+                        .foregroundColor(.secondaryText)
+                        .lineLimit(1)
+                        .fixedSize()
                 }
+                VStack(alignment: .leading, spacing: 2) {
+                    content
+                        .font(isEvent ? .subheadline : .body)
+                        .fontWeight(unread ? .semibold : nil)
+                        .foregroundColor(unread ? .primary : .secondaryText)
+                    if let name = soleRecipientName {
+                        // The name truncates inside the quotes; the line stays one line.
+                        HStack(spacing: 0) {
+                            Text("Sent to \"").fixedSize()
+                            Text(name).lineLimit(typeSize.isAccessibilitySize ? 2 : 1).truncationMode(.tail)
+                            Text("\"").fixedSize()
+                        }
+                        .font(.caption).foregroundColor(.secondaryText)
+                    } else if let s = resultsSummary {
+                        Text(s).font(.caption).foregroundColor(.secondaryText)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.borderless)
-            .accessibilityLabel(senderName)
-            .disabled(unknown || outgoing)
-            Spacer()
-            if !row.read && !isEvent && !outgoing {
-                Circle().fill(Color.accentColor).frame(width: 9, height: 9)
-                    .accessibilityLabel("Unread")
-            }
+            .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
         }
-        VStack(alignment: .leading, spacing: 2) {
-            Text(contentText)
-                .lineLimit(3)
-            if let s = resultsSummary {
-                Text(s).font(.caption).foregroundColor(.secondary)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // The whole row is one tap target and one VoiceOver button; the sender link is
+        // a named action.
         .contentShape(Rectangle())
         .onTapGesture { tap() }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(a11yLabel)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { tap() }
+        .accessibilityActions {
+            if !unknown && !outgoing, let id = row.peerId {
+                Button("Show \(senderName)") { model.highlightPeer = id }
+            }
+        }
+    }
+
+    private var a11yLabel: String {
+        [unread ? "Unread" : nil, senderName, timeLabel, contentText, resultsSummary]
+            .compactMap { $0 }
+            .joined(separator: ", ")
+    }
+
+    private var timeLabel: String {
+        let d = Date(timeIntervalSince1970: TimeInterval(row.createdLocal))
+        if Calendar.current.isDateInToday(d) { return d.formatted(date: .omitted, time: .shortened) }
+        if Calendar.current.isDateInYesterday(d) { return "Yesterday" }
+        return d.formatted(.dateTime.month().day())
+    }
+
+    private var senderText: Text {
+        Text(senderName).font(unread ? .headline : .body)
+    }
+
+    @ViewBuilder
+    private var sender: some View {
+        if !unknown && !outgoing, let id = row.peerId {
+            Button { model.highlightPeer = id } label: { senderText.foregroundColor(.primary) }
+                .buttonStyle(.plain)
+                .accessibilityLabel(senderName)
+        } else {
+            senderText.accessibilityLabel(senderName)
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch row.type {
+        case "url": Text(contentText).lineLimit(1).truncationMode(.middle)
+        case "tel": Text(contentText).lineLimit(1)
+        default: Text(contentText).lineLimit(3)
+        }
+    }
+
+    @ViewBuilder
+    private var time: some View {
+        let d = Date(timeIntervalSince1970: TimeInterval(row.createdLocal))
+        if Calendar.current.isDateInToday(d) {
+            Text(d, style: .time)
+        } else if Calendar.current.isDateInYesterday(d) {
+            Text("Yesterday")
+        } else {
+            Text(d.formatted(.dateTime.month().day()))
         }
     }
 

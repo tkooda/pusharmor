@@ -1,9 +1,9 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { env } from "cloudflare:test";
-import { call, captured, countingLimit, initP256, newPeer, randomEmail, testEnv, keys, ticketFor } from "./helpers";
+import { call, captured, countingLimit, initP256, message, newPeer, randomEmail, testEnv, keys, ticketFor } from "./helpers";
 import { ipKey } from "../src/pipeline/limits";
 import type { Env, RateLimit } from "../src/env";
-import { CRON_HOURLY, CRON_MONTHLY } from "../src/crons";
+import { CRON_HEALTH, CRON_MONTHLY } from "../src/crons";
 import wranglerText from "../wrangler.jsonc?raw";
 import limitsSrc from "../src/pipeline/limits.ts?raw";
 
@@ -31,9 +31,9 @@ describe("CORS", () => {
       const r = await call("OPTIONS", p, undefined, { headers: { Origin: ORIGIN } });
       expect(r.status).toBe(204);
       expect(r.res.headers.get("Access-Control-Allow-Methods")).toBe("POST, DELETE");
-      expect(r.res.headers.get("Access-Control-Allow-Headers")).toBe("Content-Type, PA-Time, PA-Sig");
+      expect(r.res.headers.get("Access-Control-Allow-Headers")).toBe("Content-Type, PA-Time, PA-Sig, PA-Client");
       expect(r.res.headers.get("Access-Control-Allow-Origin")).toBe(ORIGIN);
-      expect(r.res.headers.get("PA-Epoch-Ms")).toMatch(/^[0-9]{13}$/);
+      expect(r.res.headers.get("PA-Epoch")).toMatch(/^[0-9]{10}$/);
     }
     expect((await call("OPTIONS", "/v1/send")).status).toBe(405);
   });
@@ -72,18 +72,58 @@ describe("rate limits", () => {
 
   it("RL_PEER (I227 06): 60 signed calls pass, the 61st -> 429", async () => {
     const p = await newPeer(randomEmail());
-    const e = await testEnv({ RL_PEER: countingLimit(60) });
+    const e = await testEnv({ RL_PEER: countingLimit(60), RL_ACCT: countingLimit(1000) });
     for (let i = 0; i < 60; i++) expect((await call("GET", "/v1/peers", undefined, { peer: p, env: e })).status).toBe(200);
     const r = await call("GET", "/v1/peers", undefined, { peer: p, env: e });
     expect(r.status).toBe(429);
     expect(r.res.headers.get("Retry-After")).toBe("60");
   });
 
-  it("limit() throwing: open for RL_IP and RL_PEER, closed for RL_MAIL / RL_MAIL_ALL / RL_CODE", async () => {
+  it("RL_ACCT (I448): one counter per account across its peers, sends and register churn", async () => {
+    const email = randomEmail();
+    const a = await newPeer(email);
+    const b = await newPeer(email);
+    const rl = countingLimit(3);
+    const e = await testEnv({ RL_ACCT: rl } as Partial<Env>);
+    expect((await call("GET", "/v1/peers", undefined, { peer: a, env: e })).status).toBe(200);
+    expect((await call("POST", "/v1/send", { v: 1, m: { [b.id]: message() } }, { peer: a, env: e })).status).toBe(200);
+    expect((await call("POST", "/v1/peers/" + b.id + "/logout", { m: {} }, { peer: b, env: e })).status).toBe(200);
+    const r = await call("GET", "/v1/peers", undefined, { peer: a, env: e });
+    expect(r.status).toBe(429);
+    expect(r.res.headers.get("Retry-After")).toBe("60");
+    // Register (new peer or re-register) counts against the same account key.
+    const k = await keys();
+    const reg = await call("POST", "/v1/peers", { ticket: await ticketFor(email, k.signPub, "register"), sign_pub: k.signPub, enc_pub: k.encPub, platform: "android", push: null }, { sign: k.sign, env: e });
+    expect(reg.status).toBe(429);
+    expect(new Set(rl.seen)).toEqual(new Set(["acct:" + a.acct]));
+    // Another account is not affected.
+    const c = await newPeer(randomEmail());
+    expect((await call("GET", "/v1/peers", undefined, { peer: c, env: e })).status).toBe(200);
+  });
+
+  it("RL_ACCT (M1): unsigned or badly signed calls with a valid PA-ID do not charge the account", async () => {
+    const email = randomEmail();
+    const a = await newPeer(email);
+    const b = await newPeer(email);
+    const rl = countingLimit(3);
+    const e = await testEnv({ RL_ACCT: rl } as Partial<Env>);
+    const other = await keys();
+    for (let i = 0; i < 10; i++) {
+      expect((await call("GET", "/v1/peers", undefined, { peer: a, env: e, noSig: true })).status).toBe(401);
+      expect((await call("GET", "/v1/peers", undefined, { peer: a, sign: other.sign, env: e })).status).toBe(401);
+    }
+    expect(rl.seen.length).toBe(0);
+    expect((await call("GET", "/v1/peers", undefined, { peer: b, env: e })).status).toBe(200);
+    const k = await keys();
+    const reg = await call("POST", "/v1/peers", { ticket: await ticketFor(email, k.signPub, "register"), sign_pub: k.signPub, enc_pub: k.encPub, platform: "android", push: null }, { sign: k.sign, env: e });
+    expect(reg.status).toBe(200);
+  });
+
+  it("limit() throwing: open for RL_IP, RL_PEER and RL_ACCT, closed for RL_MAIL_EMAIL / RL_MAIL_IP / RL_MAIL_GLOBAL / RL_CODE", async () => {
     const p = await newPeer(randomEmail());
-    const e = { ...(await testEnv()), RL_IP: throwing, RL_PEER: throwing } as Env;
+    const e = { ...(await testEnv()), RL_IP: throwing, RL_PEER: throwing, RL_ACCT: throwing } as Env;
     expect((await call("GET", "/v1/peers", undefined, { peer: p, env: e })).status).toBe(200);
-    for (const b of ["RL_MAIL", "RL_MAIL_ALL"] as const) {
+    for (const b of ["RL_MAIL_EMAIL", "RL_MAIL_IP", "RL_MAIL_GLOBAL"] as const) {
       const k = await keys();
       const e2 = { ...(await testEnv()), [b]: throwing } as Env;
       const r = await call("POST", "/v1/auth/email", { email: randomEmail(), sign_pub: k.signPub, purpose: "register", turnstile: "tok" }, { env: e2 });
@@ -96,23 +136,51 @@ describe("crons", () => {
   it("cron constants equal wrangler.jsonc triggers", () => {
     const stripped = wranglerText.replace(/^\s*\/\/.*$/gm, "");
     const cfg = JSON.parse(stripped);
-    expect(cfg.triggers.crons).toEqual([CRON_HOURLY, CRON_MONTHLY]);
+    expect(cfg.triggers.crons).toEqual([CRON_MONTHLY, CRON_HEALTH]);
     expect(cfg.observability.logs.invocation_logs).toBe(false);
     expect(cfg.workers_dev).toBe(false);
     expect(cfg.preview_urls).toBe(false);
     expect(cfg.vars.PA_PUSH_TTL_SECONDS).toBe("604800");
-    expect(cfg.vars.PA_PUSH_PAIR_TTL_SECONDS).toBe("2419200");
   });
   it("rate limit bindings match the expected table and the Binding union", () => {
     const cfg = JSON.parse(wranglerText.replace(/^\s*\/\/.*$/gm, ""));
     const got = Object.fromEntries(cfg.ratelimits.map((r: { name: string; simple: { limit: number; period: number } }) => [r.name, [r.simple.limit, r.simple.period]]));
     expect(got).toEqual({
-      RL_IP: [100, 60], RL_PEER: [60, 60], RL_MAIL: [2, 60], RL_MAIL_ALL: [100, 60],
-      RL_CODE: [5, 60], RL_PAIR: [1, 60], RL_PROBE: [2, 60], RL_CODE_ALL: [30, 60],
+      RL_IP: [100, 60], RL_PEER: [60, 60], RL_MAIL_EMAIL: [2, 60], RL_MAIL_IP: [10, 60], RL_MAIL_GLOBAL: [600, 60],
+      RL_CODE: [5, 60], RL_PAIR: [1, 60], RL_PROBE: [2, 60], RL_ACCT: [120, 60],
     });
     const union = /export type Binding = ([^;]+);/.exec(limitsSrc)![1].match(/RL_[A-Z_]+/g)!;
     expect([...union].sort()).toEqual(Object.keys(got).sort());
     for (const b of union) expect(typeof (env as unknown as Record<string, RateLimit>)[b]?.limit, b).toBe("function");
+  });
+});
+
+describe("PA-Client (Q328)", () => {
+  it("logged when well formed, 'invalid' when malformed, absent when missing", async () => {
+    const seen: unknown[] = [];
+    for (const h of ["android/0.0.19", "cli/1.2.3", "android/0.0.19 x", null]) {
+      const before = captured.length;
+      await call("GET", "/v1/nope", undefined, h === null ? {} : { headers: { "PA-Client": h } });
+      seen.push(JSON.parse(captured.slice(before)[0]).client);
+    }
+    expect(seen).toEqual(["android/0.0.19", "cli/1.2.3", "invalid", undefined]);
+  });
+
+  it("426 only when PA_MIN_CLIENT is set and the version is lower", async () => {
+    const p = await newPeer(randomEmail());
+    const min = await testEnv({ PA_MIN_CLIENT: "0.1.10" } as Partial<Env>);
+    const st = async (h: string | null, e: Env) => (await call("GET", "/v1/peers", undefined, { peer: p, env: e, headers: h === null ? {} : { "PA-Client": h } }));
+    const r = await st("ios/0.1.9", min);
+    expect(r.status).toBe(426);
+    expect(r.body).toEqual({ error: "update required" });
+    expect(r.res.headers.get("PA-Epoch")).toMatch(/^[0-9]{10}$/);
+    expect((await st("chrome/0.0.99", min)).status).toBe(426);
+    for (const h of ["ios/0.1.10", "web/0.2.0", "cli/1.0.0", "ios/0.1", null]) expect((await st(h, min)).status, String(h)).toBe(200);
+    const unset = await testEnv();
+    expect((await st("android/0.0.1", unset)).status).toBe(200);
+    expect((await st("android/0.0.1", await testEnv({ PA_MIN_CLIENT: "junk" } as Partial<Env>))).status).toBe(200);
+    // Preflight carries no PA-Client and is never refused.
+    expect((await call("OPTIONS", "/v1/account", undefined, { env: min, headers: { Origin: ORIGIN } })).status).toBe(204);
   });
 });
 
@@ -127,9 +195,37 @@ describe("logging", () => {
     const o = JSON.parse(lines[0]);
     expect(o.route).toBe("POST /v1/peers");
     expect(o.status).toBe(200);
-    expect(Object.keys(o).every((x) => ["ts", "route", "status", "ms", "error", "colo", "account", "peer", "body_bytes", "recipients", "rows_read", "rows_written", "rl", "rl-error", "gone_write", "endpoint_reject", "exception"].includes(x))).toBe(true);
+    expect(Object.keys(o).every((x) => ["ts", "route", "status", "ms", "error", "colo", "client", "account", "peer", "body_bytes", "recipients", "rl", "rl-error", "gone_write", "endpoint_reject", "exception", "sample"].includes(x))).toBe(true);
     expect(lines[0]).not.toContain(email);
     expect(lines[0]).not.toContain(k.signPub);
+  });
+
+  it("log sampling (I448): plain successes and 429s sampled, other errors always logged", async () => {
+    const off = await testEnv({ PA_LOG_SAMPLE: "0" } as Partial<Env>);
+    const k = await keys();
+    let before = captured.length;
+    const ok = await call("POST", "/v1/peers", { ticket: await ticketFor(randomEmail(), k.signPub, "register"), sign_pub: k.signPub, enc_pub: k.encPub, platform: "android", push: null }, { sign: k.sign, env: off });
+    expect(ok.status).toBe(200);
+    expect(captured.slice(before)).toHaveLength(0);
+    before = captured.length;
+    expect((await call("POST", "/v1/peers", { x: 1 }, { env: off })).status).toBe(400);
+    expect(captured.slice(before)).toHaveLength(1);
+    before = captured.length;
+    const limited = await call("GET", "/v1/peers", undefined, { env: { ...off, RL_IP: countingLimit(0) } });
+    expect(limited.status).toBe(429);
+    expect(captured.slice(before)).toHaveLength(0);
+    // Sampled lines carry the scale factor; a bad rate logs everything.
+    const all = await testEnv({ PA_LOG_SAMPLE: "junk" } as Partial<Env>);
+    before = captured.length;
+    expect((await call("GET", "/v1/peers", undefined, { env: { ...all, RL_IP: countingLimit(0) } })).status).toBe(429);
+    expect(captured.slice(before)).toHaveLength(1);
+    const half = await testEnv({ PA_LOG_SAMPLE: "0.5" } as Partial<Env>);
+    before = captured.length;
+    for (let i = 0; i < 40; i++) await call("GET", "/v1/peers", undefined, { env: { ...half, RL_IP: countingLimit(0) } });
+    const lines = captured.slice(before).map((l) => JSON.parse(l));
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.length).toBeLessThan(40);
+    for (const o of lines) expect(o.sample).toBe(2);
   });
 
   it("D1 failure -> 503 unavailable, exception logged without message text", async () => {

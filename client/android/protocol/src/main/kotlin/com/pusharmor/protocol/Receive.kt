@@ -32,7 +32,7 @@ sealed class Effect {
     /** remove naming me (deleted = false) or delete (deleted = true): the self-removed path. */
     data class SelfRemoved(val deleted: Boolean) : Effect()
 
-    data class Pause(val paused: Boolean, val applied: Boolean) : Effect()
+    data class Logout(val loggedOut: Boolean, val applied: Boolean) : Effect()
 
     object Deny : Effect()
 }
@@ -117,9 +117,9 @@ object Receive {
                 if (b.peerId == ownId) Effect.SelfRemoved(false) else Effect.Remove(b.peerId)
             }
             MessageBody.Delete -> if (!approved) Effect.Drop("not approved") else Effect.SelfRemoved(true)
-            MessageBody.Pause, MessageBody.Unpause -> {
+            MessageBody.Logout, MessageBody.Login -> {
                 if (!approved) return Effect.Drop("not approved")
-                Effect.Pause(b == MessageBody.Pause, applied = ok.n > peer.pauseN)
+                Effect.Logout(b == MessageBody.Logout, applied = ok.n > peer.logoutN)
             }
             MessageBody.Deny -> if (!approved) Effect.Drop("not approved") else Effect.Deny
         }

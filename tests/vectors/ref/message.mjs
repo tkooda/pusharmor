@@ -13,7 +13,7 @@ export const MAX_WIRE = 3800;
 export const HPKE_OVERHEAD = 65 + 16;
 export const INFLATE_CAP = 16384;
 export const CONTENT_CAP = 2048;
-export const TYPES = ['url', 'text', 'tel', 'approve', 'deny', 'remove', 'rename', 'delete', 'pause', 'unpause'];
+export const TYPES = ['url', 'text', 'tel', 'approve', 'deny', 'remove', 'rename', 'delete', 'logout', 'login'];
 
 // Unpadded b64url length of n bytes.
 export const wireChars = (n) => Math.ceil((n * 4) / 3);
@@ -66,12 +66,13 @@ export function buildMessage({ signPriv, fromId, recipientIdB64, recipientEncPub
 export const nameSignedBytes = (ownerIdB64, recipientIdB64, pairingIdB64, n, nameB64) =>
   Buffer.from('PA-NAME1\n' + ownerIdB64 + '\n' + recipientIdB64 + '\n' + pairingIdB64 + '\n' + n + '\n' + nameB64);
 
-export const isValidName = (name) => /^[\x20-\x7e]{1,32}$/.test(name);
+// Printable ASCII without the double quote.
+export const isValidName = (name) => /^[\x20\x21\x23-\x7e]{1,32}$/.test(name);
 
 // Checks a parsed {name, n, s} object (approve, rename or name entry).
 // Returns { name, n } or null.
 export function checkNameObject(o, ownerIdB64, recipientIdB64, pairingIdB64, signPub) {
-  if (!(o instanceof Map) || o.size !== 3 || !o.has('name') || !o.has('n') || !o.has('s')) return null;
+  if (!(o instanceof Map) || !o.has('name') || !o.has('n') || !o.has('s')) return null;
   const nameB64 = o.get('name');
   const s = o.get('s');
   const n = counterN(o.get('n'));
@@ -153,11 +154,12 @@ export function receiveMessage(ctx, message) {
   } catch {
     return bad('inflate or json');
   }
-  if (!(obj instanceof Map) || obj.size !== 2 || !obj.has('n')) return bad('shape');
+  if (!(obj instanceof Map) || !obj.has('n')) return bad('shape');
   const n = counterN(obj.get('n'));
   if (n === null) return bad('n');
-  const type = [...obj.keys()].find((k) => k !== 'n');
-  if (!TYPES.includes(type)) return bad('type');
+  // Unknown keys are ignored; the type is the first known type key in TYPES order.
+  const type = TYPES.find((k) => obj.has(k));
+  if (!type) return bad('type');
   const value = obj.get(type);
   if ((flag === 1) !== (type === 'approve')) return bad('keys flag and type');
   const pidB64 = b64e(pairingId);

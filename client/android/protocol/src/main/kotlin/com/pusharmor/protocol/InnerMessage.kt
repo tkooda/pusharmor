@@ -29,8 +29,8 @@ sealed class MessageBody {
     object Deny : MessageBody() { override val key = "deny" }
     data class Remove(val peerId: String) : MessageBody() { override val key = "remove" }
     object Delete : MessageBody() { override val key = "delete" }
-    object Pause : MessageBody() { override val key = "pause" }
-    object Unpause : MessageBody() { override val key = "unpause" }
+    object Logout : MessageBody() { override val key = "logout" }
+    object Login : MessageBody() { override val key = "login" }
 
     /** Control types (no History row; a seen n is a silent duplicate). */
     val isControl: Boolean get() = this !is Url && this !is Text && this !is Tel
@@ -42,7 +42,7 @@ sealed class MessageBody {
         is Approve -> entry.toJson()
         is Rename -> entry.toJson()
         is Remove -> StrictJson.quote(peerId)
-        Deny, Delete, Pause, Unpause -> "1"
+        Deny, Delete, Logout, Login -> "1"
     }
 
     companion object {
@@ -192,13 +192,16 @@ object InnerMessage {
         null
     }
 
-    /** {"n": counter, one type key}; anything else is null (drop). */
+    /** Known type keys; the message type is the first of these present (Q327). */
+    private val TYPE_ORDER = listOf("url", "text", "tel", "approve", "deny", "remove", "rename", "delete", "logout", "login")
+
+    /** {"n": counter, type key}; unknown keys are ignored; no known type key is null (drop). */
     fun parseJson(bytes: ByteArray): Pair<Long, MessageBody>? {
         val text = utf8(bytes) ?: return null
         val obj = StrictJson.parseOrNull(text) as? JValue.JObject ?: return null
-        if (obj.fields.size != 2) return null
         val n = counterOf(obj.fields["n"]) ?: return null
-        val (k, v) = obj.fields.entries.first { it.key != "n" }
+        val k = TYPE_ORDER.firstOrNull { it in obj.fields } ?: return null
+        val v = obj.fields.getValue(k)
         val body: MessageBody = when (k) {
             "url" -> MessageBody.Url((v as? JValue.JString)?.value ?: return null)
             "text" -> MessageBody.Text((v as? JValue.JString)?.value ?: return null)
@@ -208,8 +211,8 @@ object InnerMessage {
             "remove" -> MessageBody.Remove(((v as? JValue.JString)?.value ?: return null).takeIf { Ids.decodeId(it) != null } ?: return null)
             "deny" -> if (isOne(v)) MessageBody.Deny else return null
             "delete" -> if (isOne(v)) MessageBody.Delete else return null
-            "pause" -> if (isOne(v)) MessageBody.Pause else return null
-            "unpause" -> if (isOne(v)) MessageBody.Unpause else return null
+            "logout" -> if (isOne(v)) MessageBody.Logout else return null
+            "login" -> if (isOne(v)) MessageBody.Login else return null
             else -> return null
         }
         return n to body
@@ -218,8 +221,7 @@ object InnerMessage {
     private fun isOne(v: JValue) = v is JValue.JNumber && v.raw == "1"
 
     fun nameEntryOf(v: JValue?): NameEntryClear? {
-        val o = v as? JValue.JObject ?: return null
-        if (o.fields.size != 3) return null
+        val o = v as? JValue.JObject ?: return null // unknown extra keys are ignored (Q327)
         val name = (o.fields["name"] as? JValue.JString)?.value ?: return null
         val n = counterOf(o.fields["n"]) ?: return null
         val s = (o.fields["s"] as? JValue.JString)?.value ?: return null

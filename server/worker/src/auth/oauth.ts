@@ -6,7 +6,9 @@ import { b64urlDecode, b64urlEncode } from "../codec/b64url";
 import { bad, keysExactly } from "../codec/validate";
 import { accountId, emailHash } from "../crypto/ids";
 import {
+  CLI_WINDOW_S,
   keyRef,
+  makeCliCode,
   LABEL_STATE,
   makeTicket,
   makeToken,
@@ -24,11 +26,11 @@ import { ApiError } from "../errors";
 import { json, redirect } from "../http";
 import { parseJsonObject } from "../pipeline/body";
 import { deps } from "../push/deps";
-import { checkPurpose, checkSignPub } from "./email";
+import { checkCliK, checkCliPurpose, checkPurpose, checkSignPub } from "./email";
 import { verifyIdToken, type Provider } from "./jwks";
-import { normalizeEmail } from "./normalize";
+import { mailboxKey, normalizeEmail } from "./normalize";
 
-export const CLIENTS = ["chrome", "firefox", "android", "web"] as const;
+export const CLIENTS = ["chrome", "firefox", "android", "web", "cli"] as const;
 export type Client = (typeof CLIENTS)[number];
 
 export interface Exchanged {
@@ -68,7 +70,14 @@ function redirectFor(env: Env, r: Client, u: string | null): string {
     t = u ?? list[0];
   } else {
     if (u !== null) throw bad();
-    t = r === "firefox" ? env.PA_OAUTH_REDIRECT_FIREFOX : r === "android" ? env.PA_OAUTH_REDIRECT_ANDROID : env.PA_OAUTH_REDIRECT_WEB;
+    t =
+      r === "firefox"
+        ? env.PA_OAUTH_REDIRECT_FIREFOX
+        : r === "android"
+          ? env.PA_OAUTH_REDIRECT_ANDROID
+          : r === "cli"
+            ? env.PA_OAUTH_REDIRECT_CLI
+            : env.PA_OAUTH_REDIRECT_WEB;
   }
   if (!t?.startsWith("https://")) throw new ApiError(503, "unavailable");
   return t;
@@ -108,7 +117,7 @@ export async function postForm(url: string, form: Record<string, string>): Promi
 
 async function ticketReply(env: Env, email: string, k: string, p: Purpose, sealed?: string): Promise<{ ticket: string; email: string }> {
   const normalized = normalizeEmail(email);
-  const a = await accountId(env.PA_ID_SECRET, await emailHash(normalized));
+  const a = await accountId(env.PA_ID_SECRET, await emailHash(mailboxKey(normalized)));
   const t: { a: string; k: string; p: Purpose; x: number; s?: string } = { a, k, p, x: nowS() + TICKET_LIFE_S };
   if (sealed) t.s = sealed;
   return { ticket: await makeTicket(env.PA_TOKEN_SECRET, t), email: normalized };
@@ -127,13 +136,17 @@ export async function oauthStart(c: Ctx, p: ProviderCfg): Promise<Response> {
   const k = q.get("k");
   const r = q.get("r");
   const purpose = checkPurpose(q.get("p"));
-  if (k === null || k.length !== 43 || b64urlDecode(k)?.length !== 32) throw bad();
   if (r === null || !(CLIENTS as readonly string[]).includes(r)) throw bad();
+  // cli: k is the k16 from the /auth/cli link.
+  if (r === "cli") {
+    checkCliK(k);
+    checkCliPurpose(purpose);
+  } else if (k === null || k.length !== 43 || b64urlDecode(k)?.length !== 32) throw bad();
   if (r === "web" && purpose !== "delete-account") throw bad();
   const want = q.get("u");
   redirectFor(c.env, r as Client, want);
   const n = b64urlEncode(crypto.getRandomValues(new Uint8Array(16)));
-  const state = await makeToken(c.env.PA_TOKEN_SECRET, LABEL_STATE, { k, r, p: purpose, exp: nowS() + STATE_LIFE_S, n, ...(want !== null ? { u: want } : {}) });
+  const state = await makeToken(c.env.PA_TOKEN_SECRET, LABEL_STATE, { k: k!, r, p: purpose, exp: nowS() + STATE_LIFE_S, n, ...(want !== null ? { u: want } : {}) });
   const verifier = await pkceVerifier(c.env.PA_TOKEN_SECRET, n);
   const u = new URL(p.authorizeUrl);
   const params: Record<string, string> = {
@@ -141,7 +154,7 @@ export async function oauthStart(c: Ctx, p: ProviderCfg): Promise<Response> {
     redirect_uri: callbackUri(c, p),
     response_type: "code",
     state,
-    nonce: await oauthNonce(purpose, k),
+    nonce: await oauthNonce(purpose, k!),
     code_challenge: await pkceChallenge(verifier),
     code_challenge_method: "S256",
     ...p.authParams,
@@ -168,6 +181,12 @@ export async function oauthCallback(c: Ctx, p: ProviderCfg, params: URLSearchPar
     const clientId = p.clientIdWeb(c.env);
     const ex = await p.exchange(c.env, code, clientId, callbackUri(c, p), verifier);
     const email = await verifyIdToken(ex.id_token, { provider: p.name, auds: p.webAuds(c.env), nonce: await oauthNonce(purpose, st.k) });
+    if (st.r === "cli") {
+      const normalized = normalizeEmail(email);
+      const a = await accountId(c.env.PA_ID_SECRET, await emailHash(mailboxKey(normalized)));
+      const code = await makeCliCode(c.env.PA_TOKEN_SECRET, a, st.k, checkCliPurpose(purpose), Math.floor(nowS() / CLI_WINDOW_S));
+      return redirect(`${target}#cli_code=${code}&email=${encodeURIComponent(normalized)}`);
+    }
     const sealed = p.name === "apple" && purpose === "delete-account" ? await sealApple(c.env, ex.refresh_token, clientId) : undefined;
     const t = await ticketReply(c.env, email, st.k, purpose, sealed);
     return redirect(`${target}#ticket=${encodeURIComponent(t.ticket)}&email=${encodeURIComponent(t.email)}`);

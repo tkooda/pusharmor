@@ -25,10 +25,11 @@ class WorkerClientTest {
 
     @After fun stop() = server.shutdown()
 
-    private fun ok(body: String = "{\"r\":{}}", epoch: Long = clock) = MockResponse().setBody(body).setHeader("PA-Epoch-Ms", epoch.toString())
+    /** [epoch] in unix seconds, as the Worker sends PA-Epoch (Q331). */
+    private fun ok(body: String = "{\"r\":{}}", epoch: Long = clock / 1000) = MockResponse().setBody(body).setHeader("PA-Epoch", epoch.toString())
 
     @Test fun signsExactBodyBytesAndSyncsOffset() {
-        server.enqueue(ok(epoch = clock + 5000))
+        server.enqueue(ok(epoch = clock / 1000 + 5))
         val r = client.send(mapOf("x" to "M"))
         assertTrue(r is ApiResult.Ok)
         val req = server.takeRequest()
@@ -40,20 +41,57 @@ class WorkerClientTest {
         assertEquals("{\"v\":1,\"m\":{\"x\":\"M\"}}", String(body))
         val sig = B64url.decode(req.getHeader("PA-Sig")!!)
         assertTrue(P256.verify(keys.signPub, Ids.requestSigningBytes("POST", "/v1/send", t, body), sig))
-        assertEquals(5000L, offset.offsetMs)
+        assertEquals(5L, offset.offsetS)
+        assertEquals("android/0.0.0", req.getHeader("PA-Client"))
         server.enqueue(ok())
         client.peers()
         assertEquals((clock + 5000).toString(), server.takeRequest().getHeader("PA-Time"))
     }
 
-    @Test fun authStateHookSeesUnknownPeerAndPausedOnSignedCalls() {
+    @Test fun clockSkewReplyResyncsOffsetInSecondsAndOldHeaderIsIgnored() {
+        server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"clock skew\"}").setHeader("PA-Epoch", (clock / 1000 - 600).toString()))
+        assertTrue(client.peers().isClockSkew)
+        assertEquals(-600L, offset.offsetS)
+        server.enqueue(MockResponse().setBody("{}").setHeader("PA-Epoch-Ms", (clock + 9000).toString()))
+        client.peers()
+        assertEquals(-600L, offset.offsetS)
+        server.takeRequest()
+        assertEquals((clock - 600_000).toString(), server.takeRequest().getHeader("PA-Time"))
+    }
+
+    @Test fun paClientOnEveryRequestAnd426Text() {
+        val c = WorkerClient({ keys }, { id }, offset, server.url("/"), WorkerClient.defaultHttp(), { clock }, { clock += it }, paClient = "android/0.0.19")
+        server.enqueue(ok("{\"request_token\":\"rt\"}"))
+        c.authEmail("a@b.com", "k", "register", "t")
+        assertEquals("android/0.0.19", server.takeRequest().getHeader("PA-Client"))
+        server.enqueue(MockResponse().setResponseCode(426).setBody("{\"error\":\"update required\"}"))
+        val r = c.peers()
+        assertEquals("android/0.0.19", server.takeRequest().getHeader("PA-Client"))
+        assertEquals("Update PushArmor to continue.", ErrorText.of(r))
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test fun http426CallsUpdateHookOnSignedAndUnsignedCalls() {
+        var n = 0
+        val c = WorkerClient({ keys }, { id }, offset, server.url("/"), WorkerClient.defaultHttp(), { clock }, { clock += it }, onUpdateRequired = { n++ })
+        server.enqueue(ok("{\"request_token\":\"rt\"}"))
+        c.authEmail("a@b.com", "k", "register", "t")
+        assertEquals(0, n)
+        server.enqueue(MockResponse().setResponseCode(426).setBody("{\"error\":\"update required\"}"))
+        server.enqueue(MockResponse().setResponseCode(426))
+        c.peers(); c.authEmail("a@b.com", "k", "register", "t")
+        assertEquals(2, n)
+        assertEquals(3, server.requestCount)
+    }
+
+    @Test fun authStateHookSeesUnknownPeerAndLoggedOutOnSignedCalls() {
         val seen = ArrayList<String>()
         val c = WorkerClient({ keys }, { id }, offset, server.url("/"), WorkerClient.defaultHttp(), { clock }, { clock += it }, { seen.add(it) })
         server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"unknown peer\"}"))
-        server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"paused\"}"))
+        server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"logged out\"}"))
         server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"clock skew\"}"))
         c.send(mapOf("x" to "M")); c.peers(); c.send(mapOf("x" to "M"))
-        assertEquals(listOf("unknown peer", "paused"), seen)
+        assertEquals(listOf("unknown peer", "logged out"), seen)
     }
 
     @Test fun retries429WithinBudgetWithSameBytesAndSignature() {
@@ -64,6 +102,14 @@ class WorkerClientTest {
         assertEquals(a.getHeader("PA-Sig"), b.getHeader("PA-Sig"))
         assertArrayEquals(a.body.readByteArray(), b.body.readByteArray())
         assertEquals(listOf(2000L), slept)
+    }
+
+    @Test fun rateLimitTextIsPlainSentence() {
+        assertEquals("Too many requests. Try again in 1 minute.", ErrorText.of(ApiResult.Http(429, "rate limited", null)))
+        assertEquals("Too many requests. Try again in 2 minutes.", ErrorText.tooMany(120))
+        assertEquals("Too many requests. Try again in 30 seconds.", ErrorText.tooMany(30))
+        assertEquals("Too many requests. Try again in 1 second.", ErrorText.tooMany(1))
+        assertEquals("Too many requests. Try again in 90 seconds.", ErrorText.tooMany(90))
     }
 
     @Test fun retryAfterOverBudgetIsNotRetried() {
@@ -81,14 +127,24 @@ class WorkerClientTest {
         assertEquals(4, server.requestCount)
     }
 
+    @Test fun errorTextSentencesEndWithAPeriod() {
+        val cases = listOf(401 to "clock skew", 401 to "logged out", 401 to "ticket expired", 401 to "unknown peer", 400 to "bad email",
+            400 to "push endpoint not allowed", 413 to null, 429 to null, 502 to null, 403 to "banned", 409 to "some code", 500 to null)
+        for ((status, error) in cases) {
+            val t = ErrorText.of(ApiResult.Http(status, error))
+            assertTrue(t, t.endsWith(".") && t[0].isUpperCase() && !t.contains("browser") && !t.contains("code") && !t.contains("Error:"))
+        }
+        assertEquals("No connection. Try again.", ErrorText.of(ApiResult.Network))
+    }
+
     @Test fun no502RetryAndPermanentErrors() {
         server.enqueue(MockResponse().setResponseCode(502).setBody("{\"error\":\"email send failed\"}"))
         val r = client.authEmail("a@b.com", "k", "register", "t")
-        assertEquals("could not send the email, try again", ErrorText.of(r))
+        assertEquals("Could not send the email. Try again.", ErrorText.of(r))
         server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"clock skew\"}"))
         assertTrue(client.peers().isClockSkew)
-        server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"paused\"}"))
-        assertTrue(client.peers().isPaused)
+        server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"logged out\"}"))
+        assertTrue(client.peers().isLoggedOut)
         assertEquals(3, server.requestCount)
         assertTrue(slept.isEmpty())
     }
@@ -107,9 +163,18 @@ class WorkerClientTest {
         assertTrue(String(reg.body.readByteArray()).contains("\"push\":null"))
     }
 
+    @Test fun peersParsesCliPlatformAndListening() {
+        fun e(id: String, platform: String, extra: String) =
+            "{\"id\":\"$id\",\"sign_pub\":\"s\",\"enc_pub\":\"e\",\"platform\":\"$platform\",\"created\":1$extra}"
+        server.enqueue(ok("{\"peers\":[" + e("a", "cli", ",\"listening\":false") + "," + e("b", "cli", ",\"listening\":true") + "," + e("c", "android", "") + "]}"))
+        val ps = (client.peers() as ApiResult.Ok).value.peers
+        assertEquals(listOf("cli", "cli", "android"), ps.map { it.platform })
+        assertEquals(listOf(false, true, true), ps.map { it.listening })
+    }
+
     @Test fun messagesMissingCarriesIds() {
         server.enqueue(MockResponse().setResponseCode(400).setBody("{\"error\":\"messages missing\",\"ids\":[\"a\",\"b\"]}"))
-        val r = client.pause(emptyMap()) as ApiResult.Http
+        val r = client.logout(emptyMap()) as ApiResult.Http
         assertTrue(r.isMessagesMissing)
         assertEquals(listOf("a", "b"), r.ids)
     }

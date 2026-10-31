@@ -1,5 +1,6 @@
 // Content script on https://pusharmor.com/fx/setup, /fx/open and /auth/done
 // (FIREFOX-MATCH-LIST). Runs at document_start.
+import { fxSubFields } from "../gate.ts";
 import { browser } from "../shim.ts";
 
 const SITE = "https://pusharmor.com";
@@ -19,10 +20,9 @@ if (location.origin === SITE) {
   } else if (path === "/fx/setup") {
     window.addEventListener("message", (ev: MessageEvent) => {
       if (ev.source !== window || ev.origin !== SITE) return;
-      const d = ev.data as { pa?: string; endpoint?: unknown; p256dh?: unknown; auth?: unknown };
-      if (d && d.pa === "fx-sub" && typeof d.endpoint === "string" && typeof d.p256dh === "string" && typeof d.auth === "string") {
-        void relay("fx-sub", { endpoint: d.endpoint, p256dh: d.p256dh, auth: d.auth });
-      }
+      const d = ev.data as { pa?: string } | null;
+      const f = d && d.pa === "fx-sub" ? fxSubFields(d) : null;
+      if (f) void relay("fx-sub", f);
     });
   } else if (path === "/fx/open") {
     window.addEventListener("message", (ev: MessageEvent) => {

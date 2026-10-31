@@ -14,70 +14,70 @@
 <meta property="og:image" content="https://pusharmor.com/apple-touch-icon.png">
 <link rel="icon" href="/favicon.ico" sizes="any" integrity="sha256-WBRVm+oTUTpG8HdmRjQYXSzTkCjwYCVj5PZdJQP73qM=">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" integrity="sha256-TQcTrShS2zw2E6zqzKq9Tlfqd9GGyBSjl/LTQvTeJY8=">
-<link rel="stylesheet" href="/css/site.css" integrity="sha256-LLVjIg5FDy8B6CiNdcenZ4QJ6YhuvkKKultGZbGfMOw=">
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-Dcp1dNsQodcGTBjig2sKl5LIngbDNKgkkcjJUigzVhU=">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header>
 <a class="brand" href="/"><svg class="mark" width="26" height="32" viewBox="130 100 252 312" aria-hidden="true" focusable="false"><path fill-rule="evenodd" d="M256 108 L376 150 V250 C376 330 322 382 256 406 C190 382 136 330 136 250 V150 Z M256 168 L318 236 H280 V334 H232 V236 H194 Z"/></svg><span><span class="push">Push</span><span class="armor">Armor</span></span></a>
-<nav aria-label="Main"><a href="/how-to">How to</a> <a href="/download">Download</a> <a href="/security">Security</a> <a href="/support">Support</a></nav>
+<nav aria-label="Main"><a href="/how-to">How to</a> <a href="/download">Download</a> <a href="/security">Security</a> <a href="/support">Support</a> <a href="/about">About</a></nav>
 </header>
 <main id="main">
 <h1>Privacy policy</h1>
-<p>PushArmor is operated by the PushArmor project at pusharmor.com.</p>
 
-<p>We never sell or share your data with anyone for their own purposes; the services below
-process it for us.</p>
+<p>We will never sell or share your data. The services below run parts of PushArmor for us
+and only ever see the minimum needed to do their part.</p>
 
 <h2>Services we use</h2>
 <ul>
-<li><strong>AWS SES</strong>: used for email sign-in only, to send the sign-in code. It sees
-your email address at send time. If a code email bounces, the mail provider keeps that address
-on a suppression list until we clear it.</li>
-<li><strong>Google FCM (Android), Apple APNs (iPhone), Google and Mozilla web push (Chrome,
-Firefox), and a UnifiedPush distributor if you chose one</strong>: used to wake your device.
-They see the push token or endpoint and the encrypted payload only. They hold undelivered
-messages up to 7 days (pairing requests up to 4 weeks).</li>
-<li><strong>Cloudflare</strong>: runs our server code and database, so it can technically see
-everything the server sees: your email address briefly at sign-in (to send the code), your IP address, peer public
-keys, push tokens and encrypted messages. Cloudflare also keeps our delivery logs for 7 days:
-account id, peer ids and send results; no content, no IP, no email. Turnstile runs on the email
-sign-in page and on the delete-account page only.</li>
-<li><strong>Google and Apple sign-in</strong> (if you choose them): used to prove the account.
-We keep only the keyed hash of the address (your account id, see below).</li>
+<li><strong>Google's and Apple's notification services (FCM, APNs) for Android and iPhone, Google
+and Mozilla web push (Chrome, Firefox), and a UnifiedPush distributor if you chose one</strong>:
+used to wake your device. They see the address your device uses to receive notifications (push
+token or endpoint), and pass along the encrypted message, which they cannot read. They hold undelivered
+messages for up to 7 days (pairing requests for up to 4 weeks).</li>
+<li><strong>Cloudflare</strong>: runs our relay server and its database, so it can technically see
+everything our relay server sees: your email address briefly at login (to send the code), your IP address, device public
+keys, push tokens, and encrypted messages it cannot read. Cloudflare keeps our delivery logs for up to 7 days.
+They hold the account ID, device IDs, and send results. They hold no content, no IP address, and no email. Cloudflare's bot check (Turnstile) runs on the email
+login page, on the command line login page (/auth/cli), and on the delete-account page only.</li>
+<li><strong>Google and Apple login</strong> (if you choose them): used to prove the account.
+We keep only a one-way hash of your email address, which is your account ID (see below).</li>
+<li><strong>AWS SES</strong>: used for email login only, to send the login code. It sees
+your email address at send time, and we send it nothing else. If a code email bounces, AWS may keep that address
+on its own suppression list.</li>
 </ul>
 
 <h2>Your email address</h2>
-<p>We do not store your email address. We keep only a keyed one-way hash of it, which cannot be
+<p>We do not store your email address. We keep only a one-way hash of it, which cannot be
 turned back into the address.</p>
-<p>Why we keep the hash: it is your account id. When you sign in on another peer with the same
-address, the hash puts that peer in the same account. It also lets us ban an address that is
-used for abuse, and keeps a banned address banned. The hash is kept until
-you delete the account, or until the 3-year purge below. For a banned account it is kept after
-deletion.</p>
+<p>Why we need the hash: it is your account ID. When you log in on another device with the same
+address, the hash puts that device in the same account. If an address is banned for abuse, we
+store its account ID so it stays banned, even after the account is deleted.</p>
 
 <h2>End-to-end encryption</h2>
-<p>Messages are end-to-end encrypted. Each peer makes its own keys on the device, and the
-private keys stay on the devices. A message is encrypted on the sending peer for the receiving
-peer, so our server sees ciphertext only. We do not store message content or pairing
-fingerprints.</p>
+<p>All messages between devices are end-to-end encrypted and signed by the sending device. Only
+the devices you send to can ever decrypt them, and each one checks that the message really came
+from the device it claims to be from. Each device makes its own keys, and the private keys never
+leave the devices. A message is encrypted on the sending device for the receiving device, so our
+relay server only passes along encrypted data it cannot read (ciphertext). We never see your message
+content or pairing fingerprints, and we do not store them.</p>
 
-<h2>What our server stores</h2>
-<p>Our server keeps, until removal:</p>
+<h2>What our relay server stores</h2>
+<p>Our relay server keeps, until removal:</p>
 <ul>
-<li>Per account: the account id (the keyed hash), a banned flag, the created time, and the
+<li>Per account: the account ID (the one-way hash), the account creation date, and the
 last-active month.</li>
-<li>Per peer: public keys, push token or endpoint, allow and deny lists, encrypted name entries,
-created time, platform, paused flag, and pending approve messages (end-to-end encrypted, kept
-until the other peer is removed, denied or withdrawn).</li>
+<li>Per device: public keys, push token or endpoint, allow and deny lists, names you give devices (stored only encrypted, so we cannot read them),
+created time, platform, logged-out flag, and pending approve messages (end-to-end encrypted, kept
+until the other device is removed, denied, or withdrawn, or 30 days pass).</li>
 </ul>
-<p>An account with no send and no added peer for about 3 years is deleted with its peers
-(banned accounts are kept). This also removes an account that has no peers left.</p>
+<p>An account with no send and no added device for about 3 years is deleted with its devices
+(banned accounts are kept). This also removes an account that has no devices left.</p>
 
 <h2>What stays on your device</h2>
 <ul>
-<li>The address you signed in with, shown as Signed in as (a Hide My Email relay address if you
-chose one), so you can see which address to use on your other peers.</li>
+<li>The address you logged in with, shown as Logged in as (a Hide My Email relay address if you
+chose one), so you can see which address to use on your other devices.</li>
 <li>Your history, deleted automatically after the number of days you set (default 30). History is
 device-local and not backed up.</li>
 <li>Your keys.</li>
@@ -85,28 +85,27 @@ device-local and not backed up.</li>
 <p>Lock screen: message content follows the platform setting (Android sensitive notification
 content, iPhone Show Previews) or the in-app switch Show message content on lock screen. With
 Send messages to watch off, Android message notifications are local only (not mirrored to paired
-wearables). Both switches work per peer too. Always hide content (off by default) shows no
-message content in any notice.</p>
+wearables). Both switches work per device too. The Always hide content switch is off by default. When you turn it on, no notice shows any
+message content.</p>
 
 <h2>Tracking</h2>
-<p>No analytics, no ads, no tracking. This site has no third-party scripts, except Turnstile on
-the sign-in and delete-account pages. We set no cookies; Cloudflare security features may set a short-lived
+<p>No analytics, no ads, no tracking, ever. This site has no third-party scripts, except Cloudflare's
+bot check on the login and delete-account pages. We set no cookies; Cloudflare security features may set a short-lived
 one.</p>
 
 <h2>Background transmission (Firefox)</h2>
 <p>The Firefox add-on keeps a push connection to Mozilla (autopush WebSocket) in the background.
-As a fallback, a service worker on pusharmor.com receives encrypted messages and forwards them to
-the add-on inside the browser. Both carry ciphertext only.</p>
+As a fallback, a background script on PushArmor.com receives encrypted messages. It then passes
+them to the add-on inside the browser. Both carry encrypted data only.</p>
 
 <h2>Deletion</h2>
-<p>Use Delete account in the app or the web flow at
-<a href="/delete-account">pusharmor.com/delete-account</a>. Deletion removes the account and all
-its peers at once. Kept: the keyed account hash with its ban flag, for banned accounts only, so a banned address
-stays banned; undelivered
-pushes at the vendors, up to 7 days (pairing requests up to 4 weeks); copies on your other
-peers.</p>
-<p>Remove on a peer deletes that one peer only. The account (the keyed hash, created
-time and last-active month) stays until you delete the account, or until the 3-year purge
+<p>You can delete your account from the apps, or with the web flow at
+<a href="/delete-account">PushArmor.com/delete-account</a>. Deletion removes the account and all
+its devices at once. Kept: undelivered messages at the push services, up to 7 days (pairing
+requests up to 4 weeks); copies on your other devices; and the account ID of an address banned
+for abuse, so it stays banned.</p>
+<p>Remove on a device deletes that one device only. The account (the one-way hash, creation
+date, and last-active month) stays until you delete the account, or until the 3-year purge
 above.</p>
 
 <h2>Children</h2>
@@ -114,12 +113,15 @@ above.</p>
 under 13.</p>
 
 <h2>Privacy requests</h2>
-<p>You can delete your account and all its peers yourself: use Delete account in the app, or
-the web flow at <a href="/delete-account">https://pusharmor.com/delete-account</a>. For help
+<p>You can delete your account and all its devices yourself: delete it from the apps, or use
+the web flow at <a href="/delete-account">PushArmor.com/delete-account</a>. For help
 with the apps, see the <a href="/support">support page</a>.</p>
+
+<h2>Who we are</h2>
+<p>PushArmor is operated by Ion Echo, LLC at PushArmor.com.</p>
 </main>
 <footer>
-<a href="/privacy" aria-current="page">Privacy</a> <a href="/terms">Terms</a> <a href="/support">Support</a> <a href="/delete-account">Delete account</a> <a href="https://github.com/tkooda/pusharmor">Source code on GitHub</a>
+<a href="/privacy" aria-current="page">Privacy</a> <a href="/terms">Terms</a> <a href="/support">Support</a> <a href="https://github.com/tkooda/pusharmor">Source code on GitHub</a>
 <p class="fine">PushArmor is a free, open source project.</p>
 </footer>
 </body>

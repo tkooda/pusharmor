@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash, createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
 import {
   normalizeEmail,
+  mailboxKey,
   b64url,
   emailHash,
   accountId,
@@ -12,6 +14,21 @@ import {
 
 test("normalizeEmail trims and lowercases", () => {
   assert.equal(normalizeEmail(" A@B.Com "), "a@b.com");
+});
+
+test("normalizeEmail applies the Worker address checks", () => {
+  for (const bad of ["", "@b.com", "a@", "a@b@c.com", "a b@c.com", 'a"b@c.com', "a<b@c.com", "a;b@c.com", "a\\b@c.com", "a@" + "b".repeat(253)]) {
+    assert.throws(() => normalizeEmail(bad), /bad request/, bad);
+  }
+  assert.equal(normalizeEmail("A.B+tag@Gmail.com"), "a.b+tag@gmail.com");
+});
+
+test("mailboxKey matches the golden mailbox vectors (Q334)", async () => {
+  const G = JSON.parse(readFileSync(new URL("../../../tests/vectors/golden-v1.json", import.meta.url), "utf8"));
+  for (const c of G.mailbox.cases) {
+    assert.equal(mailboxKey(normalizeEmail(c.input)), c.mailbox, c.input);
+    assert.equal(await accountId(G.keys.id_secret, await emailHash(c.mailbox)), c.account, c.input);
+  }
 });
 
 test("normalizeEmail rejects non-ASCII", () => {
@@ -41,7 +58,7 @@ test("banSql refuses bad id and bad time", () => {
 test("banSql exact output", () => {
   assert.equal(
     banSql("AAAAAAAAAAAA", 1761300000),
-    "INSERT INTO accounts (id, created, status, last_seen_month) VALUES ('AAAAAAAAAAAA', 1761300000, 'banned', 1761300000) ON CONFLICT (id) DO UPDATE SET status = 'banned'; " +
+    "INSERT INTO accounts (id, created, status, last_seen_month) VALUES ('AAAAAAAAAAAA', 1761264000, 'banned', 1759968000) ON CONFLICT (id) DO UPDATE SET status = 'banned'; " +
       "DELETE FROM peers WHERE account = 'AAAAAAAAAAAA';",
   );
 });

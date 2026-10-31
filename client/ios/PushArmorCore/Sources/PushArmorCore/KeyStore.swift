@@ -114,6 +114,8 @@ public final class KeychainKeyStore {
     public func bootstrap(store: Store) throws -> DeviceKeys? {
         let me = try store.me()
         if me.id == nil && !me.removed {
+            // a saved email-code step is bound to the keys made for it (I502)
+            if me.requestToken != nil, let k = try? load() { return k }
             if let old = peerId() { try store.setMe("old_id", .text(old)) }
             deleteAll()
             return try create()

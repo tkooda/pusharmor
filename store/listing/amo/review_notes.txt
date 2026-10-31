@@ -1,0 +1,21 @@
+PushArmor sends links and text between a user's own devices.
+
+LOG IN
+1. Click the PushArmor toolbar button and choose "Continue with Google".
+   Use the demo account given in the Developer Hub for this add-on.
+
+PAIR A SECOND DEVICE
+2. Install the PushArmor Android app and log in with the same account,
+   or install this add-on in a second Firefox profile and log in there.
+3. Click Pair on both. Check that both show the same 4-character code.
+
+SEND
+4. Open the popup and send the current page or typed text. It appears on
+   the other device.
+5. Right-click a link, a page or selected text and choose PushArmor. It
+   appears on the other device.
+
+NOTES
+- Content is end-to-end encrypted in the add-on before it is sent.
+- The source archive of this version is attached. Build steps are in its
+  README (client/firefox/README.md).

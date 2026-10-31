@@ -17,8 +17,11 @@ export interface MenuPeer {
 
 export interface Platform {
   platformName: "chrome" | "firefox";
+  /** Manifest version (x.y.z). */
+  appVersion: string;
   isAndroid: boolean;
-  pushSubscribe(vapidPub: Uint8Array): Promise<PushFields>;
+  /** quiet: never open a tab (Firefox setup) for this call. */
+  pushSubscribe(vapidPub: Uint8Array, quiet?: boolean): Promise<PushFields>;
   pushCurrent(): Promise<PushFields | null>;
   pushUnsubscribe(): Promise<void>;
   /** Basic notification; re-creating the same id replaces it. */
@@ -27,7 +30,8 @@ export interface Platform {
   clearAllNotifications(): Promise<void>;
   /** Opens a tab; resolves to its id when known. */
   openTab(url: string, active: boolean): Promise<number | null>;
-  closeTab(tabId: number): void;
+  /** Loads the extension page page.html + hash in tab tabId (Firefox sign-in returns to its tab). */
+  showPage(tabId: number, hash: string): void;
   /** Chrome: identity.launchWebAuthFlow; resolves to the final redirect URL. Firefox: null (tab flow). */
   authFlow(url: string): Promise<string | null>;
   /** Auto-open in the last focused normal window; false when no window exists. */

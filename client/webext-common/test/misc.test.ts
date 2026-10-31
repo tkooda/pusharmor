@@ -6,7 +6,7 @@ import { MENU_PARENTS, selectionTitle } from "../src/core/actions.ts";
 import { T } from "../src/core/texts.ts";
 import { readForward } from "../../firefox/src/sitefwd/fwd.ts";
 import { endpointAllowed } from "../../firefox/src/platform-firefox.ts";
-import { senderAllowed } from "../../firefox/src/gate.ts";
+import { fxSubFields, senderAllowed } from "../../firefox/src/gate.ts";
 
 test("History filter: chips All / peer names / Unknown, peer chips hidden with one peer", () => {
   const one = [
@@ -42,12 +42,13 @@ test("context menu parent titles per context", () => {
   ]);
 });
 
-test("type badge labels and the pairing countdown text", () => {
-  assert.equal(T.typeBadge("url"), "URL");
-  assert.equal(T.typeBadge("text"), "Text");
-  assert.equal(T.typeBadge("tel"), "Phone");
-  assert.equal(T.countdownLeft("13 days"), "13 days left");
-  assert.equal(T.countdownLeft("1 hour"), "1 hour left");
+test("type captions and the pairing countdown text", () => {
+  assert.equal(T.typeCaption("url"), "Will open as a link");
+  assert.equal(T.typeCaption("text"), "Will arrive as text");
+  assert.equal(T.typeCaption("tel"), "Will open as a phone number");
+  assert.equal(T.countdownLeft("13 days"), "Times out in 13 days");
+  assert.equal(T.countdownLeft("1 hour"), "Times out in 1 hour");
+  assert.equal(T.counter(39), "39 / 2048");
 });
 
 test("fx/fwd catch: only the SW fetch, body concatenated, over 3800 bytes dropped", () => {
@@ -57,6 +58,7 @@ test("fx/fwd catch: only the SW fetch, body concatenated, over 3800 bytes droppe
   assert.deepEqual(readForward({ ...base, tabId: 3 }), { m: null, cancel: false });
   assert.deepEqual(readForward({ ...base, type: "main_frame" }), { m: null, cancel: false });
   assert.deepEqual(readForward({ ...base, originUrl: "https://evil.example/" }), { m: null, cancel: false });
+  assert.deepEqual(readForward({ ...base, originUrl: undefined, requestBody: { raw: [raw("AB")] } }), { m: null, cancel: false }); // no origin: not the site SW
   assert.deepEqual(readForward({ ...base, requestBody: { raw: [raw("A".repeat(3801))] } }), { m: null, cancel: true });
 });
 
@@ -87,4 +89,53 @@ test("Firefox sender gate: a site content script gets only its own site op", () 
   assert.equal(senderAllowed("fx-sub", { id, url: base + "popup.html" }, id, base), false);
   assert.equal(senderAllowed("approve", { id: "other", url: base + "popup.html" }, id, base), false);
   assert.equal(senderAllowed("approve", { id }, id, base), false);
+});
+
+test("fx-sub: the sender page is matched exactly and the message shape is validated", () => {
+  const id = "ext@pusharmor";
+  const base = "moz-extension://1111-2222/";
+  const at = (url: string) => ({ id, url, tab: { id: 7 } });
+  assert.equal(senderAllowed("fx-sub", at("https://pusharmor.com/fx/setup"), id, base), true);
+  assert.equal(senderAllowed("fx-sub", at("https://pusharmor.com/fx/setup?x=1#h"), id, base), true);
+  assert.equal(senderAllowed("fx-sub", at("https://pusharmor.com/fx/setup-evil"), id, base), false);
+  assert.equal(senderAllowed("fx-sub", at("https://pusharmor.com/fx/setup/../x"), id, base), false);
+  assert.equal(senderAllowed("fx-sub", at("http://pusharmor.com/fx/setup"), id, base), false);
+  assert.equal(senderAllowed("fx-sub", at("https://pusharmor.com:8443/fx/setup"), id, base), false);
+  assert.equal(senderAllowed("fx-sub", at("not a url"), id, base), false);
+  const ok = { endpoint: "https://updates.push.services.mozilla.com/wpush/v2/x", p256dh: "B".repeat(87), auth: "a".repeat(22) };
+  assert.deepEqual(fxSubFields(ok), ok);
+  assert.deepEqual(fxSubFields({ ...ok, extra: 1 }), ok); // unknown fields dropped
+  assert.equal(fxSubFields(null), null);
+  assert.equal(fxSubFields("x"), null);
+  assert.equal(fxSubFields({ ...ok, endpoint: 5 }), null);
+  assert.equal(fxSubFields({ ...ok, auth: ["a"] }), null);
+  assert.equal(fxSubFields({ ...ok, endpoint: "https://x/" + "a".repeat(3000) }), null);
+  assert.equal(fxSubFields({ ...ok, p256dh: "" }), null);
+});
+
+test("storage.local schema version: unversioned data is stamped v1 untouched, newer is left alone", async () => {
+  const { MemKV } = await import("./harness.ts");
+  const { migrateStorage, SCHEMA_KEY, SCHEMA_VERSION } = await import("../src/core/state.ts");
+  const kv = new MemKV();
+  const before = { "pair:a": { role: "N", r: "secret" }, allow: ["a"], registered: true, net_not_before: 5 };
+  kv.data = structuredClone(before);
+  await migrateStorage(kv);
+  assert.equal(kv.data[SCHEMA_KEY], SCHEMA_VERSION);
+  const { [SCHEMA_KEY]: _s, ...rest } = kv.data;
+  assert.deepEqual(rest, before); // nothing reshaped
+  await migrateStorage(kv); // idempotent
+  assert.equal(kv.data[SCHEMA_KEY], SCHEMA_VERSION);
+  const fresh = new MemKV();
+  await migrateStorage(fresh);
+  assert.deepEqual(fresh.data, { [SCHEMA_KEY]: SCHEMA_VERSION });
+  const newer = new MemKV();
+  newer.data = { [SCHEMA_KEY]: SCHEMA_VERSION + 1, x: 1 };
+  await migrateStorage(newer);
+  assert.deepEqual(newer.data, { [SCHEMA_KEY]: SCHEMA_VERSION + 1, x: 1 });
+});
+
+test("boot runs the storage migration before the engine", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../src/shellkit.ts", import.meta.url), "utf8");
+  assert.match(src, /await migrateStorage\(platform\.storageLocal\);\s+const engine = new Engine/);
 });
