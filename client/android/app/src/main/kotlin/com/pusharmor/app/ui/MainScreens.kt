@@ -281,6 +281,8 @@ private fun RenameDialog(current: String, onSave: (String) -> Unit, onDismiss: (
 @Composable
 private fun Banners(vm: AppViewModel, banner: String?) {
     val context = LocalContext.current
+    // Read here, so every check below runs again on each return to the app (I479).
+    val tick = resumeTick()
     val n = vm.g.notifier
     if (!n.enabled() || n.mainChannelsBlocked()) BannerRow("Notifications are off. Messages will not be shown.", "Fix", fault = true, PaIcons.NotificationsOff) {
         context.startActivity(Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
@@ -301,7 +303,7 @@ private fun Banners(vm: AppViewModel, banner: String?) {
         BannerRow("This push server did not deliver. Check your UnifiedPush app.", "Retry", fault = true, PaIcons.Info) { vm.retryPush() }
         if (vm.g.push.hasPlayServices) TextButton(onClick = { vm.switchPush(toUp = false) }) { Text("Switch back to Google") }
     }
-    val st = remember { try { PackageManagerCompat.getUnusedAppRestrictionsStatus(context).get(2, java.util.concurrent.TimeUnit.SECONDS) } catch (e: Exception) { 0 } }
+    val st = remember(tick) { try { PackageManagerCompat.getUnusedAppRestrictionsStatus(context).get(2, java.util.concurrent.TimeUnit.SECONDS) } catch (e: Exception) { 0 } }
     if (st == androidx.core.content.UnusedAppRestrictionsConstants.API_31) {
         BannerRow("Android may pause this app when unused.", "Settings", fault = false, PaIcons.Info) {
             context.startActivity(IntentCompat.createManageUnusedAppRestrictionsIntent(context, context.packageName))

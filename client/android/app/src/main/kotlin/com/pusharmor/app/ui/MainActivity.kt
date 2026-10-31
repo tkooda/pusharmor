@@ -224,6 +224,19 @@ private fun App(vm: AppViewModel) {
     }
 }
 
+/** Ticks on every ON_RESUME, so checks of system settings run again when the user comes back (I479). */
+@Composable
+internal fun resumeTick(): Int {
+    val owner = LocalLifecycleOwner.current
+    var n by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    androidx.compose.runtime.DisposableEffect(owner) {
+        val o = androidx.lifecycle.LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) n++ }
+        owner.lifecycle.addObserver(o)
+        onDispose { owner.lifecycle.removeObserver(o) }
+    }
+    return n
+}
+
 /** POST_NOTIFICATIONS on first open; explainer with retry; permanently denied -> app notification settings. */
 @Composable
 private fun PermissionGate(content: @Composable () -> Unit) {
@@ -233,6 +246,9 @@ private fun PermissionGate(content: @Composable () -> Unit) {
     var asked by remember { mutableStateOf(false) }
     var skipped by rememberSaveable { mutableStateOf(false) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok = it; asked = true }
+    // Allowed or revoked in system settings meanwhile: checked again on each return to the app (I479).
+    val tick = resumeTick()
+    androidx.compose.runtime.LaunchedEffect(tick) { ok = granted() }
     if (ok || skipped) { content(); return }
     if (!asked) { androidx.compose.runtime.LaunchedEffect(Unit) { launcher.launch(Manifest.permission.POST_NOTIFICATIONS) } }
     val activity = ctx as? android.app.Activity

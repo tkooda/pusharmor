@@ -244,6 +244,15 @@ class AppLogicTest {
         assertEquals("a,b", kotlinx.coroutines.runBlocking { s.lastSendTo() })
     }
 
+    @Test fun permissionAndBannersRecheckedOnResume() {
+        val act = source("ui/MainActivity.kt")
+        assertTrue(act.contains("LaunchedEffect(tick) { ok = granted() }"))
+        val main = source("ui/MainScreens.kt")
+        val banners = main.substring(main.indexOf("private fun Banners("), main.indexOf("private fun BannerRow("))
+        assertTrue(banners.contains("val tick = resumeTick()"))
+        assertTrue(banners.contains("remember(tick)"))
+    }
+
     @Test fun backStaysInTheApp() {
         val sign = source("ui/SignInScreens.kt")
         assertTrue(sign.contains("BackHandler(onBack = onBack)")) // Email screen
