@@ -57,6 +57,7 @@ public enum S {
     public static let firstPairStep3 = "When it shows below, tap Pair and approve it."
     public static let firstPairWaiting = "Waiting for another device to log in."
     public static let storeRepaired = "Local data was found corrupted and repaired. Please log in again."
+    public static let launchFailed = "PushArmor could not open its data on this device. Free some storage space, then leave PushArmor and open it again."
     public static let updateRequired = "Update PushArmor to continue."
     public static let updateTitle = "Please update PushArmor"
     public static let updateBody = "This version no longer works with the relay server. Update to keep sending and receiving."

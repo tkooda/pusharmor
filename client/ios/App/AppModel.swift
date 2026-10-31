@@ -89,17 +89,7 @@ final class AppModel: ObservableObject {
             return
         }
         #endif
-        do {
-            try env.prepareDirectories()
-            let (store, repaired) = try await env.openStoreRepairing()
-            self.store = store
-            repairedNotice = repaired
-            if let keys = try env.keychain.bootstrap(store: store) {
-                core = env.makeCore(store: store, keys: keys)
-            }
-        } catch {
-            errorText = "\(error)"
-        }
+        await open()
         UNUserNotificationCenter.current().setNotificationCategories(BannerContent.categories())
         UIApplication.shared.registerForRemoteNotifications()
         await checkPermission()
@@ -110,6 +100,32 @@ final class AppModel: ObservableObject {
             pendingTap = nil
             await handleTap(t.info, action: t.action)
         }
+    }
+
+    /// Opens the store and loads the keys. A failure shows plain text; the next foreground
+    /// tries again (I553).
+    private func open() async {
+        do {
+            try env.prepareDirectories()
+            if store == nil {
+                let (store, repaired) = try await env.openStoreRepairing()
+                self.store = store
+                repairedNotice = repaired
+            }
+            if let store = store, let keys = try env.keychain.bootstrap(store: store) {
+                core = env.makeCore(store: store, keys: keys)
+            }
+        } catch {
+            errorText = S.launchFailed
+        }
+    }
+
+    /// I553: a launch error must not leave the app dead until force-quit. True when the
+    /// store did not open, or a signed-in device has no keys loaded.
+    static func needsReopen(hasStore: Bool, hasCore: Bool, me: Me?) -> Bool {
+        if !hasStore { return true }
+        guard !hasCore, let me = me else { return false }
+        return me.id != nil && !me.removed
     }
 
     /// A notification tap that arrived before start() finished; replayed after it.
@@ -171,6 +187,12 @@ final class AppModel: ObservableObject {
     /// reconcile, retries, timeouts, permission check.
     func onForeground() async {
         await checkPermission()
+        if started, AppModel.needsReopen(hasStore: store != nil, hasCore: core != nil, me: try? store?.me()) {
+            await once("open") {
+                await open()
+                await route()
+            }
+        }
         guard let core = core, phase == .main || phase == .signedOut else { return }
         try? core.pruneHistory()
         let (n, lockedMs, held) = await core.drainLockedInbox(env.inbox)
