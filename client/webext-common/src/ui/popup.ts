@@ -156,6 +156,8 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   const result = h("div", { class: "result", role: "status" });
   const head = sh("");
   const chips = h("div", { class: "dchips" });
+  // I485: the cut offer shows only while the text is over the limit
+  const cut = h("div", { class: "cut", hidden: true });
   const data = await rpc<{ peers: PeerView[] }>(env, "peers");
   // Like Android: a device that cannot receive right now is a greyed chip, never selected and not counted.
   const sendable = data.peers.filter(canReceiveNow);
@@ -232,6 +234,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     asTextRow.hidden = d.type === "text";
     counter.textContent = !showCounter(d.bytes, CAP) ? "" : d.bytes > CAP ? T.tooLong(d.bytes) : T.counter(d.bytes);
     sendBtn.disabled = sendDisabled(d.bytes, CAP, count());
+    cut.hidden = !offerCut || d.bytes <= CAP;
   };
   field.addEventListener("input", () => void update());
   asText.addEventListener("change", () => void update());
@@ -250,7 +253,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   root.append(field, h("div", { class: "meta" }, caption, asTextRow, counter));
   if (offerCut) {
     root.append(
-      h("div", { class: "cut" }, h("button", {
+      add(cut, h("button", {
         onclick: async () => {
           const enc = new TextEncoder();
           let out = "";

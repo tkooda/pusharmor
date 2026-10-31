@@ -311,3 +311,9 @@ test("first-device screen: the live read redraws only on a change and keeps focu
   assert.match(pop, /if \(msg === undefined && focusId === undefined && key === last\) return;/);
   assert.match(pop, /\(same \?\? row \?\? panel\.querySelector<HTMLElement>\("\.fp-title"\)\)\?\.focus\(\);/);
 });
+
+test("full tab Send: the cut offer shows only while the text is over 2048 bytes (I485)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  assert.match(pop, /cut\.hidden = !offerCut \|\| d\.bytes <= CAP;/);
+});
