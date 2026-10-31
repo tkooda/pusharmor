@@ -30,12 +30,12 @@ import okhttp3.ResponseBody
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
-/** Worker clock offset: PA-Time = local now + offset, re-synced from PA-Epoch-Ms of every reply. */
+/** Worker clock offset in seconds: PA-Time = local now + offset, re-synced from PA-Epoch (unix s) of every reply (Q331). */
 interface ClockOffset {
-    var offsetMs: Long
+    var offsetS: Long
 }
 
-class MemoryClockOffset(override var offsetMs: Long = 0) : ClockOffset
+class MemoryClockOffset(override var offsetS: Long = 0) : ClockOffset
 
 /** Raw reply after retries. */
 class Reply(val status: Int, val json: JsonObject?, val retryAfter: Long?)
@@ -81,7 +81,7 @@ class WorkerClient(
     private val onceHttp by lazy { http.newBuilder().callTimeout(ONCE_TIMEOUT_MS, TimeUnit.MILLISECONDS).build() }
 
     /** PA-Time as 13 decimal digits. */
-    fun paTime(): String = (now() + offset.offsetMs).toString().padStart(13, '0')
+    fun paTime(): String = (now() + offset.offsetS * 1000).toString().padStart(13, '0')
 
     /**
      * One call. [signed]: PA-ID + PA-Time + PA-Sig; [signedNoId]: PA-Time + PA-Sig only
@@ -106,7 +106,7 @@ class WorkerClient(
             var retryAfter: Long? = null
             val reply: Reply? = try {
                 (if (once) onceHttp else http).newCall(req).execute().use { r ->
-                    r.header("PA-Epoch-Ms")?.toLongOrNull()?.let { offset.offsetMs = it - now() }
+                    r.header("PA-Epoch")?.toLongOrNull()?.let { offset.offsetS = it - now() / 1000 }
                     val text = r.body?.let { readCapped(it) }.orEmpty()
                     val json = try { Json.parseToJsonElement(text) as? JsonObject } catch (e: Exception) { null }
                     retryAfter = r.header("Retry-After")?.toLongOrNull() ?: json?.get("retry_after")?.jsonPrimitive?.longOrNull

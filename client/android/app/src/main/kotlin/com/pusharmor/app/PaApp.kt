@@ -47,9 +47,9 @@ class Graph(val app: PaApp) {
 
     @Volatile var keysOrNull: KeyOps? = try { KeystoreKeyOps.load() } catch (e: Exception) { null }
 
-    /** Worker clock offset, persisted in the self row. */
+    /** Worker clock offset in seconds, persisted in the self row. */
     val offset = object : ClockOffset {
-        override var offsetMs: Long
+        override var offsetS: Long
             get() = dao.self()?.clockOffset ?: 0
             set(v) { dao.self()?.let { dao.putSelf(it.copy(clockOffset = v)) } }
     }
