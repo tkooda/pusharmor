@@ -269,7 +269,7 @@ class WorkerClient(
 /** Catalog error words -> UI strings. */
 object ErrorText {
     /** Text for HTTP 426 (Q328). */
-    const val UPDATE = "Update PushArmor to continue"
+    const val UPDATE = "Update PushArmor to continue."
 
     fun of(r: ApiResult<*>): String = when (r) {
         is ApiResult.Ok -> ""
@@ -283,10 +283,17 @@ object ErrorText {
             r.status == 400 && r.error == "push endpoint not allowed" -> "This push service is not supported yet."
             r.status == 413 -> "Too long."
             r.status == 426 -> UPDATE
-            r.status == 429 -> "Rate limited. Try again in ${r.retryAfter ?: 60} s."
+            r.status == 429 -> tooMany(r.retryAfter ?: 60)
             r.status == 502 -> "Could not send the email. Try again."
             r.status == 403 && r.error == "banned" -> "This account is blocked."
             else -> "Something went wrong. Try again."
         }
+    }
+
+    /** HTTP 429: "Too many requests. Try again in 1 minute." (whole minutes) or "... in 30 seconds.". */
+    fun tooMany(seconds: Long): String {
+        val n = if (seconds % 60 == 0L && seconds > 0) seconds / 60 else seconds
+        val unit = if (seconds % 60 == 0L && seconds > 0) "minute" else "second"
+        return "Too many requests. Try again in $n ${if (n == 1L) unit else unit + "s"}."
     }
 }

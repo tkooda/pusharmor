@@ -213,6 +213,16 @@ class AppLogicTest {
 
     private fun source(path: String) = java.io.File("src/main/kotlin/com/pusharmor/app/$path").readText()
 
+    @Test fun messagesAreSentences() {
+        // I528: no raw "No keys", no unended notice, no "a > b" path as the Apple relay hint.
+        assertEquals("This device is not logged in. Log in again.", Session.NO_KEYS)
+        assertFalse(source("session/Session.kt").contains("\"No keys\""))
+        assertTrue(source("notify/AppEffects.kt").contains("peersNotice(\"Device list changed.\""))
+        assertTrue(source("ui/MainScreens.kt").contains("Text(UiText.APPLE_RELAY_HINT,"))
+        assertFalse(com.pusharmor.app.ui.UiText.APPLE_RELAY_HINT.contains(">"))
+        assertTrue(com.pusharmor.app.ui.UiText.APPLE_RELAY_HINT.endsWith("."))
+    }
+
     @Test fun shareNeverSendsOnItsOwn() {
         // Another app can start ShareActivity: it only hands the text to SendScreen, which sends on the Send tap alone (I445).
         val share = source("ui/ShareActivity.kt")

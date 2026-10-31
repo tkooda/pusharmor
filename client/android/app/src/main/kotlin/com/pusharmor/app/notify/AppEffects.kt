@@ -41,7 +41,7 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
     override fun rePresent(historyId: Long) = n.rePresent(historyId)
     override fun approvedNotice(peerId: String, name: String?) = n.peersNotice("${name ?: "A device"} approved this device", 3)
     override fun renamedNotice(oldName: String?, newName: String) = n.peersNotice("'${oldName ?: "A device"}' renamed to '$newName'", 4)
-    override fun peerListChanged() = n.peersNotice("Device list changed", 5)
+    override fun peerListChanged() = n.peersNotice("Device list changed.", 5)
     override fun deniedNotice(peerId: String) { if (fcm) n.notice("${nameOf(peerId)} denied this device") }
     override fun logoutNotice(peerId: String, loggedOut: Boolean) {
         if (fcm) n.notice(if (loggedOut) "${nameOf(peerId)} logged out" else "${nameOf(peerId)} logged in")

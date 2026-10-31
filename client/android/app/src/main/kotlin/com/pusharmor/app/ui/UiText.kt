@@ -17,6 +17,10 @@ object UiText {
     /** Same words as iOS: Delete account asks first and says what follows (I477). */
     const val DELETE_CONFIRM = "Delete this account? You must log in again to confirm. This cannot be undone."
 
+    /** Settings note under an Apple private relay address (I528). */
+    const val APPLE_RELAY_HINT = "To log in on another device, use this address. Find it on an iPhone in Settings, under your name, in Sign in with Apple. " +
+        "You can also find it at appleid.apple.com, in Hide My Email."
+
     /** Peer status line by priority: missing, signed out, send only, unreachable, approves, has not approved. */
     fun status(p: Peer): Pair<Mark, String> = when {
         p.missing -> Mark.OFF to "(missing)"

@@ -35,6 +35,8 @@ class Session(private val g: Graph) {
     enum class Start { SIGN_IN, SIGNED_OUT, READY, KEYS_UNAVAILABLE }
 
     companion object {
+        /** A call that needs this device's keys, with none set up (I528). */
+        const val NO_KEYS = "This device is not logged in. Log in again."
         const val REMOVED = "This device was removed. Log in again."
         const val LOST_KEYS = "This device lost its keys. Log in again."
         const val DELETED = "Account deleted on another device."
@@ -126,7 +128,7 @@ class Session(private val g: Graph) {
     }
 
     private fun register(ticket: String, email: String?, evict: List<String>?): SignIn {
-        val k = g.keysOrNull ?: return SignIn.Error("No keys")
+        val k = g.keysOrNull ?: return SignIn.Error(NO_KEYS)
         val sp = B64url.encode(k.signPub); val ep = B64url.encode(k.encPub)
         // POST /peers is signed by the new key with no PA-ID: the client signs with keysOrNull.
         return when (val r = g.client.register(ticket, sp, ep, evict)) {
@@ -207,7 +209,7 @@ class Session(private val g: Graph) {
 
     /** DELETE /account with a delete-account ticket; then wipe everything including the keys. */
     fun deleteAccount(ticket: String): String? {
-        val me = g.identity() ?: return "No keys"
+        val me = g.identity() ?: return NO_KEYS
         val outbox = Outbox(g.store, me)
         val r = ClockSkew.run({
             g.store.allowSet().mapNotNull { g.store.peer(it)?.takeIf { p -> p.pinned } }.associate { it.id to outbox.simple(it, MessageBody.Delete).message }
@@ -300,7 +302,7 @@ class Session(private val g: Graph) {
 
     /** Remove (account-wide): DELETE /peers/$X with a remove message for every pinned allow id. */
     fun removePeer(peerId: String): String? {
-        val me = g.identity() ?: return "No keys"
+        val me = g.identity() ?: return NO_KEYS
         val outbox = Outbox(g.store, me)
         val r = g.reconcile().withMissingRetry {
             ClockSkew.run({
@@ -334,8 +336,8 @@ class Session(private val g: Graph) {
     /** Rename this device: PATCH name entries + rename messages for every pinned allow id. */
     fun rename(newName: String): String? {
         if (!NameEntry.isValidName(newName)) return "Use 1 to 32 plain ASCII characters, no double quotes."
-        val me = g.identity() ?: return "No keys"
-        val self = dao.self() ?: return "No keys"
+        val me = g.identity() ?: return NO_KEYS
+        val self = dao.self() ?: return NO_KEYS
         dao.putSelf(self.copy(name = newName))
         val outbox = Outbox(g.store, me)
         val r = g.reconcile().withMissingRetry {
