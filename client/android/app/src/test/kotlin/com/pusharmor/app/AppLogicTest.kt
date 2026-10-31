@@ -46,6 +46,10 @@ class AppLogicTest {
         assertTrue(Policy.of(true, true, true, true, true, false).hideAll)
         // main off greys the per-peer switches
         assertFalse(Policy.peerSwitchEnabled(false))
+        // I600: content hidden in notifications greys the per-device lock screen switch too.
+        assertFalse(Policy.peerLockEnabled(showContent = false, mainLock = true))
+        assertFalse(Policy.peerLockEnabled(showContent = true, mainLock = false))
+        assertTrue(Policy.peerLockEnabled(showContent = true, mainLock = true))
     }
 
     @Test fun peersScrollTopOnlyWhenPairingGrows() {

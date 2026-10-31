@@ -23,6 +23,9 @@ data class Policy(
 
         /** Per-peer switches are greyed out while the main switch is off. */
         fun peerSwitchEnabled(main: Boolean) = main
+
+        /** The per-peer lock screen switch is also greyed while message content is hidden in notifications, like the main one (I600). */
+        fun peerLockEnabled(showContent: Boolean, mainLock: Boolean) = showContent && peerSwitchEnabled(mainLock)
     }
 }
 
