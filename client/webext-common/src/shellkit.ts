@@ -123,12 +123,12 @@ export function lazyBoot(make: () => Platform, vapid: Uint8Array): () => Promise
             now: () => platform.now(),
             sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
             getOffset: async () => {
-              if (offset === null) offset = (await db.meta<number>("offset")) ?? 0;
+              if (offset === null) offset = (await db.meta<number>("offset_s")) ?? 0;
               return offset;
             },
             setOffset: async (o) => {
               offset = o;
-              await db.setMeta("offset", o);
+              await db.setMeta("offset_s", o);
             },
           });
           await migrateStorage(platform.storageLocal);

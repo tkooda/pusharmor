@@ -161,7 +161,7 @@ export class MockWorker {
   private reply(status: number, body: Record<string, unknown>, extra: Record<string, string> = {}): Response {
     return new Response(JSON.stringify(body), {
       status,
-      headers: { "Content-Type": "application/json", "PA-Epoch-Ms": String(this.clock.t + this.skewMs), ...extra },
+      headers: { "Content-Type": "application/json", "PA-Epoch": String(Math.floor((this.clock.t + this.skewMs) / 1000)), ...extra },
     });
   }
 
