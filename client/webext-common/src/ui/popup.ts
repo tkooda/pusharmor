@@ -302,15 +302,18 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (tex
   const content = h("div", { class: "content " + (one ? "one" : "clamp"), tabindex: "0" });
   if (r.type === "url") midEllipsis(content, r.content);
   else content.textContent = r.content;
-  const dot = !r.read ? h("span", { class: "dot", title: "unread", role: "img", "aria-label": "Unread" }) : null;
-  if (dot) row.classList.add("unread");
+  // Unread: bold text, no visible marker (times stay in one column); screen readers hear "Unread".
+  if (!r.read) {
+    row.classList.add("unread");
+    col.append(h("span", { class: "sr", role: "img", "aria-label": "Unread" }));
+  }
   const select = () => {
     for (const o of Array.from(row.parentElement?.querySelectorAll(".hrow.sel") ?? [])) if (o !== row) o.classList.remove("sel");
     row.classList.add("sel");
   };
   const markRead = () => {
     void rpc(env, "historyRead", { id: r.id });
-    row.querySelector(".dot")?.remove();
+    row.querySelector(".sr")?.remove();
     row.classList.remove("unread");
     select();
   };
@@ -334,7 +337,6 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (tex
   }
   col.append(acts);
   row.append(h("div", { class: "av" }, icon(r.dir === "in" ? "received" : "sent", 18)), col);
-  if (dot) row.append(dot);
   return row;
 }
 
