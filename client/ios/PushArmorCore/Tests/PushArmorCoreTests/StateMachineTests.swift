@@ -881,6 +881,26 @@ final class StateMachineTests: XCTestCase {
         XCTAssertTrue(try n.core.store.peer(x.id)!.listening)
     }
 
+    func testSendFailureResultsEachShowALine() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        await n.core.fetchPeers(force: true)
+        let label = PeerLabel.label(try n.core.store.peer(x.id))
+        w.rows[x.id.text]!.allow[n.id.text] = nil
+        var rep = try await n.core.send("hi", as: .text, to: [x.id], allCount: 1)
+        XCTAssertEqual(rep.lines, [label + ": Not paired. Pair with it to send messages."])
+        w.rows[x.id.text]!.allow[n.id.text] = true
+        w.rows[x.id.text]!.deny[n.id.text] = true
+        rep = try await n.core.send("hi", as: .text, to: [x.id], allCount: 1)
+        XCTAssertEqual(rep.lines, [label + ": It declined this device."])
+        w.rows[x.id.text] = nil
+        rep = try await n.core.send("hi", as: .text, to: [x.id], allCount: 1)
+        XCTAssertEqual(rep.lines, [label + ": It is no longer on this account."])
+        XCTAssertEqual(S.signedOutPeer("A"), "A: Logged out. Log in on it to receive messages.")
+        XCTAssertEqual(S.notDelivered("A"), "Not delivered to A: open PushArmor on it.")
+        XCTAssertEqual(S.notDeliveredRetry("A"), "A: Not delivered. Try again.")
+    }
+
     func testSendNotListeningShowsSendOnly() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try await pairFully(n, x)
@@ -891,7 +911,7 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(rep.results[x.id.text], "not listening")
         let label = PeerLabel.label(try n.core.store.peer(x.id))
         XCTAssertEqual(rep.toast, "Sent to 0 of 1 device\n" + S.sendOnlyPeer(label))
-        XCTAssertTrue(S.sendOnlyPeer("Xdev").hasSuffix("Send only"))
+        XCTAssertTrue(S.sendOnlyPeer("Xdev").hasSuffix("Send only. It does not receive messages."))
         XCTAssertFalse(try n.core.store.peer(x.id)!.listening)
         XCTAssertTrue(try n.core.store.me().fetchDue)
         XCTAssertTrue(w.take(x.id).isEmpty)

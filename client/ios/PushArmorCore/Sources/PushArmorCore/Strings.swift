@@ -45,9 +45,13 @@ public enum S {
     public static func sentTo(_ n: Int, _ m: Int) -> String { "Sent to \(n) of \(m) " + (m == 1 ? "device" : "devices") }
     /// History line for a message that reached its one recipient (F22).
     public static func sentToOne(_ x: String) -> String { "Sent to \"\(x)\"" }
-    public static func notDelivered(_ x: String) -> String { "Not delivered to \(x): open PushArmor on it" }
-    public static func signedOutPeer(_ x: String) -> String { "\(x) is logged out" }
-    public static func sendOnlyPeer(_ x: String) -> String { "\(x): Send only" }
+    public static func notDelivered(_ x: String) -> String { "Not delivered to \(x): open PushArmor on it." }
+    public static func signedOutPeer(_ x: String) -> String { "\(x): Logged out. Log in on it to receive messages." }
+    public static func sendOnlyPeer(_ x: String) -> String { "\(x): Send only. It does not receive messages." }
+    public static func notPairedPeer(_ x: String) -> String { "\(x): Not paired. Pair with it to send messages." }
+    public static func declinedPeer(_ x: String) -> String { "\(x): It declined this device." }
+    public static func goneFromAccountPeer(_ x: String) -> String { "\(x): It is no longer on this account." }
+    public static func notDeliveredRetry(_ x: String) -> String { "\(x): Not delivered. Try again." }
     public static let emailSendFailed = "Could not send the email. Try again."
     public static let pairHowTo1 = "Install PushArmor on the other device."
     public static let pairHowTo2 = "Log in with the same account."

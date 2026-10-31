@@ -55,8 +55,10 @@ extension Core {
                 lines.append(S.sendOnlyPeer(label))
                 try? store.db.write { if var q = try store.peer(id) { q.listening = false; try store.savePeer(q) } }
                 due = true
-            case "unapproved", "unknown": due = true
-            default: break
+            case "unapproved": lines.append(S.notPairedPeer(label)); due = true
+            case "unknown": lines.append(S.goneFromAccountPeer(label)); due = true
+            case "denied": lines.append(S.declinedPeer(label))
+            default: lines.append(S.notDeliveredRetry(label))
             }
         }
         if due { try? store.setMe("fetch_due", .int(1)) }
