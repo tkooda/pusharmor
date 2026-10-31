@@ -414,3 +414,15 @@ def test_wrong_key_length_is_damaged(monkeypatch, tmp_path, net, capsys):
     assert run(cfg, "send", "hi") == 1
     err = capsys.readouterr().err.strip()
     assert err == "%s is damaged. Delete it and log in again." % path
+
+
+def test_help_and_readme_list_every_exit_code(capsys):
+    with pytest.raises(SystemExit) as e:
+        pa.main(["--help"])
+    assert e.value.code == 0
+    out = capsys.readouterr().out
+    readme = open(os.path.join(os.path.dirname(HERE), "README.md"), encoding="utf-8").read()
+    assert len(pa.EXIT_CODES) == 7
+    for code, text in pa.EXIT_CODES:
+        assert "  %-3d %s" % (code, text) in out
+        assert "| %d | %s |" % (code, text) in readme
