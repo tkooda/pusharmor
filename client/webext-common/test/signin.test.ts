@@ -66,7 +66,7 @@ test("email check: empty, non-ASCII, and malformed have help text; a usable addr
   const { emailProblem } = await import("../src/model/signin.ts");
   assert.equal(emailProblem(""), "Enter your email address.");
   assert.equal(emailProblem("sam"), "Check the email address.");
-  assert.equal(emailProblem("säm@example.com"), "Only email addresses with plain ASCII characters are supported.");
+  assert.equal(emailProblem("s\u00e4m@example.com"), "Only email addresses with plain ASCII characters are supported.");
   assert.equal(emailProblem(" sam@example.com "), "");
   const { readFileSync } = await import("node:fs");
   const page = readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8");
