@@ -298,6 +298,7 @@ struct PairingCardView: View {
                 .foregroundStyle(Color.errorText)
                 .frame(maxWidth: .infinity)
         }
+        .disabled(model.busy.contains("deny:" + p.id.text))
         .buttonStyle(.bordered)
         .tint(.red)
         .controlSize(.large)
@@ -331,6 +332,7 @@ struct PairingCardView: View {
                         Label("Approve", systemImage: "checkmark")
                     }
                     .buttonStyle(GreenButtonStyle())
+                    .disabled(model.busy.contains("approve:" + p.id.text))
                 }
                 .padding(.top, 4)
                 Label(S.codesMismatch, systemImage: "info.circle.fill")
@@ -343,6 +345,7 @@ struct PairingCardView: View {
                 denyButton()
                 Button("Pair") { Task { await model.pair(p) } }
                     .buttonStyle(GreenButtonStyle())
+                    .disabled(model.busy.contains("pair:" + p.id.text))
             }
         }
     }

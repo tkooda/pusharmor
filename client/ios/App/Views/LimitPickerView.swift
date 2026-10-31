@@ -40,6 +40,7 @@ struct LimitPickerView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Submit") { Task { await model.submitEvict() } }
+                        .disabled(model.busy.contains("evict"))
                 }
             }
         }

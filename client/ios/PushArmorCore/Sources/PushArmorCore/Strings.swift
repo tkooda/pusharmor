@@ -15,6 +15,8 @@ public enum S {
     public static func pairAgain(_ x: String) -> String { "\(x) wants to pair again. Tap Pair again on its row." }
     public static let cannotPairNow = "Cannot pair with this device now"
     public static let pairNotSent = "Pairing not sent. Tap Send again in a minute."
+    public static let noConnection = "No connection. Try again."
+    public static let notDone = "Something went wrong. Try again."
     public static func pairCrossing(_ x: String) -> String { "Pairing with \(x) in progress. Open PushArmor." }
     public static func approved(_ name: String) -> String { "\(name) approved this device" }
     public static func renamed(_ old: String, _ new: String) -> String { "'\(old)' renamed to '\(new)'" }

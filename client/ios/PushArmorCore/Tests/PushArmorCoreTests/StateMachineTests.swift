@@ -535,6 +535,19 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(Core.pairAgainToast(.failure(Core.PairStartError.tooManyOpen)), S.cannotPairNow)
     }
 
+    func testFailedCallShowsAToast() {
+        func reply(_ status: Int, _ body: String) -> APIOutcome { .reply(APIReply(status: status, body: Data(body.utf8))) }
+        XCTAssertNil(Core.failText(reply(200, "{}")))
+        XCTAssertEqual(Core.failText(APIOutcome.network), S.noConnection)
+        XCTAssertEqual(Core.failText(reply(500, "{\"error\":\"x\"}")), S.notDone)
+        XCTAssertEqual(Core.failText(reply(401, "{\"error\":\"clock skew\"}")), S.clockOff)
+        XCTAssertEqual(Core.failText(nil as APIOutcome?), S.notDone)              // threw before any reply
+        XCTAssertNil(Core.failText(ApproveOutcome.denied))
+        XCTAssertNil(Core.failText(ApproveOutcome.result("gone")))
+        XCTAssertEqual(Core.failText(ApproveOutcome.network), S.noConnection)
+        XCTAssertEqual(Core.failText(ApproveOutcome.error(500)), S.notDone)
+    }
+
     func testWaitingRowGets3dNoticeOnCommitFromX() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try await pairToShown(n, x)
