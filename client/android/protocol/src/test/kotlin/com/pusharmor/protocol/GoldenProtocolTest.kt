@@ -17,6 +17,7 @@ import com.pusharmor.crypto.strOrNull
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
@@ -106,6 +107,12 @@ class GoldenProtocolTest {
         // our writer may differ in escaping (raw UTF-8 vs \\u); it must parse back to the same value
         assertEquals(name, n to mb, InnerMessage.parseJson(InnerMessage.jsonOf(n, mb).toByteArray()))
         // full receive pipeline
+        checkExpect(c)
+    }
+
+    /** Runs the receive pipeline for a message case and compares its expect block. */
+    private fun checkExpect(c: JsonObject) {
+        val name = c.str("name")
         val (outcome, inbound) = runMessage(c)
         val expect = c.obj("expect")!!
         assertEquals(name, expect.str("outcome"), outcome)
@@ -126,6 +133,28 @@ class GoldenProtocolTest {
     @Test fun messages() { for (c in Golden.cases("messages")) checkFullMessage(c, padded = false) }
 
     @Test fun paddedMessages() { for (c in Golden.cases("padded_messages")) checkFullMessage(c, padded = true) }
+
+    /** Lenient receivers (Q327): unknown keys are ignored; the first known type key wins. */
+    @Test fun mustDecodeMessages() {
+        val cases = Golden.section("must_decode")["messages"]!!.jsonArray.map { it.jsonObject }
+        assertTrue(cases.isNotEmpty())
+        for (c in cases) checkExpect(c)
+    }
+
+    @Test fun mustDecodeNameEntries() {
+        val cases = Golden.section("must_decode")["name_entries"]!!.jsonArray.map { it.jsonObject }
+        assertTrue(cases.isNotEmpty())
+        for (c in cases) {
+            val name = c.str("name")
+            val owner = Golden.peer(c.str("owner")); val recvName = c.str("receiver")
+            val pid = c.obj("pin")!!["pairing_id"]!!.b64()
+            val opened = NameEntry.open(c.str("ciphertext"), Golden.keysOf(recvName), id(recvName))
+            assertNotNull(name, opened)
+            val expect = c.obj("expect")!!
+            assertEquals(name, expect.str("name"), NameEntry.verify(opened!!, owner["sign_pub"]!!.b64(), owner.str("id"), id(recvName), pid))
+            assertEquals(name, expect.long("n"), opened.n)
+        }
+    }
 
     @Test fun padding() {
         for (c in Golden.cases("padding")) {
