@@ -4,7 +4,7 @@ import type { LoginResult, Purpose } from "../core/login.ts";
 import type { PeerView, StateView } from "../core/rpc.ts";
 import { T } from "../core/texts.ts";
 import { type UiEnv, add, clear, failView, group, h, platformLabel, rpc } from "./dom.ts";
-import { AUTH_CHANGED, AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResult, type Restore, resendLeftMs, sendLeftMs } from "../model/signin.ts";
+import { AUTH_CHANGED, AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResult, type Restore, formatWait, resendLeftMs, sendLeftMs } from "../model/signin.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
 import { startTheme } from "./theme.ts";
@@ -105,7 +105,6 @@ function describe(field: HTMLElement, help: HTMLElement, id: string): void {
   field.setAttribute("aria-describedby", id);
 }
 
-const clock = (ms: number): string => Math.floor(ms / 60_000) + ":" + String(Math.floor((ms % 60_000) / 1000)).padStart(2, "0");
 
 async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, selfOrigin: string): Promise<void> {
   const purpose = forced === "delete-account" ? "delete-account" : await rpc<Purpose>(env, "loginPurpose");
@@ -197,7 +196,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     const left = sendLeftMs(sentAt, sentTo, email.value, Date.now());
     sendBtn.disabled = left > 0;
     sendBtn.setAttribute("aria-disabled", left > 0 ? "true" : "false");
-    sendBtn.textContent = left > 0 ? "Email me a code in " + clock(left) : "Email me a code";
+    sendBtn.textContent = left > 0 ? "Email me a code in " + formatWait(left) : "Email me a code";
     if (left > 0) sendTick = setTimeout(refreshSend, ((left - 1) % 1000) + 1) as unknown as number;
   };
   describe(sendBtn, sendHelp, "send-help");
@@ -316,7 +315,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     clearTimeout(tick);
     const left = resendLeftMs(sentAt, Date.now());
     resend.disabled = left > 0;
-    resend.textContent = left > 0 ? "Get a new code in " + clock(left) : "Get a new code";
+    resend.textContent = left > 0 ? "Get a new code in " + formatWait(left) : "Get a new code";
     if (left > 0 && !step2.hidden) tick = setTimeout(countdown, ((left - 1) % 1000) + 1) as unknown as number;
   };
   const verify = async () => {

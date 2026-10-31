@@ -54,6 +54,16 @@ export function resendLeftMs(sentAt: number, now: number): number {
   return Math.max(0, sentAt + RESEND_MS - now);
 }
 
+/** Human wait text: over 60 s whole minutes rounded up, else whole seconds rounded up. */
+export function formatWait(ms: number): string {
+  const s = Math.max(1, Math.ceil(ms / 1000));
+  if (s > 60) {
+    const m = Math.ceil(s / 60);
+    return m + (m === 1 ? " minute" : " minutes");
+  }
+  return s + (s === 1 ? " second" : " seconds");
+}
+
 /** ms until "Email me a code" is enabled again: only the address that was just sent to waits. */
 export function sendLeftMs(sentAt: number, sentTo: string, email: string, now: number): number {
   if (!sentTo || sentTo !== email.trim().toLowerCase()) return 0;

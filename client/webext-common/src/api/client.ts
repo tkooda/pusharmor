@@ -3,6 +3,7 @@
 import { utf8 } from "../crypto/bytes.ts";
 import { paSig } from "../crypto/pasig.ts";
 import { T } from "../core/texts.ts";
+import { formatWait } from "../model/signin.ts";
 
 export const API_BASE = "https://api.pusharmor.com";
 export const RETRY_DELAYS_MS = [500, 1500, 3000];
@@ -177,8 +178,7 @@ export function errorText(e: unknown): string {
   if (e.status === 403 && e.error === "turnstile failed") return "The security check did not finish. Try it again.";
   if (e.status === 401 && e.error === "logged out") return "Logged out. Log in to resume.";
   if (e.status === 429) {
-    const s = e.retryAfter ?? 60;
-    return "Too many requests. Try again in " + s + (s === 1 ? " second." : " seconds.");
+    return "Too many requests. Try again in " + formatWait((e.retryAfter ?? 60) * 1000) + ".";
   }
   if (e.status === 0) return "Could not reach the relay server. Check your connection.";
   return "Something went wrong. Try again.";

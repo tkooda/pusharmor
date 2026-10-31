@@ -1058,5 +1058,7 @@ test("error texts are sentences with periods; no raw error code (I474)", () => {
   assert.equal(errorText(new ApiError(400, "push endpoint not allowed", {}, null)), "This browser's push service is not supported yet.");
   assert.equal(errorText(new ApiError(429, "rate limited", {}, 30)), "Too many requests. Try again in 30 seconds.");
   assert.equal(errorText(new ApiError(429, "rate limited", {}, 1)), "Too many requests. Try again in 1 second.");
+  assert.equal(errorText(new ApiError(429, "rate limited", {}, 61)), "Too many requests. Try again in 2 minutes.");
+  assert.equal(errorText(new ApiError(429, "rate limited", {}, null)), "Too many requests. Try again in 60 seconds.");
   assert.equal(errorText(new ApiError(418, "teapot", {}, null)), "Something went wrong. Try again.");
 });
