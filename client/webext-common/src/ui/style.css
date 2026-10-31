@@ -174,7 +174,7 @@ body.page .foot { position: static; }
 
 /* Send view. */
 .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; padding: 6px 18px 4px; min-height: 26px; }
-.caption { display: inline-flex; align-items: center; gap: 6px; min-height: 16px; font-size: 12px; line-height: 16px; color: var(--ink2); }
+.caption { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; min-height: 16px; font-size: 12px; line-height: 16px; color: var(--ink2); }
 .caption svg { flex: none; }
 .astext { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: var(--ink2); cursor: pointer; }
 .astext[hidden] { display: none; }
@@ -190,6 +190,7 @@ body.page .foot { position: static; }
 .dchip.off { opacity: 0.5; }
 .dchip.greyed { cursor: default; }
 .counter { margin-left: auto; font-size: 12px; line-height: 16px; color: var(--err); }
+.counter:empty { display: none; }
 .cut { padding: 0 16px 10px; }
 
 /* History. */
