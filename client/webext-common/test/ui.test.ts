@@ -342,3 +342,9 @@ test("Log out error is scrolled into view (I489)", async () => {
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
   assert.match(pop, /status\.textContent = \(e as Error\)\.message;\s*status\.scrollIntoView\(\{ block: "nearest" \}\);/);
 });
+
+test("Devices Refresh stays grey for its 60 s across a redraw (I490)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pv = readFileSync(new URL("../src/ui/peersview.ts", import.meta.url), "utf8");
+  assert.match(pv, /if \(refreshUntil > Date\.now\(\)\) greyFor\(refresh, refreshUntil - Date\.now\(\)\);/);
+});

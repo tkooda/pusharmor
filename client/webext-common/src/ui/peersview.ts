@@ -27,6 +27,9 @@ const MENU = new Set(["remove", "hide", "unhide", "localDelete"]);
 const inMenu = (p: PeerView, a: string): boolean => MENU.has(a) || (a === "cancel" && p.actions.includes("pair_again"));
 const rank = (a: string): number => (ACTION_ORDER.indexOf(a) + 1 || ACTION_ORDER.length + 1);
 
+/** I490: Refresh stays grey until then, across redraws of the list. */
+let refreshUntil = 0;
+
 /** Draws the list again; a message is announced in the new status region. */
 export type Redraw = (message?: string, focusId?: string) => Promise<void>;
 
@@ -59,7 +62,9 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
   }
   if (focusId !== undefined) (document.getElementById("peer-" + focusId) ?? root.querySelector<HTMLElement>(".sh"))?.focus();
   const refresh = h("button", {}, icon("refresh", 18), h("span", { class: "lbl" }, "Refresh")) as HTMLButtonElement;
+  if (refreshUntil > Date.now()) greyFor(refresh, refreshUntil - Date.now());
   refresh.addEventListener("click", async () => {
+    refreshUntil = Date.now() + 60_000;
     greyFor(refresh, 60_000);
     try {
       await rpc(env, "refresh");
