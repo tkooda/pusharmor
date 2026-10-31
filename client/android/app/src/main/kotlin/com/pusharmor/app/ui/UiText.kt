@@ -27,6 +27,11 @@ object UiText {
         else -> Mark.WAIT to "Has not approved this device"
     }
 
+    /** Device-limit row: "Trusts 3 devices. Trusted by 1." then "Unreachable." and "Logged out." when they apply (Q369). */
+    fun limitRow(approves: Int, approvedBy: Int, reachable: Boolean, loggedOut: Boolean): String =
+        "Trusts $approves ${if (approves == 1) "device" else "devices"}. Trusted by $approvedBy." +
+            (if (!reachable) " Unreachable." else "") + (if (loggedOut) " Logged out." else "")
+
     /** "39 / 2048"; over the cap "Too long (N / 2048)". */
     fun counter(bytes: Int): String =
         if (bytes > SizeCap.MAX_CONTENT_BYTES) "Too long ($bytes / 2048)" else "$bytes / 2048"
