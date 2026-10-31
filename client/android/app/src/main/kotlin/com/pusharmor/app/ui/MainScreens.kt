@@ -700,19 +700,21 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                         focusedBorderColor = cs.primary, unfocusedBorderColor = cs.outline))
                 val counter = UiText.showCounter(bytes)
                 if (extras) Column(Modifier.onSizeChanged { extrasPx = it.height }) {
-                    if (text.isNotEmpty() || counter) {
-                        Row(Modifier.padding(start = 32.dp, end = 32.dp, top = 6.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically) {
-                            if (text.isNotEmpty()) TypeCaption(type) else Spacer(Modifier.width(1.dp))
-                            if (counter) Text(UiText.counter(bytes), style = MaterialTheme.typography.bodySmall, color = cs.error)
-                        }
-                    }
-                    if (detected != ContentType.TEXT) {
-                        Row(Modifier.rowPad.fillMaxWidth().heightIn(min = 40.dp).toggleable(asText, role = Role.Checkbox) { asText = it },
-                            verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(asText, null)
-                            Spacer(Modifier.width(12.dp))
-                            Text("Send as text", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                    val box = detected != ContentType.TEXT
+                    if (text.isNotEmpty() || counter || box) {
+                        // One row: the caption and counter at the left, "Send as text" at the far right (I617).
+                        Row(Modifier.padding(start = 32.dp, end = if (box) 16.dp else 32.dp, top = if (box) 0.dp else 6.dp).fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                if (text.isNotEmpty()) TypeCaption(type)
+                                if (counter) Text(UiText.counter(bytes), style = MaterialTheme.typography.bodySmall, color = cs.error)
+                            }
+                            if (box) Row(Modifier.heightIn(min = 40.dp).toggleable(asText, role = Role.Checkbox) { asText = it },
+                                verticalAlignment = Alignment.CenterVertically) {
+                                Text("Send as text", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                                Spacer(Modifier.width(4.dp))
+                                Checkbox(asText, null)
+                            }
                         }
                     }
                 } else if (counter) {
