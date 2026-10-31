@@ -169,6 +169,8 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onDo
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val msg by vm.message.collectAsState()
+    // Back goes to the log-in choices, not out of the app (I478).
+    androidx.activity.compose.BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         PaTopBar("Log in with email", navigationIcon = { IconButton(onClick = onBack) { Icon(PaIcons.ArrowBack, "Back") } })
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -278,6 +280,8 @@ fun LimitScreen(vm: AppViewModel, onDone: () -> Unit) {
     val limit by vm.limit.collectAsState()
     val ticked = remember { mutableStateListOf<String>() }
     val l = limit ?: return
+    // Back is Cancel, not an app exit (I478).
+    androidx.activity.compose.BackHandler { vm.cancelLimit() }
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         Text("This account has 10 devices. Pick devices to remove.", Modifier.padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 16.dp),
             style = MaterialTheme.typography.titleMedium)
