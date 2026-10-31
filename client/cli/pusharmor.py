@@ -933,7 +933,7 @@ EXIT_CODES = (
     (EXIT_TEMP, "the relay server is busy or unreachable; try again later"),
     (130, "stopped with Ctrl-C"),
 )
-UPDATE_HOW = "run pipx upgrade pusharmor, or get the new pusharmor.py from https://pusharmor.com/download"
+UPDATE_REQUIRED = "Update PushArmor to continue."
 CODE_TRIES = 3
 LINK_LIFE_S = 600
 PROBE_WAIT_S = 30
@@ -1241,8 +1241,7 @@ def check_version(d, path):
     if v is None:
         raise Fail("%s is damaged (no version). Delete it and log in again." % path)
     if type(v) is not int or v != STATE_VERSION:
-        raise Fail("%s has version %r, which this PushArmor does not know. Update PushArmor to continue: %s"
-                   % (path, v, UPDATE_HOW))
+        raise Fail("%s has version %r, which this PushArmor does not know. %s" % (path, v, UPDATE_REQUIRED))
 
 
 class Store:
@@ -1371,7 +1370,7 @@ class Api:
                 j = {}
             j = j if isinstance(j, dict) else {}
             if status == 426:
-                raise Fail("Update PushArmor to continue: " + UPDATE_HOW)
+                raise Fail(UPDATE_REQUIRED)
             epoch = hdrs.get("pa-epoch", "")
             if status == 401 and j.get("error") == "clock skew" and not skewed and re.fullmatch(r"[0-9]{1,12}", epoch):
                 skewed = True
