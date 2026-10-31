@@ -407,6 +407,8 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
     var menu by remember { mutableStateOf(false) }
     val pairingAgain by vm.pairingAgain.collectAsState()
     val running by vm.running.collectAsState()
+    val prefs by vm.prefs.collectAsState()
+    val shareShown = prefs?.get(Settings.K.SHARE_OFF)?.contains(p.id) != true
     val grey = p.missing || !p.reachable
     val cs = MaterialTheme.colorScheme
     // Pairing and note lines replace the status line (catalog order).
@@ -440,6 +442,10 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                     DropdownMenu(menu, { menu = false }) {
                         DropdownMenuItem(text = { Text("Remove") }, onClick = { menu = false; onRemove() })
                         if (p.pinned) DropdownMenuItem(text = { Text(if (p.hidden) "Unhide" else "Hide") }, onClick = { menu = false; vm.setHidden(p.id, !p.hidden) })
+                        // Per device, on by default (I598); the tick is the state, so the row reads as a checkbox.
+                        if (p.pinned) DropdownMenuItem(text = { Text("Show in share sheet") }, onClick = { menu = false; vm.setShareShown(p.id, !shareShown) },
+                            modifier = Modifier.semantics { stateDescription = if (shareShown) "On" else "Off" },
+                            trailingIcon = { Checkbox(shareShown, null) })
                         if (p.missing) DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; vm.localDelete(p.id) })
                         if (p.offersPairAgain) DropdownMenuItem(text = { Text("Cancel pairing") }, onClick = { menu = false; vm.cancelPairing(p.id) })
                     }
@@ -1012,7 +1018,6 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             SectionHeader("Sending")
             GroupedList(listOf<@Composable (Modifier) -> Unit>(
                 { m -> SwitchRow("Show \"All\" option", b(Settings.K.SHOW_ALL, true), modifier = m.then(pad)) { vm.setPref(Settings.K.SHOW_ALL, it) } },
-                { m -> SwitchRow("Direct share targets", b(Settings.K.DIRECT_SHARE, true), modifier = m.then(pad)) { vm.setPref(Settings.K.DIRECT_SHARE, it) } },
             ))
             SectionHeader("History")
             GroupedList(listOf<@Composable (Modifier) -> Unit>(

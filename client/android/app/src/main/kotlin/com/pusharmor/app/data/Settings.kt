@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -26,7 +27,10 @@ class Settings(private val context: Context) {
         val SHOW_ALL = booleanPreferencesKey("show_all")
         val TAP_OPENS_LINK = booleanPreferencesKey("tap_opens_link")
         val HISTORY_DAYS = intPreferencesKey("history_days")
+        /** Old global "Direct share targets" switch; read once by [Settings.migrateDirectShare], then dropped (I598). */
         val DIRECT_SHARE = booleanPreferencesKey("direct_share")
+        /** Device ids left out of the share sheet; absent = every device shows (I598). */
+        val SHARE_OFF = stringSetPreferencesKey("share_off")
         val LOCK_SCREEN = booleanPreferencesKey("lock_screen")
         val WATCH = booleanPreferencesKey("watch")
         /** "system" | "light" | "dark"; absent = system. */
@@ -85,7 +89,7 @@ class Settings(private val context: Context) {
     val showAll get() = flag(K.SHOW_ALL, true)
     val tapOpensLink get() = flag(K.TAP_OPENS_LINK, true)
     val historyDays get() = get(K.HISTORY_DAYS) ?: 30
-    val directShare get() = flag(K.DIRECT_SHARE, true)
+    val shareOff: Set<String> get() = get(K.SHARE_OFF) ?: emptySet()
     val lockScreen get() = flag(K.LOCK_SCREEN, true)
     val watch get() = flag(K.WATCH, true)
     val showContent get() = flag(K.SHOW_CONTENT, true)
@@ -96,6 +100,20 @@ class Settings(private val context: Context) {
             val old = it[K.HIDE_CONTENT] ?: return@edit
             if (it[K.SHOW_CONTENT] == null) it[K.SHOW_CONTENT] = !old
             it.remove(K.HIDE_CONTENT)
+        }
+    }
+
+    /** Per-device "Show in share sheet" (I598). */
+    fun setShareShown(id: String, shown: Boolean) = runBlocking {
+        context.ds.edit { val off = it[K.SHARE_OFF] ?: emptySet(); it[K.SHARE_OFF] = if (shown) off - id else off + id }
+    }
+
+    /** The old global switch, when off, turns every one of [ids] off; the old key is dropped (I598). */
+    fun migrateDirectShare(ids: Collection<String>) = runBlocking {
+        context.ds.edit {
+            val old = it[K.DIRECT_SHARE] ?: return@edit
+            if (!old) it[K.SHARE_OFF] = (it[K.SHARE_OFF] ?: emptySet()) + ids
+            it.remove(K.DIRECT_SHARE)
         }
     }
 

@@ -24,6 +24,7 @@ import com.pusharmor.net.ErrorText
 import com.pusharmor.net.WorkerClient
 import com.pusharmor.protocol.MessageBody
 import com.pusharmor.protocol.NameEntry
+import com.pusharmor.protocol.Peer
 import com.pusharmor.protocol.allSet
 import com.pusharmor.protocol.engine.ApiResult
 import com.pusharmor.protocol.engine.ClockSkew
@@ -38,6 +39,9 @@ class Session(private val g: Graph) {
         /** A call that needs this device's keys, with none set up (I528). */
         const val NO_KEYS = "This device is not logged in. Log in again."
         const val BAD_REPLY = "Could not log in. Try again."
+
+        /** Share sheet targets: the All set less the devices turned off in their menu (I598). */
+        fun shareTargets(peers: List<Peer>, off: Set<String>): List<Peer> = allSet(peers).filter { it.id !in off }
         const val REMOVED = "This device was removed. Log in again."
         const val LOST_KEYS = "This device lost its keys. Log in again."
         const val DELETED = "Account deleted on another device."
@@ -83,6 +87,7 @@ class Session(private val g: Graph) {
     fun onAppOpen(now: Long) {
         if (BuildConfig.SCREENSHOT_MODE && ScreenshotMode.on) return
         if (g.identity() == null || s.flag(Settings.K.SIGNED_OUT, false)) return
+        s.migrateDirectShare(g.store.peers().map { it.id }) // before the device menus show their share sheet ticks (I598)
         flavorRule()
         g.push.start(g)
         g.push.distributorCheck(g)
@@ -400,11 +405,12 @@ class Session(private val g: Graph) {
         dao.purgeHistory(System.currentTimeMillis() - days * 86_400_000L)
     }
 
-    /** Direct share targets: one long-lived dynamic shortcut per member of the All set. */
+    /** Direct share targets: one long-lived dynamic shortcut per member of the All set shown in the share sheet (I598). */
     fun updateShortcuts() {
         val ctx = g.app
-        if (!s.directShare) { ShortcutManagerCompat.removeAllDynamicShortcuts(ctx); return }
-        val all = allSet(g.store.peers())
+        val peers = g.store.peers()
+        s.migrateDirectShare(peers.map { it.id })
+        val all = shareTargets(peers, s.shareOff)
         val ids = all.map { it.id }.toSet()
         val stale = ShortcutManagerCompat.getDynamicShortcuts(ctx).map { it.id }.filter { it !in ids }
         if (stale.isNotEmpty()) ShortcutManagerCompat.removeDynamicShortcuts(ctx, stale)
