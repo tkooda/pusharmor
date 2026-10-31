@@ -125,9 +125,19 @@ final class AppModel: ObservableObject {
     func reload() {
         guard let store = store else { return }
         me = try? store.me()
+        if let m = me, let next = AppModel.phaseAfterReload(phase, me: m) { phase = next }
         peers = (try? store.peers()) ?? []
         pairings = Dictionary(uniqueKeysWithValues: ((try? store.pairings()) ?? []).map { ($0.peerId.text, $0) })
         history = (try? store.history()) ?? []
+    }
+
+    /// I465: the main screen must not stay up once this device is removed or logged out
+    /// (a 401 or a message seen during any action), not only at the next foreground.
+    static func phaseAfterReload(_ phase: Phase, me: Me) -> Phase? {
+        guard phase == .main else { return nil }
+        if me.removed { return .removed }
+        if me.loggedOut { return .signedOut }
+        return nil
     }
 
     /// Launch and every foreground: locked-inbox drain, delivered notifications, push
