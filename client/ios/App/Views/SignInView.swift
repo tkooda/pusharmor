@@ -95,7 +95,7 @@ struct SignInView: View {
               let idToken = String(data: tokenData, encoding: .utf8)
         else {
             if case .failure(let e) = result, (e as? ASAuthorizationError)?.code == .canceled { return }
-            model.errorText = "Login failed"
+            model.errorText = "Login failed."
             return
         }
         var code: String?

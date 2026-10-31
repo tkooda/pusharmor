@@ -244,8 +244,8 @@ final class AppModel: ObservableObject {
             phase = .code(email: email, purpose: purpose)
         case .badEmail: errorText = S.badEmail
         case .emailSendFailed: errorText = S.emailSendFailed
-        case .rateLimited(let s): errorText = "Try again in \(s) s"
-        default: errorText = "Login failed"
+        case .rateLimited(let s): errorText = "Try again in \(s) s."
+        default: errorText = "Login failed."
         }
     }
 
@@ -270,7 +270,7 @@ final class AppModel: ObservableObject {
 
     func finishTicket(_ r: AuthResult, purpose: AuthPurpose) async {
         guard case .ticket(let ticket, let email) = r else {
-            errorText = r == .badEmail ? S.badEmail : "Login failed"
+            errorText = r == .badEmail ? S.badEmail : "Login failed."
             return
         }
         try? store?.setMe("signed_in_email", .text(email))
@@ -316,10 +316,10 @@ final class AppModel: ObservableObject {
                     return
                 }
             }
-            errorText = "Login failed"
+            errorText = "Login failed."
         case .banned: phase = .banned
         case .ticketExpired: errorText = S.signInExpired; phase = .signIn(.register)
-        case .failed, .network: errorText = "Login failed"
+        case .failed, .network: errorText = "Login failed."
         }
     }
 
@@ -374,7 +374,7 @@ final class AppModel: ObservableObject {
         if let out = try? await core.deleteAccount(ticket: ticket), out.reply?.ok == true {
             phase = .removed
         } else {
-            errorText = "Delete failed, try again"
+            errorText = "Delete failed. Try again."
         }
     }
 
@@ -517,7 +517,7 @@ final class AppModel: ObservableObject {
         } catch Core.SendError.tooLong {
             toast = SizeCap.label(text)
         } catch {
-            toast = "Not sent, try again"
+            toast = "Not sent. Try again."
         }
         reload()
         return sent

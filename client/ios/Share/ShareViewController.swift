@@ -81,7 +81,7 @@ final class ShareModel: ObservableObject {
         } catch Core.SendError.clockOff {
             step = .done(S.clockOff)
         } catch {
-            step = .done("Not sent, try again")
+            step = .done("Not sent. Try again.")
         }
         try? await Task.sleep(nanoseconds: 1_500_000_000)
         close()
