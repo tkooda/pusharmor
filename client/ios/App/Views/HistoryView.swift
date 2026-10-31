@@ -116,14 +116,8 @@ struct HistoryRowView: View {
     }
 
     var body: some View {
+        // Unread rows are bold, with no marker column, so the times line up (F32).
         HStack(alignment: .top, spacing: 10) {
-            if unread {
-                Circle().fill(Color.accentColor).frame(width: 10, height: 10)
-                    .padding(.top, 10)
-                    .accessibilityLabel("Unread")
-            } else {
-                Color.clear.frame(width: 10, height: 10)
-            }
             if isEvent {
                 Image(systemName: iconName)
                     .foregroundColor(.secondaryText)
@@ -137,13 +131,17 @@ struct HistoryRowView: View {
                     sender
                     Spacer(minLength: 8)
                     time
-                        .font(.subheadline)
+                        .font(.subheadline.monospacedDigit())
+                        .fontWeight(unread ? .semibold : nil)
                         .foregroundColor(.secondaryText)
+                        .lineLimit(1)
+                        .fixedSize()
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     content
                         .font(isEvent ? .subheadline : .body)
-                        .foregroundColor(.secondaryText)
+                        .fontWeight(unread ? .semibold : nil)
+                        .foregroundColor(unread ? .primary : .secondaryText)
                     if let name = soleRecipientName {
                         // The name truncates inside the quotes; the line stays one line.
                         HStack(spacing: 0) {
