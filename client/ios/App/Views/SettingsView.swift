@@ -1,11 +1,11 @@
 import SwiftUI
-import UIKit
 import PushArmorCore
 
 struct SettingsView: View {
     @EnvironmentObject var model: AppModel
     @State private var name = ""
     @FocusState private var nameFocused: Bool
+    @State private var renaming = false
     @State private var confirmDeleteHistory = false
     @State private var confirmDeleteAccount = false
     @AppStorage(AppearancePreference.storageKey) private var appearance = AppearancePreference.system.rawValue
@@ -75,22 +75,28 @@ struct SettingsView: View {
 
                 // This device and its rename live here, not in Devices (F25).
                 Section("Device name") {
-                    DeviceRow(name: model.me?.name ?? "This device") { nameFocused = true }
-                    TextField("Name this device", text: $name)
-                        .autocorrectionDisabled()
-                        .focused($nameFocused)
-                    Button("Save") { Task { await model.rename(name) } }
-                        .disabled(!NameEntry.isValidName(name) || name == model.me?.name)
-                    if let id = model.me?.id?.text {
-                        HStack {
-                            Text(id)
-                                .font(.caption.monospaced())
-                                .textSelection(.enabled)
-                            Spacer()
-                            Button("Copy") { UIPasteboard.general.string = id }
-                                .buttonStyle(.borderless)
+                    // Inline rename: Rename turns the name into a field, with Cancel and Save (I609).
+                    HStack(spacing: 16) {
+                        if renaming {
+                            TextField("Name this device", text: $name)
+                                .autocorrectionDisabled()
+                                .focused($nameFocused)
+                                .submitLabel(.done)
+                                .onSubmit(saveName)
+                                .onAppear { nameFocused = true }
+                            Button("Cancel") { renaming = false }
+                            Button("Save", action: saveName)
+                                .disabled(!NameEntry.isValidName(name))
+                        } else {
+                            Text(model.me?.name ?? "This device")
+                            Spacer(minLength: 8)
+                            Button("Rename") {
+                                name = model.me?.name ?? ""
+                                renaming = true
+                            }
                         }
                     }
+                    .buttonStyle(.borderless)
                     if let e = email {
                         // Dim label, the address on its own line, truncated in the middle (I460).
                         VStack(alignment: .leading, spacing: 2) {
@@ -173,8 +179,13 @@ struct SettingsView: View {
             .contentMargins(.bottom, 12, for: .scrollContent)
             .navigationTitle("Settings")
             .safeAreaInset(edge: .bottom, spacing: 0) { ToastBanner() }
-            .onAppear { name = model.me?.name ?? "" }
         }
+    }
+
+    private func saveName() {
+        guard NameEntry.isValidName(name) else { return }
+        renaming = false
+        if name != model.me?.name { Task { await model.rename(name) } }
     }
 
     private func boolBinding(_ key: String, _ def: Bool) -> Binding<Bool> {
