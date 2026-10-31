@@ -454,6 +454,15 @@ def test_logout_pending_dropped_when_device_gone(net, tmp_path, monkeypatch):
     assert "logout_pending" not in state(tmp_path)
 
 
+def test_closed_stdin(net, tmp_path, monkeypatch, capsys):
+    me = login(monkeypatch, tmp_path)
+    monkeypatch.setattr(sys, "stdin", None)  # pusharmor ... <&-
+    assert run(tmp_path, "send") == 2 and run(tmp_path, "send", "-") == 2
+    assert run(tmp_path, "pair", "abcdef") == 2 and run(tmp_path / "new", "login") == 2
+    assert run(tmp_path, "delete", pa.id_hex(me)[:8]) == 2
+    assert "Traceback" not in capsys.readouterr().err
+
+
 def test_bad_config_path_is_named(net, tmp_path, capsys):
     f = tmp_path / "afile"
     f.write_text("x")
