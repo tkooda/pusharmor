@@ -75,9 +75,7 @@ struct SettingsView: View {
 
                 // This device and its rename live here, not in Devices (F25).
                 Section("This device") {
-                    HeroCell(name: model.me?.name ?? "This device") { nameFocused = true }
-                        .listRowInsets(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 20))
-                        .listRowBackground(HeroBackground())
+                    DeviceRow(name: model.me?.name ?? "This device") { nameFocused = true }
                     TextField("Name this device", text: $name)
                         .autocorrectionDisabled()
                         .focused($nameFocused)
