@@ -137,7 +137,8 @@ struct SettingsView: View {
                             Button("Cancel") { confirmSignOut = false }
                         }
                         .buttonStyle(.borderless)
-                    } else {
+                    } else if !confirmDeleteAccount {
+                        // One confirm at a time; the other Account button hides meanwhile (I457).
                         Button("Log out") { confirmSignOut = true }
                     }
                     if confirmDeleteAccount {
@@ -150,7 +151,7 @@ struct SettingsView: View {
                             Button("Cancel") { confirmDeleteAccount = false }
                         }
                         .buttonStyle(.borderless)
-                    } else {
+                    } else if !confirmSignOut {
                         Button("Delete account", role: .destructive) { confirmDeleteAccount = true }
                     }
                 }

@@ -107,6 +107,9 @@ final class BrandScreensTests: XCTestCase {
             "Log out of this device? Keys, paired devices, names, and history stay on this device."]
         XCTAssertTrue(question.waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Log out"].exists)
+        // I457: only the confirm shows; one Log out button, no Delete account meanwhile
+        XCTAssertEqual(app.buttons.matching(identifier: "Log out").count, 1)
+        XCTAssertFalse(app.buttons["Delete account"].exists)
         let cancel = app.buttons["Cancel"]
         XCTAssertTrue(cancel.exists)
         cancel.tap()
