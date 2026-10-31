@@ -40,8 +40,7 @@ final class ScreenshotTests: XCTestCase {
         shot("01-peers")
         app.terminate()
 
-        app = launch(["-PAScreenshotsPairing"])
-        peersTab(app)
+        app = launch(["-PAScreenshotsPairing"])   // the first-pair screen (Q338)
         XCTAssertTrue(labelled(app, "Pair with new device: \"New laptop\"").waitForExistence(timeout: 10))
         sleep(1)
         shot("04-pairing")
@@ -93,6 +92,23 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(labelled(app, "Log out of this device?").waitForExistence(timeout: 10))
         sleep(1)
         shot("92-signout-confirm")
+        app.terminate()
+
+        // Q338 first-pair screen, light and dark (-appearance sets the stored theme)
+        for (name, theme) in [("93-firstpair-light", "light"), ("94-firstpair-dark", "dark")] {
+            app = launch(["-PAScreenshotsEmpty", "-appearance", theme])
+            XCTAssertTrue(app.navigationBars["Pair your first device"].waitForExistence(timeout: 30))
+            sleep(1)
+            shot(name)
+            app.terminate()
+        }
+        for (name, theme) in [("95-firstpair-waiting-light", "light"), ("96-firstpair-waiting-dark", "dark")] {
+            app = launch(["-PAScreenshotsPairing", "-appearance", theme])
+            XCTAssertTrue(labelled(app, "Pair with new device: \"New laptop\"").waitForExistence(timeout: 30))
+            sleep(1)
+            shot(name)
+            app.terminate()
+        }
     }
 
     /// Any element whose label contains the text (a peer row reads as one combined element).

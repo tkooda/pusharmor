@@ -51,8 +51,6 @@ final class AppModel: ObservableObject {
     @Published var refreshGreyUntil: Date = .distantPast
     @Published var highlightPeer: String?
     @Published var showHistory = false
-    /// Switches to the Devices tab (Send empty state, I462).
-    @Published var showDevices = false
     /// Peer ids with a Pair again call running; their Pair again buttons are disabled.
     @Published var pairAgainBusy: Set<String> = []
 
@@ -435,6 +433,16 @@ final class AppModel: ObservableObject {
     func offersPairAgain(_ p: Peer) -> Bool { core?.offersPairAgain(p) ?? false }
 
     var allSet: [Peer] { peers.filter { $0.inAll } }
+
+    /// Q338: logged in with no paired device. The first-pair screen then replaces the tabs;
+    /// state-driven, so it goes once a pairing completes and comes back when the last
+    /// paired device is removed.
+    var needsFirstPair: Bool { !peers.contains { $0.pinned && $0.state == .approved } }
+
+    /// Devices of this account waiting to pair: the Devices tab Pairing section.
+    var waitingToPair: [Peer] {
+        peers.filter { pairings[$0.id.text] != nil || (!$0.pinned && $0.state != .removed) }
+    }
 
     var showAllOption: Bool { (try? store?.boolSetting(SettingKey.showAll, default: true)) ?? true }
 
