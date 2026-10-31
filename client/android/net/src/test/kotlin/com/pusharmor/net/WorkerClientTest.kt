@@ -41,9 +41,22 @@ class WorkerClientTest {
         val sig = B64url.decode(req.getHeader("PA-Sig")!!)
         assertTrue(P256.verify(keys.signPub, Ids.requestSigningBytes("POST", "/v1/send", t, body), sig))
         assertEquals(5000L, offset.offsetMs)
+        assertEquals("android/0.0.0", req.getHeader("PA-Client"))
         server.enqueue(ok())
         client.peers()
         assertEquals((clock + 5000).toString(), server.takeRequest().getHeader("PA-Time"))
+    }
+
+    @Test fun paClientOnEveryRequestAnd426Text() {
+        val c = WorkerClient({ keys }, { id }, offset, server.url("/"), WorkerClient.defaultHttp(), { clock }, { clock += it }, paClient = "android/0.0.19")
+        server.enqueue(ok("{\"request_token\":\"rt\"}"))
+        c.authEmail("a@b.com", "k", "register", "t")
+        assertEquals("android/0.0.19", server.takeRequest().getHeader("PA-Client"))
+        server.enqueue(MockResponse().setResponseCode(426).setBody("{\"error\":\"update required\"}"))
+        val r = c.peers()
+        assertEquals("android/0.0.19", server.takeRequest().getHeader("PA-Client"))
+        assertEquals("Update PushArmor to continue", ErrorText.of(r))
+        assertEquals(2, server.requestCount)
     }
 
     @Test fun authStateHookSeesUnknownPeerAndLoggedOutOnSignedCalls() {
