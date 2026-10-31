@@ -923,13 +923,14 @@ SITE = "https://pusharmor.com"
 DEFAULT_SERVER = "https://api.pusharmor.com"
 DEFAULT_NTFY = "https://ntfy.sh"
 STATE_VERSION = 1
-EXIT_OK, EXIT_ERR, EXIT_USAGE, EXIT_LOGIN, EXIT_SEND, EXIT_TEMP = 0, 1, 2, 3, 4, 75
+EXIT_OK, EXIT_ERR, EXIT_USAGE, EXIT_LOGIN, EXIT_SEND, EXIT_BUG, EXIT_TEMP = 0, 1, 2, 3, 4, 70, 75
 EXIT_CODES = (
     (EXIT_OK, "success"),
-    (EXIT_ERR, "error: a failed request, or a damaged or unreadable file on this device"),
+    (EXIT_ERR, "error: a failed request, a damaged or unreadable file, or a failed write on this device"),
     (EXIT_USAGE, "wrong command line, or the command needs a terminal"),
     (EXIT_LOGIN, "not logged in, logged out, or this device was removed"),
     (EXIT_SEND, "send failed for at least one device, or there is no device to send to"),
+    (EXIT_BUG, "an unexpected error in PushArmor; please report it"),
     (EXIT_TEMP, "the relay server is busy or unreachable; try again later"),
     (130, "stopped with Ctrl-C"),
 )
@@ -2566,7 +2567,53 @@ def build_parser():
     return p
 
 
+def _quiet_stdout():
+    """After a failed write to stdout: point it at /dev/null so the flush at exit cannot fail again."""
+    try:
+        sys.stdout.flush()
+    except (OSError, ValueError, AttributeError):
+        with contextlib.suppress(OSError, ValueError, AttributeError):
+            os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+
+
+def _os_error_text(e):
+    path = e.filename2 or e.filename
+    reason = e.strerror or str(e) or type(e).__name__
+    if path:
+        return "Cannot read or write %s: %s." % (path, reason)
+    return "Cannot read or write a file on this device: %s." % reason
+
+
 def main(argv=None):
+    """Runs one command. Every error ends as one line on stderr and an exit code from EXIT_CODES."""
+    try:
+        try:
+            return _main(argv)
+        finally:
+            if sys.stdout is not None:
+                sys.stdout.flush()  # a closed or full stdout fails here, not at exit
+    except BrokenPipeError:  # the output was closed, for example listen | head -1
+        _quiet_stdout()
+        return EXIT_ERR
+    except OSError as e:
+        _quiet_stdout()
+        log(_os_error_text(e))
+        return EXIT_ERR
+    except UnicodeError as e:
+        _quiet_stdout()
+        if isinstance(e, UnicodeEncodeError):
+            log("This terminal cannot show some characters. Use a UTF-8 locale, such as LANG=C.UTF-8.")
+        else:
+            log("Some text is not valid UTF-8 text.")
+        return EXIT_ERR
+    except Exception as e:
+        _quiet_stdout()
+        log("PushArmor stopped on an unexpected error (%s). Please report it." %
+            " ".join(("%s: %s" % (type(e).__name__, e)).split()))
+        return EXIT_BUG
+
+
+def _main(argv):
     try:
         check_os()
     except Fail as e:

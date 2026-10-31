@@ -503,7 +503,92 @@ def test_help_and_readme_list_every_exit_code(capsys):
     assert e.value.code == 0
     out = capsys.readouterr().out
     readme = open(os.path.join(os.path.dirname(HERE), "README.md"), encoding="utf-8").read()
-    assert len(pa.EXIT_CODES) == 7
+    assert len(pa.EXIT_CODES) == 8
     for code, text in pa.EXIT_CODES:
         assert "  %-3d %s" % (code, text) in out
         assert "| %d | %s |" % (code, text) in readme
+
+
+# ---- crashes: every error is one line on stderr and a listed exit code ----
+
+class BrokenOut:
+    """stdout of listen | head -1 after head exits."""
+
+    def write(self, s):
+        raise BrokenPipeError(32, "Broken pipe")
+
+    def flush(self):
+        raise BrokenPipeError(32, "Broken pipe")
+
+
+def test_unreadable_file_is_one_line(monkeypatch, tmp_path, net, capsys):
+    cfg = _logged_in(monkeypatch, tmp_path, net)
+    os.unlink(cfg / "devices.toml")
+    os.mkdir(cfg / "devices.toml")
+    capsys.readouterr()
+    assert run(cfg, "send", "hi") == 1
+    err = capsys.readouterr().err
+    assert err == "Cannot read or write %s: Is a directory.\n" % (cfg / "devices.toml")
+
+
+def test_config_path_that_is_a_file_or_too_long(monkeypatch, tmp_path, capsys):
+    f = tmp_path / "file"
+    f.write_text("x")
+    monkeypatch.setenv("PUSHARMOR_CONFIG", str(f))
+    assert pa.main(["logout"]) == 1
+    assert capsys.readouterr().err == "Cannot read or write %s: File exists.\n" % f
+    monkeypatch.setenv("PUSHARMOR_CONFIG", str(tmp_path / ("a" * 5000)))
+    assert pa.main(["logout"]) == 1
+    err = capsys.readouterr().err
+    assert err.startswith("Cannot read or write ") and err.endswith(": File name too long.\n")
+
+
+@pytest.mark.skipif(os.getuid() == 0, reason="root reads any file")
+def test_file_without_permission(monkeypatch, tmp_path, net, capsys):
+    cfg = _logged_in(monkeypatch, tmp_path, net)
+    (cfg / "devices.toml").chmod(0)
+    capsys.readouterr()
+    assert run(cfg, "send", "hi") == 1
+    assert capsys.readouterr().err == "Cannot read or write %s: Permission denied.\n" % (cfg / "devices.toml")
+
+
+def test_closed_output_exits_quietly(monkeypatch, tmp_path, net, capsys):
+    cfg = _logged_in(monkeypatch, tmp_path, net)
+    capsys.readouterr()
+    monkeypatch.setattr(sys, "stdout", BrokenOut())
+    assert run(cfg, "pair") == 1
+    assert capsys.readouterr().err == ""
+
+
+@pytest.mark.parametrize("how", ["closed pipe", "full disk"])
+def test_help_to_closed_or_full_output(how, tmp_path):
+    import subprocess
+    script = os.path.join(os.path.dirname(HERE), "pusharmor.py")
+    if how == "full disk":
+        if not os.path.exists("/dev/full"):
+            pytest.skip("no /dev/full")
+        with open("/dev/full", "w") as out:
+            p = subprocess.run([sys.executable, script, "--help"], stdout=out, stderr=subprocess.PIPE)
+        assert p.returncode == 1 and p.stderr == b"Cannot read or write a file on this device: No space left on device.\n"
+        return
+    p = subprocess.Popen([sys.executable, script, "--help"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p.stdout.close()
+    err = p.stderr.read()
+    assert p.wait() == 1 and err == b""
+
+
+def test_unexpected_error_is_one_line_exit_70(monkeypatch, tmp_path, capsys):
+    def boom(cx, args):
+        raise TypeError("bad\nvalue")
+
+    monkeypatch.setitem(pa.COMMANDS, "logout", (boom, "", []))
+    assert run(tmp_path, "logout") == pa.EXIT_BUG == 70
+    assert capsys.readouterr().err == ("PushArmor stopped on an unexpected error (TypeError: bad value). "
+                                       "Please report it.\n")
+
+
+def test_output_the_terminal_cannot_show(monkeypatch, tmp_path, capsys):
+    monkeypatch.setitem(pa.COMMANDS, "logout", (lambda cx, args: print("caf\u00e9"), "", []))
+    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(io.BytesIO(), encoding="ascii"))
+    assert run(tmp_path, "logout") == 1
+    assert "Use a UTF-8 locale" in capsys.readouterr().err
