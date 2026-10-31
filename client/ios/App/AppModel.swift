@@ -121,6 +121,13 @@ final class AppModel: ObservableObject {
         guard let store = store, let me = try? store.me() else { phase = .loading; return }
         self.me = me
         if notificationsOff && me.id == nil { phase = .welcome; return }
+        if let r = AppModel.restoredCode(me: me, email: try? store.setting("code_email"),
+                                         purpose: try? store.setting("code_purpose")) {
+            // the request_token is bound to the keys made for this sign-in (I502)
+            if case .code(_, .register) = r, pendingKeys == nil { pendingKeys = try? env.keychain.load() }
+            phase = r
+            return
+        }
         if me.removed { phase = .removed; return }
         if me.id == nil { phase = .signIn(.register); return }
         repairedNotice = false
@@ -128,6 +135,18 @@ final class AppModel: ObservableObject {
         if me.name == nil { phase = .nameDevice; return }
         phase = .main
         reload()
+    }
+
+    /// I502: the email-code step survives process death. Its request_token, address, and
+    /// purpose are saved; a register or login code step comes back on the next launch.
+    static func restoredCode(me: Me, email: String?, purpose: String?) -> Phase? {
+        guard me.requestToken != nil, let email = email,
+              let p = purpose.flatMap(AuthPurpose.init(rawValue:)) else { return nil }
+        switch p {
+        case .register where me.id == nil || me.removed: return .code(email: email, purpose: p)
+        case .login where me.id != nil && !me.removed && me.loggedOut: return .code(email: email, purpose: p)
+        default: return nil
+        }
     }
 
     func reload() {
@@ -241,6 +260,8 @@ final class AppModel: ObservableObject {
         case .requestToken(let t):
             requestToken = t
             try? store?.setMe("request_token", .text(t))
+            try? store?.setSetting("code_email", email)
+            try? store?.setSetting("code_purpose", purpose.rawValue)
             phase = .code(email: email, purpose: purpose)
         case .badEmail: errorText = S.badEmail
         case .emailSendFailed: errorText = S.emailSendFailed
@@ -251,6 +272,19 @@ final class AppModel: ObservableObject {
 
     func emailVerify(_ code: String, purpose: AuthPurpose) async {
         await once("verify") { await emailVerifyOnce(code, purpose: purpose) }
+    }
+
+    /// Back from the code step: forget the saved step so a relaunch does not bring it back.
+    func leaveCode(_ purpose: AuthPurpose) {
+        clearCodeStep()
+        phase = .signIn(purpose)
+    }
+
+    private func clearCodeStep() {
+        requestToken = nil
+        try? store?.setMe("request_token", .null)
+        try? store?.setSetting("code_email", nil)
+        try? store?.setSetting("code_purpose", nil)
     }
 
     private func emailVerifyOnce(_ code: String, purpose: AuthPurpose) async {
@@ -274,6 +308,7 @@ final class AppModel: ObservableObject {
             return
         }
         try? store?.setMe("signed_in_email", .text(email))
+        clearCodeStep()
         switch purpose {
         case .register: await register(ticket: ticket, evict: [])
         case .login: await login(ticket: ticket)

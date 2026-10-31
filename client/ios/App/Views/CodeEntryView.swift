@@ -53,7 +53,7 @@ struct CodeEntryView: View {
             .onTapGesture { focused = true }
             .onAppear { focused = true }
             if busy { ProgressView() }
-            Button("Back") { model.phase = .signIn(purpose) }
+            Button("Back") { model.leaveCode(purpose) }
             Spacer()
         }
         .padding(24)
