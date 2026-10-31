@@ -481,7 +481,10 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
       { class: "btns" },
       h("button", {
         class: "primary",
-        onclick: async () => {
+        onclick: async (ev: Event) => {
+          const btn = ev.currentTarget as HTMLButtonElement;
+          if (btn.disabled) return;
+          btn.disabled = true; // I473: the ticket is single use; a second request would fail
           const evict = boxes.filter((b) => b.box.checked).map((b) => b.id);
           try {
             const r = await rpc<LoginResult>(env, "evict", { ticket, evict });
@@ -491,6 +494,8 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
           } catch (e) {
             status.textContent = (e as Error).message;
             if (status.textContent === "Login expired, log in again") env.openPage("#login");
+          } finally {
+            btn.disabled = false;
           }
         },
       }, "Remove and continue"),

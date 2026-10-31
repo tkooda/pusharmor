@@ -199,6 +199,8 @@ export function pairCard(env: UiEnv, p: PeerView, status: HTMLElement, redraw: R
 async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, box: HTMLElement, _status: HTMLElement, redraw: Redraw): Promise<void> {
   let msg = "";
   if (a === "remove") {
+    const open = box.querySelector<HTMLElement>(".confirm .keep");
+    if (open) return open.focus(); // one confirm per row
     const confirm = h(
       "div",
       { class: "confirm" },
@@ -208,7 +210,8 @@ async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, box
         { class: "actions" },
         h("button", {
           class: "danger",
-          onclick: async () => {
+          onclick: async (ev: Event) => {
+            (ev.currentTarget as HTMLButtonElement).disabled = true; // I473: one request per confirm
             let rmsg = "Removed " + p.label;
             try {
               await rpc(env, "remove", { id: p.id });
@@ -229,7 +232,7 @@ async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, box
   const args: Record<string, unknown> = { id: p.id };
   if (op === "hide") args.hidden = a === "hide";
   if (a === "send_again" || a === "approve_again") greyFor(b, 60_000);
-  if (a === "pair_again") b.disabled = true; // a second click would hit the open pairing
+  else b.disabled = true; // I473: one request per click; the redraw below replaces the button
   try {
     const r = await rpc<unknown>(env, op, args);
     if (op === "approve" && typeof r === "string" && r !== "stored" && r !== "sent") msg = r === "denied" ? T.declinedBy(p.label) : "Approve: " + r;

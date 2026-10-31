@@ -281,3 +281,15 @@ test("full tab account views are gated on login; no hash shows Devices (I470)", 
   assert.match(route, /signinCard\(env, st, going, true\)/);
   assert.doesNotMatch(route, /h\("div", \{\}, "PushArmor"\)/); // the old blank page
 });
+
+test("one request per click; a failed tab view shows Retry (I473)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
+  const peers = rd("peersview.ts");
+  assert.match(peers, /\(ev\.currentTarget as HTMLButtonElement\)\.disabled = true; \/\/ I473/); // Remove in the confirm
+  assert.match(peers, /else b\.disabled = true;/); // every other row action
+  assert.match(peers, /if \(open\) return open\.focus\(\)/); // one Remove confirm per row
+  const page = rd("page.ts");
+  assert.match(page, /if \(btn\.disabled\) return;\s+btn\.disabled = true;/); // Remove and continue
+  assert.match(rd("popup.ts"), /ready\.catch\(\(e\) => pane\.isConnected && failView\(pane, \(e as Error\)\.message, \(\) => show\(t, prefill\)\)\)/);
+});
