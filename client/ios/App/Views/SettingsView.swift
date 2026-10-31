@@ -172,6 +172,7 @@ struct SettingsView: View {
             // Like the other tabs: the last About row ends clear of the floating tab bar (I569).
             .contentMargins(.bottom, 12, for: .scrollContent)
             .navigationTitle("Settings")
+            .safeAreaInset(edge: .bottom, spacing: 0) { ToastBanner() }
             .onAppear { name = model.me?.name ?? "" }
         }
     }

@@ -66,6 +66,7 @@ struct PeersView: View {
                 .sheet(isPresented: $showPairHowTo) { PairHowToView() }
                 .contentMargins(.bottom, 12, for: .scrollContent)
                 .navigationTitle("Devices")
+                .safeAreaInset(edge: .bottom, spacing: 0) { ToastBanner() }
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         TimelineView(.periodic(from: .now, by: 1)) { ctx in
