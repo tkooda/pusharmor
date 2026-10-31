@@ -388,6 +388,16 @@ def test_logout_pending_dropped_when_device_gone(net, tmp_path, monkeypatch):
     assert "logout_pending" not in state(tmp_path)
 
 
+def test_bad_config_path_is_named(net, tmp_path, capsys):
+    f = tmp_path / "afile"
+    f.write_text("x")
+    assert run(f, "send", "hi") == 2
+    assert str(f) in capsys.readouterr().err
+    gone = tmp_path / "nope" / "x"
+    assert run(gone, "send", "hi") == 3
+    assert str(gone) in capsys.readouterr().err
+
+
 def test_delete_self(net, tmp_path, monkeypatch):
     pid = login(monkeypatch, tmp_path)
     answers(monkeypatch, "y")
@@ -406,8 +416,8 @@ def test_delete_non_tty_needs_yes(net, tmp_path, monkeypatch, capsys):
 
 def test_send_too_long(net, tmp_path, monkeypatch, capsys):
     login(monkeypatch, tmp_path)
-    assert run(tmp_path, "send", "x" * 2049) == 1
-    assert "Too long (2049 / 2048)" in capsys.readouterr().err
+    assert run(tmp_path, "send", "x" * 2049) == 2
+    assert "Too long (2049 / 2048 bytes)." in capsys.readouterr().err
 
 
 # ---- listen output ----
