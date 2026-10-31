@@ -35,6 +35,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -45,6 +46,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
@@ -215,9 +217,7 @@ fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -
                         Banners(vm, prefs?.get(Settings.K.BANNER))
                     }
                 }
-                if (firstDevice) item(key = "steps") {
-                    Text(UiText.FIRST_DEVICE_STEPS, Modifier.padding(start = 32.dp, end = 32.dp, top = 8.dp), style = MaterialTheme.typography.bodyLarge)
-                }
+                if (firstDevice) item(key = "steps") { FirstDeviceSteps(Modifier.padding(top = 8.dp)) }
                 if (pairing.isNotEmpty()) {
                     item(key = "pairing-header") { SectionHeader("Pairing") }
                     itemsIndexed(pairing, key = { _, p -> "pair-" + p.id }) { i, p ->
@@ -231,9 +231,11 @@ fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -
                         PeerRow(vm, p, now, p.id == highlight, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, plain.size)) { confirmRemove = p.id }
                     }
                 } else if (pairing.isEmpty() && firstDevice) {
+                    item(key = "waiting-header") { SectionHeader("Waiting to pair") }
                     item(key = "waiting") {
-                        Text(UiText.FIRST_DEVICE_WAITING, Modifier.padding(start = 32.dp, end = 32.dp, top = 24.dp),
-                            style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        ListItem(modifier = Modifier.padding(horizontal = 16.dp), colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            leadingContent = { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 3.dp) },
+                            headlineContent = { Text(UiText.FIRST_DEVICE_WAITING, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) })
                     }
                 } else if (pairing.isEmpty()) {
                     item(key = "empty") {
@@ -267,6 +269,26 @@ fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -
             }
         },
         confirmButton = { TextButton(onClick = { pairHowTo = false }) { Text("OK") } })
+}
+
+/** First-device steps (I607): one card, a filled numbered circle per step, dividers between the steps, as on iOS. */
+@Composable
+internal fun FirstDeviceSteps(modifier: Modifier = Modifier) {
+    val cs = MaterialTheme.colorScheme
+    val ex = LocalPaExtra.current
+    Card(modifier.padding(horizontal = 16.dp).fillMaxWidth(), shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = ex.tile), border = androidx.compose.foundation.BorderStroke(1.dp, ex.cardEdge)) {
+        UiText.FIRST_DEVICE_STEPS.forEachIndexed { i, t ->
+            if (i > 0) HorizontalDivider(Modifier.padding(start = 56.dp), color = cs.outlineVariant)
+            ListItem(colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                leadingContent = {
+                    Box(Modifier.size(28.dp).clip(CircleShape).background(cs.primary), Alignment.Center) {
+                        Text("${i + 1}", color = cs.onPrimary, style = MaterialTheme.typography.labelLarge)
+                    }
+                },
+                headlineContent = { Text(t, style = MaterialTheme.typography.bodyLarge) })
+        }
+    }
 }
 
 /** Rename this device: one field, same save call as before. */

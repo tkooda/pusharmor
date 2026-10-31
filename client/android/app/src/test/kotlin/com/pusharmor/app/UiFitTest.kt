@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.pusharmor.app.ui.ChipRow
 import com.pusharmor.app.ui.DismissSnackbarOnChange
+import com.pusharmor.app.ui.FirstDeviceSteps
 import com.pusharmor.app.ui.NavLabel
 import com.pusharmor.app.ui.PaChip
 import com.pusharmor.app.ui.UiText
@@ -93,6 +94,16 @@ class UiFitTest {
         val res = mutableListOf<TextLayoutResult>()
         n.config[SemanticsActions.GetTextLayoutResult].action?.invoke(res)
         return res.first()
+    }
+
+    @Test fun firstDeviceStepsShowNumberedCircles() {
+        val c = show("w360dp-h640dp-xhdpi", 2.0f) { FirstDeviceSteps() }
+        val texts = nodes(c.get()).flatMap { it.config.getOrNull(SemanticsProperties.Text).orEmpty().map { t -> t.text } }
+        // One numbered circle beside each iOS step, in order (I607).
+        for ((i, step) in UiText.FIRST_DEVICE_STEPS.withIndex()) {
+            assertTrue(step, step in texts)
+            assertEquals("${i + 1}", texts[texts.indexOf(step) - 1])
+        }
     }
 
     @Test fun firstDeviceTitleIsOneLineAtLargeFont() {

@@ -121,8 +121,9 @@ object UiText {
         return items.sortedWith { a, b -> c.compare(nameOf(a), nameOf(b)) }
     }
     const val FIRST_DEVICE_TITLE = "Pair your first device"
-    const val FIRST_DEVICE_STEPS = "1. Install PushArmor on another device.\n2. Log in with the same account.\n3. Approve it here: tap Pair when it shows below."
-    const val FIRST_DEVICE_WAITING = "No device is waiting yet. Your other device shows up here after it logs in."
+    /** Same steps as the iOS first-pair screen (I607); each shows with a numbered circle. */
+    val FIRST_DEVICE_STEPS = listOf("Install PushArmor on another device.", "Log in with the same account.", "When it shows below, tap Pair and approve it.")
+    const val FIRST_DEVICE_WAITING = "Waiting for another device to log in."
 
     /** Send with no paired device (I462): pairing guidance replaces the empty "Send to" block once this device is loaded. */
     fun noDevicesShown(selfLoaded: Boolean, paired: Int): Boolean = selfLoaded && paired == 0
