@@ -293,6 +293,28 @@ def test_login_registers_and_confirms(net, tmp_path, monkeypatch, capsys):
     assert run(tmp_path, "login") == 0 and "already logged in" in capsys.readouterr().out
 
 
+def test_login_that_cannot_save_removes_the_device(net, tmp_path, monkeypatch, capsys):
+    (tmp_path / "devices.toml").mkdir()
+    answers(monkeypatch, CODE)
+    assert run(tmp_path, "login") == 1
+    assert net.peers == {} and not (tmp_path / "keys" / "private.toml").exists()
+    assert "Is a directory" in capsys.readouterr().err
+    (tmp_path / "devices.toml").rmdir()
+    pid = login(monkeypatch, tmp_path)
+    assert list(net.peers) == [pid]
+
+
+@pytest.mark.skipif(os.getuid() == 0, reason="root writes any folder")
+def test_login_in_a_read_only_folder_removes_the_device(net, tmp_path, monkeypatch):
+    tmp_path.chmod(0o500)
+    answers(monkeypatch, CODE)
+    try:
+        assert run(tmp_path, "login") == 1
+    finally:
+        tmp_path.chmod(0o700)
+    assert net.peers == {}
+
+
 def test_login_peer_limit(net, tmp_path, monkeypatch):
     net.limit = 1
     first = login(monkeypatch, tmp_path / "a")

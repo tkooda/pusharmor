@@ -2164,13 +2164,17 @@ def register_with(cx, code, stream, push, ntfy):
     if not isinstance(pid, str) or not peer_keys_ok(pid, b64d(pid)[:9], k["sign_pub"], k["enc_pub"]):
         raise Fail("The relay server sent a reply this device cannot use.")
     k["id"] = pid
-    cx.store.save_keys(k)
-    with cx.store.state() as d:
-        d.clear()
-        d.update(version=STATE_VERSION, name=default_name(), reg="registered", ntfy=ntfy, topic=cx.topic,
-                 push_ok=False, since=str(int(time.time())), peers={}, pairs={}, my_allow=[], listed=[],
-                 pair_auto=[])
-        merge_peers(d, j, k)
+    try:
+        cx.store.save_keys(k)
+        with cx.store.state() as d:
+            d.clear()
+            d.update(version=STATE_VERSION, name=default_name(), reg="registered", ntfy=ntfy, topic=cx.topic,
+                     push_ok=False, since=str(int(time.time())), peers={}, pairs={}, my_allow=[], listed=[],
+                     pair_auto=[])
+            merge_peers(d, j, k)
+    except BaseException:
+        undo_register(cx)
+        raise
     for attempt in (0, 1):
         deadline = time.time() + PROBE_WAIT_S
         while True:
@@ -2186,6 +2190,16 @@ def register_with(cx, code, stream, push, ntfy):
             with contextlib.suppress(ApiError, TempFail):
                 send_push(cx)
     log("Could not confirm that this device can receive messages. pusharmor listen tries again.")
+
+
+def undo_register(cx):
+    """login could not save this device: remove it from the relay server again, so it takes no place there."""
+    try:
+        cx.api.call("DELETE", "/v1/peers/" + cx.me, {"m": {}})
+    except (Fail, ApiError):
+        log("Could not remove this device from your account again. To free its place, remove it on another device.")
+    with contextlib.suppress(OSError):
+        os.unlink(cx.store.key_path)
 
 
 def choose_evict(peers):
