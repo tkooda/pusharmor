@@ -16,6 +16,9 @@ enum ScreenshotSample {
     static var isOn: Bool { args.contains("-PAScreenshots") }
     static var signIn: Bool { args.contains("-PAScreenshotsSignIn") }
     static var update: Bool { args.contains("-PAScreenshotsUpdate") }
+    /// The send error toast of an offline send (about-page shot); it stays on screen.
+    static var sendErrorToast: String? { args.contains("-PAScreenshotsSendError") ? "Not sent. Try again." : nil }
+    static var staysOnScreen: Bool { sentToast != nil || sendErrorToast != nil }
     /// The send results toast for a send to all three sample devices (I564 lines).
     static var sentToast: String? {
         args.contains("-PAScreenshotsSent") ? [S.sentTo(2, 3), S.signedOutPeer("Tablet")].joined(separator: "\n") : nil
@@ -54,7 +57,10 @@ enum ScreenshotSample {
             (id("W"), "firefox", "Work desktop", now - 30 * 86400),
             (id("T"), "android", "Tablet", now - 20 * 86400),
         ]
-        for (pid, platform, name, created) in peers {
+        // -PAScreenshotsMore: a fourth device (about-page devices list)
+        let more: [(String, String, String, Int64)] = args.contains("-PAScreenshotsMore")
+            ? [(id("P"), "ios", "Phone", now - 10 * 86400)] : []
+        for (pid, platform, name, created) in peers + more {
             try store.db.exec("""
                 INSERT INTO peers (id, sign_pub, enc_pub, state, listed, approve_verified, approve_verified_at, reachable,
                   platform, created, name, name_n, pairing_id) VALUES (?, ?, ?, 'approved', 1, 1, ?, 1, ?, ?, ?, 1, ?)
