@@ -140,6 +140,8 @@ async function main(): Promise<void> {
     frame.style.zoom = "1";
     const h = frame.offsetHeight;
     frame.style.zoom = String(Math.min((800 - 96 - 16) / h, 1280 / 400));
+    // middle-ellipsis links were fitted at zoom 1; fit them again at the new zoom
+    dispatchEvent(new Event("resize"));
   }
 }
 
