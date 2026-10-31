@@ -8,7 +8,7 @@ import { AUTH_CHANGED, AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResu
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
 import { startTheme } from "./theme.ts";
-import { firstPairView, historyView, sendView, signinCard, wordmark } from "./popup.ts";
+import { firstPairView, historyView, sendView, signinCard, updateCard, wordmark } from "./popup.ts";
 
 export const SITE = "https://pusharmor.com";
 
@@ -27,6 +27,10 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
   clear(root);
   const [route, arg] = hash.replace(/^#/, "").split("=");
   document.body.classList.toggle("signin-bg", route === "login");
+  if ((await rpc<StateView>(env, "state")).updateRequired) {
+    root.append(updateCard(env));
+    return;
+  }
   if (route === "login") return loginView(env, root, arg ?? null, selfOrigin);
   // I465: these views show account data; a login state change loads the tab again
   stopAuthWatch = env.session?.watch(AUTH_CHANGED, () => location.reload()) ?? null;

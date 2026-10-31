@@ -40,6 +40,10 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
     return;
   }
   if (my !== mounts) return;
+  if (st.updateRequired) {
+    clear(root).append(updateCard(env));
+    return;
+  }
   if (st.reg !== "registered") {
     const going = (await rpc<Restore | null>(env, "signinProgress").catch(() => null))?.step === "code";
     if (my !== mounts) return;
@@ -96,6 +100,19 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   const top = h("div", { class: "top" }, h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), tabs);
   root.append(top, body);
   show("send");
+}
+
+/** HTTP 426 (Q349): this version no longer works with the relay server. */
+export function updateCard(env: UiEnv): HTMLElement {
+  return h(
+    "div",
+    { class: "signin", role: "alert" },
+    h("img", { src: "icons/icon-128.png", width: "64", height: "64", alt: "", class: "big-tile" }),
+    wordmark(env, 24),
+    h("h1", { class: "banner" }, "Please update PushArmor"),
+    h("p", { class: "slogan" }, "This version no longer works with the relay server. Update to keep sending and receiving."),
+    h("button", { class: "primary big", onclick: () => env.openUrl("https://pusharmor.com/download") }, "Update"),
+  );
 }
 
 /** Logged out: the log in prompt (popup, and the full tab's account views, I470). going: a code was sent. */

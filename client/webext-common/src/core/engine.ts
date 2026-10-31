@@ -51,6 +51,7 @@ import {
   PAIR_PREFIX,
   type PairEntry,
   REG_MARKER,
+  UPDATE_NEEDED,
   allEntries,
   getAllowSet,
   getEntry,
@@ -124,6 +125,12 @@ export class Engine {
     this.db = d.db;
     this.api = d.api;
     this.api.onLoggedOut = () => this.setReg("logged_out");
+    this.api.onUpdateRequired = async () => {
+      if (!(await this.updateRequired())) {
+        await this.p.storageLocal.set({ [UPDATE_NEEDED]: this.p.appVersion });
+        await this.authChanged(); // open views show the update screen
+      }
+    };
     this.vapid = d.vapidPub;
   }
 
@@ -145,6 +152,11 @@ export class Engine {
   async self(): Promise<SelfKeys | null> {
     const s = await this.db.self();
     return s && s.id ? s : null;
+  }
+
+  /** true once the relay server refused this version (HTTP 426); a newer version starts clean. */
+  async updateRequired(): Promise<boolean> {
+    return (await this.p.storageLocal.get([UPDATE_NEEDED]))[UPDATE_NEEDED] === this.p.appVersion;
   }
 
   /** Tells open popups and tabs that the login state changed: they mount again (I465). */

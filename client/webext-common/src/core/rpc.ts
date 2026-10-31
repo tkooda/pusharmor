@@ -52,6 +52,8 @@ export interface StateView {
   receiveNote: string | null;
   /** Firefox without direct push: the setup tab has not delivered a push subscription yet. */
   setupNeeded: boolean;
+  /** The relay server refused this version (HTTP 426): every view shows the update screen. */
+  updateRequired: boolean;
 }
 
 function created(p: PeerRow): string {
@@ -186,6 +188,7 @@ export class Rpc {
       isAndroid: e.p.isAndroid,
       receiveMode: (await e.db.meta<string>("receive_mode")) ?? null,
       receiveNote: (await e.db.meta<string>("receive_note")) ?? null,
+      updateRequired: await e.updateRequired(),
       setupNeeded:
         e.p.platformName === "firefox" &&
         (e.p.isAndroid || ((await e.db.meta<string>("receive_mode")) ?? "direct") !== "direct") &&
