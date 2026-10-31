@@ -870,6 +870,7 @@ private fun SettingRow(title: String, sub: String? = null, modifier: Modifier, c
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: () -> Unit, onBack: (() -> Unit)? = null) {
+    DisposableEffect(Unit) { onDispose { vm.settingsMessage.value = null } }
     val prefs by vm.prefs.collectAsState()
     val context = LocalContext.current
     val me by vm.self.collectAsState()
@@ -966,7 +967,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                 // Log out on a slow or missing connection: visible progress beside the buttons (I473).
                 if ("logout" in running) androidx.compose.material3.CircularProgressIndicator(Modifier.size(24.dp).align(Alignment.CenterVertically).semantics { contentDescription = "Logging out" })
             }
-            vm.message.collectAsState().value?.let { Text(it, Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp).semantics { liveRegion = LiveRegionMode.Polite }, color = cs.error) }
+            vm.settingsMessage.collectAsState().value?.let { Text(it, Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp).semantics { liveRegion = LiveRegionMode.Polite }, color = cs.error) }
         }
     }
     if (renaming) RenameDialog(me?.name ?: "", onSave = { vm.rename(it) }) { renaming = false }

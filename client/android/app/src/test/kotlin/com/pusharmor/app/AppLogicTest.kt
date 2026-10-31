@@ -239,6 +239,17 @@ class AppLogicTest {
         assertTrue(source("ui/AppViewModel.kt").contains("fun refresh() = io { g.session.refresh()?.let { message.value = it } }"))
     }
 
+    @Test fun settingsErrorStaysOnSettings() {
+        // I527: a Settings error (rename) never lands in vm.message, which Devices shows as a snackbar.
+        val vm = source("ui/AppViewModel.kt")
+        assertTrue(vm.contains("g.session.rename(name)?.let { settingsMessage.value = it }"))
+        val main = source("ui/MainScreens.kt")
+        val settings = main.substring(main.indexOf("fun SettingsScreen("))
+        assertTrue(settings.contains("onDispose { vm.settingsMessage.value = null }"))
+        assertTrue(settings.contains("vm.settingsMessage.collectAsState()"))
+        assertFalse(settings.contains("vm.message.collectAsState()"))
+    }
+
     @Test fun shareNeverSendsOnItsOwn() {
         // Another app can start ShareActivity: it only hands the text to SendScreen, which sends on the Send tap alone (I445).
         val share = source("ui/ShareActivity.kt")
