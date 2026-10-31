@@ -495,7 +495,8 @@ export async function firstPairView(env: UiEnv, root: HTMLElement, st: StateView
   const status = h("div", { class: "status", role: "status" });
   let inSettings = false;
   let busy = false;
-  const draw: Redraw = async (msg) => {
+  let last = "";
+  const draw: Redraw = async (msg, focusId) => {
     if (busy || inSettings || !panel.isConnected) return;
     busy = true;
     try {
@@ -506,9 +507,16 @@ export async function firstPairView(env: UiEnv, root: HTMLElement, st: StateView
         return;
       }
       const waiting = data.peers.filter((p) => !p.hidden);
+      // N1: the live read redraws only on a change, and keeps focus where it was
+      const key = JSON.stringify(waiting);
+      if (msg === undefined && focusId === undefined && key === last) return;
+      last = key;
+      const act = document.activeElement instanceof HTMLElement && panel.contains(document.activeElement) ? document.activeElement : null;
+      const rowId = act?.closest("[id^='peer-']")?.id;
+      const actText = act?.textContent;
       add(
         clear(panel),
-        h("h1", { class: "fp-title" }, "Pair your first device"),
+        h("h1", { class: "fp-title", tabindex: "-1" }, "Pair your first device"),
         h("ol", { class: "howto fp-steps" }, h("li", {}, "Install PushArmor on another device."), h("li", {}, "Log in with the same account."), h("li", {}, "Approve it here.")),
         sh("Waiting to pair"),
         ...waiting.filter((p) => p.fingerprint).map((p) => pairCard(env, p, status, draw)),
@@ -520,6 +528,11 @@ export async function firstPairView(env: UiEnv, root: HTMLElement, st: StateView
         status,
         h("div", { class: "grow" }),
       );
+      const row = document.getElementById("peer-" + (focusId ?? rowId?.slice(5)));
+      if (focusId !== undefined || act) {
+        const same = act ? [...(row ?? panel).querySelectorAll<HTMLElement>("button, select, input")].find((b) => b.textContent === actText) : undefined;
+        (same ?? row ?? panel.querySelector<HTMLElement>(".fp-title"))?.focus();
+      }
       if (msg) setTimeout(() => (status.textContent = msg), 50);
     } catch (e) {
       status.textContent = (e as Error).message;
@@ -536,6 +549,7 @@ export async function firstPairView(env: UiEnv, root: HTMLElement, st: StateView
     inSettings = !inSettings;
     gear.setAttribute("aria-pressed", String(inSettings));
     if (inSettings) {
+      last = "";
       clear(panel);
       void settingsView(env, panel, st, () => mountPopup(env, root));
     } else void draw();

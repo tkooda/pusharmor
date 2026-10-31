@@ -304,3 +304,10 @@ test("copy: device limit rows read as sentences; desktop says Click; status line
   assert.equal(T.loginExpired, "Login expired. Log in again.");
   assert.equal(T.notificationsOff, "Notifications are off. This device cannot receive messages.");
 });
+
+test("first-device screen: the live read redraws only on a change and keeps focus (I484)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  assert.match(pop, /if \(msg === undefined && focusId === undefined && key === last\) return;/);
+  assert.match(pop, /\(same \?\? row \?\? panel\.querySelector<HTMLElement>\("\.fp-title"\)\)\?\.focus\(\);/);
+});
