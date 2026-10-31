@@ -95,7 +95,7 @@ export function devicesArt(size = 160): SVGElement {
 /** History empty state: three stacked message cards, the front one with a link chip. */
 export function messagesArt(): SVGElement {
   return svg(
-    "0 0 200 170", [170, 145], "illo",
+    "0 0 200 170", [120, 102], "illo",
     el("circle", { class: "i-fill", cx: 100, cy: 88, r: 74 }),
     el("rect", { class: "i-card", x: 52, y: 26, width: 96, height: 40, rx: 10, opacity: ".55" }),
     el("rect", { class: "i-card", x: 40, y: 48, width: 120, height: 46, rx: 12, opacity: ".8" }),
