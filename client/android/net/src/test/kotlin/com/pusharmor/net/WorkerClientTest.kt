@@ -105,11 +105,16 @@ class WorkerClientTest {
     }
 
     @Test fun rateLimitTextIsPlainSentence() {
-        assertEquals("Too many requests. Try again in 1 minute.", ErrorText.of(ApiResult.Http(429, "rate limited", null)))
+        assertEquals("Too many requests. Try again in 60 seconds.", ErrorText.of(ApiResult.Http(429, "rate limited", null)))
         assertEquals("Too many requests. Try again in 2 minutes.", ErrorText.tooMany(120))
         assertEquals("Too many requests. Try again in 30 seconds.", ErrorText.tooMany(30))
         assertEquals("Too many requests. Try again in 1 second.", ErrorText.tooMany(1))
-        assertEquals("Too many requests. Try again in 90 seconds.", ErrorText.tooMany(90))
+        assertEquals("1 second", ErrorText.wait(500))
+        assertEquals("60 seconds", ErrorText.wait(60_000))
+        assertEquals("2 minutes", ErrorText.wait(61_000))
+        assertEquals("2 minutes", ErrorText.wait(120_000))
+        assertEquals("3 minutes", ErrorText.wait(121_000))
+        assertEquals("Too many requests. Try again in 2 minutes.", ErrorText.tooMany(90))
     }
 
     @Test fun retryAfterOverBudgetIsNotRetried() {

@@ -69,6 +69,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -92,6 +93,7 @@ import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.pusharmor.app.data.Settings
 import com.pusharmor.app.notify.AppEffects
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** Welcome / Sign-in: Google, Apple, Email (all three always offered). */
@@ -185,11 +187,23 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onDo
                         else { error = null; stage = 1 }
                     }
                     val invalid = UiText.emailFieldError(email)
+                    val gate by vm.resend.collectAsState()
+                    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+                    val left = UiText.sendLeftMs(gate.second, gate.first, email, now)
+                    // Tick on each second boundary of the remaining time while a countdown runs.
+                    LaunchedEffect(gate, email, left > 0) {
+                        while (true) {
+                            now = System.currentTimeMillis()
+                            val l = UiText.sendLeftMs(gate.second, gate.first, email, now)
+                            if (l <= 0) break
+                            delay(((l - 1) % 1000) + 1)
+                        }
+                    }
                     OutlinedTextField(email, { email = it; error = UiText.emailErrorAfterEdit(error, it) }, label = { Text("Email address") }, singleLine = true, isError = invalid,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
                         keyboardActions = KeyboardActions(onNext = { next() }),
                         modifier = Modifier.fillMaxWidth().semantics { if (invalid) this.error("Not a valid email address") })
-                    GreenButton(onClick = next, text = "Next", icon = null, modifier = Modifier.fillMaxWidth())
+                    GreenButton(onClick = next, text = UiText.sendLabel("Next", left), icon = null, modifier = Modifier.fillMaxWidth(), enabled = left <= 0)
                 }
                 1 -> TurnstileView { token ->
                     scope.launch {

@@ -290,10 +290,13 @@ object ErrorText {
         }
     }
 
-    /** HTTP 429: "Too many requests. Try again in 1 minute." (whole minutes) or "... in 30 seconds.". */
-    fun tooMany(seconds: Long): String {
-        val n = if (seconds % 60 == 0L && seconds > 0) seconds / 60 else seconds
-        val unit = if (seconds % 60 == 0L && seconds > 0) "minute" else "second"
-        return "Too many requests. Try again in $n ${if (n == 1L) unit else unit + "s"}."
+    /** Wait text: over 60 s whole minutes rounded up, else whole seconds rounded up; same words as the other clients. */
+    fun wait(ms: Long): String {
+        val s = maxOf(1L, (ms + 999) / 1000)
+        if (s > 60) { val m = (s + 59) / 60; return if (m == 1L) "1 minute" else "$m minutes" }
+        return if (s == 1L) "1 second" else "$s seconds"
     }
+
+    /** HTTP 429: "Too many requests. Try again in 2 minutes." or "... in 30 seconds.". */
+    fun tooMany(seconds: Long): String = "Too many requests. Try again in ${wait(seconds * 1000)}."
 }

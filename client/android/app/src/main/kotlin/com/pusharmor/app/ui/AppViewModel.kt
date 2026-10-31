@@ -37,6 +37,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     val start = MutableStateFlow<Session.Start?>(null)
     val message = MutableStateFlow<String?>(null)
+    /** Address last sent to (lower case) and the time its resend countdown ends; kept while the screen is left and re-entered. */
+    val resend = MutableStateFlow("" to 0L)
     val busy = MutableStateFlow(false)
 
     val peerEntities: StateFlow<List<PeerEntity>> = g.dao.peersFlow().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -116,7 +118,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun emailStart(email: String, turnstile: String, purpose: String): String? = withContext(Dispatchers.IO) {
         try {
             val r = g.client.authEmail(email, signPubB64(), purpose, turnstile)
-            if (r is ApiResult.Ok) r.value else { message.value = ErrorText.of(r); null }
+            val addr = email.trim().lowercase()
+            if (r is ApiResult.Ok) { resend.value = addr to System.currentTimeMillis() + UiText.RESEND_MS; r.value }
+            else {
+                // A 429 starts the countdown from Retry-After so the next try does not spend a security check for nothing.
+                if (r is ApiResult.Http && r.status == 429) resend.value = addr to System.currentTimeMillis() + (r.retryAfter ?: 60L) * 1000
+                message.value = ErrorText.of(r); null
+            }
         } catch (e: CancellationException) { throw e } catch (e: Exception) { failed(e); null }
     }
 

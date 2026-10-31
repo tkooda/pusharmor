@@ -190,4 +190,19 @@ class UiTextTest {
         val copy = UiText.FIRST_DEVICE_TITLE + UiText.FIRST_DEVICE_STEPS + UiText.FIRST_DEVICE_WAITING
         assertEquals(false, copy.contains("peer", ignoreCase = true))
     }
+
+    @Test fun sendWaitsOutCountdownOnlyForTheAddressJustSentTo() {
+        val until = 1_000_000L + UiText.RESEND_MS
+        assertEquals(42_000L, UiText.sendLeftMs(until, "sam@example.com", " Sam@Example.com ", 1_018_000L))
+        assertEquals(0L, UiText.sendLeftMs(until, "sam@example.com", "sam@example.com", until))
+        assertEquals(0L, UiText.sendLeftMs(until, "sam@example.com", "other@example.com", 1_018_000L))
+        assertEquals(0L, UiText.sendLeftMs(0L, "", "sam@example.com", 1_018_000L))
+    }
+
+    @Test fun sendLabelCountsDownInWords() {
+        assertEquals("Next", UiText.sendLabel("Next", 0))
+        assertEquals("Next in 1 second", UiText.sendLabel("Next", 500))
+        assertEquals("Next in 60 seconds", UiText.sendLabel("Next", 60_000))
+        assertEquals("Next in 2 minutes", UiText.sendLabel("Next", 61_000))
+    }
 }
