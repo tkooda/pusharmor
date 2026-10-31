@@ -82,6 +82,9 @@ object UiText {
     /** Red border while the field is non-empty and not a valid email; empty keeps the normal border (I468). */
     fun emailFieldError(input: String): Boolean = input.isNotEmpty() && !emailValid(input)
 
+    /** The red text under the field after an edit: gone once the address is valid, else kept until the next Next (I521). */
+    fun emailErrorAfterEdit(error: String?, input: String): String? = if (emailValid(input)) null else error
+
     /** Q338: logged in with no paired device, one "Pair your first device" screen replaces Send, History, and Devices. */
     fun firstDeviceGate(others: List<Peer>): Boolean = others.none { it.pinned && !it.removed }
 
