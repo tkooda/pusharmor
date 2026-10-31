@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.view.View
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebStorage
@@ -241,7 +242,10 @@ private fun CodeCells(code: String, onChange: (String) -> Unit) {
 @Composable
 fun TurnstileView(onToken: (String) -> Unit) {
     val context = LocalContext.current
-    if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
+    // A missing, disabled, or updating WebView throws; the update fallback shows instead (I552).
+    val supported = remember { try { WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER) } catch (e: Exception) { false } }
+    var failed by remember { mutableStateOf(false) }
+    if (!supported || failed) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Update Android System WebView")
             Button(onClick = {
@@ -251,7 +255,8 @@ fun TurnstileView(onToken: (String) -> Unit) {
         return
     }
     AndroidView(modifier = Modifier.fillMaxWidth().height(420.dp).clip(RoundedCornerShape(20.dp)).background(LocalPaExtra.current.tile), factory = { ctx ->
-        WebView(ctx).apply {
+        val web = try { WebView(ctx) } catch (e: Exception) { failed = true; return@AndroidView View(ctx) }
+        web.apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.allowFileAccess = false
