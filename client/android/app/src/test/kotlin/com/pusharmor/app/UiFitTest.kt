@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.pusharmor.app.ui.NavLabel
 import com.pusharmor.app.ui.PaChip
 import com.pusharmor.app.ui.UiText
+import com.pusharmor.app.ui.UpdateScreen
 import com.pusharmor.app.ui.theme.PaIcons
 import com.pusharmor.app.ui.theme.PaTopBar
 import androidx.compose.material3.Icon
@@ -118,5 +119,11 @@ class UiFitTest {
         }
         // Each label reads in full: no "Devi..." at font 2.0 on a 360 dp screen (I525).
         for (t in labels) { val l = layoutOf(c.get(), t); assertEquals(t, 1, l.lineCount); assertFalse(t, l.isLineEllipsized(0)) }
+    }
+
+    @Test fun updateScreenScrollsInSmallLandscape() {
+        val c = show("w640dp-h360dp-land-xhdpi", 2.0f) { UpdateScreen() }
+        // At 640x360 and font 2.0 the Update button is reached by scrolling (I529).
+        assertTrue(nodes(c.get()).any { it.config.getOrNull(SemanticsActions.ScrollBy) != null })
     }
 }
