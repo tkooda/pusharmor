@@ -17,6 +17,7 @@ const SHOTS = [
   ["02-peers-fingerprint", "peers"],
   ["03-history-received-link", "history"],
 ];
+// --popup=<dir>: the six About-page popup shots (400x560 popup alone, captured at 2x: 800x1120 files).
 // --review=<dir>: also write review images (sign-in, Settings, Log out) there; not store shots.
 const REVIEW = [
   ["90-signin", "signin.html#email"],
@@ -24,12 +25,22 @@ const REVIEW = [
   ["92-signout", "shots.html#signout"],
   ["93-signin-popup", "signin.html#popup"],
 ];
+const POPUP = [
+  ["04-first-pair-waiting", "shots.html?bare&n=0&wait#peers"],
+  ["05-pairing-code", "shots.html?bare&only=new#peers"],
+  ["06-settings", "shots.html?bare&top#settings"],
+  ["07-devices", "shots.html?bare&n=9#peers"],
+  ["08-send-error", "shots.html?bare&n=3&senderr#send"],
+  ["09-history-open", "shots.html?bare&open#history"],
+];
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".json": "application/json" };
 
 const firefox = process.argv.includes("--firefox");
 const reviewArg = process.argv.find((a) => a.startsWith("--review="));
 const reviewOut = reviewArg?.slice("--review=".length);
-const [out, bin0] = process.argv.slice(2).filter((a) => a !== "--firefox" && a !== reviewArg);
+const popupArg = process.argv.find((a) => a.startsWith("--popup="));
+const popupOut = popupArg?.slice("--popup=".length);
+const [out, bin0] = process.argv.slice(2).filter((a) => a !== "--firefox" && a !== reviewArg && a !== popupArg);
 const chrome = bin0 ?? (firefox ? process.env.FIREFOX ?? "firefox" : process.env.CHROME ?? "google-chrome");
 if (!out) {
   console.error("usage: node shots.mjs <out-dir> [--firefox] [browser binary]");
@@ -42,6 +53,7 @@ if (!existsSync(join(root, "shots.html"))) {
 }
 mkdirSync(out, { recursive: true });
 if (reviewOut) mkdirSync(reviewOut, { recursive: true });
+if (popupOut) mkdirSync(popupOut, { recursive: true });
 
 const server = createServer((req, res) => {
   const path = decodeURIComponent(new URL(req.url ?? "/", "http://x").pathname);
@@ -67,14 +79,17 @@ const port = server.address().port;
 const PIX = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
 const run = promisify(execFile);
 // ?platform=firefox (and ?ff for the sign-in page) before the #fragment
-const ffPage = (page) => {
+const ffPage = (page, popup) => {
   const [path, hash] = page.split("#");
-  return `${path}${path.includes("?") ? "&" : "?"}platform=firefox&ff#${hash}`;
+  return `${path}${path.includes("?") ? "&" : "?"}platform=firefox&ff${popup ? "&zoom=2" : ""}#${hash}`;
 };
 let failed = false;
 const jobs = SHOTS.map(([name, tab]) => [name, "shots.html#" + tab, out]);
 if (reviewOut) jobs.push(...REVIEW.map(([name, page]) => [name, page, reviewOut]));
-for (const [name, page, dir] of jobs) {
+if (popupOut) jobs.push(...POPUP.map(([name, page]) => [name, page, popupOut, true]));
+for (const [name, page, dir, popup] of jobs) {
+  const size = popup && firefox ? "800,1120" : popup ? "400,560" : "1280,800";
+  const scale = popup ? 2 : 1;
   const profile = mkdtempSync(join(tmpdir(), "pa-shots-"));
   const png = resolve(dir, name + ".png");
   try {
@@ -83,10 +98,10 @@ for (const [name, page, dir] of jobs) {
         ["font.name.sans-serif.x-western", "Noto Sans"], ["font.name.serif.x-western", "Noto Sans"],
         ["font.name.monospace.x-western", "DejaVu Sans Mono"], ["font.default.x-western", "sans-serif"],
       ].map(([k, v]) => `user_pref("${k}", "${v}");`).join("\n") + "\n");
-      await run(chrome, ["--headless", "--no-remote", "--profile", profile, "--window-size=1280,800",
-        "--screenshot", png, `http://127.0.0.1:${port}/${ffPage(page)}`], { timeout: 90_000 });
+      await run(chrome, ["--headless", "--no-remote", "--profile", profile, "--window-size=" + size,
+        "--screenshot", png, `http://127.0.0.1:${port}/${ffPage(page, popup)}`], { timeout: 90_000 });
     } else await run(chrome, [
-      "--headless=new", "--hide-scrollbars", "--force-device-scale-factor=1", "--window-size=1280,800",
+      "--headless=new", "--hide-scrollbars", "--force-device-scale-factor=" + scale, "--window-size=" + size,
       "--virtual-time-budget=3000", "--no-first-run", "--no-default-browser-check", "--disable-gpu",
       "--user-data-dir=" + profile, "--screenshot=" + png, `http://127.0.0.1:${port}/${page}`,
     ], { timeout: 60_000 });
