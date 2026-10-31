@@ -450,7 +450,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
         try {
           await rpc(env, "historyDeleteAll");
           closeDel();
-          status.textContent = "History deleted";
+          status.textContent = "History deleted.";
         } catch (e) {
           yes.disabled = false;
           status.textContent = (e as Error).message;

@@ -80,7 +80,7 @@ function pairNew(): HTMLElement {
     { class: "howto", id: "pair-howto", hidden: true },
     h("li", {}, "Install PushArmor on the other device."),
     h("li", {}, "Log in with the same account."),
-    h("li", {}, "It appears here. Tap Pair."),
+    h("li", {}, "It appears here. Click Pair."),
   );
   const btn = h("button", { class: "tonal", "aria-expanded": "false", "aria-controls": "pair-howto" }, icon("add", 18), "Pair a new device");
   btn.addEventListener("click", () => {
@@ -113,7 +113,7 @@ export function ownCard(env: UiEnv, name: string, platform: string, status: HTML
         onclick: async () => {
           try {
             await rpc(env, "rename", { name: input.value });
-            status.textContent = "Renamed";
+            status.textContent = "Renamed.";
             show(input.value, true);
           } catch (e) {
             status.textContent = (e as Error).message;
@@ -188,7 +188,7 @@ export function pairCard(env: UiEnv, p: PeerView, status: HTMLElement, redraw: R
   // Deny left, Approve right, equal width.
   const order = main.includes("deny") ? ["deny", ...main.filter((a) => a !== "deny")] : main;
   if (order.length) card.append(h("div", { class: "pair-acts" }, ...order.map((a) => actionButton(env, a, p, card, status, redraw, a === "deny" ? "danger" : ACTION_CLASS[a] ?? ""))));
-  if (p.actions.includes("deny") && p.actions.includes("approve")) card.append(h("div", { class: "hint" }, icon("info", 14), "Codes do not match? Tap Deny."));
+  if (p.actions.includes("deny") && p.actions.includes("approve")) card.append(h("div", { class: "hint" }, icon("info", 14), "Codes do not match? Click Deny."));
   const foot = h("div", { class: "pair-foot" });
   if (p.actions.includes("cancel")) foot.append(actionButton(env, "cancel", p, card, status, redraw, ""));
   if (p.countdown) foot.append(h("span", { class: "t2 countdown" }, T.countdownLeft(p.countdown)));
@@ -212,7 +212,7 @@ async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, box
           class: "danger",
           onclick: async (ev: Event) => {
             (ev.currentTarget as HTMLButtonElement).disabled = true; // I473: one request per confirm
-            let rmsg = "Removed " + p.label;
+            let rmsg = "Removed " + p.label + ".";
             try {
               await rpc(env, "remove", { id: p.id });
             } catch (e) {

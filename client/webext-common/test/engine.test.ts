@@ -408,7 +408,7 @@ test("commit from a fully paired peer: plain drop (Chrome silent); half state sh
   a.p.notes.clear();
   await deliver(w, a);
   const pk = await pairingKey(b64urlDecode(b.id), b64urlDecode(a.id));
-  assert.match(a.p.notes.get("p:" + pk)!.body, /wants to pair again\. Tap Pair again on its row\.$/);
+  assert.match(a.p.notes.get("p:" + pk)!.body, /wants to pair again\. Click Pair again on its row\.$/);
   assert.equal(await getEntry(a.p.storageLocal, b.id), null); // no entry
   assert.ok((await a.db.peer(b.id))!.pinned); // pin unchanged
   // Cancel pairing on a, then a fresh pairing works
@@ -471,12 +471,12 @@ test("half notice during an open pairing: the row offers Pair again", async () =
   await b.e.pairStart(a.id);
   a.p.notes.clear();
   await deliver(w, a);
-  assert.ok([...a.p.notes.values()].some((n) => /wants to pair again\. Tap Pair again on its row\.$/.test(n.body)));
+  assert.ok([...a.p.notes.values()].some((n) => /wants to pair again\. Click Pair again on its row\.$/.test(n.body)));
   assert.deepEqual((await a.e.pairRowView(b.id))!.actions.slice(0, 2), ["pair_again", "cancel"]);
 });
 
 test("half notice text names the device and the Pair again button", () => {
-  assert.equal(T.pairHalf("Phone"), "Phone wants to pair again. Tap Pair again on its row.");
+  assert.equal(T.pairHalf("Phone"), "Phone wants to pair again. Click Pair again on its row.");
 });
 
 test("commit from a pinned and fully approved peer is a plain drop", async () => {
@@ -780,7 +780,7 @@ test("register rejects an assigned id whose keyhash is not ours", async () => {
   const { clock, w, b } = await setup();
   const { e } = await makeEngine(new FakePlatform("chrome", w, clock), new IDBFactory(), clock);
   w.inject.push({ match: /POST \/v1\/peers$/, status: 200, body: { id: b.id, peers: [], my_allow: [] }, times: 1 });
-  await assert.rejects(e.register("T", "a@b.com"), /Bad reply from the server/);
+  await assert.rejects(e.register("T", "a@b.com"), /Bad reply from the relay server\./);
   assert.equal(await e.self(), null);
   assert.equal(await e.regState(), null);
 });
@@ -875,7 +875,7 @@ test("Firefox Google login: authDone leaves the result for the login tab (done, 
   assert.equal(limit?.done, false);
   assert.deepEqual(limit?.limit?.peers, []);
   const expired = await run({ status: 401, body: { error: "ticket expired" } });
-  assert.equal(expired?.error, "Login expired, log in again");
+  assert.equal(expired?.error, "Login expired. Log in again.");
   // another tab id: nothing is written
   const p = new FakePlatform("firefox", w, clock);
   const { e } = await makeEngine(p, new IDBFactory(), clock);
@@ -906,7 +906,7 @@ test("Firefox Google login in the same tab: the login tab goes to the provider a
   // device limit and error also come back to the same tab
   for (const [inject, check] of [
     [{ status: 409, body: { error: "peer limit", peers: [], ticket: "x".repeat(20) } }, (x: AuthResult | null) => assert.ok(x?.limit)],
-    [{ status: 401, body: { error: "ticket expired" } }, (x: AuthResult | null) => assert.equal(x?.error, "Login expired, log in again")],
+    [{ status: 401, body: { error: "ticket expired" } }, (x: AuthResult | null) => assert.equal(x?.error, "Login expired. Log in again.")],
   ] as const) {
     const b = await fresh();
     await b.login.oauthStart("google", "register", 7);

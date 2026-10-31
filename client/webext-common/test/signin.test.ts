@@ -55,7 +55,7 @@ test("Turnstile frame height is clamped to 65..600; junk is ignored", () => {
 test("login result from the background: well formed and recent only (I456)", () => {
   assert.deepEqual(readAuthResult({ done: true, at: T0 }, T0 + 1000), { done: true, at: T0 });
   assert.deepEqual(readAuthResult({ done: false, limit: { peers: [] }, ticket: "t", at: T0 }, T0), { done: false, limit: { peers: [] }, ticket: "t", at: T0 });
-  assert.equal(readAuthResult({ done: false, error: "Login expired, log in again", at: T0 }, T0)?.error, "Login expired, log in again");
+  assert.equal(readAuthResult({ done: false, error: "Login expired. Log in again.", at: T0 }, T0)?.error, "Login expired. Log in again.");
   assert.equal(readAuthResult({ done: true, at: T0 }, T0 + AUTH_RESULT_MS + 1), null);
   assert.equal(readAuthResult({ done: true, at: T0 + 1 }, T0), null);
   assert.equal(readAuthResult({ done: "yes", at: T0 }, T0), null);

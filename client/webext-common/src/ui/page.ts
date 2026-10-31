@@ -3,7 +3,7 @@
 import type { LoginResult, Purpose } from "../core/login.ts";
 import type { PeerView, StateView } from "../core/rpc.ts";
 import { T } from "../core/texts.ts";
-import { type UiEnv, add, clear, failView, group, h, rpc } from "./dom.ts";
+import { type UiEnv, add, clear, failView, group, h, platformLabel, rpc } from "./dom.ts";
 import { AUTH_CHANGED, AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResult, type Restore, resendLeftMs } from "../model/signin.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
@@ -55,7 +55,7 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
 
 const E2E = "All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.";
 const CODE_HELP = "Paste or type the code. Spaces and dashes are fine.";
-const ENDS_FLOW = ["Login expired, log in again", "This code has expired. Get a new code to continue."];
+const ENDS_FLOW = [T.loginExpired, "This code has expired. Get a new code to continue."];
 
 /** One message listener per page (a hash change mounts the view again). */
 let onFrameMessage: ((ev: MessageEvent) => void) | null = null;
@@ -441,7 +441,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   }
 }
 
-interface LimitPeer {
+export interface LimitPeer {
   id: string;
   platform: string;
   created: number;
@@ -449,6 +449,16 @@ interface LimitPeer {
   approved_by: number;
   reachable: boolean;
   logged_out: boolean;
+}
+
+const devices = (n: number): string => n + (n === 1 ? " device" : " devices");
+
+/** Device limit row, second line: "Added Oct 2, 2026. Approved 3 devices and approved by 1 device. Unreachable." */
+export function limitLine(p: LimitPeer): string {
+  const added = new Date(p.created * 1000).toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
+  return ["Added " + added + ".", "Approved " + devices(p.approves) + " and approved by " + devices(p.approved_by) + ".", p.reachable ? "" : "Unreachable.", p.logged_out ? "Logged out." : ""]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>, ticket: string): void {
@@ -463,13 +473,12 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
   for (const p of peers) {
     const box = h("input", { type: "checkbox" }) as HTMLInputElement; // nothing pre-ticked
     boxes.push({ id: p.id, box });
-    const flags = [p.reachable ? "" : "unreachable", p.logged_out ? "logged out" : ""].filter(Boolean).join(", ");
     list.append(
       h(
         "label",
         { class: "prow target" },
         h("div", { class: "av" }, platformIcon(p.platform)),
-        h("div", { class: "txt t1" }, p.platform + ", added " + new Date(p.created * 1000).toISOString().slice(0, 10) + ", approves " + p.approves + ", approved by " + p.approved_by + (flags ? " (" + flags + ")" : "")),
+        h("div", { class: "txt" }, h("div", { class: "t1" }, platformLabel(p.platform)), h("div", { class: "t2" }, limitLine(p))),
         box,
       ),
     );
@@ -493,7 +502,7 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
             else if (r.limit) limitView(env, root, r.limit, r.ticket ?? ticket);
           } catch (e) {
             status.textContent = (e as Error).message;
-            if (status.textContent === "Login expired, log in again") env.openPage("#login");
+            if (status.textContent === T.loginExpired) env.openPage("#login");
           } finally {
             btn.disabled = false;
           }
