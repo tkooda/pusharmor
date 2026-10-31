@@ -42,7 +42,7 @@ public enum S {
     public static func trusts(_ n: Int, trustedBy m: Int) -> String {
         "Trusts \(n) \(n == 1 ? "device" : "devices"). Trusted by \(m)."
     }
-    public static func sentTo(_ n: Int, _ m: Int) -> String { "Sent to \(n) of \(m) devices" }
+    public static func sentTo(_ n: Int, _ m: Int) -> String { "Sent to \(n) of \(m) " + (m == 1 ? "device" : "devices") }
     /// History line for a message that reached its one recipient (F22).
     public static func sentToOne(_ x: String) -> String { "Sent to \"\(x)\"" }
     public static func notDelivered(_ x: String) -> String { "Not delivered to \(x): open PushArmor on it" }
@@ -86,7 +86,7 @@ public enum S {
         default: return loginFailed
         }
     }
-    public static func receivedWhileLocked(_ n: Int) -> String { "\(n) messages received while locked" }
+    public static func receivedWhileLocked(_ n: Int) -> String { "\(n) " + (n == 1 ? "message" : "messages") + " received while locked" }
     public static let thisPhoneOldInstall = "(this phone, old install)"
     public static let tooLongShare = "Send the first 2048 bytes"
     public static let lockScreenSwitch = "Show message content on lock screen"

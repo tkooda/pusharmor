@@ -21,6 +21,8 @@ final class InboxTests: XCTestCase {
         XCTAssertEqual(h.filter { $0.type == "text" && !$0.read }.map { $0.content }.sorted(), ["one", "two"])
         XCTAssertEqual(h.filter { $0.event == .couldNotRead }.count, 1)
         XCTAssertEqual(S.receivedWhileLocked(got), "2 messages received while locked")
+        XCTAssertEqual(S.receivedWhileLocked(1), "1 message received while locked")
+        XCTAssertEqual(S.sentTo(2, 3), "Sent to 2 of 3 devices")
         // cap: 100 files, the oldest goes first
         for i in 0 ..< 105 { try inbox.write("m\(i)", nowMs: 1761300000000 + Int64(i)) }
         let files = inbox.files()
