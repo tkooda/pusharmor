@@ -30,6 +30,9 @@ struct RootView: View {
             .animation(.default, value: model.toast)
             .task(id: model.toast) {
                 guard let t = model.toast else { return }
+                #if DEBUG
+                if ScreenshotSample.sentToast != nil { return } // screen review: the results stay on screen
+                #endif
                 // VoiceOver reads the toast; slow readers get it on screen for longer.
                 UIAccessibility.post(notification: .announcement, argument: t)
                 let slow = UIAccessibility.isVoiceOverRunning || typeSize.isAccessibilitySize

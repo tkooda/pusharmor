@@ -83,7 +83,9 @@ final class AppModel: ObservableObject {
             store = try? ScreenshotSample.makeStore()
             core = nil
             phase = ScreenshotSample.signIn ? .signIn(.register) : .main
+            if ScreenshotSample.update { updateRequired = true }
             reload()
+            toast = ScreenshotSample.sentToast
             sample = true
             started = true
             await ScreenshotSample.notifyIfAsked()
