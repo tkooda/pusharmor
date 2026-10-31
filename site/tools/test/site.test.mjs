@@ -525,7 +525,7 @@ test("delete-account page: labelled inputs, aria-live status, same-origin Turnst
   }
   assert.match(html, /id="status"[^>]*aria-live="polite"/);
   const f = tags(html, "iframe")[0];
-  assert.equal(f.attrs.src, "/turnstile#o=https://pusharmor.com");
+  assert.equal(f.attrs["data-src"], "/turnstile#o=https://pusharmor.com");
 });
 
 test("Turnstile sitekey is in one place; a temp copy swaps in the test key", () => {
@@ -633,7 +633,7 @@ test("/auth/cli: headers, labelled inputs, Turnstile iframe, no jargon", () => {
   const html = read("auth/cli.html");
   for (const t of tags(html, "input")) assert.ok(tags(html, "label").some((l) => l.attrs.for === t.attrs.id), "label for " + t.attrs.id);
   assert.match(html, /id="status"[^>]*aria-live="polite"/);
-  assert.equal(tags(html, "iframe")[0].attrs.src, "/turnstile#o=https://pusharmor.com");
+  assert.equal(tags(html, "iframe")[0].attrs["data-src"], "/turnstile#o=https://pusharmor.com");
   const t = text("auth/cli.html");
   for (const s of ["Continue only if you're trying to log in via the pusharmor login command line command.", "Continue with Google", "Continue with Apple", "Email me a code", "Paste this code into your terminal."]) assert.ok(t.includes(s), s);
   assert.ok(html.includes("<code>pusharmor login</code>"));
@@ -646,4 +646,17 @@ test("/auth/cli script: /v1/ paths, fragment cleared, cli_code used", () => {
   assert.ok(js.includes("r.data.cli_code"));
   assert.ok(js.indexOf("history.replaceState") < js.indexOf("PA.parseCliResult(h)"));
   assert.ok(js.includes("navigator.clipboard.writeText"));
+});
+
+test("I467: Turnstile frame has no src until the email field is used", () => {
+  for (const [page, js] of [["delete-account.html", "js/delete-account.js"], ["auth/cli.html", "js/auth-cli.js"]]) {
+    const f = tags(read(page), "iframe")[0];
+    assert.ok(!("src" in f.attrs), page + ": iframe must not load before focus");
+    assert.ok("hidden" in f.attrs, page + ": frame hidden until loaded");
+    const code = read(js);
+    assert.ok(code.includes('$("email").addEventListener("focus", loadTurnstile)'), js);
+    assert.ok(code.includes('$("email").addEventListener("input", loadTurnstile)'), js);
+    assert.ok(code.includes("waiting = true"), js + ": submit waits for the token");
+    assert.ok(!/Turnstile|challenges\.cloudflare/.test(read("js/pa-web.js").replace(/turnstile(:| failed)/g, "")), "pa-web.js loads nothing");
+  }
 });

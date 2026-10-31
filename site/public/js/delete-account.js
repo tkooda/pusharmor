@@ -44,15 +44,30 @@
     say(text || "");
   }
 
+  var waiting = false;
+
+  // The check loads only when the user starts on the email field (focus, paste, or autofill).
+  function loadTurnstile() {
+    if (ts.getAttribute("src")) return;
+    ts.hidden = false;
+    ts.setAttribute("src", ts.getAttribute("data-src"));
+  }
+  $("email").addEventListener("focus", loadTurnstile);
+  $("email").addEventListener("input", loadTurnstile);
+
   function freshTurnstile() {
     tsToken = null;
+    if (!ts.getAttribute("src")) return;
     try { ts.contentWindow.location.reload(); } catch (e) { /* same origin; ignore */ }
   }
 
   window.addEventListener("message", function (e) {
     if (e.origin !== SITE || e.source !== ts.contentWindow) return;
     var d = e.data;
-    if (d && d.pa === "turnstile" && typeof d.token === "string") tsToken = d.token;
+    if (d && d.pa === "turnstile" && typeof d.token === "string") {
+      tsToken = d.token;
+      if (waiting) { waiting = false; $("email-form").requestSubmit(); }
+    }
     // The widget posts its height (an interactive challenge is taller); fit the frame to it.
     if (d && d.pa === "turnstile-size" && typeof d.h === "number") ts.style.height = Math.min(600, Math.max(65, Math.ceil(d.h))) + "px";
   });
@@ -61,7 +76,13 @@
     e.preventDefault();
     var email = $("email").value.trim();
     if (!PA.isAscii(email)) { say(PA.TEXT.badEmail); return; }
-    if (!tsToken) { say("Wait for the check above the button to finish, then try again."); return; }
+    if (!tsToken) {
+      loadTurnstile();
+      waiting = true;
+      say("Checking that you are not a robot. The code is sent when the check finishes.");
+      return;
+    }
+    waiting = false;
     var token = tsToken;
     freshTurnstile();
     say("Sending code...");
