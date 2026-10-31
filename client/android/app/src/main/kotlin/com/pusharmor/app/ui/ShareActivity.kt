@@ -42,8 +42,13 @@ class ShareActivity : ComponentActivity() {
         setContent { AppTheme(vm) { Surface(color = MaterialTheme.colorScheme.background) { CircularProgressIndicator(Modifier.padding(24.dp)) } } }
         lifecycleScope.launch {
             // Room refuses main-thread reads.
-            val all = withContext(Dispatchers.IO) { if (vm.g.identity() == null) null else vm.g.store.peers().filter { it.inAll } }
-            if (all == null) finish() else show(text, all)
+            val all = withContext(Dispatchers.IO) {
+                if (!canShare(vm.g.identity() != null, vm.g.settings.flag(com.pusharmor.app.data.Settings.K.SIGNED_OUT, false))) null
+                else vm.g.store.peers().filter { it.inAll }
+            }
+            // Logged out or not set up: the app opens at log in, never a Send screen that cannot send (I470).
+            if (all == null) { startActivity(Intent(this@ShareActivity, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); finish() }
+            else show(text, all)
         }
     }
 
@@ -75,6 +80,9 @@ class ShareActivity : ComponentActivity() {
     }
 
     companion object {
+        /** The share sheet shows Send only for a registered device that is not logged out (I470). */
+        fun canShare(registered: Boolean, signedOut: Boolean): Boolean = registered && !signedOut
+
         /** Preselected target: a shortcut id that is in the All set, else the only All peer, else null. Never sent without a tap. */
         fun directTarget(shortcutId: String?, allIds: List<String>): String? =
             if (shortcutId != null && shortcutId in allIds) shortcutId else allIds.singleOrNull()
