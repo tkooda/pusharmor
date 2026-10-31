@@ -38,6 +38,10 @@ public enum S {
     public static func removeConfirm(_ x: String) -> String {
         "Remove \(x) from this account? \(x) must log in again and pair with every device again."
     }
+    /// Device-limit row (Q369): how many devices it trusts and how many trust it.
+    public static func trusts(_ n: Int, trustedBy m: Int) -> String {
+        "Trusts \(n) \(n == 1 ? "device" : "devices"). Trusted by \(m)."
+    }
     public static func sentTo(_ n: Int, _ m: Int) -> String { "Sent to \(n) of \(m) devices" }
     /// History line for a message that reached its one recipient (F22).
     public static func sentToOne(_ x: String) -> String { "Sent to \"\(x)\"" }
