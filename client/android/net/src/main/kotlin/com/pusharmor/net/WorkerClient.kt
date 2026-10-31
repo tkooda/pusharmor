@@ -280,7 +280,7 @@ object ErrorText {
             r.status == 429 -> "Rate limited. Try again in ${r.retryAfter ?: 60} s."
             r.status == 502 -> "Could not send the email. Try again."
             r.status == 403 && r.error == "banned" -> "This account is blocked."
-            else -> "Error: ${r.error ?: r.status}"
+            else -> "Something went wrong. Try again."
         }
     }
 }
