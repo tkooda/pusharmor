@@ -487,7 +487,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     }, "Delete") as HTMLButtonElement;
     const no = h("button", { onclick: closeDel }, "Cancel");
     delAll.hidden = true;
-    clear(confirmDel).append(h("span", { role: "alert" }, "Delete all history?"), yes, no);
+    clear(confirmDel).append(h("span", { role: "alert" }, "Delete all history?"), no, yes);
     no.focus();
   });
   add(

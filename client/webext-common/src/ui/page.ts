@@ -524,6 +524,7 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
     h(
       "div",
       { class: "btns" },
+      h("button", { onclick: () => window.close() }, "Cancel"),
       h("button", {
         class: "primary",
         onclick: async (ev: Event) => {
@@ -548,7 +549,6 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
           }
         },
       }, "Remove and continue"),
-      h("button", { onclick: () => window.close() }, "Cancel"),
     ),
     status,
   );
