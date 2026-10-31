@@ -34,7 +34,7 @@ struct MainView: View {
                 .tabBarMaterial()
                 .tabItem { Label("Send", systemImage: "paperplane") }
                 .tag(0)
-            HistoryTab()
+            HistoryTab { tab = 0 }
                 .tabBarMaterial()
                 .tabItem { Label("History", systemImage: "clock") }
                 .tag(3)
@@ -123,10 +123,12 @@ struct HomeView: View {
 
 /// The History tab (F24): standard large title, filter and rows (HistoryView).
 struct HistoryTab: View {
+    let onSend: () -> Void
+
     var body: some View {
         NavigationStack {
             List {
-                HistoryView()
+                HistoryView(onSend: onSend)
             }
             .navigationTitle("History")
             .safeAreaInset(edge: .bottom, spacing: 0) { ToastBanner() }

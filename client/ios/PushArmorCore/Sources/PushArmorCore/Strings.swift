@@ -120,7 +120,7 @@ public enum S {
     public static func timesOutIn(_ t: String) -> String { "Times out in \(t)" }
     public static let sameAccount = "Use the same account on every device you want to pair."
     public static let noPeersBody = "Install PushArmor on your other devices and log in with the same account. They show up here, ready to pair."
-    public static let noMessagesBody = "Everything you send or receive shows up here."
+    public static let noMessagesBody = "Messages you send or receive show here."
 }
 
 /// Notification categories (section 6.2).
