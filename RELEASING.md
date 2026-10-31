@@ -16,9 +16,9 @@ gitignored `site/dist` first, so the tree stays clean; `site/README.md`).
 | `firefox/vX.Y.Z` | unlisted "PushArmor Beta" add-on, GitHub prerelease   | public zip to the listed add-on, GitHub release |
 | `worker/vX.Y.Z`  | nothing (build and tests only)                        | `server/deploy/deploy.sh worker/vX.Y.Z`         |
 
-NOTE: the App Store release type (release by hand in App Store Connect, or
-automatically after approval) waits for an owner decision. Until then promote
-uses `IOS_RELEASE_TYPE` in `release/promote.mjs` as it is (`AFTER_APPROVAL`).
+NOTE: the App Store version is released automatically after approval
+(`IOS_RELEASE_TYPE` = `AFTER_APPROVAL` in `release/promote.mjs`), like the other
+three stores; it is not a manual release.
 
 ## Versions
 
