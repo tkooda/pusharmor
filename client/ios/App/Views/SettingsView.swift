@@ -74,7 +74,7 @@ struct SettingsView: View {
                 }
 
                 // This device and its rename live here, not in Devices (F25).
-                Section("This device") {
+                Section("Device name") {
                     DeviceRow(name: model.me?.name ?? "This device") { nameFocused = true }
                     TextField("Name this device", text: $name)
                         .autocorrectionDisabled()
