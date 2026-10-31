@@ -57,6 +57,8 @@ class WorkerClient(
     private val onAuthState: (String) -> Unit = {},
     /** PA-Client header value sent on every request: "android/<versionName>" (Q328). */
     private val paClient: String = "android/0.0.0",
+    /** Called for any call that gets HTTP 426: this app version is too old for the relay server (Q349). */
+    private val onUpdateRequired: () -> Unit = {},
 ) : Api {
     companion object {
         const val BUDGET_MS = 8_000L
@@ -121,6 +123,7 @@ class WorkerClient(
                 val err = (reply.json?.get("error") as? JsonPrimitive)?.content
                 if (err == "unknown peer" || err == "logged out") onAuthState(err)
             }
+            if (reply?.status == 426) onUpdateRequired()
             val retryable = reply == null || reply.status == 429 || reply.status == 503
             if (once || !retryable || attempt >= BACKOFF_MS.size) return reply
             val wait = maxOf(BACKOFF_MS[attempt], (retryAfter ?: 0) * 1000)
@@ -265,6 +268,9 @@ class WorkerClient(
 
 /** Catalog error words -> UI strings. */
 object ErrorText {
+    /** Text for HTTP 426 (Q328). */
+    const val UPDATE = "Update PushArmor to continue"
+
     fun of(r: ApiResult<*>): String = when (r) {
         is ApiResult.Ok -> ""
         ApiResult.Network -> "No connection. Try again."
@@ -276,7 +282,7 @@ object ErrorText {
             r.status == 400 && r.error == "bad email" -> "Only email addresses with plain ASCII characters are supported."
             r.status == 400 && r.error == "push endpoint not allowed" -> "This push service is not supported yet."
             r.status == 413 -> "Too long."
-            r.status == 426 -> "Update PushArmor to continue"
+            r.status == 426 -> UPDATE
             r.status == 429 -> "Rate limited. Try again in ${r.retryAfter ?: 60} s."
             r.status == 502 -> "Could not send the email. Try again."
             r.status == 403 && r.error == "banned" -> "This account is blocked."
