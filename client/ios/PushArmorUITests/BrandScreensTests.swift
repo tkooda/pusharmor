@@ -25,6 +25,17 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(header.exists)
     }
 
+    /// I617: Send as text sits on the hint row, at its right end.
+    func testSendAsTextSharesTheHintRow() {
+        let app = launch()
+        let hint = app.staticTexts["Will open as a link"]
+        XCTAssertTrue(hint.waitForExistence(timeout: 30))
+        let toggle = app.switches["Send as text"]
+        XCTAssertTrue(toggle.exists)
+        XCTAssertLessThan(abs(toggle.frame.midY - hint.frame.midY), 12)
+        XCTAssertGreaterThan(toggle.frame.minX, hint.frame.maxX)
+    }
+
     /// I604: a successful send shows the bottom banner between the Send button and the tab
     /// bar, so it covers neither.
     func testSendBannerSitsAboveTheTabBar() {
