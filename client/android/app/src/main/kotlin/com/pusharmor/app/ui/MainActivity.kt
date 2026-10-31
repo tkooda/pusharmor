@@ -204,7 +204,8 @@ private fun App(vm: AppViewModel) {
                         Triple("history", "History", PaIcons.History), Triple("settings", "Settings", PaIcons.Settings))) {
                         // One back step to Devices, then out: Back does not walk every visited tab (I478).
                         NavigationBarItem(selected = route == r, onClick = { nav.navigate(r) { popUpTo("peers") { saveState = true }; launchSingleTop = true; restoreState = true } },
-                            icon = { Icon(i, null) }, label = { Text(l) },
+                            // One line at any font size: a large font ends in an ellipsis, never a mid-word break (I480).
+                            icon = { Icon(i, null) }, label = { Text(l, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
                             colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.secondaryContainer))
                     }
                 }
