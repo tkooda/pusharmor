@@ -329,3 +329,10 @@ test("Rename this device: Enter saves, Esc keeps the old name and focus (I487)",
   const pv = readFileSync(new URL("../src/ui/peersview.ts", import.meta.url), "utf8");
   assert.match(pv, /if \(ev\.key === "Enter"\) save\.click\(\);\s*else if \(ev\.key === "Escape"\) show\(nm, true\);/);
 });
+
+test("Devices Remove confirm: Esc is Keep and focus goes back to the menu button (I488)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pv = readFileSync(new URL("../src/ui/peersview.ts", import.meta.url), "utf8");
+  assert.match(pv, /confirm\.addEventListener\("keydown", \(ev\) => \{\s*if \(ev\.key !== "Escape"\) return;\s*ev\.preventDefault\(\);\s*confirm\.querySelector<HTMLElement>\("\.keep"\)\?\.click\(\);/);
+  assert.match(pv, /class: "keep", onclick: \(\) => \{ confirm\.remove\(\); b\.focus\(\); \}/);
+});

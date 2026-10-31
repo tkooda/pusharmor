@@ -229,6 +229,12 @@ async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, box
         h("button", { class: "keep", onclick: () => { confirm.remove(); b.focus(); } }, "Keep"),
       ),
     );
+    // I488: Esc is Keep
+    confirm.addEventListener("keydown", (ev) => {
+      if (ev.key !== "Escape") return;
+      ev.preventDefault();
+      confirm.querySelector<HTMLElement>(".keep")?.click();
+    });
     box.append(confirm);
     confirm.querySelector<HTMLElement>(".keep")?.focus(); // the safe choice; the question is read with it
     return;
