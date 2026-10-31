@@ -950,7 +950,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                     Column(m.heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 8.dp)) {
                         Text("Logged in as", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
                         Text(email, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (email.endsWith("@privaterelay.appleid.com")) Text("iOS Settings > Apple ID > Sign in with Apple, and appleid.apple.com > Hide My Email, list the address to use on another device.",
+                        if (email.endsWith("@privaterelay.appleid.com")) Text(UiText.APPLE_RELAY_HINT,
                             style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
                     }
                 })

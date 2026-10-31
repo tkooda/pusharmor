@@ -67,7 +67,7 @@ class WorkerClientTest {
         server.enqueue(MockResponse().setResponseCode(426).setBody("{\"error\":\"update required\"}"))
         val r = c.peers()
         assertEquals("android/0.0.19", server.takeRequest().getHeader("PA-Client"))
-        assertEquals("Update PushArmor to continue", ErrorText.of(r))
+        assertEquals("Update PushArmor to continue.", ErrorText.of(r))
         assertEquals(2, server.requestCount)
     }
 
@@ -102,6 +102,14 @@ class WorkerClientTest {
         assertEquals(a.getHeader("PA-Sig"), b.getHeader("PA-Sig"))
         assertArrayEquals(a.body.readByteArray(), b.body.readByteArray())
         assertEquals(listOf(2000L), slept)
+    }
+
+    @Test fun rateLimitTextIsPlainSentence() {
+        assertEquals("Too many requests. Try again in 1 minute.", ErrorText.of(ApiResult.Http(429, "rate limited", null)))
+        assertEquals("Too many requests. Try again in 2 minutes.", ErrorText.tooMany(120))
+        assertEquals("Too many requests. Try again in 30 seconds.", ErrorText.tooMany(30))
+        assertEquals("Too many requests. Try again in 1 second.", ErrorText.tooMany(1))
+        assertEquals("Too many requests. Try again in 90 seconds.", ErrorText.tooMany(90))
     }
 
     @Test fun retryAfterOverBudgetIsNotRetried() {
