@@ -335,6 +335,16 @@ test("Rename this device: Enter saves, Esc keeps the old name and focus (I487)",
   const { readFileSync } = await import("node:fs");
   const pv = readFileSync(new URL("../src/ui/peersview.ts", import.meta.url), "utf8");
   assert.match(pv, /if \(ev\.key === "Enter"\) save\.click\(\);\s*else if \(ev\.key === "Escape"\) show\(nm, true\);/);
+  // I610: inline field, Save replaces the pencil, and a temporary Cancel
+  assert.match(pv, /\}, "Save"\);\s*const cancel = h\("button", \{ class: "quiet", onclick: \(\) => show\(nm, true\) \}, "Cancel"\);\s*clear\(card\)\.append\(input, save, cancel\);/);
+});
+
+test("Settings account row: Delete account left, Log out right, one centered row (I610)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  assert.match(pop, /h\("div", \{ class: "btns" \}, h\("button", \{ class: "danger", onclick: \(\) => void delAcct\(\) \}, "Delete account"\), logOut\)/);
+  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  assert.match(css, /\.acct-acts \.btns \{[^}]*flex-wrap: nowrap; justify-content: center;/);
 });
 
 test("Settings and Devices errors show in the error toast, with no scroll workaround (I489, I567, I604)", async () => {
