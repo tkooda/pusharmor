@@ -5,8 +5,9 @@ import PushArmorCore
 struct HistoryView: View {
     @EnvironmentObject var model: AppModel
     @State private var filter: HistoryFilter = .all
-    /// Switches to the Send tab (I611).
+    /// Switch to the Send tab (I611) and the Devices tab (I612).
     let onSend: () -> Void
+    let onPair: () -> Void
 
     private var options: [HistoryFilter] { HistoryFilter.options(rows: model.history, peers: model.peers) }
 
@@ -29,13 +30,17 @@ struct HistoryView: View {
                     MessagesIllustration()
                     Text("No messages yet")
                         .font(.title2.weight(.semibold))
-                    Text(S.noMessagesBody)
-                        .font(.subheadline)
-                        .foregroundColor(.secondaryText)
-                        .multilineTextAlignment(.center)
-                    Button("Send a message", action: onSend)
-                        .buttonStyle(.bordered)
-                        .padding(.top, 8)
+                    if model.needsFirstPair {
+                        PairFirstPrompt(onPair: onPair)
+                    } else {
+                        Text(S.noMessagesBody)
+                            .font(.subheadline)
+                            .foregroundColor(.secondaryText)
+                            .multilineTextAlignment(.center)
+                        Button("Send a message", action: onSend)
+                            .buttonStyle(.bordered)
+                            .padding(.top, 8)
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)

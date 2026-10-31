@@ -6,14 +6,9 @@ struct MainView: View {
     @State private var tab = 0
 
     var body: some View {
-        Group {
-            if model.needsFirstPair {
-                FirstPairView()
-            } else {
-                tabs
-            }
-        }
-        // the first pairing done: the tabs open on Send (Q338)
+        // The tabs show even with no paired device; Devices then holds the first-pair steps (I612).
+        tabs
+        // the first pairing done: Send opens (Q338)
         .onChange(of: model.needsFirstPair) { _, v in
             if !v { tab = 0 }
         }
@@ -30,11 +25,11 @@ struct MainView: View {
 
     private var tabs: some View {
         TabView(selection: $tab) {
-            HomeView() // its banner sits under the Send bar, in ComposeView
+            HomeView { tab = 1 } // its banner sits under the Send bar, in ComposeView
                 .tabBarMaterial()
                 .tabItem { Label("Send", systemImage: "paperplane") }
                 .tag(0)
-            HistoryTab { tab = 0 }
+            HistoryTab(onSend: { tab = 0 }, onPair: { tab = 1 })
                 .tabBarMaterial()
                 .tabItem { Label("History", systemImage: "clock") }
                 .tag(3)
@@ -48,7 +43,8 @@ struct MainView: View {
                 .tag(2)
         }
         .onAppear {
-            if model.highlightPeer != nil { tab = 1 }
+            // no paired device yet: open on the first-pair steps in Devices
+            if model.highlightPeer != nil || model.needsFirstPair { tab = 1 }
             if model.showHistory { tab = 3; model.showHistory = false }
         }
         .onChange(of: model.highlightPeer) { _, v in
@@ -60,11 +56,10 @@ struct MainView: View {
     }
 }
 
-/// Q338: logged in with no paired device. Three steps, the devices waiting to pair (the
-/// Devices pairing card and its actions), and Settings behind the gear.
+/// The Devices tab with no paired device (Q338, I612): three steps and the devices waiting
+/// to pair (the Devices pairing card and its actions).
 struct FirstPairView: View {
     @EnvironmentObject var model: AppModel
-    @State private var showSettings = false
 
     var body: some View {
         NavigationStack {
@@ -95,28 +90,56 @@ struct FirstPairView: View {
             .refreshable { await model.refresh() }
             .navigationTitle("Pair your first device")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showSettings = true } label: { Image(systemName: "gearshape") }
-                        .accessibilityLabel("Settings")
-                }
-            }
-            .sheet(isPresented: $showSettings) { SettingsView() }
-            // Taps meant for the Devices or History tab: this screen already shows the
-            // waiting devices, and the tabs must open on Send after the first pairing.
-            .onAppear { model.highlightPeer = nil; model.showHistory = false }
+            // A tap meant for a device row: this screen already shows the waiting devices.
+            .onAppear { model.highlightPeer = nil }
             .onChange(of: model.highlightPeer) { _, v in if v != nil { model.highlightPeer = nil } }
-            .onChange(of: model.showHistory) { _, v in if v { model.showHistory = false } }
         }
+    }
+}
+
+/// Send and History with no paired device (I612): the line and a button to the Devices tab.
+struct PairFirstPrompt: View {
+    let onPair: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("Pair your first device to start sending.")
+                .font(.subheadline)
+                .foregroundColor(.secondaryText)
+                .multilineTextAlignment(.center)
+            Button("Pair a device", action: onPair)
+                .buttonStyle(.bordered)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
 /// The Send tab: standard large title and compose (ComposeView); no history (F24).
 struct HomeView: View {
+    @EnvironmentObject var model: AppModel
+    let onPair: () -> Void
+
     var body: some View {
         NavigationStack {
-            ComposeView()
-                .navigationTitle("Send")
+            Group {
+                if model.needsFirstPair {
+                    List {
+                        HomeBanners()
+                        Section {
+                            VStack(spacing: 12) {
+                                DevicesIllustration()
+                                PairFirstPrompt(onPair: onPair)
+                            }
+                            .padding(.top, 24)
+                            .listRowBackground(Color.clear)
+                        }
+                    }
+                    .safeAreaInset(edge: .bottom, spacing: 0) { ToastBanner() }
+                } else {
+                    ComposeView()
+                }
+            }
+            .navigationTitle("Send")
         }
     }
 }
@@ -124,11 +147,12 @@ struct HomeView: View {
 /// The History tab (F24): standard large title, filter and rows (HistoryView).
 struct HistoryTab: View {
     let onSend: () -> Void
+    let onPair: () -> Void
 
     var body: some View {
         NavigationStack {
             List {
-                HistoryView(onSend: onSend)
+                HistoryView(onSend: onSend, onPair: onPair)
             }
             .navigationTitle("History")
             .safeAreaInset(edge: .bottom, spacing: 0) { ToastBanner() }

@@ -2,8 +2,8 @@ import XCTest
 import PushArmorCore
 @testable import PushArmor
 
-/// Q338: the first-pair screen shows while no device is paired, lists the devices waiting
-/// to pair, goes once a pairing completes, and comes back when the last one is removed.
+/// Q338, I612: the first-pair steps show in Devices while no device is paired, list the
+/// devices waiting to pair, go once a pairing completes, and come back when the last one is removed.
 @MainActor
 final class FirstPairTests: XCTestCase {
     func testFirstPairFollowsPairedDevices() throws {

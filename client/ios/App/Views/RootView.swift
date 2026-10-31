@@ -51,18 +51,21 @@ struct RootView: View {
         case .welcome:
             WelcomeView()
         case .signIn(let purpose):
-            if model.repairedNotice {
-                VStack(spacing: 0) {
-                    Text(S.storeRepaired)
-                        .font(.headline)
-                        .multilineTextAlignment(.center)
-                        .padding(.top, 24)
-                        .padding(.horizontal, 16)
+            Group {
+                if model.repairedNotice {
+                    VStack(spacing: 0) {
+                        Text(S.storeRepaired)
+                            .font(.headline)
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 24)
+                            .padding(.horizontal, 16)
+                        SignInView(purpose: purpose)
+                    }
+                } else {
                     SignInView(purpose: purpose)
                 }
-            } else {
-                SignInView(purpose: purpose)
             }
+            .modifier(SettingsGear(shown: purpose != .deleteAccount))
         case .code(let email, let purpose):
             CodeEntryView(email: email, purpose: purpose)
         case .limitPicker:
@@ -95,7 +98,30 @@ struct RootView: View {
                     .padding(.horizontal, 16)
                 SignInView(purpose: .login)
             }
+            .modifier(SettingsGear(shown: true))
         }
+    }
+}
+
+/// Logged out (I612): no tabs, so a gear at the top right opens Settings.
+struct SettingsGear: ViewModifier {
+    let shown: Bool
+    @State private var show = false
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(alignment: .topTrailing) {
+                if shown {
+                    Button { show = true } label: {
+                        Image(systemName: "gearshape")
+                            .font(.title3)
+                            .frame(minWidth: 44, minHeight: 44)
+                    }
+                    .accessibilityLabel("Settings")
+                    .padding(.trailing, 8)
+                }
+            }
+            .sheet(isPresented: $show) { SettingsView() }
     }
 }
 

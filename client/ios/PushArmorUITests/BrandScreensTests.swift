@@ -52,12 +52,12 @@ final class BrandScreensTests: XCTestCase {
     }
 
     func testPairingCardShowsTheFingerprintCells() {
-        // no paired device yet: the first-pair screen holds the pairing card (Q338)
+        // no paired device yet: the Devices tab holds the pairing card, and the tabs stay (I612)
         let app = launch(["-PAScreenshotsPairing"])
         XCTAssertTrue(app.navigationBars["Pair your first device"].waitForExistence(timeout: 30))
         let cells = app.descendants(matching: .any)["Pairing fingerprint K, 7, Q, D"]
         XCTAssertTrue(cells.waitForExistence(timeout: 10))
-        XCTAssertFalse(app.tabBars.firstMatch.exists)
+        XCTAssertTrue(app.tabBars.firstMatch.exists)
         XCTAssertTrue(app.buttons["Approve"].exists)
         XCTAssertTrue(app.buttons["Deny"].exists)
         XCTAssertTrue(app.staticTexts["Verify that \"New laptop\" shows this same code."].exists)
@@ -174,8 +174,8 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertFalse((field.value as? String ?? "").contains("Not a valid email address"))
     }
 
-    /// Q338: zero devices: the first-pair screen with the steps and a waiting line, no tabs,
-    /// and Settings behind the gear.
+    /// I612: zero devices: the tabs show, opened on Devices with the first-pair steps and a
+    /// waiting line; Send and History offer Pair a device, which opens Devices.
     func testFirstPairScreenWithNoDevice() {
         let app = launch(["-PAScreenshotsEmpty"])
         XCTAssertTrue(app.navigationBars["Pair your first device"].waitForExistence(timeout: 30))
@@ -184,8 +184,24 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["When it shows below, tap Pair and approve it."].exists)
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@",
             "Waiting for another device to log in.")).firstMatch.exists)
+        XCTAssertTrue(app.tabBars.firstMatch.exists)
+        for name in ["Send", "History"] {
+            app.tabBars.buttons[name].tap()
+            XCTAssertTrue(app.staticTexts["Pair your first device to start sending."].waitForExistence(timeout: 5))
+            app.buttons["Pair a device"].tap()
+            XCTAssertTrue(app.navigationBars["Pair your first device"].waitForExistence(timeout: 5))
+        }
+        app.tabBars.buttons["Settings"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
+    }
+
+    /// I612: logged out there are no tabs; the gear on the login screen opens Settings.
+    func testSignInHasSettingsGear() {
+        let app = launch(["-PAScreenshotsSignIn"])
+        let gear = app.buttons["Settings"]
+        XCTAssertTrue(gear.waitForExistence(timeout: 30))
         XCTAssertFalse(app.tabBars.firstMatch.exists)
-        app.buttons["Settings"].tap()
+        gear.tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
     }
 
