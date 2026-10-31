@@ -7,7 +7,8 @@ import PushArmorCore
 /// release app). The launch argument -PAScreenshots opens a sample database in the temporary
 /// directory: no App Group, no Keychain, no Core, so no Worker call. -PAScreenshotsPairing
 /// adds an open pairing; -PAScreenshotsNotify posts a local sample notification;
-/// -PAScreenshotsSignIn opens the sign-in screen (review images only).
+/// -PAScreenshotsSignIn opens the sign-in screen (review images only); -PAScreenshotsEmpty
+/// has no other device at all (the first-pair screen).
 enum ScreenshotSample {
     private static let args = ProcessInfo.processInfo.arguments
     static var isOn: Bool { args.contains("-PAScreenshots") }
@@ -27,6 +28,7 @@ enum ScreenshotSample {
         let now = Int64(Date().timeIntervalSince1970)
         try store.setMe("id", .text(id("S")))
         try store.setMe("name", .text("iPhone"))
+        if args.contains("-PAScreenshotsEmpty") { return store }
         // 04-pairing: the pairing card only. Paired rows below them would sit under
         // the floating tab bar, which content scrolls behind by design.
         if args.contains("-PAScreenshotsPairing") {
