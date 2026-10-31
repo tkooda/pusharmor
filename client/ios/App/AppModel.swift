@@ -256,17 +256,15 @@ final class AppModel: ObservableObject {
     func emailStart(_ email: String, purpose: AuthPurpose, turnstile: String) async {
         guard Ids.normalizeEmail(email) != nil else { errorText = S.badEmail; return }
         guard let k = try? keysForSignIn(purpose) else { return }
-        switch await auth.emailStart(email: email, signPub: k.signer.publicKey, purpose: purpose, turnstile: turnstile) {
+        let r = await auth.emailStart(email: email, signPub: k.signer.publicKey, purpose: purpose, turnstile: turnstile)
+        switch r {
         case .requestToken(let t):
             requestToken = t
             try? store?.setMe("request_token", .text(t))
             try? store?.setSetting("code_email", email)
             try? store?.setSetting("code_purpose", purpose.rawValue)
             phase = .code(email: email, purpose: purpose)
-        case .badEmail: errorText = S.badEmail
-        case .emailSendFailed: errorText = S.emailSendFailed
-        case .rateLimited(let s): errorText = "Try again in \(s) s."
-        default: errorText = "Login failed."
+        default: errorText = S.loginError(r)
         }
     }
 
@@ -304,7 +302,7 @@ final class AppModel: ObservableObject {
 
     func finishTicket(_ r: AuthResult, purpose: AuthPurpose) async {
         guard case .ticket(let ticket, let email) = r else {
-            errorText = r == .badEmail ? S.badEmail : "Login failed."
+            errorText = S.loginError(r)
             return
         }
         try? store?.setMe("signed_in_email", .text(email))
@@ -351,10 +349,11 @@ final class AppModel: ObservableObject {
                     return
                 }
             }
-            errorText = "Login failed."
+            errorText = S.loginFailed
         case .banned: phase = .banned
         case .ticketExpired: errorText = S.signInExpired; phase = .signIn(.register)
-        case .failed, .network: errorText = "Login failed."
+        case .network: errorText = S.noConnection
+        case .failed: errorText = S.loginFailed
         }
     }
 

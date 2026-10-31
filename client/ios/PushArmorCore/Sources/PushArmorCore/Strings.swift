@@ -67,6 +67,24 @@ public enum S {
     public static let signedOutResume = "Logged out. Log in to resume."
     public static let notificationsOff = "Notifications are off. This device cannot receive messages."
     public static let relayHelp = "To log in on another device, use this address. Find it in iOS Settings > Apple ID > Sign in with Apple, or at appleid.apple.com > Hide My Email."
+    public static let unreachable = "Unreachable"
+    public static let loggedOutBadge = "Logged out"
+    public static let pushRegistrationFailed = "Push registration failed."
+    public static let loginFailed = "Login failed."
+    public static let wrongCode = "That code did not work. Check the newest email from PushArmor and try again."
+    public static let codeExpired = "This code has expired. Get a new code to continue."
+    /// Login error text, with its cause when the result has one (I506).
+    public static func loginError(_ r: AuthResult) -> String {
+        switch r {
+        case .network: return noConnection
+        case .badEmail: return badEmail
+        case .emailSendFailed: return emailSendFailed
+        case .rateLimited(let s): return "Try again in \(s) s."
+        case .failed(401, "wrong code"?): return wrongCode
+        case .failed(401, "code expired"?): return codeExpired
+        default: return loginFailed
+        }
+    }
     public static func receivedWhileLocked(_ n: Int) -> String { "\(n) messages received while locked" }
     public static let thisPhoneOldInstall = "(this phone, old install)"
     public static let tooLongShare = "Send the first 2048 bytes"

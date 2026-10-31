@@ -161,7 +161,7 @@ struct HomeBanners: View {
                 }
                 if model.pushRegisterFailed {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Push registration failed").foregroundColor(.errorText)
+                        Text(S.pushRegistrationFailed).foregroundColor(.errorText)
                         Button("Retry") { model.retryPushRegistration() }
                             .buttonStyle(.borderless)
                     }
