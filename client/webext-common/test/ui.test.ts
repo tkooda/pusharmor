@@ -348,3 +348,8 @@ test("Devices Refresh stays grey for its 60 s across a redraw (I490)", async () 
   const pv = readFileSync(new URL("../src/ui/peersview.ts", import.meta.url), "utf8");
   assert.match(pv, /if \(refreshUntil > Date\.now\(\)\) greyFor\(refresh, refreshUntil - Date\.now\(\)\);/);
 });
+
+test("Devices row with the Remove confirm keeps the icon beside the name (I491)", async () => {
+  const { readFileSync } = await import("node:fs");
+  assert.match(readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8"), /\.prow:has\(\.confirm\) > :not\(\.txt\) \{ align-self: start; \}/);
+});

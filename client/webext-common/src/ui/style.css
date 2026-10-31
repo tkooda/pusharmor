@@ -91,6 +91,8 @@ input[role=switch]:checked::before { left: 16px; background: var(--onp); }
 .av.bare { background: transparent; color: var(--ink2); }
 .prow { display: grid; grid-template-columns: 32px 1fr auto; gap: 12px; align-items: center; padding: 8px 8px 8px 16px; min-height: 52px; position: relative; }
 .prow.target { padding-right: 16px; cursor: pointer; }
+/* I491: an open Remove confirm grows the row; icon and menu stay beside the name */
+.prow:has(.confirm) > :not(.txt) { align-self: start; }
 .prow.off .t1, .prow.off .av { opacity: 0.5; }
 .line { overflow-wrap: anywhere; }
 .st { display: inline-flex; align-items: center; gap: 6px; }
