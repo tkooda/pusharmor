@@ -93,6 +93,22 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Devices"].waitForExistence(timeout: 10))
     }
 
+    /// I468: the email field is marked invalid while non-empty and not a valid address.
+    func testEmailFieldMarksInvalidLive() {
+        let app = launch(["-PAScreenshotsSignIn"])
+        let more = app.buttons["Email me a code"]
+        XCTAssertTrue(more.waitForExistence(timeout: 30))
+        more.tap()
+        let field = app.textFields["Email address"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertFalse((field.value as? String ?? "").contains("Not a valid email address"))
+        field.tap()
+        field.typeText("abc")
+        XCTAssertTrue((field.value as? String ?? "").contains("Not a valid email address"))
+        field.typeText("@example.com")
+        XCTAssertFalse((field.value as? String ?? "").contains("Not a valid email address"))
+    }
+
     func testLogOutAsksFirstAndCancelKeepsTheDevice() {
         let app = launch()
         let tab = app.tabBars.buttons["Settings"]
