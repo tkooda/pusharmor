@@ -47,7 +47,14 @@ struct CodeEntryView: View {
                     .textContentType(.oneTimeCode)
                     .keyboardType(.asciiCapable)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .onChange(of: raw) { _, new in handle(new) }
+                    // VoiceOver reads the entered characters one by one, as the cells show them (I507)
+                    .accessibilityValue(CodeEntryView.spoken(chars))
+                    .onChange(of: raw) { old, new in
+                        // typing is echoed by the keyboard; a pasted or filled code is read out here
+                        let added = EmailCode.clean(new).count - EmailCode.clean(old).count
+                        if added > 1 { AccessibilityNotification.Announcement(CodeEntryView.spoken(EmailCode.clean(new).map(String.init))).post() }
+                        handle(new)
+                    }
             }
             .contentShape(Rectangle())
             .onTapGesture { focused = true }
@@ -57,6 +64,11 @@ struct CodeEntryView: View {
             Spacer()
         }
         .padding(24)
+    }
+
+    /// VoiceOver text for the entered characters, for example "A 7 K, 3 of 6" (I507).
+    static func spoken(_ chars: [String]) -> String {
+        chars.isEmpty ? "Empty" : chars.joined(separator: " ") + ", \(chars.count) of \(EmailCode.length)"
     }
 
     private func handle(_ input: String) {
