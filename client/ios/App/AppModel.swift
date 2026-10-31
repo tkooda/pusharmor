@@ -613,6 +613,11 @@ final class AppModel: ObservableObject {
         reload()
     }
 
+    func deleteRows(_ ids: Set<Int64>) {
+        for id in ids { try? store?.db.exec("DELETE FROM history WHERE rowid = ?", [.int(id)]) }
+        reload()
+    }
+
     func deleteAllHistory() {
         try? core?.deleteAllHistory()
         UNUserNotificationCenter.current().removeAllDeliveredNotifications()

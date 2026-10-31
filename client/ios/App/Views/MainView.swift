@@ -148,11 +148,26 @@ struct HomeView: View {
 struct HistoryTab: View {
     let onSend: () -> Void
     let onPair: () -> Void
+    @EnvironmentObject var model: AppModel
+    /// Multi-select (I621): long-press a row to start; leaving the tab ends it.
+    @State private var selection = HistorySelection()
+    @State private var confirmDelete = false
 
     var body: some View {
         NavigationStack {
             List {
-                HistoryView(onSend: onSend, onPair: onPair)
+                HistoryView(onSend: onSend, onPair: onPair, selection: $selection, confirmDelete: $confirmDelete)
+            }
+            .onChange(of: model.history.map(\.rowid)) { _, ids in selection.keep(only: Set(ids)) }
+            .onDisappear { selection.exit() }
+            .alert(selection.confirmTitle, isPresented: $confirmDelete) {
+                Button("Cancel", role: .cancel) {}
+                Button("Delete", role: .destructive) {
+                    if let ids = selection.ids { model.deleteRows(ids) }
+                    selection.exit()
+                }
+            } message: {
+                Text("This deletes the selected messages from this device.")
             }
             .navigationTitle("History")
             .safeAreaInset(edge: .bottom, spacing: 0) { ToastBanner() }
