@@ -984,6 +984,11 @@ def log(msg):
     print(msg, file=sys.stderr, flush=True)
 
 
+def stdin_tty():
+    """False also when stdin is closed (<&-)."""
+    return sys.stdin is not None and sys.stdin.isatty()
+
+
 def ask_yes(question, default=False):
     try:
         a = input(question).strip().lower()
@@ -2072,7 +2077,7 @@ def run_exec(prog, rec):
 # ---- command functions ----
 
 def cmd_login(cx, args):
-    if not sys.stdin.isatty():
+    if not stdin_tty():
         raise Fail("pusharmor login needs a terminal.", EXIT_USAGE)
     cx.setup(need_keys=False)
     purpose = "r"
@@ -2326,7 +2331,7 @@ def cmd_pair(cx, args):
     cx.need()
     if not args.id:
         return pair_list(cx)
-    if not sys.stdin.isatty():
+    if not stdin_tty():
         raise Fail("pusharmor pair ID needs a terminal to compare the pairing fingerprint.", EXIT_USAGE)
     cx.mode = "pair"
     cx.refresh()
@@ -2447,9 +2452,9 @@ def cmd_send(cx, args):
     cx.need()
     if args.message and args.message != ["-"]:
         text = " ".join(args.message)
-    elif args.message == ["-"] or not sys.stdin.isatty():
+    elif args.message == ["-"] or not stdin_tty():
         try:
-            text = sys.stdin.buffer.read().decode("utf-8").rstrip("\r\n")
+            text = (sys.stdin.buffer.read() if sys.stdin else b"").decode("utf-8").rstrip("\r\n")
         except UnicodeDecodeError:
             raise Fail("The input is not UTF-8 text.")
     else:
@@ -2534,7 +2539,7 @@ def cmd_delete(cx, args):
     else:
         q = "Remove %s from your account? %s must log in again and pair with every device again. [y/N] " % (name, name)
     if not args.yes:
-        if not sys.stdin.isatty():
+        if not stdin_tty():
             raise Fail("Refusing to delete without a terminal. Use --yes.", EXIT_USAGE)
         if not ask_yes(q):
             print("Nothing removed.")
