@@ -243,6 +243,14 @@ class AppLogicTest {
         assertTrue(source("ui/AppViewModel.kt").contains("fun refresh() = io { g.session.refresh()?.let { message.value = it } }"))
     }
 
+    @Test fun pairingCardFooterHasRoomBelow() {
+        // I605: the Cancel pairing footer keeps the same 12 dp below it as above it, in every pairing state.
+        val main = source("ui/MainScreens.kt")
+        val card = main.substring(main.indexOf("private fun PairingCard("), main.indexOf("private fun FingerprintPlate("))
+        assertTrue(card.contains(".padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 12.dp)"))
+        assertTrue(card.contains("Row(Modifier.fillMaxWidth().padding(top = 12.dp)"))
+    }
+
     @Test fun transientMessagesUseTheOneSnackbar() {
         // I603: one SnackbarHost for the signed-in screens, fed by vm.message, which it takes at once (so none
         // comes back on another screen later, I527). Toasts only where the screen closes at once.

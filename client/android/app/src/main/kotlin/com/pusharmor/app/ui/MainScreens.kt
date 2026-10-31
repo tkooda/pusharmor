@@ -428,7 +428,8 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
     val body = MaterialTheme.typography.bodyMedium
     val running by vm.running.collectAsState()
     Column(modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(shape).background(ex.tile).border(1.dp, ex.pairBorder, shape)
-        .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp)) {
+        // Bottom padding as wide as the gap above the footer, so Cancel pairing does not sit on the border (I605).
+        .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             IconTile(platformIcon(p.platform))
             Column {
