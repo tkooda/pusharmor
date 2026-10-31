@@ -61,4 +61,24 @@ class DevicesScreenTest {
         // 8 dp list padding plus the card's own 16 dp top padding.
         assertTrue("${banner.boundsInRoot.top - list.boundsInRoot.top}", banner.boundsInRoot.top - list.boundsInRoot.top >= 24 * d - 1)
     }
+
+    /** Pair a new device is a floating button that opens the how-to; it is no longer a row at the end of the list (I615). */
+    @Test fun pairFabOpensHowTo() {
+        val app = ApplicationProvider.getApplicationContext<PaApp>()
+        val vm = AppViewModel(app)
+        UiHostActivity.content = { PeersScreen(vm) }
+        val c = Robolectric.buildActivity(UiHostActivity::class.java).setup()
+        idle()
+        val all = nodes(c.get().window.decorView)
+        val list = all.first { it.config.getOrNull(SemanticsActions.ScrollBy) != null }
+        var n: SemanticsNode? = all.first { text(it) == "Pair a new device" }
+        assertTrue(flat(list).none { text(it) == "Pair a new device" })
+        while (n != null && n.config.getOrNull(SemanticsActions.OnClick) == null) n = n.parent
+        n!!.config[SemanticsActions.OnClick].action!!.invoke()
+        // Composed again from saved state, so the dialog shows without waiting for a frame, whatever test ran before.
+        c.recreate(); idle()
+        val dialog = nodes(ShadowDialog.getLatestDialog().window!!.decorView).map { text(it) }
+        assertTrue(dialog.toString(), dialog.contains("Pair a new device") && UiText.numbered(UiText.PAIR_HOWTO_STEPS).all { it in dialog })
+        c.pause().stop().destroy()
+    }
 }
