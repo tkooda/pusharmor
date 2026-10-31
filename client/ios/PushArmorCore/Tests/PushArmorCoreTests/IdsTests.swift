@@ -64,4 +64,11 @@ final class IdsTests: XCTestCase {
         XCTAssertEqual(Ids.pushSha256(push), "g2yVfdj0WC52Qi5YlkgzDA")
         XCTAssertEqual(PushInfo(type: .apnsSandbox, token: "ab").hashString, "apns-sandbox\nab")
     }
+
+    func testLooksLikeEmail() {
+        for ok in ["a@b.co", " A@Example.COM ", "first.last+tag@sub.example.org"] { XCTAssertTrue(Ids.looksLikeEmail(ok), ok) }
+        for bad in ["", "abc", "a@", "@b.co", "a@b", "a@b.", "a@.co", "a@@b.co", "a b@c.co", "b\u{00f6}b@x.com"] {
+            XCTAssertFalse(Ids.looksLikeEmail(bad), bad)
+        }
+    }
 }
