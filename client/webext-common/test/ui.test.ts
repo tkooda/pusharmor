@@ -336,3 +336,9 @@ test("Devices Remove confirm: Esc is Keep and focus goes back to the menu button
   assert.match(pv, /confirm\.addEventListener\("keydown", \(ev\) => \{\s*if \(ev\.key !== "Escape"\) return;\s*ev\.preventDefault\(\);\s*confirm\.querySelector<HTMLElement>\("\.keep"\)\?\.click\(\);/);
   assert.match(pv, /class: "keep", onclick: \(\) => \{ confirm\.remove\(\); b\.focus\(\); \}/);
 });
+
+test("Log out error is scrolled into view (I489)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  assert.match(pop, /status\.textContent = \(e as Error\)\.message;\s*status\.scrollIntoView\(\{ block: "nearest" \}\);/);
+});

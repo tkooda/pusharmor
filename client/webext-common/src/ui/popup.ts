@@ -434,6 +434,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
         await reload();
       } catch (e) {
         status.textContent = (e as Error).message;
+        status.scrollIntoView({ block: "nearest" }); // I489: the line sits below the fold
       }
     },
   }, "Log out") as HTMLButtonElement;
