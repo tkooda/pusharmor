@@ -720,8 +720,11 @@ fun HistoryScreen(vm: AppViewModel, onPeer: (String) -> Unit) {
     Column(Modifier.fillMaxSize()) {
         PaTopBar("History")
         if (rows.isEmpty()) {
-            EmptyState({ MessagesIllustration() }, "No messages yet",
-                "Everything you send or receive shows up here. Share a link from any app to send it to your devices.", top = 110.dp)
+            // Scrolls when landscape or a large font makes it taller than the screen (I480).
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                EmptyState({ MessagesIllustration() }, "No messages yet",
+                    "Everything you send or receive shows up here. Share a link from any app to send it to your devices.", top = 110.dp)
+            }
             return@Column
         }
         FlowRow(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
@@ -864,6 +867,7 @@ private fun SettingRow(title: String, sub: String? = null, modifier: Modifier, c
 }
 
 /** Settings (section 8): one group per section. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: () -> Unit, onBack: (() -> Unit)? = null) {
     val prefs by vm.prefs.collectAsState()
@@ -952,7 +956,9 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                     }
                 })
             }
-            Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Wraps to two lines at a large font instead of squeezing both buttons (I480).
+            FlowRow(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(onClick = { confirmLogout = true }, Modifier.heightIn(min = 48.dp), enabled = "logout" !in running,
                     border = androidx.compose.foundation.BorderStroke(1.dp, cs.outline)) { Text("Log out") }
                 OutlinedButton(onClick = { confirmDelete = true }, Modifier.heightIn(min = 48.dp),

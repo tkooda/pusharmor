@@ -244,6 +244,14 @@ class AppLogicTest {
         assertEquals("a,b", kotlinx.coroutines.runBlocking { s.lastSendTo() })
     }
 
+    @Test fun largeFontAndLandscapeLayout() {
+        assertTrue(source("ui/MainActivity.kt").contains("label = { Text(l, maxLines = 1, softWrap = false"))
+        val main = source("ui/MainScreens.kt")
+        val hist = main.substring(main.indexOf("fun HistoryScreen("))
+        assertTrue(hist.substring(0, hist.indexOf("\"No messages yet\"")).contains("verticalScroll(rememberScrollState())"))
+        assertTrue(main.contains("FlowRow(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp)"))
+    }
+
     @Test fun permissionAndBannersRecheckedOnResume() {
         val act = source("ui/MainActivity.kt")
         assertTrue(act.contains("LaunchedEffect(tick) { ok = granted() }"))
