@@ -40,6 +40,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -144,7 +145,7 @@ private fun App(vm: AppViewModel) {
     val limit by vm.limit.collectAsState()
     val signInPurpose by vm.signInPurpose.collectAsState()
     val nav = rememberNavController()
-    var deleting by remember { mutableStateOf(false) }
+    var deleting by rememberSaveable { mutableStateOf(false) }
     when (start) {
         null -> {
             Box(Modifier.fillMaxSize().safeDrawingPadding(), Alignment.Center) { CircularProgressIndicator() }
@@ -162,7 +163,7 @@ private fun App(vm: AppViewModel) {
     val signedIn = start == Session.Start.READY
     if (!signedIn || deleting) {
         val purpose = if (deleting) "delete-account" else signInPurpose
-        var email by remember { mutableStateOf(false) }
+        var email by rememberSaveable { mutableStateOf(false) }
         // Each sign-in step starts with no message from the step before (I425).
         if (email) EmailScreen(vm, purpose, onBack = { vm.message.value = null; email = false }) { deleting = false; email = false }
         else WelcomeScreen(vm, purpose, onEmail = { vm.message.value = null; email = true }) { deleting = false }
@@ -228,7 +229,7 @@ private fun PermissionGate(content: @Composable () -> Unit) {
     fun granted() = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
     var ok by remember { mutableStateOf(granted()) }
     var asked by remember { mutableStateOf(false) }
-    var skipped by remember { mutableStateOf(false) }
+    var skipped by rememberSaveable { mutableStateOf(false) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok = it; asked = true }
     if (ok || skipped) { content(); return }
     if (!asked) { androidx.compose.runtime.LaunchedEffect(Unit) { launcher.launch(Manifest.permission.POST_NOTIFICATIONS) } }
