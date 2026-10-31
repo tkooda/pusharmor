@@ -354,6 +354,12 @@ final class NSEFlowTests: XCTestCase {
     /// I327: a tap fault while the NSE copy exists writes no second file with the same "m",
     /// and one locked drain runs each "m" at most once (two files, one event).
     func testTapFaultNoSecondCopy() async throws {
+        #if targetEnvironment(simulator)
+        // I516: quarantined on the simulator only; swift test on the macOS host still runs it.
+        // CI run 41162719535 failed here once with SQLITE_IOERR after libsqlite logged "vnode
+        // unlinked while in use" for this test's pa-test-*.sqlite. No code deletes that file.
+        throw XCTSkip("I516: flaky disk I/O error on the simulator; runs in swift test on macOS")
+        #endif
         let w = FakeWorker(), clock = TestClock()
         let x = try Device(worker: w, clock: clock, name: "Xdev")
         let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-nse-\(UUID().uuidString)"))
