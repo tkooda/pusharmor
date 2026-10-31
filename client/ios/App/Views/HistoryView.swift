@@ -5,6 +5,8 @@ import PushArmorCore
 struct HistoryView: View {
     @EnvironmentObject var model: AppModel
     @State private var filter: HistoryFilter = .all
+    /// Switches to the Send tab (I611).
+    let onSend: () -> Void
 
     private var options: [HistoryFilter] { HistoryFilter.options(rows: model.history, peers: model.peers) }
 
@@ -31,6 +33,9 @@ struct HistoryView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondaryText)
                         .multilineTextAlignment(.center)
+                    Button("Send a message", action: onSend)
+                        .buttonStyle(.bordered)
+                        .padding(.top, 8)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
