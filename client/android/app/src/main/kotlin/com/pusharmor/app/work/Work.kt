@@ -75,6 +75,12 @@ object Work {
         .setInputData(workDataOf("probe" to probe, "m" to m))
         .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST).build()
 
+    /** Q368: unique "logout"; a new Log out tap or app open runs it now (REPLACE). */
+    fun logout(context: Context) {
+        WorkManager.getInstance(context).enqueueUniqueWork("logout", ExistingWorkPolicy.REPLACE,
+            OneTimeWorkRequestBuilder<LogoutWorker>().setConstraints(net).setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS).build())
+    }
+
     fun scheduleDaily(context: Context) {
         WorkManager.getInstance(context).enqueueUniquePeriodicWork("daily", ExistingPeriodicWorkPolicy.KEEP,
             PeriodicWorkRequestBuilder<DailyWorker>(1, TimeUnit.DAYS).build())
@@ -120,6 +126,13 @@ class ReconcileWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(
         // ids left in the set (429, 5xx, network) are retried by the next run
         val left = g.store.allowSet().any { g.store.peer(it)?.pinned != true }
         return if (left) Result.retry() else Result.success()
+    }
+}
+
+class LogoutWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
+    override suspend fun doWork(): Result {
+        val g = (applicationContext as PaApp).graph
+        return if (g.session.logoutNow()) Result.success() else Result.retry()
     }
 }
 

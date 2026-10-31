@@ -381,4 +381,16 @@ class LogoutFlow(private val store: LocalStore, me: Identity, private val api: A
 
     fun login(ticket: String): ApiResult<Map<String, String>> =
         reconcile.withMissingRetry { ClockSkew.run({ messages(MessageBody.Login) }) { api.login(ticket, it) } }
+
+    /** Q368: sends a pending logout once; true when it is settled, false to try again later. */
+    fun sendPending(): Boolean = settled(logout())
+
+    companion object {
+        /** A pending logout stays pending on no reply, 429, 5xx, or clock skew; any other answer settles it. */
+        fun settled(r: ApiResult<*>): Boolean = when (r) {
+            is ApiResult.Ok -> true
+            is ApiResult.Http -> r.status != 429 && r.status < 500 && !r.isClockSkew
+            ApiResult.Network -> false
+        }
+    }
 }

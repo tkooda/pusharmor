@@ -39,6 +39,8 @@ class Settings(private val context: Context) {
         val CH_PEERS = stringPreferencesKey("ch_peers")
         val OLD_ID = stringPreferencesKey("old_id")
         val SIGNED_OUT = booleanPreferencesKey("signed_out")
+        /** Q368: a Log out the relay server has not yet confirmed; retried until it is settled. */
+        val LOGOUT_PENDING = booleanPreferencesKey("logout_pending")
         val BANNER = stringPreferencesKey("banner")
         val LAST_FETCH = longPreferencesKey("last_fetch")
         val LAST_REFRESH = longPreferencesKey("last_refresh")

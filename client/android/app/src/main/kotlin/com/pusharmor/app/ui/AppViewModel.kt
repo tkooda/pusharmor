@@ -92,6 +92,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val s = g.session.startup(fromMain)
         setStart(s)
         if (s == Session.Start.READY) g.session.onAppOpen(System.currentTimeMillis())
+        if (s == Session.Start.SIGNED_OUT) g.session.retryPendingLogout()
     }
 
     // ---- sign in ----
@@ -253,8 +254,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun markRead(id: Long) = io { g.dao.markRead(id) }
     fun rename(name: String) = io { g.session.rename(name)?.let { message.value = it } }
     fun signOut(onDone: () -> Unit) = once("logout") {
-        val err = g.session.signOut()
-        if (err != null) message.value = err else { setStart(Session.Start.SIGNED_OUT); withContext(Dispatchers.Main) { onDone() } }
+        g.session.signOut()
+        setStart(Session.Start.SIGNED_OUT)
+        withContext(Dispatchers.Main) { onDone() }
     }
     fun switchPush(toUp: Boolean) = io { if (toUp) g.push.switchToUnifiedPush(g) else g.push.switchToGoogle(g) }
     fun retryPush() = io { com.pusharmor.app.work.Work.patchPush(g.app) }

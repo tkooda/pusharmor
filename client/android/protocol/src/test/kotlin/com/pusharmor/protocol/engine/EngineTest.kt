@@ -173,6 +173,25 @@ class EngineTest {
         assertFalse("y" in n.allow)
     }
 
+    /** Q368: a pending logout stays pending on no reply, 429, 5xx, and clock skew; it settles on any other answer. */
+    @Test fun pendingLogoutRetriesUntilTheRelayServerAnswers() {
+        val logout = LogoutFlow(n.store, n.me, n.api, n.reconcile)
+        n.offline = true
+        assertFalse(logout.sendPending())
+        assertFalse(n.loggedOut)
+        n.offline = false
+        n.rateLimitNext = 1
+        assertFalse(logout.sendPending())
+        n.skewNext = 2
+        assertFalse(logout.sendPending())
+        assertFalse(n.loggedOut)
+        assertFalse(LogoutFlow.settled(ApiResult.Http(503, "busy")))
+        assertTrue(logout.sendPending())
+        assertTrue(n.loggedOut)
+        assertTrue(logout.sendPending()) // already logged out on the relay server (401 "logged out"): settled
+        assertTrue(LogoutFlow.settled(ApiResult.Http(401, "unknown peer")))
+    }
+
     @Test fun capElevenThPromptedAndSurvivesRestart() {
         val senders = (1..11).map { w.add("S$it") }
         x.fetch()

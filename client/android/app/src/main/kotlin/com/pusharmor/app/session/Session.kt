@@ -156,6 +156,7 @@ class Session(private val g: Graph) {
         val r = g.logoutFlow().login(ticket)
         if (r !is ApiResult.Ok) return SignIn.Error(ErrorText.of(r))
         s.set(Settings.K.SIGNED_OUT, false)
+        s.set(Settings.K.LOGOUT_PENDING, null)
         // after a successful login: the app-start push reconcile at once, and one GET /peers
         g.push.start(g)
         pushReconcile()
@@ -179,13 +180,29 @@ class Session(private val g: Graph) {
 
     // ---- sign out / delete ----------------------------------------------------------------
 
-    fun signOut(): String? {
-        // No registration left (removed meanwhile): nothing to tell the relay server; still end at log in (I465).
-        if (g.identity() == null) { s.set(Settings.K.SIGNED_OUT, true); return null }
-        val r = g.logoutFlow().logout()
-        if (r !is ApiResult.Ok) return ErrorText.of(r)
+    /**
+     * Q368: logged out here at once; the relay server call runs after and is retried (WorkManager,
+     * and again on app open) until it is settled.
+     * No registration left (removed meanwhile): nothing to tell the relay server; still end at log in (I465).
+     */
+    fun signOut() {
+        if (g.identity() != null) s.set(Settings.K.LOGOUT_PENDING, true)
         s.set(Settings.K.SIGNED_OUT, true)
-        return null
+        if (g.identity() != null) Work.logout(g.app)
+    }
+
+    /** Sends a pending logout. true = settled or nothing to send, false = retry later. Dropped once logged in again or removed. */
+    fun logoutNow(): Boolean {
+        if (!s.flag(Settings.K.LOGOUT_PENDING, false)) return true
+        if (g.identity() == null || !s.flag(Settings.K.SIGNED_OUT, false)) { s.set(Settings.K.LOGOUT_PENDING, null); return true }
+        if (!g.logoutFlow().sendPending()) return false
+        s.set(Settings.K.LOGOUT_PENDING, null)
+        return true
+    }
+
+    /** App open while logged out: send a pending logout now. */
+    fun retryPendingLogout() {
+        if (s.flag(Settings.K.LOGOUT_PENDING, false)) Work.logout(g.app)
     }
 
     /** DELETE /account with a delete-account ticket; then wipe everything including the keys. */
