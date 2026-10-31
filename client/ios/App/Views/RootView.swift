@@ -64,7 +64,18 @@ struct RootView: View {
         case .welcome:
             WelcomeView()
         case .signIn(let purpose):
-            SignInView(purpose: purpose)
+            if model.repairedNotice {
+                VStack(spacing: 0) {
+                    Text(S.storeRepaired)
+                        .font(.headline)
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 24)
+                        .padding(.horizontal, 16)
+                    SignInView(purpose: purpose)
+                }
+            } else {
+                SignInView(purpose: purpose)
+            }
         case .code(let email, let purpose):
             CodeEntryView(email: email, purpose: purpose)
         case .limitPicker:

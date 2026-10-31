@@ -40,6 +40,25 @@ final class AppEnvironment: PlatformHooks {
     /// Open pa.sqlite (WAL, file protection completeUntilFirstUserAuthentication).
     func openStore() throws -> Store {
         let s = try Store(path: dbURL.path)
+        protectFiles()
+        return s
+    }
+
+    /// App launch only (Q332): as openStore, but a corrupt pa.sqlite is replaced by an empty
+    /// one after a best-effort DELETE of this device with the surviving Keychain keys.
+    func openStoreRepairing() async throws -> (store: Store, repaired: Bool) {
+        let r = try await StoreRepair.open(path: dbURL.path) { await self.deleteSelfBestEffort() }
+        protectFiles()
+        return r
+    }
+
+    private func deleteSelfBestEffort() async {
+        guard let t = keychain.peerId(), let id = PeerId(text: t), let keys = try? keychain.load() else { return }
+        // confirmed: nothing left for the old_id DELETE after the next sign-in
+        if await StoreRepair.deleteSelf(api: APIClient(), signer: keys.signer, id: id) { keychain.deleteAll() }
+    }
+
+    private func protectFiles() {
         for suffix in ["", "-wal", "-shm"] {
             let p = dbURL.path + suffix
             if FileManager.default.fileExists(atPath: p) {
@@ -47,7 +66,6 @@ final class AppEnvironment: PlatformHooks {
                                                        ofItemAtPath: p)
             }
         }
-        return s
     }
 
     func makeCore(store: Store, keys: DeviceKeys) -> Core {
