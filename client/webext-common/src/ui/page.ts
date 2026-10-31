@@ -9,7 +9,7 @@ import { toast } from "./dialog.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
 import { startTheme } from "./theme.ts";
-import { firstPairView, historyView, sendView, signinCard, updateCard, wordmark } from "./popup.ts";
+import { firstPairView, historyView, sendView, type Nav, signinCard, updateCard, wordmark } from "./popup.ts";
 
 export const SITE = "https://pusharmor.com";
 
@@ -47,8 +47,9 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
   // I500: the brand on top, as in the popup; the view draws below it
   const view = h("div", {});
   root.append(h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), view);
+  const nav: Nav = { toDevices: () => (location.hash = "#pair"), toSend: () => (location.hash = "#send") };
   // I497: Send to... sets the #send= hash (the hashchange mounts it), so a reload keeps the draft
-  if (route === "history") return historyView(env, view, (text) => (location.hash = "#send=" + encodeURIComponent(text)), arg);
+  if (route === "history") return historyView(env, view, (text) => (location.hash = "#send=" + encodeURIComponent(text)), arg, nav);
   if (route === "send") {
     let text = "";
     try {
@@ -56,10 +57,10 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
     } catch {
       text = "";
     }
-    return sendView(env, view, st, text, true);
+    return sendView(env, view, st, text, true, nav);
   }
   // Devices; also a missing or unknown hash
-  return renderPeers(env, view, true, route === "peers" ? arg : undefined);
+  return renderPeers(env, view, true, route === "peers" ? arg : undefined, undefined, route === "pair");
 }
 
 const E2E = "All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.";

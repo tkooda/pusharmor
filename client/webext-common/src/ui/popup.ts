@@ -60,7 +60,8 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   if (first && !first.peers.some((p) => p.paired)) return firstPairView(env, root, st, () => mountPopup(env, root), true);
   const body = h("div", { class: "body", id: "panel", role: "tabpanel" });
   const tabs = h("div", { class: "tabs", role: "tablist" });
-  const show = (t: Tab, prefill?: string) => {
+  const nav: Nav = { toDevices: () => show("peers", undefined, true), toSend: () => show("send") };
+  const show = (t: Tab, prefill?: string, openPair = false) => {
     for (const b of Array.from(tabs.children)) {
       const on = (b as HTMLElement).dataset.tab === t;
       b.classList.toggle("on", on);
@@ -77,9 +78,9 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
     const wait = h("div", { class: "loading", role: "status" }, "Loading...");
     const slow = setTimeout(() => pane.isConnected && !pane.firstChild && body.prepend(wait), 150);
     let ready: Promise<unknown> = Promise.resolve();
-    if (t === "send") ready = sendView(env, pane, st, prefill).then(() => prefill !== undefined && pane.querySelector("textarea")?.focus());
-    if (t === "history") ready = historyView(env, pane, (text) => show("send", text));
-    if (t === "peers") ready = renderPeers(env, pane, false);
+    if (t === "send") ready = sendView(env, pane, st, prefill, false, nav).then(() => prefill !== undefined && pane.querySelector("textarea")?.focus());
+    if (t === "history") ready = historyView(env, pane, (text) => show("send", text), undefined, nav);
+    if (t === "peers") ready = renderPeers(env, pane, false, undefined, undefined, openPair);
     if (t === "settings") ready = settingsView(env, pane, st, () => mountPopup(env, root));
     // I473: a view that fails shows the error with Retry in place of an empty pane
     void ready.catch((e) => pane.isConnected && failView(pane, (e as Error).message, () => show(t, prefill))).finally(() => {
@@ -158,7 +159,18 @@ export function signinCard(env: UiEnv, st: StateView, going: boolean, inTab: boo
 
 const TYPE_ICON: Record<string, IconName> = { url: "link", tel: "call", text: "notes" };
 
-export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, prefill?: string, offerCut = false): Promise<void> {
+/** I611: where an empty screen's button leads (the popup switches tab, the full tab sets its hash). */
+export interface Nav {
+  toDevices(): void;
+  toSend(): void;
+}
+
+/** A call to action under an empty state: a line of text and a normal button. */
+function cta(text: string, label: string, go: () => void): HTMLElement {
+  return h("div", { class: "cta" }, h("p", {}, text), h("button", { class: "tonal", onclick: go }, label));
+}
+
+export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, prefill?: string, offerCut = false, nav?: Nav): Promise<void> {
   const field = h("textarea", { rows: "3", "aria-label": "Text to send" }) as HTMLTextAreaElement;
   field.value = prefill ?? (await env.activeUrl().catch(() => ""));
   const caption = h("span", { class: "caption" });
@@ -286,12 +298,13 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   }
   // I494: every device is greyed: say why Send is off
   const none = !sendable.length && chips.childElementCount ? h("p", { class: "dim nosend" }, "No device can receive messages right now.") : null;
-  root.append(head, chips, ...(none ? [none] : []), h("div", { class: "grow" }), h("div", { class: "foot send-foot" }, sendBtn));
+  const noPair = nav && !data.peers.some((p) => p.paired) ? cta("Pair your first device to start sending.", "Pair a device", nav.toDevices) : null;
+  root.append(head, chips, ...(none ? [none] : []), ...(noPair ? [noPair] : []), h("div", { class: "grow" }), h("div", { class: "foot send-foot" }, sendBtn));
   relabel();
   await update();
 }
 
-export async function historyView(env: UiEnv, root: HTMLElement, resend: (text: string) => void, focus?: string): Promise<void> {
+export async function historyView(env: UiEnv, root: HTMLElement, resend: (text: string) => void, focus?: string, nav?: Nav): Promise<void> {
   await rpc(env, "historyOpened");
   const rows = await rpc<(HistoryRow & { sender: string })[]>(env, "history");
   let key = "all";
@@ -302,8 +315,13 @@ export async function historyView(env: UiEnv, root: HTMLElement, resend: (text: 
         { class: "empty" },
         messagesArt(),
         h("div", { class: "e-title" }, "No messages yet"),
-        h("p", {}, "Everything you send or receive shows up here."),
+        h("p", {}, "Messages you send or receive show here."),
       ),
+      ...(nav
+        ? [(await rpc<{ peers: PeerView[] }>(env, "peers")).peers.some((p) => p.paired)
+            ? cta("", "Send a message", nav.toSend)
+            : cta("Pair your first device to start sending.", "Pair a device", nav.toDevices)]
+        : []),
       h("div", { class: "grow" }),
     );
     return;

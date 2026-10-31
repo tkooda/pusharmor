@@ -386,7 +386,7 @@ test("popup update and log in screens start with focus on their button (I495)", 
 
 test("full tab History Send to... sets the #send= hash (I497)", async () => {
   const { readFileSync } = await import("node:fs");
-  assert.match(readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8"), /historyView\(env, view, \(text\) => \(location\.hash = "#send=" \+ encodeURIComponent\(text\)\), arg\)/);
+  assert.match(readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8"), /historyView\(env, view, \(text\) => \(location\.hash = "#send=" \+ encodeURIComponent\(text\)\), arg, nav\)/);
 });
 
 test("login page with a banner gives one reason, not also You are logged out (I498)", async () => {
@@ -480,4 +480,22 @@ test("Primary action sits on the right of its button row (I583)", async () => {
   assert.ok(pg.indexOf('"Cancel"),\n      h("button", {\n        class: "primary"') > 0); // Device limit: Cancel left, Remove and continue right
   const dlg = rd("dialog.ts");
   assert.match(dlg, /h\("div", \{ class: "dlg-acts" \}, cancel, yes\)/); // every confirm: Cancel left, the action right
+});
+
+test("empty screens have a call to action button (I611)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
+  const pop = rd("popup.ts");
+  assert.match(pop, /cta\("Pair your first device to start sending\.", "Pair a device", nav\.toDevices\)/);
+  assert.match(pop, /cta\("", "Send a message", nav\.toSend\)/);
+  assert.match(pop, /"Messages you send or receive show here\."/);
+  // the popup switches tab and opens the pairing steps; the full tab sets its hash
+  assert.match(pop, /toDevices: \(\) => show\("peers", undefined, true\), toSend: \(\) => show\("send"\)/);
+  assert.match(pop, /renderPeers\(env, pane, false, undefined, undefined, openPair\)/);
+  const page = rd("page.ts");
+  assert.match(page, /toDevices: \(\) => \(location\.hash = "#pair"\)/);
+  assert.match(page, /route === "pair"/);
+  assert.match(rd("peersview.ts"), /hidden: !open/);
+  // the first-device screen still replaces the tabs until the first pairing
+  assert.match(pop, /return firstPairView\(env, root, st, \(\) => mountPopup\(env, root\), true\)/);
 });
