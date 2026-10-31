@@ -54,6 +54,12 @@ export function resendLeftMs(sentAt: number, now: number): number {
   return Math.max(0, sentAt + RESEND_MS - now);
 }
 
+/** ms until "Email me a code" is enabled again: only the address that was just sent to waits. */
+export function sendLeftMs(sentAt: number, sentTo: string, email: string, now: number): number {
+  if (!sentTo || sentTo !== email.trim().toLowerCase()) return 0;
+  return resendLeftMs(sentAt, now);
+}
+
 /** Height posted by the Turnstile page, clamped; null when it is not a number. */
 export function clampFrameHeight(h: unknown): number | null {
   if (typeof h !== "number" || !Number.isFinite(h)) return null;

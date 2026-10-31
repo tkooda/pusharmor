@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AUTH_RESULT_MS, RESEND_MS, RESTORE_MS, clampFrameHeight, readAuthResult, readProgress, resendLeftMs, restoreStep } from "../src/model/signin.ts";
+import { AUTH_RESULT_MS, RESEND_MS, RESTORE_MS, clampFrameHeight, readAuthResult, readProgress, resendLeftMs, restoreStep, sendLeftMs } from "../src/model/signin.ts";
 
 const T0 = 1_800_000_000_000;
 const code = (o: Record<string, unknown> = {}) => ({ v: 1, step: "code", email: "sam@example.com", purpose: "register", sentAt: T0, ...o });
@@ -73,4 +73,12 @@ test("email check: empty, non-ASCII, and malformed have help text; a usable addr
   assert.match(page, /const invalid = email\.value\.trim\(\) !== "" && emailProblem\(email\.value\) !== "";/);
   assert.match(page, /emailField\.classList\.toggle\("bad", invalid\);/);
   assert.match(page, /email\.setAttribute\("aria-invalid", "true"\)/);
+});
+
+test("Email me a code waits out the countdown only for the address just sent to", () => {
+  assert.equal(sendLeftMs(T0, "sam@example.com", "sam@example.com", T0 + 18_000), 42_000);
+  assert.equal(sendLeftMs(T0, "sam@example.com", " Sam@Example.com ", T0 + 18_000), 42_000);
+  assert.equal(sendLeftMs(T0, "sam@example.com", "sam@example.com", T0 + 60_000), 0);
+  assert.equal(sendLeftMs(T0, "sam@example.com", "other@example.com", T0 + 18_000), 0);
+  assert.equal(sendLeftMs(0, "", "sam@example.com", T0), 0);
 });
