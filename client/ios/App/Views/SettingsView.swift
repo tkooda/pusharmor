@@ -31,19 +31,7 @@ struct SettingsView: View {
                     )) {
                         ForEach(dayChoices, id: \.self) { Text($0 == 1 ? "1 day" : "\($0) days").tag($0) }
                     }
-                    if confirmDeleteHistory {
-                        Text("Delete all history?")
-                        HStack {
-                            Button("Delete", role: .destructive) {
-                                confirmDeleteHistory = false
-                                model.deleteAllHistory()
-                            }
-                            Button("Cancel") { confirmDeleteHistory = false }
-                        }
-                        .buttonStyle(.borderless)
-                    } else {
-                        Button("Delete all history", role: .destructive) { confirmDeleteHistory = true }
-                    }
+                    Button("Delete all history", role: .destructive) { confirmDeleteHistory = true }
                 }
 
                 let hidden = model.peers.filter { $0.hidden }
@@ -139,23 +127,9 @@ struct SettingsView: View {
                 }
 
                 Section("Account") {
-                    if !confirmDeleteAccount {
-                        // Log out acts at once (Q367); it hides while the Delete account confirm shows (I457).
-                        Button("Log out") { Task { await model.signOut() } }
-                    }
-                    if confirmDeleteAccount {
-                        Text("Delete this account? You must log in again to confirm. This cannot be undone.")
-                        HStack {
-                            Button("Continue", role: .destructive) {
-                                confirmDeleteAccount = false
-                                model.phase = .signIn(.deleteAccount)
-                            }
-                            Button("Cancel") { confirmDeleteAccount = false }
-                        }
-                        .buttonStyle(.borderless)
-                    } else {
-                        Button("Delete account", role: .destructive) { confirmDeleteAccount = true }
-                    }
+                    // Log out acts at once (Q367).
+                    Button("Log out") { Task { await model.signOut() } }
+                    Button("Delete account", role: .destructive) { confirmDeleteAccount = true }
                 }
 
                 Section("About") {
@@ -178,6 +152,19 @@ struct SettingsView: View {
             // Like the other tabs: the last About row ends clear of the floating tab bar (I569).
             .contentMargins(.bottom, 12, for: .scrollContent)
             .navigationTitle("Settings")
+            // I604: standard alerts; Cancel and the destructive action are placed by the system
+            .alert("Delete all history?", isPresented: $confirmDeleteHistory) {
+                Button("Cancel", role: .cancel) {}
+                Button("Delete", role: .destructive) { model.deleteAllHistory() }
+            } message: {
+                Text("This deletes every sent and received message on this device.")
+            }
+            .alert("Delete account?", isPresented: $confirmDeleteAccount) {
+                Button("Cancel", role: .cancel) {}
+                Button("Continue", role: .destructive) { model.phase = .signIn(.deleteAccount) }
+            } message: {
+                Text("You must log in again to confirm. This cannot be undone.")
+            }
             .safeAreaInset(edge: .bottom, spacing: 0) { ToastBanner() }
         }
     }
