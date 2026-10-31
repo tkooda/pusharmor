@@ -219,6 +219,7 @@ async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, box
       h(
         "div",
         { class: "actions" },
+        h("button", { class: "keep", onclick: () => { confirm.remove(); b.focus(); } }, "Keep"),
         h("button", {
           class: "danger",
           onclick: async (ev: Event) => {
@@ -232,7 +233,6 @@ async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, box
             await redraw(rmsg, p.id);
           },
         }, "Remove"),
-        h("button", { class: "keep", onclick: () => { confirm.remove(); b.focus(); } }, "Keep"),
       ),
     );
     // I488: Esc is Keep

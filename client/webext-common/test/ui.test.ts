@@ -464,3 +464,13 @@ test("Login security note has a card fill that differs from the light page backg
     assert.notEqual(light?.[1], light?.[2]);
   }
 });
+
+test("Primary action sits on the right of its button row (I583)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
+  const pg = rd("page.ts");
+  assert.ok(pg.indexOf('"Cancel"),\n      h("button", {\n        class: "primary"') > 0); // Device limit: Cancel left, Remove and continue right
+  const pv = rd("peersview.ts");
+  assert.ok(pv.indexOf('"Keep")') < pv.indexOf('"Remove")')); // Remove confirm
+  assert.match(rd("popup.ts"), /"Delete all history\?"\), no, yes\)/);
+});
