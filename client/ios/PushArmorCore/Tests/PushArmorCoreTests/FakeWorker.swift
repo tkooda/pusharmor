@@ -26,7 +26,7 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
     var lastHeaders: [String: String] = [:]
     /// Scripted replies: path prefix -> list of (status, body) used once each, before normal handling.
     var scripted: [(method: String, prefix: String, status: Int, body: String)] = []
-    var epochMs: Int64 = 1761300000000
+    var epoch: Int64 = 1761300000
     var offline = false
 
     func add(_ id: PeerId, signPub: Data, encPub: Data, platform: String = "android") {
@@ -52,7 +52,7 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
     }
 
     func reply(_ status: Int, _ body: String) -> HTTPResponse {
-        HTTPResponse(status: status, headers: ["PA-Epoch-Ms": String(epochMs)], body: Data(body.utf8))
+        HTTPResponse(status: status, headers: ["PA-Epoch": String(epoch)], body: Data(body.utf8))
     }
 
     func perform(method: String, url: URL, headers: [String: String], body: Data, timeout: Double) async throws -> HTTPResponse {
