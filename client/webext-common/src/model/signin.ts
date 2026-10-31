@@ -58,3 +58,29 @@ export function clampFrameHeight(h: unknown): number | null {
   if (typeof h !== "number" || !Number.isFinite(h)) return null;
   return Math.min(FRAME_MAX, Math.max(FRAME_MIN, Math.ceil(h)));
 }
+
+/** Firefox Google or Apple login: the background writes the result here (storage.session) for the login tab. */
+export const AUTH_RESULT = "auth_result";
+/** A result older than this is from an earlier login and is ignored. */
+export const AUTH_RESULT_MS = 10 * 60_000;
+
+export interface AuthResult {
+  done: boolean;
+  limit?: Record<string, unknown>;
+  ticket?: string;
+  error?: string;
+  /** ms, when the background wrote it */
+  at: number;
+}
+
+/** The stored login result when it is well formed and recent, else null. */
+export function readAuthResult(v: unknown, now: number): AuthResult | null {
+  if (!v || typeof v !== "object") return null;
+  const r = v as Record<string, unknown>;
+  if (typeof r.done !== "boolean" || typeof r.at !== "number" || r.at > now || now - r.at > AUTH_RESULT_MS) return null;
+  const out: AuthResult = { done: r.done, at: r.at };
+  if (r.limit && typeof r.limit === "object") out.limit = r.limit as Record<string, unknown>;
+  if (typeof r.ticket === "string") out.ticket = r.ticket;
+  if (typeof r.error === "string") out.error = r.error;
+  return out;
+}

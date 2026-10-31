@@ -17,6 +17,15 @@ export interface UiEnv {
   beta: boolean;
   /** Theme choice (storage.local, written by the UI directly) */
   theme: ThemeStore;
+  /** storage.session for the login tab (Firefox Google or Apple result); absent in screenshot mode. */
+  session?: SessionStore;
+}
+
+export interface SessionStore {
+  get(key: string): Promise<unknown>;
+  remove(key: string): Promise<void>;
+  /** Calls cb with each new value of key; returns the function that stops it. */
+  watch(key: string, cb: (v: unknown) => void): () => void;
 }
 
 type Attrs = Record<string, string | boolean | ((ev: Event) => void)>;

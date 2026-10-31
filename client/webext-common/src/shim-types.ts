@@ -22,6 +22,7 @@ export interface MessageSender {
 
 export interface Event<F> {
   addListener(f: F): void;
+  removeListener(f: F): void;
 }
 
 export interface MenuInfo {

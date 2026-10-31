@@ -1,9 +1,9 @@
 // Sign-in flows (catalog Auth; component-webext section 7 Login): email code,
 // Google and Apple. The ticket then registers, logs in or deletes.
-import { API_BASE, ApiError } from "../api/client.ts";
+import { API_BASE, ApiError, errorText } from "../api/client.ts";
 import { b64urlEncode } from "../crypto/b64url.ts";
 import { normalizeEmail, oauthK } from "../crypto/labels.ts";
-import { type Restore, SIGNIN_PROGRESS, restoreStep } from "../model/signin.ts";
+import { AUTH_RESULT, type AuthResult, type Restore, SIGNIN_PROGRESS, restoreStep } from "../model/signin.ts";
 import type { Engine } from "./engine.ts";
 import { UserError } from "./engine.ts";
 import { T } from "./texts.ts";
@@ -105,7 +105,16 @@ export class Login {
     await this.e.p.storageSession.remove([AUTH_PENDING]); // consumed once
     this.e.p.closeTab(tabId);
     const f = parseFragment("#" + hash.replace(/^#/, ""));
-    return this.complete(pend.purpose, f.ticket ?? "", f.email ?? null);
+    // The content script drops the reply: the login view reads the result from storage.session.
+    const report = (r: Omit<AuthResult, "at">) => this.e.p.storageSession.set({ [AUTH_RESULT]: { ...r, at: this.e.p.now() } });
+    try {
+      const r = await this.complete(pend.purpose, f.ticket ?? "", f.email ?? null);
+      await report(r);
+      return r;
+    } catch (err) {
+      await report({ done: false, error: err instanceof UserError ? err.message : errorText(err) });
+      throw err;
+    }
   }
 
   async complete(purpose: Purpose, ticket: string, email: string | null, evict?: string[]): Promise<LoginResult> {
