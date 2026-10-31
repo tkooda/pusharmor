@@ -239,6 +239,7 @@ button.ac svg { color: var(--primary); }
 .e2e svg { flex: none; color: var(--success); }
 .signin .e2e { margin-top: 20px; padding: 14px 16px; border-radius: var(--rc); background: var(--s1); }
 .signin > .dim { margin-top: 12px; font-size: 14px; line-height: 20px; }
+body.page .signin { max-width: 400px; margin: 0 auto; }
 
 /* Full tab: sign-in card on the plate, one step at a time. */
 .banner { font-weight: 600; margin: 8px 0; }
