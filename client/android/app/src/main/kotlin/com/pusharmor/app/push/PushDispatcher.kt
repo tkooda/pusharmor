@@ -19,8 +19,8 @@ object PushDispatcher {
         }
     }
 
-    /** Any failure in the handler drops the push with the generic notice instead of crashing. */
+    /** Any failure in the handler drops the push with the generic notice instead of crashing; a failing notice is dropped too. */
     fun guard(onFail: () -> Unit, block: () -> Unit) {
-        try { block() } catch (e: Exception) { onFail() }
+        try { block() } catch (e: Exception) { try { onFail() } catch (_: Exception) {} }
     }
 }
