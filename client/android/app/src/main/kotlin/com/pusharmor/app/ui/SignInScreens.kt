@@ -113,8 +113,8 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onDone
                 style = MaterialTheme.typography.bodyLarge, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
             val status = when {
                 banner != null -> null
-                purpose == "login" -> "Logged out. Log in to resume"
-                purpose == "delete-account" -> "Log in to confirm deleting the account"
+                purpose == "login" -> "Logged out. Log in to resume."
+                purpose == "delete-account" -> "Log in to confirm deleting the account."
                 else -> null
             }
             banner?.let { Spacer(Modifier.height(12.dp)); Text(it, color = cs.error, textAlign = TextAlign.Center) }
