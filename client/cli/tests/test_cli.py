@@ -550,6 +550,22 @@ def test_damaged_state_file_is_one_line_exit_1(monkeypatch, tmp_path, net, capsy
     assert str(path) in err
 
 
+@pytest.mark.parametrize("change", [
+    lambda d: d.pop("name"), lambda d: d.pop("topic"), lambda d: d.update(peers=[]), lambda d: d.update(ntfy=1),
+    lambda d: d.update(my_allow=[1]), lambda d: d.update(since=5), lambda d: d.update(peers={"x": 1}),
+    lambda d: d.update(peers={"x": {"pinned": True}}), lambda d: d.update(pairs={"x": {"role": "N"}})])
+def test_damaged_state_shape_is_one_line_exit_1(change, monkeypatch, tmp_path, net, capsys):
+    cfg = _logged_in(monkeypatch, tmp_path, net)
+    path = cfg / "devices.toml"
+    d = pa.toml_loads(path.read_text())
+    change(d)
+    path.write_text(pa.toml_dumps(d))
+    capsys.readouterr()
+    for argv in (["send", "hi"], ["pair"], ["listen"], ["rename", "zz"], ["logout"]):
+        assert run(cfg, *argv) == 1
+        assert capsys.readouterr().err == "%s is damaged. Delete it and log in again.\n" % path
+
+
 def test_wrong_key_length_is_damaged(monkeypatch, tmp_path, net, capsys):
     cfg = _logged_in(monkeypatch, tmp_path, net)
     path = cfg / "keys" / "private.toml"
