@@ -19,15 +19,19 @@ Or download `pusharmor.py` from the GitHub release, check its SHA-256 against
 
 ## Commands
 
-- `login`
-- `logout`
-- `pair`
-- `listen`
-- `send`
-- `rename`
-- `delete`
+- `pusharmor login` - log in this device (open the link it shows, then paste the code).
+- `pusharmor pair` - list your devices; `pusharmor pair ID` pairs with one: compare the
+  fingerprint on both devices, then approve.
+- `pusharmor send TEXT` - send a link or text to all paired devices; `--to ID` for one,
+  `--text` to send a link as plain text. With `-` or piped input it reads stdin.
+- `pusharmor listen` - print messages as they arrive; `--json`, `--tsv`, or
+  `--exec PROG` (runs PROG ID NAME PLATFORM TYPE BODY per message).
+- `pusharmor rename NAME` - change the name your other devices show.
+- `pusharmor logout` - log out; keys and paired devices stay on this device.
+- `pusharmor delete ID` - remove a device from your account (this device too).
 
-Run `pusharmor COMMAND --help` for details.
+Run `pusharmor COMMAND --help` for details. Files live in `~/.config/pusharmor`
+(or `$XDG_CONFIG_HOME/pusharmor`, `$PUSHARMOR_CONFIG`, or `--config DIR`).
 
 ## Needs
 
