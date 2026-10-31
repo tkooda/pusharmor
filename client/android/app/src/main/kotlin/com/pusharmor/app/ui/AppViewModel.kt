@@ -22,6 +22,7 @@ import com.pusharmor.store.toRow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -46,6 +47,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Peer limit picker state (409 "peer limit"). */
     val limit = MutableStateFlow<WorkerClient.PeerLimit?>(null)
     val highlight = MutableStateFlow<String?>(null)
+
+    companion object {
+        /** A signed-in screen whose device the relay server removed or logged out goes back to log in (I465). */
+        fun needsReboot(start: Session.Start?, selfPresent: Boolean, signedOut: Boolean): Boolean =
+            start == Session.Start.READY && (!selfPresent || signedOut)
+    }
+
+    init {
+        viewModelScope.launch {
+            combine(g.dao.selfFlow(), g.settings.data) { s, p -> (s != null) to (p[Settings.K.SIGNED_OUT] == true) }
+                .collect { (present, out) -> if (needsReboot(start.value, present, out)) boot() }
+        }
+    }
 
     fun io(block: suspend () -> Unit) = viewModelScope.launch(Dispatchers.IO) {
         busy.value = true
