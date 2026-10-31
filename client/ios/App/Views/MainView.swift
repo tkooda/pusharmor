@@ -23,6 +23,7 @@ struct MainView: View {
         )) {
             if let row = model.detailRow {
                 MessageDetailView(row: row)
+                    .presentationDetents([.medium, .large])
             }
         }
     }
