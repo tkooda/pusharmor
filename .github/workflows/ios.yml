@@ -151,11 +151,23 @@ jobs:
           bash tools/release-archive.sh "$RUNNER_TEMP/PushArmor.xcarchive" "$TEAM" 0.0.0 1
           bash tools/check-release-bundle.sh "$RUNNER_TEMP/PushArmor.xcarchive"
 
+  # Shards by test class. Unit covers the whole PushArmorTests target, and the
+  # last shard skips what the others name, so a new test class is never missed.
   ios-sim-test:
-    name: app tests (newest simulator)
+    name: app tests (newest simulator, ${{ matrix.shard }})
     if: github.event_name != 'schedule'
     runs-on: macos-26
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: unit
+            filter: -only-testing:PushArmorTests
+          - shard: ui-brand
+            filter: -only-testing:PushArmorUITests/BrandScreensTests
+          - shard: ui-rest
+            filter: -only-testing:PushArmorUITests -skip-testing:PushArmorUITests/BrandScreensTests
     permissions:
       contents: read
     steps:
@@ -197,18 +209,20 @@ jobs:
           xcrun simctl list runtimes | grep -q '^iOS 26\.' || { echo "no iOS 26 simulator runtime"; exit 1; }
           xcrun simctl list devices available | grep -qF "    $SIM_NAME (" || { echo "no $SIM_NAME simulator"; exit 1; }
       # Scheme test action: PushArmorTests + PushArmorUITests (owner ruling Q194 A).
-      - name: xcodebuild test (PushArmor scheme)
+      - name: xcodebuild test (PushArmor scheme, ${{ matrix.shard }})
         working-directory: client/ios
+        env:
+          FILTER: ${{ matrix.filter }}
         run: >-
           xcodebuild test -project PushArmor.xcodeproj -scheme PushArmor
           -destination "platform=iOS Simulator,name=$SIM_NAME,OS=latest"
-          -disableAutomaticPackageResolution
+          -disableAutomaticPackageResolution $FILTER
           -resultBundlePath "$RUNNER_TEMP/PushArmor.xcresult"
       - name: Upload the result bundle
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ios-sim-test-xcresult
+          name: ios-sim-test-xcresult-${{ matrix.shard }}
           path: ${{ runner.temp }}/PushArmor.xcresult
           retention-days: 7
 

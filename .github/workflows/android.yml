@@ -52,10 +52,10 @@ jobs:
           path: client/android/*/build/test-results/
           retention-days: 7
 
-  android-build:
-    name: lint, debug and release builds, release APK check
+  android-lint:
+    name: lint
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 20
     permissions:
       contents: read
     defaults:
@@ -90,10 +90,94 @@ jobs:
           fi
       - name: Lint
         run: ./gradlew --no-daemon --stacktrace :app:lintPlayDebug :app:lintFossDebug
+
+  android-debug:
+    name: debug builds
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: client/android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      - name: Android SDK packages (exact)
+        run: |
+          # shellcheck disable=SC2086
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install $SDK_PACKAGES < /dev/null
+      # The release values gate rejects PLACEHOLDER values; CI dummies let the
+      # release variants compile (R8 included). Outputs are never uploaded.
+      - name: CI dummies when release/public.json has PLACEHOLDER values
+        working-directory: .
+        run: |
+          if grep -qi placeholder release/public.json; then
+            node release/ci-dummy.mjs
+            echo "PA_CI_DUMMY=1" >> "$GITHUB_ENV"
+          fi
       - name: Debug builds
         run: ./gradlew --no-daemon --stacktrace :app:assemblePlayDebug :app:assembleFossDebug
+      - name: Upload debug APKs
+        if: >-
+          !startsWith(github.ref, 'refs/tags/') &&
+          (github.event_name == 'push' || github.event_name == 'workflow_dispatch' ||
+          github.event.pull_request.head.repo.full_name == github.repository)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-debug-apks
+          path: client/android/app/build/outputs/apk/*/debug/*.apk
+          retention-days: 7
+
+  android-release:
+    name: release builds, release APK check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: client/android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      - name: Android SDK packages (exact)
+        run: |
+          # shellcheck disable=SC2086
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install $SDK_PACKAGES < /dev/null
+      # The release values gate rejects PLACEHOLDER values; CI dummies let the
+      # release variants compile (R8 included). Outputs are never uploaded.
+      - name: CI dummies when release/public.json has PLACEHOLDER values
+        working-directory: .
+        run: |
+          if grep -qi placeholder release/public.json; then
+            node release/ci-dummy.mjs
+            echo "PA_CI_DUMMY=1" >> "$GITHUB_ENV"
+          fi
       - name: Release builds (unsigned, R8)
-        run: ./gradlew --no-daemon --stacktrace :app:assemblePlayRelease :app:assembleFossRelease :app:bundlePlayRelease
+        run: ./gradlew --no-daemon --stacktrace :app:assemblePlayRelease :app:assembleFossRelease
       # No test hooks in a release build (owner rule Q194).
       - name: Release APK check (play, foss)
         run: |
@@ -106,13 +190,42 @@ jobs:
             echo "the foss release dependency tree holds the artifacts above"
             exit 1
           fi
-      - name: Upload debug APKs
-        if: >-
-          !startsWith(github.ref, 'refs/tags/') &&
-          (github.event_name == 'push' || github.event_name == 'workflow_dispatch' ||
-          github.event.pull_request.head.repo.full_name == github.repository)
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+
+  android-bundle:
+    name: release bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: client/android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          name: android-debug-apks
-          path: client/android/app/build/outputs/apk/*/debug/*.apk
-          retention-days: 7
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.node-version
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      - name: Android SDK packages (exact)
+        run: |
+          # shellcheck disable=SC2086
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install $SDK_PACKAGES < /dev/null
+      # The release values gate rejects PLACEHOLDER values; CI dummies let the
+      # release variants compile (R8 included). Outputs are never uploaded.
+      - name: CI dummies when release/public.json has PLACEHOLDER values
+        working-directory: .
+        run: |
+          if grep -qi placeholder release/public.json; then
+            node release/ci-dummy.mjs
+            echo "PA_CI_DUMMY=1" >> "$GITHUB_ENV"
+          fi
+      - name: Release bundle (play)
+        run: ./gradlew --no-daemon --stacktrace :app:bundlePlayRelease

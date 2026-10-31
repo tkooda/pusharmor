@@ -13,7 +13,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -73,15 +73,20 @@ jobs:
           fi
           printf '%s\n' "$files"
           hit() { [ "$all" = 1 ] || printf '%s\n' "$files" | grep -Eq "$1"; }
-          # shared paths count as every component
-          if hit '^(\.github/|release/|tests/vectors/|package-lock\.json$|\.npmrc$|\.node-version$|site/\.node-version$)'; then all=1; fi
-          out() { if hit "$2"; then echo "$1=true"; else echo "$1=false"; fi >> "$GITHUB_OUTPUT"; }
+          # Strict shared paths (workflows, release values, vectors, node pins) count as
+          # every component. The npm lockfile and .npmrc reach only the npm-based
+          # components, not the Android or iOS builds.
+          if hit '^(\.github/|release/|tests/vectors/|\.node-version$|site/\.node-version$)'; then all=1; fi
+          npmall=0
+          if [ "$all" = 0 ] && printf '%s\n' "$files" | grep -Eq '^(package-lock\.json|\.npmrc)$'; then npmall=1; fi
+          out() { if [ "$npmall" = 1 ] || hit "$2"; then echo "$1=true"; else echo "$1=false"; fi >> "$GITHUB_OUTPUT"; }
+          outn() { if hit "$2"; then echo "$1=true"; else echo "$1=false"; fi >> "$GITHUB_OUTPUT"; }
           out worker '^server/(worker|tools|deploy)/'
           # the site checks also read the Firefox manifest and the Worker wrangler pin
           out site '^(site/|client/firefox/|server/worker/package\.json$)'
           out webext '^client/(webext-common|chrome|firefox)/'
-          out android '^client/android/'
-          out ios '^client/ios/'
+          outn android '^client/android/'
+          outn ios '^client/ios/'
           out cli '^client/cli/'
           out vectors '^(server/worker|client/(webext-common|chrome|firefox|android|ios))/'
           cat "$GITHUB_OUTPUT"
