@@ -1729,7 +1729,14 @@ def receive_inner(cx, pt, src):
         cx.store.wipe()
         raise Fail(wipe, EXIT_LOGIN)
     if rec and cx.emit:
-        cx.emit(rec)
+        try:
+            cx.emit(rec)
+        except Exception:  # not shown (a closed pipe): forget it was received, so the next listen shows it
+            with cx.store.state() as d:
+                p = d["peers"].get(r["from"])
+                if p:
+                    p["seen"] = [m for m in p["seen"] if m != r["n"]]
+            raise
 
 
 def act(cx, d, r, p, notes):
@@ -2398,7 +2405,7 @@ def cmd_listen(cx, args):
     cx.mode = "listen"
     fmt = "json" if args.json else "tsv" if args.tsv else "blocks"
     with contextlib.suppress(AttributeError, ValueError):
-        sys.stdout.reconfigure(line_buffering=True)
+        sys.stdout.reconfigure(line_buffering=True, errors="replace")  # "?" for what the terminal cannot show
 
     def emit(rec):
         if args.exec:

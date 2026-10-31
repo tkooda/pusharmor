@@ -374,6 +374,26 @@ def test_pair_send_listen(net, tmp_path, monkeypatch, capsys):
     assert not os.path.exists(b / "keys" / "private.toml")
 
 
+def test_listen_keeps_a_message_it_could_not_show(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    pair_two(monkeypatch, net, a, b)
+    assert run(a, "send", "caf\u00e9 one") == 0
+    net.stop.set()
+    capsys.readouterr()
+    real = sys.stdout
+    monkeypatch.setattr(sys, "stdout", BrokenOut())  # listen | head -0
+    assert run(b, "listen", "--tsv") == 1
+    raw = io.BytesIO()
+    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(raw, encoding="ascii"))  # LANG=C
+    assert run(b, "listen", "--tsv") == 130
+    sys.stdout.flush()
+    monkeypatch.setattr(sys, "stdout", real)
+    assert raw.getvalue().decode().split("\t")[4] == "caf? one"
+    assert capsys.readouterr().err.count("Listening.") == 2
+    assert run(b, "listen", "--tsv") == 130
+    assert capsys.readouterr().out == ""
+
+
 def test_send_no_devices_and_logout(net, tmp_path, monkeypatch, capsys):
     login(monkeypatch, tmp_path)
     assert run(tmp_path, "send", "hi") == 4
