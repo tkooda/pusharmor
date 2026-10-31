@@ -54,8 +54,7 @@ enum ScreenshotSample {
         }
         guard let laptop = PeerId(text: id("L")), let desktop = PeerId(text: id("W"))
         else { return store }
-        // History times sit just before the 9:41 status bar clock. Two rows: on the Send tab a third
-        // sits half under the pinned recipients and Send button (03-send).
+        // History times sit just before the 9:41 status bar clock (History tab).
         let clock = Int64((Calendar.current.date(bySettingHour: 9, minute: 41, second: 0, of: Date()) ?? Date())
             .timeIntervalSince1970)
         try store.addMessage(dir: .incoming, peer: desktop, type: "text", content: "Meeting moved to 3 pm, room B", n: nil,
