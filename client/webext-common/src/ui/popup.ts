@@ -7,7 +7,7 @@ import type { Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
 import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, nextTabIndex, peerStatus, rpc, sh, shortTime } from "./dom.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
-import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
+import { devicesArt, icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
 import { ownCard, renderPeers } from "./peersview.ts";
 import { THEME_CHOICES, parseTheme, setTheme, startTheme } from "./theme.ts";
 
@@ -74,7 +74,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
     const wait = h("div", { class: "loading", role: "status" }, "Loading...");
     const slow = setTimeout(() => pane.isConnected && !pane.firstChild && body.prepend(wait), 150);
     let ready: Promise<unknown> = Promise.resolve();
-    if (t === "send") ready = sendView(env, pane, st, prefill).then(() => prefill !== undefined && pane.querySelector("textarea")?.focus());
+    if (t === "send") ready = sendView(env, pane, st, prefill, false, () => show("peers")).then(() => prefill !== undefined && pane.querySelector("textarea")?.focus());
     if (t === "history") ready = historyView(env, pane, (text) => show("send", text));
     if (t === "peers") ready = renderPeers(env, pane, false);
     if (t === "settings") ready = settingsView(env, pane, st, () => mountPopup(env, root));
@@ -103,7 +103,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
 
 const TYPE_ICON: Record<string, IconName> = { url: "link", tel: "call", text: "notes" };
 
-export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, prefill?: string, offerCut = false): Promise<void> {
+export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, prefill?: string, offerCut = false, openDevices?: () => void): Promise<void> {
   const field = h("textarea", { rows: "3", "aria-label": "Text to send" }) as HTMLTextAreaElement;
   field.value = prefill ?? (await env.activeUrl().catch(() => ""));
   const caption = h("span", { class: "caption" });
@@ -118,6 +118,21 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   const data = await rpc<{ peers: PeerView[] }>(env, "peers");
   // Like Android: a device that cannot receive right now is a greyed chip, never selected and not counted.
   const sendable = data.peers.filter(canReceiveNow);
+  // No device to send to (and none greyed): say how to pair one instead of an empty Send form.
+  if (!sendable.length && !data.peers.some((x) => x.greyed && !x.hidden)) {
+    root.append(
+      h(
+        "div",
+        { class: "empty send-empty" },
+        devicesArt(96),
+        h("div", { class: "e-title" }, "Pair a device first"),
+        h("ol", { class: "howto" }, h("li", {}, "Install PushArmor on the other device."), h("li", {}, "Log in with the same account."), h("li", {}, "Open Devices here and tap Pair on it.")),
+        h("button", { class: "tonal", onclick: () => (openDevices ? openDevices() : void env.openPage("#peers")) }, icon("devices", 18), "Open Devices"),
+      ),
+      h("div", { class: "grow" }),
+    );
+    return;
+  }
   const checks: { id: string; chip: HTMLButtonElement }[] = [];
   const on = (c: HTMLElement) => c.classList.contains("on");
   const remembered = rememberedSelection(await rpc<string[]>(env, "sendSel").catch(() => []), sendable.map((p) => p.id));
