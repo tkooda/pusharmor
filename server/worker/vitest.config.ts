@@ -14,6 +14,8 @@ export default defineConfig(async () => {
           bindings: {
             ...TEST_SECRETS,
             TEST_MIGRATIONS: migrations,
+            // Every request line is logged in tests (scrub check, D1 cost lines).
+            PA_LOG_SAMPLE: "1",
             GOOGLE_FCM_PROJECT_ID: "test-project",
             APPLE_APNS_TOPIC: "com.example.pusharmor",
             APPLE_APNS_KEY_ID: "TESTAPNSKID",

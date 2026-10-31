@@ -10,7 +10,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.lifecycle.lifecycleScope
+import com.pusharmor.net.ErrorText
 import com.pusharmor.protocol.ContentType
 import com.pusharmor.protocol.Detect
 import com.pusharmor.protocol.Peer
@@ -27,7 +31,6 @@ import com.pusharmor.protocol.SizeCap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 
 /** Share sheet entry (section 7): ACTION_SEND text/plain. */
 class ShareActivity : ComponentActivity() {
@@ -37,48 +40,58 @@ class ShareActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: intent.getStringExtra(Intent.EXTRA_SUBJECT)
         if (text == null) { finish(); return }
+        // The dialog shows at once: a placeholder until the peer read returns, never a blank box.
+        setContent { AppTheme(vm) { Surface(color = MaterialTheme.colorScheme.background) { CircularProgressIndicator(Modifier.padding(24.dp)) } } }
         lifecycleScope.launch {
             // Room refuses main-thread reads.
-            val all = withContext(Dispatchers.IO) { if (vm.g.identity() == null) null else vm.g.store.peers().filter { it.inAll } }
-            if (all == null) finish() else show(text, all)
+            val update = withContext(Dispatchers.IO) { vm.g.settings.updateRequired(com.pusharmor.app.BuildConfig.VERSION_NAME) }
+            // Q349: this version got HTTP 426, so the share sheet shows the update screen, never a send that fails.
+            if (update) { showUpdate(); return@launch }
+            val all = withContext(Dispatchers.IO) {
+                if (!canShare(vm.g.identity() != null, vm.g.settings.flag(com.pusharmor.app.data.Settings.K.SIGNED_OUT, false))) null
+                else vm.g.store.peers().filter { it.inAll }
+            }
+            // Logged out or not set up: the app opens at log in, never a Send screen that cannot send (I470).
+            if (all == null) { startActivity(Intent(this@ShareActivity, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); finish() }
+            else show(text, all)
         }
     }
 
     private fun show(text: String, all: List<Peer>) {
+        // Another app can start this activity, so it never sends on its own: the target is only preselected
+        // and the user must tap Send.
         val direct = directTarget(intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID), all.map { it.id })
         val tooLong = SizeCap.utf8Size(text) > SizeCap.MAX_CONTENT_BYTES
         val type = Detect.type(text)
-        if (!tooLong && direct != null) { send(listOf(direct), text); return }
         setContent {
-            MaterialTheme {
+            AppTheme(vm) { Surface(color = MaterialTheme.colorScheme.background) {
                 var cut by remember { mutableStateOf<String?>(null) }
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (tooLong && cut == null) {
-                        if (type == ContentType.TEXT) {
-                            Text("Too long (${SizeCap.utf8Size(text)} / 2048)")
-                            Button(onClick = { cut = SizeCap.truncateUtf8(text) }) { Text("Send the first 2048 bytes") }
-                        } else {
-                            Text("Too long (${SizeCap.utf8Size(text)} / 2048)")
-                        }
+                        Text(UiText.shareTooLong(SizeCap.utf8Size(text), type == ContentType.TEXT))
+                        if (type == ContentType.TEXT) Button(onClick = { cut = SizeCap.truncateUtf8(text) }) { Text("Send the first 2048 bytes") }
+                        OutlinedButton(onClick = { finish() }) { Text("Close") }
                     } else {
-                        SendScreen(vm, cut ?: text) { r -> toastAndFinish(r) }
+                        SendScreen(vm, cut ?: text, preselect = direct, onDevices = {
+                            startActivity(MainActivity.openIntent(this@ShareActivity, "peers").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); finish()
+                        }) { r -> if (r == ErrorText.UPDATE) showUpdate() else toastAndFinish(r) }
                     }
                 }
-            }
+            } }
         }
     }
 
     companion object {
-        /** Direct send target: a shortcut id that is in the All set, else the only All peer, else null (picker). */
+        /** The share sheet shows Send only for a registered device that is not logged out (I470). */
+        fun canShare(registered: Boolean, signedOut: Boolean): Boolean = registered && !signedOut
+
+        /** Preselected target: a shortcut id that is in the All set, else the only All peer, else null. Never sent without a tap. */
         fun directTarget(shortcutId: String?, allIds: List<String>): String? =
             if (shortcutId != null && shortcutId in allIds) shortcutId else allIds.singleOrNull()
     }
 
-    private fun send(ids: List<String>, text: String) {
-        lifecycleScope.launch {
-            val r = withTimeoutOrNull(10_000) { vm.send(ids, text, asText = false) }
-            toastAndFinish(r ?: "Sending")
-        }
+    private fun showUpdate() {
+        setContent { AppTheme(vm) { Surface(color = MaterialTheme.colorScheme.background) { UpdateScreen(Modifier.padding(vertical = 24.dp)) } } }
     }
 
     private fun toastAndFinish(text: String) {

@@ -5,8 +5,9 @@ import { env } from "cloudflare:test";
 import { b64urlEncode } from "../src/codec/b64url";
 import { probeCode } from "../src/routes/common";
 import fixture from "./d1-cost.json";
-import { call, captured, initP256, keys, message, newPeer, pushFor, randomEmail, register, setAllow, ticketFor, type CallResult, type Peer } from "./helpers";
+import { call, initP256, keys, message, newPeer, pushFor, randomEmail, meterD1, register, setAllow, ticketFor, type CallResult, type Peer } from "./helpers";
 import { TEST_SECRETS as S } from "./secrets";
+import { PUSH_FAILED_COL } from "../src/db/sql";
 
 beforeAll(initP256);
 
@@ -39,11 +40,8 @@ async function pending(me: Peer, others: Peer[], q: number): Promise<void> {
 }
 
 async function measured(run: () => Promise<CallResult>): Promise<{ rows_read: number; rows_written: number; status: number }> {
-  const before = captured.length;
-  const r = await run();
-  const lines = captured.slice(before).map((l) => JSON.parse(l)).filter((o) => o.route && o.route !== "cron");
-  const last = lines[lines.length - 1];
-  return { rows_read: last.rows_read ?? 0, rows_written: last.rows_written ?? 0, status: r.status };
+  const m = await meterD1(run);
+  return { rows_read: m.rows_read, rows_written: m.rows_written, status: m.result.status };
 }
 
 const ghost = (p: Peer) => p.acct + b64urlEncode(crypto.getRandomValues(new Uint8Array(21)));
@@ -72,6 +70,7 @@ for (const n of NS) {
     },
   });
   scenarios.push({ endpoint: "GET /peers", n, k: 0, q: 0, run: async () => { const ps = await account(n); return measured(() => call("GET", "/v1/peers", undefined, { peer: ps[0] })); } });
+  scenarios.push({ endpoint: "PATCH listening", n, k: 0, q: 0, run: async () => { const ps = await account(n - 1); const me = await newPeer(ps[0]?.email ?? randomEmail(), "cli", null); await env.DB.prepare(`UPDATE peers SET ${PUSH_FAILED_COL} = 1 WHERE id = ?1`).bind(me.id).run(); return measured(() => call("PATCH", "/v1/peers/" + me.id, { listening: true }, { peer: me })); } });
   scenarios.push({ endpoint: "PATCH push", n, k: 0, q: 0, run: async () => { const ps = await account(n); return measured(() => call("PATCH", "/v1/peers/" + ps[0].id, { push: pushFor("android") }, { peer: ps[0] })); } });
   scenarios.push({
     endpoint: "PATCH rename", n, k: n - 1, q: 0,
@@ -84,11 +83,11 @@ for (const n of NS) {
     },
   });
   scenarios.push({
-    endpoint: "POST pause", n, k: n - 1, q: 0,
+    endpoint: "POST logout", n, k: n - 1, q: 0,
     run: async () => {
       const ps = await account(n);
       await allApproved(ps);
-      return measured(() => call("POST", `/v1/peers/${ps[0].id}/pause`, { m: mOf(ps.slice(1)) }, { peer: ps[0] }));
+      return measured(() => call("POST", `/v1/peers/${ps[0].id}/logout`, { m: mOf(ps.slice(1)) }, { peer: ps[0] }));
     },
   });
   scenarios.push({
@@ -170,12 +169,12 @@ scenarios.push({
   },
 });
 scenarios.push({
-  endpoint: "POST unpause", n: 5, k: 4, q: 0,
+  endpoint: "POST login", n: 5, k: 4, q: 0,
   run: async () => {
     const ps = await account(5);
     await allApproved(ps);
-    await env.DB.prepare("UPDATE peers SET paused = 1 WHERE id = ?1").bind(ps[0].id).run();
-    return measured(async () => call("POST", `/v1/peers/${ps[0].id}/unpause`, { ticket: await ticketFor(ps[0].email, ps[0].signPub, "unpause"), m: mOf(ps.slice(1)) }, { peer: ps[0] }));
+    await env.DB.prepare("UPDATE peers SET logged_out = 1 WHERE id = ?1").bind(ps[0].id).run();
+    return measured(async () => call("POST", `/v1/peers/${ps[0].id}/login`, { ticket: await ticketFor(ps[0].email, ps[0].signPub, "login"), m: mOf(ps.slice(1)) }, { peer: ps[0] }));
   },
 });
 scenarios.push({

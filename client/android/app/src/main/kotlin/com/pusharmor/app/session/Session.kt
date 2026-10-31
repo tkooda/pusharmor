@@ -35,12 +35,18 @@ class Session(private val g: Graph) {
     enum class Start { SIGN_IN, SIGNED_OUT, READY, KEYS_UNAVAILABLE }
 
     companion object {
-        const val REMOVED = "This device was removed. Sign in again"
-        const val LOST_KEYS = "This device lost its keys. Sign in again"
-        const val DELETED = "Account deleted on another peer"
-        const val KEYS_UNAVAILABLE = "Keys unavailable; restart your phone"
-        const val NO_GOOGLE_PUSH = "This build has no Google push; install a UnifiedPush app or reinstall from Play"
+        /** A call that needs this device's keys, with none set up (I528). */
+        const val NO_KEYS = "This device is not logged in. Log in again."
+        const val BAD_REPLY = "Could not log in. Try again."
+        const val REMOVED = "This device was removed. Log in again."
+        const val LOST_KEYS = "This device lost its keys. Log in again."
+        const val DELETED = "Account deleted on another device."
+        const val KEYS_UNAVAILABLE = "Keys unavailable. Restart this device."
+        const val NO_GOOGLE_PUSH = "This build has no Google push. Install a UnifiedPush app or reinstall from Play."
         const val REFRESH_GREY_MS = 60_000L
+
+        /** Refresh text for a GET /peers that did not settle (I517): its relay server error, else the connection text. */
+        fun refreshError(failure: ApiResult<*>?): String = ErrorText.of(failure ?: ApiResult.Network)
     }
 
     private val s get() = g.settings
@@ -102,7 +108,7 @@ class Session(private val g: Graph) {
 
     val signedOut: Boolean get() = s.flag(Settings.K.SIGNED_OUT, false) && dao.self() != null
 
-    fun purposeForSignIn(): String = if (signedOut) "unpause" else "register"
+    fun purposeForSignIn(): String = if (signedOut) "login" else "register"
 
     /**
      * Keys are made BEFORE sign-in (sign_pub goes into the auth call); a signed-out device keeps its keys.
@@ -122,18 +128,18 @@ class Session(private val g: Graph) {
     /** A ticket arrived (email code, Google token, or the App Link). */
     fun onTicket(ticket: String, email: String?, evict: List<String>? = null): SignIn {
         if (email != null) s.set(Settings.K.BANNER, null)
-        return if (signedOut) unpause(ticket) else register(ticket, email, evict)
+        return if (signedOut) login(ticket) else register(ticket, email, evict)
     }
 
     private fun register(ticket: String, email: String?, evict: List<String>?): SignIn {
-        val k = g.keysOrNull ?: return SignIn.Error("No keys")
+        val k = g.keysOrNull ?: return SignIn.Error(NO_KEYS)
         val sp = B64url.encode(k.signPub); val ep = B64url.encode(k.encPub)
         // POST /peers is signed by the new key with no PA-ID: the client signs with keysOrNull.
         return when (val r = g.client.register(ticket, sp, ep, evict)) {
             is WorkerClient.RegisterResult.Ok -> {
                 val id = r.registered.id
                 val raw = Ids.decodeId(id)
-                if (raw == null || !raw.copyOfRange(9, 21).contentEquals(Ids.keyhash(k.signPub, k.encPub))) return SignIn.Error("Bad reply")
+                if (raw == null || !raw.copyOfRange(9, 21).contentEquals(Ids.keyhash(k.signPub, k.encPub))) return SignIn.Error(BAD_REPLY)
                 dao.putSelf(SelfEntity(id = id, accountPrefix = raw.copyOf(9), email = email, name = defaultName()))
                 g.sync().merge(r.registered.peers)
                 s.set(Settings.K.SIGNED_OUT, false)
@@ -152,11 +158,12 @@ class Session(private val g: Graph) {
         }
     }
 
-    private fun unpause(ticket: String): SignIn {
-        val r = g.pause().unpause(ticket)
+    private fun login(ticket: String): SignIn {
+        val r = g.logoutFlow().login(ticket)
         if (r !is ApiResult.Ok) return SignIn.Error(ErrorText.of(r))
         s.set(Settings.K.SIGNED_OUT, false)
-        // after a successful unpause: the app-start push reconcile at once, and one GET /peers
+        s.set(Settings.K.LOGOUT_PENDING, null)
+        // after a successful login: the app-start push reconcile at once, and one GET /peers
         g.push.start(g)
         pushReconcile()
         fetchPeers(force = true)
@@ -173,22 +180,40 @@ class Session(private val g: Graph) {
 
     private fun defaultName(): String {
         val n = SysSettings.Global.getString(g.app.contentResolver, SysSettings.Global.DEVICE_NAME).orEmpty()
-            .filter { it.code in 0x20..0x7e }.trim().take(32)
+            .filter { it.code in 0x20..0x7e && it != '"' }.trim().take(32)
         return n.ifEmpty { "Android" }
     }
 
     // ---- sign out / delete ----------------------------------------------------------------
 
-    fun signOut(): String? {
-        val r = g.pause().pause()
-        if (r !is ApiResult.Ok) return ErrorText.of(r)
+    /**
+     * Q368: logged out here at once; the relay server call runs after and is retried (WorkManager,
+     * and again on app open) until it is settled.
+     * No registration left (removed meanwhile): nothing to tell the relay server; still end at log in (I465).
+     */
+    fun signOut() {
+        if (g.identity() != null) s.set(Settings.K.LOGOUT_PENDING, true)
         s.set(Settings.K.SIGNED_OUT, true)
-        return null
+        if (g.identity() != null) Work.logout(g.app)
+    }
+
+    /** Sends a pending logout. true = settled or nothing to send, false = retry later. Dropped once logged in again or removed. */
+    fun logoutNow(): Boolean {
+        if (!s.flag(Settings.K.LOGOUT_PENDING, false)) return true
+        if (g.identity() == null || !s.flag(Settings.K.SIGNED_OUT, false)) { s.set(Settings.K.LOGOUT_PENDING, null); return true }
+        if (!g.logoutFlow().sendPending()) return false
+        s.set(Settings.K.LOGOUT_PENDING, null)
+        return true
+    }
+
+    /** App open while logged out: send a pending logout now. */
+    fun retryPendingLogout() {
+        if (s.flag(Settings.K.LOGOUT_PENDING, false)) Work.logout(g.app)
     }
 
     /** DELETE /account with a delete-account ticket; then wipe everything including the keys. */
     fun deleteAccount(ticket: String): String? {
-        val me = g.identity() ?: return "No keys"
+        val me = g.identity() ?: return NO_KEYS
         val outbox = Outbox(g.store, me)
         val r = ClockSkew.run({
             g.store.allowSet().mapNotNull { g.store.peer(it)?.takeIf { p -> p.pinned } }.associate { it.id to outbox.simple(it, MessageBody.Delete).message }
@@ -228,13 +253,17 @@ class Session(private val g: Graph) {
      * [inPush]: from the 10 s push handler (I299): one short attempt, the reconcile and any
      * retry go to WorkManager.
      */
+    /** Result of the last GET /peers that did not settle, for the Refresh message. */
+    @Volatile private var lastFetchFailure: ApiResult<*>? = null
+
     fun fetchPeers(force: Boolean = false, inPush: Boolean = false): Boolean {
         if (g.identity() == null) return true
         val now = System.currentTimeMillis()
         val last = s.get(Settings.K.LAST_FETCH) ?: 0
         if (!force && now - last < Work.FETCH_WINDOW_MS) { Work.fetchPeers(g.app, s); return true }
         s.set(Settings.K.LAST_FETCH, now)
-        val ok = when (val r = if (inPush) g.client.peersOnce() else g.client.peers()) {
+        val r = if (inPush) g.client.peersOnce() else g.client.peers()
+        val ok = when (r) {
             is ApiResult.Ok -> {
                 g.sync().merge(r.value)
                 if (r.pushMissing || (r.value.myPushSha256 != currentPushHash() && currentPushHash() != null)) Work.patchPush(g.app)
@@ -244,23 +273,25 @@ class Session(private val g: Graph) {
             }
             is ApiResult.Http -> {
                 if (r.isUnknownPeer) selfRemoved(deleted = false, lostKeys = false)
-                if (r.isPaused) s.set(Settings.K.SIGNED_OUT, true)
+                if (r.isLoggedOut) s.set(Settings.K.SIGNED_OUT, true)
                 r.status != 503 && r.status != 429
             }
             ApiResult.Network -> false
         }
         if (!ok && inPush) Work.fetchPeers(g.app, s)
+        if (!ok) lastFetchFailure = r
         return ok
     }
 
-    /** Refresh button (greyed 60 s): GET /peers, push hash check, reconcile, approve re-fetch. */
-    fun refresh(): Boolean {
+    /** Refresh button (greyed 60 s): GET /peers, push hash check, reconcile, approve re-fetch. Returns the error text, or null. */
+    fun refresh(): String? {
         val now = System.currentTimeMillis()
-        if (now - (s.get(Settings.K.LAST_REFRESH) ?: 0) < REFRESH_GREY_MS) return false
+        if (now - (s.get(Settings.K.LAST_REFRESH) ?: 0) < REFRESH_GREY_MS) return null
         s.set(Settings.K.LAST_REFRESH, now)
-        fetchPeers(force = true)
+        lastFetchFailure = null
+        val ok = fetchPeers(force = true)
         refetchWaiting()
-        return true
+        return if (ok) null else refreshError(lastFetchFailure)
     }
 
     /** "Waiting for $X": re-send the same approve on app open and Refresh (I265). */
@@ -281,7 +312,7 @@ class Session(private val g: Graph) {
 
     /** Remove (account-wide): DELETE /peers/$X with a remove message for every pinned allow id. */
     fun removePeer(peerId: String): String? {
-        val me = g.identity() ?: return "No keys"
+        val me = g.identity() ?: return NO_KEYS
         val outbox = Outbox(g.store, me)
         val r = g.reconcile().withMissingRetry {
             ClockSkew.run({
@@ -314,9 +345,9 @@ class Session(private val g: Graph) {
 
     /** Rename this device: PATCH name entries + rename messages for every pinned allow id. */
     fun rename(newName: String): String? {
-        if (!NameEntry.isValidName(newName)) return "1 to 32 printable ASCII characters"
-        val me = g.identity() ?: return "No keys"
-        val self = dao.self() ?: return "No keys"
+        if (!NameEntry.isValidName(newName)) return "Use 1 to 32 plain ASCII characters, no double quotes."
+        val me = g.identity() ?: return NO_KEYS
+        val self = dao.self() ?: return NO_KEYS
         dao.putSelf(self.copy(name = newName))
         val outbox = Outbox(g.store, me)
         val r = g.reconcile().withMissingRetry {
@@ -343,13 +374,13 @@ class Session(private val g: Graph) {
         if (currentPushHash() != dao.self()?.pushHash) Work.patchPush(g.app)
     }
 
-    /** true = done, false = retry later, null = permanent (401 "paused"). */
+    /** true = done, false = retry later, null = permanent (401 "logged out"). */
     fun patchPushNow(): Boolean? {
         val p = currentPush()
         val r = g.client.patchPush(p?.first ?: "null")
         return when {
             r is ApiResult.Ok -> { dao.self()?.let { dao.putSelf(it.copy(pushHash = p?.let { x -> Ids.pushSha256(x.second) })) }; true }
-            r.isPaused -> null
+            r.isLoggedOut -> null
             r.isUnknownPeer -> { selfRemoved(deleted = false, lostKeys = false); null }
             r is ApiResult.Http && r.status in 400..499 && r.status != 429 -> null
             else -> false
@@ -378,7 +409,7 @@ class Session(private val g: Graph) {
         val stale = ShortcutManagerCompat.getDynamicShortcuts(ctx).map { it.id }.filter { it !in ids }
         if (stale.isNotEmpty()) ShortcutManagerCompat.removeDynamicShortcuts(ctx, stale)
         for (p in all) {
-            val label = p.name ?: "Peer"
+            val label = p.name ?: "Device"
             val sc = ShortcutInfoCompat.Builder(ctx, p.id).setShortLabel(label).setLongLived(true)
                 .setIcon(IconCompat.createWithResource(ctx, R.drawable.ic_notify))
                 .setCategories(setOf("com.pusharmor.category.SHARE_TARGET"))

@@ -1,12 +1,13 @@
 // Parallel relay to vendors with retry, an 8 s budget per recipient, 6 connection slots,
 // and the best-effort gone write-back.
 import type { Env } from "../env";
+import { nowS } from "../context";
 import type { Log } from "../log";
 import * as SQL from "../db/sql";
 import { buildApns, apnsMayRemint } from "./apns";
 import { deps, type Cls, type VendorRequest } from "./deps";
 import { buildFcm } from "./fcm";
-import { classify, isAuthFailure, recordHealth, type Outcome, type VendorName } from "./results";
+import { classify, type Outcome, type VendorName } from "./results";
 import { MintError } from "./tokencache";
 import { buildWebPush } from "./webpush";
 
@@ -118,7 +119,7 @@ async function attempt(v: VendorName, req: VendorRequest, timeoutMs: number): Pr
 }
 
 interface Delivery {
-  result: string; // sent | gone | failed:$code
+  result: string; // sent | gone | not listening | failed:$code
   code?: string;
   retried: boolean;
 }
@@ -152,7 +153,6 @@ async function deliver(env: Env, t: Target, slots: Slots): Promise<Delivery> {
       slots.release();
     }
     last = a.outcome;
-    await recordHealth(env, v, last.kind === "sent", isAuthFailure(v, a.status, last.code), deps.now());
     if (last.kind !== "failed") break;
     if (last.next === "auth" && !authUsed && (v !== "apns" || apnsMayRemint())) {
       authUsed = true;
@@ -169,34 +169,42 @@ async function deliver(env: Env, t: Target, slots: Slots): Promise<Delivery> {
   const retried = retries > 0 || authUsed;
   if (last.kind === "sent") return { result: "sent", retried };
   if (last.kind === "gone") return { result: "gone", code: last.code, retried };
+  if (last.kind === "not listening") return { result: "not listening", code: last.code, retried };
   return { result: "failed:" + (last.code ?? "net"), code: last.code, retried };
 }
 
 export interface FanoutOut {
   results: Record<string, string>;
   gone: { id: string; push: string }[];
+  notListening: string[]; // ntfy 507
 }
 
 export async function fanout(env: Env, targets: Target[], log: Log): Promise<FanoutOut> {
   const slots = new Slots();
-  const out: FanoutOut = { results: {}, gone: [] };
+  const out: FanoutOut = { results: {}, gone: [], notListening: [] };
   const done = await Promise.all(targets.map((t) => deliver(env, t, slots)));
   targets.forEach((t, i) => {
     const d = done[i];
     out.results[t.id] = d.result;
     if (d.result === "gone") out.gone.push({ id: t.id, push: t.push });
+    if (d.result === "not listening") out.notListening.push(t.id);
     log.recipients.push({ id: t.id, class: t.cls, bytes: t.m.length, result: d.result, vendor: d.code, retry: d.retried });
   });
   return out;
 }
 
-// Best-effort post-fan-out writes (W_GONE per gone recipient, plus extras such as W_SEEN).
-export async function writeBack(env: Env, acct: string, gone: { id: string; push: string }[], extra: D1PreparedStatement[], log: Log): Promise<void> {
-  const stmts = [...gone.map((g) => env.DB.prepare(SQL.W_GONE).bind(g.id, acct, g.push)), ...extra];
+// Best-effort post-fan-out writes (W_GONE per gone recipient, W_PUSH_FAILED per ntfy 507 (cli
+// rows only), plus extras such as W_SEEN).
+export async function writeBack(env: Env, acct: string, out: FanoutOut, extra: D1PreparedStatement[], log: Log): Promise<void> {
+  const now = nowS();
+  const stmts = [
+    ...out.gone.map((g) => env.DB.prepare(SQL.W_GONE).bind(g.id, acct, g.push)),
+    ...out.notListening.map((id) => env.DB.prepare(SQL.W_PUSH_FAILED).bind(id, acct, now)),
+    ...extra,
+  ];
   if (!stmts.length) return;
   try {
-    const rs = await env.DB.batch(stmts);
-    for (const r of rs) log.addMeta(r.meta);
+    await env.DB.batch(stmts);
   } catch {
     log.gone_write = "failed";
   }

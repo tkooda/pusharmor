@@ -19,14 +19,16 @@
   },
   "cloudflare_fixed_vars": {
     "PA_ALLOWED_PUSH_ENDPOINT_PREFIXES": "JSON list of Web Push endpoint URL prefixes the Worker accepts",
+    "PA_ALLOWED_UP_HOSTS": "JSON list of UnifiedPush (type 6) endpoint hosts the Worker accepts",
     "PA_PUSH_TTL_SECONDS": "TTL of a push message, in seconds",
-    "PA_PUSH_PAIR_TTL_SECONDS": "TTL of a pairing push message, in seconds",
     "CLOUDFLARE_TURNSTILE_HOSTNAME": "hostname a Turnstile token must be issued for",
     "CLOUDFLARE_TURNSTILE_ACTION": "action a Turnstile token must carry",
     "PA_OAUTH_REDIRECT_FIREFOX": "Firefox OAuth redirect URL",
     "PA_OAUTH_REDIRECT_ANDROID": "Android OAuth redirect URL",
     "PA_OAUTH_REDIRECT_WEB": "web OAuth redirect URL",
-    "PA_WEB_ORIGINS": "JSON list of web origins allowed by CORS"
+    "PA_OAUTH_REDIRECT_CLI": "command line login OAuth redirect URL (the /auth/cli page)",
+    "PA_WEB_ORIGINS": "JSON list of web origins allowed by CORS",
+    "PA_LOG_SAMPLE": "share of plain-success and 429 request log lines kept (0..1); errors are always logged"
   },
   "cloudflare_secrets": {
     "PA_ID_SECRET": "HMAC key for account ids",

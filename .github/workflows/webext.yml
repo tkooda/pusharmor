@@ -55,6 +55,15 @@ jobs:
           path: client/*/dist/pusharmor-*-dev.zip
           retention-days: 7
           if-no-files-found: error
+      # Real-browser popup check (I458, I475): headless Firefox opens the real toolbar popup,
+      # Chrome loads the popup pages. Fails unless the popup is 400x560 on every open and no
+      # tab switch moves the header, tab bar, or content area.
+      - name: Popup size and layout (headless Firefox and Chrome)
+        run: |
+          node build.mjs --dev --shots
+          firefox --version
+          google-chrome --version
+          node popup-check.mjs
       # Proves the release build compiles and passes check-release.mjs. Built
       # with CI dummies, so the zips are thrown away (never uploaded).
       - name: Release build with CI dummies

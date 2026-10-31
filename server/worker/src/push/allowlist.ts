@@ -1,5 +1,5 @@
 // Web push endpoint allow-list (PA_ALLOWED_PUSH_ENDPOINT_PREFIXES) and the UnifiedPush
-// (type 6) endpoint rule. No regex on URLs; parse with URL().
+// (type 6) endpoint rules (PA_ALLOWED_UP_HOSTS). No regex on URLs; parse with URL().
 export type EndpointReject = { host?: string; prefix_len?: number; reason?: string };
 
 // Raw authority of an https URL string, or null.
@@ -52,9 +52,9 @@ function commonPrefix(a: string, b: string): number {
 
 const IPV4 = /^[0-9]+(\.[0-9]+){3}$/;
 
-// UnifiedPush rule: https, port 443, no userinfo, DNS hostname not in the reject list.
-// Returns null when accepted, else a reason word (logged instead of the host).
-export function checkUnifiedPushEndpoint(endpoint: string): string | null {
+// UnifiedPush rule: https, port 443, no userinfo, DNS hostname with a dot, not in the reject list,
+// host in the allow-list. Returns null when accepted, else a reason word (logged instead of the host).
+export function checkUnifiedPushEndpoint(endpoint: string, hosts: string[]): string | null {
   const auth = rawAuthority(endpoint);
   const u = parse(endpoint);
   if (auth === null || !u || u.protocol !== "https:") return "scheme";
@@ -66,10 +66,18 @@ export function checkUnifiedPushEndpoint(endpoint: string): string | null {
   let host = u.hostname.toLowerCase();
   if (host.endsWith(".")) host = host.slice(0, -1);
   if (host === "" || host.split(".").some((l) => l === "")) return "label";
+  if (!host.includes(".")) return "label"; // single-label names are not public DNS names
   if (IPV4.test(host)) return "ip-literal";
   const rawHost = (colon >= 0 ? auth.slice(0, colon) : auth).toLowerCase().replace(/\.$/, "");
   if (IPV4.test(rawHost)) return "ip-literal";
   if (host === "localhost" || /\.(localhost|local|internal|arpa)$/.test(host)) return "local";
   if (host === "pusharmor.com" || host.endsWith(".pusharmor.com") || host === "workers.dev" || host.endsWith(".workers.dev")) return "zone";
+  if (!hosts.includes(host)) return "host";
   return null;
+}
+
+// cli endpoints (Q307): exactly https://<allowed host>/up<12 b64url chars>?up=1 (checked after
+// checkUnifiedPushEndpoint). ntfy then charges the topic's subscriber, not the Worker.
+export function cliTopicOk(endpoint: string): boolean {
+  return /^https:\/\/[a-z0-9.-]+\/up[A-Za-z0-9_-]{12}\?up=1$/.test(endpoint);
 }

@@ -3,11 +3,11 @@ import type { Env } from "../src/env";
 import { b64urlDecode, b64urlEncode } from "../src/codec/b64url";
 import { deriveCode } from "../src/crypto/code";
 import { utf8 } from "../src/crypto/hash";
-import { keyRef, LABEL_REQUEST_TOKEN, LABEL_TICKET, oauthNonce, openToken } from "../src/crypto/tokens";
+import { CLI_WINDOW_S, keyRef, keyRef16, LABEL_REQUEST_TOKEN, LABEL_TICKET, makeCliCode, oauthNonce, openToken } from "../src/crypto/tokens";
 import { signJwt } from "../src/push/jwt";
-import { normalizeEmail } from "../src/auth/normalize";
+import { mailboxKey, normalizeEmail } from "../src/auth/normalize";
 import { mailText } from "../src/auth/email";
-import { acctOf, call, countingLimit, initP256, keys, message, mock, newPeer, onVendor, randomEmail, secretString, setAllow, testEnv, vendorRequests } from "./helpers";
+import { acctOf, call, countingLimit, freshIp, initP256, keys, message, mock, newPeer, onVendor, randomEmail, secretString, setAllow, testEnv, vendorRequests } from "./helpers";
 import { TEST_SECRETS as S } from "./secrets";
 
 beforeAll(initP256);
@@ -20,6 +20,21 @@ describe("email normalization", () => {
     expect(() => normalizeEmail("\u0130nfo@b.com")).toThrow("bad email");
     expect(normalizeEmail("x@privaterelay.appleid.com")).toBe("x@privaterelay.appleid.com");
   });
+
+  it("address specials -> 400; identity keeps +tags and dots", () => {
+    for (const bad of ['a"b@c.com', "a<b@c.com", "a>b@c.com", "a(b@c.com", "a)b@c.com", "a,b@c.com", "a;b@c.com", "a:b@c.com", "a\\b@c.com"]) {
+      expect(() => normalizeEmail(bad), bad).toThrow();
+    }
+    expect(normalizeEmail("A.B+tag@Gmail.com")).toBe("a.b+tag@gmail.com");
+  });
+
+  it("mailboxKey: +tags dropped and Gmail dots removed, for common providers only", () => {
+    expect(mailboxKey("a.b+x@gmail.com")).toBe("ab@gmail.com");
+    expect(mailboxKey("a.b+x@googlemail.com")).toBe("ab@gmail.com");
+    expect(mailboxKey("a.b+x@outlook.com")).toBe("a.b@outlook.com");
+    expect(mailboxKey("a.b+x@example.com")).toBe("a.b+x@example.com");
+    expect(mailboxKey("+x@gmail.com")).toBe("+x@gmail.com");
+  });
 });
 
 async function startEmail(email: string, purpose = "register", extra: Record<string, unknown> = {}, e?: Env) {
@@ -29,9 +44,9 @@ async function startEmail(email: string, purpose = "register", extra: Record<str
 }
 
 describe("mailText subject per purpose", () => {
-  it("sign-in, resume and account deletion subjects", () => {
-    expect(mailText("register", "X").subject).toBe("your PushArmor sign-in code");
-    expect(mailText("unpause", "X").subject).toBe("your PushArmor resume code");
+  it("login, log in again and account deletion subjects", () => {
+    expect(mailText("register", "X").subject).toBe("your PushArmor login code");
+    expect(mailText("login", "X").subject).toBe("your PushArmor code to log in again");
     expect(mailText("delete-account", "X").subject).toBe("your PushArmor account deletion code");
   });
 });
@@ -49,7 +64,7 @@ describe("POST /auth/email + verify", () => {
     expect(mail.ConfigurationSetName).toBe("test-config-set");
     const code = await deriveCode(S.PA_CODE_SECRET, token);
     expect(mail.Content.Simple.Body.Text.Data).toContain(code);
-    expect(mail.Content.Simple.Subject.Data).toBe("your PushArmor sign-in code");
+    expect(mail.Content.Simple.Subject.Data).toBe("your PushArmor login code");
     expect(mail.Content.Simple.Body.Text.Data).toContain("Nothing happens unless this code is entered within 15 minutes. If you did not request it, ignore this email.");
     const ts = vendorRequests("challenges.cloudflare.com");
     expect(new URLSearchParams(new TextDecoder().decode(ts[0].body)).get("response")).toBe("turnstile-token");
@@ -60,6 +75,44 @@ describe("POST /auth/email + verify", () => {
     expect(v.body.email).toBe(email);
     const t = await openToken(S.PA_TOKEN_SECRET, LABEL_TICKET, secretString(v.body.ticket as string));
     expect(t).toMatchObject({ a: await acctOf(email), k: await keyRef(b64urlDecode(k.signPub)!), p: "register" });
+  });
+
+  it("account is the collapsed mailbox; the code goes to the address as typed (Q334)", async () => {
+    const base = randomEmail().split("@")[0];
+    const typed = `${base.slice(0, 3)}.${base.slice(3)}+news@googlemail.com`;
+    const { r } = await startEmail(typed);
+    expect(r.status).toBe(200);
+    const token = secretString(r.body.request_token as string);
+    const mail = JSON.parse(new TextDecoder().decode(vendorRequests("email.us-east-1.amazonaws.com").pop()!.body));
+    expect(mail.Destination.ToAddresses).toEqual([typed]);
+    const v = await call("POST", "/v1/auth/email/verify", { request_token: token, code: await deriveCode(S.PA_CODE_SECRET, token) });
+    expect(v.body.email).toBe(typed);
+    const t = await openToken(S.PA_TOKEN_SECRET, LABEL_TICKET, secretString(v.body.ticket as string));
+    expect(t!.a).toBe(await acctOf(base + "@gmail.com"));
+  });
+
+  it("cli_k: verify returns a cli code that registers the cli peer; cli_k with sign_pub, malformed or delete-account -> 400", async () => {
+    const email = randomEmail();
+    const k = await keys();
+    const k16 = await keyRef16(b64urlDecode(k.signPub)!);
+    const start = (b: Record<string, unknown>) => call("POST", "/v1/auth/email", { email, purpose: "register", turnstile: "t", ...b });
+    expect((await start({ cli_k: k16, sign_pub: k.signPub })).status).toBe(400);
+    expect((await start({ cli_k: k16, purpose: "delete-account" })).status).toBe(400);
+    expect((await start({ cli_k: k16.slice(1) })).status).toBe(400);
+    expect((await start({ cli_k: k16.slice(0, 21) + "*" })).status).toBe(400);
+    const r = await start({ cli_k: k16 });
+    expect(r.status).toBe(200);
+    const token = secretString(r.body.request_token as string);
+    const v = await call("POST", "/v1/auth/email/verify", { request_token: token, code: await deriveCode(S.PA_CODE_SECRET, token) });
+    expect(v.status).toBe(200);
+    expect(Object.keys(v.body).sort()).toEqual(["cli_code", "email"]);
+    expect(v.body.email).toBe(email);
+    const code = secretString(v.body.cli_code as string);
+    expect(code).toMatch(/^[A-Za-z0-9_-]{34}$/);
+    const w = Math.floor(Date.now() / 1000 / CLI_WINDOW_S);
+    expect([await makeCliCode(S.PA_TOKEN_SECRET, await acctOf(email), k16, "register", w), await makeCliCode(S.PA_TOKEN_SECRET, await acctOf(email), k16, "register", w - 1)]).toContain(code);
+    const reg = await call("POST", "/v1/peers", { ticket: code, sign_pub: k.signPub, enc_pub: k.encPub, platform: "cli", push: null }, { sign: k.sign });
+    expect(reg.status).toBe(200);
   });
 
   it("non-ASCII email -> 400 bad email with no mail sent", async () => {
@@ -84,21 +137,44 @@ describe("POST /auth/email + verify", () => {
     expect((await startEmail(randomEmail())).r).toMatchObject({ status: 502, body: { error: "email send failed" } });
   });
 
-  it("RL_MAIL: 2 per 60 s per email_hash", async () => {
+  it("RL_MAIL_EMAIL: 2 per 60 s per email_hash", async () => {
     const email = randomEmail();
-    const e = await testEnv({ RL_MAIL: countingLimit(2) });
+    const e = await testEnv({ RL_MAIL_EMAIL: countingLimit(2) });
     expect((await startEmail(email, "register", {}, e)).r.status).toBe(200);
     expect((await startEmail(email, "register", {}, e)).r.status).toBe(200);
     expect((await startEmail(email, "register", {}, e)).r.status).toBe(429);
   });
 
-  it("RL_MAIL per IP: address variants from one IP hit the limit (I306)", async () => {
+  it("RL_MAIL_IP: address variants from one IP hit the limit (I306)", async () => {
     const k = await keys();
     const ip = "198.51.100.77";
     const st = [];
-    const e = await testEnv({ RL_MAIL: countingLimit(2) });
+    const e = await testEnv({ RL_MAIL_IP: countingLimit(2) });
     for (let i = 0; i < 3; i++) {
       st.push((await call("POST", "/v1/auth/email", { email: `v+${i}@example.com`, sign_pub: k.signPub, purpose: "register", turnstile: "t" }, { ip, env: e })).status);
+    }
+    expect(st).toEqual([200, 200, 429]);
+  });
+
+  it("RL_MAIL_IP: IPv6 addresses in one /64 share the limit (I446)", async () => {
+    const k = await keys();
+    const st = [];
+    const e = await testEnv({ RL_MAIL_IP: countingLimit(2) });
+    for (let i = 0; i < 3; i++) {
+      const ip = `2001:db8:446:1::${(i + 1).toString(16)}:${(i * 7 + 3).toString(16)}`;
+      st.push((await call("POST", "/v1/auth/email", { email: randomEmail(), sign_pub: k.signPub, purpose: "register", turnstile: "t" }, { ip, env: e })).status);
+    }
+    expect(st).toEqual([200, 200, 429]);
+  });
+
+  it("RL_MAIL_EMAIL per mailbox: +tag and Gmail dot variants share the per-address limit", async () => {
+    const k = await keys();
+    const base = randomEmail().split("@")[0];
+    const variants = [`${base}.x+1@gmail.com`, `${base}x+2@googlemail.com`, `${base}.X@gmail.com`];
+    const st = [];
+    const e = await testEnv({ RL_MAIL_EMAIL: countingLimit(2) });
+    for (const email of variants) {
+      st.push((await call("POST", "/v1/auth/email", { email, sign_pub: k.signPub, purpose: "register", turnstile: "t" }, { ip: freshIp(), env: e })).status);
     }
     expect(st).toEqual([200, 200, 429]);
   });
@@ -119,34 +195,40 @@ describe("POST /auth/email + verify", () => {
     expect(last).toBe(429);
   });
 
-  it("RL_CODE is per request token: 5 wrong on token A, correct code on token B -> 200 (I293)", async () => {
+  it("RL_CODE is per email over all tokens: 5 wrong on token A, then token B of the same email -> 429", async () => {
     const email = randomEmail();
     const e = await testEnv({ RL_CODE: countingLimit(5) });
     const a = await startEmail(email);
     const tokA = secretString(a.r.body.request_token as string);
     for (let i = 0; i < 5; i++) expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: "AAAAAA" }, { env: e })).status).toBe(401);
-    expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: "AAAAAA" }, { env: e })).status).toBe(429);
     const b = await startEmail(email);
     const tokB = secretString(b.r.body.request_token as string);
     const code = await deriveCode(S.PA_CODE_SECRET, tokB);
-    const r = await call("POST", "/v1/auth/email/verify", { request_token: tokB, code }, { env: e });
-    expect(r.status).toBe(200);
+    expect((await call("POST", "/v1/auth/email/verify", { request_token: tokB, code }, { env: e })).status).toBe(429);
   });
 
-  it("RL_CODE_ALL: the per-email cap over all tokens still bites (I293)", async () => {
-    const email = randomEmail();
-    const { r } = await startEmail(email);
-    const tok = r.body.request_token as string;
-    const e = { ...(await testEnv()), RL_CODE: { limit: async () => ({ success: true }) }, RL_CODE_ALL: { limit: async () => ({ success: false }) } } as Env;
-    expect((await call("POST", "/v1/auth/email/verify", { request_token: tok, code: "AAAAAA" }, { env: e })).status).toBe(429);
-  });
-
-  it("RL_CODE_ALL is checked before the code: a correct code is refused while the email cap is spent (I400)", async () => {
+  it("RL_CODE is checked before the code: a correct code is refused while the email cap is spent (I400)", async () => {
     const { r } = await startEmail(randomEmail());
     const tok = r.body.request_token as string;
-    const e = { ...(await testEnv()), RL_CODE_ALL: { limit: async () => ({ success: false }) } } as Env;
+    const e = { ...(await testEnv()), RL_CODE: { limit: async () => ({ success: false }) } } as Env;
     const code = await deriveCode(S.PA_CODE_SECRET, tok);
     expect((await call("POST", "/v1/auth/email/verify", { request_token: tok, code }, { env: e })).status).toBe(429);
+  });
+
+  it("RL_CODE is per purpose: a spent register cap does not block a login code for the same email (I408)", async () => {
+    const email = randomEmail();
+    const all = countingLimit(2);
+    const e = await testEnv({ RL_CODE: all });
+    const a = await startEmail(email, "register");
+    const tokA = secretString(a.r.body.request_token as string);
+    for (let i = 0; i < 2; i++) expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: "AAAAAA" }, { env: e })).status).toBe(401);
+    expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: "AAAAAA" }, { env: e })).status).toBe(429);
+    const b = await startEmail(email, "login");
+    const tokB = secretString(b.r.body.request_token as string);
+    const code = await deriveCode(S.PA_CODE_SECRET, tokB);
+    expect((await call("POST", "/v1/auth/email/verify", { request_token: tokB, code }, { env: e })).status).toBe(200);
+    // the cap still bites per purpose: the register token stays refused, even with its correct code
+    expect((await call("POST", "/v1/auth/email/verify", { request_token: tokA, code: await deriveCode(S.PA_CODE_SECRET, tokA) }, { env: e })).status).toBe(429);
   });
 });
 
@@ -185,6 +267,11 @@ describe("Google", () => {
     expect(r.status).toBe(200);
     expect(r.body.email).toBe(email);
     secretString(r.body.ticket as string);
+    // OAuth emails collapse to the same mailbox identity (Q334).
+    const base = email.split("@")[0];
+    const tagged = await call("POST", "/v1/auth/google/token", { id_token: await idToken(g, { ...good, email: `${base}+x@Outlook.com` }), sign_pub: k.signPub, purpose: "register" });
+    expect(tagged.body.email).toBe(`${base}+x@outlook.com`);
+    expect((await openToken(S.PA_TOKEN_SECRET, LABEL_TICKET, secretString(tagged.body.ticket as string)))!.a).toBe(await acctOf(base + "@outlook.com"));
     const cases: [Record<string, unknown>, string][] = [
       [{ ...good, iss: "https://evil.example" }, "invalid id_token"],
       [{ ...good, aud: "other" }, "invalid id_token"],
@@ -231,6 +318,39 @@ describe("Google", () => {
     expect(b64urlEncode(new Uint8Array(await crypto.subtle.digest("SHA-256", utf8(v))))).toBe(challenge);
     // Tampered state -> 400.
     expect((await call("GET", `/v1/auth/google/callback?code=x&state=${state.slice(0, -2)}AA`)).status).toBe(400);
+  });
+
+  it("cli: k16 start, callback returns to /auth/cli with a cli code that registers the cli peer; Apple start allowed", async () => {
+    const g = await idp("RS256");
+    serveJwks("www.googleapis.com", g);
+    const k = await keys();
+    const k16 = await keyRef16(b64urlDecode(k.signPub)!);
+    const kr = await keyRef(b64urlDecode(k.signPub)!);
+    expect((await call("GET", `/v1/auth/google?k=${kr}&r=cli&p=register`)).status).toBe(400);
+    expect((await call("GET", `/v1/auth/google?k=${k16}&r=firefox&p=register`)).status).toBe(400);
+    expect((await call("GET", `/v1/auth/google?k=${k16}&r=cli&p=register&u=https://pusharmor.com/auth/cli`)).status).toBe(400);
+    expect((await call("GET", `/v1/auth/apple?k=${k16}&r=cli&p=login`)).status).toBe(302);
+    expect((await call("GET", `/v1/auth/google?k=${k16}&r=cli&p=delete-account`)).status).toBe(400);
+    const s = await call("GET", `/v1/auth/google?k=${k16}&r=cli&p=register`);
+    expect(s.status).toBe(302);
+    const loc = new URL(s.res.headers.get("Location")!);
+    expect(loc.searchParams.get("nonce")).toBe(await oauthNonce("register", k16));
+    const state = secretString(loc.searchParams.get("state")!);
+    const email = randomEmail();
+    onVendor((r) => r.url === "https://oauth2.googleapis.com/token" && new TextDecoder().decode(r.body).includes("authorization_code"), async () =>
+      Response.json({ id_token: await idToken(g, { iss: "accounts.google.com", aud: "google-web-client", exp: Math.floor(Date.now() / 1000) + 60, nonce: await oauthNonce("register", k16), email, email_verified: "true" }) }),
+    );
+    const cb = await call("GET", `/v1/auth/google/callback?code=${secretString("authcode123")}&state=${state}`);
+    expect(cb.status).toBe(302);
+    const to = cb.res.headers.get("Location")!;
+    const m = /^https:\/\/pusharmor\.com\/auth\/cli#cli_code=([A-Za-z0-9_-]{34})&email=(.*)$/.exec(to);
+    expect(m).not.toBeNull();
+    expect(decodeURIComponent(m![2])).toBe(email);
+    const code = secretString(m![1]);
+    const w = Math.floor(Date.now() / 1000 / CLI_WINDOW_S);
+    expect([await makeCliCode(S.PA_TOKEN_SECRET, await acctOf(email), k16, "register", w), await makeCliCode(S.PA_TOKEN_SECRET, await acctOf(email), k16, "register", w - 1)]).toContain(code);
+    const reg = await call("POST", "/v1/peers", { ticket: code, sign_pub: k.signPub, enc_pub: k.encPub, platform: "cli", push: null }, { sign: k.sign });
+    expect(reg.status).toBe(200);
   });
 
   it("valid state: provider error, missing code, failed exchange -> 302 with #error; bad state stays 400 (I306)", async () => {

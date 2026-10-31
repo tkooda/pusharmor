@@ -55,7 +55,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: site/.node-version
-      - name: Run the latest worker/v tag's vitest suite on the current migrations
+      - name: Run the latest worker/v tag's vitest suite, plus the seeded-rows test, on the current migrations
         run: |
           # the newest worker/v tag on another commit than HEAD
           head="$(git rev-parse HEAD)"
@@ -68,11 +68,20 @@ jobs:
             exit 0
           fi
           echo "previous Worker: $tag"
+          # Intended break: migration 0005 renames peers.paused to logged_out and platform
+          # 'iphone' to 'ios'; a Worker below 0.0.19 cannot read it. Skip until 0.0.19 is tagged.
+          if [ "$(printf '%s\n' "${tag#worker/v}" 0.0.19 | sort -V | head -n1)" != 0.0.19 ]; then
+            echo "previous Worker $tag is below 0.0.19: migration 0005 is an intended break, skipping"
+            exit 0
+          fi
           prev="$RUNNER_TEMP/prev"
           git worktree add --detach "$prev" "$tag"
           rm -rf "$prev/server/worker/migrations"
           cp -R server/worker/migrations "$prev/server/worker/migrations"
+          # rows in the current production format, read by the previous Worker (I449)
+          cp server/worker/test/compat-seeded.test.ts "$prev/server/worker/test/"
           cd "$prev/server/worker"
           npm ci --ignore-scripts
-          # d1-cost is skipped: a new index can change rows_read
-          npx --no-install vitest run --exclude 'test/d1-cost.test.ts'
+          # d1-cost is skipped: a new index can change rows_read. storage is skipped: its migration
+          # tests copy peers rows column by column, so a column added by a later migration breaks them.
+          npx --no-install vitest run --exclude 'test/d1-cost.test.ts' --exclude 'test/storage.test.ts'

@@ -14,17 +14,19 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
         var deny: [String: Bool] = [:]
         var name: [String: String] = [:]
         var pending: [String: String] = [:]
-        var paused = false
+        var loggedOut = false
         var push = true
+        var listening: Bool? = nil     // set only for platform "cli"
     }
 
     let lock = NSLock()
     var rows: [String: Row] = [:]
     var inbox: [String: [String]] = [:]
     var calls: [(String, String)] = []
+    var lastHeaders: [String: String] = [:]
     /// Scripted replies: path prefix -> list of (status, body) used once each, before normal handling.
     var scripted: [(method: String, prefix: String, status: Int, body: String)] = []
-    var epochMs: Int64 = 1761300000000
+    var epoch: Int64 = 1761300000
     var offline = false
 
     func add(_ id: PeerId, signPub: Data, encPub: Data, platform: String = "android") {
@@ -50,7 +52,7 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
     }
 
     func reply(_ status: Int, _ body: String) -> HTTPResponse {
-        HTTPResponse(status: status, headers: ["PA-Epoch-Ms": String(epochMs)], body: Data(body.utf8))
+        HTTPResponse(status: status, headers: ["PA-Epoch": String(epoch)], body: Data(body.utf8))
     }
 
     func perform(method: String, url: URL, headers: [String: String], body: Data, timeout: Double) async throws -> HTTPResponse {
@@ -58,6 +60,7 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
         if offline { throw URLError(.notConnectedToInternet) }
         let path = url.path
         calls.append((method, path))
+        lastHeaders = headers
         if let i = scripted.firstIndex(where: { $0.method == method && path.hasPrefix($0.prefix) }) {
             let s = scripted.remove(at: i)
             return reply(s.status, s.body)
@@ -78,19 +81,21 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
             return missing.isEmpty ? nil : missing
         }
         let withdraw = method == "POST" && parts.count == 3 && parts[1] == "deny" && j["withdraw"] != nil
-        if me.paused && !withdraw && !(parts.count == 4 && parts[3] == "unpause") {
-            return reply(401, "{\"error\":\"paused\"}")
+        if me.loggedOut && !withdraw && !(parts.count == 4 && parts[3] == "login") {
+            return reply(401, "{\"error\":\"logged out\"}")
         }
         switch (method, parts.count > 1 ? parts[1] : "") {
         case ("GET", "peers"):
             var list: [JOut] = []
             for r in rows.values.sorted(by: { $0.id.text < $1.id.text }) where r.id.account == me.id.account {
-                list.append(.obj([("id", .str(r.id.text)), ("sign_pub", .str(B64URL.encode(r.signPub))),
+                var e: [(String, JOut)] = [("id", .str(r.id.text)), ("sign_pub", .str(B64URL.encode(r.signPub))),
                                   ("enc_pub", .str(B64URL.encode(r.encPub))), ("platform", .str(r.platform)),
-                                  ("created", .int(r.created)), ("paused", .bool(r.paused)),
+                                  ("created", .int(r.created)), ("logged_out", .bool(r.loggedOut)),
                                   ("approves", .int(Int64(r.allow.count))), ("approved_by", .int(0)),
                                   ("approves_me", .bool(r.allow[idT] != nil)), ("denies_me", .bool(r.deny[idT] != nil)),
-                                  ("reachable", .bool(r.push)), ("name_for_me", r.name[idT].map { .str($0) } ?? .null)]))
+                                  ("reachable", .bool(r.push)), ("name_for_me", r.name[idT].map { .str($0) } ?? .null)]
+                if let l = r.listening { e.append(("listening", .bool(l))) }
+                list.append(.obj(e))
             }
             return reply(200, JOut.obj([("my_push_sha256", .null), ("my_allow", .arr(me.allow.keys.sorted().map { .str($0) })),
                                         ("peers", .arr(list))]).text)
@@ -132,7 +137,8 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
                 guard let xr = rows[k] else { res.append((k, .str("unknown"))); continue }
                 if xr.deny[idT] != nil { res.append((k, .str("denied"))); continue }
                 if xr.allow[idT] == nil { res.append((k, .str("unapproved"))); continue }
-                if xr.paused { res.append((k, .str("paused"))); continue }
+                if xr.loggedOut { res.append((k, .str("logged out"))); continue }
+                if xr.listening == false { res.append((k, .str("not listening"))); continue }
                 if !xr.push { res.append((k, .str("gone"))); continue }
                 relay(k, v.stringValue!)
                 res.append((k, .str("sent")))
@@ -143,7 +149,7 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
                 return reply(400, JOut.obj([("error", .str("messages missing")), ("ids", .arr(missing.map { .str($0) }))]).text)
             }
             for (k, v) in j["m"]?.objectMembers ?? [] where rows[k] != nil { relay(k, v.stringValue!) }
-            me.paused = parts[3] == "pause"
+            me.loggedOut = parts[3] == "logout"
             rows[idT] = me
             return reply(200, "{\"r\":{}}")
         case ("PATCH", "peers"):

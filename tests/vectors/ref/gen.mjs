@@ -4,7 +4,7 @@ import { writeFileSync } from 'node:fs';
 import { deflateRawSync } from 'node:zlib';
 import { b64d, b64e, cat, hexe, sha256 } from './bytes.mjs';
 import { isValidPriv, pubFromPriv, sign } from './p256.mjs';
-import { accountId, emailHash, keyhash, myPushSha256, normalizeEmail, oauthNonce, peerId } from './ids.mjs';
+import { accountId, cliCode, emailHash, keyhash, mailboxKey, myPushSha256, normalizeEmail, oauthNonce, peerId } from './ids.mjs';
 import {
   commitBody, commitHash, crockford20, fingerprintHash, keysBody, pairDecide, pairHint, pairKey,
   pairingId, pairTimeout, sealPair,
@@ -169,6 +169,31 @@ function emailSection() {
   };
 }
 
+function mailboxSection() {
+  const inputs = [
+    'A.B.C+Tag@Gmail.com', 'a.b+x+y@googlemail.com', 'abc@gmail.com', '+tag@gmail.com', '..@gmail.com',
+    'A.B+tag@outlook.com', 'a.b+tag@hotmail.com', 'a.b+tag@live.com', 'a.b+tag@msn.com', 'a.b+tag@icloud.com',
+    'a.b+tag@me.com', 'a.b+tag@mac.com', 'a.b+tag@fastmail.com', 'a.b+tag@proton.me', 'a.b+tag@protonmail.com',
+    'a.b+tag@protonmail.ch', 'a.b+tag@pm.me', 'a.b+tag@example.com', 'a.b+tag@mail.gmail.com', 'a.b+tag@gmail.co',
+  ];
+  return {
+    description:
+      'Account identity (Worker and command line ban tool). mailbox = normalized address with, at gmail.com googlemail.com ' +
+      'outlook.com hotmail.com live.com msn.com icloud.com me.com mac.com fastmail.com proton.me protonmail.com protonmail.ch ' +
+      'pm.me only: the local part cut at its first "+" (when that is not the first char); at gmail.com and googlemail.com ' +
+      'also every "." removed from the local part (kept when that leaves it empty) and the domain set to gmail.com. ' +
+      'Other domains (subdomains included) are unchanged. email_hash = sha256("PA-ACCT1\\n" || mailbox), account = ' +
+      'HMAC-SHA256(keys.id_secret, email_hash)[0..9]. Login codes still go to the normalized address. Assert normalized, ' +
+      'mailbox, email_hash and account.',
+    cases: inputs.map((input) => {
+      const norm = normalizeEmail(input);
+      const mb = mailboxKey(norm);
+      const eh = emailHash(mb);
+      return { input, normalized: norm, mailbox: mb, email_hash: b64e(eh), account: b64e(accountId(ID_SECRET, eh)) };
+    }),
+  };
+}
+
 function idOrderSection() {
   const acct = ACCT_A;
   const id = (head, fill = 0x11) => b64e(cat(acct, head, Buffer.alloc(30 - 9 - head.length, fill)));
@@ -197,9 +222,26 @@ function nonceSection() {
     description:
       'OAuth nonce: k = b64url(sha256(sign_pub)), nonce = b64url(sha256("PA-NONCE1\\n" + purpose + "\\n" + k)) ' +
       '(k as its b64url string). Assert k and nonce.',
-    cases: ['register', 'unpause', 'delete-account'].map((purpose) => ({
+    cases: ['register', 'login', 'delete-account'].map((purpose) => ({
       purpose, sign_pub: b64e(N.signPub), ...oauthNonce(purpose, N.signPub),
     })),
+  };
+}
+
+function cliCodeSection() {
+  const tokenSecret = label('TOKEN_SECRET');
+  const cases = [['register', 'r', 2969856], ['login', 'l', 2969857]].map(([purpose, p, window]) => {
+    const r = cliCode(tokenSecret, N.account, N.signPub, p, window);
+    return { purpose, p, window, sign_pub: b64e(N.signPub), account: b64e(N.account), k16: r.k16, link: 'https://pusharmor.com/auth/cli#' + p + '.' + r.k16, code: r.code };
+  });
+  return {
+    description:
+      'Command line login code. k16 = b64url(sha256(sign_pub)[0..16]) (22 chars); link = "https://pusharmor.com/auth/cli#" + p + "." + k16 ' +
+      '(p = r register, l login, d delete-account); code = b64url(account (9 bytes) || HMAC-SHA256(token_secret, "PA-CLI1\\n" + ' +
+      'b64url(account) + "\\n" + k16 + "\\n" + p + "\\n" + window)[0..16]) (34 chars), window = floor(unix s / 600) in decimal. ' +
+      'token_secret is a test PA_TOKEN_SECRET. Assert k16, link and code (the Worker and the command line client).',
+    token_secret: b64e(tokenSecret),
+    cases,
   };
 }
 
@@ -334,7 +376,7 @@ function pairTimeoutSection() {
     ['not_approved_drops_pin', { approve_verified: false, approved: false, resend: null }],
     ['waiting_runs_resend_first', { approve_verified: false, approved: true, resend: null }],
     ['waiting_resend_offline', { approve_verified: false, approved: true, resend: 'offline' }],
-    ['waiting_resend_paused', { approve_verified: false, approved: true, resend: 'paused' }],
+    ['waiting_resend_logged_out', { approve_verified: false, approved: true, resend: 'logged out' }],
     ['waiting_resend_429', { approve_verified: false, approved: true, resend: '429' }],
     ['waiting_resend_5xx', { approve_verified: false, approved: true, resend: '5xx' }],
     ['waiting_resend_200_verified_c_completes', { approve_verified: false, approved: true, resend: '200_c_verified' }],
@@ -344,10 +386,10 @@ function pairTimeoutSection() {
     description:
       'Pairing timeout at 14 days (Pairing flow step 8). input: approve_verified (the other side\'s approve verified), ' +
       'approved (this device approved; with approve_verified false the row is "Waiting for $X"), resend (result of the ' +
-      're-send of POST /v1/approve/$X: null not run yet | offline | paused | 429 | 5xx | 200_c_verified | 200_other). ' +
+      're-send of POST /v1/approve/$X: null not run yet | offline | logged out | 429 | 5xx | 200_c_verified | 200_other). ' +
       'output: keep_pin | drop_pin (drop r, c_N and the pin, show "Pairing timed out. Tap Pair to start again.", then ' +
       'the allow reconcile) | resend (run the re-send first) | keep_waiting (row stays Waiting with Cancel pairing; ' +
-      'retry at next app open, Refresh or unpause) | complete (the verified c completes the pairing).',
+      'retry at next app open, Refresh or login) | complete (the verified c completes the pairing).',
     cases: inputs.map(([name, input]) => ({ name, input, output: pairTimeout(input) })),
   };
 }
@@ -416,12 +458,54 @@ function nameSection() {
       'Name entries. s = owner signature over "PA-NAME1\\n" + owner id + "\\n" + recipient id + "\\n" + pairing id (11 chars) ' +
       '+ "\\n" + n + "\\n" + name (the b64url string). ciphertext = b64url(enc || ct), HPKE to the recipient enc_pub, info ' +
       '"PA-NAME1", aad = recipient 40-char id, at most 1024 chars. Assert signed_string from the fields; open ciphertext ' +
-      'with the recipient enc_priv and compare entry_json; verify s with the owner sign_pub; name 1..32 printable ASCII.',
+      'with the recipient enc_priv and compare entry_json; verify s with the owner sign_pub; name 1..32 printable ASCII, no double quote.',
     cases,
   };
 }
 
-const MSG_N = { url: 1, text: 2, tel: 3, approve: 4, deny: 5, remove: 6, rename: 7, delete: 8, pause: 9, unpause: 10 };
+function mustDecodeSection() {
+  const url = 'https://example.com/a';
+  const xKeys = { signPub: X.signPub, encPub: X.encPub };
+  const unruled = pin(X, PAIRING_ID, 'unruled');
+  const withExtra = (no, extra) => nameJson(no, 4).replace(/}$/, ',' + extra + '}');
+  const msgs = [
+    ['url_plus_unknown_key', '{"n":1,"url":"' + url + '","x":1}', null, 'url', 1, url],
+    ['text_plus_unknown_key', '{"n":2,"text":"hi","x":"y"}', null, 'text', 2, 'hi'],
+    ['unknown_key_before_type', '{"x":[1,2],"n":3,"tel":"+1 555-123-4567"}', null, 'tel', 3, '+1 555-123-4567'],
+    ['url_and_text_is_url', '{"n":4,"text":"a","url":"' + url + '"}', null, 'url', 4, url],
+    ['text_and_tel_is_text', '{"n":5,"tel":"+1 555-123-4567","text":"a"}', null, 'text', 5, 'a'],
+    ['logout_plus_unknown_key', '{"n":6,"logout":1,"x":1}', null, 'logout', 6, 1],
+  ].map(([name, json, keys, type, n, value]) => ({
+    name, ...msgCase(name, inner('md ' + name, { json, keys }), { json, full: true }),
+    expect: { outcome: 'accept', type, n, value },
+  }));
+  const no = nameObj(X, N, 4, 'Pixel 8');
+  const apprJson = '{"n":4,"approve":' + withExtra(no, '"x":1') + ',"y":2}';
+  msgs.push({
+    name: 'approve_name_entry_unknown_key',
+    ...msgCase('approve_name_entry_unknown_key', inner('md approve', { json: apprJson, keys: xKeys }), { json: apprJson, full: true, pin: unruled }),
+    expect: { outcome: 'accept', type: 'approve', n: 4, value: { name: 'Pixel 8', n: 4 } },
+  });
+  const entryJson = withExtra(nameObj(X, N, 4, 'Pixel 8'), '"x":{"y":1}');
+  const sealed = sealNameEntry(N.idB64, N.encPub, entryJson, ikm('md name entry'));
+  const names = [{
+    name: 'name_entry_unknown_key', owner: 'X', receiver: 'N', pin: pin(X), entry_json: entryJson, ciphertext: sealed.ciphertext,
+    expect: { ok: true, name: 'Pixel 8', n: 4 },
+  }];
+  return {
+    description:
+      'Lenient receivers (Q327): inputs every client must DECODE. Inner message: unknown keys are ignored; the type is ' +
+      'the first known type key in the fixed order url, text, tel, approve, deny, remove, rename, delete, logout, login ' +
+      '(so url + text is a url). Duplicate keys and the "n" rules still reject (see must_fail). Name entry (and the ' +
+      'name object inside approve / rename): unknown extra keys are ignored; name, n and s are still required. ' +
+      'messages: run the receive pipeline as in messages (pin default approved) and compare expect. name_entries: ' +
+      'open as in name_entries with pin and compare expect.',
+    messages: msgs,
+    name_entries: names,
+  };
+}
+
+const MSG_N = { url: 1, text: 2, tel: 3, approve: 4, deny: 5, remove: 6, rename: 7, delete: 8, logout: 9, login: 10 };
 
 function typeJson(type, n) {
   switch (type) {
@@ -438,7 +522,7 @@ function typeJson(type, n) {
 const expectValue = {
   url: 'https://example.com/a', text: 'Hello from PushArmor \u00e9', tel: '+1 555-123-4567',
   approve: { name: 'Pixel 8', n: 4 }, rename: { name: 'Work phone', n: 7 }, remove: O.idB64,
-  deny: 1, delete: 1, pause: 1, unpause: 1,
+  deny: 1, delete: 1, logout: 1, login: 1,
 };
 
 function msgCase(name, r, extra) {
@@ -586,7 +670,7 @@ function replaySection() {
     ['repeat_url_no_history_invalid', { h: 5, seen: [5, 4, 3, 2, 1] }, 5, 'url', false],
     ['repeat_text_with_history_represent', { h: 5, seen: [5, 4, 3, 2, 1] }, 3, 'text', true],
     ['repeat_control_type_noop', { h: 5, seen: [5, 4, 3, 2, 1] }, 4, 'approve', false],
-    ['repeat_pause_noop', { h: 5, seen: [5, 4] }, 4, 'pause', false],
+    ['repeat_logout_noop', { h: 5, seen: [5, 4] }, 4, 'logout', false],
     ['n_equals_h_minus_100_invalid', { h: 150, seen: [150] }, 50, 'url', false],
     ['n_equals_h_minus_100_with_history_invalid', { h: 150, seen: [150] }, 50, 'text', true],
     ['n_equals_h_minus_99_accept', { h: 150, seen: [150] }, 51, 'url', false],
@@ -599,7 +683,7 @@ function replaySection() {
       'Replay window per sender: h = highest accepted n, seen = the n values whose bit is set (bit k = n = h - k, ' +
       'k 0..99), listed high to low. Accept iff n > h - 100 and n not seen; on accept with n > h shift (h = n, drop bits ' +
       'past 99), else set the bit. A rejected n: n <= h - 100 -> invalid; seen n of a control type (approve rename ' +
-      'remove delete pause unpause deny) -> noop; seen n of url/text/tel with a History row -> represent; else invalid. ' +
+      'remove delete logout login deny) -> noop; seen n of url/text/tel with a History row -> represent; else invalid. ' +
       'Assert outcome and state_after (equal to state when not accepted).',
     cases: cases.map(([name, state, n, type, historyRow]) => {
       const outcome = replayOutcome(state, n, type, historyRow);
@@ -744,7 +828,7 @@ function mustFailSection() {
   msg('other_account_sender', 'unreadable', { json: url(1), from: Z }, { from: Z, pin: pin(Z) });
   msg('url_from_unruled', 'unreadable', { json: url(1) }, { pin: pin(X, PAIRING_ID, 'unruled') });
   msg('rename_from_unruled', 'unreadable', { json: typeJson('rename', 7) }, { pin: pin(X, PAIRING_ID, 'unruled') });
-  msg('pause_from_denied', 'unreadable', { json: '{"n":1,"pause":1}' }, { pin: pin(X, PAIRING_ID, 'denied') });
+  msg('logout_from_denied', 'unreadable', { json: '{"n":1,"logout":1}' }, { pin: pin(X, PAIRING_ID, 'denied') });
   msg('approve_from_denied', 'unreadable', { json: appr(4), keys: xKeys }, { pin: pin(X, PAIRING_ID, 'denied') });
   msg('approve_not_pinned', 'unreadable', { json: '{"n":1,"approve":' + nameJson(nameObj(O, N, 1, 'Other'), 1) + '}', from: O, keys: { signPub: O.signPub, encPub: O.encPub } }, { from: O, pin: null });
   msg('keys_flag_on_text', 'unreadable', { json: '{"n":1,"text":"hi"}', keys: xKeys });
@@ -763,15 +847,13 @@ function mustFailSection() {
     { json: '{"n":7,"rename":' + nameJson(nameObj(X, N, 7, 'Work phone', OLD_PAIRING_ID), 7) + '}' }, { window: { h: 7, seen: [7] } });
   msg('rename_name_n_differs', 'unreadable', { json: '{"n":8,"rename":' + nameJson(nameObj(X, N, 7, 'Work phone'), 7) + '}' });
   msg('no_type_key', 'unreadable', { json: '{"n":1}' });
-  msg('two_type_keys', 'unreadable', { json: '{"n":1,"url":"https://example.com/a","text":"a"}' });
-  msg('unknown_top_level_key', 'unreadable', { json: '{"n":1,"url":"https://example.com/a","x":1}' });
   msg('unknown_type', 'unreadable', { json: '{"n":1,"foo":1}' });
   msg('remove_id_39_chars', 'unreadable', { json: '{"n":1,"remove":"' + O.idB64.slice(0, 39) + '"}' });
   msg('remove_id_39_chars_seen_n', 'unreadable', { json: '{"n":1,"remove":"' + O.idB64.slice(0, 39) + '"}' },
     { window: { h: 1, seen: [1] } });
   msg('remove_id_not_b64url', 'unreadable', { json: '{"n":1,"remove":"' + O.idB64.slice(0, 39) + '+"}' });
   msg('deny_value_true', 'unreadable', { json: '{"n":1,"deny":true}' });
-  msg('pause_value_1.0', 'unreadable', { json: '{"n":1,"pause":1.0}' });
+  msg('logout_value_1.0', 'unreadable', { json: '{"n":1,"logout":1.0}' });
   msg('content_over_2048_bytes', 'unreadable', { json: '{"n":1,"text":"' + 'a'.repeat(2049) + '"}' });
   msg('inflate_over_16384_bytes', 'unreadable', { json: '{"n":1,"text":"' + 'a'.repeat(16400) + '"}' });
   {
@@ -814,10 +896,12 @@ function mustFailSection() {
   ne('name_entry_signed_n_leading_zero', nameJson(nameObj(X, N, 7, 'Pixel 8', PAIRING_ID, '07'), 7));
   ne('name_entry_name_33_chars', nameJson(nameObj(X, N, 1, 'a'.repeat(33)), 1));
   ne('name_entry_name_control_char', nameJson(nameObj(X, N, 1, 'Pixel\n8'), 1));
+  ne('name_entry_name_double_quote', nameJson(nameObj(X, N, 1, 'Pixel "8"'), 1));
   ne('name_entry_wrong_recipient', nameJson(nameObj(X, O, 1, 'Pixel 8'), 1), { sealFor: O });
   ne('name_entry_over_1024_chars', nameJson(nameObj(X, N, 1, 'Pixel 8'), 1) + ' '.repeat(600));
   {
     const no = nameObj(X, N, 1, 'Pixel 8');
+    ne('name_entry_missing_s', '{"name":"' + no.nameB64 + '","n":1,"x":1}');
     ne('name_entry_duplicate_key', '{"name":"' + no.nameB64 + '","n":1,"n":1,"s":"' + no.s + '"}');
   }
 
@@ -899,8 +983,10 @@ export function buildGolden() {
       'and HPKE ephemeral keys use DeriveKeyPair(ikmE) only to make this file reproducible.',
     keys: keysSection(),
     email_hash: emailSection(),
+    mailbox: mailboxSection(),
     id_order: idOrderSection(),
     oauth_nonce: nonceSection(),
+    cli_code: cliCodeSection(),
     my_push_sha256: pushSection(),
     b64url: b64Section(),
     pairing: pairingSection(),
@@ -917,6 +1003,7 @@ export function buildGolden() {
     replay_window: replaySection(),
     url_parse: urlSection(),
     phone: phoneSection(),
+    must_decode: mustDecodeSection(),
     must_fail: mustFailSection(),
     ...rfcSections(),
   };

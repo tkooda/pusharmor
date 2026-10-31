@@ -68,8 +68,9 @@ public struct APIReply: Sendable {
     public let json: JSONValue?
     public var ok: Bool { (200 ..< 300).contains(status) }
     public var error: String? { json?["error"]?.stringValue }
+    /// Clamped to 0...3600 so a bad relay reply cannot trap a sleep or a clock sum (I554).
     public var retryAfter: Int? {
-        if case .number(let t)? = json?["retry_after"], let v = Int(t) { return v }
+        if case .number(let t)? = json?["retry_after"], let v = Int(t) { return min(max(v, 0), 3600) }
         return nil
     }
     public init(status: Int, body: Data) {
@@ -106,10 +107,30 @@ public enum RetryPolicy {
     }
 }
 
-/// The Worker API client: PA-Sig signing, PA-Epoch-Ms offset, retry policy.
+/// Q349: the app version that got HTTP 426, kept so the update screen shows on every launch
+/// of that version; a mark left by another version is cleared.
+public enum UpdateGate {
+    public static let key = "update_required"
+
+    public static func mark(_ d: UserDefaults, version: String) { d.set(version, forKey: key) }
+
+    public static func required(_ d: UserDefaults, version: String) -> Bool {
+        guard let seen = d.string(forKey: key) else { return false }
+        if seen == version { return true }
+        d.removeObject(forKey: key)
+        return false
+    }
+}
+
+/// The Worker API client: PA-Sig signing, PA-Epoch offset (unix seconds, Q331), retry policy.
 public final class APIClient: @unchecked Sendable {
     public static let defaultBase = URL(string: "https://api.pusharmor.com")!
+    /// "ios/<CFBundleShortVersionString>", sent as PA-Client on every request (Q328).
+    public static let defaultClient = "ios/" + ((Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0.0.0")
+    /// Posted (any thread) when the Worker answers 426: this app version is too old (Q328).
+    public static let upgradeRequired = Notification.Name("PushArmorUpgradeRequired")
     let base: URL
+    let client: String
     let transport: HTTPTransport
     let clockMs: @Sendable () -> Int64
     let sleep: @Sendable (Double) async -> Void
@@ -117,17 +138,20 @@ public final class APIClient: @unchecked Sendable {
     private var _offset: Int64
     public var onOffset: (@Sendable (Int64) -> Void)?
 
-    public init(base: URL = APIClient.defaultBase, transport: HTTPTransport = URLSessionTransport(), offsetMs: Int64 = 0,
+    public init(base: URL = APIClient.defaultBase, transport: HTTPTransport = URLSessionTransport(), offsetS: Int64 = 0,
+                client: String = APIClient.defaultClient,
                 clockMs: @escaping @Sendable () -> Int64 = { Int64(Date().timeIntervalSince1970 * 1000) },
                 sleep: @escaping @Sendable (Double) async -> Void = { try? await Task.sleep(nanoseconds: UInt64($0 * 1e9)) }) {
         self.base = base
+        self.client = client
         self.transport = transport
-        self._offset = offsetMs
+        self._offset = offsetS
         self.clockMs = clockMs
         self.sleep = sleep
     }
 
-    public var offsetMs: Int64 {
+    /// Worker clock minus local clock, in seconds.
+    public var offsetS: Int64 {
         lock.lock(); defer { lock.unlock() }
         return _offset
     }
@@ -139,8 +163,8 @@ public final class APIClient: @unchecked Sendable {
         onOffset?(o)
     }
 
-    /// Estimate of Worker time in ms.
-    public var workerNowMs: Int64 { clockMs() + offsetMs }
+    /// Estimate of Worker time in ms (PA-Time stays ms).
+    public var workerNowMs: Int64 { clockMs() + offsetS * 1000 }
 
     public enum Auth {
         case none
@@ -154,7 +178,7 @@ public final class APIClient: @unchecked Sendable {
         let start = clockMs()
         var retries = 0
         while true {
-            var headers = ["Content-Type": "application/json"]
+            var headers = ["Content-Type": "application/json", "PA-Client": client]
             if case .signed(let signer, let id) = auth {
                 if let h = try? RequestSigning.headers(signer: signer, peerId: id, method: method, path: path,
                                                        timeMs: workerNowMs, body: body) {
@@ -166,7 +190,8 @@ public final class APIClient: @unchecked Sendable {
             do {
                 let r = try await transport.perform(method: method, url: URL(string: path, relativeTo: base)!.absoluteURL,
                                                     headers: headers, body: body, timeout: timeout)
-                if let e = r.headers["pa-epoch-ms"], let ms = Int64(e) { setOffset(ms - clockMs()) }
+                if let e = r.headers["pa-epoch"], let sec = Int64(e) { setOffset(sec - clockMs() / 1000) }
+                if r.status == 426 { NotificationCenter.default.post(name: APIClient.upgradeRequired, object: self) }
                 reply = APIReply(status: r.status, body: r.body)
                 status = r.status
             } catch {

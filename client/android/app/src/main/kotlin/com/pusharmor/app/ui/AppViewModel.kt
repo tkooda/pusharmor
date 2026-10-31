@@ -1,6 +1,7 @@
 package com.pusharmor.app.ui
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pusharmor.app.PaApp
@@ -19,12 +20,15 @@ import com.pusharmor.store.PeerEntity
 import com.pusharmor.store.SelfEntity
 import com.pusharmor.store.toPeer
 import com.pusharmor.store.toRow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -46,9 +50,47 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val limit = MutableStateFlow<WorkerClient.PeerLimit?>(null)
     val highlight = MutableStateFlow<String?>(null)
 
+    companion object {
+        /** Shown when a tap fails with an unexpected error (I547). */
+        const val NOT_DONE = "Something went wrong. Try again."
+
+        /** A signed-in screen whose device the relay server removed or logged out goes back to log in (I465). */
+        fun needsReboot(start: Session.Start?, selfPresent: Boolean, signedOut: Boolean): Boolean =
+            start == Session.Start.READY && (!selfPresent || signedOut)
+
+        /** Adds [key] to [set]; false when it was already there, so a second tap of the same action does not run (I473). */
+        fun claim(set: MutableStateFlow<Set<String>>, key: String): Boolean {
+            var won = false
+            set.update { won = key !in it; it + key }
+            return won
+        }
+    }
+
+    init {
+        viewModelScope.launch {
+            combine(g.dao.selfFlow(), g.settings.data) { s, p -> (s != null) to (p[Settings.K.SIGNED_OUT] == true) }
+                .collect { (present, out) -> if (needsReboot(start.value, present, out)) boot() }
+        }
+    }
+
     fun io(block: suspend () -> Unit) = viewModelScope.launch(Dispatchers.IO) {
         busy.value = true
-        try { block() } finally { busy.value = false }
+        try { block() } catch (e: CancellationException) { throw e } catch (e: Exception) { failed(e) } finally { busy.value = false }
+    }
+
+    /** An unexpected error in a tap handler shows [NOT_DONE] instead of crashing the app (I547). */
+    private fun failed(e: Exception) {
+        Log.w("PushArmor", "action failed", e)
+        message.value = NOT_DONE
+    }
+
+    /** Keys of taps still running ("send", "logout", "pair:<id>", ...); their button is greyed until the call ends (I473). */
+    val running = MutableStateFlow<Set<String>>(emptySet())
+
+    /** [io], unless the same [key] is still running. */
+    fun once(key: String, block: suspend () -> Unit) {
+        if (!claim(running, key)) return
+        io { try { block() } finally { running.update { it - key } } }
     }
 
     /** Sign-in purpose, read off the main thread with each start change (Room refuses main-thread reads). */
@@ -57,9 +99,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private fun setStart(s: Session.Start) { signInPurpose.value = purpose(); start.value = s }
 
     fun boot(fromMain: Boolean = true) = io {
+        g.settings.updateRequired(com.pusharmor.app.BuildConfig.VERSION_NAME)
         val s = g.session.startup(fromMain)
         setStart(s)
         if (s == Session.Start.READY) g.session.onAppOpen(System.currentTimeMillis())
+        if (s == Session.Start.SIGNED_OUT) g.session.retryPendingLogout()
     }
 
     // ---- sign in ----
@@ -70,11 +114,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun signPubB64(): String = withContext(Dispatchers.IO) { com.pusharmor.crypto.B64url.encode(g.session.keysForSignIn()) }
 
     suspend fun emailStart(email: String, turnstile: String, purpose: String): String? = withContext(Dispatchers.IO) {
-        val r = g.client.authEmail(email, signPubB64(), purpose, turnstile)
-        if (r is ApiResult.Ok) r.value else { message.value = ErrorText.of(r); null }
+        try {
+            val r = g.client.authEmail(email, signPubB64(), purpose, turnstile)
+            if (r is ApiResult.Ok) r.value else { message.value = ErrorText.of(r); null }
+        } catch (e: CancellationException) { throw e } catch (e: Exception) { failed(e); null }
     }
 
-    fun emailVerify(requestToken: String, code: String, purpose: String, onDone: () -> Unit) = io {
+    fun emailVerify(requestToken: String, code: String, purpose: String, onDone: () -> Unit) = once("verify") {
         when (val r = g.client.authEmailVerify(requestToken, code)) {
             is ApiResult.Ok -> ticket(r.value.ticket, r.value.email, purpose, onDone)
             else -> message.value = ErrorText.of(r)
@@ -88,9 +134,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun oauthUrl(provider: String, purpose: String): String {
+    /** Key preparation runs off the main thread; a Keystore failure shows [NOT_DONE] and returns null (I549). */
+    private suspend fun <T> withKeys(block: () -> T): T? = withContext(Dispatchers.IO) {
+        try { block() } catch (e: CancellationException) { throw e } catch (e: Exception) { failed(e); null }
+    }
+
+    suspend fun nonce(purpose: String): String? = withKeys { g.session.nonce(purpose) }
+
+    suspend fun oauthUrl(provider: String, purpose: String): String? = withKeys {
         g.settings.set(Settings.K.PENDING_PURPOSE, purpose)
-        return g.client.oauthUrl(provider, g.session.keysForSignIn(), purpose)
+        g.client.oauthUrl(provider, g.session.keysForSignIn(), purpose)
     }
 
     fun onAppLinkTicket(ticket: String, email: String?, onDone: () -> Unit) = io {
@@ -108,16 +161,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val evict = limit.value?.let { pendingEvict }
         when (val r = g.session.onTicket(ticket, email, evict)) {
             Session.SignIn.Done -> {
+                message.value = null // a failed earlier step must not show on Peers (I425)
                 email?.let { e -> g.dao.self()?.let { g.dao.putSelf(it.copy(email = e)) } }
                 limit.value = null
                 setStart(Session.Start.READY)
                 g.session.onAppOpen(System.currentTimeMillis())
                 withContext(Dispatchers.Main) { onDone() }
             }
-            is Session.SignIn.Limit -> { limitTicket = r.limit.ticket; limit.value = r.limit }
-            Session.SignIn.NeedNewTicket -> message.value = "Please sign in again"
+            is Session.SignIn.Limit -> { limitTicket = r.limit.ticket; message.value = null; limit.value = r.limit }
+            Session.SignIn.NeedNewTicket -> message.value = "Please log in again."
             is Session.SignIn.Error -> {
-                if (r.text == "Sign-in expired, sign in again") limit.value = limit.value // ticks kept
+                if (r.text == "Login expired. Log in again.") limit.value = limit.value // ticks kept
                 message.value = r.text
             }
         }
@@ -127,28 +181,46 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var pendingEvict: List<String>? = null
 
     /** Submit of the peer limit picker: POST /peers with evict, using the 10-min ticket. */
-    fun evict(ids: List<String>, onDone: () -> Unit) = io {
+    fun evict(ids: List<String>, onDone: () -> Unit) = once("evict") {
         pendingEvict = ids
-        val t = limitTicket ?: return@io
+        val t = limitTicket ?: return@once
         ticket(t, null, "register", onDone)
     }
 
-    fun cancelLimit() { limit.value = null; pendingEvict = null }
+    fun cancelLimit() { limit.value = null; pendingEvict = null; message.value = null }
 
     // ---- peers ----
 
-    fun refresh() = io { if (!g.session.refresh()) message.value = null }
-    fun pair(id: String) = io { if (!g.pairing().tapPair(id, System.currentTimeMillis())) message.value = "Cannot pair with this peer now" }
+    fun refresh() = io { g.session.refresh()?.let { message.value = it } } // offline says so (I517)
+    fun pair(id: String) = once("pair:$id") { if (!g.pairing().tapPair(id, System.currentTimeMillis())) message.value = "Cannot pair with this device now." }
     fun reply(id: String) = io { g.pairing().tapReply(id) }
     fun sendAgainPair(id: String) = io { g.pairing().sendAgain(id, System.currentTimeMillis()) }
     fun cancelPairing(id: String) = io { g.pairing().cancelPairing(id); g.reconcile().run() }
-    fun approve(id: String) = io {
+    /** Peer ids with a Pair again call running; their button is greyed so a second tap cannot cancel the first. */
+    val pairingAgain = MutableStateFlow<Set<String>>(emptySet())
+    fun pairAgain(id: String) {
+        if (id in pairingAgain.value) return
+        pairingAgain.update { it + id }
+        io {
+            try {
+                val offered = g.store.peer(id)?.offersPairAgain == true
+                if (!g.pairing().pairAgain(id, System.currentTimeMillis()) { g.reconcile().run() }) {
+                    // Past the offer check the old pairing is already cancelled; say so, the row is now a plain Pair row.
+                    message.value = if (offered) "The old pairing was cancelled, but a new one could not start. Tap Pair to try again."
+                        else "Cannot pair with this device now."
+                }
+            } finally {
+                pairingAgain.update { it - id }
+            }
+        }
+    }
+    fun approve(id: String) = once("approve:$id") {
         val r = g.approve().approve(id)
         if (r !is ApiResult.Ok) message.value = ErrorText.of(r)
         g.session.updateShortcuts()
     }
-    fun deny(id: String) = io { val r = g.approve().deny(id); if (r !is ApiResult.Ok) message.value = ErrorText.of(r) }
-    fun remove(id: String) = io { g.session.removePeer(id)?.let { message.value = it } }
+    fun deny(id: String) = once("deny:$id") { val r = g.approve().deny(id); if (r !is ApiResult.Ok) message.value = ErrorText.of(r) }
+    fun remove(id: String) = once("remove:$id") { g.session.removePeer(id)?.let { message.value = it } }
     fun localDelete(id: String) = io { g.session.localDelete(id) }
     fun setHidden(id: String, hidden: Boolean) = io { g.session.setHidden(id, hidden) }
     fun tapGreyed() = io { g.session.fetchPeers() }
@@ -176,12 +248,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val value = if (type == ContentType.TEXT) text else text.trim()
         val out = g.sender().send(recipients, type, value, System.currentTimeMillis())
         if (out.error != null) return@withContext ErrorText.of(out.error!!)
-        val sent = out.sent
-        when {
-            recipients.size == 1 && sent == 1 -> "Sent"
-            sent == out.total && sent == recipients.size -> "Delivered to $sent peers"
-            else -> "Sent to $sent of ${out.total} peers"
-        }
+        UiText.sendToast(recipients.size, out.sent, out.total)
     }
 
     // ---- settings ----
@@ -192,12 +259,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (key == Settings.K.HISTORY_DAYS) g.session.purgeHistory()
     }
 
+    /** Saves the Theme choice and tells the system, so the splash screen and window follow it (no white flash). */
+    fun setTheme(t: com.pusharmor.app.ui.theme.ThemePref) {
+        setPref(Settings.K.THEME, t.key)
+        com.pusharmor.app.ui.theme.ThemePref.applyToSystem(getApplication(), t)
+    }
+
     fun deleteAllHistory() = io { g.dao.deleteAllHistory() }
     fun markRead(id: Long) = io { g.dao.markRead(id) }
-    fun rename(name: String) = io { g.session.rename(name)?.let { message.value = it } }
-    fun signOut(onDone: () -> Unit) = io {
-        val err = g.session.signOut()
-        if (err != null) message.value = err else { setStart(Session.Start.SIGNED_OUT); withContext(Dispatchers.Main) { onDone() } }
+    /** Errors shown on Settings only; leaving Settings clears them, so none comes back on Devices (I527). */
+    val settingsMessage = MutableStateFlow<String?>(null)
+    fun rename(name: String) = io { g.session.rename(name)?.let { settingsMessage.value = it } }
+    fun signOut(onDone: () -> Unit) = once("logout") {
+        g.session.signOut()
+        setStart(Session.Start.SIGNED_OUT)
+        withContext(Dispatchers.Main) { onDone() }
     }
     fun switchPush(toUp: Boolean) = io { if (toUp) g.push.switchToUnifiedPush(g) else g.push.switchToGoogle(g) }
     fun retryPush() = io { com.pusharmor.app.work.Work.patchPush(g.app) }

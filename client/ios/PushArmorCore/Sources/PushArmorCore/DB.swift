@@ -231,6 +231,20 @@ enum Schema {
         CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
         INSERT INTO me (k) VALUES (1);
         """,
+        """
+        ALTER TABLE me RENAME COLUMN paused TO logged_out;
+        ALTER TABLE peers RENAME COLUMN paused TO logged_out;
+        ALTER TABLE peers RENAME COLUMN pause_n TO logout_n;
+        UPDATE history SET event = 'logged_out' WHERE event = 'paused';
+        UPDATE history SET event = 'logged_in' WHERE event = 'resumed';
+        """,
+        """
+        ALTER TABLE peers ADD COLUMN listening INTEGER NOT NULL DEFAULT 1;
+        """,
+        // Q331: clock_offset is now unix seconds (was ms).
+        """
+        UPDATE me SET clock_offset = clock_offset / 1000;
+        """,
     ]
 
     static func migrate(_ db: DB) throws {
@@ -243,5 +257,42 @@ enum Schema {
             }
             if v < migrations.count { try db.exec("PRAGMA user_version = \(migrations.count)") }
         }
+    }
+}
+
+/// A corrupt pa.sqlite at launch (Q332): best-effort DELETE of this device with the keys
+/// that survive in the Keychain, then the file is removed and created empty.
+public enum StoreRepair {
+    /// SQLITE_CORRUPT or SQLITE_NOTADB. Other failures (a locked file, a busy database)
+    /// are not corruption and never wipe the file.
+    static func isCorrupt(_ e: Error) -> Bool {
+        guard case DBError.sql(let rc, _) = e else { return false }
+        return rc & 0xff == SQLITE_CORRUPT || rc & 0xff == SQLITE_NOTADB
+    }
+
+    /// Opens the store. On corruption (open, migration, or PRAGMA quick_check) runs
+    /// `onCorrupt`, removes the file and its -wal / -shm, and opens a new one.
+    public static func open(path: String, onCorrupt: () async -> Void) async throws -> (store: Store, repaired: Bool) {
+        do {
+            let s = try Store(path: path)
+            let rows = try s.db.query("PRAGMA quick_check")
+            if rows.count == 1, rows[0].text("quick_check") == "ok" { return (s, false) }
+        } catch where isCorrupt(error) {
+        }
+        await onCorrupt()
+        for suffix in ["", "-wal", "-shm"] { try? FileManager.default.removeItem(atPath: path + suffix) }
+        return (try Store(path: path), true)
+    }
+
+    /// DELETE /v1/peers/$self with empty m, signed with the surviving keys; one retry on
+    /// clock skew. True when the relay server confirmed (or no longer knows the device).
+    public static func deleteSelf(api: APIClient, signer: PASigner, id: PeerId) async -> Bool {
+        let body = JOut.obj([("m", .obj([]))]).data
+        var out = await api.call("DELETE", "/v1/peers/" + id.text, body: body, auth: .signed(signer, id), timeout: 5)
+        if out.isClockSkew {
+            out = await api.call("DELETE", "/v1/peers/" + id.text, body: body, auth: .signed(signer, id), timeout: 5)
+        }
+        guard let r = out.reply else { return false }
+        return r.ok || (r.status == 401 && r.error == "unknown peer")
     }
 }

@@ -1,0 +1,1 @@
+send,link,url,text,share,browser,extension,encrypted,devices,phone,tab,notes,e2ee,private

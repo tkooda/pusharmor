@@ -16,6 +16,7 @@ import {
   encodePair,
   inflateInner,
   makeNameEntry,
+  nameSignedString,
   msgSignedBytes,
   openInner,
   openNameEntry,
@@ -56,8 +57,8 @@ test("inner JSON parse rules", () => {
   assert.equal(p('{"n":1,"text":"a","text":"b"}'), null);
   assert.equal(p('{"n":0,"text":"a"}'), null);
   assert.equal(p('{"n":1}'), null);
-  assert.equal(p('{"n":1,"text":"a","url":"b"}'), null);
-  assert.equal(p('{"n":1,"text":"a","x":1}'), null);
+  assert.deepEqual(p('{"n":1,"text":"a","url":"b"}'), { n: 1, content: { type: "url", value: "b" } });
+  assert.deepEqual(p('{"n":1,"text":"a","x":1}'), { n: 1, content: { type: "text", value: "a" } });
   assert.equal(p('{"n":1,"foo":"a"}'), null);
   assert.equal(p('{"n":1,"deny":2}'), null);
   assert.deepEqual(p('{"n":1,"deny":1}'), { n: 1, content: { type: "deny" } });
@@ -69,8 +70,8 @@ test("inner JSON parse rules", () => {
     { type: "url" as const, value: "https://x" },
     { type: "text" as const, value: "a\"b\\c\n" },
     { type: "tel" as const, value: "+1 555-123-4567" },
-    { type: "pause" as const },
-    { type: "unpause" as const },
+    { type: "logout" as const },
+    { type: "login" as const },
     { type: "delete" as const },
   ]) {
     assert.deepEqual(p(buildJson(7, c)), { n: 7, content: c });
@@ -166,6 +167,16 @@ test("name entry seal/open", async () => {
   await assert.rejects(makeNameEntry(a.sign.privateKey, ID_A, ID_B, pid, 4, ""));
   await assert.rejects(makeNameEntry(a.sign.privateKey, ID_A, ID_B, pid, 4, "x".repeat(33)));
   await assert.rejects(makeNameEntry(a.sign.privateKey, ID_A, ID_B, pid, 4, "caf\u00e9"));
+  await assert.rejects(makeNameEntry(a.sign.privateKey, ID_A, ID_B, pid, 4, 'Dad"s'));
+});
+
+test("received name entry with a double quote is ignored", async () => {
+  const { a } = await pair();
+  const pid = new Uint8Array(8).fill(1);
+  const nameB64 = b64urlEncode(ascii('Dad"s'));
+  const s = await sign(a.sign.privateKey, nameSignedString(ID_A, ID_B, pid, 4, nameB64));
+  const e = { name: nameB64, n: 4, s: b64urlEncode(s) };
+  assert.equal(await verifyNameEntry(a.sign_pub, ID_A, ID_B, pid, e), null);
 });
 
 test("pair messages: 366 chars, kinds, commit zero tail", async () => {

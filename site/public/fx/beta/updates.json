@@ -1,11 +1,11 @@
 {
   "addons": {
-    "beta@pusharmor.com": {
+    "{549aa960-212f-41ba-b28c-7d7d1662bb57}": {
       "updates": [
         {
-          "version": "0.0.7",
-          "update_link": "https://github.com/tkooda/pusharmor/releases/download/firefox/v0.0.7/pusharmor-firefox-beta-0.0.7.xpi",
-          "update_hash": "sha256:175b532d388111484693f339739855a3c984fa59655cc790b88c067496ff8c17"
+          "version": "0.0.20",
+          "update_link": "https://github.com/tkooda/pusharmor/releases/download/firefox/v0.0.20/pusharmor-firefox-beta-0.0.20.xpi",
+          "update_hash": "sha256:e9fffdb399dd8d6f0111c3ac275dedd75d6e96697ddca4c964c970805c29a8ac"
         }
       ]
     }

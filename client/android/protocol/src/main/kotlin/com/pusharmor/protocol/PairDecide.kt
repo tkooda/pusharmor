@@ -131,7 +131,7 @@ object PairDecide {
     /** Timeout at 14 days (golden pair_timeout). */
     enum class Timeout { KEEP_PIN, DROP_PIN, RESEND, KEEP_WAITING, COMPLETE }
 
-    enum class Resend { OFFLINE, PAUSED, RATE_LIMITED, SERVER_ERROR, OK_C_VERIFIED, OK_OTHER }
+    enum class Resend { OFFLINE, LOGGED_OUT, RATE_LIMITED, SERVER_ERROR, OK_C_VERIFIED, OK_OTHER }
 
     fun timeout(approveVerified: Boolean, approved: Boolean, resend: Resend?): Timeout = when {
         approveVerified -> Timeout.KEEP_PIN

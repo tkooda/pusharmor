@@ -5,9 +5,10 @@ import PushArmorCore
 struct SettingsView: View {
     @EnvironmentObject var model: AppModel
     @State private var name = ""
+    @FocusState private var nameFocused: Bool
     @State private var confirmDeleteHistory = false
-    @State private var confirmSignOut = false
     @State private var confirmDeleteAccount = false
+    @AppStorage(AppearancePreference.storageKey) private var appearance = AppearancePreference.system.rawValue
 
     private var dayChoices: [Int] { Array(Set([1, 7, 30, 90, 365, model.historyDays])).sorted() }
     private var email: String? { model.me?.signedInEmail }
@@ -20,10 +21,11 @@ struct SettingsView: View {
             Form {
                 Section {
                     Toggle("Show \"All\" option", isOn: boolBinding(SettingKey.showAll, true))
+                        .tint(.brandGreen)
                 }
 
                 Section("History") {
-                    Picker("Auto-delete after", selection: Binding(
+                    Picker("Keep messages for", selection: Binding(
                         get: { model.historyDays },
                         set: { model.setHistoryDays($0) }
                     )) {
@@ -46,7 +48,7 @@ struct SettingsView: View {
 
                 let hidden = model.peers.filter { $0.hidden }
                 if !hidden.isEmpty {
-                    Section("Hidden peers") {
+                    Section("Hidden devices") {
                         ForEach(hidden, id: \.id.text) { p in
                             HStack {
                                 Text(model.label(p))
@@ -60,16 +62,25 @@ struct SettingsView: View {
 
                 Section("Notifications") {
                     if model.notificationsOff {
-                        Text(S.notificationsOff).foregroundColor(.red)
+                        Text(S.notificationsOff).foregroundColor(.errorText)
                         Button("Open notification settings") { model.openNotificationSettings() }
                     } else {
-                        Text("Notifications are on")
+                        Label {
+                            Text("Notifications are on")
+                        } icon: {
+                            Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.success)
+                        }
                     }
                 }
 
+                // This device and its rename live here, not in Devices (F25).
                 Section("This device") {
+                    HeroCell(name: model.me?.name ?? "This device") { nameFocused = true }
+                        .listRowInsets(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 20))
+                        .listRowBackground(HeroBackground())
                     TextField("Name this device", text: $name)
                         .autocorrectionDisabled()
+                        .focused($nameFocused)
                     Button("Save") { Task { await model.rename(name) } }
                         .disabled(!NameEntry.isValidName(name) || name == model.me?.name)
                     if let id = model.me?.id?.text {
@@ -83,38 +94,53 @@ struct SettingsView: View {
                         }
                     }
                     if let e = email {
-                        Text(S.signedInAs(e))
+                        // Dim label, the address on its own line, truncated in the middle (I460).
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Logged in as")
+                                .font(.footnote)
+                                .foregroundColor(.secondaryText)
+                            Text(e)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        .accessibilityElement(children: .combine)
                         if e.lowercased().hasSuffix("@privaterelay.appleid.com") {
-                            Text(S.relayHelp).font(.caption).foregroundColor(.secondary)
+                            Text(S.relayHelp).font(.caption).foregroundColor(.secondaryText)
                         }
                     }
                 }
 
                 Section {
+                    Picker("Theme", selection: Binding(
+                        get: { AppearancePreference(stored: appearance) },
+                        set: { appearance = $0.rawValue }
+                    )) {
+                        ForEach(AppearancePreference.allCases) { Text($0.title).tag($0) }
+                    }
+                } header: {
+                    Text("Appearance")
+                } footer: {
+                    Text("Dark uses a true black background.")
+                }
+
+                Section {
                     Toggle(S.lockScreenSwitch, isOn: boolBinding(SettingKey.lockShow, true))
-                    Text("Uses iOS Show Previews: set it to When Unlocked to hide content on the lock screen. The Apple Watch shows notices while the iPhone is locked, so it follows this choice. This switch " + S.lockScreenHelp + "; use Always hide content for the rest.")
-                        .font(.caption).foregroundColor(.secondary)
+                        .tint(.brandGreen)
+                    Text("Follows the iOS Show Previews setting. Set it to When Unlocked to hide content on the lock screen. Your Apple Watch follows this choice. To hide content at all times, turn on Always hide content.")
+                        .font(.caption).foregroundColor(.secondaryText)
                     Toggle(S.alwaysHide, isOn: boolBinding(SettingKey.alwaysHide, false))
-                    Text("Every notice shows \"New message from $peer\" with no content.")
-                        .font(.caption).foregroundColor(.secondary)
+                        .tint(.brandGreen)
+                    Text("Every notification shows \"New message from\" and the device name, with no content.")
+                        .font(.caption).foregroundColor(.secondaryText)
                 }
 
                 Section("Account") {
-                    if confirmSignOut {
-                        Text("Sign out of this device? Keys, pins, names and history stay on this device.")
-                        HStack {
-                            Button("Sign out", role: .destructive) {
-                                confirmSignOut = false
-                                Task { await model.signOut() }
-                            }
-                            Button("Cancel") { confirmSignOut = false }
-                        }
-                        .buttonStyle(.borderless)
-                    } else {
-                        Button("Sign out") { confirmSignOut = true }
+                    if !confirmDeleteAccount {
+                        // Log out acts at once (Q367); it hides while the Delete account confirm shows (I457).
+                        Button("Log out") { Task { await model.signOut() } }
                     }
                     if confirmDeleteAccount {
-                        Text("Delete this account? You must sign in again to confirm. This cannot be undone.")
+                        Text("Delete this account? You must log in again to confirm. This cannot be undone.")
                         HStack {
                             Button("Continue", role: .destructive) {
                                 confirmDeleteAccount = false
@@ -129,8 +155,14 @@ struct SettingsView: View {
                 }
 
                 Section("About") {
+                    HStack(spacing: 8) {
+                        BrandTileView(size: 30)
+                        Wordmark(size: 22)
+                        Spacer(minLength: 0)
+                    }
+                    .accessibilityElement(children: .combine)
                     LabeledContent("Version", value: version)
-                    Text("Licence: MIT")
+                    Text("License: MIT")
                     if let u = URL(string: "https://github.com/pusharmor/pusharmor") {
                         Link("Source", destination: u)
                     }

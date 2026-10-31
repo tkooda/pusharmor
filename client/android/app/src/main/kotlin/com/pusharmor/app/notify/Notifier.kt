@@ -21,6 +21,8 @@ import java.security.SecureRandom
 /** Notification channels, ids and builders (section 6). */
 class Notifier(private val context: Context, private val settings: Settings, private val dao: PaDao) {
     companion object {
+        /** Brand navy accent on every notification (small icon tint and actions). */
+        const val NAVY = 0xFF1F3A5F.toInt()
         const val DEFAULT_CHANNEL = "default"
         const val TAG_MSG = "msg"
         const val TAG_NOTICE = "notice"
@@ -49,7 +51,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         val msg = settings.get(Settings.K.CH_MESSAGES) ?: randomChannelId().also { settings.set(Settings.K.CH_MESSAGES, it) }
         val peers = settings.get(Settings.K.CH_PEERS) ?: randomChannelId().also { settings.set(Settings.K.CH_PEERS, it) }
         nm.createNotificationChannel(NotificationChannel(msg, "Messages", NotificationManager.IMPORTANCE_HIGH))
-        nm.createNotificationChannel(NotificationChannel(peers, "Peers", NotificationManager.IMPORTANCE_DEFAULT))
+        nm.createNotificationChannel(NotificationChannel(peers, "Devices", NotificationManager.IMPORTANCE_DEFAULT))
     }
 
     val messagesChannel: String get() = settings.get(Settings.K.CH_MESSAGES)!!
@@ -59,13 +61,13 @@ class Notifier(private val context: Context, private val settings: Settings, pri
     fun createPeerChannel(peerId: String) {
         val p = dao.peer(peerId) ?: return
         val id = p.channelId ?: randomChannelId().also { dao.putPeer(p.copy(channelId = it)) }
-        nm.createNotificationChannel(NotificationChannel(id, p.name ?: "Peer", NotificationManager.IMPORTANCE_HIGH))
+        nm.createNotificationChannel(NotificationChannel(id, p.name ?: "Device", NotificationManager.IMPORTANCE_HIGH))
     }
 
     fun renamePeerChannel(peerId: String) {
         val p = dao.peer(peerId) ?: return
         val id = p.channelId ?: return
-        nm.createNotificationChannel(NotificationChannel(id, p.name ?: "Peer", NotificationManager.IMPORTANCE_HIGH))
+        nm.createNotificationChannel(NotificationChannel(id, p.name ?: "Device", NotificationManager.IMPORTANCE_HIGH))
     }
 
     fun deletePeerChannel(peerId: String) {
@@ -79,7 +81,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
 
     fun blockedChannelPeer(peers: List<PeerEntity>): String? = peers.firstOrNull { p ->
         p.channelId?.let { nm.getNotificationChannel(it)?.importance == NotificationManager.IMPORTANCE_NONE } == true
-    }?.let { it.name ?: "a peer" }
+    }?.let { it.name ?: "a device" }
 
     fun mainChannelsBlocked(): Boolean = listOfNotNull(settings.get(Settings.K.CH_MESSAGES), settings.get(Settings.K.CH_PEERS))
         .any { nm.getNotificationChannel(it)?.importance == NotificationManager.IMPORTANCE_NONE }
@@ -102,18 +104,18 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         try { nm.notify(tag, id, n) } catch (e: SecurityException) { /* permission revoked */ }
     }
 
-    /** Fixed-form notices (deny, pause, unpause, could not read, invalid): one id, tag "notice", "OK" only; a tap only dismisses. */
+    /** Fixed-form notices (deny, logout, login, could not read, invalid): one id, tag "notice", "OK" only; a tap only dismisses. */
     fun notice(text: String) {
         val dismiss = dismiss(TAG_NOTICE, NOTICE_ID)
         notify(TAG_NOTICE, NOTICE_ID, NotificationCompat.Builder(context, peersChannel)
-            .setSmallIcon(R.drawable.ic_notify).setContentTitle("PushArmor").setContentText(text)
+            .setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setContentTitle("PushArmor").setContentText(text)
             .setContentIntent(dismiss).setAutoCancel(true)
             .addAction(0, "OK", dismiss).build())
     }
 
     fun peersNotice(text: String, id: Int = UNDELIVERED_ID) {
         notify(TAG_NOTICE, id, NotificationCompat.Builder(context, peersChannel)
-            .setSmallIcon(R.drawable.ic_notify).setContentTitle("PushArmor").setContentText(text)
+            .setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setContentTitle("PushArmor").setContentText(text)
             .setContentIntent(openApp("peers")).setAutoCancel(true).build())
     }
 
@@ -121,7 +123,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
     fun pairNotice(pk: String, text: String, peerId: String?, highlight: Boolean = false, ok: Boolean = false) {
         val id = pairId(pk)
         val b = NotificationCompat.Builder(context, peersChannel)
-            .setSmallIcon(R.drawable.ic_notify).setContentTitle("PushArmor").setContentText(text)
+            .setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setContentTitle("PushArmor").setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(openApp("peers", if (highlight) peerId else null)).setAutoCancel(true)
         if (ok) b.addAction(0, "OK", dismiss(TAG_PAIR, id))
@@ -143,11 +145,11 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         val peer = dao.peer(peerId)
         val policy = Policy.of(settings.lockScreen, peer?.lockScreen ?: true, settings.watch, peer?.watch ?: true, settings.hideContent, peer?.hideContent ?: false)
         val channel = peer?.channelId?.takeIf { nm.getNotificationChannel(it) != null } ?: messagesChannel
-        val b = NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notify).setAutoCancel(true)
+        val b = NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setAutoCancel(true)
             .setGroup(GROUP_PREFIX + channel).setLocalOnly(policy.localOnly)
         val open = action(historyId, "item")
         if (policy.hideAll) {
-            b.setContentTitle("New message from ${peer?.name ?: "a peer"}").setContentIntent(open)
+            b.setContentTitle("New message from ${peer?.name ?: "a device"}").setContentIntent(open)
         } else {
             val (title, body) = when {
                 c.type == ContentType.URL && !c.showAsText -> "Link" to (c.href ?: c.value)
@@ -167,7 +169,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
             }
             if (policy.privateOnLockScreen) {
                 b.setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
-                b.setPublicVersion(NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notify).setContentTitle("New message").build())
+                b.setPublicVersion(NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setContentTitle("New message").build())
             }
         }
         notify(TAG_MSG, historyId.toInt(), b.build())
@@ -176,7 +178,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
 
     /** One summary per channel: no content, localOnly if a child is, strictest visibility. */
     private fun summary(channel: String, child: Policy) {
-        val b = NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notify)
+        val b = NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notify).setColor(NAVY)
             .setGroup(GROUP_PREFIX + channel).setGroupSummary(true).setLocalOnly(child.localOnly)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
         notify(TAG_MSG, -(channel.hashCode() and 0x7FFFFFFF) - 1, b.build())

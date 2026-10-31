@@ -8,13 +8,21 @@ export const LABEL_TICKET = "PA-TK1\n";
 export const LABEL_STATE = "PA-ST1\n";
 const LABEL_SEAL = "PA-SEAL1\n";
 const LABEL_PKCE = "PA-PKCE1\n";
+const LABEL_CLI_CODE = "PA-CLI1\n";
 
-export const PURPOSES = ["register", "unpause", "delete-account"] as const;
+export const PURPOSES = ["register", "login", "delete-account"] as const;
 export type Purpose = (typeof PURPOSES)[number];
 export const TICKET_LIFE_S = 120;
 export const TICKET_LIFE_PEER_LIMIT_S = 600;
+// A ticket renewed at the peer limit never lives past this many seconds from the first ticket.
+export const TICKET_RENEW_MAX_S = 1800;
 export const REQUEST_TOKEN_LIFE_S = 900;
 export const STATE_LIFE_S = 600;
+// cli code windows: a code is accepted in its own window and the next one.
+export const CLI_WINDOW_S = 600;
+// No delete-account: the command line client does not delete the account.
+export type CliPurpose = Exclude<Purpose, "delete-account">;
+export const CLI_LETTER: Record<CliPurpose, string> = { register: "r", login: "l" };
 
 export async function makeToken(secret: string, label: string, body: object): Promise<string> {
   const part = b64urlEncode(utf8(JSON.stringify(body)));
@@ -45,11 +53,46 @@ export async function keyRef(signPubRaw: Uint8Array): Promise<string> {
   return b64urlEncode(await sha256(signPubRaw));
 }
 
+// k16 = b64url(first 16 bytes of sha256(sign_pub raw bytes)), 22 chars.
+export async function keyRef16(signPubRaw: Uint8Array): Promise<string> {
+  return b64urlEncode((await sha256(signPubRaw)).slice(0, 16));
+}
+
+// First 16 bytes of HMAC-SHA256(PA_TOKEN_SECRET, "PA-CLI1\n" a "\n" k16 "\n" p "\n" window).
+async function cliMac(secret: string, a: string, k16: string, p: CliPurpose, w: number): Promise<Uint8Array> {
+  return (await hmac(secret, utf8(LABEL_CLI_CODE + a + "\n" + k16 + "\n" + CLI_LETTER[p] + "\n" + w))).slice(0, 16);
+}
+
+// cli code = b64url(raw account id 9 bytes || cliMac), 34 chars. w = floor(unix s / CLI_WINDOW_S).
+export async function makeCliCode(secret: string, a: string, k16: string, p: CliPurpose, w: number): Promise<string> {
+  return b64urlEncode(concat(b64urlDecode(a)!, await cliMac(secret, a, k16, p, w)));
+}
+
+// Opens a cli code for the current window w: "ok" with the account (window w or w - 1),
+// "expired" (one of the 6 windows before those), or null.
+export async function openCliCode(
+  secret: string,
+  code: string,
+  k16: string,
+  p: CliPurpose,
+  w: number,
+): Promise<{ a: string; w: number } | "expired" | null> {
+  const raw = /^[A-Za-z0-9_-]{34}$/.test(code) ? b64urlDecode(code) : null;
+  if (!raw || raw.length !== 25) return null;
+  const a = b64urlEncode(raw.slice(0, 9));
+  const mac = raw.slice(9);
+  for (let i = 0; i < 8; i++) {
+    if (ctEqual(mac, await cliMac(secret, a, k16, p, w - i))) return i < 2 ? { a, w: w - i } : "expired";
+  }
+  return null;
+}
+
 export interface Ticket {
   a: string; // account id
   k: string;
   p: Purpose;
   x: number; // expiry, unix s
+  i?: number; // first ticket's issue time, unix s (set on peer-limit renewal)
   s?: string; // sealed Apple refresh token (delete-account only)
 }
 

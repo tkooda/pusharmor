@@ -1,5 +1,4 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { env } from "cloudflare:test";
 import { b64urlDecode } from "../src/codec/b64url";
 import { utf8 } from "../src/crypto/hash";
 import { BUDGET_MS, fanout, SUBREQUEST_WORST_CASE, type Target } from "../src/push/fanout";
@@ -8,24 +7,21 @@ import { deps } from "../src/push/deps";
 import { mintFcmToken } from "../src/push/fcm";
 import { getToken, MAX_TOKENS, peekToken } from "../src/push/tokencache";
 import { Log } from "../src/log";
-import { authAlerts, recordHealth } from "../src/push/results";
-import { healthCheck } from "../src/scheduled";
 import { call, decodeJwt, initP256, message, mock, newPeer, onVendor, pushFor, randomEmail, row, setAllow, testEnv, vendorKeys, vendorRequests, type Peer } from "./helpers";
 import { VENDOR_ROWS } from "./vendor-fixtures";
 
 beforeAll(initP256);
 
-const platformOf = { fcm: "android", apns: "iphone", wp: "chrome", up: "unifiedpush" } as const;
+const platformOf = { fcm: "android", apns: "ios", wp: "chrome", up: "unifiedpush" } as const;
 
 async function target(v: "fcm" | "apns" | "wp" | "up", cls: Target["cls"] = "send", m = message(512)): Promise<Target> {
   const push = pushFor(platformOf[v] === "unifiedpush" ? "android" : platformOf[v], v === "up" ? "unifiedpush" : undefined);
-  if (v === "up") (push as Record<string, unknown>).verified_at = 1;
   const pushType = v === "fcm" ? 1 : v === "apns" ? 2 : v === "up" ? 6 : 3;
   return { id: "id-" + v, pushType, push: JSON.stringify(push), m, cls };
 }
 
 const isSend = (v: string) => (r: { url: string }) =>
-  v === "fcm" ? r.url.includes("/messages:send") : v === "apns" ? r.url.includes("/3/device/") : v === "wp" ? r.url.startsWith("https://fcm.googleapis.com/fcm/send/") : r.url.startsWith("https://up.example.org/");
+  v === "fcm" ? r.url.includes("/messages:send") : v === "apns" ? r.url.includes("/3/device/") : v === "wp" ? r.url.startsWith("https://fcm.googleapis.com/fcm/send/") : r.url.startsWith("https://ntfy.sh/");
 
 describe("result mapping, row by row (vendor-wrap 6)", () => {
   for (const row of VENDOR_ROWS) {
@@ -145,9 +141,9 @@ describe("result mapping, row by row (vendor-wrap 6)", () => {
 });
 
 describe("request shapes: TTL, priority, sizes, no ids in headers", () => {
-  it("FCM: data {m}, ttl 604800s, HIGH; deny/pause NORMAL; size 3801 at M = 3800", async () => {
+  it("FCM: data {m}, ttl 604800s, HIGH; deny/logout NORMAL; size 3801 at M = 3800", async () => {
     const e = await testEnv();
-    for (const cls of ["send", "approve", "peerchg", "deny", "pause"] as const) {
+    for (const cls of ["send", "approve", "peerchg", "deny", "logout"] as const) {
       const m = message(3800);
       await fanout(e, [await target("fcm", cls, m)], new Log());
       const req = mock.requests.filter(isSend("fcm")).pop()!;
@@ -155,7 +151,7 @@ describe("request shapes: TTL, priority, sizes, no ids in headers", () => {
       const body = JSON.parse(new TextDecoder().decode(req.body));
       expect(body.message.data).toEqual({ m });
       expect(body.message.android.ttl).toBe("604800s");
-      expect(body.message.android.priority).toBe(cls === "deny" || cls === "pause" ? "NORMAL" : "HIGH");
+      expect(body.message.android.priority).toBe(cls === "deny" || cls === "logout" ? "NORMAL" : "HIGH");
       expect(Object.keys(body.message).sort()).toEqual(["android", "data", "token"]);
       expect("m".length + m.length).toBe(3801);
       expect(req.headers.authorization).toBe("Bearer ya29.test-access-token");
@@ -202,14 +198,14 @@ describe("request shapes: TTL, priority, sizes, no ids in headers", () => {
     expect(mock.requests.filter(isSend("apns")).pop()!.url.startsWith("https://api.sandbox.push.apple.com/3/device/")).toBe(true);
   });
 
-  it("Web Push: VAPID verifies, TTL 604800, urgency, body 3903 bytes at M = 3800; pair TTL 2419200", async () => {
+  it("Web Push: VAPID verifies, TTL 604800, urgency, body 3903 bytes at M = 3800; pair TTL 604800 too", async () => {
     const e = await testEnv();
     const k = await vendorKeys();
-    for (const cls of ["send", "deny", "pause", "pair"] as const) {
+    for (const cls of ["send", "deny", "logout", "pair"] as const) {
       await fanout(e, [await target("wp", cls, message(3800))], new Log());
       const req = mock.requests.filter(isSend("wp")).pop()!;
-      expect(req.headers.ttl).toBe(cls === "pair" ? "2419200" : "604800");
-      expect(req.headers.urgency).toBe(cls === "deny" || cls === "pause" ? "normal" : "high");
+      expect(req.headers.ttl).toBe("604800");
+      expect(req.headers.urgency).toBe(cls === "deny" || cls === "logout" ? "normal" : "high");
       expect(req.headers["content-encoding"]).toBe("aes128gcm");
       expect(req.headers.topic).toBeUndefined();
       expect(req.body.length).toBe(3903);
@@ -224,21 +220,22 @@ describe("request shapes: TTL, priority, sizes, no ids in headers", () => {
     }
   });
 
-  it("TTL on all three vendors for class pair is 2419200", async () => {
+  it("TTL on all three vendors for class pair is 604800", async () => {
     const e = await testEnv();
     await fanout(e, [await target("fcm", "pair"), await target("apns", "pair")], new Log());
     const f = JSON.parse(new TextDecoder().decode(mock.requests.filter(isSend("fcm")).pop()!.body));
-    expect(f.message.android.ttl).toBe("2419200s");
+    expect(f.message.android.ttl).toBe("604800s");
     const a = mock.requests.filter(isSend("apns")).pop()!;
     const ttl = Number(a.headers["apns-expiration"]) - Math.floor(Date.now() / 1000);
-    expect(ttl).toBeGreaterThan(2419200 - 3);
+    expect(ttl).toBeGreaterThan(604800 - 3);
+    expect(ttl).toBeLessThanOrEqual(604800);
   });
 
   it("no sender or recipient id in any vendor header (all routes)", async () => {
     const email = randomEmail();
     const me = await newPeer(email);
     const peers: Peer[] = [];
-    for (const pl of ["android", "iphone", "chrome", "firefox"]) peers.push(await newPeer(email, pl));
+    for (const pl of ["android", "ios", "chrome", "firefox"]) peers.push(await newPeer(email, pl));
     for (const p of peers) await setAllow(p, [me.id]);
     const m: Record<string, string> = {};
     for (const p of peers) m[p.id] = message(512);
@@ -253,37 +250,6 @@ describe("request shapes: TTL, priority, sizes, no ids in headers", () => {
       }
     }
     expect(await row(me.id)).not.toBeNull();
-  });
-});
-
-describe("vendor auth alert (I274)", () => {
-  it("only APNs 403 InvalidProviderToken for an hour -> the ops mail is built", async () => {
-    const e = await testEnv();
-    const hour = Math.floor(deps.now() / 3600000) - 1;
-    const t = hour * 3600000 + 1000;
-    await recordHealth(env, "apns", false, true, t);
-    await recordHealth(env, "apns", false, true, t);
-    await recordHealth(env, "fcm", true, false, t);
-    expect(await authAlerts(env, hour)).toEqual(["apns"]);
-    const log = new Log();
-    await healthCheck(e, log);
-    const mails = vendorRequests("email.us-east-1.amazonaws.com");
-    const texts = mails.map((x) => JSON.parse(new TextDecoder().decode(x.body)).Content.Simple.Subject.Data);
-    expect(texts).toContain("PushArmor vendor auth alert");
-    expect(log.extra.auth_alert).toBe("apns");
-    expect(env.DB).toBeTruthy();
-  });
-});
-
-describe("health ok cache (I374)", () => {
-  it("a failed ok write does not suppress the next ok write in the hour", async () => {
-    const hour = Math.floor(deps.now() / 3600000) - 1;
-    const t = hour * 3600000 + 1000;
-    const broken = { DB: { prepare: () => { throw new Error("d1 down"); } } } as unknown as typeof env;
-    await recordHealth(broken, "fcm", true, false, t);
-    await recordHealth(env, "fcm", true, false, t);
-    await recordHealth(env, "fcm", false, true, t);
-    expect(await authAlerts(env, hour)).toEqual([]);
   });
 });
 

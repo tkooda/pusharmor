@@ -34,6 +34,8 @@ class NamePairTest {
         assertTrue(!NameEntry.isValidName("x".repeat(33)))
         assertTrue(!NameEntry.isValidName("a\tb"))
         assertTrue(!NameEntry.isValidName("\u00e9"))
+        assertTrue(!NameEntry.isValidName("a\"b"))
+        assertTrue(NameEntry.isValidName("a'b"))
     }
 
     @Test fun pairMessages() {

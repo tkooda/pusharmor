@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createScheduledController, env } from "cloudflare:test";
 import { purge, PURGE_IDLE_S, PURGE_MAX_CHUNKS, scheduled } from "../src/scheduled";
+import { CRON_HEALTH } from "../src/crons";
 import { Log } from "../src/log";
-import { captured, mock, testEnv, vendorRequests } from "./helpers";
+import { captured, meterD1, testEnv } from "./helpers";
 
 const NOW = Math.floor(Date.now() / 1000);
 
@@ -37,6 +38,20 @@ describe("purge (Q159)", () => {
     expect(log.extra.purged).toBe(250);
   });
 
+  it("keyset cursor (I448): each chunk starts after the last purged id, no rescans, no empty final chunk", async () => {
+    await fill(2000, NOW, "A");
+    await fill(250, NOW - PURGE_IDLE_S - 10, "I");
+    await fill(2000, NOW, "Z");
+    const log = new Log();
+    const m = await meterD1(async () => purge(await testEnv(), NOW, log));
+    expect(m.result).toBe(250);
+    expect(log.extra.chunks).toBe(3);
+    // One pass over the table per statement (2 statements per chunk), not one per chunk.
+    expect(m.rows_read).toBeLessThan(2 * 4250 + 2000);
+    const left = await env.DB.prepare("SELECT count(*) AS n FROM accounts").first<{ n: number }>();
+    expect(left!.n).toBe(4000);
+  });
+
   it("cap (I227 07): 60,000 idle accounts -> at most 500 chunks; count logged", async () => {
     await fill(60000, NOW - PURGE_IDLE_S - 10, "C");
     const log = new Log();
@@ -49,34 +64,42 @@ describe("purge (Q159)", () => {
 });
 
 describe("scheduled()", () => {
-  it("unknown cron logs cron-unknown and mails ops", async () => {
+  it("unknown cron logs cron-unknown", async () => {
     const before = captured.length;
     await scheduled(createScheduledController({ cron: "5 5 5 5 5" }), await testEnv());
     expect(captured.slice(before).some((l) => JSON.parse(l).error === "cron-unknown")).toBe(true);
-    const mails = vendorRequests("email.us-east-1.amazonaws.com");
-    expect(mails).toHaveLength(1);
-    expect(JSON.parse(new TextDecoder().decode(mails[0].body)).Destination.ToAddresses).toEqual(["ops@example.com"]);
   });
+});
 
-  it("hourly health check mints tokens and runs SELECT 1; failure mails ops", async () => {
-    await scheduled(createScheduledController({ cron: "0 * * * *" }), await testEnv());
-    expect(vendorRequests("oauth2.googleapis.com")).toHaveLength(1);
-    expect(vendorRequests("email.us-east-1.amazonaws.com")).toHaveLength(0);
-    mock.clock += 21 * 60 * 1000;
-    await scheduled(createScheduledController({ cron: "0 * * * *" }), await testEnv({ APPLE_APNS_KEY_P8: "broken" }));
-    const mails = vendorRequests("email.us-east-1.amazonaws.com");
-    expect(mails).toHaveLength(1);
-    expect(JSON.parse(new TextDecoder().decode(mails[0].body)).Content.Simple.Body.Text.Data).toContain("apns");
+describe("scheduled() health cron", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const URL_ = "https://hc.example.test/ping/abc";
+  async function run(envOver: Record<string, unknown>, fetchImpl: () => Promise<Response>) {
+    const f = vi.fn((_url: string, _init?: RequestInit) => fetchImpl());
+    vi.stubGlobal("fetch", f);
+    await scheduled(createScheduledController({ cron: CRON_HEALTH }), await testEnv(envOver));
+    return f;
+  }
+  const badDb = { prepare: () => { throw new Error("d1 down"); } } as unknown as D1Database;
+
+  it("pings the URL after a passing self-check", async () => {
+    const f = await run({ PA_HEALTHCHECK_URL: URL_ }, async () => new Response("ok"));
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(f.mock.calls[0]![0]).toBe(URL_);
   });
-
-  it("D1 outage: the health check failed mail is still sent (I402)", async () => {
-    const down = () => {
-      throw new Error("D1 down");
-    };
-    const DB = { prepare: down, batch: down, exec: down } as unknown as D1Database;
-    await scheduled(createScheduledController({ cron: "0 * * * *" }), await testEnv({ DB }));
-    const mails = vendorRequests("email.us-east-1.amazonaws.com");
-    expect(mails).toHaveLength(1);
-    expect(JSON.parse(new TextDecoder().decode(mails[0].body)).Content.Simple.Body.Text.Data).toContain("d1");
+  it("does not ping when the database check fails", async () => {
+    const f = await run({ PA_HEALTHCHECK_URL: URL_, DB: badDb }, async () => new Response("ok"));
+    expect(f).not.toHaveBeenCalled();
+  });
+  it("does nothing when the URL is unset or empty", async () => {
+    expect(await run({}, async () => new Response("ok"))).not.toHaveBeenCalled();
+    expect(await run({ PA_HEALTHCHECK_URL: "" }, async () => new Response("ok"))).not.toHaveBeenCalled();
+  });
+  it("a fetch rejection does not throw and logs no URL", async () => {
+    const before = captured.length;
+    await run({ PA_HEALTHCHECK_URL: URL_ }, async () => { throw new Error("net " + URL_); });
+    const lines = captured.slice(before);
+    expect(lines.some((l) => JSON.parse(l).error === "health-ping-failed")).toBe(true);
+    expect(lines.join("\n")).not.toContain("hc.example.test");
   });
 });

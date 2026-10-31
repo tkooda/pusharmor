@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
   "name": "PushArmor",
-  "version": "0.0.9",
-  "description": "Send links and text between your own devices, end-to-end encrypted.",
+  "version": "0.0.20",
+  "description": "Send links and text between your own devices, always end-to-end encrypted.",
   "background": { "page": "background.html", "persistent": true },
   "browser_action": { "default_popup": "popup.html", "default_icon": { "16": "icons/icon-16.png", "32": "icons/icon-32.png" } },
   "icons": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" },
@@ -34,7 +34,7 @@
   "content_security_policy": "script-src 'self'; object-src 'self'; frame-src https://pusharmor.com",
   "browser_specific_settings": {
     "gecko": {
-      "id": "placeholder-addon-id@pusharmor.com",
+      "id": "{00000000-0000-0000-0000-000000000000}",
       "strict_min_version": "140.0",
       "data_collection_permissions": { "required": ["personallyIdentifyingInfo", "personalCommunications"] }
     },

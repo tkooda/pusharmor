@@ -109,6 +109,32 @@
     ],
     "description": "Strict canonical b64url decoding: RFC 4648 URL alphabet, no \"=\", reject any other char, length mod 4 = 1 and nonzero spare bits. ok true gives hex = the decoded bytes (hex here only, to avoid testing the codec with itself)."
   },
+  "cli_code": {
+    "cases": [
+      {
+        "account": "CuVpna7--Emb",
+        "code": "CuVpna7--EmbC2ZJoWDrTDsCGM0UZVdodw",
+        "k16": "HZg5IIuyFznOzmFDAjKV4w",
+        "link": "https://pusharmor.com/auth/cli#r.HZg5IIuyFznOzmFDAjKV4w",
+        "p": "r",
+        "purpose": "register",
+        "sign_pub": "BBU8HRjDliaMIU-vYpiwaJRkj0ThiOfXU-PoyWSRxf4o1W3uAcxnRzC2Bnwxg41VJ_Ud6C8T-iux4E89qCTPIHY",
+        "window": 2969856
+      },
+      {
+        "account": "CuVpna7--Emb",
+        "code": "CuVpna7--EmbVHIu85WiJwJBNkTKJe9MeQ",
+        "k16": "HZg5IIuyFznOzmFDAjKV4w",
+        "link": "https://pusharmor.com/auth/cli#l.HZg5IIuyFznOzmFDAjKV4w",
+        "p": "l",
+        "purpose": "login",
+        "sign_pub": "BBU8HRjDliaMIU-vYpiwaJRkj0ThiOfXU-PoyWSRxf4o1W3uAcxnRzC2Bnwxg41VJ_Ud6C8T-iux4E89qCTPIHY",
+        "window": 2969857
+      }
+    ],
+    "description": "Command line login code. k16 = b64url(sha256(sign_pub)[0..16]) (22 chars); link = \"https://pusharmor.com/auth/cli#\" + p + \".\" + k16 (p = r register, l login, d delete-account); code = b64url(account (9 bytes) || HMAC-SHA256(token_secret, \"PA-CLI1\\n\" + b64url(account) + \"\\n\" + k16 + \"\\n\" + p + \"\\n\" + window)[0..16]) (34 chars), window = floor(unix s / 600) in decimal. token_secret is a test PA_TOKEN_SECRET. Assert k16, link and code (the Worker and the command line client).",
+    "token_secret": "P0z8Sf7oaGAIVFkwHMUfu6ZbWL8-CGjEt_uY8DiS2yM"
+  },
   "content_cap": {
     "cases": [
       {
@@ -395,6 +421,151 @@
         "sign_pub": "BN43vv3nakxwe1dv08KSqmbv0o1k1yuIgAEvmT-7g2oA7L9Uov-liG0d-tI9VZzK_0LSetsrgwkUFiOeL2PmfR4"
       }
     }
+  },
+  "mailbox": {
+    "cases": [
+      {
+        "account": "NJsb8q1Is8ZR",
+        "email_hash": "oSa5jLVcJgkDjb7ZJA7IqfauDGWO3RctFkWyi3RboJs",
+        "input": "A.B.C+Tag@Gmail.com",
+        "mailbox": "abc@gmail.com",
+        "normalized": "a.b.c+tag@gmail.com"
+      },
+      {
+        "account": "OXOCoMcbyoxw",
+        "email_hash": "rLNqkFEaENhCqGdeGtQH-eMrrUgqbWEcg0ODeY9M9qU",
+        "input": "a.b+x+y@googlemail.com",
+        "mailbox": "ab@gmail.com",
+        "normalized": "a.b+x+y@googlemail.com"
+      },
+      {
+        "account": "NJsb8q1Is8ZR",
+        "email_hash": "oSa5jLVcJgkDjb7ZJA7IqfauDGWO3RctFkWyi3RboJs",
+        "input": "abc@gmail.com",
+        "mailbox": "abc@gmail.com",
+        "normalized": "abc@gmail.com"
+      },
+      {
+        "account": "92dlEpZrw04w",
+        "email_hash": "JtoJ4U4-6B1A-N5AdK6wFtnotPh5q89hgmb8Lw7DFPc",
+        "input": "+tag@gmail.com",
+        "mailbox": "+tag@gmail.com",
+        "normalized": "+tag@gmail.com"
+      },
+      {
+        "account": "iqkYBJRhKaOu",
+        "email_hash": "Sf9R4onvv1LpFltLzd-y3pfcfwV0ahfP0g0J_oYmAxs",
+        "input": "..@gmail.com",
+        "mailbox": "..@gmail.com",
+        "normalized": "..@gmail.com"
+      },
+      {
+        "account": "3MCFeEUC_e1f",
+        "email_hash": "ix9CH3clUk1yExnEOzr56RBRLkP_dU8nnIU3kqF_Qp4",
+        "input": "A.B+tag@outlook.com",
+        "mailbox": "a.b@outlook.com",
+        "normalized": "a.b+tag@outlook.com"
+      },
+      {
+        "account": "6vW80f1_av9O",
+        "email_hash": "rgVDKnQ4M1BFVSsmGypjVn3YiGvuJsJ1TFX0QdAoIbQ",
+        "input": "a.b+tag@hotmail.com",
+        "mailbox": "a.b@hotmail.com",
+        "normalized": "a.b+tag@hotmail.com"
+      },
+      {
+        "account": "q-JuzF5mpwfV",
+        "email_hash": "geRQMpduLOJtkpeJFGQUiU2uIYhi4Y5EWfIzt3Mweos",
+        "input": "a.b+tag@live.com",
+        "mailbox": "a.b@live.com",
+        "normalized": "a.b+tag@live.com"
+      },
+      {
+        "account": "2pFWBsS8xoek",
+        "email_hash": "QlntB_4OoIbV6b-Beap7AiohxWsBtM0y_opq5VIbP0U",
+        "input": "a.b+tag@msn.com",
+        "mailbox": "a.b@msn.com",
+        "normalized": "a.b+tag@msn.com"
+      },
+      {
+        "account": "Y3Y4eDLjJYJk",
+        "email_hash": "9e38kG8XCIh629toxA2p7IsW0DsVY6mCwNjqg_Rz41Y",
+        "input": "a.b+tag@icloud.com",
+        "mailbox": "a.b@icloud.com",
+        "normalized": "a.b+tag@icloud.com"
+      },
+      {
+        "account": "-aYqLr9pqYUt",
+        "email_hash": "HHr0an44fObgtAlwTmarWw-fRK2MaCYWWL1N73W6UXE",
+        "input": "a.b+tag@me.com",
+        "mailbox": "a.b@me.com",
+        "normalized": "a.b+tag@me.com"
+      },
+      {
+        "account": "II5zPLLVw2se",
+        "email_hash": "YekYhdQ_7fP0S3hg5FvUrQiCd5JbylAbe1bm3WniJMY",
+        "input": "a.b+tag@mac.com",
+        "mailbox": "a.b@mac.com",
+        "normalized": "a.b+tag@mac.com"
+      },
+      {
+        "account": "syD6qqRKzvOL",
+        "email_hash": "tnkgQDR2L4zyVAh4FqyvkEkbqYf_E0rzKZdgl5U5ICU",
+        "input": "a.b+tag@fastmail.com",
+        "mailbox": "a.b@fastmail.com",
+        "normalized": "a.b+tag@fastmail.com"
+      },
+      {
+        "account": "nVS0OL8wsA-9",
+        "email_hash": "x4Ab2Gq7KTI4b5l-LioZcYTZQE8E6QMNxDzJ8iy5JZU",
+        "input": "a.b+tag@proton.me",
+        "mailbox": "a.b@proton.me",
+        "normalized": "a.b+tag@proton.me"
+      },
+      {
+        "account": "tyP_joVb3JzK",
+        "email_hash": "Db2kQoiFLXL0MafbndK_gohxLDHMjwXhraJP27FtFMo",
+        "input": "a.b+tag@protonmail.com",
+        "mailbox": "a.b@protonmail.com",
+        "normalized": "a.b+tag@protonmail.com"
+      },
+      {
+        "account": "gLVaiW80yH33",
+        "email_hash": "nZodukE6H2UoJ1bwqwVQXjn-xkvOahWPpNoomOqk3KQ",
+        "input": "a.b+tag@protonmail.ch",
+        "mailbox": "a.b@protonmail.ch",
+        "normalized": "a.b+tag@protonmail.ch"
+      },
+      {
+        "account": "jO83MF6G8rld",
+        "email_hash": "qJ2vDWUUjIu2ZjkPd3lTVhMawWgrrKqJQLsTOpyAufU",
+        "input": "a.b+tag@pm.me",
+        "mailbox": "a.b@pm.me",
+        "normalized": "a.b+tag@pm.me"
+      },
+      {
+        "account": "VY37Wys-dvqt",
+        "email_hash": "NXW7Umizz-vh5-W2WdmtaxA7yX__-wXbSW4S18wrTOg",
+        "input": "a.b+tag@example.com",
+        "mailbox": "a.b+tag@example.com",
+        "normalized": "a.b+tag@example.com"
+      },
+      {
+        "account": "MP2cCJZ1y1IF",
+        "email_hash": "5CW5qES1PYIqRSe0b3c-15rQfv2KCQvbFhnK0RLcbAM",
+        "input": "a.b+tag@mail.gmail.com",
+        "mailbox": "a.b+tag@mail.gmail.com",
+        "normalized": "a.b+tag@mail.gmail.com"
+      },
+      {
+        "account": "BDRIHUrRQ-eS",
+        "email_hash": "6O93MmU55jkz0vTWOA2AhfrGJBKKPnqIC3FkpSvxeX4",
+        "input": "a.b+tag@gmail.co",
+        "mailbox": "a.b+tag@gmail.co",
+        "normalized": "a.b+tag@gmail.co"
+      }
+    ],
+    "description": "Account identity (Worker and command line ban tool). mailbox = normalized address with, at gmail.com googlemail.com outlook.com hotmail.com live.com msn.com icloud.com me.com mac.com fastmail.com proton.me protonmail.com protonmail.ch pm.me only: the local part cut at its first \"+\" (when that is not the first char); at gmail.com and googlemail.com also every \".\" removed from the local part (kept when that leaves it empty) and the domain set to gmail.com. Other domains (subdomains included) are unchanged. email_hash = sha256(\"PA-ACCT1\\n\" || mailbox), account = HMAC-SHA256(keys.id_secret, email_hash)[0..9]. Login codes still go to the normalized address. Assert normalized, mailbox, email_hash and account."
   },
   "messages": {
     "cases": [
@@ -717,26 +888,26 @@
         "wire_chars": 512
       },
       {
-        "deflated": "q1bKU7Ky1FEqSCwtTlWyMqwFAA",
+        "deflated": "q1bKU7Ky1FHKyU_PLy1RsjKsBQA",
         "expect": {
           "n": 9,
           "outcome": "accept",
-          "type": "pause",
+          "type": "logout",
           "value": 1
         },
         "from": "X",
         "history": [],
         "hpke": {
-          "base_nonce": "G3IsKCetXcza_Fb3",
-          "enc": "BEQsHwwv7Ftiky-GetI3W-k2YcGStm4pezhGk2D4R6__ow4xb7_a8KuNXKlXiaOO80Av1bs-rYVkJXiNzTJ82YY",
-          "ikmE": "ZYcUSYT8-kx2ddfmsQHheXqZhpDckfh3hpJzojfh5GA",
-          "key": "zDFufA8lWUJDwqEw00EwvraoXv9hd8OKLnvL2wE6reY",
-          "shared_secret": "yIYlFTJyGCjlx18kObvyXVtySoi_guxFxsizh5DSOL0",
-          "skE": "nVHOi8o_1lurSJsSk7rhNNeWoFJfV5YQVHXBtPPb4_E"
+          "base_nonce": "DfYc0MX_jDPhCC5W",
+          "enc": "BHFxlbNwCsJJz-aTD1q1sO8cjOwNDw7UVcHRwdcB8xAcQsLRh0cLHXqbIoeiP9jYkX72Oy7gO8u0E1pYH3sj0h4",
+          "ikmE": "DYZGaFY_iqkD2ZejLW_hcLY3I67L78RYyR7PuoLEncg",
+          "key": "6DyEgKAOmP2OKkzV84NcnZFZFLSdWrmo2Awrvl9mYbo",
+          "shared_secret": "Md6AVihfhmjLqYbgDscAuwZ3pWcfnlAVI-89HQRjNV8",
+          "skE": "8mIaOrGSr2TdUNX0w7MKPqRCkT7sik6-NnnH5Ji4YfM"
         },
-        "json": "{\"n\":9,\"pause\":1}",
-        "message": "BEQsHwwv7Ftiky-GetI3W-k2YcGStm4pezhGk2D4R6__ow4xb7_a8KuNXKlXiaOO80Av1bs-rYVkJXiNzTJ82YZif4V18AiTyh7jg3ikqTyhSRcSoTk8tmlSHG1l2GASA_wBKXDAoPGcOUHtFvS8SiNZtqeJEZg-QWAHGggu3uahYSGHLiQa_X74gUaQHxwmL4n2ym7-7Aa4IhBOLr9dBvZijKzMjDkLR-qJvZxa2PS-nCuymAlBaoC5nF8E2xgJGScMI_R6qr3ciDC-sV090p1DdJpQ2-FzySk_6Vk4ctzI7MfPRO6UaMJkaQao7gBA2wUz8OWqYJaCp8ZaQOUL79n-2lACyDA0n6qFX1qZ4BDS9bGR4iXCgSI5voK0T457m0KG1Q_R_Byl80sWRjUviORV9ao3rHTG1Eh_1UAylYv_wlW6dldZJa6FmU9RAOZWlXNNPbhDZ7XTiHO6PlfZsuJYKkr0q2qke3Ni4Hrgx9Pozizkg-gUyg4k7hOD5jJG",
-        "name": "pause",
+        "json": "{\"n\":9,\"logout\":1}",
+        "message": "BHFxlbNwCsJJz-aTD1q1sO8cjOwNDw7UVcHRwdcB8xAcQsLRh0cLHXqbIoeiP9jYkX72Oy7gO8u0E1pYH3sj0h5-_HVasWThmYtRwDNmH3NtmkZyLTasEcT2AW1vnYYpRTVHcr91b0g1Lpqwfhf5zgTkbS31bbejFOyfMG7nhtMwDcL1lgeKoIXS5xQSZnu8rCkxKImB0KkJ42x72PbJdoULG-ZS6ymhflC4nUttsNXIr9l6evOtedmw6dz74T9wjWF3IzLtYXFnW1Ctg8S3f3bScETsdWvwY6emk3n60iJZu4vCK_yJcDawYgl9_RAv3M-mjFcxoW7BvqQ4bZ6J90njfgeNBov7feyKb-4hM-BIW8_pMzKGTABmgrnySVurfvRtsqdG-chgGi8kGWyuQ-lgvat2EDC4SGiuJpDJw-N3xfs0XmeOMnLNLfsfhx4RceptL1FcN2uol6pAmJ1Zrzo0jcg7uWmVZR9IjY8kiN83giG9vwHTHObvanB4PItY",
+        "name": "logout",
         "pin": {
           "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
           "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
@@ -744,11 +915,11 @@
           "ruling": "approved",
           "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
         },
-        "plaintext": "pa6DWUBrhknwzag7FDi9Na1MgNd_o0TfLagFcyQuVQpNP1LucfIG8gDJS7S551FxDXgbeO9YYguq6X8cBkISQwrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAATq1bKU7Ky1FEqSCwtTlWyMqwFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "plaintext": "wmWyXnA85MylZGrliyqZXWIZwxXMWYQ7t8PQI8TKt6CrxUDeSJtTfFfddHEuEP0P9K1RXWlEZiqsrDWw2XiOEQrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAAUq1bKU7Ky1FHKyU_PLy1RsjKsBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
         "receiver": "N",
-        "sig": "pa6DWUBrhknwzag7FDi9Na1MgNd_o0TfLagFcyQuVQpNP1LucfIG8gDJS7S551FxDXgbeO9YYguq6X8cBkISQw",
-        "signed_bytes": "UEEtTVNHMQpDdVZwbmE3LS1FbWJGSDNMQ3ZmaUFOdG5DdXJHcHlTdFNYSU82QVV6CgrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAATq1bKU7Ky1FEqSCwtTlWyMqwFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-        "type": "pause",
+        "sig": "wmWyXnA85MylZGrliyqZXWIZwxXMWYQ7t8PQI8TKt6CrxUDeSJtTfFfddHEuEP0P9K1RXWlEZiqsrDWw2XiOEQ",
+        "signed_bytes": "UEEtTVNHMQpDdVZwbmE3LS1FbWJGSDNMQ3ZmaUFOdG5DdXJHcHlTdFNYSU82QVV6CgrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAAUq1bKU7Ky1FHKyU_PLy1RsjKsBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "type": "logout",
         "window": {
           "h": 0,
           "seen": []
@@ -756,26 +927,26 @@
         "wire_chars": 512
       },
       {
-        "deflated": "q1bKU7IyNNBRKs0rSCwtTlWyMqwFAA",
+        "deflated": "q1bKU7IyNNBRyslPzwQxawE",
         "expect": {
           "n": 10,
           "outcome": "accept",
-          "type": "unpause",
+          "type": "login",
           "value": 1
         },
         "from": "X",
         "history": [],
         "hpke": {
-          "base_nonce": "Dw4XRzyGYvQkUGtT",
-          "enc": "BOTtXS65GhSQQU5QrrwzxbHOvYw37fBjhyQOqrVkJCsfbDdH3xcDxfF_9fXJkG26ALTidi_-6wZrZLfs3BXwmgU",
-          "ikmE": "ayBX1oEyuZgQoofDV4XIRVXUYwzJSDem6LWGPqq7Pss",
-          "key": "1Y0Jmf3utSZf2wgkiUXqJrb3volA3YZ4DX2gryR9fdY",
-          "shared_secret": "tGB_I1W2YOfTy6lAbLifarruJNoso9RIgMBxGUocCJQ",
-          "skE": "0q3vjAN0NcQI6V0Xf7vdPaF2mXfKJPHPij3zPtgBTaA"
+          "base_nonce": "B-yiuUbwuRxPvuuk",
+          "enc": "BKMx_9E-hxLYfRVSWXspbotnKYgvU3kmchaQP0_DBgu4jK_PyvKALoVdBXfb97a9LhNaTps-Pv6j8H3DmzRiv0s",
+          "ikmE": "wHudQx_ZvcD1iblcmsNVVM1E243Wn1GRId1mHgG42ws",
+          "key": "Ykv5WCiU7SGpnydNPfAJjEsPGN21RzB2pv2-VXu-J5Y",
+          "shared_secret": "z7-MZFV6vq6BDyBCnHf4NUNh-manpyJ61Bn9CkArpeA",
+          "skE": "dRm6dEyYzkSRMcfudM4so8DXujIcf1dEGvxzo7bnrDE"
         },
-        "json": "{\"n\":10,\"unpause\":1}",
-        "message": "BOTtXS65GhSQQU5QrrwzxbHOvYw37fBjhyQOqrVkJCsfbDdH3xcDxfF_9fXJkG26ALTidi_-6wZrZLfs3BXwmgUnijsqttb-Fnuxw3YYR4blIRKjJFjlr0KOY2zdx2gRBgpqyBItd88CbvS4MQcj4VRKlMRyXRYPtU1CxxtDoOWC2aMMmKsusWJiadCk3qvXjspoacXMtpLsB4T3m9F0r9GPkvwHw8BM4X8zWO-mBgmhAUkPCVoIRYzcB7-237HqqOO0FmJr9NjlTLph-VTyw5nCR1t39OXQUYiyR22jDss33TA9sAWwTw4YRrsAAKEFYho1a5YIjzkwRMXy756iB0YVlqUZz_t6ksSwhHfIQbrpnYSXtgYScITXemGxndvtoL6J4hs2aiq-_mhJ_pCbraCGseHS5JQmVsIUCRciHGybWuKraTLwyMhfXyGX6yx789k6_wY2LmMxyVRl-_u59hGG8wXwWXcIvB0ww6J30Lgv01g4hRHMdJmzKrVpvITn",
-        "name": "unpause",
+        "json": "{\"n\":10,\"login\":1}",
+        "message": "BKMx_9E-hxLYfRVSWXspbotnKYgvU3kmchaQP0_DBgu4jK_PyvKALoVdBXfb97a9LhNaTps-Pv6j8H3DmzRiv0usPW4VxZUwpEWzG4Frl8Pfn-3Pnt_eF0UUDHE06xLGaPla3rFGgRM66kaH4BaJWU_pDToiPs8OEhJxrnx357fNCGdmFL95QBmYAGsHcaBoyDKAZ86ISsrlwc8IfKGL7m3jdXTBzLjRVhzFwT6zYUf2QA2mCVijYZ7mYkJvWCV8RHGXda887A5iocQaZXGTnD5jEA6MXOZRNhYhsWHoLlPBSsR9g_T69jEOr_AQ6dx332vz8mq6XohvtFTsJNPUI3Kty6EQYhfBdmOEasrPlOSXuOh2S9rFySFUKUdcLnu6awQP2Vmpbnn2XZDYoViapWWf_jZ8Kk0JbrCmO2XG5E01A1fX_YY9H4PJeXBgufweuc-wU7z58bgNqRex76UOl-Ng1GEdvxY6JC3yYy9F6W34hFlDSqcZrYf4oQisaEK3",
+        "name": "login",
         "pin": {
           "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
           "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
@@ -783,11 +954,11 @@
           "ruling": "approved",
           "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
         },
-        "plaintext": "rg76C2UaF0HIiW_dF7w0CdCSJyTjBOOMov6dEo6HdZJPv6UwLcnPlcG2hPs7NXFvc5LOzmkaEWoN6SmuDffCAArlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAAWq1bKU7IyNNBRKs0rSCwtTlWyMqwFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "plaintext": "ouE5xMM2Ahwaiffze2D9q4aKtmHhG3qoQm8BXfb-8i6S487EuBhnp94QsHaALECJfcc-pdaUtArNZDfv8mbDLgrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAARq1bKU7IyNNBRyslPzwQxawEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
         "receiver": "N",
-        "sig": "rg76C2UaF0HIiW_dF7w0CdCSJyTjBOOMov6dEo6HdZJPv6UwLcnPlcG2hPs7NXFvc5LOzmkaEWoN6SmuDffCAA",
-        "signed_bytes": "UEEtTVNHMQpDdVZwbmE3LS1FbWJGSDNMQ3ZmaUFOdG5DdXJHcHlTdFNYSU82QVV6CgrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAAWq1bKU7IyNNBRKs0rSCwtTlWyMqwFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-        "type": "unpause",
+        "sig": "ouE5xMM2Ahwaiffze2D9q4aKtmHhG3qoQm8BXfb-8i6S487EuBhnp94QsHaALECJfcc-pdaUtArNZDfv8mbDLg",
+        "signed_bytes": "UEEtTVNHMQpDdVZwbmE3LS1FbWJGSDNMQ3ZmaUFOdG5DdXJHcHlTdFNYSU82QVV6CgrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAARq1bKU7IyNNBRyslPzwQxawEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "type": "login",
         "window": {
           "h": 0,
           "seen": []
@@ -796,6 +967,294 @@
       }
     ],
     "description": "One full inner message per type, X -> N. JSON {\"n\": counter, type: value} -> deflate-raw (any valid stream is fine for senders; receivers inflate the given bytes) -> body = from id(30) || pairing id(8) || keys flag(1; 1 on approve, 0 on every other type) [|| sign_pub || enc_pub, approve only] || u16 BE deflated length || deflated -> zero pad so the wire length is the next of 512/1024/2048/3800 chars -> sig = ECDSA over \"PA-MSG1\\n\" + recipient 40-char id + \"\\n\" + padded body (signed_bytes) -> plaintext = sig || padded body -> HPKE (info \"PA-MSG1\", aad = recipient id) -> message = b64url(enc || ct). Receiver state: pin (the pinned keys, pairing id and ruling approved | unruled | denied of the sender), window (h and the seen n values), history (n values with a History row). Assert: open message with the receiver enc_priv and compare plaintext; verify sig before inflate; inflate deflated and compare json; run the full receive pipeline and compare expect (outcome, type, n, value; approve/rename value = verified name and n; the name entry n must equal the message n; the name entry is checked before the replay window)."
+  },
+  "must_decode": {
+    "description": "Lenient receivers (Q327): inputs every client must DECODE. Inner message: unknown keys are ignored; the type is the first known type key in the fixed order url, text, tel, approve, deny, remove, rename, delete, logout, login (so url + text is a url). Duplicate keys and the \"n\" rules still reject (see must_fail). Name entry (and the name object inside approve / rename): unknown extra keys are ignored; name, n and s are still required. messages: run the receive pipeline as in messages (pin default approved) and compare expect. name_entries: open as in name_entries with pin and compare expect.",
+    "messages": [
+      {
+        "deflated": "q1bKU7Iy1FEqLcpRslLKKCkpKLbS10-tSMwtyEnVS87P1U9U0lGqULIyrAUA",
+        "expect": {
+          "n": 1,
+          "outcome": "accept",
+          "type": "url",
+          "value": "https://example.com/a"
+        },
+        "from": "X",
+        "history": [],
+        "hpke": {
+          "base_nonce": "UgtjtU9ndcnEdZNN",
+          "enc": "BJkjq9tEXeG1UXlDMr7W1Jt9WC9tt7ZPFjvfkf1SwI6fTvnS7TNJsNxKb89lwj8lDUHr2t80JGtxqJvhPP8b15Q",
+          "ikmE": "qcVa1Gmj3fWCnCCdO8IIOFUaPhIlvf_L6LG6ufivPUM",
+          "key": "qKr0iV3xo1fp_1SK6xhtheg0ayKwvPfn2WXwhchZmVE",
+          "shared_secret": "spJF78Bs7a_Y2S6l6gErA12auuBDi9dZLwNapE_-T5Y",
+          "skE": "7waiMxJVJYMd_a2X9jPAN3afOuzmasOAhLVCvTkm0Sc"
+        },
+        "json": "{\"n\":1,\"url\":\"https://example.com/a\",\"x\":1}",
+        "message": "BJkjq9tEXeG1UXlDMr7W1Jt9WC9tt7ZPFjvfkf1SwI6fTvnS7TNJsNxKb89lwj8lDUHr2t80JGtxqJvhPP8b15TJElFMjArCGWo-2KqIYqhHP6dqJ6LrNgPcVw7UDYSj0jDe88TvqrNVg6JT4ugdfWo6r6boigdMQav5M6KLoK5PNhxx3YyOFl7XYp4tK-qkfABfKhpvgN_lyJQXmPh58OXUUWo7A3Pc9am4kzoo-xYrLbOpjf-0_6CMgzCTRN-Do9Oqva2syJg_ghWXIZNkz7Pnsj08psifoAJY1yBP_2aTs8nwroQx2JT_GW-xqMV1ckl8qXjHQFX7rB3A5erVZehINDfBKi0nhJEMiagnr4Uu6Gp5Xiu_KfT_vWUQkXVF8vvtRtzF-LckzVl0rThuubswNsPHxmMOtX3pl67IxEoWPZlJkoagN5ot-tNEkJ1OXWFRhLlKOJ_3-tdsnTpBBJzuP2tpKqcShL6oNuqBAdeiUAmZ5eKWcxiOkUyC0Cr_",
+        "name": "url_plus_unknown_key",
+        "pin": {
+          "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
+          "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
+          "pairing_id": "m-8oOwvzZC8",
+          "ruling": "approved",
+          "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
+        },
+        "plaintext": "lA3VtOe0aFJv48E-rbvbRjUtKx6_Q_13u5TGqhftMazZxlY8PeSSmLX_p5vwVHfArtR5U32GmXSdqstFbg-mLwrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAAtq1bKU7Iy1FEqLcpRslLKKCkpKLbS10-tSMwtyEnVS87P1U9U0lGqULIyrAUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "receiver": "N",
+        "sig": "lA3VtOe0aFJv48E-rbvbRjUtKx6_Q_13u5TGqhftMazZxlY8PeSSmLX_p5vwVHfArtR5U32GmXSdqstFbg-mLw",
+        "signed_bytes": "UEEtTVNHMQpDdVZwbmE3LS1FbWJGSDNMQ3ZmaUFOdG5DdXJHcHlTdFNYSU82QVV6CgrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAAtq1bKU7Iy1FEqLcpRslLKKCkpKLbS10-tSMwtyEnVS87P1U9U0lGqULIyrAUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "window": {
+          "h": 0,
+          "seen": []
+        }
+      },
+      {
+        "deflated": "q1bKU7Iy0lEqSa0oUbJSyshU0lGqULJSqlSqBQA",
+        "expect": {
+          "n": 2,
+          "outcome": "accept",
+          "type": "text",
+          "value": "hi"
+        },
+        "from": "X",
+        "history": [],
+        "hpke": {
+          "base_nonce": "nJZXfg8WEQjQMQ9h",
+          "enc": "BBavpmcSEv6ZSyyfDX_O6hj4kcVnNvIs1W5WGTBP00XXmHs0dIgtDvj7LEfxg3l3vwCWh3hTWYSOos71ycsfSYQ",
+          "ikmE": "a0KVmbCZmYAyaeOB1tTVqKPeGyTND_WssGygg2_mP2c",
+          "key": "bAzjG3fZsXIquJxtcgyaPTd5deJ3IVvVb2PHrIUrdJw",
+          "shared_secret": "gcn1f8jrMd8dZdz_PajSNoO3J9XSWAo186XIppcxSOM",
+          "skE": "AJ7XMwAVDua9WU9UzcYmsNf-K5LKDYxSUpfmcLTVvKc"
+        },
+        "json": "{\"n\":2,\"text\":\"hi\",\"x\":\"y\"}",
+        "message": "BBavpmcSEv6ZSyyfDX_O6hj4kcVnNvIs1W5WGTBP00XXmHs0dIgtDvj7LEfxg3l3vwCWh3hTWYSOos71ycsfSYT0fdsWGOQ_K5GUz9DkT88pN9Djtvk_wJw_FVjucTesAOrOkNDx8Vo-tsZkgSfnZzkPCB-GA2RVcE2BBSRAL8I8OjuGjfqVNDculahDTKIMMZ0J1ZsRMAuKRN54aE7UcqYtZjiYv7PPN31reetiBocjymblz9NpzPYgxJAH8kwjZ8Y_hN0h1Uwr6wTqEittFHNRvfn06KkXKxFuP8DTReQOEAraqiHssusFgR4J6QAdn2Pf0NfMkb1Yq_hjDDHzVcciMIXIXKxznCsrG8hKWZk87C5NI0WXMpMDep-hFNz3h6roTdeacoLiBHT4maWLhPXgV_f3_H2UYwdn9DRl_rhCucrVP1bjwiV3tmS64sdJjebWANAc3Zbrvg35T1i0WiVk_1Gz1hNWM3Jlj58eutHj9UI-18tvQsZ140fVHKlO",
+        "name": "text_plus_unknown_key",
+        "pin": {
+          "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
+          "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
+          "pairing_id": "m-8oOwvzZC8",
+          "ruling": "approved",
+          "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
+        },
+        "plaintext": "p9nioMa9PzFFJKVTNOrXHo5RTj1989CcgFkwIi0v86FDR9OxtDr1vG3HOoXGrYGNnhwNfGPH1NVVI_vUxcV9fwrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAAdq1bKU7Iy0lEqSa0oUbJSyshU0lGqULJSqlSqBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "receiver": "N",
+        "sig": "p9nioMa9PzFFJKVTNOrXHo5RTj1989CcgFkwIi0v86FDR9OxtDr1vG3HOoXGrYGNnhwNfGPH1NVVI_vUxcV9fw",
+        "signed_bytes": "UEEtTVNHMQpDdVZwbmE3LS1FbWJGSDNMQ3ZmaUFOdG5DdXJHcHlTdFNYSU82QVV6CgrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAAdq1bKU7Iy0lEqSa0oUbJSyshU0lGqULJSqlSqBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "window": {
+          "h": 0,
+          "seen": []
+        }
+      },
+      {
+        "deflated": "q1aqULKKNtQxitVRylOyMtZRKknNUbJS0jZUMDU11TU0MtY1MTUzV6oFAA",
+        "expect": {
+          "n": 3,
+          "outcome": "accept",
+          "type": "tel",
+          "value": "+1 555-123-4567"
+        },
+        "from": "X",
+        "history": [],
+        "hpke": {
+          "base_nonce": "18SYvaWa18V4PgK8",
+          "enc": "BCMjC2nSo5IioR4QLu69jSELSIdi4mh7mh_zwBgW_RV0WacCQEoTDimciRGzlUqs_e644yod9je8KYs1MpUf-Rc",
+          "ikmE": "Kt6JhkLt5RMsFI6mkfgdabc9WuF3lKzIlj01e-BC15s",
+          "key": "atxH0xlRzJ6GHwCvVUf11FO6Oxo8Q4BbRFHE5IM0vfE",
+          "shared_secret": "KSjs0DMWKIETs-SkcDt8_3KNf3FjoAreof68Rt3eCns",
+          "skE": "SrD7v7wRYkHSXzpnvlv3ZBPnafLI02qScIgbGJQWF7M"
+        },
+        "json": "{\"x\":[1,2],\"n\":3,\"tel\":\"+1 555-123-4567\"}",
+        "message": "BCMjC2nSo5IioR4QLu69jSELSIdi4mh7mh_zwBgW_RV0WacCQEoTDimciRGzlUqs_e644yod9je8KYs1MpUf-RcFNjB7EZ2NO4VMZcLzVembLyVgWUXFdkgtAjxB57k9e17tpiXTWCIzBMHz7iPS4sLnNrb-y1T6-gTrgVpeiIp5G1Dm9qjktpjD9H6OhsjofOJZXlBhu-ysmEXUhGQShxqdgJvmKWxvSuMjj4hRBDD2ZqO6i4Khv-J0Gioisl8aJ2CwttolaeSn7-LlpRIEFNGhtX8T4ykUz9Is0_bH7DfXL2LfVxOAAjUM4EVyqFiRc2xCCIwi5EpekRlWrIJhunkNV8uWlclTP2LOC5mGGo9RQL7-TUnE73vET8xOQ7uQtzPmw0lw8YjMhkljnzcNixH5KwKVtcKup9ze1fsVbrksK1CAubps2HYVGw-8oh8yq5ELoLY_UNoJlIe9ClipfoAegKF3SAmASsbtxK5CCWK4v--y-YPtT7M2TJxlcFjl",
+        "name": "unknown_key_before_type",
+        "pin": {
+          "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
+          "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
+          "pairing_id": "m-8oOwvzZC8",
+          "ruling": "approved",
+          "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
+        },
+        "plaintext": "3zuRWKzjhyGUXhztlgsX2fVuu32lKMzTZjAcGLYeb-WS-JM5n6ztHfuWLVPYrwYrYrxUz6UjLBRtkv-kt--r8grlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAArq1aqULKKNtQxitVRylOyMtZRKknNUbJS0jZUMDU11TU0MtY1MTUzV6oFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "receiver": "N",
+        "sig": "3zuRWKzjhyGUXhztlgsX2fVuu32lKMzTZjAcGLYeb-WS-JM5n6ztHfuWLVPYrwYrYrxUz6UjLBRtkv-kt--r8g",
+        "signed_bytes": "UEEtTVNHMQpDdVZwbmE3LS1FbWJGSDNMQ3ZmaUFOdG5DdXJHcHlTdFNYSU82QVV6CgrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAArq1aqULKKNtQxitVRylOyMtZRKknNUbJS0jZUMDU11TU0MtY1MTUzV6oFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "window": {
+          "h": 0,
+          "seen": []
+        }
+      },
+      {
+        "deflated": "q1bKU7Iy0VEqSa0oUbJSSlTSUSotylGyUsooKSkottLXT61IzC3ISdVLzs_VT1SqBQA",
+        "expect": {
+          "n": 4,
+          "outcome": "accept",
+          "type": "url",
+          "value": "https://example.com/a"
+        },
+        "from": "X",
+        "history": [],
+        "hpke": {
+          "base_nonce": "l_UbNL22RLRUtlAi",
+          "enc": "BLHdWXZ4CvwARIqm880ryurapoO7rR9dXMFsqOe-nAayejJKTMFr07Kxv5i5twavyEaGksg2e6rp3rv1W9zXoNw",
+          "ikmE": "khBzH5C8jKNjU0PpxJhpfbRx1NkAfVdS7UW6XshVB-M",
+          "key": "Uusknlg8XA6ZYL4kP6YIMRAPaPZzhpJ-Epjn0EKe67Q",
+          "shared_secret": "3w4635S_RQvRWY3mGVbxeWfNRn_cYOoTD5rUhW_Q5YE",
+          "skE": "jTlqkUbv6k7Dtvx9BJbhlX1xdveH6iCOUGa44PWvRR8"
+        },
+        "json": "{\"n\":4,\"text\":\"a\",\"url\":\"https://example.com/a\"}",
+        "message": "BLHdWXZ4CvwARIqm880ryurapoO7rR9dXMFsqOe-nAayejJKTMFr07Kxv5i5twavyEaGksg2e6rp3rv1W9zXoNwDweaFglcr6mX_s_KMdFQdzmMvHmZJYvVj2Qn2_GJPD3mFWDX0a8ZT7hB-TpswLWCk79LL0ChcBokhet2ea-sNR5aQqDcdDmJ3KcWI7WYBZUw0KW1y-Pwgfas7M8zUrmg6K3iKDXe2fHi37Ng21WkXIIfo_T_TYxJeQ7VM8bf5l0niGBi4WospCGwcFlxKCWZ1PvWXnLhY6ZGnK74EMWd1YYfhtWy6X8l-W1cH-B7jxZlRoDEl0qnCn_Zhl0Fodm1NXytDfo68nlUIJAcFNDhBliYtIPHPTtBVQfAmwpGMVbDPmHKP5GupVjKyeSSp18a_Ea8jpFwsfs_AqqmY4g3nulNkepi9Bclleem5SDwzou9jDZ80wXiyBnuY7X6etyiz4Jrs4lZKKgLFDpU2FQWj9bWxwJX5nXsNDTSDkmBS",
+        "name": "url_and_text_is_url",
+        "pin": {
+          "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
+          "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
+          "pairing_id": "m-8oOwvzZC8",
+          "ruling": "approved",
+          "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
+        },
+        "plaintext": "bVKFPZIUanU_mUmL_f2oXH2qDejlRdPfup2KmkRQLbJNbD2mklGAi9oOzsVekOFWhStjYdAI5wUmg437LedJwwrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAAyq1bKU7Iy0VEqSa0oUbJSSlTSUSotylGyUsooKSkottLXT61IzC3ISdVLzs_VT1SqBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "receiver": "N",
+        "sig": "bVKFPZIUanU_mUmL_f2oXH2qDejlRdPfup2KmkRQLbJNbD2mklGAi9oOzsVekOFWhStjYdAI5wUmg437LedJww",
+        "signed_bytes": "UEEtTVNHMQpDdVZwbmE3LS1FbWJGSDNMQ3ZmaUFOdG5DdXJHcHlTdFNYSU82QVV6CgrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAAyq1bKU7Iy0VEqSa0oUbJSSlTSUSotylGyUsooKSkottLXT61IzC3ISdVLzs_VT1SqBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "window": {
+          "h": 0,
+          "seen": []
+        }
+      },
+      {
+        "deflated": "q1bKU7Iy1VEqSc1RslLSNlQwNTXVNTQy1jUxNTNXAolXlChZKSUq1QIA",
+        "expect": {
+          "n": 5,
+          "outcome": "accept",
+          "type": "text",
+          "value": "a"
+        },
+        "from": "X",
+        "history": [],
+        "hpke": {
+          "base_nonce": "ft2WMvucqA4dsOfS",
+          "enc": "BEZ1EHWuKufiFUYQ1kBP76EE4mFQU_awOcTj9Gx_eKQG2vywOWcgl4bmR7PSy1TzHkljK-X-LN9elIsTrP08e6o",
+          "ikmE": "Jb-RmpwvFoWC9P9QXtsx9-eLnpsThYoDDcReDKUEoac",
+          "key": "l_-qxJn42sCEWFr6qLHJZy7zbmXYw0q_5ts88O6uPXo",
+          "shared_secret": "SMQ60rUNNqwW-1ldyZfPlZmEz_oHmoIBfWAZmzVUcnQ",
+          "skE": "5K-C0uI4noNWAP64NHfZVnNEjGzI19OFNQzGLXdvKPk"
+        },
+        "json": "{\"n\":5,\"tel\":\"+1 555-123-4567\",\"text\":\"a\"}",
+        "message": "BEZ1EHWuKufiFUYQ1kBP76EE4mFQU_awOcTj9Gx_eKQG2vywOWcgl4bmR7PSy1TzHkljK-X-LN9elIsTrP08e6o4O9y3HPAtCI3z8pY6EeprBXjcocarCIt-yNugeIIj5EFGJviWzVT0QdvN0IS6nIE2rEZPXwPhkkalotIYpA3MM_GUbQ9ZH-W2aoRAE3Vs-bteWtnCVpM6gSm5wlOhfbCBLpqTQvncX2kCWZZcKDI3yR3qRJNT9-_a2JY_fDNtw8e82F20bAC67HmWpLm9148kojYEZfwgGyKw-lErTDNeZ18tG7Ln5256ZEEDduJzB9xlW2lS5KuPOFC1xBu1X0PrL4IvZ8rZHWebZSbjdG0TSlK5fcSqm54JOJvi729kexyLULKb7HMcBcfwVMAPPkrl1MvQwRXkipy3smTZ8VAUo7OOuUeGwCAXlCT8CT8KMESsUVZufk_Wvo0u4p5zZ6gkvywxTraHF_fMyORiXF5irke1if6akuNf3vlKFfKS",
+        "name": "text_and_tel_is_text",
+        "pin": {
+          "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
+          "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
+          "pairing_id": "m-8oOwvzZC8",
+          "ruling": "approved",
+          "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
+        },
+        "plaintext": "tR_h0MvYiddGIb6l9O8IPvXuJ9YqUnIy5QT3LuG8pLwdxxZkz9IiKnr8xPdAHW34FnbNCWl4ErICnOwe3kKzbgrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAAqq1bKU7Iy1VEqSc1RslLSNlQwNTXVNTQy1jUxNTNXAolXlChZKSUq1QIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "receiver": "N",
+        "sig": "tR_h0MvYiddGIb6l9O8IPvXuJ9YqUnIy5QT3LuG8pLwdxxZkz9IiKnr8xPdAHW34FnbNCWl4ErICnOwe3kKzbg",
+        "signed_bytes": "UEEtTVNHMQpDdVZwbmE3LS1FbWJGSDNMQ3ZmaUFOdG5DdXJHcHlTdFNYSU82QVV6CgrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAAqq1bKU7Iy1VEqSc1RslLSNlQwNTXVNTQy1jUxNTNXAolXlChZKSUq1QIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "window": {
+          "h": 0,
+          "seen": []
+        }
+      },
+      {
+        "deflated": "q1bKU7Iy01HKyU_PLy1RsjLUUapQsjKsBQA",
+        "expect": {
+          "n": 6,
+          "outcome": "accept",
+          "type": "logout",
+          "value": 1
+        },
+        "from": "X",
+        "history": [],
+        "hpke": {
+          "base_nonce": "3qNyKrwFODUuhv5P",
+          "enc": "BLFrLJJHmSMUYPPKbbjA4m_lSs4aXg4YNbXnifOZVZt3LQD_o8E_HrYnPSHED-SOaafoO47TBJkqOrLdRQj5iMg",
+          "ikmE": "Q4RleTNSgkfSJAY7WAE1pspyG1K05oDQvQoQ-csrOu0",
+          "key": "bAW6LrdNKFHJPcG7ZwPg8hd-G_U0kghtkAhadPyvhKA",
+          "shared_secret": "t2VxiHk6KYrWZNinEpffoNsuISfjUsb3HL_wDDDMERc",
+          "skE": "mSwxWWy55enUvxuP6Uj84L66M8AIUcBUmy4V5ge5mN0"
+        },
+        "json": "{\"n\":6,\"logout\":1,\"x\":1}",
+        "message": "BLFrLJJHmSMUYPPKbbjA4m_lSs4aXg4YNbXnifOZVZt3LQD_o8E_HrYnPSHED-SOaafoO47TBJkqOrLdRQj5iMjLR7IAr6Z_3uekdU2bV7fHTFZdsm6v49ddv4bHiklH4Pp45ht8eTDSaAZ8wref84zdrGt-HXlsnQ-XYXi5KpFzac9hbocpTnkPi6EEOAko_inzKH_6-kW3m_TtpHgDhS5qht8e-zT9n_JYU9bo8v3itUjZHbbs2cNcguWei5x5CU_gDV_q6PewjVAYJ__dK30ucAfKTj6H7PpnelhWTOtpcyzVKxbUEdSbjJQ5DI4LRo9oplSNbSu3zWHpv7M3GzYtbE9mbtfl5kXvanxqgq4xa6IznxusW0hnDalFhztNslE35cVIUEApgy7P-0yEDN7UDyHwPxpJrU2ftvJ7LPEZCouKs2FnwxAk-i4l3lYyiIaw4biKOG5rp8ZX-Lc_MQP8L6obZa21etlidlcIBBKw-XNWzMcIY3wlbH9MYNHo",
+        "name": "logout_plus_unknown_key",
+        "pin": {
+          "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
+          "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
+          "pairing_id": "m-8oOwvzZC8",
+          "ruling": "approved",
+          "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
+        },
+        "plaintext": "EdBy4TRVxiJN0OhAx0QxMlscRBuiH3_KSaC1fbIPt8v-o44FGB35zH_JLUL_L1O1gkEIRdnns6iI6cncySuREgrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAAaq1bKU7Iy01HKyU_PLy1RsjLUUapQsjKsBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "receiver": "N",
+        "sig": "EdBy4TRVxiJN0OhAx0QxMlscRBuiH3_KSaC1fbIPt8v-o44FGB35zH_JLUL_L1O1gkEIRdnns6iI6cncySuREg",
+        "signed_bytes": "UEEtTVNHMQpDdVZwbmE3LS1FbWJGSDNMQ3ZmaUFOdG5DdXJHcHlTdFNYSU82QVV6CgrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAAAaq1bKU7Iy01HKyU_PLy1RsjLUUapQsjKsBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "window": {
+          "h": 0,
+          "seen": []
+        }
+      },
+      {
+        "deflated": "Lcq7DoIwAAXQf7lzByAV024mCgP4oKa8FoKhKZFXA0ZBwr-7eOazogenBKUx4_BW4Cv6slPgkH5L8-SjrweQf5rAIdL2aOdnw_xL4VrPVD_qKJTMVdkpFolHq05Fxayk32TOLduJcFj6ZtlH7te8hlHHgbbtUE2WkFNQ3T1aM1ExDYIZ3N4IFnBn-wE",
+        "expect": {
+          "n": 4,
+          "outcome": "accept",
+          "type": "approve",
+          "value": {
+            "n": 4,
+            "name": "Pixel 8"
+          }
+        },
+        "from": "X",
+        "history": [],
+        "hpke": {
+          "base_nonce": "ZoB0YE19ZvUPDY2_",
+          "enc": "BJPb2O9X6n7roYFWSPEilfRLv05r3fy-I7Hetwmn3_wjSdckiXhnPaXjca8HCkmbypL1b1TUvAeo0qyo4ShKwA0",
+          "ikmE": "gvmgbITyFkRaDt9wpsNTjaSRLhpgfEbFWb2bcaxZ-VA",
+          "key": "00LFUESr0X0OB9MTkt-gH62kI7nbUrwOB7Dc-w5Ifec",
+          "shared_secret": "49Fs2E4glwoWCgn_RNv58ZYAJXHu-9WnMU0vWvRpyrc",
+          "skE": "b1tXGWUxo_AGgo-Np988J11w-ZkdgRTqLEdxBPanzO4"
+        },
+        "json": "{\"n\":4,\"approve\":{\"name\":\"UGl4ZWwgOA\",\"n\":4,\"s\":\"RXlD1ZMp9GN_60jXgbhQLU96eYEVRWF4dmeQ_xeUGkY2PY5RLoynky7Q6zptorgVKg11Les0RUsKdSF4h9Rd9g\",\"x\":1},\"y\":2}",
+        "message": "BJPb2O9X6n7roYFWSPEilfRLv05r3fy-I7Hetwmn3_wjSdckiXhnPaXjca8HCkmbypL1b1TUvAeo0qyo4ShKwA03WwZrLDNHZlboM47HRXmaNlB7pkV3_6afLjEUDmhquRW3G5jrp_bsDRU4ep2JZEK5rOOrT6EE8eMnVLZUuL8BoRlrm4yhdA1hABnPHRjDN6P7xBjVGSnFSGokYqrxHFJyikF1RtUVFBbiqxuH_7ZXPTVtxGdJ-_64vAQQmmeT2TSFCak2yEiUIQMw6Q8khoeLq9L-XYtVT_DXywLhQ2i76LUbG8gTCtKR_44HN0c8SkWV_5jJsfTmNbBEqkZm1ZwCp1aQv4ChIhiEtIsv-noH3RBY5H8Vjq4u1yODmRmvvKMLapuLfoo4H_heATlJY82gWfJScweiRordYPDTulZkAm3AT2pGTZSShxLPGnEJSMrrZixxvkqNno4vn2UJefDZBj6OFfrcn3se_qKF49xbnAVQOJKkr9O_HYI7kNXFz23W7ICqCWZWsEBvctDj5gQ5t-1NKXG5uz_C-crgD9KUCmkFzEXFbz6l8-JnZik0OAO5mw31KUY3GTNdCpHAwoBM1QiOVlLak8uX_Ni7z56Q2TCYoftdcCC_b0SuNOm9r9jFFX6_f8u4RJ7k9sPWjiY5cErccdylyg33Xmu0zmMu-WsERCbTZJXKkzy_T0xfk5pQlgykDKtlo9KlEQV1kwnguaxarQ7IxCb9upCItPNsUA2iHT-LxJQBjuqDqtraDAUXmZDwmArShdctfUq-Cmcr87TFBtYZp-kT5YWl9E0VyU6RCRMF0-X2a4hKE4ApksOtMJk_G4V-bxiRPspuA5qeY5zUcWbQIZeil5ZWtE3NcAiGCRBKsUCepolm354-O2anz8DKua7vhhOPPN-WMtpydrJcmZJnWyx1tVW1LFBI7Fy3Z_yNpIquaFZHQ6Ri3ZkD4aPkr4j1k-qvrG0gZNLgFyXnxc3OsoItFz0kJx4pojNhRzeRv_nOMa5rPxdz",
+        "name": "approve_name_entry_unknown_key",
+        "pin": {
+          "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
+          "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
+          "pairing_id": "m-8oOwvzZC8",
+          "ruling": "unruled",
+          "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
+        },
+        "plaintext": "t-u5eSE4jhaFkwte4lzgW9lQrBZpvnqqUNRQL6Ze74f0JPRqjA4JbQ0DCBtkGPyEwjRnJYr60525udNAGk-bJgrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAQQBIk2ammqVES_JpCPhcATTH48ta_yo2xgDFT5m5EmSDA_55ZWI1fSD0EjESkQU4Yj1pezqhR66rLIS8QyfDkFFBBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQAjC3Kuw6CMAAF0H-5cwcgFdNuJgoD-KCmvBaCoSmRVwNGQcK_u3jms6IHpwSlMePwVuAr-rJT4JB-S_Pko68HkH-awCHS9mjnZ8P8S-Faz1Q_6iiUzFXZKRaJR6tORcWspN9kzi3biXBY-mbZR-7XvIZRx4G27VBNlpBTUN09WjNRMQ2CGdzeCBZwZ_sBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "receiver": "N",
+        "sig": "t-u5eSE4jhaFkwte4lzgW9lQrBZpvnqqUNRQL6Ze74f0JPRqjA4JbQ0DCBtkGPyEwjRnJYr60525udNAGk-bJg",
+        "signed_bytes": "UEEtTVNHMQpDdVZwbmE3LS1FbWJGSDNMQ3ZmaUFOdG5DdXJHcHlTdFNYSU82QVV6CgrlaZ2u_vhJm8G5x51xCzSxKjufY45YW8IKaRbuZ5vvKDsL82QvAQQBIk2ammqVES_JpCPhcATTH48ta_yo2xgDFT5m5EmSDA_55ZWI1fSD0EjESkQU4Yj1pezqhR66rLIS8QyfDkFFBBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQAjC3Kuw6CMAAF0H-5cwcgFdNuJgoD-KCmvBaCoSmRVwNGQcK_u3jms6IHpwSlMePwVuAr-rJT4JB-S_Pko68HkH-awCHS9mjnZ8P8S-Faz1Q_6iiUzFXZKRaJR6tORcWspN9kzi3biXBY-mbZR-7XvIZRx4G27VBNlpBTUN09WjNRMQ2CGdzeCBZwZ_sBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "window": {
+          "h": 0,
+          "seen": []
+        }
+      }
+    ],
+    "name_entries": [
+      {
+        "ciphertext": "BLQGAYxQ9F2Bp2LZrH6922TuQ2LleLx1z519mj8WeZ7hztH_zOeeM37gJPIntHoCcTHQ-0W71JvQ3k1WQHtIv5g6ngZsi05zD-aXGgO70xnmGbrUp4tCm-dHikA7UZGyw9JqSsZQNarb_wfVegRUgPTLTG5V7ykmBOPXqUnEXviIRtOEllHH-iuzQHP8oTgFExfBbwh2shA1lY6gSthTwRGTtnipdkuihxp2H3cUJAUodFMF9WG7wD7hH54R3Vm1-Jo7fkOxz18xCkLvSxLCO7gTCsbp",
+        "entry_json": "{\"name\":\"UGl4ZWwgOA\",\"n\":4,\"s\":\"RXlD1ZMp9GN_60jXgbhQLU96eYEVRWF4dmeQ_xeUGkY2PY5RLoynky7Q6zptorgVKg11Les0RUsKdSF4h9Rd9g\",\"x\":{\"y\":1}}",
+        "expect": {
+          "n": 4,
+          "name": "Pixel 8",
+          "ok": true
+        },
+        "name": "name_entry_unknown_key",
+        "owner": "X",
+        "pin": {
+          "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
+          "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
+          "pairing_id": "m-8oOwvzZC8",
+          "ruling": "approved",
+          "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
+        },
+        "receiver": "N"
+      }
+    ]
   },
   "must_fail": {
     "cases": [
@@ -1389,8 +1848,8 @@
         "from": "X",
         "history": [],
         "kind": "message",
-        "message": "BNcTeSxOuE_kbZCwAmmANC_rmlgDNEGqXafdw6G-X4bc4q1ixeaob__pXkaaQ1W-tly-IsVlnQTgsb1QLlao5L7YAmerpI4Wts0DP2TFwFxH3IOt7_clAn1Ge8W_LxxVeU7qGl2udOeVCrGl7b-wHTJ325hCoeFK0RxOgDuJDmu3GUnkuDrIU-EWwZHI9__raD5XMxhu-XIiWmSrrN2ARvnBRLwZx6In41v_8z1ngx3vp13bsZlTYFl1y7vYQ99Zr6gaWk92R0dQ8SAK1SIH0a_2T4P0k3QzDMigxv-zwJFAnhMX4vQXox2Tsq9Mm1svIOvv9K_DZ2OqjSKIUO0vjBPj30oiGhzntXzG8oJUo4B_oYu55nFOMIAx24WMmmDXNXOCGOMCyUmzv57xP5jtrPX1-9KqOLU8gKZ_Sm1YOxk-xOlCkX6iuTNS40YmA9MwskLvLKnet2xGYEbbKTu9opPDXQcF0purgEAlDGKyHp8xRSOwb5S3f6-1jmvG-LzZ",
-        "name": "pause_from_denied",
+        "message": "BKde6IcT2FYPt_-FeWk8teYINDo6vVTj9xZX5Z9kJlqqr8PO5Tz-XEa7f25e8vdBMyESybRhjRH_1hctS3Uymv6Y7gYEYrdaoJZKVY4Ge-NnpCNk1alYDcGx_vlQq6K3ZVQ0DLXdm26Q90zae7eyHP8F17XYW3mFG7db0jsBp8srhnK0RgeqNdpln62sdAvO_DIedv6qyMUlyPBFLlDzhF2db3hjuLAuCFX0o51OuW03ry_SYUMUnxsIzY82lZZrlXDCvGERzBrSOoimJZocZgCwqXfbnjUkfrDzZv7YCa68n1JhRLHGqsqlp_vVCcwLKYQb4JOoEZI3XxMK9633qL9Jl-WA0lfXXdupOzmqIPGTqK-9sfOTwfTOboAhdXSLsPsOKX-5rSWr2DMg7tYLA9M4pFjv4_quWPxX97HJRzV_vPaSuC3sBuTiI_gRcInuNNI2hGEzajZRfh66Auxs7LDP8dy8fIdFuPkjAutrp0scvhimFzJTsa4foeI_7UYC",
+        "name": "logout_from_denied",
         "outcome": "unreadable",
         "pin": {
           "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
@@ -1667,46 +2126,6 @@
         "from": "X",
         "history": [],
         "kind": "message",
-        "message": "BGicWRZlfsvWG46wveQ6iQv9sj3K9NnjurHgDP5j_KH0gLdRmXVa65AsTmg-83b8g-j2dOjRaIGFyeQ88jUrrG_0Nt5U_goo5hwNeQhDVxi69oMsH2IWN1axqNEPPf2FeK9F3Ykkjwn_J4kt1yaBWHk3nCDwq0JQY_nGP2bRun4UKHsuQ6z9am4Lq4QFv7iES40E4hfTq1nU8sTkQ4-D8m7u6pzdwS6l768ygz9lzkZOtOBjJD1ZVgnM4NHi53HSM2hHZivGP6T55znmZLowaato2Or4G1DfFQSwY53eoSbArAWVqDYtb126UGmyKft6LrokVuS3lhMlPJHt1rE1Y2syu_QDkgBvDqIdipziHLlLrGX_h7VqS4iDKkuWW3b7jBJs2iuMDGNyxYTzW-AtjjSfsyk9rbVA0FTEpHsjIjjGPR5lob29DjkaP0Zc0yKzgIAlUXFzIUjvOfRuC0pqkvmPdmRHilXB3E8oEWTSWA92jZ0Wf5ArLFbOD0flk4nC",
-        "name": "two_type_keys",
-        "outcome": "unreadable",
-        "pin": {
-          "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
-          "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
-          "pairing_id": "m-8oOwvzZC8",
-          "ruling": "approved",
-          "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
-        },
-        "receiver": "N",
-        "window": {
-          "h": 0,
-          "seen": []
-        }
-      },
-      {
-        "from": "X",
-        "history": [],
-        "kind": "message",
-        "message": "BDnPjw-rbORtKFF9CBNvP_YQwACnL2Yq8uZDJBydNu8ey1iRmU8rf-XFtoNufYfxvpnXnXEeOq6rCCYEPTzOkWs83EdVQwI741zJ_U8FhPROSkgrzZb0xGSmBtmOeNiOQIlYqctx5pYxd8vProarwVcEYFA8EGxD3dFP14SABQToklQl_60aXz5TBE71Ygl2Kz7L655-1LznxlrMA0W1o660u_juLJaXaq6jq0d5oq3m13R0wyswFMGlQi-yH3gucya7pM0LX0_3TKb4zgt2_H4ZUZoXZWIA4XjgpQ_Wvsjp81hmByi2bHBT9i813ImCWrYxPr77_qbY8aeDyAnzfamrep6CFAG-9IfdB8_gaotUINfJF_ac4Z1V85OmuXGI84eFy-REfQx-j-l28MgZXmesbdsOk0qdYyDMxxYt5iwQdYugC18cueVr51Ci4BEbmQdsoW6qs5Q7UeFwjmxtS3P7wvZdW2oXMin5IWMc4g2p8i5487XR8O34P2zbBMHy",
-        "name": "unknown_top_level_key",
-        "outcome": "unreadable",
-        "pin": {
-          "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
-          "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
-          "pairing_id": "m-8oOwvzZC8",
-          "ruling": "approved",
-          "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
-        },
-        "receiver": "N",
-        "window": {
-          "h": 0,
-          "seen": []
-        }
-      },
-      {
-        "from": "X",
-        "history": [],
-        "kind": "message",
         "message": "BJro5WMgVhDfCMV2bKgI4MjEbzLDvNHCFaqd4Cs7IJDIS3qpKfZfuSGHBAZhSlY0iocUL316vvYPch7ZRkrWP2s5fdw0ApGxQJFT-eSKlGoq_faM1ii8zrUwnV9wI8RREhM_GkJI1XWzXSPLRiZaHcLYrWYCblsv2QoAlfx22BxgXoZzfWB3HkcVEmoppxZfh6ixVqAT9jVQb_-vXEVDXOl4p4ZSEGUeGMVItm59_81PoylVQleSRpDGf6D10StZeiqIQOL65ho46sGTy9sKSbVk2-WYxBk68IbkCtxskb6ONp-ayEsV-uphJTOaLQM0epCIwjk7vFMAUwL0Kl59Yyjz3XYIKwd590MFk7tNnAW9BNHke9lNM_Alp0q43QK88pXiW8mb5FGW2r8HzXDLmhmUZOpzAyVJp_pJSXVbLfBtR2rueiQ2uyL7JQUGGjpy4o4IZ6RTTvVTxIsb4Zi-1BpwC-Q3TMbP6EwCZ63bZsgjjhaOB6bTdM7WaDIuPbK_",
         "name": "unknown_type",
         "outcome": "unreadable",
@@ -1809,8 +2228,8 @@
         "from": "X",
         "history": [],
         "kind": "message",
-        "message": "BNABRFlSvSXA8R04uBAMYwC-SRyV0JQF53RtmlUTuZ8ma-bzGYj_pA9AlLnU8908OPmqz_RNjk_twBb_wXLltswUM29MhhCGnktDXXAdu87i_sN9ml1Ue6kzSo0ZZah2nzU1DPrbtAhmY8Me6T3MGltQ1PR-FVWYy-QR_luCwsARkEkwcZzvDtRXOVFJibt__v8x6OMwvw4yOgcpi_jlH0WB_m658N-PTFSqbJl87n4GLQwqXUla-aqyDInn-DOUmyv3HOiC0KDorw0YnN860LhMAPiH8moD2-wdn9nUWMO1v6O68U90Aq4-hm3dx-Jbe-FX6Bv9KCDQLtYf_1za_YsRmr2lb2z0tB0vJuu9JZ4WOmXjJLHuthxT0GcR5y6f-X-ngz449sEIz9dT_F4YCHNx18aqSDcPSh3hIuoc0qPmM0yWUrbLZqG9U7OghpK1uNDEwVfE4PAx9FHp6UUfd1VOcuIkmjoqSmYRDKJ9kDkD0-5C0go3PiYoR6p22uHm",
-        "name": "pause_value_1.0",
+        "message": "BA2nMAv6h7Bd0963J9HZqtaMWR7h3I14-We8gGpFPzVXos_Y5c74PGfPGWRCFN51pCrOthwtKCQy5bhte6biHOPOvkU76kMqQ_P9FXHwnEZ7F4SgFzEqXkxv8k8CJnpDyzStJ7SDYEB7tB6cwCpxL2aE1nASCRpEobTZvhpe8bI3zapHaJ6YmQebknjPp6rtulS60Bj2S6twy1Q-_0JYZf6UOU50LeyhIrAygYlMfEYnfGdKCvg0___Pa-fErRRvxl112Ty25UmTne3r-er4KDvvQGWshUHewg7fA6McZFdBT34kZmM6FxOr5ZiQ28CzlQ-m4a6Tp5KTPY3elGmpz96enZyKKPby5-5J65OjuKNSUhjf64aiA1YwC6spq5ENoEFWYVVRKa98huZOD1bg921UFLvgH5WNmswcoW3sVTWR3_MFDxPgensijjqw9AB_wa6qK7hYtXdPW24HpdiBkWD4xXcyo8I6w9oKUAqfgGSm4bh5j-Dx9aqWezqDiXkk",
+        "name": "logout_value_1.0",
         "outcome": "unreadable",
         "pin": {
           "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
@@ -2055,6 +2474,21 @@
         "receiver": "N"
       },
       {
+        "ciphertext": "BLZXRFwgwFutqcGFunDuIehW3hWTZZeCwOaftj0Gw-ICPfehKeAvegcS-4jM3ahWM7-18OfkwkZm6xb0gVkuqYXxJt1hAVXgD3i-9LXhc4H3jt3WMVg5O4WDUpApLyzZgVJMfU6O33VUm42n_jpEfTpONPpLyKMOV4yWMnDCPkFb4tbDyJTLsaY4nwetyJ0LeRg6V60bwyY2EMZKCKpchHcEm7nCpfN1Rwv8dVClEct8vRO2_qV_nw6Jn0rmxf6joj14ZVyctHXx2kI",
+        "kind": "name_entry",
+        "name": "name_entry_name_double_quote",
+        "outcome": "unreadable",
+        "owner": "X",
+        "pin": {
+          "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
+          "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
+          "pairing_id": "m-8oOwvzZC8",
+          "ruling": "approved",
+          "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
+        },
+        "receiver": "N"
+      },
+      {
         "ciphertext": "BOfqwNA7HDkIJ_rWcb7hpfuI9khDuHU4_hC0nPrmRVSdmfNstQkEWewdExxghdBkzjX3IcO3RA9DeehaupVV-4JqOZlRe-K2oFI5MWi6aJggy1r_zhzD7WweEUn65LeHtRI8H5qui9CLS6Z9EB4piLxnp83Z_lNF0WN9PX7Mh0M9lGwlixoc3Xr-umLHxi7sSslN2oIV_yO6Coh7QEs0HxGnXJs9Xn10i6yHtS0r4GkcAn0A8cZv3JmDp6ozzmbO-Nbf99UOoWI-",
         "kind": "name_entry",
         "name": "name_entry_wrong_recipient",
@@ -2073,6 +2507,21 @@
         "ciphertext": "BMCKMVZTje9CNwAwTcwavUjOoet36lmETPJRgpNiYztjK4JEr1_xdzWxwZ6ZKMzHyzLFi1ej_8u9uhEGbBcC4p39eBJDKaM-rEgMTimsjWy6hFTRNgU7XDjizZz5QoMdQ8EccJhMCISe4GIIxdB-aZlO8BBDY0dz1d5kzWc9B-5BAp9UuNGgYUxBeiiteUDLzDoPcbyI6oHssYbYFIwfKmcq87j7-bVhVhi357Xr-148nsIZklAKmKT-_7_-MQKhM7GjRk5gVxcCWAStvrWc3VKjql8Ggmp5xf5Rv1XOTwz4hlc5PVDwVP5exEWic3SIdC7Qz1pC3mzAn9UPjeN9egTaqUc9iak7dpjfwXgYvupX2DHRn_HWN6NwadrH6UWwmj44mRp4mdo_FnDbJB3VEbjZuItDS8u5toUY7Cl7B2gBdky2JE0FSb43lWN12--T-vCic808H9qydOWgLD4e7quwE1u4-GqwrfnEdiTf7OkAFS0NIlKqELjFot8-ZmtUx-tA-oW4H8Uq0H490F8GlNS3LHYNoo9TDp1rSW1pJ5LVYLo7Alk-fJ1bUshVgxZhM4UUooRY78GdNc4J1tFPtAsfdIJpU2MPzah-V5ktwaLfbCk1kN0LLmMX3FQZ-ZdDHCo78d7zbF-mh1Rd5yLsic6fugGbiGIcqycTJjCwqFuqlPdXmZXui8nHstKB8YFrGNiSFyUXEYiGywzW-Vt3NANpbRtQFgBRZd3rTap2kW3kQvHS6vhsr837F3tO3YvU8tJKBR7bULy6hQnSw3dKtUR-30of6phZr5awqoKM7PbaS7gRUc1z0MJrNTaJhTzJA3vzufZQr3WP3MamiHDTSrxChQ1IzlFsVY65MFrMsaCqxZxVOWX0OAcR7fZ5kAGEHG7nBcbUJg-8zY--qipB3Vcn_fhElJJRZFSuImdhVnLpk402PTOIi1NOpFlkBk-Ht8mWF-WJt5qdpa6y9cSRQQZOjNVe6k_lOUDtZHTgFQRxJ2qFC4IiinvIc9073UY9J67WipjFXQ52m8BnDVlQ7n0jM-AXUBDmpXM8LIKM0-B4",
         "kind": "name_entry",
         "name": "name_entry_over_1024_chars",
+        "outcome": "unreadable",
+        "owner": "X",
+        "pin": {
+          "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
+          "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
+          "pairing_id": "m-8oOwvzZC8",
+          "ruling": "approved",
+          "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU"
+        },
+        "receiver": "N"
+      },
+      {
+        "ciphertext": "BHZlP-LqM5IrHjjEqZ_RtyOzvhvn-ti2MfHpl6nnkp9G5pGq437W5wsVD3mljz-JpsrQqtkgrCeAhNTztB__H_DCke_DvBUWGEC7s68jKids4az95yGGE6LHhs_xlD38luHLTxn6ez-ms3RjCXfAiDo-",
+        "kind": "name_entry",
+        "name": "name_entry_missing_s",
         "outcome": "unreadable",
         "owner": "X",
         "pin": {
@@ -2387,7 +2836,7 @@
         "signed_string": "PA-NAME1\nCuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n\nCuVpna7--EmbFH3LCvfiANtnCurGpyStSXIO6AUz\nm-8oOwvzZC8\n9007199254740991\nfn5-fn5-fn5-fn5-fn5-fn5-fn5-fn5-fn5-fn5-fn4"
       }
     ],
-    "description": "Name entries. s = owner signature over \"PA-NAME1\\n\" + owner id + \"\\n\" + recipient id + \"\\n\" + pairing id (11 chars) + \"\\n\" + n + \"\\n\" + name (the b64url string). ciphertext = b64url(enc || ct), HPKE to the recipient enc_pub, info \"PA-NAME1\", aad = recipient 40-char id, at most 1024 chars. Assert signed_string from the fields; open ciphertext with the recipient enc_priv and compare entry_json; verify s with the owner sign_pub; name 1..32 printable ASCII."
+    "description": "Name entries. s = owner signature over \"PA-NAME1\\n\" + owner id + \"\\n\" + recipient id + \"\\n\" + pairing id (11 chars) + \"\\n\" + n + \"\\n\" + name (the b64url string). ciphertext = b64url(enc || ct), HPKE to the recipient enc_pub, info \"PA-NAME1\", aad = recipient 40-char id, at most 1024 chars. Assert signed_string from the fields; open ciphertext with the recipient enc_priv and compare entry_json; verify s with the owner sign_pub; name 1..32 printable ASCII, no double quote."
   },
   "oauth_nonce": {
     "cases": [
@@ -2399,8 +2848,8 @@
       },
       {
         "k": "HZg5IIuyFznOzmFDAjKV409frrHrnDvMxlqKG4nPnCE",
-        "nonce": "f-9n0jC04So_qDpi0nKz13QD6YBnJmWfFebmEc9KioI",
-        "purpose": "unpause",
+        "nonce": "zSjnaoWNWhd0CRF7lFKnNnvy9erebRmdxPAkHKRlOJs",
+        "purpose": "login",
         "sign_pub": "BBU8HRjDliaMIU-vYpiwaJRkj0ThiOfXU-PoyWSRxf4o1W3uAcxnRzC2Bnwxg41VJ_Ud6C8T-iux4E89qCTPIHY"
       },
       {
@@ -3535,9 +3984,9 @@
         "input": {
           "approve_verified": false,
           "approved": true,
-          "resend": "paused"
+          "resend": "logged out"
         },
-        "name": "waiting_resend_paused",
+        "name": "waiting_resend_logged_out",
         "output": "keep_waiting"
       },
       {
@@ -3577,7 +4026,7 @@
         "output": "drop_pin"
       }
     ],
-    "description": "Pairing timeout at 14 days (Pairing flow step 8). input: approve_verified (the other side's approve verified), approved (this device approved; with approve_verified false the row is \"Waiting for $X\"), resend (result of the re-send of POST /v1/approve/$X: null not run yet | offline | paused | 429 | 5xx | 200_c_verified | 200_other). output: keep_pin | drop_pin (drop r, c_N and the pin, show \"Pairing timed out. Tap Pair to start again.\", then the allow reconcile) | resend (run the re-send first) | keep_waiting (row stays Waiting with Cancel pairing; retry at next app open, Refresh or unpause) | complete (the verified c completes the pairing)."
+    "description": "Pairing timeout at 14 days (Pairing flow step 8). input: approve_verified (the other side's approve verified), approved (this device approved; with approve_verified false the row is \"Waiting for $X\"), resend (result of the re-send of POST /v1/approve/$X: null not run yet | offline | logged out | 429 | 5xx | 200_c_verified | 200_other). output: keep_pin | drop_pin (drop r, c_N and the pin, show \"Pairing timed out. Tap Pair to start again.\", then the allow reconcile) | resend (run the re-send first) | keep_waiting (row stays Waiting with Cancel pairing; retry at next app open, Refresh or login) | complete (the verified c completes the pairing)."
   },
   "pairing": {
     "N": "N",
@@ -3896,7 +4345,7 @@
       {
         "history_row": false,
         "n": 4,
-        "name": "repeat_pause_noop",
+        "name": "repeat_logout_noop",
         "outcome": "noop",
         "state": {
           "h": 5,
@@ -3912,7 +4361,7 @@
             4
           ]
         },
-        "type": "pause"
+        "type": "logout"
       },
       {
         "history_row": false,
@@ -4036,7 +4485,7 @@
         "type": "text"
       }
     ],
-    "description": "Replay window per sender: h = highest accepted n, seen = the n values whose bit is set (bit k = n = h - k, k 0..99), listed high to low. Accept iff n > h - 100 and n not seen; on accept with n > h shift (h = n, drop bits past 99), else set the bit. A rejected n: n <= h - 100 -> invalid; seen n of a control type (approve rename remove delete pause unpause deny) -> noop; seen n of url/text/tel with a History row -> represent; else invalid. Assert outcome and state_after (equal to state when not accepted)."
+    "description": "Replay window per sender: h = highest accepted n, seen = the n values whose bit is set (bit k = n = h - k, k 0..99), listed high to low. Accept iff n > h - 100 and n not seen; on accept with n > h shift (h = n, drop bits past 99), else set the bit. A rejected n: n <= h - 100 -> invalid; seen n of a control type (approve rename remove delete logout login deny) -> noop; seen n of url/text/tel with a History row -> represent; else invalid. Assert outcome and state_after (equal to state when not accepted)."
   },
   "request_sig": {
     "cases": [

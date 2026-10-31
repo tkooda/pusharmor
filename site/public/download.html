@@ -4,30 +4,30 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Download - PushArmor</title>
-<meta name="description" content="Get PushArmor for Android, iPhone, Chrome and Firefox. Coming soon.">
+<meta name="description" content="Get PushArmor for Android, iPhone, Chrome, and Firefox. Coming soon.">
 <meta name="theme-color" content="#1F3A5F">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="PushArmor">
 <meta property="og:title" content="Download - PushArmor">
-<meta property="og:description" content="Get PushArmor for Android, iPhone, Chrome and Firefox. Coming soon.">
+<meta property="og:description" content="Get PushArmor for Android, iPhone, Chrome, and Firefox. Coming soon.">
 <meta property="og:url" content="https://pusharmor.com/download">
 <meta property="og:image" content="https://pusharmor.com/apple-touch-icon.png">
 <link rel="icon" href="/favicon.ico" sizes="any" integrity="sha256-WBRVm+oTUTpG8HdmRjQYXSzTkCjwYCVj5PZdJQP73qM=">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" integrity="sha256-TQcTrShS2zw2E6zqzKq9Tlfqd9GGyBSjl/LTQvTeJY8=">
-<link rel="stylesheet" href="/css/site.css" integrity="sha256-LLVjIg5FDy8B6CiNdcenZ4QJ6YhuvkKKultGZbGfMOw=">
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-Dcp1dNsQodcGTBjig2sKl5LIngbDNKgkkcjJUigzVhU=">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header>
 <a class="brand" href="/"><svg class="mark" width="26" height="32" viewBox="130 100 252 312" aria-hidden="true" focusable="false"><path fill-rule="evenodd" d="M256 108 L376 150 V250 C376 330 322 382 256 406 C190 382 136 330 136 250 V150 Z M256 168 L318 236 H280 V334 H232 V236 H194 Z"/></svg><span><span class="push">Push</span><span class="armor">Armor</span></span></a>
-<nav aria-label="Main"><a href="/how-to">How to</a> <a href="/download" aria-current="page">Download</a> <a href="/security">Security</a> <a href="/support">Support</a></nav>
+<nav aria-label="Main"><a href="/how-to">How to</a> <a href="/download" aria-current="page">Download</a> <a href="/security">Security</a> <a href="/support">Support</a> <a href="/about">About</a></nav>
 </header>
 <main id="main">
 <h1>Download</h1>
 
-<p>PushArmor is not released yet. The apps and add-ons are coming soon.</p>
+<p>PushArmor is not released yet. The apps and add-ons are coming soon. <a href="/about">See screenshots of each app</a>.</p>
 
-<h2>Android</h2>
+<h2 id="android">Android</h2>
 <ul>
 <li>Google Play <span class="soon">Coming soon</span></li>
 <li>F-Droid <span class="soon">Coming soon</span></li>
@@ -37,36 +37,57 @@
 
 <h2>iPhone and browsers</h2>
 <ul>
-<li>iPhone: App Store <span class="soon">Coming soon</span></li>
-<li>Chrome: Chrome Web Store <span class="soon">Coming soon</span></li>
-<li>Firefox: addons.mozilla.org <span class="soon">Coming soon</span></li>
+<li id="iphone">iPhone: App Store <span class="soon">Coming soon</span></li>
+<li id="chrome">Chrome: Chrome Web Store <span class="soon">Coming soon</span></li>
+<li id="firefox">Firefox: addons.mozilla.org <span class="soon">Coming soon</span></li>
 </ul>
 
 <h2>Android APKs from GitHub</h2>
 <p>Each release on <a href="https://github.com/tkooda/pusharmor/releases">GitHub Releases</a> will
-have two Android APKs. Obtainium can install and update them from
-<code>https://github.com/tkooda/pusharmor</code>.</p>
+have two Android APKs. Obtainium can install and update them from this address.</p>
+<pre><code>https://github.com/tkooda/pusharmor</code></pre>
 <ul>
 <li><strong>play</strong>: for Google push (FCM) or UnifiedPush.</li>
 <li><strong>foss</strong>: for UnifiedPush only, no Google code.</li>
 </ul>
-<p>Check a downloaded APK against these SHA-256 values and the signing certificate
+<p>In the file names, <code>&lt;version&gt;</code> stands for the release number. Check a downloaded APK against these SHA-256 values and the signing certificate
 fingerprint.</p>
 <div class="table-wrap">
 <table>
-<thead><tr><th>File</th><th>SHA-256</th></tr></thead>
+<thead><tr><th scope="col">File</th><th scope="col">SHA-256</th></tr></thead>
 <tbody>
-<tr><td>pusharmor-0.0.X-play.apk</td><td>Coming soon</td></tr>
-<tr><td>pusharmor-0.0.X-foss.apk</td><td>Coming soon</td></tr>
+<tr><td>pusharmor-&lt;version&gt;-play.apk</td><td>Coming soon</td></tr>
+<tr><td>pusharmor-&lt;version&gt;-foss.apk</td><td>Coming soon</td></tr>
 <tr><td>Signing certificate (SHA-256 fingerprint)</td><td>Coming soon</td></tr>
 </tbody>
 </table>
 </div>
-<p class="note">To check the certificate of an installed or downloaded APK, run
-<code>apksigner verify --print-certs</code> on it and compare the SHA-256 digest.</p>
+<p class="note">To check the certificate of a downloaded APK, run this command and compare the
+SHA-256 digest. Replace the file name with the name of your file:</p>
+<pre><code>apksigner verify --print-certs pusharmor-&lt;version&gt;-play.apk</code></pre>
+
+<h2 id="cli">Command line</h2>
+<p>The command-line client runs on Linux and macOS. It needs Python 3.9 or later.
+We recommend that you install it from <a href="https://pypi.org/project/pusharmor/">PyPI</a> with pipx:</p>
+<pre><code>pipx install PushArmor</code></pre>
+<p>Or download the single file
+<a href="https://github.com/tkooda/pusharmor/releases/download/cli/v0.0.20/pusharmor.py">pusharmor.py</a>
+from GitHub Releases. It needs the cryptography package. On Debian and Ubuntu:</p>
+<pre><code>sudo apt install python3-cryptography</code></pre>
+<p>On RHEL, Fedora, and related systems:</p>
+<pre><code>sudo dnf install python3-cryptography</code></pre>
+<p>Check the downloaded file against this SHA-256 value.</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th scope="col">File</th><th scope="col">SHA-256</th></tr></thead>
+<tbody>
+<tr><td>pusharmor.py</td><td><code id="cli-sha256">6e3cfb595a24fd1648e504586b8673d28b4bc4d3c559baaee7c04c10d4177e9d</code></td></tr>
+</tbody>
+</table>
+</div>
 </main>
 <footer>
-<a href="/privacy">Privacy</a> <a href="/terms">Terms</a> <a href="/support">Support</a> <a href="/delete-account">Delete account</a> <a href="https://github.com/tkooda/pusharmor">Source code on GitHub</a>
+<a href="/privacy">Privacy</a> <a href="/terms">Terms</a> <a href="/support">Support</a> <a href="https://github.com/tkooda/pusharmor">Source code on GitHub</a>
 <p class="fine">PushArmor is a free, open source project.</p>
 </footer>
 </body>

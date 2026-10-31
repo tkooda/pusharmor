@@ -3,6 +3,7 @@
     <!-- Edge-to-edge (target 35): the light app draws under the status bar, so its icons must be dark. -->
     <style name="Theme.PushArmor" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowBackground">@color/pa_page</item>
     </style>
     <style name="Theme.PushArmor.Dialog" parent="android:Theme.Material.Light.Dialog" />
 </resources>

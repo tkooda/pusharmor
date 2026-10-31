@@ -30,12 +30,12 @@ import okhttp3.ResponseBody
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
-/** Worker clock offset: PA-Time = local now + offset, re-synced from PA-Epoch-Ms of every reply. */
+/** Worker clock offset in seconds: PA-Time = local now + offset, re-synced from PA-Epoch (unix s) of every reply (Q331). */
 interface ClockOffset {
-    var offsetMs: Long
+    var offsetS: Long
 }
 
-class MemoryClockOffset(override var offsetMs: Long = 0) : ClockOffset
+class MemoryClockOffset(override var offsetS: Long = 0) : ClockOffset
 
 /** Raw reply after retries. */
 class Reply(val status: Int, val json: JsonObject?, val retryAfter: Long?)
@@ -53,8 +53,12 @@ class WorkerClient(
     private val http: OkHttpClient = defaultHttp(),
     private val now: () -> Long = System::currentTimeMillis,
     private val sleep: (Long) -> Unit = { Thread.sleep(it) },
-    /** Called for any call signed with PA-ID that gets 401 "unknown peer" or 401 "paused" (the error text). */
+    /** Called for any call signed with PA-ID that gets 401 "unknown peer" or 401 "logged out" (the error text). */
     private val onAuthState: (String) -> Unit = {},
+    /** PA-Client header value sent on every request: "android/<versionName>" (Q328). */
+    private val paClient: String = "android/0.0.0",
+    /** Called for any call that gets HTTP 426: this app version is too old for the relay server (Q349). */
+    private val onUpdateRequired: () -> Unit = {},
 ) : Api {
     companion object {
         const val BUDGET_MS = 8_000L
@@ -79,7 +83,7 @@ class WorkerClient(
     private val onceHttp by lazy { http.newBuilder().callTimeout(ONCE_TIMEOUT_MS, TimeUnit.MILLISECONDS).build() }
 
     /** PA-Time as 13 decimal digits. */
-    fun paTime(): String = (now() + offset.offsetMs).toString().padStart(13, '0')
+    fun paTime(): String = (now() + offset.offsetS * 1000).toString().padStart(13, '0')
 
     /**
      * One call. [signed]: PA-ID + PA-Time + PA-Sig; [signedNoId]: PA-Time + PA-Sig only
@@ -89,7 +93,7 @@ class WorkerClient(
     fun call(method: String, path: String, body: ByteArray?, signed: Boolean, signedNoId: Boolean = false, query: Map<String, String> = emptyMap(), once: Boolean = false): Reply? {
         val bytes = body ?: ByteArray(0)
         val url = base.newBuilder().encodedPath(path).apply { query.forEach { (k, v) -> addQueryParameter(k, v) } }.build()
-        val rb = Request.Builder().url(url)
+        val rb = Request.Builder().url(url).header("PA-Client", paClient)
         if (signed || signedNoId) {
             val t = paTime()
             val sig = keys().sign(Ids.requestSigningBytes(method, path, t, bytes))
@@ -104,7 +108,7 @@ class WorkerClient(
             var retryAfter: Long? = null
             val reply: Reply? = try {
                 (if (once) onceHttp else http).newCall(req).execute().use { r ->
-                    r.header("PA-Epoch-Ms")?.toLongOrNull()?.let { offset.offsetMs = it - now() }
+                    r.header("PA-Epoch")?.toLongOrNull()?.let { offset.offsetS = it - now() / 1000 }
                     val text = r.body?.let { readCapped(it) }.orEmpty()
                     val json = try { Json.parseToJsonElement(text) as? JsonObject } catch (e: Exception) { null }
                     retryAfter = r.header("Retry-After")?.toLongOrNull() ?: json?.get("retry_after")?.jsonPrimitive?.longOrNull
@@ -117,8 +121,9 @@ class WorkerClient(
             }
             if (signed && reply != null && reply.status == 401) {
                 val err = (reply.json?.get("error") as? JsonPrimitive)?.content
-                if (err == "unknown peer" || err == "paused") onAuthState(err)
+                if (err == "unknown peer" || err == "logged out") onAuthState(err)
             }
+            if (reply?.status == 426) onUpdateRequired()
             val retryable = reply == null || reply.status == 429 || reply.status == 503
             if (once || !retryable || attempt >= BACKOFF_MS.size) return reply
             val wait = maxOf(BACKOFF_MS[attempt], (retryAfter ?: 0) * 1000)
@@ -174,11 +179,11 @@ class WorkerClient(
     /** GET /peers from the push handler: one attempt within [ONCE_TIMEOUT_MS]. */
     fun peersOnce() = result(call("GET", "/v1/peers", null, true, once = true), ::peersReply)
 
-    override fun pause(messages: Map<String, String>) =
-        result(call("POST", "/v1/peers/${me()}/pause", obj("m" to map(messages)).toByteArray(), true), ::results)
+    override fun logout(messages: Map<String, String>) =
+        result(call("POST", "/v1/peers/${me()}/logout", obj("m" to map(messages)).toByteArray(), true), ::results)
 
-    override fun unpause(ticket: String, messages: Map<String, String>) =
-        result(call("POST", "/v1/peers/${me()}/unpause", obj("ticket" to str(ticket), "m" to map(messages)).toByteArray(), true), ::results)
+    override fun login(ticket: String, messages: Map<String, String>) =
+        result(call("POST", "/v1/peers/${me()}/login", obj("ticket" to str(ticket), "m" to map(messages)).toByteArray(), true), ::results)
 
     override fun rename(names: Map<String, String>, messages: Map<String, String>) =
         result(call("PATCH", "/v1/peers/${me()}", obj("name" to map(names), "m" to map(messages)).toByteArray(), true), ::results)
@@ -253,8 +258,9 @@ class WorkerClient(
         fun s(k: String) = o[k]!!.jsonPrimitive.content
         fun b(k: String) = o[k]?.jsonPrimitive?.booleanOrNull == true
         fun l(k: String) = o[k]?.jsonPrimitive?.longOrNull ?: 0
-        ListedPeer(s("id"), s("sign_pub"), s("enc_pub"), s("platform"), l("created"), b("paused"), l("approves").toInt(), l("approved_by").toInt(),
-            b("approves_me"), b("denies_me"), b("reachable"), (o["name_for_me"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content)
+        ListedPeer(s("id"), s("sign_pub"), s("enc_pub"), s("platform"), l("created"), b("logged_out"), l("approves").toInt(), l("approved_by").toInt(),
+            b("approves_me"), b("denies_me"), b("reachable"), (o["name_for_me"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content,
+            o["listening"]?.jsonPrimitive?.booleanOrNull != false)
     } catch (ex: Exception) {
         null
     }
@@ -262,21 +268,32 @@ class WorkerClient(
 
 /** Catalog error words -> UI strings. */
 object ErrorText {
+    /** Text for HTTP 426 (Q328). */
+    const val UPDATE = "Update PushArmor to continue."
+
     fun of(r: ApiResult<*>): String = when (r) {
         is ApiResult.Ok -> ""
         ApiResult.Network -> "No connection. Try again."
         is ApiResult.Http -> when {
-            r.status == 401 && r.error == "clock skew" -> "This device's clock is off by more than 5 minutes"
-            r.status == 401 && r.error == "paused" -> "Signed out. Sign in to resume"
-            r.status == 401 && r.error == "ticket expired" -> "Sign-in expired, sign in again"
-            r.status == 401 && r.error == "unknown peer" -> "This device was removed. Sign in again"
+            r.status == 401 && r.error == "clock skew" -> "This device's clock is off by more than 5 minutes."
+            r.status == 401 && r.error == "logged out" -> "Logged out. Log in to resume."
+            r.status == 401 && r.error == "ticket expired" -> "Login expired. Log in again."
+            r.status == 401 && r.error == "unknown peer" -> "This device was removed. Log in again."
             r.status == 400 && r.error == "bad email" -> "Only email addresses with plain ASCII characters are supported."
-            r.status == 400 && r.error == "push endpoint not allowed" -> "This browser's push service is not supported yet"
-            r.status == 413 -> "Too long"
-            r.status == 429 -> "Rate limited. Try again in ${r.retryAfter ?: 60} s"
-            r.status == 502 -> "could not send the email, try again"
-            r.status == 403 && r.error == "banned" -> "This account is blocked"
-            else -> "Error: ${r.error ?: r.status}"
+            r.status == 400 && r.error == "push endpoint not allowed" -> "This push service is not supported yet."
+            r.status == 413 -> "Too long."
+            r.status == 426 -> UPDATE
+            r.status == 429 -> tooMany(r.retryAfter ?: 60)
+            r.status == 502 -> "Could not send the email. Try again."
+            r.status == 403 && r.error == "banned" -> "This account is blocked."
+            else -> "Something went wrong. Try again."
         }
+    }
+
+    /** HTTP 429: "Too many requests. Try again in 1 minute." (whole minutes) or "... in 30 seconds.". */
+    fun tooMany(seconds: Long): String {
+        val n = if (seconds % 60 == 0L && seconds > 0) seconds / 60 else seconds
+        val unit = if (seconds % 60 == 0L && seconds > 0) "minute" else "second"
+        return "Too many requests. Try again in $n ${if (n == 1L) unit else unit + "s"}."
     }
 }

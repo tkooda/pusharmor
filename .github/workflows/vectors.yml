@@ -2,11 +2,9 @@ name: vectors
 
 # Golden cross-platform vectors (tests/vectors/golden-v1.json): every leg runs the
 # file through its own production code. Called by ci.yml and by the release
-# workflows; nightly it also runs the security.txt Expires check.
+# workflows.
 on:
   workflow_call:
-  schedule:
-    - cron: "17 4 * * *"
 
 permissions: {}
 
@@ -19,7 +17,6 @@ env:
 jobs:
   reference:
     name: reference (Node)
-    if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -37,7 +34,6 @@ jobs:
 
   worker:
     name: Worker (vitest in workerd)
-    if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -58,7 +54,6 @@ jobs:
 
   webext:
     name: webext shared (Node)
-    if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -79,7 +74,6 @@ jobs:
 
   android:
     name: Android (JVM)
-    if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -101,7 +95,6 @@ jobs:
 
   ios:
     name: iOS (swift test)
-    if: github.event_name != 'schedule'
     runs-on: macos-26
     timeout-minutes: 30
     permissions:
@@ -120,20 +113,3 @@ jobs:
           printf '%s\n' "$v" | grep -qx "$XCODE_BUILD"
       - name: Golden vectors (PushArmorCore)
         run: swift test --package-path client/ios/PushArmorCore --filter 'GoldenTests|PairDecideTests'
-
-  security-txt:
-    name: security.txt Expires
-    if: github.event_name == 'schedule'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: site/.node-version
-      - name: Expires more than 30 days ahead
-        run: node --test --test-name-pattern='^security\.txt' site/tools/test/site.test.mjs

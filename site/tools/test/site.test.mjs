@@ -35,7 +35,7 @@ const rules = parseHeaders(read("_headers"));
 function siteFiles() {
   const out = [];
   for (const rel of listFiles(SITE)) {
-    if (rel.startsWith("node_modules/") || rel.startsWith(".wrangler/")) continue;
+    if (rel.startsWith("node_modules/") || rel.startsWith(".wrangler/") || rel.startsWith("dist/")) continue;
     out.push(rel);
   }
   return out;
@@ -43,7 +43,7 @@ function siteFiles() {
 
 test("every site file is ASCII", () => {
   for (const rel of siteFiles()) {
-    if (/\.(png|ico)$/.test(rel)) continue; // binary images
+    if (/\.(png|ico|webp)$/.test(rel)) continue; // binary images
     const buf = readFileSync(join(SITE, rel));
     const bad = buf.findIndex((b) => b > 127);
     assert.equal(bad, -1, rel + " has a non-ASCII byte at " + bad);
@@ -146,7 +146,7 @@ test("no third-party loaded resource except Turnstile on /turnstile", () => {
         for (const tok of toks) {
           if (!/^https?:/.test(tok)) continue;
           const ok = (r.path === "/turnstile" && tok === TURNSTILE_HOST && (dir === "script-src" || dir === "frame-src")) ||
-            (r.path === "/delete-account" && tok === "https://api.pusharmor.com" && dir === "connect-src");
+            ((r.path === "/delete-account" || r.path === "/auth/cli") && tok === "https://api.pusharmor.com" && dir === "connect-src");
           assert.ok(ok, r.path + ": " + dir + " " + tok);
         }
       }
@@ -266,11 +266,10 @@ test("assetlinks.json is valid and names com.pusharmor", () => {
   for (const f of a[0].target.sha256_cert_fingerprints) assert.match(f, /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
 });
 
-// Builds a copy of site/public with the given public file; returns {dir, r}.
+// Builds site/public into a temp dir with the given public file; returns {dir, r}.
 function buildCopy(publicPath, env = {}) {
   const dir = mkdtempSync(join(tmpdir(), "pa-site-build-"));
-  cpSync(PUB, dir, { recursive: true });
-  const r = spawnSync("node", [join(SITE, "tools", "build.mjs"), "--dir", dir, "--public", publicPath],
+  const r = spawnSync("node", [join(SITE, "tools", "build.mjs"), "--out", dir, "--public", publicPath],
     { encoding: "utf8", env: { ...process.env, PA_CI_DUMMY: "", ...env } });
   return { dir, r };
 }
@@ -290,7 +289,7 @@ test("wrangler.jsonc runs tools/build.mjs on deploy, and the build skips for wra
   assert.match(cfg, /"build"\s*:\s*\{\s*"command"\s*:\s*"node tools\/build\.mjs"\s*\}/);
   const { dir, r } = buildCopy(PUBLIC_PATH, { WRANGLER_COMMAND: "dev" });
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /skipped for wrangler dev/);
+  assert.match(r.stdout, /ids not filled for wrangler dev/);
   assert.deepEqual(placeholderFiles(dir).length, 4);
   const tmp = mkdtempSync(join(tmpdir(), "pa-public-"));
   const d = buildCopy(placeholderPublic(tmp), { WRANGLER_COMMAND: "deploy" });
@@ -330,6 +329,26 @@ test("site build fills every id from a public file and leaves current hashes", (
     assert.ok(readFileSync(join(dir, "_headers"), "utf8").includes("chrome-extension://abcdefghijklmnopabcdefghijklmnop chrome-extension://ponmlkjihgfedcbaponmlkjihgfedcba"));
     assert.deepEqual(JSON.parse(readFileSync(join(dir, ".well-known", "assetlinks.json"), "utf8"))[0].target.sha256_cert_fingerprints, [fp]);
   } finally { rmSync(dir, { recursive: true, force: true }); rmSync(tmp, { recursive: true, force: true }); }
+});
+
+test("site build writes a gitignored output dir and leaves the git tree clean (I429)", (t) => {
+  if (!existsSync(join(REPO, ".git"))) { t.skip("not a git checkout"); return; }
+  const git = (...a) => spawnSync("git", ["-C", REPO, ...a], { encoding: "utf8" });
+  assert.equal(git("check-ignore", "-q", "site/dist/index.html").status, 0, "site/dist must be gitignored");
+  assert.equal(parseJsonc(readFileSync(join(SITE, "wrangler.jsonc"), "utf8")).assets.directory, "./dist");
+  const before = git("status", "--porcelain").stdout;
+  const tmp = mkdtempSync(join(tmpdir(), "pa-public-"));
+  const out = join(tmp, "out");
+  const lp = placeholderPublic(tmp);
+  assert.equal(spawnSync("node", [join(REPO, "release", "ci-dummy.mjs"), lp]).status, 0);
+  try {
+    const r = spawnSync("node", [join(SITE, "tools", "build.mjs"), "--out", out, "--public", lp],
+      { encoding: "utf8", env: { ...process.env, PA_CI_DUMMY: "1" } });
+    assert.equal(git("status", "--porcelain").stdout, before, "the build changed tracked files");
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(placeholderFiles(out), []);
+    assert.equal(placeholderFiles(PUB).length, 4);
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
 test("site build fails on a missing public file or on placeholders", () => {
@@ -409,20 +428,21 @@ test("fdroid/android.txt: 2 lines, versionName then versionCode", () => {
   assert.match(lines[1], /^\d+$/);
 });
 
-test("retention: 4 weeks on /privacy and /delete-account; stored list", () => {
+test("retention: 4 weeks on /privacy; stored list", () => {
   assert.ok(text("privacy.html").includes("4 weeks"));
-  assert.ok(text("delete-account.html").includes("4 weeks"));
   const p = text("privacy.html");
-  for (const s of ["platform", "paused", "approve messages", "last-active month",
-    "We never sell or share your data with anyone for their own purposes; the services below process it for us.",
-    "We do not store your email address. We keep only a keyed one-way hash of it, which cannot be turned back into the address."]) {
+  for (const s of ["platform", "logged-out flag", "approve messages", "last-active month",
+    "We will never sell or share your data. The services below run parts of PushArmor for us and only ever see the minimum needed to do their part.",
+    "We do not store your email address. We keep only a one-way hash of it, which cannot be turned back into the address.",
+    "If an address is banned for abuse, we store its account ID so it stays banned, even after the account is deleted.",
+    "PushArmor is operated by Ion Echo, LLC at PushArmor.com."]) {
     assert.ok(p.includes(s), "privacy lacks: " + s);
   }
-  for (const s of ["rate limiter", "server database", "peer row", "1 minute"]) assert.ok(!p.includes(s), "privacy has server detail: " + s);
+  for (const s of ["rate limiter", "server database", "peer row", "1 minute", "service worker"]) assert.ok(!p.includes(s), "privacy has server detail: " + s);
 });
 
 test("minimum age 13 on /terms and /privacy (Q227 A)", () => {
-  assert.ok(text("terms.html").includes("You must be at least 13 to use PushArmor."));
+  assert.ok(text("terms.html").includes("You must be at least 13 years old to use PushArmor."));
   assert.ok(text("privacy.html").includes("PushArmor is for people aged 13 and over."));
 });
 
@@ -431,7 +451,7 @@ test("download: every Android channel, release asset names, certificate fingerpr
   for (const c of ["Google Play", "F-Droid", "Obtainium, from GitHub Releases", "APK from GitHub Releases (below)"]) {
     assert.ok(t.includes(c + " Coming soon"), "download lacks: " + c);
   }
-  for (const s of ["pusharmor-0.0.X-play.apk", "pusharmor-0.0.X-foss.apk", "Signing certificate (SHA-256 fingerprint)"]) {
+  for (const s of ["pusharmor-<version>-play.apk", "pusharmor-<version>-foss.apk", "Signing certificate (SHA-256 fingerprint)"]) {
     assert.ok(t.includes(s), "download lacks: " + s);
   }
 });
@@ -439,22 +459,34 @@ test("download: every Android channel, release asset names, certificate fingerpr
 test("FAQ texts (I258, I264, I272, WEB6-04) and fixed lines", () => {
   const how = text("how-to.html");
   const sup = text("support.html");
-  assert.ok(how.includes("Peers stay paired until you remove one."));
+  assert.ok(how.includes("Devices stay paired until you remove one or delete your account."));
   assert.ok(!how.includes("10 min"));
   const both = how + " " + sup;
   for (const m of ["14 days", "10 tries", "24 hours", "15 minutes"]) assert.ok(!both.includes(m), "mechanics: " + m);
   assert.ok(both.includes("wants to pair"));
-  assert.ok(both.includes("Tap Cancel pairing on its row"));
+  assert.ok(both.includes("an earlier pairing did not finish. Tap Pair again on its row."));
   assert.ok(!both.includes("Remove it on this device first"));
-  assert.ok(both.includes("that peer is removed from the account"));
-  assert.ok(/" ?Name wants to pair again\. Tap Cancel pairing on its row, then pair\."/.test(both), "Pair again quote closes");
-  assert.ok(sup.includes("On Android, each peer has its own notification channel, so you can set sound and importance per peer in the system settings."));
-  assert.ok(sup.includes("Only email addresses with plain ASCII characters are supported."));
+  assert.ok(both.includes("that device is removed from the account"));
+  assert.ok(/" ?Name wants to pair again"/.test(both), "Pair again quote closes");
+  assert.ok(text("security.html").includes("A notification is only a prompt: if one looks wrong, open PushArmor and read the message there."));
+  assert.ok(sup.includes("On Android, each paired device has its own notification channel, so you can set sound and importance per device in the system settings."));
+  assert.ok(!sup.includes("Only email addresses with plain ASCII characters are supported."));
+  assert.ok(sup.includes("No email login code arrived?"));
   const sec = text("security.html");
-  assert.ok(sec.includes("The push service and the Worker can show a notification with text of their choosing on every platform; verified content appears only after your device decrypts it."));
-  assert.ok(sec.includes("The vendor sees the size bucket and the urgency level of a message, not its content."));
-  assert.ok(text("delete-account.html").includes("Deleted at once: all peers (keys, push tokens, names). Kept: the keyed account hash with its ban flag, for banned accounts only, so a banned address stays banned; undelivered pushes at the vendors, up to 7 days (pairing requests up to 4 weeks); copies on your other peers. No login to this site is needed."));
-  assert.ok(text("auth/done.html").includes("Returning to PushArmor... If this tab stays open, the add-on did not receive the sign-in: check it is enabled, then retry"));
+  assert.ok(read("security.html").includes('<th scope="col">Cannot see</th>'));
+  assert.ok(!sec.includes("Does not see"));
+  assert.ok(sec.includes("commits to its values by sending only their SHA-256 hash"));
+  assert.ok(sec.includes("The push service and our relay server can show a notification with text of their choosing on every platform; verified content appears only after your device decrypts it."));
+  assert.ok(sec.includes("The push service sees the size of a message (padded to a few standard sizes), not its content."));
+  const del = text("delete-account.html");
+  for (const s of ["You can also delete your account from the apps.",
+    "Deleted right away: all your devices, with their keys, names, and notification addresses.",
+    "Not deleted: messages already on your other devices, and messages still waiting to be delivered, which expire within 7 days.",
+    "If the address was banned for abuse, we store its account ID so it stays banned."]) {
+    assert.ok(del.includes(s), "delete-account lacks: " + s);
+  }
+  for (const s of ["one-way code", "keyed hash", "ban flag", "vendors", "4 weeks", "No login"]) assert.ok(!del.includes(s), "delete-account jargon: " + s);
+  assert.ok(text("auth/done.html").includes("Returning to PushArmor... If this tab stays open, the add-on did not receive the login: check it is enabled, then retry"));
 });
 
 test("every page footer links the public source repository", () => {
@@ -493,7 +525,7 @@ test("delete-account page: labelled inputs, aria-live status, same-origin Turnst
   }
   assert.match(html, /id="status"[^>]*aria-live="polite"/);
   const f = tags(html, "iframe")[0];
-  assert.equal(f.attrs.src, "/turnstile#o=https://pusharmor.com");
+  assert.equal(f.attrs["data-src"], "/turnstile#o=https://pusharmor.com");
 });
 
 test("Turnstile sitekey is in one place; a temp copy swaps in the test key", () => {
@@ -570,7 +602,7 @@ test("every page embedding /turnstile is named in the privacy text", () => {
   const pages = htmlFiles.filter((f) => /<iframe[^>]*src="\/turnstile[#"]/.test(read(f)));
   assert.ok(pages.includes("delete-account.html"));
   const p = text("privacy.html");
-  assert.ok(p.includes("Turnstile runs on the email sign-in page and on the delete-account page only"));
+  assert.ok(p.includes("Cloudflare's bot check (Turnstile) runs on the email login page, on the command line login page (/auth/cli), and on the delete-account page only"));
   for (const f of pages) {
     const name = f.replace(/\.html$/, "");
     if (name === "delete-account") continue;
@@ -580,7 +612,7 @@ test("every page embedding /turnstile is named in the privacy text", () => {
 
 test("delete-account init: a hash without ticket= is cleared with a retry message", () => {
   const js = read("js/delete-account.js");
-  assert.ok(/h\.length > 1\) \{\s*history\.replaceState\(null, "", location\.pathname\);\s*await restart\("Sign-in did not finish/.test(js));
+  assert.ok(/h\.length > 1\) \{\s*history\.replaceState\(null, "", location\.pathname\);\s*await restart\("Login did not finish/.test(js));
 });
 
 test("delete-account init: an OAuth #error=<word> hash is handled by the generic hash branch (I306)", () => {
@@ -588,5 +620,43 @@ test("delete-account init: an OAuth #error=<word> hash is handled by the generic
   // The ticket branch is keyed on "ticket="; any other non-empty hash (#error=cancelled, #error=failed) is cleared with the retry text.
   assert.ok(js.indexOf('h.indexOf("ticket=") >= 0') < js.indexOf("h.length > 1"));
   assert.ok(!/ticket=/.test(js.slice(js.indexOf("h.length > 1"), js.indexOf('await restart("");'))));
-  assert.ok(js.includes('"Sign-in did not finish. Try again."'));
+  assert.ok(js.includes('"Login did not finish. Try again."'));
+});
+
+test("/auth/cli: headers, labelled inputs, Turnstile iframe, no jargon", () => {
+  const h = headersFor(rules, "/auth/cli");
+  assert.deepEqual(h["cache-control"], ["no-store"]);
+  assert.deepEqual(h["x-robots-tag"], ["noindex"]);
+  const d = cspDirectives(h["content-security-policy"][0]);
+  assert.deepEqual(d["connect-src"], ["https://api.pusharmor.com"]);
+  assert.deepEqual(d["frame-src"], ["'self'"]);
+  const html = read("auth/cli.html");
+  for (const t of tags(html, "input")) assert.ok(tags(html, "label").some((l) => l.attrs.for === t.attrs.id), "label for " + t.attrs.id);
+  assert.match(html, /id="status"[^>]*aria-live="polite"/);
+  assert.equal(tags(html, "iframe")[0].attrs["data-src"], "/turnstile#o=https://pusharmor.com");
+  const t = text("auth/cli.html");
+  for (const s of ["Continue only if you're trying to log in via the pusharmor login command line command.", "Continue with Google", "Continue with Apple", "Email me a code", "Paste this code into your terminal."]) assert.ok(t.includes(s), s);
+  assert.ok(html.includes("<code>pusharmor login</code>"));
+  assert.ok(!/Sign in|Worker|ticket|peer/.test(t));
+});
+
+test("/auth/cli script: /v1/ paths, fragment cleared, cli_code used", () => {
+  const js = read("js/auth-cli.js");
+  assert.ok(js.includes('"/v1/auth/email"') && js.includes('"/v1/auth/email/verify"'));
+  assert.ok(js.includes("r.data.cli_code"));
+  assert.ok(js.indexOf("history.replaceState") < js.indexOf("PA.parseCliResult(h)"));
+  assert.ok(js.includes("navigator.clipboard.writeText"));
+});
+
+test("I467: Turnstile frame has no src until the email field is used", () => {
+  for (const [page, js] of [["delete-account.html", "js/delete-account.js"], ["auth/cli.html", "js/auth-cli.js"]]) {
+    const f = tags(read(page), "iframe")[0];
+    assert.ok(!("src" in f.attrs), page + ": iframe must not load before focus");
+    assert.ok("hidden" in f.attrs, page + ": frame hidden until loaded");
+    const code = read(js);
+    assert.ok(code.includes('$("email").addEventListener("focus", loadTurnstile)'), js);
+    assert.ok(code.includes('$("email").addEventListener("input", loadTurnstile)'), js);
+    assert.ok(code.includes("waiting = true"), js + ": submit waits for the token");
+    assert.ok(!/Turnstile|challenges\.cloudflare/.test(read("js/pa-web.js").replace(/turnstile(:| failed)/g, "")), "pa-web.js loads nothing");
+  }
 });
