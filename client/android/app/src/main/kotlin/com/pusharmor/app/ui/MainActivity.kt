@@ -93,6 +93,8 @@ class MainActivity : ComponentActivity() {
             peer?.let { vm.highlight.value = it }
             route?.let { pendingRoute = it }
         }
+        // A notification tap: History, scrolled to that message, which flashes once (I616).
+        flashExtra(intent)?.let { vm.flashRow.value = it }
     }
 
     companion object {
@@ -122,6 +124,10 @@ class MainActivity : ComponentActivity() {
             if (intent.component?.className != OPEN_ALIAS) return null
             return intent.getStringExtra("peer") to safeRoute(intent.getStringExtra("route"))
         }
+
+        /** History row id of a notification tap, honored only for the History route through [OPEN_ALIAS] (I616). */
+        fun flashExtra(intent: Intent): Long? =
+            if (ownExtras(intent)?.second == "history") intent.getLongExtra("history", -1).takeIf { it > 0 } else null
 
         /** Intent for our own notification taps and in-app jumps. */
         fun openIntent(ctx: android.content.Context, route: String): Intent =
