@@ -10,6 +10,7 @@ import { deleteAccount } from "./routes/account";
 import { approve, deny } from "./routes/approve";
 import { pair } from "./routes/pair";
 import { send } from "./routes/send";
+import { health } from "./routes/health";
 
 export type Handler = (c: Ctx) => Promise<Response>;
 
@@ -40,6 +41,7 @@ export const ROUTES: Route[] = [
   { method: "POST", path: "/v1/deny/:id", handler: deny },
   { method: "POST", path: "/v1/pair/:id", handler: pair },
   { method: "POST", path: "/v1/send", handler: send },
+  { method: "GET", path: "/v1/health", handler: health },
   { method: "OPTIONS", path: "/v1/auth/email", handler: "preflight" },
   { method: "OPTIONS", path: "/v1/auth/email/verify", handler: "preflight" },
   { method: "OPTIONS", path: "/v1/account", handler: "preflight" },
