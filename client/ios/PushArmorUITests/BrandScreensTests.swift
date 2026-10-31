@@ -231,6 +231,23 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.buttons["Delete account"].exists)
     }
 
+    /// I604: Delete all history asks in a standard alert; Cancel closes it.
+    func testDeleteHistoryAsksInAnAlert() {
+        let app = launch()
+        let tab = app.tabBars.buttons["Settings"]
+        XCTAssertTrue(tab.waitForExistence(timeout: 30))
+        tab.tap()
+        let del = app.buttons["Delete all history"]
+        for _ in 0..<10 where !(del.exists && del.isHittable) { app.swipeUp() }
+        XCTAssertTrue(del.isHittable)
+        del.tap()
+        let alert = app.alerts["Delete all history?"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 10))
+        XCTAssertTrue(alert.buttons["Delete"].exists)
+        alert.buttons["Cancel"].tap()
+        XCTAssertFalse(alert.waitForExistence(timeout: 2))
+    }
+
     /// I569: scrolled to the end, the last About row sits above the tab bar, not under it.
     func testAboutEndsAboveTheTabBar() {
         let app = launch()
