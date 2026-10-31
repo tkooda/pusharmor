@@ -295,7 +295,7 @@ fun LimitScreen(vm: AppViewModel, onDone: () -> Unit) {
                     leadingContent = { Checkbox(on, null) },
                     headlineContent = { Text("${AppEffects.platformLabel(p.platform)}, added ${AppEffects.dateLabel(p.created)}") },
                     supportingContent = {
-                        Text("approves ${p.approves}, approved by ${p.approvedBy}" + (if (!p.reachable) ", unreachable" else "") + (if (p.loggedOut) ", logged out" else ""))
+                        Text(UiText.limitRow(p.approves, p.approvedBy, p.reachable, p.loggedOut))
                     },
                 )
             }
