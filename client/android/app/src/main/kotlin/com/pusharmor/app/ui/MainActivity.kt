@@ -227,8 +227,7 @@ private fun App(vm: AppViewModel) {
                         Triple("history", "History", PaIcons.History), Triple("settings", "Settings", PaIcons.Settings))) {
                         // One back step to Devices, then out: Back does not walk every visited tab (I478).
                         NavigationBarItem(selected = route == r, onClick = { nav.navigate(r) { popUpTo("peers") { saveState = true }; launchSingleTop = true; restoreState = true } },
-                            // One line at any font size: a large font ends in an ellipsis, never a mid-word break (I480).
-                            icon = { Icon(i, null) }, label = { Text(l, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
+                            icon = { Icon(i, null) }, label = { NavLabel(l) },
                             colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.secondaryContainer))
                     }
                 }
@@ -245,6 +244,19 @@ private fun App(vm: AppViewModel) {
                 }
             }
         }
+    }
+}
+
+/**
+ * Bottom bar label. One line at any font size, never a mid-word break (I480). The label grows with the font only
+ * up to 1.3x, so "Settings" still reads in full at font 2.0 on a 360 dp screen (I525); the icons stay as they are.
+ */
+@Composable
+internal fun NavLabel(text: String) {
+    val d = androidx.compose.ui.platform.LocalDensity.current
+    androidx.compose.runtime.CompositionLocalProvider(
+        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(d.density, minOf(d.fontScale, 1.3f))) {
+        Text(text, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
 

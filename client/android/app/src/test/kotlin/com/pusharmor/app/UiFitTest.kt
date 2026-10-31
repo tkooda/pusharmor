@@ -17,8 +17,11 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.pusharmor.app.ui.NavLabel
 import com.pusharmor.app.ui.PaChip
 import com.pusharmor.app.ui.UiText
 import com.pusharmor.app.ui.theme.PaIcons
@@ -27,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import com.pusharmor.app.ui.theme.PushArmorTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -103,5 +107,16 @@ class UiFitTest {
         val l = layoutOf(c.get(), name)
         // Too long for the row: the chip ends in an ellipsis, not a glyph cut in half (I524).
         assertTrue(l.isLineEllipsized(0))
+    }
+
+    @Test fun bottomBarLabelsReadInFullAtLargeFont() {
+        val labels = listOf("Devices", "Send", "History", "Settings")
+        val c = show("w360dp-h640dp-xhdpi", 2.0f) {
+            NavigationBar {
+                for (t in labels) NavigationBarItem(selected = t == "Send", onClick = {}, icon = { Icon(PaIcons.Send, null) }, label = { NavLabel(t) })
+            }
+        }
+        // Each label reads in full: no "Devi..." at font 2.0 on a 360 dp screen (I525).
+        for (t in labels) { val l = layoutOf(c.get(), t); assertEquals(t, 1, l.lineCount); assertFalse(t, l.isLineEllipsized(0)) }
     }
 }
