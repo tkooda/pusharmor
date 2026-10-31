@@ -50,7 +50,7 @@ class TurnstileViewTest {
     private fun flat(n: SemanticsNode): List<SemanticsNode> = listOf(n) + n.children.flatMap { flat(it) }
 
     private fun showsFallback(): Boolean {
-        UiHostActivity.content = { TurnstileView {} }
+        UiHostActivity.content = { TurnstileView(onNoApp = {}) {} }
         val a = Robolectric.buildActivity(UiHostActivity::class.java).setup().get()
         shadowOf(Looper.getMainLooper()).idle()
         return roots(a.window.decorView).flatMap { flat(it.semanticsOwner.unmergedRootSemanticsNode) }

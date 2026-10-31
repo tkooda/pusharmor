@@ -89,12 +89,10 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -174,13 +172,6 @@ fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -
     // Saved, so both dialogs stay open through a rotation (I523); the device by its id.
     var confirmRemove by rememberSaveable { mutableStateOf<String?>(null) }
     var pairHowTo by rememberSaveable { mutableStateOf(false) }
-    // A failed remove, pair or deny puts its error in vm.message. Take it when shown, not on
-    // dismiss, so leaving Peers does not leave it set (I426); counted like the Send result.
-    val snack = remember { SnackbarHostState() }
-    val msg by vm.message.collectAsState()
-    var shown by remember { mutableStateOf<Pair<Int, String>?>(null) }
-    LaunchedEffect(msg) { msg?.let { shown = (shown?.first ?: 0) + 1 to it; vm.message.value = null } }
-    LaunchedEffect(shown) { shown?.let { snack.showSnackbar(it.second) } }
     LaunchedEffect(Unit) {
         vm.onPeersOpen()
         while (true) { delay(30_000); now = System.currentTimeMillis(); vm.onPeersOpen() } // timeout timer while open
@@ -260,7 +251,6 @@ fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -
                 }
             }
         }
-        SnackbarHost(snack, Modifier.align(Alignment.BottomCenter))
     }
     peers.firstOrNull { it.id == confirmRemove }?.let { p ->
         val x = label(p)
@@ -305,7 +295,7 @@ private fun Banners(vm: AppViewModel, banner: String?) {
     if (banner?.startsWith("no_distributor") == true) {
         BannerRow("Install a UnifiedPush app (we suggest ntfy).", "Get", fault = false, PaIcons.Info) {
             val url = if (vm.g.push.hasPlayServices) "https://play.google.com/store/apps/details?id=io.heckel.ntfy" else "https://f-droid.org/packages/io.heckel.ntfy/"
-            startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(url))) { vm.message.value = it }
         }
         if (vm.g.push.hasPlayServices) TextButton(onClick = { vm.switchPush(toUp = false) }) { Text("Switch back to Google") }
     }
@@ -601,7 +591,9 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     val showAll = prefs?.get(Settings.K.SHOW_ALL) ?: (prefs != null)
     val ex = LocalPaExtra.current
     val cs = MaterialTheme.colorScheme
-    val snack = remember { SnackbarHostState() }
+    // The app's one snackbar (I603); the share sheet has none, so it keeps its own.
+    val shared = LocalSnackbar.current
+    val snack = shared ?: remember { SnackbarHostState() }
     LaunchedEffect(result) { result?.let { snack.showSnackbar(it.second) } }
     // A result about the last send goes away once the message or the chosen devices change (I572).
     DismissSnackbarOnChange(snack, text to picked.toList())
@@ -694,9 +686,12 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp).fillMaxWidth().heightIn(min = 56.dp),
                 enabled = sendTo.isNotEmpty() && text.isNotEmpty() && bytes <= SizeCap.MAX_CONTENT_BYTES && "send" !in running)
         }
-        SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp))
+        if (shared == null) SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp))
     }
 }
+
+/** The main screen's one snackbar for transient messages (I603); null outside it. */
+internal val LocalSnackbar = androidx.compose.runtime.staticCompositionLocalOf<SnackbarHostState?> { null }
 
 /** Hides the snackbar on screen when [key] changes, so a note about an earlier action does not sit over new content. */
 @Composable
@@ -869,10 +864,10 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
             Row(Modifier.padding(start = 72.dp, end = 16.dp, bottom = 8.dp).horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (h.type == "url") com.pusharmor.protocol.UrlCheck.parse(hc)?.let { u ->
-                    RowAction("Open", PaIcons.OpenInNew) { startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(u.href)).addCategory(Intent.CATEGORY_BROWSABLE)) }
+                    RowAction("Open", PaIcons.OpenInNew) { startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(u.href)).addCategory(Intent.CATEGORY_BROWSABLE)) { vm.message.value = it } }
                 }
                 if (h.type == "tel" && com.pusharmor.protocol.Phone.isPhone(hc)) {
-                    RowAction("Dial", PaIcons.Call) { startOrToast(context, Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(hc))), NO_APP_DIAL) }
+                    RowAction("Dial", PaIcons.Call) { startOrToast(context, Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(hc))), NO_APP_DIAL) { vm.message.value = it } }
                 }
                 RowAction("Copy", PaIcons.ContentCopy) { com.pusharmor.app.notify.ActionActivity.copy(context, hc) }
                 RowAction("Share", PaIcons.Share) {
@@ -910,7 +905,6 @@ private fun SettingRow(title: String, sub: String? = null, modifier: Modifier, c
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: () -> Unit, onBack: (() -> Unit)? = null) {
-    DisposableEffect(Unit) { onDispose { vm.settingsMessage.value = null } }
     val prefs by vm.prefs.collectAsState()
     val context = LocalContext.current
     val me by vm.self.collectAsState()
@@ -1010,7 +1004,6 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                 // Log out on a slow or missing connection: visible progress beside the buttons (I473).
                 if ("logout" in running) androidx.compose.material3.CircularProgressIndicator(Modifier.size(24.dp).align(Alignment.CenterVertically).semantics { contentDescription = "Logging out" })
             }
-            vm.settingsMessage.collectAsState().value?.let { Text(it, Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp).semantics { liveRegion = LiveRegionMode.Polite }, color = cs.error) }
         }
     }
     if (renaming) RenameDialog(me?.name ?: "", onSave = { vm.rename(it) }) { renaming = false }

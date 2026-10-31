@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,6 +35,9 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -47,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -218,6 +223,15 @@ private fun App(vm: AppViewModel) {
             UiText.afterGate(wasGate, gate)?.let { r -> nav.navigate(r) { popUpTo(nav.graph.id) { inclusive = true }; launchSingleTop = true } }
             wasGate = gate
         }
+        // The app's one place for transient messages (I603): above the bottom bar, and above the keyboard when it is up.
+        // Taken as soon as it is set, so no screen finds an old one later (I426, I527); a new message replaces the one shown.
+        val snack = remember { SnackbarHostState() }
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            var shown: kotlinx.coroutines.Job? = null
+            vm.message.collect { m ->
+                if (m != null) { vm.message.value = null; shown?.cancel(); shown = launch { snack.showSnackbar(m, duration = SnackbarDuration.Short) } }
+            }
+        }
         val firstDevice: @Composable () -> Unit = { PeersScreen(vm, firstDevice = true, onSettings = { nav.navigate("settings") { launchSingleTop = true } }) }
         Scaffold(containerColor = MaterialTheme.colorScheme.background, topBar = {
             // Status bar strip: white in light (like the top app bar), so a heads-up reads against the page.
@@ -238,7 +252,9 @@ private fun App(vm: AppViewModel) {
             }
         }) { pad ->
             // Consumed, so the Send screen's imePadding does not count the bottom bar twice.
-            NavHost(nav, startDestination = "peers", modifier = Modifier.padding(pad).consumeWindowInsets(pad)) {
+            Box(Modifier.padding(pad).consumeWindowInsets(pad)) {
+            androidx.compose.runtime.CompositionLocalProvider(LocalSnackbar provides snack) {
+            NavHost(nav, startDestination = "peers", modifier = Modifier.fillMaxSize()) {
                 composable("peers") { if (gate) firstDevice() else PeersScreen(vm) }
                 composable("send") { if (gate) firstDevice() else SendScreen(vm, title = "Send") }
                 composable("history") { if (gate) firstDevice() else HistoryScreen(vm) { id -> vm.highlight.value = id; nav.navigate("peers") } }
@@ -246,6 +262,9 @@ private fun App(vm: AppViewModel) {
                     SettingsScreen(vm, onDeleteAccount = { vm.message.value = null; deleting = true }, onSignedOut = {},
                         onBack = if (gate) ({ nav.popBackStack(); Unit }) else null)
                 }
+            }
+            }
+            SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).imePadding())
             }
         }
     }

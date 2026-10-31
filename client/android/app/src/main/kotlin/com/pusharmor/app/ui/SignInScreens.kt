@@ -11,7 +11,6 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.Toast
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -136,14 +135,14 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onCanc
             OutlinedButton(onClick = {
                 scope.launch {
                     val token = if (vm.g.push.hasPlayServices) GoogleSignIn.idToken(context as Activity, vm.nonce(purpose) ?: return@launch) else null
-                    if (token != null) vm.googleToken(token, purpose, onDone) else vm.oauthUrl("google", purpose)?.let { customTab(context, it) }
+                    if (token != null) vm.googleToken(token, purpose, onDone) else vm.oauthUrl("google", purpose)?.let { customTab(context, it) { m -> vm.message.value = m } }
                 }
             }, Modifier.fillMaxWidth().heightIn(min = 48.dp), border = BorderStroke(1.dp, g.second),
                 colors = ButtonDefaults.outlinedButtonColors(containerColor = g.first, contentColor = g.third)) {
                 Icon(PaIcons.GoogleG, null, Modifier.size(20.dp), tint = Color.Unspecified); Spacer(Modifier.width(10.dp)); Text("Continue with Google")
             }
             val a = if (x.dark) Color.White to Color.Black else Color.Black to Color.White
-            Button(onClick = { scope.launch { vm.oauthUrl("apple", purpose)?.let { customTab(context, it) } } }, Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            Button(onClick = { scope.launch { vm.oauthUrl("apple", purpose)?.let { customTab(context, it) { m -> vm.message.value = m } } } }, Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = a.first, contentColor = a.second)) {
                 Icon(PaIcons.Apple, null, Modifier.size(18.dp)); Spacer(Modifier.width(10.dp)); Text("Continue with Apple")
             }
@@ -160,8 +159,8 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onCanc
     }
 }
 
-fun customTab(context: android.content.Context, url: String) {
-    try { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(url)) } catch (e: ActivityNotFoundException) { Toast.makeText(context, NO_APP_LINK, Toast.LENGTH_SHORT).show() }
+fun customTab(context: android.content.Context, url: String, onNoApp: (String) -> Unit) {
+    try { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(url)) } catch (e: ActivityNotFoundException) { onNoApp(NO_APP_LINK) }
 }
 
 /** Email: address -> Turnstile -> code entry. */
@@ -207,7 +206,7 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onDo
                         modifier = Modifier.fillMaxWidth().semantics { if (invalid) this.error("Not a valid email address") })
                     GreenButton(onClick = next, text = UiText.sendLabel("Next", left), icon = null, modifier = Modifier.fillMaxWidth(), enabled = left <= 0)
                 }
-                1 -> TurnstileView { token ->
+                1 -> TurnstileView(onNoApp = { vm.message.value = it }) { token ->
                     scope.launch {
                         val rt = vm.emailStart(email, token, purpose)
                         if (rt != null) { requestToken = rt; stage = 2 } else stage = 0
@@ -258,7 +257,7 @@ private fun CodeCells(code: String, onChange: (String) -> Unit) {
 /** Turnstile host page in a WebView; the token comes back through a WebMessageListener for https://pusharmor.com only. */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun TurnstileView(onToken: (String) -> Unit) {
+fun TurnstileView(onNoApp: (String) -> Unit, onToken: (String) -> Unit) {
     val context = LocalContext.current
     // A missing, disabled, or updating WebView throws; the update fallback shows instead (I552).
     val supported = remember { try { WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER) } catch (e: Exception) { false } }
@@ -267,7 +266,7 @@ fun TurnstileView(onToken: (String) -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Update Android System WebView")
             Button(onClick = {
-                startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.webview")))
+                startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.webview")), show = onNoApp)
             }) { Text("Open Play Store") }
         }
         return

@@ -243,15 +243,19 @@ class AppLogicTest {
         assertTrue(source("ui/AppViewModel.kt").contains("fun refresh() = io { g.session.refresh()?.let { message.value = it } }"))
     }
 
-    @Test fun settingsErrorStaysOnSettings() {
-        // I527: a Settings error (rename) never lands in vm.message, which Devices shows as a snackbar.
+    @Test fun transientMessagesUseTheOneSnackbar() {
+        // I603: one SnackbarHost for the signed-in screens, fed by vm.message, which it takes at once (so none
+        // comes back on another screen later, I527). Toasts only where the screen closes at once.
         val vm = source("ui/AppViewModel.kt")
-        assertTrue(vm.contains("g.session.rename(name)?.let { settingsMessage.value = it }"))
+        assertTrue(vm.contains("g.session.rename(name)?.let { message.value = it }"))
+        val activity = source("ui/MainActivity.kt")
+        assertEquals(1, Regex("SnackbarHost\\(").findAll(activity).count())
+        assertTrue(activity.contains("vm.message.value = null; shown?.cancel()"))
         val main = source("ui/MainScreens.kt")
-        val settings = main.substring(main.indexOf("fun SettingsScreen("))
-        assertTrue(settings.contains("onDispose { vm.settingsMessage.value = null }"))
-        assertTrue(settings.contains("vm.settingsMessage.collectAsState()"))
-        assertFalse(settings.contains("vm.message.collectAsState()"))
+        // Only the share sheet, which has no app snackbar, keeps its own.
+        assertEquals(listOf("if (shared == null) SnackbarHost("), Regex(".{0,20}SnackbarHost\\(").findAll(main).map { it.value.trim() }.toList())
+        assertFalse(main.contains("vm.message.collectAsState()"))
+        for (f in listOf("ui/MainScreens.kt", "ui/MainActivity.kt", "ui/SignInScreens.kt")) assertFalse(f, source(f).contains("Toast.makeText"))
     }
 
     @Test fun shareNeverSendsOnItsOwn() {

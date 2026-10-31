@@ -276,9 +276,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteAllHistory() = io { g.dao.deleteAllHistory() }
     fun markRead(id: Long) = io { g.dao.markRead(id) }
-    /** Errors shown on Settings only; leaving Settings clears them, so none comes back on Devices (I527). */
-    val settingsMessage = MutableStateFlow<String?>(null)
-    fun rename(name: String) = io { g.session.rename(name)?.let { settingsMessage.value = it } }
+    fun rename(name: String) = io { g.session.rename(name)?.let { message.value = it } }
     fun signOut(onDone: () -> Unit) = once("logout") {
         g.session.signOut()
         setStart(Session.Start.SIGNED_OUT)
