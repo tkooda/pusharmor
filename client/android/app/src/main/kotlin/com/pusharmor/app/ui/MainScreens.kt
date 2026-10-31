@@ -869,7 +869,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             SectionHeader("Sending")
             GroupedList(listOf<@Composable (Modifier) -> Unit>(
                 { m -> SwitchRow("Show \"All\" option", b(Settings.K.SHOW_ALL, true), modifier = m.then(pad)) { vm.setPref(Settings.K.SHOW_ALL, it) } },
-                { m -> SwitchRow("Tap opens link", b(Settings.K.TAP_OPENS_LINK, true), modifier = m.then(pad)) { vm.setPref(Settings.K.TAP_OPENS_LINK, it) } },
+                { m -> SwitchRow("Direct share targets", b(Settings.K.DIRECT_SHARE, true), modifier = m.then(pad)) { vm.setPref(Settings.K.DIRECT_SHARE, it) } },
             ))
             SectionHeader("History")
             GroupedList(listOf<@Composable (Modifier) -> Unit>(
@@ -878,6 +878,8 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             ))
             SectionHeader("Notifications")
             GroupedList(buildList<@Composable (Modifier) -> Unit> {
+                // Received messages (I463): what a notification tap does.
+                add { m -> SwitchRow("Tap opens link", b(Settings.K.TAP_OPENS_LINK, true), modifier = m.then(pad)) { vm.setPref(Settings.K.TAP_OPENS_LINK, it) } }
                 add { m ->
                     SettingRow("Notifications", modifier = m, trailing = external) {
                         context.startActivity(Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
@@ -897,7 +899,6 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                         modifier = m.then(pad)) { vm.setPref(Settings.K.WATCH, it) }
                 }
                 add { m -> SwitchRow("Always hide content", b(Settings.K.HIDE_CONTENT, false), modifier = m.then(pad)) { vm.setPref(Settings.K.HIDE_CONTENT, it) } }
-                add { m -> SwitchRow("Direct share targets", b(Settings.K.DIRECT_SHARE, true), modifier = m.then(pad)) { vm.setPref(Settings.K.DIRECT_SHARE, it) } }
                 if (vm.g.push.hasPlayServices) add { m ->
                     val up = prefs?.get(Settings.K.PUSH_TYPE) == "unifiedpush"
                     Column(m.padding(horizontal = 16.dp, vertical = 12.dp)) {
