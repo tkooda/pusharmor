@@ -74,7 +74,8 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
     if (t === "history") ready = historyView(env, pane, (text) => show("send", text));
     if (t === "peers") ready = renderPeers(env, pane, false);
     if (t === "settings") ready = settingsView(env, pane, st, () => mountPopup(env, root));
-    void ready.catch(() => undefined).finally(() => {
+    // I473: a view that fails shows the error with Retry in place of an empty pane
+    void ready.catch((e) => pane.isConnected && failView(pane, (e as Error).message, () => show(t, prefill))).finally(() => {
       clearTimeout(slow);
       wait.remove();
     });
