@@ -27,6 +27,12 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], application = android.app.Application::class)
 class AppLogicTest {
+    @Test fun bottomTabsInClientOrder() {
+        // Same order as iOS and the extensions: Send, History, Devices, Settings (I608).
+        assertEquals(listOf("Send", "History", "Devices", "Settings"), com.pusharmor.app.ui.NAV_TABS.map { it.second })
+        assertEquals(listOf("send", "history", "peers", "settings"), com.pusharmor.app.ui.NAV_TABS.map { it.first })
+    }
+
     @Test fun cliPlatformLabelAndIcon() {
         assertEquals("Command line", AppEffects.platformLabel("cli"))
         assertEquals(PaIcons.Terminal, platformIcon("cli"))

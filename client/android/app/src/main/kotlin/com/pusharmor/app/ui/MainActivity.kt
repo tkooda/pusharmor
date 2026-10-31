@@ -241,8 +241,7 @@ private fun App(vm: AppViewModel) {
             if (!gate) Column {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 NavigationBar(containerColor = x.tile, tonalElevation = 0.dp) {
-                    for ((r, l, i) in listOf(Triple("peers", "Devices", PaIcons.Devices), Triple("send", "Send", PaIcons.Send),
-                        Triple("history", "History", PaIcons.History), Triple("settings", "Settings", PaIcons.Settings))) {
+                    for ((r, l, i) in NAV_TABS) {
                         // One back step to Devices, then out: Back does not walk every visited tab (I478).
                         NavigationBarItem(selected = route == r, onClick = { nav.navigate(r) { popUpTo("peers") { saveState = true }; launchSingleTop = true; restoreState = true } },
                             icon = { Icon(i, null) }, label = { NavLabel(l) },
@@ -269,6 +268,10 @@ private fun App(vm: AppViewModel) {
         }
     }
 }
+
+/** Bottom bar tabs (route, label, icon), in the order of every client: Send, History, Devices, Settings (I608). */
+internal val NAV_TABS = listOf(Triple("send", "Send", PaIcons.Send), Triple("history", "History", PaIcons.History),
+    Triple("peers", "Devices", PaIcons.Devices), Triple("settings", "Settings", PaIcons.Settings))
 
 /**
  * Bottom bar label. One line at any font size, never a mid-word break (I480). The label grows with the font only
