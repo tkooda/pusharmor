@@ -701,3 +701,28 @@ def test_bad_redirect_is_a_network_error():
             pa.http_request("GET", url + "/v1/peers", {}, None)
         with pytest.raises(OSError):
             pa.ntfy_open(url + "/up0/json", 5)
+
+
+def test_too_deep_nesting(monkeypatch, tmp_path, capsys):
+    deep = b"[" * 100000 + b"]" * 100000
+    monkeypatch.setattr(pa, "http_request", lambda *a: (200, {}, deep))
+    assert pa.Api("https://r.example", {"id": "x", "sign": pa.new_key()[0]}).call("GET", "/v1/peers") == {}
+    with pytest.raises(ValueError):
+        pa.parse_strict(b'{"a":' + deep + b"}")
+
+    class Lines:
+        def __init__(self, lines):
+            self.lines = lines
+
+        def readline(self, *limit):
+            return self.lines.pop(0) if self.lines else b""
+
+        def close(self):
+            pass
+
+    s = pa.Stream("https://ntfy.example", "up0", {}, "", 5, poll=True)
+    monkeypatch.setattr(s, "connect", lambda: setattr(s, "resp", Lines([b'{"a":' + deep + b"}\n"])))
+    assert s.next(time.time() + 5) is None
+    (tmp_path / "settings.toml").write_text("a = " + "[" * 100000)
+    assert run(tmp_path, "send", "hi") == 1
+    assert capsys.readouterr().err == "%s is not valid TOML: nested too deeply\n" % (tmp_path / "settings.toml")
