@@ -52,6 +52,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         /** A signed-in screen whose device the relay server removed or logged out goes back to log in (I465). */
         fun needsReboot(start: Session.Start?, selfPresent: Boolean, signedOut: Boolean): Boolean =
             start == Session.Start.READY && (!selfPresent || signedOut)
+
+        /** Adds [key] to [set]; false when it was already there, so a second tap of the same action does not run (I473). */
+        fun claim(set: MutableStateFlow<Set<String>>, key: String): Boolean {
+            var won = false
+            set.update { won = key !in it; it + key }
+            return won
+        }
     }
 
     init {
@@ -64,6 +71,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun io(block: suspend () -> Unit) = viewModelScope.launch(Dispatchers.IO) {
         busy.value = true
         try { block() } finally { busy.value = false }
+    }
+
+    /** Keys of taps still running ("send", "logout", "pair:<id>", ...); their button is greyed until the call ends (I473). */
+    val running = MutableStateFlow<Set<String>>(emptySet())
+
+    /** [io], unless the same [key] is still running. */
+    fun once(key: String, block: suspend () -> Unit) {
+        if (!claim(running, key)) return
+        io { try { block() } finally { running.update { it - key } } }
     }
 
     /** Sign-in purpose, read off the main thread with each start change (Room refuses main-thread reads). */
@@ -89,7 +105,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (r is ApiResult.Ok) r.value else { message.value = ErrorText.of(r); null }
     }
 
-    fun emailVerify(requestToken: String, code: String, purpose: String, onDone: () -> Unit) = io {
+    fun emailVerify(requestToken: String, code: String, purpose: String, onDone: () -> Unit) = once("verify") {
         when (val r = g.client.authEmailVerify(requestToken, code)) {
             is ApiResult.Ok -> ticket(r.value.ticket, r.value.email, purpose, onDone)
             else -> message.value = ErrorText.of(r)
@@ -143,9 +159,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var pendingEvict: List<String>? = null
 
     /** Submit of the peer limit picker: POST /peers with evict, using the 10-min ticket. */
-    fun evict(ids: List<String>, onDone: () -> Unit) = io {
+    fun evict(ids: List<String>, onDone: () -> Unit) = once("evict") {
         pendingEvict = ids
-        val t = limitTicket ?: return@io
+        val t = limitTicket ?: return@once
         ticket(t, null, "register", onDone)
     }
 
@@ -154,7 +170,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ---- peers ----
 
     fun refresh() = io { if (!g.session.refresh()) message.value = null }
-    fun pair(id: String) = io { if (!g.pairing().tapPair(id, System.currentTimeMillis())) message.value = "Cannot pair with this device now" }
+    fun pair(id: String) = once("pair:$id") { if (!g.pairing().tapPair(id, System.currentTimeMillis())) message.value = "Cannot pair with this device now" }
     fun reply(id: String) = io { g.pairing().tapReply(id) }
     fun sendAgainPair(id: String) = io { g.pairing().sendAgain(id, System.currentTimeMillis()) }
     fun cancelPairing(id: String) = io { g.pairing().cancelPairing(id); g.reconcile().run() }
@@ -176,13 +192,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
-    fun approve(id: String) = io {
+    fun approve(id: String) = once("approve:$id") {
         val r = g.approve().approve(id)
         if (r !is ApiResult.Ok) message.value = ErrorText.of(r)
         g.session.updateShortcuts()
     }
-    fun deny(id: String) = io { val r = g.approve().deny(id); if (r !is ApiResult.Ok) message.value = ErrorText.of(r) }
-    fun remove(id: String) = io { g.session.removePeer(id)?.let { message.value = it } }
+    fun deny(id: String) = once("deny:$id") { val r = g.approve().deny(id); if (r !is ApiResult.Ok) message.value = ErrorText.of(r) }
+    fun remove(id: String) = once("remove:$id") { g.session.removePeer(id)?.let { message.value = it } }
     fun localDelete(id: String) = io { g.session.localDelete(id) }
     fun setHidden(id: String, hidden: Boolean) = io { g.session.setHidden(id, hidden) }
     fun tapGreyed() = io { g.session.fetchPeers() }
@@ -235,7 +251,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteAllHistory() = io { g.dao.deleteAllHistory() }
     fun markRead(id: Long) = io { g.dao.markRead(id) }
     fun rename(name: String) = io { g.session.rename(name)?.let { message.value = it } }
-    fun signOut(onDone: () -> Unit) = io {
+    fun signOut(onDone: () -> Unit) = once("logout") {
         val err = g.session.signOut()
         if (err != null) message.value = err else { setStart(Session.Start.SIGNED_OUT); withContext(Dispatchers.Main) { onDone() } }
     }
