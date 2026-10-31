@@ -501,15 +501,15 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     sh("Appearance"),
     group(h("div", { class: "srow" }, h("div", { class: "txt" }, h("div", {}, "Theme"), h("div", { class: "t2" }, "Dark uses a true black background.")), theme)),
     sh("Sending"),
-    group(h("label", { class: "srow" }, h("span", {}, 'Show "All" option'), showAll)),
-    // received links on this device
-    sh("Receiving"),
-    group(h("label", { class: "srow" }, h("span", {}, "Open links automatically"), autoOpen)),
+    group(h("label", { class: "srow" }, h("span", {}, 'Show an "All" button when choosing devices'), showAll)),
     sh("History"),
     group(
       h("div", { class: "srow" }, h("span", {}, "Keep messages for"), days),
       h("div", { class: "srow" }, delAll),
     ),
+    // received links on this device
+    sh("Receiving"),
+    group(h("label", { class: "srow" }, h("span", {}, "Open links automatically"), autoOpen)),
     ...(loggedIn ? [sh("Account"), group(acctRow, h("div", { class: "srow acct-acts" }, btns))] : []),
     h("div", { class: "grow" }),
   );

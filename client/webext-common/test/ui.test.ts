@@ -190,6 +190,16 @@ test("Settings: Open links automatically sits under Receiving, not Sending", asy
   assert.ok(pop.indexOf('"Open links automatically"') > recv);
 });
 
+test("Settings order: name, appearance, All button, history, receiving, account", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  const at = (x: string) => pop.indexOf(x, pop.indexOf("async function settingsView"));
+  const order = ['sh("Device name")', 'sh("Appearance")', 'Show an "All" button when choosing devices', 'sh("History")', 'sh("Receiving")', 'sh("Account")'].map(at);
+  assert.ok(order.every((i) => i > 0));
+  assert.deepEqual([...order].sort((a, b) => a - b), order);
+  assert.ok(at('"Delete account")') < at("logOut);"));
+});
+
 test("Log out confirmed: the popup reads the state again and shows the logged-out view", async () => {
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
