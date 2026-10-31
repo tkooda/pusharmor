@@ -566,7 +566,8 @@ CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 PAIR_KINDS = {"commit": 1, "reply": 2, "open": 3}
 PAIR_WIRE_LEN = 366
 PAIR_PLAINTEXT_LEN = 193
-PAIR_TIMEOUT_S = 14 * 86400
+PAIR_TIMEOUT_DAYS = 30
+PAIR_TIMEOUT_S = PAIR_TIMEOUT_DAYS * 86400
 PAIR_CAP_WINDOW_S = 86400
 PAIR_CAP_MAX = 10
 PAIR_MAX_OPEN = 9
@@ -672,7 +673,7 @@ def pair_decide(i):
 
 
 def pair_timeout(i):
-    """Pairing row at 14 days. i: approve_verified, approved, resend (None | offline | logged out |
+    """Pairing row at 30 days. i: approve_verified, approved, resend (None | offline | logged out |
     429 | 5xx | 200_c_verified | 200_other). -> keep_pin | drop_pin | resend | keep_waiting | complete."""
     if i["approve_verified"]:
         return "keep_pin"
@@ -2046,7 +2047,7 @@ def deny(cx, x):
 
 
 def sweep(cx):
-    """Pairings older than 14 days (pair_timeout)."""
+    """Pairings older than 30 days (pair_timeout)."""
     now, dropped = int(time.time()), False
     with cx.store.state(write=False) as d:
         old = [x for x, e in d["pairs"].items() if now - e["started"] > PAIR_TIMEOUT_S]

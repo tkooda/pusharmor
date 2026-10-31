@@ -20,7 +20,7 @@ import {
   pairingKey,
   pushHash,
 } from "../crypto/labels.ts";
-import { formatCountdown, PAIRING_TIMEOUT_MS } from "../model/countdown.ts";
+import { formatCountdown, PAIRING_TIMEOUT_DAYS } from "../model/countdown.ts";
 import { autoOpenAllowed, detectType, isPhone, parseHttpUrl, type SendType } from "../model/detect.ts";
 import {
   type Content,
@@ -929,12 +929,12 @@ export class Engine {
     }
   }
 
-  /** Sweep: expired entries (14 days), unsent replies. Runs at start and on the fetch alarm. */
+  /** Sweep: expired entries (30 days), unsent replies. Runs at start and on the fetch alarm. */
   async sweep(): Promise<void> {
     const t = now(this.p);
     let dropped = false;
     for (const [x, e] of await allEntries(this.p.storageLocal)) {
-      if (e.started + PAIRING_TIMEOUT_MS > t) {
+      if (e.started + PAIRING_TIMEOUT_DAYS * 86400e3 > t) {
         if (e.role === "X" && e.authorized && e.unsent) await this.sendReply(x);
         continue;
       }
@@ -1443,7 +1443,7 @@ export class Engine {
     const t = now(this.p);
     const lines: string[] = [];
     const actions: string[] = e.half && peer.pinned ? ["pair_again", "cancel"] : ["cancel"];
-    const countdown = formatCountdown(e.started + PAIRING_TIMEOUT_MS - t);
+    const countdown = formatCountdown(e.started + PAIRING_TIMEOUT_DAYS * 86400e3 - t);
     if (e.approved && !peer.approve_verified) {
       lines.push(T.waiting(nm));
       if (e.approve_result && e.approve_result !== "sent" && e.approve_result !== "stored" && e.approve_result !== "denied") actions.push("approve_again");

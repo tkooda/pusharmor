@@ -271,13 +271,13 @@ class EngineTest {
         assertEquals(low.store.pairing(high.id)!!.fingerprint, high.store.pairing(low.id)!!.fingerprint)
     }
 
-    @Test fun persistedStateValidAtDay13AndTimeoutAtDay14() {
+    @Test fun persistedStateValidAtDay29AndTimeoutAtDay30() {
         n.pairing.tapPair(x.id, t0); n.runPairSends(t0)
         val day = 24 * 3600_000L
         val restarted = PairingEngine(n.store, n.me, n.api, n.effects) { ByteArray(it) }
-        assertNull(restarted.checkTimeout(x.id, t0 + 13 * day) { error("no") })
-        assertEquals("1 days", Countdown.format(n.store.pairing(x.id)!!.startedAt, t0 + 13 * day))
-        assertEquals(PairDecide.Timeout.DROP_PIN, restarted.checkTimeout(x.id, t0 + 14 * day) { error("no") })
+        assertNull(restarted.checkTimeout(x.id, t0 + 29 * day) { error("no") })
+        assertEquals("1 days", Countdown.format(n.store.pairing(x.id)!!.startedAt, t0 + 29 * day))
+        assertEquals(PairDecide.Timeout.DROP_PIN, restarted.checkTimeout(x.id, t0 + 30 * day) { error("no") })
         assertNull(n.store.pairing(x.id))
         assertEquals(PairingEngine.TIMED_OUT, n.store.peer(x.id)!!.note)
         assertTrue(n.effects.log.contains("reconcile"))
@@ -290,10 +290,10 @@ class EngineTest {
         n.deliver(t0, drop = true)
         n.loggedOut = true
         val day = 24 * 3600_000L
-        assertEquals(PairDecide.Timeout.KEEP_WAITING, n.pairing.checkTimeout(x.id, t0 + 15 * day, n.approve::refetch))
+        assertEquals(PairDecide.Timeout.KEEP_WAITING, n.pairing.checkTimeout(x.id, t0 + 31 * day, n.approve::refetch))
         assertTrue(n.store.peer(x.id)!!.pinned)
         n.loggedOut = false
-        assertEquals(PairDecide.Timeout.COMPLETE, n.pairing.checkTimeout(x.id, t0 + 15 * day, n.approve::refetch))
+        assertEquals(PairDecide.Timeout.COMPLETE, n.pairing.checkTimeout(x.id, t0 + 31 * day, n.approve::refetch))
         assertTrue(n.store.peer(x.id)!!.approveVerified)
         assertNull(n.store.pairing(x.id))
     }

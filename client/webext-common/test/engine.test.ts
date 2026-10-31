@@ -241,13 +241,13 @@ test("a 401 logged out from any signed call sets reg to logged_out", async () =>
   assert.equal(await a.e.regState(), "logged_out");
 });
 
-test("pairing state survives restarts, valid at day 13, expires at day 14", async () => {
+test("pairing state survives restarts, valid at day 29, expires at day 30", async () => {
   const { w, a, b, clock } = await setup();
   await refresh(a, b);
   await a.e.pairStart(b.id);
   let a2 = await restart(a, clock);
   await deliver(w, b);
-  clock.t += 13 * DAY;
+  clock.t += 29 * DAY;
   let b2 = await restart(b, clock);
   await b2.e.sweep();
   assert.ok(await getEntry(b2.p.storageLocal, a.id));
@@ -279,7 +279,7 @@ test("two pairings open at once have their own fingerprint and countdown", async
   const vc = (await a.e.pairRowView(c.id))!;
   assert.equal(vb.fingerprint, (await b.e.pairRowView(a.id))!.fingerprint);
   assert.equal(vc.fingerprint, (await c.e.pairRowView(a.id))!.fingerprint);
-  assert.equal(vb.countdown, "13 days");
+  assert.equal(vb.countdown, "29 days");
   assert.equal((await allEntries(a.p.storageLocal)).size, 2);
 });
 
@@ -642,7 +642,7 @@ test("timeout while logged_out keeps Waiting; the re-fetch after login completes
   await b.e.approve(a.id); // relayed push to a lost
   w.take(a.id);
   await a.e.logout();
-  clock.t += 15 * DAY;
+  clock.t += 31 * DAY;
   await a.e.sweep();
   assert.ok(await getEntry(a.p.storageLocal, b.id)); // Waiting stays
   assert.ok((await a.db.peer(b.id))!.pinned);

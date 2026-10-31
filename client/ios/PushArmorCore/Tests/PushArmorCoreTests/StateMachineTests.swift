@@ -317,14 +317,14 @@ final class StateMachineTests: XCTestCase {
         XCTAssertNotEqual(try n.core.store.peer(x.id)!.pairingId, try n.core.store.peer(o.id)!.pairingId)
         let ex = try n.core.store.pairing(x.id)!, eo = try n.core.store.pairing(o.id)!
         XCTAssertEqual(eo.startedAt - ex.startedAt, 3600)
-        // restart at day 13: a new store connection reads the same state
-        clock.now = ex.startedAt + 13 * 86400
+        // restart at day 29: a new store connection reads the same state
+        clock.now = ex.startedAt + 29 * 86400
         let reopened = try Store(path: n.path)
         let e2 = try reopened.pairing(x.id)!
         XCTAssertEqual(e2, ex)
         XCTAssertEqual(Pairing.countdown(startedAt: e2.startedAt, now: clock.now), "1 day")
         XCTAssertEqual(Pairing.countdown(startedAt: eo.startedAt, now: clock.now), "1 day")
-        clock.now = ex.startedAt + 14 * 86400 - 1800
+        clock.now = ex.startedAt + 30 * 86400 - 1800
         XCTAssertEqual(Pairing.countdown(startedAt: e2.startedAt, now: clock.now), "30 minutes")
         XCTAssertEqual(Pairing.countdown(startedAt: eo.startedAt, now: clock.now), "1 hour")
     }
@@ -619,7 +619,7 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(v13, .completed)
         _ = w.take(n.id)                                                // lost approve push
         _ = try await n.core.logout()
-        clock.now += 14 * 86400 + 1
+        clock.now += 30 * 86400 + 1
         await n.core.checkTimeouts()
         XCTAssertNotNil(try n.core.store.pairing(x.id))                 // stays Waiting
         XCTAssertTrue(try n.core.store.peer(x.id)!.pinned)
@@ -643,7 +643,7 @@ final class StateMachineTests: XCTestCase {
         w.rows[n.id.text]!.allow[x.id.text] = true
         w.rows[n.id.text]!.loggedOut = true
         try n.core.store.setMe("logged_out", .int(1))
-        clock.now += 14 * 86400 + 1
+        clock.now += 30 * 86400 + 1
         let callsBefore = w.calls.count
         await n.core.checkTimeouts()
         XCTAssertFalse(try n.core.store.peer(x.id)!.pinned)

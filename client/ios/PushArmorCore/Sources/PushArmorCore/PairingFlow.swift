@@ -371,7 +371,7 @@ extension Core {
         }
     }
 
-    /// 14-day timeout check (app open and Refresh; no background timer).
+    /// 30-day timeout check (app open and Refresh; no background timer).
     public func checkTimeouts() async {
         let now = clock()
         var dropped = false

@@ -128,7 +128,7 @@ object PairDecide {
         else -> null
     }
 
-    /** Timeout at 14 days (golden pair_timeout). */
+    /** Timeout at 30 days (golden pair_timeout). */
     enum class Timeout { KEEP_PIN, DROP_PIN, RESEND, KEEP_WAITING, COMPLETE }
 
     enum class Resend { OFFLINE, LOGGED_OUT, RATE_LIMITED, SERVER_ERROR, OK_C_VERIFIED, OK_OTHER }

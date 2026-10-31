@@ -75,17 +75,17 @@ final class RulesTests: XCTestCase {
 
     func testCountdown() {
         let t0: Int64 = 1_000_000
-        XCTAssertEqual(Pairing.countdown(startedAt: t0, now: t0), "14 days")
-        XCTAssertEqual(Pairing.countdown(startedAt: t0, now: t0 + 13 * 86400 - 1), "1 day")
-        XCTAssertEqual(Pairing.countdown(startedAt: t0, now: t0 + 13 * 86400), "1 day")     // exactly 24 h left
-        XCTAssertEqual(Pairing.countdown(startedAt: t0, now: t0 + 13 * 86400 + 1), "23 hours")
-        XCTAssertEqual(Pairing.countdown(startedAt: t0, now: t0 + 14 * 86400 - 3600), "1 hour") // exactly 60 min
-        XCTAssertEqual(Pairing.countdown(startedAt: t0, now: t0 + 14 * 86400 - 3599), "60 minutes")
-        XCTAssertEqual(Pairing.countdown(startedAt: t0, now: t0 + 14 * 86400 - 3540), "59 minutes")
-        XCTAssertEqual(Pairing.countdown(startedAt: t0, now: t0 + 14 * 86400 - 1), "1 minute")
-        XCTAssertNil(Pairing.countdown(startedAt: t0, now: t0 + 14 * 86400))
-        XCTAssertFalse(Pairing.isExpired(startedAt: t0, now: t0 + 13 * 86400))   // still valid at day 13
-        XCTAssertTrue(Pairing.isExpired(startedAt: t0, now: t0 + 14 * 86400))
+        XCTAssertEqual(Pairing.countdown(startedAt: t0, now: t0), "30 days")
+        XCTAssertEqual(Pairing.countdown(startedAt: t0, now: t0 + 29 * 86400 - 1), "1 day")
+        XCTAssertEqual(Pairing.countdown(startedAt: t0, now: t0 + 29 * 86400), "1 day")     // exactly 24 h left
+        XCTAssertEqual(Pairing.countdown(startedAt: t0, now: t0 + 29 * 86400 + 1), "23 hours")
+        XCTAssertEqual(Pairing.countdown(startedAt: t0, now: t0 + 30 * 86400 - 3600), "1 hour") // exactly 60 min
+        XCTAssertEqual(Pairing.countdown(startedAt: t0, now: t0 + 30 * 86400 - 3599), "60 minutes")
+        XCTAssertEqual(Pairing.countdown(startedAt: t0, now: t0 + 30 * 86400 - 3540), "59 minutes")
+        XCTAssertEqual(Pairing.countdown(startedAt: t0, now: t0 + 30 * 86400 - 1), "1 minute")
+        XCTAssertNil(Pairing.countdown(startedAt: t0, now: t0 + 30 * 86400))
+        XCTAssertFalse(Pairing.isExpired(startedAt: t0, now: t0 + 29 * 86400))   // still valid at day 29
+        XCTAssertTrue(Pairing.isExpired(startedAt: t0, now: t0 + 30 * 86400))
     }
 
     func testEmailCode() {

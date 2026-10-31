@@ -1,7 +1,7 @@
 // Pairing countdown: "X days" at 24 h or more left, "X hours" under 24 h,
 // "X minutes" under 60 min (catalog Pairing flow step 8).
 
-export const PAIRING_TIMEOUT_MS = 14 * 24 * 3600 * 1000;
+export const PAIRING_TIMEOUT_DAYS = 30;
 const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
 
