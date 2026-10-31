@@ -29,6 +29,7 @@ export function basePlatform(b: Browser, name: "chrome" | "firefox", isAndroid: 
   const menus = b.menus ?? b.contextMenus;
   return {
     platformName: name,
+    appVersion: b.runtime.getManifest().version,
     isAndroid,
     pushSubscribe: (v) => push.pushSubscribe(v),
     pushCurrent: () => push.pushCurrent(),
@@ -117,6 +118,7 @@ export function lazyBoot(make: () => Platform, vapid: Uint8Array): () => Promise
           const db = new Db(idb);
           let offset: number | null = null;
           const api = new Api({
+            client: platform.platformName + "/" + platform.appVersion,
             fetch: (i, init) => platform.fetch(i, init),
             now: () => platform.now(),
             sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
