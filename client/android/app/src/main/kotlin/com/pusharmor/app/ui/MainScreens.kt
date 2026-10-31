@@ -883,7 +883,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             ))
             SectionHeader("History")
             GroupedList(listOf<@Composable (Modifier) -> Unit>(
-                { m -> SettingRow("History days", UiText.days(days), m) { pickDays = true } },
+                { m -> SettingRow("Keep messages for", UiText.days(days), m) { pickDays = true } },
                 { m -> SettingRow("Delete all history", modifier = m, color = cs.error) { confirmHistory = true } },
             ))
             SectionHeader("Notifications")
@@ -946,7 +946,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
         }
     }
     if (renaming) RenameDialog(me?.name ?: "", onSave = { vm.rename(it) }) { renaming = false }
-    if (pickDays) AlertDialog(onDismissRequest = { pickDays = false }, title = { Text("History days") },
+    if (pickDays) AlertDialog(onDismissRequest = { pickDays = false }, title = { Text("Keep messages for") },
         text = {
             Column {
                 for (d in listOf(1, 7, 30, 90, 365)) Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
