@@ -227,6 +227,17 @@ class ScreenshotCapture {
         repeat(10) { shellOut("input swipe 540 1500 540 300 300"); inst.waitForIdleSync() }
         settle(1000)
         shot("91-settings")
+        // Review images (Q338): the first-device screen, light and dark, with no paired device and one waiting.
+        g.dao.deleteAllPeers()
+        g.dao.deletePairing(newLaptop)
+        g.dao.putPeer(paired(newLaptop, "chrome", "New laptop", secs - 50 * 86400).copy(signPub = null, encPub = null, pairingId = null,
+            approved = false, approveVerified = false, listApprovesMe = false, listAfterVerify = false))
+        main(await = "Pair your first device")
+        shot("93-first-device")
+        g.settings.set(Settings.K.THEME, "dark")
+        main(await = "Pair your first device")
+        shot("94-first-device-dark")
+        g.settings.set(Settings.K.THEME, null)
         g.settings.set(Settings.K.SIGNED_OUT, true)
         main(await = "Continue with Google")
         shot("92-signed-out")
