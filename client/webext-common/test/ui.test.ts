@@ -101,7 +101,11 @@ test("focus moves sensibly on view change, dialogs and errors", async () => {
   assert.match(peers, /edit\.focus\(\)/); // after Rename
   assert.match(peers, /\.keep"\)\?\.focus\(\)/); // remove confirm
   const pop = rd("popup.ts");
-  assert.match(pop, /yes\.focus\(\)/); // delete all history confirm
+  assert.doesNotMatch(pop, /yes\.focus\(\)/); // I471: confirms start on Cancel, not on the destructive button
+  assert.equal(pop.match(/no\.focus\(\)/g)?.length, 2); // Log out and Delete all history
+  assert.match(pop, /confirmOut\.addEventListener\("keydown", onEsc/); // Esc cancels
+  assert.match(pop, /confirmDel\.addEventListener\("keydown", onEsc/);
+  assert.match(pop, /h\("button", \{ onclick: closeDel \}, "Cancel"\)/);
   assert.match(pop, /"aria-label": "Unread"/);
   assert.match(pop, /content\.addEventListener\("keydown"/); // keyboard marks read
 });
