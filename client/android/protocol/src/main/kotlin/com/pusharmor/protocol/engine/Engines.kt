@@ -43,7 +43,7 @@ class Outbox(private val store: LocalStore, private val me: Identity) {
 
 /** 401 "clock skew": the Worker relayed nothing; rebuild (new n) and retry once; a second one stops. */
 object ClockSkew {
-    const val CLOCK_OFF = "This device's clock is off by more than 5 minutes"
+    const val CLOCK_OFF = "This device's clock is off by more than 5 minutes."
 
     fun <B, T> run(build: () -> B, call: (B) -> ApiResult<T>): ApiResult<T> {
         val first = call(build())

@@ -147,9 +147,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.Main) { onDone() }
             }
             is Session.SignIn.Limit -> { limitTicket = r.limit.ticket; message.value = null; limit.value = r.limit }
-            Session.SignIn.NeedNewTicket -> message.value = "Please log in again"
+            Session.SignIn.NeedNewTicket -> message.value = "Please log in again."
             is Session.SignIn.Error -> {
-                if (r.text == "Login expired, log in again") limit.value = limit.value // ticks kept
+                if (r.text == "Login expired. Log in again.") limit.value = limit.value // ticks kept
                 message.value = r.text
             }
         }
@@ -170,7 +170,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ---- peers ----
 
     fun refresh() = io { if (!g.session.refresh()) message.value = null }
-    fun pair(id: String) = once("pair:$id") { if (!g.pairing().tapPair(id, System.currentTimeMillis())) message.value = "Cannot pair with this device now" }
+    fun pair(id: String) = once("pair:$id") { if (!g.pairing().tapPair(id, System.currentTimeMillis())) message.value = "Cannot pair with this device now." }
     fun reply(id: String) = io { g.pairing().tapReply(id) }
     fun sendAgainPair(id: String) = io { g.pairing().sendAgain(id, System.currentTimeMillis()) }
     fun cancelPairing(id: String) = io { g.pairing().cancelPairing(id); g.reconcile().run() }
@@ -185,7 +185,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (!g.pairing().pairAgain(id, System.currentTimeMillis()) { g.reconcile().run() }) {
                     // Past the offer check the old pairing is already cancelled; say so, the row is now a plain Pair row.
                     message.value = if (offered) "The old pairing was cancelled, but a new one could not start. Tap Pair to try again."
-                        else "Cannot pair with this device now"
+                        else "Cannot pair with this device now."
                 }
             } finally {
                 pairingAgain.update { it - id }
