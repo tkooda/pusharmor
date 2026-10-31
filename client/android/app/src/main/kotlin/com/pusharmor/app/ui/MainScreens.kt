@@ -300,7 +300,7 @@ private fun Banners(vm: AppViewModel, banner: String?) {
     if (banner?.startsWith("no_distributor") == true) {
         BannerRow("Install a UnifiedPush app (we suggest ntfy).", "Get", fault = false, PaIcons.Info) {
             val url = if (vm.g.push.hasPlayServices) "https://play.google.com/store/apps/details?id=io.heckel.ntfy" else "https://f-droid.org/packages/io.heckel.ntfy/"
-            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         }
         if (vm.g.push.hasPlayServices) TextButton(onClick = { vm.switchPush(toUp = false) }) { Text("Switch back to Google") }
     }
@@ -850,10 +850,10 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
             Row(Modifier.padding(start = 72.dp, end = 16.dp, bottom = 8.dp).horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (h.type == "url") com.pusharmor.protocol.UrlCheck.parse(hc)?.let { u ->
-                    RowAction("Open", PaIcons.OpenInNew) { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u.href)).addCategory(Intent.CATEGORY_BROWSABLE)) }
+                    RowAction("Open", PaIcons.OpenInNew) { startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(u.href)).addCategory(Intent.CATEGORY_BROWSABLE)) }
                 }
                 if (h.type == "tel" && com.pusharmor.protocol.Phone.isPhone(hc)) {
-                    RowAction("Dial", PaIcons.Call) { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(hc)))) }
+                    RowAction("Dial", PaIcons.Call) { startOrToast(context, Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(hc))), NO_APP_DIAL) }
                 }
                 RowAction("Copy", PaIcons.ContentCopy) { com.pusharmor.app.notify.ActionActivity.copy(context, hc) }
                 RowAction("Share", PaIcons.Share) {

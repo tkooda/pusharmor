@@ -155,7 +155,7 @@ internal fun UpdateScreen(modifier: Modifier = Modifier) {
         Text(UPDATE_BODY, style = MaterialTheme.typography.bodyLarge, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         androidx.compose.foundation.layout.Spacer(Modifier.padding(top = 24.dp))
         GreenButton(onClick = {
-            ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(UPDATE_URL)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            startOrToast(ctx, Intent(Intent.ACTION_VIEW, android.net.Uri.parse(UPDATE_URL)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }, text = "Update", icon = null, modifier = Modifier.fillMaxWidth())
     }
 }
