@@ -22,8 +22,9 @@ three stores; it is not a manual release.
 
 ## Versions
 
-All platforms share ONE version line X.Y.Z, so the clients of one release show
-the same number. Rules (`release/tag.mjs`, checked again by every release
+All platforms share ONE version counter X.Y.Z. A release tags only the platforms
+that changed (for example `chrome/v0.0.22` alone); the others skip that number.
+A given X.Y.Z always means the same commit on every platform that has it. Rules (`release/tag.mjs`, checked again by every release
 workflow in its first job):
 
 - A version is bound to one commit: every `<platform>/vX.Y.Z` tag of X.Y.Z points
@@ -31,12 +32,13 @@ workflow in its first job):
 - A new version (no tag of it yet) is greater than every existing tag of any
   platform. A version that already has a tag stays open to other platforms at
   its commit, also after newer versions are tagged.
-- Every release tags ALL FOUR client platforms (`android`, `ios`, `chrome`,
-  `firefox`) on ONE commit, so the public clients of a release are one build of
-  one commit. Only `worker/vX.Y.Z` may stand alone (a Worker-only fix needs no
-  client tag).
+- A release names its platforms (`node release/tag.mjs X.Y.Z chrome firefox`;
+  `all` = android, ios, chrome, firefox; `cli` and `worker` are named
+  explicitly). Platforms are required, so nothing is tagged by default. Tag all
+  platforms that changed on ONE commit; the rest keep their last version.
 - X.Y.Z has no leading zeros; Y and Z are at most 999; X is at most 2099.
-- The version files at the tag commit hold X.Y.Z: `release/version.properties`
+- The version files OF THE TAGGED PLATFORM at the tag commit hold X.Y.Z (files of
+  other platforms keep their own version): `release/version.properties`
   (Android), `client/chrome/manifest.json`, `client/firefox/manifest.json`,
   `client/ios/project.yml`, `client/cli/pusharmor.py` (VERSION and the version
   comment on line 2), and `site/public/download.html` (the pusharmor.py release
@@ -56,14 +58,17 @@ Order: deploy the Worker first when the clients need it. Every test channel
 talks to the production Worker, and the public clients must keep working with it.
 
 1. On an up-to-date main with a clean tree:
-   `node release/tag.mjs <platform> X.Y.Z`. When the version files do not hold
+   `node release/tag.mjs X.Y.Z <platform>...`. When the version files do not hold
    X.Y.Z yet, it writes them and stops (nothing tagged).
 2. Commit the version files ("release X.Y.Z") and push to main; wait for ci-ok.
-3. Check out that commit and run `node release/tag.mjs <platform> X.Y.Z` again:
+3. Check out that commit and run `node release/tag.mjs X.Y.Z <platform>...` again:
    it fetches the tags of origin, checks the rules (ci-ok too, with your `gh`
-   login) and creates the annotated tag.
-4. `git push origin <platform>/vX.Y.Z`. More platforms at the same version: run
-   step 3 for each one at the SAME commit.
+   login) and creates one annotated tag per platform.
+4. `git push origin <platform>/vX.Y.Z ...`. A platform added later to the same
+   version: run step 3 for it at the SAME commit.
+
+`PA_MIN_CLIENT` (Worker) takes a per-platform list (`android=0.0.22,ios=0.0.20`)
+because platform versions differ; set a floor only for platforms that have it.
 
 A failed upload after the store accepted the file is fixed with a new patch
 version. Each tag workflow creates the GitHub release as a draft, uploads every
