@@ -7,12 +7,23 @@ inner messages, name entries, pairing, replay window, RFC 8291 push decrypt
 and send-type detection. Pure functions only: no network, no files.
 """
 
+import sys
+
+
+def check_python(version_info=None):
+    """Exit before any import that needs Python 3.11 (this file's syntax parses on 3.6 and later)."""
+    if tuple(version_info or sys.version_info)[:2] < (3, 11):
+        sys.stderr.write("PushArmor needs Python 3.11 or later.\n")
+        sys.exit(2)
+
+
+check_python()
+
 import hashlib
 import hmac
 import ipaddress
 import json
 import re
-import sys
 import unicodedata
 import zlib
 
