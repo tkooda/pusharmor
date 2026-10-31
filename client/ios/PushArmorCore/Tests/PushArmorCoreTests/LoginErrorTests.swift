@@ -7,10 +7,11 @@ final class LoginErrorTests: XCTestCase {
         XCTAssertEqual(S.loginError(.network), S.noConnection)
         XCTAssertEqual(S.loginError(.badEmail), S.badEmail)
         XCTAssertEqual(S.loginError(.emailSendFailed), S.emailSendFailed)
-        XCTAssertEqual(S.loginError(.rateLimited(30)), "Try again in 30 s.")
+        XCTAssertEqual(S.loginError(.rateLimited(30)), "Too many requests. Try again in 30 seconds.")
         XCTAssertEqual(S.loginError(.failed(401, "wrong code")), S.wrongCode)
         XCTAssertEqual(S.loginError(.failed(401, "code expired")), S.codeExpired)
         XCTAssertEqual(S.loginError(.failed(500, nil)), "Login failed.")
         XCTAssertTrue(S.pushRegistrationFailed.hasSuffix("."))
+        XCTAssertEqual(S.updateRequired, "Update PushArmor to continue.")
     }
 }
