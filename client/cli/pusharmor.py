@@ -2268,7 +2268,7 @@ def cmd_send(cx, args):
     type_, value = ("text", text) if args.text else detect(text)
     size = len(value.encode("utf-8"))
     if size > CONTENT_CAP:
-        raise Fail("Too long (%d / %d)" % (size, CONTENT_CAP))
+        raise Fail("Too long (%d / %d bytes)." % (size, CONTENT_CAP), EXIT_USAGE)
     cx.refresh()
     with cx.store.state() as d:
         ready = [pid for pid, p in d["peers"].items() if sendable(p)]
@@ -2408,6 +2408,12 @@ def main(argv=None):
     if not getattr(args, "_check", lambda a: True)(args):
         parser.error("use only one of --json, --tsv, and --exec")
     cx = Ctx(config_dir(args.config))
+    if args.config and os.path.exists(cx.store.root) and not os.path.isdir(cx.store.root):
+        log("The --config path %s is a file, not a folder." % cx.store.root)
+        return EXIT_USAGE
+    if args.config and args.command not in ("login", "logout") and not os.path.isdir(cx.store.root):
+        log("Not logged in. The --config folder %s does not exist." % cx.store.root)
+        return EXIT_LOGIN
     try:
         if args.command not in ("login", "logout"):
             retry_pending_logout(cx)
