@@ -176,7 +176,10 @@ export function errorText(e: unknown): string {
   if (e.status === 401 && e.error === "code expired") return "This code has expired. Get a new code to continue.";
   if (e.status === 403 && e.error === "turnstile failed") return "The security check did not finish. Try it again.";
   if (e.status === 401 && e.error === "logged out") return "Logged out. Log in to resume.";
-  if (e.status === 429) return "Too many requests. Try again in " + (e.retryAfter ?? 60) + " seconds.";
+  if (e.status === 429) {
+    const s = e.retryAfter ?? 60;
+    return "Too many requests. Try again in " + s + (s === 1 ? " second." : " seconds.");
+  }
   if (e.status === 0) return "Could not reach the relay server. Check your connection.";
   return "Something went wrong. Try again.";
 }
