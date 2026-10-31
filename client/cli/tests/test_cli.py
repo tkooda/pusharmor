@@ -189,7 +189,7 @@ def test_version_refused(tmp_path):
         f.write('id = "x"\n')
     with pytest.raises(pa.Fail) as e:
         st.load_keys()
-    assert "version None" in str(e.value)
+    assert "damaged" in str(e.value) and "version None" not in str(e.value)
 
 
 def test_not_logged_in(tmp_path, capsys):
@@ -378,3 +378,39 @@ def test_format_blocks():
     out = pa.format_record(REC, "blocks").splitlines()
     assert out[0] == "From: ababab Pixel" and out[1] == "Platform: Android" and out[2] == "Type: text"
     assert out[3].startswith("Date: ") and out[4] == "Body: a\tb" and out[5] == " c\\d?"
+
+
+# ---- damaged files: one line naming the file, exit 1, no traceback ----
+
+def _logged_in(monkeypatch, tmp_path, net):
+    cfg = tmp_path / "cfg"
+    login(monkeypatch, cfg)
+    return cfg
+
+
+@pytest.mark.parametrize("rel", [os.path.join("keys", "private.toml"), "devices.toml", "settings.toml"])
+@pytest.mark.parametrize("data", [b"\xff\xfe\x00bad\x80", b"not = [valid toml"])
+def test_damaged_state_file_is_one_line_exit_1(monkeypatch, tmp_path, net, capsys, rel, data):
+    cfg = _logged_in(monkeypatch, tmp_path, net)
+    path = cfg / rel
+    path.write_bytes(data)
+    path.chmod(0o600)
+    capsys.readouterr()
+    monkeypatch.setattr(sys, "stdin", Stdin(tty=False, data=b"hi"))
+    assert run(cfg, "send", "hi") == 1
+    err = capsys.readouterr().err.strip()
+    assert "\n" not in err and "Traceback" not in err
+    assert str(path) in err
+
+
+def test_wrong_key_length_is_damaged(monkeypatch, tmp_path, net, capsys):
+    cfg = _logged_in(monkeypatch, tmp_path, net)
+    path = cfg / "keys" / "private.toml"
+    d = tomllib.loads(path.read_text())
+    d["sign_key"] = pa.b64e(b"\x01" * 31)
+    path.write_text(pa.KEY_HEADER + pa.toml_dumps(d))
+    path.chmod(0o600)
+    capsys.readouterr()
+    assert run(cfg, "send", "hi") == 1
+    err = capsys.readouterr().err.strip()
+    assert err == "%s is damaged. Delete it and log in again." % path
