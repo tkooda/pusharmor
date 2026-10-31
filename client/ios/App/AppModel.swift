@@ -41,6 +41,8 @@ final class AppModel: ObservableObject {
     @Published var errorText: String?
     /// The relay server answered 426 (Q328): this version is too old.
     @Published var updateRequired = false
+    /// pa.sqlite was corrupt at launch and was recreated (Q332); shown on the log-in screen.
+    @Published var repairedNotice = false
     @Published var lockedLine: String?
     @Published var notificationsOff = false
     @Published var pushRegisterFailed = false
@@ -79,8 +81,9 @@ final class AppModel: ObservableObject {
         #endif
         do {
             try env.prepareDirectories()
-            let store = try env.openStore()
+            let (store, repaired) = try await env.openStoreRepairing()
             self.store = store
+            repairedNotice = repaired
             if let keys = try env.keychain.bootstrap(store: store) {
                 core = env.makeCore(store: store, keys: keys)
             }
@@ -110,6 +113,7 @@ final class AppModel: ObservableObject {
         if notificationsOff && me.id == nil { phase = .welcome; return }
         if me.removed { phase = .removed; return }
         if me.id == nil { phase = .signIn(.register); return }
+        repairedNotice = false
         if me.loggedOut { phase = .signedOut; return }
         if me.name == nil { phase = .nameDevice; return }
         phase = .main

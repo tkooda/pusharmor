@@ -771,6 +771,39 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(try s.me().clockOffset, -7)
     }
 
+    /// Q332: a corrupt pa.sqlite runs onCorrupt and is recreated empty; a healthy one is kept.
+    func testCorruptStoreRepaired() async throws {
+        let path = NSTemporaryDirectory() + "pa-bad-\(UUID().uuidString).sqlite"
+        try Data(repeating: 0x5a, count: 4096).write(to: URL(fileURLWithPath: path))
+        var called = 0
+        let r = try await StoreRepair.open(path: path) { called += 1 }
+        XCTAssertTrue(r.repaired)
+        XCTAssertEqual(called, 1)
+        XCTAssertNil(try r.store.me().id)
+        XCTAssertEqual(try r.store.db.one("PRAGMA user_version")?.int("user_version"), 4)
+        try r.store.setMe("name", .text("kept"))
+        let r2 = try await StoreRepair.open(path: path) { called += 1 }
+        XCTAssertFalse(r2.repaired)
+        XCTAssertEqual(called, 1)
+        XCTAssertEqual(try r2.store.me().name, "kept")
+    }
+
+    /// Q332: the best-effort DELETE of this device is signed with the surviving keys and
+    /// retried once on clock skew.
+    func testDeleteSelfAfterCorruption() async {
+        let w = FakeWorker(), p = TestPeer()
+        w.add(p.id, signPub: p.signPub, encPub: p.encPub)
+        let api = APIClient(base: URL(string: "https://api.test")!, transport: w, clockMs: { 1761300000000 }, sleep: { _ in })
+        w.script("DELETE", "/v1/peers/", 401, "{\"error\":\"clock skew\"}")
+        let ok = await StoreRepair.deleteSelf(api: api, signer: p.signer, id: p.id)
+        XCTAssertTrue(ok)
+        XCTAssertEqual(w.count("DELETE", "/v1/peers/" + p.id.text), 2)
+        XCTAssertNil(w.rows[p.id.text])
+        w.offline = true
+        let ok2 = await StoreRepair.deleteSelf(api: api, signer: p.signer, id: p.id)
+        XCTAssertFalse(ok2)
+    }
+
     func testCliPeerListeningParsedAndSendOnlyExcluded() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try await pairFully(n, x)
