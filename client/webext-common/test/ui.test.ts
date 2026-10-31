@@ -411,3 +411,11 @@ test("Device limit Remove and continue ends on the same done card (I501)", async
   assert.doesNotMatch(page, /"Logged in\. You can close this tab\."/);
   assert.equal(page.match(/doneCard\(env, /g)?.length, 2);
 });
+
+test("first-device screen: after the first pairing, focus goes to the selected tab or the heading, not BODY (I537)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  assert.match(pop, /await onPaired\(\);\s*\/\/ I537[^\n]*\n\s*if \(!document\.activeElement \|\| document\.activeElement === document\.body\) \{/);
+  assert.match(pop, /root\.querySelector<HTMLElement>\("\[role='tab'\]\[aria-selected='true'\]"\) \?\? root\.querySelector<HTMLElement>\("h1"\)/);
+  assert.match(pop, /to\?\.focus\(\);/);
+});

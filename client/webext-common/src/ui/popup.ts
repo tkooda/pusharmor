@@ -520,6 +520,12 @@ export async function firstPairView(env: UiEnv, root: HTMLElement, st: StateView
       if (data.peers.some((p) => p.paired)) {
         clearInterval(timer);
         await onPaired();
+        // I537: the new view replaced the focused button; focus its selected tab, else its heading
+        if (!document.activeElement || document.activeElement === document.body) {
+          const to = root.querySelector<HTMLElement>("[role='tab'][aria-selected='true']") ?? root.querySelector<HTMLElement>("h1");
+          if (to && !to.hasAttribute("tabindex")) to.setAttribute("tabindex", "-1");
+          to?.focus();
+        }
         return;
       }
       const waiting = data.peers.filter((p) => !p.hidden);
