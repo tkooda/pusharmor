@@ -413,20 +413,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     if (r.limit) return limitView(env, root, r.limit, r.ticket ?? "");
     if (r.done) {
       clearTimeout(tick);
-      const deleted = purpose === "delete-account";
-      const heading = h("h1", { tabindex: "-1" }, deleted ? "Account deleted" : "You are logged in");
-      clear(card).append(
-        h("div", { class: "l-brand" }, wordmark(env, 24)),
-        h(
-          "div",
-          { class: "step done" },
-          h("div", { class: "ok" }, icon("check", 32)),
-          heading,
-          h("p", { class: "sub" }, "You can close this tab."),
-          h("button", { type: "button", class: "big", onclick: () => window.close() }, "Close tab"),
-        ),
-      );
-      heading.focus(); // the old controls are gone: read the result
+      doneCard(env, clear(card), purpose === "delete-account");
     }
   };
 
@@ -471,6 +458,23 @@ export function limitLine(p: LimitPeer): string {
     .join(" ");
 }
 
+/** The login result card; focus goes to its heading (the old controls are gone: read the result). */
+function doneCard(env: UiEnv, card: HTMLElement, deleted: boolean): void {
+  const heading = h("h1", { tabindex: "-1" }, deleted ? "Account deleted" : "You are logged in");
+  card.append(
+    h("div", { class: "l-brand" }, wordmark(env, 24)),
+    h(
+      "div",
+      { class: "step done" },
+      h("div", { class: "ok" }, icon("check", 32)),
+      heading,
+      h("p", { class: "sub" }, "You can close this tab."),
+      h("button", { type: "button", class: "big", onclick: () => window.close() }, "Close tab"),
+    ),
+  );
+  heading.focus();
+}
+
 function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>, ticket: string): void {
   clear(root);
   document.body.classList.remove("signin-bg");
@@ -507,9 +511,13 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
           const evict = boxes.filter((b) => b.box.checked).map((b) => b.id);
           try {
             const r = await rpc<LoginResult>(env, "evict", { ticket, evict });
-            if (r.done) clear(root).append(h("div", { class: "banner", role: "status", tabindex: "-1" }, "Logged in. You can close this tab."));
-            if (r.done) root.querySelector<HTMLElement>(".banner")?.focus();
-            else if (r.limit) limitView(env, root, r.limit, r.ticket ?? ticket);
+            if (r.done) {
+              // I501: the same done card as a login without the limit
+              document.body.classList.add("signin-bg");
+              const card = h("div", { class: "l-card" });
+              clear(root).append(h("div", { class: "login" }, card));
+              doneCard(env, card, false);
+            } else if (r.limit) limitView(env, root, r.limit, r.ticket ?? ticket);
           } catch (e) {
             status.textContent = (e as Error).message;
             if (status.textContent === T.loginExpired) env.openPage("#login");

@@ -404,3 +404,10 @@ test("full tab Devices, History, and Send show the brand on top (I500)", async (
   assert.match(page, /root\.append\(h\("div", \{ class: "head" \}, h\("img", \{ src: "icons\/icon-32\.png"[^)]*\), wordmark\(env, 16\)\), view\);/);
   assert.match(page, /return renderPeers\(env, view, true/);
 });
+
+test("Device limit Remove and continue ends on the same done card (I501)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const page = readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(page, /"Logged in\. You can close this tab\."/);
+  assert.equal(page.match(/doneCard\(env, /g)?.length, 2);
+});
