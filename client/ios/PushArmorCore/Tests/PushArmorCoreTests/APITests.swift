@@ -44,4 +44,21 @@ final class APITests: XCTestCase {
         XCTAssertEqual(api.offsetMs, 7000)
         XCTAssertEqual(api.workerNowMs, 1761300007000)
     }
+
+    /// Q328: every request carries PA-Client; a 426 reply posts upgradeRequired once and is not retried.
+    func testClientHeaderAnd426() async {
+        let w = FakeWorker(), rec = Recorder()
+        let api = APIClient(base: URL(string: "https://api.test")!, transport: w, client: "ios/1.2.3",
+                            clockMs: { 1761300000000 }, sleep: { rec.sleeps.append($0) })
+        _ = await api.call("GET", "/v1/x", auth: .none)
+        XCTAssertEqual(w.lastHeaders["PA-Client"], "ios/1.2.3")
+        XCTAssertTrue(APIClient.defaultClient.hasPrefix("ios/"))
+        let posted = expectation(forNotification: APIClient.upgradeRequired, object: api)
+        w.script("POST", "/v1/send", 426, "{\"error\":\"upgrade required\"}")
+        let r = await api.call("POST", "/v1/send", auth: .none)
+        XCTAssertEqual(r.reply?.status, 426)
+        XCTAssertEqual(w.count("POST", "/v1/send"), 1)
+        XCTAssertEqual(rec.sleeps, [])
+        await fulfillment(of: [posted], timeout: 1)
+    }
 }
