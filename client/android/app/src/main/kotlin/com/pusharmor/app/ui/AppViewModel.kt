@@ -134,9 +134,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun oauthUrl(provider: String, purpose: String): String {
+    /** Key preparation runs off the main thread; a Keystore failure shows [NOT_DONE] and returns null (I549). */
+    private suspend fun <T> withKeys(block: () -> T): T? = withContext(Dispatchers.IO) {
+        try { block() } catch (e: CancellationException) { throw e } catch (e: Exception) { failed(e); null }
+    }
+
+    suspend fun nonce(purpose: String): String? = withKeys { g.session.nonce(purpose) }
+
+    suspend fun oauthUrl(provider: String, purpose: String): String? = withKeys {
         g.settings.set(Settings.K.PENDING_PURPOSE, purpose)
-        return g.client.oauthUrl(provider, g.session.keysForSignIn(), purpose)
+        g.client.oauthUrl(provider, g.session.keysForSignIn(), purpose)
     }
 
     fun onAppLinkTicket(ticket: String, email: String?, onDone: () -> Unit) = io {

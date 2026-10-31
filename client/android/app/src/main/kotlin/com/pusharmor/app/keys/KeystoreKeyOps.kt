@@ -65,12 +65,12 @@ class KeystoreKeyOps private constructor(private val ks: KeyStore) : KeyOps {
     override val signPub: ByteArray = P256.point(ks.getCertificate(SIGN).publicKey)
     override val encPub: ByteArray = P256.point(ks.getCertificate(ENC).publicKey)
 
-    /** Keystore returns DER; converted strictly to raw r||s. */
-    override fun sign(data: ByteArray): ByteArray {
+    /** Keystore returns DER; converted strictly to raw r||s. Keystore failures surface as CryptoException (I549). */
+    override fun sign(data: ByteArray): ByteArray = wrap {
         val s = Signature.getInstance("SHA256withECDSA")
         s.initSign(ks.getKey(SIGN, null) as PrivateKey)
         s.update(data)
-        return P256.derToRaw(s.sign())
+        P256.derToRaw(s.sign())
     }
 
     /** Keystore failures surface as CryptoException, so a push that cannot be opened is dropped (I299). */

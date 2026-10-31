@@ -11,6 +11,7 @@ import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlinx.coroutines.runBlocking
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
@@ -47,6 +48,16 @@ class AppViewModelTest {
         waitFor { vm.running.value.isEmpty() && vm.message.value != null }
         assertNull(uncaught)
         assertEquals(emptySet<String>(), vm.running.value)
+        assertEquals(AppViewModel.NOT_DONE, vm.message.value)
+    }
+
+    /** Robolectric has no AndroidKeyStore, so key generation fails as a broken Keystore would (I549). */
+    @Test fun keystoreFailureInSignInShowsMessage() {
+        val vm = vm()
+        vm.g.keysOrNull = null
+        assertNull(runBlocking { vm.oauthUrl("apple", "register") })
+        assertNull(runBlocking { vm.nonce("register") })
+        assertNull(uncaught)
         assertEquals(AppViewModel.NOT_DONE, vm.message.value)
     }
 }
