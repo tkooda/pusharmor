@@ -177,7 +177,7 @@ test("CLI: stamp, commit, tag; second platform at the same commit; check mode", 
   const { d, git, run, bin } = scratch();
   t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
   assert.equal(run().status, 2);
-  let r = run("android", "1.2.3");
+  let r = run("1.2.3", "all", "cli");
   assert.equal(r.status, 1, r.stderr);
   assert.match(r.stdout, /stamped 1\.2\.3/);
   assert.deepEqual(stampProblems(d, "1.2.3"), []);
@@ -244,23 +244,23 @@ test("CLI check: /download holds the SHA-256 of pusharmor.py at the commit", (t)
 test("CLI check: a rerun of an older tag ignores tags created after it", (t) => {
   const { d, git, run, bin } = scratch();
   t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
-  run("worker", "0.1.0");
+  run("0.1.0", "chrome");
   git("commit", "-q", "-am", "release 0.1.0");
   const env = (date) => ({ ...process.env, GIT_COMMITTER_DATE: date, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" });
-  execFileSync("git", ["tag", "-a", "worker/v0.1.0", "-m", "w"], { cwd: d, env: env("2026-01-01T00:00:00Z") });
+  execFileSync("git", ["tag", "-a", "chrome/v0.1.0", "-m", "w"], { cwd: d, env: env("2026-01-01T00:00:00Z") });
   const first = git("rev-parse", "HEAD");
-  run("worker", "0.2.0");
+  run("0.2.0", "chrome");
   git("commit", "-q", "-am", "release 0.2.0");
-  execFileSync("git", ["tag", "-a", "worker/v0.2.0", "-m", "w"], { cwd: d, env: env("2026-02-01T00:00:00Z") });
+  execFileSync("git", ["tag", "-a", "chrome/v0.2.0", "-m", "w"], { cwd: d, env: env("2026-02-01T00:00:00Z") });
   git("checkout", "-q", "--detach", first);
-  let r = run("--check", "worker/v0.1.0");
+  let r = run("--check", "chrome/v0.1.0");
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout.trim(), "0.1.0");
 
-  // A new platform tag of 0.1.0 at its commit, made after worker/v0.2.0.
-  r = run("android", "0.1.0");
+  // A new platform tag of 0.1.0 at its commit, made after chrome/v0.2.0.
+  r = run("worker", "0.1.0");
   assert.equal(r.status, 0, r.stderr);
-  r = run("--check", "android/v0.1.0");
+  r = run("--check", "worker/v0.1.0");
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout.trim(), "0.1.0");
 });
@@ -299,4 +299,42 @@ test("CLI: no tag unless ci-ok succeeded on HEAD; --ci checks the commit of the 
   // --check reads git only: it passes without gh.
   ci.jobs = "";
   assert.equal(run("--check", "ios/v90.0.7").status, 0);
+});
+
+test("platform subset: only those version files change; numbers are shared and never reused", (t) => {
+  const { d, git, run, bin } = scratch();
+  t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
+  const read = (f) => readFileSync(join(d, f), "utf8");
+  const page = read("site/public/download.html");
+  let r = run("1.2.3", "chrome", "firefox");
+  assert.equal(r.status, 1, r.stderr);
+  assert.match(r.stdout, /stamped 1\.2\.3 into the version files of chrome, firefox/);
+  assert.match(read("client/chrome/manifest.json"), /"version": "1\.2\.3"/);
+  assert.match(read("client/firefox/manifest.json"), /"version": "1\.2\.3"/);
+  assert.ok(!/^versionName=1\.2\.3$/m.test(read("release/version.properties")));
+  assert.ok(!/MARKETING_VERSION: "1\.2\.3"/.test(read("client/ios/project.yml")));
+  assert.ok(!/VERSION = "1\.2\.3"/.test(read("client/cli/pusharmor.py")));
+  assert.equal(read("site/public/download.html"), page);
+  git("commit", "-q", "-am", "release 1.2.3");
+  r = run("1.2.3", "chrome", "firefox");
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(git("tag", "-l").split("\n").join(" "), "chrome/v1.2.3 firefox/v1.2.3");
+  // The other tags check against their own files only, and a skipped platform stays quiet.
+  assert.equal(run("--check", "chrome/v1.2.3").status, 0);
+  // Without a platform, or with an unknown one, nothing is tagged.
+  assert.equal(run("1.2.3").status, 2);
+  assert.equal(run("1.2.3", "nope").status, 1);
+  // Next release: the number must exceed the highest tag of any platform, android alone.
+  git("commit", "-q", "--allow-empty", "-m", "next");
+  r = run("1.2.2", "android");
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /1\.2\.2 is not greater than the existing tag/);
+  r = run("1.2.3", "android");
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /1\.2\.3 is bound to commit/);
+  assert.equal(run("1.2.4", "android").status, 1);
+  git("commit", "-q", "-am", "release 1.2.4");
+  assert.equal(run("android", "1.2.4").status, 0);
+  assert.equal(run("--check", "android/v1.2.4").status, 0);
+  assert.equal(git("tag", "-l", "ios/*"), "");
 });

@@ -15,8 +15,16 @@ function lower(a: number[], b: number[]): boolean {
   return false;
 }
 
-export function checkMinClient(client: { version: number[] } | null, min: string | undefined): void {
-  const m = min === undefined ? null : VERSION.exec(min);
-  if (client === null || m === null) return;
-  if (lower(client.version, [Number(m[1]), Number(m[2]), Number(m[3])])) throw new ApiError(426, "update required");
+// PA_MIN_CLIENT is "x.y.z" (the floor of every platform) or a list "android=0.0.22,ios=0.0.20"
+// (a floor per platform; an unlisted platform has none). Platforms skip version numbers, so
+// one floor above the latest release of a platform would lock that platform out.
+export function checkMinClient(client: { platform: string; version: number[] } | null, min: string | undefined): void {
+  if (client === null || min === undefined) return;
+  let floor = VERSION.exec(min);
+  if (floor === null) {
+    const hit = min.split(",").map((e) => /^([a-z]+)=(.+)$/.exec(e.trim())).find((m) => m !== null && m[1] === client.platform);
+    floor = hit ? VERSION.exec(hit[2]) : null;
+  }
+  if (floor === null) return;
+  if (lower(client.version, [Number(floor[1]), Number(floor[2]), Number(floor[3])])) throw new ApiError(426, "update required");
 }
