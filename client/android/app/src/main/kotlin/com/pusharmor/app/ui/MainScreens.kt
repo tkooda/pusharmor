@@ -755,9 +755,9 @@ fun HistoryScreen(vm: AppViewModel, onPeer: (String) -> Unit) {
 }
 
 @Composable
-private fun PaChip(selected: Boolean, text: String, onClick: () -> Unit) {
+internal fun PaChip(selected: Boolean, text: String, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
-    FilterChip(selected = selected, onClick = onClick, label = { Text(text, maxLines = 1, softWrap = false) },
+    FilterChip(selected = selected, onClick = onClick, label = { Text(text, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
         leadingIcon = if (selected) { { Icon(PaIcons.Check, null, Modifier.size(18.dp)) } } else null,
         colors = FilterChipDefaults.filterChipColors(containerColor = LocalPaExtra.current.tile, selectedContainerColor = cs.secondaryContainer),
         border = FilterChipDefaults.filterChipBorder(enabled = true, selected = selected, borderColor = cs.outline, selectedBorderColor = Color.Transparent))
