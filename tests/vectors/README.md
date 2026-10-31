@@ -74,6 +74,7 @@ deflate stream is correct) unless the change is intended.
 | `replay_window` | window state, n, type, History row | outcome, state_after |
 | `url_parse` | received url cases: shape rules, encode sets, IDN hosts | url, href, host, auto_open |
 | `phone` | phone detection cases | phone |
+| `must_decode` | inputs with unknown extra keys (inner messages, name entries) that must decode; type is the first known key in order | receive pipeline outcome, name entry result |
 | `must_fail` | inputs every client must reject (kinds message, pair, name_entry, request, peer_entry) | rejected, with the given `outcome` |
 | `rfc9180` | HPKE suite vector (P-256, HKDF-SHA256, AES-256-GCM, base mode) | DeriveKeyPair, key schedule, seal and open |
 | `rfc8291` | RFC 8291 section 5 example with Appendix A values | every intermediate, body, and decrypt |

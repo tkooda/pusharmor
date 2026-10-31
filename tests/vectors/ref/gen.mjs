@@ -438,6 +438,48 @@ function nameSection() {
   };
 }
 
+function mustDecodeSection() {
+  const url = 'https://example.com/a';
+  const xKeys = { signPub: X.signPub, encPub: X.encPub };
+  const unruled = pin(X, PAIRING_ID, 'unruled');
+  const withExtra = (no, extra) => nameJson(no, 4).replace(/}$/, ',' + extra + '}');
+  const msgs = [
+    ['url_plus_unknown_key', '{"n":1,"url":"' + url + '","x":1}', null, 'url', 1, url],
+    ['text_plus_unknown_key', '{"n":2,"text":"hi","x":"y"}', null, 'text', 2, 'hi'],
+    ['unknown_key_before_type', '{"x":[1,2],"n":3,"tel":"+1 555-123-4567"}', null, 'tel', 3, '+1 555-123-4567'],
+    ['url_and_text_is_url', '{"n":4,"text":"a","url":"' + url + '"}', null, 'url', 4, url],
+    ['text_and_tel_is_text', '{"n":5,"tel":"+1 555-123-4567","text":"a"}', null, 'text', 5, 'a'],
+    ['logout_plus_unknown_key', '{"n":6,"logout":1,"x":1}', null, 'logout', 6, 1],
+  ].map(([name, json, keys, type, n, value]) => ({
+    name, ...msgCase(name, inner('md ' + name, { json, keys }), { json, full: true }),
+    expect: { outcome: 'accept', type, n, value },
+  }));
+  const no = nameObj(X, N, 4, 'Pixel 8');
+  const apprJson = '{"n":4,"approve":' + withExtra(no, '"x":1') + ',"y":2}';
+  msgs.push({
+    name: 'approve_name_entry_unknown_key',
+    ...msgCase('approve_name_entry_unknown_key', inner('md approve', { json: apprJson, keys: xKeys }), { json: apprJson, full: true, pin: unruled }),
+    expect: { outcome: 'accept', type: 'approve', n: 4, value: { name: 'Pixel 8', n: 4 } },
+  });
+  const entryJson = withExtra(nameObj(X, N, 4, 'Pixel 8'), '"x":{"y":1}');
+  const sealed = sealNameEntry(N.idB64, N.encPub, entryJson, ikm('md name entry'));
+  const names = [{
+    name: 'name_entry_unknown_key', owner: 'X', receiver: 'N', pin: pin(X), entry_json: entryJson, ciphertext: sealed.ciphertext,
+    expect: { ok: true, name: 'Pixel 8', n: 4 },
+  }];
+  return {
+    description:
+      'Lenient receivers (Q327): inputs every client must DECODE. Inner message: unknown keys are ignored; the type is ' +
+      'the first known type key in the fixed order url, text, tel, approve, deny, remove, rename, delete, logout, login ' +
+      '(so url + text is a url). Duplicate keys and the "n" rules still reject (see must_fail). Name entry (and the ' +
+      'name object inside approve / rename): unknown extra keys are ignored; name, n and s are still required. ' +
+      'messages: run the receive pipeline as in messages (pin default approved) and compare expect. name_entries: ' +
+      'open as in name_entries with pin and compare expect.',
+    messages: msgs,
+    name_entries: names,
+  };
+}
+
 const MSG_N = { url: 1, text: 2, tel: 3, approve: 4, deny: 5, remove: 6, rename: 7, delete: 8, logout: 9, login: 10 };
 
 function typeJson(type, n) {
@@ -780,8 +822,6 @@ function mustFailSection() {
     { json: '{"n":7,"rename":' + nameJson(nameObj(X, N, 7, 'Work phone', OLD_PAIRING_ID), 7) + '}' }, { window: { h: 7, seen: [7] } });
   msg('rename_name_n_differs', 'unreadable', { json: '{"n":8,"rename":' + nameJson(nameObj(X, N, 7, 'Work phone'), 7) + '}' });
   msg('no_type_key', 'unreadable', { json: '{"n":1}' });
-  msg('two_type_keys', 'unreadable', { json: '{"n":1,"url":"https://example.com/a","text":"a"}' });
-  msg('unknown_top_level_key', 'unreadable', { json: '{"n":1,"url":"https://example.com/a","x":1}' });
   msg('unknown_type', 'unreadable', { json: '{"n":1,"foo":1}' });
   msg('remove_id_39_chars', 'unreadable', { json: '{"n":1,"remove":"' + O.idB64.slice(0, 39) + '"}' });
   msg('remove_id_39_chars_seen_n', 'unreadable', { json: '{"n":1,"remove":"' + O.idB64.slice(0, 39) + '"}' },
@@ -836,6 +876,7 @@ function mustFailSection() {
   ne('name_entry_over_1024_chars', nameJson(nameObj(X, N, 1, 'Pixel 8'), 1) + ' '.repeat(600));
   {
     const no = nameObj(X, N, 1, 'Pixel 8');
+    ne('name_entry_missing_s', '{"name":"' + no.nameB64 + '","n":1,"x":1}');
     ne('name_entry_duplicate_key', '{"name":"' + no.nameB64 + '","n":1,"n":1,"s":"' + no.s + '"}');
   }
 
@@ -936,6 +977,7 @@ export function buildGolden() {
     replay_window: replaySection(),
     url_parse: urlSection(),
     phone: phoneSection(),
+    must_decode: mustDecodeSection(),
     must_fail: mustFailSection(),
     ...rfcSections(),
   };

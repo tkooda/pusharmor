@@ -262,6 +262,18 @@ test('phone', () => {
   for (const c of G.phone.cases) assert.equal(isPhone(c.input), c.phone, JSON.stringify(c.input));
 });
 
+test('must_decode', () => {
+  for (const c of G.must_decode.messages) {
+    const got = receiveMessage(ctxFor(c), c.message);
+    assert.deepEqual({ outcome: got.outcome, type: got.type, n: got.n, value: got.value }, c.expect, c.name);
+  }
+  for (const c of G.must_decode.name_entries) {
+    const r = peer(c.receiver);
+    const owner = peer(c.owner);
+    assert.deepEqual(openNameEntry(c.ciphertext, r.id, r.encPriv, owner.id, pinOf(c.pin)[owner.id]), c.expect, c.name);
+  }
+});
+
 function mustFailOutcome(c) {
   if (c.kind === 'message') return receiveMessage(ctxFor(c), c.message).outcome;
   if (c.kind === 'pair') {
