@@ -1531,7 +1531,7 @@ export class Engine {
       await this.pushReconcile().catch(() => undefined);
       return null;
     }
-    throw new UserError("Could not register, try again");
+    throw new UserError("Could not register. Try again.");
   }
 
   async start(): Promise<void> {
