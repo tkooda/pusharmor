@@ -957,8 +957,12 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                     }
                 }
                 add { m ->
-                    SwitchRow("Show message content on lock screen", b(Settings.K.LOCK_SCREEN, true), sub = "When off, the lock screen shows only \"New message\".",
-                        modifier = m.then(pad)) { vm.setPref(Settings.K.LOCK_SCREEN, it) }
+                    SwitchRow("Show message content in notifications", b(Settings.K.SHOW_CONTENT, true), sub = "When off, notifications show only \"New message\".",
+                        modifier = m.then(pad)) { vm.setPref(Settings.K.SHOW_CONTENT, it) }
+                }
+                add { m ->
+                    SwitchRow("Show message content on lock screen", b(Settings.K.LOCK_SCREEN, true), enabled = b(Settings.K.SHOW_CONTENT, true),
+                        sub = "When off, the lock screen shows only \"New message\".", modifier = m.then(pad)) { vm.setPref(Settings.K.LOCK_SCREEN, it) }
                 }
                 add { m ->
                     SettingRow("System lock screen setting", modifier = m, trailing = external) {
@@ -969,7 +973,6 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                     SwitchRow("Send messages to watch", b(Settings.K.WATCH, true), sub = "When off, nothing is sent to your watch.",
                         modifier = m.then(pad)) { vm.setPref(Settings.K.WATCH, it) }
                 }
-                add { m -> SwitchRow("Always hide content", b(Settings.K.HIDE_CONTENT, false), modifier = m.then(pad)) { vm.setPref(Settings.K.HIDE_CONTENT, it) } }
                 if (vm.g.push.hasPlayServices) add { m ->
                     val up = prefs?.get(Settings.K.PUSH_TYPE) == "unifiedpush"
                     Column(m.padding(horizontal = 16.dp, vertical = 12.dp)) {
