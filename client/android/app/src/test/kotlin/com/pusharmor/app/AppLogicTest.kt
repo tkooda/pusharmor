@@ -288,7 +288,8 @@ class AppLogicTest {
         val vm = source("ui/AppViewModel.kt")
         assertTrue(vm.contains("g.session.rename(name)?.let { message.value = it }"))
         val activity = source("ui/MainActivity.kt")
-        assertEquals(1, Regex("SnackbarHost\\(").findAll(activity).count())
+        // The signed-in screens and the Update screen, which shows before them (I603).
+        assertEquals(2, Regex("SnackbarHost\\(").findAll(activity).count())
         assertTrue(activity.contains("vm.message.value = null; shown?.cancel()"))
         val main = source("ui/MainScreens.kt")
         // Only the share sheet, which has no app snackbar, keeps its own.

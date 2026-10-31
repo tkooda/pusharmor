@@ -156,18 +156,26 @@ internal fun AppTheme(vm: AppViewModel, content: @Composable () -> Unit) {
 @Composable
 internal fun UpdateScreen(modifier: Modifier = Modifier) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
-    // Scrolls when landscape or a large font makes it taller than the screen (I529); centred otherwise.
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 32.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        com.pusharmor.app.ui.theme.IconTile(PaIcons.Info, size = 56.dp)
-        androidx.compose.foundation.layout.Spacer(Modifier.padding(top = 20.dp))
-        Text(UPDATE_TITLE, style = MaterialTheme.typography.titleLarge, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        androidx.compose.foundation.layout.Spacer(Modifier.padding(top = 8.dp))
-        Text(UPDATE_BODY, style = MaterialTheme.typography.bodyLarge, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        androidx.compose.foundation.layout.Spacer(Modifier.padding(top = 24.dp))
-        GreenButton(onClick = {
-            startOrToast(ctx, Intent(Intent.ACTION_VIEW, android.net.Uri.parse(UPDATE_URL)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        }, text = "Update", icon = null, modifier = Modifier.fillMaxWidth())
+    // No browser: a snackbar, as on every other app screen, not a Toast (I603).
+    val snack = remember { SnackbarHostState() }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    Box(modifier.fillMaxSize()) {
+        // Scrolls when landscape or a large font makes it taller than the screen (I529); centred otherwise.
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 32.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+            com.pusharmor.app.ui.theme.IconTile(PaIcons.Info, size = 56.dp)
+            androidx.compose.foundation.layout.Spacer(Modifier.padding(top = 20.dp))
+            Text(UPDATE_TITLE, style = MaterialTheme.typography.titleLarge, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            androidx.compose.foundation.layout.Spacer(Modifier.padding(top = 8.dp))
+            Text(UPDATE_BODY, style = MaterialTheme.typography.bodyLarge, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            androidx.compose.foundation.layout.Spacer(Modifier.padding(top = 24.dp))
+            GreenButton(onClick = {
+                startOrToast(ctx, Intent(Intent.ACTION_VIEW, android.net.Uri.parse(UPDATE_URL)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) {
+                    scope.launch { snack.showSnackbar(it) }
+                }
+            }, text = "Update", icon = null, modifier = Modifier.fillMaxWidth())
+        }
+        SnackbarHost(snack, Modifier.align(Alignment.BottomCenter))
     }
 }
 
