@@ -52,7 +52,7 @@ final class AppEnvironment: PlatformHooks {
 
     func makeCore(store: Store, keys: DeviceKeys) -> Core {
         let me = try? store.me()
-        let api = APIClient(offsetMs: me?.clockOffset ?? 0)
+        let api = APIClient(offsetS: me?.clockOffset ?? 0)
         return Core(store: store, api: api, keys: keys, hooks: self)
     }
 

@@ -38,11 +38,15 @@ final class APITests: XCTestCase {
 
     func testOffsetResyncedFromEveryReply() async {
         let w = FakeWorker(), rec = Recorder()
-        w.epochMs = 1761300000000 + 7000
+        w.epoch = 1761300000 + 7
         let api = client(w, rec)
         _ = await api.call("GET", "/v1/x", auth: .none)
-        XCTAssertEqual(api.offsetMs, 7000)
+        XCTAssertEqual(api.offsetS, 7)
         XCTAssertEqual(api.workerNowMs, 1761300007000)
+        // PA-Epoch is unix seconds (Q331); a clock ahead gives a negative offset
+        w.epoch = 1761300000 - 400
+        _ = await api.call("GET", "/v1/x", auth: .none)
+        XCTAssertEqual(api.offsetS, -400)
     }
 
     /// Q328: every request carries PA-Client; a 426 reply posts upgradeRequired once and is not retried.
