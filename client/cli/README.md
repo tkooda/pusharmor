@@ -7,7 +7,7 @@ See https://pusharmor.com for the apps and the full guide.
 
 ## Install
 
-With pipx:
+We recommend pipx. It installs the `cryptography` package for you:
 
     pipx install pusharmor
 
@@ -16,6 +16,12 @@ Or download `pusharmor.py` from the GitHub release, check its SHA-256 against
 
     sha256sum -c pusharmor.py.sha256
     python3 pusharmor.py --help
+
+The single file needs the `cryptography` package. Install it from your
+distribution:
+
+    sudo apt install python3-cryptography    # Debian and Ubuntu
+    sudo dnf install python3-cryptography    # RHEL, Fedora, and related
 
 ## Commands
 
