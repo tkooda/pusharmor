@@ -92,6 +92,7 @@ final class AppModel: ObservableObject {
             phase = ScreenshotSample.signIn ? .signIn(.register) : .main
             if ScreenshotSample.update { updateRequired = true }
             reload()
+            if let r = ScreenshotSample.detail(history) { showHistory = true; detailRow = r }
             toast = ScreenshotSample.sentToast ?? ScreenshotSample.sendErrorToast
             toastIsSuccess = ScreenshotSample.sentOK
             sample = true
