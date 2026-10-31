@@ -296,7 +296,8 @@ fun LimitScreen(vm: AppViewModel, onDone: () -> Unit) {
         Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
             verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { vm.cancelLimit() }) { Text("Cancel") }
-            GreenButton(onClick = { vm.evict(ticked.toList(), onDone) }, text = "Remove and log in", icon = null, enabled = ticked.isNotEmpty())
+            val running by vm.running.collectAsState()
+            GreenButton(onClick = { vm.evict(ticked.toList(), onDone) }, text = "Remove and log in", icon = null, enabled = ticked.isNotEmpty() && "evict" !in running)
         }
     }
 }

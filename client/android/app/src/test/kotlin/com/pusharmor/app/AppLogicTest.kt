@@ -244,6 +244,18 @@ class AppLogicTest {
         assertEquals("a,b", kotlinx.coroutines.runBlocking { s.lastSendTo() })
     }
 
+    @Test fun secondTapOfARunningActionDoesNotRun() {
+        val running = kotlinx.coroutines.flow.MutableStateFlow<Set<String>>(emptySet())
+        assertTrue(AppViewModel.claim(running, "send"))
+        assertFalse(AppViewModel.claim(running, "send")) // double tap while the first send is on its way
+        assertTrue(AppViewModel.claim(running, "pair:a"))
+        running.value = running.value - "send"
+        assertTrue(AppViewModel.claim(running, "send")) // the call ended: a new tap runs
+        val vm = source("ui/AppViewModel.kt")
+        for (k in listOf("\"logout\"", "\"evict\"", "\"verify\"", "\"pair:\$id\"", "\"deny:\$id\"", "\"approve:\$id\"", "\"remove:\$id\""))
+            assertTrue(k, vm.contains("once($k)"))
+    }
+
     @Test fun removedOrLoggedOutWhileOpenLeavesTheSignedInScreens() {
         assertTrue(AppViewModel.needsReboot(Session.Start.READY, selfPresent = false, signedOut = false)) // device removed
         assertTrue(AppViewModel.needsReboot(Session.Start.READY, selfPresent = true, signedOut = true)) // logged out
