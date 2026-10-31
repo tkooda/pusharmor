@@ -4,7 +4,7 @@ import type { LoginResult, Purpose } from "../core/login.ts";
 import type { PeerView, StateView } from "../core/rpc.ts";
 import { T } from "../core/texts.ts";
 import { type UiEnv, add, clear, failView, group, h, platformLabel, rpc } from "./dom.ts";
-import { AUTH_CHANGED, AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResult, type Restore, resendLeftMs } from "../model/signin.ts";
+import { AUTH_CHANGED, AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResult, type Restore, resendLeftMs, sendLeftMs } from "../model/signin.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
 import { startTheme } from "./theme.ts";
@@ -181,12 +181,29 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     setHelp(emailHelp, "", false);
     if (invalid) email.setAttribute("aria-invalid", "true");
     else email.removeAttribute("aria-invalid");
+    refreshSend();
     clearTimeout(draftTimer);
     draftTimer = setTimeout(() => void rpc(env, "signinDraft", { email: email.value, purpose }).catch(() => undefined), 300) as unknown as number;
   });
   const sendBtn = h("button", { type: "submit", class: "primary big" }, "Email me a code") as HTMLButtonElement;
+  let sentAt = 0;
+  let sentTo = "";
+  let tick = 0;
+  let sending = false;
+  // "Email me a code" waits out the resend countdown for the address just sent to.
+  const refreshSend = () => {
+    clearTimeout(sendTick);
+    if (sending) return;
+    const left = sendLeftMs(sentAt, sentTo, email.value, Date.now());
+    sendBtn.disabled = left > 0;
+    sendBtn.setAttribute("aria-disabled", left > 0 ? "true" : "false");
+    sendBtn.textContent = left > 0 ? "Email me a code in " + clock(left) : "Email me a code";
+    if (left > 0) sendTick = setTimeout(refreshSend, ((left - 1) % 1000) + 1) as unknown as number;
+  };
   describe(sendBtn, sendHelp, "send-help");
+  let sendTick = 0;
   const sendCode = async () => {
+    if (sendBtn.disabled && !sending) return;
     setHelp(sendHelp, "", false);
     const v = email.value.trim();
     const bad = emailProblem(v);
@@ -199,6 +216,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     if (!token || tokenUsed) {
       // wait for the security check (it may still be loading), with the button saying so
       loadFrame();
+      sending = true;
       sendBtn.disabled = true;
       sendBtn.textContent = "Waiting for the security check...";
       const ok = await new Promise<boolean>((done) => {
@@ -206,14 +224,15 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
         setTimeout(() => done(false), 60_000);
       });
       tokenWaiter = null;
-      sendBtn.disabled = false;
-      sendBtn.textContent = "Email me a code";
+      sending = false;
+      refreshSend();
       if (!ok) {
         setHelp(frameHelp, "Finish the check above first.", true);
         return;
       }
     }
     clearTimeout(draftTimer); // a late draft save must not overwrite the step 2 record
+    sending = true;
     sendBtn.disabled = true;
     sendBtn.textContent = "Sending...";
     try {
@@ -225,8 +244,8 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       setHelp(sendHelp, (e as Error).message, true);
       freshFrame();
     } finally {
-      sendBtn.disabled = false;
-      sendBtn.textContent = "Email me a code";
+      sending = false;
+      refreshSend();
     }
   };
   const freshFrame = () => {
@@ -292,8 +311,6 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   const s2notes = h("div", { class: "notes" });
   const signBtn = h("button", { type: "submit", class: "primary big" }, "Log in") as HTMLButtonElement;
   const resend = h("button", { type: "button", class: "text" }, "Get a new code") as HTMLButtonElement;
-  let sentAt = 0;
-  let tick = 0;
   let busy = false;
   const countdown = () => {
     clearTimeout(tick);
@@ -384,6 +401,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   const showEmail = (value: string) => {
     clearTimeout(tick);
     email.value = value;
+    refreshSend();
     step1.hidden = false;
     step2.hidden = true;
     back.hidden = true;
@@ -394,6 +412,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   const showCode = (addr: string, at: number, restored: boolean) => {
     email.value = addr;
     sentAt = at;
+    sentTo = addr.trim().toLowerCase();
     clear(chip).append(h("span", { class: "ava" }, (addr.charAt(0) || "?").toUpperCase()), h("span", { class: "addr" }, addr));
     clear(s2notes);
     if (restored) {
@@ -434,6 +453,9 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   if (saved && saved.step === "code") showCode(saved.email, saved.sentAt, true);
   else if (saved) {
     email.value = saved.email;
+    sentAt = saved.sentAt;
+    sentTo = saved.email.trim().toLowerCase();
+    refreshSend();
     if (saved.note === "expired") s1notes.prepend(note("", "history", "Your last code has expired. Get a new code to continue."));
   }
 }
