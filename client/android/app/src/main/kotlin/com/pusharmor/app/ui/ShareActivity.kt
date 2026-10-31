@@ -77,7 +77,7 @@ class ShareActivity : ComponentActivity() {
                             if (type == ContentType.TEXT) TextButton(onClick = { cut = SizeCap.truncateUtf8(text) }) { Text("Send the first 2048 bytes") }
                         }
                     } else {
-                        SendScreen(vm, cut ?: text, preselect = direct, onDevices = {
+                        SendScreen(vm, cut ?: text, preselect = direct, onPair = {
                             startActivity(MainActivity.openIntent(this@ShareActivity, "peers").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); finish()
                         }) { r -> if (r == ErrorText.UPDATE) showUpdate() else toastAndFinish(r) }
                     }

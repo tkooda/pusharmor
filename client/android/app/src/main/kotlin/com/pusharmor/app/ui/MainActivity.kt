@@ -232,6 +232,10 @@ private fun App(vm: AppViewModel) {
                 if (m != null) { vm.message.value = null; shown?.cancel(); shown = launch { snack.showSnackbar(m, duration = SnackbarDuration.Short) } }
             }
         }
+        // One back step to Devices, then out: Back does not walk every visited tab (I478).
+        fun tab(r: String) = nav.navigate(r) { popUpTo("peers") { saveState = true }; launchSingleTop = true; restoreState = true }
+        // Send and History with no paired device: to Devices, with its pairing how-to open (I611).
+        val pair = { vm.pairHowTo.value = true; tab("peers") }
         val firstDevice: @Composable () -> Unit = { PeersScreen(vm, firstDevice = true, onSettings = { nav.navigate("settings") { launchSingleTop = true } }) }
         Scaffold(containerColor = MaterialTheme.colorScheme.background, topBar = {
             // Status bar strip: white in light (like the top app bar), so a heads-up reads against the page.
@@ -242,8 +246,7 @@ private fun App(vm: AppViewModel) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 NavigationBar(containerColor = x.tile, tonalElevation = 0.dp) {
                     for ((r, l, i) in NAV_TABS) {
-                        // One back step to Devices, then out: Back does not walk every visited tab (I478).
-                        NavigationBarItem(selected = route == r, onClick = { nav.navigate(r) { popUpTo("peers") { saveState = true }; launchSingleTop = true; restoreState = true } },
+                        NavigationBarItem(selected = route == r, onClick = { tab(r) },
                             icon = { Icon(i, null) }, label = { NavLabel(l) },
                             colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.secondaryContainer))
                     }
@@ -255,8 +258,8 @@ private fun App(vm: AppViewModel) {
             androidx.compose.runtime.CompositionLocalProvider(LocalSnackbar provides snack) {
             NavHost(nav, startDestination = "peers", modifier = Modifier.fillMaxSize()) {
                 composable("peers") { if (gate) firstDevice() else PeersScreen(vm) }
-                composable("send") { if (gate) firstDevice() else SendScreen(vm, title = "Send") }
-                composable("history") { if (gate) firstDevice() else HistoryScreen(vm) { id -> vm.highlight.value = id; nav.navigate("peers") } }
+                composable("send") { if (gate) firstDevice() else SendScreen(vm, title = "Send", onPair = pair) }
+                composable("history") { if (gate) firstDevice() else HistoryScreen(vm, onPair = pair, onSend = { tab("send") }) { id -> vm.highlight.value = id; nav.navigate("peers") } }
                 composable("settings") {
                     SettingsScreen(vm, onDeleteAccount = { vm.message.value = null; deleting = true }, onSignedOut = {},
                         onBack = if (gate) ({ nav.popBackStack(); Unit }) else null)

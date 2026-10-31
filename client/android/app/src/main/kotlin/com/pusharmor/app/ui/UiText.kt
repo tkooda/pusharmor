@@ -128,6 +128,19 @@ object UiText {
     /** Send with no paired device (I462): pairing guidance replaces the empty "Send to" block once this device is loaded. */
     fun noDevicesShown(selfLoaded: Boolean, paired: Int): Boolean = selfLoaded && paired == 0
     const val NO_DEVICES_TITLE = "Pair a device first"
+    /** Call to action under an empty or not-yet-usable Send or History (I611). */
+    const val PAIR_FIRST_CTA = "Pair your first device to start sending."
+    /** Call to action under an empty History when devices are paired (I611). */
+    const val SEND_FIRST_CTA = "Messages you send or receive show here."
+
+    enum class EmptyCta { PAIR, SEND }
+
+    /** Empty History (I611): no paired device leads to pairing, else to Send; nothing until this device is loaded. */
+    fun historyCta(selfLoaded: Boolean, paired: Int): EmptyCta? = when {
+        !selfLoaded -> null
+        paired == 0 -> EmptyCta.PAIR
+        else -> EmptyCta.SEND
+    }
     const val NO_DEVICES_BODY = "1. Install PushArmor on the other device.\n2. Log in with the same account.\n3. It appears in Devices. Tap Pair."
 
     /** The "All" chip shows only with 2 or more devices (one device is preselected instead). */

@@ -174,7 +174,7 @@ fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     // Saved, so both dialogs stay open through a rotation (I523); the device by its id.
     var confirmRemove by rememberSaveable { mutableStateOf<String?>(null) }
-    var pairHowTo by rememberSaveable { mutableStateOf(false) }
+    val pairHowTo by vm.pairHowTo.collectAsState()
     LaunchedEffect(Unit) {
         vm.onPeersOpen()
         while (true) { delay(30_000); now = System.currentTimeMillis(); vm.onPeersOpen() } // timeout timer while open
@@ -248,7 +248,7 @@ fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -
                     }
                 }
                 if (!firstDevice && (plain.isNotEmpty() || pairing.isNotEmpty())) item(key = "pair-new") {
-                    OutlinedButton(onClick = { pairHowTo = true }, Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp).fillMaxWidth().heightIn(min = 48.dp)) {
+                    OutlinedButton(onClick = { vm.pairHowTo.value = true }, Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp).fillMaxWidth().heightIn(min = 48.dp)) {
                         Text("Pair a new device")
                     }
                 }
@@ -262,13 +262,13 @@ fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -
             confirmButton = { TextButton(onClick = { vm.remove(p.id); confirmRemove = null }) { Text("Remove") } },
             dismissButton = { TextButton(onClick = { confirmRemove = null }) { Text("Cancel") } })
     }
-    if (pairHowTo) AlertDialog(onDismissRequest = { pairHowTo = false }, title = { Text("Pair a new device") },
+    if (pairHowTo) AlertDialog(onDismissRequest = { vm.pairHowTo.value = false }, title = { Text("Pair a new device") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 UiText.numbered(UiText.PAIR_HOWTO_STEPS).forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
             }
         },
-        confirmButton = { TextButton(onClick = { pairHowTo = false }) { Text("OK") } })
+        confirmButton = { TextButton(onClick = { vm.pairHowTo.value = false }) { Text("OK") } })
 }
 
 /** First-device steps (I607): one card, a filled numbered circle per step, dividers between the steps, as on iOS. */
@@ -579,7 +579,7 @@ private val Modifier.rowPad get() = this.padding(horizontal = 16.dp)
 /** Send: field, type caption and counter, "Send as text", device chips, green Send pinned at the bottom (above the keyboard). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null, title: String? = null, onDevices: () -> Unit = {}, onSent: (String) -> Unit = {}) {
+fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null, title: String? = null, onPair: () -> Unit = {}, onSent: (String) -> Unit = {}) {
     val shots = BuildConfig.SCREENSHOT_MODE && ScreenshotMode.on && title != null
     var text by rememberSaveable { mutableStateOf(if (shots) ScreenshotMode.sendText else initial) }
     var asText by rememberSaveable { mutableStateOf(false) }
@@ -677,7 +677,8 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                 if (UiText.noDevicesShown(me != null, chips.size)) Column(Modifier.onSizeChanged { chipsPx = it.height }.rowPad.padding(top = 16.dp).fillMaxWidth()) {
                     Text(UiText.NO_DEVICES_TITLE, style = MaterialTheme.typography.titleMedium)
                     Text(UiText.NO_DEVICES_BODY, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
-                    FilledTonalButton(onClick = onDevices, Modifier.padding(top = 12.dp).heightIn(min = 48.dp)) { Text("Open Devices") }
+                    Text(UiText.PAIR_FIRST_CTA, Modifier.padding(top = 12.dp), style = MaterialTheme.typography.bodyMedium)
+                    FilledTonalButton(onClick = onPair, Modifier.padding(top = 12.dp).heightIn(min = 48.dp)) { Text("Pair a device") }
                 } else Column(Modifier.onSizeChanged { chipsPx = it.height }) {
                     SectionHeader(UiText.sendToHeader(sendTo.size, canReceive.size))
                     FlowRow(Modifier.rowPad.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -753,9 +754,10 @@ private fun DeviceChip(icon: ImageVector, name: String, selected: Boolean, enabl
 /** History: filter chips, day groups, newest first, unread rows bold, expanded row actions. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun HistoryScreen(vm: AppViewModel, onPeer: (String) -> Unit) {
+fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit = {}, onPeer: (String) -> Unit) {
     val rows by vm.history.collectAsState()
     val peers by vm.peers.collectAsState()
+    val me by vm.self.collectAsState()
     var chip by rememberSaveable(stateSaver = chipSaver) { mutableStateOf<HistoryFilter.Chip>(HistoryFilter.Chip.All) }
     var dir by rememberSaveable { mutableStateOf<String?>(null) }
     var open by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -769,8 +771,18 @@ fun HistoryScreen(vm: AppViewModel, onPeer: (String) -> Unit) {
         if (rows.isEmpty()) {
             // Scrolls when landscape or a large font makes it taller than the screen (I480).
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                val cta = UiText.historyCta(me != null, others(peers, me?.id).count { it.pinned && !it.removed })
                 EmptyState({ MessagesIllustration() }, "No messages yet",
-                    "Everything you send or receive shows up here. Share a link from any app to send it to your devices.", top = 110.dp)
+                    "Everything you send or receive shows up here. Share a link from any app to send it to your devices.", top = 110.dp,
+                    action = cta?.let { c -> {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(if (c == UiText.EmptyCta.PAIR) UiText.PAIR_FIRST_CTA else UiText.SEND_FIRST_CTA, Modifier.padding(bottom = 12.dp),
+                                style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+                            FilledTonalButton(onClick = if (c == UiText.EmptyCta.PAIR) onPair else onSend, Modifier.heightIn(min = 48.dp)) {
+                                Text(if (c == UiText.EmptyCta.PAIR) "Pair a device" else "Send a message")
+                            }
+                        }
+                    } })
             }
             return@Column
         }

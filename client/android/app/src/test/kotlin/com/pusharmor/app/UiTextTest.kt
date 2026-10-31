@@ -202,6 +202,15 @@ class UiTextTest {
         assertEquals(false, copy.contains("peer", ignoreCase = true))
     }
 
+    @Test fun emptyHistoryLeadsToPairingOrSend() {
+        // I611: no paired device leads to pairing, paired devices lead to Send, nothing before this device loads.
+        assertEquals(UiText.EmptyCta.PAIR, UiText.historyCta(selfLoaded = true, paired = 0))
+        assertEquals(UiText.EmptyCta.SEND, UiText.historyCta(selfLoaded = true, paired = 2))
+        assertEquals(null, UiText.historyCta(selfLoaded = false, paired = 0))
+        assertEquals("Pair your first device to start sending.", UiText.PAIR_FIRST_CTA)
+        assertEquals("Messages you send or receive show here.", UiText.SEND_FIRST_CTA)
+    }
+
     @Test fun hibernationBannerSaysWhyItMatters() {
         assertTrue(UiText.HIBERNATION_BANNER.contains("receive messages"))
         assertTrue(UiText.HIBERNATION_BANNER.contains("Manage app if unused"))
