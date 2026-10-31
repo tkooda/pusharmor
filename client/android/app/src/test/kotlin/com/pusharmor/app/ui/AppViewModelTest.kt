@@ -62,6 +62,9 @@ class AppViewModelTest {
         assertFalse(none.ok)
         assertNull(vm.sent.value)
         assertEquals(listOf(1, 3, 4), listOf(5L, 9L, 6L).map { historyItemIndex(listOf(listOf(5L), listOf(9L, 6L)), it) })
+        assertEquals(null, toggleOpenRow(5L, 5L)) // I620
+        assertEquals(6L, toggleOpenRow(5L, 6L))
+        assertEquals(5L, toggleOpenRow(null, 5L))
     }
 
     /** Robolectric has no AndroidKeyStore, so key generation fails as a broken Keystore would (I549). */
