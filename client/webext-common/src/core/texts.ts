@@ -53,6 +53,17 @@ export const T = {
   unsupportedPush: "This browser's push service is not supported yet.",
 } as const;
 
+/** User-facing text for one device's /send result word (sent excluded). */
+export function sendResultText(name: string, res: string): string {
+  if (res === "gone") return T.notDelivered(name);
+  if (res === "not listening") return name + ": " + T.sendOnly + ". It does not receive messages.";
+  if (res === "logged out") return name + ": Logged out. Log in on it to receive messages.";
+  if (res === "unapproved") return name + ": Not paired. Pair with it to send messages.";
+  if (res === "denied") return name + ": It declined this device.";
+  if (res === "unknown") return name + ": It is no longer on this account.";
+  return name + ": Not delivered. Try again.";
+}
+
 export function peerLabel(name: string | null): string {
   return name ?? T.aPeer;
 }

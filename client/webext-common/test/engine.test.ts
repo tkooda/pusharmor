@@ -853,9 +853,35 @@ test("send result not listening shows Send only and marks the peer send only", a
   w.inject.push({ match: /POST \/v1\/send/, status: 200, body: { r: { [b.id]: "not listening" } }, times: 1 });
   const r = await a.e.send("hi", false, "all");
   assert.equal(r.sent, 0);
-  assert.equal(r.failures[0]!.text, "Chrome: Send only");
+  assert.equal(r.failures[0]!.text, "Chrome: Send only. It does not receive messages.");
   assert.equal((await a.db.peer(b.id))!.listening, false);
   assert.equal((await a.e.allSet()).length, 0);
+});
+
+test("send failures read as sentences, never raw result words (I560)", async () => {
+  const want: Record<string, string> = {
+    gone: "Not delivered to Chrome: open PushArmor on it.",
+    "logged out": "Chrome: Logged out. Log in on it to receive messages.",
+    unapproved: "Chrome: Not paired. Pair with it to send messages.",
+    denied: "Chrome: It declined this device.",
+    unknown: "Chrome: It is no longer on this account.",
+    failed: "Chrome: Not delivered. Try again.",
+    "failed:net": "Chrome: Not delivered. Try again.",
+  };
+  for (const [word, text] of Object.entries(want)) {
+    const { w, a, b } = await setup();
+    await pairAndApprove(w, a, b);
+    w.inject.push({ match: /POST \/v1\/send/, status: 200, body: { r: { [b.id]: word } }, times: 1 });
+    const r = await a.e.send("hi", false, [b.id]);
+    assert.equal(r.failures[0]!.text, text, word);
+  }
+  const { w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  w.inject.push({ match: /POST \/v1\/send/, status: 500, body: { error: "internal" }, times: 1 });
+  const r = await a.e.send("hi", false, [b.id]);
+  assert.equal(r.error, "Something went wrong. Try again.");
+  assert.equal(r.failures[0]!.text, "Chrome: Something went wrong. Try again.");
+  assert.equal(errorText(new ApiError(0, "network", {}, null)), "Could not reach the relay server. Check your connection.");
 });
 
 test("Firefox Google login: authDone leaves the result for the login tab (done, device limit, error) (I456)", async () => {

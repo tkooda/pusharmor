@@ -259,7 +259,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
       // I493: one device sent to is named
       const one = r.total === 1 && r.sent === 1 && count() === 1 ? sendable.find((p) => p.id === checks.find((c) => on(c.chip))?.id) : undefined;
       clear(result).append(h("div", {}, one ? T.sentToOne(one.label) : T.sentToNofM(r.sent, r.total)), ...r.failures.map((f) => h("div", { class: "dim" }, f.text)));
-      if (r.error) result.append(h("div", { class: "err" }, r.error));
+      if (r.error && r.failures.length === 0) result.append(h("div", { class: "err" }, r.error));
     } catch (e) {
       result.textContent = (e as Error).message;
     }

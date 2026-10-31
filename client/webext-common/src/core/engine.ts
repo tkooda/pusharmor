@@ -2,7 +2,7 @@
 // counters, replay state and Worker calls. Every operation reads state at
 // start and commits before it returns, so a stopped service worker loses
 // nothing.
-import { type ApiReply, Api, ApiError, UPDATE_REQUIRED } from "../api/client.ts";
+import { type ApiReply, Api, ApiError, UPDATE_REQUIRED, errorText } from "../api/client.ts";
 import { b64urlDecode, b64urlEncode, b64urlTryDecode } from "../crypto/b64url.ts";
 import { equal, randomBytes } from "../crypto/bytes.ts";
 import { generateKeySet, isValidPub } from "../crypto/keys.ts";
@@ -57,7 +57,7 @@ import {
   getEntry,
   pairKeyOf,
 } from "./state.ts";
-import { T, peerLabel } from "./texts.ts";
+import { T, peerLabel, sendResultText } from "./texts.ts";
 import { AUTH_CHANGED } from "../model/signin.ts";
 
 export type Src = "push" | "bridge" | "returned";
@@ -1178,7 +1178,8 @@ export class Engine {
       await this.afterSignedReply(r);
       if (r.json.r && typeof r.json.r === "object") results = r.json.r as Record<string, string>;
     } catch (e) {
-      error = e instanceof ApiError && e.error === "clock skew twice" ? T.clockOff : (await this.callFailure(e)).result;
+      await this.callFailure(e);
+      error = e instanceof ApiError && e.status === 401 && e.error === "unknown peer" ? T.removed : errorText(e);
       if (e instanceof ApiError && (e.status === 429 || e.status === 503) && e.retryAfter !== null) {
         await this.p.storageLocal.set({ [NET_NOT_BEFORE]: now(this.p) + e.retryAfter * 1000 });
       }
@@ -1193,7 +1194,7 @@ export class Engine {
         continue;
       }
       const nm = await this.peerName(id);
-      failures.push({ id, result: res, text: res === "gone" ? T.notDelivered(nm) : res === "not listening" ? nm + ": " + T.sendOnly : nm + ": " + res });
+      failures.push({ id, result: res, text: error ? nm + ": " + error : sendResultText(nm, res) });
       if (res === "unapproved" || res === "unknown" || res === "gone") trigger = true;
       if (res === "logged out") {
         await this.db.updatePeer(id, (p) => (p ? { ...p, logged_out: true } : null));
