@@ -241,7 +241,7 @@ button.ac svg { color: var(--primary); }
 .opens { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 14px; line-height: 20px; color: var(--ink2); }
 .e2e { display: flex; gap: 10px; align-items: flex-start; text-align: left; font-size: 14px; line-height: 20px; color: var(--ink2); }
 .e2e svg { flex: none; color: var(--success); }
-.signin .e2e { margin-top: 20px; padding: 14px 16px; border-radius: var(--rc); background: var(--s1); }
+.signin .e2e { margin-top: 20px; padding: 14px 16px; border-radius: var(--rc); background: var(--card); }
 .signin > .dim { margin-top: 12px; font-size: 14px; line-height: 20px; }
 body.page .signin { max-width: 400px; margin: 0 auto; }
 
