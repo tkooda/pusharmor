@@ -7,7 +7,7 @@ public enum AuthResult: Sendable, Equatable {
     case ticket(ticket: String, email: String)
     case requestToken(String)
     case badEmail            // "Only email addresses with plain ASCII characters are supported."
-    case emailSendFailed     // 502: "could not send the email, try again"
+    case emailSendFailed     // 502: "Could not send the email. Try again."
     case rateLimited(Int)
     case failed(Int, String?)
     case network
