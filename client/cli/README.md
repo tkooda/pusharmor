@@ -28,7 +28,8 @@ Or download `pusharmor.py` from the GitHub release, check its SHA-256 against
   `--exec PROG` (runs PROG ID NAME PLATFORM TYPE BODY per message).
 - `pusharmor rename NAME` - change the name your other devices show.
 - `pusharmor logout` - log out; keys and paired devices stay on this device.
-- `pusharmor delete ID` - remove a device from your account (this device too).
+- `pusharmor delete ID` - remove a device from your account (this device too). It asks
+  first; without a terminal it needs `--yes`.
 
 Run `pusharmor COMMAND --help` for details. Files live in `~/.config/pusharmor`
 (or `$XDG_CONFIG_HOME/pusharmor`, `$PUSHARMOR_CONFIG`, or `--config DIR`).
