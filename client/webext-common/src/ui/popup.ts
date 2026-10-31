@@ -66,13 +66,22 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
       if (on) body.setAttribute("aria-labelledby", "tab-" + t);
     }
     // each view renders into its own pane; a stale view (earlier tab, still awaiting) appends to a detached pane
-    const pane = h("div", { style: "display:contents" });
+    const pane = h("div", { class: "pane" });
     clear(body);
+    body.scrollTop = 0; // only the content area scrolls; each tab starts at its top
     body.append(pane);
-    if (t === "send") void sendView(env, pane, st, prefill).then(() => prefill !== undefined && pane.querySelector("textarea")?.focus());
-    if (t === "history") void historyView(env, pane, (text) => show("send", text));
-    if (t === "peers") void renderPeers(env, pane, false);
-    if (t === "settings") void settingsView(env, pane, st);
+    // a view that takes longer than a moment shows a loading line in the content area
+    const wait = h("div", { class: "loading", role: "status" }, "Loading...");
+    const slow = setTimeout(() => pane.isConnected && !pane.firstChild && body.prepend(wait), 150);
+    let ready: Promise<unknown> = Promise.resolve();
+    if (t === "send") ready = sendView(env, pane, st, prefill).then(() => prefill !== undefined && pane.querySelector("textarea")?.focus());
+    if (t === "history") ready = historyView(env, pane, (text) => show("send", text));
+    if (t === "peers") ready = renderPeers(env, pane, false);
+    if (t === "settings") ready = settingsView(env, pane, st);
+    void ready.catch(() => undefined).finally(() => {
+      clearTimeout(slow);
+      wait.remove();
+    });
   };
   for (const [t, label] of [["send", "Send"], ["history", "History"], ["peers", "Devices"], ["settings", "Settings"]] as [Tab, string][]) {
     const b = h("button", { role: "tab", id: "tab-" + t, "aria-controls": "panel", onclick: () => show(t) }, label);

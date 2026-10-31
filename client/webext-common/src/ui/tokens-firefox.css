@@ -49,7 +49,7 @@
 :root[data-theme="light"] { color-scheme: light; }
 /* Firefox for Android shows the popup as a full-screen panel (html body: wins over style.css). */
 @media (pointer: coarse) {
-  html body { width: 100vw; height: auto; min-height: 100vh; }
+  html body { width: 100vw; height: 100vh; }
   button, .chip, .ac, select, input:not([type=checkbox]) { min-height: 48px; }
   .prow { min-height: 56px; }
 }
