@@ -244,6 +244,16 @@ class AppLogicTest {
         assertEquals("a,b", kotlinx.coroutines.runBlocking { s.lastSendTo() })
     }
 
+    @Test fun loginStepAndSendDraftSurviveRotation() {
+        val sign = source("ui/SignInScreens.kt")
+        for (v in listOf("email", "stage", "requestToken", "code")) assertTrue(v, sign.contains("var $v by rememberSaveable"))
+        val main = source("ui/MainScreens.kt")
+        assertTrue(main.contains("var text by rememberSaveable"))
+        assertTrue(main.contains("var asText by rememberSaveable"))
+        val act = source("ui/MainActivity.kt")
+        for (v in listOf("deleting", "email", "skipped")) assertTrue(v, act.contains("var $v by rememberSaveable"))
+    }
+
     @Test fun secondTapOfARunningActionDoesNotRun() {
         val running = kotlinx.coroutines.flow.MutableStateFlow<Set<String>>(emptySet())
         assertTrue(AppViewModel.claim(running, "send"))

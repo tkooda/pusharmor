@@ -72,6 +72,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -158,11 +159,11 @@ fun customTab(context: android.content.Context, url: String) {
 /** Email: address -> Turnstile -> code entry. */
 @Composable
 fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onDone: () -> Unit) {
-    var email by remember { mutableStateOf("") }
-    var stage by remember { mutableStateOf(0) } // 0 address, 1 turnstile, 2 code
-    var requestToken by remember { mutableStateOf<String?>(null) }
-    var code by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
+    var email by rememberSaveable { mutableStateOf("") }
+    var stage by rememberSaveable { mutableStateOf(0) } // 0 address, 1 turnstile, 2 code
+    var requestToken by rememberSaveable { mutableStateOf<String?>(null) }
+    var code by rememberSaveable { mutableStateOf("") }
+    var error by rememberSaveable { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val msg by vm.message.collectAsState()
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {

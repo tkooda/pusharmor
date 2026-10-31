@@ -72,6 +72,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -552,8 +553,8 @@ private val Modifier.rowPad get() = this.padding(horizontal = 16.dp)
 @Composable
 fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null, title: String? = null, onDevices: () -> Unit = {}, onSent: (String) -> Unit = {}) {
     val shots = BuildConfig.SCREENSHOT_MODE && ScreenshotMode.on && title != null
-    var text by remember { mutableStateOf(if (shots) ScreenshotMode.sendText else initial) }
-    var asText by remember { mutableStateOf(false) }
+    var text by rememberSaveable { mutableStateOf(if (shots) ScreenshotMode.sendText else initial) }
+    var asText by rememberSaveable { mutableStateOf(false) }
     // Count with the text, so a repeat of the same result still shows a snackbar.
     var result by remember { mutableStateOf<Pair<Int, String>?>(null) }
     val peers by vm.peers.collectAsState()
@@ -707,8 +708,8 @@ fun HistoryScreen(vm: AppViewModel, onPeer: (String) -> Unit) {
     val rows by vm.history.collectAsState()
     val peers by vm.peers.collectAsState()
     var chip by remember { mutableStateOf<HistoryFilter.Chip>(HistoryFilter.Chip.All) }
-    var dir by remember { mutableStateOf<String?>(null) }
-    var open by remember { mutableStateOf<Long?>(null) }
+    var dir by rememberSaveable { mutableStateOf<String?>(null) }
+    var open by rememberSaveable { mutableStateOf<Long?>(null) }
     fun nameOf(id: String) = peers.firstOrNull { it.id == id }?.let { (it.name ?: label(it)) + if (it.removed) " (removed)" else "" } ?: "(removed)"
     val frows = rows.map { HistoryFilter.Row(it.peerId, it.direction == "RECEIVED") }
     val eff = HistoryFilter.effective(frows, chip)
@@ -866,12 +867,12 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     val prefs by vm.prefs.collectAsState()
     val context = LocalContext.current
     val me by vm.self.collectAsState()
-    var renaming by remember { mutableStateOf(false) }
-    var confirmHistory by remember { mutableStateOf(false) }
-    var confirmLogout by remember { mutableStateOf(false) }
+    var renaming by rememberSaveable { mutableStateOf(false) }
+    var confirmHistory by rememberSaveable { mutableStateOf(false) }
+    var confirmLogout by rememberSaveable { mutableStateOf(false) }
     val running by vm.running.collectAsState()
-    var pickDays by remember { mutableStateOf(false) }
-    var pickTheme by remember { mutableStateOf(false) }
+    var pickDays by rememberSaveable { mutableStateOf(false) }
+    var pickTheme by rememberSaveable { mutableStateOf(false) }
     val themePref = ThemePref.parse(prefs?.get(Settings.K.THEME))
     fun b(k: androidx.datastore.preferences.core.Preferences.Key<Boolean>, d: Boolean) = prefs?.get(k) ?: d
     val cs = MaterialTheme.colorScheme
