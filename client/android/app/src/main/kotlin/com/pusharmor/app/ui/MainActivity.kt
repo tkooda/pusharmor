@@ -139,8 +139,31 @@ internal fun AppTheme(vm: AppViewModel, content: @Composable () -> Unit) {
     PushArmorTheme(dark = pref.isDark(androidx.compose.foundation.isSystemInDarkTheme()), content = content)
 }
 
+/** Q349: this version got HTTP 426, so nothing else works until the app is updated. */
+@Composable
+internal fun UpdateScreen(modifier: Modifier = Modifier) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    Column(modifier.fillMaxSize().padding(horizontal = 32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+        com.pusharmor.app.ui.theme.IconTile(PaIcons.Info, size = 56.dp)
+        androidx.compose.foundation.layout.Spacer(Modifier.padding(top = 20.dp))
+        Text(UPDATE_TITLE, style = MaterialTheme.typography.titleLarge, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        androidx.compose.foundation.layout.Spacer(Modifier.padding(top = 8.dp))
+        Text(UPDATE_BODY, style = MaterialTheme.typography.bodyLarge, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        androidx.compose.foundation.layout.Spacer(Modifier.padding(top = 24.dp))
+        GreenButton(onClick = {
+            ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(UPDATE_URL)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }, text = "Update", icon = null, modifier = Modifier.fillMaxWidth())
+    }
+}
+
+internal const val UPDATE_TITLE = "Please update PushArmor"
+internal const val UPDATE_BODY = "This version no longer works with the relay server. Update to keep sending and receiving."
+internal const val UPDATE_URL = "https://pusharmor.com/download"
+
 @Composable
 private fun App(vm: AppViewModel) {
+    val prefs by vm.prefs.collectAsState()
+    if (prefs?.get(Settings.K.UPDATE_REQUIRED) == com.pusharmor.app.BuildConfig.VERSION_NAME) { UpdateScreen(Modifier.safeDrawingPadding()); return }
     val start by vm.start.collectAsState()
     val limit by vm.limit.collectAsState()
     val signInPurpose by vm.signInPurpose.collectAsState()

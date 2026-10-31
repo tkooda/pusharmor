@@ -49,6 +49,8 @@ class Settings(private val context: Context) {
         val PENDING_EVICT = stringPreferencesKey("pending_evict")
         /** Purpose of an OAuth flow in a Custom Tab ("register" | "login" | "delete-account"). */
         val PENDING_PURPOSE = stringPreferencesKey("pending_purpose")
+        /** App version that got HTTP 426; the update screen shows while it is the running version (Q349). */
+        val UPDATE_REQUIRED = stringPreferencesKey("update_required")
     }
 
     val data: Flow<Preferences> get() = context.ds.data
@@ -77,6 +79,16 @@ class Settings(private val context: Context) {
     val lockScreen get() = flag(K.LOCK_SCREEN, true)
     val watch get() = flag(K.WATCH, true)
     val hideContent get() = flag(K.HIDE_CONTENT, false)
+
+    fun markUpdateRequired(version: String) { if (get(K.UPDATE_REQUIRED) != version) set(K.UPDATE_REQUIRED, version) }
+
+    /** True when this [version] got HTTP 426; a mark left by another version is cleared (Q349). */
+    fun updateRequired(version: String): Boolean {
+        val seen = get(K.UPDATE_REQUIRED) ?: return false
+        if (seen == version) return true
+        set(K.UPDATE_REQUIRED, null)
+        return false
+    }
 
     /** Clears everything except old_id (kept across the wipe for DELETE /peers/$old-id). */
     fun clearKeepingOldId() = runBlocking {

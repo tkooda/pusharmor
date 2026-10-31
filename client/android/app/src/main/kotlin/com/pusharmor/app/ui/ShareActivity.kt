@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.lifecycle.lifecycleScope
+import com.pusharmor.net.ErrorText
 import com.pusharmor.protocol.ContentType
 import com.pusharmor.protocol.Detect
 import com.pusharmor.protocol.Peer
@@ -42,6 +43,9 @@ class ShareActivity : ComponentActivity() {
         setContent { AppTheme(vm) { Surface(color = MaterialTheme.colorScheme.background) { CircularProgressIndicator(Modifier.padding(24.dp)) } } }
         lifecycleScope.launch {
             // Room refuses main-thread reads.
+            val update = withContext(Dispatchers.IO) { vm.g.settings.updateRequired(com.pusharmor.app.BuildConfig.VERSION_NAME) }
+            // Q349: this version got HTTP 426, so the share sheet shows the update screen, never a send that fails.
+            if (update) { showUpdate(); return@launch }
             val all = withContext(Dispatchers.IO) {
                 if (!canShare(vm.g.identity() != null, vm.g.settings.flag(com.pusharmor.app.data.Settings.K.SIGNED_OUT, false))) null
                 else vm.g.store.peers().filter { it.inAll }
@@ -72,7 +76,7 @@ class ShareActivity : ComponentActivity() {
                     } else {
                         SendScreen(vm, cut ?: text, preselect = direct, onDevices = {
                             startActivity(MainActivity.openIntent(this@ShareActivity, "peers").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); finish()
-                        }) { r -> toastAndFinish(r) }
+                        }) { r -> if (r == ErrorText.UPDATE) showUpdate() else toastAndFinish(r) }
                     }
                 }
             } }
@@ -86,6 +90,10 @@ class ShareActivity : ComponentActivity() {
         /** Preselected target: a shortcut id that is in the All set, else the only All peer, else null. Never sent without a tap. */
         fun directTarget(shortcutId: String?, allIds: List<String>): String? =
             if (shortcutId != null && shortcutId in allIds) shortcutId else allIds.singleOrNull()
+    }
+
+    private fun showUpdate() {
+        setContent { AppTheme(vm) { Surface(color = MaterialTheme.colorScheme.background) { UpdateScreen(Modifier.padding(vertical = 24.dp)) } } }
     }
 
     private fun toastAndFinish(text: String) {
