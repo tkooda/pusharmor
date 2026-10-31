@@ -72,6 +72,15 @@ object UiText {
     /** Red border while the field is non-empty and not a valid email; empty keeps the normal border (I468). */
     fun emailFieldError(input: String): Boolean = input.isNotEmpty() && !emailValid(input)
 
+    /** Q338: logged in with no paired device, one "Pair your first device" screen replaces Send, History, and Devices. */
+    fun firstDeviceGate(others: List<Peer>): Boolean = others.none { it.pinned && !it.removed }
+
+    /** Q338: when the first pairing lifts the gate, the normal navigation opens on Send. */
+    fun afterGate(wasGate: Boolean, gate: Boolean): String? = if (wasGate && !gate) "send" else null
+    const val FIRST_DEVICE_TITLE = "Pair your first device"
+    const val FIRST_DEVICE_STEPS = "1. Install PushArmor on another device.\n2. Log in with the same account.\n3. Approve it here: tap Pair when it shows below."
+    const val FIRST_DEVICE_WAITING = "No device is waiting yet. Your other device shows up here after it logs in."
+
     /** Send with no paired device (I462): pairing guidance replaces the empty "Send to" block once this device is loaded. */
     fun noDevicesShown(selfLoaded: Boolean, paired: Int): Boolean = selfLoaded && paired == 0
     const val NO_DEVICES_TITLE = "Pair a device first"

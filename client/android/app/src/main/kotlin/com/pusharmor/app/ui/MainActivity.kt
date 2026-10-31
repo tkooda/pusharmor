@@ -180,12 +180,22 @@ private fun App(vm: AppViewModel) {
             if (resumed && back != null && pending != null) { MainActivity.pendingRoute = null; nav.navigate(pending) { launchSingleTop = true } }
         }
         val x = LocalPaExtra.current
+        // Q338: no paired device yet, one first-device screen in place of Send, History, and Devices (state-driven).
+        val peers by vm.peers.collectAsState()
+        val me by vm.self.collectAsState()
+        val gate = me != null && UiText.firstDeviceGate(others(peers, me?.id))
+        var wasGate by remember { mutableStateOf(gate) }
+        androidx.compose.runtime.LaunchedEffect(gate) {
+            UiText.afterGate(wasGate, gate)?.let { r -> nav.navigate(r) { popUpTo(nav.graph.id) { inclusive = true }; launchSingleTop = true } }
+            wasGate = gate
+        }
+        val firstDevice: @Composable () -> Unit = { PeersScreen(vm, firstDevice = true, onSettings = { nav.navigate("settings") { launchSingleTop = true } }) }
         Scaffold(containerColor = MaterialTheme.colorScheme.background, topBar = {
             // Status bar strip: white in light (like the top app bar), so a heads-up reads against the page.
             Box(Modifier.fillMaxWidth().background(if (x.dark) MaterialTheme.colorScheme.background else x.tile)
                 .windowInsetsTopHeight(WindowInsets.statusBars))
         }, bottomBar = {
-            Column {
+            if (!gate) Column {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 NavigationBar(containerColor = x.tile, tonalElevation = 0.dp) {
                     for ((r, l, i) in listOf(Triple("peers", "Devices", PaIcons.Devices), Triple("send", "Send", PaIcons.Send),
@@ -199,10 +209,13 @@ private fun App(vm: AppViewModel) {
         }) { pad ->
             // Consumed, so the Send screen's imePadding does not count the bottom bar twice.
             NavHost(nav, startDestination = "peers", modifier = Modifier.padding(pad).consumeWindowInsets(pad)) {
-                composable("peers") { PeersScreen(vm) }
-                composable("send") { SendScreen(vm, title = "Send", onDevices = { nav.navigate("peers") { launchSingleTop = true } }) }
-                composable("history") { HistoryScreen(vm) { id -> vm.highlight.value = id; nav.navigate("peers") } }
-                composable("settings") { SettingsScreen(vm, onDeleteAccount = { vm.message.value = null; deleting = true }, onSignedOut = {}) }
+                composable("peers") { if (gate) firstDevice() else PeersScreen(vm) }
+                composable("send") { if (gate) firstDevice() else SendScreen(vm, title = "Send") }
+                composable("history") { if (gate) firstDevice() else HistoryScreen(vm) { id -> vm.highlight.value = id; nav.navigate("peers") } }
+                composable("settings") {
+                    SettingsScreen(vm, onDeleteAccount = { vm.message.value = null; deleting = true }, onSignedOut = {},
+                        onBack = if (gate) ({ nav.popBackStack(); Unit }) else null)
+                }
             }
         }
     }
