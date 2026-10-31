@@ -22,6 +22,7 @@ export class Log {
   status = 0;
   error?: string;
   colo?: string;
+  client?: string;
   account?: string;
   peer?: string;
   body_bytes?: number;
@@ -53,6 +54,7 @@ export class Log {
     };
     if (this.error) o.error = this.error;
     if (this.colo) o.colo = this.colo;
+    if (this.client) o.client = this.client;
     if (this.account) o.account = this.account;
     if (this.peer) o.peer = this.peer;
     if (this.body_bytes !== undefined) o.body_bytes = this.body_bytes;
