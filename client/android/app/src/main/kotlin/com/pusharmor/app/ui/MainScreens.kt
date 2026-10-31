@@ -875,12 +875,15 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
                     val fill = if (open == h.id) ex.expandedRow else ex.tile
                     HistoryRow(vm, h, open == h.id, ::nameOf, onPeer,
                         Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, group.size,
-                            if (glowId == h.id) lerp(fill, MaterialTheme.colorScheme.secondaryContainer, glow.value) else fill)) { open = h.id }
+                            if (glowId == h.id) lerp(fill, MaterialTheme.colorScheme.secondaryContainer, glow.value) else fill)) { open = toggleOpenRow(open, h.id) }
                 }
             }
         }
     }
 }
+
+/** Tapping the open History row closes it; tapping another opens that one (I620). */
+internal fun toggleOpenRow(open: Long?, id: Long): Long? = if (open == id) null else id
 
 /** LazyColumn index of History row [id], given the row ids of each day group under its day header (I596). */
 internal fun historyItemIndex(days: List<List<Long>>, id: Long): Int {
