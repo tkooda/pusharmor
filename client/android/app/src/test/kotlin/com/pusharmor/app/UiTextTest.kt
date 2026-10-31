@@ -137,4 +137,13 @@ class UiTextTest {
         assertTrue(cut.endsWith("pasta"))
         assertEquals("...", UiText.middleEllipsis(url) { it.length <= 3 })
     }
+
+    @Test fun sendWithNoPairedDeviceShowsPairingGuidance() {
+        assertTrue(UiText.noDevicesShown(selfLoaded = true, paired = 0))
+        assertEquals(false, UiText.noDevicesShown(selfLoaded = true, paired = 1))
+        assertEquals(false, UiText.noDevicesShown(selfLoaded = false, paired = 0)) // no flash before the store loads
+        val copy = UiText.NO_DEVICES_TITLE + " " + UiText.NO_DEVICES_BODY
+        assertTrue(copy.contains("Install PushArmor") && copy.contains("same account") && copy.contains("Tap Pair"))
+        assertEquals(false, copy.contains("peer", ignoreCase = true))
+    }
 }
