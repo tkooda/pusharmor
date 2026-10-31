@@ -14,7 +14,7 @@
 <meta property="og:image" content="https://pusharmor.com/apple-touch-icon.png">
 <link rel="icon" href="/favicon.ico" sizes="any" integrity="sha256-WBRVm+oTUTpG8HdmRjQYXSzTkCjwYCVj5PZdJQP73qM=">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" integrity="sha256-TQcTrShS2zw2E6zqzKq9Tlfqd9GGyBSjl/LTQvTeJY8=">
-<link rel="stylesheet" href="/css/site.css" integrity="sha256-2f67LZ29CBVqjT4/VUpP9z33NXqH1GJD0FRO7TkiclI=">
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-Dcp1dNsQodcGTBjig2sKl5LIngbDNKgkkcjJUigzVhU=">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -50,21 +50,21 @@ have two Android APKs. Obtainium can install and update them from this address.<
 <li><strong>play</strong>: for Google push (FCM) or UnifiedPush.</li>
 <li><strong>foss</strong>: for UnifiedPush only, no Google code.</li>
 </ul>
-<p>Check a downloaded APK against these SHA-256 values and the signing certificate
+<p>In the file names, <code>&lt;version&gt;</code> stands for the release number. Check a downloaded APK against these SHA-256 values and the signing certificate
 fingerprint.</p>
 <div class="table-wrap">
 <table>
 <thead><tr><th scope="col">File</th><th scope="col">SHA-256</th></tr></thead>
 <tbody>
-<tr><td>pusharmor-0.0.X-play.apk</td><td>Coming soon</td></tr>
-<tr><td>pusharmor-0.0.X-foss.apk</td><td>Coming soon</td></tr>
+<tr><td>pusharmor-&lt;version&gt;-play.apk</td><td>Coming soon</td></tr>
+<tr><td>pusharmor-&lt;version&gt;-foss.apk</td><td>Coming soon</td></tr>
 <tr><td>Signing certificate (SHA-256 fingerprint)</td><td>Coming soon</td></tr>
 </tbody>
 </table>
 </div>
-<p class="note">To check the certificate of an installed or downloaded APK, run this command on
-it and compare the SHA-256 digest:</p>
-<pre><code>apksigner verify --print-certs</code></pre>
+<p class="note">To check the certificate of a downloaded APK, run this command and compare the
+SHA-256 digest. Replace the file name with the name of your file:</p>
+<pre><code>apksigner verify --print-certs pusharmor-&lt;version&gt;-play.apk</code></pre>
 
 <h2 id="cli">Command line</h2>
 <p>The command-line client runs on Linux and macOS. It needs Python 3.11 or later.
