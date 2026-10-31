@@ -8,7 +8,7 @@ import type { HistoryRow } from "../store/db.ts";
 import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, nextTabIndex, peerStatus, rpc, sh, shortTime } from "./dom.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
 import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
-import { renderPeers } from "./peersview.ts";
+import { ownCard, renderPeers } from "./peersview.ts";
 import { THEME_CHOICES, parseTheme, setTheme, startTheme } from "./theme.ts";
 
 const CAP = 2048;
@@ -353,6 +353,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promi
   autoOpen.addEventListener("change", save);
   days.addEventListener("change", save);
   const status = h("div", { class: "status", role: "status" });
+  const self = (await rpc<{ self: { id: string; name: string } | null }>(env, "peers").catch(() => null))?.self ?? null;
   const confirmDel = h("div", { class: "confirm-inline" });
   const confirmOut = h("div", { class: "confirm-inline" });
   const ff = st.platform === "firefox";
@@ -366,6 +367,8 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promi
   const acctBox = acct.childNodes.length ? group(h("div", { class: "srow acct" }, acct)) : null;
   add(
     root,
+    self && sh("This device"),
+    self && ownCard(env, self.name, st.platform, status),
     sh("Appearance"),
     group(h("div", { class: "srow" }, h("div", { class: "txt" }, h("div", {}, "Theme"), h("div", { class: "t2" }, "Dark uses a true black background.")), theme)),
     sh("Sending"),
