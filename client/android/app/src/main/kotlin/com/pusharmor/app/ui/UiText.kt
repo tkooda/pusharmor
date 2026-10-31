@@ -2,6 +2,7 @@ package com.pusharmor.app.ui
 
 import com.pusharmor.protocol.NameEntry
 import com.pusharmor.protocol.Peer
+import com.pusharmor.protocol.engine.PairStart
 import java.text.DateFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -170,6 +171,15 @@ object UiText {
 
     /** Rename field error: null when [name] is a valid peer name (same rule and text as Session.rename). */
     fun nameError(name: String): String? = if (NameEntry.isValidName(name)) null else "Use 1 to 32 plain ASCII characters, no double quotes."
+
+    /** Why a Pair or Pair again tap did not start a pairing (I593); null when it did. Pairing is not live, so no "online". */
+    fun pairRefused(r: PairStart, name: String): String? = when (r) {
+        PairStart.STARTED -> null
+        PairStart.NO_DEVICE -> "This device is no longer on your account."
+        PairStart.PAIRED -> "Already paired with \"$name\"."
+        PairStart.IN_PROGRESS -> "Pairing with \"$name\" is already in progress."
+        PairStart.NOT_READY -> "\"$name\" can't pair right now. Open PushArmor on that device, then try again."
+    }
 
     /** Notice when a device in the half state sends a new pairing request. */
     fun pairAgainNotice(x: String): String = "$x wants to pair again. Tap Pair again on its row."

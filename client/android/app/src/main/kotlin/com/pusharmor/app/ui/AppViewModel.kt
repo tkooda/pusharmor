@@ -14,6 +14,7 @@ import com.pusharmor.protocol.Detect
 import com.pusharmor.protocol.Peer
 import com.pusharmor.protocol.allSet
 import com.pusharmor.protocol.engine.ApiResult
+import com.pusharmor.protocol.engine.PairStart
 import com.pusharmor.protocol.engine.PairingRow
 import com.pusharmor.store.HistoryEntity
 import com.pusharmor.store.PeerEntity
@@ -200,7 +201,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ---- peers ----
 
     fun refresh() = io { g.session.refresh()?.let { message.value = it } } // offline says so (I517)
-    fun pair(id: String) = once("pair:$id") { if (!g.pairing().tapPair(id, System.currentTimeMillis())) message.value = "Cannot pair with this device now." }
+    fun pair(id: String) = once("pair:$id") { refused(id, g.pairing().tapPair(id, System.currentTimeMillis())) }
+    /** Says why a Pair or Pair again tap did not start (I593). */
+    private fun refused(id: String, r: PairStart) {
+        UiText.pairRefused(r, peers.value.firstOrNull { it.id == id }?.let(::label) ?: "")?.let { message.value = it }
+    }
     fun reply(id: String) = io { g.pairing().tapReply(id) }
     fun sendAgainPair(id: String) = io { g.pairing().sendAgain(id, System.currentTimeMillis()) }
     fun cancelPairing(id: String) = io { g.pairing().cancelPairing(id); g.reconcile().run() }
@@ -212,11 +217,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         io {
             try {
                 val offered = g.store.peer(id)?.offersPairAgain == true
-                if (!g.pairing().pairAgain(id, System.currentTimeMillis()) { g.reconcile().run() }) {
-                    // Past the offer check the old pairing is already cancelled; say so, the row is now a plain Pair row.
-                    message.value = if (offered) "The old pairing was cancelled, but a new one could not start. Tap Pair to try again."
-                        else "Cannot pair with this device now."
-                }
+                val r = g.pairing().pairAgain(id, System.currentTimeMillis()) { g.reconcile().run() }
+                // Past the offer check the old pairing is already cancelled; say so, the row is now a plain Pair row.
+                if (r != PairStart.STARTED && offered) message.value = "The old pairing was cancelled, but a new one could not start. Tap Pair to try again."
+                else refused(id, r)
             } finally {
                 pairingAgain.update { it - id }
             }

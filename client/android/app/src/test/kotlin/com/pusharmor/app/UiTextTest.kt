@@ -4,6 +4,7 @@ import com.pusharmor.app.ui.UiText
 import com.pusharmor.app.ui.UiText.Mark
 import com.pusharmor.protocol.ContentType
 import com.pusharmor.protocol.Peer
+import com.pusharmor.protocol.engine.PairStart as P
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -52,6 +53,16 @@ class UiTextTest {
     @Test fun codeFieldState() {
         assertEquals("Code, 0 of 6 entered", UiText.codeState(0))
         assertEquals("Code, 4 of 6 entered", UiText.codeState(4))
+    }
+
+    @Test fun pairRefusedSaysWhy() {
+        // I593: one message per reason; none mentions being online, since pairing is not live.
+        assertEquals(null, UiText.pairRefused(P.STARTED, "Pixel"))
+        assertEquals("This device is no longer on your account.", UiText.pairRefused(P.NO_DEVICE, ""))
+        assertEquals("Already paired with \"Pixel\".", UiText.pairRefused(P.PAIRED, "Pixel"))
+        assertEquals("Pairing with \"Pixel\" is already in progress.", UiText.pairRefused(P.IN_PROGRESS, "Pixel"))
+        assertEquals("\"Pixel\" can't pair right now. Open PushArmor on that device, then try again.", UiText.pairRefused(P.NOT_READY, "Pixel"))
+        for (r in P.entries) assertTrue(UiText.pairRefused(r, "Pixel")?.contains("online") != true)
     }
 
     @Test fun pairAgainNotice() {

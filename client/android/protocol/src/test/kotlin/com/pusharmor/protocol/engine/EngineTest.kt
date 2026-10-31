@@ -26,7 +26,7 @@ class EngineTest {
 
     /** Pair N -> X up to "shown" on both sides. */
     private fun pairShown(now: Long = t0) {
-        assertTrue(n.pairing.tapPair(x.id, now))
+        assertEquals(PairStart.STARTED, n.pairing.tapPair(x.id, now))
         n.runPairSends(now)
         x.deliver(now)
         x.runPairSends(now)
@@ -133,7 +133,7 @@ class EngineTest {
     }
 
     @Test fun pairSendClockSkewIsRetriedNotPermanent() {
-        assertTrue(n.pairing.tapPair(x.id, t0))
+        assertEquals(PairStart.STARTED, n.pairing.tapPair(x.id, t0))
         n.skewNext = 1
         assertEquals(PairingEngine.SendStep.RETRY, n.pairing.sendPending(x.id, t0))
         assertEquals(PairingEngine.SendStep.DONE, n.pairing.sendPending(x.id, t0))
@@ -335,7 +335,7 @@ class EngineTest {
         n.approve.approve(x.id)
         assertTrue(n.store.peer(x.id)!!.waiting)
         assertFalse(n.store.peer(x.id)!!.offersPairAgain) // plain waiting row keeps Cancel pairing
-        assertFalse(n.pairing.pairAgain(x.id, t0) {})
+        assertNotEquals(PairStart.STARTED, n.pairing.pairAgain(x.id, t0) {})
         x.pairing.cancelPairing(n.id); x.fetch()
         x.pairing.tapPair(n.id, t0); x.runPairSends(t0)
         n.deliver(t0)
@@ -343,8 +343,24 @@ class EngineTest {
         n.pairing.cancelPairing(x.id)
         assertFalse(n.store.peer(x.id)!!.pairAgain) // cleared by Cancel pairing
         n.store.putPeer(n.store.peer(x.id)!!.copy(pairAgain = true))
-        assertTrue(n.pairing.tapPair(x.id, t0 + 1))
+        assertEquals(PairStart.STARTED, n.pairing.tapPair(x.id, t0 + 1))
         assertFalse(n.store.peer(x.id)!!.pairAgain) // cleared by starting a pair
+    }
+
+    @Test fun pairTapSaysWhyItCannotStart() {
+        // I593: each refusal carries its reason, so the app can say what to do.
+        assertEquals(PairStart.NO_DEVICE, n.pairing.tapPair("not-on-this-account", t0))
+        val listed = n.store.peer(x.id)!!
+        n.store.putPeer(listed.copy(listEncPub = null))
+        assertEquals(PairStart.NOT_READY, n.pairing.tapPair(x.id, t0))
+        assertNull(n.store.pairing(x.id))
+        n.store.putPeer(listed)
+        assertEquals(PairStart.STARTED, n.pairing.tapPair(x.id, t0))
+        assertEquals(PairStart.IN_PROGRESS, n.pairing.tapPair(x.id, t0))
+        n.store.pairing(x.id)?.let { n.store.deletePairing(x.id) }
+        n.store.putPeer(n.store.peer(x.id)!!.copy(signPub = listed.listSignPub, encPub = listed.listEncPub, pairingId = ByteArray(16)))
+        assertEquals(PairStart.PAIRED, n.pairing.tapPair(x.id, t0))
+        assertEquals(PairStart.NO_DEVICE, n.pairing.pairAgain("not-on-this-account", t0) {})
     }
 
     @Test fun pairAgainOnHalfStateCancelsThenStartsFreshPairing() {
@@ -358,7 +374,7 @@ class EngineTest {
         val oldPid = n.store.peer(x.id)!!.pairingId!!
         val oldCommit = n.store.pairing(x.id)!!.cN!!.copyOf()
         var reconciled = false
-        assertTrue(n.pairing.pairAgain(x.id, t0 + 1000) { n.reconcile.run(); reconciled = true })
+        assertEquals(PairStart.STARTED, n.pairing.pairAgain(x.id, t0 + 1000) { n.reconcile.run(); reconciled = true })
         assertTrue(reconciled) // the cancel's reconcile lands before the new pairing starts
         assertFalse(x.id in n.allow)
         val p = n.store.peer(x.id)!!
@@ -369,7 +385,7 @@ class EngineTest {
         assertEquals(PairRole.N, row.role)
         assertEquals(PairState.COMMITTED, row.state) // new pairing started
         assertFalse(row.cN!!.contentEquals(oldCommit))
-        assertFalse(n.pairing.pairAgain(x.id, t0 + 1000) {}) // not a half state now
+        assertEquals(PairStart.IN_PROGRESS, n.pairing.pairAgain(x.id, t0 + 1000) {}) // not a half state now
         // it completes as a fresh pairing. The two commits cross; lower id stays N. When X is the
         // lower id it already sent its commit, so X uses Send again (60 s), as after a two-step cancel.
         var t1 = t0 + 1000

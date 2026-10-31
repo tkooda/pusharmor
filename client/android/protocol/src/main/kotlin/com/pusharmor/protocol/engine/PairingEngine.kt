@@ -19,6 +19,9 @@ import com.pusharmor.protocol.PeerList
 import com.pusharmor.protocol.ReplayWindow
 import com.pusharmor.protocol.matchesCommit
 
+/** Outcome of a Pair or Pair again tap (I593): started, or why it could not start. */
+enum class PairStart { STARTED, NO_DEVICE, PAIRED, IN_PROGRESS, NOT_READY }
+
 /**
  * Pairing state machine (catalog Pairing flow; Android design section 4). Pair sends never
  * happen inline: every send is persisted as the row's pending send and run by the
@@ -54,21 +57,29 @@ class PairingEngine(
         return B64url.decode(ep)
     }
 
-    /** [Pair] tap on N. Refuses a pinned row and a row with an open entry (I234). */
-    fun tapPair(peerId: String, now: Long): Boolean {
-        val ok = store.tx {
-            val peer = store.peer(peerId) ?: return@tx false
-            if (peer.pinned || store.pairing(peerId) != null) return@tx false
-            val enc = listedEncPub(peer) ?: return@tx false
+    /** Why a Pair tap cannot start for [peer] now, or null when it can. */
+    private fun refusal(peer: Peer): PairStart? = when {
+        store.pairing(peer.id) != null -> PairStart.IN_PROGRESS
+        peer.pinned -> PairStart.PAIRED
+        listedEncPub(peer) == null -> PairStart.NOT_READY
+        else -> null
+    }
+
+    /** [Pair] tap on N. Refuses a pinned row and a row with an open entry (I234), and says why (I593). */
+    fun tapPair(peerId: String, now: Long): PairStart {
+        val r = store.tx {
+            val peer = store.peer(peerId) ?: return@tx PairStart.NO_DEVICE
+            refusal(peer)?.let { return@tx it }
+            val enc = listedEncPub(peer) ?: return@tx PairStart.NOT_READY
             val rN = random(32)
             val cN = Ids.commit(me.keys.signPub, me.keys.encPub, rN)
             val msg = PairMessage.seal(PairMessage.Commit(me.idRaw, cN), peerId, enc)
             store.putPairing(PairingRow(peerId, PairRole.N, PairState.COMMITTED, rN, cN, startedAt = now, pendingKind = PairKind.COMMIT, pendingMessage = msg))
             store.putPeer(peer.copy(note = null, deniedByMe = false, pairAgain = false))
-            true
+            PairStart.STARTED
         }
-        if (ok) effects.schedulePairSend(peerId, replace = true)
-        return ok
+        if (r == PairStart.STARTED) effects.schedulePairSend(peerId, replace = true)
+        return r
     }
 
     /** A pair push (366 chars). [fetchListed] runs one GET /peers and says whether the id is listed now. */
@@ -329,9 +340,9 @@ class PairingEngine(
      * [Pair again] on a row that got the pair-again notice and is still in the half state: the
      * Cancel pairing path, then [afterCancel] (the allow reconcile, run to the end), then the Pair path.
      */
-    fun pairAgain(peerId: String, now: Long, afterCancel: () -> Unit): Boolean {
-        val p = store.peer(peerId) ?: return false
-        if (!p.offersPairAgain) return false
+    fun pairAgain(peerId: String, now: Long, afterCancel: () -> Unit): PairStart {
+        val p = store.peer(peerId) ?: return PairStart.NO_DEVICE
+        if (!p.offersPairAgain) return refusal(p) ?: PairStart.PAIRED
         cancelPairing(peerId)
         afterCancel()
         return tapPair(peerId, now)
