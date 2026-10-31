@@ -527,7 +527,7 @@ export async function firstPairView(env: UiEnv, root: HTMLElement, st: StateView
       add(
         clear(panel),
         h("h1", { class: "fp-title", tabindex: "-1" }, "Pair your first device"),
-        h("ol", { class: "howto fp-steps" }, h("li", {}, "Install PushArmor on another device."), h("li", {}, "Log in with the same account."), h("li", {}, "Approve it here.")),
+        h("ol", { class: "howto fp-steps" }, h("li", {}, "Install PushArmor on another device."), h("li", {}, "Log in with the same account."), h("li", {}, "Click Pair on it here.")),
         sh("Waiting to pair"),
         ...waiting.filter((p) => p.fingerprint).map((p) => pairCard(env, p, status, draw)),
         waiting.some((p) => !p.fingerprint)
