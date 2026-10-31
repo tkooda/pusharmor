@@ -13,11 +13,6 @@ extension Color {
     static let armorText = Color("ArmorText")
     static let iconTileBg = Color("IconTileBg")
     static let iconTileFg = Color("IconTileFg")
-    static let hero = Color("Hero")
-    static let heroBorder = Color("HeroBorder")
-    static let onHero = Color("OnHero")
-    static let onHero2 = Color("OnHero2")
-    static let heroIconBg = Color("HeroIconBg")
     static let plate = Color("Plate")
     static let fpCell = Color("FpCell")
     static let illoHalo = Color("IlloHalo")
@@ -185,61 +180,23 @@ struct IconTile: View {
     }
 }
 
-/// The This device cell content. The navy background is HeroBackground (a row background).
-struct HeroCell: View {
+/// The This device row: name, a dim "This device" caption, and Rename.
+struct DeviceRow: View {
     let name: String
     let rename: () -> Void
 
     var body: some View {
         HStack(spacing: 14) {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.heroIconBg)
-                .frame(width: 44, height: 44)
-                .overlay(Image(systemName: "iphone").font(.title3).foregroundStyle(.white))
-                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(name)
-                    .font(.headline)
-                    .foregroundStyle(Color.onHero)
                 Text("This device")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.onHero2)
+                    .font(.footnote)
+                    .foregroundColor(.secondaryText)
             }
             Spacer(minLength: 8)
             Button("Rename", action: rename)
                 .buttonStyle(.borderless)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(Color.onHero)
-                .frame(minHeight: 44)
         }
-        .frame(minHeight: 76 - 28)
-    }
-}
-
-/// Navy row background with a faint shield watermark (none with Reduce Transparency).
-struct HeroBackground: View {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
-    private var radius: CGFloat {
-        if #available(iOS 26, *) { return 26 }
-        return 10
-    }
-
-    var body: some View {
-        Color.hero
-            .overlay(alignment: .trailing) {
-                if !reduceTransparency {
-                    ShieldShape()
-                        .fill(Color.white.opacity(0.04), style: FillStyle(eoFill: true))
-                        .frame(width: 112 * 240 / 298, height: 112)
-                        .rotationEffect(.degrees(-12))
-                        .padding(.trailing, 96)
-                        .offset(y: 12)
-                        .accessibilityHidden(true)
-                }
-            }
-            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(Color.heroBorder, lineWidth: 1))
-            .clipped()
     }
 }
 
