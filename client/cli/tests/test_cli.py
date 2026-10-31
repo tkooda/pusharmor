@@ -770,3 +770,12 @@ def test_odd_peer_list_from_the_relay_server(allow, net, tmp_path, monkeypatch, 
     assert run(tmp_path, "pair") == 0
     assert "iPhone device added Jan 1" in capsys.readouterr().out
     assert pa.gmtime(-10 ** 18).tm_year == 1970
+
+
+def test_ntfy_line_over_the_cap_is_skipped(monkeypatch, capsys):
+    ok = b'{"event":"message","id":"ok","message":"x"}\n'
+    big = b'{"event":"message","id":"big","message":"' + b"a" * 300000 + b'"}\n'
+    s = pa.Stream("https://ntfy.example", "up0", {}, "", 5, poll=True)
+    monkeypatch.setattr(s, "connect", lambda: setattr(s, "resp", io.BytesIO(ok + big + big)))
+    assert s.next(time.time() + 5) is None
+    assert s.since == "ok"
