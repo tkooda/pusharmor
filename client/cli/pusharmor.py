@@ -2039,17 +2039,54 @@ def relogin(cx, code):
                     lambda *a: ("login", 1))
     with cx.store.state() as d:
         d["reg"] = "registered"
+        d.pop("logout_pending", None)
     with contextlib.suppress(ApiError, TempFail):
         cx.refresh()
 
 
+def send_logout(cx):
+    """The relay server logout. True when it is settled (done, or the server answered with a refusal
+    that a retry cannot fix, such as the device already being gone); False when it should be retried."""
+    try:
+        reconcile_allow(cx)
+        allow_list_call(cx, "POST", "/v1/peers/%s/logout" % cx.me, lambda m, _: {"m": m}, lambda *a: ("logout", 1))
+    except ApiError as e:
+        return not (e.status == 401 and e.error == "clock skew")
+    except Fail:
+        return False
+    return True
+
+
+def retry_pending_logout(cx):
+    """Run start: a logout saved by cmd_logout is sent again until the relay server settles it."""
+    with contextlib.suppress(Fail, OSError):
+        with cx.store.state(write=False) as d:
+            pending, reg = d.get("logout_pending") is True, d.get("reg")
+        if not pending:
+            return
+        cx.setup()
+        if reg == "logged_out" and not send_logout(cx):
+            return
+        with cx.store.state() as d:
+            d.pop("logout_pending", None)
+
+
 def cmd_logout(cx, args):
-    cx.need()
-    reconcile_allow(cx)
-    allow_list_call(cx, "POST", "/v1/peers/%s/logout" % cx.me, lambda m, _: {"m": m}, lambda *a: ("logout", 1))
+    with cx.store.state(write=False) as d:
+        reg = d.get("reg")
+    if reg != "registered":
+        if reg == "logged_out":
+            retry_pending_logout(cx)
+        print("This device is already logged out." if reg == "logged_out" else "This device is not logged in.")
+        return EXIT_OK
+    cx.setup()
     with cx.store.state() as d:
-        d["reg"] = "logged_out"
+        d["reg"], d["logout_pending"] = "logged_out", True
     print("Logged out. Run pusharmor login to log in again.")
+    retry_pending_logout(cx)
+    with cx.store.state(write=False) as d:
+        if d.get("logout_pending"):
+            log("The relay server could not be told yet. PushArmor will try again the next time it runs.")
     return EXIT_OK
 
 
@@ -2372,6 +2409,8 @@ def main(argv=None):
         parser.error("use only one of --json, --tsv, and --exec")
     cx = Ctx(config_dir(args.config))
     try:
+        if args.command not in ("login", "logout"):
+            retry_pending_logout(cx)
         return COMMANDS[args.command][0](cx, args)
     except KeyboardInterrupt:
         log("Stopped.")

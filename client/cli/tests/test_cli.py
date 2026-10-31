@@ -340,6 +340,54 @@ def test_send_no_devices_and_logout(net, tmp_path, monkeypatch, capsys):
     assert run(tmp_path, "login") == 0 and state(tmp_path)["reg"] == "registered"
 
 
+def test_logout_local_first_and_retried(net, tmp_path, monkeypatch, capsys):
+    login(monkeypatch, tmp_path)
+    me = my_id(tmp_path)
+    answers(monkeypatch)
+    down = [True]
+
+    def hook(method, path, headers, body):
+        if down[0]:
+            return net.reply(503, {})
+
+    net.hooks[("POST", "peers")] = hook
+    monkeypatch.setattr(pa.time, "sleep", lambda s: None)
+    assert run(tmp_path, "logout") == 0
+    assert state(tmp_path)["reg"] == "logged_out" and state(tmp_path)["logout_pending"] is True
+    assert "try again" in capsys.readouterr().err
+    assert net.peers[me]["logged_out"] is False
+    # still down: the next run keeps it pending
+    assert run(tmp_path, "send", "hi") == 3
+    assert state(tmp_path)["logout_pending"] is True
+    # server back: the next run sends it and clears the pending flag
+    down[0] = False
+    assert run(tmp_path, "send", "hi") == 3
+    assert net.peers[me]["logged_out"] is True and "logout_pending" not in state(tmp_path)
+    # not logged in or already logged out: exit 0, plain sentence
+    capsys.readouterr()
+    assert run(tmp_path, "logout") == 0
+    assert "already logged out" in capsys.readouterr().out
+
+
+def test_logout_not_logged_in(net, tmp_path, capsys):
+    assert run(tmp_path, "logout") == 0
+    cap = capsys.readouterr()
+    assert "not logged in" in cap.out and "pusharmor login" not in cap.out + cap.err
+
+
+def test_logout_pending_dropped_when_device_gone(net, tmp_path, monkeypatch):
+    login(monkeypatch, tmp_path)
+    me = my_id(tmp_path)
+    answers(monkeypatch)
+    net.hooks[("POST", "peers")] = lambda *a: net.reply(503, {})
+    monkeypatch.setattr(pa.time, "sleep", lambda s: None)
+    assert run(tmp_path, "logout") == 0 and state(tmp_path)["logout_pending"] is True
+    net.hooks.clear()
+    del net.peers[me]
+    run(tmp_path, "send", "hi")
+    assert "logout_pending" not in state(tmp_path)
+
+
 def test_delete_self(net, tmp_path, monkeypatch):
     pid = login(monkeypatch, tmp_path)
     answers(monkeypatch, "y")
