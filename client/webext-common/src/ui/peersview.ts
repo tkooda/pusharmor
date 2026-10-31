@@ -34,7 +34,7 @@ let refreshUntil = 0;
 /** Draws the list again, with focus on that row after an action. */
 export type Redraw = (focusId?: string) => Promise<void>;
 
-export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, highlight?: string, focusId?: string): Promise<void> {
+export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, highlight?: string, focusId?: string, openPair = false): Promise<void> {
   const data = await rpc<{ peers: PeerView[] }>(env, "peers");
   clear(root);
   // focusId: the list was rebuilt after an action, so put focus back on that row (or the first heading if it is gone).
@@ -54,7 +54,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
       ),
     );
   }
-  root.append(pairNew());
+  root.append(pairNew(openPair));
   if (highlight) {
     const row = document.getElementById("peer-" + highlight);
     row?.scrollIntoView({ block: "center" });
@@ -77,15 +77,15 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
 }
 
 /** "Pair a new device": pairing starts from Pair on a listed device, so the button shows how to get it listed. */
-function pairNew(): HTMLElement {
+function pairNew(open = false): HTMLElement {
   const steps = h(
     "ol",
-    { class: "howto", id: "pair-howto", hidden: true },
+    { class: "howto", id: "pair-howto", hidden: !open },
     h("li", {}, "Install PushArmor on the other device."),
     h("li", {}, "Log in with the same account."),
     h("li", {}, "It appears here. Click Pair."),
   );
-  const btn = h("button", { class: "tonal", "aria-expanded": "false", "aria-controls": "pair-howto" }, icon("add", 18), "Pair a new device");
+  const btn = h("button", { class: "tonal", "aria-expanded": String(open), "aria-controls": "pair-howto" }, icon("add", 18), "Pair a new device");
   btn.addEventListener("click", () => {
     steps.hidden = !steps.hidden;
     btn.setAttribute("aria-expanded", String(!steps.hidden));
