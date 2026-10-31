@@ -14,6 +14,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 sys.path.insert(0, HERE)
 import pusharmor as pa  # noqa: E402
+import fake_relay  # noqa: E402
 from fake_relay import Net  # noqa: E402
 
 CODE = "A" * 22 + "bcd_-0123456"
@@ -739,3 +740,17 @@ def test_too_deep_nesting(monkeypatch, tmp_path, capsys):
     (tmp_path / "settings.toml").write_text("a = " + "[" * 100000)
     assert run(tmp_path, "send", "hi") == 1
     assert capsys.readouterr().err == "%s is not valid TOML: nested too deeply\n" % (tmp_path / "settings.toml")
+
+
+@pytest.mark.parametrize("allow", [None, 5, "x", {"a": 1}])
+def test_odd_peer_list_from_the_relay_server(allow, net, tmp_path, monkeypatch, capsys):
+    login(monkeypatch, tmp_path)
+    s, e = pa.new_key()[1], pa.new_key()[1]
+    pid = pa.b64e(pa.peer_id(fake_relay.ID_SECRET, fake_relay.ACCOUNT, pa.keyhash(s, e)))
+    peers = [{"id": pid, "sign_pub": pa.b64e(s), "enc_pub": pa.b64e(e), "platform": "ios", "created": 10 ** 18}]
+    body = json.dumps({"my_allow": allow, "peers": peers}).encode()
+    net.hooks[("GET", "peers")] = lambda *a: (200, {}, body)
+    capsys.readouterr()
+    assert run(tmp_path, "pair") == 0
+    assert "iPhone device added Jan 1" in capsys.readouterr().out
+    assert pa.gmtime(-10 ** 18).tm_year == 1970

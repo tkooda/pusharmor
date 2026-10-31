@@ -1534,12 +1534,20 @@ def platform_label(platform):
     return PLATFORMS.get(platform) or re.sub(r"[^\x20-\x7e]", "", platform).capitalize() or "Unknown"
 
 
+def gmtime(t):
+    """time.gmtime; a time out of range (from the relay server) reads as 1970."""
+    try:
+        return time.gmtime(t)
+    except (OverflowError, OSError, ValueError):
+        return time.gmtime(0)
+
+
 def peer_label(p):
     if not p:
         return "A device"
     if p["name"]:
         return p["name"]
-    t = time.gmtime(p["created"])
+    t = gmtime(p["created"])
     return "%s device added %s %d" % (platform_label(p["platform"]), MONTHS[t.tm_mon - 1], t.tm_mday)
 
 
@@ -1616,7 +1624,7 @@ class Ctx:
 
 def merge_peers(d, j, k):
     me, acct, peers = k["id"], b64d(k["id"])[:9], d["peers"]
-    d["my_allow"] = [x for x in j.get("my_allow", []) if isinstance(x, str)]
+    d["my_allow"] = [x for x in j["my_allow"] if isinstance(x, str)] if isinstance(j.get("my_allow"), list) else []
     seen = []
     for it in j.get("peers", []) if isinstance(j.get("peers"), list) else []:
         if not isinstance(it, dict) or it.get("id") == me:
@@ -2243,7 +2251,7 @@ def choose_evict(peers):
     print("This account already has %d devices, the most it can have. To add this device, remove one or more."
           " A removed device must log in again and pair with every device again." % len(rows))
     for i, p in enumerate(rows, 1):
-        added = time.strftime("%Y-%m-%d", time.gmtime(p["created"] if type(p.get("created")) is int else 0))
+        added = time.strftime("%Y-%m-%d", gmtime(p["created"] if type(p.get("created")) is int else 0))
         print("  %d  %s  %s  added %s" % (i, id_hex(p["id"])[:6], platform_label(str(p.get("platform", ""))), added))
     try:
         a = ask("Numbers to remove (for example: 1 3), or Enter to stop: ")
