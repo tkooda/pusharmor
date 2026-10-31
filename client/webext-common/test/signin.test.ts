@@ -61,3 +61,16 @@ test("login result from the background: well formed and recent only (I456)", () 
   assert.equal(readAuthResult({ done: "yes", at: T0 }, T0), null);
   assert.equal(readAuthResult(undefined, T0), null);
 });
+
+test("email check: empty, non-ASCII, and malformed have help text; a usable address has none (I468)", async () => {
+  const { emailProblem } = await import("../src/model/signin.ts");
+  assert.equal(emailProblem(""), "Enter your email address.");
+  assert.equal(emailProblem("sam"), "Check the email address.");
+  assert.equal(emailProblem("säm@example.com"), "Only email addresses with plain ASCII characters are supported.");
+  assert.equal(emailProblem(" sam@example.com "), "");
+  const { readFileSync } = await import("node:fs");
+  const page = readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8");
+  assert.match(page, /const invalid = email\.value\.trim\(\) !== "" && emailProblem\(email\.value\) !== "";/);
+  assert.match(page, /emailField\.classList\.toggle\("bad", invalid\);/);
+  assert.match(page, /email\.setAttribute\("aria-invalid", "true"\)/);
+});

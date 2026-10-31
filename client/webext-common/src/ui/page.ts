@@ -4,7 +4,7 @@ import type { LoginResult, Purpose } from "../core/login.ts";
 import type { StateView } from "../core/rpc.ts";
 import { T } from "../core/texts.ts";
 import { type UiEnv, add, clear, failView, group, h, rpc } from "./dom.ts";
-import { AUTH_RESULT, clampFrameHeight, readAuthResult, type Restore, resendLeftMs } from "../model/signin.ts";
+import { AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResult, type Restore, resendLeftMs } from "../model/signin.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
 import { startTheme } from "./theme.ts";
@@ -155,8 +155,12 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   email.addEventListener("focus", loadFrame);
   email.addEventListener("input", loadFrame);
   email.addEventListener("input", () => {
-    emailField.classList.remove("bad");
-    setHelp(emailHelp, "", false, email);
+    // live: red border while the field holds text that is not a usable address; empty stays normal
+    const invalid = email.value.trim() !== "" && emailProblem(email.value) !== "";
+    emailField.classList.toggle("bad", invalid);
+    setHelp(emailHelp, "", false);
+    if (invalid) email.setAttribute("aria-invalid", "true");
+    else email.removeAttribute("aria-invalid");
     clearTimeout(draftTimer);
     draftTimer = setTimeout(() => void rpc(env, "signinDraft", { email: email.value, purpose }).catch(() => undefined), 300) as unknown as number;
   });
@@ -165,7 +169,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   const sendCode = async () => {
     setHelp(sendHelp, "", false);
     const v = email.value.trim();
-    const bad = v === "" ? "Enter your email address." : /[^\x00-\x7f]/.test(v) ? T.badEmail : !/^[^@\s]+@[^@\s]+$/.test(v) ? "Check the email address." : "";
+    const bad = emailProblem(v);
     if (bad) {
       emailField.classList.add("bad");
       setHelp(emailHelp, bad, true, email);
