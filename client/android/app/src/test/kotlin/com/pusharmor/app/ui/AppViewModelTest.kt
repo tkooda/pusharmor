@@ -51,6 +51,19 @@ class AppViewModelTest {
         assertEquals(AppViewModel.NOT_DONE, vm.message.value)
     }
 
+    /** A send that reached a device posts its History row, so the main screen opens History there (I596). */
+    @Test fun sendReachedPostsHistoryRow() {
+        val vm = vm()
+        val ok = vm.sendResult(1, com.pusharmor.protocol.engine.SendFlow.Outcome(mapOf("a" to "sent"), 2, historyId = 7L)) { "Laptop" }
+        assertEquals("Message sent to \"Laptop\"", ok.text)
+        assertEquals(7L, vm.sent.value?.historyId)
+        vm.sent.value = null
+        val none = vm.sendResult(1, com.pusharmor.protocol.engine.SendFlow.Outcome(mapOf("a" to "not listening"), 2, historyId = 8L)) { "Laptop" }
+        assertFalse(none.ok)
+        assertNull(vm.sent.value)
+        assertEquals(listOf(1, 3, 4), listOf(5L, 9L, 6L).map { historyItemIndex(listOf(listOf(5L), listOf(9L, 6L)), it) })
+    }
+
     /** Robolectric has no AndroidKeyStore, so key generation fails as a broken Keystore would (I549). */
     @Test fun keystoreFailureInSignInShowsMessage() {
         val vm = vm()

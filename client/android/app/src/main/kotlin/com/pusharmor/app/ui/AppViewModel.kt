@@ -255,14 +255,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun allPeers(): List<Peer> = allSet(peers.value)
 
-    /** Returns the toast text. */
-    suspend fun send(recipients: List<String>, text: String, asText: Boolean): String = withContext(Dispatchers.IO) {
-        if (com.pusharmor.app.BuildConfig.SCREENSHOT_MODE && com.pusharmor.app.ScreenshotMode.on) com.pusharmor.app.ScreenshotMode.sendResult?.let { return@withContext it }
+    /** Result of a send: the message to show, and the new History row when it reached a device (I596). */
+    class SendResult(val text: String, val historyId: Long? = null) { val ok: Boolean get() = historyId != null }
+
+    /** Set when a send reached a device; the main screen then opens History at that row (I596). */
+    val sent = MutableStateFlow<SendResult?>(null)
+
+    /** History row to scroll to and flash once (I596). */
+    val flashRow = MutableStateFlow<Long?>(null)
+
+    suspend fun send(recipients: List<String>, text: String, asText: Boolean): SendResult = withContext(Dispatchers.IO) {
+        if (com.pusharmor.app.BuildConfig.SCREENSHOT_MODE && com.pusharmor.app.ScreenshotMode.on) com.pusharmor.app.ScreenshotMode.sendResult?.let { return@withContext SendResult(it) }
         val type = if (asText) ContentType.TEXT else Detect.type(text)
         val value = if (type == ContentType.TEXT) text else text.trim()
         val out = g.sender().send(recipients, type, value, System.currentTimeMillis())
-        if (out.error != null) return@withContext ErrorText.of(out.error!!)
-        UiText.sendToast(recipients.size, out.sent, out.total)
+        if (out.error != null) return@withContext SendResult(ErrorText.of(out.error!!))
+        sendResult(recipients.size, out) { id -> g.store.peer(id)?.let(::label) }
+    }
+
+    /** Snackbar text for [out]; a send that reached a device carries its History row and is posted to [sent]. */
+    internal fun sendResult(picked: Int, out: com.pusharmor.protocol.engine.SendFlow.Outcome, nameOf: (String) -> String?): SendResult {
+        val name = out.results.entries.singleOrNull { it.value == "sent" }?.let { nameOf(it.key) }
+        val text = UiText.sendToast(picked, out.sent, out.total, name)
+        val id = out.historyId?.takeIf { out.sent > 0 } ?: return SendResult(text)
+        return SendResult(text, id).also { sent.value = it }
     }
 
     // ---- settings ----

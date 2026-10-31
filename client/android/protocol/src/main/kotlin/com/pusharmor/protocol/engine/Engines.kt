@@ -56,7 +56,8 @@ object ClockSkew {
 class SendFlow(private val store: LocalStore, me: Identity, private val api: Api, private val effects: Effects) {
     private val outbox = Outbox(store, me)
 
-    class Outcome(val results: Map<String, String>, val total: Int, val error: ApiResult<*>? = null) {
+    /** [historyId] is the new History row of an accepted send. */
+    class Outcome(val results: Map<String, String>, val total: Int, val error: ApiResult<*>? = null, val historyId: Long? = null) {
         val sent: Int get() = results.values.count { it == "sent" }
     }
 
@@ -67,9 +68,9 @@ class SendFlow(private val store: LocalStore, me: Identity, private val api: Api
         val r = ClockSkew.run({ peers.associate { it.id to outbox.simple(it, body).message } }) { api.send(it) }
         return when (r) {
             is ApiResult.Ok -> {
-                store.insertHistory(HistoryRow(direction = Direction.SENT, peerId = null, type = type.key, content = value, at = now, read = true, results = r.value))
+                val id = store.insertHistory(HistoryRow(direction = Direction.SENT, peerId = null, type = type.key, content = value, at = now, read = true, results = r.value))
                 handleResults(r.value)
-                Outcome(r.value, total)
+                Outcome(r.value, total, historyId = id)
             }
             else -> Outcome(emptyMap(), total, r)
         }

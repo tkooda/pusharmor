@@ -31,6 +31,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -617,7 +620,7 @@ private val Modifier.rowPad get() = this.padding(horizontal = 16.dp)
 /** Send: field, type caption and counter, "Send as text", device chips, green Send pinned at the bottom (above the keyboard). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null, title: String? = null, onPair: () -> Unit = {}, onSent: (String) -> Unit = {}) {
+fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null, title: String? = null, onPair: () -> Unit = {}, onSent: (AppViewModel.SendResult) -> Unit = {}) {
     val shots = BuildConfig.SCREENSHOT_MODE && ScreenshotMode.on && title != null
     var text by rememberSaveable { mutableStateOf(if (shots) ScreenshotMode.sendText else initial) }
     var asText by rememberSaveable { mutableStateOf(false) }
@@ -741,7 +744,8 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                 if (AppViewModel.claim(vm.running, "send")) {
                     scope.launch { vm.g.settings.saveSendTo(sendTo) }
                     scope.launch {
-                        try { val r = vm.send(sendTo, text, asText); result = ((result?.first ?: 0) + 1) to r; onSent(r) }
+                        // A send that reached a device leaves this screen (I596), so only a failure shows here.
+                        try { val r = vm.send(sendTo, text, asText); if (!r.ok) result = ((result?.first ?: 0) + 1) to r.text; onSent(r) }
                         finally { vm.running.update { it - "send" } }
                     }
                 }
@@ -804,6 +808,12 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
     val eff = HistoryFilter.effective(frows, chip)
     val ex = LocalPaExtra.current
     val now = System.currentTimeMillis()
+    val flashId by vm.flashRow.collectAsState()
+    val state = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val glow = remember { Animatable(0f) }
+    var glowId by remember { mutableStateOf<Long?>(null) }
     Column(Modifier.fillMaxSize()) {
         PaTopBar("History")
         if (rows.isEmpty()) {
@@ -834,7 +844,19 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
         }
         val shown = rows.filter { HistoryFilter.matches(HistoryFilter.Row(it.peerId, it.direction == "RECEIVED"), eff) && (dir == null || it.direction == dir) }
         val days = shown.groupBy { UiText.day(it.at) }
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 16.dp)) {
+        // A row just sent from the Send tab: scrolled to and flashed once (I596); a filter that hides it is cleared.
+        LaunchedEffect(flashId, shown) {
+            val id = flashId ?: return@LaunchedEffect
+            if (rows.none { it.id == id }) return@LaunchedEffect // not loaded yet; runs again when it is
+            if (shown.none { it.id == id }) { chip = HistoryFilter.Chip.All; dir = null; return@LaunchedEffect }
+            vm.flashRow.value = null
+            val idx = historyItemIndex(days.values.map { g -> g.map { it.id } }, id)
+            scope.launch {
+                state.scrollToItem(maxOf(0, idx - 1))
+                if (animationsOn(context)) { glowId = id; glow.snapTo(0f); glow.animateTo(1f, tween(150)); glow.animateTo(0f, tween(450)); glowId = null }
+            }
+        }
+        LazyColumn(Modifier.weight(1f), state = state, contentPadding = PaddingValues(bottom = 16.dp)) {
             for ((day, group) in days) {
                 item(key = "day-$day") {
                     val l = UiText.dayLabel(group.first().at, now)
@@ -842,13 +864,30 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
                         style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 itemsIndexed(group, key = { _, h -> h.id }) { i, h ->
+                    val fill = if (open == h.id) ex.expandedRow else ex.tile
                     HistoryRow(vm, h, open == h.id, ::nameOf, onPeer,
-                        Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, group.size, if (open == h.id) ex.expandedRow else ex.tile)) { open = h.id }
+                        Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, group.size,
+                            if (glowId == h.id) lerp(fill, MaterialTheme.colorScheme.secondaryContainer, glow.value) else fill)) { open = h.id }
                 }
             }
         }
     }
 }
+
+/** LazyColumn index of History row [id], given the row ids of each day group under its day header (I596). */
+internal fun historyItemIndex(days: List<List<Long>>, id: Long): Int {
+    var idx = 0
+    for (g in days) {
+        val i = g.indexOf(id)
+        if (i >= 0) return idx + 1 + i
+        idx += 1 + g.size
+    }
+    return 0
+}
+
+/** False when the system animator duration scale is 0 (animations off or reduced motion). */
+internal fun animationsOn(ctx: android.content.Context): Boolean =
+    android.provider.Settings.Global.getFloat(ctx.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) != 0f
 
 /** One row of filter chips that scrolls sideways, so a long device name never wraps Sent or Received onto a second line (I571). */
 @Composable
