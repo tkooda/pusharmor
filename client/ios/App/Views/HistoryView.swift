@@ -1,7 +1,7 @@
 import SwiftUI
 import PushArmorCore
 
-/// History section: filter control and rows. Used inside the Home list.
+/// History section: filter control and rows. Used inside the History tab list.
 struct HistoryView: View {
     @EnvironmentObject var model: AppModel
     @State private var filter: HistoryFilter = .all
@@ -18,7 +18,7 @@ struct HistoryView: View {
 
     var body: some View {
         let rows = HistoryFilter.apply(effective, model.history)
-        Section("History") {
+        Section {
             if options.count > 1 {
                 filterControl
             }
