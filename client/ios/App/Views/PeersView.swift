@@ -280,7 +280,7 @@ struct PairingCardView: View {
             get: { p.lockShow },
             set: { model.setPeerSwitches(p, lockShow: $0) }
         ))
-        .disabled(!model.boolSetting(SettingKey.lockShow, true))
+        .disabled(!model.boolSetting(SettingKey.lockShow, true) || !model.boolSetting(SettingKey.showContent, true))
         Toggle(S.alwaysHide, isOn: Binding(
             get: { p.alwaysHide },
             set: { model.setPeerSwitches(p, alwaysHide: $0) }
@@ -425,7 +425,7 @@ struct PeerRowView: View {
                         get: { p.lockShow },
                         set: { model.setPeerSwitches(p, lockShow: $0) }
                     ))
-                    .disabled(!model.boolSetting(SettingKey.lockShow, true))
+                    .disabled(!model.boolSetting(SettingKey.lockShow, true) || !model.boolSetting(SettingKey.showContent, true))
                     Toggle(S.alwaysHide, isOn: Binding(
                         get: { p.alwaysHide },
                         set: { model.setPeerSwitches(p, alwaysHide: $0) }
