@@ -535,7 +535,7 @@ private val Modifier.rowPad get() = this.padding(horizontal = 16.dp)
 /** Send: field, type caption and counter, "Send as text", device chips, green Send pinned at the bottom (above the keyboard). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null, title: String? = null, onSent: (String) -> Unit = {}) {
+fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null, title: String? = null, onDevices: () -> Unit = {}, onSent: (String) -> Unit = {}) {
     val shots = BuildConfig.SCREENSHOT_MODE && ScreenshotMode.on && title != null
     var text by remember { mutableStateOf(if (shots) ScreenshotMode.sendText else initial) }
     var asText by remember { mutableStateOf(false) }
@@ -618,7 +618,11 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                         style = MaterialTheme.typography.bodySmall, color = cs.error, textAlign = TextAlign.End)
                 }
                 val chips = others(peers, me?.id).filter { it.pinned }
-                Column(Modifier.onSizeChanged { chipsPx = it.height }) {
+                if (UiText.noDevicesShown(me != null, chips.size)) Column(Modifier.onSizeChanged { chipsPx = it.height }.rowPad.padding(top = 16.dp).fillMaxWidth()) {
+                    Text(UiText.NO_DEVICES_TITLE, style = MaterialTheme.typography.titleMedium)
+                    Text(UiText.NO_DEVICES_BODY, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                    FilledTonalButton(onClick = onDevices, Modifier.padding(top = 12.dp).heightIn(min = 48.dp)) { Text("Open Devices") }
+                } else Column(Modifier.onSizeChanged { chipsPx = it.height }) {
                     SectionHeader(UiText.sendToHeader(sendTo.size, canReceive.size))
                     FlowRow(Modifier.rowPad.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (UiText.showAllChip(showAll, all.size, keyboardUp)) {

@@ -200,7 +200,7 @@ private fun App(vm: AppViewModel) {
             // Consumed, so the Send screen's imePadding does not count the bottom bar twice.
             NavHost(nav, startDestination = "peers", modifier = Modifier.padding(pad).consumeWindowInsets(pad)) {
                 composable("peers") { PeersScreen(vm) }
-                composable("send") { SendScreen(vm, title = "Send") }
+                composable("send") { SendScreen(vm, title = "Send", onDevices = { nav.navigate("peers") { launchSingleTop = true } }) }
                 composable("history") { HistoryScreen(vm) { id -> vm.highlight.value = id; nav.navigate("peers") } }
                 composable("settings") { SettingsScreen(vm, onDeleteAccount = { vm.message.value = null; deleting = true }, onSignedOut = {}) }
             }

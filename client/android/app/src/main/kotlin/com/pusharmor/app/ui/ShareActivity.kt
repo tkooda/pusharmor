@@ -65,7 +65,9 @@ class ShareActivity : ComponentActivity() {
                             Text("Too long (${SizeCap.utf8Size(text)} / 2048)")
                         }
                     } else {
-                        SendScreen(vm, cut ?: text, preselect = direct) { r -> toastAndFinish(r) }
+                        SendScreen(vm, cut ?: text, preselect = direct, onDevices = {
+                            startActivity(MainActivity.openIntent(this@ShareActivity, "peers").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); finish()
+                        }) { r -> toastAndFinish(r) }
                     }
                 }
             } }
