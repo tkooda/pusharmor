@@ -146,4 +146,11 @@ class UiTextTest {
         assertTrue(copy.contains("Install PushArmor") && copy.contains("same account") && copy.contains("Tap Pair"))
         assertEquals(false, copy.contains("peer", ignoreCase = true))
     }
+
+    @Test fun emailFieldRedWhileNonEmptyAndInvalid() {
+        assertEquals(false, UiText.emailFieldError(""))
+        for (bad in listOf("a", "a@", "@b.com", "a@@b.com", "a b@c.com", "a@b,com", "j\u00f6@b.com", "<a@b.com>")) assertTrue(bad, UiText.emailFieldError(bad))
+        for (ok in listOf("a@b.com", " a@b.com ", "A.B+tag@Example.COM", "x@privaterelay.appleid.com")) assertEquals(ok, false, UiText.emailFieldError(ok))
+        assertEquals(false, UiText.emailValid("a".repeat(250) + "@b.com"))
+    }
 }

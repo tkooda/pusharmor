@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -171,11 +172,14 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onDo
                 0 -> {
                     val next = {
                         if (email.any { it.code > 127 }) error = "Only email addresses with plain ASCII characters are supported."
+                        else if (!UiText.emailValid(email)) error = "Enter a valid email address."
                         else { error = null; stage = 1 }
                     }
-                    OutlinedTextField(email, { email = it }, label = { Text("Email address") }, singleLine = true,
+                    val invalid = UiText.emailFieldError(email)
+                    OutlinedTextField(email, { email = it }, label = { Text("Email address") }, singleLine = true, isError = invalid,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
-                        keyboardActions = KeyboardActions(onNext = { next() }), modifier = Modifier.fillMaxWidth())
+                        keyboardActions = KeyboardActions(onNext = { next() }),
+                        modifier = Modifier.fillMaxWidth().semantics { if (invalid) this.error("Not a valid email address") })
                     GreenButton(onClick = next, text = "Next", icon = null, modifier = Modifier.fillMaxWidth())
                 }
                 1 -> TurnstileView { token ->
