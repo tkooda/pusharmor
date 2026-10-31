@@ -357,7 +357,8 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promi
   const status = h("div", { class: "status", role: "status" });
   const self = (await rpc<{ self: { id: string; name: string } | null }>(env, "peers").catch(() => null))?.self ?? null;
   const confirmDel = h("div", { class: "confirm-inline" });
-  const confirmOut = h("div", { class: "confirm-inline" });
+  // The Log out confirm replaces the button row inside the Account card: text first, buttons under it.
+  const confirmOut = h("div", { class: "confirm-out", hidden: true });
   const ff = st.platform === "firefox";
   const acct = add(
     h("div", { class: "txt" }),
@@ -365,8 +366,33 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promi
     ff && st.receiveMode ? h("div", { class: "t2" }, "Receive mode: " + st.receiveMode) : null,
     ff && st.receiveNote ? h("div", { class: "t2" }, st.receiveNote) : null,
   );
-  const acctHead = acct.childNodes.length ? sh("Account") : null;
-  const acctBox = acct.childNodes.length ? group(h("div", { class: "srow acct" }, acct)) : null;
+  const acctRow = acct.childNodes.length ? h("div", { class: "srow acct" }, acct) : null;
+  const logOut = h("button", {}, "Log out") as HTMLButtonElement;
+  const btns = h("div", { class: "btns" }, logOut, h("button", { class: "danger", onclick: () => env.openPage("#login=delete-account") }, "Delete account"));
+  const closeConfirm = () => {
+    clear(confirmOut).hidden = true;
+    btns.hidden = false;
+  };
+  logOut.addEventListener("click", () => {
+    const yes = h("button", {
+      class: "danger",
+      onclick: async () => {
+        closeConfirm();
+        try {
+          await rpc(env, "signout");
+          acctRow?.remove();
+          status.textContent = T.signedOut;
+        } catch (e) {
+          status.textContent = (e as Error).message;
+        }
+      },
+    }, "Log out");
+    const no = h("button", { onclick: () => { closeConfirm(); logOut.focus(); } }, "Cancel");
+    btns.hidden = true;
+    clear(confirmOut).append(h("p", { role: "alert" }, T.logoutConfirm), h("div", { class: "actions" }, yes, no));
+    confirmOut.hidden = false;
+    yes.focus();
+  });
   add(
     root,
     self && sh("This device"),
@@ -395,35 +421,8 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promi
         confirmDel,
       ),
     ),
-    acctHead,
-    acctBox,
-    h(
-      "div",
-      { class: "btns" },
-      h("button", {
-        onclick: () => {
-          const yes = h("button", {
-            class: "danger",
-            onclick: async () => {
-              clear(confirmOut);
-              try {
-                await rpc(env, "signout");
-                acctHead?.remove();
-                acctBox?.remove();
-                status.textContent = T.signedOut;
-              } catch (e) {
-                status.textContent = (e as Error).message;
-              }
-            },
-          }, "Log out");
-          const no = h("button", { onclick: () => clear(confirmOut) }, "Cancel");
-          clear(confirmOut).append(h("span", { role: "alert" }, T.logoutConfirm + " "), yes, no);
-          yes.focus();
-        },
-      }, "Log out"),
-      h("button", { class: "danger", onclick: () => env.openPage("#login=delete-account") }, "Delete account"),
-    ),
-    confirmOut,
+    sh("Account"),
+    group(acctRow, h("div", { class: "srow acct-acts" }, btns, confirmOut)),
     status,
   );
 }

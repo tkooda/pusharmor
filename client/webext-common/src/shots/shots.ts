@@ -130,7 +130,8 @@ async function main(): Promise<void> {
       await new Promise((done) => setTimeout(done, 300));
     }
     await new Promise((done) => setTimeout(done, 300));
-    document.querySelector(".btns")?.parentElement?.lastElementChild?.scrollIntoView({ block: "end" });
+    const fr = document.querySelector<HTMLElement>(".frame")!;
+    fr.scrollTop = fr.scrollHeight;
   }
   // store frame: scale the popup (layout zoom, so text stays sharp) to the height under the
   // 96px band; the popup height follows its content, so measure it
@@ -142,6 +143,8 @@ async function main(): Promise<void> {
     frame.style.zoom = String(Math.min((800 - 96 - 16) / h, 1280 / 400));
     // middle-ellipsis links were fitted at zoom 1; fit them again at the new zoom
     dispatchEvent(new Event("resize"));
+    // the zoom changed the scroll height: keep the Settings bottom (Account card) in view
+    if (tab === "settings" || tab === "signout") frame.scrollTop = frame.scrollHeight;
   }
 }
 

@@ -83,7 +83,11 @@ input[role=switch]:checked::before { left: 16px; background: var(--onp); }
 .st.wait, .st.off { color: var(--ink2); }
 .srow { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 8px 16px; min-height: 44px; font-size: 14px; }
 label.srow { cursor: pointer; }
-.srow.acct { display: block; }
+.srow.acct, .srow.acct-acts { display: block; }
+.acct-acts .btns { padding: 0; }
+.btns[hidden], .confirm-out[hidden] { display: none; }
+.confirm-out p { font-size: 13px; line-height: 18px; overflow-wrap: anywhere; }
+.confirm-out .actions { margin-top: 8px; }
 .confirm, .confirm-inline { margin-top: 8px; font-size: 13px; }
 .confirm-inline { display: flex; align-items: center; gap: 8px; margin-top: 0; }
 .confirm-inline:empty { display: none; }
