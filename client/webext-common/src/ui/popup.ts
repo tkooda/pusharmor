@@ -43,29 +43,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   if (st.reg !== "registered") {
     const going = (await rpc<Restore | null>(env, "signinProgress").catch(() => null))?.step === "code";
     if (my !== mounts) return;
-    clear(root);
-    const head = going ? "Check your email for your code" : st.reg === "logged_out" ? T.signedOut : st.banner ?? "Log in to use PushArmor";
-    add(
-      root,
-      h(
-        "div",
-        { class: "signin" },
-        h("img", { src: "icons/icon-128.png", width: "64", height: "64", alt: "", class: "big-tile" }),
-        wordmark(env, 24),
-        h("div", { class: "banner" }, head),
-        h("p", { class: "slogan" }, "Send the page you are on to your other devices in one click."),
-        h("button", {
-          class: "primary big",
-          onclick: async () => {
-            await env.openPage("#login");
-            window.close();
-          },
-        }, going ? "Continue logging in" : "Log in"),
-        h("div", { class: "opens" }, icon("open", 16), "Opens in a new tab"),
-        h("p", { class: "e2e" }, icon("lock", 20), h("span", {}, "All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.")),
-        st.platform === "firefox" && st.receiveNote ? h("div", { class: "dim" }, st.receiveNote) : null,
-      ),
-    );
+    clear(root).append(signinCard(env, st, going, false));
     return;
   }
   // Q338: no paired device yet: one screen in place of Send, History, and Devices
@@ -117,6 +95,33 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   const top = h("div", { class: "top" }, h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), tabs);
   root.append(top, body);
   show("send");
+}
+
+/** Logged out: the log in prompt (popup, and the full tab's account views, I470). going: a code was sent. */
+export function signinCard(env: UiEnv, st: StateView, going: boolean, inTab: boolean): HTMLElement {
+  const head = going ? "Check your email for your code" : st.reg === "logged_out" ? T.signedOut : st.banner ?? "Log in to use PushArmor";
+  return h(
+    "div",
+    { class: "signin" },
+    h("img", { src: "icons/icon-128.png", width: "64", height: "64", alt: "", class: "big-tile" }),
+    wordmark(env, 24),
+    h("div", { class: "banner" }, head),
+    h("p", { class: "slogan" }, "Send the page you are on to your other devices in one click."),
+    h("button", {
+      class: "primary big",
+      onclick: async () => {
+        if (inTab) {
+          location.hash = "#login";
+          return;
+        }
+        await env.openPage("#login");
+        window.close();
+      },
+    }, going ? "Continue logging in" : "Log in"),
+    inTab ? null : h("div", { class: "opens" }, icon("open", 16), "Opens in a new tab"),
+    h("p", { class: "e2e" }, icon("lock", 20), h("span", {}, "All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.")),
+    st.platform === "firefox" && st.receiveNote ? h("div", { class: "dim" }, st.receiveNote) : null,
+  );
 }
 
 const TYPE_ICON: Record<string, IconName> = { url: "link", tel: "call", text: "notes" };

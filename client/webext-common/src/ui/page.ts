@@ -8,7 +8,7 @@ import { AUTH_CHANGED, AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResu
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
 import { startTheme } from "./theme.ts";
-import { firstPairView, historyView, sendView, wordmark } from "./popup.ts";
+import { firstPairView, historyView, sendView, signinCard, wordmark } from "./popup.ts";
 
 export const SITE = "https://pusharmor.com";
 
@@ -30,15 +30,17 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
   if (route === "login") return loginView(env, root, arg ?? null, selfOrigin);
   // I465: these views show account data; a login state change loads the tab again
   stopAuthWatch = env.session?.watch(AUTH_CHANGED, () => location.reload()) ?? null;
-  if (route === "peers" || route === "history" || route === "send") {
-    // Q338: no paired device yet shows the first-device screen (the same as the popup)
-    const [st, data] = await Promise.all([rpc<StateView>(env, "state"), rpc<{ peers: PeerView[] }>(env, "peers")]);
-    if (st.reg === "registered" && !data.peers.some((p) => p.paired)) return firstPairView(env, root, st, () => mountPage(env, root, hash, selfOrigin), false);
+  const [st, data] = await Promise.all([rpc<StateView>(env, "state"), rpc<{ peers: PeerView[] }>(env, "peers")]);
+  // I470: the account views need a logged-in device; logged out shows the log in prompt
+  if (st.reg !== "registered") {
+    const going = (await rpc<Restore | null>(env, "signinProgress").catch(() => null))?.step === "code";
+    root.append(signinCard(env, st, going, true));
+    return;
   }
-  if (route === "peers") return renderPeers(env, root, true, arg);
+  // Q338: no paired device yet shows the first-device screen (the same as the popup)
+  if (!data.peers.some((p) => p.paired)) return firstPairView(env, root, st, () => mountPage(env, root, hash, selfOrigin), false);
   if (route === "history") return historyView(env, root, (text) => void mountPage(env, root, "#send=" + encodeURIComponent(text), selfOrigin), arg);
   if (route === "send") {
-    const st = await rpc<StateView>(env, "state");
     let text = "";
     try {
       text = decodeURIComponent(arg ?? "");
@@ -47,7 +49,8 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
     }
     return sendView(env, root, st, text, true);
   }
-  root.append(h("div", {}, "PushArmor"));
+  // Devices; also a missing or unknown hash
+  return renderPeers(env, root, true, route === "peers" ? arg : undefined);
 }
 
 const E2E = "All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.";
