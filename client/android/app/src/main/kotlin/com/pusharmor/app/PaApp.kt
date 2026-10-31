@@ -24,7 +24,7 @@ import com.pusharmor.store.RoomLocalStore
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.security.SecureRandom
 
-class PaApp : Application() {
+open class PaApp : Application() {
     lateinit var graph: Graph
 
     override fun onCreate() {
