@@ -4,7 +4,7 @@ import type { LoginResult, Purpose } from "../core/login.ts";
 import type { PeerView, StateView } from "../core/rpc.ts";
 import { T } from "../core/texts.ts";
 import { type UiEnv, add, clear, failView, group, h, rpc } from "./dom.ts";
-import { AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResult, type Restore, resendLeftMs } from "../model/signin.ts";
+import { AUTH_CHANGED, AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResult, type Restore, resendLeftMs } from "../model/signin.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
 import { startTheme } from "./theme.ts";
@@ -28,6 +28,8 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
   const [route, arg] = hash.replace(/^#/, "").split("=");
   document.body.classList.toggle("signin-bg", route === "login");
   if (route === "login") return loginView(env, root, arg ?? null, selfOrigin);
+  // I465: these views show account data; a login state change loads the tab again
+  stopAuthWatch = env.session?.watch(AUTH_CHANGED, () => location.reload()) ?? null;
   if (route === "peers" || route === "history" || route === "send") {
     // Q338: no paired device yet shows the first-device screen (the same as the popup)
     const [st, data] = await Promise.all([rpc<StateView>(env, "state"), rpc<{ peers: PeerView[] }>(env, "peers")]);
@@ -54,7 +56,7 @@ const ENDS_FLOW = ["Login expired, log in again", "This code has expired. Get a 
 
 /** One message listener per page (a hash change mounts the view again). */
 let onFrameMessage: ((ev: MessageEvent) => void) | null = null;
-/** Stops the storage.session watch of the previous login view. */
+/** Stops the storage.session watch of the previous view. */
 let stopAuthWatch: (() => void) | null = null;
 
 /** Outlined field with a floating label (the label floats while the field has text or focus). */

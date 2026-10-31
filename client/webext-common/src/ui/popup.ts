@@ -4,7 +4,7 @@ import type { Redraw } from "./peersview.ts";
 import type { SendResult } from "../core/engine.ts";
 import { T } from "../core/texts.ts";
 import { canReceiveNow, rememberedSelection, sendDisabled, sendToHeader, showAllChip, showCounter } from "../model/sendsel.ts";
-import type { Restore } from "../model/signin.ts";
+import { AUTH_CHANGED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
 import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, nextTabIndex, peerStatus, rpc, sh, shortTime } from "./dom.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
@@ -21,17 +21,29 @@ export function wordmark(env: UiEnv, size: number): HTMLElement {
   return add(h("span", { class: "brand" }, wm), env.beta && h("span", { class: "beta" }, "Beta"));
 }
 
+/** Counts mounts: a mount that a newer one overtook while it waited stops before it draws. */
+let mounts = 0;
+let watching = false;
+
 export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
+  const my = ++mounts;
+  if (!watching) {
+    // I465: a login state change (here, in a tab, or from the relay server) shows the matching view
+    watching = true;
+    env.session?.watch(AUTH_CHANGED, () => void mountPopup(env, root));
+  }
   let st: StateView;
   try {
     [st] = await Promise.all([rpc<StateView>(env, "popupOpen"), startTheme(env.theme)]);
   } catch (e) {
-    failView(root, (e as Error).message, () => void mountPopup(env, root));
+    if (my === mounts) failView(root, (e as Error).message, () => void mountPopup(env, root));
     return;
   }
-  clear(root);
+  if (my !== mounts) return;
   if (st.reg !== "registered") {
     const going = (await rpc<Restore | null>(env, "signinProgress").catch(() => null))?.step === "code";
+    if (my !== mounts) return;
+    clear(root);
     const head = going ? "Check your email for your code" : st.reg === "logged_out" ? T.signedOut : st.banner ?? "Log in to use PushArmor";
     add(
       root,
@@ -58,6 +70,8 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   }
   // Q338: no paired device yet: one screen in place of Send, History, and Devices
   const first = await rpc<{ peers: PeerView[] }>(env, "peers").catch(() => null);
+  if (my !== mounts) return;
+  clear(root);
   if (first && !first.peers.some((p) => p.paired)) return firstPairView(env, root, st, () => mountPopup(env, root), true);
   const body = h("div", { class: "body", id: "panel", role: "tabpanel" });
   const tabs = h("div", { class: "tabs", role: "tablist" });

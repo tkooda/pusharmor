@@ -60,6 +60,9 @@ export function clampFrameHeight(h: unknown): number | null {
   return Math.min(FRAME_MAX, Math.max(FRAME_MIN, Math.ceil(h)));
 }
 
+/** storage.session key the background changes on every login state change; open views mount again (I465). */
+export const AUTH_CHANGED = "auth_changed";
+
 /** Firefox Google or Apple login: the background writes the result here (storage.session) for the login tab. */
 export const AUTH_RESULT = "auth_result";
 /** A result older than this is from an earlier login and is ignored. */
