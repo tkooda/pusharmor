@@ -121,7 +121,7 @@ class UiFitTest {
     }
 
     @Test fun bottomBarLabelsReadInFullAtLargeFont() {
-        val labels = listOf("Devices", "Send", "History", "Settings")
+        val labels = listOf("Send", "History", "Devices", "Settings")
         val c = show("w360dp-h640dp-xhdpi", 2.0f) {
             NavigationBar {
                 for (t in labels) NavigationBarItem(selected = t == "Send", onClick = {}, icon = { Icon(PaIcons.Send, null) }, label = { NavLabel(t) })
