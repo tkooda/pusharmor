@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 import PushArmorCore
 
-/// Root screen: one view per AppModel.Phase, plus the shared error alert and toast.
+/// Root screen: one view per AppModel.Phase, plus the launch error alert and the bottom banner.
 struct RootView: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -14,17 +14,10 @@ struct RootView: View {
             .onReceive(NotificationCenter.default.publisher(for: APIClient.upgradeRequired).receive(on: RunLoop.main)) { _ in
                 model.updateRequired = true
             }
-            .overlay(alignment: .center) { // centred: at the bottom it covered Send and the tab bar (I577), at the top the large title (I584)
-                if let t = model.toast, !model.updateRequired {
-                    Text(t)
-                        .font(.callout)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(.thinMaterial, in: Capsule())
-                        .padding(.horizontal, 16)
-                        .transition(.opacity)
-                        .allowsHitTesting(false)
-                }
+            // I604: the banner sits at the bottom, inside the safe area; on the tabs MainView puts
+            // it above the tab bar and below the Send bar, so it covers neither (I577).
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if !model.updateRequired && !model.showsTabs { ToastBanner() }
             }
             .animation(.default, value: model.toast)
             .task(id: model.toast) {
@@ -32,13 +25,14 @@ struct RootView: View {
                 #if DEBUG
                 if ScreenshotSample.staysOnScreen { return } // screen review: the results stay on screen
                 #endif
-                // VoiceOver reads the toast; slow readers get it on screen for longer.
+                // VoiceOver reads the banner; slow readers get it on screen for longer.
                 UIAccessibility.post(notification: .announcement, argument: t)
                 let slow = UIAccessibility.isVoiceOverRunning || typeSize.isAccessibilitySize
-                try? await Task.sleep(nanoseconds: slow ? 8_000_000_000 : 4_000_000_000)
+                let seconds: UInt64 = model.toastIsSuccess ? (slow ? 6 : 2) : (slow ? 8 : 4)
+                try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
                 if !Task.isCancelled { model.toast = nil }
             }
-            .alert("PushArmor", isPresented: Binding(
+            .alert(S.launchFailedTitle, isPresented: Binding(
                 // no error alert over the update screen: every call fails there (Q349)
                 get: { model.errorText != nil && !model.updateRequired },
                 set: { if !$0 { model.errorText = nil } }
@@ -101,6 +95,40 @@ struct RootView: View {
                     .padding(.horizontal, 16)
                 SignInView(purpose: .login)
             }
+        }
+    }
+}
+
+/// The bottom banner for transient messages (I604): a success check or a warning sign, the
+/// text in the system font, on a material card. A tap dismisses it.
+struct ToastBanner: View {
+    @EnvironmentObject var model: AppModel
+
+    var body: some View {
+        if let t = model.toast {
+            let ok = model.toastIsSuccess
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Image(systemName: ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .foregroundStyle(ok ? Color.green : Color.orange)
+                    .accessibilityHidden(true)
+                Text(t)
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .shadow(color: .black.opacity(0.12), radius: 8, y: 2)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+            .onTapGesture { model.toast = nil }
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isStaticText)
+            .accessibilityIdentifier("banner")
         }
     }
 }

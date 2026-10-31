@@ -130,6 +130,16 @@ final class ScreenshotTests: XCTestCase {
             shot("97-send-error-\(theme)")
             app.terminate()
 
+            // I604: a full success shows the bottom banner, above the tab bar
+            app = launch(["-PAScreenshotsSentOK", "-appearance", theme])
+            let banner = app.descendants(matching: .any)["banner"]
+            XCTAssertTrue(banner.waitForExistence(timeout: 30))
+            XCTAssertTrue(banner.label.contains("Message sent to \"Laptop\""), banner.label)
+            XCTAssertLessThanOrEqual(banner.frame.maxY, app.tabBars.firstMatch.frame.minY + 1)
+            sleep(1)
+            shot("97-send-ok-\(theme)")
+            app.terminate()
+
             app = launch(["-appearance", theme])
             let history = app.tabBars.buttons["History"]
             XCTAssertTrue(history.waitForExistence(timeout: 30))

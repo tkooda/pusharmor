@@ -25,6 +25,19 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(header.exists)
     }
 
+    /// I604: a successful send shows the bottom banner between the Send button and the tab
+    /// bar, so it covers neither.
+    func testSendBannerSitsAboveTheTabBar() {
+        let app = launch(["-PAScreenshotsSentOK"])
+        let banner = app.descendants(matching: .any)["banner"]
+        XCTAssertTrue(banner.waitForExistence(timeout: 30))
+        XCTAssertTrue(banner.label.contains("Message sent to \"Laptop\""), banner.label)
+        let send = app.buttons["Send to \"Laptop\""]
+        XCTAssertTrue(send.exists)
+        XCTAssertLessThanOrEqual(send.frame.maxY, banner.frame.minY + 1)
+        XCTAssertLessThanOrEqual(banner.frame.maxY, app.tabBars.firstMatch.frame.minY + 1)
+    }
+
     /// F24: History is its own tab; the Send tab shows no history rows.
     func testHistoryIsItsOwnTab() {
         let app = launch()

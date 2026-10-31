@@ -37,7 +37,12 @@ final class AppModel: ObservableObject {
     @Published var peers: [Peer] = []
     @Published var pairings: [String: PairingEntry] = [:]
     @Published var history: [HistoryRow] = []
-    @Published var toast: String?
+    /// The bottom banner (I604): every transient message, success or failure. A new text
+    /// clears toastIsSuccess; a successful send sets it right after.
+    @Published var toast: String? { willSet { toastIsSuccess = false } }
+    /// The banner shows a success check and goes after about 2 s.
+    @Published var toastIsSuccess = false
+    /// Only a launch failure (the store did not open) still shows as an alert.
     @Published var errorText: String?
     /// Address last sent to and when its resend countdown ends; kept while the sign-in screen is left and re-entered.
     @Published var resend = ResendGate()
@@ -88,6 +93,7 @@ final class AppModel: ObservableObject {
             if ScreenshotSample.update { updateRequired = true }
             reload()
             toast = ScreenshotSample.sentToast ?? ScreenshotSample.sendErrorToast
+            toastIsSuccess = ScreenshotSample.sentOK
             sample = true
             started = true
             await ScreenshotSample.notifyIfAsked()
@@ -283,7 +289,7 @@ final class AppModel: ObservableObject {
     }
 
     func emailStart(_ email: String, purpose: AuthPurpose, turnstile: String) async {
-        guard Ids.normalizeEmail(email) != nil else { errorText = S.badEmail; return }
+        guard Ids.normalizeEmail(email) != nil else { toast = S.badEmail; return }
         guard let k = try? keysForSignIn(purpose) else { return }
         let r = await auth.emailStart(email: email, signPub: k.signer.publicKey, purpose: purpose, turnstile: turnstile)
         let nowMs = Int(Date().timeIntervalSince1970 * 1000)
@@ -298,7 +304,7 @@ final class AppModel: ObservableObject {
         default:
             // A 429 starts the countdown from Retry-After so the next try does not spend a security check for nothing.
             if case .rateLimited(let s) = r { resend = ResendGate(sentTo: ResendGate.key(email), untilMs: nowMs + s * 1000) }
-            errorText = S.loginError(r)
+            toast = S.loginError(r)
         }
     }
 
@@ -336,7 +342,7 @@ final class AppModel: ObservableObject {
 
     func finishTicket(_ r: AuthResult, purpose: AuthPurpose) async {
         guard case .ticket(let ticket, let email) = r else {
-            errorText = S.loginError(r)
+            toast = S.loginError(r)
             return
         }
         try? store?.setMe("signed_in_email", .text(email))
@@ -383,11 +389,11 @@ final class AppModel: ObservableObject {
                     return
                 }
             }
-            errorText = S.loginFailed
+            toast = S.loginFailed
         case .banned: phase = .banned
-        case .ticketExpired: errorText = S.signInExpired; phase = .signIn(.register)
-        case .network: errorText = S.noConnection
-        case .failed: errorText = S.loginFailed
+        case .ticketExpired: toast = S.signInExpired; phase = .signIn(.register)
+        case .network: toast = S.noConnection
+        case .failed: toast = S.loginFailed
         }
     }
 
@@ -399,7 +405,7 @@ final class AppModel: ObservableObject {
     private func submitEvictOnce() async {
         guard let t = limitTicket else { return }
         if Date().timeIntervalSince(t.at) > 600 {
-            errorText = S.signInExpired
+            toast = S.signInExpired
             phase = .signIn(.register)
             return
         }
@@ -412,7 +418,7 @@ final class AppModel: ObservableObject {
     }
 
     func setName(_ name: String) async {
-        guard let core = core, NameEntry.isValidName(name) else { errorText = "Use 1 to 32 plain ASCII characters, no double quotes."; return }
+        guard let core = core, NameEntry.isValidName(name) else { toast = "Use 1 to 32 plain ASCII characters, no double quotes."; return }
         if (try? core.store.me().name) == nil {
             try? core.store.setMe("name", .text(name))
         } else {
@@ -441,7 +447,7 @@ final class AppModel: ObservableObject {
         if let out = try? await core.deleteAccount(ticket: ticket), out.reply?.ok == true {
             phase = .removed
         } else {
-            errorText = "Delete failed. Try again."
+            toast = "Delete failed. Try again."
         }
     }
 
@@ -548,6 +554,9 @@ final class AppModel: ObservableObject {
 
     var allSet: [Peer] { peers.filter { $0.inAll } }
 
+    /// The tab bar shows: the banner then sits inside each tab, above the tab bar (I604).
+    var showsTabs: Bool { phase == .main && !needsFirstPair }
+
     /// Q338: logged in with no paired device. The first-pair screen then replaces the tabs;
     /// state-driven, so it goes once a pairing completes and comes back when the last
     /// paired device is removed.
@@ -576,6 +585,7 @@ final class AppModel: ObservableObject {
         do {
             let rep = try await core.send(text, as: type, to: ids, allCount: all.count)
             toast = rep.toast
+            toastIsSuccess = rep.allSent
             sent = true
         } catch Core.SendError.clockOff {
             toast = S.clockOff
@@ -627,7 +637,7 @@ final class AppModel: ObservableObject {
         do {
             _ = try await core.rename(name)
         } catch {
-            errorText = "Use 1 to 32 plain ASCII characters, no double quotes."
+            toast = "Use 1 to 32 plain ASCII characters, no double quotes."
         }
         reload()
     }

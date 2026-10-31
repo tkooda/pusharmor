@@ -9,7 +9,8 @@ import PushArmorCore
 /// adds an open pairing; -PAScreenshotsNotify posts a local sample notification;
 /// -PAScreenshotsSignIn opens the sign-in screen (review images only); -PAScreenshotsEmpty
 /// has no other device at all (the first-pair screen). Screen review only: -PAScreenshotsNoHistory
-/// has no messages; -PAScreenshotsSent shows send results that stay on screen;
+/// has no messages; -PAScreenshotsSent shows send results that stay on screen
+/// (-PAScreenshotsSentOK: a full success);
 /// -PAScreenshotsUpdate opens the update-required screen.
 enum ScreenshotSample {
     private static let args = ProcessInfo.processInfo.arguments
@@ -19,10 +20,13 @@ enum ScreenshotSample {
     /// The send error toast of an offline send (about-page shot); it stays on screen.
     static var sendErrorToast: String? { args.contains("-PAScreenshotsSendError") ? "Not sent. Try again." : nil }
     static var staysOnScreen: Bool { sentToast != nil || sendErrorToast != nil }
-    /// The send results toast for a send to all three sample devices (I564 lines).
+    /// The send results toast for a send to all three sample devices (I564 lines);
+    /// -PAScreenshotsSentOK shows the success banner of a send to one device (I604).
     static var sentToast: String? {
-        args.contains("-PAScreenshotsSent") ? [S.sentTo(2, 3), S.signedOutPeer("Tablet")].joined(separator: "\n") : nil
+        if sentOK { return S.messageSentTo("Laptop") }
+        return args.contains("-PAScreenshotsSent") ? [S.sentTo(2, 3), S.signedOutPeer("Tablet")].joined(separator: "\n") : nil
     }
+    static var sentOK: Bool { args.contains("-PAScreenshotsSentOK") }
 
     /// Compose box prefill.
     static let draft = "https://example.com/guide/hiking-trails"
