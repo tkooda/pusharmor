@@ -17,7 +17,7 @@ struct LimitPickerView: View {
                                 }
                                 Text("Created " + Date(timeIntervalSince1970: TimeInterval(e.created)).formatted(date: .abbreviated, time: .omitted))
                                     .font(.caption).foregroundColor(.secondaryText)
-                                Text("approves \(e.approves), approved by \(e.approvedBy)")
+                                Text(S.trusts(e.approves, trustedBy: e.approvedBy))
                                     .font(.caption).foregroundColor(.secondaryText)
                                 if !e.reachable {
                                     Text("unreachable").font(.caption).foregroundColor(.warningText)

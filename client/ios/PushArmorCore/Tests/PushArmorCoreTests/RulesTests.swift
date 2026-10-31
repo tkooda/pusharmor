@@ -181,4 +181,10 @@ final class RulesTests: XCTestCase {
         }
         XCTAssertFalse(S.notificationsOff.hasSuffix("cannot receive."))
     }
+
+    func testDeviceLimitTrustsLine() {
+        XCTAssertEqual(S.trusts(0, trustedBy: 0), "Trusts 0 devices. Trusted by 0.")
+        XCTAssertEqual(S.trusts(1, trustedBy: 2), "Trusts 1 device. Trusted by 2.")
+        XCTAssertEqual(S.trusts(2, trustedBy: 1), "Trusts 2 devices. Trusted by 1.")
+    }
 }
