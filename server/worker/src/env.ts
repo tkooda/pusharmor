@@ -42,6 +42,7 @@ export interface Env {
   PA_WEB_ORIGINS: string;
   PA_LOG_SAMPLE: string;
   PA_MIN_CLIENT?: string;
+  PA_HEALTHCHECK_URL?: string; // secret; GET after each passing 15-minute self-check
 
   PA_ID_SECRET: string;
   PA_CODE_SECRET: string;
