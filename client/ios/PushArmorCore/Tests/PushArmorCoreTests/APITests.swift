@@ -65,4 +65,16 @@ final class APITests: XCTestCase {
         XCTAssertEqual(rec.sleeps, [])
         await fulfillment(of: [posted], timeout: 1)
     }
+
+    /// Q349: a version marked by a 426 stays marked on every check; another version clears it.
+    func testUpdateGateKeepsTheMarkUntilTheVersionChanges() throws {
+        let d = try XCTUnwrap(UserDefaults(suiteName: "UpdateGateTests"))
+        d.removeObject(forKey: UpdateGate.key)
+        XCTAssertFalse(UpdateGate.required(d, version: "0.0.19"))
+        UpdateGate.mark(d, version: "0.0.19")
+        XCTAssertTrue(UpdateGate.required(d, version: "0.0.19"))
+        XCTAssertTrue(UpdateGate.required(d, version: "0.0.19"))
+        XCTAssertFalse(UpdateGate.required(d, version: "0.0.20"))
+        XCTAssertNil(d.string(forKey: UpdateGate.key))
+    }
 }
