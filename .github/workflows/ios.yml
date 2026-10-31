@@ -213,11 +213,12 @@ jobs:
         working-directory: client/ios
         env:
           FILTER: ${{ matrix.filter }}
-        run: >-
-          xcodebuild test -project PushArmor.xcodeproj -scheme PushArmor
-          -destination "platform=iOS Simulator,name=$SIM_NAME,OS=latest"
-          -disableAutomaticPackageResolution $FILTER
-          -resultBundlePath "$RUNNER_TEMP/PushArmor.xcresult"
+        run: |
+          # shellcheck disable=SC2086
+          xcodebuild test -project PushArmor.xcodeproj -scheme PushArmor \
+            -destination "platform=iOS Simulator,name=$SIM_NAME,OS=latest" \
+            -disableAutomaticPackageResolution $FILTER \
+            -resultBundlePath "$RUNNER_TEMP/PushArmor.xcresult"
       - name: Upload the result bundle
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
