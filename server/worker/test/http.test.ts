@@ -3,7 +3,7 @@ import { env } from "cloudflare:test";
 import { call, captured, countingLimit, initP256, message, newPeer, randomEmail, testEnv, keys, ticketFor } from "./helpers";
 import { ipKey } from "../src/pipeline/limits";
 import type { Env, RateLimit } from "../src/env";
-import { CRON_MONTHLY } from "../src/crons";
+import { CRON_HEALTH, CRON_MONTHLY } from "../src/crons";
 import wranglerText from "../wrangler.jsonc?raw";
 import limitsSrc from "../src/pipeline/limits.ts?raw";
 
@@ -136,7 +136,7 @@ describe("crons", () => {
   it("cron constants equal wrangler.jsonc triggers", () => {
     const stripped = wranglerText.replace(/^\s*\/\/.*$/gm, "");
     const cfg = JSON.parse(stripped);
-    expect(cfg.triggers.crons).toEqual([CRON_MONTHLY]);
+    expect(cfg.triggers.crons).toEqual([CRON_MONTHLY, CRON_HEALTH]);
     expect(cfg.observability.logs.invocation_logs).toBe(false);
     expect(cfg.workers_dev).toBe(false);
     expect(cfg.preview_urls).toBe(false);

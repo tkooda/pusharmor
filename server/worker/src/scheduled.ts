@@ -1,6 +1,7 @@
-// scheduled(): monthly purge and pending expiry.
+// scheduled(): monthly purge and pending expiry; 15-minute health ping.
 import type { Env } from "./env";
-import { CRON_MONTHLY } from "./crons";
+import { CRON_HEALTH, CRON_MONTHLY } from "./crons";
+import { dbSelfCheck } from "./routes/health";
 import * as SQL from "./db/sql";
 import { Log } from "./log";
 
@@ -55,6 +56,21 @@ export async function expirePending(env: Env, nowS: number, log: Log, chunk = PE
   return changed;
 }
 
+// Self-check, then GET the monitor URL. Never throws; logs no URL.
+async function healthPing(env: Env, log: Log): Promise<void> {
+  if (!(await dbSelfCheck(env, log))) {
+    log.error = "health-check-failed";
+    return;
+  }
+  if (!env.PA_HEALTHCHECK_URL) return;
+  try {
+    const res = await fetch(env.PA_HEALTHCHECK_URL, { method: "GET", signal: AbortSignal.timeout(10000) });
+    await res.body?.cancel();
+  } catch {
+    log.error = "health-ping-failed";
+  }
+}
+
 export async function scheduled(controller: ScheduledController, env: Env): Promise<void> {
   const log = new Log();
   log.route = "cron";
@@ -67,6 +83,9 @@ export async function scheduled(controller: ScheduledController, env: Env): Prom
       } finally {
         await expirePending(env, now, log);
       }
+    } else if (controller.cron === CRON_HEALTH) {
+      log.route = "cron health";
+      await healthPing(env, log);
     } else {
       log.error = "cron-unknown";
     }

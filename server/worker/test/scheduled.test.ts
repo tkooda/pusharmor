@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createScheduledController, env } from "cloudflare:test";
 import { purge, PURGE_IDLE_S, PURGE_MAX_CHUNKS, scheduled } from "../src/scheduled";
+import { CRON_HEALTH } from "../src/crons";
 import { Log } from "../src/log";
 import { captured, meterD1, testEnv } from "./helpers";
 
@@ -67,5 +68,38 @@ describe("scheduled()", () => {
     const before = captured.length;
     await scheduled(createScheduledController({ cron: "5 5 5 5 5" }), await testEnv());
     expect(captured.slice(before).some((l) => JSON.parse(l).error === "cron-unknown")).toBe(true);
+  });
+});
+
+describe("scheduled() health cron", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const URL_ = "https://hc.example.test/ping/abc";
+  async function run(envOver: Record<string, unknown>, fetchImpl: () => Promise<Response>) {
+    const f = vi.fn((_url: string, _init?: RequestInit) => fetchImpl());
+    vi.stubGlobal("fetch", f);
+    await scheduled(createScheduledController({ cron: CRON_HEALTH }), await testEnv(envOver));
+    return f;
+  }
+  const badDb = { prepare: () => { throw new Error("d1 down"); } } as unknown as D1Database;
+
+  it("pings the URL after a passing self-check", async () => {
+    const f = await run({ PA_HEALTHCHECK_URL: URL_ }, async () => new Response("ok"));
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(f.mock.calls[0]![0]).toBe(URL_);
+  });
+  it("does not ping when the database check fails", async () => {
+    const f = await run({ PA_HEALTHCHECK_URL: URL_, DB: badDb }, async () => new Response("ok"));
+    expect(f).not.toHaveBeenCalled();
+  });
+  it("does nothing when the URL is unset or empty", async () => {
+    expect(await run({}, async () => new Response("ok"))).not.toHaveBeenCalled();
+    expect(await run({ PA_HEALTHCHECK_URL: "" }, async () => new Response("ok"))).not.toHaveBeenCalled();
+  });
+  it("a fetch rejection does not throw and logs no URL", async () => {
+    const before = captured.length;
+    await run({ PA_HEALTHCHECK_URL: URL_ }, async () => { throw new Error("net " + URL_); });
+    const lines = captured.slice(before);
+    expect(lines.some((l) => JSON.parse(l).error === "health-ping-failed")).toBe(true);
+    expect(lines.join("\n")).not.toContain("hc.example.test");
   });
 });
