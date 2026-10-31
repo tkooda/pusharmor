@@ -197,6 +197,11 @@ class UiTextTest {
         assertTrue(UiText.HIBERNATION_BANNER.all { it.code < 128 })
     }
 
+    @Test fun pairHowToStepsAreNumbered() {
+        assertEquals(listOf("1. a", "2. b"), UiText.numbered(listOf("a", "b")))
+        assertEquals(3, UiText.numbered(UiText.PAIR_HOWTO_STEPS).size)
+    }
+
     @Test fun sendWaitsOutCountdownOnlyForTheAddressJustSentTo() {
         val until = 1_000_000L + UiText.RESEND_MS
         assertEquals(42_000L, UiText.sendLeftMs(until, "sam@example.com", " Sam@Example.com ", 1_018_000L))
