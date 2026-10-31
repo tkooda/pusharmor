@@ -657,7 +657,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                     Text(UiText.counter(bytes), Modifier.padding(start = 32.dp, end = 32.dp, top = 6.dp).fillMaxWidth(),
                         style = MaterialTheme.typography.bodySmall, color = cs.error, textAlign = TextAlign.End)
                 }
-                val chips = others(peers, me?.id).filter { it.pinned }
+                val chips = UiText.sortedByName(others(peers, me?.id).filter { it.pinned }, ::label)
                 if (UiText.noDevicesShown(me != null, chips.size)) Column(Modifier.onSizeChanged { chipsPx = it.height }.rowPad.padding(top = 16.dp).fillMaxWidth()) {
                     Text(UiText.NO_DEVICES_TITLE, style = MaterialTheme.typography.titleMedium)
                     Text(UiText.NO_DEVICES_BODY, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)

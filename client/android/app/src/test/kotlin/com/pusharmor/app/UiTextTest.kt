@@ -202,6 +202,12 @@ class UiTextTest {
         assertEquals(3, UiText.numbered(UiText.PAIR_HOWTO_STEPS).size)
     }
 
+    @Test fun sendChipsSortByShownNameIgnoringCase() {
+        val names = listOf("pixel", "Zed", "alpha", "Beta", "\u00c9clair", "Eagle")
+        assertEquals(listOf("alpha", "Beta", "Eagle", "\u00c9clair", "pixel", "Zed"), UiText.sortedByName(names, { it }, java.util.Locale.US))
+        assertEquals(listOf("a", "B", "c"), UiText.sortedByName(listOf("c", "B", "a"), { it }))
+    }
+
     @Test fun sendWaitsOutCountdownOnlyForTheAddressJustSentTo() {
         val until = 1_000_000L + UiText.RESEND_MS
         assertEquals(42_000L, UiText.sendLeftMs(until, "sam@example.com", " Sam@Example.com ", 1_018_000L))
