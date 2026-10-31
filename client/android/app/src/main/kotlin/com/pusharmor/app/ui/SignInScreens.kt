@@ -217,6 +217,7 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onDo
                     Text("Enter the code sent to $email.")
                     CodeCells(code) { v ->
                         // paste takes a standalone 6-char token; typing is cleaned as typed
+                        if (v != code) { error = null; vm.message.value = null } // a rejected code's error goes as soon as the code is edited (I588)
                         code = if (v.length > code.length + 1) CodeInput.fromPaste(v) ?: CodeInput.clean(v) else CodeInput.clean(v)
                         if (code.length == 6) requestToken?.let { vm.emailVerify(it, code, purpose, onDone) }
                     }

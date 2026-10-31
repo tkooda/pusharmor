@@ -53,6 +53,8 @@ struct CodeEntryView: View {
                         // typing is echoed by the keyboard; a pasted or filled code is read out here
                         let added = EmailCode.clean(new).count - EmailCode.clean(old).count
                         if added > 1 { AccessibilityNotification.Announcement(CodeEntryView.spoken(EmailCode.clean(new).map(String.init))).post() }
+                        // A rejected code's error goes as soon as the user types again; the reset after a submit keeps it (I588).
+                        if !new.isEmpty { model.errorText = nil }
                         handle(new)
                     }
             }
