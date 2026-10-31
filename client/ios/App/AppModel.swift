@@ -454,7 +454,7 @@ final class AppModel: ObservableObject {
         await once("pair:" + p.id.text) {
             let r: Result<PairSendResult, Error>
             do { r = .success(try await core.startPair(p.id)) } catch { r = .failure(error) }
-            if let t = Core.pairAgainToast(r) { toast = t }
+            if let t = Core.pairAgainToast(r, name: label(p)) { toast = t }
             reload()
         }
     }
@@ -468,7 +468,7 @@ final class AppModel: ObservableObject {
         defer { pairAgainBusy.remove(p.id.text) }
         let r: Result<PairSendResult, Error>
         do { r = .success(try await core.pairAgain(p.id)) } catch { r = .failure(error) }
-        if let t = Core.pairAgainToast(r) { toast = t }
+        if let t = Core.pairAgainToast(r, name: label(p)) { toast = t }
         reload()
     }
     func remove(_ p: Peer) async {
