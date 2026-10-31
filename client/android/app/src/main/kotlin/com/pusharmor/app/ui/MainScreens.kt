@@ -142,7 +142,7 @@ import kotlinx.coroutines.flow.update
 import java.text.DateFormat
 import java.util.Date
 
-private fun label(p: Peer) = p.name ?: "${AppEffects.platformLabel(p.platform)} device added ${AppEffects.dateLabel(p.created)}"
+internal fun label(p: Peer) = p.name ?: "${AppEffects.platformLabel(p.platform)} device added ${AppEffects.dateLabel(p.created)}"
 
 /** Peers other than self; none until self is known, so the own device never shows as a peer. */
 internal fun others(peers: List<Peer>, selfId: String?): List<Peer> = if (selfId == null) emptyList() else peers.filter { it.id != selfId }
