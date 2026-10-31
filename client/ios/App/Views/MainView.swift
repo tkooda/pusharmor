@@ -27,12 +27,16 @@ struct MainView: View {
         .onAppear {
             if model.highlightPeer != nil { tab = 1 }
             if model.showHistory { tab = 3; model.showHistory = false }
+            if model.showDevices { tab = 1; model.showDevices = false }
         }
         .onChange(of: model.highlightPeer) { _, v in
             if v != nil { tab = 1 }
         }
         .onChange(of: model.showHistory) { _, v in
             if v { tab = 3; model.showHistory = false }
+        }
+        .onChange(of: model.showDevices) { _, v in
+            if v { tab = 1; model.showDevices = false }
         }
         .sheet(isPresented: Binding(
             get: { model.detailRow != nil },
