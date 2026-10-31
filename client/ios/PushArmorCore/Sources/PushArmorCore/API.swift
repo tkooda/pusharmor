@@ -106,6 +106,21 @@ public enum RetryPolicy {
     }
 }
 
+/// Q349: the app version that got HTTP 426, kept so the update screen shows on every launch
+/// of that version; a mark left by another version is cleared.
+public enum UpdateGate {
+    public static let key = "update_required"
+
+    public static func mark(_ d: UserDefaults, version: String) { d.set(version, forKey: key) }
+
+    public static func required(_ d: UserDefaults, version: String) -> Bool {
+        guard let seen = d.string(forKey: key) else { return false }
+        if seen == version { return true }
+        d.removeObject(forKey: key)
+        return false
+    }
+}
+
 /// The Worker API client: PA-Sig signing, PA-Epoch offset (unix seconds, Q331), retry policy.
 public final class APIClient: @unchecked Sendable {
     public static let defaultBase = URL(string: "https://api.pusharmor.com")!

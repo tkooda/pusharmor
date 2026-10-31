@@ -9,23 +9,13 @@ struct RootView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        content
-            .safeAreaInset(edge: .top) {
-                if model.updateRequired {
-                    Text(S.updateRequired)
-                        .font(.callout.weight(.semibold))
-                        .foregroundColor(.errorText)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(.thinMaterial)
-                }
-            }
+        // Q349: after a 426 nothing else works, so the update screen replaces every other one.
+        Group { if model.updateRequired { UpdateView() } else { content } }
             .onReceive(NotificationCenter.default.publisher(for: APIClient.upgradeRequired).receive(on: RunLoop.main)) { _ in
-                if !model.updateRequired { model.errorText = S.updateRequired }
                 model.updateRequired = true
             }
             .overlay(alignment: .bottom) {
-                if let t = model.toast {
+                if let t = model.toast, !model.updateRequired {
                     Text(t)
                         .font(.callout)
                         .padding(.horizontal, 16)
@@ -47,7 +37,8 @@ struct RootView: View {
                 if !Task.isCancelled { model.toast = nil }
             }
             .alert("PushArmor", isPresented: Binding(
-                get: { model.errorText != nil },
+                // no error alert over the update screen: every call fails there (Q349)
+                get: { model.errorText != nil && !model.updateRequired },
                 set: { if !$0 { model.errorText = nil } }
             )) {
                 Button("OK", role: .cancel) { model.errorText = nil }
@@ -105,6 +96,28 @@ struct RootView: View {
                 SignInView(purpose: .login)
             }
         }
+    }
+}
+
+/// Q349: this version got HTTP 426 from the relay server; the button opens the download page.
+struct UpdateView: View {
+    static let downloadURL = URL(string: "https://pusharmor.com/download")!
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Wordmark(size: 36)
+            Text(S.updateTitle)
+                .font(.title2.weight(.semibold))
+                .multilineTextAlignment(.center)
+            Text(S.updateBody)
+                .foregroundColor(.secondaryText)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 330)
+            Button("Update") { UIApplication.shared.open(Self.downloadURL) }
+                .buttonStyle(GreenButtonStyle())
+                .padding(.top, 8)
+        }
+        .padding(24)
     }
 }
 

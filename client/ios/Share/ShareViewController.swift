@@ -20,7 +20,7 @@ final class ShareViewController: UIViewController {
 
 @MainActor
 final class ShareModel: ObservableObject {
-    enum Step: Equatable { case loading, pick, offerTruncate, done(String), failed(String) }
+    enum Step: Equatable { case loading, pick, offerTruncate, done(String), failed(String), update }
 
     @Published var step: Step = .loading
     @Published var text = ""
@@ -35,6 +35,8 @@ final class ShareModel: ObservableObject {
 
     func load() async {
         let env = AppEnvironment.shared
+        // This version got HTTP 426 (Q349): the update message, never a send that fails.
+        if env.updateRequired { step = .update; return }
         // Logged out keeps the id and keys: it must not offer a send that cannot go through (I470).
         guard let store = try? env.openStore(), let keys = try? env.keychain.load(), let me = try? store.me(),
               me.id != nil, !me.loggedOut, !me.removed else {
@@ -81,6 +83,7 @@ final class ShareModel: ObservableObject {
         } catch Core.SendError.clockOff {
             step = .done(S.clockOff)
         } catch {
+            if AppEnvironment.shared.updateRequired { step = .update; return }
             step = .done("Not sent. Try again.")
         }
         try? await Task.sleep(nanoseconds: 1_500_000_000)
@@ -134,6 +137,12 @@ struct ShareView: View {
                     }
                 case .done(let msg), .failed(let msg):
                     Text(msg).padding()
+                case .update:
+                    VStack(spacing: 12) {
+                        Text(S.updateTitle).font(.headline)
+                        Text(S.updateBody).multilineTextAlignment(.center)
+                    }
+                    .padding()
                 }
             }
             .navigationTitle(S.title)

@@ -54,6 +54,8 @@ public enum S {
     public static let firstPairWaiting = "Waiting for another device to log in."
     public static let storeRepaired = "Local data was found corrupted and repaired. Please log in again."
     public static let updateRequired = "Update PushArmor to continue"
+    public static let updateTitle = "Please update PushArmor"
+    public static let updateBody = "This version no longer works with the relay server. Update to keep sending and receiving."
     public static let clockOff = "This device's clock is off by more than 5 minutes."
     public static let emailInvalid = "Not a valid email address"
     public static let badEmail = "Only email addresses with plain ASCII characters are supported."

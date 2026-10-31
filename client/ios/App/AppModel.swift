@@ -39,8 +39,8 @@ final class AppModel: ObservableObject {
     @Published var history: [HistoryRow] = []
     @Published var toast: String?
     @Published var errorText: String?
-    /// The relay server answered 426 (Q328): this version is too old.
-    @Published var updateRequired = false
+    /// The relay server answered 426 (Q328): this version is too old. Kept until the version changes (Q349).
+    @Published var updateRequired = AppEnvironment.shared.updateRequired
     /// pa.sqlite was corrupt at launch and was recreated (Q332); shown on the log-in screen.
     @Published var repairedNotice = false
     @Published var lockedLine: String?
