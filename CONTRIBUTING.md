@@ -18,3 +18,16 @@ Issues and pull requests are welcome.
 
 By contributing you agree that your work is released under the MIT license
 in [LICENSE](LICENSE).
+
+## Landing changes on main
+
+Main accepts only pull requests that pass the `ci-ok` check. Direct pushes
+are blocked, and only squash merges are allowed.
+
+1. Branch from main as `agent/<topic>` (or any short topic name).
+2. Push the branch and run `gh pr create`.
+3. Run `gh pr merge --auto --squash`. GitHub merges the pull request once
+   `ci-ok` is green and deletes the branch.
+
+Release tags are not affected: push `<platform>/vX.Y.Z` on a commit that is
+already on main, as described in [RELEASING.md](RELEASING.md).
