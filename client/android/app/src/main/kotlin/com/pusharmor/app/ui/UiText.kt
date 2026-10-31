@@ -65,10 +65,13 @@ object UiText {
         else -> "Send to $n devices"
     }
 
-    /** Toast after a send to [picked] devices: [sent] reached, [total] in the All set. */
-    fun sendToast(picked: Int, sent: Int, total: Int): String = when {
-        picked == 1 && sent == 1 -> "Sent"
-        sent == total && sent == picked -> "Delivered to $sent ${if (sent == 1) "device" else "devices"}"
+    /**
+     * Snackbar after a send to [picked] devices: [sent] reached, [total] in the All set; [name] is the one device reached.
+     * Reached every pick: Message sent to "Laptop" or Message sent to 3 devices, as on iOS (I596).
+     */
+    fun sendToast(picked: Int, sent: Int, total: Int, name: String? = null): String = when {
+        sent == 1 && picked == 1 -> if (name == null) "Message sent to 1 device" else "Message sent to \"${cutName(name)}\""
+        sent == picked && sent > 0 -> "Message sent to $sent devices"
         else -> "Sent to $sent of $total ${if (total == 1) "device" else "devices"}"
     }
 

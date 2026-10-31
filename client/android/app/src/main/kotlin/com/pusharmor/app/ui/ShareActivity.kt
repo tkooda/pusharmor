@@ -79,7 +79,7 @@ class ShareActivity : ComponentActivity() {
                     } else {
                         SendScreen(vm, cut ?: text, preselect = direct, onPair = {
                             startActivity(MainActivity.openIntent(this@ShareActivity, "peers").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); finish()
-                        }) { r -> if (r == ErrorText.UPDATE) showUpdate() else toastAndFinish(r) }
+                        }) { r -> if (r.text == ErrorText.UPDATE) showUpdate() else if (r.ok) toastAndFinish(r.text) }
                     }
                 }
             } }
@@ -99,6 +99,7 @@ class ShareActivity : ComponentActivity() {
         setContent { AppTheme(vm) { Surface(color = MaterialTheme.colorScheme.background) { UpdateScreen(Modifier.padding(vertical = 24.dp)) } } }
     }
 
+    /** A send that reached a device returns the user to the sharing app; this activity is gone, so a Toast says so (I596). */
     private fun toastAndFinish(text: String) {
         Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
         finish()
