@@ -223,3 +223,12 @@ test("Devices footer: Refresh and Open full view share one outlined style in the
   assert.doesNotMatch(rd("peersview.ts"), /class: "quiet", onclick: \(\) => env\.openPage\("#peers"\)/);
   for (const b of ["chrome", "firefox"]) assert.equal(rd("tokens-" + b + ".css").split("--accent: #34C77B;").length, 3);
 });
+
+test("Send with no device to send to shows how to pair one and opens Devices (I462)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  assert.match(pop, /"Pair a device first"/);
+  assert.match(pop, /"Install PushArmor on the other device\."/);
+  assert.match(pop, /"Open Devices"/);
+  assert.match(pop, /sendView\(env, pane, st, prefill, false, \(\) => show\("peers"\)\)/);
+});
