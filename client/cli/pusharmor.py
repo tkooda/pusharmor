@@ -1250,6 +1250,16 @@ def check_version(d, path):
         raise Fail("%s has version %r, which this PushArmor does not know. %s" % (path, v, UPDATE_REQUIRED))
 
 
+def _host_ok(url):
+    """A host and port that urllib can use: no empty or over-long label, a port up to 65535."""
+    try:
+        u = urllib.parse.urlsplit(url)
+        u.port
+        return bool(u.hostname) and bool(u.hostname.encode("idna"))
+    except ValueError:  # UnicodeError too
+        return False
+
+
 class Store:
     def __init__(self, root):
         self.root = root
@@ -1262,7 +1272,7 @@ class Store:
         p = os.path.join(self.root, "settings.toml")
         s = read_toml(p) if os.path.exists(p) else {}
         for k in ("server", "ntfy"):
-            if k in s and not (isinstance(s[k], str) and re.match(r"https?://[^/?#]+/?$", s[k])):
+            if k in s and not (isinstance(s[k], str) and re.match(r"https?://[^/?#]+/?$", s[k]) and _host_ok(s[k])):
                 raise Fail("%s: %s must be a URL like https://host" % (p, k))
         return s
 
@@ -1325,8 +1335,8 @@ class Store:
 
 def http_request(method, url, headers, body):
     """One HTTP exchange -> (status, lower-case headers, body). Raises OSError when the network fails."""
-    req = urllib.request.Request(url, data=body, headers=headers, method=method)
     try:
+        req = urllib.request.Request(url, data=body, headers=headers, method=method)
         with urllib.request.urlopen(req, timeout=30) as r:
             return r.status, {k.lower(): v for k, v in r.headers.items()}, r.read()
     except urllib.error.HTTPError as e:
@@ -1336,7 +1346,7 @@ def http_request(method, url, headers, body):
             except (OSError, http.client.HTTPException):  # a cut-off error body: the status still counts
                 data = b""
             return e.code, {k.lower(): v for k, v in e.headers.items()}, data
-    except http.client.HTTPException as e:
+    except (http.client.HTTPException, ValueError) as e:  # ValueError: a bad host or redirect URL
         raise OSError(str(e)) from e
 
 
@@ -1344,7 +1354,7 @@ def ntfy_open(url, timeout):
     """Opens an ntfy JSON stream (one event per readline()). Raises OSError."""
     try:
         return urllib.request.urlopen(url, timeout=timeout)
-    except http.client.HTTPException as e:
+    except (http.client.HTTPException, ValueError) as e:
         raise OSError(str(e)) from e
 
 

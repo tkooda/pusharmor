@@ -679,3 +679,25 @@ def test_cut_off_error_body_keeps_the_status():
     with local_http(reply) as url:
         status, _, body = pa.http_request("GET", url + "/v1/peers", {}, None)
     assert (status, body) == (500, b"")
+
+
+@pytest.mark.parametrize("server", ["http://[::1", "http://a..b", "https://" + "a" * 64 + ".com", "https://h:99999",
+                                    "https://\\u0080"])
+def test_bad_server_setting(tmp_path, server, capsys):
+    (tmp_path / "settings.toml").write_text('server = "%s"\n' % server)
+    assert run(tmp_path, "send", "hi") == 1
+    assert capsys.readouterr().err == "%s: server must be a URL like https://host\n" % (tmp_path / "settings.toml")
+
+
+def test_bad_redirect_is_a_network_error():
+    def reply(h):
+        h.send_response(302)
+        h.send_header("Location", "http://[::1")
+        h.send_header("Content-Length", "0")
+        h.end_headers()
+
+    with local_http(reply) as url:
+        with pytest.raises(OSError):
+            pa.http_request("GET", url + "/v1/peers", {}, None)
+        with pytest.raises(OSError):
+            pa.ntfy_open(url + "/up0/json", 5)
