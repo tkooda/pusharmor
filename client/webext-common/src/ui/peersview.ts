@@ -39,7 +39,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
   const pairing = data.peers.filter((p) => p.fingerprint);
   for (const p of pairing) root.append(pairCard(env, p, status, redraw));
   const rows = data.peers.filter((p) => !p.fingerprint);
-  if (rows.length) root.append(sh("Devices"), group(...rows.map((p) => peerRow(env, p, status, redraw))));
+  if (rows.length) root.append(sh("Other devices"), group(...rows.map((p) => peerRow(env, p, status, redraw))));
   else if (!pairing.length) {
     root.append(
       h(
@@ -51,6 +51,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
       ),
     );
   }
+  root.append(pairNew());
   if (highlight) {
     const row = document.getElementById("peer-" + highlight);
     row?.scrollIntoView({ block: "center" });
@@ -70,6 +71,23 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
   root.append(status, add(h("div", { class: "foot bar" }, refresh), !full && h("button", { class: "quiet", onclick: () => env.openPage("#peers") }, "Open full view")));
   // Text put in a live region after it is in the page is announced; text present at insert is not.
   if (message) setTimeout(() => (status.textContent = message), 50);
+}
+
+/** "Pair a new device": pairing starts from Pair on a listed device, so the button shows how to get it listed. */
+function pairNew(): HTMLElement {
+  const steps = h(
+    "ol",
+    { class: "howto", id: "pair-howto", hidden: true },
+    h("li", {}, "Install PushArmor on the other device."),
+    h("li", {}, "Log in with the same account."),
+    h("li", {}, "It appears here. Tap Pair."),
+  );
+  const btn = h("button", { class: "tonal", "aria-expanded": "false", "aria-controls": "pair-howto" }, icon("add", 18), "Pair a new device");
+  btn.addEventListener("click", () => {
+    steps.hidden = !steps.hidden;
+    btn.setAttribute("aria-expanded", String(!steps.hidden));
+  });
+  return h("div", { class: "pairnew" }, btn, steps);
 }
 
 /** This device (Settings): the navy hero with Rename. */
