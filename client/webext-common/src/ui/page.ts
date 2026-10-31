@@ -43,7 +43,8 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
   }
   // Q338: no paired device yet shows the first-device screen (the same as the popup)
   if (!data.peers.some((p) => p.paired)) return firstPairView(env, root, st, () => mountPage(env, root, hash, selfOrigin), false);
-  if (route === "history") return historyView(env, root, (text) => void mountPage(env, root, "#send=" + encodeURIComponent(text), selfOrigin), arg);
+  // I497: Send to... sets the #send= hash (the hashchange mounts it), so a reload keeps the draft
+  if (route === "history") return historyView(env, root, (text) => (location.hash = "#send=" + encodeURIComponent(text)), arg);
   if (route === "send") {
     let text = "";
     try {

@@ -374,3 +374,8 @@ test("popup update and log in screens start with focus on their button (I495)", 
   assert.match(pop, /append\(updateCard\(env\)\);\s*root\.querySelector<HTMLElement>\("button\.primary"\)\?\.focus\(\);/);
   assert.match(pop, /append\(signinCard\(env, st, going, false\)\);\s*root\.querySelector<HTMLElement>\("button\.primary"\)\?\.focus\(\);/);
 });
+
+test("full tab History Send to... sets the #send= hash (I497)", async () => {
+  const { readFileSync } = await import("node:fs");
+  assert.match(readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8"), /historyView\(env, root, \(text\) => \(location\.hash = "#send=" \+ encodeURIComponent\(text\)\), arg\)/);
+});
