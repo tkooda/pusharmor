@@ -39,6 +39,8 @@ final class AppModel: ObservableObject {
     @Published var history: [HistoryRow] = []
     @Published var toast: String?
     @Published var errorText: String?
+    /// Address last sent to and when its resend countdown ends; kept while the sign-in screen is left and re-entered.
+    @Published var resend = ResendGate()
     /// The relay server answered 426 (Q328): this version is too old. Kept until the version changes (Q349).
     @Published var updateRequired = AppEnvironment.shared.updateRequired
     /// pa.sqlite was corrupt at launch and was recreated (Q332); shown on the log-in screen.
@@ -284,14 +286,19 @@ final class AppModel: ObservableObject {
         guard Ids.normalizeEmail(email) != nil else { errorText = S.badEmail; return }
         guard let k = try? keysForSignIn(purpose) else { return }
         let r = await auth.emailStart(email: email, signPub: k.signer.publicKey, purpose: purpose, turnstile: turnstile)
+        let nowMs = Int(Date().timeIntervalSince1970 * 1000)
         switch r {
         case .requestToken(let t):
+            resend = ResendGate(sentTo: ResendGate.key(email), untilMs: nowMs + ResendGate.resendMs)
             requestToken = t
             try? store?.setMe("request_token", .text(t))
             try? store?.setSetting("code_email", email)
             try? store?.setSetting("code_purpose", purpose.rawValue)
             phase = .code(email: email, purpose: purpose)
-        default: errorText = S.loginError(r)
+        default:
+            // A 429 starts the countdown from Retry-After so the next try does not spend a security check for nothing.
+            if case .rateLimited(let s) = r { resend = ResendGate(sentTo: ResendGate.key(email), untilMs: nowMs + s * 1000) }
+            errorText = S.loginError(r)
         }
     }
 

@@ -78,13 +78,21 @@ public enum S {
     public static let loginFailed = "Login failed."
     public static let wrongCode = "That code did not work. Check the newest email from PushArmor and try again."
     public static let codeExpired = "This code has expired. Get a new code to continue."
+    /// Wait text: over 60 s whole minutes rounded up, else whole seconds rounded up; same words as the other clients.
+    public static func wait(ms: Int) -> String {
+        let s = max(1, (ms + 999) / 1000)
+        if s > 60 { let m = (s + 59) / 60; return m == 1 ? "1 minute" : "\(m) minutes" }
+        return s == 1 ? "1 second" : "\(s) seconds"
+    }
+    /// Send button label: the label alone, or "Send code in 42 seconds" while the countdown runs.
+    public static func sendLabel(_ label: String, leftMs: Int) -> String { leftMs > 0 ? label + " in " + wait(ms: leftMs) : label }
     /// Login error text, with its cause when the result has one (I506).
     public static func loginError(_ r: AuthResult) -> String {
         switch r {
         case .network: return noConnection
         case .badEmail: return badEmail
         case .emailSendFailed: return emailSendFailed
-        case .rateLimited(let s): return "Too many requests. Try again in \(s) \(s == 1 ? "second" : "seconds")."
+        case .rateLimited(let s): return "Too many requests. Try again in \(wait(ms: s * 1000))."
         case .failed(401, "wrong code"?): return wrongCode
         case .failed(401, "code expired"?): return codeExpired
         default: return loginFailed

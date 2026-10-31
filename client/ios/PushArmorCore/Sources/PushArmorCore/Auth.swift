@@ -13,6 +13,22 @@ public enum AuthResult: Sendable, Equatable {
     case network
 }
 
+/// Resend rule of the relay server: 2 sends per 60 s per address. Only the address just sent to (or limited) waits.
+public struct ResendGate: Sendable, Equatable {
+    public static let resendMs = 60_000
+    public var sentTo = ""
+    /// Time the countdown ends, in ms since 1970.
+    public var untilMs = 0
+
+    public init(sentTo: String = "", untilMs: Int = 0) { self.sentTo = sentTo; self.untilMs = untilMs }
+
+    public static func key(_ email: String) -> String { email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+
+    public func leftMs(for email: String, nowMs: Int) -> Int {
+        sentTo.isEmpty || sentTo != ResendGate.key(email) ? 0 : max(0, untilMs - nowMs)
+    }
+}
+
 public struct PKCE: Sendable {
     public let verifier: String
     public let challenge: String   // S256

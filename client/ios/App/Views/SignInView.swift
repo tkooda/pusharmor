@@ -45,16 +45,21 @@ struct SignInView: View {
                                 .allowsHitTesting(false)
                         )
                         .accessibilityValue(invalid ? email + ", " + S.emailInvalid : email)
-                    Button {
-                        if Ids.normalizeEmail(email) == nil {
-                            model.errorText = S.badEmail
-                        } else {
-                            showTurnstile = true
+                    // The countdown ticks once a second while the same address waits.
+                    TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                        let left = model.resend.leftMs(for: email, nowMs: Int(ctx.date.timeIntervalSince1970 * 1000))
+                        Button {
+                            if Ids.normalizeEmail(email) == nil {
+                                model.errorText = S.badEmail
+                            } else {
+                                showTurnstile = true
+                            }
+                        } label: {
+                            Text(S.sendLabel("Send code", leftMs: left))
                         }
-                    } label: {
-                        Text("Send code")
+                        .buttonStyle(GreenButtonStyle())
+                        .disabled(left > 0)
                     }
-                    .buttonStyle(GreenButtonStyle())
                 } else {
                     Button {
                         showEmail = true
