@@ -118,6 +118,33 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertFalse(app.buttons["Save"].exists)
     }
 
+    /// I610: Show message content in notifications sits above the lock screen switch, which is
+    /// disabled while content is off; Delete account and Log out share one centered row.
+    func testContentSwitchAndAccountRow() {
+        let app = launch()
+        let tab = app.tabBars.buttons["Settings"]
+        XCTAssertTrue(tab.waitForExistence(timeout: 30))
+        tab.tap()
+        let show = app.switches["Show message content in notifications"]
+        let lock = app.switches["Show message content on lock screen"]
+        for _ in 0..<10 where !(show.exists && show.isHittable && lock.exists && lock.isHittable) { app.swipeUp() }
+        XCTAssertFalse(app.switches["Always hide content"].exists)
+        XCTAssertLessThan(show.frame.minY, lock.frame.minY)
+        XCTAssertEqual(show.value as? String, "1")
+        XCTAssertTrue(lock.isEnabled)
+        // the switch itself, not its label: the inner switch where exposed, else the right end of the row
+        let knob = show.switches.firstMatch
+        if knob.exists { knob.tap() } else { show.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap() }
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "0"), object: show)], timeout: 5)
+        XCTAssertFalse(lock.isEnabled)
+        let del = app.buttons["Delete account"]
+        let out = app.buttons["Log out"]
+        for _ in 0..<10 where !(out.exists && out.isHittable) { app.swipeUp() }
+        XCTAssertEqual(del.frame.midY, out.frame.midY, accuracy: 2)
+        XCTAssertLessThan(del.frame.maxX, out.frame.minX)
+        XCTAssertEqual((del.frame.minX + out.frame.maxX) / 2, app.windows.firstMatch.frame.midX, accuracy: 8)
+    }
+
     /// I468: the email field is marked invalid while non-empty and not a valid address.
     func testEmailFieldMarksInvalidLive() {
         let app = launch(["-PAScreenshotsSignIn"])
