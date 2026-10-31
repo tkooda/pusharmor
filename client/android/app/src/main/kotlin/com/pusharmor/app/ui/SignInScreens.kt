@@ -2,6 +2,7 @@ package com.pusharmor.app.ui
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.webkit.CookieManager
@@ -9,6 +10,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Toast
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -156,7 +158,7 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onCanc
 }
 
 fun customTab(context: android.content.Context, url: String) {
-    CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(url))
+    try { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(url)) } catch (e: ActivityNotFoundException) { Toast.makeText(context, NO_APP_LINK, Toast.LENGTH_SHORT).show() }
 }
 
 /** Email: address -> Turnstile -> code entry. */
@@ -243,7 +245,7 @@ fun TurnstileView(onToken: (String) -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Update Android System WebView")
             Button(onClick = {
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.webview")))
+                startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.webview")))
             }) { Text("Open Play Store") }
         }
         return

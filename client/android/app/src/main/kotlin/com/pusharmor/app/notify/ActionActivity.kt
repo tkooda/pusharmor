@@ -1,7 +1,6 @@
 package com.pusharmor.app.notify
 
 import android.app.Activity
-import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
@@ -9,9 +8,10 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.PersistableBundle
-import android.widget.Toast
 import com.pusharmor.app.PaApp
 import com.pusharmor.app.ui.MainActivity
+import com.pusharmor.app.ui.NO_APP_DIAL
+import com.pusharmor.app.ui.startOrToast
 import com.pusharmor.protocol.UrlCheck
 
 /**
@@ -41,9 +41,9 @@ class ActionActivity : Activity() {
             "open" -> {
                 val u = UrlCheck.parse(content) ?: return openHistory(id)
                 val i = Intent(Intent.ACTION_VIEW, Uri.parse(u.href)).addCategory(Intent.CATEGORY_BROWSABLE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                try { startActivity(i) } catch (e: ActivityNotFoundException) { Toast.makeText(this, "No app can open this link.", Toast.LENGTH_SHORT).show() }
+                startOrToast(this, i)
             }
-            "dial" -> startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(content))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            "dial" -> startOrToast(this, Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(content))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), NO_APP_DIAL)
             "share" -> startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, content), null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             "copy" -> copy(this, content)
             else -> openHistory(id)
