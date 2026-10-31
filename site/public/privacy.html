@@ -14,7 +14,7 @@
 <meta property="og:image" content="https://pusharmor.com/apple-touch-icon.png">
 <link rel="icon" href="/favicon.ico" sizes="any" integrity="sha256-WBRVm+oTUTpG8HdmRjQYXSzTkCjwYCVj5PZdJQP73qM=">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" integrity="sha256-TQcTrShS2zw2E6zqzKq9Tlfqd9GGyBSjl/LTQvTeJY8=">
-<link rel="stylesheet" href="/css/site.css" integrity="sha256-2f67LZ29CBVqjT4/VUpP9z33NXqH1GJD0FRO7TkiclI=">
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-Dcp1dNsQodcGTBjig2sKl5LIngbDNKgkkcjJUigzVhU=">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -34,11 +34,11 @@ and only ever see the minimum needed to do their part.</p>
 and Mozilla web push (Chrome, Firefox), and a UnifiedPush distributor if you chose one</strong>:
 used to wake your device. They see the address your device uses to receive notifications (push
 token or endpoint), and pass along the encrypted message, which they cannot read. They hold undelivered
-messages up to 7 days (pairing requests up to 4 weeks).</li>
+messages for up to 7 days (pairing requests for up to 4 weeks).</li>
 <li><strong>Cloudflare</strong>: runs our relay server and its database, so it can technically see
 everything our relay server sees: your email address briefly at login (to send the code), your IP address, device public
-keys, push tokens, and encrypted messages it cannot read. Our delivery logs on Cloudflare are kept for up to 7 days:
-account ID, device IDs, and send results; no content, no IP, no email. Cloudflare's bot check (Turnstile) runs on the email
+keys, push tokens, and encrypted messages it cannot read. Cloudflare keeps our delivery logs for up to 7 days.
+They hold the account ID, device IDs, and send results. They hold no content, no IP address, and no email. Cloudflare's bot check (Turnstile) runs on the email
 login page, on the command line login page (/auth/cli), and on the delete-account page only.</li>
 <li><strong>Google and Apple login</strong> (if you choose them): used to prove the account.
 We keep only a one-way hash of your email address, which is your account ID (see below).</li>
@@ -59,8 +59,8 @@ store its account ID so it stays banned, even after the account is deleted.</p>
 the devices you send to can ever decrypt them, and each one checks that the message really came
 from the device it claims to be from. Each device makes its own keys, and the private keys never
 leave the devices. A message is encrypted on the sending device for the receiving device, so our
-relay server only passes along encrypted data it cannot read (ciphertext). We do not store (and can't ever even see)
-message content or pairing fingerprints.</p>
+relay server only passes along encrypted data it cannot read (ciphertext). We never see your message
+content or pairing fingerprints, and we do not store them.</p>
 
 <h2>What our relay server stores</h2>
 <p>Our relay server keeps, until removal:</p>
@@ -85,8 +85,8 @@ device-local and not backed up.</li>
 <p>Lock screen: message content follows the platform setting (Android sensitive notification
 content, iPhone Show Previews) or the in-app switch Show message content on lock screen. With
 Send messages to watch off, Android message notifications are local only (not mirrored to paired
-wearables). Both switches work per device too. Always hide content (off by default) shows no
-message content in any notice.</p>
+wearables). Both switches work per device too. The Always hide content switch is off by default. When you turn it on, no notice shows any
+message content.</p>
 
 <h2>Tracking</h2>
 <p>No analytics, no ads, no tracking, ever. This site has no third-party scripts, except Cloudflare's
@@ -95,8 +95,8 @@ one.</p>
 
 <h2>Background transmission (Firefox)</h2>
 <p>The Firefox add-on keeps a push connection to Mozilla (autopush WebSocket) in the background.
-As a fallback, a background script on PushArmor.com (service worker) receives encrypted messages and
-intercepts them locally and hands them to the add-on inside the browser. Both carry encrypted data only.</p>
+As a fallback, a background script on PushArmor.com (service worker) receives encrypted messages. It then passes
+them to the add-on inside the browser. Both carry encrypted data only.</p>
 
 <h2>Deletion</h2>
 <p>You can delete your account from the apps, or with the web flow at

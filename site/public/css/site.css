@@ -207,7 +207,7 @@ button.danger { color: #ffffff; background: #b3261e; border-color: #b3261e; }
 .d-lock { fill: #0d1f33; }
 .d-shackle { fill: none; stroke: #0d1f33; stroke-width: 2.5; }
 .d-label { fill: var(--fg); font: 600 21px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; text-anchor: middle; }
-.d-sub { fill: var(--muted); font: 17px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; text-anchor: middle; }
+.d-sub { fill: var(--muted); font: 21px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; text-anchor: middle; }
 .features {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));

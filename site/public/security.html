@@ -14,7 +14,7 @@
 <meta property="og:image" content="https://pusharmor.com/apple-touch-icon.png">
 <link rel="icon" href="/favicon.ico" sizes="any" integrity="sha256-WBRVm+oTUTpG8HdmRjQYXSzTkCjwYCVj5PZdJQP73qM=">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" integrity="sha256-TQcTrShS2zw2E6zqzKq9Tlfqd9GGyBSjl/LTQvTeJY8=">
-<link rel="stylesheet" href="/css/site.css" integrity="sha256-2f67LZ29CBVqjT4/VUpP9z33NXqH1GJD0FRO7TkiclI=">
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-Dcp1dNsQodcGTBjig2sKl5LIngbDNKgkkcjJUigzVhU=">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -26,7 +26,7 @@
 <h1>Security and threat model</h1>
 <p>Your devices don't need to trust our relay server. Messages are encrypted on your device, and can only
 ever be decrypted by your own paired devices. Each app and add-on checks everything the server sends, so the server
-cannot change a message or pose as one of your devices. Each device makes two P-256 key pairs, one for signing (ECDSA) and one for encryption (HPKE), and the private keys used to decrypt and sign messages never
+cannot change a message or pose as one of your devices. Each device makes two key pairs (P-256), one for signing (ECDSA) and one for encryption (HPKE), and the private keys used to decrypt and sign messages never
 leave it. Where the device supports it, they are kept in its hardware key storage (the Secure
 Enclave on iPhone, the Android Keystore on Android). (The one exception is a short-lived throwaway key that the web delete-account page holds in your browser tab while you log in with Google or Apple. It is not a device key, and it cannot read messages.)</p>
 
@@ -52,7 +52,7 @@ content.</p>
 <h2>How devices trust each other</h2>
 <p>Two devices trust each other only after you pair them by verifying that the 4-character
 pairing fingerprint is identical on both screens.</p>
-<p>The pairing fingerprint is not a code sent to your devices, and it is never sent over the network. Pairing uses short authentication string (SAS) verification with a commit-then-reveal exchange: each device computes the 4-character fingerprint on its own from both devices' public keys and a fresh random value from each device, and commits to its values (by sending only their SHA-256 hash) before seeing the other's, so no one, including our relay server, can steer the result.</p>
+<p>The pairing fingerprint is not a code sent to your devices, and it is never sent over the network. Pairing has you compare a short code on both screens (short authentication string, SAS). Each device first commits to its values by sending only their SHA-256 hash, and reveals them after it has seen the other device's hash (commit-then-reveal). Each device then computes the 4-character fingerprint on its own, from both devices' public keys and a fresh random value from each device. No one, including our relay server, can steer the result.</p>
 <p>Every message is signed by the
 sending device and checked by the receiving device; repeated or old messages are ignored (replay protection).
 A message that fails this check is never shown; History lists it as "PushArmor received a
