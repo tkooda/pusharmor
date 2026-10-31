@@ -37,6 +37,8 @@ export const T = {
   removeConfirm: (x: string) => "Remove " + x + " from this account? " + x + " must log in again and pair with every device again.",
   sentToNofM: (n: number, m: number) => "Sent to " + n + " of " + m + (m === 1 ? " device" : " devices"),
   sentToOne: (x: string) => 'Sent to "' + x + '"',
+  messageSentToOne: (x: string) => 'Message sent to "' + x + '"',
+  messageSentToN: (n: number) => "Message sent to " + n + (n === 1 ? " device" : " devices"),
   notDelivered: (x: string) => "Not delivered to " + x + ": open PushArmor on it.",
   tooLong: (n: number) => "Too long (" + n + " / 2048)",
   counter: (n: number) => n + " / 2048",
