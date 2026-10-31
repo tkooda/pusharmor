@@ -36,6 +36,8 @@ export interface PeerView {
   sendable: boolean;
   /** the peer approves this device (peer status line) */
   approvesMe: boolean;
+  /** paired both ways and no pairing in progress (Q338: none paired shows the first-device screen) */
+  paired: boolean;
 }
 
 export interface StateView {
@@ -202,7 +204,7 @@ export class Rpc {
       if (p.removed || p.id === self?.id) continue;
       const label = p.name ?? created(p);
       const nm = peerLabel(p.name);
-      const v: PeerView = { id: p.id, label, platform: p.platform, lines: [], actions: [], countdown: null, fingerprint: null, pk: null, greyed: null, hidden: p.hidden, sendable: false, approvesMe: p.approves_me };
+      const v: PeerView = { id: p.id, label, platform: p.platform, lines: [], actions: [], countdown: null, fingerprint: null, pk: null, greyed: null, hidden: p.hidden, sendable: false, approvesMe: p.approves_me, paired: false };
       const pv = entries.has(p.id) ? await e.pairRowView(p.id) : null;
       if (pv) {
         v.lines = pv.lines;
@@ -227,6 +229,7 @@ export class Rpc {
         v.greyed = T.notPairedOn(nm);
         v.actions = ["pair_again", "cancel"];
       } else if (p.ruling === "approved" && p.approves_me) {
+        v.paired = true;
         v.sendable = !p.logged_out && !p.hidden && p.listening !== false;
         if (p.logged_out) v.greyed = "logged out";
         else if (p.listening === false) v.greyed = "send only";
