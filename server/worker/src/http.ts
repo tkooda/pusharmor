@@ -26,7 +26,7 @@ export function preflight(): Response {
     status: 204,
     headers: {
       "Access-Control-Allow-Methods": "POST, DELETE",
-      "Access-Control-Allow-Headers": "Content-Type, PA-Time, PA-Sig",
+      "Access-Control-Allow-Headers": "Content-Type, PA-Time, PA-Sig, PA-Client",
     },
   });
 }

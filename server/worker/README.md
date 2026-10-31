@@ -68,6 +68,14 @@ included 20M events per month (about 650k per day for the whole Cloudflare accou
 the monthly Workers Logs overage passes a few dollars. How: set `"PA_LOG_SAMPLE": "0.1"` in
 `wrangler.jsonc` and release a new Worker tag (`RELEASING.md`, Worker). Errors stay complete.
 
+## Client versions
+
+Clients send `PA-Client: <platform>/<x.y.z>` (android, ios, chrome, firefox, web, cli). The
+log line carries it as `client` (`"invalid"` when malformed). When the var `PA_MIN_CLIENT`
+(`x.y.z`) is set, a request whose PA-Client version is lower gets 426
+`{"error":"update required"}`. Unset (now): never 426. A missing or malformed header is
+always allowed.
+
 ## Deploy
 
 Only with `server/deploy/deploy.sh worker/vX.Y.Z` from a clean checkout of that
