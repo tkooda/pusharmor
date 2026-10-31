@@ -51,7 +51,7 @@ button.danger { border-color: var(--err); color: var(--err); }
 button.errtext { color: var(--err); padding: 0; height: 28px; }
 button.ib { width: 32px; height: 32px; padding: 0; color: var(--ink2); border-radius: var(--rf); }
 :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.hero:not(.plain) :focus-visible { outline-color: #FFFFFF; }
+.hero :focus-visible { outline-color: #FFFFFF; }
 .actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
 .actions button { height: 32px; }
 .btns { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px 0; }
@@ -96,7 +96,6 @@ label.srow { cursor: pointer; }
 
 /* This device hero. */
 .own.hero { --hav: #FFFFFF; margin: 0 16px; border-radius: var(--rc); background: var(--hero); border: 1px solid var(--hero-line); position: relative; overflow: hidden; display: flex; align-items: center; gap: 12px; padding: 12px 8px 12px 14px; min-height: 60px; }
-.own.hero.plain { --hero: var(--card); --hero-line: var(--line); --onhero: var(--ink); --onhero2: var(--ink2); --heroav: var(--avbg); --hav: var(--avfg); }
 .own .hav { width: 36px; height: 36px; border-radius: var(--ra); background: var(--heroav); color: var(--hav); display: grid; place-items: center; flex: none; }
 .own .txt { flex: 1; position: relative; }
 .own .t1 { color: var(--onhero); }

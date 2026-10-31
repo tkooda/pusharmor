@@ -1,5 +1,5 @@
 // Peers list (popup and the full tab), component-webext section 7 Peers.
-import type { PeerView, StateView } from "../core/rpc.ts";
+import type { PeerView } from "../core/rpc.ts";
 import { T } from "../core/texts.ts";
 import { type UiEnv, add, clear, greyFor, group, h, overflowMenu, peerStatus, platformLabel, rpc, sh, statusLine } from "./dom.ts";
 import { devicesArt, icon, platformIcon, shield } from "./icons.ts";
@@ -32,16 +32,12 @@ type Redraw = (message?: string, focusId?: string) => Promise<void>;
 
 export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, highlight?: string, message?: string, focusId?: string): Promise<void> {
   const status = h("div", { class: "status", role: "status" });
-  const [data, st] = await Promise.all([
-    rpc<{ self: { id: string; name: string } | null; peers: PeerView[] }>(env, "peers"),
-    rpc<StateView>(env, "state"),
-  ]);
+  const data = await rpc<{ peers: PeerView[] }>(env, "peers");
   clear(root);
   // focusId: the list was rebuilt after an action, so put focus back on that row (or the first heading if it is gone).
   const redraw: Redraw = (msg, focusId) => renderPeers(env, root, full, undefined, msg, focusId);
   const pairing = data.peers.filter((p) => p.fingerprint);
   for (const p of pairing) root.append(pairCard(env, p, status, redraw));
-  if (data.self) root.append(sh("This device"), ownCard(env, data.self.name, st.platform, pairing.length > 0, status));
   const rows = data.peers.filter((p) => !p.fingerprint);
   if (rows.length) root.append(sh("Devices"), group(...rows.map((p) => peerRow(env, p, status, redraw))));
   else if (!pairing.length) {
@@ -76,15 +72,15 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
   if (message) setTimeout(() => (status.textContent = message), 50);
 }
 
-/** This device: the navy hero, or the plain variant while a pairing card shows. */
-function ownCard(env: UiEnv, name: string, platform: string, plain: boolean, status: HTMLElement): HTMLElement {
-  const card = h("div", { class: "own hero" + (plain ? " plain" : "") });
+/** This device (Settings): the navy hero with Rename. */
+export function ownCard(env: UiEnv, name: string, platform: string, status: HTMLElement): HTMLElement {
+  const card = h("div", { class: "own hero" });
   const show = (nm: string, refocus = false) => {
     const edit = h("button", { class: "quiet ib", "aria-label": "Rename", title: "Rename" }, icon("edit", 20));
     edit.addEventListener("click", () => editing(nm));
     card.classList.remove("editing");
     clear(card).append(
-      ...(plain ? [] : [h("span", { class: "wmk", "aria-hidden": "true" }, shield(84))]),
+      h("span", { class: "wmk", "aria-hidden": "true" }, shield(84)),
       h("div", { class: "hav" }, platformIcon(platform, 20)),
       h("div", { class: "txt" }, h("div", { class: "t1 name" }, nm), h("div", { class: "t2" }, platformLabel(platform) + ", this device")),
       edit,
