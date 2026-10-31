@@ -35,11 +35,11 @@ class Session(private val g: Graph) {
     enum class Start { SIGN_IN, SIGNED_OUT, READY, KEYS_UNAVAILABLE }
 
     companion object {
-        const val REMOVED = "This device was removed. Log in again"
-        const val LOST_KEYS = "This device lost its keys. Log in again"
-        const val DELETED = "Account deleted on another device"
+        const val REMOVED = "This device was removed. Log in again."
+        const val LOST_KEYS = "This device lost its keys. Log in again."
+        const val DELETED = "Account deleted on another device."
         const val KEYS_UNAVAILABLE = "Keys unavailable. Restart this device."
-        const val NO_GOOGLE_PUSH = "This build has no Google push. Install a UnifiedPush app or reinstall from Play"
+        const val NO_GOOGLE_PUSH = "This build has no Google push. Install a UnifiedPush app or reinstall from Play."
         const val REFRESH_GREY_MS = 60_000L
     }
 

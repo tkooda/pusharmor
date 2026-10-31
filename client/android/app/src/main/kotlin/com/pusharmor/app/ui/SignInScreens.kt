@@ -189,7 +189,7 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onDo
                     }
                 }
                 2 -> {
-                    Text("Enter the code sent to $email")
+                    Text("Enter the code sent to $email.")
                     CodeCells(code) { v ->
                         // paste takes a standalone 6-char token; typing is cleaned as typed
                         code = if (v.length > code.length + 1) CodeInput.fromPaste(v) ?: CodeInput.clean(v) else CodeInput.clean(v)
