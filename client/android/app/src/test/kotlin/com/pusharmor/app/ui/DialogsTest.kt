@@ -85,4 +85,19 @@ class DialogsTest {
         click("OK")
         assertEquals(listOf("C"), chosen)
     }
+
+    /** The share sheet Send is a floating, dimmed dialog nearly as wide as the screen and as tall as its content (I597). */
+    @Test fun shareSheetIsAFloatingDialog() {
+        val ctx = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val i = android.content.Intent(android.content.Intent.ACTION_SEND).setClassName(ctx, ShareActivity::class.java.name)
+            .setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, "https://example.com/")
+        val a = Robolectric.buildActivity(ShareActivity::class.java, i).setup().get()
+        idle()
+        val w = a.window
+        assertTrue(w.isFloating)
+        assertTrue(w.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND != 0)
+        assertEquals((a.resources.displayMetrics.widthPixels * ShareActivity.DIALOG_WIDTH).toInt(), w.attributes.width)
+        assertEquals(android.view.WindowManager.LayoutParams.WRAP_CONTENT, w.attributes.height)
+        assertTrue(roots(w.decorView).isNotEmpty())
+    }
 }
