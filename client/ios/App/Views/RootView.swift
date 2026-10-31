@@ -76,17 +76,21 @@ struct RootView: View {
         case .main:
             MainView()
         case .removed:
-            VStack(spacing: 20) {
-                Text(S.thisDeviceRemoved)
-                    .multilineTextAlignment(.center)
-                Button("Log in") { model.phase = .signIn(.register) }
-                    .buttonStyle(.borderedProminent)
-            }
-            .padding(24)
-        case .banned:
-            Text("This account is blocked.")
-                .multilineTextAlignment(.center)
+            CenteredScroll {
+                VStack(spacing: 20) {
+                    Text(S.thisDeviceRemoved)
+                        .multilineTextAlignment(.center)
+                    Button("Log in") { model.phase = .signIn(.register) }
+                        .buttonStyle(.borderedProminent)
+                }
                 .padding(24)
+            }
+        case .banned:
+            CenteredScroll {
+                Text("This account is blocked.")
+                    .multilineTextAlignment(.center)
+                    .padding(24)
+            }
         case .signedOut:
             VStack(spacing: 0) {
                 Text(S.signedOutResume)
@@ -104,20 +108,37 @@ struct UpdateView: View {
     static let downloadURL = URL(string: "https://pusharmor.com/download")!
 
     var body: some View {
-        VStack(spacing: 16) {
-            Wordmark(size: 36)
-            Text(S.updateTitle)
-                .font(.title2.weight(.semibold))
-                .multilineTextAlignment(.center)
-            Text(S.updateBody)
-                .foregroundColor(.secondaryText)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 330)
-            Button("Update") { UIApplication.shared.open(Self.downloadURL) }
-                .buttonStyle(GreenButtonStyle())
-                .padding(.top, 8)
+        CenteredScroll {
+            VStack(spacing: 16) {
+                Wordmark(size: 36)
+                Text(S.updateTitle)
+                    .font(.title2.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                Text(S.updateBody)
+                    .foregroundColor(.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 330)
+                Button("Update") { UIApplication.shared.open(Self.downloadURL) }
+                    .buttonStyle(GreenButtonStyle())
+                    .padding(.top, 8)
+            }
+            .padding(24)
         }
-        .padding(24)
+    }
+}
+
+/// A short centred screen that scrolls once large text makes it taller than the screen (I503).
+struct CenteredScroll<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        GeometryReader { geo in
+            ScrollView {
+                content()
+                    .frame(maxWidth: .infinity, minHeight: geo.size.height)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
     }
 }
 
