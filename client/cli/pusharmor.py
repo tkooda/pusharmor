@@ -992,9 +992,17 @@ def stdin_tty():
     return sys.stdin is not None and sys.stdin.isatty()
 
 
+def ask(prompt):
+    """input(); typed text that is not UTF-8 reads as one character that matches no answer."""
+    try:
+        return input(prompt)
+    except UnicodeDecodeError:
+        return "\ufffd"
+
+
 def ask_yes(question, default=False):
     try:
-        a = input(question).strip().lower()
+        a = ask(question).strip().lower()
     except EOFError:
         return False
     return default if a == "" else a in ("y", "yes")
@@ -2115,7 +2123,7 @@ def cmd_login(cx, args):
     while True:
         if code is None:
             try:
-                raw = input("Code: ")
+                raw = ask("Code: ")
             except EOFError:
                 raise Fail("No code entered.")
             code = re.sub(r"[\s\"'`]", "", raw)
@@ -2238,7 +2246,7 @@ def choose_evict(peers):
         added = time.strftime("%Y-%m-%d", time.gmtime(p["created"] if type(p.get("created")) is int else 0))
         print("  %d  %s  %s  added %s" % (i, id_hex(p["id"])[:6], platform_label(str(p.get("platform", ""))), added))
     try:
-        a = input("Numbers to remove (for example: 1 3), or Enter to stop: ")
+        a = ask("Numbers to remove (for example: 1 3), or Enter to stop: ")
     except EOFError:
         a = ""
     picks = sorted({int(w) for w in a.split() if w.isdigit() and 1 <= int(w) <= len(rows)})

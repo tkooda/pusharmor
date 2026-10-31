@@ -279,6 +279,19 @@ def test_login_code_tries(net, tmp_path, monkeypatch, capsys):
     assert not os.path.exists(tmp_path / "keys")
 
 
+def test_typed_text_that_is_not_utf8(net, tmp_path, monkeypatch, capsys):
+    def bad(prompt=""):
+        raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+
+    monkeypatch.setattr(pa, "input", bad, raising=False)
+    assert run(tmp_path / "a", "login") == 1
+    assert "No valid code after 3 tries" in capsys.readouterr().err
+    me = login(monkeypatch, tmp_path / "b")
+    monkeypatch.setattr(pa, "input", bad, raising=False)
+    assert run(tmp_path / "b", "delete", pa.id_hex(me)[:8]) == 1
+    assert "Nothing removed." in capsys.readouterr().out and me in net.peers
+
+
 def test_login_registers_and_confirms(net, tmp_path, monkeypatch, capsys):
     pid = login(monkeypatch, tmp_path)
     p = net.peers[pid]
