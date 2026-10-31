@@ -48,7 +48,8 @@ const peers: PeerView[] = [
   },
 ];
 
-// ?n=1|3|9: that many other devices on the Send tab (some selected); default: the store set above.
+// ?n=0|1|3|9: that many other devices on the Send tab (some selected); default: the store set above.
+// ?n=0 also empties History (the empty states).
 const MORE: [string, string][] = [["iPad", "ios"], ["Home PC", "chrome"], ["MacBook", "chrome"], ["Kitchen tablet", "android"], ["Office laptop", "firefox"], ["Spare phone", "android"]];
 let sendSel: string[] = [];
 if (q.has("n")) {
@@ -71,6 +72,8 @@ const history: (HistoryRow & { sender: string })[] = [
   { id: 1, dir: "in", peer: PHONE, type: "text", content: "Pick up basil and lemons on the way home", n: 1, pairing_id: null,
     received: now - 26 * 3600_000, read: true, sender: "Phone" },
 ];
+
+if (q.get("n") === "0") history.length = 0;
 
 function reply(req: Req): unknown {
   const text = String(req.args?.text ?? "");
@@ -109,7 +112,7 @@ const HEADLINES: Record<string, string> = {
 
 async function main(): Promise<void> {
   document.documentElement.dataset.mode = MARKER;
-  // ?bare: the popup alone at its real height (no store frame)
+  // ?bare: the popup alone at its real size (no store frame)
   if (q.has("bare")) document.documentElement.classList.add("bare");
   const tab = location.hash.slice(1) || "send";
   if (tab === "signin") state.reg = null;
@@ -134,7 +137,7 @@ async function main(): Promise<void> {
     fr.scrollTop = fr.scrollHeight;
   }
   // store frame: scale the popup (layout zoom, so text stays sharp) to the height under the
-  // 96px band; the popup height follows its content, so measure it
+  // 96px band
   if (!q.has("bare")) {
     await new Promise((done) => setTimeout(done, 300));
     const frame = document.querySelector<HTMLElement>(".frame")!;
