@@ -95,17 +95,16 @@ function pairNew(): HTMLElement {
   return h("div", { class: "pairnew" }, btn, steps);
 }
 
-/** This device (Settings): the navy hero with Rename. */
+/** This device (Settings): a plain group row with Rename. */
 export function ownCard(env: UiEnv, name: string, platform: string, status: HTMLElement): HTMLElement {
-  const card = h("div", { class: "own hero" });
+  const card = h("div", { class: "srow own" });
   const show = (nm: string, refocus = false) => {
     const edit = h("button", { class: "quiet ib", "aria-label": "Rename", title: "Rename" }, icon("edit", 20));
     edit.addEventListener("click", () => editing(nm));
     card.classList.remove("editing");
     clear(card).append(
-      h("span", { class: "wmk", "aria-hidden": "true" }, shield(84)),
       h("div", { class: "hav" }, platformIcon(platform, 20)),
-      h("div", { class: "txt" }, h("div", { class: "t1 name" }, nm), h("div", { class: "t2" }, platformLabel(platform) + ", this device")),
+      h("div", { class: "txt" }, h("div", { class: "name" }, nm), h("div", { class: "t2" }, platformLabel(platform) + ", this device")),
       edit,
     );
     if (refocus) edit.focus();
@@ -136,7 +135,7 @@ export function ownCard(env: UiEnv, name: string, platform: string, status: HTML
     input.focus();
   };
   show(name);
-  return card;
+  return group(card);
 }
 
 function actionButton(env: UiEnv, a: string, p: PeerView, box: HTMLElement, status: HTMLElement, redraw: Redraw, cls = ACTION_CLASS[a] ?? ""): HTMLButtonElement {

@@ -442,10 +442,13 @@ test("popup shows a Finish Firefox setup prompt with a button while setup is nee
   assert.match(css, /\.setup-bar \{/);
 });
 
-test("Rename on the navy hero keeps a dark hover fill so the white label stays readable (I565)", async () => {
+test("This device is a plain settings group row, not a navy hero (I585)", async () => {
   const { readFileSync } = await import("node:fs");
-  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
-  assert.match(css, /\.own\.editing button:hover \{[^}]*background: rgba\(255, 255, 255, 0\.\d+\);/);
+  const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
+  assert.doesNotMatch(rd("style.css"), /hero|onhero|wmk/);
+  assert.doesNotMatch(rd("peersview.ts"), /hero|wmk/);
+  for (const f of ["tokens-chrome.css", "tokens-firefox.css"]) assert.doesNotMatch(rd(f), /hero/);
+  assert.match(rd("peersview.ts"), /class: "srow own"/);
 });
 
 test("Rename error is scrolled into view like the other Settings status lines (I567)", async () => {
