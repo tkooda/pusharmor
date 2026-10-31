@@ -73,43 +73,46 @@ struct SettingsView: View {
                     }
                 }
 
-                // This device and its rename live here, not in Devices (F25).
-                Section("Device name") {
-                    // Inline rename: Rename turns the name into a field, with Cancel and Save (I609).
-                    HStack(spacing: 16) {
-                        if renaming {
-                            TextField("Name this device", text: $name)
-                                .autocorrectionDisabled()
-                                .focused($nameFocused)
-                                .submitLabel(.done)
-                                .onSubmit(saveName)
-                                .onAppear { nameFocused = true }
-                            Button("Cancel") { renaming = false }
-                            Button("Save", action: saveName)
-                                .disabled(!NameEntry.isValidName(name))
-                        } else {
-                            Text(model.me?.name ?? "This device")
-                            Spacer(minLength: 8)
-                            Button("Rename") {
-                                name = model.me?.name ?? ""
-                                renaming = true
+                // This device and its rename live here, not in Devices (F25); logged out, the
+                // device name and account rows hide (I612).
+                if model.phase == .main {
+                    Section("Device name") {
+                        // Inline rename: Rename turns the name into a field, with Cancel and Save (I609).
+                        HStack(spacing: 16) {
+                            if renaming {
+                                TextField("Name this device", text: $name)
+                                    .autocorrectionDisabled()
+                                    .focused($nameFocused)
+                                    .submitLabel(.done)
+                                    .onSubmit(saveName)
+                                    .onAppear { nameFocused = true }
+                                Button("Cancel") { renaming = false }
+                                Button("Save", action: saveName)
+                                    .disabled(!NameEntry.isValidName(name))
+                            } else {
+                                Text(model.me?.name ?? "This device")
+                                Spacer(minLength: 8)
+                                Button("Rename") {
+                                    name = model.me?.name ?? ""
+                                    renaming = true
+                                }
                             }
                         }
-                    }
-                    .buttonStyle(.borderless)
-                    if let e = email {
-                        // Dim label, the address on its own line, truncated in the middle (I460).
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Logged in as")
-                                .font(.footnote)
-                                .foregroundColor(.secondaryText)
-                            Text(e)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
-                        .accessibilityElement(children: .combine)
-                        if e.lowercased().hasSuffix("@privaterelay.appleid.com") {
-                            Text(S.relayHelp).font(.caption).foregroundColor(.secondaryText)
+                        .buttonStyle(.borderless)
+                        if let e = email {
+                            // Dim label, the address on its own line, truncated in the middle (I460).
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Logged in as")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondaryText)
+                                Text(e)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                            .accessibilityElement(children: .combine)
+                            if e.lowercased().hasSuffix("@privaterelay.appleid.com") {
+                                Text(S.relayHelp).font(.caption).foregroundColor(.secondaryText)
+                            }
                         }
                     }
                 }
@@ -140,26 +143,28 @@ struct SettingsView: View {
                         .font(.caption).foregroundColor(.secondaryText)
                 }
 
-                Section("Account") {
-                    if confirmDeleteAccount {
-                        Text("Delete this account? You must log in again to confirm. This cannot be undone.")
-                        HStack {
-                            Button("Continue", role: .destructive) {
-                                confirmDeleteAccount = false
-                                model.phase = .signIn(.deleteAccount)
+                if model.phase == .main {
+                    Section("Account") {
+                        if confirmDeleteAccount {
+                            Text("Delete this account? You must log in again to confirm. This cannot be undone.")
+                            HStack {
+                                Button("Continue", role: .destructive) {
+                                    confirmDeleteAccount = false
+                                    model.phase = .signIn(.deleteAccount)
+                                }
+                                Button("Cancel") { confirmDeleteAccount = false }
                             }
-                            Button("Cancel") { confirmDeleteAccount = false }
+                            .buttonStyle(.borderless)
+                        } else {
+                            // One centered row, Delete account then Log out (I610). Log out acts at once (Q367);
+                            // it hides while the Delete account confirm shows (I457). Stacks at large text sizes.
+                            ViewThatFits(in: .horizontal) {
+                                HStack(spacing: 32) { accountButtons }
+                                VStack(spacing: 12) { accountButtons }
+                            }
+                            .buttonStyle(.borderless)
+                            .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.borderless)
-                    } else {
-                        // One centered row, Delete account then Log out (I610). Log out acts at once (Q367);
-                        // it hides while the Delete account confirm shows (I457). Stacks at large text sizes.
-                        ViewThatFits(in: .horizontal) {
-                            HStack(spacing: 32) { accountButtons }
-                            VStack(spacing: 12) { accountButtons }
-                        }
-                        .buttonStyle(.borderless)
-                        .frame(maxWidth: .infinity)
                     }
                 }
 

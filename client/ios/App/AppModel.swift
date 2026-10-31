@@ -555,11 +555,11 @@ final class AppModel: ObservableObject {
     var allSet: [Peer] { peers.filter { $0.inAll } }
 
     /// The tab bar shows: the banner then sits inside each tab, above the tab bar (I604).
-    var showsTabs: Bool { phase == .main && !needsFirstPair }
+    var showsTabs: Bool { phase == .main }
 
-    /// Q338: logged in with no paired device. The first-pair screen then replaces the tabs;
-    /// state-driven, so it goes once a pairing completes and comes back when the last
-    /// paired device is removed.
+    /// Logged in with no paired device: the Devices tab shows the first-pair steps, and Send
+    /// and History offer Pair a device (I612). State-driven, so it goes once a pairing
+    /// completes and comes back when the last paired device is removed.
     var needsFirstPair: Bool { !peers.contains { $0.pinned && $0.state == .approved } }
 
     /// Devices of this account waiting to pair: the Devices tab Pairing section.

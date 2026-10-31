@@ -90,7 +90,7 @@ final class ScreenshotTests: XCTestCase {
         shot("91-settings")
         app.terminate()
 
-        // Q338 first-pair screen, light and dark (-appearance sets the stored theme)
+        // first-pair screen (the Devices tab with no paired device, I612), light and dark (-appearance sets the stored theme)
         for (name, theme) in [("93-firstpair-light", "light"), ("94-firstpair-dark", "dark")] {
             app = launch(["-PAScreenshotsEmpty", "-appearance", theme])
             XCTAssertTrue(app.navigationBars["Pair your first device"].waitForExistence(timeout: 30))
