@@ -492,7 +492,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
   });
   add(
     root,
-    self && sh("This device"),
+    self && sh("Device name"),
     self && ownCard(env, self.name, st.platform, status),
     sh("Appearance"),
     group(h("div", { class: "srow" }, h("div", { class: "txt" }, h("div", {}, "Theme"), h("div", { class: "t2" }, "Dark uses a true black background.")), theme)),
