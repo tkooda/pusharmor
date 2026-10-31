@@ -191,6 +191,12 @@ class UiTextTest {
         assertEquals(false, copy.contains("peer", ignoreCase = true))
     }
 
+    @Test fun hibernationBannerSaysWhyItMatters() {
+        assertTrue(UiText.HIBERNATION_BANNER.contains("receive messages"))
+        assertTrue(UiText.HIBERNATION_BANNER.contains("Manage app if unused"))
+        assertTrue(UiText.HIBERNATION_BANNER.all { it.code < 128 })
+    }
+
     @Test fun sendWaitsOutCountdownOnlyForTheAddressJustSentTo() {
         val until = 1_000_000L + UiText.RESEND_MS
         assertEquals(42_000L, UiText.sendLeftMs(until, "sam@example.com", " Sam@Example.com ", 1_018_000L))

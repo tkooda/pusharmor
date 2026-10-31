@@ -313,7 +313,7 @@ private fun Banners(vm: AppViewModel, banner: String?) {
     }
     val st = remember(tick) { try { PackageManagerCompat.getUnusedAppRestrictionsStatus(context).get(2, java.util.concurrent.TimeUnit.SECONDS) } catch (e: Exception) { 0 } }
     if (st == androidx.core.content.UnusedAppRestrictionsConstants.API_31) {
-        BannerRow("Android may pause this app when unused.", "Settings", fault = false, PaIcons.Info) {
+        BannerRow(UiText.HIBERNATION_BANNER, "Settings", fault = false, PaIcons.Info) {
             context.startActivity(IntentCompat.createManageUnusedAppRestrictionsIntent(context, context.packageName))
         }
     }
