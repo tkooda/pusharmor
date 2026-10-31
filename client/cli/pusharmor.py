@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# PushArmor command-line client, version 0.0.19
 """PushArmor command-line client.
 
 The top part is the core layer: encodings, keys, signed requests, HPKE,

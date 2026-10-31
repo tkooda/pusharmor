@@ -79,6 +79,16 @@ test("the committed version files agree with each other", () => {
   assert.deepEqual(stampProblems(REPO, v), []);
 });
 
+test("the version comment on line 2 of pusharmor.py must match VERSION", (t) => {
+  const { d, bin } = scratch();
+  t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
+  const py = join(d, "client/cli/pusharmor.py");
+  const v = /^VERSION = "([^"]*)"$/m.exec(readFileSync(py, "utf8"))[1];
+  assert.equal(readFileSync(py, "utf8").split("\n")[1], "# PushArmor command-line client, version " + v);
+  writeFileSync(py, readFileSync(py, "utf8").replace(/^(# PushArmor command-line client, version ).*$/m, "$19.9.9"));
+  assert.deepEqual(stampProblems(d, v), ["client/cli/pusharmor.py holds " + v + " / 9.9.9, want " + v + " / " + v]);
+});
+
 test("ci-ok: any successful run or attempt counts; running, missing and failed jobs do not", () => {
   const c = "e".repeat(40);
   const ok = { status: "completed", conclusion: "success" };
@@ -172,6 +182,7 @@ test("CLI: stamp, commit, tag; second platform at the same commit; check mode", 
   assert.match(readFileSync(join(d, "release/version.properties"), "utf8"), /^versionCode=1002003$/m);
   assert.match(readFileSync(join(d, "client/ios/project.yml"), "utf8"), /CURRENT_PROJECT_VERSION: "1002003"/);
   assert.match(readFileSync(join(d, "client/cli/pusharmor.py"), "utf8"), /^VERSION = "1\.2\.3"$/m);
+  assert.match(readFileSync(join(d, "client/cli/pusharmor.py"), "utf8"), /^# PushArmor command-line client, version 1\.2\.3$/m);
   git("commit", "-q", "-am", "release 1.2.3");
   r = run("android", "1.2.3");
   assert.equal(r.status, 0, r.stderr);
