@@ -441,3 +441,9 @@ test("popup shows a Finish Firefox setup prompt with a button while setup is nee
   const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
   assert.match(css, /\.setup-bar \{/);
 });
+
+test("Rename on the navy hero keeps a dark hover fill so the white label stays readable (I565)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  assert.match(css, /\.own\.editing button:hover \{[^}]*background: rgba\(255, 255, 255, 0\.\d+\);/);
+});
