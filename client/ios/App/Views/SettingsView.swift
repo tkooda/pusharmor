@@ -26,7 +26,7 @@ struct SettingsView: View {
                 }
 
                 Section("History") {
-                    Picker("Auto-delete after", selection: Binding(
+                    Picker("Keep messages for", selection: Binding(
                         get: { model.historyDays },
                         set: { model.setHistoryDays($0) }
                     )) {
