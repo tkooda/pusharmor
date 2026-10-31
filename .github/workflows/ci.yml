@@ -6,6 +6,7 @@ name: ci
 # call from here grants contents: read and nothing more.
 on:
   pull_request:
+  merge_group:
   push:
     branches:
       - main
