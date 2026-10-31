@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canReceiveNow, rememberedSelection, sendDisabled, sendToHeader, showAllChip, showCounter } from "../src/model/sendsel.ts";
+import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter } from "../src/model/sendsel.ts";
 
 test("Send view: remembered selection keeps only ids that can still receive", () => {
   assert.deepEqual(rememberedSelection(["a", "gone", "c"], ["a", "b", "c"]), ["a", "c"]);
@@ -15,6 +15,12 @@ test("Send view: no usable memory gives null (default selection)", () => {
 test("Send view: header counts selected of sendable devices", () => {
   assert.equal(sendToHeader(6, 9), "Send to (6 of 9)");
   assert.equal(sendToHeader(0, 1), "Send to (0 of 1)");
+});
+
+test("Send view: button counts devices with 1 device singular (I563)", () => {
+  assert.equal(sendCountLabel(0), "Send");
+  assert.equal(sendCountLabel(1), "Send to 1 device");
+  assert.equal(sendCountLabel(3), "Send to 3 devices");
 });
 
 test("Send view: All chip only with 2 or more devices and the setting on", () => {
