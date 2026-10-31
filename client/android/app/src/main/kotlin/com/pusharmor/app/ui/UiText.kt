@@ -114,6 +114,11 @@ object UiText {
     const val HIBERNATION_BANNER = "Android may pause this app's ability to receive messages unless \"Manage app if unused\" is turned off."
     val PAIR_HOWTO_STEPS = listOf("Install PushArmor on the other device.", "Log in with the same account.", "It appears here. Tap Pair.")
     fun numbered(steps: List<String>): List<String> = steps.mapIndexed { i, t -> "${i + 1}. $t" }
+    /** Send chips in alphabetical order of the shown name: case-insensitive, locale-aware (I599). */
+    fun <T> sortedByName(items: List<T>, nameOf: (T) -> String, locale: java.util.Locale = java.util.Locale.getDefault()): List<T> {
+        val c = java.text.Collator.getInstance(locale).apply { strength = java.text.Collator.SECONDARY }
+        return items.sortedWith { a, b -> c.compare(nameOf(a), nameOf(b)) }
+    }
     const val FIRST_DEVICE_TITLE = "Pair your first device"
     const val FIRST_DEVICE_STEPS = "1. Install PushArmor on another device.\n2. Log in with the same account.\n3. Approve it here: tap Pair when it shows below."
     const val FIRST_DEVICE_WAITING = "No device is waiting yet. Your other device shows up here after it logs in."
