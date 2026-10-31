@@ -5,6 +5,7 @@ import PushArmorCore
 struct SettingsView: View {
     @EnvironmentObject var model: AppModel
     @State private var name = ""
+    @FocusState private var nameFocused: Bool
     @State private var confirmDeleteHistory = false
     @State private var confirmSignOut = false
     @State private var confirmDeleteAccount = false
@@ -73,9 +74,14 @@ struct SettingsView: View {
                     }
                 }
 
+                // This device and its rename live here, not in Devices (F25).
                 Section("This device") {
+                    HeroCell(name: model.me?.name ?? "This device") { nameFocused = true }
+                        .listRowInsets(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 20))
+                        .listRowBackground(HeroBackground())
                     TextField("Name this device", text: $name)
                         .autocorrectionDisabled()
+                        .focused($nameFocused)
                     Button("Save") { Task { await model.rename(name) } }
                         .disabled(!NameEntry.isValidName(name) || name == model.me?.name)
                     if let id = model.me?.id?.text {

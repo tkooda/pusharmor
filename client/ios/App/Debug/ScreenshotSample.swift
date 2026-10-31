@@ -27,7 +27,7 @@ enum ScreenshotSample {
         let now = Int64(Date().timeIntervalSince1970)
         try store.setMe("id", .text(id("S")))
         try store.setMe("name", .text("iPhone"))
-        // 04-pairing: the pairing card and this device only. Paired rows below them would sit under
+        // 04-pairing: the pairing card only. Paired rows below them would sit under
         // the floating tab bar, which content scrolls behind by design.
         if args.contains("-PAScreenshotsPairing") {
             try store.db.exec("""

@@ -188,33 +188,28 @@ struct IconTile: View {
 /// The This device cell content. The navy background is HeroBackground (a row background).
 struct HeroCell: View {
     let name: String
-    var plain = false
     let rename: () -> Void
 
     var body: some View {
         HStack(spacing: 14) {
-            if plain {
-                IconTile("iphone", size: 44)
-            } else {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.heroIconBg)
-                    .frame(width: 44, height: 44)
-                    .overlay(Image(systemName: "iphone").font(.title3).foregroundStyle(.white))
-                    .accessibilityHidden(true)
-            }
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.heroIconBg)
+                .frame(width: 44, height: 44)
+                .overlay(Image(systemName: "iphone").font(.title3).foregroundStyle(.white))
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(name)
                     .font(.headline)
-                    .foregroundStyle(plain ? Color.primary : Color.onHero)
+                    .foregroundStyle(Color.onHero)
                 Text("This device")
                     .font(.subheadline)
-                    .foregroundStyle(plain ? Color.secondaryText : Color.onHero2)
+                    .foregroundStyle(Color.onHero2)
             }
             Spacer(minLength: 8)
             Button("Rename", action: rename)
                 .buttonStyle(.borderless)
                 .font(.body.weight(.semibold))
-                .foregroundStyle(plain ? Color.accentColor : Color.onHero)
+                .foregroundStyle(Color.onHero)
                 .frame(minHeight: 44)
         }
         .frame(minHeight: 76 - 28)
