@@ -86,7 +86,7 @@ function fakeApi(replies, start = 1761300000000) {
 
 test("DELETE /v1/account: headers, body, signature; deleted 0", async () => {
   const key = await PA.newKey();
-  const api = fakeApi([{ status: 200, body: { r: {}, deleted: 0 }, headers: { "PA-Epoch-Ms": 1761300000000 } }]);
+  const api = fakeApi([{ status: 200, body: { r: {}, deleted: 0 }, headers: { "PA-Epoch": 1761300000 } }]);
   const r = await api.client.deleteAccount(key, "TICKET");
   assert.equal(r.status, 200);
   assert.equal(r.data.deleted, 0);
@@ -96,6 +96,7 @@ test("DELETE /v1/account: headers, body, signature; deleted 0", async () => {
   assert.equal(c.init.method, "DELETE");
   assert.deepEqual(JSON.parse(c.init.body), { ticket: "TICKET", sign_pub: key.pub, m: {} });
   assert.equal(c.init.headers["PA-ID"], undefined);
+  assert.match(c.init.headers["PA-Client"], /^web\/\d+\.\d+\.\d+$/);
   assert.equal(c.init.headers["PA-Time"], "1761300000000");
   assert.match(c.init.headers["PA-Time"], /^\d{13}$/);
   const signed = PA.reqSigBytes("DELETE", "/v1/account", c.init.headers["PA-Time"], enc.encode(c.init.body));
@@ -120,12 +121,12 @@ test("DELETE /v1/account retried after a lost reply is marked unsure", async () 
   assert.ok(js.includes("r.data.deleted === 0 && !r.unsure ? PA.TEXT.noPeers : PA.TEXT.deleted"));
 });
 
-test("clock skew: offset from PA-Epoch-Ms, re-sign, retry once", async () => {
+test("clock skew: offset from PA-Epoch (seconds), re-sign, retry once", async () => {
   const key = await PA.newKey();
   const skew = 10 * 60 * 1000;
   const api = fakeApi([
-    { status: 401, body: { error: "clock skew" }, headers: { "PA-Epoch-Ms": 1761300000000 + skew } },
-    { status: 200, body: { r: {}, deleted: 2 }, headers: { "PA-Epoch-Ms": 1761300000000 + skew } }
+    { status: 401, body: { error: "clock skew" }, headers: { "PA-Epoch": 1761300000 + skew/1000 } },
+    { status: 200, body: { r: {}, deleted: 2 }, headers: { "PA-Epoch": 1761300000 + skew/1000 } }
   ]);
   const r = await api.client.deleteAccount(key, "T");
   assert.equal(r.status, 200);
@@ -135,9 +136,17 @@ test("clock skew: offset from PA-Epoch-Ms, re-sign, retry once", async () => {
   assert.ok(await verify(key.pub, c.init.headers["PA-Sig"], PA.reqSigBytes("DELETE", "/v1/account", c.init.headers["PA-Time"], enc.encode(c.init.body))));
 });
 
+test("HTTP 426 -> Update PushArmor to continue", async () => {
+  const key = await PA.newKey();
+  const api = fakeApi([{ status: 426, body: { error: "update required" } }]);
+  const r = await api.client.deleteAccount(key, "T");
+  assert.equal(r.status, 426);
+  assert.equal(PA.errorText(r), "Update PushArmor to continue");
+});
+
 test("second clock skew stops with the clock text", async () => {
   const key = await PA.newKey();
-  const skewed = { status: 401, body: { error: "clock skew" }, headers: { "PA-Epoch-Ms": 1 } };
+  const skewed = { status: 401, body: { error: "clock skew" }, headers: { "PA-Epoch": 1 } };
   const api = fakeApi([skewed, { ...skewed }]);
   const r = await api.client.deleteAccount(key, "T");
   assert.equal(api.calls.length, 2);
