@@ -148,7 +148,7 @@ export class Api {
 }
 
 /** HTTP 426: the relay server no longer accepts this version. */
-export const UPDATE_REQUIRED = "Update PushArmor to continue";
+export const UPDATE_REQUIRED = "Update PushArmor to continue.";
 
 /** User-facing text for an API error (catalog Results and errors). */
 export function errorText(e: unknown): string {
