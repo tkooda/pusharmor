@@ -148,10 +148,10 @@ body.page .foot { position: static; }
 .illo .i-bar { fill: var(--s3); }
 
 /* Send view. */
-.meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 18px 4px; min-height: 26px; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; padding: 6px 18px 4px; min-height: 26px; }
 .caption { display: inline-flex; align-items: center; gap: 6px; min-height: 16px; font-size: 12px; line-height: 16px; color: var(--ink2); }
 .caption svg { flex: none; }
-.astext { display: flex; align-items: center; gap: 10px; padding: 2px 16px 0 18px; min-height: 28px; font-size: 13px; color: var(--ink2); cursor: pointer; }
+.astext { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: var(--ink2); cursor: pointer; }
 .astext[hidden] { display: none; }
 .dchips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px; }
 .chip.dchip { height: 30px; padding: 0 12px 0 8px; gap: 6px; background: var(--card); border-color: var(--ctl); color: var(--ink); font-size: 13px; font-weight: 500; }
@@ -163,7 +163,7 @@ body.page .foot { position: static; }
 .chip.dchip.on, .chip.dchip.on:hover { background: var(--pc); border-color: var(--pc); color: var(--onpc); }
 .dchip.off { opacity: 0.5; }
 .dchip.greyed { cursor: default; }
-.counter { font-size: 12px; line-height: 16px; color: var(--err); }
+.counter { margin-left: auto; font-size: 12px; line-height: 16px; color: var(--err); }
 .cut { padding: 0 16px 10px; }
 
 /* History. */
