@@ -55,7 +55,6 @@ public enum S {
     public static let signInExpired = "Login expired, log in again"
     public static let signedOutResume = "Logged out. Log in to resume"
     public static let notificationsOff = "Notifications are off. This device cannot receive"
-    public static func signedInAs(_ email: String) -> String { "Logged in as \(email)" }
     public static let relayHelp = "To log in on another device, use this address. Find it in iOS Settings > Apple ID > Sign in with Apple, or at appleid.apple.com > Hide My Email."
     public static func receivedWhileLocked(_ n: Int) -> String { "\(n) messages received while locked" }
     public static let thisPhoneOldInstall = "(this phone, old install)"
