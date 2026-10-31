@@ -317,3 +317,9 @@ test("full tab Send: the cut offer shows only while the text is over 2048 bytes 
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
   assert.match(pop, /cut\.hidden = !offerCut \|\| d\.bytes <= CAP;/);
 });
+
+test("History filter chips keep focus on the pressed chip after the redraw (I486)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  assert.match(pop, /draw\(\);\s*\(chipsBox\.children\[i\] as HTMLElement \| undefined\)\?\.focus\(\);/);
+});

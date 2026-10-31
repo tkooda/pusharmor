@@ -297,9 +297,15 @@ export async function historyView(env: UiEnv, root: HTMLElement, resend: (text: 
     const f = applyFilter(rows, key);
     key = f.key;
     clear(chipsBox);
-    for (const c of historyChips(rows)) {
+    for (const [i, c] of historyChips(rows).entries()) {
       const on = c.key === key;
-      chipsBox.append(h("button", { class: "chip" + (on ? " on" : ""), "aria-pressed": String(on), onclick: () => { key = c.key; draw(); } }, ...(on ? [icon("check", 14)] : []), c.label));
+      // I486: the chips are drawn again, so focus goes back to the pressed one
+      const pick = () => {
+        key = c.key;
+        draw();
+        (chipsBox.children[i] as HTMLElement | undefined)?.focus();
+      };
+      chipsBox.append(h("button", { class: "chip" + (on ? " on" : ""), "aria-pressed": String(on), onclick: pick }, ...(on ? [icon("check", 14)] : []), c.label));
     }
     clear(list);
     const now = Date.now();
