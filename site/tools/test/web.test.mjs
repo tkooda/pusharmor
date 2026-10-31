@@ -136,12 +136,12 @@ test("clock skew: offset from PA-Epoch (seconds), re-sign, retry once", async ()
   assert.ok(await verify(key.pub, c.init.headers["PA-Sig"], PA.reqSigBytes("DELETE", "/v1/account", c.init.headers["PA-Time"], enc.encode(c.init.body))));
 });
 
-test("HTTP 426 -> Update PushArmor to continue", async () => {
+test("HTTP 426 -> Update PushArmor to continue.", async () => {
   const key = await PA.newKey();
   const api = fakeApi([{ status: 426, body: { error: "update required" } }]);
   const r = await api.client.deleteAccount(key, "T");
   assert.equal(r.status, 426);
-  assert.equal(PA.errorText(r), "Update PushArmor to continue");
+  assert.equal(PA.errorText(r), "Update PushArmor to continue.");
 });
 
 test("second clock skew stops with the clock text", async () => {
