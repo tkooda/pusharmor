@@ -150,8 +150,8 @@
     if (e === "clock skew") return TEXT.clock;
     if (r.status === 502) return TEXT.mailFailed;
     if (r.status === 429) {
-      var s = Number(r.data.retry_after);
-      return "Too many tries, wait " + (s > 0 ? s + " s" : "a minute") + " and try again";
+      var s = Number(r.data.retry_after) > 0 ? Number(r.data.retry_after) : 60;
+      return "Too many requests. Try again in " + s + (s === 1 ? " second." : " seconds.");
     }
     if (e === "wrong code") return "Wrong code, check it and try again";
     if (e === "code expired") return "The code expired, request a new one";
