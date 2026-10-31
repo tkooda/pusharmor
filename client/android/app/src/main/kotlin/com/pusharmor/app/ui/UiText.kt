@@ -64,6 +64,13 @@ object UiText {
         else -> "Send to $n devices"
     }
 
+    /** Toast after a send to [picked] devices: [sent] reached, [total] in the All set. */
+    fun sendToast(picked: Int, sent: Int, total: Int): String = when {
+        picked == 1 && sent == 1 -> "Sent"
+        sent == total && sent == picked -> "Delivered to $sent ${if (sent == 1) "device" else "devices"}"
+        else -> "Sent to $sent of $total ${if (total == 1) "device" else "devices"}"
+    }
+
     private fun cutName(name: String) = if (name.length > SEND_NAME_MAX) name.take(SEND_NAME_MAX - 3).trimEnd() + "..." else name
 
     /** History title of a sent row (F22): reached its one device reads Sent to "Laptop", cut like the Send button; else "Sent". */

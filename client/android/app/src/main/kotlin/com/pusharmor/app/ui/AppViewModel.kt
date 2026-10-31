@@ -248,12 +248,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val value = if (type == ContentType.TEXT) text else text.trim()
         val out = g.sender().send(recipients, type, value, System.currentTimeMillis())
         if (out.error != null) return@withContext ErrorText.of(out.error!!)
-        val sent = out.sent
-        when {
-            recipients.size == 1 && sent == 1 -> "Sent"
-            sent == out.total && sent == recipients.size -> "Delivered to $sent devices"
-            else -> "Sent to $sent of ${out.total} devices"
-        }
+        UiText.sendToast(recipients.size, out.sent, out.total)
     }
 
     // ---- settings ----
