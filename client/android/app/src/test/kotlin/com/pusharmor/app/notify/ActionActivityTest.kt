@@ -33,7 +33,9 @@ class ActionActivityTest {
 
     @Test fun tapFinishesWithoutCrash() {
         assertTrue(tap("item").isFinishing)
-        assertTrue(shadowOf(ApplicationProvider.getApplicationContext<PaApp>()).nextStartedActivity != null)
+        // The tap opens History with its row id, to scroll to and flash (I616).
+        val next = shadowOf(ApplicationProvider.getApplicationContext<PaApp>()).nextStartedActivity
+        assertEquals(1L, com.pusharmor.app.ui.MainActivity.flashExtra(next))
     }
 
     @Test fun dialWithNoDialerShowsMessage() {

@@ -160,6 +160,16 @@ class AppLogicTest {
         assertEquals("p" to null, main.ownExtras(main.openIntent(ctx, "bogus").putExtra("peer", "p")))
     }
 
+    @Test fun historyRowExtraOnlyForHistoryThroughTheOpenAlias() {
+        // A notification tap opens History at its row and flashes it (I616).
+        val main = com.pusharmor.app.ui.MainActivity
+        val ctx = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        assertEquals(42L, main.flashExtra(main.openIntent(ctx, "history").putExtra("history", 42L)))
+        assertNull(main.flashExtra(main.openIntent(ctx, "history")))
+        assertNull(main.flashExtra(main.openIntent(ctx, "peers").putExtra("history", 42L)))
+        assertNull(main.flashExtra(android.content.Intent(ctx, com.pusharmor.app.ui.MainActivity::class.java).putExtra("route", "history").putExtra("history", 42L)))
+    }
+
     @Test fun pendingRouteChangeNotifiesCompose() {
         // A notification tap while the app is open must recompose the effect that navigates (I401).
         var changed = false
