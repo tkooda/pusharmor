@@ -178,7 +178,9 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onDo
     androidx.activity.compose.BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         PaTopBar("Log in with email", navigationIcon = { IconButton(onClick = onBack) { Icon(PaIcons.ArrowBack, "Back") } })
-        Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Centered for a thumb; the screen already pads for the keyboard, and the column scrolls when the content is taller than the room left (I587).
+        Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (stage) {
                 0 -> {
                     val next = {
@@ -221,6 +223,7 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onDo
                 }
             }
             (error ?: msg)?.let { Text(it, Modifier.semantics { liveRegion = LiveRegionMode.Polite }, color = MaterialTheme.colorScheme.error) }
+        }
         }
     }
 }
