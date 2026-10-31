@@ -202,7 +202,8 @@ private fun App(vm: AppViewModel) {
                 NavigationBar(containerColor = x.tile, tonalElevation = 0.dp) {
                     for ((r, l, i) in listOf(Triple("peers", "Devices", PaIcons.Devices), Triple("send", "Send", PaIcons.Send),
                         Triple("history", "History", PaIcons.History), Triple("settings", "Settings", PaIcons.Settings))) {
-                        NavigationBarItem(selected = route == r, onClick = { nav.navigate(r) { launchSingleTop = true } },
+                        // One back step to Devices, then out: Back does not walk every visited tab (I478).
+                        NavigationBarItem(selected = route == r, onClick = { nav.navigate(r) { popUpTo("peers") { saveState = true }; launchSingleTop = true; restoreState = true } },
                             icon = { Icon(i, null) }, label = { Text(l) },
                             colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.secondaryContainer))
                     }
