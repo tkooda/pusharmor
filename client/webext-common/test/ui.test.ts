@@ -391,3 +391,9 @@ test("login step 2 links stay inside the card and stack centered when narrow (I4
   assert.match(css, /\.links \{ display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px; margin: 8px 0 0; \}/);
   assert.match(css, /@media \(max-width: 480px\) \{(\n  [^\n]*)*\n  \.links \{ flex-direction: column; align-items: center; \}/);
 });
+
+test("login page at 320px: the 300px security check fits in the card (I459)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  assert.match(css, /@media \(max-width: 360px\) \{\s*body\.page\.signin-bg #app \{ padding-inline: 8px; \}\s*\.ts-frame \{ width: calc\(100% \+ 32px\); margin-inline: -16px; \}/);
+});
