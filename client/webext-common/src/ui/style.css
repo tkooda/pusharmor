@@ -155,7 +155,9 @@ label.srow { cursor: pointer; }
 
 /* Footers (Peers tools, Send button). */
 .foot { position: sticky; bottom: 0; z-index: 2; background: var(--bg); border-top: 1px solid var(--line); }
-.foot.bar { display: flex; align-items: center; justify-content: space-between; padding: 8px; }
+.foot.bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px; }
+/* Refresh and Open full view: the same outlined button, in the brand accent */
+.foot.bar button { height: 32px; padding: 0 12px; border-color: var(--line); color: var(--accent, var(--primary)); }
 .send-foot { padding: 12px 16px 16px; }
 .result { margin-bottom: 8px; font-size: 13px; }
 body.page .foot { position: static; }
@@ -164,7 +166,7 @@ body.page .foot { position: static; }
 .empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 40px 40px 0; }
 .peers-empty { padding-top: 32px; }
 .e-title { margin: 16px 0 6px; font-size: 17px; line-height: 24px; font-weight: 600; }
-.empty p { font-size: 13px; line-height: 18px; color: var(--ink2); max-width: 300px; }
+.empty p { font-size: 13px; line-height: 18px; color: var(--ink2); max-width: 300px; text-wrap: balance; }
 .illo .i-disc { fill: var(--halo); stroke: var(--ring); stroke-width: 1.5; }
 .illo .i-fill { fill: var(--halo); }
 .illo .i-orbit { fill: none; stroke: var(--ring); stroke-width: 1.5; stroke-dasharray: 3 7; stroke-linecap: round; }
