@@ -1053,10 +1053,14 @@ def read_toml(path):
             return tomllib.load(f)
     except tomllib.TOMLDecodeError as e:
         raise Fail("%s is not valid TOML: %s" % (path, e))
+    except UnicodeDecodeError:
+        raise Fail("%s is not valid UTF-8 text. It is damaged." % path)
 
 
 def check_version(d, path):
     v = d.get("version")
+    if v is None:
+        raise Fail("%s is damaged (no version). Delete it and log in again." % path)
     if type(v) is not int or v != STATE_VERSION:
         raise Fail("%s has version %r, which this PushArmor does not know. Update PushArmor to continue: %s"
                    % (path, v, UPDATE_HOW))
@@ -1092,6 +1096,8 @@ class Store:
             k = {"id": d["id"], "auth": b64d(d["push_auth"])}
             for name in ("sign", "enc", "push"):
                 k[name] = b64d(d[name + "_key"])
+                if len(k[name]) != 32:
+                    raise ValueError("bad key")
                 k[name + "_pub"] = pub_from_priv(k[name])
             if len(b64d(k["id"])) != 30 or len(k["auth"]) != 16:
                 raise ValueError("bad id")
