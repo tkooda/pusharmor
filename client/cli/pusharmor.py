@@ -1273,6 +1273,27 @@ def _host_ok(url):
         return False
 
 
+STATE_LISTS = (("my_allow", str), ("listed", str), ("pair_auto", int))
+STATE_OPTIONAL = (("reg", str), ("name", str), ("ntfy", str), ("topic", str), ("since", str), ("listen_at", int),
+                  ("push_ok", bool), ("logout_pending", bool))
+
+
+def check_shape(d, path):
+    """devices.toml holds every field this PushArmor reads, each of the type it writes."""
+    def rows_ok(rows, tmpl):
+        return type(rows) is dict and all(
+            type(r) is dict and all(type(r.get(k)) is type(v) for k, v in tmpl.items()) for r in rows.values())
+
+    ok = (rows_ok(d["peers"], new_peer({"sign_pub": "", "enc_pub": ""}))
+          and all(type(n) is int for p in d["peers"].values() for n in p["seen"])
+          and rows_ok(d["pairs"], new_entry("N", "", b"", b""))
+          and all(type(d[k]) is list and all(type(x) is t for x in d[k]) for k, t in STATE_LISTS)
+          and all(type(d.get(k, t())) is t for k, t in STATE_OPTIONAL)
+          and ("reg" not in d or all(k in d for k in ("name", "ntfy", "topic"))))
+    if not ok:
+        raise Fail("%s is damaged. Delete it and log in again." % path)
+
+
 class Store:
     def __init__(self, root):
         self.root = root
@@ -1332,6 +1353,7 @@ class Store:
                 check_version(d, self.dev_path)
             for k, v in (("peers", {}), ("pairs", {}), ("my_allow", []), ("listed", []), ("pair_auto", [])):
                 d.setdefault(k, v)
+            check_shape(d, self.dev_path)
             yield d
             if write:
                 write_file(self.dev_path, toml_dumps(d))
