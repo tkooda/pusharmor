@@ -30,13 +30,11 @@ struct MainView: View {
 
     private var tabs: some View {
         TabView(selection: $tab) {
-            HomeView()
-                .safeAreaInset(edge: .bottom, spacing: 0) { ToastBanner() }
+            HomeView() // its banner sits under the Send bar, in ComposeView
                 .tabBarMaterial()
                 .tabItem { Label("Send", systemImage: "paperplane") }
                 .tag(0)
             HistoryTab()
-                .safeAreaInset(edge: .bottom, spacing: 0) { ToastBanner() }
                 .tabBarMaterial()
                 .tabItem { Label("History", systemImage: "clock") }
                 .tag(3)
@@ -133,6 +131,7 @@ struct HistoryTab: View {
                 HistoryView()
             }
             .navigationTitle("History")
+            .safeAreaInset(edge: .bottom, spacing: 0) { ToastBanner() }
         }
     }
 }

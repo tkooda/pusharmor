@@ -220,7 +220,13 @@ struct ComposeView: View {
         .contentMargins(.bottom, 12, for: .scrollContent)
         .scrollDismissesKeyboard(.interactively)
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { listTop = $0 }
-        .safeAreaInset(edge: .bottom, spacing: 0) { sendBar }
+        // I604: the banner goes under the Send bar, inside the content, so it covers neither Send nor the tab bar
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 0) {
+                sendBar
+                ToastBanner()
+            }
+        }
         .onAppear { restoreSelection() }
         .onChange(of: candidates.map { $0.id.text }) { _, _ in restoreSelection() }
         #if DEBUG
