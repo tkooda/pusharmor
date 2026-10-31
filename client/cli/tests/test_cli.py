@@ -1,5 +1,6 @@
 """Command layer: parsing, files, HTTP rules, login, pair, send, and listen through a fake relay server."""
 
+import contextlib
 import io
 import json
 import os
@@ -592,3 +593,38 @@ def test_output_the_terminal_cannot_show(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(io.BytesIO(), encoding="ascii"))
     assert run(tmp_path, "logout") == 1
     assert "Use a UTF-8 locale" in capsys.readouterr().err
+
+
+@contextlib.contextmanager
+def local_http(reply):
+    """A real HTTP server on 127.0.0.1; reply(handler) writes the raw reply."""
+    import http.server
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            reply(self)
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    try:
+        yield "http://127.0.0.1:%d" % srv.server_address[1]
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
+def test_cut_off_error_body_keeps_the_status():
+    def reply(h):
+        h.send_response(500)
+        h.send_header("Content-Length", "1000")
+        h.end_headers()
+        h.wfile.write(b"{")
+        h.close_connection = True
+
+    with local_http(reply) as url:
+        status, _, body = pa.http_request("GET", url + "/v1/peers", {}, None)
+    assert (status, body) == (500, b"")

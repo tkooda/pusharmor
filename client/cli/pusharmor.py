@@ -1326,7 +1326,11 @@ def http_request(method, url, headers, body):
             return r.status, {k.lower(): v for k, v in r.headers.items()}, r.read()
     except urllib.error.HTTPError as e:
         with e:
-            return e.code, {k.lower(): v for k, v in e.headers.items()}, e.read()
+            try:
+                data = e.read()
+            except (OSError, http.client.HTTPException):  # a cut-off error body: the status still counts
+                data = b""
+            return e.code, {k.lower(): v for k, v in e.headers.items()}, data
     except http.client.HTTPException as e:
         raise OSError(str(e)) from e
 
