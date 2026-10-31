@@ -3,11 +3,11 @@
 // script in the page head) set it before the first paint, so dark never flashes white.
 export type ThemePref = "system" | "light" | "dark";
 export const THEME_KEY = "uiTheme";
-export const THEME_CHOICES: [ThemePref, string][] = [["system", "System"], ["light", "Light"], ["dark", "Dark"]];
+export const THEME_CHOICES: [ThemePref, string][] = [["light", "Light"], ["dark", "Dark"], ["system", "System"]];
 
-/** Stored value to a choice; anything unknown or absent is "system". */
+/** Stored value to a choice; anything unknown or absent is "light" (the extensions default to Light). */
 export function parseTheme(v: unknown): ThemePref {
-  return v === "light" || v === "dark" ? v : "system";
+  return v === "dark" || v === "system" ? v : "light";
 }
 
 /** Sets data-theme on the root element ("system" removes it, so prefers-color-scheme applies). */
