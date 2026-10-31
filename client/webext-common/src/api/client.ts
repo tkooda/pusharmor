@@ -27,6 +27,8 @@ export interface Signer {
 }
 
 export interface ApiDeps {
+  /** PA-Client header value, e.g. "chrome/0.0.19". */
+  client: string;
   fetch(input: string, init: RequestInit): Promise<Response>;
   now(): number;
   sleep(ms: number): Promise<void>;
@@ -101,7 +103,7 @@ export class Api {
 
   private async once(method: string, path: string, bodyText: string, opts: CallOpts): Promise<ApiReply> {
     const fullPath = "/v1" + path;
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { "PA-Client": this.d.client };
     const bodyBytes = utf8(bodyText);
     if (bodyText !== "") headers["Content-Type"] = "application/json";
     if (opts.signer) {
@@ -140,10 +142,14 @@ export class Api {
   }
 }
 
+/** HTTP 426: the relay server no longer accepts this version. */
+export const UPDATE_REQUIRED = "Update PushArmor to continue";
+
 /** User-facing text for an API error (catalog Results and errors). */
 export function errorText(e: unknown): string {
   if (!(e instanceof ApiError)) return "Something went wrong. Try again.";
   if (e.error === "clock skew twice") return "This device's clock is off by more than 5 minutes";
+  if (e.status === 426) return UPDATE_REQUIRED;
   if (e.status === 502) return "Could not send the email, try again";
   if (e.status === 400 && e.error === "bad email") return "Only email addresses with plain ASCII characters are supported.";
   if (e.status === 400 && e.error === "push endpoint not allowed") return "This browser's push service is not supported yet";
