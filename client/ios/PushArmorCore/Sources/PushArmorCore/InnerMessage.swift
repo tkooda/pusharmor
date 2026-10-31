@@ -17,9 +17,9 @@ public struct NameField: Equatable, Sendable {
         "{\"name\":" + StrictJSON.quote(name) + ",\"n\":" + String(n) + ",\"s\":" + StrictJSON.quote(s) + "}"
     }
 
-    /// Exactly the keys name, n, s with the right types.
+    /// The keys name, n, s with the right types; unknown extra keys are ignored (Q327).
     public static func from(_ v: JSONValue) -> NameField? {
-        guard let m = v.objectMembers, m.count == 3,
+        guard v.objectMembers != nil,
               let name = v["name"]?.stringValue, let n = v["n"]?.counterValue,
               let s = v["s"]?.stringValue else { return nil }
         return NameField(name: name, n: n, s: s)
@@ -88,13 +88,17 @@ public struct InnerJSON: Equatable, Sendable {
 
     public enum Failure: Error { case json, shape, counter, value, tooLong }
 
-    /// Strict parse: n plus exactly one type key, no unknown keys, n a JSON integer
-    /// in 1 ... 2^53 - 1 on the raw token, no duplicate keys, content <= 2048 bytes.
+    /// Type keys in priority order: the first one present is the message type (Q327).
+    static let typeOrder = ["url", "text", "tel", "approve", "deny", "remove", "rename", "delete", "logout", "login"]
+
+    /// Lenient parse (Q327): n plus at least one known type key; unknown keys and any
+    /// lower-priority type keys are ignored. n a JSON integer in 1 ... 2^53 - 1 on the
+    /// raw token, no duplicate keys, content <= 2048 bytes.
     public static func parse(_ data: Data) throws -> InnerJSON {
-        guard let v = try? StrictJSON.parse(data), let m = v.objectMembers else { throw Failure.json }
-        guard m.count == 2, let nv = v["n"] else { throw Failure.shape }
+        guard let v = try? StrictJSON.parse(data), v.objectMembers != nil else { throw Failure.json }
+        guard let nv = v["n"] else { throw Failure.shape }
         guard let n = nv.counterValue else { throw Failure.counter }
-        guard let (key, val) = m.first(where: { $0.0 != "n" }) else { throw Failure.shape }
+        guard let key = typeOrder.first(where: { v[$0] != nil }), let val = v[key] else { throw Failure.shape }
         let c: MessageContent
         func str() throws -> String {
             guard let s = val.stringValue else { throw Failure.value }
