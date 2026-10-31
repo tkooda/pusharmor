@@ -188,6 +188,7 @@ body.page .foot { position: static; }
 .astext { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: var(--ink2); cursor: pointer; }
 .astext[hidden] { display: none; }
 .dchips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px; }
+.nosend { margin: 8px 16px 0; }
 .chip.dchip { height: 30px; padding: 0 12px 0 8px; gap: 6px; background: var(--card); border-color: var(--ctl); color: var(--ink); font-size: 13px; font-weight: 500; }
 .chip.dchip:hover { background: var(--s1); }
 .dchip .nm { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }

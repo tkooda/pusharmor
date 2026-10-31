@@ -362,3 +362,8 @@ test("Send result names the one device; counts read singular for one (I493)", as
   const { readFileSync } = await import("node:fs");
   assert.match(readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8"), /one \? T\.sentToOne\(one\.label\) : T\.sentToNofM\(r\.sent, r\.total\)/);
 });
+
+test("Send with every device greyed says no device can receive now (I494)", async () => {
+  const { readFileSync } = await import("node:fs");
+  assert.match(readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8"), /!sendable\.length && chips\.childElementCount \? h\("p", \{ class: "dim nosend" \}, "No device can receive messages right now\."\)/);
+});

@@ -270,7 +270,9 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
       }, "Send the first 2048 bytes")),
     );
   }
-  root.append(head, chips, h("div", { class: "grow" }), h("div", { class: "foot send-foot" }, result, sendBtn));
+  // I494: every device is greyed: say why Send is off
+  const none = !sendable.length && chips.childElementCount ? h("p", { class: "dim nosend" }, "No device can receive messages right now.") : null;
+  root.append(head, chips, ...(none ? [none] : []), h("div", { class: "grow" }), h("div", { class: "foot send-foot" }, result, sendBtn));
   relabel();
   await update();
 }
