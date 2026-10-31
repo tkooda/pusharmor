@@ -53,7 +53,7 @@ final class AppModel: ObservableObject {
     @Published var showHistory = false
     /// Peer ids with a Pair again call running; their Pair again buttons are disabled.
     @Published var pairAgainBusy: Set<String> = []
-    /// Keys of taps still running ("send", "logout", "pair:<id>", ...); their buttons are disabled (I473).
+    /// Keys of taps still running ("send", "pair:<id>", ...); their buttons are disabled (I473).
     @Published var busy: Set<String> = []
 
     /// Runs [body] unless the same key is still running, so a second tap does not run twice (I473).
@@ -158,7 +158,7 @@ final class AppModel: ObservableObject {
         if n > 0 { lockedLine = S.receivedWhileLocked(n) }
         await drainDelivered(skip: lockedMs, held: held)
         if phase == .main { await core.appOpen(push: pushInfo) }
-        else { await core.allowReconcile() }
+        else { await core.retryPendingLogout(); await core.allowReconcile() }
         reload()
         if (try? core.store.me().removed) == true { phase = .removed }
     }
@@ -359,14 +359,13 @@ final class AppModel: ObservableObject {
         await route()
     }
 
+    /// Q368: logged out here at once; the relay server call runs after and is retried on
+    /// later app opens until it goes through.
     func signOut() async {
         guard let core = core else { return }
-        await once("logout") {
-            let out = try? await core.logout()
-            await route()
-            // Still signed in: the call failed, say so (no registration left routes to log in instead).
-            if phase == .main, let t = Core.failText(out) { toast = t }
-        }
+        try? core.logoutLocal()
+        await route()
+        Task { await core.retryPendingLogout() }
     }
 
     func deleteAccount(ticket: String) async {

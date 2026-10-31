@@ -138,7 +138,6 @@ struct SettingsView: View {
                     if !confirmDeleteAccount {
                         // Log out acts at once (Q367); it hides while the Delete account confirm shows (I457).
                         Button("Log out") { Task { await model.signOut() } }
-                            .disabled(model.busy.contains("logout"))
                     }
                     if confirmDeleteAccount {
                         Text("Delete this account? You must log in again to confirm. This cannot be undone.")

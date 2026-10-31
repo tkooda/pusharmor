@@ -206,6 +206,45 @@ final class StateMachineTests: XCTestCase {
         XCTAssertFalse(try n.core.store.allowSet().contains(o.id.text))
     }
 
+    /// Q368: Log out is local at once; a failed relay server call stays pending and is retried.
+    func testLogoutLocalFirstThenPendingRetry() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        let path = "/v1/peers/" + n.id.text + "/logout"
+        try n.core.logoutLocal()
+        XCTAssertTrue(try n.core.store.me().loggedOut)
+        XCTAssertTrue(n.core.logoutPending)
+        w.offline = true
+        await n.core.retryPendingLogout()
+        XCTAssertTrue(try n.core.store.me().loggedOut)            // still logged out here
+        XCTAssertTrue(n.core.logoutPending)                       // kept for the next try
+        XCTAssertFalse(w.rows[n.id.text]!.loggedOut)
+        w.offline = false
+        w.script("POST", path, 503, "{\"error\":\"busy\"}")
+        w.script("POST", path, 503, "{\"error\":\"busy\"}")
+        w.script("POST", path, 503, "{\"error\":\"busy\"}")
+        w.script("POST", path, 503, "{\"error\":\"busy\"}")
+        await n.core.retryPendingLogout()
+        XCTAssertTrue(n.core.logoutPending)                       // 5xx: kept
+        await n.core.retryPendingLogout()
+        XCTAssertFalse(n.core.logoutPending)
+        XCTAssertTrue(w.rows[n.id.text]!.loggedOut)
+        XCTAssertTrue(try n.core.store.me().loggedOut)
+        let sent = w.count("POST", path)
+        await n.core.retryPendingLogout()                         // nothing pending: no call
+        XCTAssertEqual(w.count("POST", path), sent)
+    }
+
+    /// Q368: a pending logout is dropped once this device logs in again.
+    func testPendingLogoutDroppedAfterLoggingInAgain() async throws {
+        let n = try dev("Ndev")
+        try n.core.logoutLocal()
+        try n.core.store.setMe("logged_out", .int(0))
+        await n.core.retryPendingLogout()
+        XCTAssertFalse(n.core.logoutPending)
+        XCTAssertEqual(w.count("POST", "/v1/peers/" + n.id.text + "/logout"), 0)
+    }
+
     func testStaleAllowIdPlusOpenNEntryWithdrawnPauseSucceeds() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         await n.core.fetchPeers(force: true)

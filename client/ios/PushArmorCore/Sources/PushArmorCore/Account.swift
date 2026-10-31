@@ -105,6 +105,31 @@ extension Core {
         return out
     }
 
+    /// Log out tap (Q368): logged out here at once, with the relay server call kept as
+    /// pending so it is sent now and again on later app opens until it goes through.
+    public func logoutLocal() throws {
+        try store.db.write {
+            try store.setMe("logged_out", .int(1))
+            try store.setSetting(Core.logoutPendingKey, "1")
+        }
+    }
+
+    static let logoutPendingKey = "logout_pending"
+
+    public var logoutPending: Bool { (try? store.setting(Core.logoutPendingKey)) != nil }
+
+    /// Sends a pending logout. It stays pending on no reply, 429, 5xx, or clock skew; it is dropped once
+    /// the relay server answered otherwise, or when this device was removed or logged in again.
+    public func retryPendingLogout() async {
+        guard logoutPending else { return }
+        guard let me = try? store.me(), me.id != nil, !me.removed, me.loggedOut else {
+            try? store.setSetting(Core.logoutPendingKey, nil)
+            return
+        }
+        guard let out = try? await logout(), let r = out.reply, r.status != 429, r.status < 500, !out.isClockSkew else { return }
+        try? store.setSetting(Core.logoutPendingKey, nil)
+    }
+
     /// Log in again after a logout: a fresh "login" ticket, login messages, then one
     /// GET /peers and the push reconcile.
     public func login(ticket: String, push: PushInfo?) async throws -> APIOutcome {
@@ -114,6 +139,7 @@ extension Core {
         }
         if out.reply?.ok == true {
             try store.setMe("logged_out", .int(0))
+            try store.setSetting(Core.logoutPendingKey, nil)
             await fetchPeers(force: true)
             await resendWaitingApproves()
             await reconcilePush(push)
