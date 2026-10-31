@@ -55,6 +55,7 @@ deflate stream is correct) unless the change is intended.
 |---|---|---|
 | `keys` | test `id_secret`; peers N, X, O (account A), Z (account B), S (sign_pub = enc_pub); raw private scalars, 65-byte SEC1 publics, account, keyhash, id | publics from scalars; account, keyhash, id byte for byte |
 | `email_hash` | normalization cases (trim ASCII whitespace, reject non-ASCII, ASCII lowercase); `normalized` null = 400 "bad email" | normalized, email_hash, account |
+| `mailbox` | account identity: +tag cut at listed providers, Gmail dots dropped, googlemail.com -> gmail.com; email_hash and account are of the mailbox | normalized, mailbox, email_hash, account (Worker and ban tool only) |
 | `id_order` | id pairs and the lower side (unsigned byte compare) | `lower` |
 | `oauth_nonce` | k and nonce per purpose | k, nonce |
 | `cli_code` | command line login link and 34-char code per purpose (test token_secret) | k16, link, code (Worker and command line client only) |

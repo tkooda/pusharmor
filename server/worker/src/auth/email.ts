@@ -81,9 +81,9 @@ export async function start(c: Ctx): Promise<Response> {
   if (typeof b.email !== "string" || typeof b.turnstile !== "string" || b.turnstile.length === 0 || b.turnstile.length > 4096) throw bad();
   await verifyTurnstile(c.env, b.turnstile, c.req.headers.get("CF-Connecting-IP"));
   const email = normalizeEmail(b.email);
-  const eh = b64urlEncode(await emailHash(email));
+  const eh = b64urlEncode(await emailHash(mailboxKey(email)));
   // Per mailbox (+tag and Gmail dot variants share it); a limiter key only, never stored.
-  await enforce(c.env, "RL_MAIL_EMAIL", "mail:" + b64urlEncode(await emailHash(mailboxKey(email))), c.log);
+  await enforce(c.env, "RL_MAIL_EMAIL", "mail:" + eh, c.log);
   // Per IP (a limiter key only, never stored): address variants from one IP share this cap.
   // IPv6 by its /64 like RL_IP, so one /64 cannot rotate source addresses (I446).
   await enforce(c.env, "RL_MAIL_IP", "mail" + ipKey(c.req.headers.get("CF-Connecting-IP") ?? ""), c.log);

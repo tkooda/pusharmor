@@ -17,6 +17,29 @@ export function normalizeEmail(s) {
   return Buffer.from(t.map((c) => (c >= 0x41 && c <= 0x5a ? c + 0x20 : c))).toString('latin1');
 }
 
+// Providers that deliver "local+tag" to "local"; Gmail also ignores dots in the local part.
+const PLUS_TAG = new Set([
+  'gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'live.com', 'msn.com', 'icloud.com', 'me.com', 'mac.com',
+  'fastmail.com', 'proton.me', 'protonmail.com', 'protonmail.ch', 'pm.me',
+]);
+const GMAIL = new Set(['gmail.com', 'googlemail.com']);
+
+// Account identity (Q334): one mailbox for a normalized address. Strip +tag at PLUS_TAG domains;
+// at Gmail also drop dots and map googlemail.com -> gmail.com. Other domains are unchanged.
+export function mailboxKey(normalized) {
+  const at = normalized.lastIndexOf('@');
+  let local = normalized.slice(0, at);
+  let domain = normalized.slice(at + 1);
+  if (!PLUS_TAG.has(domain)) return normalized;
+  const plus = local.indexOf('+');
+  if (plus > 0) local = local.slice(0, plus);
+  if (GMAIL.has(domain)) {
+    domain = 'gmail.com';
+    local = local.replace(/\./g, '') || local;
+  }
+  return local + '@' + domain;
+}
+
 export const emailHash = (normalized) => sha256('PA-ACCT1\n', normalized);
 export const accountId = (idSecret, eh) => hmac(idSecret, eh).subarray(0, 9);
 export const keyhash = (signPub, encPub) => sha256('PA-ID1\n', signPub, encPub).subarray(0, 12);

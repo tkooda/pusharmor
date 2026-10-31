@@ -1,6 +1,7 @@
 // Email normalization: trim ASCII whitespace, then ASCII-only lowercase (A-Z -> a-z).
 // Any char outside ASCII -> 400 "bad email"; controls, space and <>"(),;:\ -> 400.
-// Relay addresses are accepted. The result is the account identity: +tags and dots stay.
+// Relay addresses are accepted. The account identity is mailboxKey() of the result (Q334);
+// login codes still go to the normalized address as typed.
 import { ApiError } from "../errors";
 
 export function normalizeEmail(input: unknown): string {
@@ -16,10 +17,10 @@ export function normalizeEmail(input: unknown): string {
 }
 
 // Providers that deliver "local+tag" to "local"; Gmail also ignores dots in the local part.
-const PLUS_TAG = new Set(["gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "msn.com", "icloud.com", "me.com", "mac.com", "fastmail.com", "proton.me", "protonmail.com", "pm.me"]);
+const PLUS_TAG = new Set(["gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "msn.com", "icloud.com", "me.com", "mac.com", "fastmail.com", "proton.me", "protonmail.com", "protonmail.ch", "pm.me"]);
 const GMAIL = new Set(["gmail.com", "googlemail.com"]);
 
-// Abuse limiter key only (never the account identity): one mailbox for a normalized address.
+// Account identity and abuse limiter key: one mailbox for a normalized address.
 export function mailboxKey(normalized: string): string {
   const at = normalized.lastIndexOf("@");
   let local = normalized.slice(0, at);

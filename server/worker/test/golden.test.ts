@@ -6,7 +6,7 @@ import { pushSha256 } from "../src/codec/validate";
 import { importEcdhPub, importVerifyKey, rawPoint } from "../src/crypto/ecdsa";
 import { accountId, emailHash, keyhash, peerId } from "../src/crypto/ids";
 import { keyRef, keyRef16, makeCliCode, openCliCode, oauthNonce } from "../src/crypto/tokens";
-import { normalizeEmail } from "../src/auth/normalize";
+import { mailboxKey, normalizeEmail } from "../src/auth/normalize";
 import { checkSig, checkTime, signedBytes } from "../src/pipeline/signed";
 import { pairKey } from "../src/routes/pair";
 import { encryptAes128gcm } from "../src/push/rfc8291";
@@ -28,6 +28,19 @@ describe("golden: keys and ids", () => {
       expect(acct).toBe(p.account);
       expect(b64urlEncode(await keyhash(d(p.sign_pub), d(p.enc_pub)))).toBe(p.keyhash);
       expect(await peerId(G.keys.id_secret, acct, d(p.sign_pub), d(p.enc_pub))).toBe(p.id);
+    });
+  }
+});
+
+describe("golden: mailbox (Q334)", () => {
+  for (const c of G.mailbox.cases) {
+    it(c.input, async () => {
+      const n = normalizeEmail(c.input);
+      expect(n).toBe(c.normalized);
+      expect(mailboxKey(n)).toBe(c.mailbox);
+      const eh = await emailHash(mailboxKey(n));
+      expect(b64urlEncode(eh)).toBe(c.email_hash);
+      expect(await accountId(G.keys.id_secret, eh)).toBe(c.account);
     });
   }
 });

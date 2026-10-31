@@ -16,6 +16,29 @@ export function normalizeEmail(s) {
   return out;
 }
 
+// Providers that deliver "local+tag" to "local"; Gmail also ignores dots in the local part.
+const PLUS_TAG = new Set([
+  "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "msn.com", "icloud.com", "me.com", "mac.com",
+  "fastmail.com", "proton.me", "protonmail.com", "protonmail.ch", "pm.me",
+]);
+const GMAIL = new Set(["gmail.com", "googlemail.com"]);
+
+// Account identity, same as the Worker (Q334): one mailbox for a normalized address. Strip +tag at PLUS_TAG domains;
+// at Gmail also drop dots and map googlemail.com -> gmail.com. Other domains are unchanged.
+export function mailboxKey(normalized) {
+  const at = normalized.lastIndexOf("@");
+  let local = normalized.slice(0, at);
+  let domain = normalized.slice(at + 1);
+  if (!PLUS_TAG.has(domain)) return normalized;
+  const plus = local.indexOf("+");
+  if (plus > 0) local = local.slice(0, plus);
+  if (GMAIL.has(domain)) {
+    domain = "gmail.com";
+    local = local.replace(/\./g, "") || local;
+  }
+  return local + "@" + domain;
+}
+
 export function b64url(bytes) {
   return Buffer.from(bytes)
     .toString("base64")
