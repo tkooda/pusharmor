@@ -1,6 +1,7 @@
 package com.pusharmor.app.ui
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pusharmor.app.PaApp
@@ -19,6 +20,7 @@ import com.pusharmor.store.PeerEntity
 import com.pusharmor.store.SelfEntity
 import com.pusharmor.store.toPeer
 import com.pusharmor.store.toRow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -49,6 +51,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val highlight = MutableStateFlow<String?>(null)
 
     companion object {
+        /** Shown when a tap fails with an unexpected error (I547). */
+        const val NOT_DONE = "Something went wrong. Try again."
+
         /** A signed-in screen whose device the relay server removed or logged out goes back to log in (I465). */
         fun needsReboot(start: Session.Start?, selfPresent: Boolean, signedOut: Boolean): Boolean =
             start == Session.Start.READY && (!selfPresent || signedOut)
@@ -70,7 +75,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun io(block: suspend () -> Unit) = viewModelScope.launch(Dispatchers.IO) {
         busy.value = true
-        try { block() } finally { busy.value = false }
+        try { block() } catch (e: CancellationException) { throw e } catch (e: Exception) { failed(e) } finally { busy.value = false }
+    }
+
+    /** An unexpected error in a tap handler shows [NOT_DONE] instead of crashing the app (I547). */
+    private fun failed(e: Exception) {
+        Log.w("PushArmor", "action failed", e)
+        message.value = NOT_DONE
     }
 
     /** Keys of taps still running ("send", "logout", "pair:<id>", ...); their button is greyed until the call ends (I473). */
@@ -103,8 +114,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun signPubB64(): String = withContext(Dispatchers.IO) { com.pusharmor.crypto.B64url.encode(g.session.keysForSignIn()) }
 
     suspend fun emailStart(email: String, turnstile: String, purpose: String): String? = withContext(Dispatchers.IO) {
-        val r = g.client.authEmail(email, signPubB64(), purpose, turnstile)
-        if (r is ApiResult.Ok) r.value else { message.value = ErrorText.of(r); null }
+        try {
+            val r = g.client.authEmail(email, signPubB64(), purpose, turnstile)
+            if (r is ApiResult.Ok) r.value else { message.value = ErrorText.of(r); null }
+        } catch (e: CancellationException) { throw e } catch (e: Exception) { failed(e); null }
     }
 
     fun emailVerify(requestToken: String, code: String, purpose: String, onDone: () -> Unit) = once("verify") {
