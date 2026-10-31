@@ -1,15 +1,35 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { applyTheme, memoryThemeStore, parseTheme, setTheme } from "../src/ui/theme.ts";
+import { THEME_CHOICES, applyTheme, memoryThemeStore, parseTheme, setTheme } from "../src/ui/theme.ts";
 
-test("theme: stored value parses to a choice, default System", () => {
+test("theme: stored value parses to a choice, default Light (Q336)", () => {
   assert.equal(parseTheme("light"), "light");
   assert.equal(parseTheme("dark"), "dark");
   assert.equal(parseTheme("system"), "system");
-  assert.equal(parseTheme(undefined), "system");
-  assert.equal(parseTheme("DARK"), "system");
-  assert.equal(parseTheme(1), "system");
+  assert.equal(parseTheme(undefined), "light");
+  assert.equal(parseTheme("DARK"), "light");
+  assert.equal(parseTheme(1), "light");
+  assert.deepEqual(THEME_CHOICES.map(([v]) => v), ["light", "dark", "system"]);
+});
+
+test("theme: theme.js sets Light before the stored value loads; only a saved System follows the system (Q336)", async () => {
+  const g = globalThis as unknown as { document?: unknown; localStorage?: unknown };
+  const had = { d: "document" in g, l: "localStorage" in g };
+  const prevL = g.localStorage;
+  try {
+    for (const [saved, want] of [[null, "light"], ["dark", "dark"], ["light", "light"], ["bogus", "light"], ["system", undefined]] as const) {
+      const root = { dataset: {} as DOMStringMap };
+      g.document = { documentElement: root };
+      g.localStorage = { getItem: () => saved };
+      await import("../src/ui/themeboot.ts?" + String(saved));
+      assert.equal(root.dataset.theme, want, String(saved));
+    }
+  } finally {
+    if (!had.d) delete g.document;
+    if (had.l) g.localStorage = prevL;
+    else delete g.localStorage;
+  }
 });
 
 test("theme: Light and Dark set data-theme, System removes it", () => {
