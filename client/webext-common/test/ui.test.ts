@@ -232,3 +232,17 @@ test("Send with no device to send to shows how to pair one and opens Devices (I4
   assert.match(pop, /"Open Devices"/);
   assert.match(pop, /sendView\(env, pane, st, prefill, false, \(\) => show\("peers"\)\)/);
 });
+
+test("login page: one note at a time, setup note only while needed with Open setup, resume has no step counter (I459)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const page = readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(page, /Finish logging in in the new tab/);
+  assert.match(page, /first \?\?\s*\(st\.banner/); // the first available note only
+  assert.match(page, /ff && st\.setupNeeded \? setupNote\(\)/);
+  assert.match(page, /"Open setup"/);
+  assert.match(page, /resuming \? null : h\("p", \{ class: "step-n" \}, "Step 1 of 2"\)/);
+  assert.match(page, /"You are logged out\. Log in to resume\."/);
+  const texts = readFileSync(new URL("../src/core/texts.ts", import.meta.url), "utf8");
+  assert.match(texts, /ffFinishSetup: "Finish setup in the Firefox setup tab\.",/);
+  assert.match(texts, /signedOut: "Logged out\. Log in to resume\.",/);
+});
