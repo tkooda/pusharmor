@@ -438,7 +438,7 @@ test("retention: 4 weeks on /privacy; stored list", () => {
     "PushArmor is operated by Ion Echo, LLC at PushArmor.com."]) {
     assert.ok(p.includes(s), "privacy lacks: " + s);
   }
-  for (const s of ["rate limiter", "server database", "peer row", "1 minute"]) assert.ok(!p.includes(s), "privacy has server detail: " + s);
+  for (const s of ["rate limiter", "server database", "peer row", "1 minute", "service worker"]) assert.ok(!p.includes(s), "privacy has server detail: " + s);
 });
 
 test("minimum age 13 on /terms and /privacy (Q227 A)", () => {
