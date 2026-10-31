@@ -57,6 +57,7 @@ import {
   pairKeyOf,
 } from "./state.ts";
 import { T, peerLabel } from "./texts.ts";
+import { AUTH_CHANGED } from "../model/signin.ts";
 
 export type Src = "push" | "bridge" | "returned";
 export const FETCH_WINDOW_MS = 60_000;
@@ -116,12 +117,13 @@ export class Engine {
   readonly lock = new Lock();
   private readonly pairingAgain = new Set<string>();
   private fetching: Promise<void> | null = null;
+  private authN = 0;
 
   constructor(d: EngineDeps) {
     this.p = d.platform;
     this.db = d.db;
     this.api = d.api;
-    this.api.onLoggedOut = () => this.db.setMeta("reg", "logged_out");
+    this.api.onLoggedOut = () => this.setReg("logged_out");
     this.vapid = d.vapidPub;
   }
 
@@ -143,6 +145,16 @@ export class Engine {
   async self(): Promise<SelfKeys | null> {
     const s = await this.db.self();
     return s && s.id ? s : null;
+  }
+
+  /** Tells open popups and tabs that the login state changed: they mount again (I465). */
+  async authChanged(): Promise<void> {
+    await this.p.storageSession.set({ [AUTH_CHANGED]: this.p.now() + ":" + ++this.authN }).catch(() => undefined);
+  }
+
+  private async setReg(v: "registered" | "logged_out"): Promise<void> {
+    await this.db.setMeta("reg", v);
+    await this.authChanged();
   }
 
   async regState(): Promise<"registered" | "logged_out" | null> {
@@ -1258,10 +1270,11 @@ export class Engine {
   /** Log out (catalog Logout rules). */
   async logout(): Promise<void> {
     const self = await this.self();
-    if (!self) return;
+    // no keys on this device: nothing to log out on the relay server; drop what is left
+    if (!self) return this.wipe();
     await this.reconcileAllow();
     await this.allowListCall("POST", "/peers/" + self.id + "/logout", self, (m) => ({ m }), async () => ({ type: "logout" }));
-    await this.db.setMeta("reg", "logged_out");
+    await this.setReg("logged_out");
   }
 
   async login(ticket: string): Promise<void> {
@@ -1269,7 +1282,7 @@ export class Engine {
     if (!self) return;
     await this.reconcileAllow();
     await this.allowListCall("POST", "/peers/" + self.id + "/login", self, (m) => ({ ticket, m }), async () => ({ type: "login" }));
-    await this.db.setMeta("reg", "registered");
+    await this.setReg("registered");
     await this.fetchPeersNow().catch(() => undefined);
     await this.pushReconcile().catch(() => undefined);
     await this.timeoutCheck();
@@ -1344,6 +1357,7 @@ export class Engine {
   async selfRemoved(banner: string): Promise<void> {
     await this.wipe();
     await this.db.setMeta("banner", banner);
+    await this.authChanged();
   }
 
   /** The one wipe routine (section 4.1). History is kept. */
@@ -1357,6 +1371,7 @@ export class Engine {
     await this.p.pushUnsubscribe().catch(() => undefined);
     await this.p.clearAllNotifications().catch(() => undefined);
     await this.rebuildMenus();
+    await this.authChanged();
   }
 
   // ------------------------------------------------------------ menus
@@ -1454,6 +1469,7 @@ export class Engine {
       await this.db.setMeta("reg", "registered");
       await this.db.setMeta("banner", null);
       if (email) await this.db.setMeta("email", email);
+      await this.authChanged();
       const self = (await this.self())!;
       await this.mergePeers(r.json, self);
       if (lost && lost.id && lost.id !== id) {

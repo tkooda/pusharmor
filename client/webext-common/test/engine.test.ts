@@ -11,7 +11,7 @@ import { encodeInner } from "../src/model/message.ts";
 import { IDBFactory } from "fake-indexeddb";
 import { Clock, FakePlatform, MockWorker, deliver, device, makeEngine, pairAndApprove, refresh, restart } from "./harness.ts";
 import { AUTH_PENDING, Login } from "../src/core/login.ts";
-import { AUTH_RESULT, type AuthResult, readAuthResult } from "../src/model/signin.ts";
+import { AUTH_CHANGED, AUTH_RESULT, type AuthResult, readAuthResult } from "../src/model/signin.ts";
 
 const DAY = 86400_000;
 
@@ -942,4 +942,32 @@ test("devices list: paired only after both sides approve; a listed device waits 
   assert.ok(waiting.actions.includes("pair"));
   await pairAndApprove(w, a, b);
   assert.equal((await peers()).find((p) => p.id === b.id)!.paired, true); // the screen switches to the tabs
+});
+
+test("every login state change bumps AUTH_CHANGED in storage.session; logout with no keys ends logged out (I465)", async () => {
+  const clock = new Clock();
+  const w = new MockWorker(clock);
+  const a = await device(w, clock);
+  const rev = async () => (await a.p.storageSession.get([AUTH_CHANGED]))[AUTH_CHANGED];
+  const r0 = await rev();
+  assert.notEqual(r0, undefined); // register
+  await a.e.logout();
+  const r1 = await rev();
+  assert.notEqual(r1, r0);
+  assert.equal(await a.e.regState(), "logged_out");
+  await a.e.login("T");
+  assert.notEqual(await rev(), r1);
+  // no keys on this device: logout still leaves no usable account and tells the views
+  const r2 = await rev();
+  await a.db.clear(["keys"]);
+  await a.e.logout();
+  assert.notEqual(await a.e.regState(), "registered");
+  assert.notEqual(await rev(), r2);
+});
+
+test("popup and full tab views mount again on AUTH_CHANGED (I465)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
+  assert.match(rd("popup.ts"), /session\?\.watch\(AUTH_CHANGED/);
+  assert.match(rd("page.ts"), /session\?\.watch\(AUTH_CHANGED/);
 });
