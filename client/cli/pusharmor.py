@@ -867,10 +867,1503 @@ def detect(text):
 
 
 # ---- commands ----
+#
+# Files in the config dir: settings.toml (user: server, ntfy), devices.toml (this client:
+# paired devices, pairing state, counters, ntfy topic), keys/private.toml (0600, in keys/ 0700).
 
-def main():
-    print("The PushArmor command-line client is coming soon. See https://pusharmor.com")
-    return 1
+import argparse
+import base64
+import contextlib
+import datetime
+import email.utils
+import http.client
+import os
+import secrets
+import socket
+import stat
+import string
+import subprocess
+import tempfile
+import time
+import tomllib
+import urllib.error
+import urllib.parse
+import urllib.request
+
+SITE = "https://pusharmor.com"
+DEFAULT_SERVER = "https://api.pusharmor.com"
+DEFAULT_NTFY = "https://ntfy.sh"
+STATE_VERSION = 1
+EXIT_OK, EXIT_ERR, EXIT_USAGE, EXIT_LOGIN, EXIT_SEND, EXIT_TEMP = 0, 1, 2, 3, 4, 75
+UPDATE_HOW = "run pipx upgrade pusharmor, or get the new pusharmor.py from https://pusharmor.com/download"
+CODE_TRIES = 3
+LINK_LIFE_S = 600
+PROBE_WAIT_S = 30
+PAIR_WAIT_S = 600
+LISTEN_TIMEOUT_S = 120  # ntfy sends a keepalive every 45 s
+WAIT_TIMEOUT_S = 15  # login and pair: short reads, so a wait ends on time
+LISTEN_REPORT_S = 86400
+FETCH_GAP_S = 60
+PLATFORMS = {"android": "Android", "ios": "iPhone", "chrome": "Chrome", "firefox": "Firefox", "cli": "Command line"}
+MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
+REC_KEYS = ("from", "name", "platform", "type", "body", "date")
+NOT_LOGGED_IN = "Not logged in. Run: pusharmor login"
+LOGGED_OUT = "This device is logged out. Run: pusharmor login"
+REMOVED = "This device was removed. Log in again."
+UNREADABLE = "PushArmor received a message it could not read"
+KEY_HEADER = ("# PushArmor private keys of this device. Keep this file secret: with it, anyone can\n"
+              "# read the messages sent to this device and send as this device. Do not copy or share it.\n")
+
+
+class Fail(Exception):
+    """A message for stderr and an exit code."""
+
+    def __init__(self, msg, code=EXIT_ERR):
+        super().__init__(msg)
+        self.code = code
+
+
+class TempFail(Fail):
+    def __init__(self, msg, status):
+        super().__init__(msg, EXIT_TEMP)
+        self.status = status
+
+
+class ApiError(Exception):
+    def __init__(self, status, error, body):
+        super().__init__("%d %s" % (status, error))
+        self.status, self.error, self.body = status, error, body
+
+
+def check_os():
+    """The one OS check: Linux and macOS only."""
+    if os.name == "nt" or sys.platform.startswith("win"):
+        raise Fail("PushArmor command line is not supported on Windows yet.")
+
+
+def log(msg):
+    print(msg, file=sys.stderr, flush=True)
+
+
+def ask_yes(question, default=False):
+    try:
+        a = input(question).strip().lower()
+    except EOFError:
+        return False
+    return default if a == "" else a in ("y", "yes")
+
+
+# ---- TOML writer (tables, strings, ints, bools, lists); tomllib reads ----
+
+_BARE = re.compile(r"[A-Za-z0-9_-]+")
+
+
+def _tstr(s):
+    out = []
+    for ch in s:
+        o = ord(ch)
+        if ch in "\"\\":
+            out.append("\\" + ch)
+        elif 0x20 <= o < 0x7F:
+            out.append(ch)
+        elif 0xD800 <= o < 0xE000:
+            raise ValueError("toml: surrogate")
+        else:
+            out.append("\\u%04x" % o if o < 0x10000 else "\\U%08x" % o)
+    return '"' + "".join(out) + '"'
+
+
+def _tval(v):
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, int):
+        return str(v)
+    if isinstance(v, str):
+        return _tstr(v)
+    if isinstance(v, list):
+        return "[" + ", ".join(_tval(x) for x in v) + "]"
+    raise ValueError("toml: unsupported value")
+
+
+def toml_dumps(d, prefix=""):
+    key = lambda k: k if _BARE.fullmatch(k) else _tstr(k)  # noqa: E731
+    out = "".join(key(k) + " = " + _tval(v) + "\n" for k, v in d.items() if not isinstance(v, dict))
+    for k, v in d.items():
+        if isinstance(v, dict):
+            name = prefix + key(k)
+            out += "\n[" + name + "]\n" + toml_dumps(v, name + ".")
+    return out
+
+
+# ---- files ----
+
+def config_dir(arg=None):
+    for v in (arg, os.environ.get("PUSHARMOR_CONFIG")):
+        if v:
+            return os.path.abspath(os.path.expanduser(v))
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    base = xdg if xdg and os.path.isabs(xdg) else os.path.join(os.path.expanduser("~"), ".config")
+    return os.path.join(base, "pusharmor")
+
+
+def write_file(path, text):
+    """Temp file in the same dir + os.replace; mode 0600."""
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".tmp-")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
+def check_private(path, want):
+    """Owner must be this user, no group or other bits (Q293 A)."""
+    st = os.stat(path)
+    mode = stat.S_IMODE(st.st_mode)
+    if st.st_uid == os.getuid() and not mode & 0o077:
+        return
+    fix = "chmod %o %s" % (want, path)
+    if st.st_uid != os.getuid():
+        fix = "chown $(id -un) %s && %s" % (path, fix)
+    raise Fail("Refusing to use %s: found mode %04o, owner uid %d. It must be mode %04o and owned by you (uid %d). "
+               "Fix: %s" % (path, mode, st.st_uid, want, os.getuid(), fix))
+
+
+def read_toml(path):
+    try:
+        with open(path, "rb") as f:
+            return tomllib.load(f)
+    except tomllib.TOMLDecodeError as e:
+        raise Fail("%s is not valid TOML: %s" % (path, e))
+
+
+def check_version(d, path):
+    v = d.get("version")
+    if type(v) is not int or v != STATE_VERSION:
+        raise Fail("%s has version %r, which this PushArmor does not know. Update PushArmor to continue: %s"
+                   % (path, v, UPDATE_HOW))
+
+
+class Store:
+    def __init__(self, root):
+        self.root = root
+        self.keys_dir = os.path.join(root, "keys")
+        self.key_path = os.path.join(self.keys_dir, "private.toml")
+        self.dev_path = os.path.join(root, "devices.toml")
+        self.lock_path = os.path.join(root, "devices.toml.lock")
+
+    def settings(self):
+        p = os.path.join(self.root, "settings.toml")
+        s = read_toml(p) if os.path.exists(p) else {}
+        for k in ("server", "ntfy"):
+            if k in s and not (isinstance(s[k], str) and re.match(r"https?://[^/?#]+/?$", s[k])):
+                raise Fail("%s: %s must be a URL like https://host" % (p, k))
+        return s
+
+    def has_keys(self):
+        return os.path.exists(self.key_path)
+
+    def load_keys(self):
+        if not self.has_keys():
+            raise Fail(NOT_LOGGED_IN, EXIT_LOGIN)
+        check_private(self.keys_dir, 0o700)
+        check_private(self.key_path, 0o600)
+        d = read_toml(self.key_path)
+        check_version(d, self.key_path)
+        try:
+            k = {"id": d["id"], "auth": b64d(d["push_auth"])}
+            for name in ("sign", "enc", "push"):
+                k[name] = b64d(d[name + "_key"])
+                k[name + "_pub"] = pub_from_priv(k[name])
+            if len(b64d(k["id"])) != 30 or len(k["auth"]) != 16:
+                raise ValueError("bad id")
+        except (KeyError, ValueError, TypeError):
+            raise Fail("%s is damaged. Delete it and log in again." % self.key_path)
+        return k
+
+    def save_keys(self, k):
+        os.makedirs(self.keys_dir, 0o700, exist_ok=True)
+        check_private(self.keys_dir, 0o700)
+        write_file(self.key_path, KEY_HEADER + toml_dumps({
+            "version": STATE_VERSION, "id": k["id"], "sign_key": b64e(k["sign"]), "enc_key": b64e(k["enc"]),
+            "push_key": b64e(k["push"]), "push_auth": b64e(k["auth"])}))
+
+    @contextlib.contextmanager
+    def state(self, write=True):
+        """devices.toml under an exclusive flock (listen and send may run at the same time)."""
+        import fcntl
+        os.makedirs(self.root, 0o700, exist_ok=True)
+        with open(self.lock_path, "a") as lf:
+            fcntl.flock(lf, fcntl.LOCK_EX)
+            d = {"version": STATE_VERSION}
+            if os.path.exists(self.dev_path):
+                d = read_toml(self.dev_path)
+                check_version(d, self.dev_path)
+            for k, v in (("peers", {}), ("pairs", {}), ("my_allow", []), ("listed", []), ("pair_auto", [])):
+                d.setdefault(k, v)
+            yield d
+            if write:
+                write_file(self.dev_path, toml_dumps(d))
+
+    def wipe(self):
+        for p in (self.key_path, self.dev_path, self.lock_path):
+            with contextlib.suppress(FileNotFoundError):
+                os.unlink(p)
+        with contextlib.suppress(OSError):
+            os.rmdir(self.keys_dir)
+
+
+# ---- HTTP (urllib only) ----
+
+def http_request(method, url, headers, body):
+    """One HTTP exchange -> (status, lower-case headers, body). Raises OSError when the network fails."""
+    req = urllib.request.Request(url, data=body, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.status, {k.lower(): v for k, v in r.headers.items()}, r.read()
+    except urllib.error.HTTPError as e:
+        with e:
+            return e.code, {k.lower(): v for k, v in e.headers.items()}, e.read()
+    except http.client.HTTPException as e:
+        raise OSError(str(e)) from e
+
+
+def ntfy_open(url, timeout):
+    """Opens an ntfy JSON stream (one event per readline()). Raises OSError."""
+    try:
+        return urllib.request.urlopen(url, timeout=timeout)
+    except http.client.HTTPException as e:
+        raise OSError(str(e)) from e
+
+
+class Api:
+    def __init__(self, server, keys=None):
+        self.base = server.rstrip("/")
+        self.keys = keys
+        self.skew_ms = 0
+        self.push_missing = False
+
+    def call(self, method, path, body=None, with_id=True, signed=True, tries=3):
+        """Signed JSON call -> reply object. 426 and network/5xx/429 (after tries) raise Fail;
+        other non-2xx raise ApiError. One retry after a clock skew 401, PA-Time resynced from PA-Epoch."""
+        raw = json.dumps(body, separators=(",", ":")).encode() if body is not None else b""
+        skewed, attempt = False, 0
+        while True:
+            h = {"PA-Client": "cli/" + VERSION}
+            if raw:
+                h["Content-Type"] = "application/json"
+            if signed:
+                t = str(int(time.time() * 1000) + self.skew_ms)
+                h["PA-Time"] = t
+                h["PA-Sig"] = sign_request(self.keys["sign"], method, path, t, raw)
+                if with_id:
+                    h["PA-ID"] = self.keys["id"]
+            try:
+                status, hdrs, data = http_request(method, self.base + path, h, raw or None)
+            except OSError:
+                status, hdrs, data = 0, {}, b""
+            try:
+                j = json.loads(data) if data else {}
+            except ValueError:
+                j = {}
+            j = j if isinstance(j, dict) else {}
+            if status == 426:
+                raise Fail("Update PushArmor to continue: " + UPDATE_HOW)
+            epoch = hdrs.get("pa-epoch", "")
+            if status == 401 and j.get("error") == "clock skew" and not skewed and re.fullmatch(r"[0-9]{1,12}", epoch):
+                skewed = True
+                self.skew_ms = int(epoch) * 1000 - int(time.time() * 1000)
+                continue
+            if status == 0 or status == 429 or status >= 500:
+                attempt += 1
+                if attempt < tries:
+                    ra = j.get("retry_after")
+                    time.sleep(min(ra if type(ra) is int and ra > 0 else 2 ** attempt, 60))
+                    continue
+                if status == 0:
+                    raise TempFail("Could not reach the relay server. Check the network and try again.", 0)
+                if status == 429:
+                    raise TempFail("The relay server is busy. Wait a minute and try again.", 429)
+                raise TempFail("The relay server is not working right now (HTTP %d). Try again later." % status, status)
+            if j.get("push_missing") is True:
+                self.push_missing = True
+            if 200 <= status < 300:
+                return j
+            raise ApiError(status, j.get("error") if isinstance(j.get("error"), str) else "", j)
+
+
+# ---- ntfy stream (UnifiedPush endpoint https://<ntfy>/<topic>?up=1) ----
+
+class Stream:
+    def __init__(self, ntfy, topic, keys, since, timeout, poll=False):
+        self.url = ntfy.rstrip("/") + "/" + topic + "/json"
+        self.keys, self.since, self.timeout, self.poll = keys, since, timeout, poll
+        self.resp, self.backoff, self.delay = None, 1, False
+
+    def connect(self):
+        q = {"poll": "1"} if self.poll else {}
+        if self.since:
+            q["since"] = self.since
+        self.resp = ntfy_open(self.url + ("?" + urllib.parse.urlencode(q) if q else ""), self.timeout)
+
+    def close(self, delay):
+        if self.resp is not None:
+            with contextlib.suppress(Exception):
+                self.resp.close()
+        self.resp, self.delay = None, delay
+
+    def next(self, deadline=None):
+        """Next push plaintext, or None at the deadline (poll: at the end of the cache).
+        Reconnects from the last message id with backoff 1..60 s."""
+        while deadline is None or time.time() < deadline:
+            if self.resp is None:
+                if self.delay:
+                    left = 60 if deadline is None else max(0, deadline - time.time())
+                    time.sleep(min(self.backoff, left))
+                    self.backoff = min(self.backoff * 2, 60)
+                try:
+                    self.connect()
+                except OSError:
+                    if self.poll:
+                        return None
+                    self.delay = True
+                    continue
+            try:
+                line = self.resp.readline()
+            except TimeoutError:
+                self.close(False)
+                continue
+            except (OSError, http.client.HTTPException):
+                self.close(True)
+                continue
+            if not line:
+                self.close(True)
+                if self.poll:
+                    return None
+                continue
+            self.backoff = 1
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(ev, dict) or ev.get("event") != "message":
+                continue
+            if isinstance(ev.get("id"), str):
+                self.since = ev["id"]
+            try:
+                msg = ev.get("message", "")
+                body = base64.b64decode(msg, validate=True) if ev.get("encoding") == "base64" else msg.encode()
+                return webpush_decrypt(body, self.keys["push"], self.keys["auth"]).decode("ascii")
+            except Exception:
+                log(UNREADABLE)
+        return None
+
+
+# ---- local device rows ----
+
+def new_peer(it):
+    return {"sign_pub": it["sign_pub"], "enc_pub": it["enc_pub"], "platform": "", "created": 0, "pinned": False,
+            "pairing_id": "", "ruling": "none", "approves_me": False, "approve_verified": False,
+            "get_after_verify": False, "pending_approve_n": 0, "name": "", "name_n": 0, "n": 0, "logout_n": 0,
+            "logged_out": False, "listening": True, "denies_me": False, "missing": False, "h": 0, "seen": []}
+
+
+def pin_peer(p, sp, ep, pid):
+    p.update(sign_pub=b64e(sp), enc_pub=b64e(ep), pairing_id=b64e(pid), pinned=True, ruling="none",
+             approves_me=False, approve_verified=False, get_after_verify=False, pending_approve_n=0,
+             name_n=0, n=0, logout_n=0, h=0, seen=[])
+
+
+def unpin(p):
+    p.update(pinned=False, pairing_id="", ruling="none", approve_verified=False, pending_approve_n=0)
+
+
+def new_entry(role, state, r, c_n):
+    return {"role": role, "state": state, "r": b64e(r), "c_N": b64e(c_n), "started": int(time.time()),
+            "authorized": False, "msg": "", "fingerprint": "", "sign_pub": "", "enc_pub": "",
+            "approved": False, "approve_body": ""}
+
+
+def reserve(p):
+    """Next own counter n for this pairing; written to devices.toml before the POST."""
+    p["n"] += 1
+    return p["n"]
+
+
+def sendable(p):
+    return (p["pinned"] and p["ruling"] == "approved" and p["approves_me"] and not p["logged_out"]
+            and p["listening"] and not p["missing"])
+
+
+def platform_label(platform):
+    return PLATFORMS.get(platform) or re.sub(r"[^\x20-\x7e]", "", platform).capitalize() or "Unknown"
+
+
+def peer_label(p):
+    if not p:
+        return "A device"
+    if p["name"]:
+        return p["name"]
+    t = time.gmtime(p["created"])
+    return "%s device added %s %d" % (platform_label(p["platform"]), MONTHS[t.tm_mon - 1], t.tm_mday)
+
+
+def short_id(i, ids):
+    """6 hex chars, longer only when another id shares the prefix."""
+    h = id_hex(i)
+    others = [id_hex(x) for x in ids if x != i]
+    for n in range(6, len(h)):
+        if not any(o.startswith(h[:n]) for o in others):
+            return h[:n]
+    return h
+
+
+def default_name():
+    n = "".join(c for c in socket.gethostname() if NAME_RE.fullmatch(c))[:32].strip()
+    return n or "Command line"
+
+
+def seal_msg(k, x, p, n, type_, value, approve=False):
+    pid = b64d(p["pairing_id"]) if p["pairing_id"] else bytes(8)
+    return build_message(k["sign"], k["id"], x, b64d(p["enc_pub"]), pid, msg_json(n, type_, value),
+                         keys=(k["sign_pub"], k["enc_pub"]) if approve else None)
+
+
+def push_value(d, k):
+    return {"type": "unifiedpush", "endpoint": "%s/%s?up=1" % (d["ntfy"].rstrip("/"), d["topic"]),
+            "p256dh": b64e(k["push_pub"]), "auth": b64e(k["auth"])}
+
+
+def new_topic():
+    """"up" + 12 chars: the cli topic the relay server accepts (allowlist.ts cliTopicOk, Q307)."""
+    return "up" + "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
+
+
+# ---- one run ----
+
+class Ctx:
+    def __init__(self, root):
+        self.store = Store(root)
+        self.settings, self.keys, self.api = {}, None, None
+        self.mode, self.target, self.emit, self.last_fetch, self.skipped = "", None, None, 0, False
+
+    @property
+    def me(self):
+        return self.keys["id"]
+
+    def setup(self, need_keys=True):
+        self.settings = self.store.settings()
+        if need_keys:
+            self.keys = self.store.load_keys()
+        self.api = Api(self.settings.get("server", DEFAULT_SERVER), self.keys)
+
+    def need(self):
+        """A logged-in device."""
+        self.setup()
+        with self.store.state(write=False) as d:
+            reg = d.get("reg")
+        if reg != "registered":
+            raise Fail(LOGGED_OUT if reg == "logged_out" else NOT_LOGGED_IN, EXIT_LOGIN)
+
+    def refresh(self):
+        """GET /v1/peers merge, then the allow reconcile."""
+        j = self.api.call("GET", "/v1/peers")
+        self.last_fetch = time.time()
+        with self.store.state() as d:
+            merge_peers(d, j, self.keys)
+        reconcile_allow(self)
+
+    def refresh_soon(self):
+        if time.time() - self.last_fetch >= FETCH_GAP_S:
+            with contextlib.suppress(ApiError, TempFail):
+                self.refresh()
+
+
+def merge_peers(d, j, k):
+    me, acct, peers = k["id"], b64d(k["id"])[:9], d["peers"]
+    d["my_allow"] = [x for x in j.get("my_allow", []) if isinstance(x, str)]
+    seen = []
+    for it in j.get("peers", []) if isinstance(j.get("peers"), list) else []:
+        if not isinstance(it, dict) or it.get("id") == me:
+            continue
+        pid = it.get("id")
+        try:
+            ok = peer_keys_ok(pid, acct, b64d(it["sign_pub"]), b64d(it["enc_pub"]))
+        except (KeyError, ValueError, TypeError):
+            ok = False
+        if not ok:
+            continue
+        p = peers.get(pid)
+        if p is None:
+            p = peers[pid] = new_peer(it)
+        elif not p["pinned"]:
+            p["sign_pub"], p["enc_pub"] = it["sign_pub"], it["enc_pub"]
+        seen.append(pid)
+        p.update(platform=it["platform"] if isinstance(it.get("platform"), str) else "",
+                 created=it["created"] if type(it.get("created")) is int else 0,
+                 logged_out=it.get("logged_out") is True, listening=it.get("listening") is not False,
+                 denies_me=it.get("denies_me") is True, missing=False)
+        if p["pinned"] and p["approve_verified"]:
+            p["approves_me"], p["get_after_verify"] = it.get("approves_me") is True, True
+        elif not p["pinned"]:
+            p["approves_me"] = it.get("approves_me") is True
+        nm = it.get("name_for_me")
+        if p["pinned"] and p["ruling"] == "approved" and isinstance(nm, str):
+            r = open_name_entry(nm, me, k["enc"], pid, {"sign_pub": b64d(p["sign_pub"]),
+                                                        "pairing_id": b64d(p["pairing_id"])})
+            if r["ok"] and r["n"] > p["name_n"]:
+                p["name"], p["name_n"] = r["name"], r["n"]
+    for pid in list(peers):
+        if pid not in seen:
+            if peers[pid]["ruling"] == "approved":
+                peers[pid]["missing"] = True
+            elif pid not in d["pairs"]:
+                del peers[pid]
+    d["listed"] = seen
+
+
+def reconcile_allow(cx):
+    """Withdraw every id in the relay server's allow set that has no pin here."""
+    with cx.store.state(write=False) as d:
+        ids = [i for i in d["my_allow"] if not d["peers"].get(i, {}).get("pinned")]
+    for i in ids:
+        try:
+            cx.api.call("POST", "/v1/deny/" + i, {"withdraw": 1})
+        except ApiError as e:
+            if e.status == 401:
+                raise
+            if e.status != 400:
+                continue
+        with cx.store.state() as d:
+            d["my_allow"] = [x for x in d["my_allow"] if x != i]
+
+
+def allow_list_call(cx, method, path, body_of, content, with_id=True):
+    """Signed call whose m covers the allow list; 400 "messages missing" -> reconcile + one retry.
+    content(id, row, n, names) -> (type, value)."""
+    extra = []
+    for attempt in (0, 1):
+        names = {}
+        with cx.store.state() as d:
+            m = {}
+            for pid, p in d["peers"].items():
+                if p["pinned"] and p["pairing_id"] and (p["ruling"] == "approved" or pid in extra):
+                    n = reserve(p)
+                    type_, value = content(pid, p, n, names)
+                    m[pid] = seal_msg(cx.keys, pid, p, n, type_, value)
+        try:
+            return cx.api.call(method, path, body_of(m, names), with_id=with_id)
+        except ApiError as e:
+            if attempt or e.status != 400 or e.error != "messages missing":
+                raise
+            extra = [i for i in e.body.get("ids", []) if isinstance(i, str)]
+            with cx.store.state() as d:
+                d["my_allow"] = sorted(set(d["my_allow"]) | set(extra))
+            reconcile_allow(cx)
+
+
+# ---- receive ----
+
+def receive(cx, pt, src="push"):
+    """One push plaintext: probe JSON, pair message (366 chars), or inner message."""
+    if pt.startswith("{"):
+        return on_probe(cx, pt)
+    if len(pt) == PAIR_WIRE_LEN:
+        return receive_pair(cx, pt)
+    return receive_inner(cx, pt, src)
+
+
+def on_probe(cx, pt):
+    try:
+        code = parse_strict(pt.encode()).get("probe")
+    except (ValueError, AttributeError):
+        return
+    with cx.store.state(write=False) as d:
+        done = d.get("push_ok")
+    if not isinstance(code, str) or done:  # a probe replayed from the ntfy cache
+        return
+    try:
+        cx.api.call("POST", "/v1/peers/%s/confirm" % cx.me, {"code": code})
+    except ApiError as e:
+        if e.status == 401 and e.error != "wrong code":
+            raise
+        return
+    with cx.store.state() as d:
+        d["push_ok"] = True
+
+
+def receive_inner(cx, pt, src):
+    k, notes, wipe, rec, fetch = cx.keys, [], None, None, False
+    with cx.store.state() as d:
+        pins = {pid: {"sign_pub": b64d(p["sign_pub"]), "enc_pub": b64d(p["enc_pub"]),
+                      "pairing_id": b64d(p["pairing_id"]), "ruling": p["ruling"],
+                      "window": {"h": p["h"], "seen": p["seen"]}}
+                for pid, p in d["peers"].items() if p["pinned"] and p["pairing_id"]}
+        r = open_message(pt, k["id"], k["enc"], b64d(k["id"])[:9], pins)
+        out = r["outcome"]
+        if out == "unreadable":
+            if src != "returned":
+                notes.append(UNREADABLE)
+                fetch = r.get("why") == "unknown sender"
+        elif out == "invalid" and r["n"] not in pins[r["from"]]["window"]["seen"]:
+            notes.append("Invalid message received")
+        elif out == "accept" and cx.mode != "listen" and r["type"] in ("url", "text", "tel"):
+            cx.skipped = True  # content waits for listen
+        elif out == "accept" and (src != "returned" or r["type"] == "approve"):
+            p = d["peers"][r["from"]]
+            w = window_accept({"h": p["h"], "seen": p["seen"]}, r["n"])
+            p["h"], p["seen"] = w["h"], w["seen"]
+            wipe, rec = act(cx, d, r, p, notes)
+    for n in notes:
+        log(n)
+    if fetch:
+        cx.refresh_soon()
+    if wipe:
+        cx.store.wipe()
+        raise Fail(wipe, EXIT_LOGIN)
+    if rec and cx.emit:
+        cx.emit(rec)
+
+
+def act(cx, d, r, p, notes):
+    """Applies one accepted message to devices.toml. -> (wipe message or None, content record or None)."""
+    t, v, n, frm, name = r["type"], r["value"], r["n"], r["from"], peer_label(p)
+    if t in ("url", "text", "tel"):
+        if t == "url":
+            u = parse_url(v)
+            t, v = ("url", u["href"]) if u["url"] else ("text", v)
+        elif t == "tel" and not is_phone(v):
+            t = "text"
+        return None, {"from": id_hex(frm), "name": name, "platform": p["platform"], "type": t, "body": v,
+                      "date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+    if t == "approve":
+        if v["n"] > p["name_n"]:
+            p["name"], p["name_n"] = v["name"], v["n"]
+        if p["ruling"] == "approved":
+            p.update(approves_me=True, approve_verified=True, get_after_verify=False, pending_approve_n=0)
+            d["pairs"].pop(frm, None)
+            notes.append(peer_label(p) + " approved this device")
+        else:
+            p["pending_approve_n"] = n
+    elif t == "rename":
+        if n > p["name_n"]:
+            p["name"], p["name_n"] = v["name"], n
+            notes.append("%s is now named %s" % (name, v["name"]))
+    elif t == "remove":
+        if v == cx.me:
+            return REMOVED, None
+        q = d["peers"].pop(v, None)
+        d["pairs"].pop(v, None)
+        if q:
+            notes.append(peer_label(q) + " was removed from your account")
+    elif t == "delete":
+        return "Your PushArmor account was deleted.", None
+    elif t in ("logout", "login"):
+        if n > p["logout_n"]:
+            p["logged_out"], p["logout_n"] = t == "logout", n
+        notes.append(name + (" logged out" if t == "logout" else " logged in"))
+    elif t == "deny":
+        p["denies_me"], p["approves_me"] = True, False
+        d["pairs"].pop(frm, None)
+        notes.append(name + " denied this device")
+    return None, None
+
+
+def receive_pair(cx, pt):
+    k = cx.keys
+    o = open_pair(pt, k["id"], k["enc"], b64d(k["id"])[:9])
+    if not o["ok"] or o["from"] == k["id"]:
+        return log(UNREADABLE)
+    frm = o["from"]
+    if o["kind"] == "commit":
+        with cx.store.state(write=False) as d:
+            listed = "yes" if frm in d["listed"] else None
+        if not listed:
+            with contextlib.suppress(ApiError, TempFail):
+                cx.refresh()
+            with cx.store.state(write=False) as d:
+                listed = "after_fetch" if frm in d["listed"] else "no"
+        return on_commit(cx, frm, o["c_N"], listed)
+    notes, send = [], None
+    with cx.store.state() as d:
+        e, p = d["pairs"].get(frm), d["peers"].get(frm)
+        want = {"N": "reply", "X": "open"}.get(e["role"]) if e else None
+        if o["kind"] != want or p is None:
+            notes.append(UNREADABLE)
+        elif want == "reply":
+            send = on_reply(cx, e, p, o, notes)
+        else:
+            on_open(cx, d, e, p, o, notes)
+    for n in notes:
+        if n:
+            log(n)
+    if send:
+        post_pair(cx, frm, "open", send)
+
+
+def pair_note(cx, d, x, text):
+    """A pairing line for stderr, unless `pair` already runs for this device."""
+    return None if cx.target == x else text % (peer_label(d["peers"].get(x)), short_id(x, d["peers"]))
+
+
+def on_commit(cx, frm, c_n, listed):
+    k, notes, now = cx.keys, [], int(time.time())
+    with cx.store.state() as d:
+        e, p = d["pairs"].get(frm), d["peers"].get(frm) or {}
+        dec = pair_decide({
+            "own_id": k["id"], "from_id": frm, "commit_c_N": c_n,
+            "entry": e and {"role": e["role"], "state": e["state"], "c_N": b64d(e["c_N"]),
+                            "reply_authorized": e["authorized"]},
+            "pinned": p.get("pinned", False), "approved": p.get("ruling") == "approved",
+            "approve_verified": p.get("approve_verified", False), "approves_me": p.get("approves_me", False),
+            "get_after_verify": p.get("get_after_verify", False), "listed": listed,
+            "open_entries": len(d["pairs"]), "cap": d["pair_auto"], "now": now})
+        if dec["entry"] == "aborted":
+            d["pairs"].pop(frm, None)
+            notes.append(pair_note(cx, d, frm, "Pairing with %s failed. Start again on the new device. (%s)"))
+        elif dec["entry"].startswith("created") or dec["entry"] == "n_wiped_x_replied":
+            e = d["pairs"][frm] = new_entry("X", "prompted", secrets.token_bytes(32), c_n)
+            e["authorized"] = dec["action"] == "reply"
+            if dec["cap_counted"]:
+                d["pair_auto"] = [t for t in d["pair_auto"] if now - t < PAIR_CAP_WINDOW_S] + [now]
+        notice = dec["notice"]
+        if notice in ("commit", "represent"):
+            notes.append(pair_note(cx, d, frm, "%s wants to pair. Run: pusharmor pair %s"))
+        elif notice == "crossing":
+            notes.append(pair_note(cx, d, frm, "Pairing with %s in progress. (%s)"))
+        elif notice == "half_state":
+            notes.append(pair_note(cx, d, frm, "%s wants to pair again. Run: pusharmor pair %s"))
+        else:
+            notes.append(UNREADABLE)
+    for n in notes:
+        if n:
+            log(n)
+    if dec["action"] == "reply":
+        send_reply(cx, frm)
+
+
+def on_reply(cx, e, p, o, notes):
+    """N got X's reply: pin, fingerprint, and the open to send."""
+    k = cx.keys
+    r_n = b64d(e["r"])
+    pid = pairing_id(r_n, o["r"])
+    if e["state"] != "committed":
+        if not (e["state"] == "shown" and p["pinned"] and p["pairing_id"] == b64e(pid)):
+            notes.append(UNREADABLE)
+        return None
+    pin_peer(p, o["sign_pub"], o["enc_pub"], pid)
+    msg = seal_pair("open", k["id"], keys_body(k["sign_pub"], k["enc_pub"], r_n), o["from"], o["enc_pub"])
+    e.update(state="shown", fingerprint=sas(k["sign_pub"], k["enc_pub"], o["sign_pub"], o["enc_pub"], r_n, o["r"]),
+             sign_pub=b64e(o["sign_pub"]), enc_pub=b64e(o["enc_pub"]), msg=msg)
+    return msg
+
+
+def on_open(cx, d, e, p, o, notes):
+    """X got N's open: check it against the commit, pin, fingerprint."""
+    k, frm = cx.keys, o["from"]
+    if e["state"] == "shown":
+        if e["sign_pub"] != b64e(o["sign_pub"]) or e["enc_pub"] != b64e(o["enc_pub"]):
+            notes.append(UNREADABLE)
+        return
+    if e["state"] != "replied":
+        return notes.append(UNREADABLE)
+    if not open_matches_commit(o, b64d(e["c_N"])):
+        d["pairs"].pop(frm, None)
+        return notes.append(pair_note(cx, d, frm, "Pairing with %s failed. Start again on the new device. (%s)"))
+    r_x = b64d(e["r"])
+    pin_peer(p, o["sign_pub"], o["enc_pub"], pairing_id(o["r"], r_x))
+    e.update(state="shown", fingerprint=sas(o["sign_pub"], o["enc_pub"], k["sign_pub"], k["enc_pub"], o["r"], r_x),
+             sign_pub=b64e(o["sign_pub"]), enc_pub=b64e(o["enc_pub"]))
+    notes.append(pair_note(cx, d, frm, "%s wants to pair. Compare the fingerprint: pusharmor pair %s"))
+
+
+def post_pair(cx, x, kind, c):
+    """POST /v1/pair/X once -> result word (sent, denied, not listening, ...)."""
+    try:
+        j = cx.api.call("POST", "/v1/pair/" + x, {"k": kind, "c": c}, tries=1)
+    except TempFail as e:
+        return "network" if e.status == 0 else str(e.status)
+    except ApiError as e:
+        if e.status == 401:
+            raise
+        return ("%d %s" % (e.status, e.error)).strip()
+    return j["r"] if isinstance(j.get("r"), str) else "failed"
+
+
+def send_reply(cx, x):
+    k = cx.keys
+    with cx.store.state() as d:
+        e, p = d["pairs"].get(x), d["peers"].get(x)
+        if not e or e["role"] != "X" or not e["authorized"] or not p:
+            return None
+        if not e["msg"]:
+            e["msg"] = seal_pair("reply", k["id"], keys_body(k["sign_pub"], k["enc_pub"], b64d(e["r"])), x,
+                                 b64d(p["enc_pub"]))
+        msg = e["msg"]
+    r = post_pair(cx, x, "reply", msg)
+    if r == "sent":
+        with cx.store.state() as d:
+            e = d["pairs"].get(x)
+            if e and e["state"] == "prompted":
+                e["state"] = "replied"
+    return r
+
+
+def pair_start(cx, x):
+    """N: new commit to X (a half-paired row is unpinned first)."""
+    k = cx.keys
+    with cx.store.state() as d:
+        p = d["peers"][x]
+        if p["pinned"]:
+            unpin(p)
+        r_n = secrets.token_bytes(32)
+        c_n = commit_hash(k["sign_pub"], k["enc_pub"], r_n)
+        e = d["pairs"][x] = new_entry("N", "committed", r_n, c_n)
+        e["msg"] = seal_pair("commit", k["id"], commit_body(c_n), x, b64d(p["enc_pub"]))
+    reconcile_allow(cx)
+    return post_pair(cx, x, "commit", e["msg"])
+
+
+def approve(cx, x):
+    k = cx.keys
+    with cx.store.state() as d:
+        p, e = d["peers"][x], d["pairs"].get(x)
+        p["ruling"], p["denies_me"] = "approved", False
+        if p["pending_approve_n"] > 0:
+            p.update(approves_me=True, approve_verified=True, get_after_verify=False, pending_approve_n=0)
+        n = reserve(p)
+        entry = make_name_entry(k["sign"], k["id"], x, b64d(p["pairing_id"]), n, d.get("name") or default_name())
+        body = {"c": seal_msg(k, x, p, n, "approve", entry, approve=True),
+                "name": seal_name_entry(x, b64d(p["enc_pub"]), entry)}
+        if e:
+            e["approved"], e["approve_body"] = True, json.dumps(body)
+        if p["approve_verified"]:
+            d["pairs"].pop(x, None)
+        if x not in d["my_allow"]:
+            d["my_allow"].append(x)
+    return post_approve(cx, x, body)
+
+
+def post_approve(cx, x, body):
+    j = cx.api.call("POST", "/v1/approve/" + x, body)
+    if isinstance(j.get("c"), str):
+        receive(cx, j["c"], "returned")
+    r = j["r"] if isinstance(j.get("r"), str) else "failed"
+    if r == "denied":
+        with cx.store.state() as d:
+            d["peers"][x]["denies_me"] = True
+            d["pairs"].pop(x, None)
+    return r
+
+
+def deny(cx, x):
+    with cx.store.state() as d:
+        p = d["peers"][x]
+        c = seal_msg(cx.keys, x, p, reserve(p), "deny", 1)
+        d["pairs"].pop(x, None)
+        unpin(p)
+        p["ruling"] = "denied"
+    cx.api.call("POST", "/v1/deny/" + x, {"c": c})
+
+
+def sweep(cx):
+    """Pairings older than 14 days (pair_timeout)."""
+    now, dropped = int(time.time()), False
+    with cx.store.state(write=False) as d:
+        old = [x for x, e in d["pairs"].items() if now - e["started"] > PAIR_TIMEOUT_S]
+    for x in old:
+        with cx.store.state(write=False) as d:
+            e, p = d["pairs"][x], d["peers"].get(x) or {}
+            i = {"approve_verified": p.get("approve_verified", False), "approved": e["approved"], "resend": None}
+        a = pair_timeout(i)
+        if a == "resend":
+            try:
+                post_approve(cx, x, json.loads(e["approve_body"]))
+                with cx.store.state(write=False) as d:
+                    ok = d["peers"].get(x, {}).get("approve_verified")
+                i["resend"] = "200_c_verified" if ok else "200_other"
+            except (TempFail, ApiError, ValueError):
+                i["resend"] = "offline"
+            a = pair_timeout(i)
+        if a in ("keep_waiting", "resend"):
+            continue
+        with cx.store.state() as d:
+            d["pairs"].pop(x, None)
+            p = d["peers"].get(x)
+            if a == "drop_pin" and p and not p["approve_verified"]:
+                unpin(p)
+                dropped = True
+                log("Pairing with %s timed out." % peer_label(p))
+    if dropped:
+        reconcile_allow(cx)
+
+
+def report_listening(cx):
+    cx.api.call("PATCH", "/v1/peers/" + cx.me, {"listening": True})
+    with cx.store.state() as d:
+        d["listen_at"] = int(time.time())
+
+
+def send_push(cx):
+    with cx.store.state() as d:
+        body = {"push": push_value(d, cx.keys)}
+        d["push_ok"] = False
+    cx.api.push_missing = False
+    cx.api.call("PATCH", "/v1/peers/" + cx.me, body)
+
+
+def start_receive(cx, since, timeout):
+    """listen and pair: subscribe first, report listening (Q309), re-send push when it is not confirmed."""
+    with cx.store.state(write=False) as d:
+        s = Stream(d["ntfy"], d["topic"], cx.keys, since, timeout)
+        ok = d.get("push_ok")
+    try:
+        s.connect()
+    except OSError:
+        raise TempFail("Could not reach the push service at %s. Check the network and try again." % s.url, 0)
+    report_listening(cx)
+    if not ok or cx.api.push_missing:
+        send_push(cx)
+    return s
+
+
+# ---- output ----
+
+def _clean(s):
+    return re.sub(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]", "?", s)
+
+
+def format_record(rec, fmt):
+    if fmt == "json":
+        return json.dumps({k: rec[k] for k in REC_KEYS}, ensure_ascii=False)
+    if fmt == "tsv":
+        esc = lambda s: s.replace("\\", "\\\\").replace("\t", "\\t").replace("\n", "\\n").replace("\r", "\\r")  # noqa: E731
+        return "\t".join(esc(rec[k]) for k in REC_KEYS)
+    t = datetime.datetime.strptime(rec["date"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
+    body = _clean(rec["body"].replace("\r\n", "\n").replace("\r", "\n")).replace("\n", "\n ")
+    return "From: %s %s\nPlatform: %s\nType: %s\nDate: %s\nBody: %s\n" % (
+        rec["from"][:6], rec["name"], platform_label(rec["platform"]), rec["type"],
+        email.utils.format_datetime(t.astimezone()), body)
+
+
+def run_exec(prog, rec):
+    try:
+        r = subprocess.run([prog] + [rec[k] for k in ("from", "name", "platform", "type", "body")])
+        if r.returncode:
+            log("%s exited with status %d" % (prog, r.returncode))
+    except (OSError, ValueError) as e:
+        log("Could not run %s: %s" % (prog, e))
+
+
+# ---- command functions ----
+
+def cmd_login(cx, args):
+    if not sys.stdin.isatty():
+        raise Fail("pusharmor login needs a terminal.", EXIT_USAGE)
+    cx.setup(need_keys=False)
+    purpose = "r"
+    if cx.store.has_keys():
+        cx.keys = cx.api.keys = cx.store.load_keys()
+        with cx.store.state(write=False) as d:
+            reg = d.get("reg")
+        if reg == "registered":
+            print("This device is already logged in.")
+            return EXIT_OK
+        purpose = "l" if reg == "logged_out" else "r"
+    else:
+        k = {"auth": secrets.token_bytes(16)}
+        for name in ("sign", "enc", "push"):
+            k[name], k[name + "_pub"] = new_key()
+        cx.keys = cx.api.keys = k
+    link = "%s/auth/cli#%s.%s" % (SITE, purpose, b64e(sha256(cx.keys["sign_pub"])[:16]))
+    print("Open this link in a browser and log in:\n\n  %s\n\nThen paste the code from the page here." % link)
+    shown, tries, code = time.time(), 0, None
+    while True:
+        if code is None:
+            try:
+                raw = input("Code: ")
+            except EOFError:
+                raise Fail("No code entered.")
+            code = re.sub(r"[\s\"'`]", "", raw)
+            if not re.fullmatch(r"[A-Za-z0-9_-]{34}", code):
+                code, tries = None, tries + 1
+                if tries >= CODE_TRIES:
+                    raise Fail("No valid code after %d tries. Run pusharmor login again." % CODE_TRIES)
+                print("That is not a PushArmor code. Copy the whole code from the page and paste it again.")
+                continue
+        if time.time() - shown > LINK_LIFE_S:
+            print("The link expired. Open it again to get a new code:\n\n  %s\n" % link)
+            shown, code = time.time(), None
+            continue
+        try:
+            (register if purpose == "r" else relogin)(cx, code)
+            break
+        except ApiError as e:
+            if e.status == 401 and e.error == "ticket expired":
+                print("That code expired. Open the link again to get a new code:\n\n  %s\n" % link)
+                shown, code = time.time(), None
+                continue
+            if e.status == 401 and e.error in ("bad ticket", "invalid ticket"):
+                code, tries = None, tries + 1
+                if tries >= CODE_TRIES:
+                    raise Fail("The code did not work after %d tries. Run pusharmor login again." % CODE_TRIES)
+                print("That code did not work. Check it and paste it again.")
+                continue
+            if e.status == 403:
+                raise Fail("This account cannot log in.")
+            raise Fail("Could not log in: %s" % (e.error or e.status))
+        except TempFail as e:
+            if e.status == 429:
+                raise Fail("Too many tries. Wait a minute and run pusharmor login again.")
+            if not ask_yes("%s Retry? [Y/n] " % e, default=True):
+                raise Fail("Not logged in.")
+    with cx.store.state(write=False) as d:
+        name = d["name"]
+    print("Logged in. This device is named %s. Next: run pusharmor pair to see your devices." % name)
+    return EXIT_OK
+
+
+def register(cx, code):
+    """POST /v1/peers with push (Q305 A), then the probe confirm. Nothing is written before it succeeds."""
+    k = cx.keys
+    if not getattr(cx, "topic", None):
+        cx.topic = new_topic()
+    ntfy = cx.settings.get("ntfy", DEFAULT_NTFY)
+    d0 = {"ntfy": ntfy, "topic": cx.topic}
+    stream = Stream(ntfy, cx.topic, k, "", WAIT_TIMEOUT_S)
+    try:
+        stream.connect()
+    except OSError:
+        raise TempFail("Could not reach the push service at %s." % ntfy, 0)
+    try:
+        register_with(cx, code, stream, push_value(d0, k), ntfy)
+    finally:
+        stream.close(False)
+
+
+def register_with(cx, code, stream, push, ntfy):
+    k = cx.keys
+    body = {"ticket": code, "sign_pub": b64e(k["sign_pub"]), "enc_pub": b64e(k["enc_pub"]), "platform": "cli",
+            "push": push}
+    while True:
+        try:
+            j = cx.api.call("POST", "/v1/peers", body, with_id=False, tries=1)
+            break
+        except ApiError as e:
+            if e.status != 409 or e.error != "peer limit" or not isinstance(e.body.get("ticket"), str):
+                raise
+            body["evict"], body["ticket"] = choose_evict(e.body.get("peers")), e.body["ticket"]
+    pid = j.get("id")
+    if not isinstance(pid, str) or not peer_keys_ok(pid, b64d(pid)[:9], k["sign_pub"], k["enc_pub"]):
+        raise Fail("The relay server sent a reply this device cannot use.")
+    k["id"] = pid
+    cx.store.save_keys(k)
+    with cx.store.state() as d:
+        d.clear()
+        d.update(version=STATE_VERSION, name=default_name(), reg="registered", ntfy=ntfy, topic=cx.topic,
+                 push_ok=False, since=str(int(time.time())), peers={}, pairs={}, my_allow=[], listed=[],
+                 pair_auto=[])
+        merge_peers(d, j, k)
+    for attempt in (0, 1):
+        deadline = time.time() + PROBE_WAIT_S
+        while True:
+            pt = stream.next(deadline)
+            if pt is None:
+                break
+            if pt.startswith("{"):
+                on_probe(cx, pt)
+                with cx.store.state(write=False) as d:
+                    if d["push_ok"]:
+                        return
+        if attempt == 0:
+            with contextlib.suppress(ApiError, TempFail):
+                send_push(cx)
+    log("Could not confirm that this device can receive messages. pusharmor listen tries again.")
+
+
+def choose_evict(peers):
+    rows = [p for p in (peers if isinstance(peers, list) else [])
+            if isinstance(p, dict) and isinstance(p.get("id"), str) and len(p["id"]) == 40 and b64ok(p["id"])]
+    print("This account already has %d devices, the most it can have. To add this device, remove one or more."
+          " A removed device must log in again and pair with every device again." % len(rows))
+    for i, p in enumerate(rows, 1):
+        added = time.strftime("%Y-%m-%d", time.gmtime(p["created"] if type(p.get("created")) is int else 0))
+        print("  %d  %s  %s  added %s" % (i, id_hex(p["id"])[:6], platform_label(str(p.get("platform", ""))), added))
+    try:
+        a = input("Numbers to remove (for example: 1 3), or Enter to stop: ")
+    except EOFError:
+        a = ""
+    picks = sorted({int(w) for w in a.split() if w.isdigit() and 1 <= int(w) <= len(rows)})
+    if not picks or len(picks) > 9:
+        raise Fail("Not logged in.")
+    return [rows[i - 1]["id"] for i in picks]
+
+
+def relogin(cx, code):
+    """Logged out -> logged in: POST /v1/peers/ME/login with a login message to every paired device."""
+    reconcile_allow(cx)
+    allow_list_call(cx, "POST", "/v1/peers/%s/login" % cx.me, lambda m, _: {"ticket": code, "m": m},
+                    lambda *a: ("login", 1))
+    with cx.store.state() as d:
+        d["reg"] = "registered"
+    with contextlib.suppress(ApiError, TempFail):
+        cx.refresh()
+
+
+def cmd_logout(cx, args):
+    cx.need()
+    if sys.stdin.isatty() and not ask_yes(
+            "Log out of this device? Keys, paired devices, and names stay on this device. [y/N] "):
+        print("Not logged out.")
+        return EXIT_ERR
+    reconcile_allow(cx)
+    allow_list_call(cx, "POST", "/v1/peers/%s/logout" % cx.me, lambda m, _: {"m": m}, lambda *a: ("logout", 1))
+    with cx.store.state() as d:
+        d["reg"] = "logged_out"
+    print("Logged out. Run pusharmor login to log in again.")
+    return EXIT_OK
+
+
+def resolve_peer(cx, text, with_self=False):
+    with cx.store.state(write=False) as d:
+        ids = list(d["peers"]) + ([cx.me] if with_self else [])
+    x = resolve_id(text, ids)
+    if x is None:
+        raise Fail("No device matches %s. Run pusharmor pair to see your devices." % text)
+    return x
+
+
+def peer_status(p, e):
+    if p["pinned"] and p["ruling"] == "approved" and p["approves_me"]:
+        return "paired" + (", logged out" if p["logged_out"] else ", send only" if not p["listening"] else "")
+    if e and e["state"] == "shown" and not e["approved"]:
+        return "compare fingerprint " + e["fingerprint"]
+    if p["pinned"] and p["ruling"] == "approved":
+        return "waiting for it to approve"
+    if e:
+        return "wants to pair" if e["role"] == "X" and e["state"] == "prompted" else "pairing"
+    return "denied" if p["ruling"] == "denied" else "not paired"
+
+
+def pair_list(cx):
+    cx.refresh()
+    with cx.store.state(write=False) as d:
+        ids = list(d["peers"]) + [cx.me]
+        rows = [("ID", "NAME", "DEVICE", "STATUS"), (short_id(cx.me, ids), d["name"], "Command line", "this device")]
+        for pid, p in sorted(d["peers"].items(), key=lambda kv: kv[1]["created"]):
+            rows.append((short_id(pid, ids), peer_label(p), platform_label(p["platform"]),
+                         peer_status(p, d["pairs"].get(pid))))
+    w = [max(len(r[i]) for r in rows) for i in range(3)]
+    for r in rows:
+        print("  ".join(c.ljust(w[i]) for i, c in enumerate(r[:3])) + "  " + r[3])
+    if len(rows) > 2:
+        print("\nTo pair with a device: pusharmor pair ID")
+    return EXIT_OK
+
+
+def cmd_pair(cx, args):
+    cx.need()
+    if not args.id:
+        return pair_list(cx)
+    if not sys.stdin.isatty():
+        raise Fail("pusharmor pair ID needs a terminal to compare the pairing fingerprint.", EXIT_USAGE)
+    cx.mode = "pair"
+    cx.refresh()
+    x = cx.target = resolve_peer(cx, args.id, with_self=True)
+    if x == cx.me:
+        raise Fail("That is this device.")
+    with cx.store.state(write=False) as d:
+        drain = Stream(d["ntfy"], d["topic"], cx.keys, d.get("since", ""), WAIT_TIMEOUT_S, poll=True)
+    while True:  # pairing messages the relay server sent while nothing listened
+        pt = drain.next(time.time() + WAIT_TIMEOUT_S)
+        if pt is None:
+            break
+        pair_receive(cx, pt, drain)
+    stream = start_receive(cx, drain.since, WAIT_TIMEOUT_S)
+    sweep(cx)
+    deadline, told, first = time.time() + PAIR_WAIT_S, None, True
+    while True:
+        with cx.store.state(write=False) as d:
+            p, e = d["peers"].get(x), d["pairs"].get(x)
+            sid = short_id(x, d["peers"])
+        name = peer_label(p)
+        if p is None:
+            raise Fail("%s is no longer on this account." % name)
+        if p["pinned"] and p["ruling"] == "approved" and p["approves_me"]:
+            print("Paired with %s." % name)
+            return EXIT_OK
+        r, wait = "sent", "Waiting for %s. Open PushArmor on it to continue pairing." % name
+        if e and e["state"] == "shown" and not e["approved"]:
+            if first and e["role"] == "N":
+                post_pair(cx, x, "open", e["msg"])
+            first = False
+            print("Pairing fingerprint %s" % e["fingerprint"])
+            if not ask_yes("Check that %s shows the same fingerprint. Approve %s? [y/N] " % (name, name)):
+                deny(cx, x)
+                print("Did not pair with %s." % name)
+                return EXIT_OK
+            r = approve(cx, x)
+            if r not in ("sent", "stored"):
+                raise Fail("Could not reach %s (%s). Run pusharmor pair %s again later." % (name, r, sid))
+            continue
+        if p["pinned"] and p["ruling"] == "approved":
+            wait = "Waiting for %s to approve this device." % name
+            if first and e and e["approve_body"]:
+                r = post_approve(cx, x, json.loads(e["approve_body"]))
+                r = "sent" if r == "stored" else r
+        elif e and e["role"] == "X" and e["state"] == "prompted":
+            with cx.store.state() as d:
+                d["pairs"][x]["authorized"] = True
+            r = send_reply(cx, x) or "failed"
+        elif e and first and e["role"] == "N":
+            r = post_pair(cx, x, "commit", e["msg"])
+        elif not e:
+            r = pair_start(cx, x)
+        first = False
+        if r not in ("sent", "429"):
+            raise Fail("Could not reach %s (%s). Run pusharmor pair %s again later." % (name, r, sid))
+        if wait != told:
+            log(wait)
+            told = wait
+        pt = stream.next(deadline)
+        if pt is None:
+            raise Fail("No answer from %s yet. Run pusharmor pair %s again to continue." % (name, sid))
+        pair_receive(cx, pt, stream)
+
+
+def pair_receive(cx, pt, stream):
+    """pair: receive, and move the listen position on while no content message waits for listen."""
+    receive(cx, pt)
+    if not cx.skipped:
+        with cx.store.state() as d:
+            d["since"] = stream.since
+
+
+def cmd_listen(cx, args):
+    cx.need()
+    cx.mode = "listen"
+    fmt = "json" if args.json else "tsv" if args.tsv else "blocks"
+    with contextlib.suppress(AttributeError, ValueError):
+        sys.stdout.reconfigure(line_buffering=True)
+
+    def emit(rec):
+        if args.exec:
+            return run_exec(args.exec, rec)
+        print(format_record(rec, fmt), flush=True)
+
+    cx.emit = emit
+    with cx.store.state(write=False) as d:
+        since = d.get("since", "")
+    stream = start_receive(cx, since, LISTEN_TIMEOUT_S)
+    cx.refresh()
+    sweep(cx)
+    log("Listening. Press Ctrl+C to stop.")
+    while True:
+        with cx.store.state(write=False) as d:
+            due = d.get("listen_at", 0) + LISTEN_REPORT_S
+        pt = stream.next(due)
+        if pt is None:
+            try:
+                report_listening(cx)
+            except TempFail as e:
+                log(str(e))
+                with cx.store.state() as d:
+                    d["listen_at"] = int(time.time()) - LISTEN_REPORT_S + 3600
+            continue
+        try:
+            receive(cx, pt)
+        except TempFail as e:
+            log(str(e))
+        except ApiError as e:
+            if e.status == 401:
+                raise
+            log("The relay server refused a request: %s" % (e.error or e.status))
+        with cx.store.state() as d:
+            d["since"] = stream.since
+
+
+def cmd_send(cx, args):
+    cx.need()
+    if args.message and args.message != ["-"]:
+        text = " ".join(args.message)
+    elif args.message == ["-"] or not sys.stdin.isatty():
+        try:
+            text = sys.stdin.buffer.read().decode("utf-8").rstrip("\r\n")
+        except UnicodeDecodeError:
+            raise Fail("The input is not UTF-8 text.")
+    else:
+        raise Fail("Nothing to send. Give a message, or pipe text into pusharmor send.", EXIT_USAGE)
+    try:
+        text.encode("utf-8")
+    except UnicodeEncodeError:
+        raise Fail("The message is not UTF-8 text.")
+    if not text.strip():
+        raise Fail("Nothing to send.", EXIT_USAGE)
+    type_, value = ("text", text) if args.text else detect(text)
+    size = len(value.encode("utf-8"))
+    if size > CONTENT_CAP:
+        raise Fail("Too long (%d / %d)" % (size, CONTENT_CAP))
+    cx.refresh()
+    with cx.store.state() as d:
+        ready = [pid for pid, p in d["peers"].items() if sendable(p)]
+        targets = ready
+        if args.to:
+            targets = []
+            for t in args.to:
+                pid = resolve_id(t, list(d["peers"]))
+                if pid is None:
+                    raise Fail("No device matches %s. Run pusharmor pair to see your devices." % t)
+                if pid not in ready:
+                    p = d["peers"][pid]
+                    raise Fail("Cannot send to %s: %s" % (peer_label(p), peer_status(p, d["pairs"].get(pid))), EXIT_SEND)
+                targets.append(pid)
+        if not targets:
+            raise Fail("No paired devices to send to. Run pusharmor pair to pair one.", EXIT_SEND)
+        m, names = {}, {}
+        for pid in dict.fromkeys(targets):
+            p = d["peers"][pid]
+            names[pid] = peer_label(p)
+            m[pid] = seal_msg(cx.keys, pid, p, reserve(p), type_, value)
+    j = cx.api.call("POST", "/v1/send", {"v": 1, "m": m})
+    res = j.get("r") if isinstance(j.get("r"), dict) else {}
+    why = {"gone": "not delivered, open PushArmor on it", "not listening": "send only, it is not listening",
+           "unapproved": "not paired", "denied": "denied this device", "unknown": "no longer on this account",
+           "failed": "delivery failed"}
+    failed = [pid for pid in m if res.get(pid) != "sent"]
+    with cx.store.state() as d:
+        for pid in failed:
+            r = res.get(pid, "failed")
+            log("%s: %s" % (names[pid], why.get(r, r)))
+            p = d["peers"].get(pid)
+            if p and r == "logged out":
+                p["logged_out"] = True
+            if p and r == "not listening":
+                p["listening"] = False
+    log("Sent to %d of %d device%s." % (len(m) - len(failed), len(m), "" if len(m) == 1 else "s"))
+    return EXIT_SEND if failed else EXIT_OK
+
+
+def cmd_rename(cx, args):
+    if not NAME_RE.fullmatch(args.name):
+        raise Fail("Use 1 to 32 plain ASCII characters, no double quote.", EXIT_USAGE)
+    cx.need()
+    k = cx.keys
+
+    def content(pid, p, n, names):
+        e = make_name_entry(k["sign"], k["id"], pid, b64d(p["pairing_id"]), n, args.name)
+        names[pid] = seal_name_entry(pid, b64d(p["enc_pub"]), e)
+        return "rename", e
+
+    allow_list_call(cx, "PATCH", "/v1/peers/" + cx.me, lambda m, names: {"name": names, "m": m}, content)
+    with cx.store.state() as d:
+        d["name"] = args.name
+    print("This device is now named %s." % args.name)
+    return EXIT_OK
+
+
+def cmd_delete(cx, args):
+    cx.setup()
+    x = resolve_peer(cx, args.id, with_self=True)
+    with cx.store.state(write=False) as d:
+        reg, name = d.get("reg"), peer_label(d["peers"].get(x))
+    if reg != "registered" and (x != cx.me or reg != "logged_out"):
+        raise Fail(LOGGED_OUT if reg == "logged_out" else NOT_LOGGED_IN, EXIT_LOGIN)
+    if x == cx.me:
+        q = "Remove this device from your account? It must log in again and pair with every device again. [y/N] "
+    else:
+        q = "Remove %s from your account? %s must log in again and pair with every device again. [y/N] " % (name, name)
+    if sys.stdin.isatty() and not ask_yes(q):
+        print("Nothing removed.")
+        return EXIT_ERR
+    allow_list_call(cx, "DELETE", "/v1/peers/" + x, lambda m, _: {"m": m}, lambda *a: ("remove", x))
+    if x == cx.me:
+        cx.store.wipe()
+        print("This device was removed from your account, and its local files were deleted.")
+        return EXIT_OK
+    with cx.store.state() as d:
+        d["peers"].pop(x, None)
+        d["pairs"].pop(x, None)
+        d["my_allow"] = [i for i in d["my_allow"] if i != x]
+    print("Removed %s." % name)
+    return EXIT_OK
+
+
+# The one command table: name -> (function, help, arguments). Names are frozen (Q341 A).
+COMMANDS = {
+    "login": (cmd_login, "Log in this device to your PushArmor account.", []),
+    "logout": (cmd_logout, "Log out this device. Keys and paired devices stay on it.", []),
+    "pair": (cmd_pair, "List your devices, or pair with one (compare the fingerprint, then approve).",
+             [(("id",), {"nargs": "?", "metavar": "ID", "help": "device ID from the list (6 or more hex characters)"})]),
+    "listen": (cmd_listen, "Receive messages and print them as they arrive.",
+               [(("--json",), {"action": "store_true", "help": "one JSON object per line"}),
+                (("--tsv",), {"action": "store_true", "help": "tab-separated lines"}),
+                (("--exec",), {"metavar": "PROG", "help": "run PROG ID NAME PLATFORM TYPE BODY per message"})]),
+    "send": (cmd_send, "Send a link or text to your paired devices (all, or --to ID).",
+             [(("message",), {"nargs": "*", "metavar": "MESSAGE", "help": "text to send; - or none reads stdin"}),
+              (("--to",), {"action": "append", "metavar": "ID", "help": "send to this device only (repeatable)"}),
+              (("--text",), {"action": "store_true", "help": "send as plain text, not as a link or phone number"})]),
+    "rename": (cmd_rename, "Change the name your other devices show for this device.",
+               [(("name",), {"metavar": "NAME", "help": "1 to 32 plain ASCII characters, no double quote"})]),
+    "delete": (cmd_delete, "Remove a device from your account (this device too).",
+               [(("id",), {"metavar": "ID", "help": "device ID from pusharmor pair"})]),
+}
+
+
+def build_parser():
+    p = argparse.ArgumentParser(prog="pusharmor", description="PushArmor: send links and text to your own "
+                                "devices, end-to-end encrypted. See https://pusharmor.com")
+    p.add_argument("--config", metavar="DIR", help="config dir (default: $PUSHARMOR_CONFIG, else "
+                   "$XDG_CONFIG_HOME/pusharmor, else ~/.config/pusharmor)")
+    p.add_argument("--version", action="version", version="pusharmor " + VERSION)
+    sub = p.add_subparsers(dest="command", metavar="COMMAND", required=True)
+    for name, (fn, text, arguments) in COMMANDS.items():
+        sp = sub.add_parser(name, help=text, description=text)
+        for flags, kw in arguments:
+            sp.add_argument(*flags, **kw)
+        if name == "listen":
+            sp.set_defaults(_check=lambda a: sum([a.json, a.tsv, bool(a.exec)]) <= 1)
+    return p
+
+
+def main(argv=None):
+    try:
+        check_os()
+    except Fail as e:
+        log(str(e))
+        return e.code
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if not getattr(args, "_check", lambda a: True)(args):
+        parser.error("use only one of --json, --tsv, and --exec")
+    cx = Ctx(config_dir(args.config))
+    try:
+        return COMMANDS[args.command][0](cx, args)
+    except KeyboardInterrupt:
+        log("Stopped.")
+        return 130
+    except Fail as e:
+        log(str(e))
+        return e.code
+    except ApiError as e:
+        if e.status == 401 and e.error == "unknown peer":
+            cx.store.wipe()
+            log(REMOVED)
+            return EXIT_LOGIN
+        if e.status == 401 and e.error == "logged out":
+            with contextlib.suppress(Fail, OSError), cx.store.state() as d:
+                d["reg"] = "logged_out"
+            log(LOGGED_OUT)
+            return EXIT_LOGIN
+        if e.status == 401 and e.error == "clock skew":
+            log("This device's clock is off by more than 5 minutes. Fix the clock and try again.")
+            return EXIT_ERR
+        log("The relay server refused the request (%s)." % (("%d %s" % (e.status, e.error)).strip()))
+        return EXIT_ERR
 
 
 if __name__ == "__main__":
