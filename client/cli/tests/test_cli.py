@@ -503,6 +503,17 @@ def test_delete_non_tty_needs_yes(net, tmp_path, monkeypatch, capsys):
     assert pid not in net.peers
 
 
+def test_send_failures_are_sentences(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = pair_two(monkeypatch, net, a, b)
+    capsys.readouterr()
+    for word, text in [("failed:net", "Not delivered. Try again."), ("logged out", "Logged out. Log in on it to receive messages.")]:
+        net.hooks[("POST", "send")] = lambda m, p, h, body, w=word: net.reply(200, {"r": {idb: w}})
+        assert run(a, "send", "hi") == 4
+        err = capsys.readouterr().err
+        assert ": " + text in err and ": " + word not in err
+
+
 def test_send_too_long(net, tmp_path, monkeypatch, capsys):
     login(monkeypatch, tmp_path)
     assert run(tmp_path, "send", "x" * 2049) == 2
