@@ -13,6 +13,13 @@ import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.pusharmor.app.ui.PaChip
 import com.pusharmor.app.ui.UiText
 import com.pusharmor.app.ui.theme.PaIcons
 import com.pusharmor.app.ui.theme.PaTopBar
@@ -42,6 +49,7 @@ class UiHostActivity : ComponentActivity() {
 
 /** Renders composables at small screens and large fonts and checks that the text fits (QA round 2). */
 @RunWith(RobolectricTestRunner::class)
+@OptIn(ExperimentalLayoutApi::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], application = android.app.Application::class)
 class UiFitTest {
@@ -84,6 +92,16 @@ class UiFitTest {
         // One line; a title too long for the bar ends in an ellipsis and is never cut through a line (I519).
         assertEquals(1, l.lineCount)
         assertTrue(l.size.height <= l.layoutInput.constraints.maxHeight)
+        assertTrue(l.isLineEllipsized(0))
+    }
+
+    @Test fun historyChipEndsInAnEllipsisAtLargeFont() {
+        val name = "Kitchen tablet on the fridge 32"
+        val c = show("w360dp-h640dp-xhdpi", 2.0f) {
+            FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { PaChip(true, name) {} }
+        }
+        val l = layoutOf(c.get(), name)
+        // Too long for the row: the chip ends in an ellipsis, not a glyph cut in half (I524).
         assertTrue(l.isLineEllipsized(0))
     }
 }
