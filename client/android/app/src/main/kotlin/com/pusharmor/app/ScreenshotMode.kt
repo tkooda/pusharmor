@@ -21,6 +21,9 @@ object ScreenshotMode {
     @Volatile var sendText = ""
     @Volatile var sendTo: List<String> = emptyList()
 
+    /** Result text a send returns without sending (the sample peers hold no real keys), for the send error shot. */
+    @Volatile var sendResult: String? = null
+
     /** Fails every Worker request while the mode is on (no 401 can wipe the sample data). */
     fun guard(http: OkHttpClient): OkHttpClient = http.newBuilder().addInterceptor { chain ->
         if (on) throw IOException("screenshot mode: no Worker calls")
