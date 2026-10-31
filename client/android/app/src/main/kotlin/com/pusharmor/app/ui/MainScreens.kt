@@ -915,10 +915,14 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             })
             SectionHeader("Account")
             me?.email?.let { email ->
+                // Dim label, then the email on its own line; a long address ends in an ellipsis (I460).
                 GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
-                    SettingRow("Logged in as $email", modifier = m,
-                        sub = if (email.endsWith("@privaterelay.appleid.com")) "iOS Settings > Apple ID > Sign in with Apple, and appleid.apple.com > Hide My Email, list the address to use on another device." else null,
-                        onClick = null)
+                    Column(m.heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        Text("Logged in as", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                        Text(email, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (email.endsWith("@privaterelay.appleid.com")) Text("iOS Settings > Apple ID > Sign in with Apple, and appleid.apple.com > Hide My Email, list the address to use on another device.",
+                            style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                    }
                 })
             }
             Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
