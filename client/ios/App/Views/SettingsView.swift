@@ -95,7 +95,16 @@ struct SettingsView: View {
                         }
                     }
                     if let e = email {
-                        Text(S.signedInAs(e))
+                        // Dim label, the address on its own line, truncated in the middle (I460).
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Logged in as")
+                                .font(.footnote)
+                                .foregroundColor(.secondaryText)
+                            Text(e)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        .accessibilityElement(children: .combine)
                         if e.lowercased().hasSuffix("@privaterelay.appleid.com") {
                             Text(S.relayHelp).font(.caption).foregroundColor(.secondaryText)
                         }
