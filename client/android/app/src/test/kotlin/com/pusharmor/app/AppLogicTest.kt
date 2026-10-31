@@ -216,6 +216,10 @@ class AppLogicTest {
     @Test fun messagesAreSentences() {
         // I528: no raw "No keys", no unended notice, no "a > b" path as the Apple relay hint.
         assertEquals("This device is not logged in. Log in again.", Session.NO_KEYS)
+        assertEquals("Could not log in. Try again.", Session.BAD_REPLY)
+        assertFalse(source("session/Session.kt").contains("\"Bad reply\""))
+        assertTrue(source("notify/AppEffects.kt").contains("approved this device.\""))
+        assertTrue(source("notify/AppEffects.kt").contains("logged out.\""))
         assertFalse(source("session/Session.kt").contains("\"No keys\""))
         assertTrue(source("notify/AppEffects.kt").contains("peersNotice(\"Device list changed.\""))
         assertTrue(source("ui/MainScreens.kt").contains("Text(UiText.APPLE_RELAY_HINT,"))
