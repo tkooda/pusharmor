@@ -964,6 +964,8 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                 OutlinedButton(onClick = { confirmDelete = true }, Modifier.heightIn(min = 48.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, cs.error),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = cs.error)) { Text("Delete account") }
+                // Log out on a slow or missing connection: visible progress beside the buttons (I473).
+                if ("logout" in running) androidx.compose.material3.CircularProgressIndicator(Modifier.size(24.dp).align(Alignment.CenterVertically).semantics { contentDescription = "Logging out" })
             }
             vm.message.collectAsState().value?.let { Text(it, Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp).semantics { liveRegion = LiveRegionMode.Polite }, color = cs.error) }
         }
