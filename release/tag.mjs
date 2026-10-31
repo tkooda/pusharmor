@@ -23,7 +23,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const PLATFORMS = ["android", "ios", "chrome", "firefox", "worker"];
+export const PLATFORMS = ["android", "ios", "chrome", "firefox", "worker", "cli"];
 
 /** [major, minor, patch] of X.Y.Z (no leading zeros), or null. */
 export function parseVersion(v) {
@@ -89,6 +89,12 @@ const FILES = [
     get: (s) => [/^versionName=(.*)$/m.exec(s)?.[1], /^versionCode=(.*)$/m.exec(s)?.[1]],
     want: (v) => [v, String(buildNumber(v))],
     set: (s, v) => s.replace(/^versionName=.*$/m, "versionName=" + v).replace(/^versionCode=.*$/m, "versionCode=" + buildNumber(v)),
+  },
+  {
+    path: "client/cli/pusharmor.py",
+    get: (s) => [/^VERSION = "([^"]*)"$/m.exec(s)?.[1]],
+    want: (v) => [v],
+    set: (s, v) => s.replace(/^VERSION = "[^"]*"$/m, 'VERSION = "' + v + '"'),
   },
   ...["client/chrome/manifest.json", "client/firefox/manifest.json"].map((path) => ({
     path,

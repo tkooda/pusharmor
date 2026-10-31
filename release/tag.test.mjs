@@ -12,6 +12,7 @@ const CLI = join(import.meta.dirname, "tag.mjs");
 
 test("tag names: <platform>/vX.Y.Z only, no rc tags, no leading zeros", () => {
   assert.deepEqual(parseTag("chrome/v1.2.3"), { platform: "chrome", version: "1.2.3" });
+  assert.deepEqual(parseTag("cli/v0.0.19"), { platform: "cli", version: "0.0.19" });
   assert.deepEqual(parseTag("worker/v0.0.10"), { platform: "worker", version: "0.0.10" });
   for (const t of ["chrome/v1.2", "chrome/v1.2.3-rc1", "chrome/1.2.3", "chrome-v1.2.3", "site/v1.2.3", "chrome/v1.02.3", "chrome/v1.2.3 ", "v1.2.3"]) {
     assert.equal(parseTag(t), null, t);
@@ -22,7 +23,7 @@ test("format: minor and patch <= 999, major <= 2099, known platform", () => {
   assert.deepEqual(formatProblems("ios", "2099.999.999"), []);
   assert.deepEqual(formatProblems("ios", "1.1000.0"), ["1.1000.0: minor and patch must be <= 999"]);
   assert.deepEqual(formatProblems("ios", "2100.0.0"), ["2100.0.0: major must be <= 2099"]);
-  assert.deepEqual(formatProblems("site", "1.0.0"), ['unknown platform "site" (one of android, ios, chrome, firefox, worker)']);
+  assert.deepEqual(formatProblems("site", "1.0.0"), ['unknown platform "site" (one of android, ios, chrome, firefox, worker, cli)']);
   assert.equal(formatProblems("ios", "1.0").length, 1);
 });
 
@@ -140,7 +141,7 @@ test("ci-ok wait: polls a running CI and a failing gh api until the deadline, st
 // answers one ci run whose ci-ok jobs are ci.jobs (status TAB conclusion lines).
 function scratch() {
   const d = mkdtempSync(join(tmpdir(), "pa-tag-"));
-  for (const f of ["release/version.properties", "client/chrome/manifest.json", "client/firefox/manifest.json", "client/ios/project.yml"]) {
+  for (const f of ["release/version.properties", "client/chrome/manifest.json", "client/firefox/manifest.json", "client/ios/project.yml", "client/cli/pusharmor.py"]) {
     mkdirSync(join(d, dirname(f)), { recursive: true });
     cpSync(join(REPO, f), join(d, f));
   }
@@ -170,6 +171,7 @@ test("CLI: stamp, commit, tag; second platform at the same commit; check mode", 
   assert.deepEqual(stampProblems(d, "1.2.3"), []);
   assert.match(readFileSync(join(d, "release/version.properties"), "utf8"), /^versionCode=1002003$/m);
   assert.match(readFileSync(join(d, "client/ios/project.yml"), "utf8"), /CURRENT_PROJECT_VERSION: "1002003"/);
+  assert.match(readFileSync(join(d, "client/cli/pusharmor.py"), "utf8"), /^VERSION = "1\.2\.3"$/m);
   git("commit", "-q", "-am", "release 1.2.3");
   r = run("android", "1.2.3");
   assert.equal(r.status, 0, r.stderr);
