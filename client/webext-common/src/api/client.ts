@@ -1,4 +1,4 @@
-// Worker client (catalog General): PA-Sig signing, PA-Epoch-Ms offset,
+// Worker client (catalog General): PA-Sig signing, PA-Epoch offset (seconds),
 // retries on 429 / 503 / network errors only, clock-skew rebuild.
 import { utf8 } from "../crypto/bytes.ts";
 import { paSig } from "../crypto/pasig.ts";
@@ -32,8 +32,9 @@ export interface ApiDeps {
   fetch(input: string, init: RequestInit): Promise<Response>;
   now(): number;
   sleep(ms: number): Promise<void>;
+  /** Server clock minus local clock, in whole seconds. */
   getOffset(): Promise<number>;
-  setOffset(ms: number): Promise<void>;
+  setOffset(s: number): Promise<void>;
 }
 
 export interface CallOpts {
@@ -107,7 +108,7 @@ export class Api {
     const bodyBytes = utf8(bodyText);
     if (bodyText !== "") headers["Content-Type"] = "application/json";
     if (opts.signer) {
-      const t = paTime(this.d.now() + (await this.d.getOffset()));
+      const t = paTime(this.d.now() + (await this.d.getOffset()) * 1000);
       if (opts.signer.id !== null) headers["PA-ID"] = opts.signer.id;
       headers["PA-Time"] = t;
       headers["PA-Sig"] = await paSig(opts.signer.key, method, fullPath, t, bodyBytes);
@@ -120,8 +121,8 @@ export class Api {
     } catch {
       throw new ApiError(0, "network", {}, null);
     }
-    const epoch = res.headers.get("PA-Epoch-Ms");
-    if (epoch && /^[0-9]{1,16}$/.test(epoch)) await this.d.setOffset(Number(epoch) - this.d.now());
+    const epoch = res.headers.get("PA-Epoch");
+    if (epoch && /^[0-9]{1,13}$/.test(epoch)) await this.d.setOffset(Number(epoch) - Math.floor(this.d.now() / 1000));
     let json: Record<string, unknown> = {};
     try {
       const t = await res.text();
