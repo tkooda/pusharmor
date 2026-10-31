@@ -425,7 +425,42 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     btns.hidden = true;
     clear(confirmOut).append(h("p", { role: "alert" }, T.logoutConfirm), h("div", { class: "actions" }, yes, no));
     confirmOut.hidden = false;
-    yes.focus();
+    no.focus(); // I471: the safe choice first
+  });
+  // I471: Esc cancels a confirm
+  const onEsc = (cancel: () => void) => (ev: KeyboardEvent) => {
+    if (ev.key !== "Escape") return;
+    ev.preventDefault();
+    cancel();
+  };
+  confirmOut.addEventListener("keydown", onEsc(() => { closeConfirm(); logOut.focus(); }));
+  const delAll = h("button", { class: "quiet errtext" }, "Delete all history") as HTMLButtonElement;
+  const closeDel = () => {
+    clear(confirmDel);
+    delAll.hidden = false;
+    delAll.focus();
+  };
+  confirmDel.addEventListener("keydown", onEsc(closeDel));
+  delAll.addEventListener("click", () => {
+    const yes = h("button", {
+      class: "danger",
+      onclick: async () => {
+        yes.disabled = true;
+        try {
+          await rpc(env, "historyDeleteAll");
+          closeDel();
+          status.textContent = "History deleted";
+        } catch (e) {
+          yes.disabled = false;
+          status.textContent = (e as Error).message;
+        }
+        status.scrollIntoView({ block: "nearest" });
+      },
+    }, "Delete") as HTMLButtonElement;
+    const no = h("button", { onclick: closeDel }, "Cancel");
+    delAll.hidden = true;
+    clear(confirmDel).append(h("span", { role: "alert" }, "Delete all history?"), yes, no);
+    no.focus();
   });
   add(
     root,
@@ -441,19 +476,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     sh("History"),
     group(
       h("div", { class: "srow" }, h("span", {}, "Keep messages for"), days),
-      h(
-        "div",
-        { class: "srow" },
-        h("button", {
-          class: "quiet errtext",
-          onclick: () => {
-            const yes = h("button", { class: "danger", onclick: async () => { await rpc(env, "historyDeleteAll"); clear(confirmDel); status.textContent = "History deleted"; } }, "Delete");
-            clear(confirmDel).append(h("span", { role: "alert" }, "Delete all history? "), yes);
-            yes.focus();
-          },
-        }, "Delete all history"),
-        confirmDel,
-      ),
+      h("div", { class: "srow" }, delAll, confirmDel),
     ),
     sh("Account"),
     group(acctRow, h("div", { class: "srow acct-acts" }, btns, confirmOut)),
