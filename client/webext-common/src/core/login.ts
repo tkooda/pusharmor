@@ -132,7 +132,7 @@ export class Login {
   }
 
   async complete(purpose: Purpose, ticket: string, email: string | null, evict?: string[]): Promise<LoginResult> {
-    if (!TICKET_RE.test(ticket)) throw new UserError("Login failed, try again");
+    if (!TICKET_RE.test(ticket)) throw new UserError("Login failed. Try again.");
     if (email !== null) await this.e.db.setMeta("email", email);
     try {
       if (purpose === "register") {

@@ -1025,3 +1025,11 @@ test("Chrome sign-in window closed: Sign-in was closed. Try again. (I496)", asyn
   const r = await new Rpc(e).handle({ op: "oauth", args: { provider: "apple", purpose: "register" } });
   assert.deepEqual(r, { ok: false, error: "Sign-in was closed. Try again." });
 });
+
+test("error texts are sentences with periods; no raw error code (I474)", () => {
+  assert.equal(errorText(new ApiError(401, "clock skew twice", {}, null)), "This device's clock is off by more than 5 minutes.");
+  assert.equal(errorText(new ApiError(502, "", {}, null)), "Could not send the email. Try again.");
+  assert.equal(errorText(new ApiError(400, "push endpoint not allowed", {}, null)), "This browser's push service is not supported yet.");
+  assert.equal(errorText(new ApiError(429, "rate limited", {}, 30)), "Too many requests. Try again in 30 seconds.");
+  assert.equal(errorText(new ApiError(418, "teapot", {}, null)), "Something went wrong. Try again.");
+});

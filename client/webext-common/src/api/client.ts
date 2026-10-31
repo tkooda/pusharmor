@@ -153,17 +153,17 @@ export const UPDATE_REQUIRED = "Update PushArmor to continue";
 /** User-facing text for an API error (catalog Results and errors). */
 export function errorText(e: unknown): string {
   if (!(e instanceof ApiError)) return "Something went wrong. Try again.";
-  if (e.error === "clock skew twice") return "This device's clock is off by more than 5 minutes";
+  if (e.error === "clock skew twice") return T.clockOff;
   if (e.status === 426) return UPDATE_REQUIRED;
-  if (e.status === 502) return "Could not send the email, try again";
+  if (e.status === 502) return "Could not send the email. Try again.";
   if (e.status === 400 && e.error === "bad email") return "Only email addresses with plain ASCII characters are supported.";
-  if (e.status === 400 && e.error === "push endpoint not allowed") return "This browser's push service is not supported yet";
+  if (e.status === 400 && e.error === "push endpoint not allowed") return T.unsupportedPush;
   if (e.status === 401 && e.error === "ticket expired") return T.loginExpired;
   if (e.status === 401 && e.error === "wrong code") return "That code did not work. Check the newest email from PushArmor and try again.";
   if (e.status === 401 && e.error === "code expired") return "This code has expired. Get a new code to continue.";
   if (e.status === 403 && e.error === "turnstile failed") return "The security check did not finish. Try it again.";
   if (e.status === 401 && e.error === "logged out") return "Logged out. Log in to resume.";
-  if (e.status === 429) return "Too many requests. Try again in " + (e.retryAfter ?? 60) + " s";
+  if (e.status === 429) return "Too many requests. Try again in " + (e.retryAfter ?? 60) + " seconds.";
   if (e.status === 0) return "Offline. Try again.";
-  return "Error: " + (e.error || String(e.status));
+  return "Something went wrong. Try again.";
 }
