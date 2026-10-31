@@ -80,6 +80,11 @@ if (q.has("wait")) {
     fingerprint: null, pk: null, greyed: null, hidden: false, sendable: false, approvesMe: false, paired: false });
 }
 
+// ?only=new: just the pairing-code device (first-pair screen with the fingerprint)
+if (q.get("only") === "new") peers.splice(0, peers.length, { ...peers.find((p) => p.id === NEW_LAPTOP)!, countdown: "4:12" });
+// ?senderr: Phone is selected and Send fails (the relay server cannot be reached)
+if (q.has("senderr")) sendSel = [PHONE];
+
 function reply(req: Req): unknown {
   const text = String(req.args?.text ?? "");
   switch (req.op) {
@@ -93,6 +98,8 @@ function reply(req: Req): unknown {
     case "signout":
       state.reg = "logged_out";
       return null;
+    case "send":
+      throw new Error("Could not reach the relay server. Check your connection and try again.");
     case "sendSel":
       return sendSel;
     case "detect":
@@ -103,7 +110,13 @@ function reply(req: Req): unknown {
 }
 
 const env: UiEnv = {
-  call: async (req: Req): Promise<Reply> => ({ ok: true, data: reply(req) }),
+  call: async (req: Req): Promise<Reply> => {
+    try {
+      return { ok: true, data: reply(req) };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
+  },
   activeUrl: async () => "https://example.com/guide/hiking-trails",
   openPage: () => undefined,
   openUrl: () => undefined,
@@ -122,6 +135,8 @@ async function main(): Promise<void> {
   document.documentElement.dataset.mode = MARKER;
   // ?bare: the popup alone at its real size (no store frame)
   if (q.has("bare")) document.documentElement.classList.add("bare");
+  // ?zoom=2: lay the popup out at twice the size (headless Firefox screenshots ignore the pixel ratio)
+  if (q.has("zoom")) document.documentElement.style.zoom = q.get("zoom")!;
   const tab = location.hash.slice(1) || "send";
   if (tab === "signin") state.reg = null;
   // review images (shots.mjs --review): Settings with an account, and after Log out
@@ -132,7 +147,17 @@ async function main(): Promise<void> {
   await new Promise((done) => setTimeout(done, 500));
   const open = tab === "signout" ? "settings" : tab;
   if (open !== "send") (document.querySelector('[data-tab="' + open + '"]') as HTMLElement | null)?.click();
-  if (tab === "settings" || tab === "signout") {
+  if (q.has("senderr")) {
+    document.querySelector<HTMLElement>(".send-foot button.primary")?.click();
+    await new Promise((done) => setTimeout(done, 300));
+  }
+  // ?open: the newest History row is opened (its actions show)
+  if (q.has("open")) {
+    await new Promise((done) => setTimeout(done, 500));
+    document.querySelector<HTMLElement>(".hrow")?.click();
+    await new Promise((done) => setTimeout(done, 300));
+  }
+  if ((tab === "settings" || tab === "signout") && !q.has("top")) {
     await new Promise((done) => setTimeout(done, 500));
     // the Log out and Delete account buttons sit at the bottom of the Settings tab
     if (tab === "signout") {
