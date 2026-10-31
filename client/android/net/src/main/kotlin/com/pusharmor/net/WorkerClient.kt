@@ -55,6 +55,8 @@ class WorkerClient(
     private val sleep: (Long) -> Unit = { Thread.sleep(it) },
     /** Called for any call signed with PA-ID that gets 401 "unknown peer" or 401 "logged out" (the error text). */
     private val onAuthState: (String) -> Unit = {},
+    /** PA-Client header value sent on every request: "android/<versionName>" (Q328). */
+    private val paClient: String = "android/0.0.0",
 ) : Api {
     companion object {
         const val BUDGET_MS = 8_000L
@@ -89,7 +91,7 @@ class WorkerClient(
     fun call(method: String, path: String, body: ByteArray?, signed: Boolean, signedNoId: Boolean = false, query: Map<String, String> = emptyMap(), once: Boolean = false): Reply? {
         val bytes = body ?: ByteArray(0)
         val url = base.newBuilder().encodedPath(path).apply { query.forEach { (k, v) -> addQueryParameter(k, v) } }.build()
-        val rb = Request.Builder().url(url)
+        val rb = Request.Builder().url(url).header("PA-Client", paClient)
         if (signed || signedNoId) {
             val t = paTime()
             val sig = keys().sign(Ids.requestSigningBytes(method, path, t, bytes))
@@ -274,6 +276,7 @@ object ErrorText {
             r.status == 400 && r.error == "bad email" -> "Only email addresses with plain ASCII characters are supported."
             r.status == 400 && r.error == "push endpoint not allowed" -> "This browser's push service is not supported yet"
             r.status == 413 -> "Too long"
+            r.status == 426 -> "Update PushArmor to continue"
             r.status == 429 -> "Rate limited. Try again in ${r.retryAfter ?: 60} s"
             r.status == 502 -> "could not send the email, try again"
             r.status == 403 && r.error == "banned" -> "This account is blocked"
