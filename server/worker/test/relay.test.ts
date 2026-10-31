@@ -3,8 +3,9 @@ import { env } from "cloudflare:test";
 import { b64urlEncode } from "../src/codec/b64url";
 import { probeCode } from "../src/routes/common";
 import { pairKey } from "../src/routes/pair";
-import { call, initP256, message, newPeer, onVendor, pushFor, randomEmail, row, setAllow, testEnv, ticketFor, vendorRequests, keys, type Peer } from "./helpers";
+import { call, cliCodeFor, countingLimit, register, initP256, message, newPeer, onVendor, pushFor, randomEmail, row, setAllow, testEnv, ticketFor, vendorRequests, keys, type Peer } from "./helpers";
 import { TEST_SECRETS as S } from "./secrets";
+import { PUSH_FAILED_COL } from "../src/db/sql";
 
 beforeAll(initP256);
 const j = (s: unknown) => JSON.parse(s as string);
@@ -14,18 +15,18 @@ describe("POST /send", () => {
   it("results in /send order", async () => {
     const email = randomEmail();
     const me = await newPeer(email);
-    const ok = await newPeer(email, "iphone");
+    const ok = await newPeer(email, "ios");
     const den = await newPeer(email);
     const unap = await newPeer(email);
-    const paused = await newPeer(email);
+    const loggedOut = await newPeer(email);
     const gone = await newPeer(email, "chrome", null);
     const up = await newPeer(email, "android", pushFor("android", "unifiedpush"));
-    for (const p of [ok, den, paused, gone, up]) await setAllow(p, [me.id]);
+    for (const p of [ok, den, loggedOut, gone, up]) await setAllow(p, [me.id]);
     await env.DB.prepare("UPDATE peers SET deny = json_set(deny, '$.\"' || ?1 || '\"', 1) WHERE id = ?2").bind(me.id, den.id).run();
-    await env.DB.prepare("UPDATE peers SET paused = 1 WHERE id = ?1").bind(paused.id).run();
+    await env.DB.prepare("UPDATE peers SET logged_out = 1 WHERE id = ?1").bind(loggedOut.id).run();
     const ghost = ghostOf(me);
     const m: Record<string, string> = {};
-    for (const p of [ok, den, unap, paused, gone, up]) m[p.id] = message(512);
+    for (const p of [ok, den, unap, loggedOut, gone, up]) m[p.id] = message(512);
     m[ghost] = message(512);
     const r = await call("POST", "/v1/send", { v: 1, m }, { peer: me });
     expect(r.status).toBe(200);
@@ -33,12 +34,38 @@ describe("POST /send", () => {
       [ok.id]: "sent",
       [den.id]: "denied",
       [unap.id]: "unapproved",
-      [paused.id]: "paused",
+      [loggedOut.id]: "logged out",
       [gone.id]: "gone",
       [up.id]: "failed",
       [ghost]: "unknown",
     });
     expect(vendorRequests("api.push.apple.com")).toHaveLength(1);
+  });
+
+  it("ntfy 507 -> not listening; a cli peer then gets no push until its listen report", async () => {
+    const email = randomEmail();
+    const me = await newPeer(email);
+    const x = await newPeer(email, "cli", pushFor("cli"));
+    const up = await newPeer(email, "android", pushFor("android", "unifiedpush"));
+    for (const p of [x, up]) {
+      await setAllow(p, [me.id]);
+      await env.DB.prepare("UPDATE peers SET push_verified_at = 1 WHERE id = ?1").bind(p.id).run();
+    }
+    const send = async () => (await call("POST", "/v1/send", { v: 1, m: { [x.id]: message(512), [up.id]: message(512) } }, { peer: me })).body.r;
+    const before = vendorRequests("ntfy.sh").length;
+    onVendor((q) => q.url.startsWith("https://ntfy.sh/"), () => new Response('{"code":50701}', { status: 507 }), 2);
+    expect(await send()).toEqual({ [x.id]: "not listening", [up.id]: "not listening" });
+    expect(vendorRequests("ntfy.sh").length).toBe(before + 2);
+    const since = (await row(x.id))![PUSH_FAILED_COL] as number;
+    expect(Math.abs(since - Math.floor(Date.now() / 1000))).toBeLessThan(5);
+    expect((await row(up.id))![PUSH_FAILED_COL]).toBeNull();
+    expect((await row(x.id))!.push).not.toBeNull();
+    // While set: no POST to the cli endpoint, the value is kept.
+    expect(await send()).toEqual({ [x.id]: "not listening", [up.id]: "sent" });
+    expect(vendorRequests("ntfy.sh").length).toBe(before + 3);
+    expect((await row(x.id))![PUSH_FAILED_COL]).toBe(since);
+    expect((await call("PATCH", "/v1/peers/" + x.id, { listening: true }, { peer: x })).status).toBe(200);
+    expect(await send()).toEqual({ [x.id]: "sent", [up.id]: "sent" });
   });
 
   it("v must be 1; foreign prefix -> 400", async () => {
@@ -104,46 +131,62 @@ describe("POST /send", () => {
     expect(a!.s).toBe(stale);
     await call("POST", "/v1/send", { v: 1, m: {} }, { peer: me });
     a = await env.DB.prepare("SELECT last_seen_month AS s FROM accounts WHERE id = ?1").bind(me.acct).first<{ s: number }>();
-    expect(a!.s).toBeGreaterThanOrEqual(now);
+    expect(a!.s).toBe(now - (now % 2592000));
   });
 });
 
-describe("pause / unpause (6.10)", () => {
-  it("messages missing names exactly the missing allow id; gate; unpause ticket", async () => {
+describe("logout / login (6.10)", () => {
+  it("messages missing names exactly the missing allow id; gate; login ticket", async () => {
     const email = randomEmail();
     const a = await newPeer(email);
     const b = await newPeer(email);
     const c = await newPeer(email);
     await setAllow(a, [b.id, c.id]);
     await setAllow(b, [a.id]);
-    let r = await call("POST", `/v1/peers/${a.id}/pause`, { m: { [b.id]: message(512) } }, { peer: a });
+    let r = await call("POST", `/v1/peers/${a.id}/logout`, { m: { [b.id]: message(512) } }, { peer: a });
     expect(r.status).toBe(400);
     expect(r.body).toEqual({ error: "messages missing", ids: [c.id] });
-    r = await call("POST", `/v1/peers/${a.id}/pause`, { m: { [b.id]: message(512), [c.id]: message(512) } }, { peer: a });
+    r = await call("POST", `/v1/peers/${a.id}/logout`, { m: { [b.id]: message(512), [c.id]: message(512) } }, { peer: a });
     expect(r.body.r).toEqual({ [b.id]: "sent", [c.id]: "unapproved" });
-    expect((await row(a.id))!.paused).toBe(1);
+    expect((await row(a.id))!.logged_out).toBe(1);
     const fcm = vendorRequests("fcm.googleapis.com").filter((q) => q.url.includes("/v1/projects/"));
     expect(JSON.parse(new TextDecoder().decode(fcm[0].body)).message.android.priority).toBe("NORMAL");
-    // Paused gate.
-    expect((await call("GET", "/v1/peers", undefined, { peer: a })).body.error).toBe("paused");
-    expect((await call("POST", `/v1/peers/${a.id}/pause`, { m: {} }, { peer: a })).body.error).toBe("paused");
-    // Unpause: wrong purpose ticket, then right one; missing m.
+    // Logged-out gate.
+    expect((await call("GET", "/v1/peers", undefined, { peer: a })).body.error).toBe("logged out");
+    expect((await call("POST", `/v1/peers/${a.id}/logout`, { m: {} }, { peer: a })).body.error).toBe("logged out");
+    // Login: wrong purpose ticket, then right one; missing m.
     const m = { [b.id]: message(512), [c.id]: message(512) };
-    r = await call("POST", `/v1/peers/${a.id}/unpause`, { ticket: await ticketFor(email, a.signPub, "register"), m }, { peer: a });
+    r = await call("POST", `/v1/peers/${a.id}/login`, { ticket: await ticketFor(email, a.signPub, "register"), m }, { peer: a });
     expect(r.body.error).toBe("invalid ticket");
-    r = await call("POST", `/v1/peers/${a.id}/unpause`, { ticket: await ticketFor(email, a.signPub, "unpause"), m: { [b.id]: m[b.id] } }, { peer: a });
+    r = await call("POST", `/v1/peers/${a.id}/login`, { ticket: await ticketFor(email, a.signPub, "login"), m: { [b.id]: m[b.id] } }, { peer: a });
     expect(r.body.error).toBe("messages missing");
-    r = await call("POST", `/v1/peers/${a.id}/unpause`, { ticket: await ticketFor(email, a.signPub, "unpause"), m }, { peer: a });
+    r = await call("POST", `/v1/peers/${a.id}/login`, { ticket: await ticketFor(email, a.signPub, "login"), m }, { peer: a });
     expect(r.status).toBe(200);
-    expect((await row(a.id))!.paused).toBe(0);
+    expect((await row(a.id))!.logged_out).toBe(0);
   });
 
-  it("paused caller may DELETE itself", async () => {
+  it("login accepts a cli code of the right purpose and account; DELETE /account takes no cli code", async () => {
+    const email = randomEmail();
+    const a = await newPeer(email, "cli", null);
+    await env.DB.prepare("UPDATE peers SET logged_out = 1 WHERE id = ?1").bind(a.id).run();
+    let r = await call("POST", `/v1/peers/${a.id}/login`, { ticket: await cliCodeFor(randomEmail(), a.signPub, "login"), m: {} }, { peer: a });
+    expect(r.body.error).toBe("bad ticket");
+    r = await call("POST", `/v1/peers/${a.id}/login`, { ticket: await cliCodeFor(email, a.signPub, "register"), m: {} }, { peer: a });
+    expect(r.body.error).toBe("bad ticket");
+    r = await call("POST", `/v1/peers/${a.id}/login`, { ticket: await cliCodeFor(email, a.signPub, "login"), m: {} }, { peer: a });
+    expect(r.status).toBe(200);
+    expect((await row(a.id))!.logged_out).toBe(0);
+    r = await call("DELETE", "/v1/account", { ticket: await cliCodeFor(email, a.signPub, "login"), sign_pub: a.signPub, m: {} }, { sign: a.sign });
+    expect(r.status).toBe(401);
+    expect(await row(a.id)).not.toBeNull();
+  });
+
+  it("logged-out caller may DELETE itself", async () => {
     const email = randomEmail();
     const a = await newPeer(email);
     const b = await newPeer(email);
-    await env.DB.prepare("UPDATE peers SET paused = 1 WHERE id = ?1").bind(a.id).run();
-    expect((await call("DELETE", "/v1/peers/" + b.id, { m: {} }, { peer: a })).body.error).toBe("paused");
+    await env.DB.prepare("UPDATE peers SET logged_out = 1 WHERE id = ?1").bind(a.id).run();
+    expect((await call("DELETE", "/v1/peers/" + b.id, { m: {} }, { peer: a })).body.error).toBe("logged out");
     expect((await call("DELETE", "/v1/peers/" + a.id, { m: {} }, { peer: a })).status).toBe(200);
     expect(await row(a.id)).toBeNull();
   });
@@ -200,10 +243,10 @@ describe("DELETE /account (6.5)", () => {
 });
 
 describe("POST /pair/$X (6.7a)", () => {
-  it("relays each kind; iPhone gets apns-collapse-id = pk; others none; TTL 2419200", async () => {
+  it("relays each kind; iPhone gets apns-collapse-id = pk; others none; TTL 604800", async () => {
     const email = randomEmail();
     const n = await newPeer(email);
-    const x = await newPeer(email, "iphone");
+    const x = await newPeer(email, "ios");
     const c = message(366 - 2) + "AA"; // 366 chars
     expect(c).toHaveLength(366);
     for (const k of ["commit", "open"]) {
@@ -215,14 +258,14 @@ describe("POST /pair/$X (6.7a)", () => {
     for (const q of apns) {
       expect(q.headers["apns-collapse-id"]).toBe(await pairKey(n.id, x.id));
       const exp = Number(q.headers["apns-expiration"]);
-      expect(exp - Math.floor(Date.now() / 1000)).toBeGreaterThanOrEqual(2419200 - 2);
-      expect(exp - Math.floor(Date.now() / 1000)).toBeLessThanOrEqual(2419200);
+      expect(exp - Math.floor(Date.now() / 1000)).toBeGreaterThanOrEqual(604800 - 2);
+      expect(exp - Math.floor(Date.now() / 1000)).toBeLessThanOrEqual(604800);
     }
     const r = await call("POST", "/v1/pair/" + n.id, { k: "reply", c }, { peer: x });
     expect(r.body).toEqual({ r: "sent" });
     const fcm = vendorRequests("fcm.googleapis.com").filter((q) => q.url.includes("/v1/projects/"));
     const body = JSON.parse(new TextDecoder().decode(fcm[0].body));
-    expect(body.message.android.ttl).toBe("2419200s");
+    expect(body.message.android.ttl).toBe("604800s");
     expect(body.message.android.priority).toBe("HIGH");
     expect(Object.keys(fcm[0].headers).some((h) => h.includes("collapse"))).toBe(false);
     expect(JSON.stringify(body)).not.toContain("collapse");
@@ -231,7 +274,7 @@ describe("POST /pair/$X (6.7a)", () => {
   it("reply to an iPhone uses (X, me) order", async () => {
     const email = randomEmail();
     const x = await newPeer(email);
-    const n = await newPeer(email, "iphone");
+    const n = await newPeer(email, "ios");
     const c = message(364) + "AA";
     await call("POST", "/v1/pair/" + n.id, { k: "reply", c }, { peer: x });
     expect(vendorRequests("api.push.apple.com")[0].headers["apns-collapse-id"]).toBe(await pairKey(n.id, x.id));
@@ -252,8 +295,8 @@ describe("POST /pair/$X (6.7a)", () => {
     expect((await call("POST", "/v1/pair/" + x.id, { k: "open", c }, { peer: n })).status).toBe(200);
     expect(JSON.stringify([await row(n.id), await row(x.id)])).toBe(before);
     expect((await call("POST", "/v1/pair/" + ghostOf(n), { k: "commit", c }, { peer: n })).body).toEqual({ r: "unknown" });
-    await env.DB.prepare("UPDATE peers SET paused = 1 WHERE id = ?1").bind(x.id).run();
-    expect((await call("POST", "/v1/pair/" + x.id, { k: "reply", c }, { peer: n })).body).toEqual({ r: "paused" });
+    await env.DB.prepare("UPDATE peers SET logged_out = 1 WHERE id = ?1").bind(x.id).run();
+    expect((await call("POST", "/v1/pair/" + x.id, { k: "reply", c }, { peer: n })).body).toEqual({ r: "logged out" });
     const y = await newPeer(email, "chrome", null);
     expect((await call("POST", "/v1/pair/" + y.id, { k: "commit", c }, { peer: n })).body).toEqual({ r: "gone" });
     await env.DB.prepare("UPDATE peers SET deny = json_set(deny, '$.\"' || ?1 || '\"', 1) WHERE id = ?2").bind(n.id, y.id).run();
@@ -264,7 +307,7 @@ describe("POST /pair/$X (6.7a)", () => {
 describe("UnifiedPush probe and confirm (7.6, 6.11)", () => {
   it("probe carries {probe: code}; confirm current and previous window; wrong code; RL_PROBE", async () => {
     const p = await newPeer(randomEmail(), "android", pushFor("android", "unifiedpush"));
-    const probes = vendorRequests("up.example.org");
+    const probes = vendorRequests("ntfy.sh");
     expect(probes).toHaveLength(1);
     expect(probes[0].headers["content-encoding"]).toBe("aes128gcm");
     const push = j((await row(p.id))!.push);
@@ -276,17 +319,25 @@ describe("UnifiedPush probe and confirm (7.6, 6.11)", () => {
     const r = await call("POST", `/v1/peers/${p.id}/confirm`, { code: prev }, { peer: p });
     expect(r.status).toBe(200);
     expect(r.body).toEqual({});
-    expect(typeof j((await row(p.id))!.push).verified_at).toBe("number");
+    expect(typeof (await row(p.id))!.push_verified_at).toBe("number");
     // RL_PROBE: 2 per 60 s; the third push change sends no probe and still succeeds. A counting
     // stub stands in for the binding, whose fixed 60 s window can roll over mid-test (I363).
-    const seen: string[] = [];
-    const e = await testEnv({ RL_PROBE: { limit: async ({ key }) => ({ success: seen.push(key) <= 2 }) } });
+    const rl = countingLimit(2);
+    const seen = rl.seen;
+    const e = await testEnv({ RL_PROBE: rl });
     for (let i = 0; i < 3; i++) {
       const rr = await call("PATCH", "/v1/peers/" + p.id, { push: pushFor("android", "unifiedpush") }, { peer: p, env: e });
       expect(rr.status).toBe(200);
     }
-    expect(seen).toEqual(Array(3).fill("probe:" + p.id));
-    expect(vendorRequests("up.example.org")).toHaveLength(3);
+    expect(seen).toEqual(["probe:" + p.id, "probeacct:" + p.acct, "probe:" + p.id, "probeacct:" + p.acct, "probe:" + p.id]);
+    expect(vendorRequests("ntfy.sh")).toHaveLength(3);
+  });
+
+  it("RL_PROBE per account: new peer ids in one account share the probe limit", async () => {
+    const email = randomEmail();
+    const e = await testEnv({ RL_PROBE: countingLimit(2) });
+    for (let i = 0; i < 3; i++) expect((await register(email, "android", pushFor("android", "unifiedpush"), {}, e)).r.status).toBe(200);
+    expect(vendorRequests("ntfy.sh")).toHaveLength(2);
   });
 
   it("confirm on a non-type-6 push -> 400", async () => {

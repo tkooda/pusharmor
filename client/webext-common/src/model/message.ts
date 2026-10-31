@@ -31,8 +31,8 @@ export type Content =
   | { type: "deny" }
   | { type: "remove"; id: string }
   | { type: "delete" }
-  | { type: "pause" }
-  | { type: "unpause" };
+  | { type: "logout" }
+  | { type: "login" };
 
 export type ContentType = Content["type"];
 export const CONTROL_TYPES: ReadonlySet<ContentType> = new Set([
@@ -40,11 +40,12 @@ export const CONTROL_TYPES: ReadonlySet<ContentType> = new Set([
   "rename",
   "remove",
   "delete",
-  "pause",
-  "unpause",
+  "logout",
+  "login",
   "deny",
 ]);
-const TYPE_KEYS: ReadonlySet<string> = new Set([
+// Fixed order: when several type keys appear, the first one listed wins.
+const TYPE_KEYS: readonly string[] = [
   "url",
   "text",
   "tel",
@@ -53,9 +54,9 @@ const TYPE_KEYS: ReadonlySet<string> = new Set([
   "remove",
   "rename",
   "delete",
-  "pause",
-  "unpause",
-]);
+  "logout",
+  "login",
+];
 
 /** JSON {"n": n, type: value}. */
 export function buildJson(n: number, c: Content): string {
@@ -172,13 +173,13 @@ export interface ParsedJson {
 }
 
 export function isPrintableName(name: string): boolean {
-  return name.length >= 1 && name.length <= 32 && /^[\x20-\x7e]+$/.test(name);
+  return name.length >= 1 && name.length <= 32 && /^[\x20\x21\x23-\x7e]+$/.test(name);
 }
 
 function parseEntry(v: JValue | undefined): NameEntry | null {
   if (!isObject(v)) return null;
-  const keys = Object.keys(v);
-  if (keys.length !== 3 || !("name" in v) || !("n" in v) || !("s" in v)) return null;
+  // Unknown extra keys are ignored.
+  if (!("name" in v) || !("n" in v) || !("s" in v)) return null;
   const n = counterN(v.n);
   if (n === null || typeof v.name !== "string" || typeof v.s !== "string") return null;
   const nb = b64urlTryDecode(v.name);
@@ -199,12 +200,12 @@ export function parseInnerJson(bytes: Uint8Array): ParsedJson | null {
     return null;
   }
   if (!isObject(v)) return null;
-  const keys = Object.keys(v);
-  if (keys.length !== 2 || !("n" in v)) return null;
+  if (!("n" in v)) return null;
   const n = counterN(v.n);
   if (n === null) return null;
-  const t = keys.find((k) => k !== "n")!;
-  if (!TYPE_KEYS.has(t)) return null;
+  // Unknown keys are ignored; the type is the first known type key in TYPE_KEYS order.
+  const t = TYPE_KEYS.find((k) => k in v);
+  if (t === undefined) return null;
   const val = v[t];
   switch (t) {
     case "url":
@@ -226,7 +227,7 @@ export function parseInnerJson(bytes: Uint8Array): ParsedJson | null {
     }
     default:
       if (!(val instanceof JNum) || val.raw !== "1") return null;
-      return { n, content: { type: t as "deny" | "delete" | "pause" | "unpause" } };
+      return { n, content: { type: t as "deny" | "delete" | "logout" | "login" } };
   }
 }
 

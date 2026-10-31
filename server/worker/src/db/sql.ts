@@ -2,11 +2,16 @@
 // for one id: '$."' || ?n || '"'. Ids are validated b64url, so they cannot leave the path.
 const P = (n: number) => `'$."' || ?${n} || '"'`;
 
+// cli peers: unix s of the first ntfy 507 on the push endpoint (migrations/0007); rows carry it
+// as push_failed. While set, the Worker sends the peer nothing ("not listening").
+export const PUSH_FAILED_COL = "push_failed_since";
+const PF = `${PUSH_FAILED_COL} AS push_failed`;
+
 // GET /peers; tail of POST /peers. ?1 me, ?2 acct
-export const Q_LIST = `SELECT id, sign_pub, enc_pub, platform, push_type, created, allow,
+export const Q_LIST = `SELECT id, sign_pub, enc_pub, platform, push_type, created, allow, ${PF},
   json_type(allow, ${P(1)}) IS NOT NULL AS approves_me,
   json_type(deny, ${P(1)}) IS NOT NULL AS denies_me,
-  push IS NOT NULL AS reachable, paused,
+  push IS NOT NULL AS reachable, logged_out,
   CASE WHEN id = ?1 THEN push END AS my_push,
   json_extract(name, ${P(1)}) AS name_for_me
 FROM peers WHERE account = ?2`;
@@ -14,7 +19,7 @@ FROM peers WHERE account = ?2`;
 // Caller + named peers. ?1 me, ?2 acct, then one id per parameter ?3, ?4, ... A VALUES
 // list joined to the primary key reads one row per id; json_each and IN lists add rows
 // read on D1. A repeated id returns a repeated row.
-const Q_CTX_COLS = `id, sign_pub, enc_pub, push_type, push, paused,
+const Q_CTX_COLS = `id, sign_pub, enc_pub, platform, ${PF}, push_type, push, push_verified_at, logged_out,
   json_type(allow, ${P(1)}) IS NOT NULL AS approves_me,
   json_type(deny, ${P(1)}) IS NOT NULL AS denies_me,
   CASE WHEN id = ?1 THEN allow END AS my_allow`;
@@ -43,14 +48,14 @@ export const Q_REG = `SELECT (SELECT status FROM accounts WHERE id = ?1) AS stat
   (SELECT sign_pub FROM peers WHERE account = ?1 AND id = ?2) AS old_sign,
   (SELECT enc_pub FROM peers WHERE account = ?1 AND id = ?2) AS old_enc,
   (SELECT platform FROM peers WHERE account = ?1 AND id = ?2) AS old_platform,
-  (SELECT push FROM peers WHERE account = ?1 AND id = ?2) AS old_push,
+  (SELECT CASE WHEN push_verified_at IS NOT NULL THEN push END FROM peers WHERE account = ?1 AND id = ?2) AS old_confirmed_push,
   (SELECT count(*) FROM peers WHERE account = ?1
      AND id IN (SELECT value FROM json_each(?3))) AS evict_found`;
 
-// ?1 acct, ?2 now
-export const W_ACCT = `INSERT INTO accounts (id, created, status, last_seen_month) VALUES (?1, ?2, NULL, ?2)
+// ?1 acct, ?2 dayStart(now), ?3 monthStart(now)
+export const W_ACCT = `INSERT INTO accounts (id, created, status, last_seen_month) VALUES (?1, ?2, NULL, ?3)
 ON CONFLICT (id) DO UPDATE SET last_seen_month = excluded.last_seen_month
-WHERE accounts.last_seen_month < excluded.last_seen_month - 2592000`;
+WHERE accounts.last_seen_month < excluded.last_seen_month`;
 
 // ?1 id, ?2 acct, ?3 sign_pub, ?4 enc_pub, ?5 push_type, ?6 push, ?7 now, ?8 platform
 export const W_REG = `INSERT INTO peers (id, account, sign_pub, enc_pub, platform, push_type, push,
@@ -61,11 +66,11 @@ WHERE (SELECT count(*) FROM peers WHERE account = ?2) < 10
 ON CONFLICT (account, id) DO NOTHING`;
 
 // ?1 me, ?2 acct
-export const Q_SELF = `SELECT sign_pub, enc_pub, platform, push_type, push, push IS NULL AS push_missing, paused, allow
+export const Q_SELF = `SELECT sign_pub, enc_pub, platform, push_type, push, push_verified_at, push IS NULL AS push_missing, logged_out, allow, ${PF}
 FROM peers WHERE account = ?2 AND id = ?1`;
 
 // ?1 me, ?2 acct, ?3 push JSON, ?4 push_type
-export const W_PUSH = `UPDATE peers SET push = ?3, push_type = ?4 WHERE account = ?2 AND id = ?1`;
+export const W_PUSH = `UPDATE peers SET push = ?3, push_type = ?4, push_verified_at = NULL WHERE account = ?2 AND id = ?1`;
 
 // W_NAME for 1..9 pairs: ?1 me, ?2 acct, then (?3 id, ?4 entry), (?5, ?6), ...
 const wNameCache = new Map<number, string>();
@@ -100,26 +105,42 @@ WHERE account = ?2
        OR json_type(name, ${P(1)}) IS NOT NULL OR json_type(pending, ${P(1)}) IS NOT NULL)`;
 
 // ?1 acct
-export const Q_ACCT = `SELECT id, sign_pub, push_type, push, paused, allow, deny
+export const Q_ACCT = `SELECT id, sign_pub, platform, ${PF}, push_type, push, push_verified_at, logged_out, allow, deny
 FROM peers WHERE account = ?1`;
 export const W_DELALL = `DELETE FROM peers WHERE account = ?1`;
 export const W_DELACCT = `DELETE FROM accounts WHERE id = ?1 AND status IS NULL`;
 
-// Lazy cleanup of pending entries whose peer row is gone. ?2 acct
-const PRUNED = `(SELECT COALESCE(json_group_object(j.key, j.value), '{}') FROM json_each(peers.pending) j
+// Stored JSON caps per row, in chars. The trigger peers_json_cap (migrations/0004) refuses an
+// UPDATE that grows name or pending past them; d1.ts maps that to 413 "too large".
+export const NAME_JSON_MAX = 6000;
+export const PENDING_JSON_MAX = 16000;
+export const JSON_CAP_ERROR = "pa-json-cap";
+// A pending entry is [store time, c]; the monthly cron drops it this long after the store.
+// Longer than the 14-day pairing timeout, so a waiting re-fetch still finds it.
+export const PENDING_TTL_S = 2592000;
+
+// Lazy cleanup of pending entries whose peer row is gone. ?2 acct. json() keeps an array
+// entry an array (legacy entries are plain strings).
+const PRUNED = `(SELECT COALESCE(json_group_object(j.key, CASE WHEN j.type = 'array' THEN json(j.value) ELSE j.value END), '{}')
+  FROM json_each(peers.pending) j
   WHERE EXISTS (SELECT 1 FROM peers o WHERE o.account = ?2 AND o.id = j.key))`;
 
-// ?1 me, ?2 acct, ?3 X, ?4 name entry, ?5 c
+// c of one pending entry: [time, c], or a legacy string. ?n id
+const PENDING_C = (col: string, n: number) =>
+  `CASE json_type(${col}, ${P(n)}) WHEN 'array' THEN json_extract(${col}, '$."' || ?${n} || '"[1]')
+   ELSE json_extract(${col}, ${P(n)}) END`;
+
+// ?1 me, ?2 acct, ?3 X, ?4 name entry, ?5 c, ?6 now
 export const W_APPROVE = `UPDATE peers
 SET allow = json_set(allow, ${P(3)}, 1), deny = json_remove(deny, ${P(3)}),
     name = json_set(name, ${P(3)}, ?4),
-    pending = json_set(${PRUNED}, ${P(3)}, ?5)
+    pending = json_set(${PRUNED}, ${P(3)}, json_array(?6, ?5))
 WHERE account = ?2 AND id = ?1
   AND EXISTS (SELECT 1 FROM peers g WHERE g.account = ?2 AND g.id = ?3)
 RETURNING NOT EXISTS (SELECT 1 FROM peers x
                       WHERE x.account = ?2 AND x.id = ?3
                         AND json_type(x.allow, ${P(1)}) IS NOT NULL) AS stored,
-          (SELECT json_extract(x.pending, ${P(1)}) FROM peers x
+          (SELECT ${PENDING_C("x.pending", 1)} FROM peers x
            WHERE x.account = ?2 AND x.id = ?3) AS c_x`;
 
 // ?1 me, ?2 acct, ?3 X
@@ -137,33 +158,49 @@ SET allow = json_remove(allow, ${P(3)}), name = json_remove(name, ${P(3)}),
 WHERE account = ?2 AND id = ?1
 RETURNING 1`;
 
-// ?1 acct, ?2 now
+// ?1 acct, ?2 monthStart(now)
 export const W_SEEN = `UPDATE accounts SET last_seen_month = ?2
-WHERE id = ?1 AND last_seen_month < ?2 - 2592000`;
+WHERE id = ?1 AND last_seen_month < ?2`;
 
 // ?1 id, ?2 acct, ?3 push as read
-export const W_GONE = `UPDATE peers SET push = NULL, push_type = NULL
+export const W_GONE = `UPDATE peers SET push = NULL, push_type = NULL, push_verified_at = NULL
 WHERE account = ?2 AND id = ?1 AND push = ?3`;
 
-// ?1 me, ?2 acct, ?3 paused (1 or 0)
-export const W_PAUSE = `UPDATE peers SET paused = ?3 WHERE account = ?2 AND id = ?1`;
+// cli listen report: clears push_failed (the caller writes only when it is set). ?1 me, ?2 acct
+export const W_LISTEN = `UPDATE peers SET ${PUSH_FAILED_COL} = NULL
+WHERE account = ?2 AND id = ?1 AND ${PUSH_FAILED_COL} IS NOT NULL`;
+
+// ntfy 507 on a cli peer: sets push_failed once. ?1 id, ?2 acct, ?3 now
+export const W_PUSH_FAILED = `UPDATE peers SET ${PUSH_FAILED_COL} = ?3
+WHERE account = ?2 AND id = ?1 AND platform = 'cli' AND ${PUSH_FAILED_COL} IS NULL`;
+
+// ?1 me, ?2 acct, ?3 logged_out (1 or 0)
+export const W_LOGOUT = `UPDATE peers SET logged_out = ?3 WHERE account = ?2 AND id = ?1`;
 
 // ?1 me, ?2 acct, ?3 now, ?4 push as read
-export const W_CONFIRM = `UPDATE peers SET push = json_set(push, '$.verified_at', ?3)
+export const W_CONFIRM = `UPDATE peers SET push_verified_at = ?3
 WHERE account = ?2 AND id = ?1 AND push = ?4`;
 
-// Purge (monthly). ?1 = now - 94608000
-export const W_PURGE_PEERS = `DELETE FROM peers WHERE account IN (SELECT id FROM accounts
-  WHERE status IS NULL AND last_seen_month < ?1 ORDER BY id LIMIT 100)`;
-export const W_PURGE_ACCOUNTS = `DELETE FROM accounts WHERE id IN (SELECT id FROM accounts
-  WHERE status IS NULL AND last_seen_month < ?1 ORDER BY id LIMIT 100)`;
+// Purge (monthly). ?1 = now - 94608000, ?2 = last purged id of this run ('' to start). The
+// keyset cursor walks the accounts primary key once per run: a chunk never rescans the ids
+// before ?2. W_PURGE_ACCOUNTS returns the purged ids (the next ?2 is the largest).
+const PURGE_IDS = `SELECT id FROM accounts
+  WHERE id > ?2 AND status IS NULL AND last_seen_month < ?1 ORDER BY id LIMIT 100`;
+export const PURGE_CHUNK = 100;
+export const W_PURGE_PEERS = `DELETE FROM peers WHERE account IN (${PURGE_IDS})`;
+export const W_PURGE_ACCOUNTS = `DELETE FROM accounts WHERE id IN (${PURGE_IDS}) RETURNING id`;
 
-export const Q_HEALTH = `SELECT 1 AS ok`;
+// Pending expiry (monthly), one keyset chunk of rows with pending entries. ?1 last id done
+// ('' to start), ?2 chunk size, ?3 cutoff (now - PENDING_TTL_S), ?4 now. Ids start with the
+// account, so id order is (account, id) order and the row value walks the primary key.
+const PENDING_CHUNK_ROWS = `SELECT account, id FROM peers
+  WHERE (account, id) > (substr(?1, 1, 12), ?1) AND pending <> '{}' ORDER BY account, id LIMIT ?2`;
+export const Q_PENDING_CHUNK = `SELECT count(*) AS n, max(id) AS last FROM (${PENDING_CHUNK_ROWS})`;
+// Drops entries stored before ?3 and stamps legacy string entries with ?4.
+export const W_PENDING_EXPIRE = `UPDATE peers SET pending = (
+  SELECT COALESCE(json_group_object(j.key, CASE WHEN j.type = 'array' THEN json(j.value) ELSE json_array(?4, j.value) END), '{}')
+  FROM json_each(peers.pending) j
+  WHERE j.type <> 'array' OR json_extract(j.value, '$[0]') >= ?3)
+WHERE (account, id) IN (${PENDING_CHUNK_ROWS})
+  AND EXISTS (SELECT 1 FROM json_each(peers.pending) j WHERE j.type <> 'array' OR json_extract(j.value, '$[0]') < ?3)`;
 
-// Vendor auth counters. ?1 vendor, ?2 hour. The hour rows older than ?1 are dropped by the cron.
-export const W_HEALTH_AUTH = `INSERT INTO vendor_health (vendor, hour, auth, ok) VALUES (?1, ?2, 1, 0)
-  ON CONFLICT (vendor, hour) DO UPDATE SET auth = auth + 1`;
-export const W_HEALTH_OK = `INSERT INTO vendor_health (vendor, hour, auth, ok) VALUES (?1, ?2, 0, 1)
-  ON CONFLICT (vendor, hour) DO UPDATE SET ok = ok + 1`;
-export const Q_HEALTH_HOUR = `SELECT vendor, auth, ok FROM vendor_health WHERE hour = ?1 ORDER BY vendor`;
-export const W_HEALTH_PURGE = `DELETE FROM vendor_health WHERE hour < ?1`;

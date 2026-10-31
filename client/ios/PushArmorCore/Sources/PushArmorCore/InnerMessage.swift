@@ -17,9 +17,9 @@ public struct NameField: Equatable, Sendable {
         "{\"name\":" + StrictJSON.quote(name) + ",\"n\":" + String(n) + ",\"s\":" + StrictJSON.quote(s) + "}"
     }
 
-    /// Exactly the keys name, n, s with the right types.
+    /// The keys name, n, s with the right types; unknown extra keys are ignored (Q327).
     public static func from(_ v: JSONValue) -> NameField? {
-        guard let m = v.objectMembers, m.count == 3,
+        guard v.objectMembers != nil,
               let name = v["name"]?.stringValue, let n = v["n"]?.counterValue,
               let s = v["s"]?.stringValue else { return nil }
         return NameField(name: name, n: n, s: s)
@@ -36,8 +36,8 @@ public enum MessageContent: Equatable, Sendable {
     case remove(String)
     case rename(NameField)
     case delete
-    case pause
-    case unpause
+    case logout
+    case login
 
     public var typeKey: String {
         switch self {
@@ -49,8 +49,8 @@ public enum MessageContent: Equatable, Sendable {
         case .remove: return "remove"
         case .rename: return "rename"
         case .delete: return "delete"
-        case .pause: return "pause"
-        case .unpause: return "unpause"
+        case .logout: return "logout"
+        case .login: return "login"
         }
     }
 
@@ -66,7 +66,7 @@ public enum MessageContent: Equatable, Sendable {
         switch self {
         case .url(let s), .text(let s), .tel(let s), .remove(let s): return StrictJSON.quote(s)
         case .approve(let f), .rename(let f): return f.json
-        case .deny, .delete, .pause, .unpause: return "1"
+        case .deny, .delete, .logout, .login: return "1"
         }
     }
 }
@@ -88,13 +88,17 @@ public struct InnerJSON: Equatable, Sendable {
 
     public enum Failure: Error { case json, shape, counter, value, tooLong }
 
-    /// Strict parse: n plus exactly one type key, no unknown keys, n a JSON integer
-    /// in 1 ... 2^53 - 1 on the raw token, no duplicate keys, content <= 2048 bytes.
+    /// Type keys in priority order: the first one present is the message type (Q327).
+    static let typeOrder = ["url", "text", "tel", "approve", "deny", "remove", "rename", "delete", "logout", "login"]
+
+    /// Lenient parse (Q327): n plus at least one known type key; unknown keys and any
+    /// lower-priority type keys are ignored. n a JSON integer in 1 ... 2^53 - 1 on the
+    /// raw token, no duplicate keys, content <= 2048 bytes.
     public static func parse(_ data: Data) throws -> InnerJSON {
-        guard let v = try? StrictJSON.parse(data), let m = v.objectMembers else { throw Failure.json }
-        guard m.count == 2, let nv = v["n"] else { throw Failure.shape }
+        guard let v = try? StrictJSON.parse(data), v.objectMembers != nil else { throw Failure.json }
+        guard let nv = v["n"] else { throw Failure.shape }
         guard let n = nv.counterValue else { throw Failure.counter }
-        guard let (key, val) = m.first(where: { $0.0 != "n" }) else { throw Failure.shape }
+        guard let key = typeOrder.first(where: { v[$0] != nil }), let val = v[key] else { throw Failure.shape }
         let c: MessageContent
         func str() throws -> String {
             guard let s = val.stringValue else { throw Failure.value }
@@ -116,8 +120,8 @@ public struct InnerJSON: Equatable, Sendable {
             c = key == "approve" ? .approve(f) : .rename(f)
         case "deny": try one(); c = .deny
         case "delete": try one(); c = .delete
-        case "pause": try one(); c = .pause
-        case "unpause": try one(); c = .unpause
+        case "logout": try one(); c = .logout
+        case "login": try one(); c = .login
         default: throw Failure.shape
         }
         switch c {
@@ -238,10 +242,10 @@ public enum NameEntry {
     public static let info = Bytes.ascii("PA-NAME1")
     public static let maxWire = 1024
 
-    /// 1..32 printable ASCII.
+    /// 1..32 printable ASCII, no double quote.
     public static func isValidName(_ s: String) -> Bool {
         let u = Array(s.utf8)
-        return (1 ... 32).contains(u.count) && u.allSatisfy { $0 >= 0x20 && $0 <= 0x7e }
+        return (1 ... 32).contains(u.count) && u.allSatisfy { $0 >= 0x20 && $0 <= 0x7e && $0 != 0x22 }
     }
 
     /// "PA-NAME1\n" + owner id + "\n" + recipient id + "\n" + pairing id + "\n" + n + "\n" + name

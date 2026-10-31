@@ -1,103 +1,274 @@
 // Toolbar popup: Send, History, Peers, Settings (component-webext section 7).
 import type { PeerView, StateView } from "../core/rpc.ts";
+import type { Redraw } from "./peersview.ts";
 import type { SendResult } from "../core/engine.ts";
 import { T } from "../core/texts.ts";
+import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter } from "../model/sendsel.ts";
+import { AUTH_CHANGED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
-import { type UiEnv, add, clear, h, rpc } from "./dom.ts";
+import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, nextTabIndex, peerStatus, rpc, sh, shortTime } from "./dom.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
-import { renderPeers } from "./peersview.ts";
+import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
+import { ownCard, pairCard, peerRow, renderPeers } from "./peersview.ts";
+import { THEME_CHOICES, parseTheme, setTheme, startTheme } from "./theme.ts";
 
 const CAP = 2048;
 type Tab = "send" | "history" | "peers" | "settings";
 
+/** Wordmark "PushArmor" plus the Beta badge in the Beta build. */
+export function wordmark(env: UiEnv, size: number): HTMLElement {
+  const wm = h("span", { class: "wm", style: "font-size:" + size + "px" }, h("span", { class: "p" }, "Push"), h("span", { class: "a" }, "Armor"));
+  return add(h("span", { class: "brand" }, wm), env.beta && h("span", { class: "beta" }, "Beta"));
+}
+
+/** Counts mounts: a mount that a newer one overtook while it waited stops before it draws. */
+let mounts = 0;
+let watching = false;
+
 export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
+  const my = ++mounts;
+  if (!watching) {
+    // I465: a login state change (here, in a tab, or from the relay server) shows the matching view
+    watching = true;
+    env.session?.watch(AUTH_CHANGED, () => void mountPopup(env, root));
+  }
   let st: StateView;
   try {
-    st = await rpc<StateView>(env, "popupOpen");
+    [st] = await Promise.all([rpc<StateView>(env, "popupOpen"), startTheme(env.theme)]);
   } catch (e) {
-    root.textContent = (e as Error).message;
+    if (my === mounts) failView(root, (e as Error).message, () => void mountPopup(env, root));
     return;
   }
-  clear(root);
+  if (my !== mounts) return;
+  if (st.updateRequired) {
+    clear(root).append(updateCard(env));
+    root.querySelector<HTMLElement>("button.primary")?.focus(); // I495: start on the one action
+    return;
+  }
   if (st.reg !== "registered") {
-    const head = st.reg === "paused" ? T.signedOut : st.banner ?? "Sign in to use PushArmor";
-    add(
-      root,
-      h("div", { class: "banner" }, head),
-      h("button", { onclick: () => env.openPage("#login") }, "Sign in"),
-      st.platform === "firefox" && st.receiveNote ? h("div", { class: "dim" }, st.receiveNote) : null,
-    );
+    const going = (await rpc<Restore | null>(env, "signinProgress").catch(() => null))?.step === "code";
+    if (my !== mounts) return;
+    clear(root).append(signinCard(env, st, going, false));
+    root.querySelector<HTMLElement>("button.primary")?.focus(); // I495
     return;
   }
-  const body = h("div", { class: "body" });
+  // Q338: no paired device yet: one screen in place of Send, History, and Devices
+  const first = await rpc<{ peers: PeerView[] }>(env, "peers").catch(() => null);
+  if (my !== mounts) return;
+  clear(root);
+  if (first && !first.peers.some((p) => p.paired)) return firstPairView(env, root, st, () => mountPopup(env, root), true);
+  const body = h("div", { class: "body", id: "panel", role: "tabpanel" });
   const tabs = h("div", { class: "tabs", role: "tablist" });
   const show = (t: Tab, prefill?: string) => {
-    for (const b of Array.from(tabs.children)) b.classList.toggle("on", (b as HTMLElement).dataset.tab === t);
+    for (const b of Array.from(tabs.children)) {
+      const on = (b as HTMLElement).dataset.tab === t;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-selected", String(on));
+      b.setAttribute("tabindex", on ? "0" : "-1"); // roving: one tab stop, arrows move within
+      if (on) body.setAttribute("aria-labelledby", "tab-" + t);
+    }
+    // each view renders into its own pane; a stale view (earlier tab, still awaiting) appends to a detached pane
+    const pane = h("div", { class: "pane" });
     clear(body);
-    if (t === "send") void sendView(env, body, st, prefill);
-    if (t === "history") void historyView(env, body, (text) => show("send", text));
-    if (t === "peers") void renderPeers(env, body, false);
-    if (t === "settings") void settingsView(env, body, st);
+    body.scrollTop = 0; // only the content area scrolls; each tab starts at its top
+    body.append(pane);
+    // a view that takes longer than a moment shows a loading line in the content area
+    const wait = h("div", { class: "loading", role: "status" }, "Loading...");
+    const slow = setTimeout(() => pane.isConnected && !pane.firstChild && body.prepend(wait), 150);
+    let ready: Promise<unknown> = Promise.resolve();
+    if (t === "send") ready = sendView(env, pane, st, prefill).then(() => prefill !== undefined && pane.querySelector("textarea")?.focus());
+    if (t === "history") ready = historyView(env, pane, (text) => show("send", text));
+    if (t === "peers") ready = renderPeers(env, pane, false);
+    if (t === "settings") ready = settingsView(env, pane, st, () => mountPopup(env, root));
+    // I473: a view that fails shows the error with Retry in place of an empty pane
+    void ready.catch((e) => pane.isConnected && failView(pane, (e as Error).message, () => show(t, prefill))).finally(() => {
+      clearTimeout(slow);
+      wait.remove();
+    });
   };
-  for (const [t, label] of [["send", "Send"], ["history", "History"], ["peers", "Peers"], ["settings", "Settings"]] as [Tab, string][]) {
-    const b = h("button", { role: "tab", onclick: () => show(t) }, label);
+  for (const [t, label] of [["send", "Send"], ["history", "History"], ["peers", "Devices"], ["settings", "Settings"]] as [Tab, string][]) {
+    const b = h("button", { role: "tab", id: "tab-" + t, "aria-controls": "panel", onclick: () => show(t) }, label);
     b.dataset.tab = t;
     tabs.append(b);
   }
-  root.append(tabs, body);
+  tabs.addEventListener("keydown", (ev: KeyboardEvent) => {
+    const all = Array.from(tabs.children) as HTMLElement[];
+    const to = nextTabIndex(ev.key, all.indexOf(document.activeElement as HTMLElement), all.length);
+    if (to === null || !all[to]) return;
+    ev.preventDefault();
+    all[to].focus();
+    show(all[to].dataset.tab as Tab);
+  });
+  const top = h("div", { class: "top" }, h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), setupBar(env, st), tabs);
+  root.append(top, body);
   show("send");
 }
+
+/** I555: Firefox setup is not finished; the setup tab opens only from this button, never on popup open. */
+function setupBar(env: UiEnv, st: StateView): HTMLElement | null {
+  if (st.platform !== "firefox" || !st.setupNeeded) return null;
+  return h(
+    "div",
+    { class: "setup-bar", role: "status" },
+    h("span", {}, "Finish Firefox setup so this device can receive messages."),
+    h("button", { onclick: () => env.openUrl("https://pusharmor.com/fx/setup") }, "Finish Firefox setup"),
+  );
+}
+
+/** HTTP 426 (Q349): this version no longer works with the relay server. */
+export function updateCard(env: UiEnv): HTMLElement {
+  return h(
+    "div",
+    { class: "signin", role: "alert" },
+    h("img", { src: "icons/icon-128.png", width: "64", height: "64", alt: "", class: "big-tile" }),
+    wordmark(env, 24),
+    h("h1", { class: "banner" }, "Please update PushArmor"),
+    h("p", { class: "slogan" }, "This version no longer works with the relay server. Update to keep sending and receiving."),
+    h("button", { class: "primary big", onclick: () => env.openUrl("https://pusharmor.com/download") }, "Update"),
+  );
+}
+
+/** Logged out: the log in prompt (popup, and the full tab's account views, I470). going: a code was sent. */
+export function signinCard(env: UiEnv, st: StateView, going: boolean, inTab: boolean): HTMLElement {
+  const head = going ? "Check your email for your code" : st.reg === "logged_out" ? T.signedOut : st.banner ?? "Log in to use PushArmor";
+  return h(
+    "div",
+    { class: "signin" },
+    h("img", { src: "icons/icon-128.png", width: "64", height: "64", alt: "", class: "big-tile" }),
+    wordmark(env, 24),
+    h("div", { class: "banner" }, head),
+    h("p", { class: "slogan" }, "Send the page you are on to your other devices in one click."),
+    h("button", {
+      class: "primary big",
+      onclick: async () => {
+        if (inTab) {
+          location.hash = "#login";
+          return;
+        }
+        await env.openPage("#login");
+        window.close();
+      },
+    }, going ? "Continue logging in" : "Log in"),
+    inTab ? null : h("div", { class: "opens" }, icon("open", 16), "Opens in a new tab"),
+    h("p", { class: "e2e" }, icon("lock", 20), h("span", {}, "All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.")),
+    st.platform === "firefox" && st.receiveNote ? h("div", { class: "dim" }, st.receiveNote) : null,
+  );
+}
+
+const TYPE_ICON: Record<string, IconName> = { url: "link", tel: "call", text: "notes" };
 
 export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, prefill?: string, offerCut = false): Promise<void> {
   const field = h("textarea", { rows: "3", "aria-label": "Text to send" }) as HTMLTextAreaElement;
   field.value = prefill ?? (await env.activeUrl().catch(() => ""));
-  const badge = h("span", { class: "badge" });
+  const caption = h("span", { class: "caption" });
   const counter = h("span", { class: "counter" });
   const asText = h("input", { type: "checkbox" }) as HTMLInputElement;
-  const sendBtn = h("button", { class: "primary" }, "Send") as HTMLButtonElement;
-  const result = h("div", { class: "result" });
-  const targetsBox = h("div", { class: "targets" });
+  const asTextRow = h("label", { class: "astext" }, asText, h("span", {}, "Send as text"));
+  const sendLabel = h("span", { class: "lbl" }, "Send");
+  const sendBtn = h("button", { class: "primary big" }, icon("send", 18), sendLabel) as HTMLButtonElement;
+  const result = h("div", { class: "result", role: "status" });
+  const head = sh("");
+  const chips = h("div", { class: "dchips" });
+  // I485: the cut offer shows only while the text is over the limit
+  const cut = h("div", { class: "cut", hidden: true });
   const data = await rpc<{ peers: PeerView[] }>(env, "peers");
-  const sendable = data.peers.filter((p) => p.sendable);
-  const checks: { id: string; box: HTMLInputElement }[] = [];
-  let allBox: HTMLInputElement | null = null;
-  if (st.settings.showAll) {
-    allBox = h("input", { type: "checkbox", checked: true }) as HTMLInputElement;
-    targetsBox.append(h("label", { class: "target" }, allBox, " All"));
+  // Like Android: a device that cannot receive right now is a greyed chip, never selected and not counted.
+  const sendable = data.peers.filter(canReceiveNow);
+  const checks: { id: string; chip: HTMLButtonElement }[] = [];
+  const on = (c: HTMLElement) => c.classList.contains("on");
+  const remembered = rememberedSelection(await rpc<string[]>(env, "sendSel").catch(() => []), sendable.map((p) => p.id));
+  const save = () => void rpc(env, "sendSelSet", { ids: checks.filter((c) => on(c.chip)).map((c) => c.id) }).catch(() => undefined);
+  let allChip: HTMLButtonElement | null = null;
+  // A toggle chip: platform icon, or a check while selected (CSS); long names end in "...".
+  const press = (c: HTMLElement, v: boolean) => {
+    c.setAttribute("aria-pressed", String(v));
+    c.classList.toggle("on", v);
+  };
+  const chip = (glyph: Node, name: string, pressed: boolean, dim = false): HTMLButtonElement => {
+    const c = h("button", { type: "button", class: "chip dchip" + (dim ? " off" : ""), title: name },
+      h("span", { class: "pi" }, glyph), h("span", { class: "ck" }, icon("check", 16)), h("span", { class: "nm" }, name)) as HTMLButtonElement;
+    press(c, pressed);
+    return c;
+  };
+  const count = () => checks.filter((c) => on(c.chip)).length;
+  const relabel = () => {
+    const n = count();
+    const one = n === 1 ? sendable.find((p) => p.id === checks.find((c) => on(c.chip))!.id) : undefined;
+    if (one) sendLabel.replaceChildren('Send to "', h("span", { class: "who" }, one.label), '"');
+    else sendLabel.textContent = sendCountLabel(n);
+    head.textContent = sendToHeader(n, sendable.length);
+    void update();
+  };
+  const withAll = showAllChip(st.settings.showAll, sendable.length);
+  if (withAll) {
+    allChip = chip(icon("devices", 16), "All", remembered === null || remembered.length === sendable.length);
+    allChip.addEventListener("click", () => {
+      const v = !on(allChip!);
+      press(allChip!, v);
+      for (const c of checks) press(c.chip, v);
+      relabel();
+      save();
+    });
+    chips.append(allChip);
   }
+  // "All" sends to every sendable peer, so its chips show selected; deselecting one leaves "All".
+  // With one device it is preselected (no "All" chip).
   for (const p of sendable) {
-    const box = h("input", { type: "checkbox" }) as HTMLInputElement;
-    checks.push({ id: p.id, box });
-    targetsBox.append(h("label", { class: "target" }, box, " " + p.label));
+    const pressed = remembered ? remembered.includes(p.id) : allChip !== null || sendable.length === 1;
+    const c = chip(platformIcon(p.platform, 16), p.label, pressed);
+    c.addEventListener("click", () => {
+      press(c, !on(c));
+      if (allChip) press(allChip, checks.every((x) => on(x.chip)));
+      relabel();
+      save();
+    });
+    checks.push({ id: p.id, chip: c });
+    chips.append(c);
   }
-  for (const p of data.peers.filter((x) => !x.sendable && x.greyed && !x.hidden)) {
-    targetsBox.append(h("div", { class: "target greyed", onclick: () => void rpc(env, "greyedTap") }, p.label + " " + p.greyed));
+  for (const p of data.peers.filter((x) => !canReceiveNow(x) && x.greyed && !x.hidden)) {
+    const s = peerStatus(p);
+    const why = s ? s.word : p.greyed ?? "";
+    const c = chip(platformIcon(p.platform, 16), p.label, false, true);
+    c.classList.add("greyed");
+    c.setAttribute("aria-disabled", "true");
+    c.removeAttribute("aria-pressed");
+    c.title = p.label + ": " + why;
+    c.addEventListener("click", () => {
+      result.textContent = p.label + ": " + why;
+      void rpc(env, "greyedTap");
+    });
+    chips.append(c);
   }
   const update = async () => {
     const d = await rpc<{ type: string; bytes: number }>(env, "detect", { text: field.value });
-    badge.textContent = T.typeBadge(asText.checked ? "text" : d.type);
-    counter.textContent = d.bytes > CAP ? T.tooLong(d.bytes) : T.counter(d.bytes);
-    counter.classList.toggle("red", d.bytes >= CAP * 0.9);
-    sendBtn.disabled = d.bytes > CAP || d.bytes === 0;
+    const type = asText.checked ? "text" : d.type;
+    clear(caption);
+    if (field.value !== "") caption.append(icon(TYPE_ICON[type] ?? "notes", 16), T.typeCaption(type));
+    asTextRow.hidden = d.type === "text";
+    counter.textContent = !showCounter(d.bytes, CAP) ? "" : d.bytes > CAP ? T.tooLong(d.bytes) : T.counter(d.bytes);
+    sendBtn.disabled = sendDisabled(d.bytes, CAP, count());
+    cut.hidden = !offerCut || d.bytes <= CAP;
   };
   field.addEventListener("input", () => void update());
   asText.addEventListener("change", () => void update());
   sendBtn.addEventListener("click", async () => {
     sendBtn.disabled = true;
-    const targets = allBox?.checked ? "all" : checks.filter((c) => c.box.checked).map((c) => c.id);
+    const to = allChip && on(allChip) ? "all" : checks.filter((c) => on(c.chip)).map((c) => c.id);
     try {
-      const r = await rpc<SendResult>(env, "send", { text: field.value, asText: asText.checked, targets });
-      clear(result).append(h("div", {}, T.sentToNofM(r.sent, r.total)), ...r.failures.map((f) => h("div", { class: "dim" }, f.text)));
-      if (r.error) result.append(h("div", { class: "err" }, r.error));
+      const r = await rpc<SendResult>(env, "send", { text: field.value, asText: asText.checked, targets: to });
+      // I493: one device sent to is named
+      const one = r.total === 1 && r.sent === 1 && count() === 1 ? sendable.find((p) => p.id === checks.find((c) => on(c.chip))?.id) : undefined;
+      clear(result).append(h("div", {}, one ? T.sentToOne(one.label) : T.sentToNofM(r.sent, r.total)), ...r.failures.map((f) => h("div", { class: "dim" }, f.text)));
+      if (r.error && r.failures.length === 0) result.append(h("div", { class: "err" }, r.error));
     } catch (e) {
       result.textContent = (e as Error).message;
     }
-    sendBtn.disabled = false;
+    await update();
   });
-  root.append(field, h("div", { class: "meta" }, badge, " ", counter, h("label", {}, asText, " Send as text")));
+  root.append(field, h("div", { class: "meta" }, caption, asTextRow, counter));
   if (offerCut) {
     root.append(
-      h("button", {
+      add(cut, h("button", {
         onclick: async () => {
           const enc = new TextEncoder();
           let out = "";
@@ -109,10 +280,13 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
           asText.checked = true;
           await update();
         },
-      }, "Send the first 2048 bytes"),
+      }, "Send the first 2048 bytes")),
     );
   }
-  root.append(targetsBox, sendBtn, result);
+  // I494: every device is greyed: say why Send is off
+  const none = !sendable.length && chips.childElementCount ? h("p", { class: "dim nosend" }, "No device can receive messages right now.") : null;
+  root.append(head, chips, ...(none ? [none] : []), h("div", { class: "grow" }), h("div", { class: "foot send-foot" }, result, sendBtn));
+  relabel();
   await update();
 }
 
@@ -120,20 +294,42 @@ export async function historyView(env: UiEnv, root: HTMLElement, resend: (text: 
   await rpc(env, "historyOpened");
   const rows = await rpc<(HistoryRow & { sender: string })[]>(env, "history");
   let key = "all";
+  if (!rows.length) {
+    root.append(
+      h(
+        "div",
+        { class: "empty" },
+        messagesArt(),
+        h("div", { class: "e-title" }, "No messages yet"),
+        h("p", {}, "Everything you send or receive shows up here."),
+      ),
+      h("div", { class: "grow" }),
+    );
+    return;
+  }
   const chipsBox = h("div", { class: "chips" });
-  const list = h("div", { class: "list" });
+  const list = group();
+  list.classList.add("hist-list");
   const draw = () => {
     const f = applyFilter(rows, key);
     key = f.key;
     clear(chipsBox);
-    for (const c of historyChips(rows)) {
-      chipsBox.append(h("button", { class: "chip" + (c.key === key ? " on" : ""), onclick: () => { key = c.key; draw(); } }, c.label));
+    for (const [i, c] of historyChips(rows).entries()) {
+      const on = c.key === key;
+      // I486: the chips are drawn again, so focus goes back to the pressed one
+      const pick = () => {
+        key = c.key;
+        draw();
+        (chipsBox.children[i] as HTMLElement | undefined)?.focus();
+      };
+      chipsBox.append(h("button", { class: "chip" + (on ? " on" : ""), "aria-pressed": String(on), onclick: pick }, ...(on ? [icon("check", 14)] : []), c.label));
     }
     clear(list);
-    for (const r of f.rows) list.append(historyRow(env, r, resend));
+    const now = Date.now();
+    for (const r of f.rows) list.append(historyRow(env, r, resend, now));
   };
   draw();
-  root.append(chipsBox, list);
+  root.append(chipsBox, list, h("div", { class: "grow" }));
   if (focus) document.getElementById("h-" + focus)?.scrollIntoView({ block: "center" });
 }
 
@@ -143,10 +339,10 @@ function eventText(r: HistoryRow & { sender: string }): string {
   switch (r.event) {
     case "denied":
       return T.denied(nm);
-    case "paused":
-      return T.pausedRecv(nm);
-    case "resumed":
-      return T.resumedRecv(nm);
+    case "logged_out":
+      return T.loggedOutRecv(nm);
+    case "logged_in":
+      return T.loggedInRecv(nm);
     case "invalid":
       return T.invalid + count;
     default:
@@ -154,77 +350,243 @@ function eventText(r: HistoryRow & { sender: string }): string {
   }
 }
 
-function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (text: string) => void): HTMLElement {
-  const time = new Date(r.received).toLocaleString();
-  const who = r.dir === "out" ? "To " + (r.targets?.length ?? 0) + " peer(s)" : r.sender;
-  const row = h("div", { class: "row hist", id: "h-" + r.id });
-  const name = h("div", { class: "sender dim" }, h("span", {}, who), h("span", {}, time));
-  if (r.dir === "in" && r.peer) name.addEventListener("click", () => env.openPage("#peers=" + r.peer));
-  row.append(h("span", { class: "icon" }, r.dir === "in" ? "<" : ">"), name);
+function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (text: string) => void, now: number): HTMLElement {
+  const full = new Date(r.received).toLocaleString();
+  const time = h("span", { class: "time", title: full }, shortTime(r.received, now));
+  const row = h("div", { class: "hrow", id: "h-" + r.id });
   if (r.type === "event") {
-    row.append(h("div", { class: "content" }, eventText(r)));
+    // Events: a bare glyph, no tile; the sender stays visible when the text lacks it.
+    const named = r.event === "denied" || r.event === "logged_out" || r.event === "logged_in";
+    const col = h("div", { class: "txt" }, h("div", { class: "hmeta" }, h("span", { class: "who" }, named ? eventText(r) : r.sender), time));
+    if (!named) col.append(h("div", { class: "content ev" }, eventText(r)));
+    row.classList.add("event");
+    row.append(h("div", { class: "av bare" }, icon(r.event === "logged_out" ? "pause" : "info", 18)), col);
     return row;
   }
-  if (!r.read) row.append(h("span", { class: "dot", title: "unread" }));
-  const content = h("div", { class: "content", tabindex: "0" }, r.content);
-  content.addEventListener("click", () => {
+  const sent = r.results ? Object.values(r.results).filter((v) => v === "sent").length : (r.targets?.length ?? 0);
+  const whoText = r.dir === "out" ? T.sentToNofM(sent, r.targets?.length ?? 0) : r.sender;
+  // A real button when it opens the peer, so Tab focuses it and Enter/Space activate it.
+  const who = r.dir === "in" && r.peer ? h("button", { class: "who peerlink", type: "button" }, whoText) : h("span", { class: "who" }, whoText);
+  // Sent to one device: name it in quotes; the name truncates inside them (F22).
+  if (r.dir === "out" && r.targets?.length === 1 && sent === 1 && r.sender) {
+    who.classList.add("one");
+    who.title = T.sentToOne(r.sender);
+    who.replaceChildren('Sent to "', h("span", { class: "nm" }, r.sender), '"');
+  }
+  if (r.dir === "in" && r.peer) who.addEventListener("click", () => env.openPage("#peers=" + r.peer));
+  const col = h("div", { class: "txt" }, h("div", { class: "hmeta" }, who, time));
+  const one = r.type === "url" || r.type === "tel";
+  const content = h("div", { class: "content " + (one ? "one" : "clamp"), tabindex: "0" });
+  if (r.type === "url") midEllipsis(content, r.content);
+  else content.textContent = r.content;
+  // Unread: bold text, no visible marker (times stay in one column); screen readers hear "Unread".
+  if (!r.read) {
+    row.classList.add("unread");
+    col.append(h("span", { class: "sr", role: "img", "aria-label": "Unread" }));
+  }
+  const select = () => {
+    for (const o of Array.from(row.parentElement?.querySelectorAll(".hrow.sel") ?? [])) if (o !== row) o.classList.remove("sel");
+    row.classList.add("sel");
+  };
+  const markRead = () => {
     void rpc(env, "historyRead", { id: r.id });
-    row.querySelector(".dot")?.remove();
+    row.querySelector(".sr")?.remove();
+    row.classList.remove("unread");
+    select();
+  };
+  content.addEventListener("click", markRead);
+  content.addEventListener("keydown", (ev: KeyboardEvent) => {
+    if (ev.key !== "Enter" && ev.key !== " ") return;
+    ev.preventDefault();
+    markRead();
   });
-  const acts = h("div", { class: "actions" });
-  if (r.type === "url") acts.append(h("button", { onclick: () => env.openUrl(r.content) }, "Open"));
+  row.addEventListener("click", select);
+  const acts = h("div", { class: "actions acts" });
+  if (r.type === "url") acts.append(h("button", { class: "ac", onclick: () => env.openUrl(r.content) }, icon("open", 15), "Open"));
   acts.append(
-    h("button", { onclick: () => void env.copy(r.content) }, "Copy"),
-    h("button", { onclick: () => resend(r.content) }, "Send to..."),
+    h("button", { class: "ac", onclick: () => void env.copy(r.content) }, icon("copy", 15), "Copy"),
+    h("button", { class: "ac", onclick: () => resend(r.content) }, icon("send", 15), "Send to..."),
   );
+  col.append(content);
   if (r.dir === "out" && r.results) {
     const fails = Object.values(r.results).filter((v) => v !== "sent").length;
-    if (fails) row.append(h("div", { class: "dim" }, fails + " not delivered"));
+    if (fails) col.append(h("div", { class: "dim" }, fails + " not delivered"));
   }
-  row.append(content, acts);
+  col.append(acts);
+  row.append(h("div", { class: "av" }, icon(r.dir === "in" ? "received" : "sent", 18)), col);
   return row;
 }
 
-async function settingsView(env: UiEnv, root: HTMLElement, st: StateView): Promise<void> {
+async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload: () => Promise<void>): Promise<void> {
   const s = st.settings;
-  const showAll = h("input", { type: "checkbox", checked: s.showAll }) as HTMLInputElement;
-  const autoOpen = h("input", { type: "checkbox", checked: s.autoOpen }) as HTMLInputElement;
-  const days = h("select", {}) as HTMLSelectElement;
+  const showAll = h("input", { type: "checkbox", role: "switch", checked: s.showAll }) as HTMLInputElement;
+  const autoOpen = h("input", { type: "checkbox", role: "switch", checked: s.autoOpen }) as HTMLInputElement;
+  const days = h("select", { "aria-label": "Keep messages for" }) as HTMLSelectElement;
   for (const d of [1, 7, 30, 90, 365]) days.append(h("option", { value: String(d), selected: d === s.historyDays }, d + (d === 1 ? " day" : " days")));
+  const theme = h("select", { "aria-label": "Theme" }) as HTMLSelectElement;
+  const pref = parseTheme(await env.theme.get().catch(() => undefined));
+  for (const [v, label] of THEME_CHOICES) theme.append(h("option", { value: v, selected: v === pref }, label));
+  theme.addEventListener("change", () => void setTheme(env.theme, parseTheme(theme.value)));
   const save = () => void rpc(env, "settings", { showAll: showAll.checked, autoOpen: autoOpen.checked, historyDays: Number(days.value) });
   showAll.addEventListener("change", save);
   autoOpen.addEventListener("change", save);
   days.addEventListener("change", save);
-  const status = h("div", { class: "status" });
-  const confirmDel = h("div", {});
-  add(
-    root,
-    h("label", { class: "row" }, showAll, ' Show "All" option'),
-    h("label", { class: "row" }, autoOpen, " Open links automatically"),
-    h("label", { class: "row" }, "History auto-delete ", days),
-    h("button", {
-      onclick: () => {
-        clear(confirmDel).append(
-          h("span", {}, "Delete all history? "),
-          h("button", { onclick: async () => { await rpc(env, "historyDeleteAll"); clear(confirmDel); status.textContent = "History deleted"; } }, "Delete"),
-        );
-      },
-    }, "Delete all history"),
-    confirmDel,
-    st.email ? h("div", { class: "row" }, T.signedInAs(st.email)) : null,
-    st.platform === "firefox" && st.receiveMode ? h("div", { class: "row dim" }, "Receive mode: " + st.receiveMode) : null,
-    st.platform === "firefox" && st.receiveNote ? h("div", { class: "row dim" }, st.receiveNote) : null,
-    h("button", {
+  const status = h("div", { class: "status", role: "status" });
+  const self = (await rpc<{ self: { id: string; name: string } | null }>(env, "peers").catch(() => null))?.self ?? null;
+  const confirmDel = h("div", { class: "confirm-inline" });
+  const ff = st.platform === "firefox";
+  const acct = add(
+    h("div", { class: "txt" }),
+    // "Logged in as" dim, the email on its own line (long ones end in "...")
+    ...(accountLine(st) ? [h("div", { class: "t2" }, "Logged in as"), h("div", { class: "t1 email", title: st.email ?? "" }, st.email ?? "")] : []),
+    ff && st.receiveMode ? h("div", { class: "t2" }, "Receive mode: " + st.receiveMode) : null,
+    ff && st.receiveNote ? h("div", { class: "t2" }, st.receiveNote) : null,
+  );
+  const acctRow = acct.childNodes.length ? h("div", { class: "srow acct" }, acct) : null;
+  const logOut = h("button", {
+    onclick: async () => {
+      try {
+        await rpc(env, "signout");
+        // the logout is done: read the state again, which shows the logged-out view
+        await reload();
+      } catch (e) {
+        status.textContent = (e as Error).message;
+        status.scrollIntoView({ block: "nearest" }); // I489: the line sits below the fold
+      }
+    },
+  }, "Log out") as HTMLButtonElement;
+  const btns = h("div", { class: "btns" }, logOut, h("button", { class: "danger", onclick: () => env.openPage("#login=delete-account") }, "Delete account"));
+  // I471: Esc cancels a confirm
+  const onEsc = (cancel: () => void) => (ev: KeyboardEvent) => {
+    if (ev.key !== "Escape") return;
+    ev.preventDefault();
+    cancel();
+  };
+  const delAll = h("button", { class: "quiet errtext" }, "Delete all history") as HTMLButtonElement;
+  const closeDel = () => {
+    clear(confirmDel);
+    delAll.hidden = false;
+    delAll.focus();
+  };
+  confirmDel.addEventListener("keydown", onEsc(closeDel));
+  delAll.addEventListener("click", () => {
+    const yes = h("button", {
+      class: "danger",
       onclick: async () => {
+        yes.disabled = true;
         try {
-          await rpc(env, "signout");
-          status.textContent = T.signedOut;
+          await rpc(env, "historyDeleteAll");
+          closeDel();
+          status.textContent = "History deleted.";
         } catch (e) {
+          yes.disabled = false;
           status.textContent = (e as Error).message;
         }
+        status.scrollIntoView({ block: "nearest" });
       },
-    }, "Sign out"),
-    h("button", { class: "danger", onclick: () => env.openPage("#login=delete-account") }, "Delete account"),
+    }, "Delete") as HTMLButtonElement;
+    const no = h("button", { onclick: closeDel }, "Cancel");
+    delAll.hidden = true;
+    clear(confirmDel).append(h("span", { role: "alert" }, "Delete all history?"), yes, no);
+    no.focus();
+  });
+  add(
+    root,
+    self && sh("This device"),
+    self && ownCard(env, self.name, st.platform, status),
+    sh("Appearance"),
+    group(h("div", { class: "srow" }, h("div", { class: "txt" }, h("div", {}, "Theme"), h("div", { class: "t2" }, "Dark uses a true black background.")), theme)),
+    sh("Sending"),
+    group(h("label", { class: "srow" }, h("span", {}, 'Show "All" option'), showAll)),
+    // received links on this device
+    sh("Receiving"),
+    group(h("label", { class: "srow" }, h("span", {}, "Open links automatically"), autoOpen)),
+    sh("History"),
+    group(
+      h("div", { class: "srow" }, h("span", {}, "Keep messages for"), days),
+      h("div", { class: "srow" }, delAll, confirmDel),
+    ),
+    sh("Account"),
+    group(acctRow, h("div", { class: "srow acct-acts" }, btns)),
     status,
+    h("div", { class: "grow" }),
   );
+}
+
+/**
+ * Q338: logged in with no paired device. Three steps, the devices waiting to pair (live, with
+ * their Pair actions), and Settings behind the gear (popup only). The first pairing calls onPaired.
+ */
+export async function firstPairView(env: UiEnv, root: HTMLElement, st: StateView, onPaired: () => Promise<void>, withSettings: boolean): Promise<void> {
+  const panel = h("div", { class: "body", id: "panel" });
+  const status = h("div", { class: "status", role: "status" });
+  let inSettings = false;
+  let busy = false;
+  let last = "";
+  const draw: Redraw = async (msg, focusId) => {
+    if (busy || inSettings || !panel.isConnected) return;
+    busy = true;
+    try {
+      const data = await rpc<{ peers: PeerView[] }>(env, "peers");
+      if (data.peers.some((p) => p.paired)) {
+        clearInterval(timer);
+        await onPaired();
+        // I537: the new view replaced the focused button; focus its selected tab, else its heading
+        if (!document.activeElement || document.activeElement === document.body) {
+          const to = root.querySelector<HTMLElement>("[role='tab'][aria-selected='true']") ?? root.querySelector<HTMLElement>("h1");
+          if (to && !to.hasAttribute("tabindex")) to.setAttribute("tabindex", "-1");
+          to?.focus();
+        }
+        return;
+      }
+      const waiting = data.peers.filter((p) => !p.hidden);
+      // N1: the live read redraws only on a change, and keeps focus where it was
+      const key = JSON.stringify(waiting);
+      if (msg === undefined && focusId === undefined && key === last) return;
+      last = key;
+      const act = document.activeElement instanceof HTMLElement && panel.contains(document.activeElement) ? document.activeElement : null;
+      const rowId = act?.closest("[id^='peer-']")?.id;
+      const actText = act?.textContent;
+      add(
+        clear(panel),
+        h("h1", { class: "fp-title", tabindex: "-1" }, "Pair your first device"),
+        h("ol", { class: "howto fp-steps" }, h("li", {}, "Install PushArmor on another device."), h("li", {}, "Log in with the same account."), h("li", {}, "Click Pair on it here.")),
+        sh("Waiting to pair"),
+        ...waiting.filter((p) => p.fingerprint).map((p) => pairCard(env, p, status, draw)),
+        waiting.some((p) => !p.fingerprint)
+          ? group(...waiting.filter((p) => !p.fingerprint).map((p) => peerRow(env, p, status, draw)))
+          : waiting.length
+            ? null
+            : h("p", { class: "fp-wait" }, "No devices yet. They show up here after they log in."),
+        status,
+        h("div", { class: "grow" }),
+      );
+      const row = document.getElementById("peer-" + (focusId ?? rowId?.slice(5)));
+      if (focusId !== undefined || act) {
+        const same = act ? [...(row ?? panel).querySelectorAll<HTMLElement>("button, select, input")].find((b) => b.textContent === actText) : undefined;
+        (same ?? row ?? panel.querySelector<HTMLElement>(".fp-title"))?.focus();
+      }
+      if (msg) setTimeout(() => (status.textContent = msg), 50);
+    } catch (e) {
+      status.textContent = (e as Error).message;
+    } finally {
+      busy = false;
+    }
+  };
+  // live: new devices arrive by push into the local list; read it again every few seconds
+  const timer = setInterval(() => (panel.isConnected ? void draw() : clearInterval(timer)), 3000);
+  const gear = withSettings
+    ? (h("button", { class: "quiet ib gear", "aria-label": "Settings", title: "Settings", "aria-pressed": "false" }, icon("settings", 20)) as HTMLButtonElement)
+    : null;
+  gear?.addEventListener("click", () => {
+    inSettings = !inSettings;
+    gear.setAttribute("aria-pressed", String(inSettings));
+    if (inSettings) {
+      last = "";
+      clear(panel);
+      void settingsView(env, panel, st, () => mountPopup(env, root));
+    } else void draw();
+  });
+  clear(root).append(h("div", { class: "top" }, h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16), gear), setupBar(env, st)), panel);
+  await draw();
 }

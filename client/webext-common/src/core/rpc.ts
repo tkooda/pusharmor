@@ -1,6 +1,7 @@
 // Runtime messages {op, args} from the UI pages to the background engine
 // (component-webext section 3: UI pages never touch keys or counters).
 import { formatCountdown, PAIRING_TIMEOUT_MS } from "../model/countdown.ts";
+import { SEND_SEL_KEY } from "../model/sendsel.ts";
 import { detectType } from "../model/detect.ts";
 import { utf8Len } from "../model/padding.ts";
 import type { HistoryRow, PeerRow } from "../store/db.ts";
@@ -33,10 +34,14 @@ export interface PeerView {
   greyed: string | null;
   hidden: boolean;
   sendable: boolean;
+  /** the peer approves this device (peer status line) */
+  approvesMe: boolean;
+  /** paired both ways and no pairing in progress (Q338: none paired shows the first-device screen) */
+  paired: boolean;
 }
 
 export interface StateView {
-  reg: "registered" | "paused" | null;
+  reg: "registered" | "logged_out" | null;
   banner: string | null;
   email: string | null;
   name: string;
@@ -45,11 +50,15 @@ export interface StateView {
   isAndroid: boolean;
   receiveMode: string | null;
   receiveNote: string | null;
+  /** Firefox without direct push: the setup tab has not delivered a push subscription yet. */
+  setupNeeded: boolean;
+  /** The relay server refused this version (HTTP 426): every view shows the update screen. */
+  updateRequired: boolean;
 }
 
 function created(p: PeerRow): string {
   const d = new Date(p.created * 1000);
-  return p.platform.charAt(0).toUpperCase() + p.platform.slice(1) + ", added " + d.toISOString().slice(0, 10);
+  return (p.platform === "cli" ? "Command line" : p.platform.charAt(0).toUpperCase() + p.platform.slice(1)) + ", added " + d.toISOString().slice(0, 10);
 }
 
 export class Rpc {
@@ -75,9 +84,11 @@ export class Rpc {
     const e = this.e;
     switch (req.op) {
       case "state":
+        void e.retryPendingLogout().catch(() => undefined); // full tab open (Q368)
         return this.state();
       case "popupOpen":
-        await e.onPopupOpen();
+        // I556: draw from the local state at once; the network work runs behind it
+        void e.onPopupOpen().catch(() => undefined);
         return this.state();
       case "peers":
         return this.peers();
@@ -97,6 +108,11 @@ export class Rpc {
         await e.db.clear(["history"]);
         await e.updateBadge();
         return null;
+      case "sendSel":
+        return ((await e.p.storageLocal.get([SEND_SEL_KEY]))[SEND_SEL_KEY] as string[] | undefined) ?? [];
+      case "sendSelSet":
+        await e.p.storageLocal.set({ [SEND_SEL_KEY]: Array.isArray(a.ids) ? (a.ids as unknown[]).map(String) : [] });
+        return null;
       case "detect":
         return { type: detectType(s("text")), bytes: utf8Len(s("text")) };
       case "send":
@@ -113,6 +129,8 @@ export class Rpc {
         return e.deny(s("id"));
       case "cancel":
         return e.cancelPairing(s("id"));
+      case "pairAgain":
+        return e.pairAgain(s("id"));
       case "remove":
         return e.remove(s("id"));
       case "localDelete":
@@ -132,15 +150,25 @@ export class Rpc {
       case "settings":
         return e.setSettings(a as Partial<Settings>);
       case "signout":
-        return e.pause();
+        await this.login.clearProgress();
+        // Q368: logged out here at once; the relay server call runs after and is retried
+        await e.logoutLocal();
+        void e.retryPendingLogout().catch(() => undefined);
+        return null;
       case "loginPurpose":
         return this.login.purpose();
+      case "signinProgress":
+        return this.login.progress(a.purpose ? (s("purpose") as Purpose) : await this.login.purpose());
+      case "signinDraft":
+        return this.login.draft(s("email"), s("purpose") as Purpose);
+      case "signinClear":
+        return this.login.clearProgress();
       case "emailStart":
         return this.login.emailStart(s("email"), s("turnstile"), s("purpose") as Purpose);
       case "emailVerify":
         return this.login.emailVerify(s("code"), Array.isArray(a.evict) ? (a.evict as string[]) : undefined);
       case "oauth":
-        return this.login.oauthStart(s("provider") as "google" | "apple", s("purpose") as Purpose);
+        return this.login.oauthStart(s("provider") as "google" | "apple", s("purpose") as Purpose, tab);
       case "evict":
         return this.login.complete("register", s("ticket"), null, Array.isArray(a.evict) ? (a.evict as string[]) : []);
       case "authDone":
@@ -165,6 +193,11 @@ export class Rpc {
       isAndroid: e.p.isAndroid,
       receiveMode: (await e.db.meta<string>("receive_mode")) ?? null,
       receiveNote: (await e.db.meta<string>("receive_note")) ?? null,
+      updateRequired: await e.updateRequired(),
+      setupNeeded:
+        e.p.platformName === "firefox" &&
+        (e.p.isAndroid || ((await e.db.meta<string>("receive_mode")) ?? "direct") !== "direct") &&
+        !(await e.db.meta("fallback_push")),
     };
   }
 
@@ -179,7 +212,7 @@ export class Rpc {
       if (p.removed || p.id === self?.id) continue;
       const label = p.name ?? created(p);
       const nm = peerLabel(p.name);
-      const v: PeerView = { id: p.id, label, platform: p.platform, lines: [], actions: [], countdown: null, fingerprint: null, pk: null, greyed: null, hidden: p.hidden, sendable: false };
+      const v: PeerView = { id: p.id, label, platform: p.platform, lines: [], actions: [], countdown: null, fingerprint: null, pk: null, greyed: null, hidden: p.hidden, sendable: false, approvesMe: p.approves_me, paired: false };
       const pv = entries.has(p.id) ? await e.pairRowView(p.id) : null;
       if (pv) {
         v.lines = pv.lines;
@@ -202,10 +235,12 @@ export class Rpc {
         v.actions = ["cancel"];
       } else if (p.approve_verified && p.get_after_verify && !p.approves_me) {
         v.greyed = T.notPairedOn(nm);
-        v.actions = ["cancel"];
+        v.actions = ["pair_again", "cancel"];
       } else if (p.ruling === "approved" && p.approves_me) {
-        v.sendable = !p.paused && !p.hidden;
-        if (p.paused) v.greyed = "signed out";
+        v.paired = true;
+        v.sendable = !p.logged_out && !p.hidden && p.listening !== false;
+        if (p.logged_out) v.greyed = "logged out";
+        else if (p.listening === false) v.greyed = "send only";
         else if (!p.reachable) v.greyed = "unreachable";
       }
       v.actions.push("remove", p.hidden ? "unhide" : "hide");
@@ -219,10 +254,13 @@ export class Rpc {
     const peers = new Map((await e.db.peers()).map((p) => [p.id, p]));
     return (await e.db.history()).map((r) => {
       const p = r.peer ? peers.get(r.peer) : undefined;
-      let sender = T.unknownSender;
+      let sender: string = T.unknownSender;
       if (r.peer) {
         const nm = p?.name ?? r.peer_name ?? null;
         sender = (nm ?? T.aPeer) + (!p || p.removed ? " (removed)" : "");
+      } else if (r.dir === "out" && r.targets?.length === 1) {
+        // A message to one device: History names it (Sent to "Laptop").
+        sender = peers.get(r.targets[0]!)?.name ?? T.aPeer;
       }
       return { ...r, sender };
     });

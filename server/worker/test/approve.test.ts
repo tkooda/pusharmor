@@ -19,11 +19,11 @@ describe("POST /approve/$X (Q180 B, I230)", () => {
     const cb = message(1024);
     let r = await call("POST", "/v1/approve/" + b.id, { c: ca, name: message(200) }, { peer: a });
     expect(r.body).toEqual({ r: "stored" });
-    expect(j((await row(a.id))!.pending)[b.id]).toBe(ca);
+    expect(j((await row(a.id))!.pending)[b.id][1]).toBe(ca);
     expect(vendorRequests()).toHaveLength(0);
     r = await call("POST", "/v1/approve/" + a.id, { c: cb, name: message(200) }, { peer: b });
     expect(r.body).toEqual({ r: "sent", c: ca });
-    expect(j((await row(b.id))!.pending)[a.id]).toBe(cb);
+    expect(j((await row(b.id))!.pending)[a.id][1]).toBe(cb);
     const fcm = vendorRequests("fcm.googleapis.com");
     expect(fcm).toHaveLength(1);
     expect(JSON.parse(new TextDecoder().decode(fcm[0].body)).message.data.m).toBe(cb);
@@ -57,13 +57,13 @@ describe("POST /approve/$X (Q180 B, I230)", () => {
     expect(r.status).toBe(400);
   });
 
-  it("second approve to a paused X -> paused with c; push NULL -> gone", async () => {
+  it("second approve to a logged-out X -> logged out with c; push NULL -> gone", async () => {
     const [a, b] = await pairOf();
     const ca = message(1024);
     await call("POST", "/v1/approve/" + b.id, { c: ca, name: message(200) }, { peer: a });
-    await env.DB.prepare("UPDATE peers SET paused = 1 WHERE id = ?1").bind(a.id).run();
+    await env.DB.prepare("UPDATE peers SET logged_out = 1 WHERE id = ?1").bind(a.id).run();
     let r = await call("POST", "/v1/approve/" + a.id, { c: message(1024), name: message(200) }, { peer: b });
-    expect(r.body).toEqual({ r: "paused", c: ca });
+    expect(r.body).toEqual({ r: "logged out", c: ca });
     const [x, y] = await pairOf();
     await call("POST", "/v1/approve/" + y.id, { c: message(1024), name: message(200) }, { peer: x });
     await env.DB.prepare("UPDATE peers SET push = NULL, push_type = NULL WHERE id = ?1").bind(x.id).run();
@@ -131,14 +131,14 @@ describe("POST /deny/$X", () => {
     expect(JSON.parse(new TextDecoder().decode(fcm[0].body)).message.android.priority).toBe("NORMAL");
   });
 
-  it("X denies me -> denied; X paused -> paused", async () => {
+  it("X denies me -> denied; X logged out -> logged out", async () => {
     const [a, b] = await pairOf();
     await env.DB.prepare("UPDATE peers SET deny = json_set(deny, '$.\"' || ?1 || '\"', 1) WHERE id = ?2").bind(a.id, b.id).run();
     expect((await call("POST", "/v1/deny/" + b.id, { c: message(512) }, { peer: a })).body).toEqual({ r: "denied" });
     const [x, y] = await pairOf();
     await setAllow(y, [x.id]);
-    await env.DB.prepare("UPDATE peers SET paused = 1 WHERE id = ?1").bind(y.id).run();
-    expect((await call("POST", "/v1/deny/" + y.id, { c: message(512) }, { peer: x })).body).toEqual({ r: "paused" });
+    await env.DB.prepare("UPDATE peers SET logged_out = 1 WHERE id = ?1").bind(y.id).run();
+    expect((await call("POST", "/v1/deny/" + y.id, { c: message(512) }, { peer: x })).body).toEqual({ r: "logged out" });
   });
 });
 
@@ -172,12 +172,12 @@ describe("withdraw (I264, I278)", () => {
     expect((await call("POST", "/v1/deny/not-an-id", { withdraw: 1 }, { peer: a })).status).toBe(400);
   });
 
-  it("paused caller: withdraw passes, deny with c gets 401 paused; never-approved and removed X -> unapproved", async () => {
+  it("logged-out caller: withdraw passes, deny with c gets 401 logged out; never-approved and removed X -> unapproved", async () => {
     const [a, b] = await pairOf();
-    await env.DB.prepare("UPDATE peers SET paused = 1 WHERE id = ?1").bind(a.id).run();
+    await env.DB.prepare("UPDATE peers SET logged_out = 1 WHERE id = ?1").bind(a.id).run();
     let r = await call("POST", "/v1/deny/" + b.id, { c: message(512) }, { peer: a });
     expect(r.status).toBe(401);
-    expect(r.body.error).toBe("paused");
+    expect(r.body.error).toBe("logged out");
     const before = JSON.stringify(await row(a.id));
     r = await call("POST", "/v1/deny/" + b.id, { withdraw: 1 }, { peer: a });
     expect(r.status).toBe(200);
@@ -281,7 +281,7 @@ describe("races (I253, I274, I265)", () => {
     const r2 = await call("POST", "/v1/approve/" + a.id, body, { peer: b, env: e });
     expect(r1.body).toEqual({ r: "sent", c: ca });
     expect(r2.body).toEqual(r1.body);
-    expect(j((await row(b.id))!.pending)[a.id]).toBe(body.c);
+    expect(j((await row(b.id))!.pending)[a.id][1]).toBe(body.c);
     expect(vendorRequests("fcm.googleapis.com").filter((x) => x.url.includes("/v1/projects/"))).toHaveLength(2);
   });
 });

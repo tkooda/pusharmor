@@ -23,7 +23,7 @@ export interface WpKeys {
 }
 
 export type Ruling = "approved" | "denied" | "none";
-export type Platform4 = "android" | "iphone" | "chrome" | "firefox";
+export type Platform4 = "android" | "ios" | "chrome" | "firefox" | "cli";
 
 export interface PeerRow {
   id: string;
@@ -42,8 +42,9 @@ export interface PeerRow {
   hidden: boolean;
   removed: boolean;
   missing: boolean;
-  paused: boolean;
-  pause_n: number; // n of the last applied pause / unpause
+  logged_out: boolean;
+  listening?: boolean; // cli only: false = send only; absent = listening
+  logout_n: number; // n of the last applied logout / login
   pinned: boolean; // true only when a pairing pinned the keys
   approve_verified: boolean; // the peer's approve verified on this device
   get_after_verify: boolean; // a GET /peers was fetched after the verify
@@ -56,7 +57,7 @@ export interface HistoryRow {
   peer: string | null;
   peer_name?: string | null; // last known name, kept for "(removed)"
   type: "url" | "text" | "tel" | "event";
-  event?: "denied" | "paused" | "resumed" | "unreadable" | "invalid";
+  event?: "denied" | "logged_out" | "logged_in" | "unreadable" | "invalid";
   content: string;
   n: number | null;
   pairing_id: string | null;
@@ -249,7 +250,7 @@ export class Db {
             get_after_verify: false,
             approves_me: false,
             pending_approve_n: 0,
-            pause_n: 0,
+            logout_n: 0,
           };
           ps.put(row);
           const rs: ReplayState = { pairing_id: pairingId, h: 0, bitmap: new Uint8Array(13) };
@@ -420,8 +421,8 @@ export function newPeerRow(id: string, signPub: Uint8Array, encPub: Uint8Array, 
     hidden: false,
     removed: false,
     missing: false,
-    paused: false,
-    pause_n: 0,
+    logged_out: false,
+    logout_n: 0,
     pinned: false,
     approve_verified: false,
     get_after_verify: false,

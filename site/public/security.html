@@ -4,65 +4,70 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Security - PushArmor</title>
-<meta name="description" content="The PushArmor threat model: what our server, Cloudflare and the push services can and cannot see.">
+<meta name="description" content="The PushArmor threat model: what our server, Cloudflare, and the push services can and cannot see.">
 <meta name="theme-color" content="#1F3A5F">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="PushArmor">
 <meta property="og:title" content="Security - PushArmor">
-<meta property="og:description" content="The PushArmor threat model: what our server, Cloudflare and the push services can and cannot see.">
+<meta property="og:description" content="The PushArmor threat model: what our server, Cloudflare, and the push services can and cannot see.">
 <meta property="og:url" content="https://pusharmor.com/security">
 <meta property="og:image" content="https://pusharmor.com/apple-touch-icon.png">
 <link rel="icon" href="/favicon.ico" sizes="any" integrity="sha256-WBRVm+oTUTpG8HdmRjQYXSzTkCjwYCVj5PZdJQP73qM=">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" integrity="sha256-TQcTrShS2zw2E6zqzKq9Tlfqd9GGyBSjl/LTQvTeJY8=">
-<link rel="stylesheet" href="/css/site.css" integrity="sha256-LLVjIg5FDy8B6CiNdcenZ4QJ6YhuvkKKultGZbGfMOw=">
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-Dcp1dNsQodcGTBjig2sKl5LIngbDNKgkkcjJUigzVhU=">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header>
 <a class="brand" href="/"><svg class="mark" width="26" height="32" viewBox="130 100 252 312" aria-hidden="true" focusable="false"><path fill-rule="evenodd" d="M256 108 L376 150 V250 C376 330 322 382 256 406 C190 382 136 330 136 250 V150 Z M256 168 L318 236 H280 V334 H232 V236 H194 Z"/></svg><span><span class="push">Push</span><span class="armor">Armor</span></span></a>
-<nav aria-label="Main"><a href="/how-to">How to</a> <a href="/download">Download</a> <a href="/security" aria-current="page">Security</a> <a href="/support">Support</a></nav>
+<nav aria-label="Main"><a href="/how-to">How to</a> <a href="/download">Download</a> <a href="/security" aria-current="page">Security</a> <a href="/support">Support</a> <a href="/about">About</a></nav>
 </header>
 <main id="main">
 <h1>Security and threat model</h1>
-<p>Your peers don't need to trust the server. Messages are encrypted on your device, and only your
-own peers can read them. Each app and add-on checks everything the server sends, so the server
-cannot change a message or pose as a peer. Keys are made on each device and the private keys
-never leave it.</p>
+<p>Your devices don't need to trust our relay server. Messages are encrypted on your device, and can only
+ever be decrypted by your own paired devices. Each app and add-on checks everything the server sends, so the server
+cannot change a message or pose as one of your devices. Each device makes two key pairs (P-256), one for signing (ECDSA) and one for encryption (HPKE), and the private keys used to decrypt and sign messages never
+leave it. Where the device supports it, they are kept in its hardware key storage (the Secure
+Enclave on iPhone, the Android Keystore on Android). (The one exception is a short-lived throwaway key that the web delete-account page holds in your browser tab while you log in with Google or Apple. It is not a device key, and it cannot read messages.)</p>
 
 <h2>What each party sees</h2>
 <div class="table-wrap">
-<table>
-<thead><tr><th>Party</th><th>Sees</th><th>Does not see</th></tr></thead>
+<table class="sees">
+<thead><tr><th scope="col">Party</th><th scope="col">Sees</th><th scope="col">Cannot see</th></tr></thead>
 <tbody>
-<tr><td>Your peers</td><td>The messages you send them, after decryption and signature checks.</td><td>Messages for other peers.</td></tr>
-<tr><td>The Worker (our server on Cloudflare)</td><td>A keyed hash of your email address, which is your account id (the address itself briefly at sign-in, to send the code), your IP address, peer public keys, push tokens or endpoints, encrypted messages and their size, and who sends to whom inside your account.</td><td>Message content, private keys, pairing fingerprints.</td></tr>
-<tr><td>Cloudflare</td><td>Everything the Worker sees, since it runs the Worker and its database. Delivery logs: account id, peer ids and send results, for 7 days.</td><td>Message content, private keys.</td></tr>
-<tr><td>Push services (Google FCM, Apple APNs, Google and Mozilla web push, a UnifiedPush distributor)</td><td>The push token or endpoint and the encrypted payload; they hold undelivered messages up to 7 days (pairing requests up to 4 weeks).</td><td>Message content, keys.</td></tr>
-<tr><td>AWS SES</td><td>Your email address when it sends a sign-in code.</td><td>Anything else.</td></tr>
-<tr><td>This website</td><td>Nothing about you: static files, no login, no analytics. Turnstile runs on the email sign-in page and on the delete-account page only.</td><td>Keys, message content.</td></tr>
+<tr><th scope="row">Your devices</th><td data-label="Sees"><ul><li>The messages you send them, after decryption and signature checks</li></ul></td><td data-label="Cannot see"><ul><li>Messages for other devices</li></ul></td></tr>
+<tr><th scope="row">Our relay server (hosted on Cloudflare)</th><td data-label="Sees"><ul><li>A one-way (keyed) hash of your email address, which is your account ID</li><li>The address itself briefly at login, to send the login code</li><li>Your IP address</li><li>Device public keys</li><li>The push tokens (FCM, APNs) and web push endpoint URLs your devices use to receive notifications</li><li>Encrypted messages it cannot read (ciphertext), and their size</li><li>Who sends to whom inside your account</li></ul></td><td data-label="Cannot see"><ul><li>Message content</li><li>Private keys</li><li>Pairing fingerprints</li><li>The names you give your devices</li></ul></td></tr>
+<tr><th scope="row">Cloudflare</th><td data-label="Sees"><ul><li>Everything our relay server sees, since Cloudflare runs it and its database</li><li>Our delivery logs, kept for up to 7 days: account ID, device IDs, and send results</li></ul></td><td data-label="Cannot see"><ul><li>Message content</li><li>Private keys</li></ul></td></tr>
+<tr><th scope="row">Push services (Firebase Cloud Messaging (FCM), Apple Push Notification service (APNs), Google and Mozilla web push, and a UnifiedPush distributor)</th><td data-label="Sees"><ul><li>The push token (FCM, APNs) or web push endpoint URL</li><li>The encrypted message they cannot read (ciphertext)</li><li>Undelivered messages, held up to 7 days (pairing requests up to 4 weeks)</li></ul></td><td data-label="Cannot see"><ul><li>Message content</li><li>Keys</li></ul></td></tr>
+<tr><th scope="row">This website</th><td data-label="Sees"><ul><li>Nothing about you: static files, no login, no analytics</li><li>Cloudflare's bot check (Turnstile) runs on the email login page and on the delete-account page only</li></ul></td><td data-label="Cannot see"><ul><li>Keys</li><li>Message content</li></ul></td></tr>
+<tr><th scope="row">AWS SES</th><td data-label="Sees"><ul><li>Your email address when it sends a login code</li></ul></td><td data-label="Cannot see"><ul><li>Message content</li><li>Keys</li><li>We send it nothing else</li></ul></td></tr>
 </tbody>
 </table>
 </div>
-<p class="note">The push service and the Worker can show a notification with text of their
+<p class="note">The push service and our relay server can show a notification with text of their
 choosing on every platform; verified content appears only after your device decrypts it.</p>
-<p class="note">The vendor sees the size bucket and the urgency level of a message, not its
+<p class="note">The push service sees the size of a message (padded to a few standard sizes), not its
 content.</p>
 
-<h2>How peers trust each other</h2>
-<p>Two peers trust each other only after you pair them and compare the 4-character pairing
-fingerprint on both screens. This check stops a fake pairing in all but about 1 in a million
-tries, and each failed try shows a notice on the other peer. Every message is signed by the
-sending peer and checked by the receiving peer; repeated or old messages are dropped.</p>
+<h2>How devices trust each other</h2>
+<p>Two devices trust each other only after you pair them by verifying that the 4-character
+pairing fingerprint is identical on both screens.</p>
+<p>The pairing fingerprint is not a code sent to your devices, and it is never sent over the network. Pairing has you compare a short code on both screens (short authentication string, SAS). Each device first commits to its values by sending only their SHA-256 hash, and reveals them after it has seen the other device's hash (commit-then-reveal). Each device then computes the 4-character fingerprint on its own, from both devices' public keys and a fresh random value from each device. No one, including our relay server, can steer the result.</p>
+<p>Every message is signed by the
+sending device and checked by the receiving device; repeated or old messages are ignored (replay protection).
+A message that fails this check is never shown; History lists it as "PushArmor received a
+message it could not read". Messages you read inside PushArmor passed this check. A notification
+is only a prompt: if one looks wrong, open PushArmor and read the message there.</p>
 
 <h2>Reporting a security problem</h2>
 <p>Report it privately with
 <a href="https://github.com/tkooda/pusharmor/security/advisories/new">GitHub private vulnerability
-reporting</a>, or use the contact in <a href="/.well-known/security.txt">security.txt</a>. Please
+reporting</a>. Please
 do not open a public issue for a security problem. The source code is public on
 <a href="https://github.com/tkooda/pusharmor">GitHub</a>.</p>
 </main>
 <footer>
-<a href="/privacy">Privacy</a> <a href="/terms">Terms</a> <a href="/support">Support</a> <a href="/delete-account">Delete account</a> <a href="https://github.com/tkooda/pusharmor">Source code on GitHub</a>
+<a href="/privacy">Privacy</a> <a href="/terms">Terms</a> <a href="/support">Support</a> <a href="https://github.com/tkooda/pusharmor">Source code on GitHub</a>
 <p class="fine">PushArmor is a free, open source project.</p>
 </footer>
 </body>

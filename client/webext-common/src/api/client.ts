@@ -1,11 +1,14 @@
-// Worker client (catalog General): PA-Sig signing, PA-Epoch-Ms offset,
+// Worker client (catalog General): PA-Sig signing, PA-Epoch offset (seconds),
 // retries on 429 / 503 / network errors only, clock-skew rebuild.
 import { utf8 } from "../crypto/bytes.ts";
 import { paSig } from "../crypto/pasig.ts";
+import { T } from "../core/texts.ts";
 
 export const API_BASE = "https://api.pusharmor.com";
 export const RETRY_DELAYS_MS = [500, 1500, 3000];
 export const RETRY_BUDGET_MS = 8000;
+/** One request (headers and body) may take this long before it is aborted (I556). */
+export const FETCH_TIMEOUT_MS = 15000;
 
 export class ApiError extends Error {
   readonly status: number; // 0 = network error
@@ -27,11 +30,14 @@ export interface Signer {
 }
 
 export interface ApiDeps {
+  /** PA-Client header value, e.g. "chrome/0.0.19". */
+  client: string;
   fetch(input: string, init: RequestInit): Promise<Response>;
   now(): number;
   sleep(ms: number): Promise<void>;
+  /** Server clock minus local clock, in whole seconds. */
   getOffset(): Promise<number>;
-  setOffset(ms: number): Promise<void>;
+  setOffset(s: number): Promise<void>;
 }
 
 export interface CallOpts {
@@ -55,8 +61,10 @@ function paTime(ms: number): string {
 
 export class Api {
   private readonly d: ApiDeps;
-  /** Called on 401 "paused" for a signed call (the Worker paused this device). */
-  onPaused: (() => Promise<void>) | null = null;
+  /** Called on 401 "logged out" for a signed call (the Worker logged this device out). */
+  onLoggedOut: (() => Promise<void>) | null = null;
+  /** Called on HTTP 426 (this version is too old for the relay server). */
+  onUpdateRequired: (() => Promise<void>) | null = null;
   constructor(d: ApiDeps) {
     this.d = d;
   }
@@ -69,6 +77,7 @@ export class Api {
       try {
         return await this.withRetries(method, path, bodyText, opts);
       } catch (e) {
+        if (e instanceof ApiError && e.status === 426) await this.onUpdateRequired?.().catch(() => undefined);
         if (e instanceof ApiError && e.status === 401 && e.error === "clock skew" && opts.signer && skews === 0) {
           skews++;
           continue;
@@ -76,7 +85,7 @@ export class Api {
         if (e instanceof ApiError && e.status === 401 && e.error === "clock skew") {
           throw new ApiError(401, "clock skew twice", e.body, null);
         }
-        if (e instanceof ApiError && e.status === 401 && e.error === "paused" && opts.signer?.id != null) await this.onPaused?.();
+        if (e instanceof ApiError && e.status === 401 && e.error === "logged out" && opts.signer?.id != null) await this.onLoggedOut?.();
         throw e;
       }
     }
@@ -101,28 +110,39 @@ export class Api {
 
   private async once(method: string, path: string, bodyText: string, opts: CallOpts): Promise<ApiReply> {
     const fullPath = "/v1" + path;
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { "PA-Client": this.d.client };
     const bodyBytes = utf8(bodyText);
     if (bodyText !== "") headers["Content-Type"] = "application/json";
     if (opts.signer) {
-      const t = paTime(this.d.now() + (await this.d.getOffset()));
+      const t = paTime(this.d.now() + (await this.d.getOffset()) * 1000);
       if (opts.signer.id !== null) headers["PA-ID"] = opts.signer.id;
       headers["PA-Time"] = t;
       headers["PA-Sig"] = await paSig(opts.signer.key, method, fullPath, t, bodyBytes);
     }
     let res: Response;
+    let t = "";
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), FETCH_TIMEOUT_MS);
     try {
-      const init: RequestInit = { method, headers, redirect: "manual", credentials: "omit", cache: "no-store" };
-      if (bodyText !== "") init.body = bodyText;
-      res = await this.d.fetch(API_BASE + fullPath, init);
-    } catch {
-      throw new ApiError(0, "network", {}, null);
+      try {
+        const init: RequestInit = { method, headers, redirect: "manual", credentials: "omit", cache: "no-store", signal: abort.signal };
+        if (bodyText !== "") init.body = bodyText;
+        res = await this.d.fetch(API_BASE + fullPath, init);
+      } catch {
+        throw new ApiError(0, "network", {}, null);
+      }
+      try {
+        t = await res.text();
+      } catch {
+        if (abort.signal.aborted) throw new ApiError(0, "network", {}, null);
+      }
+    } finally {
+      clearTimeout(timer);
     }
-    const epoch = res.headers.get("PA-Epoch-Ms");
-    if (epoch && /^[0-9]{1,16}$/.test(epoch)) await this.d.setOffset(Number(epoch) - this.d.now());
+    const epoch = res.headers.get("PA-Epoch");
+    if (epoch && /^[0-9]{1,13}$/.test(epoch)) await this.d.setOffset(Number(epoch) - Math.floor(this.d.now() / 1000));
     let json: Record<string, unknown> = {};
     try {
-      const t = await res.text();
       if (t) {
         const v = JSON.parse(t) as unknown;
         if (v && typeof v === "object" && !Array.isArray(v)) json = v as Record<string, unknown>;
@@ -140,16 +160,26 @@ export class Api {
   }
 }
 
+/** HTTP 426: the relay server no longer accepts this version. */
+export const UPDATE_REQUIRED = "Update PushArmor to continue.";
+
 /** User-facing text for an API error (catalog Results and errors). */
 export function errorText(e: unknown): string {
   if (!(e instanceof ApiError)) return "Something went wrong. Try again.";
-  if (e.error === "clock skew twice") return "This device's clock is off by more than 5 minutes";
-  if (e.status === 502) return "Could not send the email, try again";
+  if (e.error === "clock skew twice") return T.clockOff;
+  if (e.status === 426) return UPDATE_REQUIRED;
+  if (e.status === 502) return "Could not send the email. Try again.";
   if (e.status === 400 && e.error === "bad email") return "Only email addresses with plain ASCII characters are supported.";
-  if (e.status === 400 && e.error === "push endpoint not allowed") return "This browser's push service is not supported yet";
-  if (e.status === 401 && e.error === "ticket expired") return "Sign-in expired, sign in again";
-  if (e.status === 401 && e.error === "paused") return "Signed out. Sign in to resume";
-  if (e.status === 429) return "Too many requests. Try again in " + (e.retryAfter ?? 60) + " s";
-  if (e.status === 0) return "Offline. Try again.";
-  return "Error: " + (e.error || String(e.status));
+  if (e.status === 400 && e.error === "push endpoint not allowed") return T.unsupportedPush;
+  if (e.status === 401 && e.error === "ticket expired") return T.loginExpired;
+  if (e.status === 401 && e.error === "wrong code") return "That code did not work. Check the newest email from PushArmor and try again.";
+  if (e.status === 401 && e.error === "code expired") return "This code has expired. Get a new code to continue.";
+  if (e.status === 403 && e.error === "turnstile failed") return "The security check did not finish. Try it again.";
+  if (e.status === 401 && e.error === "logged out") return "Logged out. Log in to resume.";
+  if (e.status === 429) {
+    const s = e.retryAfter ?? 60;
+    return "Too many requests. Try again in " + s + (s === 1 ? " second." : " seconds.");
+  }
+  if (e.status === 0) return "Could not reach the relay server. Check your connection.";
+  return "Something went wrong. Try again.";
 }

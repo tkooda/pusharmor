@@ -78,7 +78,7 @@ export class Autopush {
     this.connect(false);
   }
 
-  /** Start again after unregister() (wipe, then sign in): fresh keys and a new channel. */
+  /** Start again after unregister() (wipe, then log in): fresh keys and a new channel. */
   async ensureRunning(): Promise<void> {
     if (this.stopped) await this.start();
   }

@@ -1,4 +1,4 @@
-// Reply helpers: JSON body, PA-Epoch-Ms, HSTS, no-store, CORS, error bodies.
+// Reply helpers: JSON body, PA-Epoch, HSTS, no-store, CORS, error bodies.
 import { ApiError } from "./errors";
 
 export const CORS_PATHS = new Set(["/v1/auth/email", "/v1/auth/email/verify", "/v1/account"]);
@@ -26,7 +26,7 @@ export function preflight(): Response {
     status: 204,
     headers: {
       "Access-Control-Allow-Methods": "POST, DELETE",
-      "Access-Control-Allow-Headers": "Content-Type, PA-Time, PA-Sig",
+      "Access-Control-Allow-Headers": "Content-Type, PA-Time, PA-Sig, PA-Client",
     },
   });
 }
@@ -44,8 +44,8 @@ function webOrigins(raw: string): string[] {
 export function finish(res: Response, path: string, origin: string | null, webOriginsVar: string): Response {
   const out = new Response(res.body, res);
   const h = out.headers;
-  h.set("PA-Epoch-Ms", String(Date.now()));
-  h.set("Access-Control-Expose-Headers", "PA-Epoch-Ms");
+  h.set("PA-Epoch", String(Math.floor(Date.now() / 1000)));
+  h.set("Access-Control-Expose-Headers", "PA-Epoch");
   h.set("Cache-Control", "no-store");
   h.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains");
   if (CORS_PATHS.has(path)) {

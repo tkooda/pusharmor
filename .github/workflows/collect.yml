@@ -14,8 +14,8 @@ name: collect
 # or an existing store release, is a skip, not a failure. A draft store release
 # left by a failed run is deleted and created again.
 on:
-  schedule:
-    - cron: "23 6 * * *"
+  push:
+    tags: ["chrome/v*", "firefox/v*"]
   workflow_dispatch:
 
 permissions: {}

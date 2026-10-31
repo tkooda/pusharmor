@@ -1,11 +1,8 @@
-import type { Env } from "../env";
-import * as SQL from "../db/sql";
-
 // Vendor status -> result word (vendor-wrap section 6).
 export type VendorName = "fcm" | "apns" | "wp" | "up";
 
 export interface Outcome {
-  kind: "sent" | "gone" | "failed";
+  kind: "sent" | "gone" | "failed" | "not listening";
   code?: string; // vendor code, e.g. "fcm-404-UNREGISTERED"
   next: "none" | "retry" | "auth";
   retryAfterMs?: number;
@@ -85,57 +82,11 @@ export function classify(v: VendorName, status: number, body: string, retryAfter
     }
     return { kind: "failed", code: code(v, status, reason), next: "none" };
   }
-  // wp and up
+  // wp and up. ntfy 507: no subscriber of an "up" topic in the last 24 h.
+  if (v === "up" && status === 507) return { kind: "not listening", code: code(v, status), next: "none" };
   if (status >= 200 && status < 300) return { kind: "sent", next: "none" };
   if (status === 404 || status === 410) return { kind: "gone", code: code(v, status), next: "none" };
   if (status === 401 || status === 403) return { kind: "failed", code: code(v, status), next: "auth" };
   if (status === 429 || status >= 500) return { kind: "failed", code: code(v, status), next: "retry", retryAfterMs: ra };
   return { kind: "failed", code: code(v, status), next: "none" };
-}
-
-// Vendor auth alert counters (D1, per UTC hour): auth-type failures vs successes. The hourly cron
-// runs in another isolate, so the counts live in D1. Successes only need to be known as "some",
-// so each isolate writes one success row per vendor and hour.
-const okSeen = new Map<string, number>();
-
-export function resetHealthCache(): void {
-  okSeen.clear();
-}
-
-export function isAuthFailure(v: VendorName, status: number, code: string | undefined): boolean {
-  if (v === "apns") return code === "apns-403-InvalidProviderToken" || code === "apns-429-TooManyProviderTokenUpdates";
-  if (v === "fcm") return status === 401 || status === 403;
-  return false;
-}
-
-export async function recordHealth(env: Env, v: VendorName, ok: boolean, authFailure: boolean, nowMs: number): Promise<void> {
-  const hour = Math.floor(nowMs / 3600000);
-  let sql: string;
-  if (ok) {
-    if (okSeen.get(v) === hour) return;
-    sql = SQL.W_HEALTH_OK;
-  } else if (authFailure) {
-    sql = SQL.W_HEALTH_AUTH;
-  } else {
-    return;
-  }
-  try {
-    await env.DB.prepare(sql).bind(v, hour).run();
-    if (ok) okSeen.set(v, hour);
-  } catch {
-    // Health counting must never fail a delivery.
-  }
-}
-
-// Vendors whose counts for the given hour show only auth failures and no success.
-export async function authAlerts(env: Env, hour: number): Promise<string[]> {
-  const snap = await healthSnapshot(env, hour);
-  return Object.keys(snap).filter((v) => snap[v].auth > 0 && snap[v].ok === 0).sort();
-}
-
-export async function healthSnapshot(env: Env, hour: number): Promise<Record<string, { auth: number; ok: number }>> {
-  const out: Record<string, { auth: number; ok: number }> = {};
-  const rs = await env.DB.prepare(SQL.Q_HEALTH_HOUR).bind(hour).all<{ vendor: string; auth: number; ok: number }>();
-  for (const r of rs.results) out[r.vendor] = { auth: r.auth, ok: r.ok };
-  return out;
 }

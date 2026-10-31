@@ -10,6 +10,8 @@ import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.room.RoomDatabase
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
@@ -43,8 +45,8 @@ data class PeerEntity(
     @ColumnInfo(name = "list_after_verify") val listAfterVerify: Boolean,
     val declined: Boolean,
     val reachable: Boolean,
-    val paused: Boolean,
-    @ColumnInfo(name = "pause_n") val pauseN: Long,
+    @ColumnInfo(name = "logged_out") val loggedOut: Boolean,
+    @ColumnInfo(name = "logout_n") val logoutN: Long,
     val hidden: Boolean,
     val name: String?,
     @ColumnInfo(name = "name_n") val nameN: Long,
@@ -57,10 +59,12 @@ data class PeerEntity(
     @ColumnInfo(name = "last_approve_result") val lastApproveResult: String?,
     @ColumnInfo(name = "last_send_at") val lastSendAt: Long,
     val note: String?,
+    @ColumnInfo(name = "pair_again", defaultValue = "0") val pairAgain: Boolean = false,
     /** Per-peer switches (section 6): lock screen, watch, always hide. */
     @ColumnInfo(name = "lock_screen") val lockScreen: Boolean = true,
     val watch: Boolean = true,
     @ColumnInfo(name = "hide_content") val hideContent: Boolean = false,
+    @ColumnInfo(defaultValue = "1") val listening: Boolean = true,
 )
 
 @Entity(tableName = "pairing")
@@ -165,7 +169,7 @@ interface PaDao {
 
 @Database(
     entities = [SelfEntity::class, PeerEntity::class, PairingEntity::class, CapEntity::class, ReplayEntity::class, AllowEntity::class, HistoryEntity::class],
-    version = 1,
+    version = 4,
     exportSchema = true,
 )
 abstract class PaDatabase : RoomDatabase() {
@@ -174,10 +178,34 @@ abstract class PaDatabase : RoomDatabase() {
     companion object {
         const val NAME = "pusharmor.db"
 
+        /** 1 -> 2: peers.pair_again (row marker for [Pair again]). */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE peers ADD COLUMN pair_again INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        /** 2 -> 3: peers.paused / pause_n -> logged_out / logout_n; history event types follow. */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE peers RENAME COLUMN paused TO logged_out")
+                db.execSQL("ALTER TABLE peers RENAME COLUMN pause_n TO logout_n")
+                db.execSQL("UPDATE history SET type = 'logged_out' WHERE type = 'paused'")
+                db.execSQL("UPDATE history SET type = 'logged_in' WHERE type = 'resumed'")
+            }
+        }
+
+        /** 3 -> 4: peers.listening ("cli" peers that do not listen are send only). */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE peers ADD COLUMN listening INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
         fun open(context: Context, name: String? = NAME): PaDatabase {
             val b = if (name == null) Room.inMemoryDatabaseBuilder(context, PaDatabase::class.java)
             else Room.databaseBuilder(context, PaDatabase::class.java, name).enableMultiInstanceInvalidation()
-            return b.build()
+            return b.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
         }
     }
 }

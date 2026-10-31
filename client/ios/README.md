@@ -66,7 +66,7 @@ The PushArmor scheme's test action (Debug) runs two targets:
 - `PushArmorTests`: app-hosted unit tests (`@testable import PushArmor`) of
   app-target logic such as the notification categories and banner content.
 - `PushArmorUITests`: one launch smoke test. It starts the app with no launch
-  arguments and no environment and expects the first screen (sign-in, or the
+  arguments and no environment and expects the first screen (login, or the
   notification explainer).
 
     xcodebuild test -scheme PushArmor -destination 'platform=iOS Simulator,name=iPhone 15'

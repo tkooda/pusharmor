@@ -17,6 +17,29 @@ export function normalizeEmail(s) {
   return Buffer.from(t.map((c) => (c >= 0x41 && c <= 0x5a ? c + 0x20 : c))).toString('latin1');
 }
 
+// Providers that deliver "local+tag" to "local"; Gmail also ignores dots in the local part.
+const PLUS_TAG = new Set([
+  'gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'live.com', 'msn.com', 'icloud.com', 'me.com', 'mac.com',
+  'fastmail.com', 'proton.me', 'protonmail.com', 'protonmail.ch', 'pm.me',
+]);
+const GMAIL = new Set(['gmail.com', 'googlemail.com']);
+
+// Account identity (Q334): one mailbox for a normalized address. Strip +tag at PLUS_TAG domains;
+// at Gmail also drop dots and map googlemail.com -> gmail.com. Other domains are unchanged.
+export function mailboxKey(normalized) {
+  const at = normalized.lastIndexOf('@');
+  let local = normalized.slice(0, at);
+  let domain = normalized.slice(at + 1);
+  if (!PLUS_TAG.has(domain)) return normalized;
+  const plus = local.indexOf('+');
+  if (plus > 0) local = local.slice(0, plus);
+  if (GMAIL.has(domain)) {
+    domain = 'gmail.com';
+    local = local.replace(/\./g, '') || local;
+  }
+  return local + '@' + domain;
+}
+
 export const emailHash = (normalized) => sha256('PA-ACCT1\n', normalized);
 export const accountId = (idSecret, eh) => hmac(idSecret, eh).subarray(0, 9);
 export const keyhash = (signPub, encPub) => sha256('PA-ID1\n', signPub, encPub).subarray(0, 12);
@@ -43,6 +66,15 @@ export function compareIds(a, b) {
 export function oauthNonce(purpose, signPub) {
   const k = b64e(sha256(signPub));
   return { k, nonce: b64e(sha256('PA-NONCE1\n' + purpose + '\n' + k)) };
+}
+
+// Command line login code (Q302): k16 = b64url(sha256(sign_pub)[0..16]),
+// code = b64url(account || HMAC-SHA256(token_secret, "PA-CLI1\n" a "\n" k16 "\n" p "\n" window)[0..16])
+// with a = b64url(account), p = r | l | d, window = floor(unix s / 600) in decimal.
+export function cliCode(tokenSecret, account, signPub, p, window) {
+  const k16 = b64e(sha256(signPub).subarray(0, 16));
+  const mac = hmac(tokenSecret, 'PA-CLI1\n' + b64e(account) + '\n' + k16 + '\n' + p + '\n' + window).subarray(0, 16);
+  return { k16, code: b64e(cat(account, mac)) };
 }
 
 export function pushString(push) {

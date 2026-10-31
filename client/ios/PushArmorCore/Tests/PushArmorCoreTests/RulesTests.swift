@@ -172,4 +172,19 @@ final class RulesTests: XCTestCase {
         XCTAssertEqual(info["m"] as? String, "abc")
         XCTAssertTrue(Banner.expiryUserInfo(m: nil).isEmpty)
     }
+
+    func testStatusSentencesEndWithAPeriod() {
+        for t in [S.cannotPairNow, S.thisDeviceRemoved, S.accountDeleted, S.waiting("X"), S.emailSendFailed, S.clockOff,
+                  S.signInExpired, S.signedOutResume, S.notificationsOff, S.noConnection, S.notDone] {
+            XCTAssertTrue(t.hasSuffix("."), t)
+            XCTAssertTrue(t.first!.isUppercase, t)
+        }
+        XCTAssertFalse(S.notificationsOff.hasSuffix("cannot receive."))
+    }
+
+    func testDeviceLimitTrustsLine() {
+        XCTAssertEqual(S.trusts(0, trustedBy: 0), "Trusts 0 devices. Trusted by 0.")
+        XCTAssertEqual(S.trusts(1, trustedBy: 2), "Trusts 1 device. Trusted by 2.")
+        XCTAssertEqual(S.trusts(2, trustedBy: 1), "Trusts 2 devices. Trusted by 1.")
+    }
 }

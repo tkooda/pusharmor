@@ -17,7 +17,7 @@ extension Core {
     public func register(ticket: String, push: PushInfo?, evict: [String] = []) async -> RegisterOutcome {
         var fields: [(String, JOut)] = [
             ("ticket", .str(ticket)), ("sign_pub", .str(B64URL.encode(keys.signer.publicKey))),
-            ("enc_pub", .str(B64URL.encode(keys.decryptor.publicKey))), ("platform", .str("iphone")),
+            ("enc_pub", .str(B64URL.encode(keys.decryptor.publicKey))), ("platform", .str("ios")),
             ("push", push.map { p in JOut.obj([("type", .str(p.type.rawValue)), ("token", .str(p.token))]) } ?? .null),
         ]
         if !evict.isEmpty { fields.append(("evict", .arr(evict.map { .str($0) }))) }
@@ -49,7 +49,7 @@ extension Core {
                 try store.setMe("sign_pub", .blob(keys.signer.publicKey))
                 try store.setMe("enc_pub", .blob(keys.decryptor.publicKey))
                 try store.setMe("removed", .int(0))
-                try store.setMe("paused", .int(0))
+                try store.setMe("logged_out", .int(0))
                 try store.setMe("request_token", .null)
                 if let p = push { try store.setMe("last_push_sha256", .text(Ids.pushSha256(p))) }
                 try store.setMe("last_fetch_at", .int(now))
@@ -87,7 +87,7 @@ extension Core {
     /// PATCHed hash; also PATCH when push_missing is set, and on Refresh when my_push_sha256
     /// differs.
     public func reconcilePush(_ current: PushInfo?, refresh: Bool = false) async {
-        guard let cur = current, let me = try? store.me(), me.id != nil, !me.removed, !me.paused else { return }
+        guard let cur = current, let me = try? store.me(), me.id != nil, !me.removed, !me.loggedOut else { return }
         let h = Ids.pushSha256(cur)
         var need = me.lastPushSha256 != h || me.pushMissing
         if refresh, let server = try? store.setting("my_push_sha256"), server != h { need = true }
@@ -95,25 +95,51 @@ extension Core {
         if need { _ = await patchPush(cur) }
     }
 
-    /// Sign out = pause this peer, with a pause message for every allowed peer.
-    public func pause() async throws -> APIOutcome {
+    /// Log out = mark this peer logged out, with a logout message for every allowed peer.
+    public func logout() async throws -> APIOutcome {
         let me = try myId()
-        let out = try await signedWithMessages("POST", "/v1/peers/" + me.text + "/pause") {
-            JOut.obj([("m", JOut.messages(try allowMessages { _, _ in .pause }))]).data
+        let out = try await signedWithMessages("POST", "/v1/peers/" + me.text + "/logout") {
+            JOut.obj([("m", JOut.messages(try allowMessages { _, _ in .logout }))]).data
         }
-        if out.reply?.ok == true { try store.setMe("paused", .int(1)) }
+        if out.reply?.ok == true { try store.setMe("logged_out", .int(1)) }
         return out
     }
 
-    /// Sign in again after a sign out: a fresh "unpause" ticket, unpause messages, then one
+    /// Log out tap (Q368): logged out here at once, with the relay server call kept as
+    /// pending so it is sent now and again on later app opens until it goes through.
+    public func logoutLocal() throws {
+        try store.db.write {
+            try store.setMe("logged_out", .int(1))
+            try store.setSetting(Core.logoutPendingKey, "1")
+        }
+    }
+
+    static let logoutPendingKey = "logout_pending"
+
+    public var logoutPending: Bool { (try? store.setting(Core.logoutPendingKey)) != nil }
+
+    /// Sends a pending logout. It stays pending on no reply, 429, 5xx, or clock skew; it is dropped once
+    /// the relay server answered otherwise, or when this device was removed or logged in again.
+    public func retryPendingLogout() async {
+        guard logoutPending else { return }
+        guard let me = try? store.me(), me.id != nil, !me.removed, me.loggedOut else {
+            try? store.setSetting(Core.logoutPendingKey, nil)
+            return
+        }
+        guard let out = try? await logout(), let r = out.reply, r.status != 429, r.status < 500, !out.isClockSkew else { return }
+        try? store.setSetting(Core.logoutPendingKey, nil)
+    }
+
+    /// Log in again after a logout: a fresh "login" ticket, login messages, then one
     /// GET /peers and the push reconcile.
-    public func unpause(ticket: String, push: PushInfo?) async throws -> APIOutcome {
+    public func login(ticket: String, push: PushInfo?) async throws -> APIOutcome {
         let me = try myId()
-        let out = try await signedWithMessages("POST", "/v1/peers/" + me.text + "/unpause") {
-            JOut.obj([("ticket", .str(ticket)), ("m", JOut.messages(try allowMessages { _, _ in .unpause }))]).data
+        let out = try await signedWithMessages("POST", "/v1/peers/" + me.text + "/login") {
+            JOut.obj([("ticket", .str(ticket)), ("m", JOut.messages(try allowMessages { _, _ in .login }))]).data
         }
         if out.reply?.ok == true {
-            try store.setMe("paused", .int(0))
+            try store.setMe("logged_out", .int(0))
+            try store.setSetting(Core.logoutPendingKey, nil)
             await fetchPeers(force: true)
             await resendWaitingApproves()
             await reconcilePush(push)

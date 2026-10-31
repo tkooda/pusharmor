@@ -1,0 +1,22 @@
+PushArmor sends links and text between a user's own devices.
+
+LOG IN
+1. Tap "Continue with Google" and use the demo account above.
+   ("Continue with Apple" with your own Apple ID also works.)
+2. Allow notifications.
+
+PAIR A SECOND DEVICE
+3. On a computer, install the PushArmor extension and log in with the same account.
+   Chrome: sign in to Chrome with the demo account, then open
+   https://chromewebstore.google.com/detail/bbchgkmnbljneepmgddcbdkgnjinkjim
+   Firefox (no browser sign-in needed): open
+   https://github.com/tkooda/pusharmor/releases/download/firefox/v0.0.15/pusharmor-firefox-beta-0.0.15.xpi
+4. Tap Pair on both screens. Check that both show the same 4-character code.
+
+SEND
+5. Share any link or text (Share > PushArmor). It appears on the other device.
+6. Send from the computer too. It appears on the phone.
+
+NOTES
+- Content is end-to-end encrypted. The app uses only standard encryption (export compliance set).
+- Delete account: Settings > Delete account.

@@ -1,13 +1,13 @@
 import Foundation
 
 /// Sign-in calls (catalog Auth, unsigned) and the client-side helpers.
-public enum AuthPurpose: String, Sendable { case register, unpause, deleteAccount = "delete-account" }
+public enum AuthPurpose: String, Sendable { case register, login, deleteAccount = "delete-account" }
 
 public enum AuthResult: Sendable, Equatable {
     case ticket(ticket: String, email: String)
     case requestToken(String)
     case badEmail            // "Only email addresses with plain ASCII characters are supported."
-    case emailSendFailed     // 502: "could not send the email, try again"
+    case emailSendFailed     // 502: "Could not send the email. Try again."
     case rateLimited(Int)
     case failed(Int, String?)
     case network

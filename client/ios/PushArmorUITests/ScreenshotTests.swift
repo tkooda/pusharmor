@@ -24,25 +24,24 @@ final class ScreenshotTests: XCTestCase {
     }
 
     private func peersTab(_ app: XCUIApplication) {
-        let tab = app.tabBars.buttons["Peers"]
+        let tab = app.tabBars.buttons["Devices"]
         XCTAssertTrue(tab.waitForExistence(timeout: 30))
         tab.tap()
     }
 
     func testCaptureStoreScreenshots() {
         var app = launch()
-        XCTAssertTrue(app.staticTexts["Meeting moved to 3 pm, room B"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Send to \"Laptop\""].waitForExistence(timeout: 30))
         sleep(1)
         shot("03-send")
         peersTab(app)
-        XCTAssertTrue(app.staticTexts["Work desktop"].waitForExistence(timeout: 10))
+        XCTAssertTrue(labelled(app, "Work desktop").waitForExistence(timeout: 10))
         sleep(1)
         shot("01-peers")
         app.terminate()
 
-        app = launch(["-PAScreenshotsPairing"])
-        peersTab(app)
-        XCTAssertTrue(app.staticTexts["New laptop"].waitForExistence(timeout: 10))
+        app = launch(["-PAScreenshotsPairing"])   // the first-pair screen (Q338)
+        XCTAssertTrue(labelled(app, "Pair with new device: \"New laptop\"").waitForExistence(timeout: 10))
         sleep(1)
         shot("04-pairing")
         app.terminate()
@@ -57,7 +56,7 @@ final class ScreenshotTests: XCTestCase {
             let allow = springboard.alerts.buttons["Allow"]
             if attempt == 1, allow.waitForExistence(timeout: 15) { allow.tap() }
             if onScreen(banner, timeout: 20) {
-                usleep(500_000) // the slide-in animation
+                settle(banner)
                 let a = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
                 if banner.exists && banner.isHittable {
                     a.name = "02-notification"
@@ -69,6 +68,63 @@ final class ScreenshotTests: XCTestCase {
             app.terminate()
         }
         XCTFail("the sample notification banner was not on screen in 3 attempts")
+    }
+
+    /// Review images (not store shots): the sign-in screen, Settings, and the first-pair screen.
+    func testCaptureReviewScreenshots() {
+        var app = launch(["-PAScreenshotsSignIn"])
+        XCTAssertTrue(labelled(app, "Continue with Google").waitForExistence(timeout: 30))
+        sleep(1)
+        shot("90-signin")
+        app.terminate()
+
+        app = launch()
+        let tab = app.tabBars.buttons["Settings"]
+        XCTAssertTrue(tab.waitForExistence(timeout: 30))
+        tab.tap()
+        let signOut = app.buttons["Log out"]
+        // the list is lazy: the button exists only once scrolled near
+        for _ in 0..<10 where !(signOut.exists && signOut.isHittable) { app.swipeUp() }
+        XCTAssertTrue(signOut.isHittable)
+        sleep(1)
+        shot("91-settings")
+        app.terminate()
+
+        // Q338 first-pair screen, light and dark (-appearance sets the stored theme)
+        for (name, theme) in [("93-firstpair-light", "light"), ("94-firstpair-dark", "dark")] {
+            app = launch(["-PAScreenshotsEmpty", "-appearance", theme])
+            XCTAssertTrue(app.navigationBars["Pair your first device"].waitForExistence(timeout: 30))
+            sleep(1)
+            shot(name)
+            app.terminate()
+        }
+        for (name, theme) in [("95-firstpair-waiting-light", "light"), ("96-firstpair-waiting-dark", "dark")] {
+            app = launch(["-PAScreenshotsPairing", "-appearance", theme])
+            XCTAssertTrue(labelled(app, "Pair with new device: \"New laptop\"").waitForExistence(timeout: 30))
+            sleep(1)
+            shot(name)
+            app.terminate()
+        }
+    }
+
+    /// Any element whose label contains the text (a peer row reads as one combined element).
+    private func labelled(_ app: XCUIApplication, _ text: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+    }
+
+    /// Waits out the slide-in: the frame must hold still for three polls in a row, then a
+    /// one-second pause lets the blur and the icon finish fading in.
+    private func settle(_ e: XCUIElement) {
+        var last = CGRect.null
+        var still = 0
+        let end = Date().addingTimeInterval(3)
+        while still < 3 && Date() < end && e.exists {
+            let f = e.frame
+            still = f == last ? still + 1 : 0
+            last = f
+            usleep(100_000)
+        }
+        usleep(1_000_000)
     }
 
     private func onScreen(_ e: XCUIElement, timeout: TimeInterval) -> Bool {

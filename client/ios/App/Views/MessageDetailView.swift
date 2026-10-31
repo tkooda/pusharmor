@@ -16,15 +16,17 @@ struct MessageDetailView: View {
                     Text(row.content)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    if row.type == "url" {
+                        Button("Open") { model.open(row) }
+                            .buttonStyle(GreenButtonStyle())
+                    }
+                    if row.type == "tel" {
+                        Button("Call") {
+                            if let u = URL(string: "tel:" + digits) { UIApplication.shared.open(u) }
+                        }
+                        .buttonStyle(GreenButtonStyle())
+                    }
                     HStack(spacing: 12) {
-                        if row.type == "url" {
-                            Button("Open") { model.open(row) }
-                        }
-                        if row.type == "tel" {
-                            Button("Call") {
-                                if let u = URL(string: "tel:" + digits) { UIApplication.shared.open(u) }
-                            }
-                        }
                         Button("Copy") { UIPasteboard.general.string = row.content }
                         ShareLink(item: row.content) {
                             Text("Share")

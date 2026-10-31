@@ -21,6 +21,8 @@ final class InboxTests: XCTestCase {
         XCTAssertEqual(h.filter { $0.type == "text" && !$0.read }.map { $0.content }.sorted(), ["one", "two"])
         XCTAssertEqual(h.filter { $0.event == .couldNotRead }.count, 1)
         XCTAssertEqual(S.receivedWhileLocked(got), "2 messages received while locked")
+        XCTAssertEqual(S.receivedWhileLocked(1), "1 message received while locked")
+        XCTAssertEqual(S.sentTo(2, 3), "Sent to 2 of 3 devices")
         // cap: 100 files, the oldest goes first
         for i in 0 ..< 105 { try inbox.write("m\(i)", nowMs: 1761300000000 + Int64(i)) }
         let files = inbox.files()
@@ -45,8 +47,10 @@ final class InboxTests: XCTestCase {
 
     func testPeerLabel() {
         XCTAssertEqual(PeerLabel.unnamed(platform: "android", created: 1759449600, timeZone: TimeZone(identifier: "UTC")!),
-                       "Android peer added Oct 3")
-        XCTAssertEqual(PeerLabel.platformName("iphone"), "iPhone")
+                       "Android device added Oct 3")
+        XCTAssertEqual(PeerLabel.platformName("ios"), "iPhone")
+        XCTAssertEqual(PeerLabel.platformName("cli"), "Command line")
+        XCTAssertEqual(PeerLabel.unnamed(platform: "cli", created: nil), "Command line device")
     }
 }
 
@@ -139,6 +143,9 @@ final class NSEFlowTests: XCTestCase {
         let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-nse-\(UUID().uuidString)"))
         let key = try TapStamp.key(x.core.store)
         let other = try DB(path: x.path)
+        // I516: closing this second connection while x.core still runs can unlink the WAL
+        // files under x.core on the simulator (SQLITE_IOERR); keep it open to the end.
+        defer { withExtendedLifetime(other) {} }
         try other.exec("BEGIN IMMEDIATE")
         let r = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 1, budgetLeft: { 30 })
         try other.exec("ROLLBACK")
@@ -175,6 +182,9 @@ final class NSEFlowTests: XCTestCase {
         _ = try await n.core.send("kept", as: .text, to: [x.id], allCount: 1)
         let m = try XCTUnwrap(w.take(x.id).first)
         let other = try DB(path: x.path)
+        // I516: closing this second connection while x.core still runs can unlink the WAL
+        // files under x.core on the simulator (SQLITE_IOERR); keep it open to the end.
+        defer { withExtendedLifetime(other) {} }
         try other.exec("BEGIN IMMEDIATE")
         kept = []
         _ = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 2,
@@ -219,6 +229,9 @@ final class NSEFlowTests: XCTestCase {
         let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-nse-\(UUID().uuidString)"))
         let key = try TapStamp.key(x.core.store)
         let other = try DB(path: x.path)
+        // I516: closing this second connection while x.core still runs can unlink the WAL
+        // files under x.core on the simulator (SQLITE_IOERR); keep it open to the end.
+        defer { withExtendedLifetime(other) {} }
         try other.exec("ALTER TABLE me RENAME TO me_off")
         let r = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 1, budgetLeft: { 30 })
         try other.exec("ALTER TABLE me_off RENAME TO me")
@@ -241,6 +254,9 @@ final class NSEFlowTests: XCTestCase {
         let key = try TapStamp.key(x.core.store)
         let m = "not-a-message!"
         let other = try DB(path: x.path)
+        // I516: closing this second connection while x.core still runs can unlink the WAL
+        // files under x.core on the simulator (SQLITE_IOERR); keep it open to the end.
+        defer { withExtendedLifetime(other) {} }
         try other.exec("BEGIN IMMEDIATE")
         let r = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 1, budgetLeft: { 30 })
         try other.exec("ROLLBACK")
@@ -261,6 +277,9 @@ final class NSEFlowTests: XCTestCase {
         let m = try XCTUnwrap(w.take(x.id).first)
         let info: [AnyHashable: Any] = ["m": m, "tap": "history"]
         let other = try DB(path: x.path)
+        // I516: closing this second connection while x.core still runs can unlink the WAL
+        // files under x.core on the simulator (SQLITE_IOERR); keep it open to the end.
+        defer { withExtendedLifetime(other) {} }
         try other.exec("ALTER TABLE me RENAME TO me_off")
         var drained = await x.core.drainDelivered([info])
         try other.exec("ALTER TABLE me_off RENAME TO me")
@@ -285,6 +304,9 @@ final class NSEFlowTests: XCTestCase {
                                      nowMs: 1, budgetLeft: { 30 })
         let info = try XCTUnwrap(r.banner).userInfo(m: m, key: key, handled: r.handled)
         let other = try DB(path: x.path)
+        // I516: closing this second connection while x.core still runs can unlink the WAL
+        // files under x.core on the simulator (SQLITE_IOERR); keep it open to the end.
+        defer { withExtendedLifetime(other) {} }
         try other.exec("ALTER TABLE me RENAME TO me_off")
         var locked = await x.core.drainLockedInbox(inbox)
         try other.exec("ALTER TABLE me_off RENAME TO me")
@@ -314,6 +336,9 @@ final class NSEFlowTests: XCTestCase {
         let m = try XCTUnwrap(w.take(x.id).first)
         let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-nse-\(UUID().uuidString)"))
         let other = try DB(path: x.path)
+        // I516: closing this second connection while x.core still runs can unlink the WAL
+        // files under x.core on the simulator (SQLITE_IOERR); keep it open to the end.
+        defer { withExtendedLifetime(other) {} }
         try other.exec("ALTER TABLE me RENAME TO me_off")
         let r = await x.core.receiveTapped(m, inbox: inbox)
         try other.exec("ALTER TABLE me_off RENAME TO me")
@@ -335,6 +360,9 @@ final class NSEFlowTests: XCTestCase {
         let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-nse-\(UUID().uuidString)"))
         let m = String(repeating: "A", count: 120)   // strict b64url that does not open: a final drop
         let other = try DB(path: x.path)
+        // I516: closing this second connection while x.core still runs can unlink the WAL
+        // files under x.core on the simulator (SQLITE_IOERR); keep it open to the end.
+        defer { withExtendedLifetime(other) {} }
         try other.exec("BEGIN IMMEDIATE")
         let r = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 1, budgetLeft: { 30 })
         try other.exec("ROLLBACK")
@@ -357,6 +385,9 @@ final class NSEFlowTests: XCTestCase {
         let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-nse-\(UUID().uuidString)"))
         let m = String(repeating: "A", count: 120)   // strict b64url that does not open: a final drop
         let other = try DB(path: x.path)
+        // I516: closing this second connection while x.core still runs can unlink the WAL
+        // files under x.core on the simulator (SQLITE_IOERR); keep it open to the end.
+        defer { withExtendedLifetime(other) {} }
         try other.exec("BEGIN IMMEDIATE")
         let r = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 1, budgetLeft: { 30 })
         let t = await x.core.receiveTapped(m, inbox: inbox)
@@ -384,6 +415,9 @@ final class NSEFlowTests: XCTestCase {
         let ms = w.take(x.id)
         let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-nse-\(UUID().uuidString)"))
         let other = try DB(path: x.path)
+        // I516: closing this second connection while x.core still runs can unlink the WAL
+        // files under x.core on the simulator (SQLITE_IOERR); keep it open to the end.
+        defer { withExtendedLifetime(other) {} }
         try other.exec("ALTER TABLE me RENAME TO me_off")
         let r = await NSEFlow.handle(m: ms[0], loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 1, budgetLeft: { 30 })
         try other.exec("ALTER TABLE me_off RENAME TO me")
@@ -408,6 +442,9 @@ final class NSEFlowTests: XCTestCase {
         let m = String(repeating: "A", count: 120)   // strict b64url that does not open: a final drop
         try inbox.write(m, nowMs: 1)
         let other = try DB(path: x.path)
+        // I516: closing this second connection while x.core still runs can unlink the WAL
+        // files under x.core on the simulator (SQLITE_IOERR); keep it open to the end.
+        defer { withExtendedLifetime(other) {} }
         try other.exec("BEGIN IMMEDIATE")
         let core = x.core
         async let locked = core.drainLockedInbox(inbox)

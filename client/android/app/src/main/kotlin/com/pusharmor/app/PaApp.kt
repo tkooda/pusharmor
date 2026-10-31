@@ -15,7 +15,7 @@ import com.pusharmor.protocol.engine.AllowReconcile
 import com.pusharmor.protocol.engine.ApproveFlow
 import com.pusharmor.protocol.engine.Identity
 import com.pusharmor.protocol.engine.PairingEngine
-import com.pusharmor.protocol.engine.PauseFlow
+import com.pusharmor.protocol.engine.LogoutFlow
 import com.pusharmor.protocol.engine.PeersSync
 import com.pusharmor.protocol.engine.ReceiveEngine
 import com.pusharmor.protocol.engine.SendFlow
@@ -24,7 +24,7 @@ import com.pusharmor.store.RoomLocalStore
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.security.SecureRandom
 
-class PaApp : Application() {
+open class PaApp : Application() {
     lateinit var graph: Graph
 
     override fun onCreate() {
@@ -47,18 +47,19 @@ class Graph(val app: PaApp) {
 
     @Volatile var keysOrNull: KeyOps? = try { KeystoreKeyOps.load() } catch (e: Exception) { null }
 
-    /** Worker clock offset, persisted in the self row. */
+    /** Worker clock offset in seconds, persisted in the self row. */
     val offset = object : ClockOffset {
-        override var offsetMs: Long
+        override var offsetS: Long
             get() = dao.self()?.clockOffset ?: 0
             set(v) { dao.self()?.let { dao.putSelf(it.copy(clockOffset = v)) } }
     }
 
     val client = WorkerClient({ keysOrNull ?: error("no keys") }, { dao.self()?.id }, offset, BuildConfig.API_BASE.toHttpUrl(),
         http = if (BuildConfig.SCREENSHOT_MODE) ScreenshotMode.guard(WorkerClient.defaultHttp()) else WorkerClient.defaultHttp(),
-        onAuthState = ::onAuthState)
+        onAuthState = ::onAuthState, paClient = "android/${BuildConfig.VERSION_NAME}",
+        onUpdateRequired = { settings.markUpdateRequired(BuildConfig.VERSION_NAME) })
 
-    /** 401 "unknown peer": this device was removed; 401 "paused": signed out. Applies to every signed call. */
+    /** 401 "unknown peer": this device was removed; 401 "logged out": signed out. Applies to every signed call. */
     private fun onAuthState(error: String) {
         if (error == "unknown peer") session.selfRemoved(deleted = false, lostKeys = false)
         else settings.set(Settings.K.SIGNED_OUT, true)
@@ -82,5 +83,5 @@ class Graph(val app: PaApp) {
     fun sender() = SendFlow(store, identity()!!, client, effects(true))
     fun sync() = PeersSync(store, identity()!!)
     fun reconcile() = AllowReconcile(store, client) { session.selfRemoved(deleted = false, lostKeys = false) }
-    fun pause() = PauseFlow(store, identity()!!, client, reconcile())
+    fun logoutFlow() = LogoutFlow(store, identity()!!, client, reconcile())
 }

@@ -5,6 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.pusharmor.app.data.Settings
 import com.pusharmor.app.keys.KeystoreKeyOps
 import com.pusharmor.store.SelfEntity
+import androidx.work.WorkManager
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -23,5 +24,21 @@ class FossFlavorRuleTest {
         g.session.onAppOpen(System.currentTimeMillis())
         assertNull(g.settings.get(Settings.K.PUSH_TOKEN))
         assertFalse(g.settings.get(Settings.K.PUSH_TYPE) == "fcm")
+        settle(g)
+    }
+
+    /**
+     * I515: onAppOpen queued push PATCH jobs for the fake self row; their 401 "unknown peer" from the
+     * relay server wipes the registration and the Keystore aliases. Wait (bounded) for that wipe here,
+     * so it cannot land inside a later test (KeystoreInstrumentedTest sign: PrivateKey null).
+     */
+    private fun settle(g: Graph) {
+        val end = System.currentTimeMillis() + 30_000
+        while (g.dao.self() != null && System.currentTimeMillis() < end) Thread.sleep(200)
+        Thread.sleep(2_000) // a replaced PATCH still on its way gets the same 401
+        WorkManager.getInstance(g.app).cancelAllWork().result.get()
+        g.store.wipeRegistration()
+        KeystoreKeyOps.deleteBoth()
+        g.keysOrNull = null
     }
 }

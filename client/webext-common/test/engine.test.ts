@@ -1,13 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { ApiError, errorText } from "../src/api/client.ts";
 import { b64urlDecode, b64urlEncode } from "../src/crypto/b64url.ts";
 import { pairingKey } from "../src/crypto/labels.ts";
 import { T } from "../src/core/texts.ts";
 import { UserError } from "../src/core/engine.ts";
+import { Rpc } from "../src/core/rpc.ts";
 import { allEntries, getAllowSet, getEntry } from "../src/core/state.ts";
 import { encodeInner } from "../src/model/message.ts";
 import { IDBFactory } from "fake-indexeddb";
 import { Clock, FakePlatform, MockWorker, deliver, device, makeEngine, pairAndApprove, refresh, restart } from "./harness.ts";
+import { AUTH_PENDING, Login } from "../src/core/login.ts";
+import { AUTH_CHANGED, AUTH_RESULT, type AuthResult, readAuthResult } from "../src/model/signin.ts";
 
 const DAY = 86400_000;
 
@@ -56,7 +60,11 @@ test("happy path: commit, automatic reply, open, same fingerprint, approve both,
   assert.equal((await a.db.peer(b.id))!.name, "Chrome");
   const r = await a.e.send("hello there", false, "all");
   assert.equal(r.sent, 1);
-  assert.equal(T.sentToNofM(r.sent, r.total), "Sent to 1 of 1 peers");
+  assert.equal(T.sentToNofM(r.sent, r.total), "Sent to 1 of 1 device");
+  // History names the one recipient (F22).
+  const out = (await new Rpc(a.e).history()).find((x) => x.dir === "out")!;
+  assert.deepEqual(out.targets, [b.id]);
+  assert.equal(T.sentToOne(out.sender), 'Sent to "Chrome"');
   await deliver(w, b);
   const h = (await b.db.history()).find((x) => x.type === "text")!;
   assert.equal(h.content, "hello there");
@@ -87,6 +95,7 @@ test("replay: duplicate re-presents, seen n without row is Invalid, control seen
   await b.e.receive(m1!, "bridge");
   assert.equal((await b.db.history()).length, before);
   // control type seen n: silent no-op
+  await assert.rejects(a.e.rename('Dad"s'), UserError);
   await a.e.rename("Laptop");
   const [rn] = w.take(b.id);
   await b.e.receive(rn!, "push");
@@ -197,6 +206,21 @@ test("clock skew: rebuild with a new n, then a second skew stops", async () => {
   void clock;
 });
 
+test("PA-Client on every relay server call; 426 shows the update text", async () => {
+  const { w, a, b } = await setup("firefox");
+  await pairAndApprove(w, a, b);
+  await a.e.send("hi", false, "all");
+  await b.e.send("hi", false, "all");
+  assert.ok(w.calls.length > 0);
+  for (const c of w.calls) assert.match(c.client ?? "", /^(chrome|firefox)\/0\.0\.19$/, c.method + " " + c.path);
+  assert.ok(w.calls.some((c) => c.client === "chrome/0.0.19"));
+  assert.ok(w.calls.some((c) => c.client === "firefox/0.0.19"));
+  w.inject.push({ match: /POST \/v1\/send/, status: 426, body: { error: "update required" }, times: 1 });
+  const r = await a.e.send("again", false, "all");
+  assert.equal(r.error, "Update PushArmor to continue.");
+  assert.equal(errorText(new ApiError(426, "update required", {}, null)), "Update PushArmor to continue.");
+});
+
 test("send: a URL whose normalized href exceeds the cap is refused before any counter or call", async () => {
   const { w, a, b } = await setup();
   await pairAndApprove(w, a, b);
@@ -207,14 +231,14 @@ test("send: a URL whose normalized href exceeds the cap is refused before any co
   assert.equal(w.calls.filter((c) => c.path === "/v1/send").length, 0);
 });
 
-test("a 401 paused from any signed call sets reg to paused", async () => {
+test("a 401 logged out from any signed call sets reg to logged_out", async () => {
   const { w, a, b } = await setup();
   await pairAndApprove(w, a, b);
   assert.equal(await a.e.regState(), "registered");
-  w.rows.get(a.id)!.paused = true; // the Worker applied a pause whose reply was lost
+  w.rows.get(a.id)!.logged_out = true; // the Worker applied a logout whose reply was lost
   const r = await a.e.send("hi", false, "all");
   assert.equal(r.sent, 0);
-  assert.equal(await a.e.regState(), "paused");
+  assert.equal(await a.e.regState(), "logged_out");
 });
 
 test("pairing state survives restarts, valid at day 13, expires at day 14", async () => {
@@ -259,7 +283,7 @@ test("two pairings open at once have their own fingerprint and countdown", async
   assert.equal((await allEntries(a.p.storageLocal)).size, 2);
 });
 
-test("allow reconcile: orphan withdrawn across 429 and restart, pinned id never withdrawn, works while paused", async () => {
+test("allow reconcile: orphan withdrawn across 429 and restart, pinned id never withdrawn, works while logged_out", async () => {
   const { w, a, b, clock } = await setup();
   await pairAndApprove(w, a, b);
   const c = await device(w, clock);
@@ -272,28 +296,28 @@ test("allow reconcile: orphan withdrawn across 429 and restart, pinned id never 
   assert.deepEqual(await getAllowSet(a2.p.storageLocal), [b.id]);
   const wd = w.calls.filter((x) => x.path.startsWith("/v1/deny/"));
   assert.ok(wd.every((x) => x.path === "/v1/deny/" + c.id && (x.body as { withdraw: number }).withdraw === 1));
-  // while paused the withdraw passes the gate
-  await a2.e.pause();
+  // while logged_out the withdraw passes the gate
+  await a2.e.logout();
   await a2.p.storageLocal.set({ allow: [b.id, c.id] });
   await a2.e.reconcileAllow();
   assert.deepEqual(await getAllowSet(a2.p.storageLocal), [b.id]);
 });
 
-test("400 messages missing: withdraw the orphan, then one retry of pause succeeds", async () => {
+test("400 messages missing: withdraw the orphan, then one retry of logout succeeds", async () => {
   const { w, a, b, clock } = await setup();
   await pairAndApprove(w, a, b);
   const c = await device(w, clock);
   // stale Worker allow entry for c (a lost approve reply after Cancel pairing)
   w.rows.get(a.id)!.allow.add(c.id);
   await a.p.storageLocal.set({ allow: [b.id] });
-  await a.e.pause();
-  assert.equal(w.rows.get(a.id)!.paused, true);
+  await a.e.logout();
+  assert.equal(w.rows.get(a.id)!.logged_out, true);
   assert.ok(!w.rows.get(a.id)!.allow.has(c.id));
-  const pauses = w.calls.filter((x) => x.path.endsWith("/pause"));
-  assert.equal(pauses.length, 2);
+  const logouts = w.calls.filter((x) => x.path.endsWith("/logout"));
+  assert.equal(logouts.length, 2);
 });
 
-test("stale allow id plus a new open N entry is withdrawn and pause succeeds", async () => {
+test("stale allow id plus a new open N entry is withdrawn and logout succeeds", async () => {
   const { w, a, b, clock } = await setup();
   await pairAndApprove(w, a, b);
   const c = await device(w, clock);
@@ -302,8 +326,8 @@ test("stale allow id plus a new open N entry is withdrawn and pause succeeds", a
   w.rows.get(a.id)!.allow.add(c.id);
   await a.e.fetchPeersNow(); // my_allow has c -> reconcile withdraws it
   assert.ok(!w.rows.get(a.id)!.allow.has(c.id));
-  await a.e.pause();
-  assert.equal(w.rows.get(a.id)!.paused, true);
+  await a.e.logout();
+  assert.equal(w.rows.get(a.id)!.logged_out, true);
   assert.ok(await getEntry(a.p.storageLocal, c.id));
 });
 
@@ -384,13 +408,75 @@ test("commit from a fully paired peer: plain drop (Chrome silent); half state sh
   a.p.notes.clear();
   await deliver(w, a);
   const pk = await pairingKey(b64urlDecode(b.id), b64urlDecode(a.id));
-  assert.match(a.p.notes.get("p:" + pk)!.body, /wants to pair again\. Tap Cancel pairing on its row, then pair\.$/);
+  assert.match(a.p.notes.get("p:" + pk)!.body, /wants to pair again\. Click Pair again on its row\.$/);
   assert.equal(await getEntry(a.p.storageLocal, b.id), null); // no entry
   assert.ok((await a.db.peer(b.id))!.pinned); // pin unchanged
   // Cancel pairing on a, then a fresh pairing works
   await a.e.cancelPairing(b.id);
   await b.e.pairSendAgain(a.id); // too early (60 s)
   assert.equal(w.queue.length, 0);
+});
+
+test("Pair again on the half-state row: old entry, pin and pairing id dropped, fresh pairing completes", async () => {
+  const { clock, w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  await b.e.cancelPairing(a.id);
+  await a.e.fetchPeersNow();
+  await b.e.pairStart(a.id);
+  await deliver(w, a); // half notice on a
+  const row = (await new Rpc(a.e).peers()).peers.find((v) => v.id === b.id)!;
+  assert.deepEqual(row.actions.slice(0, 2), ["pair_again", "cancel"]);
+  const oldPid = (await a.db.peer(b.id))!.pairing_id;
+  assert.ok(oldPid);
+  await a.e.pairAgain(b.id);
+  const pa = (await a.db.peer(b.id))!;
+  assert.equal(pa.pinned, false);
+  assert.equal(pa.pairing_id, null);
+  assert.equal(pa.last_n, 0);
+  assert.ok(!w.rows.get(a.id)!.allow.has(b.id)); // the cancel's reconcile landed first
+  const e = (await getEntry(a.p.storageLocal, b.id))!;
+  assert.equal(e.role, "N");
+  assert.equal(e.state, "committed");
+  assert.ok(w.calls.some((c) => c.path === "/v1/pair/" + b.id && c.method === "POST"));
+  // crossing commits: the higher id replies to a resent commit (Send again, as today), then the new pairing completes
+  clock.t += 61_000;
+  await a.e.pairSendAgain(b.id);
+  await b.e.pairSendAgain(a.id);
+  for (let i = 0; i < 4; i++) {
+    await deliver(w, b);
+    await deliver(w, a);
+  }
+  const fa = (await a.e.pairRowView(b.id))?.fingerprint;
+  const fb = (await b.e.pairRowView(a.id))?.fingerprint;
+  assert.ok(fa && fa === fb);
+  await a.e.approve(b.id);
+  await b.e.approve(a.id);
+  await deliver(w, a);
+  await deliver(w, b);
+  assert.ok((await a.db.peer(b.id))!.approves_me);
+  assert.ok((await b.db.peer(a.id))!.approves_me);
+  assert.notEqual((await a.db.peer(b.id))!.pairing_id, oldPid);
+});
+
+test("half notice during an open pairing: the row offers Pair again", async () => {
+  const { w, a, b } = await setup();
+  await refresh(a, b);
+  await a.e.pairStart(b.id);
+  await deliver(w, b);
+  await deliver(w, a);
+  await deliver(w, b); // both shown and pinned
+  await a.e.approve(b.id); // a Waiting
+  assert.deepEqual((await a.e.pairRowView(b.id))!.actions.slice(0, 1), ["cancel"]);
+  await b.e.cancelPairing(a.id);
+  await b.e.pairStart(a.id);
+  a.p.notes.clear();
+  await deliver(w, a);
+  assert.ok([...a.p.notes.values()].some((n) => /wants to pair again\. Click Pair again on its row\.$/.test(n.body)));
+  assert.deepEqual((await a.e.pairRowView(b.id))!.actions.slice(0, 2), ["pair_again", "cancel"]);
+});
+
+test("half notice text names the device and the Pair again button", () => {
+  assert.equal(T.pairHalf("Phone"), "Phone wants to pair again. Click Pair again on its row.");
 });
 
 test("commit from a pinned and fully approved peer is a plain drop", async () => {
@@ -538,14 +624,14 @@ test("Firefox deny notice reads denied this device; wipe leaves no pair keys", a
   await b.e.approve(a.id); // b approved a: a's deny is relayed
   await a.e.deny(b.id);
   await deliver(w, b);
-  assert.ok([...b.p.notes.values()].some((n) => n.body === "A peer denied this device"));
+  assert.ok([...b.p.notes.values()].some((n) => n.body === "A device denied this device"));
   await a.e.pairStart(b.id).catch(() => undefined);
   await a.e.wipe();
   assert.ok(Object.keys(a.p.storageLocal.data).every((k) => !k.startsWith("pair")));
   assert.equal(a.p.storageLocal.data.registered, undefined);
 });
 
-test("timeout while paused keeps Waiting; the re-fetch after unpause completes the pairing", async () => {
+test("timeout while logged_out keeps Waiting; the re-fetch after login completes the pairing", async () => {
   const { w, a, b, clock } = await setup();
   await refresh(a, b);
   await a.e.pairStart(b.id);
@@ -555,12 +641,12 @@ test("timeout while paused keeps Waiting; the re-fetch after unpause completes t
   await a.e.approve(b.id); // stored
   await b.e.approve(a.id); // relayed push to a lost
   w.take(a.id);
-  await a.e.pause();
+  await a.e.logout();
   clock.t += 15 * DAY;
   await a.e.sweep();
   assert.ok(await getEntry(a.p.storageLocal, b.id)); // Waiting stays
   assert.ok((await a.db.peer(b.id))!.pinned);
-  await a.e.unpause("T");
+  await a.e.login("T");
   assert.ok((await a.db.peer(b.id))!.approves_me);
 });
 
@@ -573,6 +659,17 @@ test("a just-completed pairing with an older GET showing approves_me false stays
   assert.equal((await a.e.allSet()).length, 1);
 });
 
+test("peer view approvesMe follows the peer's approve of this device", async () => {
+  const { w, a, b } = await setup();
+  await refresh(a, b);
+  const before = (await new Rpc(a.e).peers()).peers.find((v) => v.id === b.id)!;
+  assert.equal(before.approvesMe, false);
+  await pairAndApprove(w, a, b);
+  const after = (await new Rpc(a.e).peers()).peers.find((v) => v.id === b.id)!;
+  assert.equal(after.approvesMe, true);
+  assert.equal(after.sendable, true);
+});
+
 test("N-side hint: approves_me true while committed reads still holds an earlier pairing", async () => {
   const { w, a, b, clock } = await setup();
   await refresh(a, b);
@@ -581,10 +678,10 @@ test("N-side hint: approves_me true while committed reads still holds an earlier
   await a.db.putPeer({ ...(await a.db.peer(b.id))!, approves_me: true });
   clock.t += 3 * DAY;
   const v = (await a.e.pairRowView(b.id))!;
-  assert.ok(v.lines.includes(T.stillHolds("A peer")));
+  assert.ok(v.lines.includes(T.stillHolds("A device")));
   await a.db.putPeer({ ...(await a.db.peer(b.id))!, approves_me: false });
-  assert.ok((await a.e.pairRowView(b.id))!.lines.includes(T.noReplyYet("A peer")));
-  assert.equal((await a.e.pairRowView(b.id))!.lines[0], "Pairing with A peer");
+  assert.ok((await a.e.pairRowView(b.id))!.lines.includes(T.noReplyYet("A device")));
+  assert.equal((await a.e.pairRowView(b.id))!.lines[0], "Pairing with A device");
 });
 
 test("clock skew on POST /approve: a new n and new bytes in the retry", async () => {
@@ -683,7 +780,7 @@ test("register rejects an assigned id whose keyhash is not ours", async () => {
   const { clock, w, b } = await setup();
   const { e } = await makeEngine(new FakePlatform("chrome", w, clock), new IDBFactory(), clock);
   w.inject.push({ match: /POST \/v1\/peers$/, status: 200, body: { id: b.id, peers: [], my_allow: [] }, times: 1 });
-  await assert.rejects(e.register("T", "a@b.com"), /Bad reply from the server/);
+  await assert.rejects(e.register("T", "a@b.com"), /Bad reply from the relay server\./);
   assert.equal(await e.self(), null);
   assert.equal(await e.regState(), null);
 });
@@ -711,4 +808,255 @@ test("approve decided under the old pin is not recorded into a replay row a re-p
   const p = (await a.db.peer(b.id))!;
   assert.equal(p.approve_verified, false);
   assert.equal(p.approves_me, false);
+});
+
+test("Pair again twice at once: the second call is ignored, one pairing starts", async () => {
+  const { w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  await b.e.cancelPairing(a.id);
+  await a.e.fetchPeersNow();
+  await b.e.pairStart(a.id);
+  await deliver(w, a);
+  const posts = () => w.calls.filter((c) => c.path === "/v1/pair/" + b.id && c.method === "POST").length;
+  const before = posts();
+  const r = await Promise.allSettled([a.e.pairAgain(b.id), a.e.pairAgain(b.id)]);
+  assert.deepEqual(r.map((x) => x.status), ["fulfilled", "fulfilled"]);
+  assert.equal(posts() - before, 1);
+});
+
+test("cli peer: platform kept, listening parsed; send only is out of All and not sendable", async () => {
+  const { w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  w.rows.get(b.id)!.platform = "cli";
+  await refresh(a, b);
+  let p = (await a.db.peer(b.id))!;
+  assert.equal(p.platform, "cli");
+  assert.equal(p.listening, true);
+  assert.equal((await a.e.allSet()).length, 1);
+  w.rows.get(b.id)!.listening = false;
+  await refresh(a, b);
+  p = (await a.db.peer(b.id))!;
+  assert.equal(p.listening, false);
+  assert.equal((await a.e.allSet()).length, 0);
+  const v = (await new Rpc(a.e).peers()).peers.find((x) => x.id === b.id)!;
+  assert.equal(v.sendable, false);
+  assert.equal(v.greyed, "send only");
+  assert.equal((await a.e.send("hi", false, [b.id])).sent, 0); // not a target
+  w.rows.get(b.id)!.listening = true;
+  await refresh(a, b);
+  assert.equal((await a.e.allSet()).length, 1);
+});
+
+test("send result not listening shows Send only and marks the peer send only", async () => {
+  const { w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  w.inject.push({ match: /POST \/v1\/send/, status: 200, body: { r: { [b.id]: "not listening" } }, times: 1 });
+  const r = await a.e.send("hi", false, "all");
+  assert.equal(r.sent, 0);
+  assert.equal(r.failures[0]!.text, "Chrome: Send only. It does not receive messages.");
+  assert.equal((await a.db.peer(b.id))!.listening, false);
+  assert.equal((await a.e.allSet()).length, 0);
+});
+
+test("send failures read as sentences, never raw result words (I560)", async () => {
+  const want: Record<string, string> = {
+    gone: "Not delivered to Chrome: open PushArmor on it.",
+    "logged out": "Chrome: Logged out. Log in on it to receive messages.",
+    unapproved: "Chrome: Not paired. Pair with it to send messages.",
+    denied: "Chrome: It declined this device.",
+    unknown: "Chrome: It is no longer on this account.",
+    failed: "Chrome: Not delivered. Try again.",
+    "failed:net": "Chrome: Not delivered. Try again.",
+  };
+  for (const [word, text] of Object.entries(want)) {
+    const { w, a, b } = await setup();
+    await pairAndApprove(w, a, b);
+    w.inject.push({ match: /POST \/v1\/send/, status: 200, body: { r: { [b.id]: word } }, times: 1 });
+    const r = await a.e.send("hi", false, [b.id]);
+    assert.equal(r.failures[0]!.text, text, word);
+  }
+  const { w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  w.inject.push({ match: /POST \/v1\/send/, status: 500, body: { error: "internal" }, times: 1 });
+  const r = await a.e.send("hi", false, [b.id]);
+  assert.equal(r.error, "Something went wrong. Try again.");
+  assert.equal(r.failures[0]!.text, "Chrome: Something went wrong. Try again.");
+  assert.equal(errorText(new ApiError(0, "network", {}, null)), "Could not reach the relay server. Check your connection.");
+});
+
+test("Firefox Google login: authDone leaves the result for the login tab (done, device limit, error) (I456)", async () => {
+  const clock = new Clock();
+  const w = new MockWorker(clock);
+  const TICKET = "ticket=" + "t".repeat(20);
+  const run = async (inject?: { status: number; body: Record<string, unknown> }) => {
+    const p = new FakePlatform("firefox", w, clock);
+    const { e } = await makeEngine(p, new IDBFactory(), clock);
+    if (inject) w.inject.push({ match: /POST \/v1\/peers$/, ...inject, times: 1 });
+    await p.storageSession.set({ [AUTH_PENDING]: { tabId: 7, purpose: "register", until: clock.t + 60_000 } });
+    await new Login(e).authDone(7, TICKET).catch(() => undefined);
+    return readAuthResult((await p.storageSession.get([AUTH_RESULT]))[AUTH_RESULT], clock.t);
+  };
+  assert.equal((await run())?.done, true);
+  const limit = await run({ status: 409, body: { error: "peer limit", peers: [], ticket: "x".repeat(20) } });
+  assert.equal(limit?.done, false);
+  assert.deepEqual(limit?.limit?.peers, []);
+  const expired = await run({ status: 401, body: { error: "ticket expired" } });
+  assert.equal(expired?.error, "Login expired. Log in again.");
+  // another tab id: nothing is written
+  const p = new FakePlatform("firefox", w, clock);
+  const { e } = await makeEngine(p, new IDBFactory(), clock);
+  await p.storageSession.set({ [AUTH_PENDING]: { tabId: 7, purpose: "register", until: clock.t + 60_000 } });
+  await new Login(e).authDone(8, TICKET);
+  assert.equal((await p.storageSession.get([AUTH_RESULT]))[AUTH_RESULT], undefined);
+});
+
+test("Firefox Google login in the same tab: the login tab goes to the provider and comes back to #login with the result (Q337, I456)", async () => {
+  const clock = new Clock();
+  const w = new MockWorker(clock);
+  const TICKET = "ticket=" + "t".repeat(20);
+  const fresh = async () => {
+    const p = new FakePlatform("firefox", w, clock);
+    const { e } = await makeEngine(p, new IDBFactory(), clock);
+    return { p, login: new Login(e) };
+  };
+  const result = async (p: FakePlatform) => readAuthResult((await p.storageSession.get([AUTH_RESULT]))[AUTH_RESULT], clock.t);
+  // start: no new tab; the page gets the provider URL for its own tab
+  const a = await fresh();
+  const r = await a.login.oauthStart("google", "register", 42);
+  assert.match(r.url ?? "", /^https:\/\/api\.pusharmor\.com\/v1\/auth\/google\?/);
+  assert.deepEqual(a.p.opened, []);
+  // a Google session that completes at once: done arrives right away, the tab goes back to #login
+  await a.login.authDone(42, TICKET);
+  assert.equal((await result(a.p))?.done, true);
+  assert.deepEqual(a.p.shown, [{ tab: 42, hash: "#login" }]);
+  // device limit and error also come back to the same tab
+  for (const [inject, check] of [
+    [{ status: 409, body: { error: "peer limit", peers: [], ticket: "x".repeat(20) } }, (x: AuthResult | null) => assert.ok(x?.limit)],
+    [{ status: 401, body: { error: "ticket expired" } }, (x: AuthResult | null) => assert.equal(x?.error, "Login expired. Log in again.")],
+  ] as const) {
+    const b = await fresh();
+    await b.login.oauthStart("google", "register", 7);
+    w.inject.push({ match: /POST \/v1\/peers$/, ...inject, times: 1 });
+    await b.login.authDone(7, TICKET).catch(() => undefined);
+    check(await result(b.p));
+    assert.deepEqual(b.p.shown, [{ tab: 7, hash: "#login" }]);
+  }
+  // Back from Google, then Continue with Google again: the newer start still finishes in the same tab
+  const c = await fresh();
+  await c.login.oauthStart("google", "register", 9);
+  clock.t += 60_000;
+  await c.login.oauthStart("apple", "register", 9);
+  await c.login.authDone(9, TICKET);
+  assert.equal((await result(c.p))?.done, true);
+  // delete-account returns to its own route
+  const d = await fresh();
+  await d.login.oauthStart("google", "delete-account", 3);
+  await d.login.authDone(3, TICKET).catch(() => undefined);
+  assert.deepEqual(d.p.shown, [{ tab: 3, hash: "#login=delete-account" }]);
+});
+
+test("devices list: paired only after both sides approve; a listed device waits with Pair (Q338)", async () => {
+  const clock = new Clock();
+  const w = new MockWorker(clock);
+  const a = await device(w, clock);
+  const peers = async () => ((await new Rpc(a.e).handle({ op: "peers" })).data as { peers: { id: string; paired: boolean; actions: string[] }[] }).peers;
+  assert.deepEqual(await peers(), []); // zero devices: the first-device screen
+  const b = await device(w, clock, "firefox");
+  await refresh(a, b);
+  const waiting = (await peers()).find((p) => p.id === b.id)!;
+  assert.equal(waiting.paired, false);
+  assert.ok(waiting.actions.includes("pair"));
+  await pairAndApprove(w, a, b);
+  assert.equal((await peers()).find((p) => p.id === b.id)!.paired, true); // the screen switches to the tabs
+});
+
+test("every login state change bumps AUTH_CHANGED in storage.session; logout with no keys ends logged out (I465)", async () => {
+  const clock = new Clock();
+  const w = new MockWorker(clock);
+  const a = await device(w, clock);
+  const rev = async () => (await a.p.storageSession.get([AUTH_CHANGED]))[AUTH_CHANGED];
+  const r0 = await rev();
+  assert.notEqual(r0, undefined); // register
+  await a.e.logout();
+  const r1 = await rev();
+  assert.notEqual(r1, r0);
+  assert.equal(await a.e.regState(), "logged_out");
+  await a.e.login("T");
+  assert.notEqual(await rev(), r1);
+  // no keys on this device: logout still leaves no usable account and tells the views
+  const r2 = await rev();
+  await a.db.clear(["keys"]);
+  await a.e.logout();
+  assert.notEqual(await a.e.regState(), "registered");
+  assert.notEqual(await rev(), r2);
+});
+
+test("popup and full tab views mount again on AUTH_CHANGED (I465)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
+  assert.match(rd("popup.ts"), /session\?\.watch\(AUTH_CHANGED/);
+  assert.match(rd("page.ts"), /session\?\.watch\(AUTH_CHANGED/);
+});
+
+test("Log out is local at once; the relay server logout stays pending and is retried until it goes through (Q368)", async () => {
+  const { w, a, b, clock } = await setup();
+  await pairAndApprove(w, a, b);
+  const rpc = new Rpc(a.e);
+  w.inject.push({ match: /POST \/v1\/peers\/[^/]+\/logout$/, status: 500, body: { error: "internal" }, times: 2 });
+  const r = await rpc.handle({ op: "signout" });
+  assert.equal(r.ok, true);
+  assert.equal(await a.e.regState(), "logged_out"); // logged out here before any reply
+  await a.e.retryPendingLogout(); // the call that the click started
+  assert.equal(w.rows.get(a.id)!.logged_out, false);
+  assert.equal(await a.db.meta("logout_pending"), true);
+  // the next open sends it again; 500 once more keeps it pending
+  await rpc.handle({ op: "state" });
+  await a.e.retryPendingLogout();
+  assert.equal(await a.db.meta("logout_pending"), true);
+  // background start sends it and it goes through
+  const a2 = await restart(a, clock);
+  await a2.e.retryPendingLogout();
+  assert.equal(w.rows.get(a.id)!.logged_out, true);
+  assert.equal(await a2.db.meta("logout_pending"), undefined);
+  const n = w.calls.filter((x) => x.path.endsWith("/logout")).length;
+  await a2.e.retryPendingLogout();
+  assert.equal(w.calls.filter((x) => x.path.endsWith("/logout")).length, n); // nothing left to send
+});
+
+test("a pending logout is dropped on a 4xx answer and on log in again (Q368)", async () => {
+  const { w, a } = await setup();
+  w.inject.push({ match: /POST \/v1\/peers\/[^/]+\/logout$/, status: 400, body: { error: "bad request" }, times: 1 });
+  await a.e.logout();
+  assert.equal(await a.e.regState(), "logged_out");
+  assert.equal(await a.db.meta("logout_pending"), undefined);
+  w.inject.push({ match: /POST \/v1\/peers\/[^/]+\/logout$/, status: 503, body: { error: "busy" }, times: 9 });
+  await a.e.logoutLocal();
+  await a.e.retryPendingLogout();
+  assert.equal(await a.db.meta("logout_pending"), true);
+  w.inject = [];
+  w.rows.get(a.id)!.logged_out = true;
+  await a.e.login("T");
+  assert.equal(await a.e.regState(), "registered");
+  assert.equal(await a.db.meta("logout_pending"), undefined);
+});
+
+test("Chrome sign-in window closed: Sign-in was closed. Try again. (I496)", async () => {
+  const clock = new Clock();
+  const w = new MockWorker(clock);
+  const p = new FakePlatform("chrome", w, clock);
+  const { e } = await makeEngine(p, new IDBFactory(), clock);
+  p.authFlow = async () => {
+    throw new Error("The user did not approve access.");
+  };
+  const r = await new Rpc(e).handle({ op: "oauth", args: { provider: "apple", purpose: "register" } });
+  assert.deepEqual(r, { ok: false, error: "Sign-in was closed. Try again." });
+});
+
+test("error texts are sentences with periods; no raw error code (I474)", () => {
+  assert.equal(errorText(new ApiError(401, "clock skew twice", {}, null)), "This device's clock is off by more than 5 minutes.");
+  assert.equal(errorText(new ApiError(502, "", {}, null)), "Could not send the email. Try again.");
+  assert.equal(errorText(new ApiError(400, "push endpoint not allowed", {}, null)), "This browser's push service is not supported yet.");
+  assert.equal(errorText(new ApiError(429, "rate limited", {}, 30)), "Too many requests. Try again in 30 seconds.");
+  assert.equal(errorText(new ApiError(429, "rate limited", {}, 1)), "Too many requests. Try again in 1 second.");
+  assert.equal(errorText(new ApiError(418, "teapot", {}, null)), "Something went wrong. Try again.");
 });

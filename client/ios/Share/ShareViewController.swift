@@ -20,7 +20,7 @@ final class ShareViewController: UIViewController {
 
 @MainActor
 final class ShareModel: ObservableObject {
-    enum Step: Equatable { case loading, pick, offerTruncate, done(String), failed(String) }
+    enum Step: Equatable { case loading, pick, offerTruncate, done(String), failed(String), update }
 
     @Published var step: Step = .loading
     @Published var text = ""
@@ -29,13 +29,18 @@ final class ShareModel: ObservableObject {
     private(set) var type: SendType = .text
     private weak var context: NSExtensionContext?
     private var core: Core?
+    private var sending = false
 
     init(context: NSExtensionContext?) { self.context = context }
 
     func load() async {
         let env = AppEnvironment.shared
-        guard let store = try? env.openStore(), let keys = try? env.keychain.load(), (try? store.me().id) != nil else {
-            step = .failed("Open PushArmor and sign in first.")
+        // This version got HTTP 426 (Q349): the update message, never a send that fails.
+        if env.updateRequired { step = .update; return }
+        // Logged out keeps the id and keys: it must not offer a send that cannot go through (I470).
+        guard let store = try? env.openStore(), let keys = try? env.keychain.load(), let me = try? store.me(),
+              me.id != nil, !me.loggedOut, !me.removed else {
+            step = .failed("Open PushArmor and log in first.")
             return
         }
         core = env.makeCore(store: store, keys: keys)
@@ -62,21 +67,24 @@ final class ShareModel: ObservableObject {
         if all.count == 1 {
             await send(to: all.map { $0.id })
         } else if all.isEmpty {
-            step = .failed("No paired peers to send to.")
+            step = .failed("No paired devices to send to.")
         } else {
             step = .pick
         }
     }
 
     func send(to ids: [PeerId]) async {
-        guard let core = core else { return }
+        // One send per share (I473): a second tap while the first is on its way does nothing.
+        guard let core = core, !sending else { return }
+        sending = true
         do {
             let rep = try await core.send(text, as: type, to: ids, allCount: all.count)
             step = .done(rep.toast)
         } catch Core.SendError.clockOff {
             step = .done(S.clockOff)
         } catch {
-            step = .done("Not sent, try again")
+            if AppEnvironment.shared.updateRequired { step = .update; return }
+            step = .done("Not sent. Try again.")
         }
         try? await Task.sleep(nanoseconds: 1_500_000_000)
         close()
@@ -129,6 +137,12 @@ struct ShareView: View {
                     }
                 case .done(let msg), .failed(let msg):
                     Text(msg).padding()
+                case .update:
+                    VStack(spacing: 12) {
+                        Text(S.updateTitle).font(.headline)
+                        Text(S.updateBody).multilineTextAlignment(.center)
+                    }
+                    .padding()
                 }
             }
             .navigationTitle(S.title)

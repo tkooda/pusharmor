@@ -61,7 +61,7 @@ class RecEffects : Effects {
     override fun showContent(historyId: Long, peerId: String, content: com.pusharmor.protocol.ShownContent) { log.add("show:${content.value}") }
     override fun rePresent(historyId: Long) { log.add("represent:$historyId") }
     override fun approvedNotice(peerId: String, name: String?) { log.add("approved:$name") }
-    override fun pauseNotice(peerId: String, paused: Boolean) { log.add("pause:$paused") }
+    override fun logoutNotice(peerId: String, loggedOut: Boolean) { log.add("logout:$loggedOut") }
     override fun deniedNotice(peerId: String) { log.add("denied") }
     override fun selfRemoved(deleted: Boolean) { log.add("selfRemoved:$deleted") }
 }

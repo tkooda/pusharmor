@@ -9,8 +9,8 @@ final class MessageTests: XCTestCase {
         XCTAssertEqual(String(decoding: j.encode(), as: UTF8.self), "{\"n\":42,\"url\":\"https://example.com/a\"}")
         XCTAssertEqual(try InnerJSON.parse(j.encode()), j)
         let f = NameField(name: "UGhvbmU", n: 3, s: "abc")
-        for c: MessageContent in [.text("a\"b\n"), .tel("+1 555"), .approve(f), .rename(f), .deny, .delete, .pause,
-                                   .unpause, .remove("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwd")] {
+        for c: MessageContent in [.text("a\"b\n"), .tel("+1 555"), .approve(f), .rename(f), .deny, .delete, .logout,
+                                   .login, .remove("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwd")] {
             let x = InnerJSON(n: 3, content: c)
             XCTAssertEqual(try InnerJSON.parse(x.encode()), x)
         }
@@ -21,10 +21,11 @@ final class MessageTests: XCTestCase {
         let bad = [
             "{\"n\":1.0,\"url\":\"x\"}", "{\"n\":1e0,\"url\":\"x\"}", "{\"n\":0,\"url\":\"x\"}", "{\"n\":-1,\"url\":\"x\"}",
             "{\"n\":\"1\",\"url\":\"x\"}", "{\"n\":9007199254740992,\"url\":\"x\"}", "{\"n\":1,\"n\":2,\"url\":\"x\"}",
-            "{\"n\":1,\"url\":\"x\",\"url\":\"y\"}", "{\"n\":1}", "{\"n\":1,\"url\":\"x\",\"text\":\"y\"}",
-            "{\"n\":1,\"url\":\"x\",\"t\":5}", "{\"n\":1,\"foo\":\"x\"}", "{\"url\":\"x\"}", "{\"n\":1,\"url\":5}",
-            "{\"n\":1,\"deny\":2}", "{\"n\":1,\"deny\":true}", "{\"n\":1,\"pause\":1.0}",
-            "{\"n\":1,\"approve\":{\"name\":\"x\",\"n\":1}}", "{\"n\":1,\"approve\":{\"name\":\"x\",\"n\":1,\"s\":\"y\",\"z\":1}}",
+            "{\"n\":1,\"url\":\"x\",\"url\":\"y\"}", "{\"n\":1}", "{\"n\":1,\"foo\":\"x\"}", "{\"url\":\"x\"}",
+            "{\"n\":1,\"url\":5}", "{\"n\":1,\"url\":5,\"text\":\"y\"}", "{\"n\":0,\"url\":\"x\",\"z\":1}",
+            "{\"n\":1,\"deny\":2}", "{\"n\":1,\"deny\":true}", "{\"n\":1,\"logout\":1.0}",
+            "{\"n\":1,\"approve\":{\"name\":\"x\",\"n\":1}}", "{\"n\":1,\"approve\":{\"name\":\"x\",\"n\":1,\"z\":1}}",
+            "{\"n\":1,\"url\":\"x\",\"z\":1,\"z\":2}",
             "{\"n\":1,\"rename\":{\"name\":\"x\",\"n\":0,\"s\":\"y\"}}", "[1]", "",
         ]
         for b in bad { XCTAssertThrowsError(try InnerJSON.parse(Data(b.utf8)), b) }
@@ -32,6 +33,23 @@ final class MessageTests: XCTestCase {
         XCTAssertThrowsError(try InnerJSON.parse(Data(long.utf8)))
         let ok = "{\"n\":1,\"text\":\"" + String(repeating: "a", count: 2048) + "\"}"
         XCTAssertNoThrow(try InnerJSON.parse(Data(ok.utf8)))
+    }
+
+    /// Q327: unknown keys are ignored; the first known type key in the fixed order wins.
+    func testInnerJSONLenient() throws {
+        let f = NameField(name: "x", n: 1, s: "y")
+        let cases: [(String, MessageContent)] = [
+            ("{\"n\":1,\"url\":\"x\",\"t\":5}", .url("x")),
+            ("{\"z\":{\"a\":[1]},\"n\":1,\"text\":\"x\"}", .text("x")),
+            ("{\"n\":1,\"text\":\"y\",\"url\":\"x\"}", .url("x")),
+            ("{\"n\":1,\"tel\":\"1\",\"text\":\"y\"}", .text("y")),
+            ("{\"n\":1,\"deny\":1,\"tel\":\"1\"}", .tel("1")),
+            ("{\"n\":1,\"logout\":1,\"deny\":1,\"future\":1}", .deny),
+            ("{\"n\":1,\"url\":\"x\",\"deny\":2}", .url("x")),
+            ("{\"n\":1,\"approve\":{\"name\":\"x\",\"n\":1,\"s\":\"y\",\"z\":1}}", .approve(f)),
+            ("{\"n\":1,\"rename\":{\"v\":2,\"s\":\"y\",\"n\":1,\"name\":\"x\"},\"q\":0}", .rename(f)),
+        ]
+        for (s, c) in cases { XCTAssertEqual(try InnerJSON.parse(Data(s.utf8)), InnerJSON(n: 1, content: c), s) }
     }
 
     func testBuckets() throws {
@@ -75,7 +93,7 @@ final class MessageTests: XCTestCase {
         let f = NameField(name: "UGhvbmU", n: 1, s: String(repeating: "A", count: 86))
         let (m2, _) = try roundTrip(InnerJSON(n: 1, content: .approve(f)), keys: true)
         XCTAssertEqual(m2.count, 1024)
-        for c: MessageContent in [.text("hi"), .tel("+1 555-123-4567"), .deny, .remove("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwd"), .rename(f), .delete, .pause, .unpause] {
+        for c: MessageContent in [.text("hi"), .tel("+1 555-123-4567"), .deny, .remove("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwd"), .rename(f), .delete, .logout, .login] {
             let (m, _) = try roundTrip(InnerJSON(n: 9, content: c))
             XCTAssertEqual(m.count, 512)
         }
@@ -115,6 +133,13 @@ final class MessageTests: XCTestCase {
         XCTAssertLessThanOrEqual(c.count, 1024)
         XCTAssertEqual(NameEntry.open(c, me: b.id, key: b.decryptor), f)
         XCTAssertNil(NameEntry.open(c, me: a.id, key: a.decryptor))
+        // Q327: an entry with an unknown extra key still opens; a missing key does not.
+        let extra = Data((String(f.json.dropLast()) + ",\"v\":2}").utf8)
+        let ce = B64URL.encode(try HPKEWire.seal(extra, to: b.encPub, info: NameEntry.info, aad: Bytes.ascii(b.id.text)))
+        XCTAssertEqual(NameEntry.open(ce, me: b.id, key: b.decryptor), f)
+        let missing = Data(("{\"name\":" + StrictJSON.quote(f.name) + ",\"n\":7}").utf8)
+        let cm = B64URL.encode(try HPKEWire.seal(missing, to: b.encPub, info: NameEntry.info, aad: Bytes.ascii(b.id.text)))
+        XCTAssertNil(NameEntry.open(cm, me: b.id, key: b.decryptor))
         XCTAssertEqual(NameEntry.signedBytes(owner: PeerId(raw: Data((0 ..< 30).map { UInt8($0) }))!,
                                              recipient: PeerId(raw: Data((100 ..< 130).map { UInt8($0) }))!,
                                              pairingId: Data(count: 8), n: 7, nameB64: "UGhvbmU"),
@@ -125,6 +150,14 @@ final class MessageTests: XCTestCase {
         XCTAssertFalse(NameEntry.isValidName(String(repeating: "x", count: 33)))
         XCTAssertFalse(NameEntry.isValidName("a\u{e9}"))
         XCTAssertFalse(NameEntry.isValidName("a\n"))
+        XCTAssertFalse(NameEntry.isValidName("a\"b"))
+        XCTAssertTrue(NameEntry.isValidName("a'b"))
+    }
+
+    func testReceivedNameWithDoubleQuoteIsIgnored() throws {
+        let a = TestPeer(), b = TestPeer()
+        let f = try NameEntry.make(name: "My \"Phone\"", n: 3, owner: a.id, recipient: b.id, pairingId: pid, signer: a.signer)
+        XCTAssertNil(NameEntry.verify(f, owner: a.id, recipient: b.id, pairingId: pid, ownerSignPub: a.signPub))
     }
 
     func testPairMessages() throws {

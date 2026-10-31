@@ -23,12 +23,14 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+      actions: read
     outputs:
       worker: ${{ steps.detect.outputs.worker }}
       site: ${{ steps.detect.outputs.site }}
       webext: ${{ steps.detect.outputs.webext }}
       android: ${{ steps.detect.outputs.android }}
       ios: ${{ steps.detect.outputs.ios }}
+      cli: ${{ steps.detect.outputs.cli }}
       vectors: ${{ steps.detect.outputs.vectors }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -39,12 +41,29 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BEFORE: ${{ github.event.before }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           # pull_request: HEAD is the merge commit, so HEAD^1..HEAD is the PR change.
-          # push: before..HEAD; a new branch or an unknown before runs everything.
+          # push: base..HEAD, where base is the head of the newest successful ci push
+          # run on main. A newer push cancels a queued run, so before..HEAD alone
+          # would skip the cancelled commits. If that lookup fails or base is not an
+          # earlier commit, before..HEAD; a new branch or an unknown before runs everything.
           all=0
+          base=""
+          if [ "$EVENT" = "push" ]; then
+            # the jq reads the runs array without naming it: repo.yml bans that word in .github/
+            base="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" \
+              --jq 'first(.[] | arrays | .[0].head_sha) // empty' 2>/dev/null)" || base=""
+            if ! printf '%s' "$base" | grep -Eq '^[0-9a-f]{40}$' || [ "$base" = "$(git rev-parse HEAD)" ] \
+              || ! git merge-base --is-ancestor "$base" HEAD 2>/dev/null; then
+              base=""
+            fi
+            echo "last successful ci push run: ${base:-none}"
+          fi
           if [ "$EVENT" = "pull_request" ]; then
             files="$(git diff --name-only HEAD^1 HEAD)"
+          elif [ -n "$base" ]; then
+            files="$(git diff --name-only "$base" HEAD)"
           elif printf '%s' "$BEFORE" | grep -Eq '^[0-9a-f]{40}$' && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
             && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
             files="$(git diff --name-only "$BEFORE" HEAD)"
@@ -63,6 +82,7 @@ jobs:
           out webext '^client/(webext-common|chrome|firefox)/'
           out android '^client/android/'
           out ios '^client/ios/'
+          out cli '^client/cli/'
           out vectors '^(server/worker|client/(webext-common|chrome|firefox|android|ios))/'
           cat "$GITHUB_OUTPUT"
 
@@ -125,10 +145,17 @@ jobs:
       contents: read
     uses: ./.github/workflows/ios.yml
 
+  cli:
+    needs: changes
+    if: needs.changes.outputs.cli == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/cli.yml
+
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [changes, repo, vectors, worker, site, webext, android, ios]
+    needs: [changes, repo, vectors, worker, site, webext, android, ios, cli]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}

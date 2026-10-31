@@ -11,6 +11,21 @@ final class AppEnvironment: PlatformHooks {
     let appGroup: String = Bundle.main.object(forInfoDictionaryKey: "PAAppGroup") as? String ?? ""
     let keychainGroup: String = Bundle.main.object(forInfoDictionaryKey: "PAKeychainGroup") as? String ?? ""
     let googleClientId: String = Bundle.main.object(forInfoDictionaryKey: "PAGoogleClientID") as? String ?? ""
+    static let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+
+    /// App Group defaults, so the app, the NSE and the share extension see the same 426 mark (Q349).
+    var defaults: UserDefaults { (appGroup.isEmpty ? nil : UserDefaults(suiteName: appGroup)) ?? .standard }
+    /// True when this version got HTTP 426 from the relay server (Q349).
+    var updateRequired: Bool { UpdateGate.required(defaults, version: Self.version) }
+    private var updateObserver: NSObjectProtocol?
+
+    init() {
+        // Any 426, in any process and on any request, marks this version (Q349).
+        updateObserver = NotificationCenter.default.addObserver(forName: APIClient.upgradeRequired, object: nil, queue: nil) { [weak self] _ in
+            guard let self else { return }
+            UpdateGate.mark(self.defaults, version: Self.version)
+        }
+    }
 
     var containerURL: URL {
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)!
@@ -40,6 +55,25 @@ final class AppEnvironment: PlatformHooks {
     /// Open pa.sqlite (WAL, file protection completeUntilFirstUserAuthentication).
     func openStore() throws -> Store {
         let s = try Store(path: dbURL.path)
+        protectFiles()
+        return s
+    }
+
+    /// App launch only (Q332): as openStore, but a corrupt pa.sqlite is replaced by an empty
+    /// one after a best-effort DELETE of this device with the surviving Keychain keys.
+    func openStoreRepairing() async throws -> (store: Store, repaired: Bool) {
+        let r = try await StoreRepair.open(path: dbURL.path) { await self.deleteSelfBestEffort() }
+        protectFiles()
+        return r
+    }
+
+    private func deleteSelfBestEffort() async {
+        guard let t = keychain.peerId(), let id = PeerId(text: t), let keys = try? keychain.load() else { return }
+        // confirmed: nothing left for the old_id DELETE after the next sign-in
+        if await StoreRepair.deleteSelf(api: APIClient(), signer: keys.signer, id: id) { keychain.deleteAll() }
+    }
+
+    private func protectFiles() {
         for suffix in ["", "-wal", "-shm"] {
             let p = dbURL.path + suffix
             if FileManager.default.fileExists(atPath: p) {
@@ -47,12 +81,11 @@ final class AppEnvironment: PlatformHooks {
                                                        ofItemAtPath: p)
             }
         }
-        return s
     }
 
     func makeCore(store: Store, keys: DeviceKeys) -> Core {
         let me = try? store.me()
-        let api = APIClient(offsetMs: me?.clockOffset ?? 0)
+        let api = APIClient(offsetS: me?.clockOffset ?? 0)
         return Core(store: store, api: api, keys: keys, hooks: self)
     }
 

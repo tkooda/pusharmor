@@ -86,7 +86,7 @@ function fakeApi(replies, start = 1761300000000) {
 
 test("DELETE /v1/account: headers, body, signature; deleted 0", async () => {
   const key = await PA.newKey();
-  const api = fakeApi([{ status: 200, body: { r: {}, deleted: 0 }, headers: { "PA-Epoch-Ms": 1761300000000 } }]);
+  const api = fakeApi([{ status: 200, body: { r: {}, deleted: 0 }, headers: { "PA-Epoch": 1761300000 } }]);
   const r = await api.client.deleteAccount(key, "TICKET");
   assert.equal(r.status, 200);
   assert.equal(r.data.deleted, 0);
@@ -96,11 +96,12 @@ test("DELETE /v1/account: headers, body, signature; deleted 0", async () => {
   assert.equal(c.init.method, "DELETE");
   assert.deepEqual(JSON.parse(c.init.body), { ticket: "TICKET", sign_pub: key.pub, m: {} });
   assert.equal(c.init.headers["PA-ID"], undefined);
+  assert.match(c.init.headers["PA-Client"], /^web\/\d+\.\d+\.\d+$/);
   assert.equal(c.init.headers["PA-Time"], "1761300000000");
   assert.match(c.init.headers["PA-Time"], /^\d{13}$/);
   const signed = PA.reqSigBytes("DELETE", "/v1/account", c.init.headers["PA-Time"], enc.encode(c.init.body));
   assert.ok(await verify(key.pub, c.init.headers["PA-Sig"], signed));
-  assert.equal(PA.TEXT.noPeers, "No peers were found under this address");
+  assert.equal(PA.TEXT.noPeers, "No devices were found under this address");
 });
 
 test("DELETE /v1/account retried after a lost reply is marked unsure", async () => {
@@ -120,12 +121,12 @@ test("DELETE /v1/account retried after a lost reply is marked unsure", async () 
   assert.ok(js.includes("r.data.deleted === 0 && !r.unsure ? PA.TEXT.noPeers : PA.TEXT.deleted"));
 });
 
-test("clock skew: offset from PA-Epoch-Ms, re-sign, retry once", async () => {
+test("clock skew: offset from PA-Epoch (seconds), re-sign, retry once", async () => {
   const key = await PA.newKey();
   const skew = 10 * 60 * 1000;
   const api = fakeApi([
-    { status: 401, body: { error: "clock skew" }, headers: { "PA-Epoch-Ms": 1761300000000 + skew } },
-    { status: 200, body: { r: {}, deleted: 2 }, headers: { "PA-Epoch-Ms": 1761300000000 + skew } }
+    { status: 401, body: { error: "clock skew" }, headers: { "PA-Epoch": 1761300000 + skew/1000 } },
+    { status: 200, body: { r: {}, deleted: 2 }, headers: { "PA-Epoch": 1761300000 + skew/1000 } }
   ]);
   const r = await api.client.deleteAccount(key, "T");
   assert.equal(r.status, 200);
@@ -135,22 +136,30 @@ test("clock skew: offset from PA-Epoch-Ms, re-sign, retry once", async () => {
   assert.ok(await verify(key.pub, c.init.headers["PA-Sig"], PA.reqSigBytes("DELETE", "/v1/account", c.init.headers["PA-Time"], enc.encode(c.init.body))));
 });
 
+test("HTTP 426 -> Update PushArmor to continue.", async () => {
+  const key = await PA.newKey();
+  const api = fakeApi([{ status: 426, body: { error: "update required" } }]);
+  const r = await api.client.deleteAccount(key, "T");
+  assert.equal(r.status, 426);
+  assert.equal(PA.errorText(r), "Update PushArmor to continue.");
+});
+
 test("second clock skew stops with the clock text", async () => {
   const key = await PA.newKey();
-  const skewed = { status: 401, body: { error: "clock skew" }, headers: { "PA-Epoch-Ms": 1 } };
+  const skewed = { status: 401, body: { error: "clock skew" }, headers: { "PA-Epoch": 1 } };
   const api = fakeApi([skewed, { ...skewed }]);
   const r = await api.client.deleteAccount(key, "T");
   assert.equal(api.calls.length, 2);
   assert.equal(PA.errorText(r), "This device's clock is off by more than 5 minutes");
 });
 
-test("expired or invalid ticket -> Sign-in expired, sign in again (WEB6-01)", async () => {
+test("expired or invalid ticket -> Login expired, log in again (WEB6-01)", async () => {
   const key = await PA.newKey();
   for (const e of ["ticket expired", "invalid ticket"]) {
     const api = fakeApi([{ status: 401, body: { error: e } }]);
     const r = await api.client.deleteAccount(key, "T");
     assert.equal(api.calls.length, 1);
-    assert.equal(PA.errorText(r), "Sign-in expired, sign in again");
+    assert.equal(PA.errorText(r), "Login expired, log in again");
   }
 });
 
@@ -174,7 +183,9 @@ test("retries: 503 and network errors up to 3, not 502; 429 beyond the 8 s budge
   api = fakeApi([{ status: 429, body: { error: "rate limited", retry_after: 60 }, headers: { "Retry-After": 60 } }]);
   r = await api.client.request("POST", "/v1/auth/email", {}, null);
   assert.equal(api.calls.length, 1);
-  assert.match(PA.errorText(r), /wait 60 s/);
+  assert.equal(PA.errorText(r), "Too many requests. Try again in 60 seconds.");
+  assert.equal(PA.errorText({ status: 429, data: { retry_after: 1 } }), "Too many requests. Try again in 1 second.");
+  assert.equal(PA.errorText({ status: 429, data: {} }), "Too many requests. Try again in 60 seconds.");
 
   api = fakeApi([{ status: 429, body: { retry_after: 2 }, headers: { "Retry-After": 2 } }, { status: 200, body: {} }]);
   r = await api.client.request("POST", "/v1/auth/email", {}, null);
@@ -211,4 +222,33 @@ test("golden vectors (tests/vectors/golden-v1.json): request_sig (PA-Sig)", asyn
     assert.deepEqual(Buffer.from(bytes), Buffer.from(b64urlDecode(c.signed_bytes)), c.name + ": signed_bytes");
     assert.ok(await verify(c.sign_pub, c.sig, bytes), c.name + ": sig");
   }
+});
+
+test("cli link fragment: r/l map to purposes; d, bad letters and lengths fail", () => {
+  const k = "abcdefghijklmnopqrstuv";
+  assert.equal(k.length, 22);
+  assert.deepEqual(PA.parseCliLink("#r." + k), { purpose: "register", k });
+  assert.deepEqual(PA.parseCliLink("#l." + k), { purpose: "login", k });
+  assert.equal(PA.parseCliLink("#l.A_-0123456789abcdefghi").k, "A_-0123456789abcdefghi");
+  for (const bad of ["", "#", "#d." + k, "#x." + k, "#R." + k, "#l" + k, "#l." + k.slice(1), "#l." + k + "a", "#l.abcdefghijklmnopqrst+v", "l." + k, "#l." + k + "&x=1", null, undefined]) {
+    assert.equal(PA.parseCliLink(bad), null, String(bad));
+  }
+});
+
+test("cli email request body and OAuth start URL", () => {
+  const link = PA.parseCliLink("#l.A_-0123456789abcdefghi");
+  assert.deepEqual(PA.cliEmailBody("a@b.co", link, "TOK"), { email: "a@b.co", cli_k: "A_-0123456789abcdefghi", purpose: "login", turnstile: "TOK" });
+  assert.equal(PA.cliOAuthUrl("google", link), "https://api.pusharmor.com/v1/auth/google?k=A_-0123456789abcdefghi&r=cli&p=login");
+  assert.equal(PA.cliOAuthUrl("apple", PA.parseCliLink("#r.A_-0123456789abcdefghi")), "https://api.pusharmor.com/v1/auth/apple?k=A_-0123456789abcdefghi&r=cli&p=register");
+});
+
+test("cli result fragment: cli_code + email, errors, junk", () => {
+  const code = "0123456789abcdefghijklmnopqrstuvwx";
+  assert.equal(code.length, 34);
+  assert.deepEqual(PA.parseCliResult("#cli_code=" + code + "&email=a%40b.co"), { code, email: "a@b.co" });
+  assert.deepEqual(PA.parseCliResult("#error=cancelled"), { error: "cancelled" });
+  assert.deepEqual(PA.parseCliResult("#error=failed"), { error: "failed" });
+  assert.deepEqual(PA.parseCliResult("#cli_code=short&email=a%40b.co"), { error: "failed" });
+  assert.equal(PA.parseCliResult("#l.abcdefghijklmnopqrstuv"), null);
+  assert.equal(PA.parseCliResult(""), null);
 });

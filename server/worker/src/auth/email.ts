@@ -7,7 +7,9 @@ import { checkCode, deriveCode } from "../crypto/code";
 import { importVerifyKey, rawPoint } from "../crypto/ecdsa";
 import { accountId, emailHash } from "../crypto/ids";
 import {
+  CLI_WINDOW_S,
   keyRef,
+  makeCliCode,
   LABEL_REQUEST_TOKEN,
   makeTicket,
   makeToken,
@@ -15,14 +17,15 @@ import {
   PURPOSES,
   REQUEST_TOKEN_LIFE_S,
   TICKET_LIFE_S,
+  type CliPurpose,
   type Purpose,
 } from "../crypto/tokens";
 import { ApiError } from "../errors";
 import { json } from "../http";
 import { parseJsonObject } from "../pipeline/body";
-import { enforce } from "../pipeline/limits";
+import { enforce, ipKey } from "../pipeline/limits";
 import { deps } from "../push/deps";
-import { normalizeEmail } from "./normalize";
+import { mailboxKey, normalizeEmail } from "./normalize";
 import { sendEmail } from "./ses";
 import { verifyTurnstile } from "./turnstile";
 
@@ -31,15 +34,15 @@ const ENDING = "Nothing happens unless this code is entered within 15 minutes. I
 export function mailText(purpose: Purpose, code: string): { subject: string; text: string } {
   const what =
     purpose === "register"
-      ? "Your PushArmor sign-in code is"
-      : purpose === "unpause"
-        ? "Your PushArmor code to resume receiving is"
+      ? "Your PushArmor login code is"
+      : purpose === "login"
+        ? "Your PushArmor code to log in again is"
         : "Your PushArmor code to delete your account is";
   const subject =
     purpose === "register"
-      ? "your PushArmor sign-in code"
-      : purpose === "unpause"
-        ? "your PushArmor resume code"
+      ? "your PushArmor login code"
+      : purpose === "login"
+        ? "your PushArmor code to log in again"
         : "your PushArmor account deletion code";
   return { subject, text: `${what}:\n\n${code}\n\n${ENDING}\n` };
 }
@@ -55,20 +58,37 @@ export async function checkSignPub(v: unknown): Promise<Uint8Array> {
   return raw;
 }
 
+// Command line purposes: register and login only.
+export function checkCliPurpose(p: Purpose): CliPurpose {
+  if (p === "delete-account") throw bad();
+  return p;
+}
+
+// cli_k: k16 of the CLI's sign_pub (22 chars), from the /auth/cli link.
+export function checkCliK(v: unknown): string {
+  if (typeof v !== "string" || v.length !== 22 || b64urlDecode(v)?.length !== 16) throw bad();
+  return v;
+}
+
 export async function start(c: Ctx): Promise<Response> {
   const b = parseJsonObject(c.body);
-  keysExactly(b, ["email", "sign_pub", "purpose", "turnstile"]);
-  const raw = await checkSignPub(b.sign_pub);
+  // The /auth/cli page sends cli_k instead of sign_pub; verify then returns a cli code.
+  const cli = "cli_k" in b;
+  keysExactly(b, ["email", cli ? "cli_k" : "sign_pub", "purpose", "turnstile"]);
+  const k = cli ? checkCliK(b.cli_k) : await keyRef(await checkSignPub(b.sign_pub));
   const purpose = checkPurpose(b.purpose);
+  if (cli) checkCliPurpose(purpose);
   if (typeof b.email !== "string" || typeof b.turnstile !== "string" || b.turnstile.length === 0 || b.turnstile.length > 4096) throw bad();
   await verifyTurnstile(c.env, b.turnstile, c.req.headers.get("CF-Connecting-IP"));
   const email = normalizeEmail(b.email);
-  const eh = b64urlEncode(await emailHash(email));
-  await enforce(c.env, "RL_MAIL", "mail:" + eh, c.log);
+  const eh = b64urlEncode(await emailHash(mailboxKey(email)));
+  // Per mailbox (+tag and Gmail dot variants share it); a limiter key only, never stored.
+  await enforce(c.env, "RL_MAIL_EMAIL", "mail:" + eh, c.log);
   // Per IP (a limiter key only, never stored): address variants from one IP share this cap.
-  await enforce(c.env, "RL_MAIL", "mailip:" + (c.req.headers.get("CF-Connecting-IP") ?? ""), c.log);
-  await enforce(c.env, "RL_MAIL_ALL", "mail:all", c.log);
-  const token = await makeToken(c.env.PA_TOKEN_SECRET, LABEL_REQUEST_TOKEN, { t: nowS(), e: eh, m: email, k: await keyRef(raw), p: purpose });
+  // IPv6 by its /64 like RL_IP, so one /64 cannot rotate source addresses (I446).
+  await enforce(c.env, "RL_MAIL_IP", "mail" + ipKey(c.req.headers.get("CF-Connecting-IP") ?? ""), c.log);
+  await enforce(c.env, "RL_MAIL_GLOBAL", "mail:all", c.log);
+  const token = await makeToken(c.env.PA_TOKEN_SECRET, LABEL_REQUEST_TOKEN, { t: nowS(), e: eh, m: email, k, p: purpose, ...(cli ? { c: 1 } : {}) });
   const code = await deriveCode(c.env.PA_CODE_SECRET, token);
   const mail = mailText(purpose, code);
   await sendEmail(c.env, email, mail.subject, mail.text, ((u: string, i: RequestInit) => deps.fetch(u, i)) as unknown as typeof fetch);
@@ -85,16 +105,16 @@ export async function verify(c: Ctx): Promise<Response> {
   }
   const purpose = checkPurpose(rt.p);
   if (nowS() - rt.t > REQUEST_TOKEN_LIFE_S) throw new ApiError(401, "code expired");
-  // Per request token, so wrong guesses on one token cannot lock out a later token for the same email;
-  // codeall: is the looser cap over every token of one email. It is checked before the code, so a
-  // correct guess cannot pass once the cap is spent; the limit binding has no read-only check, so
-  // this also charges the one correct guess of a sign-in.
-  await enforce(c.env, "RL_CODE", "code:" + rt.e + ":" + b.request_token.slice(b.request_token.lastIndexOf(".") + 1), c.log);
-  await enforce(c.env, "RL_CODE_ALL", "codeall:" + rt.e, c.log);
+  // One cap over every token of one email. It is checked before the code, so a correct guess
+  // cannot pass once the cap is spent; the limit binding has no read-only check, so this also
+  // charges the one correct guess of a register code. Keyed per purpose, so guesses on register
+  // tokens cannot lock out a login or delete code for the same email (I408).
+  await enforce(c.env, "RL_CODE", "code:" + purpose + ":" + rt.e, c.log);
   if (!(await checkCode(c.env.PA_CODE_SECRET, b.request_token, b.code))) throw new ApiError(401, "wrong code");
   const eh = b64urlDecode(rt.e);
   if (!eh || eh.length !== 32) throw new ApiError(401, "wrong code");
   const a = await accountId(c.env.PA_ID_SECRET, eh);
+  if (rt.c === 1) return json(200, { cli_code: await makeCliCode(c.env.PA_TOKEN_SECRET, a, rt.k, checkCliPurpose(purpose), Math.floor(nowS() / CLI_WINDOW_S)), email: rt.m });
   const ticket = await makeTicket(c.env.PA_TOKEN_SECRET, { a, k: rt.k, p: purpose, x: nowS() + TICKET_LIFE_S });
   return json(200, { ticket, email: rt.m });
 }

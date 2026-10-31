@@ -3,6 +3,8 @@ import { test } from "node:test";
 import { crc32, deflateRawSync } from "node:zlib";
 // @ts-expect-error plain .mjs module without types
 import { checkZip, ops, readZip } from "../check-release.mjs";
+// @ts-expect-error plain .mjs module without types
+import { GECKO_DUMMY_IDS, GECKO_PLACEHOLDER_ID } from "../../../release/public.mjs";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -46,6 +48,8 @@ function zip(files: Record<string, string>): Buffer {
   return Buffer.concat([...locals, cd, end]);
 }
 
+const ID = "{03381876-62cc-4ce1-8cb9-c22567d00ca6}";
+const BETA_ID = "{549aa960-212f-41ba-b28c-7d7d1662bb57}";
 const GOOD = {
   "manifest.json": JSON.stringify({ manifest_version: 3, name: "PushArmor" }),
   "sw.js": 'if (last === "localhost" || last === "local") return false; fetch("https://api.pusharmor.com/v1/peers");',
@@ -85,10 +89,10 @@ test("manifest name: PushArmor, or PushArmor Beta in a Beta zip; Firefox update_
   assert.deepEqual(b({ ...GOOD, "manifest.json": JSON.stringify({ name: "PushArmor Beta" }) }, true), []);
   assert.match(b(GOOD, true).join(), /name is "PushArmor", want "PushArmor Beta"/);
   assert.match(check({ ...GOOD, "manifest.json": JSON.stringify({ name: "PushArmor Beta" }) }).join(), /want "PushArmor"$/);
-  const betaFx = { name: "PushArmor Beta", browser_specific_settings: { gecko: { id: "beta@x", update_url: url } } };
+  const betaFx = { name: "PushArmor Beta", browser_specific_settings: { gecko: { id: BETA_ID, update_url: url } } };
   assert.deepEqual(b(fx(betaFx), false), []);
-  assert.match(b(fx({ ...betaFx, browser_specific_settings: { gecko: { id: "beta@x" } } }), false).join(), /gecko update_url is null/);
-  assert.match(check(fx({ name: "PushArmor", browser_specific_settings: { gecko: { id: "a@x", update_url: url } } }), false).join(), /gecko update_url is "https:/);
+  assert.match(b(fx({ ...betaFx, browser_specific_settings: { gecko: { id: BETA_ID } } }), false).join(), /gecko update_url is null/);
+  assert.match(check(fx({ name: "PushArmor", browser_specific_settings: { gecko: { id: ID, update_url: url } } }), false).join(), /gecko update_url is "https:/);
 });
 
 test("source maps, test entries and a missing manifest fail", () => {
@@ -101,8 +105,13 @@ test("source maps, test entries and a missing manifest fail", () => {
 
 test("placeholders, CI dummies and local endpoints fail", () => {
   assert.match(check({ ...GOOD, "sw.js": 'const k = "PLACEHOLDER_WEBPUSH_VAPID_PUBLIC_KEY";' }).join(), /PLACEHOLDER/);
-  const fx = { ...GOOD, "manifest.json": JSON.stringify({ browser_specific_settings: { gecko: { id: "placeholder-addon-id@pusharmor.com" } } }) };
-  assert.match(check(fx, false).join(), /manifest\.json: holds a PLACEHOLDER/);
+  const gecko = (id: string) => ({ ...GOOD, "manifest.json": JSON.stringify({ name: "PushArmor", browser_specific_settings: { gecko: { id } } }) });
+  assert.deepEqual(check(gecko(ID), false), []);
+  assert.match(check(gecko(GECKO_PLACEHOLDER_ID), false).join(), /manifest\.json: holds a PLACEHOLDER/);
+  assert.match(check(gecko(GECKO_DUMMY_IDS.mozilla_firefox_addon_id), false).join(), /manifest\.json: holds a CI dummy/);
+  assert.deepEqual(check(gecko(GECKO_DUMMY_IDS.mozilla_firefox_addon_id), false, true), []);
+  assert.match(check(gecko("beta@example.org"), false).join(), /manifest\.json: gecko id "beta@example\.org" is not a lowercase GUID/);
+  assert.match(check(gecko(ID.toUpperCase()), false).join(), /is not a lowercase GUID/);
   const dummy = { ...GOOD, "sw.js": 'const k = "ci-fork-dummy-webpush_vapid_public_key";' };
   assert.match(check(dummy).join(), /CI dummy/);
   assert.deepEqual(check(dummy, true, true), []);

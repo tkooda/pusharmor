@@ -8,7 +8,7 @@ import type { Req } from "../../webext-common/src/core/rpc.ts";
 import { Db, openDb } from "../../webext-common/src/store/db.ts";
 import type { WebPushKeys } from "../../webext-common/src/crypto/rfc8291.ts";
 import { Autopush, type ApState } from "./autopush/client.ts";
-import { senderAllowed } from "./gate.ts";
+import { fxSubFields, senderAllowed } from "./gate.ts";
 import { FWD_URL, SETUP_URL, endpointAllowed, firefoxPlatform } from "./platform-firefox.ts";
 import { readForward } from "./sitefwd/fwd.ts";
 import { browser } from "./shim.ts";
@@ -19,7 +19,14 @@ const vapid = b64urlTryDecode(VAPID_PUBLIC_KEY) ?? new Uint8Array(0);
 let isAndroid = false;
 let autopush: Autopush | null = null;
 let dbp: Promise<Db> | null = null;
-const db = () => (dbp ??= openDb().then((d) => new Db(d)));
+const db = () =>
+  (dbp ??= openDb().then(
+    (d) => new Db(d),
+    (e) => {
+      dbp = null; // a failed open is not cached
+      throw e;
+    },
+  ));
 
 const boot = lazyBoot(() => firefoxPlatform({ isAndroid, autopush: () => autopush, db }), vapid);
 
@@ -41,6 +48,7 @@ async function init(): Promise<void> {
       },
       onMode: async (mode) => {
         await d.setMeta("receive_mode", mode);
+        await d.del("meta", "setup_opened"); // a new mode may open setup once again (I555)
         if ((await engine.regState()) === "registered") await engine.pushReconcile(true).catch(() => undefined);
       },
       workerReachable: async () => {
@@ -56,12 +64,21 @@ async function init(): Promise<void> {
       clearTimer: (t) => clearTimeout(t as ReturnType<typeof setTimeout>),
       uuid: () => crypto.randomUUID(),
     });
-    await autopush.start();
+    try {
+      await autopush.start();
+    } catch (e) {
+      // a failed start is not kept: the next init() builds and starts a new client
+      autopush.stop();
+      autopush = null;
+      throw e;
+    }
   }
   await engine.start();
 }
 
-const ready = init();
+let ready = init();
+// a failed start is tried again by the next use (message, alarm or push)
+const whenReady = () => (ready = ready.catch(() => init()));
 
 // timer drift above 60 s (laptop sleep) or "online": reconnect at once
 let lastTick = Date.now();
@@ -73,11 +90,13 @@ setInterval(() => {
 addEventListener("online", () => autopush?.reconnectNow());
 
 async function extra(msg: Req): Promise<unknown> {
-  await ready;
+  await whenReady();
   const { engine } = await boot();
   const a = msg.args ?? {};
   if (msg.op === "fx-sub") {
-    const p: PushFields = { type: "webpush", endpoint: String(a.endpoint), p256dh: String(a.p256dh), auth: String(a.auth) };
+    const f = fxSubFields(a);
+    if (!f) return { ok: false };
+    const p: PushFields = { type: "webpush", ...f };
     const k = b64urlTryDecode(p.p256dh);
     const au = b64urlTryDecode(p.auth);
     if (!endpointAllowed(p.endpoint) || !k || k.length !== 65 || !au || au.length !== 16) return { ok: false };
@@ -103,7 +122,7 @@ browser.runtime.onMessage.addListener(
 );
 browser.notifications.onClicked.addListener(onNotificationClick(browser, boot));
 browser.alarms.onAlarm.addListener((a) => {
-  void ready.then(boot).then(async ({ engine }) => {
+  void whenReady().then(boot).then(async ({ engine }) => {
     if (a.name === "fetch") await engine.onFetchAlarm();
     else if (a.name.startsWith("pair:")) {
       const id = a.name.slice(5);
@@ -112,7 +131,7 @@ browser.alarms.onAlarm.addListener((a) => {
     }
   });
 });
-browser.runtime.onStartup.addListener(() => void ready);
+browser.runtime.onStartup.addListener(() => void whenReady());
 browser.runtime.onInstalled.addListener((d) => {
   // the site SW fallback is set up at install, on desktop and on Android
   if (d.reason === "install") void browser.tabs.create({ url: SETUP_URL, active: true });
@@ -122,7 +141,7 @@ browser.webRequest?.onBeforeRequest.addListener(
     const r = readForward(d);
     if (r.m !== null) {
       const m = r.m;
-      void ready.then(boot).then(({ engine }) => engine.receive(m, "push"));
+      void whenReady().then(boot).then(({ engine }) => engine.receive(m, "push"));
     }
     return r.cancel ? { cancel: true } : {};
   },

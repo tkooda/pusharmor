@@ -27,7 +27,7 @@ release build fails while a needed value is a placeholder (or a CI dummy
 without `PA_CI_DUMMY=1`); `--dev` builds work with the placeholders.
 
 A release build also writes the Beta zips `pusharmor-<browser>-beta.zip`
-(owner ruling Q209 B): the same files with the name "PushArmor Beta"; the
+(a separate Beta listing): the same files with the name "PushArmor Beta"; the
 Firefox one has the Beta gecko id `mozilla_firefox_beta_addon_id` and the
 update_url `firefox_beta_update_url` of `release/constants.json`. Release tags
 upload them to the test channels (`RELEASING.md`).

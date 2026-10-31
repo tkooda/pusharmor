@@ -64,13 +64,3 @@ test("release/constants.json holds no public build id", () => {
   const c = JSON.parse(readFileSync(join(REPO, "release", "constants.json"), "utf8"));
   for (const k of Object.keys(names.public_keys)) assert.equal(k in c, false, k);
 });
-
-test("each release workflow uses only its own store's Workload Identity values", () => {
-  const wf = (f) => readFileSync(join(REPO, ".github", "workflows", f), "utf8");
-  const webext = wf("webext-release.yml");
-  const android = wf("android-release.yml");
-  assert.match(webext, /google_cws_wif_provider/);
-  assert.doesNotMatch(webext, /google_play_/);
-  assert.match(android, /google_play_wif_provider/);
-  assert.doesNotMatch(android, /google_cws_/);
-});

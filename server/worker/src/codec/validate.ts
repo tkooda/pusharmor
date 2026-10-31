@@ -1,7 +1,7 @@
 // Request validators: ids, keys, messages, name entries, "m" maps, push objects.
 import { ApiError } from "../errors";
 import { b64urlDecode, isB64url } from "./b64url";
-import { checkUnifiedPushEndpoint, checkWebpushEndpoint, prefixes, type EndpointReject } from "../push/allowlist";
+import { checkUnifiedPushEndpoint, checkWebpushEndpoint, cliTopicOk, prefixes, type EndpointReject } from "../push/allowlist";
 import { importEcdhPub, rawPoint } from "../crypto/ecdsa";
 import { sha256, utf8 } from "../crypto/hash";
 import { b64urlEncode } from "./b64url";
@@ -72,7 +72,7 @@ export function requireAccount(ids: Iterable<string>, acct: string): void {
   for (const id of ids) if (id.slice(0, 12) !== acct) throw bad();
 }
 
-export const PLATFORMS = ["android", "iphone", "chrome", "firefox"] as const;
+export const PLATFORMS = ["android", "ios", "chrome", "firefox", "cli"] as const;
 export type Platform = (typeof PLATFORMS)[number];
 
 export function checkPlatform(v: unknown): Platform {
@@ -80,7 +80,7 @@ export function checkPlatform(v: unknown): Platform {
   return v as Platform;
 }
 
-const PLATFORM_TYPES: Record<Platform, number[]> = { android: [1, 6], iphone: [2, 5], chrome: [3], firefox: [4] };
+const PLATFORM_TYPES: Record<Platform, number[]> = { android: [1, 6], ios: [2, 5], chrome: [3], firefox: [4], cli: [6] };
 
 export interface PushValue {
   pushType: number;
@@ -98,7 +98,7 @@ function str(o: Record<string, unknown>, k: string): string {
 }
 
 // Validates a push object (section 7.4) and returns its stored form and type.
-export async function checkPush(v: unknown, allowedPrefixes: string, onReject: (r: EndpointReject) => void): Promise<PushValue> {
+export async function checkPush(v: unknown, allowedPrefixes: string, upHosts: string, onReject: (r: EndpointReject) => void): Promise<PushValue> {
   if (!v || typeof v !== "object" || Array.isArray(v)) throw bad();
   const o = v as Record<string, unknown>;
   const type = str(o, "type");
@@ -131,7 +131,7 @@ export async function checkPush(v: unknown, allowedPrefixes: string, onReject: (
       throw new ApiError(400, "push endpoint not allowed");
     }
   } else {
-    const reason = checkUnifiedPushEndpoint(endpoint);
+    const reason = checkUnifiedPushEndpoint(endpoint, prefixes(upHosts));
     if (reason) {
       onReject({ reason });
       throw new ApiError(400, "push endpoint not allowed");
@@ -146,6 +146,12 @@ export function fitsPlatform(platform: Platform, pushType: number): boolean {
   return PLATFORM_TYPES[platform].includes(pushType);
 }
 
+// Platform rules for a push: type per platform (400), and the cli topic form.
+export function checkPushPlatform(platform: Platform, push: PushValue): void {
+  if (!fitsPlatform(platform, push.pushType)) throw bad();
+  if (platform === "cli" && !cliTopicOk(push.fields.endpoint)) throw new ApiError(400, "push endpoint not allowed");
+}
+
 // my_push_sha256 = b64url(first 16 bytes of sha256(type "\n" token) or
 // (type "\n" endpoint "\n" p256dh "\n" auth)).
 export async function pushSha256(fields: Record<string, unknown>): Promise<string> {
@@ -155,12 +161,4 @@ export async function pushSha256(fields: Record<string, unknown>): Promise<strin
       ? `${t}\n${fields.endpoint}\n${fields.p256dh}\n${fields.auth}`
       : `${t}\n${fields.token}`;
   return b64urlEncode((await sha256(utf8(s))).slice(0, 16));
-}
-
-// Stored push JSON without verified_at, for the PATCH skip rule.
-export function storedWithoutVerified(stored: string): { base: string; verified: boolean } {
-  const o = JSON.parse(stored) as Record<string, unknown>;
-  const verified = "verified_at" in o;
-  delete o.verified_at;
-  return { base: JSON.stringify(o), verified };
 }

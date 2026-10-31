@@ -6,7 +6,7 @@ import com.pusharmor.crypto.SoftwareKeyOps
 import com.pusharmor.protocol.JValue
 import com.pusharmor.protocol.StrictJson
 
-/** A minimal in-memory Worker for state-machine tests: relay, allow/deny/pending, pause gate. */
+/** A minimal in-memory Worker for state-machine tests: relay, allow/deny/pending, logout gate. */
 class FakeWorker {
     val account = ByteArray(9) { 0x21 }
     val devices = LinkedHashMap<String, Device>()
@@ -21,7 +21,9 @@ class FakeWorker {
         val allow = LinkedHashSet<String>()
         val deny = LinkedHashSet<String>()
         val pending = HashMap<String, String>()
-        var paused = false
+        var loggedOut = false
+        var platform = "android"
+        var listening = true
         var skewNext = 0
         var rateLimitNext = 0
         var offline = false
@@ -54,12 +56,12 @@ class FakeWorker {
     fun add(label: String): Device = Device(label).also { devices[it.id] = it }
 
     inner class DeviceApi(private val d: Device) : Api {
-        private fun gate(name: String, allowPaused: Boolean = false): ApiResult<Nothing>? {
+        private fun gate(name: String, allowLoggedOut: Boolean = false): ApiResult<Nothing>? {
             d.calls.add(name)
             if (d.offline) return ApiResult.Network
             if (d.skewNext > 0) { d.skewNext--; return ApiResult.Http(401, "clock skew") }
             if (d.rateLimitNext > 0) { d.rateLimitNext--; return ApiResult.Http(429, "rate limited", 60) }
-            if (d.paused && !allowPaused) return ApiResult.Http(401, "paused")
+            if (d.loggedOut && !allowLoggedOut) return ApiResult.Http(401, "logged out")
             return null
         }
 
@@ -67,7 +69,8 @@ class FakeWorker {
             val t = devices[to] ?: return "unknown"
             if (d.id in t.deny) return "denied"
             if (d.id !in t.allow) return "unapproved"
-            if (t.paused) return "paused"
+            if (t.loggedOut) return "logged out"
+            if (!t.listening) return "not listening"
             t.inbox.add(msg)
             return "sent"
         }
@@ -96,7 +99,7 @@ class FakeWorker {
         }
 
         override fun withdraw(x: String): ApiResult<ApproveReply> {
-            gate("withdraw:$x", allowPaused = true)?.let { return it }
+            gate("withdraw:$x", allowLoggedOut = true)?.let { return it }
             d.allow.remove(x); d.pending.remove(x)
             return ApiResult.Ok(ApproveReply("unapproved"))
         }
@@ -112,8 +115,8 @@ class FakeWorker {
         override fun peers(): ApiResult<PeersReply> {
             gate("peers")?.let { return it }
             return ApiResult.Ok(PeersReply(null, d.allow.toList(), devices.values.map { p ->
-                ListedPeer(p.id, B64url.encode(p.keys.signPub), B64url.encode(p.keys.encPub), "android", 1761300000, p.paused, p.allow.size, 0,
-                    d.id in p.allow, d.id in p.deny, true, null)
+                ListedPeer(p.id, B64url.encode(p.keys.signPub), B64url.encode(p.keys.encPub), p.platform, 1761300000, p.loggedOut, p.allow.size, 0,
+                    d.id in p.allow, d.id in p.deny, true, null, p.listening)
             }))
         }
 
@@ -122,18 +125,18 @@ class FakeWorker {
             return if (missing.isEmpty()) null else ApiResult.Http(400, "messages missing", ids = missing)
         }
 
-        override fun pause(messages: Map<String, String>): ApiResult<Map<String, String>> {
-            gate("pause")?.let { return it }
+        override fun logout(messages: Map<String, String>): ApiResult<Map<String, String>> {
+            gate("logout")?.let { return it }
             mFor(messages)?.let { return it }
             val r = messages.mapValues { (to, m) -> relay(to, m) }
-            d.paused = true
+            d.loggedOut = true
             return ApiResult.Ok(r)
         }
 
-        override fun unpause(ticket: String, messages: Map<String, String>): ApiResult<Map<String, String>> {
-            gate("unpause", allowPaused = true)?.let { return it }
+        override fun login(ticket: String, messages: Map<String, String>): ApiResult<Map<String, String>> {
+            gate("login", allowLoggedOut = true)?.let { return it }
             mFor(messages)?.let { return it }
-            d.paused = false
+            d.loggedOut = false
             return ApiResult.Ok(messages.mapValues { (to, m) -> relay(to, m) })
         }
 

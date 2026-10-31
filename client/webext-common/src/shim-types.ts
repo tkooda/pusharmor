@@ -22,6 +22,7 @@ export interface MessageSender {
 
 export interface Event<F> {
   addListener(f: F): void;
+  removeListener(f: F): void;
 }
 
 export interface MenuInfo {
@@ -37,13 +38,20 @@ export interface Browser {
   runtime: {
     id: string;
     getURL(path: string): string;
+    getManifest(): { name: string; version: string };
     sendMessage(msg: unknown): Promise<unknown>;
     onMessage: Event<(msg: unknown, sender: MessageSender, sendResponse: (r: unknown) => void) => boolean | void | Promise<unknown>>;
     onStartup: Event<() => void>;
     onInstalled: Event<(d: { reason: string }) => void>;
     getPlatformInfo(): Promise<{ os: string }>;
+    /** Chrome 116+, Firefox 129+ */
+    getContexts?(f: { contextTypes: string[] }): Promise<{ tabId: number; windowId: number; documentUrl?: string }[]>;
   };
-  storage: { local: StorageArea; session: StorageArea };
+  storage: {
+    local: StorageArea;
+    session: StorageArea;
+    onChanged: Event<(changes: Record<string, { newValue?: unknown }>, area: string) => void>;
+  };
   notifications: {
     create(id: string, opts: { type: "basic"; iconUrl?: string; title: string; message: string }): Promise<string>;
     clear(id: string): Promise<boolean>;
@@ -54,9 +62,12 @@ export interface Browser {
     create(p: { url: string; active?: boolean; windowId?: number }): Promise<Tab>;
     query(q: { active: boolean; currentWindow: boolean }): Promise<Tab[]>;
     remove(id: number): Promise<void>;
+    reload(id: number): Promise<void>;
+    update(id: number, p: { active?: boolean; url?: string }): Promise<Tab>;
   };
   windows?: {
     getLastFocused(q: { windowTypes: string[] }): Promise<{ id?: number }>;
+    update(id: number, p: { focused?: boolean }): Promise<unknown>;
   };
   alarms: {
     create(name: string, info: { when?: number; delayInMinutes?: number }): void;

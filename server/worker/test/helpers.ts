@@ -5,7 +5,7 @@ import type { Env } from "../src/env";
 import { b64urlEncode } from "../src/codec/b64url";
 import { utf8 } from "../src/crypto/hash";
 import { accountId, emailHash, peerId } from "../src/crypto/ids";
-import { keyRef, makeTicket, type Purpose } from "../src/crypto/tokens";
+import { CLI_WINDOW_S, keyRef, keyRef16, makeCliCode, makeTicket, type CliPurpose, type Purpose } from "../src/crypto/tokens";
 import { signedBytes } from "../src/pipeline/signed";
 import { deps } from "../src/push/deps";
 import { TEST_SECRETS as S } from "./secrets";
@@ -157,6 +157,13 @@ export async function ticketFor(email: string, signPub: string, purpose: Purpose
   return secretString(t);
 }
 
+// cli code for window floor(now / 600) + wOffset.
+export async function cliCodeFor(email: string, signPub: string, purpose: CliPurpose, wOffset = 0): Promise<string> {
+  const { b64urlDecode } = await import("../src/codec/b64url");
+  const w = Math.floor(Date.now() / 1000 / CLI_WINDOW_S) + wOffset;
+  return makeCliCode(S.PA_TOKEN_SECRET, await acctOf(email), await keyRef16(b64urlDecode(signPub)!), purpose, w);
+}
+
 export function pushFor(platform: string, kind?: string): Record<string, unknown> {
   const p256 = (globalThis as { __p256?: string }).__p256!;
   const auth = b64urlEncode(randBytes(16));
@@ -164,7 +171,7 @@ export function pushFor(platform: string, kind?: string): Record<string, unknown
     case "android":
     case "fcm":
       return { type: "fcm", token: secretString("fcmtok" + b64urlEncode(randBytes(24)).replace(/[-_]/g, "a")) };
-    case "iphone":
+    case "ios":
     case "apns":
       return { type: "apns", token: secretString(Array.from(randBytes(32), (b) => b.toString(16).padStart(2, "0")).join("")) };
     case "apns-sandbox":
@@ -173,8 +180,10 @@ export function pushFor(platform: string, kind?: string): Record<string, unknown
       return { type: "webpush", endpoint: secretString("https://fcm.googleapis.com/fcm/send/" + b64urlEncode(randBytes(24))), p256dh: p256, auth };
     case "firefox":
       return { type: "webpush", endpoint: secretString("https://updates.push.services.mozilla.com/wpush/v2/" + b64urlEncode(randBytes(24))), p256dh: p256, auth };
+    case "cli":
+      return { type: "unifiedpush", endpoint: secretString("https://ntfy.sh/up" + b64urlEncode(randBytes(9)) + "?up=1"), p256dh: p256, auth };
     case "unifiedpush":
-      return { type: "unifiedpush", endpoint: secretString("https://up.example.org/push/" + b64urlEncode(randBytes(24))), p256dh: p256, auth };
+      return { type: "unifiedpush", endpoint: secretString("https://ntfy.sh/push/" + b64urlEncode(randBytes(24))), p256dh: p256, auth };
   }
   throw new Error("platform");
 }
@@ -304,7 +313,7 @@ function defaultResponse(r: MockReq): Response {
   }
   if (u.hostname === "fcm.googleapis.com" && u.pathname.startsWith("/v1/")) return Response.json({ name: "projects/test-project/messages/0:1" });
   if (u.hostname === "api.push.apple.com" || u.hostname === "api.sandbox.push.apple.com") return new Response(null, { status: 200 });
-  if (u.hostname === "fcm.googleapis.com" || u.hostname === "updates.push.services.mozilla.com" || u.hostname === "up.example.org") {
+  if (u.hostname === "fcm.googleapis.com" || u.hostname === "updates.push.services.mozilla.com" || u.hostname === "ntfy.sh") {
     return new Response(null, { status: 201 });
   }
   if (u.hostname === "challenges.cloudflare.com") return Response.json({ success: true, hostname: "pusharmor.com", action: "email" });
@@ -348,4 +357,42 @@ export function decodeJwt(jwt: string): { header: Record<string, unknown>; claim
   const [h, c] = jwt.split(".");
   const dec = (s: string) => JSON.parse(atob(s.replace(/-/g, "+").replace(/_/g, "/")));
   return { header: dec(h), claims: dec(c) };
+}
+
+// D1 cost meter: sums meta.rows_read / rows_written of every all() and batch() on the test D1
+// while run() is in flight (the Worker calls D1 only through these two).
+export async function meterD1<T>(run: () => Promise<T>): Promise<{ result: T; rows_read: number; rows_written: number }> {
+  const db = baseEnv.DB;
+  let rows_read = 0;
+  let rows_written = 0;
+  const add = (m: { rows_read?: number; rows_written?: number } | undefined) => {
+    rows_read += m?.rows_read ?? 0;
+    rows_written += m?.rows_written ?? 0;
+  };
+  const wrap = (s: D1PreparedStatement): D1PreparedStatement => {
+    const bind = s.bind.bind(s);
+    const allFn = s.all.bind(s);
+    s.bind = (...v: unknown[]) => wrap(bind(...v));
+    s.all = (async () => {
+      const r = await allFn();
+      add(r.meta);
+      return r;
+    }) as D1PreparedStatement["all"];
+    return s;
+  };
+  const prepare = db.prepare;
+  const batch = db.batch;
+  db.prepare = (q: string) => wrap(prepare.call(db, q));
+  db.batch = (async (stmts: D1PreparedStatement[]) => {
+    const rs = await batch.call(db, stmts);
+    for (const r of rs) add(r.meta);
+    return rs;
+  }) as D1Database["batch"];
+  try {
+    const result = await run();
+    return { result, rows_read, rows_written };
+  } finally {
+    db.prepare = prepare;
+    db.batch = batch;
+  }
 }

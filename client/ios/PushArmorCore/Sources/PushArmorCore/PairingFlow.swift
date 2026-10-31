@@ -4,12 +4,13 @@ import Foundation
 public enum PairNote: String, Sendable {
     case failed      // "Pairing failed. Start again on the new peer."
     case timedOut    // "Pairing timed out. Tap Pair to start again."
+    case pairAgain   // the half-state notice fired: the row offers Pair again
 }
 
 /// Result of one POST /pair.
 public enum PairSendResult: Equatable, Sendable {
     case sent
-    case result(String)          // denied | gone | unknown | paused | failed[:..]
+    case result(String)          // denied | gone | unknown | logged out | failed[:..]
     case rateLimited(Int64)      // not_before (unix s)
     case waiting(Int64)          // not_before not reached, nothing sent
     case network
@@ -76,6 +77,10 @@ extension Core {
                     if var q = p { q.note = PairNote.failed.rawValue; try store.savePeer(q) }
                 case .unchanged, .none:
                     break
+                }
+                if out.notice == .halfState, var q = try store.peer(from) {
+                    q.note = PairNote.pairAgain.rawValue
+                    try store.savePeer(q)
                 }
                 return (out, try store.pairing(from), try store.peer(from))
             }
@@ -231,7 +236,7 @@ extension Core {
 
     // MARK: user actions
 
-    public enum PairStartError: Error, Equatable { case pinned, openEntry, tooManyOpen, notListed }
+    public enum PairStartError: Error, Equatable { case pinned, openEntry, tooManyOpen, notListed, notOffered }
 
     /// [Pair] on an unpinned row (step 2): persist (r_N, c_N) before the commit send.
     /// Refuses to overwrite an open entry (I234).
@@ -303,6 +308,60 @@ extension Core {
     /// Whether a row offers Cancel pairing.
     public func offersCancel(_ p: Peer) -> Bool {
         (try? store.pairing(p.id)) != nil || p.notPairedOnPeer
+    }
+
+    /// Whether a row offers Pair again in place of Cancel pairing: the half-state notice
+    /// fired for it and it still offers Cancel pairing.
+    public func offersPairAgain(_ p: Peer) -> Bool {
+        p.note == PairNote.pairAgain.rawValue && offersCancel(p)
+    }
+
+    /// [Pair again] on a half-state row: Cancel pairing (local drop and the allow
+    /// reconcile, awaited), then [Pair]. The offer check and the drop are one transaction,
+    /// so a second tap while the first runs throws notOffered and changes nothing (I435).
+    /// The [Pair] preconditions are checked before the drop, so a refusal keeps the row.
+    public func pairAgain(_ x: PeerId) async throws -> PairSendResult {
+        try store.db.write {
+            guard let p = try store.peer(x), offersPairAgain(p) else { throw PairStartError.notOffered }
+            guard p.listEncPub != nil else { throw PairStartError.notListed }
+            guard try store.pairings().filter({ $0.peerId != x }).count < PairDecide.maxOpenEntries else {
+                throw PairStartError.tooManyOpen
+            }
+            try store.dropPin(x)
+            if var q = try store.peer(x) { q.note = nil; try store.savePeer(q) }
+        }
+        await allowReconcile()
+        return try await startPair(x)
+    }
+
+    /// The toast after [Pair again] (I436): nil when the commit went out, is queued, or the
+    /// tap was a repeat of one still running.
+    public static func pairAgainToast(_ r: Result<PairSendResult, Error>) -> String? {
+        switch r {
+        case .success(.sent), .success(.waiting), .success(.rateLimited): return nil
+        case .success(.network), .success(.error): return S.pairNotSent
+        case .success(.result): return S.cannotPairNow
+        case .failure(let e as PairStartError) where e == .notOffered: return nil
+        case .failure: return S.cannotPairNow
+        }
+    }
+
+    /// The toast after a Log out, Remove, Deny, or Approve call (I473): nil when it went through,
+    /// so a failed call never looks like a silent no-op; the button stays for a retry.
+    public static func failText(_ out: APIOutcome?) -> String? {
+        guard let out = out else { return S.notDone }
+        if out.reply?.ok == true { return nil }
+        if out.isClockSkew { return S.clockOff }
+        return out.reply == nil ? S.noConnection : S.notDone
+    }
+
+    /// Same for an ApproveOutcome (Approve, Deny): the relay server's answers are not failures.
+    public static func failText(_ o: ApproveOutcome?) -> String? {
+        switch o {
+        case .network?: return S.noConnection
+        case .error?, nil: return S.notDone
+        default: return nil
+        }
     }
 
     /// 14-day timeout check (app open and Refresh; no background timer).

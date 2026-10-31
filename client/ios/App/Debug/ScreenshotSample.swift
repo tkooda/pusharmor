@@ -6,10 +6,13 @@ import PushArmorCore
 /// Store screenshot mode (debug builds only; tools/check-release-bundle.sh fails on it in a
 /// release app). The launch argument -PAScreenshots opens a sample database in the temporary
 /// directory: no App Group, no Keychain, no Core, so no Worker call. -PAScreenshotsPairing
-/// adds an open pairing; -PAScreenshotsNotify posts a local sample notification.
+/// adds an open pairing; -PAScreenshotsNotify posts a local sample notification;
+/// -PAScreenshotsSignIn opens the sign-in screen (review images only); -PAScreenshotsEmpty
+/// has no other device at all (the first-pair screen).
 enum ScreenshotSample {
     private static let args = ProcessInfo.processInfo.arguments
     static var isOn: Bool { args.contains("-PAScreenshots") }
+    static var signIn: Bool { args.contains("-PAScreenshotsSignIn") }
 
     /// Compose box prefill.
     static let draft = "https://example.com/guide/hiking-trails"
@@ -25,6 +28,20 @@ enum ScreenshotSample {
         let now = Int64(Date().timeIntervalSince1970)
         try store.setMe("id", .text(id("S")))
         try store.setMe("name", .text("iPhone"))
+        if args.contains("-PAScreenshotsEmpty") { return store }
+        // 04-pairing: the pairing card only. Paired rows below them would sit under
+        // the floating tab bar, which content scrolls behind by design.
+        if args.contains("-PAScreenshotsPairing") {
+            try store.db.exec("""
+                INSERT INTO peers (id, state, listed, reachable, platform, created, name, name_n, fingerprint)
+                VALUES (?, 'unruled', 1, 1, 'chrome', ?, 'New laptop', 1, 'K7QD')
+                """, [.text(id("N")), .int(now - 50 * 86400)])  // oldest: the first row on screen
+            try store.db.exec("""
+                INSERT INTO pairing (peer_id, role, state, r, authorized, started_at, last_send_at)
+                VALUES (?, 'X', 'shown', ?, 1, ?, ?)
+                """, [.text(id("N")), .blob(Data(count: 32)), .int(now), .int(now)])
+            return store
+        }
         let peers: [(String, String, String, Int64)] = [
             (id("L"), "chrome", "Laptop", now - 40 * 86400),
             (id("W"), "firefox", "Work desktop", now - 30 * 86400),
@@ -37,24 +54,15 @@ enum ScreenshotSample {
                 """, [.text(pid), .blob(Data(repeating: 2, count: 65)), .blob(Data(repeating: 3, count: 65)), .int(created),
                       .text(platform), .int(created), .text(name), .blob(Data(repeating: 1, count: 16))])
         }
-        guard let laptop = PeerId(text: id("L")), let desktop = PeerId(text: id("W")), let tablet = PeerId(text: id("T"))
+        guard let laptop = PeerId(text: id("L")), let desktop = PeerId(text: id("W"))
         else { return store }
-        try store.addMessage(dir: .outgoing, peer: tablet, type: "url", content: draft, n: nil, pairingId: nil,
-                             read: true, results: "{\"\(tablet.text)\":\"sent\"}", now: now - 7200)
+        // History times sit just before the 9:41 status bar clock (History tab).
+        let clock = Int64((Calendar.current.date(bySettingHour: 9, minute: 41, second: 0, of: Date()) ?? Date())
+            .timeIntervalSince1970)
         try store.addMessage(dir: .incoming, peer: desktop, type: "text", content: "Meeting moved to 3 pm, room B", n: nil,
-                             pairingId: nil, read: true, results: nil, now: now - 1500)
+                             pairingId: nil, read: true, results: nil, now: clock - 1500)
         try store.addMessage(dir: .incoming, peer: laptop, type: "url", content: link, n: nil, pairingId: nil,
-                             read: false, results: nil, now: now - 120)
-        if args.contains("-PAScreenshotsPairing") {
-            try store.db.exec("""
-                INSERT INTO peers (id, state, listed, reachable, platform, created, name, name_n, fingerprint)
-                VALUES (?, 'unruled', 1, 1, 'chrome', ?, 'New laptop', 1, 'K7QD')
-                """, [.text(id("N")), .int(now - 50 * 86400)])  // oldest: the first row on screen
-            try store.db.exec("""
-                INSERT INTO pairing (peer_id, role, state, r, authorized, started_at, last_send_at)
-                VALUES (?, 'X', 'shown', ?, 1, ?, ?)
-                """, [.text(id("N")), .blob(Data(count: 32)), .int(now), .int(now)])
-        }
+                             read: false, results: nil, now: clock - 120)
         return store
     }
 

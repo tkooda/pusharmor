@@ -36,19 +36,19 @@ object HistoryFilter {
 
     data class Row(val peerId: String?, val received: Boolean)
 
-    /** All; one chip per verified peer (hidden while rows come from one peer only); Unknown while an Unknown row exists. */
+    /** All; one chip per verified peer (hidden while rows come from one peer only); Unknown while a received Unknown row exists. */
     fun chips(rows: List<Row>, nameOf: (String) -> String): List<Chip> {
         val peers = rows.mapNotNull { it.peerId }.distinct()
         val out = mutableListOf<Chip>(Chip.All)
         if (peers.size > 1) peers.forEach { out += Chip.PeerChip(it, nameOf(it)) }
-        if (rows.any { it.peerId == null }) out += Chip.Unknown
+        if (rows.any { it.received && it.peerId == null }) out += Chip.Unknown // sent rows carry no peer id
         return out
     }
 
     fun matches(row: Row, chip: Chip): Boolean = when (chip) {
         Chip.All -> true
         is Chip.PeerChip -> row.received && row.peerId == chip.peerId
-        Chip.Unknown -> row.peerId == null
+        Chip.Unknown -> row.received && row.peerId == null
     }
 
     /** The filter resets to All when it has no rows left. */

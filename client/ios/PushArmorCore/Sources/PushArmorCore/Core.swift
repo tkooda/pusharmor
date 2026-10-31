@@ -61,7 +61,7 @@ public final class Core: @unchecked Sendable {
     // MARK: signed calls
 
     /// A signed call with PA-ID. Applies the client-wide reply rules: 401 "unknown peer" takes
-    /// the self-removed path, 401 "paused" marks this device signed out, "push_missing"
+    /// the self-removed path, 401 "logged out" marks this device logged out, "push_missing"
     /// sets me.push_missing.
     public func signed(_ method: String, _ path: String, body: Data = Data(), retry: Bool = true,
                        timeout: Double = 15) async -> APIOutcome {
@@ -70,8 +70,8 @@ public final class Core: @unchecked Sendable {
         if let r = out.reply {
             if r.status == 401 && r.error == "unknown peer" {
                 selfRemoved()
-            } else if r.status == 401 && r.error == "paused" {
-                try? store.setMe("paused", .int(1))
+            } else if r.status == 401 && r.error == "logged out" {
+                try? store.setMe("logged_out", .int(1))
             }
             if case .bool(true)? = r.json?["push_missing"] { try? store.setMe("push_missing", .int(1)) }
         }
@@ -111,7 +111,7 @@ public final class Core: @unchecked Sendable {
                                      toEncPub: enc, pairingId: pid, keys: keys)
     }
 
-    /// Messages for every id in the allow set that has a pin (pause, unpause, rename, remove,
+    /// Messages for every id in the allow set that has a pin (logout, login, rename, remove,
     /// delete); orphans are left to the allow reconcile.
     func allowMessages(_ content: (PeerId, UInt64) throws -> MessageContent) throws -> [PeerId: String] {
         var m: [PeerId: String] = [:]
@@ -138,14 +138,14 @@ extension Store {
     /// The DB part of the wipe (one transaction).
     public func wipe() throws {
         try db.write {
-            try db.exec("UPDATE me SET removed = 1, paused = 0, push_missing = 0, request_token = NULL")
+            try db.exec("UPDATE me SET removed = 1, logged_out = 0, push_missing = 0, request_token = NULL")
             try db.exec("""
                 UPDATE peers SET sign_pub = NULL, enc_pub = NULL, pairing_id = NULL, fingerprint = NULL, last_n = 0,
                 approve_c = NULL, approve_name = NULL, approve_name_rev = NULL, approve_result = NULL, approve_sent_at = NULL,
                 state = CASE WHEN state = 'removed' THEN 'removed' ELSE 'unruled' END,
                 approve_verified = 0, approve_verified_at = NULL, approve_prompt_n = 0,
                 get_approves_me = NULL, get_denies_me = NULL, get_at = NULL, denied_me_msg = 0,
-                paused = 0, pause_n = 0, name = NULL, name_n = 0, pending_name = NULL, pending_n = 0
+                logged_out = 0, logout_n = 0, name = NULL, name_n = 0, pending_name = NULL, pending_n = 0
                 """)
             try db.exec("UPDATE pairing SET r = zeroblob(length(r)), c_n = zeroblob(length(c_n))")
             try db.exec("DELETE FROM pairing")

@@ -10,6 +10,7 @@ set -euo pipefail
 [ $# -eq 4 ] || { echo "usage: $0 ARCHIVE_PATH TEAM VERSION BUILD" >&2; exit 2; }
 archive="$1"; team="$2"; version="$3"; build="$4"
 bid=com.pusharmor.app
+[[ "$team" =~ ^[A-Z0-9]{10}$ ]] || { echo "error: TEAM must be 10 uppercase letters or digits" >&2; exit 2; }
 cd "$(dirname "$0")/.."
 xcodebuild archive -project PushArmor.xcodeproj -scheme PushArmor -configuration Release \
   -destination "generic/platform=iOS" -archivePath "$archive" \

@@ -7,16 +7,17 @@ export interface Env {
   DB: D1Database;
   RL_IP: RateLimit;
   RL_PEER: RateLimit;
-  RL_MAIL: RateLimit;
-  RL_MAIL_ALL: RateLimit;
+  RL_MAIL_EMAIL: RateLimit;
+  RL_MAIL_IP: RateLimit;
+  RL_MAIL_GLOBAL: RateLimit;
   RL_CODE: RateLimit;
   RL_PAIR: RateLimit;
   RL_PROBE: RateLimit;
-  RL_CODE_ALL: RateLimit;
+  RL_ACCT: RateLimit;
 
   PA_ALLOWED_PUSH_ENDPOINT_PREFIXES: string;
+  PA_ALLOWED_UP_HOSTS: string;
   PA_PUSH_TTL_SECONDS: string;
-  PA_PUSH_PAIR_TTL_SECONDS: string;
   GOOGLE_FCM_PROJECT_ID: string;
   APPLE_APNS_TOPIC: string;
   APPLE_APNS_KEY_ID: string;
@@ -37,7 +38,11 @@ export interface Env {
   PA_OAUTH_REDIRECT_FIREFOX: string;
   PA_OAUTH_REDIRECT_ANDROID: string;
   PA_OAUTH_REDIRECT_WEB: string;
+  PA_OAUTH_REDIRECT_CLI: string;
   PA_WEB_ORIGINS: string;
+  PA_LOG_SAMPLE: string;
+  PA_MIN_CLIENT?: string;
+  PA_HEALTHCHECK_URL?: string; // secret; GET after each passing 15-minute self-check
 
   PA_ID_SECRET: string;
   PA_CODE_SECRET: string;

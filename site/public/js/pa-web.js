@@ -4,6 +4,7 @@
   "use strict";
 
   var API = "https://api.pusharmor.com";
+  var VERSION = "0.0.20";
   var KEY_ITEM = "pa-del-key";
   var enc = new TextEncoder();
 
@@ -64,7 +65,7 @@
 
   // API client. opts: {fetch, sleep, now} (injectable for tests).
   // Retries: up to 3 on 429, 503 and network errors; backoff 0.5, 1.5, 3 s; 8 s budget;
-  // Retry-After honored when it fits the budget. Offset re-synced from every PA-Epoch-Ms.
+  // Retry-After honored when it fits the budget. Offset re-synced from every PA-Epoch (seconds).
   function Client(opts) {
     opts = opts || {};
     this.fetch = opts.fetch || g.fetch.bind(g);
@@ -86,7 +87,7 @@
     var start = this.now();
     var unsure = false;
     for (var attempt = 0; ; attempt++) {
-      var headers = { "Content-Type": "application/json" };
+      var headers = { "Content-Type": "application/json", "PA-Client": "web/" + VERSION };
       if (key) {
         var t = this.paTime();
         headers["PA-Time"] = t;
@@ -101,8 +102,8 @@
       }
       var retryAfter = 0;
       if (res) {
-        var epoch = res.headers.get("PA-Epoch-Ms");
-        if (epoch && /^[0-9]+$/.test(epoch)) this.offset = Number(epoch) - this.now();
+        var epoch = res.headers.get("PA-Epoch");
+        if (epoch && /^[0-9]+$/.test(epoch)) this.offset = Number(epoch) * 1000 - this.now();
         try { data = await res.json(); } catch (e) { data = {}; }
         if (!data || typeof data !== "object") data = {};
         if (res.status !== 429 && res.status !== 503) return { status: res.status, data: data, unsure: unsure };
@@ -118,7 +119,7 @@
   };
 
   // DELETE /v1/account with empty m. On 401 "clock skew" the offset is already re-synced
-  // from that reply's PA-Epoch-Ms; re-sign and retry once.
+  // from that reply's PA-Epoch; re-sign and retry once.
   Client.prototype.deleteAccount = async function (key, ticket) {
     var obj = { ticket: ticket, sign_pub: key.pub, m: {} };
     var r = await this.request("DELETE", "/v1/account", obj, key);
@@ -130,25 +131,27 @@
 
   var TEXT = {
     badEmail: "Only email addresses with plain ASCII characters are supported.",
-    expired: "Sign-in expired, sign in again",
+    expired: "Login expired, log in again",
     clock: "This device's clock is off by more than 5 minutes",
-    noPeers: "No peers were found under this address",
-    deleted: "Your other peers will show This device was removed and need a new sign-in; pairings are not kept.",
+    noPeers: "No devices were found under this address",
+    deleted: "Your other devices will show \"This device was removed\" and ask for a new login. Pairings are not kept.",
     mailFailed: "Could not send the email, try again",
-    network: "Could not reach PushArmor, try again"
+    network: "Could not reach PushArmor, try again",
+    update: "Update PushArmor to continue."
   };
 
   // User text for a failed call.
   function errorText(r) {
     var e = r.data && r.data.error;
     if (r.status === 0) return TEXT.network;
+    if (r.status === 426) return TEXT.update;
     if (e === "bad email") return TEXT.badEmail;
     if (e === "ticket expired" || e === "invalid ticket") return TEXT.expired;
     if (e === "clock skew") return TEXT.clock;
     if (r.status === 502) return TEXT.mailFailed;
     if (r.status === 429) {
-      var s = Number(r.data.retry_after);
-      return "Too many tries, wait " + (s > 0 ? s + " s" : "a minute") + " and try again";
+      var s = Number(r.data.retry_after) > 0 ? Number(r.data.retry_after) : 60;
+      return "Too many requests. Try again in " + s + (s === 1 ? " second." : " seconds.");
     }
     if (e === "wrong code") return "Wrong code, check it and try again";
     if (e === "code expired") return "The code expired, request a new one";
@@ -158,6 +161,31 @@
 
   function isAscii(s) {
     return /^[\x00-\x7f]*$/.test(s);
+  }
+
+  // /auth/cli helpers. Link fragment: <r|l>.<22 chars of [A-Za-z0-9_-]>.
+  var CLI_PURPOSE = { r: "register", l: "login" };
+
+  function parseCliLink(hash) {
+    var m = /^#([rl])\.([A-Za-z0-9_-]{22})$/.exec(hash || "");
+    return m ? { purpose: CLI_PURPOSE[m[1]], k: m[2] } : null;
+  }
+
+  // Result fragment from the OAuth return: #cli_code=<34 chars>&email=<email> or #error=<word>.
+  function parseCliResult(hash) {
+    var p = new URLSearchParams((hash || "").replace(/^#/, ""));
+    var code = p.get("cli_code");
+    if (code !== null) return /^[A-Za-z0-9_-]{34}$/.test(code) ? { code: code, email: p.get("email") || "" } : { error: "failed" };
+    var err = p.get("error");
+    return err !== null ? { error: err } : null;
+  }
+
+  function cliEmailBody(email, link, token) {
+    return { email: email, cli_k: link.k, purpose: link.purpose, turnstile: token };
+  }
+
+  function cliOAuthUrl(provider, link) {
+    return API + "/v1/auth/" + provider + "?k=" + encodeURIComponent(link.k) + "&r=cli&p=" + link.purpose;
   }
 
   g.PA = {
@@ -172,6 +200,10 @@
     loadKey: loadKey,
     Client: Client,
     errorText: errorText,
-    isAscii: isAscii
+    isAscii: isAscii,
+    parseCliLink: parseCliLink,
+    parseCliResult: parseCliResult,
+    cliEmailBody: cliEmailBody,
+    cliOAuthUrl: cliOAuthUrl
   };
 })(this);

@@ -2,7 +2,7 @@
 // counters, replay state and Worker calls. Every operation reads state at
 // start and commits before it returns, so a stopped service worker loses
 // nothing.
-import { type ApiReply, Api, ApiError } from "../api/client.ts";
+import { type ApiReply, Api, ApiError, UPDATE_REQUIRED, errorText } from "../api/client.ts";
 import { b64urlDecode, b64urlEncode, b64urlTryDecode } from "../crypto/b64url.ts";
 import { equal, randomBytes } from "../crypto/bytes.ts";
 import { generateKeySet, isValidPub } from "../crypto/keys.ts";
@@ -28,6 +28,7 @@ import {
   encodeInner,
   encodePair,
   isPairWire,
+  isPrintableName,
   makeNameEntry,
   openNameEntry,
   openPair,
@@ -50,12 +51,14 @@ import {
   PAIR_PREFIX,
   type PairEntry,
   REG_MARKER,
+  UPDATE_NEEDED,
   allEntries,
   getAllowSet,
   getEntry,
   pairKeyOf,
 } from "./state.ts";
-import { T, peerLabel } from "./texts.ts";
+import { T, peerLabel, sendResultText } from "./texts.ts";
+import { AUTH_CHANGED } from "../model/signin.ts";
 
 export type Src = "push" | "bridge" | "returned";
 export const FETCH_WINDOW_MS = 60_000;
@@ -107,19 +110,31 @@ function approveRow(n: number, name: string | null, pairingId: Uint8Array): (cur
   };
 }
 
+/** meta key: a Log out the relay server has not confirmed yet (Q368). */
+const LOGOUT_PENDING = "logout_pending";
+
 export class Engine {
   readonly p: Platform;
   readonly db: Db;
   readonly api: Api;
   readonly vapid: Uint8Array;
   readonly lock = new Lock();
+  private readonly pairingAgain = new Set<string>();
   private fetching: Promise<void> | null = null;
+  private loggingOut: Promise<void> | null = null;
+  private authN = 0;
 
   constructor(d: EngineDeps) {
     this.p = d.platform;
     this.db = d.db;
     this.api = d.api;
-    this.api.onPaused = () => this.db.setMeta("reg", "paused");
+    this.api.onLoggedOut = () => this.setReg("logged_out");
+    this.api.onUpdateRequired = async () => {
+      if (!(await this.updateRequired())) {
+        await this.p.storageLocal.set({ [UPDATE_NEEDED]: this.p.appVersion });
+        await this.authChanged(); // open views show the update screen
+      }
+    };
     this.vapid = d.vapidPub;
   }
 
@@ -143,8 +158,23 @@ export class Engine {
     return s && s.id ? s : null;
   }
 
-  async regState(): Promise<"registered" | "paused" | null> {
-    return (await this.db.meta<"registered" | "paused">("reg")) ?? null;
+  /** true once the relay server refused this version (HTTP 426); a newer version starts clean. */
+  async updateRequired(): Promise<boolean> {
+    return (await this.p.storageLocal.get([UPDATE_NEEDED]))[UPDATE_NEEDED] === this.p.appVersion;
+  }
+
+  /** Tells open popups and tabs that the login state changed: they mount again (I465). */
+  async authChanged(): Promise<void> {
+    await this.p.storageSession.set({ [AUTH_CHANGED]: this.p.now() + ":" + ++this.authN }).catch(() => undefined);
+  }
+
+  private async setReg(v: "registered" | "logged_out"): Promise<void> {
+    await this.db.setMeta("reg", v);
+    await this.authChanged();
+  }
+
+  async regState(): Promise<"registered" | "logged_out" | null> {
+    return (await this.db.meta<"registered" | "logged_out">("reg")) ?? null;
   }
 
   private signerOf(s: SelfKeys) {
@@ -331,13 +361,13 @@ export class Engine {
       case "delete":
         await this.selfRemoved(T.accountDeleted);
         return;
-      case "pause":
-      case "unpause": {
-        await this.db.updatePeer(peer.id, (p) => (p && n > p.pause_n ? { ...p, paused: c.type === "pause", pause_n: n } : null));
-        const id = await this.addEvent(c.type === "pause" ? "paused" : "resumed", peer.id);
+      case "logout":
+      case "login": {
+        await this.db.updatePeer(peer.id, (p) => (p && n > p.logout_n ? { ...p, logged_out: c.type === "logout", logout_n: n } : null));
+        const id = await this.addEvent(c.type === "logout" ? "logged_out" : "logged_in", peer.id);
         if (this.penalized && src === "push") {
           const nm = peerLabel(peer.name);
-          this.p.notify("h:" + id, T.appName, c.type === "pause" ? T.pausedRecv(nm) : T.resumedRecv(nm));
+          this.p.notify("h:" + id, T.appName, c.type === "logout" ? T.loggedOutRecv(nm) : T.loggedInRecv(nm));
         }
         await this.rebuildMenus();
         return;
@@ -357,10 +387,10 @@ export class Engine {
     const nm = await this.peerName(from);
     if (c.type === "approve") this.p.notify("a:" + from, T.appName, T.approved(nm));
     else if (c.type === "rename" || c.type === "remove") this.p.notify("peerchg", T.appName, T.peerChanged);
-    else if (c.type === "pause" || c.type === "unpause" || c.type === "deny") {
-      const ev = c.type === "pause" ? "paused" : c.type === "unpause" ? "resumed" : "denied";
+    else if (c.type === "logout" || c.type === "login" || c.type === "deny") {
+      const ev = c.type === "logout" ? "logged_out" : c.type === "login" ? "logged_in" : "denied";
       const top = (await this.db.history()).find((h) => h.type === "event" && h.event === ev && h.peer === from);
-      const text = c.type === "pause" ? T.pausedRecv(nm) : c.type === "unpause" ? T.resumedRecv(nm) : T.denied(nm);
+      const text = c.type === "logout" ? T.loggedOutRecv(nm) : c.type === "login" ? T.loggedInRecv(nm) : T.denied(nm);
       this.p.notify(top?.id !== undefined ? "h:" + top.id : "drop", T.appName, text);
     }
   }
@@ -468,7 +498,11 @@ export class Engine {
         await this.endEntry(from, T.pairFailed, false);
         return this.dropEvent("unreadable", null, src);
       case "notice": {
-        if (d.notice === "half") return this.pairNotice(pkX, T.pairHalf(name));
+        if (d.notice === "half") {
+          const cur = await getEntry(this.p.storageLocal, from);
+          if (cur && !cur.half) await this.p.storageLocal.set({ [pairKeyOf(from)]: { ...cur, half: true } satisfies PairEntry });
+          return this.pairNotice(pkX, T.pairHalf(name));
+        }
         if (d.notice === "crossing") {
           const pkN = await pairingKey(b64urlDecode(self.id), b64urlDecode(from));
           return this.pairNotice(pkN, T.pairCrossing(name));
@@ -516,7 +550,7 @@ export class Engine {
     const plat = p.platform.charAt(0).toUpperCase() + p.platform.slice(1);
     const d = new Date(p.created * 1000);
     const mon = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()];
-    return plat + " peer added " + mon + " " + d.getUTCDate();
+    return plat + " device added " + mon + " " + d.getUTCDate();
   }
 
   /** X: send (or re-send) the reply of an authorized entry, same r_X. */
@@ -559,6 +593,7 @@ export class Engine {
 
   private async callFailure(e: unknown): Promise<{ result: string; notBefore?: number }> {
     if (e instanceof ApiError) {
+      if (e.status === 426) return { result: UPDATE_REQUIRED };
       if (e.status === 401 && e.error === "unknown peer") await this.selfRemoved(T.removed);
       if ((e.status === 429 || e.status === 503) && e.retryAfter !== null) {
         return { result: String(e.status), notBefore: now(this.p) + Math.max(30, e.retryAfter) * 1000 };
@@ -644,9 +679,9 @@ export class Engine {
     await this.lock.run(async () => {
       const self = await this.self();
       const peer = await this.db.peer(x);
-      if (!self || !peer || peer.removed) throw new UserError("Unknown peer");
+      if (!self || !peer || peer.removed) throw new UserError("Unknown device");
       if (peer.pinned) throw new UserError("Already paired");
-      if (await getEntry(this.p.storageLocal, x)) throw new UserError("A pairing with this peer is already open");
+      if (await getEntry(this.p.storageLocal, x)) throw new UserError("A pairing with this device is already open");
       const rN = randomBytes(32);
       const cN = await commitHash(self.sign_pub, self.enc_pub, rN);
       const msg = await encodePair(b64urlDecode(self.id), { kind: "commit", c_N: cN }, x, peer.enc_pub);
@@ -798,7 +833,7 @@ export class Engine {
     const peer = await this.db.peer(x);
     if (!self || !e || !e.approve_body || !peer) return null;
     if (peer.approve_verified) return "200_c_verified";
-    if ((await this.regState()) !== "registered") return "paused";
+    if ((await this.regState()) !== "registered") return "logged out";
     let body = e.approve_body;
     const name = await this.myName();
     if (e.approve_name !== name) {
@@ -808,7 +843,7 @@ export class Engine {
     const result = await this.postApprove(x, body, self, true);
     if ((await this.db.peer(x))?.approve_verified) return "200_c_verified";
     if (result === "network") return "offline";
-    if (result.startsWith("401 paused")) return "paused";
+    if (result.startsWith("401 logged out")) return "logged out";
     if (result.startsWith("429")) return "429";
     if (/^5[0-9][0-9]/.test(result)) return "5xx";
     if (/^[0-9]{3}/.test(result)) return "200_other";
@@ -819,7 +854,7 @@ export class Engine {
   async deny(x: string): Promise<string> {
     const self = await this.self();
     const peer = await this.db.peer(x);
-    if (!self || !peer) throw new UserError("Unknown peer");
+    if (!self || !peer) throw new UserError("Unknown device");
     const pid = peer.pairing_id ?? new Uint8Array(8);
     const n = await this.db.reserveN(x);
     const c = await encodeInner({
@@ -854,6 +889,18 @@ export class Engine {
     });
     await this.rebuildMenus();
     await this.reconcileAllow();
+  }
+
+  /** [Pair again] on a half-state row: Cancel pairing (local drop + allow reconcile), then [Pair]. */
+  async pairAgain(x: string): Promise<void> {
+    if (this.pairingAgain.has(x)) return; // a second click while it runs
+    this.pairingAgain.add(x);
+    try {
+      await this.cancelPairing(x);
+      await this.pairStart(x);
+    } finally {
+      this.pairingAgain.delete(x);
+    }
   }
 
   /** Allow reconcile (I277, I278): withdraw every id in the allow set with no pin. */
@@ -910,7 +957,7 @@ export class Engine {
     if (dropped) await this.reconcileAllow();
   }
 
-  /** Popup open, Refresh, unpause: the re-fetch of waiting rows, then the timeout sweep. */
+  /** Popup open, Refresh, login: the re-fetch of waiting rows, then the timeout sweep. */
   async timeoutCheck(): Promise<void> {
     await this.refetchWaiting();
     await this.sweep();
@@ -983,7 +1030,7 @@ export class Engine {
       const ep = typeof it.enc_pub === "string" ? b64urlTryDecode(it.enc_pub) : null;
       if (!id || id.length !== ID_LEN || !sp || !ep) continue;
       if (!(await validPeerEntry(id, sp, ep, acct))) continue;
-      const platform = (["android", "iphone", "chrome", "firefox"] as const).includes(it.platform as Platform4) ? (it.platform as Platform4) : "android";
+      const platform = (["android", "ios", "chrome", "firefox", "cli"] as const).includes(it.platform as Platform4) ? (it.platform as Platform4) : "android";
       const created = typeof it.created === "number" ? it.created : 0;
       const snap = await this.db.peer(it.id);
       if (snap?.removed) continue;
@@ -1010,7 +1057,8 @@ export class Engine {
           ...row,
           platform,
           created,
-          paused: it.paused === true,
+          logged_out: it.logged_out === true,
+          listening: it.listening !== false,
           reachable: it.reachable === true,
           denies_me: it.denies_me === true,
           missing: false,
@@ -1053,11 +1101,11 @@ export class Engine {
   // ------------------------------------------------------------------ push
 
   /** Gone recovery: compare the current subscription with the last PATCHed hash. */
-  async pushReconcile(force = false): Promise<void> {
+  async pushReconcile(force = false, quiet = false): Promise<void> {
     const self = await this.self();
     if (!self || (await this.regState()) !== "registered") return;
     let cur = await this.currentPush();
-    if (!cur || force) cur = await this.subscribePush();
+    if (!cur || force) cur = await this.subscribePush(quiet);
     if (!cur) return;
     const h = await pushHash(cur);
     const last = await this.db.meta<string>("push_hash");
@@ -1071,9 +1119,9 @@ export class Engine {
     return this.p.pushCurrent();
   }
 
-  async subscribePush(): Promise<PushFields | null> {
+  async subscribePush(quiet = false): Promise<PushFields | null> {
     try {
-      return await this.p.pushSubscribe(this.vapid);
+      return await this.p.pushSubscribe(this.vapid, quiet);
     } catch {
       return null;
     }
@@ -1081,10 +1129,10 @@ export class Engine {
 
   // ------------------------------------------------------------------ send
 
-  /** The All set (catalog): approved by me, approves me, not hidden, not paused, not missing. */
+  /** The All set (catalog): approved by me, approves me, not hidden, not logged out, listening, not missing. */
   async allSet(): Promise<PeerRow[]> {
     return (await this.db.peers()).filter(
-      (p) => p.pinned && p.ruling === "approved" && p.approves_me && !p.hidden && !p.paused && !p.missing && !p.removed,
+      (p) => p.pinned && p.ruling === "approved" && p.approves_me && !p.hidden && !p.logged_out && p.listening !== false && !p.missing && !p.removed,
     );
   }
 
@@ -1130,7 +1178,8 @@ export class Engine {
       await this.afterSignedReply(r);
       if (r.json.r && typeof r.json.r === "object") results = r.json.r as Record<string, string>;
     } catch (e) {
-      error = e instanceof ApiError && e.error === "clock skew twice" ? T.clockOff : (await this.callFailure(e)).result;
+      await this.callFailure(e);
+      error = e instanceof ApiError && e.status === 401 && e.error === "unknown peer" ? T.removed : errorText(e);
       if (e instanceof ApiError && (e.status === 429 || e.status === 503) && e.retryAfter !== null) {
         await this.p.storageLocal.set({ [NET_NOT_BEFORE]: now(this.p) + e.retryAfter * 1000 });
       }
@@ -1145,10 +1194,13 @@ export class Engine {
         continue;
       }
       const nm = await this.peerName(id);
-      failures.push({ id, result: res, text: res === "gone" ? T.notDelivered(nm) : nm + ": " + res });
+      failures.push({ id, result: res, text: error ? nm + ": " + error : sendResultText(nm, res) });
       if (res === "unapproved" || res === "unknown" || res === "gone") trigger = true;
-      if (res === "paused") {
-        await this.db.updatePeer(id, (p) => (p ? { ...p, paused: true } : null));
+      if (res === "logged out") {
+        await this.db.updatePeer(id, (p) => (p ? { ...p, logged_out: true } : null));
+      }
+      if (res === "not listening") {
+        await this.db.updatePeer(id, (p) => (p ? { ...p, listening: false } : null));
       }
     }
     await this.db.addHistory({
@@ -1169,7 +1221,7 @@ export class Engine {
     return out;
   }
 
-  // -------------------------------------------- allow-list m (pause etc.)
+  // -------------------------------------------- allow-list m (logout etc.)
 
   /** The caller's allow list: every id this device approved (pinned). */
   private async allowList(): Promise<PeerRow[]> {
@@ -1232,21 +1284,55 @@ export class Engine {
     }
   }
 
-  /** Sign out = pause (catalog Pause rules). */
-  async pause(): Promise<void> {
-    const self = await this.self();
-    if (!self) return;
-    await this.reconcileAllow();
-    await this.allowListCall("POST", "/peers/" + self.id + "/pause", self, (m) => ({ m }), async () => ({ type: "pause" }));
-    await this.db.setMeta("reg", "paused");
+  /** Log out (catalog Logout rules): logged out here at once, then the relay server call. */
+  async logout(): Promise<void> {
+    await this.logoutLocal();
+    await this.retryPendingLogout();
   }
 
-  async unpause(ticket: string): Promise<void> {
+  /**
+   * Log out click (Q368): logged out here at once, with the relay server call kept as
+   * pending so it is sent now and again on later opens until it goes through.
+   */
+  async logoutLocal(): Promise<void> {
+    // no keys on this device: nothing to log out on the relay server; drop what is left
+    if (!(await this.self())) return this.wipe();
+    await this.db.setMeta(LOGOUT_PENDING, true);
+    await this.setReg("logged_out");
+  }
+
+  /** Sends a pending logout; one at a time. */
+  retryPendingLogout(): Promise<void> {
+    return (this.loggingOut ??= this.sendPendingLogout().finally(() => {
+      this.loggingOut = null;
+    }));
+  }
+
+  /**
+   * It stays pending on no reply, 429, 5xx, or clock skew; it is dropped once the relay
+   * server answered otherwise, or when this device was removed or logged in again.
+   */
+  private async sendPendingLogout(): Promise<void> {
+    if (!(await this.db.meta(LOGOUT_PENDING))) return;
+    const self = await this.self();
+    if (self && (await this.regState()) === "logged_out") {
+      try {
+        await this.reconcileAllow();
+        await this.allowListCall("POST", "/peers/" + self.id + "/logout", self, (m) => ({ m }), async () => ({ type: "logout" }));
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status === 0 || e.status === 429 || e.status >= 500 || e.error.startsWith("clock skew")) return;
+      }
+    }
+    await this.db.del("meta", LOGOUT_PENDING);
+  }
+
+  async login(ticket: string): Promise<void> {
     const self = await this.self();
     if (!self) return;
     await this.reconcileAllow();
-    await this.allowListCall("POST", "/peers/" + self.id + "/unpause", self, (m) => ({ ticket, m }), async () => ({ type: "unpause" }));
-    await this.db.setMeta("reg", "registered");
+    await this.allowListCall("POST", "/peers/" + self.id + "/login", self, (m) => ({ ticket, m }), async () => ({ type: "login" }));
+    await this.setReg("registered");
+    await this.db.del("meta", LOGOUT_PENDING);
     await this.fetchPeersNow().catch(() => undefined);
     await this.pushReconcile().catch(() => undefined);
     await this.timeoutCheck();
@@ -1256,7 +1342,7 @@ export class Engine {
   async rename(name: string): Promise<void> {
     const self = await this.self();
     if (!self) return;
-    if (!/^[\x20-\x7e]{1,32}$/.test(name)) throw new UserError("Name: 1 to 32 plain ASCII characters");
+    if (!isPrintableName(name)) throw new UserError("Use 1 to 32 plain ASCII characters, no double quote.");
     let names: Record<string, string> = {};
     await this.allowListCall(
       "PATCH",
@@ -1321,19 +1407,21 @@ export class Engine {
   async selfRemoved(banner: string): Promise<void> {
     await this.wipe();
     await this.db.setMeta("banner", banner);
+    await this.authChanged();
   }
 
   /** The one wipe routine (section 4.1). History is kept. */
   async wipe(): Promise<void> {
     await this.p.storageLocal.remove([REG_MARKER]);
     await this.db.clear(["keys", "peers", "replay"]);
-    for (const k of ["reg", "push_hash", "listed", "my_push_sha256", "fetch_pending", "last_fetch"]) await this.db.del("meta", k);
+    for (const k of ["reg", LOGOUT_PENDING, "push_hash", "listed", "my_push_sha256", "fetch_pending", "last_fetch"]) await this.db.del("meta", k);
     const all = await this.p.storageLocal.get(null);
     const drop = Object.keys(all).filter((k) => k.startsWith(PAIR_PREFIX) || k.startsWith(PAIR_MSG_PREFIX) || k === PAIR_AUTO || k === ALLOW_SET || k === NET_NOT_BEFORE);
     await this.p.storageLocal.remove(drop);
     await this.p.pushUnsubscribe().catch(() => undefined);
     await this.p.clearAllNotifications().catch(() => undefined);
     await this.rebuildMenus();
+    await this.authChanged();
   }
 
   // ------------------------------------------------------------ menus
@@ -1354,7 +1442,7 @@ export class Engine {
     const nm = peerLabel(peer.name);
     const t = now(this.p);
     const lines: string[] = [];
-    const actions: string[] = ["cancel"];
+    const actions: string[] = e.half && peer.pinned ? ["pair_again", "cancel"] : ["cancel"];
     const countdown = formatCountdown(e.started + PAIRING_TIMEOUT_MS - t);
     if (e.approved && !peer.approve_verified) {
       lines.push(T.waiting(nm));
@@ -1380,7 +1468,7 @@ export class Engine {
 
   // -------------------------------------------------------- registration
 
-  /** Keys for sign-in: existing keys (pause) or fresh ones (first sign-in, after a removal). */
+  /** Keys for sign-in: existing keys (logout) or fresh ones (first sign-in, after a removal). */
   async signInKeys(): Promise<SelfKeys> {
     const cur = await this.db.self();
     if (cur) return cur;
@@ -1425,12 +1513,13 @@ export class Engine {
       const idb = b64urlTryDecode(id);
       // the id must carry our own keyhash, or peers drop every message from us
       if (!idb || idb.length !== ID_LEN || !equal(idb.subarray(ACCOUNT_LEN, ACCOUNT_LEN + KEYHASH_LEN), await keyhash(keys.sign_pub, keys.enc_pub)))
-        throw new UserError("Bad reply from the server");
+        throw new UserError(T.badReply);
       await this.db.put("keys", { ...keys, id }, "self");
       await this.p.storageLocal.set({ [REG_MARKER]: { id, registered: true } });
       await this.db.setMeta("reg", "registered");
       await this.db.setMeta("banner", null);
       if (email) await this.db.setMeta("email", email);
+      await this.authChanged();
       const self = (await this.self())!;
       await this.mergePeers(r.json, self);
       if (lost && lost.id && lost.id !== id) {
@@ -1443,7 +1532,7 @@ export class Engine {
       await this.pushReconcile().catch(() => undefined);
       return null;
     }
-    throw new UserError("Could not register, try again");
+    throw new UserError("Could not register. Try again.");
   }
 
   async start(): Promise<void> {
@@ -1465,9 +1554,10 @@ export class Engine {
 
   /** Popup open: re-fetch waiting approves, timeouts, reconcile, gone recovery. */
   async onPopupOpen(): Promise<void> {
+    void this.retryPendingLogout().catch(() => undefined);
     if ((await this.regState()) !== "registered") return;
     await this.timeoutCheck();
     await this.reconcileAllow();
-    await this.pushReconcile().catch(() => undefined);
+    await this.pushReconcile(false, true).catch(() => undefined); // I555: no setup tab from the popup
   }
 }

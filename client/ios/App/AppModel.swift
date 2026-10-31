@@ -16,9 +16,9 @@ final class AppModel: ObservableObject {
         case limitPicker
         case nameDevice
         case main
-        case removed                    // "This device was removed. Sign in again"
+        case removed                    // "This device was removed. Log in again"
         case banned
-        case signedOut                  // "Signed out. Sign in to resume"
+        case signedOut                  // "Logged out. Log in to resume"
     }
 
     struct LimitEntry: Identifiable, Hashable {
@@ -28,7 +28,7 @@ final class AppModel: ObservableObject {
         let approves: Int
         let approvedBy: Int
         let reachable: Bool
-        let paused: Bool
+        let loggedOut: Bool
         let oldInstall: Bool
     }
 
@@ -39,6 +39,10 @@ final class AppModel: ObservableObject {
     @Published var history: [HistoryRow] = []
     @Published var toast: String?
     @Published var errorText: String?
+    /// The relay server answered 426 (Q328): this version is too old. Kept until the version changes (Q349).
+    @Published var updateRequired = AppEnvironment.shared.updateRequired
+    /// pa.sqlite was corrupt at launch and was recreated (Q332); shown on the log-in screen.
+    @Published var repairedNotice = false
     @Published var lockedLine: String?
     @Published var notificationsOff = false
     @Published var pushRegisterFailed = false
@@ -47,6 +51,18 @@ final class AppModel: ObservableObject {
     @Published var refreshGreyUntil: Date = .distantPast
     @Published var highlightPeer: String?
     @Published var showHistory = false
+    /// Peer ids with a Pair again call running; their Pair again buttons are disabled.
+    @Published var pairAgainBusy: Set<String> = []
+    /// Keys of taps still running ("send", "pair:<id>", ...); their buttons are disabled (I473).
+    @Published var busy: Set<String> = []
+
+    /// Runs [body] unless the same key is still running, so a second tap does not run twice (I473).
+    func once(_ key: String, _ body: () async -> Void) async {
+        guard !busy.contains(key) else { return }
+        busy.insert(key)
+        defer { busy.remove(key) }
+        await body()
+    }
 
     let env = AppEnvironment.shared
     private(set) var core: Core?
@@ -66,23 +82,15 @@ final class AppModel: ObservableObject {
             UNUserNotificationCenter.current().setNotificationCategories(BannerContent.categories())
             store = try? ScreenshotSample.makeStore()
             core = nil
-            phase = .main
+            phase = ScreenshotSample.signIn ? .signIn(.register) : .main
             reload()
+            sample = true
             started = true
             await ScreenshotSample.notifyIfAsked()
             return
         }
         #endif
-        do {
-            try env.prepareDirectories()
-            let store = try env.openStore()
-            self.store = store
-            if let keys = try env.keychain.bootstrap(store: store) {
-                core = env.makeCore(store: store, keys: keys)
-            }
-        } catch {
-            errorText = "\(error)"
-        }
+        await open()
         UNUserNotificationCenter.current().setNotificationCategories(BannerContent.categories())
         UIApplication.shared.registerForRemoteNotifications()
         await checkPermission()
@@ -95,8 +103,36 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Opens the store and loads the keys. A failure shows plain text; the next foreground
+    /// tries again (I553).
+    private func open() async {
+        do {
+            try env.prepareDirectories()
+            if store == nil {
+                let (store, repaired) = try await env.openStoreRepairing()
+                self.store = store
+                repairedNotice = repaired
+            }
+            if let store = store, let keys = try env.keychain.bootstrap(store: store) {
+                core = env.makeCore(store: store, keys: keys)
+            }
+        } catch {
+            errorText = S.launchFailed
+        }
+    }
+
+    /// I553: a launch error must not leave the app dead until force-quit. True when the
+    /// store did not open, or a signed-in device has no keys loaded.
+    static func needsReopen(hasStore: Bool, hasCore: Bool, me: Me?) -> Bool {
+        if !hasStore { return true }
+        guard !hasCore, let me = me else { return false }
+        return me.id != nil && !me.removed
+    }
+
     /// A notification tap that arrived before start() finished; replayed after it.
     private var started = false
+    /// Screenshot sample data has no keys on purpose; it must not reopen on foreground (I559).
+    private var sample = false
     private var pendingTap: (info: [AnyHashable: Any], action: String)?
 
     /// Which screen to show.
@@ -104,33 +140,69 @@ final class AppModel: ObservableObject {
         guard let store = store, let me = try? store.me() else { phase = .loading; return }
         self.me = me
         if notificationsOff && me.id == nil { phase = .welcome; return }
+        if let r = AppModel.restoredCode(me: me, email: try? store.setting("code_email"),
+                                         purpose: try? store.setting("code_purpose")) {
+            // the request_token is bound to the keys made for this sign-in (I502)
+            if case .code(_, .register) = r, pendingKeys == nil { pendingKeys = try? env.keychain.load() }
+            phase = r
+            return
+        }
         if me.removed { phase = .removed; return }
         if me.id == nil { phase = .signIn(.register); return }
-        if me.paused { phase = .signedOut; return }
+        repairedNotice = false
+        if me.loggedOut { phase = .signedOut; return }
         if me.name == nil { phase = .nameDevice; return }
         phase = .main
         reload()
     }
 
+    /// I502: the email-code step survives process death. Its request_token, address, and
+    /// purpose are saved; a register or login code step comes back on the next launch.
+    static func restoredCode(me: Me, email: String?, purpose: String?) -> Phase? {
+        guard me.requestToken != nil, let email = email,
+              let p = purpose.flatMap(AuthPurpose.init(rawValue:)) else { return nil }
+        switch p {
+        case .register where me.id == nil || me.removed: return .code(email: email, purpose: p)
+        case .login where me.id != nil && !me.removed && me.loggedOut: return .code(email: email, purpose: p)
+        default: return nil
+        }
+    }
+
     func reload() {
         guard let store = store else { return }
         me = try? store.me()
+        if let m = me, let next = AppModel.phaseAfterReload(phase, me: m) { phase = next }
         peers = (try? store.peers()) ?? []
         pairings = Dictionary(uniqueKeysWithValues: ((try? store.pairings()) ?? []).map { ($0.peerId.text, $0) })
         history = (try? store.history()) ?? []
+    }
+
+    /// I465: the main screen must not stay up once this device is removed or logged out
+    /// (a 401 or a message seen during any action), not only at the next foreground.
+    static func phaseAfterReload(_ phase: Phase, me: Me) -> Phase? {
+        guard phase == .main else { return nil }
+        if me.removed { return .removed }
+        if me.loggedOut { return .signedOut }
+        return nil
     }
 
     /// Launch and every foreground: locked-inbox drain, delivered notifications, push
     /// reconcile, retries, timeouts, permission check.
     func onForeground() async {
         await checkPermission()
+        if started, !sample, AppModel.needsReopen(hasStore: store != nil, hasCore: core != nil, me: try? store?.me()) {
+            await once("open") {
+                await open()
+                await route()
+            }
+        }
         guard let core = core, phase == .main || phase == .signedOut else { return }
         try? core.pruneHistory()
         let (n, lockedMs, held) = await core.drainLockedInbox(env.inbox)
         if n > 0 { lockedLine = S.receivedWhileLocked(n) }
         await drainDelivered(skip: lockedMs, held: held)
         if phase == .main { await core.appOpen(push: pushInfo) }
-        else { await core.allowReconcile() }
+        else { await core.retryPendingLogout(); await core.allowReconcile() }
         reload()
         if (try? core.store.me().removed) == true { phase = .removed }
     }
@@ -209,19 +281,36 @@ final class AppModel: ObservableObject {
     func emailStart(_ email: String, purpose: AuthPurpose, turnstile: String) async {
         guard Ids.normalizeEmail(email) != nil else { errorText = S.badEmail; return }
         guard let k = try? keysForSignIn(purpose) else { return }
-        switch await auth.emailStart(email: email, signPub: k.signer.publicKey, purpose: purpose, turnstile: turnstile) {
+        let r = await auth.emailStart(email: email, signPub: k.signer.publicKey, purpose: purpose, turnstile: turnstile)
+        switch r {
         case .requestToken(let t):
             requestToken = t
             try? store?.setMe("request_token", .text(t))
+            try? store?.setSetting("code_email", email)
+            try? store?.setSetting("code_purpose", purpose.rawValue)
             phase = .code(email: email, purpose: purpose)
-        case .badEmail: errorText = S.badEmail
-        case .emailSendFailed: errorText = S.emailSendFailed
-        case .rateLimited(let s): errorText = "Try again in \(s) s"
-        default: errorText = "Sign-in failed"
+        default: errorText = S.loginError(r)
         }
     }
 
     func emailVerify(_ code: String, purpose: AuthPurpose) async {
+        await once("verify") { await emailVerifyOnce(code, purpose: purpose) }
+    }
+
+    /// Back from the code step: forget the saved step so a relaunch does not bring it back.
+    func leaveCode(_ purpose: AuthPurpose) {
+        clearCodeStep()
+        phase = .signIn(purpose)
+    }
+
+    private func clearCodeStep() {
+        requestToken = nil
+        try? store?.setMe("request_token", .null)
+        try? store?.setSetting("code_email", nil)
+        try? store?.setSetting("code_purpose", nil)
+    }
+
+    private func emailVerifyOnce(_ code: String, purpose: AuthPurpose) async {
         guard let t = requestToken ?? (try? store?.me().requestToken) ?? nil else { phase = .signIn(purpose); return }
         await finishTicket(await auth.emailVerify(requestToken: t, code: code), purpose: purpose)
     }
@@ -238,13 +327,14 @@ final class AppModel: ObservableObject {
 
     func finishTicket(_ r: AuthResult, purpose: AuthPurpose) async {
         guard case .ticket(let ticket, let email) = r else {
-            errorText = r == .badEmail ? S.badEmail : "Sign-in failed"
+            errorText = S.loginError(r)
             return
         }
         try? store?.setMe("signed_in_email", .text(email))
+        clearCodeStep()
         switch purpose {
         case .register: await register(ticket: ticket, evict: [])
-        case .unpause: await unpause(ticket: ticket)
+        case .login: await login(ticket: ticket)
         case .deleteAccount: await deleteAccount(ticket: ticket)
         }
     }
@@ -268,7 +358,7 @@ final class AppModel: ObservableObject {
                 func bool(_ k: String) -> Bool { if case .bool(let b)? = e[k] { return b }; return false }
                 return LimitEntry(id: id, platform: e["platform"]?.stringValue ?? "", created: Int64(int("created")),
                                   approves: int("approves"), approvedBy: int("approved_by"), reachable: bool("reachable"),
-                                  paused: bool("paused"), oldInstall: id == old)
+                                  loggedOut: bool("logged_out"), oldInstall: id == old)
             }
             phase = .limitPicker
         case .idCollision:
@@ -284,15 +374,20 @@ final class AppModel: ObservableObject {
                     return
                 }
             }
-            errorText = "Sign-in failed"
+            errorText = S.loginFailed
         case .banned: phase = .banned
         case .ticketExpired: errorText = S.signInExpired; phase = .signIn(.register)
-        case .failed, .network: errorText = "Sign-in failed"
+        case .network: errorText = S.noConnection
+        case .failed: errorText = S.loginFailed
         }
     }
 
     /// Limit picker submit: after 10 min the ticket is expired; ticks are kept.
     func submitEvict() async {
+        await once("evict") { await submitEvictOnce() }
+    }
+
+    private func submitEvictOnce() async {
         guard let t = limitTicket else { return }
         if Date().timeIntervalSince(t.at) > 600 {
             errorText = S.signInExpired
@@ -308,7 +403,7 @@ final class AppModel: ObservableObject {
     }
 
     func setName(_ name: String) async {
-        guard let core = core, NameEntry.isValidName(name) else { errorText = "Name: 1 to 32 plain ASCII characters"; return }
+        guard let core = core, NameEntry.isValidName(name) else { errorText = "Use 1 to 32 plain ASCII characters, no double quotes."; return }
         if (try? core.store.me().name) == nil {
             try? core.store.setMe("name", .text(name))
         } else {
@@ -317,16 +412,19 @@ final class AppModel: ObservableObject {
         await route()
     }
 
-    func unpause(ticket: String) async {
+    func login(ticket: String) async {
         guard let core = core else { return }
-        _ = try? await core.unpause(ticket: ticket, push: pushInfo)
+        _ = try? await core.login(ticket: ticket, push: pushInfo)
         await route()
     }
 
+    /// Q368: logged out here at once; the relay server call runs after and is retried on
+    /// later app opens until it goes through.
     func signOut() async {
         guard let core = core else { return }
-        _ = try? await core.pause()
+        try? core.logoutLocal()
         await route()
+        Task { await core.retryPendingLogout() }
     }
 
     func deleteAccount(ticket: String) async {
@@ -334,7 +432,7 @@ final class AppModel: ObservableObject {
         if let out = try? await core.deleteAccount(ticket: ticket), out.reply?.ok == true {
             phase = .removed
         } else {
-            errorText = "Delete failed, try again"
+            errorText = "Delete failed. Try again."
         }
     }
 
@@ -342,11 +440,36 @@ final class AppModel: ObservableObject {
 
     func label(_ p: Peer) -> String { PeerLabel.label(p) }
 
-    func pair(_ p: Peer) async { _ = try? await core?.startPair(p.id); reload() }
+    func pair(_ p: Peer) async {
+        guard let core = core else { return }
+        await once("pair:" + p.id.text) {
+            let r: Result<PairSendResult, Error>
+            do { r = .success(try await core.startPair(p.id)) } catch { r = .failure(error) }
+            if let t = Core.pairAgainToast(r) { toast = t }
+            reload()
+        }
+    }
     func sendAgain(_ p: Peer) async { _ = await core?.sendAgain(p.id); reload() }
     func reply(_ p: Peer) async { _ = await core?.tapReply(p.id); reload() }
     func cancelPairing(_ p: Peer) async { await core?.cancelPairing(p.id); reload() }
-    func remove(_ p: Peer) async { _ = try? await core?.removePeer(p.id); reload() }
+    /// Pair again: one run per peer at a time (I435); a failure shows a toast (I436).
+    func pairAgain(_ p: Peer) async {
+        guard let core = core, !pairAgainBusy.contains(p.id.text) else { return }
+        pairAgainBusy.insert(p.id.text)
+        defer { pairAgainBusy.remove(p.id.text) }
+        let r: Result<PairSendResult, Error>
+        do { r = .success(try await core.pairAgain(p.id)) } catch { r = .failure(error) }
+        if let t = Core.pairAgainToast(r) { toast = t }
+        reload()
+    }
+    func remove(_ p: Peer) async {
+        guard let core = core else { return }
+        await once("remove:" + p.id.text) {
+            let out = try? await core.removePeer(p.id)
+            reload()
+            if phase == .main, let t = Core.failText(out) { toast = t }
+        }
+    }
     func localDelete(_ p: Peer) async { await core?.localDelete(p.id); reload() }
     func setHidden(_ p: Peer, _ h: Bool) { try? core?.setHidden(p.id, h); reload() }
     func setPeerSwitches(_ p: Peer, lockShow: Bool? = nil, alwaysHide: Bool? = nil) {
@@ -355,15 +478,25 @@ final class AppModel: ObservableObject {
     }
 
     func approve(_ p: Peer) async -> ApproveOutcome? {
-        let r = await core?.approve(p.id)
-        // the app removes the reply notice once N shows the fingerprint
-        reload()
+        var r: ApproveOutcome?
+        await once("approve:" + p.id.text) {
+            r = await core?.approve(p.id)
+            // the app removes the reply notice once N shows the fingerprint
+            reload()
+            if phase == .main, let t = Core.failText(r) { toast = t }
+        }
         return r
     }
 
     func approveSendAgain(_ p: Peer) async { _ = await core?.postApprove(p.id, fresh: false); reload() }
 
-    func deny(_ p: Peer) async { _ = await core?.deny(p.id); reload() }
+    func deny(_ p: Peer) async {
+        await once("deny:" + p.id.text) {
+            let r = await core?.deny(p.id)
+            reload()
+            if phase == .main, let t = Core.failText(r) { toast = t }
+        }
+    }
 
     func refresh() async {
         guard Date() >= refreshGreyUntil, let core = core else { return }
@@ -390,22 +523,51 @@ final class AppModel: ObservableObject {
 
     func canSendAgain(_ e: PairingEntry) -> Bool { core?.canSendAgain(e) ?? false }
 
-    func offersCancel(_ p: Peer) -> Bool { core?.offersCancel(p) ?? false }
+    /// Without Core only screenshot mode runs the same rule on the loaded pairings.
+    func offersCancel(_ p: Peer) -> Bool {
+        if let core { return core.offersCancel(p) }
+        #if DEBUG
+        // Screenshot mode runs with no Core and still shows the footer.
+        if ScreenshotSample.isOn { return pairings[p.id.text] != nil || p.notPairedOnPeer }
+        #endif
+        // No Core (it failed to start): Cancel pairing would do nothing, so it is not offered.
+        return false
+    }
+
+    /// Pair again replaces Cancel pairing on a half-state row (no Core: not offered).
+    func offersPairAgain(_ p: Peer) -> Bool { core?.offersPairAgain(p) ?? false }
 
     var allSet: [Peer] { peers.filter { $0.inAll } }
+
+    /// Q338: logged in with no paired device. The first-pair screen then replaces the tabs;
+    /// state-driven, so it goes once a pairing completes and comes back when the last
+    /// paired device is removed.
+    var needsFirstPair: Bool { !peers.contains { $0.pinned && $0.state == .approved } }
+
+    /// Devices of this account waiting to pair: the Devices tab Pairing section.
+    var waitingToPair: [Peer] {
+        peers.filter { pairings[$0.id.text] != nil || (!$0.pinned && $0.state != .removed) }
+    }
 
     var showAllOption: Bool { (try? store?.boolSetting(SettingKey.showAll, default: true)) ?? true }
 
     // MARK: send
 
-    func send(_ text: String, asText: Bool, toAll: Bool, peerIds: [String]) async {
-        guard let core = core else { return }
+    /// True when sent; false (draft kept) when not.
+    @discardableResult
+    func send(_ text: String, asText: Bool, toAll: Bool, peerIds: [String]) async -> Bool {
+        // One send per tap (I473): a second tap while the first is on its way keeps the draft and does nothing.
+        guard let core = core, !busy.contains("send") else { return false }
+        busy.insert("send")
+        defer { busy.remove("send") }
         let type: SendType = asText ? .text : SendDetection.detect(text)
         let all = allSet
         let ids = toAll ? all.map { $0.id } : peerIds.compactMap { PeerId(text: $0) }
+        var sent = false
         do {
             let rep = try await core.send(text, as: type, to: ids, allCount: all.count)
             toast = rep.toast
+            sent = true
         } catch Core.SendError.clockOff {
             toast = S.clockOff
         } catch Core.SendError.emailSendFailed {
@@ -413,9 +575,10 @@ final class AppModel: ObservableObject {
         } catch Core.SendError.tooLong {
             toast = SizeCap.label(text)
         } catch {
-            toast = "Not sent, try again"
+            toast = "Not sent. Try again."
         }
         reload()
+        return sent
     }
 
     // MARK: history
@@ -455,7 +618,7 @@ final class AppModel: ObservableObject {
         do {
             _ = try await core.rename(name)
         } catch {
-            errorText = "Name: 1 to 32 plain ASCII characters"
+            errorText = "Use 1 to 32 plain ASCII characters, no double quotes."
         }
         reload()
     }

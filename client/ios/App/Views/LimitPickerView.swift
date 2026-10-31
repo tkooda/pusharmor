@@ -13,17 +13,17 @@ struct LimitPickerView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(PeerLabel.platformName(e.platform))
                                 if e.oldInstall {
-                                    Text(S.thisPhoneOldInstall).font(.caption).foregroundColor(.secondary)
+                                    Text(S.thisPhoneOldInstall).font(.caption).foregroundColor(.secondaryText)
                                 }
                                 Text("Created " + Date(timeIntervalSince1970: TimeInterval(e.created)).formatted(date: .abbreviated, time: .omitted))
-                                    .font(.caption).foregroundColor(.secondary)
-                                Text("approves \(e.approves), approved by \(e.approvedBy)")
-                                    .font(.caption).foregroundColor(.secondary)
+                                    .font(.caption).foregroundColor(.secondaryText)
+                                Text(S.trusts(e.approves, trustedBy: e.approvedBy))
+                                    .font(.caption).foregroundColor(.secondaryText)
                                 if !e.reachable {
-                                    Text("unreachable").font(.caption).foregroundColor(.orange)
+                                    Text(S.unreachable).font(.caption).foregroundColor(.warningText)
                                 }
-                                if e.paused {
-                                    Text("signed out").font(.caption).foregroundColor(.orange)
+                                if e.loggedOut {
+                                    Text(S.loggedOutBadge).font(.caption).foregroundColor(.warningText)
                                 }
                             }
                         }
@@ -40,6 +40,7 @@ struct LimitPickerView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Submit") { Task { await model.submitEvict() } }
+                        .disabled(model.busy.contains("evict"))
                 }
             }
         }

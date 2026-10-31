@@ -7,7 +7,8 @@
 //   node build.mjs --dev    dev build (Chrome "key" from release/public.json when set)
 //   --public FILE           read FILE instead of release/public.json
 //   --dev --shots           also bundles src/shots (store screenshots, shots.mjs) into the
-//                           Chrome dev build; refused without --dev
+//                           Chrome dev build, and the sign-in screenshot page (signin.html)
+//                           into both dev builds; refused without --dev
 // Build ids (VAPID public key, add-on id, Chrome dev key) come from the tracked
 // release/public.json; a release build fails while one holds a placeholder (or a
 // CI dummy without PA_CI_DUMMY=1). A release build then checks all four zips
@@ -125,12 +126,18 @@ async function shell(name, entries, iife, target, manifestFix) {
   };
   await build({ ...common, entryPoints: entries.map((e) => join(root, "src", e + ".ts")), outdir: out, format: "esm" });
   for (const [outName, src] of iife) await build({ ...common, entryPoints: { [outName]: join(root, "src", src + ".ts") }, outdir: out, format: "iife" });
+  await build({ ...common, entryPoints: { theme: join(here, "src", "ui", "themeboot.ts") }, outdir: out, format: "iife" });
   if (shots && name === "chrome") {
     await build({ ...common, entryPoints: { shots: join(here, "src", "shots", "shots.ts") }, outdir: out, format: "esm" });
     writeFileSync(join(out, "shots.html"), readFileSync(join(here, "src", "shots", "shots.html")));
   }
+  if (shots) {
+    await build({ ...common, entryPoints: { signin: join(here, "src", "shots", "signin.ts") }, outdir: out, format: "esm" });
+    writeFileSync(join(out, "signin.html"), readFileSync(join(here, "src", "shots", "signin.html")));
+  }
   const ui = join(here, "src", "ui");
   for (const f of ["popup.html", "page.html", "style.css"]) writeFileSync(join(out, f), readFileSync(join(ui, f)));
+  writeFileSync(join(out, "tokens.css"), readFileSync(join(ui, "tokens-" + name + ".css")));
   cpSync(join(here, "icons"), join(out, "icons"), { recursive: true });
   const manifest = JSON.parse(readFileSync(join(root, "manifest.json"), "utf8"));
   manifestFix(manifest, out, root);

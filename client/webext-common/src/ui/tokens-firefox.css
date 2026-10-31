@@ -1,0 +1,55 @@
+/* Firefox tokens (copied to the build as tokens.css; style.css uses them).
+   Firefox neutrals and Acorn radii, so the popup sits in the panel without a seam. */
+:root {
+  --bg: #F0F0F4; --card: #FFFFFF; --s1: #F0F0F4; --s2: #E6E6EB; --s3: #D7D7DF;
+  --ink: #15141A; --ink2: #4A4A55; --line: #CAD2DB; --ctl: #747775;
+  --primary: #1F3A5F; --onp: #FFFFFF; --pc: #D9E5F4; --onpc: #0E2238;
+  --success: #136C42; --err: #B42318; --errc: #FCE8E6; --onerrc: #5F1209;
+  --armor: #1F3A5F;
+  --green: #34C77B; --on-green: #0E2238; --cta-edge: #157A4A;
+  --beta: #F5B83D; --on-beta: #3A2A00;
+  --avbg: #E6EDF6; --avfg: #1F3A5F;
+  --hero: #1F3A5F; --hero-line: #1F3A5F; --onhero: #FFFFFF; --onhero2: #C4D3E6; --heroav: #2B4A75;
+  --plate: #EEF3FA; --fpcell: #FFFFFF; --signin: #EEF3FA;
+  --halo: #D9E5F4; --ring: #738399; --tile-edge: transparent;
+  --g-bg: #FFFFFF; --g-line: #747775; --g-ink: #1F1F1F; --a-bg: #000000; --a-ink: #FFFFFF;
+  --rb: 4px; --rc: 8px; --rf: 4px; --ra: 6px; --rp: 8px; --rcell: 4px; --rl: 8px;
+  color-scheme: light dark;
+}
+/* Dark: true black page. Follows the system unless the Theme setting says Light;
+   the Theme setting Dark applies it on any system (data-theme, see theme.ts). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000000; --card: #1C1E22; --s1: #24272C; --s2: #2A2E34; --s3: #33373E;
+    --ink: #E3E3E3; --ink2: #A7B3C0; --sh: #CBD3DC; --accent: #34C77B; --line: #2C3137; --ctl: #8E918F;
+    --primary: #A9C8F0; --onp: #0E2238; --pc: #28466E; --onpc: #D9E5F4;
+    --success: #5FD89A; --err: #FFB4AB; --errc: #4A1A16; --onerrc: #FFDAD5;
+    --armor: #F3F6FA; --cta-edge: transparent;
+    --avbg: #1E2C40; --avfg: #A9C8F0;
+    --hero: #1B3150; --hero-line: #2B4770; --onhero: #F4F7FA; --onhero2: #B8C8DC; --heroav: #284468;
+    --plate: #0F1823; --fpcell: #000000; --signin: #000000;
+    --halo: #1B3050; --ring: #7D8A99; --tile-edge: #4A6D9E;
+    --g-bg: #131314; --g-line: #8E918F; --g-ink: #E3E3E3; --a-bg: #FFFFFF; --a-ink: #000000;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #000000; --card: #1C1E22; --s1: #24272C; --s2: #2A2E34; --s3: #33373E;
+  --ink: #E3E3E3; --ink2: #A7B3C0; --sh: #CBD3DC; --accent: #34C77B; --line: #2C3137; --ctl: #8E918F;
+  --primary: #A9C8F0; --onp: #0E2238; --pc: #28466E; --onpc: #D9E5F4;
+  --success: #5FD89A; --err: #FFB4AB; --errc: #4A1A16; --onerrc: #FFDAD5;
+  --armor: #F3F6FA; --cta-edge: transparent;
+  --avbg: #1E2C40; --avfg: #A9C8F0;
+  --hero: #1B3150; --hero-line: #2B4770; --onhero: #F4F7FA; --onhero2: #B8C8DC; --heroav: #284468;
+  --plate: #0F1823; --fpcell: #000000; --signin: #000000;
+  --halo: #1B3050; --ring: #7D8A99; --tile-edge: #4A6D9E;
+  --g-bg: #131314; --g-line: #8E918F; --g-ink: #E3E3E3; --a-bg: #FFFFFF; --a-ink: #000000;
+  color-scheme: dark;
+}
+:root[data-theme="light"] { color-scheme: light; }
+/* Firefox for Android shows the popup as a full-screen panel (html body: wins over style.css). */
+@media (pointer: coarse) {
+  html body { width: 100vw; height: 100vh; }
+  button, .chip, .ac, select, input:not([type=checkbox]) { min-height: 48px; }
+  .prow { min-height: 56px; }
+}

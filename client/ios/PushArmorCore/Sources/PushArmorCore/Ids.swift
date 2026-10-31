@@ -65,6 +65,18 @@ public enum Ids {
         return String(decoding: lower, as: UTF8.self)
     }
 
+    /// Input check for the email field border (I468): normalizes (ASCII only), then one "@"
+    /// with text before it and a dot inside the domain, no inner whitespace. The relay
+    /// server stays the authority on what it accepts.
+    public static func looksLikeEmail(_ email: String) -> Bool {
+        guard let n = normalizeEmail(email), !n.contains(where: { $0.isWhitespace }) else { return false }
+        let parts = n.split(separator: "@", omittingEmptySubsequences: false)
+        guard parts.count == 2, !parts[0].isEmpty else { return false }
+        let d = parts[1]
+        guard let dot = d.lastIndex(of: "."), dot != d.startIndex, d.index(after: dot) != d.endIndex else { return false }
+        return true
+    }
+
     /// email_hash = sha256("PA-ACCT1\n" || normalized email)
     public static func emailHash(normalized: String) -> Data {
         Bytes.sha256(Bytes.ascii("PA-ACCT1\n"), Bytes.ascii(normalized))
