@@ -333,7 +333,7 @@ def test_send_no_devices_and_logout(net, tmp_path, monkeypatch, capsys):
     assert run(tmp_path, "send", "hi") == 4
     assert run(tmp_path, "send") == 2
     assert run(tmp_path, "rename", 'bad "name"') == 2
-    answers(monkeypatch, "y")
+    answers(monkeypatch)  # logout must never prompt
     assert run(tmp_path, "logout") == 0 and state(tmp_path)["reg"] == "logged_out"
     assert run(tmp_path, "send", "hi") == 3
     answers(monkeypatch, CODE)
@@ -345,6 +345,15 @@ def test_delete_self(net, tmp_path, monkeypatch):
     answers(monkeypatch, "y")
     assert run(tmp_path, "delete", pa.id_hex(pid)[:6]) == 0
     assert pid not in net.peers and not os.path.exists(tmp_path / "devices.toml")
+
+
+def test_delete_non_tty_needs_yes(net, tmp_path, monkeypatch, capsys):
+    pid = login(monkeypatch, tmp_path)
+    monkeypatch.setattr(sys, "stdin", Stdin(tty=False))
+    assert run(tmp_path, "delete", pa.id_hex(pid)[:6]) == 2
+    assert "Use --yes" in capsys.readouterr().err and pid in net.peers
+    assert run(tmp_path, "delete", pa.id_hex(pid)[:6], "--yes") == 0
+    assert pid not in net.peers
 
 
 def test_send_too_long(net, tmp_path, monkeypatch, capsys):

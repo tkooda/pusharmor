@@ -2017,10 +2017,6 @@ def relogin(cx, code):
 
 def cmd_logout(cx, args):
     cx.need()
-    if sys.stdin.isatty() and not ask_yes(
-            "Log out of this device? Keys, paired devices, and names stay on this device. [y/N] "):
-        print("Not logged out.")
-        return EXIT_ERR
     reconcile_allow(cx)
     allow_list_call(cx, "POST", "/v1/peers/%s/logout" % cx.me, lambda m, _: {"m": m}, lambda *a: ("logout", 1))
     with cx.store.state() as d:
@@ -2277,9 +2273,12 @@ def cmd_delete(cx, args):
         q = "Remove this device from your account? It must log in again and pair with every device again. [y/N] "
     else:
         q = "Remove %s from your account? %s must log in again and pair with every device again. [y/N] " % (name, name)
-    if sys.stdin.isatty() and not ask_yes(q):
-        print("Nothing removed.")
-        return EXIT_ERR
+    if not args.yes:
+        if not sys.stdin.isatty():
+            raise Fail("Refusing to delete without a terminal. Use --yes.", EXIT_USAGE)
+        if not ask_yes(q):
+            print("Nothing removed.")
+            return EXIT_ERR
     allow_list_call(cx, "DELETE", "/v1/peers/" + x, lambda m, _: {"m": m}, lambda *a: ("remove", x))
     if x == cx.me:
         cx.store.wipe()
@@ -2310,7 +2309,8 @@ COMMANDS = {
     "rename": (cmd_rename, "Change the name your other devices show for this device.",
                [(("name",), {"metavar": "NAME", "help": "1 to 32 plain ASCII characters, no double quote"})]),
     "delete": (cmd_delete, "Remove a device from your account (this device too).",
-               [(("id",), {"metavar": "ID", "help": "device ID from pusharmor pair"})]),
+               [(("id",), {"metavar": "ID", "help": "device ID from pusharmor pair"}),
+                (("--yes",), {"action": "store_true", "help": "do not ask for confirmation (needed without a terminal)"})]),
 }
 
 
