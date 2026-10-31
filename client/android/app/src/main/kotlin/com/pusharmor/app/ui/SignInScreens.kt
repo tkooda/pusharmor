@@ -93,7 +93,9 @@ import kotlinx.coroutines.launch
 
 /** Welcome / Sign-in: Google, Apple, Email (all three always offered). */
 @Composable
-fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onDone: () -> Unit) {
+fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onCancel: (() -> Unit)? = null, onDone: () -> Unit) {
+    // Delete account: Back and Cancel return to Settings, never out of the app (I477).
+    onCancel?.let { androidx.activity.compose.BackHandler(onBack = it) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val prefs by vm.prefs.collectAsState()
@@ -146,6 +148,7 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onDone
             }
             Text("Use the same account on every device you want to pair.", Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
+            onCancel?.let { TextButton(onClick = it, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Cancel") } }
         }
         }
     }

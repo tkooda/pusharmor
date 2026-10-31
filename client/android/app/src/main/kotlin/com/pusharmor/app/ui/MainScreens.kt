@@ -870,6 +870,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     var renaming by rememberSaveable { mutableStateOf(false) }
     var confirmHistory by rememberSaveable { mutableStateOf(false) }
     var confirmLogout by rememberSaveable { mutableStateOf(false) }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
     val running by vm.running.collectAsState()
     var pickDays by rememberSaveable { mutableStateOf(false) }
     var pickTheme by rememberSaveable { mutableStateOf(false) }
@@ -952,7 +953,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(onClick = { confirmLogout = true }, Modifier.heightIn(min = 48.dp), enabled = "logout" !in running,
                     border = androidx.compose.foundation.BorderStroke(1.dp, cs.outline)) { Text("Log out") }
-                OutlinedButton(onClick = onDeleteAccount, Modifier.heightIn(min = 48.dp),
+                OutlinedButton(onClick = { confirmDelete = true }, Modifier.heightIn(min = 48.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, cs.error),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = cs.error)) { Text("Delete account") }
             }
@@ -997,4 +998,10 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                 colors = ButtonDefaults.textButtonColors(contentColor = cs.error)) { Text("Log out") }
         },
         dismissButton = { TextButton(onClick = { confirmLogout = false }) { Text("Cancel") } })
+    if (confirmDelete) AlertDialog(onDismissRequest = { confirmDelete = false }, text = { Text(UiText.DELETE_CONFIRM) },
+        confirmButton = {
+            TextButton(onClick = { confirmDelete = false; onDeleteAccount() },
+                colors = ButtonDefaults.textButtonColors(contentColor = cs.error)) { Text("Continue") }
+        },
+        dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } })
 }

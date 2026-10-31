@@ -166,7 +166,8 @@ private fun App(vm: AppViewModel) {
         var email by rememberSaveable { mutableStateOf(false) }
         // Each sign-in step starts with no message from the step before (I425).
         if (email) EmailScreen(vm, purpose, onBack = { vm.message.value = null; email = false }) { deleting = false; email = false }
-        else WelcomeScreen(vm, purpose, onEmail = { vm.message.value = null; email = true }) { deleting = false }
+        else WelcomeScreen(vm, purpose, onEmail = { vm.message.value = null; email = true },
+            onCancel = if (deleting) ({ vm.message.value = null; deleting = false }) else null) { deleting = false }
         return
     }
     PermissionGate {

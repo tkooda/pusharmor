@@ -244,6 +244,16 @@ class AppLogicTest {
         assertEquals("a,b", kotlinx.coroutines.runBlocking { s.lastSendTo() })
     }
 
+    @Test fun deleteAccountAsksFirstAndCanBeCancelled() {
+        val main = source("ui/MainScreens.kt")
+        assertTrue(main.contains("OutlinedButton(onClick = { confirmDelete = true }"))
+        assertTrue(main.contains("confirmDelete = false; onDeleteAccount()"))
+        assertTrue(com.pusharmor.app.ui.UiText.DELETE_CONFIRM.contains("cannot be undone"))
+        val act = source("ui/MainActivity.kt")
+        assertTrue(act.contains("onCancel = if (deleting)"))
+        assertTrue(source("ui/SignInScreens.kt").contains("BackHandler(onBack = it)"))
+    }
+
     @Test fun loginStepAndSendDraftSurviveRotation() {
         val sign = source("ui/SignInScreens.kt")
         for (v in listOf("email", "stage", "requestToken", "code")) assertTrue(v, sign.contains("var $v by rememberSaveable"))
