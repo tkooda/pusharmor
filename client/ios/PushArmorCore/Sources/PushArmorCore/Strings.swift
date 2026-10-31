@@ -50,6 +50,9 @@ public enum S {
     public static func sentTo(_ n: Int, _ m: Int) -> String { "Sent to \(n) of \(m) " + (m == 1 ? "device" : "devices") }
     /// History line for a message that reached its one recipient (F22).
     public static func sentToOne(_ x: String) -> String { "Sent to \"\(x)\"" }
+    /// Send banner when every chosen device got the message (I604).
+    public static func messageSentTo(_ x: String) -> String { "Message sent to \"\(x)\"" }
+    public static func messageSentTo(count n: Int) -> String { "Message sent to \(n) devices" }
     public static func notDelivered(_ x: String) -> String { "Not delivered to \(x): open PushArmor on it." }
     public static func signedOutPeer(_ x: String) -> String { "\(x): Logged out. Log in on it to receive messages." }
     public static func sendOnlyPeer(_ x: String) -> String { "\(x): Send only. It does not receive messages." }

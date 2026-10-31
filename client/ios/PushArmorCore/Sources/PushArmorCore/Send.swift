@@ -6,7 +6,14 @@ public struct SendReport: Sendable {
     public var results: [String: String]
     public var lines: [String]
     public var rowid: Int64?
-    public var toast: String { ([S.sentTo(sent, total)] + lines).joined(separator: "\n") }
+    /// The one chosen device's name; nil for a send to several.
+    public var soleName: String? = nil
+    /// True when every chosen device got the message: the short success banner (I604).
+    public var allSent: Bool { lines.isEmpty }
+    public var toast: String {
+        if allSent { return sent == 1 ? S.messageSentTo(soleName ?? S.aPeer) : S.messageSentTo(count: sent) }
+        return ([S.sentTo(sent, total)] + lines).joined(separator: "\n")
+    }
 }
 
 extension Core {
@@ -40,10 +47,12 @@ extension Core {
         var sent = 0
         var lines: [String] = []
         var due = false
+        var soleName: String?
         for id in recipients {
             let res = results[id.text] ?? "failed"
             let p = try? store.peer(id)
             let label = PeerLabel.label(p)
+            if recipients.count == 1 { soleName = label }
             switch res {
             case "sent": sent += 1
             case "gone": lines.append(S.notDelivered(label)); due = true
@@ -65,6 +74,6 @@ extension Core {
         let resultsJSON = JOut.obj(recipients.map { ($0.text, .str(results[$0.text] ?? "failed")) }).text
         let rowid = try? store.addMessage(dir: .outgoing, peer: recipients[0], type: type.rawValue, content: content, n: nil,
                                           pairingId: nil, read: true, results: resultsJSON, now: clock())
-        return SendReport(sent: sent, total: allCount, results: results, lines: lines, rowid: rowid)
+        return SendReport(sent: sent, total: allCount, results: results, lines: lines, rowid: rowid, soleName: soleName)
     }
 }
