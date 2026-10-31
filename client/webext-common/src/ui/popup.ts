@@ -3,7 +3,7 @@ import type { PeerView, StateView } from "../core/rpc.ts";
 import type { Redraw } from "./peersview.ts";
 import type { SendResult } from "../core/engine.ts";
 import { T } from "../core/texts.ts";
-import { canReceiveNow, rememberedSelection, sendDisabled, sendToHeader, showAllChip, showCounter } from "../model/sendsel.ts";
+import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter } from "../model/sendsel.ts";
 import { AUTH_CHANGED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
 import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, nextTabIndex, peerStatus, rpc, sh, shortTime } from "./dom.ts";
@@ -195,7 +195,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     const n = count();
     const one = n === 1 ? sendable.find((p) => p.id === checks.find((c) => on(c.chip))!.id) : undefined;
     if (one) sendLabel.replaceChildren('Send to "', h("span", { class: "who" }, one.label), '"');
-    else sendLabel.textContent = n > 0 ? "Send to " + n + " devices" : "Send";
+    else sendLabel.textContent = sendCountLabel(n);
     head.textContent = sendToHeader(n, sendable.length);
     void update();
   };

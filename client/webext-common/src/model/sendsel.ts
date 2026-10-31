@@ -16,6 +16,11 @@ export function sendToHeader(picked: number, total: number): string {
   return "Send to (" + picked + " of " + total + ")";
 }
 
+/** Send button text when no single device is named: "Send", "Send to 1 device", "Send to 3 devices". */
+export function sendCountLabel(n: number): string {
+  return n === 0 ? "Send" : "Send to " + n + (n === 1 ? " device" : " devices");
+}
+
 /** The "All" chip shows only with 2 or more devices (one device is preselected instead). */
 export function showAllChip(setting: boolean, devices: number): boolean {
   return setting && devices > 1;
