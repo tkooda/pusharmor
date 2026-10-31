@@ -198,7 +198,7 @@ class UiTextTest {
         assertEquals("send", UiText.afterGate(wasGate = true, gate = false))
         assertEquals(null, UiText.afterGate(wasGate = false, gate = false))
         assertEquals(null, UiText.afterGate(wasGate = false, gate = true))
-        val copy = UiText.FIRST_DEVICE_TITLE + UiText.FIRST_DEVICE_STEPS + UiText.FIRST_DEVICE_WAITING
+        val copy = UiText.FIRST_DEVICE_TITLE + UiText.FIRST_DEVICE_STEPS.joinToString() + UiText.FIRST_DEVICE_WAITING
         assertEquals(false, copy.contains("peer", ignoreCase = true))
     }
 
