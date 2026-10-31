@@ -61,6 +61,17 @@ object UiText {
     /** Header above the device chips: "Send to (6 of 9)". */
     fun sendToHeader(picked: Int, total: Int): String = "Send to ($picked of $total)"
 
+    /** The relay server's email rule (trim, ASCII, one "@" with text on both sides, no space or <>"(),;:\\, at most 254). */
+    fun emailValid(input: String): Boolean {
+        val s = input.trim(' ', '\t', '\n', '\r', '\u000c', '\u000b')
+        val at = s.indexOf('@')
+        return s.length in 1..254 && s.all { it.code in 0x21..0x7e && it !in "<>\"(),;:\\" } &&
+            at >= 1 && at == s.lastIndexOf('@') && at < s.length - 1
+    }
+
+    /** Red border while the field is non-empty and not a valid email; empty keeps the normal border (I468). */
+    fun emailFieldError(input: String): Boolean = input.isNotEmpty() && !emailValid(input)
+
     /** Send with no paired device (I462): pairing guidance replaces the empty "Send to" block once this device is loaded. */
     fun noDevicesShown(selfLoaded: Boolean, paired: Int): Boolean = selfLoaded && paired == 0
     const val NO_DEVICES_TITLE = "Pair a device first"
