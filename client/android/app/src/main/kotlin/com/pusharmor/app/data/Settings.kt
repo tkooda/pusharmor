@@ -20,6 +20,8 @@ private val Context.ds by preferencesDataStore("settings", corruptionHandler = R
 
 /** DataStore settings (section 8 list) plus small app state. */
 class Settings(private val context: Context) {
+    init { migrateShowContent() }
+
     object K {
         val SHOW_ALL = booleanPreferencesKey("show_all")
         val TAP_OPENS_LINK = booleanPreferencesKey("tap_opens_link")
@@ -29,7 +31,10 @@ class Settings(private val context: Context) {
         val WATCH = booleanPreferencesKey("watch")
         /** "system" | "light" | "dark"; absent = system. */
         val THEME = stringPreferencesKey("theme")
+        /** Old "Always hide content" switch; read once by [Settings.migrateShowContent], then dropped (I600). */
         val HIDE_CONTENT = booleanPreferencesKey("hide_content")
+        /** "Show message content in notifications"; absent = on. */
+        val SHOW_CONTENT = booleanPreferencesKey("show_content")
         /** "fcm" | "unifiedpush" | absent */
         val PUSH_TYPE = stringPreferencesKey("push_type")
         val PUSH_TOKEN = stringPreferencesKey("push_token")
@@ -83,7 +88,16 @@ class Settings(private val context: Context) {
     val directShare get() = flag(K.DIRECT_SHARE, true)
     val lockScreen get() = flag(K.LOCK_SCREEN, true)
     val watch get() = flag(K.WATCH, true)
-    val hideContent get() = flag(K.HIDE_CONTENT, false)
+    val showContent get() = flag(K.SHOW_CONTENT, true)
+
+    /** The old hide_content value becomes show_content, inverted; the old key is dropped (I600). */
+    fun migrateShowContent() = runBlocking {
+        context.ds.edit {
+            val old = it[K.HIDE_CONTENT] ?: return@edit
+            if (it[K.SHOW_CONTENT] == null) it[K.SHOW_CONTENT] = !old
+            it.remove(K.HIDE_CONTENT)
+        }
+    }
 
     fun markUpdateRequired(version: String) { if (get(K.UPDATE_REQUIRED) != version) set(K.UPDATE_REQUIRED, version) }
 
