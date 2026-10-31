@@ -107,11 +107,8 @@ object UiText {
     /** The red text under the field after an edit: gone once the address is valid, else kept until the next Next (I521). */
     fun emailErrorAfterEdit(error: String?, input: String): String? = if (emailValid(input)) null else error
 
-    /** Q338: logged in with no paired device, one "Pair your first device" screen replaces Send, History, and Devices. */
-    fun firstDeviceGate(others: List<Peer>): Boolean = others.none { it.pinned && !it.removed }
-
-    /** Q338: when the first pairing lifts the gate, the normal navigation opens on Send. */
-    fun afterGate(wasGate: Boolean, gate: Boolean): String? = if (wasGate && !gate) "send" else null
+    /** No paired device: Devices shows the "Pair your first device" steps, Send and History lead there (I612). */
+    fun noPairedDevice(others: List<Peer>): Boolean = others.none { it.pinned && !it.removed }
     const val HIBERNATION_BANNER = "Android may pause this app's ability to receive messages unless \"Manage app if unused\" is turned off."
     val PAIR_HOWTO_STEPS = listOf("Install PushArmor on the other device.", "Log in with the same account.", "It appears here. Tap Pair.")
     fun numbered(steps: List<String>): List<String> = steps.mapIndexed { i, t -> "${i + 1}. $t" }

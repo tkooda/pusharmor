@@ -189,15 +189,13 @@ class UiTextTest {
         assertEquals(false, UiText.emailValid("a".repeat(250) + "@b.com"))
     }
 
-    @Test fun firstDeviceGateZeroWaitingAndAfterPairing() {
-        assertTrue(UiText.firstDeviceGate(emptyList())) // zero devices
+    @Test fun noPairedDeviceZeroWaitingAndAfterPairing() {
+        // Devices shows the first-pair steps while this holds; the tabs always show (I612).
+        assertTrue(UiText.noPairedDevice(emptyList())) // zero devices
         val waiting = pinned.copy(id = "w", signPub = null, encPub = null, pairingId = null, approved = false, approveVerified = false)
-        assertTrue(UiText.firstDeviceGate(listOf(waiting))) // a device waiting to pair
-        assertEquals(false, UiText.firstDeviceGate(listOf(waiting, pinned))) // first pairing done
-        assertTrue(UiText.firstDeviceGate(listOf(pinned.copy(removed = true)))) // every paired device removed
-        assertEquals("send", UiText.afterGate(wasGate = true, gate = false))
-        assertEquals(null, UiText.afterGate(wasGate = false, gate = false))
-        assertEquals(null, UiText.afterGate(wasGate = false, gate = true))
+        assertTrue(UiText.noPairedDevice(listOf(waiting))) // a device waiting to pair
+        assertEquals(false, UiText.noPairedDevice(listOf(waiting, pinned))) // first pairing done
+        assertTrue(UiText.noPairedDevice(listOf(pinned.copy(removed = true)))) // every paired device removed
         val copy = UiText.FIRST_DEVICE_TITLE + UiText.FIRST_DEVICE_STEPS.joinToString() + UiText.FIRST_DEVICE_WAITING
         assertEquals(false, copy.contains("peer", ignoreCase = true))
     }

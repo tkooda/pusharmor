@@ -119,7 +119,6 @@ import com.pusharmor.app.notify.AppEffects
 import com.pusharmor.app.notify.HistoryFilter
 import com.pusharmor.app.notify.Policy
 import com.pusharmor.app.push.UnifiedPushSupport
-import com.pusharmor.app.ui.theme.DevicesIllustration
 import com.pusharmor.app.ui.theme.EmptyState
 import com.pusharmor.app.ui.theme.FingerprintText
 import com.pusharmor.app.ui.theme.GreenButton
@@ -173,7 +172,7 @@ internal fun pairingScrollTop(before: Int, after: Int, aiming: Boolean): Boolean
 
 /** Peers screen (section 8): banners, pairing cards, This device, the peer group. */
 @Composable
-fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -> Unit = {}) {
+fun PeersScreen(vm: AppViewModel) {
     val peers by vm.peers.collectAsState()
     val rows by vm.pairings.collectAsState()
     val highlight by vm.highlight.collectAsState()
@@ -181,12 +180,14 @@ fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     // Saved, so both dialogs stay open through a rotation (I523); the device by its id.
     var confirmRemove by rememberSaveable { mutableStateOf<String?>(null) }
-    val pairHowTo by vm.pairHowTo.collectAsState()
+    var pairHowTo by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         vm.onPeersOpen()
         while (true) { delay(30_000); now = System.currentTimeMillis(); vm.onPeersOpen() } // timeout timer while open
     }
     val me by vm.self.collectAsState()
+    // No paired device: the first-pair steps and the Waiting to pair row (I612; was a screen in place of the tabs, Q338).
+    val firstDevice = me != null && UiText.noPairedDevice(others(peers, me?.id))
     val list = others(peers, me?.id).filter { !(it.removed && !it.pinned && rows.none { r -> r.peerId == it.id }) }
     val pairing = list.filter { p -> rows.any { it.peerId == p.id } }
     val plain = list.filter { p -> rows.none { it.peerId == p.id } }
@@ -214,9 +215,8 @@ fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -
     }
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            PaTopBar(if (firstDevice) UiText.FIRST_DEVICE_TITLE else "Devices", actions = {
+            PaTopBar("Devices", actions = {
                 IconButton(onClick = { vm.refresh() }, enabled = canRefresh) { Icon(PaIcons.Refresh, "Refresh") }
-                if (firstDevice) IconButton(onClick = onSettings) { Icon(PaIcons.Settings, "Settings") }
             })
             LazyColumn(Modifier.weight(1f), state = state, contentPadding = PaddingValues(bottom = 16.dp)) {
                 item(key = "banners") {
@@ -224,7 +224,9 @@ fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -
                         Banners(vm, prefs?.get(Settings.K.BANNER))
                     }
                 }
-                if (firstDevice) item(key = "steps") { FirstDeviceSteps(Modifier.padding(top = 8.dp)) }
+                if (firstDevice) item(key = "steps") {
+                    Column { SectionHeader(UiText.FIRST_DEVICE_TITLE); FirstDeviceSteps() }
+                }
                 if (pairing.isNotEmpty()) {
                     item(key = "pairing-header") { SectionHeader("Pairing") }
                     itemsIndexed(pairing, key = { _, p -> "pair-" + p.id }) { i, p ->
@@ -244,18 +246,9 @@ fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -
                             leadingContent = { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 3.dp) },
                             headlineContent = { Text(UiText.FIRST_DEVICE_WAITING, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) })
                     }
-                } else if (pairing.isEmpty()) {
-                    item(key = "empty") {
-                        EmptyState({ DevicesIllustration() }, "No devices yet",
-                            "Install PushArmor on your other devices and log in with the same account. They show up here, ready to pair.", top = 52.dp) {
-                            FilledTonalButton(onClick = { vm.refresh() }, enabled = canRefresh) {
-                                Icon(PaIcons.Refresh, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Refresh")
-                            }
-                        }
-                    }
                 }
                 if (!firstDevice && (plain.isNotEmpty() || pairing.isNotEmpty())) item(key = "pair-new") {
-                    OutlinedButton(onClick = { vm.pairHowTo.value = true }, Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp).fillMaxWidth().heightIn(min = 48.dp)) {
+                    OutlinedButton(onClick = { pairHowTo = true }, Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp).fillMaxWidth().heightIn(min = 48.dp)) {
                         Text("Pair a new device")
                     }
                 }
@@ -269,13 +262,13 @@ fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -
             confirmButton = { TextButton(onClick = { vm.remove(p.id); confirmRemove = null }) { Text("Remove") } },
             dismissButton = { TextButton(onClick = { confirmRemove = null }) { Text("Cancel") } })
     }
-    if (pairHowTo) AlertDialog(onDismissRequest = { vm.pairHowTo.value = false }, title = { Text("Pair a new device") },
+    if (pairHowTo) AlertDialog(onDismissRequest = { pairHowTo = false }, title = { Text("Pair a new device") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 UiText.numbered(UiText.PAIR_HOWTO_STEPS).forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
             }
         },
-        confirmButton = { TextButton(onClick = { vm.pairHowTo.value = false }) { Text("OK") } })
+        confirmButton = { TextButton(onClick = { pairHowTo = false }) { Text("OK") } })
 }
 
 /** First-device steps (I607): one card, a filled numbered circle per step, dividers between the steps, as on iOS. */
@@ -987,7 +980,7 @@ private fun SettingRow(title: String, sub: String? = null, modifier: Modifier, c
 /** Settings (section 8): one group per section. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: () -> Unit, onBack: (() -> Unit)? = null) {
+fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: () -> Unit, onBack: (() -> Unit)? = null, signedIn: Boolean = true) {
     val prefs by vm.prefs.collectAsState()
     val context = LocalContext.current
     val me by vm.self.collectAsState()
@@ -1007,14 +1000,18 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     Column(Modifier.fillMaxSize()) {
         PaTopBar("Settings", navigationIcon = { onBack?.let { IconButton(onClick = it) { Icon(PaIcons.ArrowBack, "Back") } } })
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
-            SectionHeader("Device name")
-            GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
-                NameEditRow(me?.name ?: "", m) { vm.rename(it) }
-            })
+            if (signedIn) {
+                SectionHeader("Device name")
+                GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
+                    NameEditRow(me?.name ?: "", m) { vm.rename(it) }
+                })
+            }
             SectionHeader("Appearance")
             GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
                 SettingRow("Theme", themePref.label, m) { pickTheme = true }
             })
+            // Logged out: only what needs no account and no device (I612).
+            if (!signedIn) return@Column
             SectionHeader("Sending")
             GroupedList(listOf<@Composable (Modifier) -> Unit>(
                 { m -> SwitchRow("Show \"All\" option", b(Settings.K.SHOW_ALL, true), modifier = m.then(pad)) { vm.setPref(Settings.K.SHOW_ALL, it) } },

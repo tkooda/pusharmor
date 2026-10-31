@@ -106,19 +106,18 @@ class UiFitTest {
         }
     }
 
-    @Test fun firstDeviceTitleIsOneLineAtLargeFont() {
+    @Test fun signInTitleIsOneLineAtLargeFont() {
+        val title = "Log in with email"
         val c = show("w360dp-h640dp-xhdpi", 2.0f) {
-            // The gate bar: Refresh and Settings actions (PeersScreen, firstDevice).
-            PaTopBar(UiText.FIRST_DEVICE_TITLE, actions = {
-                IconButton(onClick = {}) { Icon(PaIcons.Refresh, "Refresh") }
+            // The logged-out email bar: Back, and Settings at the top right (I612).
+            PaTopBar(title, navigationIcon = { IconButton(onClick = {}) { Icon(PaIcons.ArrowBack, "Back") } }, actions = {
                 IconButton(onClick = {}) { Icon(PaIcons.Settings, "Settings") }
             })
         }
-        val l = layoutOf(c.get(), UiText.FIRST_DEVICE_TITLE)
+        val l = layoutOf(c.get(), title)
         // One line; a title too long for the bar ends in an ellipsis and is never cut through a line (I519).
         assertEquals(1, l.lineCount)
         assertTrue(l.size.height <= l.layoutInput.constraints.maxHeight)
-        assertTrue(l.isLineEllipsized(0))
     }
 
     @Test fun historyChipEndsInAnEllipsisAtLargeFont() {

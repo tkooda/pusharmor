@@ -96,9 +96,6 @@ class UiRotationTest {
         val main = java.io.File("src/main/kotlin/com/pusharmor/app/ui/MainScreens.kt").readText()
         // Send chip choice, Devices Remove and "Pair a new device" dialogs, History filter (I523).
         for (v in listOf("val picked = rememberSaveable", "var restored by rememberSaveable", "var confirmRemove by rememberSaveable",
-            "var chip by rememberSaveable")) assertTrue(v, main.contains(v))
-        // The pairing how-to lives in the ViewModel, which a rotation keeps; Send and History open it too (I611).
-        val vm = java.io.File("src/main/kotlin/com/pusharmor/app/ui/AppViewModel.kt").readText()
-        assertTrue(vm.contains("val pairHowTo = MutableStateFlow(false)"))
+            "var pairHowTo by rememberSaveable", "var chip by rememberSaveable")) assertTrue(v, main.contains(v))
     }
 }

@@ -52,8 +52,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Peer limit picker state (409 "peer limit"). */
     val limit = MutableStateFlow<WorkerClient.PeerLimit?>(null)
     val highlight = MutableStateFlow<String?>(null)
-    /** The Devices "Pair a new device" how-to is open; Send and History open it too (I611). */
-    val pairHowTo = MutableStateFlow(false)
 
     companion object {
         /** Shown when a tap fails with an unexpected error (I547). */

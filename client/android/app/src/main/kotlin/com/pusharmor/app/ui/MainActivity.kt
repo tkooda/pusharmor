@@ -196,9 +196,18 @@ private fun App(vm: AppViewModel) {
     if (!signedIn || deleting) {
         val purpose = if (deleting) "delete-account" else signInPurpose
         var email by rememberSaveable { mutableStateOf(false) }
+        // Logged out: no bottom bar; a Settings button on the sign-in screens opens the settings that need no account (I612).
+        var settings by rememberSaveable { mutableStateOf(false) }
+        if (settings && !deleting) {
+            val close = { settings = false }
+            androidx.activity.compose.BackHandler(onBack = close)
+            Box(Modifier.fillMaxSize().safeDrawingPadding()) { SettingsScreen(vm, onDeleteAccount = {}, onSignedOut = {}, onBack = close, signedIn = false) }
+            return
+        }
+        val onSettings = if (deleting) null else ({ settings = true })
         // Each sign-in step starts with no message from the step before (I425).
-        if (email) EmailScreen(vm, purpose, onBack = { vm.message.value = null; email = false }) { deleting = false; email = false }
-        else WelcomeScreen(vm, purpose, onEmail = { vm.message.value = null; email = true },
+        if (email) EmailScreen(vm, purpose, onBack = { vm.message.value = null; email = false }, onSettings = onSettings) { deleting = false; email = false }
+        else WelcomeScreen(vm, purpose, onEmail = { vm.message.value = null; email = true }, onSettings = onSettings,
             onCancel = if (deleting) ({ vm.message.value = null; deleting = false }) else null) { deleting = false }
         return
     }
@@ -214,15 +223,6 @@ private fun App(vm: AppViewModel) {
             if (resumed && back != null && pending != null) { MainActivity.pendingRoute = null; nav.navigate(pending) { launchSingleTop = true } }
         }
         val x = LocalPaExtra.current
-        // Q338: no paired device yet, one first-device screen in place of Send, History, and Devices (state-driven).
-        val peers by vm.peers.collectAsState()
-        val me by vm.self.collectAsState()
-        val gate = me != null && UiText.firstDeviceGate(others(peers, me?.id))
-        var wasGate by remember { mutableStateOf(gate) }
-        androidx.compose.runtime.LaunchedEffect(gate) {
-            UiText.afterGate(wasGate, gate)?.let { r -> nav.navigate(r) { popUpTo(nav.graph.id) { inclusive = true }; launchSingleTop = true } }
-            wasGate = gate
-        }
         // The app's one place for transient messages (I603): above the bottom bar, and above the keyboard when it is up.
         // Taken as soon as it is set, so no screen finds an old one later (I426, I527); a new message replaces the one shown.
         val snack = remember { SnackbarHostState() }
@@ -234,15 +234,14 @@ private fun App(vm: AppViewModel) {
         }
         // One back step to Devices, then out: Back does not walk every visited tab (I478).
         fun tab(r: String) = nav.navigate(r) { popUpTo("peers") { saveState = true }; launchSingleTop = true; restoreState = true }
-        // Send and History with no paired device: to Devices, with its pairing how-to open (I611).
-        val pair = { vm.pairHowTo.value = true; tab("peers") }
-        val firstDevice: @Composable () -> Unit = { PeersScreen(vm, firstDevice = true, onSettings = { nav.navigate("settings") { launchSingleTop = true } }) }
+        // Send and History with no paired device: to Devices, which shows the first-pair steps (I611, I612).
+        val pair = { tab("peers") }
         Scaffold(containerColor = MaterialTheme.colorScheme.background, topBar = {
             // Status bar strip: white in light (like the top app bar), so a heads-up reads against the page.
             Box(Modifier.fillMaxWidth().background(if (x.dark) MaterialTheme.colorScheme.background else x.tile)
                 .windowInsetsTopHeight(WindowInsets.statusBars))
         }, bottomBar = {
-            if (!gate) Column {
+            Column {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 NavigationBar(containerColor = x.tile, tonalElevation = 0.dp) {
                     for ((r, l, i) in NAV_TABS) {
@@ -257,13 +256,10 @@ private fun App(vm: AppViewModel) {
             Box(Modifier.padding(pad).consumeWindowInsets(pad)) {
             androidx.compose.runtime.CompositionLocalProvider(LocalSnackbar provides snack) {
             NavHost(nav, startDestination = "peers", modifier = Modifier.fillMaxSize()) {
-                composable("peers") { if (gate) firstDevice() else PeersScreen(vm) }
-                composable("send") { if (gate) firstDevice() else SendScreen(vm, title = "Send", onPair = pair) }
-                composable("history") { if (gate) firstDevice() else HistoryScreen(vm, onPair = pair, onSend = { tab("send") }) { id -> vm.highlight.value = id; nav.navigate("peers") } }
-                composable("settings") {
-                    SettingsScreen(vm, onDeleteAccount = { vm.message.value = null; deleting = true }, onSignedOut = {},
-                        onBack = if (gate) ({ nav.popBackStack(); Unit }) else null)
-                }
+                composable("peers") { PeersScreen(vm) }
+                composable("send") { SendScreen(vm, title = "Send", onPair = pair) }
+                composable("history") { HistoryScreen(vm, onPair = pair, onSend = { tab("send") }) { id -> vm.highlight.value = id; nav.navigate("peers") } }
+                composable("settings") { SettingsScreen(vm, onDeleteAccount = { vm.message.value = null; deleting = true }, onSignedOut = {}) }
             }
             }
             SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).imePadding())

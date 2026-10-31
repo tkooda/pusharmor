@@ -97,7 +97,7 @@ import kotlinx.coroutines.launch
 
 /** Welcome / Sign-in: Google, Apple, Email (all three always offered). */
 @Composable
-fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onCancel: (() -> Unit)? = null, onDone: () -> Unit) {
+fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onCancel: (() -> Unit)? = null, onSettings: (() -> Unit)? = null, onDone: () -> Unit) {
     // Delete account: Back and Cancel return to Settings, never out of the app (I477).
     onCancel?.let { androidx.activity.compose.BackHandler(onBack = it) }
     val context = LocalContext.current
@@ -156,6 +156,8 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onCanc
         }
         }
     }
+    // Logged out there is no bottom bar: Settings sits at the top right (I612).
+    onSettings?.let { IconButton(onClick = it, Modifier.align(Alignment.TopEnd).padding(4.dp)) { Icon(PaIcons.Settings, "Settings") } }
     }
 }
 
@@ -165,7 +167,7 @@ fun customTab(context: android.content.Context, url: String, onNoApp: (String) -
 
 /** Email: address -> Turnstile -> code entry. */
 @Composable
-fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onDone: () -> Unit) {
+fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onSettings: (() -> Unit)? = null, onDone: () -> Unit) {
     var email by rememberSaveable { mutableStateOf("") }
     var stage by rememberSaveable { mutableStateOf(0) } // 0 address, 1 turnstile, 2 code
     var requestToken by rememberSaveable { mutableStateOf<String?>(null) }
@@ -176,7 +178,8 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onDo
     // Back goes to the log-in choices, not out of the app (I478).
     androidx.activity.compose.BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        PaTopBar("Log in with email", navigationIcon = { IconButton(onClick = onBack) { Icon(PaIcons.ArrowBack, "Back") } })
+        PaTopBar("Log in with email", navigationIcon = { IconButton(onClick = onBack) { Icon(PaIcons.ArrowBack, "Back") } },
+            actions = { onSettings?.let { IconButton(onClick = it) { Icon(PaIcons.Settings, "Settings") } } })
         // Centered for a thumb; the screen already pads for the keyboard, and the column scrolls when the content is taller than the room left (I587).
         Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

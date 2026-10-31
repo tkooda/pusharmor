@@ -42,8 +42,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
@@ -230,34 +228,6 @@ fun BlockingState(icon: ImageVector, text: String, modifier: Modifier = Modifier
 }
 
 private fun DrawScope.unit() = size.minDimension / 200f
-
-/** Devices illustration: halo, dashed orbit, three device satellites, brand tile in the centre. Decorative. */
-@Composable
-fun DevicesIllustration() {
-    val x = LocalPaExtra.current
-    val icons = listOf(rememberVectorPainter(PaIcons.Smartphone), rememberVectorPainter(PaIcons.Laptop), rememberVectorPainter(PaIcons.Tablet))
-    Box(Modifier.size(200.dp), Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
-            val u = unit()
-            val c = Offset(100 * u, 100 * u)
-            val s = 1.5f * u
-            drawCircle(x.illoHalo, 60 * u, c)
-            drawCircle(x.illoRing, 60 * u, c, style = Stroke(s))
-            drawCircle(x.illoRing, 88 * u, c, style = Stroke(s, cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(3 * u, 7 * u))))
-            val sats = listOf(Offset(100f, 12f), Offset(176f, 144f), Offset(24f, 144f))
-            sats.forEachIndexed { i, p ->
-                val pc = Offset(p.x * u, p.y * u)
-                drawCircle(x.tile, 19 * u, pc)
-                drawCircle(x.illoRing, 19 * u, pc, style = Stroke(s))
-                val g = 18 * u
-                translate(pc.x - g / 2, pc.y - g / 2) {
-                    with(icons[i]) { draw(Size(g, g), colorFilter = ColorFilter.tint(x.iconTileFg)) }
-                }
-            }
-        }
-        BrandTile(56.dp)
-    }
-}
 
 /** Messages illustration: halo, stacked message cards, a link chip. Decorative. */
 @Composable
