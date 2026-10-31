@@ -207,7 +207,7 @@ def test_version_refused(tmp_path):
     with pytest.raises(pa.Fail) as e:
         with st.state():
             pass
-    assert "version 2" in str(e.value) and "Update PushArmor" in str(e.value)
+    assert str(e.value) == "%s has version 2, which this PushArmor does not know. Update PushArmor to continue." % st.dev_path
     with open(st.key_path, "w") as f:
         f.write('id = "x"\n')
     with pytest.raises(pa.Fail) as e:
@@ -226,7 +226,7 @@ def test_426_update(monkeypatch):
     monkeypatch.setattr(pa, "http_request", lambda *a: (426, {}, b'{"error":"update required"}'))
     with pytest.raises(pa.Fail) as e:
         pa.Api("https://r.example", {"id": "x", "sign": pa.new_key()[0]}).call("GET", "/v1/peers")
-    assert str(e.value).startswith("Update PushArmor to continue: ") and e.value.code == 1
+    assert str(e.value) == "Update PushArmor to continue." and e.value.code == 1
 
 
 def test_clock_skew_resync(monkeypatch):
