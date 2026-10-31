@@ -7,6 +7,7 @@ struct PeersView: View {
     @State private var pulseId: String?
     @State private var pulseOn = false
     @State private var expanded: String?
+    @State private var showPairHowTo = false
 
     /// Removed peers show only while History still holds rows from them.
     private var visible: [Peer] {
@@ -54,7 +55,15 @@ struct PeersView: View {
                             }
                         }
                     }
+                    Section {
+                        Button {
+                            showPairHowTo = true
+                        } label: {
+                            Label("Pair a new device", systemImage: "plus.circle")
+                        }
+                    }
                 }
+                .sheet(isPresented: $showPairHowTo) { PairHowToView() }
                 .contentMargins(.bottom, 12, for: .scrollContent)
                 .navigationTitle("Devices")
                 .toolbar {
@@ -123,6 +132,31 @@ struct PeersView: View {
             }
             pulseId = nil
         }
+    }
+}
+
+/// The "Pair a new device" how-to (F30): pairing starts from the new device's row here.
+struct PairHowToView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Label(S.pairHowTo1, systemImage: "1.circle.fill")
+                    Label(S.pairHowTo2, systemImage: "2.circle.fill")
+                    Label(S.pairHowTo3, systemImage: "3.circle.fill")
+                }
+            }
+            .navigationTitle("Pair a new device")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
 

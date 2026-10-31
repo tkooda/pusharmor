@@ -43,6 +43,9 @@ public enum S {
     public static func signedOutPeer(_ x: String) -> String { "\(x) is logged out" }
     public static func sendOnlyPeer(_ x: String) -> String { "\(x): Send only" }
     public static let emailSendFailed = "could not send the email, try again"
+    public static let pairHowTo1 = "Install PushArmor on the other device."
+    public static let pairHowTo2 = "Log in with the same account."
+    public static let pairHowTo3 = "It appears here. Tap Pair."
     public static let storeRepaired = "Local data was found corrupted and repaired. Please log in again."
     public static let updateRequired = "Update PushArmor to continue"
     public static let clockOff = "This device's clock is off by more than 5 minutes"
