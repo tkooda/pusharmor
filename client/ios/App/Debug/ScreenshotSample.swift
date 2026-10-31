@@ -29,17 +29,80 @@ enum ScreenshotSample {
     static var sentOK: Bool { args.contains("-PAScreenshotsSentOK") }
 
     /// Compose box prefill.
-    static let draft = "https://example.com/guide/hiking-trails"
-    static let draftPeer = String(repeating: "L", count: 40)
+    static var draft: String { store ? "https://www.nasa.gov/image-of-the-day/" : "https://example.com/guide/hiking-trails" }
+    static var draftPeer: String { store ? StoreIds.pixel : String(repeating: "L", count: 40) }
     static let link = "https://example.com/recipes/lentil-soup"
 
     private static func id(_ c: Character) -> String { String(repeating: c, count: 40) }
+
+    /// -PAScreenshotsStore: the store screenshot sample data (I613), the same on every client.
+    /// This device is iPhone 15. With -PAScreenshotsPairWaiting only Galaxy S23 waits to pair
+    /// (Pair / Deny); with -PAScreenshotsPairFingerprint it shows the fingerprint (Deny / Approve).
+    static var store: Bool { args.contains("-PAScreenshotsStore") }
+
+    private enum StoreIds {
+        static let me = "C3RTU52QbLiuXe5HyI7Kqb8zQTUNsNBHpLkp0Z5P"
+        static let pixel = "hjPq61-TVPe3fdhe7xPAuu6uczM8YGd8SRd0yfTG"
+        static let galaxy = "6EXuspp3CKM_tP2Vi3Bf06jsK8i2ak13YUxB8QFw"
+        static let laptop = "APKiJWcPbWkXT7rfuDzfA_874lMFTg5g6hy_xFpz"
+        static let homePC = "GwisLhzC8Lp76AacI9C2cD6Xy2orpcKMvQerzG1z"
+    }
+
+    private static func makeStoreSample(_ store: Store, now: Int64) throws -> Store {
+        try store.setMe("id", .text(StoreIds.me))
+        try store.setMe("name", .text("iPhone 15"))
+        let waiting = args.contains("-PAScreenshotsPairWaiting"), fingerprint = args.contains("-PAScreenshotsPairFingerprint")
+        if waiting || fingerprint {
+            try store.db.exec("""
+                INSERT INTO peers (id, state, listed, reachable, platform, created, name, name_n, fingerprint)
+                VALUES (?, 'unruled', 1, 1, 'android', ?, 'Galaxy S23', 1, 'R4NX')
+                """, [.text(StoreIds.galaxy), .int(now - 60)])
+            if fingerprint {
+                try store.db.exec("""
+                    INSERT INTO pairing (peer_id, role, state, r, authorized, started_at, last_send_at)
+                    VALUES (?, 'X', 'shown', ?, 1, ?, ?)
+                    """, [.text(StoreIds.galaxy), .blob(Data(count: 32)), .int(now), .int(now)])
+            }
+            return store
+        }
+        let peers: [(String, String, String, Int64)] = [
+            (StoreIds.pixel, "android", "Pixel 8", now - 40 * 86400),
+            (StoreIds.laptop, "chrome", "Work laptop", now - 30 * 86400),
+            (StoreIds.homePC, "firefox", "Home PC", now - 20 * 86400),
+            (StoreIds.galaxy, "android", "Galaxy S23", now - 60),  // just paired
+        ]
+        for (pid, platform, name, created) in peers {
+            try store.db.exec("""
+                INSERT INTO peers (id, sign_pub, enc_pub, state, listed, approve_verified, approve_verified_at, reachable,
+                  platform, created, name, name_n, pairing_id) VALUES (?, ?, ?, 'approved', 1, 1, ?, 1, ?, ?, ?, 1, ?)
+                """, [.text(pid), .blob(Data(repeating: 2, count: 65)), .blob(Data(repeating: 3, count: 65)), .int(created),
+                      .text(platform), .int(created), .text(name), .blob(Data(repeating: 1, count: 16))])
+        }
+        guard let pixel = PeerId(text: StoreIds.pixel), let galaxy = PeerId(text: StoreIds.galaxy),
+              let laptop = PeerId(text: StoreIds.laptop), let homePC = PeerId(text: StoreIds.homePC)
+        else { return store }
+        let clock = Int64((Calendar.current.date(bySettingHour: 9, minute: 41, second: 0, of: Date()) ?? Date())
+            .timeIntervalSince1970)
+        // Oldest first, so message 1 is the newest. Message 1 is from Work laptop: iPhone 15 is this device.
+        try store.addMessage(dir: .incoming, peer: galaxy, type: "text", content: "Meeting moved to 3:30 pm", n: nil,
+                             pairingId: nil, read: true, results: nil, now: clock - 3 * 3600)
+        try store.addMessage(dir: .incoming, peer: homePC, type: "text", content: "Pick up milk and eggs on the way home",
+                             n: nil, pairingId: nil, read: true, results: nil, now: clock - 2 * 3600)
+        try store.addMessage(dir: .outgoing, peer: laptop, type: "url", content: "https://github.com/tkooda/pusharmor", n: nil,
+                             pairingId: nil, read: true, results: "{\"\(StoreIds.laptop)\":\"sent\"}", now: clock - 3600)
+        try store.addMessage(dir: .incoming, peer: pixel, type: "text", content: "Door code is 4821", n: nil,
+                             pairingId: nil, read: true, results: nil, now: clock - 1200)
+        try store.addMessage(dir: .incoming, peer: laptop, type: "url", content: "https://www.wikipedia.org/wiki/Union_Station_(Chicago)",
+                             n: nil, pairingId: nil, read: false, results: nil, now: clock - 120)
+        return store
+    }
 
     static func makeStore() throws -> Store {
         let path = (NSTemporaryDirectory() as NSString).appendingPathComponent("pa-shots.sqlite")
         for suffix in ["", "-wal", "-shm"] { try? FileManager.default.removeItem(atPath: path + suffix) }
         let store = try Store(path: path)
         let now = Int64(Date().timeIntervalSince1970)
+        if Self.store { return try makeStoreSample(store, now: now) }
         try store.setMe("id", .text("Kx3mQ9vTbR2wYp7LdZ4hNc8sJf5aUe1GoXi6VtBy"))  // mixed characters: a repeated one looks wrong in review images
         try store.setMe("name", .text("iPhone"))
         if args.contains("-PAScreenshotsEmpty") { return store }

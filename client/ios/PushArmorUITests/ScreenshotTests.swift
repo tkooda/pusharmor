@@ -29,45 +29,61 @@ final class ScreenshotTests: XCTestCase {
         tab.tap()
     }
 
+    /// Store shots (I613): the spec sample data (-PAScreenshotsStore), light only, journey order.
     func testCaptureStoreScreenshots() {
-        var app = launch()
-        XCTAssertTrue(app.buttons["Send to \"Laptop\""].waitForExistence(timeout: 30))
+        let store = ["-PAScreenshotsStore", "-appearance", "light"]
+        var app = launch(store + ["-PAScreenshotsPairWaiting"])
+        XCTAssertTrue(app.buttons["Pair"].waitForExistence(timeout: 30))
+        assertTabs(app)
         sleep(1)
-        shot("03-send")
+        shot("01-pair-waiting")
+        app.terminate()
+
+        app = launch(store + ["-PAScreenshotsPairFingerprint"])
+        XCTAssertTrue(app.buttons["Approve"].waitForExistence(timeout: 30))
+        assertTabs(app)
+        sleep(1)
+        shot("02-pair-fingerprint")
+        app.terminate()
+
+        app = launch(store)
+        XCTAssertTrue(app.buttons["Send to \"Pixel 8\""].waitForExistence(timeout: 30))
+        assertTabs(app)
         peersTab(app)
-        XCTAssertTrue(labelled(app, "Work desktop").waitForExistence(timeout: 10))
+        XCTAssertTrue(labelled(app, "Galaxy S23").waitForExistence(timeout: 10))
         sleep(1)
-        shot("01-peers")
+        shot("03-devices")
+        app.tabBars.buttons["Send"].tap()
+        XCTAssertTrue(app.buttons["Send to \"Pixel 8\""].waitForExistence(timeout: 10))
+        sleep(1)
+        shot("04-send")
+        app.tabBars.buttons["History"].tap()
+        XCTAssertTrue(labelled(app, "Meeting moved to 3:30 pm").waitForExistence(timeout: 10))
+        sleep(1)
+        shot("05-history")
+        let row = labelled(app, "Union_Station")
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+        XCTAssertTrue(app.buttons["Copy"].waitForExistence(timeout: 10))
+        sleep(1)
+        shot("06-history-open")
         app.terminate()
 
-        app = launch(["-PAScreenshotsPairing"])   // the first-pair screen (Q338)
-        XCTAssertTrue(labelled(app, "Pair with new device: \"New laptop\"").waitForExistence(timeout: 10))
+        app = launch(store)
+        let settings = app.tabBars.buttons["Settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 30))
+        settings.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
         sleep(1)
-        shot("04-pairing")
+        shot("07-settings")
         app.terminate()
+    }
 
-        // The banner shows for a few seconds only: shoot it while it is on screen (hittable before
-        // and after the shot), else relaunch, which posts the sample notification again.
-        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        let banner = springboard.descendants(matching: .any)
-            .matching(NSPredicate(format: "label CONTAINS %@", "lentil-soup")).firstMatch
-        for attempt in 1...3 {
-            app = launch(["-PAScreenshotsNotify"])
-            let allow = springboard.alerts.buttons["Allow"]
-            if attempt == 1, allow.waitForExistence(timeout: 15) { allow.tap() }
-            if onScreen(banner, timeout: 20) {
-                settle(banner)
-                let a = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-                if banner.exists && banner.isHittable {
-                    a.name = "02-notification"
-                    a.lifetime = .keepAlways
-                    add(a)
-                    return
-                }
-            }
-            app.terminate()
-        }
-        XCTFail("the sample notification banner was not on screen in 3 attempts")
+    /// The four tabs, in order.
+    private func assertTabs(_ app: XCUIApplication) {
+        let bar = app.tabBars.firstMatch
+        XCTAssertTrue(bar.waitForExistence(timeout: 10))
+        XCTAssertEqual(bar.buttons.allElementsBoundByIndex.map(\.label), ["Send", "History", "Devices", "Settings"])
     }
 
     /// Review images (not store shots): the sign-in screen, Settings, and the first-pair screen.
@@ -231,29 +247,5 @@ final class ScreenshotTests: XCTestCase {
     /// Any element whose label contains the text (a peer row reads as one combined element).
     private func labelled(_ app: XCUIApplication, _ text: String) -> XCUIElement {
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
-    }
-
-    /// Waits out the slide-in: the frame must hold still for three polls in a row, then a
-    /// one-second pause lets the blur and the icon finish fading in.
-    private func settle(_ e: XCUIElement) {
-        var last = CGRect.null
-        var still = 0
-        let end = Date().addingTimeInterval(3)
-        while still < 3 && Date() < end && e.exists {
-            let f = e.frame
-            still = f == last ? still + 1 : 0
-            last = f
-            usleep(100_000)
-        }
-        usleep(1_000_000)
-    }
-
-    private func onScreen(_ e: XCUIElement, timeout: TimeInterval) -> Bool {
-        let end = Date().addingTimeInterval(timeout)
-        while Date() < end {
-            if e.exists && e.isHittable { return true }
-            usleep(200_000)
-        }
-        return false
     }
 }
