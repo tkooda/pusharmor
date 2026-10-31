@@ -25,6 +25,19 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(header.exists)
     }
 
+    /// F24: History is its own tab; the Send tab shows no history rows.
+    func testHistoryIsItsOwnTab() {
+        let app = launch()
+        XCTAssertTrue(app.buttons["Send to \"Laptop\""].waitForExistence(timeout: 30))
+        let row = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "Meeting moved to 3 pm")).firstMatch
+        XCTAssertFalse(row.exists)
+        let tab = app.tabBars.buttons["History"]
+        XCTAssertTrue(tab.exists)
+        tab.tap()
+        XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: 10))
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+    }
+
     func testPairingCardShowsTheFingerprintCells() {
         let app = launch(["-PAScreenshotsPairing"])
         let tab = app.tabBars.buttons["Devices"]

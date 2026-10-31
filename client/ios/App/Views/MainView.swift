@@ -11,6 +11,10 @@ struct MainView: View {
                 .tabBarMaterial()
                 .tabItem { Label("Send", systemImage: "paperplane") }
                 .tag(0)
+            HistoryTab()
+                .tabBarMaterial()
+                .tabItem { Label("History", systemImage: "clock") }
+                .tag(3)
             PeersView()
                 .tabBarMaterial()
                 .tabItem { Label("Devices", systemImage: "person.2") }
@@ -22,13 +26,13 @@ struct MainView: View {
         }
         .onAppear {
             if model.highlightPeer != nil { tab = 1 }
-            if model.showHistory { tab = 0; model.showHistory = false }
+            if model.showHistory { tab = 3; model.showHistory = false }
         }
         .onChange(of: model.highlightPeer) { _, v in
             if v != nil { tab = 1 }
         }
         .onChange(of: model.showHistory) { _, v in
-            if v { tab = 0; model.showHistory = false }
+            if v { tab = 3; model.showHistory = false }
         }
         .sheet(isPresented: Binding(
             get: { model.detailRow != nil },
@@ -41,12 +45,24 @@ struct MainView: View {
     }
 }
 
-/// The Send tab: standard large title, compose, history (ComposeView).
+/// The Send tab: standard large title and compose (ComposeView); no history (F24).
 struct HomeView: View {
     var body: some View {
         NavigationStack {
             ComposeView()
                 .navigationTitle("Send")
+        }
+    }
+}
+
+/// The History tab (F24): standard large title, filter and rows (HistoryView).
+struct HistoryTab: View {
+    var body: some View {
+        NavigationStack {
+            List {
+                HistoryView()
+            }
+            .navigationTitle("History")
         }
     }
 }

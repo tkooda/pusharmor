@@ -152,7 +152,7 @@ struct ChipFlow: Layout {
     }
 }
 
-/// The Send tab: message card and history scroll; the device chips and Send stay pinned
+/// The Send tab: message card; the device chips and Send stay pinned
 /// above the tab bar (and above the keyboard).
 struct ComposeView: View {
     @EnvironmentObject var model: AppModel
@@ -215,7 +215,6 @@ struct ComposeView: View {
                         .tint(.brandGreen)
                 }
             }
-            HistoryView()
         }
         .contentMargins(.bottom, 12, for: .scrollContent)
         .scrollDismissesKeyboard(.interactively)
