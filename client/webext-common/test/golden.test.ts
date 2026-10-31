@@ -453,6 +453,29 @@ describe("golden: must_fail", () => {
   }
 });
 
+describe("golden: must_decode", () => {
+  for (const c of G.must_decode.messages) {
+    test("message " + c.name, async () => {
+      const r = await runPipeline(c);
+      assert.equal(r.outcome, c.expect.outcome);
+      if (r.outcome === "unreadable") return;
+      assert.equal(r.n, c.expect.n);
+      assert.equal(r.content.type, c.expect.type);
+      assert.deepEqual(valueOf(r), c.expect.value);
+    });
+  }
+  for (const c of G.must_decode.name_entries) {
+    test("name_entry " + c.name, async () => {
+      const rec = peerOf(c.receiver);
+      const owner = peerOf(c.owner);
+      const e = await openNameEntry(await encPair(c.receiver), rec.id, c.ciphertext);
+      assert.ok(e);
+      const name = await verifyNameEntry(d(owner.sign_pub), owner.id, rec.id, d(c.pin.pairing_id), e);
+      assert.deepEqual({ ok: name !== null, name, n: e.n }, c.expect);
+    });
+  }
+});
+
 test("golden: rfc9180 (P-256, HKDF-SHA256, AES-256-GCM)", async () => {
   const r = G.rfc9180;
   assert.deepEqual([r.kem_id, r.kdf_id, r.aead_id, r.mode], [16, 1, 2, 0]);

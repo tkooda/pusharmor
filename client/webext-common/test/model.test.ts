@@ -57,8 +57,8 @@ test("inner JSON parse rules", () => {
   assert.equal(p('{"n":1,"text":"a","text":"b"}'), null);
   assert.equal(p('{"n":0,"text":"a"}'), null);
   assert.equal(p('{"n":1}'), null);
-  assert.equal(p('{"n":1,"text":"a","url":"b"}'), null);
-  assert.equal(p('{"n":1,"text":"a","x":1}'), null);
+  assert.deepEqual(p('{"n":1,"text":"a","url":"b"}'), { n: 1, content: { type: "url", value: "b" } });
+  assert.deepEqual(p('{"n":1,"text":"a","x":1}'), { n: 1, content: { type: "text", value: "a" } });
   assert.equal(p('{"n":1,"foo":"a"}'), null);
   assert.equal(p('{"n":1,"deny":2}'), null);
   assert.deepEqual(p('{"n":1,"deny":1}'), { n: 1, content: { type: "deny" } });
