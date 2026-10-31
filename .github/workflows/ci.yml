@@ -30,6 +30,7 @@ jobs:
       webext: ${{ steps.detect.outputs.webext }}
       android: ${{ steps.detect.outputs.android }}
       ios: ${{ steps.detect.outputs.ios }}
+      cli: ${{ steps.detect.outputs.cli }}
       vectors: ${{ steps.detect.outputs.vectors }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -81,6 +82,7 @@ jobs:
           out webext '^client/(webext-common|chrome|firefox)/'
           out android '^client/android/'
           out ios '^client/ios/'
+          out cli '^client/cli/'
           out vectors '^(server/worker|client/(webext-common|chrome|firefox|android|ios))/'
           cat "$GITHUB_OUTPUT"
 
@@ -143,10 +145,17 @@ jobs:
       contents: read
     uses: ./.github/workflows/ios.yml
 
+  cli:
+    needs: changes
+    if: needs.changes.outputs.cli == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/cli.yml
+
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [changes, repo, vectors, worker, site, webext, android, ios]
+    needs: [changes, repo, vectors, worker, site, webext, android, ios, cli]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
