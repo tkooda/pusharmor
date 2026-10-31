@@ -51,6 +51,8 @@ final class AppModel: ObservableObject {
     @Published var refreshGreyUntil: Date = .distantPast
     @Published var highlightPeer: String?
     @Published var showHistory = false
+    /// Switches to the Devices tab (Send empty state, I462).
+    @Published var showDevices = false
     /// Peer ids with a Pair again call running; their Pair again buttons are disabled.
     @Published var pairAgainBusy: Set<String> = []
 

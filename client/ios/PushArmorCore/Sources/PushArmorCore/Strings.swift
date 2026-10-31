@@ -46,6 +46,8 @@ public enum S {
     public static let pairHowTo1 = "Install PushArmor on the other device."
     public static let pairHowTo2 = "Log in with the same account."
     public static let pairHowTo3 = "It appears here. Tap Pair."
+    public static let pairFirst = "Pair a device first"
+    public static let pairHowTo3Send = "It appears in Devices. Tap Pair."
     public static let storeRepaired = "Local data was found corrupted and repaired. Please log in again."
     public static let updateRequired = "Update PushArmor to continue"
     public static let clockOff = "This device's clock is off by more than 5 minutes"

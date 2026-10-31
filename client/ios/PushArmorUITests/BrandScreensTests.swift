@@ -83,6 +83,16 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.buttons["Rename"].waitForExistence(timeout: 10))
     }
 
+    /// I462: with no paired device, Send says how to pair one and opens Devices.
+    func testSendWithNoPairedDeviceGuidesToDevices() {
+        let app = launch(["-PAScreenshotsPairing"])
+        XCTAssertTrue(app.staticTexts["Pair a device first"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["Install PushArmor on the other device."].exists)
+        XCTAssertTrue(app.staticTexts["It appears in Devices. Tap Pair."].exists)
+        app.buttons["Open Devices"].tap()
+        XCTAssertTrue(app.navigationBars["Devices"].waitForExistence(timeout: 10))
+    }
+
     func testLogOutAsksFirstAndCancelKeepsTheDevice() {
         let app = launch()
         let tab = app.tabBars.buttons["Settings"]

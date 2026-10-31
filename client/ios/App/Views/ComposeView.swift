@@ -206,6 +206,22 @@ struct ComposeView: View {
     var body: some View {
         List {
             HomeBanners()
+            if candidates.isEmpty {
+                // No paired device to send to: say how to pair one (I462).
+                Section {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(S.pairFirst).font(.headline)
+                        Label(S.pairHowTo1, systemImage: "1.circle.fill")
+                        Label(S.pairHowTo2, systemImage: "2.circle.fill")
+                        Label(S.pairHowTo3Send, systemImage: "3.circle.fill")
+                        Button("Open Devices") { model.showDevices = true }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.brandGreen)
+                    }
+                    .font(.subheadline)
+                    .padding(.vertical, 4)
+                }
+            }
             Section {
                 messageCard
                 if !text.isEmpty && detected != .text {
