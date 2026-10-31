@@ -147,6 +147,18 @@ class UiFitTest {
         assertTrue(nodes(c.get()).any { it.config.getOrNull(SemanticsActions.ScrollBy) != null })
     }
 
+    @Test fun updateScreenWithNoBrowserShowsSnackbar() {
+        shadowOf(RuntimeEnvironment.getApplication()).checkActivities(true)
+        val c = show("w360dp-h640dp-xhdpi", 1.0f) { UpdateScreen() }
+        var n: SemanticsNode? = nodes(c.get()).first { it.config.getOrNull(SemanticsProperties.Text)?.any { t -> t.text == "Update" } == true }
+        while (n != null && n.config.getOrNull(SemanticsActions.OnClick) == null) n = n.parent
+        n!!.config[SemanticsActions.OnClick].action!!.invoke()
+        shadowOf(Looper.getMainLooper()).idle()
+        // The app's snackbar, not a Toast (I603).
+        assertTrue(nodes(c.get()).any { it.config.getOrNull(SemanticsProperties.Text)?.any { t -> t.text == com.pusharmor.app.ui.NO_APP_LINK } == true })
+        assertNull(org.robolectric.shadows.ShadowToast.getLatestToast())
+    }
+
     @Test fun sendScrollsWhenTheFieldCannotKeepItsLines() {
         // Landscape at font 2.0: 200 px above Send, chips 160 px, a 4-line field 300 px: the page scrolls (I520).
         assertTrue(sendScrolls(areaPx = 200, chipsPx = 160, extrasPx = 0, fieldMinPx = 300))
