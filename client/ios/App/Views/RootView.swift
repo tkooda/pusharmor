@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import UIKit
 import PushArmorCore
@@ -9,6 +10,20 @@ struct RootView: View {
 
     var body: some View {
         content
+            .safeAreaInset(edge: .top) {
+                if model.updateRequired {
+                    Text(S.updateRequired)
+                        .font(.callout.weight(.semibold))
+                        .foregroundColor(.errorText)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(.thinMaterial)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: APIClient.upgradeRequired).receive(on: RunLoop.main)) { _ in
+                if !model.updateRequired { model.errorText = S.updateRequired }
+                model.updateRequired = true
+            }
             .overlay(alignment: .bottom) {
                 if let t = model.toast {
                     Text(t)

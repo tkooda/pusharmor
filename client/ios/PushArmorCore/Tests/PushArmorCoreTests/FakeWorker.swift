@@ -23,6 +23,7 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
     var rows: [String: Row] = [:]
     var inbox: [String: [String]] = [:]
     var calls: [(String, String)] = []
+    var lastHeaders: [String: String] = [:]
     /// Scripted replies: path prefix -> list of (status, body) used once each, before normal handling.
     var scripted: [(method: String, prefix: String, status: Int, body: String)] = []
     var epochMs: Int64 = 1761300000000
@@ -59,6 +60,7 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
         if offline { throw URLError(.notConnectedToInternet) }
         let path = url.path
         calls.append((method, path))
+        lastHeaders = headers
         if let i = scripted.firstIndex(where: { $0.method == method && path.hasPrefix($0.prefix) }) {
             let s = scripted.remove(at: i)
             return reply(s.status, s.body)

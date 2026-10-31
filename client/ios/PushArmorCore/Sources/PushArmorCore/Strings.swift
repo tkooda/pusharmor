@@ -43,6 +43,7 @@ public enum S {
     public static func signedOutPeer(_ x: String) -> String { "\(x) is logged out" }
     public static func sendOnlyPeer(_ x: String) -> String { "\(x): Send only" }
     public static let emailSendFailed = "could not send the email, try again"
+    public static let updateRequired = "Update PushArmor to continue"
     public static let clockOff = "This device's clock is off by more than 5 minutes"
     public static let badEmail = "Only email addresses with plain ASCII characters are supported."
     public static let signInExpired = "Login expired, log in again"
