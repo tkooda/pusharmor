@@ -9,7 +9,7 @@ test("openPage: an open tab on the same page is focused and reloaded", async () 
     runtime: {
       getURL: (p: string) => "chrome-extension://x/" + p,
       getContexts: async () => [{ documentUrl: url, tabId: 7, windowId: 3 }],
-      getManifest: () => ({ name: "PushArmor" }),
+      getManifest: () => ({ name: "PushArmor", version: "0.0.19" }),
     },
     tabs: {
       update: async (id: number) => void log.push("update " + id),

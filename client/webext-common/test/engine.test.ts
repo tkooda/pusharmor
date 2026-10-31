@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { ApiError, errorText } from "../src/api/client.ts";
 import { b64urlDecode, b64urlEncode } from "../src/crypto/b64url.ts";
 import { pairingKey } from "../src/crypto/labels.ts";
 import { T } from "../src/core/texts.ts";
@@ -201,6 +202,21 @@ test("clock skew: rebuild with a new n, then a second skew stops", async () => {
   const r2 = await a.e.send("again", false, "all");
   assert.equal(r2.error, T.clockOff);
   void clock;
+});
+
+test("PA-Client on every relay server call; 426 shows the update text", async () => {
+  const { w, a, b } = await setup("firefox");
+  await pairAndApprove(w, a, b);
+  await a.e.send("hi", false, "all");
+  await b.e.send("hi", false, "all");
+  assert.ok(w.calls.length > 0);
+  for (const c of w.calls) assert.match(c.client ?? "", /^(chrome|firefox)\/0\.0\.19$/, c.method + " " + c.path);
+  assert.ok(w.calls.some((c) => c.client === "chrome/0.0.19"));
+  assert.ok(w.calls.some((c) => c.client === "firefox/0.0.19"));
+  w.inject.push({ match: /POST \/v1\/send/, status: 426, body: { error: "update required" }, times: 1 });
+  const r = await a.e.send("again", false, "all");
+  assert.equal(r.error, "Update PushArmor to continue");
+  assert.equal(errorText(new ApiError(426, "update required", {}, null)), "Update PushArmor to continue");
 });
 
 test("send: a URL whose normalized href exceeds the cap is refused before any counter or call", async () => {
