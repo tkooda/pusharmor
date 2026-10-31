@@ -148,7 +148,11 @@ test("Log out asks first: the confirm text, a Log out and a Cancel button, then 
   const call = popup.indexOf('rpc(env, "signout")');
   assert.ok(call > 0 && call < first, "the signout call sits in the confirm's Log out button");
   assert.ok(popup.slice(first, first + 200).includes("yes, no"));
-  assert.ok(popup.includes('h("button", { onclick: () => clear(confirmOut) }, "Cancel")'));
+  assert.ok(popup.includes('h("button", { onclick: () => { closeConfirm(); logOut.focus(); } }, "Cancel")'));
+  // I457: the confirm sits inside the Account card, text above the buttons, and replaces the button row
+  assert.ok(popup.includes('group(acctRow, h("div", { class: "srow acct-acts" }, btns, confirmOut))'));
+  assert.ok(popup.includes('h("p", { role: "alert" }, T.logoutConfirm), h("div", { class: "actions" }, yes, no)'));
+  assert.ok(popup.includes("btns.hidden = true;"));
   assert.equal(popup.split('rpc(env, "signout")').length, 2, "only one signout call");
 });
 
