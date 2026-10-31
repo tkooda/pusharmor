@@ -334,14 +334,21 @@ extension Core {
         return try await startPair(x)
     }
 
-    /// The toast after [Pair again] (I436): nil when the commit went out, is queued, or the
-    /// tap was a repeat of one still running.
-    public static func pairAgainToast(_ r: Result<PairSendResult, Error>) -> String? {
+    /// The toast after [Pair] or [Pair again] (I436): nil when the commit went out, is queued, or the
+    /// tap was a repeat of one still running. A refusal says why, with `name` the device's label (I604).
+    public static func pairAgainToast(_ r: Result<PairSendResult, Error>, name: String) -> String? {
         switch r {
         case .success(.sent), .success(.waiting), .success(.rateLimited): return nil
         case .success(.network), .success(.error): return S.pairNotSent
         case .success(.result): return S.cannotPairNow
-        case .failure(let e as PairStartError) where e == .notOffered: return nil
+        case .failure(let e as PairStartError):
+            switch e {
+            case .notOffered: return nil
+            case .pinned: return S.alreadyPaired(name)
+            case .openEntry: return S.pairingInProgress(name)
+            case .notListed: return S.cannotPairYet(name)
+            case .tooManyOpen: return S.tooManyPairings
+            }
         case .failure: return S.cannotPairNow
         }
     }

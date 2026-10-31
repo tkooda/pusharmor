@@ -14,6 +14,11 @@ public enum S {
     public static let pairReply = "Pairing fingerprint ready. Open PushArmor."
     public static func pairAgain(_ x: String) -> String { "\(x) wants to pair again. Tap Pair again on its row." }
     public static let cannotPairNow = "Cannot pair with this device now."
+    /// Pair refused on this device (I604): one line per reason, each says why and what to do.
+    public static func alreadyPaired(_ x: String) -> String { "Already paired with \"\(x)\"." }
+    public static func pairingInProgress(_ x: String) -> String { "Pairing with \"\(x)\" is already in progress." }
+    public static func cannotPairYet(_ x: String) -> String { "\"\(x)\" can't pair right now. Open PushArmor on that device, then try again." }
+    public static let tooManyPairings = "Too many pairings are in progress. Finish or cancel one, then try again."
     public static let pairNotSent = "Pairing not sent. Tap Send again in a minute."
     public static let noConnection = "No connection. Try again."
     public static let notDone = "Something went wrong. Try again."

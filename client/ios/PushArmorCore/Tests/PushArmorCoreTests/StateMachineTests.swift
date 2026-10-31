@@ -546,7 +546,7 @@ final class StateMachineTests: XCTestCase {
         }
         XCTAssertEqual(try x.core.store.pairing(n.id), entry)             // the sent commit is kept
         XCTAssertTrue(w.take(n.id).isEmpty)
-        XCTAssertNil(Core.pairAgainToast(.failure(Core.PairStartError.notOffered)))
+        XCTAssertNil(Core.pairAgainToast(.failure(Core.PairStartError.notOffered), name: "Laptop"))
     }
 
     func testPairAgainRefusedKeepsRow() async throws {
@@ -558,7 +558,7 @@ final class StateMachineTests: XCTestCase {
             XCTFail("Pair again must refuse an unlisted peer")
         } catch let e as Core.PairStartError {
             XCTAssertEqual(e, .notListed)
-            XCTAssertEqual(Core.pairAgainToast(.failure(e)), S.cannotPairNow)
+            XCTAssertEqual(Core.pairAgainToast(.failure(e), name: "Laptop"), S.cannotPairYet("Laptop"))
         }
         let after = try x.core.store.peer(n.id)!
         XCTAssertEqual(after.pinned, before.pinned)                       // nothing dropped
@@ -566,12 +566,20 @@ final class StateMachineTests: XCTestCase {
     }
 
     func testPairAgainToastText() {
-        XCTAssertNil(Core.pairAgainToast(.success(.sent)))
-        XCTAssertNil(Core.pairAgainToast(.success(.rateLimited(5))))
-        XCTAssertEqual(Core.pairAgainToast(.success(.network)), S.pairNotSent)
-        XCTAssertEqual(Core.pairAgainToast(.success(.error(500))), S.pairNotSent)
-        XCTAssertEqual(Core.pairAgainToast(.success(.result("gone"))), S.cannotPairNow)
-        XCTAssertEqual(Core.pairAgainToast(.failure(Core.PairStartError.tooManyOpen)), S.cannotPairNow)
+        func t(_ r: Result<PairSendResult, Error>) -> String? { Core.pairAgainToast(r, name: "Laptop") }
+        XCTAssertNil(t(.success(.sent)))
+        XCTAssertNil(t(.success(.rateLimited(5))))
+        XCTAssertEqual(t(.success(.network)), S.pairNotSent)
+        XCTAssertEqual(t(.success(.error(500))), S.pairNotSent)
+        XCTAssertEqual(t(.success(.result("gone"))), S.cannotPairNow)
+        // each refusal says why and what to do (I604)
+        XCTAssertNil(t(.failure(Core.PairStartError.notOffered)))
+        XCTAssertEqual(t(.failure(Core.PairStartError.pinned)), "Already paired with \"Laptop\".")
+        XCTAssertEqual(t(.failure(Core.PairStartError.openEntry)), "Pairing with \"Laptop\" is already in progress.")
+        XCTAssertEqual(t(.failure(Core.PairStartError.notListed)),
+                       "\"Laptop\" can't pair right now. Open PushArmor on that device, then try again.")
+        XCTAssertEqual(t(.failure(Core.PairStartError.tooManyOpen)),
+                       "Too many pairings are in progress. Finish or cancel one, then try again.")
     }
 
     func testFailedCallShowsAToast() {
