@@ -111,6 +111,7 @@ object UiText {
 
     /** Q338: when the first pairing lifts the gate, the normal navigation opens on Send. */
     fun afterGate(wasGate: Boolean, gate: Boolean): String? = if (wasGate && !gate) "send" else null
+    const val HIBERNATION_BANNER = "Android may pause this app's ability to receive messages unless \"Manage app if unused\" is turned off."
     const val FIRST_DEVICE_TITLE = "Pair your first device"
     const val FIRST_DEVICE_STEPS = "1. Install PushArmor on another device.\n2. Log in with the same account.\n3. Approve it here: tap Pair when it shows below."
     const val FIRST_DEVICE_WAITING = "No device is waiting yet. Your other device shows up here after it logs in."
