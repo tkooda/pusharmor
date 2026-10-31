@@ -84,6 +84,7 @@ final class AppModel: ObservableObject {
             core = nil
             phase = ScreenshotSample.signIn ? .signIn(.register) : .main
             reload()
+            sample = true
             started = true
             await ScreenshotSample.notifyIfAsked()
             return
@@ -130,6 +131,8 @@ final class AppModel: ObservableObject {
 
     /// A notification tap that arrived before start() finished; replayed after it.
     private var started = false
+    /// Screenshot sample data has no keys on purpose; it must not reopen on foreground (I559).
+    private var sample = false
     private var pendingTap: (info: [AnyHashable: Any], action: String)?
 
     /// Which screen to show.
@@ -187,7 +190,7 @@ final class AppModel: ObservableObject {
     /// reconcile, retries, timeouts, permission check.
     func onForeground() async {
         await checkPermission()
-        if started, AppModel.needsReopen(hasStore: store != nil, hasCore: core != nil, me: try? store?.me()) {
+        if started, !sample, AppModel.needsReopen(hasStore: store != nil, hasCore: core != nil, me: try? store?.me()) {
             await once("open") {
                 await open()
                 await route()
