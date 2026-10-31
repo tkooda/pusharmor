@@ -61,6 +61,11 @@ object UiText {
     /** Header above the device chips: "Send to (6 of 9)". */
     fun sendToHeader(picked: Int, total: Int): String = "Send to ($picked of $total)"
 
+    /** Send with no paired device (I462): pairing guidance replaces the empty "Send to" block once this device is loaded. */
+    fun noDevicesShown(selfLoaded: Boolean, paired: Int): Boolean = selfLoaded && paired == 0
+    const val NO_DEVICES_TITLE = "Pair a device first"
+    const val NO_DEVICES_BODY = "1. Install PushArmor on the other device.\n2. Log in with the same account.\n3. It appears in Devices. Tap Pair."
+
     /** The "All" chip shows only with 2 or more devices (one device is preselected instead). */
     fun showAllChip(setting: Boolean, devices: Int, keyboardUp: Boolean = false): Boolean = setting && devices > 1 && !keyboardUp
 
