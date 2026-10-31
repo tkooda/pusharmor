@@ -55,8 +55,9 @@ test("History sender link is a keyboard-operable button with a visible focus rin
 test("status and error text is announced: live regions and field errors wired to inputs", async () => {
   const { readFileSync } = await import("node:fs");
   const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
-  for (const f of ["popup.ts", "peersview.ts", "page.ts"]) assert.doesNotMatch(rd(f), /class: "status" \}/, f); // every status div has a role
-  assert.match(rd("popup.ts"), /class: "result", role: "status"/);
+  // I604: transient messages are one bottom toast (role status, or alert for errors)
+  for (const f of ["popup.ts", "peersview.ts", "page.ts"]) assert.doesNotMatch(rd(f), /class: "(status|result)"/, f);
+  assert.match(rd("dialog.ts"), /role: kind === "err" \? "alert" : "status"/);
   const page = rd("page.ts");
   assert.match(page, /setAttribute\("role", "alert"\)/); // bad help is an alert
   assert.match(page, /setAttribute\("aria-invalid", "true"\)/);
@@ -64,7 +65,7 @@ test("status and error text is announced: live regions and field errors wired to
   assert.match(page, /describe\(code, codeHelp/);
   assert.match(page, /setHelp\(emailHelp, bad, true, email\)/);
   assert.match(page, /setHelp\(codeHelp, msg[^\n]*, true, code\)/);
-  assert.match(rd("peersview.ts"), /await redraw\(msg, p\.id\)/); // the message survives the redraw
+  assert.match(rd("peersview.ts"), /await redraw\(p\.id\);\s+if \(msg\) toast\(msg, "err"\);/); // the message shows after the redraw
 });
 
 test("tab keys: arrows wrap, Home and End jump, others pass", () => {
@@ -97,15 +98,15 @@ test("focus moves sensibly on view change, dialogs and errors", async () => {
   assert.match(page, /heading\.focus\(\)/); // done step and limit view
   assert.match(page, /h\("h1", \{ tabindex: "-1" \}/);
   const peers = rd("peersview.ts");
-  assert.match(peers, /await redraw\(msg, p\.id\)/); // focus returns to the row after an action
+  assert.match(peers, /await redraw\(p\.id\)/); // focus returns to the row after an action
   assert.match(peers, /\.sh"\)\)\?\.focus\(\)/); // or the first heading when the row is gone
   assert.match(peers, /edit\.focus\(\)/); // after Rename
-  assert.match(peers, /\.keep"\)\?\.focus\(\)/); // remove confirm
   const pop = rd("popup.ts");
-  assert.doesNotMatch(pop, /yes\.focus\(\)/); // I471: confirms start on Cancel, not on the destructive button
-  assert.equal(pop.match(/no\.focus\(\)/g)?.length, 1); // Delete all history
-  assert.match(pop, /confirmDel\.addEventListener\("keydown", onEsc/);
-  assert.match(pop, /h\("button", \{ onclick: closeDel \}, "Cancel"\)/);
+  // I604: every confirm is the shared dialog (focus on Cancel, Esc cancels, focus restored; see dialog.test.ts)
+  assert.match(peers, /confirmDialog\("Remove device\?"/);
+  assert.match(pop, /confirmDialog\("Delete all history\?"/);
+  assert.match(pop, /confirmDialog\("Delete account\?"/);
+  for (const f of ["popup.ts", "peersview.ts", "page.ts"]) assert.doesNotMatch(rd(f), /confirm-inline|class: "confirm"|class: "keep"/, f);
   assert.match(pop, /"aria-label": "Unread"/);
   assert.match(pop, /content\.addEventListener\("keydown"/); // keyboard marks read
 });
@@ -239,7 +240,7 @@ test("login page: one note at a time, setup note only while needed with Open set
   const { readFileSync } = await import("node:fs");
   const page = readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8");
   assert.doesNotMatch(page, /Finish logging in in the new tab/);
-  assert.match(page, /first \?\?\s*\(banner \? note/); // the first available note only
+  assert.match(page, /clear\(s1notes\),\s*\(banner \? note/); // the first available note only
   assert.match(page, /ff && st\.setupNeeded \? setupNote\(\)/);
   assert.match(page, /"Open setup"/);
   assert.match(page, /resuming \? null : h\("p", \{ class: "step-n" \}, "Step 1 of 2"\)/);
@@ -280,9 +281,7 @@ test("one request per click; a failed tab view shows Retry (I473)", async () => 
   const { readFileSync } = await import("node:fs");
   const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
   const peers = rd("peersview.ts");
-  assert.match(peers, /\(ev\.currentTarget as HTMLButtonElement\)\.disabled = true; \/\/ I473/); // Remove in the confirm
-  assert.match(peers, /else b\.disabled = true;/); // every other row action
-  assert.match(peers, /if \(open\) return open\.focus\(\)/); // one Remove confirm per row
+  assert.match(peers, /else b\.disabled = true;/); // every other row action; Remove: the modal confirm closes on the first click
   const page = rd("page.ts");
   assert.match(page, /if \(btn\.disabled\) return;\s+btn\.disabled = true;/); // Remove and continue
   assert.match(rd("popup.ts"), /ready\.catch\(\(e\) => pane\.isConnected && failView\(pane, \(e as Error\)\.message, \(\) => show\(t, prefill\)\)\)/);
@@ -309,7 +308,7 @@ test("copy: device limit rows read as sentences; desktop says Click; status line
 test("first-device screen: the live read redraws only on a change and keeps focus (I484)", async () => {
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
-  assert.match(pop, /if \(msg === undefined && focusId === undefined && key === last\) return;/);
+  assert.match(pop, /if \(focusId === undefined && key === last\) return;/);
   assert.match(pop, /\(same \?\? row \?\? panel\.querySelector<HTMLElement>\("\.fp-title"\)\)\?\.focus\(\);/);
 });
 
@@ -319,10 +318,12 @@ test("full tab Send: the cut offer shows only while the text is over 2048 bytes 
   assert.match(pop, /cut\.hidden = !offerCut \|\| d\.bytes <= CAP;/);
 });
 
-test("History filter chips keep focus on the pressed chip after the redraw (I486)", async () => {
+test("History filter is a native select that shows only with more than All (I604)", async () => {
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
-  assert.match(pop, /draw\(\);\s*\(chipsBox\.children\[i\] as HTMLElement \| undefined\)\?\.focus\(\);/);
+  assert.match(pop, /h\("select", \{ "aria-label": "Show messages" \}\)/);
+  assert.match(pop, /filterRow\.hidden = opts\.length < 2;/);
+  assert.doesNotMatch(pop, /chipsBox/);
 });
 
 test("Rename this device: Enter saves, Esc keeps the old name and focus (I487)", async () => {
@@ -331,17 +332,13 @@ test("Rename this device: Enter saves, Esc keeps the old name and focus (I487)",
   assert.match(pv, /if \(ev\.key === "Enter"\) save\.click\(\);\s*else if \(ev\.key === "Escape"\) show\(nm, true\);/);
 });
 
-test("Devices Remove confirm: Esc is Keep and focus goes back to the menu button (I488)", async () => {
+test("Settings and Devices errors show in the error toast, with no scroll workaround (I489, I567, I604)", async () => {
   const { readFileSync } = await import("node:fs");
-  const pv = readFileSync(new URL("../src/ui/peersview.ts", import.meta.url), "utf8");
-  assert.match(pv, /confirm\.addEventListener\("keydown", \(ev\) => \{\s*if \(ev\.key !== "Escape"\) return;\s*ev\.preventDefault\(\);\s*confirm\.querySelector<HTMLElement>\("\.keep"\)\?\.click\(\);/);
-  assert.match(pv, /class: "keep", onclick: \(\) => \{ confirm\.remove\(\); b\.focus\(\); \}/);
-});
-
-test("Log out error is scrolled into view (I489)", async () => {
-  const { readFileSync } = await import("node:fs");
-  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
-  assert.match(pop, /status\.textContent = \(e as Error\)\.message;\s*status\.scrollIntoView\(\{ block: "nearest" \}\);/);
+  const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
+  for (const f of ["popup.ts", "peersview.ts"]) {
+    assert.doesNotMatch(rd(f), /status\.scrollIntoView/, f);
+    assert.match(rd(f), /toast\(\(e as Error\)\.message, "err"\)/, f);
+  }
 });
 
 test("Devices Refresh stays grey for its 60 s across a redraw (I490)", async () => {
@@ -350,17 +347,14 @@ test("Devices Refresh stays grey for its 60 s across a redraw (I490)", async () 
   assert.match(pv, /if \(refreshUntil > Date\.now\(\)\) greyFor\(refresh, refreshUntil - Date\.now\(\)\);/);
 });
 
-test("Devices row with the Remove confirm keeps the icon beside the name (I491)", async () => {
-  const { readFileSync } = await import("node:fs");
-  assert.match(readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8"), /\.prow:has\(\.confirm\) > :not\(\.txt\) \{ align-self: start; \}/);
-});
-
 test("Send result names the one device; counts read singular for one (I493)", async () => {
   const { T } = await import("../src/core/texts.ts");
   assert.equal(T.sentToNofM(0, 1), "Sent to 0 of 1 device");
   assert.equal(T.sentToNofM(1, 2), "Sent to 1 of 2 devices");
   const { readFileSync } = await import("node:fs");
-  assert.match(readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8"), /one \? T\.sentToOne\(one\.label\) : T\.sentToNofM\(r\.sent, r\.total\)/);
+  assert.equal(T.messageSentToOne("Phone"), 'Message sent to "Phone"');
+  assert.equal(T.messageSentToN(3), "Message sent to 3 devices");
+  assert.match(readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8"), /toast\(one \? T\.messageSentToOne\(one\.label\) : T\.messageSentToN\(r\.sent\), "ok"\)/);
 });
 
 test("Send with every device greyed says no device can receive now (I494)", async () => {
@@ -453,12 +447,6 @@ test("This device is a plain settings group row, not a navy hero (I585)", async 
   assert.doesNotMatch(rd("popup.ts"), /sh\("This device"\)/);
 });
 
-test("Rename error is scrolled into view like the other Settings status lines (I567)", async () => {
-  const { readFileSync } = await import("node:fs");
-  const pv = readFileSync(new URL("../src/ui/peersview.ts", import.meta.url), "utf8");
-  assert.match(pv, /status\.textContent = \(e as Error\)\.message;\s*status\.scrollIntoView\(\{ block: "nearest" \}\);[^\n]*\n\s*\}\s*\},\s*\}, "Rename"\)/);
-});
-
 test("Login security note has a card fill that differs from the light page background", async () => {
   const { readFileSync } = await import("node:fs");
   const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
@@ -475,7 +463,6 @@ test("Primary action sits on the right of its button row (I583)", async () => {
   const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
   const pg = rd("page.ts");
   assert.ok(pg.indexOf('"Cancel"),\n      h("button", {\n        class: "primary"') > 0); // Device limit: Cancel left, Remove and continue right
-  const pv = rd("peersview.ts");
-  assert.ok(pv.indexOf('"Keep")') < pv.indexOf('"Remove")')); // Remove confirm
-  assert.match(rd("popup.ts"), /"Delete all history\?"\), no, yes\)/);
+  const dlg = rd("dialog.ts");
+  assert.match(dlg, /h\("div", \{ class: "dlg-acts" \}, cancel, yes\)/); // every confirm: Cancel left, the action right
 });

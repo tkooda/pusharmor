@@ -23,10 +23,6 @@ h1 { margin: 0 0 8px; font-size: 22px; line-height: 28px; font-weight: 600; colo
 .t1 { font-size: 14px; line-height: 20px; }
 .name { font-weight: 500; }
 .txt { min-width: 0; }
-.err { color: var(--err); }
-.status { padding: 0 16px; color: var(--ink2); }
-.status:empty, .result:empty { display: none; }
-.status:not(:empty) { padding: 8px 16px; }
 
 /* Header and tabs (sticky while the content scrolls). */
 .top { z-index: 3; background: var(--bg); }
@@ -92,8 +88,6 @@ input[role=switch]:checked::before { left: 16px; background: var(--onp); }
 .av.bare { background: transparent; color: var(--ink2); }
 .prow { display: grid; grid-template-columns: 32px 1fr auto; gap: 12px; align-items: center; padding: 8px 8px 8px 16px; min-height: 52px; position: relative; }
 .prow.target { padding-right: 16px; cursor: pointer; }
-/* I491: an open Remove confirm grows the row; icon and menu stay beside the name */
-.prow:has(.confirm) > :not(.txt) { align-self: start; }
 .prow.off .t1, .prow.off .av { opacity: 0.5; }
 .line { overflow-wrap: anywhere; }
 .st { display: inline-flex; align-items: center; gap: 6px; }
@@ -106,9 +100,6 @@ label.srow { cursor: pointer; }
 .acct .email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acct-acts .btns { padding: 0; }
 .btns[hidden], button.errtext[hidden] { display: none; }
-.confirm, .confirm-inline { margin-top: 8px; font-size: 13px; }
-.confirm-inline { display: flex; align-items: center; gap: 8px; margin-top: 0; }
-.confirm-inline:empty { display: none; }
 
 /* Overflow menu. */
 .more { position: relative; }
@@ -153,7 +144,6 @@ label.srow { cursor: pointer; }
 /* Refresh and Open full view: the same outlined button, in the brand accent */
 .foot.bar button { height: 32px; padding: 0 12px; border-color: var(--line); color: var(--accent, var(--primary)); }
 .send-foot { padding: 12px 16px 16px; }
-.result { margin-bottom: 8px; font-size: 13px; }
 body.page .foot { position: static; }
 
 /* Empty states and illustrations. */
@@ -196,10 +186,10 @@ body.page .foot { position: static; }
 .cut { padding: 0 16px 10px; }
 
 /* History. */
-.chips { display: flex; gap: 6px; padding: 12px 16px 6px; overflow-x: auto; white-space: nowrap; }
 .chip { height: 28px; padding: 0 12px; border-color: var(--ctl); color: var(--ink2); font-size: 12px; flex: none; gap: 4px; }
-.chip.on { background: var(--pc); border-color: var(--pc); color: var(--onpc); padding-left: 8px; }
-.hist-list { margin-top: 6px; }
+.hfilter { padding: 12px 16px 0; }
+.hfilter[hidden] { display: none; }
+.hist-list { margin-top: 12px; }
 .hrow { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 12px; padding: 10px 16px; align-items: start; }
 .hrow.event { align-items: center; }
 .hrow.sel, .hrow:focus-within { background: var(--s1); }
@@ -252,7 +242,6 @@ body.page.signin-bg #app { max-width: none; padding: 32px 16px; }
 .notes { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
 .notes:empty { display: none; }
 .note { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; border-radius: var(--rc); background: var(--pc); color: var(--onpc); font-size: 14px; line-height: 20px; text-align: left; }
-.note.err { background: var(--errc); color: var(--onerrc); }
 .note svg { flex: none; }
 .login .note button.text { height: 20px; margin-left: auto; padding: 0; font-size: 14px; color: inherit; text-decoration: underline; }
 .login button { height: 48px; font-size: 16px; font-weight: 600; }
@@ -334,4 +323,22 @@ body.page #app > h1, body.page #app > .lead, body.page #app > .banner { padding:
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 .fail { padding: 16px; }
+
+/* Confirm dialog (native modal dialog): Cancel left, the action right. */
+dialog.dlg { width: min(340px, calc(100vw - 48px)); margin: auto; padding: 24px 24px 20px; border: 1px solid var(--line); border-radius: var(--rc); background: var(--card); color: var(--ink); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28); }
+dialog.dlg::backdrop { background: rgba(0, 0, 0, 0.45); }
+.dlg h2 { margin: 0 0 8px; font-size: 17px; line-height: 24px; font-weight: 600; }
+.dlg p { font-size: 14px; line-height: 20px; color: var(--ink2); }
+.dlg-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+.dlg-acts button { min-width: 88px; font-weight: 600; }
+.dlg-acts button.danger { background: var(--err); border-color: var(--err); color: var(--card); }
+.dlg-acts button.danger:hover { background: var(--err); filter: brightness(1.08); }
+
+/* The one transient message, at the bottom of the window (above a footer, see dialog.ts). */
+.toast { position: fixed; left: 50%; bottom: 16px; z-index: 10; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; width: max-content; max-width: calc(100vw - 32px); min-height: 44px; padding: 10px 16px; border-radius: var(--rf); background: var(--ink); color: var(--bg); font-size: 13px; line-height: 18px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25); opacity: 0; transition: opacity 0.15s; }
+.toast.on { opacity: 1; }
+.toast.err { background: var(--errc); color: var(--onerrc); border: 1px solid var(--err); padding-right: 6px; }
+.toast-msg { white-space: pre-line; overflow-wrap: anywhere; }
+.toast button.ib { flex: none; width: 32px; height: 32px; color: inherit; }
+.toast button.ib:hover { background: rgba(127, 127, 127, 0.16); }
 .fail p { margin: 0 0 12px; }

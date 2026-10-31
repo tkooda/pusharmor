@@ -7,6 +7,7 @@ import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendT
 import { AUTH_CHANGED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
 import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, nextTabIndex, peerStatus, rpc, sh, shortTime } from "./dom.ts";
+import { confirmDialog, toast } from "./dialog.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
 import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
 import { ownCard, pairCard, peerRow, renderPeers } from "./peersview.ts";
@@ -166,7 +167,6 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   const asTextRow = h("label", { class: "astext" }, asText, h("span", {}, "Send as text"));
   const sendLabel = h("span", { class: "lbl" }, "Send");
   const sendBtn = h("button", { class: "primary big" }, icon("send", 18), sendLabel) as HTMLButtonElement;
-  const result = h("div", { class: "result", role: "status" });
   const head = sh("");
   const chips = h("div", { class: "dchips" });
   // I485: the cut offer shows only while the text is over the limit
@@ -234,7 +234,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     c.removeAttribute("aria-pressed");
     c.title = p.label + ": " + why;
     c.addEventListener("click", () => {
-      result.textContent = p.label + ": " + why;
+      toast(p.label + ": " + why, "info");
       void rpc(env, "greyedTap");
     });
     chips.append(c);
@@ -258,10 +258,11 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
       const r = await rpc<SendResult>(env, "send", { text: field.value, asText: asText.checked, targets: to });
       // I493: one device sent to is named
       const one = r.total === 1 && r.sent === 1 && count() === 1 ? sendable.find((p) => p.id === checks.find((c) => on(c.chip))?.id) : undefined;
-      clear(result).append(h("div", {}, one ? T.sentToOne(one.label) : T.sentToNofM(r.sent, r.total)), ...r.failures.map((f) => h("div", { class: "dim" }, f.text)));
-      if (r.error && r.failures.length === 0) result.append(h("div", { class: "err" }, r.error));
+      if (r.failures.length) toast([T.sentToNofM(r.sent, r.total) + ".", ...r.failures.map((f) => f.text)].join("\n"), "err");
+      else if (r.error) toast(r.error, "err");
+      else toast(one ? T.messageSentToOne(one.label) : T.messageSentToN(r.sent), "ok");
     } catch (e) {
-      result.textContent = (e as Error).message;
+      toast((e as Error).message, "err");
     }
     await update();
   });
@@ -285,7 +286,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   }
   // I494: every device is greyed: say why Send is off
   const none = !sendable.length && chips.childElementCount ? h("p", { class: "dim nosend" }, "No device can receive messages right now.") : null;
-  root.append(head, chips, ...(none ? [none] : []), h("div", { class: "grow" }), h("div", { class: "foot send-foot" }, result, sendBtn));
+  root.append(head, chips, ...(none ? [none] : []), h("div", { class: "grow" }), h("div", { class: "foot send-foot" }, sendBtn));
   relabel();
   await update();
 }
@@ -307,30 +308,33 @@ export async function historyView(env: UiEnv, root: HTMLElement, resend: (text: 
     );
     return;
   }
-  const chipsBox = h("div", { class: "chips" });
+  // The filter is a native select; it shows only when there is more than All to pick.
+  const filter = h("select", { "aria-label": "Show messages" }) as HTMLSelectElement;
+  const filterRow = h("div", { class: "hfilter" }, filter);
   const list = group();
   list.classList.add("hist-list");
   const draw = () => {
     const f = applyFilter(rows, key);
     key = f.key;
-    clear(chipsBox);
-    for (const [i, c] of historyChips(rows).entries()) {
-      const on = c.key === key;
-      // I486: the chips are drawn again, so focus goes back to the pressed one
-      const pick = () => {
-        key = c.key;
-        draw();
-        (chipsBox.children[i] as HTMLElement | undefined)?.focus();
-      };
-      chipsBox.append(h("button", { class: "chip" + (on ? " on" : ""), "aria-pressed": String(on), onclick: pick }, ...(on ? [icon("check", 14)] : []), c.label));
-    }
+    const opts = historyChips(rows);
+    filter.replaceChildren(...opts.map((c) => h("option", { value: c.key, selected: c.key === key }, filterLabel(c.key, c.label))));
+    filter.value = key;
+    filterRow.hidden = opts.length < 2;
     clear(list);
     const now = Date.now();
     for (const r of f.rows) list.append(historyRow(env, r, resend, now));
   };
+  filter.addEventListener("change", () => {
+    key = filter.value;
+    draw();
+  });
   draw();
-  root.append(chipsBox, list, h("div", { class: "grow" }));
+  root.append(filterRow, list, h("div", { class: "grow" }));
   if (focus) document.getElementById("h-" + focus)?.scrollIntoView({ block: "center" });
+}
+
+function filterLabel(key: string, label: string): string {
+  return key === "all" ? "All messages" : key === "unknown" ? T.unknownSender : "From " + label;
 }
 
 function eventText(r: HistoryRow & { sender: string }): string {
@@ -431,9 +435,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
   showAll.addEventListener("change", save);
   autoOpen.addEventListener("change", save);
   days.addEventListener("change", save);
-  const status = h("div", { class: "status", role: "status" });
   const self = (await rpc<{ self: { id: string; name: string } | null }>(env, "peers").catch(() => null))?.self ?? null;
-  const confirmDel = h("div", { class: "confirm-inline" });
   const ff = st.platform === "firefox";
   const acct = add(
     h("div", { class: "txt" }),
@@ -450,50 +452,28 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
         // the logout is done: read the state again, which shows the logged-out view
         await reload();
       } catch (e) {
-        status.textContent = (e as Error).message;
-        status.scrollIntoView({ block: "nearest" }); // I489: the line sits below the fold
+        toast((e as Error).message, "err");
       }
     },
   }, "Log out") as HTMLButtonElement;
-  const btns = h("div", { class: "btns" }, logOut, h("button", { class: "danger", onclick: () => env.openPage("#login=delete-account") }, "Delete account"));
-  // I471: Esc cancels a confirm
-  const onEsc = (cancel: () => void) => (ev: KeyboardEvent) => {
-    if (ev.key !== "Escape") return;
-    ev.preventDefault();
-    cancel();
+  const delAcct = async () => {
+    if (await confirmDialog("Delete account?", "You must log in again to confirm. This cannot be undone.", "Continue")) env.openPage("#login=delete-account");
   };
+  const btns = h("div", { class: "btns" }, logOut, h("button", { class: "danger", onclick: () => void delAcct() }, "Delete account"));
   const delAll = h("button", { class: "quiet errtext" }, "Delete all history") as HTMLButtonElement;
-  const closeDel = () => {
-    clear(confirmDel);
-    delAll.hidden = false;
-    delAll.focus();
-  };
-  confirmDel.addEventListener("keydown", onEsc(closeDel));
-  delAll.addEventListener("click", () => {
-    const yes = h("button", {
-      class: "danger",
-      onclick: async () => {
-        yes.disabled = true;
-        try {
-          await rpc(env, "historyDeleteAll");
-          closeDel();
-          status.textContent = "History deleted.";
-        } catch (e) {
-          yes.disabled = false;
-          status.textContent = (e as Error).message;
-        }
-        status.scrollIntoView({ block: "nearest" });
-      },
-    }, "Delete") as HTMLButtonElement;
-    const no = h("button", { onclick: closeDel }, "Cancel");
-    delAll.hidden = true;
-    clear(confirmDel).append(h("span", { role: "alert" }, "Delete all history?"), no, yes);
-    no.focus();
+  delAll.addEventListener("click", async () => {
+    if (!(await confirmDialog("Delete all history?", "This deletes every sent and received message on this device.", "Delete"))) return;
+    try {
+      await rpc(env, "historyDeleteAll");
+      toast("History deleted.", "ok");
+    } catch (e) {
+      toast((e as Error).message, "err");
+    }
   });
   add(
     root,
     self && sh("Device name"),
-    self && ownCard(env, self.name, st.platform, status),
+    self && ownCard(env, self.name, st.platform),
     sh("Appearance"),
     group(h("div", { class: "srow" }, h("div", { class: "txt" }, h("div", {}, "Theme"), h("div", { class: "t2" }, "Dark uses a true black background.")), theme)),
     sh("Sending"),
@@ -504,11 +484,10 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     sh("History"),
     group(
       h("div", { class: "srow" }, h("span", {}, "Keep messages for"), days),
-      h("div", { class: "srow" }, delAll, confirmDel),
+      h("div", { class: "srow" }, delAll),
     ),
     sh("Account"),
     group(acctRow, h("div", { class: "srow acct-acts" }, btns)),
-    status,
     h("div", { class: "grow" }),
   );
 }
@@ -519,11 +498,11 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
  */
 export async function firstPairView(env: UiEnv, root: HTMLElement, st: StateView, onPaired: () => Promise<void>, withSettings: boolean): Promise<void> {
   const panel = h("div", { class: "body", id: "panel" });
-  const status = h("div", { class: "status", role: "status" });
   let inSettings = false;
   let busy = false;
   let last = "";
-  const draw: Redraw = async (msg, focusId) => {
+  let lastErr = "";
+  const draw: Redraw = async (focusId) => {
     if (busy || inSettings || !panel.isConnected) return;
     busy = true;
     try {
@@ -542,7 +521,7 @@ export async function firstPairView(env: UiEnv, root: HTMLElement, st: StateView
       const waiting = data.peers.filter((p) => !p.hidden);
       // N1: the live read redraws only on a change, and keeps focus where it was
       const key = JSON.stringify(waiting);
-      if (msg === undefined && focusId === undefined && key === last) return;
+      if (focusId === undefined && key === last) return;
       last = key;
       const act = document.activeElement instanceof HTMLElement && panel.contains(document.activeElement) ? document.activeElement : null;
       const rowId = act?.closest("[id^='peer-']")?.id;
@@ -552,13 +531,12 @@ export async function firstPairView(env: UiEnv, root: HTMLElement, st: StateView
         h("h1", { class: "fp-title", tabindex: "-1" }, "Pair your first device"),
         h("ol", { class: "howto fp-steps" }, h("li", {}, "Install PushArmor on another device."), h("li", {}, "Log in with the same account."), h("li", {}, "Click Pair on it here.")),
         sh("Waiting to pair"),
-        ...waiting.filter((p) => p.fingerprint).map((p) => pairCard(env, p, status, draw)),
+        ...waiting.filter((p) => p.fingerprint).map((p) => pairCard(env, p, draw)),
         waiting.some((p) => !p.fingerprint)
-          ? group(...waiting.filter((p) => !p.fingerprint).map((p) => peerRow(env, p, status, draw)))
+          ? group(...waiting.filter((p) => !p.fingerprint).map((p) => peerRow(env, p, draw)))
           : waiting.length
             ? null
             : h("p", { class: "fp-wait" }, "No devices yet. They show up here after they log in."),
-        status,
         h("div", { class: "grow" }),
       );
       const row = document.getElementById("peer-" + (focusId ?? rowId?.slice(5)));
@@ -566,9 +544,10 @@ export async function firstPairView(env: UiEnv, root: HTMLElement, st: StateView
         const same = act ? [...(row ?? panel).querySelectorAll<HTMLElement>("button, select, input")].find((b) => b.textContent === actText) : undefined;
         (same ?? row ?? panel.querySelector<HTMLElement>(".fp-title"))?.focus();
       }
-      if (msg) setTimeout(() => (status.textContent = msg), 50);
+      lastErr = "";
     } catch (e) {
-      status.textContent = (e as Error).message;
+      // the live read runs every few seconds: show a new error once
+      if ((e as Error).message !== lastErr) toast((lastErr = (e as Error).message), "err");
     } finally {
       busy = false;
     }

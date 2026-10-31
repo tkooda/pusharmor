@@ -5,6 +5,7 @@ import type { PeerView, StateView } from "../core/rpc.ts";
 import { T } from "../core/texts.ts";
 import { type UiEnv, add, clear, failView, group, h, platformLabel, rpc } from "./dom.ts";
 import { AUTH_CHANGED, AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResult, type Restore, formatWait, resendLeftMs, sendLeftMs } from "../model/signin.ts";
+import { toast } from "./dialog.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
 import { startTheme } from "./theme.ts";
@@ -77,8 +78,8 @@ function field(input: HTMLInputElement, label: string, extra = ""): HTMLElement 
   return h("div", { class: "field" + extra }, input, h("label", { for: input.id }, label));
 }
 
-function note(kind: "" | "err", ic: "info" | "history" | "error", text: string): HTMLElement {
-  return h("div", { class: "note" + (kind ? " " + kind : ""), role: kind ? "alert" : "status" }, icon(ic, 20), h("span", {}, text));
+function note(ic: "info" | "history", text: string): HTMLElement {
+  return h("div", { class: "note", role: "status" }, icon(ic, 20), h("span", {}, text));
 }
 
 /**
@@ -131,22 +132,21 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   const sendHelp = h("p", { class: "help", hidden: true });
   describe(frame, frameHelp, "frame-help");
   const s1notes = h("div", { class: "notes" });
-  // Step 1 shows one note at a time: a new note first, else the banner, the Firefox setup note
-  // (only while setup is still needed, with a button that opens it again), or the receive note.
+  // Step 1 shows one note at a time: the banner, the Firefox setup note (only while setup is
+  // still needed, with a button that opens it again), or the receive note.
   const setupNote = () => {
-    const n = note("", "info", T.ffFinishSetup);
+    const n = note("info", T.ffFinishSetup);
     n.append(h("button", { type: "button", class: "text", onclick: () => env.openUrl(SITE + "/fx/setup") }, "Open setup"));
     return n;
   };
   // I498: a banner (device removed, keys lost) is the one reason shown; the body does not add "logged out"
   const banner = st.banner && st.banner !== T.signedOut ? st.banner : null;
-  const resetNotes = (first?: HTMLElement) =>
+  const resetNotes = () =>
     add(
       clear(s1notes),
-      first ??
-        (banner ? note("", "info", banner) : null) ??
+      (banner ? note("info", banner) : null) ??
         (ff && st.setupNeeded ? setupNote() : null) ??
-        (st.receiveNote ? note("", "info", st.receiveNote) : null),
+        (st.receiveNote ? note("info", st.receiveNote) : null),
     );
   if (onFrameMessage) window.removeEventListener("message", onFrameMessage);
   onFrameMessage = (ev: MessageEvent) => {
@@ -262,7 +262,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       if (r.url) location.assign(r.url);
       else await done(r);
     } catch (e) {
-      resetNotes(note("err", "error", (e as Error).message));
+      toast((e as Error).message, "err");
     }
   };
   const title = purpose === "delete-account" ? "Delete account" : "Log in";
@@ -328,7 +328,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       const msg = (e as Error).message;
       if (ENDS_FLOW.includes(msg)) {
         showEmail(email.value);
-        resetNotes(note("err", "error", msg));
+        toast(msg, "err");
       } else {
         codeField.classList.add("bad");
         setHelp(codeHelp, msg === "Enter the 6-character code" ? "Enter the 6-character code from the email." : msg, true, code);
@@ -416,7 +416,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     clear(s2notes);
     if (restored) {
       const t = new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-      s2notes.append(note("", "history", "Welcome back. You can pick up where you left off: the code we sent at " + t + " still works."));
+      s2notes.append(note("history", "Welcome back. You can pick up where you left off: the code we sent at " + t + " still works."));
     }
     code.value = "";
     codeField.classList.remove("bad");
@@ -443,7 +443,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       const r = readAuthResult(v, Date.now());
       if (!r) return;
       await session.remove(AUTH_RESULT);
-      if (r.error) resetNotes(note("err", "error", r.error));
+      if (r.error) toast(r.error, "err");
       else await done(r);
     };
     stopAuthWatch = session.watch(AUTH_RESULT, (v) => void take(v));
@@ -455,7 +455,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     sentAt = saved.sentAt;
     sentTo = saved.email.trim().toLowerCase();
     refreshSend();
-    if (saved.note === "expired") s1notes.prepend(note("", "history", "Your last code has expired. Get a new code to continue."));
+    if (saved.note === "expired") s1notes.prepend(note("history", "Your last code has expired. Get a new code to continue."));
   }
 }
 
@@ -501,7 +501,6 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
   document.body.classList.remove("signin-bg");
   const peers = (Array.isArray(body.peers) ? body.peers : []) as LimitPeer[];
   const boxes: { id: string; box: HTMLInputElement }[] = [];
-  const status = h("div", { class: "status", role: "status" });
   const list = group();
   const heading = h("h1", { tabindex: "-1" }, "Device limit reached");
   root.append(heading, h("div", { class: "lead" }, "Pick devices to remove from this account, then continue."));
@@ -541,15 +540,14 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
               doneCard(env, card, false);
             } else if (r.limit) limitView(env, root, r.limit, r.ticket ?? ticket);
           } catch (e) {
-            status.textContent = (e as Error).message;
-            if (status.textContent === T.loginExpired) env.openPage("#login");
+            toast((e as Error).message, "err");
+            if ((e as Error).message === T.loginExpired) env.openPage("#login");
           } finally {
             btn.disabled = false;
           }
         },
       }, "Remove and continue"),
     ),
-    status,
   );
   heading.focus();
 }
