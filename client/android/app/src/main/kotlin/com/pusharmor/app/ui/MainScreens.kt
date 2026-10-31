@@ -270,7 +270,11 @@ fun PeersScreen(vm: AppViewModel, firstDevice: Boolean = false, onSettings: () -
             dismissButton = { TextButton(onClick = { confirmRemove = null }) { Text("Cancel") } })
     }
     if (pairHowTo) AlertDialog(onDismissRequest = { pairHowTo = false }, title = { Text("Pair a new device") },
-        text = { Text("1. Install PushArmor on the other device.\n2. Log in with the same account.\n3. It appears here. Tap Pair.") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                UiText.numbered(UiText.PAIR_HOWTO_STEPS).forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
+            }
+        },
         confirmButton = { TextButton(onClick = { pairHowTo = false }) { Text("OK") } })
 }
 
