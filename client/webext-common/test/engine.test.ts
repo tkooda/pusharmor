@@ -11,7 +11,7 @@ import { encodeInner } from "../src/model/message.ts";
 import { IDBFactory } from "fake-indexeddb";
 import { Clock, FakePlatform, MockWorker, deliver, device, makeEngine, pairAndApprove, refresh, restart } from "./harness.ts";
 import { AUTH_PENDING, Login } from "../src/core/login.ts";
-import { AUTH_RESULT, readAuthResult } from "../src/model/signin.ts";
+import { AUTH_RESULT, type AuthResult, readAuthResult } from "../src/model/signin.ts";
 
 const DAY = 86400_000;
 
@@ -882,4 +882,49 @@ test("Firefox Google login: authDone leaves the result for the login tab (done, 
   await p.storageSession.set({ [AUTH_PENDING]: { tabId: 7, purpose: "register", until: clock.t + 60_000 } });
   await new Login(e).authDone(8, TICKET);
   assert.equal((await p.storageSession.get([AUTH_RESULT]))[AUTH_RESULT], undefined);
+});
+
+test("Firefox Google login in the same tab: the login tab goes to the provider and comes back to #login with the result (Q337, I456)", async () => {
+  const clock = new Clock();
+  const w = new MockWorker(clock);
+  const TICKET = "ticket=" + "t".repeat(20);
+  const fresh = async () => {
+    const p = new FakePlatform("firefox", w, clock);
+    const { e } = await makeEngine(p, new IDBFactory(), clock);
+    return { p, login: new Login(e) };
+  };
+  const result = async (p: FakePlatform) => readAuthResult((await p.storageSession.get([AUTH_RESULT]))[AUTH_RESULT], clock.t);
+  // start: no new tab; the page gets the provider URL for its own tab
+  const a = await fresh();
+  const r = await a.login.oauthStart("google", "register", 42);
+  assert.match(r.url ?? "", /^https:\/\/api\.pusharmor\.com\/v1\/auth\/google\?/);
+  assert.deepEqual(a.p.opened, []);
+  // a Google session that completes at once: done arrives right away, the tab goes back to #login
+  await a.login.authDone(42, TICKET);
+  assert.equal((await result(a.p))?.done, true);
+  assert.deepEqual(a.p.shown, [{ tab: 42, hash: "#login" }]);
+  // device limit and error also come back to the same tab
+  for (const [inject, check] of [
+    [{ status: 409, body: { error: "peer limit", peers: [], ticket: "x".repeat(20) } }, (x: AuthResult | null) => assert.ok(x?.limit)],
+    [{ status: 401, body: { error: "ticket expired" } }, (x: AuthResult | null) => assert.equal(x?.error, "Login expired, log in again")],
+  ] as const) {
+    const b = await fresh();
+    await b.login.oauthStart("google", "register", 7);
+    w.inject.push({ match: /POST \/v1\/peers$/, ...inject, times: 1 });
+    await b.login.authDone(7, TICKET).catch(() => undefined);
+    check(await result(b.p));
+    assert.deepEqual(b.p.shown, [{ tab: 7, hash: "#login" }]);
+  }
+  // Back from Google, then Continue with Google again: the newer start still finishes in the same tab
+  const c = await fresh();
+  await c.login.oauthStart("google", "register", 9);
+  clock.t += 60_000;
+  await c.login.oauthStart("apple", "register", 9);
+  await c.login.authDone(9, TICKET);
+  assert.equal((await result(c.p))?.done, true);
+  // delete-account returns to its own route
+  const d = await fresh();
+  await d.login.oauthStart("google", "delete-account", 3);
+  await d.login.authDone(3, TICKET).catch(() => undefined);
+  assert.deepEqual(d.p.shown, [{ tab: 3, hash: "#login=delete-account" }]);
 });

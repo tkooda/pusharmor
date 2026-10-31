@@ -157,7 +157,7 @@ export class Rpc {
       case "emailVerify":
         return this.login.emailVerify(s("code"), Array.isArray(a.evict) ? (a.evict as string[]) : undefined);
       case "oauth":
-        return this.login.oauthStart(s("provider") as "google" | "apple", s("purpose") as Purpose);
+        return this.login.oauthStart(s("provider") as "google" | "apple", s("purpose") as Purpose, tab);
       case "evict":
         return this.login.complete("register", s("ticket"), null, Array.isArray(a.evict) ? (a.evict as string[]) : []);
       case "authDone":

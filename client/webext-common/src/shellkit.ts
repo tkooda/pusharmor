@@ -47,8 +47,8 @@ export function basePlatform(b: Browser, name: "chrome" | "firefox", isAndroid: 
       const t = await b.tabs.create({ url, active });
       return t.id ?? null;
     },
-    closeTab(id) {
-      void b.tabs.remove(id).catch(() => undefined);
+    showPage(id, hash) {
+      void b.tabs.update(id, { url: b.runtime.getURL("page.html" + hash) }).catch(() => undefined);
     },
     async authFlow(url) {
       if (!b.identity) return null;
