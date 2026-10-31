@@ -87,7 +87,7 @@ final class AppModel: ObservableObject {
             phase = ScreenshotSample.signIn ? .signIn(.register) : .main
             if ScreenshotSample.update { updateRequired = true }
             reload()
-            toast = ScreenshotSample.sentToast
+            toast = ScreenshotSample.sentToast ?? ScreenshotSample.sendErrorToast
             sample = true
             started = true
             await ScreenshotSample.notifyIfAsked()

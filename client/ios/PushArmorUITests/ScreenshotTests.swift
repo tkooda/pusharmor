@@ -107,6 +107,43 @@ final class ScreenshotTests: XCTestCase {
         }
     }
 
+    /// About-page shots (review images, light and dark): first-pair waiting, a devices list with
+    /// four devices, the offline send error and an opened history item.
+    func testCaptureAboutScreenshots() {
+        for theme in ["light", "dark"] {
+            var app = launch(["-PAScreenshotsPairing", "-appearance", theme])
+            XCTAssertTrue(labelled(app, "Pair with new device: \"New laptop\"").waitForExistence(timeout: 30))
+            sleep(1)
+            shot("97-first-pair-waiting-\(theme)")
+            app.terminate()
+
+            app = launch(["-PAScreenshotsMore", "-appearance", theme])
+            peersTab(app)
+            XCTAssertTrue(labelled(app, "Phone").waitForExistence(timeout: 10))
+            sleep(1)
+            shot("97-devices-list-\(theme)")
+            app.terminate()
+
+            app = launch(["-PAScreenshotsSendError", "-appearance", theme])
+            XCTAssertTrue(labelled(app, "Not sent. Try again.").waitForExistence(timeout: 30))
+            sleep(1)
+            shot("97-send-error-\(theme)")
+            app.terminate()
+
+            app = launch(["-appearance", theme])
+            let history = app.tabBars.buttons["History"]
+            XCTAssertTrue(history.waitForExistence(timeout: 30))
+            history.tap()
+            let row = labelled(app, "hiking-trails")
+            XCTAssertTrue(row.waitForExistence(timeout: 10))
+            row.tap()
+            XCTAssertTrue(app.buttons["Copy"].waitForExistence(timeout: 10))
+            sleep(1)
+            shot("97-history-open-\(theme)")
+            app.terminate()
+        }
+    }
+
     /// Screen review (not store shots): every screen in light and dark, as NN-screen-<theme>.
     /// Runs only with PA_SHOTS_ALL=1 too (tools/screenshots.sh with PA_SHOTS_ALL=1).
     func testCaptureAllScreens() throws {
