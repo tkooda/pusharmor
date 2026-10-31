@@ -21,7 +21,13 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.pusharmor.app.ui.ChipRow
+import com.pusharmor.app.ui.DismissSnackbarOnChange
 import com.pusharmor.app.ui.NavLabel
 import com.pusharmor.app.ui.PaChip
 import com.pusharmor.app.ui.UiText
@@ -34,6 +40,8 @@ import androidx.compose.material3.IconButton
 import com.pusharmor.app.ui.theme.PushArmorTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -146,5 +154,18 @@ class UiFitTest {
         val tops = names.map { t -> nodes(c.get()).first { n -> n.config.getOrNull(SemanticsProperties.Text)?.any { it.text == t } == true }.positionInRoot.y }
         // One row: Received does not drop to a line of its own (I571).
         assertEquals(tops.toString(), 1, tops.toSet().size)
+    }
+
+    @Test fun snackbarGoesWhenTheContentChanges() {
+        val state = SnackbarHostState()
+        var key by mutableStateOf("a")
+        UiHostActivity.content = { DismissSnackbarOnChange(state, key); LaunchedEffect(Unit) { state.showSnackbar("No connection. Try again.") } }
+        Robolectric.buildActivity(UiHostActivity::class.java).setup()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertNotNull(state.currentSnackbarData)
+        key = "b"
+        shadowOf(Looper.getMainLooper()).idle()
+        // The note about the last send does not stay over a new message (I572).
+        assertNull(state.currentSnackbarData)
     }
 }

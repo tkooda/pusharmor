@@ -599,6 +599,8 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     val cs = MaterialTheme.colorScheme
     val snack = remember { SnackbarHostState() }
     LaunchedEffect(result) { result?.let { snack.showSnackbar(it.second) } }
+    // A result about the last send goes away once the message or the chosen devices change (I572).
+    DismissSnackbarOnChange(snack, text to picked.toList())
     val detected = Detect.type(text)
     val type = if (asText) ContentType.TEXT else detected
     val keyboardUp = WindowInsets.isImeVisible
@@ -690,6 +692,12 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
         }
         SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp))
     }
+}
+
+/** Hides the snackbar on screen when [key] changes, so a note about an earlier action does not sit over new content. */
+@Composable
+internal fun DismissSnackbarOnChange(state: SnackbarHostState, key: Any?) {
+    LaunchedEffect(key) { state.currentSnackbarData?.dismiss() }
 }
 
 /** Detected type as quiet supporting text, not a control: "Will open as a link". */
