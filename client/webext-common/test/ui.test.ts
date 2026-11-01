@@ -190,11 +190,11 @@ test("Settings: Open links automatically sits under Receiving, not Sending (I463
   assert.ok(pop.indexOf('"Open links automatically"') > recv);
 });
 
-test("Settings order: name, appearance, All button, history, receiving, account (I619)", async () => {
+test("Settings order: name, appearance, All button, receiving, history, account (I628)", async () => {
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
   const at = (x: string) => pop.indexOf(x, pop.indexOf("async function settingsView"));
-  const order = ['sh("Device name")', 'sh("Appearance")', 'Show an "All" button when choosing devices', 'sh("History")', 'sh("Receiving")', 'sh("Account")'].map(at);
+  const order = ['sh("Device name")', 'sh("Appearance")', 'Show an "All" button when choosing devices', 'sh("Receiving")', 'sh("History")', 'sh("Account")'].map(at);
   assert.ok(order.every((i) => i > 0));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
   assert.ok(at('"Delete account")') < at("logOut);"));
