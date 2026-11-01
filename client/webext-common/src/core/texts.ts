@@ -9,9 +9,9 @@ export const T = {
   pairOpen: (fp: string) => "New device: compare " + fp,
   pairHalf: (x: string) => x + " wants to pair again. Click Pair again on its row.",
   pairCrossing: (x: string) => "Pairing with " + x + " in progress. Open PushArmor.",
-  approved: (name: string) => name + " approved this device",
+  approved: (name: string) => name + " confirmed this device",
   peerChanged: "Device list changed",
-  denied: (name: string) => name + " denied this device",
+  denied: (name: string) => name + " rejected this device",
   loggedOutRecv: (name: string) => name + " logged out",
   loggedInRecv: (name: string) => name + " logged in",
   aPeer: "A device",
@@ -28,11 +28,11 @@ export const T = {
   pairing: "Pairing...",
   pairingWith: (x: string) => "Pairing with " + x,
   wantsToPair: (x: string) => x + " wants to pair",
-  waiting: (x: string) => "Waiting for " + x + ": open PushArmor there and approve",
+  waiting: (x: string) => "Waiting for " + x + ": open PushArmor there and click Confirmed",
   noReplyYet: (x: string) => "No reply yet. Open PushArmor on " + x + ", or click Send again.",
   stillHolds: (x: string) => x + " still holds an earlier pairing. On " + x + ", click Cancel pairing, then click Send again.",
   notPairedOn: (x: string) => "Not paired on " + x,
-  declinedBy: (x: string) => "Declined by " + x,
+  declinedBy: (x: string) => "Rejected by " + x,
   fingerprint: (fp: string) => "Pairing fingerprint " + fp,
   removeConfirm: (x: string) => "Remove " + x + " from this account? " + x + " must log in again and pair with every device again.",
   sentToNofM: (n: number, m: number) => "Sent to " + n + " of " + m + (m === 1 ? " device" : " devices"),
@@ -61,7 +61,7 @@ export function sendResultText(name: string, res: string): string {
   if (res === "not listening") return name + ": " + T.sendOnly + ". It does not receive messages.";
   if (res === "logged out") return name + ": Logged out. Log in on it to receive messages.";
   if (res === "unapproved") return name + ": Not paired. Pair with it to send messages.";
-  if (res === "denied") return name + ": It declined this device.";
+  if (res === "denied") return name + ": It rejected this device.";
   if (res === "unknown") return name + ": It is no longer on this account.";
   return name + ": Not delivered. Try again.";
 }
