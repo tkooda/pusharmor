@@ -129,7 +129,7 @@ struct MessageDetailView: View {
     private func button(_ a: MessageAction) -> some View {
         switch a {
         case .read:
-            Button { reading = true } label: { ActionLabel(title: "Read", icon: "text.alignleft") }
+            Button { reading = true } label: { ActionLabel(title: "View", icon: "text.alignleft") }
                 .buttonStyle(ActionButtonStyle())
         case .copy:
             Button { UIPasteboard.general.string = row.content } label: { ActionLabel(title: "Copy", icon: "doc.on.doc") }

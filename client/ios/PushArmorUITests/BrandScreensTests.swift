@@ -242,11 +242,11 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.buttons["Delete account"].exists)
     }
 
-    /// I622: a text message offers Read, Copy, Share, and Save; Read opens a full-screen view
+    /// I622: a text message offers View, Copy, Share, and Save; View opens a full-screen view
     /// that the X closes.
     func testReadOpensAndCloses() {
         let app = launch(["-PAScreenshotsStore", "-PAScreenshotsDetailText"])
-        let read = app.buttons["Read"]
+        let read = app.buttons["View"]
         XCTAssertTrue(read.waitForExistence(timeout: 30))
         XCTAssertTrue(app.buttons["Copy"].exists)
         XCTAssertTrue(app.buttons["Save"].exists)
