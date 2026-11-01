@@ -539,3 +539,14 @@ test("history multi-select: long-press, right-click, Shift+Enter, checkboxes, De
   assert.match(readFileSync(new URL("../src/core/rpc.ts", import.meta.url), "utf8"), /case "historyDelete":/);
   assert.match(readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8"), /button\.dellight/);
 });
+
+test("history message actions: Read, Copy, Share, and Save share one equal-width row; Send to... sits below; wrap only under 340px (I625)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  assert.match(pop, /const main = h\("div", \{ class: "acts-row" \}\);\s*for \(const a of msgActions\(r\.type\)\) if \(a !== "share" \|\| canShare\) main\.append\(btn\[a\]\(\)\);/);
+  assert.match(pop, /acts\.append\(main, h\("button", \{ class: "ac", onclick: \(\) => resend\(r\.content\) \}, icon\("send", 15\), "Send to\.\.\."\)\);/);
+  assert.match(css, /\.acts-row \{ display: flex; gap: 6px; flex: 1 0 100%; \}/);
+  assert.match(css, /\.acts-row button\.ac \{ flex: 1 1 0; padding: 0 6px; \}/);
+  assert.match(css, /@media \(max-width: 339px\) \{ \.acts-row \{ flex-wrap: wrap; \}/);
+});

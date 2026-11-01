@@ -564,8 +564,10 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (tex
     read: () => h("button", { class: "ac", onclick: () => void env.openPage("#read=" + r.id) }, icon("read", 15), "Read"),
     save: () => h("button", { class: "ac", onclick: () => saveText(r.content, r.received) }, icon("save", 15), "Save"),
   };
-  for (const a of msgActions(r.type)) if (a !== "share" || canShare) acts.append(btn[a]());
-  acts.append(h("button", { class: "ac", onclick: () => resend(r.content) }, icon("send", 15), "Send to..."));
+  // I625: the main actions share one equal-width row; Send to... sits on its own row below.
+  const main = h("div", { class: "acts-row" });
+  for (const a of msgActions(r.type)) if (a !== "share" || canShare) main.append(btn[a]());
+  acts.append(main, h("button", { class: "ac", onclick: () => resend(r.content) }, icon("send", 15), "Send to..."));
   col.append(content);
   if (r.dir === "out" && r.results) {
     const fails = Object.values(r.results).filter((v) => v !== "sent").length;
