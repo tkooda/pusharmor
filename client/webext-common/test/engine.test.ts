@@ -54,7 +54,7 @@ test("happy path: commit, automatic reply, open, same fingerprint, approve both,
   assert.equal(b.p.notes.has("a:" + a.id), false);
   await deliver(w, a);
   assert.ok((await a.db.peer(b.id))!.approves_me);
-  assert.equal(a.p.notes.get("a:" + b.id)!.body, "Chrome approved this device");
+  assert.equal(a.p.notes.get("a:" + b.id)!.body, "Chrome confirmed this device");
   assert.equal(await getEntry(a.p.storageLocal, b.id), null); // r wiped
   assert.equal(await getEntry(b.p.storageLocal, a.id), null);
   assert.equal((await a.db.peer(b.id))!.name, "Chrome");
@@ -614,7 +614,7 @@ test("crossing: lower id stays N, higher side replies as X", async () => {
   assert.equal((await lo.e.pairRowView(hi.id))!.fingerprint, (await hi.e.pairRowView(lo.id))!.fingerprint);
 });
 
-test("Firefox deny notice reads denied this device; wipe leaves no pair keys", async () => {
+test("Firefox deny notice reads rejected this device; wipe leaves no pair keys", async () => {
   const { w, a, b } = await setup("firefox");
   await refresh(a, b);
   await a.e.pairStart(b.id);
@@ -624,7 +624,7 @@ test("Firefox deny notice reads denied this device; wipe leaves no pair keys", a
   await b.e.approve(a.id); // b approved a: a's deny is relayed
   await a.e.deny(b.id);
   await deliver(w, b);
-  assert.ok([...b.p.notes.values()].some((n) => n.body === "A device denied this device"));
+  assert.ok([...b.p.notes.values()].some((n) => n.body === "A device rejected this device"));
   await a.e.pairStart(b.id).catch(() => undefined);
   await a.e.wipe();
   assert.ok(Object.keys(a.p.storageLocal.data).every((k) => !k.startsWith("pair")));
@@ -863,7 +863,7 @@ test("send failures read as sentences, never raw result words (I560)", async () 
     gone: "Not delivered to Chrome: open PushArmor on it.",
     "logged out": "Chrome: Logged out. Log in on it to receive messages.",
     unapproved: "Chrome: Not paired. Pair with it to send messages.",
-    denied: "Chrome: It declined this device.",
+    denied: "Chrome: It rejected this device.",
     unknown: "Chrome: It is no longer on this account.",
     failed: "Chrome: Not delivered. Try again.",
     "failed:net": "Chrome: Not delivered. Try again.",

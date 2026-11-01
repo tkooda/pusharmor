@@ -14,9 +14,9 @@ test("peer status line by priority, replaced by pairing and note lines", () => {
   assert.deepEqual(peerStatus(peer({ greyed: "unreachable" })), { kind: "off", word: "Unreachable" });
   assert.deepEqual(peerStatus(peer({ greyed: "send only" })), { kind: "off", word: "Send only" });
   assert.deepEqual(peerStatus(peer({})), { kind: "ok", word: "Paired" });
-  assert.deepEqual(peerStatus(peer({ approvesMe: false, sendable: false })), { kind: "wait", word: "Has not approved this device" });
+  assert.deepEqual(peerStatus(peer({ approvesMe: false, sendable: false })), { kind: "wait", word: "Has not confirmed this device" });
   assert.deepEqual(peerStatus(peer({ approvesMe: false, sendable: false, actions: ["pair", "deny"] })), { kind: "wait", word: "Ready to pair" }); // I492
-  assert.equal(peerStatus(peer({ greyed: "Declined by Phone" })), null); // note line takes its place
+  assert.equal(peerStatus(peer({ greyed: "Rejected by Phone" })), null); // note line takes its place
   assert.equal(peerStatus(peer({ lines: ["Pairing with Phone"] })), null);
   assert.equal(peerStatus(peer({ fingerprint: "K7QD" })), null);
   assert.equal(platformLabel("ios"), "iPhone");
@@ -243,7 +243,7 @@ test("no paired device: the tabs stay, and Devices shows the first-pair content,
   assert.match(pv, /if \(!data\.peers\.some\(\(p\) => p\.paired\)\) \{/);
   assert.match(pv, /"Pair your first device"/);
   assert.match(pv, /"Install PushArmor on another device\."/);
-  assert.match(pv, /"When it shows below, click Pair and approve it\."/);
+  assert.match(pv, /"When it shows below, click Pair, then click Confirmed when the fingerprints match\."/);
   assert.match(pv, /class: "fp-num"/);
   assert.match(pv, /class: "fp-spin"[^)]*\), "Waiting for another device to log in\."/);
   assert.match(pv, /JSON\.stringify\(now\.peers\) === key/); // the live read redraws only on a change
@@ -509,7 +509,7 @@ test("history row: a tap on the selected row collapses it, with aria-expanded an
   assert.match(readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8"), /\.hrow\.closed:not\(\.sel\) \.acts \{ display: none; \}/);
 });
 
-test("pairing screen: Approve is a light green tonal button with no check icon; Deny stays outlined (I624)", async () => {
+test("pairing screen: Confirmed is a light green tonal button with no check icon; Reject stays outlined (I624)", async () => {
   const { readFileSync } = await import("node:fs");
   const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
   const pv = rd("peersview.ts");

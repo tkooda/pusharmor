@@ -138,7 +138,7 @@ export function peerStatus(p: PeerView): { kind: StatusKind; word: string } | nu
   if (p.greyed) return OFF_WORDS[p.greyed] ? { kind: "off", word: OFF_WORDS[p.greyed]! } : null;
   if (p.approvesMe) return { kind: "ok", word: "Paired" };
   // I492: a new device waiting for Pair here is not an error
-  return { kind: "wait", word: p.actions.includes("pair") ? "Ready to pair" : "Has not approved this device" };
+  return { kind: "wait", word: p.actions.includes("pair") ? "Ready to pair" : "Has not confirmed this device" };
 }
 
 const PLATFORM_LABEL: Record<string, string> = { android: "Android", ios: "iPhone", chrome: "Chrome", firefox: "Firefox", cli: "Command line" };
