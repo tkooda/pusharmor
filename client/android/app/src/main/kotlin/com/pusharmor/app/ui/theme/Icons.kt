@@ -48,6 +48,9 @@ object PaIcons {
     val Pause = mono("Pause", "M6 19h4V5H6v14zm8-14v14h4V5h-4z")
     val NorthEast = mono("NorthEast", "M9 5v2h6.59L4 18.59 5.41 20 17 8.41V15h2V5z")
     val SouthWest = mono("SouthWest", "M20 5.41L18.59 4 7 15.59V9H5v10h10v-2H8.41z")
+    val Notifications = mono("Notifications", "M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z")
+    val Lock = mono("Lock", "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z")
+    val Watch = mono("Watch", "M20 12c0-1.77-.77-3.36-2-4.46V2H6v5.54C4.77 8.64 4 10.23 4 12s.77 3.36 2 4.46V22h12v-5.54c1.23-1.1 2-2.69 2-4.46zM8 4h8v2.69C15.15 6.25 14.1 6 13 6h-2c-1.1 0-2.15.25-3 .69V4zm0 16v-2.69c.85.44 1.9.69 3 .69h2c1.1 0 2.15-.25 3-.69V20H8zm8-8c0 2.21-1.79 4-4 4s-4-1.79-4-4 1.79-4 4-4 4 1.79 4 4z")
     val ArrowBack = mono("ArrowBack", "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z")
 
     /** Full-colour Google "G" (draw with Image or Icon tint Unspecified). */

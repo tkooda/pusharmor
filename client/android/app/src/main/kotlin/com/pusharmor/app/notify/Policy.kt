@@ -29,6 +29,12 @@ data class Policy(
     }
 }
 
+/** One per-device setting shown as a status icon on the device row; [on] is the effective state. */
+data class PeerStatus(val name: String, val on: Boolean)
+
+/** One spoken label for the whole status icon group on a device row. */
+fun peerStatusLabel(items: List<PeerStatus>): String = items.joinToString("; ") { it.name + if (it.on) " on" else " off" }
+
 /** History filter chips (catalog History filter). */
 object HistoryFilter {
     sealed class Chip {

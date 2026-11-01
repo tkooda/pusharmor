@@ -35,6 +35,10 @@ import com.pusharmor.app.ui.MessageKind
 import com.pusharmor.app.ui.historyActionLabels
 import com.pusharmor.app.ui.NavLabel
 import com.pusharmor.app.ui.PaChip
+import com.pusharmor.app.notify.PeerStatus
+import com.pusharmor.app.notify.peerStatusLabel
+import com.pusharmor.app.ui.PeerStatusIcons
+import androidx.compose.foundation.layout.size
 import com.pusharmor.app.ui.UiText
 import com.pusharmor.app.ui.UpdateScreen
 import com.pusharmor.app.ui.sendScrolls
@@ -219,6 +223,45 @@ class UiFitTest {
         // Below about 340 dp the buttons go to a second row instead of being cut off (I625).
         assertTrue("$b", b.map { it.first }.toSet().size > 1)
         assertTrue("$b", b.all { it.second >= 0f && it.third <= screen })
+    }
+
+    private fun nameWidth(withIcons: Boolean): Pair<Int, Int> {
+        val name = "Kitchen tablet number two"
+        val icons = listOf(PaIcons.Send, PaIcons.Notifications, PaIcons.Lock, PaIcons.Watch, PaIcons.Share)
+        val c = show("w360dp-h640dp", 1f) {
+            androidx.compose.material3.ListItem(
+                leadingContent = { Icon(PaIcons.Smartphone, null, Modifier.size(40.dp)) },
+                headlineContent = { androidx.compose.material3.Text(name) },
+                supportingContent = {
+                    androidx.compose.foundation.layout.Row {
+                        androidx.compose.foundation.layout.Column(Modifier.weight(1f)) { androidx.compose.material3.Text("Android"); androidx.compose.material3.Text("Online") }
+                        if (withIcons) PeerStatusIcons(icons.mapIndexed { i, ic -> ic to PeerStatus("s$i", i % 2 == 0) })
+                    }
+                },
+                trailingContent = { IconButton(onClick = {}) { Icon(PaIcons.MoreVert, "More") } },
+            )
+        }
+        val l = layoutOf(c.get(), name)
+        val iconsRight = if (withIcons) {
+            val g = nodes(c.get()).filter { it.config.getOrNull(SemanticsProperties.ContentDescription)?.any { d -> d.startsWith("s0 on") } == true }
+            assertTrue("icon group node exists", g.isNotEmpty())
+            g.maxOf { it.boundsInRoot.right }
+        } else 0f
+        val screen = c.get().resources.displayMetrics.widthPixels
+        assertTrue("icons inside screen", iconsRight > 0f || !withIcons)
+        assertTrue("icons inside screen", iconsRight <= screen)
+        return Pair(l.lineCount, l.size.width)
+    }
+
+    @Test fun deviceNameLineKeepsItsWidthWithStatusIconsAt360dp() {
+        val a = nameWidth(false)
+        val b = nameWidth(true)
+        assertEquals(1, b.first)
+        assertEquals(a, b)
+    }
+
+    @Test fun statusIconsHaveOneCombinedLabel() {
+        assertEquals("Send screen on; Watch off", peerStatusLabel(listOf(PeerStatus("Send screen", true), PeerStatus("Watch", false))))
     }
 
     @Test fun snackbarGoesWhenTheContentChanges() {
