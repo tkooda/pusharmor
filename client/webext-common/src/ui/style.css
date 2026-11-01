@@ -201,6 +201,12 @@ body.page .foot { position: static; }
 .hrow { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 12px; padding: 10px 16px; align-items: start; }
 .hrow.event { align-items: center; }
 .hrow.sel, .hrow:focus-within { background: var(--s1); }
+.hrow.msel { grid-template-columns: 20px 32px minmax(0, 1fr); }
+.hrow.msel .acts { display: none; }
+input.hsel { margin: 2px 0 0; width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
+.hselbar { display: flex; justify-content: flex-end; padding: 8px 16px 0; }
+.hselbar[hidden] { display: none; }
+button.dellight { height: 32px; border-color: transparent; color: var(--err); background: color-mix(in srgb, var(--err) 14%, transparent); }
 .hrow.closed:focus-within { background: none; }
 .hmeta { display: flex; gap: 8px; font-size: 12px; line-height: 16px; color: var(--ink2); }
 .hmeta .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
