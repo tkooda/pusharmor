@@ -6,7 +6,6 @@ struct PeersView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulseId: String?
     @State private var pulseOn = false
-    @State private var expanded: String?
     @State private var showPairHowTo = false
 
     /// Removed peers show only while History still holds rows from them.
@@ -54,10 +53,7 @@ struct PeersView: View {
                         // No sub-header: the large title already says Devices (F31).
                         Section {
                             ForEach(listed, id: \.id.text) { p in
-                                PeerRowView(p: p, isExpanded: Binding(
-                                    get: { expanded == p.id.text },
-                                    set: { expanded = $0 ? p.id.text : nil }
-                                ))
+                                PeerRowView(p: p)
                                 .id(inPairing(p) ? "row-" + p.id.text : p.id.text)
                                 .listRowBackground(pulseBackground(p))
                             }
@@ -282,27 +278,8 @@ struct PairingCardView: View {
         }
     }
 
-    @ViewBuilder
     private var peerActions: some View {
-        // Per-device switches follow the global ones: disabled and shown off while a global one is off.
-        Toggle(S.showContentSwitch, isOn: Binding(
-            get: { model.boolSetting(SettingKey.showContent, true) && p.showContent },
-            set: { model.setPeerSwitches(p, showContent: $0) }
-        ))
-        .disabled(!model.boolSetting(SettingKey.showContent, true))
-        Toggle(S.lockScreenSwitch, isOn: Binding(
-            get: { model.boolSetting(SettingKey.showContent, true) && model.boolSetting(SettingKey.lockShow, true) && p.showContent && p.lockShow },
-            set: { model.setPeerSwitches(p, lockShow: $0) }
-        ))
-        .disabled(!model.boolSetting(SettingKey.lockShow, true) || !model.boolSetting(SettingKey.showContent, true) || !p.showContent)
-        Toggle("Show on Send screen", isOn: Binding(
-            get: { !p.hidden },
-            set: { model.setHidden(p, !$0) }
-        ))
-        Button("Remove device from account", role: .destructive) { confirmRemove = true }
-        if p.missing {
-            Button("Delete") { Task { await model.localDelete(p) } }
-        }
+        PeerMenuItems(p: p, model: model, confirmRemove: $confirmRemove)
     }
 
     private func denyButton(_ title: String = "Reject") -> some View {
@@ -391,7 +368,6 @@ struct PairingCardView: View {
 
 struct PeerRowView: View {
     let p: Peer
-    @Binding var isExpanded: Bool
     @EnvironmentObject var model: AppModel
     @State private var confirmRemove = false
 
@@ -418,38 +394,27 @@ struct PeerRowView: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityAddTraits(.isButton)
         } else {
-            DisclosureGroup(isExpanded: Binding(
-                get: { isExpanded },
-                set: { v in
-                    isExpanded = v
-                    if v && greyed { Task { await model.tapGreyed() } }
-                }
-            )) {
-                Group {
-                    // Per-device switches follow the global ones: disabled and shown off while a global one is off.
-                    Toggle(S.showContentSwitch, isOn: Binding(
-                        get: { model.boolSetting(SettingKey.showContent, true) && p.showContent },
-                        set: { model.setPeerSwitches(p, showContent: $0) }
-                    ))
-                    .disabled(!model.boolSetting(SettingKey.showContent, true))
-                    Toggle(S.lockScreenSwitch, isOn: Binding(
-                        get: { model.boolSetting(SettingKey.showContent, true) && model.boolSetting(SettingKey.lockShow, true) && p.showContent && p.lockShow },
-                        set: { model.setPeerSwitches(p, lockShow: $0) }
-                    ))
-                    .disabled(!model.boolSetting(SettingKey.lockShow, true) || !model.boolSetting(SettingKey.showContent, true) || !p.showContent)
-                    Toggle("Show on Send screen", isOn: Binding(
-                        get: { !p.hidden },
-                        set: { model.setHidden(p, !$0) }
-                    ))
-                    actions
-                }
-                .padding(.leading, 48)
-            } label: {
+            HStack(alignment: .top, spacing: 8) {
                 VStack(alignment: .leading, spacing: 8) {
                     header
+                        .contentShape(Rectangle())
+                        .onTapGesture { if greyed { Task { await model.tapGreyed() } } }
                     PeerPendingLines(p: p)
                 }
-                .padding(.vertical, 4)
+                Spacer(minLength: 0)
+                Menu { PeerMenuItems(p: p, model: model, confirmRemove: $confirmRemove) } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.title3)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("More actions")
+                .accessibilityIdentifier("peerMenu:" + label)
+            }
+            .padding(.vertical, 4)
+            .confirmationDialog(S.removeConfirm(label), isPresented: $confirmRemove, titleVisibility: .visible) {
+                Button("Remove", role: .destructive) { Task { await model.remove(p) } }
+                Button("Cancel", role: .cancel) {}
             }
         }
     }
@@ -470,30 +435,34 @@ struct PeerRowView: View {
             .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
         }
     }
+}
 
-    @ViewBuilder
-    private var actions: some View {
-        if confirmRemove {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(S.removeConfirm(label)).font(.callout)
-                HStack {
-                    Button("Cancel") { confirmRemove = false }
-                    Button("Remove", role: .destructive) {
-                        confirmRemove = false
-                        Task { await model.remove(p) }
-                    }
-                }
-                .buttonStyle(.bordered)
-            }
-        } else {
-            HStack(spacing: 10) {
-                Button("Remove device from account", role: .destructive) { confirmRemove = true }
-                if p.missing {
-                    Button("Delete") { Task { await model.localDelete(p) } }
-                }
-            }
-            .buttonStyle(.bordered)
-            .buttonBorderShape(.capsule)
+/// The device menu items, shared by the device row and the pairing card (Q409).
+struct PeerMenuItems: View {
+    let p: Peer
+    let model: AppModel
+    @Binding var confirmRemove: Bool
+
+    var body: some View {
+        Toggle("Show device on Send screen", isOn: Binding(
+            get: { !p.hidden },
+            set: { model.setHidden(p, !$0) }
+        ))
+        // Per-device switches follow the global ones: disabled and shown off while a global one is off.
+        Toggle(S.peerShowContentSwitch, isOn: Binding(
+            get: { model.boolSetting(SettingKey.showContent, true) && p.showContent },
+            set: { model.setPeerSwitches(p, showContent: $0) }
+        ))
+        .disabled(!model.boolSetting(SettingKey.showContent, true))
+        Toggle(S.peerLockScreenSwitch, isOn: Binding(
+            get: { model.boolSetting(SettingKey.showContent, true) && model.boolSetting(SettingKey.lockShow, true) && p.showContent && p.lockShow },
+            set: { model.setPeerSwitches(p, lockShow: $0) }
+        ))
+        .disabled(!model.boolSetting(SettingKey.lockShow, true) || !model.boolSetting(SettingKey.showContent, true) || !p.showContent)
+        Divider()
+        if p.missing {
+            Button("Delete") { Task { await model.localDelete(p) } }
         }
+        Button("Remove device from account", role: .destructive) { confirmRemove = true }
     }
 }

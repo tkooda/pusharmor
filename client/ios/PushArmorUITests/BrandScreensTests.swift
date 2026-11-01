@@ -87,7 +87,7 @@ final class BrandScreensTests: XCTestCase {
             _ = remove.waitForExistence(timeout: 10)
         }
         // a Toggle in a menu shows as a menu item, so match any element type
-        XCTAssertTrue(app.descendants(matching: .any)["Show on Send screen"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["Show device on Send screen"].exists)
         XCTAssertTrue(app.buttons["Remove device from account"].exists)
     }
 

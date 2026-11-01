@@ -53,18 +53,26 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(labelled(app, "Galaxy S23").waitForExistence(timeout: 10))
         sleep(1)
         shot("03-devices")
-        // the just-paired row expanded: its switches and Remove
-        let lockShow = app.switches["Allow message content on lock screen"]
-        for _ in 0..<2 where !lockShow.exists {
-            labelled(app, "Galaxy S23").tap()
-            _ = lockShow.waitForExistence(timeout: 10)
+        // the just-paired row's device menu open: its options and Remove (Q409)
+        let menu = app.buttons["peerMenu:Galaxy S23"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10))
+        let remove = app.buttons["Remove device from account"]
+        for _ in 0..<2 where !remove.exists {
+            menu.tap()
+            _ = remove.waitForExistence(timeout: 10)
         }
-        XCTAssertTrue(lockShow.exists)
-        XCTAssertTrue(app.buttons["Remove device from account"].exists)
+        // a Toggle in a menu shows as a menu item, so match any element type
+        XCTAssertTrue(app.descendants(matching: .any)["Show message content on lock screen"].exists)
+        XCTAssertTrue(remove.exists)
         sleep(1)
         shot("04-device-options")
-        app.tabBars.buttons["Send"].tap()
-        XCTAssertTrue(app.buttons["Send to \"Pixel 8\""].waitForExistence(timeout: 10))
+        // the first tap outside the menu may only close it
+        let sendTo = app.buttons["Send to \"Pixel 8\""]
+        for _ in 0..<2 where !sendTo.exists {
+            app.tabBars.buttons["Send"].tap()
+            _ = sendTo.waitForExistence(timeout: 10)
+        }
+        XCTAssertTrue(sendTo.exists)
         sleep(1)
         shot("05-send")
         app.tabBars.buttons["History"].tap()
