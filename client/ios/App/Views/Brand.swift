@@ -135,6 +135,7 @@ struct TonalGreenButtonStyle: ButtonStyle {
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, minHeight: 50)
             .background(Capsule().fill(Color.approveFill))
+            .overlay(Capsule().strokeBorder(Color.brandGreen, lineWidth: 1.5))
             .contentShape(Capsule())
             .opacity(configuration.isPressed ? 0.85 : (isEnabled ? 1 : 0.45))
     }
