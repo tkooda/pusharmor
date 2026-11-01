@@ -187,4 +187,11 @@ final class RulesTests: XCTestCase {
         XCTAssertEqual(S.trusts(1, trustedBy: 2), "Trusts 1 device. Trusted by 2.")
         XCTAssertEqual(S.trusts(2, trustedBy: 1), "Trusts 2 devices. Trusted by 1.")
     }
+
+    func testPeerStatusIconsLabel() {
+        XCTAssertEqual(S.peerStatusIcons(sendScreen: true, content: true, lockScreen: false),
+                       "Send screen on; content in notifications on; content on lock screen off")
+        XCTAssertEqual(S.peerStatusIcons(sendScreen: false, content: false, lockScreen: false),
+                       "Send screen off; content in notifications off; content on lock screen off")
+    }
 }
