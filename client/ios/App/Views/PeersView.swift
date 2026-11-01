@@ -345,7 +345,7 @@ struct PairingCardView: View {
             HStack(spacing: 12) {
                 denyButton()
                 Button("Pair") { Task { await model.pair(p) } }
-                    .buttonStyle(GreenButtonStyle())
+                    .buttonStyle(TonalGreenButtonStyle())
                     .disabled(model.busy.contains("pair:" + p.id.text))
             }
         }
