@@ -22,7 +22,7 @@ sealed class Effect {
     /** Dropped by the acceptance table after the verify (History may name the peer). */
     data class Drop(val why: String) : Effect()
 
-    /** Verified approve. [notify]: "$name approved this device" (only when I approved X). */
+    /** Verified approve. [notify]: "$name confirmed this device" (only when I approved X). */
     data class Approve(val name: String?, val nameN: Long, val storeName: Boolean, val notify: Boolean) : Effect()
 
     data class Rename(val oldName: String?, val newName: String, val nameN: Long, val applied: Boolean) : Effect()

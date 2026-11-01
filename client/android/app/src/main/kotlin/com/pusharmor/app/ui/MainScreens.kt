@@ -426,10 +426,10 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
     // Pairing and note lines replace the status line (catalog order).
     val stateText = when {
         !p.pinned -> null
-        p.notPairedOnPeer -> if (p.listDeniesMe) "Declined by $x" else "Not paired on $x"
-        p.waiting -> "Waiting for $x: open PushArmor there and approve."
+        p.notPairedOnPeer -> if (p.listDeniesMe) "Rejected by $x" else "Not paired on $x"
+        p.waiting -> "Waiting for $x: open PushArmor there and tap Confirmed."
         p.missing -> null
-        p.declined -> "Declined by $x"
+        p.declined -> "Rejected by $x"
         else -> null
     }
     val lines = listOfNotNull(p.note, stateText)
@@ -468,7 +468,7 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
         when {
             !p.pinned -> Row(inset.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.heightIn(min = 48.dp), enabled = "deny:${p.id}" !in running, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)) { Text("Deny") }
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)) { Text("Reject") }
                 FilledTonalButton(onClick = { vm.pair(p.id) }, Modifier.heightIn(min = 48.dp), enabled = "pair:${p.id}" !in running) { Text("Pair") }
             }
             p.notPairedOnPeer -> Row(inset.padding(bottom = 8.dp)) {
@@ -519,7 +519,7 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
         Spacer(Modifier.height(16.dp))
         when {
             row.state == PairState.SHOWN && p.waiting -> {
-                Text("Waiting for $x: open PushArmor there and approve.", style = body, color = cs.onSurfaceVariant)
+                Text("Waiting for $x: open PushArmor there and tap Confirmed.", style = body, color = cs.onSurfaceVariant)
                 WaitingSendAgain(vm, p, now)
             }
             row.state == PairState.SHOWN -> {
@@ -528,15 +528,15 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.weight(1f).heightIn(min = 48.dp), enabled = "deny:${p.id}" !in running,
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = cs.error),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, cs.error)) { Text("Deny") }
-                    TonalGreenButton(onClick = { vm.approve(p.id) }, text = "Approve", modifier = Modifier.weight(1f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, cs.error)) { Text("Reject") }
+                    TonalGreenButton(onClick = { vm.approve(p.id) }, text = "Confirmed", modifier = Modifier.weight(1f),
                         enabled = "approve:${p.id}" !in running)
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically) {
                     Icon(PaIcons.Info, null, Modifier.size(16.dp), tint = cs.onSurfaceVariant)
-                    Text("Codes do not match? Tap Deny.", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+                    Text("Codes do not match? Tap Reject.", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
                 }
             }
             prompted -> {
@@ -976,7 +976,7 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
     val body = when (h.type) {
         "unreadable" -> "PushArmor received a message it could not read" + if (h.count > 1) " (${h.count})" else ""
         "invalid" -> "Invalid message received" + if (h.count > 1) " (${h.count})" else ""
-        "denied" -> "Denied this device"
+        "denied" -> "Rejected this device"
         "logged_out" -> "Logged out"
         "logged_in" -> "Logged in"
         else -> h.content.orEmpty()
