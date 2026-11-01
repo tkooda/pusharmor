@@ -3,6 +3,10 @@ package com.pusharmor.app.ui
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings as SysSettings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -73,6 +77,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -1007,6 +1012,7 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
                     val style = MaterialTheme.typography.bodyLarge.copy(fontWeight = weight)
                     val hc = h.content
                     when {
+                        expanded && hc != null && messageKind(h.type, hc) == MessageKind.TEXT -> TextBox(hc, style)
                         expanded && hc != null -> SelectionContainer { Text(hc, style = style) }
                         h.type == "url" -> MiddleEllipsisText(body, style, Modifier.fillMaxWidth())
                         h.type == "tel" -> Text(body, style = style, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1017,17 +1023,53 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
         }
         val hc = h.content
         if (expanded && !selecting && hc != null) {
+            val kind = messageKind(h.type, hc)
+            var reading by rememberSaveable(h.id) { mutableStateOf(false) }
+            val saver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+                if (uri != null) {
+                    val ok = runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(hc.toByteArray(Charsets.UTF_8)) } != null }.getOrDefault(false)
+                    vm.message.value = if (ok) "Saved." else "Could not save the message."
+                }
+            }
+            if (reading) ReadDialog(hc) { reading = false }
             Row(Modifier.padding(start = 72.dp, end = 16.dp, bottom = 8.dp).horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (h.type == "url") com.pusharmor.protocol.UrlCheck.parse(hc)?.let { u ->
-                    RowAction("Open", PaIcons.OpenInNew) { startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(u.href)).addCategory(Intent.CATEGORY_BROWSABLE)) { vm.message.value = it } }
+                for (label in historyActionLabels(kind)) when (label) {
+                    "Read" -> RowAction("Read", PaIcons.Article) { reading = true }
+                    "Copy" -> RowAction("Copy", PaIcons.ContentCopy) { com.pusharmor.app.notify.ActionActivity.copy(context, hc) }
+                    "Open" -> if (kind == MessageKind.URL) com.pusharmor.protocol.UrlCheck.parse(hc)?.let { u ->
+                        RowAction("Open", PaIcons.OpenInNew) { startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(u.href)).addCategory(Intent.CATEGORY_BROWSABLE)) { vm.message.value = it } }
+                    } else RowAction("Open", PaIcons.OpenInNew) { startOrToast(context, Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(hc))), NO_APP_DIAL) { vm.message.value = it } }
+                    "Share" -> RowAction("Share", PaIcons.Share) {
+                        context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, hc), null))
+                    }
+                    "Save" -> RowAction("Save", PaIcons.Save) { saver.launch(messageFileName(h.at)) }
                 }
-                if (h.type == "tel" && com.pusharmor.protocol.Phone.isPhone(hc)) {
-                    RowAction("Dial", PaIcons.Call) { startOrToast(context, Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(hc))), NO_APP_DIAL) { vm.message.value = it } }
+            }
+        }
+    }
+}
+
+/** The opened text message: its first [TEXT_BOX_LINES] lines, in a box that scrolls when the text is longer (I622). */
+@Composable
+private fun TextBox(text: String, style: androidx.compose.ui.text.TextStyle) {
+    val lineDp = with(LocalDensity.current) { style.lineHeight.toDp() }
+    Box(Modifier.fillMaxWidth().heightIn(max = lineDp * TEXT_BOX_LINES).verticalScroll(rememberScrollState())) {
+        SelectionContainer { Text(text, style = style) }
+    }
+}
+
+/** Near-full-screen reader with only a close button; the text is selectable so part of it can be copied (I622). */
+@Composable
+private fun ReadDialog(text: String, onClose: () -> Unit) {
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize().padding(12.dp), shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface) {
+            Column {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    IconButton(onClick = onClose) { Icon(PaIcons.Close, "Close") }
                 }
-                RowAction("Copy", PaIcons.ContentCopy) { com.pusharmor.app.notify.ActionActivity.copy(context, hc) }
-                RowAction("Share", PaIcons.Share) {
-                    context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, hc), null))
+                Box(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp)) {
+                    SelectionContainer { Text(text, style = MaterialTheme.typography.bodyLarge) }
                 }
             }
         }
