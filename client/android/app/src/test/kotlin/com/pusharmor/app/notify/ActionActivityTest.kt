@@ -46,6 +46,6 @@ class ActionActivityTest {
             pairingId = null, at = 0, read = false, results = "", count = 1)) }.apply { start(); join() }
         shadowOf(app).checkActivities(true)
         assertTrue(tap("dial", id).isFinishing)
-        assertEquals("No app can dial this number.", ShadowToast.getTextOfLatestToast())
+        assertEquals("No app can call this number.", ShadowToast.getTextOfLatestToast())
     }
 }
