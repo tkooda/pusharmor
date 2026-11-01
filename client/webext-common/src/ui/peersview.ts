@@ -15,7 +15,7 @@ const ACTION_LABEL: Record<string, string> = {
   send_again: "Send again",
   approve_again: "Send again",
   cancel: "Cancel pairing",
-  remove: "Remove",
+  remove: "Remove device from account",
   hide: "Hide",
   unhide: "Unhide",
   localDelete: "Delete",
