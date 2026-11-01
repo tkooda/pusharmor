@@ -39,11 +39,11 @@ object HistoryFilter {
 
     data class Row(val peerId: String?, val received: Boolean)
 
-    /** All; one chip per verified peer (hidden while rows come from one peer only); Unknown while a received Unknown row exists. */
+    /** All; one chip per verified peer sorted by name (hidden while rows come from one peer only); Unknown while a received Unknown row exists. */
     fun chips(rows: List<Row>, nameOf: (String) -> String): List<Chip> {
         val peers = rows.mapNotNull { it.peerId }.distinct()
         val out = mutableListOf<Chip>(Chip.All)
-        if (peers.size > 1) peers.forEach { out += Chip.PeerChip(it, nameOf(it)) }
+        if (peers.size > 1) com.pusharmor.app.ui.UiText.sortedByName(peers.map { Chip.PeerChip(it, nameOf(it)) }, { it.name }).forEach { out += it }
         if (rows.any { it.received && it.peerId == null }) out += Chip.Unknown // sent rows carry no peer id
         return out
     }

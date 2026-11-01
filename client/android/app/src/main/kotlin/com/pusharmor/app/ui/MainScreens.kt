@@ -206,8 +206,9 @@ fun PeersScreen(vm: AppViewModel) {
     // No paired device: the first-pair steps and the Waiting to pair row (I612; was a screen in place of the tabs, Q338).
     val firstDevice = me != null && UiText.noPairedDevice(others(peers, me?.id))
     val list = others(peers, me?.id).filter { !(it.removed && !it.pinned && rows.none { r -> r.peerId == it.id }) }
-    val pairing = list.filter { p -> rows.any { it.peerId == p.id } }
-    val plain = list.filter { p -> rows.none { it.peerId == p.id } }
+    // Each section is in alphabetical order of the shown name (I630).
+    val pairing = UiText.sortedByName(list.filter { p -> rows.any { it.peerId == p.id } }, ::label)
+    val plain = UiText.sortedByName(list.filter { p -> rows.none { it.peerId == p.id } }, ::label)
     val lastRefresh = prefs?.get(Settings.K.LAST_REFRESH) ?: 0
     val canRefresh = now - lastRefresh >= 60_000
     val state = rememberLazyListState()
@@ -941,7 +942,8 @@ internal fun animationsOn(ctx: android.content.Context): Boolean =
 /** One row of filter chips that scrolls sideways, so a long device name never wraps Sent or Received onto a second line (I571). */
 @Composable
 internal fun ChipRow(modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
-    Row(modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+    val scroll = rememberScrollState()
+    Row(modifier.fillMaxWidth().edgeFade(scroll).horizontalScroll(scroll).padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp), content = content)
 }
 
