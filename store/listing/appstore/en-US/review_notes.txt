@@ -10,7 +10,8 @@ PAIR A SECOND DEVICE
    Chrome: sign in to Chrome with the demo account, then open
    https://chromewebstore.google.com/detail/bbchgkmnbljneepmgddcbdkgnjinkjim
    Firefox (no browser sign-in needed): open
-   https://github.com/tkooda/pusharmor/releases/download/firefox/v0.0.15/pusharmor-firefox-beta-0.0.15.xpi
+   https://github.com/tkooda/pusharmor/releases
+   and, in the newest "firefox/" release, click pusharmor-firefox-beta-X.Y.Z.xpi.
 4. Tap Pair on both screens. Check that both show the same 4-character code.
 
 SEND
