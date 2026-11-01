@@ -76,7 +76,7 @@ struct MessageDetailView: View {
 
     /// Sheet height that fits the text, the button bar, the navigation bar with the grabber,
     /// and the bottom safe area; the sheet can also grow to full screen.
-    private var fitHeight: CGFloat { max(240, textHeight + barHeight + bottomInset + 80) }
+    private var fitHeight: CGFloat { max(240, textHeight + barHeight + bottomInset + 125) }
 
     var body: some View {
         NavigationStack {
