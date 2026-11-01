@@ -23,12 +23,17 @@ struct MessageTextFile: FileDocument {
 struct SelectableText: UIViewRepresentable {
     let text: String
 
+    /// 1.5x the title3 size (20 pt), still scaled live by Dynamic Type.
+    static var font: UIFont {
+        UIFontMetrics(forTextStyle: .title3).scaledFont(for: UIFont.systemFont(ofSize: 20 * 1.5))
+    }
+
     func makeUIView(context: Context) -> UITextView {
         let v = UITextView()
         v.isEditable = false
         v.isSelectable = true
         v.backgroundColor = .clear
-        v.font = UIFont.preferredFont(forTextStyle: .title3)
+        v.font = Self.font
         v.adjustsFontForContentSizeCategory = true
         v.textContainerInset = UIEdgeInsets(top: 16, left: 12, bottom: 16, right: 12)
         v.text = text
