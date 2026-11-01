@@ -2,7 +2,7 @@
 import type { PeerView, StateView } from "../core/rpc.ts";
 import type { SendResult } from "../core/engine.ts";
 import { T } from "../core/texts.ts";
-import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter } from "../model/sendsel.ts";
+import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter, sortByLabel } from "../model/sendsel.ts";
 import { AUTH_CHANGED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
 import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, nextTabIndex, peerStatus, rpc, sh, shortTime } from "./dom.ts";
@@ -230,7 +230,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   }
   // "All" sends to every sendable peer, so its chips show selected; deselecting one leaves "All".
   // With one device it is preselected (no "All" chip).
-  for (const p of sendable) {
+  for (const p of sortByLabel(sendable)) {
     const pressed = remembered ? remembered.includes(p.id) : allChip !== null || sendable.length === 1;
     const c = chip(platformIcon(p.platform, 16), p.label, pressed);
     c.addEventListener("click", () => {
@@ -242,7 +242,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     checks.push({ id: p.id, chip: c });
     chips.append(c);
   }
-  for (const p of data.peers.filter((x) => !canReceiveNow(x) && x.greyed && !x.hidden)) {
+  for (const p of sortByLabel(data.peers.filter((x) => !canReceiveNow(x) && x.greyed && !x.hidden))) {
     const s = peerStatus(p);
     const why = s ? s.word : p.greyed ?? "";
     const c = chip(platformIcon(p.platform, 16), p.label, false, true);
