@@ -163,7 +163,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
                     b.addAction(0, "Open", action(historyId, "open")).addAction(0, "Copy", action(historyId, "copy")).addAction(0, "Share", action(historyId, "share"))
                 }
                 c.type == ContentType.TEL && c.canDial -> {
-                    b.setContentIntent(open).addAction(0, "Dial", action(historyId, "dial")).addAction(0, "Copy", action(historyId, "copy"))
+                    b.setContentIntent(open).addAction(0, "Call", action(historyId, "dial")).addAction(0, "Copy", action(historyId, "copy"))
                 }
                 else -> b.setContentIntent(open).addAction(0, "Copy", action(historyId, "copy")).addAction(0, "Share", action(historyId, "share"))
             }
