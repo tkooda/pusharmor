@@ -30,7 +30,7 @@ object UiText {
         !p.reachable -> Mark.OFF to "Unreachable"
         !p.pinned -> Mark.WAIT to "Ready to pair" // a Pair and Reject row (I526), same word as the extensions
         p.approvesMe -> Mark.OK to "Paired"
-        else -> Mark.WAIT to "Has not confirmed this device"
+        else -> Mark.WAIT to "Unconfirmed"
     }
 
     /** Device-limit row: "Trusts 3 devices. Trusted by 1." then "Unreachable." and "Logged out." when they apply (Q369). */
