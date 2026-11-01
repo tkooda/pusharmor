@@ -920,7 +920,7 @@ final class StateMachineTests: XCTestCase {
         w.rows[x.id.text]!.allow[n.id.text] = true
         w.rows[x.id.text]!.deny[n.id.text] = true
         rep = try await n.core.send("hi", as: .text, to: [x.id], allCount: 1)
-        XCTAssertEqual(rep.lines, [label + ": It declined this device."])
+        XCTAssertEqual(rep.lines, [label + ": It rejected this device."])
         w.rows[x.id.text] = nil
         rep = try await n.core.send("hi", as: .text, to: [x.id], allCount: 1)
         XCTAssertEqual(rep.lines, [label + ": It is no longer on this account."])

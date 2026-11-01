@@ -37,7 +37,7 @@ enum ScreenshotSample {
 
     /// -PAScreenshotsStore: the store screenshot sample data (I613), the same on every client.
     /// This device is iPhone 15. With -PAScreenshotsPairWaiting only Galaxy S23 waits to pair
-    /// (Pair / Deny); with -PAScreenshotsPairFingerprint it shows the fingerprint (Deny / Approve).
+    /// (Pair / Reject); with -PAScreenshotsPairFingerprint it shows the fingerprint (Reject / Confirmed).
     static var store: Bool { args.contains("-PAScreenshotsStore") }
     /// -PAScreenshotsDetail: History opens with message 1 in its detail sheet (a received link
     /// opens in the browser on a tap, so the sheet is how its actions show).

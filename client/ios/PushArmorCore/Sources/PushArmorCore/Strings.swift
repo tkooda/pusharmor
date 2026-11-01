@@ -23,22 +23,22 @@ public enum S {
     public static let noConnection = "No connection. Try again."
     public static let notDone = "Something went wrong. Try again."
     public static func pairCrossing(_ x: String) -> String { "Pairing with \(x) in progress. Open PushArmor." }
-    public static func approved(_ name: String) -> String { "\(name) approved this device." }
+    public static func approved(_ name: String) -> String { "\(name) confirmed this device." }
     public static func renamed(_ old: String, _ new: String) -> String { "'\(old)' renamed to '\(new)'" }
     public static let peerListChanged = "Device list changed"
     public static let thisDeviceRemoved = "This device was removed. Log in again."
     public static let accountDeleted = "Account deleted on another device."
-    public static func denied(_ name: String) -> String { "\(name) denied this device" }
+    public static func denied(_ name: String) -> String { "\(name) rejected this device" }
     public static func loggedOutNotice(_ name: String) -> String { "\(name) logged out." }
     public static func loggedInNotice(_ name: String) -> String { "\(name) logged in." }
     public static func newMessageFrom(_ peer: String) -> String { "New message from \(peer)" }
     public static let pairingFailed = "Pairing failed. Start again on the new device."
     public static let pairingTimedOut = "Pairing timed out. Tap Pair to start again."
-    public static func waiting(_ x: String) -> String { "Waiting for \(x): open PushArmor there and approve." }
+    public static func waiting(_ x: String) -> String { "Waiting for \(x): open PushArmor there and tap Confirmed." }
     public static func noReplyYet(_ x: String) -> String { "No reply yet. Open PushArmor on \(x), or tap Send again." }
     public static func stillHolds(_ x: String) -> String { "\(x) still holds an earlier pairing. On \(x), tap Cancel pairing, then tap Send again." }
     public static func notPairedOn(_ x: String) -> String { "Not paired on \(x)" }
-    public static func declinedBy(_ x: String) -> String { "Declined by \(x)" }
+    public static func declinedBy(_ x: String) -> String { "Rejected by \(x)" }
     public static func pairingFingerprint(_ fp: String) -> String { "Pairing fingerprint \(fp)" }
     public static func removeConfirm(_ x: String) -> String {
         "Remove \(x) from this account? \(x) must log in again and pair with every device again."
@@ -57,7 +57,7 @@ public enum S {
     public static func signedOutPeer(_ x: String) -> String { "\(x): Logged out. Log in on it to receive messages." }
     public static func sendOnlyPeer(_ x: String) -> String { "\(x): Send only. It does not receive messages." }
     public static func notPairedPeer(_ x: String) -> String { "\(x): Not paired. Pair with it to send messages." }
-    public static func declinedPeer(_ x: String) -> String { "\(x): It declined this device." }
+    public static func declinedPeer(_ x: String) -> String { "\(x): It rejected this device." }
     public static func goneFromAccountPeer(_ x: String) -> String { "\(x): It is no longer on this account." }
     public static func notDeliveredRetry(_ x: String) -> String { "\(x): Not delivered. Try again." }
     public static let emailSendFailed = "Could not send the email. Try again."
@@ -66,7 +66,7 @@ public enum S {
     public static let pairHowTo3 = "It appears here. Tap Pair."
     public static let firstPairStep1 = "Install PushArmor on another device."
     public static let firstPairStep2 = "Log in with the same account."
-    public static let firstPairStep3 = "When it shows below, tap Pair and approve it."
+    public static let firstPairStep3 = "When it shows below, tap Pair, then tap Confirmed when the fingerprints match."
     public static let firstPairWaiting = "Waiting for another device to log in."
     public static let storeRepaired = "Local data was found corrupted and repaired. Please log in again."
     public static let launchFailedTitle = "Could not open data"
@@ -115,7 +115,7 @@ public enum S {
     public static let alwaysHide = "Always hide content"
     public static func pairWith(_ x: String) -> String { "Pair with new device: \"\(x)\"" }
     public static func checkSameCode(_ x: String) -> String { "Verify that \"\(x)\" shows this same code." }
-    public static let codesMismatch = "Codes do not match? Tap Deny."
+    public static let codesMismatch = "Codes do not match? Tap Reject."
     public static let newPeerWantsToPair = "A new device wants to pair."
     public static func timesOutIn(_ t: String) -> String { "Times out in \(t)" }
     public static let sameAccount = "Use the same account on every device you want to pair."

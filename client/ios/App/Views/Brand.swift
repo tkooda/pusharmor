@@ -122,7 +122,7 @@ struct GreenButtonStyle: ButtonStyle {
     }
 }
 
-/// Light green tonal button (no icon): the pairing Approve. Contrast is above 7:1 in light and dark.
+/// Light green tonal button (no icon): the pairing Confirmed. Contrast is above 7:1 in light and dark.
 struct TonalGreenButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
@@ -140,7 +140,7 @@ struct TonalGreenButtonStyle: ButtonStyle {
     }
 }
 
-/// Outlined button with the error ink and no fill: the pairing Deny.
+/// Outlined button with the error ink and no fill: the pairing Reject.
 struct OutlinedDenyButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
