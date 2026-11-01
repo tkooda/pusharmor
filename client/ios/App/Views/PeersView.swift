@@ -467,11 +467,11 @@ struct PeerRowView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text(S.removeConfirm(label)).font(.callout)
                 HStack {
+                    Button("Cancel") { confirmRemove = false }
                     Button("Remove", role: .destructive) {
                         confirmRemove = false
                         Task { await model.remove(p) }
                     }
-                    Button("Cancel") { confirmRemove = false }
                 }
                 .buttonStyle(.bordered)
             }
