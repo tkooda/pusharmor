@@ -308,7 +308,7 @@ test("one request per click; a failed tab view shows Retry (I473)", async () => 
   assert.match(peers, /else b\.disabled = true;/); // every other row action; Remove: the modal confirm closes on the first click
   const page = rd("page.ts");
   assert.match(page, /if \(btn\.disabled\) return;\s+btn\.disabled = true;/); // Remove and continue
-  assert.match(rd("popup.ts"), /ready\.catch\(\(e\) => pane\.isConnected && failView\(pane, \(e as Error\)\.message, \(\) => show\(t, prefill\)\)\)/);
+  assert.match(rd("popup.ts"), /ready\.catch\(\(e\) => pane\.isConnected && failView\(pane, \(e as Error\)\.message, \(\) => show\(t\)\)\)/);
 });
 
 test("copy: device limit rows read as sentences; desktop says Click; status lines end with a period (I474)", async () => {
@@ -394,11 +394,6 @@ test("popup update and log in screens start with focus on their button (I495)", 
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
   assert.match(pop, /append\(updateCard\(env\)\);\s*root\.querySelector<HTMLElement>\("button\.primary"\)\?\.focus\(\);/);
   assert.match(pop, /clear\(root\)\.append\(h\("div", \{ class: "top" \}[^\n]*, panel\);\s*root\.querySelector<HTMLElement>\("button\.primary"\)\?\.focus\(\); \/\/ I495/);
-});
-
-test("full tab History Send to... sets the #send= hash (I497)", async () => {
-  const { readFileSync } = await import("node:fs");
-  assert.match(readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8"), /historyView\(env, view, \(text\) => \(location\.hash = "#send=" \+ encodeURIComponent\(text\)\), arg, nav\)/);
 });
 
 test("login page with a banner gives one reason, not also You are logged out (I498)", async () => {
@@ -494,7 +489,7 @@ test("empty screens have a call to action button (I611)", async () => {
   assert.match(pop, /cta\("", "Send a message", nav\.toSend\)/);
   assert.match(pop, /"Messages you send or receive show here\."/);
   // the popup switches tab and opens the pairing steps; the full tab sets its hash
-  assert.match(pop, /toDevices: \(\) => show\("peers", undefined, true\), toSend: \(\) => show\("send"\)/);
+  assert.match(pop, /toDevices: \(\) => show\("peers", true\), toSend: \(\) => show\("send"\)/);
   assert.match(pop, /renderPeers\(env, pane, false, undefined, undefined, openPair\)/);
   const page = rd("page.ts");
   assert.match(page, /toDevices: \(\) => \(location\.hash = "#pair"\)/);
@@ -547,12 +542,13 @@ test("history multi-select: long-press, right-click, Shift+Enter, checkboxes, De
   assert.match(readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8"), /button\.dellight/);
 });
 
-test("history message actions: Read, Copy, Share, and Save share one equal-width row; Send to... sits below; wrap only under 340px (I625)", async () => {
+test("history message actions: Read, Copy, Share, and Save share one equal-width row with no Send to...; wrap only under 340px (I625, Q393)", async () => {
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
   const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
   assert.match(pop, /const main = h\("div", \{ class: "acts-row" \}\);\s*for \(const a of msgActions\(r\.type\)\) if \(a !== "share" \|\| canShare\) main\.append\(btn\[a\]\(\)\);/);
-  assert.match(pop, /acts\.append\(main, h\("button", \{ class: "ac", onclick: \(\) => resend\(r\.content\) \}, icon\("send", 15\), "Send to\.\.\."\)\);/);
+  assert.match(pop, /acts\.append\(main\);/);
+  assert.doesNotMatch(pop, /Send to\.\.\.|resend/);
   assert.match(css, /\.acts-row \{ display: flex; gap: 6px; flex: 1 0 100%; \}/);
   assert.match(css, /\.acts-row button\.ac \{ flex: 1 1 0; padding: 0 6px; \}/);
   assert.match(css, /@media \(max-width: 339px\) \{ \.acts-row \{ flex-wrap: wrap; \}/);
