@@ -514,6 +514,16 @@ test("history row: a tap on the selected row collapses it, with aria-expanded an
   assert.match(readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8"), /\.hrow\.closed:not\(\.sel\) \.acts \{ display: none; \}/);
 });
 
+test("pairing screen: Approve is a light green tonal button with no check icon; Deny stays outlined (I624)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
+  const pv = rd("peersview.ts");
+  assert.match(pv, /approve: "approve"/);
+  assert.doesNotMatch(pv, /a === "approve" \? \[icon\("check"/);
+  assert.match(rd("style.css"), /button\.approve \{ background: var\(--okc\); color: var\(--onokc\);/);
+  for (const t of ["tokens-chrome.css", "tokens-firefox.css"]) assert.equal((rd(t).match(/--okc:/g) ?? []).length, t === "tokens-chrome.css" ? 3 : 3);
+});
+
 test("history multi-select: long-press, right-click, Shift+Enter, checkboxes, Delete N selected with confirm (I621)", async () => {
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
