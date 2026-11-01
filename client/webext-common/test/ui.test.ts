@@ -209,13 +209,14 @@ test("Log out confirmed: the popup reads the state again and shows the logged-ou
   assert.match(pop, /settingsView\(env, pane, st, \(\) => mountPopup\(env, root\)\)/);
 });
 
-test("Settings polish: dim label and email line, brighter dark headers and error text, drawn select (I460)", async () => {
+test("Settings polish: dim label and email line, brighter dark headers and error text, native select (I460, I638)", async () => {
   const { readFileSync } = await import("node:fs");
   const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
   assert.match(rd("popup.ts"), /h\("div", \{ class: "t2" \}, "Logged in as"\), h\("div", \{ class: "t1 email"/);
   const css = rd("style.css");
   assert.match(css, /\.acct \.email \{[^}]*text-overflow: ellipsis;/);
-  assert.match(css, /select \{[^}]*appearance: none;/);
+  assert.doesNotMatch(css, /appearance: none/, "select keeps native styling (I638)");
+  assert.doesNotMatch(css, /linear-gradient\(45deg/, "no drawn chevron (I638)");
   for (const b of ["chrome", "firefox"]) {
     const t = rd("tokens-" + b + ".css");
     assert.equal(t.split("--err: #FFB4AB;").length, 3, b + ": both dark blocks");
