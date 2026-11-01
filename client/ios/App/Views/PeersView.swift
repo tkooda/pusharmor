@@ -294,7 +294,7 @@ struct PairingCardView: View {
             set: { model.setPeerSwitches(p, alwaysHide: $0) }
         ))
         Button(p.hidden ? "Unhide" : "Hide") { model.setHidden(p, !p.hidden) }
-        Button("Remove", role: .destructive) { confirmRemove = true }
+        Button("Remove device from account", role: .destructive) { confirmRemove = true }
         if p.missing {
             Button("Delete") { Task { await model.localDelete(p) } }
         }
@@ -477,7 +477,7 @@ struct PeerRowView: View {
         } else {
             HStack(spacing: 10) {
                 Button(p.hidden ? "Unhide" : "Hide") { model.setHidden(p, !p.hidden) }
-                Button("Remove", role: .destructive) { confirmRemove = true }
+                Button("Remove device from account", role: .destructive) { confirmRemove = true }
                 if p.missing {
                     Button("Delete") { Task { await model.localDelete(p) } }
                 }

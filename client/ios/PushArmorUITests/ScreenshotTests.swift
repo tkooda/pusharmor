@@ -60,7 +60,7 @@ final class ScreenshotTests: XCTestCase {
             _ = lockShow.waitForExistence(timeout: 10)
         }
         XCTAssertTrue(lockShow.exists)
-        XCTAssertTrue(app.buttons["Remove"].exists)
+        XCTAssertTrue(app.buttons["Remove device from account"].exists)
         sleep(1)
         shot("04-device-options")
         app.tabBars.buttons["Send"].tap()
