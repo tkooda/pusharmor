@@ -107,6 +107,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -470,7 +471,12 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
             trailingContent = {
                 Box {
                     IconButton(onClick = { menu = true }) { Icon(PaIcons.MoreVert, "More options for $x") }
-                    DropdownMenu(menu, { menu = false }) {
+                    // Cap the height to the visible window less the menu's own 48dp margins, so a tall menu (large font, short window)
+                    // scrolls inside the screen instead of running under the status or navigation bar.
+                    val view = LocalView.current
+                    val visible = android.graphics.Rect().also { view.getWindowVisibleDisplayFrame(it) }.height()
+                    val maxH = with(LocalDensity.current) { visible.toDp() } - 96.dp
+                    DropdownMenu(menu, { menu = false }, Modifier.heightIn(max = maxH.coerceAtLeast(96.dp))) {
                         val e = ents.firstOrNull { it.id == p.id }
                         val gs = vm.g.settings
                         val showOn = Policy.peerSwitchEnabled(gs.showContent)
