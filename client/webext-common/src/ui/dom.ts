@@ -205,7 +205,7 @@ export function midEllipsis(el: HTMLElement, text: string): void {
 }
 
 /** A more_vert button that opens a small menu (Escape and outside click close it). */
-export function overflowMenu(label: string, items: { label: string; run: (b: HTMLButtonElement) => void }[], moreIcon: Node): HTMLElement {
+export function overflowMenu(label: string, items: { label: string; run: (b: HTMLButtonElement) => void; checked?: boolean; disabled?: boolean; separator?: boolean }[], moreIcon: Node): HTMLElement {
   const wrap = h("span", { class: "more" });
   const btn = h("button", { class: "quiet ib", "aria-label": "More options for " + label, "aria-haspopup": "menu", "aria-expanded": "false" }, moreIcon) as HTMLButtonElement;
   let menu: HTMLElement | null = null;
@@ -224,7 +224,10 @@ export function overflowMenu(label: string, items: { label: string; run: (b: HTM
     if (menu) return close(true);
     menu = h("div", { role: "menu", class: "menu", "aria-label": label });
     for (const it of items) {
-      const mi = h("button", { role: "menuitem", tabindex: "-1" }, it.label) as HTMLButtonElement;
+      if (it.separator) menu.append(h("div", { role: "separator", class: "sep" }));
+      const chk = it.checked !== undefined;
+      const mi = h("button", chk ? { role: "menuitemcheckbox", "aria-checked": String(it.checked), tabindex: "-1" } : { role: "menuitem", tabindex: "-1" }, ...(chk ? [h("span", { class: "tick", "aria-hidden": "true" }, it.checked ? "\u2713" : ""), it.label] : [it.label])) as HTMLButtonElement;
+      if (it.disabled) mi.disabled = true;
       mi.addEventListener("click", () => {
         close(true);
         it.run(btn);
@@ -232,7 +235,7 @@ export function overflowMenu(label: string, items: { label: string; run: (b: HTM
       menu.append(mi);
     }
     menu.addEventListener("keydown", (ev: KeyboardEvent) => {
-      const all = Array.from(menu?.querySelectorAll<HTMLButtonElement>("[role=menuitem]") ?? []);
+      const all = Array.from(menu?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []);
       const i = all.indexOf(document.activeElement as HTMLButtonElement);
       if (ev.key === "Tab") return close(false);
       if (ev.key === "Escape") close(true);
@@ -244,7 +247,7 @@ export function overflowMenu(label: string, items: { label: string; run: (b: HTM
     wrap.append(menu);
     btn.setAttribute("aria-expanded", "true");
     document.addEventListener("pointerdown", outside, true);
-    (menu.firstElementChild as HTMLElement | null)?.focus();
+    menu.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
   });
   wrap.append(btn);
   return wrap;

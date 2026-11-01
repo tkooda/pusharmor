@@ -182,10 +182,23 @@ function actionButton(env: UiEnv, a: string, p: PeerView, redraw: Redraw, cls = 
   return b;
 }
 
-function menuFor(env: UiEnv, p: PeerView, redraw: Redraw): HTMLElement | null {
-  const items = [...p.actions].filter((a) => inMenu(p, a)).sort((x, y) => rank(x) - rank(y));
+function menuFor(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow?: boolean): HTMLElement | null {
+  const acts = [...p.actions].filter((a) => inMenu(p, a)).sort((x, y) => rank(x) - rank(y));
+  // Remove device from account stays last.
+  acts.sort((x, y) => Number(x === "remove") - Number(y === "remove"));
+  type Item = Parameters<typeof overflowMenu>[1][number];
+  const items: Item[] = [];
+  if (p.paired && globalAllow !== undefined) {
+    const fail = (e: unknown) => toast((e as Error).message, "err");
+    // Content in notifications from this device: off and greyed while the global setting is off.
+    items.push(
+      { label: "Show device on Send screen", checked: !p.hidden, run: () => void rpc(env, "hide", { id: p.id, hidden: !p.hidden }).then(() => redraw()).catch(fail) },
+      { label: "Show message content in notifications", checked: globalAllow && p.allowContent !== false, disabled: !globalAllow, run: () => void rpc(env, "allowContent", { id: p.id, allow: p.allowContent === false }).then(() => redraw()).catch(fail) },
+    );
+  }
+  acts.forEach((a, i) => items.push({ label: ACTION_LABEL[a] ?? a, separator: i === 0 && items.length > 0, run: (b) => void act(env, a, p, b, redraw) }));
   if (!items.length) return null;
-  return overflowMenu(p.label, items.map((a) => ({ label: ACTION_LABEL[a] ?? a, run: (b) => void act(env, a, p, b, redraw) })), icon("more", 20));
+  return overflowMenu(p.label, items, icon("more", 20));
 }
 
 export function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = true): HTMLElement {
@@ -204,17 +217,8 @@ export function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = t
   const neg = (a: string): number => (a === "deny" || a === "cancel" ? 0 : 1);
   const main = [...p.actions].filter((a) => !inMenu(p, a)).sort((x, y) => neg(x) - neg(y) || rank(x) - rank(y));
   if (main.length) col.append(h("div", { class: "actions" }, ...main.map((a) => actionButton(env, a, p, redraw, ACTION_CLASS[a] ?? "quiet"))));
-  if (p.paired) {
-    // Content in notifications from this device: off and greyed while the global setting is off.
-    const allow = h("input", { type: "checkbox", role: "switch", checked: globalAllow && p.allowContent !== false, disabled: !globalAllow }) as HTMLInputElement;
-    allow.addEventListener("change", () => void rpc(env, "allowContent", { id: p.id, allow: allow.checked }).catch((e) => toast((e as Error).message, "err")));
-    col.append(h("label", { class: "srow" }, h("span", {}, "Allow message content in notifications"), allow));
-    const show = h("input", { type: "checkbox", checked: !p.hidden }) as HTMLInputElement;
-    show.addEventListener("change", () => void rpc(env, "hide", { id: p.id, hidden: !show.checked }).catch((e) => toast((e as Error).message, "err")));
-    col.append(h("label", { class: "srow" }, h("span", {}, "Show on Send screen"), show));
-  }
   row.append(h("div", { class: "av" }, platformIcon(p.platform)), col);
-  const more = menuFor(env, p, redraw);
+  const more = menuFor(env, p, redraw, globalAllow);
   if (more) row.append(more);
   return row;
 }
