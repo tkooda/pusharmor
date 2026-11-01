@@ -620,7 +620,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     if (await confirmDialog("Delete account?", "You must log in again to confirm. This cannot be undone.", "Continue")) env.openPage("#login=delete-account");
   };
   const btns = h("div", { class: "btns" }, h("button", { class: "danger", onclick: () => void delAcct() }, "Delete account"), logOut);
-  const delAll = h("button", { class: "quiet errtext" }, "Delete all history") as HTMLButtonElement;
+  const delAll = h("button", { class: "quiet errtext" }, "Delete all message history from this device") as HTMLButtonElement;
   delAll.addEventListener("click", async () => {
     if (!(await confirmDialog("Delete all history?", "This deletes every sent and received message on this device.", "Delete"))) return;
     try {

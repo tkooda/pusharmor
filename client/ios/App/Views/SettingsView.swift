@@ -111,7 +111,7 @@ struct SettingsView: View {
                     )) {
                         ForEach(dayChoices, id: \.self) { Text($0 == 1 ? "1 day" : "\($0) days").tag($0) }
                     }
-                    Button("Delete all history", role: .destructive) { confirmDeleteHistory = true }
+                    Button("Delete all message history from this device", role: .destructive) { confirmDeleteHistory = true }
                 }
 
                 let hidden = model.peers.filter { $0.hidden }

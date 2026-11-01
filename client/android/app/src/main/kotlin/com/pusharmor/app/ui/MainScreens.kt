@@ -1218,7 +1218,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             SectionHeader("History")
             GroupedList(listOf<@Composable (Modifier) -> Unit>(
                 { m -> SettingRow("Keep messages for", UiText.days(days), m) { pickDays = true } },
-                { m -> SettingRow("Delete all history", modifier = m, color = cs.error) { confirmHistory = true } },
+                { m -> SettingRow("Delete all message history from this device", modifier = m, color = cs.error) { confirmHistory = true } },
             ))
             SectionHeader("Account")
             me?.email?.let { email ->
