@@ -12,6 +12,7 @@
     "storage",
     "activeTab",
     "alarms",
+    "downloads",
     "webRequest",
     "webRequestBlocking",
     "https://api.pusharmor.com/*",

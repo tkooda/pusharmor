@@ -41,9 +41,10 @@ export function dismissToast(): void {
 
 /**
  * Shows msg at the bottom, above a view's footer. ok and info go after about 2 s; an
- * error stays until its Close button, the next click, or the next message.
+ * error stays until its Close button, the next click, or the next message. A sticky
+ * message stays until its Close button or the next message.
  */
-export function toast(msg: string, kind: ToastKind = "info"): void {
+export function toast(msg: string, kind: ToastKind = "info", sticky = false): void {
   dismissToast();
   const text = h("span", { class: "toast-msg" });
   const el = h("div", { class: "toast " + kind, role: kind === "err" ? "alert" : "status" }, text);
@@ -56,7 +57,7 @@ export function toast(msg: string, kind: ToastKind = "info"): void {
     document.removeEventListener("click", onClick, true);
     el.remove();
   };
-  if (kind === "err") el.append(h("button", { type: "button", class: "quiet ib", "aria-label": "Close", title: "Close", onclick: dismissToast }, icon("close", 18)));
+  if (kind === "err" || sticky) el.append(h("button", { type: "button", class: "quiet ib", "aria-label": "Close", title: "Close", onclick: dismissToast }, icon("close", 18)));
   // popup: keep clear of the footer pinned to its bottom (the Send button, the Devices tools)
   const foot = document.body.classList.contains("page") ? null : document.querySelector<HTMLElement>(".foot");
   if (foot?.offsetHeight) el.style.bottom = foot.offsetHeight + 8 + "px";
@@ -67,6 +68,6 @@ export function toast(msg: string, kind: ToastKind = "info"): void {
     text.textContent = msg;
     el.classList.add("on");
     if (kind === "err") document.addEventListener("click", onClick, true);
-    else timer = setTimeout(() => current?.el === el && dismissToast(), 2000);
+    else if (!sticky) timer = setTimeout(() => current?.el === el && dismissToast(), 2000);
   }, 50);
 }

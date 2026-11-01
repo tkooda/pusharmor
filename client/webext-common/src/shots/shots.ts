@@ -121,6 +121,7 @@ const env: UiEnv = {
   activeUrl: async () => "https://example.com/guide/hiking-trails",
   openPage: () => undefined,
   openUrl: () => undefined,
+  saveFile: async () => null,
   copy: async () => undefined,
   beta: false,
   theme: memoryThemeStore(new URLSearchParams(location.search).get("theme")),

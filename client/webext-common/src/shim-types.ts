@@ -74,6 +74,10 @@ export interface Browser {
     clear(name: string): Promise<boolean>;
     onAlarm: Event<(a: { name: string }) => void>;
   };
+  downloads?: {
+    download(o: { url: string; filename?: string; saveAs?: boolean }): Promise<number>;
+    search(q: { id: number }): Promise<{ filename?: string }[]>;
+  };
   action?: { setBadgeText(d: { text: string }): Promise<void> };
   browserAction?: { setBadgeText(d: { text: string }): Promise<void> };
   contextMenus?: MenusApi;

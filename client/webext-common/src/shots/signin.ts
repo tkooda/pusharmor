@@ -52,6 +52,7 @@ const env: UiEnv = {
   activeUrl: async () => "",
   openPage: () => undefined,
   openUrl: () => undefined,
+  saveFile: async () => null,
   copy: async () => undefined,
   beta: true,
   theme: memoryThemeStore(new URLSearchParams(location.search).get("theme")),
