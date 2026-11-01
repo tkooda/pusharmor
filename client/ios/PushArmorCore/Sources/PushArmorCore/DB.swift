@@ -251,6 +251,12 @@ enum Schema {
           SELECT 'show_content', CASE value WHEN '1' THEN '0' ELSE '1' END FROM settings WHERE key = 'always_hide';
         DELETE FROM settings WHERE key = 'always_hide';
         """,
+        // Per-device Always hide content became Allow message content in notifications, inverted.
+        """
+        ALTER TABLE peers ADD COLUMN show_content INTEGER NOT NULL DEFAULT 1;
+        UPDATE peers SET show_content = CASE always_hide WHEN 0 THEN 1 ELSE 0 END;
+        ALTER TABLE peers DROP COLUMN always_hide;
+        """,
     ]
 
     static func migrate(_ db: DB) throws {

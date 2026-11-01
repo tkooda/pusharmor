@@ -488,8 +488,8 @@ final class AppModel: ObservableObject {
     }
     func localDelete(_ p: Peer) async { await core?.localDelete(p.id); reload() }
     func setHidden(_ p: Peer, _ h: Bool) { try? core?.setHidden(p.id, h); reload() }
-    func setPeerSwitches(_ p: Peer, lockShow: Bool? = nil, alwaysHide: Bool? = nil) {
-        try? core?.setPeerSwitches(p.id, lockShow: lockShow, alwaysHide: alwaysHide)
+    func setPeerSwitches(_ p: Peer, lockShow: Bool? = nil, showContent: Bool? = nil) {
+        try? core?.setPeerSwitches(p.id, lockShow: lockShow, showContent: showContent)
         reload()
     }
 

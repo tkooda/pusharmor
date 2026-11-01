@@ -771,7 +771,7 @@ final class StateMachineTests: XCTestCase {
         let path = NSTemporaryDirectory() + "pa-mig-\(UUID().uuidString).sqlite"
         _ = try Store(path: path)
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 5)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
         XCTAssertEqual(try s.db.one("PRAGMA journal_mode")?.text("journal_mode"), "wal")
         XCTAssertNil(try s.me().id)
     }
@@ -792,10 +792,11 @@ final class StateMachineTests: XCTestCase {
                 INSERT INTO history (dir, type, content, event, created_local)
                 VALUES ('in', 'event', 'a', 'paused', 1), ('in', 'event', 'b', 'resumed', 2)
                 """)
+            try Self.undoPeerShowContent(s)
             try s.db.exec("PRAGMA user_version = 1")
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 5)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
         XCTAssertTrue(try s.me().loggedOut)
         let p = try s.db.one("SELECT logged_out, logout_n FROM peers WHERE id = 'p1'")
         XCTAssertEqual(p?.int("logged_out"), 1)
@@ -811,10 +812,11 @@ final class StateMachineTests: XCTestCase {
             let s = try Store(path: path)
             try s.db.exec("ALTER TABLE peers DROP COLUMN listening")
             try s.db.exec("INSERT INTO peers (id, platform) VALUES ('p1', 'android')")
+            try Self.undoPeerShowContent(s)
             try s.db.exec("PRAGMA user_version = 2")
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 5)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
         XCTAssertEqual(try s.db.one("SELECT listening FROM peers WHERE id = 'p1'")?.int("listening"), 1)
         let a = TestPeer()
         var p = Peer(id: a.id); p.listening = false; try s.savePeer(p)
@@ -827,10 +829,11 @@ final class StateMachineTests: XCTestCase {
         do {
             let s = try Store(path: path)
             try s.db.exec("UPDATE me SET clock_offset = -7500")
+            try Self.undoPeerShowContent(s)
             try s.db.exec("PRAGMA user_version = 3")
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 5)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
         XCTAssertEqual(try s.me().clockOffset, -7)
     }
 
@@ -841,14 +844,43 @@ final class StateMachineTests: XCTestCase {
             do {
                 let s = try Store(path: path)
                 try s.setSetting("always_hide", old)
+                try Self.undoPeerShowContent(s)
                 try s.db.exec("PRAGMA user_version = 4")
             }
             let s = try Store(path: path)
-            XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 5)
+            XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
             XCTAssertNil(try s.setting("always_hide"))
             XCTAssertEqual(try s.setting(SettingKey.showContent), want)
             XCTAssertEqual(try s.boolSetting(SettingKey.showContent, default: true), want != "0")
         }
+    }
+
+    /// Rebuild the peers table as it was before migration 6: always_hide, no show_content.
+    static func undoPeerShowContent(_ s: Store) throws {
+        try s.db.exec("ALTER TABLE peers ADD COLUMN always_hide INTEGER NOT NULL DEFAULT 0")
+        try s.db.exec("ALTER TABLE peers DROP COLUMN show_content")
+    }
+
+    func testDBMigrationPeerShowContentInvertsAlwaysHide() throws {
+        // Rebuild a version 5 file: one peer with always_hide on, one off.
+        let path = NSTemporaryDirectory() + "pa-mig6-\(UUID().uuidString).sqlite"
+        do {
+            let s = try Store(path: path)
+            try Self.undoPeerShowContent(s)
+            try s.db.exec("INSERT INTO peers (id, always_hide) VALUES ('p1', 1), ('p2', 0)")
+            try s.db.exec("PRAGMA user_version = 5")
+        }
+        let s = try Store(path: path)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
+        XCTAssertEqual(try s.db.one("SELECT show_content FROM peers WHERE id = 'p1'")?.int("show_content"), 0)
+        XCTAssertEqual(try s.db.one("SELECT show_content FROM peers WHERE id = 'p2'")?.int("show_content"), 1)
+        let cols = try s.db.query("PRAGMA table_info(peers)").compactMap { $0.text("name") }
+        XCTAssertFalse(cols.contains("always_hide"))
+        let a = TestPeer()
+        try s.savePeer(Peer(id: a.id))
+        XCTAssertEqual(try s.peer(a.id)?.showContent, true)                 // new peers default to on
+        var p = try s.peer(a.id)!; p.showContent = false; try s.savePeer(p)
+        XCTAssertEqual(try s.peer(a.id)?.showContent, false)
     }
 
     /// Q332: a corrupt pa.sqlite runs onCorrupt and is recreated empty; a healthy one is kept.
@@ -860,7 +892,7 @@ final class StateMachineTests: XCTestCase {
         XCTAssertTrue(r.repaired)
         XCTAssertEqual(called, 1)
         XCTAssertNil(try r.store.me().id)
-        XCTAssertEqual(try r.store.db.one("PRAGMA user_version")?.int("user_version"), 5)
+        XCTAssertEqual(try r.store.db.one("PRAGMA user_version")?.int("user_version"), 6)
         try r.store.setMe("name", .text("kept"))
         let r2 = try await StoreRepair.open(path: path) { called += 1 }
         XCTAssertFalse(r2.repaired)
@@ -947,7 +979,7 @@ final class StateMachineTests: XCTestCase {
 
     func testLockScreenBody() {
         func b(_ ms: Bool, _ ps: Bool, _ ma: Bool, _ pa: Bool, _ locked: Bool) -> String {
-            LockScreen.body(mainShow: ms, peerShow: ps, mainAlwaysHide: ma, peerAlwaysHide: pa, locked: locked, peerName: "P", content: "C")
+            LockScreen.body(mainShow: ms, peerShow: ps, mainContent: !ma, peerContent: !pa, locked: locked, peerName: "P", content: "C")
         }
         XCTAssertEqual(b(true, true, false, false, true), "C")
         XCTAssertEqual(b(false, true, false, false, true), "New message from P")

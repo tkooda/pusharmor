@@ -112,7 +112,6 @@ public enum S {
     public static let tooLongShare = "Send the first 2048 bytes"
     public static let showContentSwitch = "Allow message content in notifications"
     public static let lockScreenSwitch = "Allow message content on lock screen"
-    public static let alwaysHide = "Always hide content"
     public static func pairWith(_ x: String) -> String { "Pair with new device: \"\(x)\"" }
     public static func checkSameCode(_ x: String) -> String { "Verify that \"\(x)\" shows this same code." }
     public static let codesMismatch = "Codes do not match? Tap Reject."
@@ -239,11 +238,11 @@ public enum TapStamp {
 }
 
 /// Lock-screen body choice (section 6.2, Q165 B, Q183 B, Q187 A): effective = main AND peer;
-/// Always hide content (main or peer) wins.
+/// content shows only while message content is allowed in notifications (main and peer).
 public enum LockScreen {
-    public static func body(mainShow: Bool, peerShow: Bool, mainAlwaysHide: Bool, peerAlwaysHide: Bool,
+    public static func body(mainShow: Bool, peerShow: Bool, mainContent: Bool, peerContent: Bool,
                             locked: Bool, peerName: String, content: String) -> String {
-        if mainAlwaysHide || peerAlwaysHide { return S.newMessageFrom(peerName) }
+        if !(mainContent && peerContent) { return S.newMessageFrom(peerName) }
         if !(mainShow && peerShow) && locked { return S.newMessageFrom(peerName) }
         return content
     }
