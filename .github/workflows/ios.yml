@@ -263,6 +263,15 @@ jobs:
           udid="$(xcrun simctl create "PushArmor iOS $OLDEST_IOS" "$OLDEST_DEVICE" "$rt")"
           echo "runtime $rt, device $udid"
           echo "dest=platform=iOS Simulator,id=$udid" >> "$GITHUB_OUTPUT"
+          # A new simulator deletes the files in its data/tmp and data/Library some
+          # seconds after its first boot finishes; tests running then lose their
+          # SQLite files under an open handle (disk I/O error). Boot it, wait for the
+          # boot to finish, then wait until a canary in data/tmp is gone (cap 180 s).
+          xcrun simctl bootstatus "$udid" -b | tail -n 3
+          c="$HOME/Library/Developer/CoreSimulator/Devices/$udid/data/tmp/pa-boot-canary"
+          mkdir -p "${c%/*}" && touch "$c"
+          for _ in $(seq 1 36); do [ -e "$c" ] || break; sleep 5; done
+          if [ -e "$c" ]; then echo "canary still present after 180 s"; else echo "first-boot cleanup done"; sleep 15; fi
       - name: XcodeGen (pinned, SHA-256 checked) and generate the project
         run: |
           d="$RUNNER_TEMP/xcodegen"
