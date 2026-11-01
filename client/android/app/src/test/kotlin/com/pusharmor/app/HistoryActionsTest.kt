@@ -29,7 +29,7 @@ class HistoryActionsTest {
 
     @Test fun readOpensAndCloses() {
         val main = source("ui/MainScreens.kt")
-        assertTrue(main.contains("RowAction(\"Read\", PaIcons.Article) { reading = true }"))
+        assertTrue(main.contains("MessageAction(\"Read\", PaIcons.Article) { reading = true }"))
         assertTrue(main.contains("if (reading) ReadDialog(hc) { reading = false }"))
         val dialog = main.substring(main.indexOf("private fun ReadDialog("))
         assertTrue(dialog.contains("IconButton(onClick = onClose) { Icon(PaIcons.Close"))

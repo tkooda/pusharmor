@@ -113,6 +113,10 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.layout.Layout
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
@@ -1032,18 +1036,17 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
                 }
             }
             if (reading) ReadDialog(hc) { reading = false }
-            Row(Modifier.padding(start = 72.dp, end = 16.dp, bottom = 8.dp).horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MessageActions {
                 for (label in historyActionLabels(kind)) when (label) {
-                    "Read" -> RowAction("Read", PaIcons.Article) { reading = true }
-                    "Copy" -> RowAction("Copy", PaIcons.ContentCopy) { com.pusharmor.app.notify.ActionActivity.copy(context, hc) }
+                    "Read" -> MessageAction("Read", PaIcons.Article) { reading = true }
+                    "Copy" -> MessageAction("Copy", PaIcons.ContentCopy) { com.pusharmor.app.notify.ActionActivity.copy(context, hc) }
                     "Open" -> if (kind == MessageKind.URL) com.pusharmor.protocol.UrlCheck.parse(hc)?.let { u ->
-                        RowAction("Open", PaIcons.OpenInNew) { startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(u.href)).addCategory(Intent.CATEGORY_BROWSABLE)) { vm.message.value = it } }
-                    } else RowAction("Open", PaIcons.OpenInNew) { startOrToast(context, Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(hc))), NO_APP_DIAL) { vm.message.value = it } }
-                    "Share" -> RowAction("Share", PaIcons.Share) {
+                        MessageAction("Open", PaIcons.OpenInNew) { startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(u.href)).addCategory(Intent.CATEGORY_BROWSABLE)) { vm.message.value = it } }
+                    } else MessageAction("Open", PaIcons.OpenInNew) { startOrToast(context, Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(hc))), NO_APP_DIAL) { vm.message.value = it } }
+                    "Share" -> MessageAction("Share", PaIcons.Share) {
                         context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, hc), null))
                     }
-                    "Save" -> RowAction("Save", PaIcons.Save) { saver.launch(messageFileName(h.at)) }
+                    "Save" -> MessageAction("Save", PaIcons.Save) { saver.launch(messageFileName(h.at)) }
                 }
             }
         }
@@ -1085,6 +1088,41 @@ private fun RowAction(text: String, icon: ImageVector, enabled: Boolean = true, 
         colors = AssistChipDefaults.assistChipColors(containerColor = LocalPaExtra.current.tile, leadingIconContentColor = if (error) cs.error else cs.primary,
             labelColor = if (error) cs.error else cs.onSurface),
         border = AssistChipDefaults.assistChipBorder(enabled = enabled, borderColor = cs.outline))
+}
+
+/** The actions of an opened History message: equal-width buttons in one row, or in equal-width rows when the widest does not fit (I625). */
+@Composable
+internal fun MessageActions(content: @Composable () -> Unit) {
+    Layout(content, Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) { ms, c ->
+        val gap = 8.dp.roundToPx()
+        val need = ms.maxOfOrNull { it.maxIntrinsicWidth(c.maxHeight) } ?: 0
+        val perRow = ((c.maxWidth + gap) / (need + gap)).coerceIn(1, ms.size.coerceAtLeast(1))
+        val w = ((c.maxWidth - (perRow - 1) * gap) / perRow).coerceAtLeast(0)
+        val ps = ms.map { it.measure(Constraints(minWidth = w, maxWidth = w, maxHeight = c.maxHeight)) }
+        val rows = ps.chunked(perRow)
+        val heights = rows.map { r -> r.maxOf { it.height } }
+        layout(c.maxWidth, heights.sum() + (rows.size - 1).coerceAtLeast(0) * gap) {
+            var y = 0
+            rows.forEachIndexed { i, r ->
+                r.forEachIndexed { j, p -> p.placeRelative(j * (w + gap), y) }
+                y += heights[i] + gap
+            }
+        }
+    }
+}
+
+/** One History message action: the outlined chip look with less side padding, its icon and label centered (I625). */
+@Composable
+internal fun MessageAction(text: String, icon: ImageVector, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Surface(onClick = onClick, modifier = Modifier.semantics { role = Role.Button }, shape = AssistChipDefaults.shape,
+        color = LocalPaExtra.current.tile, border = BorderStroke(1.dp, cs.outline)) {
+        Row(Modifier.heightIn(min = 32.dp).padding(horizontal = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, Modifier.size(18.dp), tint = cs.primary)
+            Text(text, style = MaterialTheme.typography.labelLarge, color = cs.onSurface, maxLines = 1, softWrap = false)
+        }
+    }
 }
 
 /** A plain settings row (no icon tile); [onClick] null makes it static text. */

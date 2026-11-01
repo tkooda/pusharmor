@@ -29,6 +29,10 @@ import androidx.compose.runtime.setValue
 import com.pusharmor.app.ui.ChipRow
 import com.pusharmor.app.ui.DismissSnackbarOnChange
 import com.pusharmor.app.ui.FirstDeviceSteps
+import com.pusharmor.app.ui.MessageAction
+import com.pusharmor.app.ui.MessageActions
+import com.pusharmor.app.ui.MessageKind
+import com.pusharmor.app.ui.historyActionLabels
 import com.pusharmor.app.ui.NavLabel
 import com.pusharmor.app.ui.PaChip
 import com.pusharmor.app.ui.UiText
@@ -176,6 +180,45 @@ class UiFitTest {
         val tops = names.map { t -> nodes(c.get()).first { n -> n.config.getOrNull(SemanticsProperties.Text)?.any { it.text == t } == true }.positionInRoot.y }
         // One row: Received does not drop to a line of its own (I571).
         assertEquals(tops.toString(), 1, tops.toSet().size)
+    }
+
+    /** Each action label's top and its button's left and right edges, in px; the screen width in px. */
+    private fun actionBounds(width: Int, kind: MessageKind): Pair<List<Triple<Float, Float, Float>>, Int> {
+        val labels = historyActionLabels(kind)
+        val c = show("w${width}dp-h800dp-xhdpi", 1.0f) {
+            MessageActions { for (t in labels) MessageAction(t, PaIcons.Share) {} }
+        }
+        val all = nodes(c.get())
+        val out = labels.map { t ->
+            val n = all.first { n -> n.config.getOrNull(SemanticsProperties.Text)?.any { it.text == t } == true }
+            val l = layoutOf(c.get(), t)
+            // The label reads in full on one line inside its button.
+            assertEquals(t, 1, l.lineCount)
+            assertTrue(t, l.getLineRight(0) <= l.size.width && !l.isLineEllipsized(0))
+            var b: SemanticsNode = n
+            while (b.config.getOrNull(SemanticsActions.OnClick) == null) b = b.parent!!
+            Triple(n.positionInRoot.y, b.boundsInRoot.left, b.boundsInRoot.right)
+        }
+        return out to c.get().window.decorView.width
+    }
+
+    private fun assertOneRow(width: Int, kind: MessageKind) {
+        val (b, screen) = actionBounds(width, kind)
+        // All buttons on one row, inside the screen, and equal width: no sideways scrolling (I625).
+        assertEquals("$b", 1, b.map { it.first }.toSet().size)
+        assertTrue("$b", b.all { it.second >= 0f && it.third <= screen })
+        assertEquals("$b", 1, b.map { Math.round(it.third - it.second) }.toSet().size)
+    }
+
+    @Test fun historyTextActionsFitOneRowAt360dp() = assertOneRow(360, MessageKind.TEXT)
+    @Test fun historyTextActionsFitOneRowAt412dp() = assertOneRow(412, MessageKind.TEXT)
+    @Test fun historyLinkActionsFitOneRowAt360dp() = assertOneRow(360, MessageKind.URL)
+
+    @Test fun historyActionsWrapOnANarrowScreen() {
+        val (b, screen) = actionBounds(320, MessageKind.TEXT)
+        // Below about 340 dp the buttons go to a second row instead of being cut off (I625).
+        assertTrue("$b", b.map { it.first }.toSet().size > 1)
+        assertTrue("$b", b.all { it.second >= 0f && it.third <= screen })
     }
 
     @Test fun snackbarGoesWhenTheContentChanges() {
