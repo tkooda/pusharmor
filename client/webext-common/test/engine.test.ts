@@ -72,6 +72,23 @@ test("happy path: commit, automatic reply, open, same fingerprint, approve both,
   assert.equal(b.p.badge, "1");
 });
 
+test("notification content: global or per-device off shows the fallback text", async () => {
+  const { w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  const body = async (text: string): Promise<string> => {
+    await a.e.send(text, false, "all");
+    await deliver(w, b);
+    const h = (await b.db.history()).filter((x) => x.type === "text").sort((x, y) => y.id! - x.id!)[0]!;
+    return b.p.notes.get("h:" + h.id)!.body;
+  };
+  assert.equal(await body("one"), "one");
+  await b.e.setAllowContent(a.id, false);
+  assert.equal(await body("two"), T.newMessageFrom((await b.db.peer(a.id))!.name ?? "?"));
+  await b.e.setAllowContent(a.id, true);
+  await b.e.setSettings({ allowContent: false });
+  assert.match(await body("three"), /^New message from /);
+});
+
 test("replay: duplicate re-presents, seen n without row is Invalid, control seen n silent, old n Invalid", async () => {
   const { w, a, b } = await setup();
   await pairAndApprove(w, a, b);

@@ -40,6 +40,7 @@ export interface PeerRow {
   last_n: number; // send counter to this peer
   pairing_id: Uint8Array | null;
   hidden: boolean;
+  allow_content?: boolean; // false = notifications for this device show no content; absent = allowed
   removed: boolean;
   missing: boolean;
   logged_out: boolean;

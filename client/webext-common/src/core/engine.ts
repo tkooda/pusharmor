@@ -71,8 +71,10 @@ export interface Settings {
   showAll: boolean;
   autoOpen: boolean;
   historyDays: number;
+  /** false = notifications show no message content. */
+  allowContent: boolean;
 }
-export const DEFAULT_SETTINGS: Settings = { showAll: true, autoOpen: false, historyDays: 30 };
+export const DEFAULT_SETTINGS: Settings = { showAll: true, autoOpen: false, historyDays: 30, allowContent: true };
 
 export interface EngineDeps {
   platform: Platform;
@@ -328,7 +330,7 @@ export class Engine {
         if (rowId === undefined) return;
         const row = (await this.db.get<HistoryRow>("history", rowId))!;
         if (row.type === "url" && (await this.tryAutoOpen(row))) return;
-        this.notifyRow(row);
+        await this.notifyRow(row);
         await this.updateBadge();
         return;
       }
@@ -398,12 +400,14 @@ export class Engine {
 
   private async represent(rowId: number): Promise<void> {
     const row = await this.db.get<HistoryRow>("history", rowId);
-    if (row) this.notifyRow(row);
+    if (row) await this.notifyRow(row);
   }
 
-  private notifyRow(row: HistoryRow): void {
+  private async notifyRow(row: HistoryRow): Promise<void> {
     const title = row.type === "url" ? T.titleUrl : row.type === "tel" ? T.titleTel : T.titleText;
-    this.p.notify("h:" + row.id, title, ellipsize(row.content, 120));
+    const peer = row.peer ? await this.db.peer(row.peer) : undefined;
+    const show = (await this.settings()).allowContent && peer?.allow_content !== false;
+    this.p.notify("h:" + row.id, title, show ? ellipsize(row.content, 120) : T.newMessageFrom(peerLabel(peer?.name ?? null)));
   }
 
   /** Auto-open rules (section 9). Returns true when the tab was opened. */
@@ -1396,6 +1400,10 @@ export class Engine {
     await this.db.del("peers", x);
     await this.db.del("replay", x);
     await this.rebuildMenus();
+  }
+
+  async setAllowContent(x: string, allow: boolean): Promise<void> {
+    await this.db.updatePeer(x, (p) => (p ? { ...p, allow_content: allow } : null));
   }
 
   async setHidden(x: string, hidden: boolean): Promise<void> {
