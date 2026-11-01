@@ -1116,7 +1116,8 @@ private fun ReadDialog(text: String, onClose: () -> Unit) {
                     IconButton(onClick = onClose) { Icon(PaIcons.Close, "Close") }
                 }
                 Box(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp)) {
-                    SelectionContainer { Text(text, style = MaterialTheme.typography.bodyLarge) }
+                    val base = MaterialTheme.typography.bodyLarge
+                    SelectionContainer { Text(text, style = base.copy(fontSize = base.fontSize * 1.5f, lineHeight = base.lineHeight * 1.5f)) }
                 }
             }
         }

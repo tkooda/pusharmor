@@ -35,6 +35,7 @@ class HistoryActionsTest {
         assertTrue(dialog.contains("IconButton(onClick = onClose) { Icon(PaIcons.Close"))
         assertTrue(dialog.contains("Dialog(onDismissRequest = onClose"))
         assertTrue(dialog.substringBefore("/** ").contains("SelectionContainer"))
+        assertTrue(dialog.contains("fontSize = base.fontSize * 1.5f, lineHeight = base.lineHeight * 1.5f"))
         assertEquals(1, Regex("IconButton\\(").findAll(dialog.substringBefore("\n}\n")).count())
     }
 
