@@ -134,7 +134,9 @@ import com.pusharmor.app.ScreenshotMode
 import com.pusharmor.app.data.Settings
 import com.pusharmor.app.notify.AppEffects
 import com.pusharmor.app.notify.HistoryFilter
+import com.pusharmor.app.notify.PeerStatus
 import com.pusharmor.app.notify.Policy
+import com.pusharmor.app.notify.peerStatusLabel
 import com.pusharmor.app.push.UnifiedPushSupport
 import com.pusharmor.app.ui.theme.EmptyState
 import com.pusharmor.app.ui.theme.FingerprintText
@@ -446,9 +448,23 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                 Text(x, Modifier.alpha(if (grey) 0.6f else 1f), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
             },
             supportingContent = {
-                Column {
-                    Text(AppEffects.platformLabel(p.platform))
-                    if (lines.isEmpty()) { val (k, w) = UiText.status(p); StatusLine(k, w) } else for (l in lines) Text(l)
+                // Status icons sit beside lines 2-3, so the name line keeps its full width.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(AppEffects.platformLabel(p.platform))
+                        if (lines.isEmpty()) { val (k, w) = UiText.status(p); StatusLine(k, w) } else for (l in lines) Text(l)
+                    }
+                    val sg = vm.g.settings
+                    val se = ents.firstOrNull { it.id == p.id }
+                    if (p.pinned && se != null) {
+                        PeerStatusIcons(listOf(
+                            PaIcons.Send to PeerStatus("Send screen", !p.hidden),
+                            PaIcons.Notifications to PeerStatus("Content in notifications", se.showContent && Policy.peerSwitchEnabled(sg.showContent)),
+                            PaIcons.Lock to PeerStatus("Content on lock screen", se.lockScreen && Policy.peerLockEnabled(sg.showContent, sg.lockScreen, se.showContent)),
+                            PaIcons.Watch to PeerStatus("Watch", se.watch && Policy.peerSwitchEnabled(sg.watch)),
+                            PaIcons.Share to PeerStatus("Sharing shortcut", shareShown),
+                        ))
+                    }
                 }
             },
             trailingContent = {
@@ -493,6 +509,15 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                 WaitingSendAgain(vm, p, now)
             }
         }
+    }
+}
+
+/** Small non-interactive icons for the per-device settings; greyed when off; one combined label for the group. */
+@Composable
+internal fun PeerStatusIcons(items: List<Pair<ImageVector, PeerStatus>>) {
+    val label = peerStatusLabel(items.map { it.second })
+    Row(Modifier.padding(start = 8.dp).clearAndSetSemantics { contentDescription = label }, horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+        for ((icon, st) in items) Icon(icon, null, Modifier.size(16.dp).alpha(if (st.on) 1f else 0.38f))
     }
 }
 
