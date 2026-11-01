@@ -109,7 +109,7 @@ export async function register(c: Ctx): Promise<Response> {
     }
   } else {
     const stmts: D1PreparedStatement[] = [];
-    for (const e of evict) stmts.push(c.env.DB.prepare(SQL.W_DEL).bind(e, acct), c.env.DB.prepare(SQL.W_PRUNE).bind(e, acct));
+    for (const e of evict) stmts.push(c.env.DB.prepare(SQL.W_DEL).bind(e, acct), c.env.DB.prepare(SQL.W_PRUNE).bind(e, acct, "{}", now));
     stmts.push(
       c.env.DB.prepare(SQL.W_ACCT).bind(acct, dayStart(now), monthStart(now)),
       c.env.DB.prepare(SQL.W_REG).bind(id, acct, signPub, encPub, push ? push.pushType : null, push ? push.stored : null, now, platform),
@@ -142,7 +142,19 @@ export async function list(c: Ctx): Promise<Response> {
   const rows = await all<ListRow>(c.env.DB.prepare(SQL.Q_LIST).bind(s.me, s.acct));
   const self = rows.find((r) => r.id === s.me);
   await callerCheck(c, s, self);
-  return json(200, withPushMissing(await listBody(rows, s.me), self!.my_push === null));
+  const body = await listBody(rows, s.me);
+  // Stored remove messages (peers.rm): delivered once, then cleared if unchanged since the read.
+  if (self!.my_rm && self!.my_rm !== "{}") {
+    const listed = new Set(rows.map((r) => r.id));
+    const cutoff = nowS() - SQL.PENDING_TTL_S;
+    const removed: Record<string, string> = {};
+    for (const [b, e] of Object.entries(JSON.parse(self!.my_rm) as Record<string, [number, string]>)) {
+      if (!listed.has(b) && e[0] >= cutoff) removed[b] = e[1];
+    }
+    if (Object.keys(removed).length) body.removed = removed;
+    await batch(c.env.DB, [c.env.DB.prepare(SQL.W_RM_CLEAR).bind(s.me, s.acct, self!.my_rm)]);
+  }
+  return json(200, withPushMissing(body, self!.my_push === null));
 }
 
 function selfPath(c: Ctx, s: { me: string }): void {
@@ -222,7 +234,7 @@ export async function remove(c: Ctx): Promise<Response> {
   const { caller, byId } = await readCtx(c, s.me, s.acct, [target, ...Object.keys(m)]);
   await callerCheck(c, s, caller, target === s.me);
   if (byId.has(target)) {
-    await batch(c.env.DB, [c.env.DB.prepare(SQL.W_DEL).bind(target, s.acct), c.env.DB.prepare(SQL.W_PRUNE).bind(target, s.acct)]);
+    await batch(c.env.DB, [c.env.DB.prepare(SQL.W_DEL).bind(target, s.acct), c.env.DB.prepare(SQL.W_PRUNE).bind(target, s.acct, JSON.stringify(m), nowS())]);
   }
   const r = await relayMap(c, s.acct, m, (id) => ctxRelayRow(byId.get(id)), "peerchg");
   return json(200, withPushMissing({ r }, caller!.push === null));

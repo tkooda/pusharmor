@@ -13,6 +13,7 @@ export const Q_LIST = `SELECT id, sign_pub, enc_pub, platform, push_type, create
   json_type(deny, ${P(1)}) IS NOT NULL AS denies_me,
   push IS NOT NULL AS reachable, logged_out,
   CASE WHEN id = ?1 THEN push END AS my_push,
+  CASE WHEN id = ?1 THEN rm END AS my_rm,
   json_extract(name, ${P(1)}) AS name_for_me
 FROM peers WHERE account = ?2`;
 
@@ -96,13 +97,35 @@ RETURNING 1`;
 // ?1 id, ?2 acct
 export const W_DEL = `DELETE FROM peers WHERE account = ?2 AND id = ?1`;
 
-// ?1 id, ?2 acct
+// A pending entry is [store time, c]; the monthly cron drops it this long after the store.
+// Longer than the 30-day pairing timeout, so a waiting re-fetch still finds it.
+export const PENDING_TTL_S = 2592000;
+// peers.rm (migrations/0008): at most 8 entries of about 3900 chars (key, time, message of at most
+// 3800 chars), so 32000 chars always fit and a DELETE never gets 413. Entries expire like pending.
+export const RM_MAX_ENTRIES = 8;
+export const RM_JSON_MAX = 32000;
+
+// Removal of ?1 from the account. ?2 acct, ?3 the request's m map as JSON ('{}' for an eviction),
+// ?4 now. Rows that reference ?1 lose it. A row whose id is a key of ?3 (not ?1) also stores
+// rm[?1] = [?4, m[id]] (migrations/0008): entries older than PENDING_TTL_S are dropped and the
+// newest RM_MAX_ENTRIES kept. The stored size stays under RM_JSON_MAX, so this never hits the cap.
+const M_AT_ID = `'$."' || peers.id || '"'`;
 export const W_PRUNE = `UPDATE peers
 SET allow = json_remove(allow, ${P(1)}), deny = json_remove(deny, ${P(1)}),
-    name = json_remove(name, ${P(1)}), pending = json_remove(pending, ${P(1)})
+    name = json_remove(name, ${P(1)}), pending = json_remove(pending, ${P(1)}),
+    rm = CASE WHEN json_type(rm, ${P(1)}) IS NULL AND NOT (id <> ?1 AND json_type(?3, ${M_AT_ID}) IS NOT NULL) THEN rm ELSE (SELECT COALESCE(json_group_object(k, json(v)), '{}') FROM (
+      SELECT k, v FROM (
+        SELECT j.key AS k, j.value AS v FROM json_each(json_remove(peers.rm, ${P(1)})) j
+        UNION ALL
+        SELECT ?1, json_array(?4, json_extract(?3, ${M_AT_ID}))
+        WHERE peers.id <> ?1 AND json_type(?3, ${M_AT_ID}) IS NOT NULL)
+      WHERE json_extract(v, '$[0]') >= ?4 - ${PENDING_TTL_S}
+      ORDER BY json_extract(v, '$[0]') DESC LIMIT ${RM_MAX_ENTRIES})) END
 WHERE account = ?2
   AND (json_type(allow, ${P(1)}) IS NOT NULL OR json_type(deny, ${P(1)}) IS NOT NULL
-       OR json_type(name, ${P(1)}) IS NOT NULL OR json_type(pending, ${P(1)}) IS NOT NULL)`;
+       OR json_type(name, ${P(1)}) IS NOT NULL OR json_type(pending, ${P(1)}) IS NOT NULL
+       OR json_type(rm, ${P(1)}) IS NOT NULL
+       OR (id <> ?1 AND json_type(?3, ${M_AT_ID}) IS NOT NULL))`;
 
 // ?1 acct
 export const Q_ACCT = `SELECT id, sign_pub, platform, ${PF}, push_type, push, push_verified_at, logged_out, allow, deny
@@ -115,9 +138,6 @@ export const W_DELACCT = `DELETE FROM accounts WHERE id = ?1 AND status IS NULL`
 export const NAME_JSON_MAX = 6000;
 export const PENDING_JSON_MAX = 16000;
 export const JSON_CAP_ERROR = "pa-json-cap";
-// A pending entry is [store time, c]; the monthly cron drops it this long after the store.
-// Longer than the 30-day pairing timeout, so a waiting re-fetch still finds it.
-export const PENDING_TTL_S = 2592000;
 
 // Lazy cleanup of pending entries whose peer row is gone. ?2 acct. json() keeps an array
 // entry an array (legacy entries are plain strings).
@@ -194,13 +214,20 @@ export const W_PURGE_ACCOUNTS = `DELETE FROM accounts WHERE id IN (${PURGE_IDS})
 // ('' to start), ?2 chunk size, ?3 cutoff (now - PENDING_TTL_S), ?4 now. Ids start with the
 // account, so id order is (account, id) order and the row value walks the primary key.
 const PENDING_CHUNK_ROWS = `SELECT account, id FROM peers
-  WHERE (account, id) > (substr(?1, 1, 12), ?1) AND pending <> '{}' ORDER BY account, id LIMIT ?2`;
+  WHERE (account, id) > (substr(?1, 1, 12), ?1) AND (pending <> '{}' OR rm <> '{}') ORDER BY account, id LIMIT ?2`;
 export const Q_PENDING_CHUNK = `SELECT count(*) AS n, max(id) AS last FROM (${PENDING_CHUNK_ROWS})`;
-// Drops entries stored before ?3 and stamps legacy string entries with ?4.
+// Drops pending and rm entries stored before ?3 and stamps legacy string pending entries with ?4.
 export const W_PENDING_EXPIRE = `UPDATE peers SET pending = (
   SELECT COALESCE(json_group_object(j.key, CASE WHEN j.type = 'array' THEN json(j.value) ELSE json_array(?4, j.value) END), '{}')
   FROM json_each(peers.pending) j
-  WHERE j.type <> 'array' OR json_extract(j.value, '$[0]') >= ?3)
+  WHERE j.type <> 'array' OR json_extract(j.value, '$[0]') >= ?3),
+  rm = (SELECT COALESCE(json_group_object(j.key, json(j.value)), '{}')
+  FROM json_each(peers.rm) j
+  WHERE json_extract(j.value, '$[0]') >= ?3)
 WHERE (account, id) IN (${PENDING_CHUNK_ROWS})
-  AND EXISTS (SELECT 1 FROM json_each(peers.pending) j WHERE j.type <> 'array' OR json_extract(j.value, '$[0]') < ?3)`;
+  AND (EXISTS (SELECT 1 FROM json_each(peers.pending) j WHERE j.type <> 'array' OR json_extract(j.value, '$[0]') < ?3)
+    OR EXISTS (SELECT 1 FROM json_each(peers.rm) j WHERE json_extract(j.value, '$[0]') < ?3))`;
+
+// Compare-and-clear of the delivered rm. ?1 id, ?2 acct, ?3 rm as read
+export const W_RM_CLEAR = `UPDATE peers SET rm = '{}' WHERE account = ?2 AND id = ?1 AND rm = ?3`;
 
