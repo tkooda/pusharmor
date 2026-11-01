@@ -727,9 +727,9 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                             }
                             if (box) Row(Modifier.heightIn(min = 40.dp).toggleable(asText, role = Role.Checkbox) { asText = it },
                                 verticalAlignment = Alignment.CenterVertically) {
-                                Text("Send as text", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
-                                Spacer(Modifier.width(4.dp))
                                 Checkbox(asText, null)
+                                Spacer(Modifier.width(12.dp))
+                                Text("Send as text", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
                             }
                         }
                     }
