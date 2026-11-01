@@ -6,6 +6,8 @@ extension Color {
     static let brandGreen = Color("BrandGreen")
     static let onBrandGreen = Color("OnBrandGreen")
     static let ctaEdge = Color("CTAEdge")
+    static let approveFill = Color("ApproveFill")
+    static let onApproveFill = Color("OnApproveFill")
     static let secondaryText = Color("SecondaryText")
     static let success = Color("Success")
     static let errorText = Color("ErrorText")
@@ -115,6 +117,42 @@ struct GreenButtonStyle: ButtonStyle {
                 Capsule().fill(Color.brandGreen)
                     .overlay(Capsule().strokeBorder(Color.ctaEdge, lineWidth: 1))
             )
+            .contentShape(Capsule())
+            .opacity(configuration.isPressed ? 0.85 : (isEnabled ? 1 : 0.45))
+    }
+}
+
+/// Light green tonal button (no icon): the pairing Approve. Contrast is above 7:1 in light and dark.
+struct TonalGreenButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline)
+            .foregroundStyle(Color.onApproveFill)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: 50)
+            .background(Capsule().fill(Color.approveFill))
+            .contentShape(Capsule())
+            .opacity(configuration.isPressed ? 0.85 : (isEnabled ? 1 : 0.45))
+    }
+}
+
+/// Outlined button with the error ink and no fill: the pairing Deny.
+struct OutlinedDenyButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline)
+            .foregroundStyle(Color.errorText)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: 50)
+            .overlay(Capsule().strokeBorder(Color.errorText, lineWidth: 1))
             .contentShape(Capsule())
             .opacity(configuration.isPressed ? 0.85 : (isEnabled ? 1 : 0.45))
     }
