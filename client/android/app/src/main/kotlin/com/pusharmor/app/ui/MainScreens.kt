@@ -1095,17 +1095,10 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             if (!signedIn) return@Column
             SectionHeader("Sending")
             GroupedList(listOf<@Composable (Modifier) -> Unit>(
-                { m -> SwitchRow("Show \"All\" option", b(Settings.K.SHOW_ALL, true), modifier = m.then(pad)) { vm.setPref(Settings.K.SHOW_ALL, it) } },
-            ))
-            SectionHeader("History")
-            GroupedList(listOf<@Composable (Modifier) -> Unit>(
-                { m -> SettingRow("Keep messages for", UiText.days(days), m) { pickDays = true } },
-                { m -> SettingRow("Delete all history", modifier = m, color = cs.error) { confirmHistory = true } },
+                { m -> SwitchRow("Show an \"All\" button when choosing devices", b(Settings.K.SHOW_ALL, true), modifier = m.then(pad)) { vm.setPref(Settings.K.SHOW_ALL, it) } },
             ))
             SectionHeader("Notifications")
             GroupedList(buildList<@Composable (Modifier) -> Unit> {
-                // Received messages (I463): what a notification tap does.
-                add { m -> SwitchRow("Tap opens link", b(Settings.K.TAP_OPENS_LINK, true), modifier = m.then(pad)) { vm.setPref(Settings.K.TAP_OPENS_LINK, it) } }
                 add { m ->
                     SettingRow("Notifications", modifier = m, trailing = external) {
                         context.startActivity(Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
@@ -1119,6 +1112,8 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                     SwitchRow("Show message content on lock screen", b(Settings.K.LOCK_SCREEN, true), enabled = b(Settings.K.SHOW_CONTENT, true),
                         sub = "When off, the lock screen shows only \"New message\".", modifier = m.then(pad)) { vm.setPref(Settings.K.LOCK_SCREEN, it) }
                 }
+                // Received messages (I463): what a notification tap does.
+                add { m -> SwitchRow("Tap opens link", b(Settings.K.TAP_OPENS_LINK, true), modifier = m.then(pad)) { vm.setPref(Settings.K.TAP_OPENS_LINK, it) } }
                 add { m ->
                     SettingRow("System lock screen setting", modifier = m, trailing = external) {
                         try { context.startActivity(Intent("android.settings.NOTIFICATION_SETTINGS")) } catch (e: Exception) { }
@@ -1137,6 +1132,11 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                     }
                 }
             })
+            SectionHeader("History")
+            GroupedList(listOf<@Composable (Modifier) -> Unit>(
+                { m -> SettingRow("Keep messages for", UiText.days(days), m) { pickDays = true } },
+                { m -> SettingRow("Delete all history", modifier = m, color = cs.error) { confirmHistory = true } },
+            ))
             SectionHeader("Account")
             me?.email?.let { email ->
                 // Dim label, then the email on its own line; a long address ends in an ellipsis (I460).
