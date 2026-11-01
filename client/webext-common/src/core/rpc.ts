@@ -33,6 +33,8 @@ export interface PeerView {
   pk: string | null;
   greyed: string | null;
   hidden: boolean;
+  /** content may show in notifications from this device */
+  allowContent?: boolean;
   sendable: boolean;
   /** the peer approves this device (peer status line) */
   approvesMe: boolean;
@@ -141,6 +143,8 @@ export class Rpc {
         return e.localDelete(s("id"));
       case "hide":
         return e.setHidden(s("id"), a.hidden === true);
+      case "allowContent":
+        return e.setAllowContent(s("id"), a.allow === true);
       case "rename":
         return e.rename(s("name"));
       case "refresh": {
@@ -205,7 +209,7 @@ export class Rpc {
     };
   }
 
-  async peers(): Promise<{ self: { id: string; name: string } | null; peers: PeerView[] }> {
+  async peers(): Promise<{ self: { id: string; name: string } | null; peers: PeerView[]; allowContent: boolean }> {
     const e = this.e;
     const self = await e.self();
     const entries = await allEntries(e.p.storageLocal);
@@ -216,7 +220,7 @@ export class Rpc {
       if (p.removed || p.id === self?.id) continue;
       const label = p.name ?? created(p);
       const nm = peerLabel(p.name);
-      const v: PeerView = { id: p.id, label, platform: p.platform, lines: [], actions: [], countdown: null, fingerprint: null, pk: null, greyed: null, hidden: p.hidden, sendable: false, approvesMe: p.approves_me, paired: false };
+      const v: PeerView = { id: p.id, label, platform: p.platform, lines: [], actions: [], countdown: null, fingerprint: null, pk: null, greyed: null, hidden: p.hidden, allowContent: p.allow_content !== false, sendable: false, approvesMe: p.approves_me, paired: false };
       const pv = entries.has(p.id) ? await e.pairRowView(p.id) : null;
       if (pv) {
         v.lines = pv.lines;
@@ -250,7 +254,7 @@ export class Rpc {
       v.actions.push("remove", p.hidden ? "unhide" : "hide");
       out.push(v);
     }
-    return { self: self ? { id: self.id, name: await e.myName() } : null, peers: out };
+    return { self: self ? { id: self.id, name: await e.myName() } : null, peers: out, allowContent: (await e.settings()).allowContent };
   }
 
   async history(): Promise<(HistoryRow & { sender: string })[]> {

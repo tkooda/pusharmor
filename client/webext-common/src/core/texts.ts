@@ -15,6 +15,7 @@ export const T = {
   loggedOutRecv: (name: string) => name + " logged out",
   loggedInRecv: (name: string) => name + " logged in",
   aPeer: "A device",
+  newMessageFrom: (x: string) => "New message from " + x,
   titleUrl: "Link",
   titleText: "Message",
   titleTel: "Phone number",

@@ -38,7 +38,7 @@ let fpTimer: ReturnType<typeof setInterval> | null = null;
 export type Redraw = (focusId?: string) => Promise<void>;
 
 export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, highlight?: string, focusId?: string, openPair = false): Promise<void> {
-  const data = await rpc<{ peers: PeerView[] }>(env, "peers");
+  const data = await rpc<{ peers: PeerView[]; allowContent?: boolean }>(env, "peers");
   clear(root);
   // focusId: the list was rebuilt after an action, so put focus back on that row (or the first heading if it is gone).
   const redraw: Redraw = (focusId) => renderPeers(env, root, full, undefined, focusId);
@@ -83,7 +83,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
     fpTimer = timer;
   } else {
     for (const p of pairing) root.append(pairCard(env, p, redraw));
-    if (rows.length) root.append(sh("Other devices"), group(...rows.map((p) => peerRow(env, p, redraw))));
+    if (rows.length) root.append(sh("Other devices"), group(...rows.map((p) => peerRow(env, p, redraw, data.allowContent !== false))));
     else if (!pairing.length) {
       root.append(
         h(
@@ -190,7 +190,7 @@ function menuFor(env: UiEnv, p: PeerView, redraw: Redraw): HTMLElement | null {
   return overflowMenu(p.label, items.map((a) => ({ label: ACTION_LABEL[a] ?? a, run: (b) => void act(env, a, p, b, redraw) })), icon("more", 20));
 }
 
-export function peerRow(env: UiEnv, p: PeerView, redraw: Redraw): HTMLElement {
+export function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = true): HTMLElement {
   const dim = p.greyed !== null && p.greyed !== "logged out" && p.greyed !== "send only";
   const row = h("div", { class: "prow peer" + (dim ? " off" : ""), id: "peer-" + p.id, tabindex: "-1" });
   const col = h("div", { class: "txt" });
@@ -206,6 +206,12 @@ export function peerRow(env: UiEnv, p: PeerView, redraw: Redraw): HTMLElement {
   const neg = (a: string): number => (a === "deny" || a === "cancel" ? 0 : 1);
   const main = [...p.actions].filter((a) => !inMenu(p, a)).sort((x, y) => neg(x) - neg(y) || rank(x) - rank(y));
   if (main.length) col.append(h("div", { class: "actions" }, ...main.map((a) => actionButton(env, a, p, redraw, ACTION_CLASS[a] ?? "quiet"))));
+  if (p.paired) {
+    // Content in notifications from this device: off and greyed while the global setting is off.
+    const allow = h("input", { type: "checkbox", role: "switch", checked: globalAllow && p.allowContent !== false, disabled: !globalAllow }) as HTMLInputElement;
+    allow.addEventListener("change", () => void rpc(env, "allowContent", { id: p.id, allow: allow.checked }).catch((e) => toast((e as Error).message, "err")));
+    col.append(h("label", { class: "srow" }, h("span", {}, "Allow message content in notifications"), allow));
+  }
   row.append(h("div", { class: "av" }, platformIcon(p.platform)), col);
   const more = menuFor(env, p, redraw);
   if (more) row.append(more);

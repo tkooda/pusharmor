@@ -583,15 +583,17 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
   const s = st.settings;
   const showAll = h("input", { type: "checkbox", role: "switch", checked: s.showAll }) as HTMLInputElement;
   const autoOpen = h("input", { type: "checkbox", role: "switch", checked: s.autoOpen }) as HTMLInputElement;
+  const allowContent = h("input", { type: "checkbox", role: "switch", checked: s.allowContent }) as HTMLInputElement;
   const days = h("select", { "aria-label": "Keep messages for" }) as HTMLSelectElement;
   for (const d of [1, 7, 30, 90, 365]) days.append(h("option", { value: String(d), selected: d === s.historyDays }, d + (d === 1 ? " day" : " days")));
   const theme = h("select", { "aria-label": "Theme" }) as HTMLSelectElement;
   const pref = parseTheme(await env.theme.get().catch(() => undefined));
   for (const [v, label] of THEME_CHOICES) theme.append(h("option", { value: v, selected: v === pref }, label));
   theme.addEventListener("change", () => void setTheme(env.theme, parseTheme(theme.value)));
-  const save = () => void rpc(env, "settings", { showAll: showAll.checked, autoOpen: autoOpen.checked, historyDays: Number(days.value) });
+  const save = () => void rpc(env, "settings", { showAll: showAll.checked, autoOpen: autoOpen.checked, allowContent: allowContent.checked, historyDays: Number(days.value) });
   showAll.addEventListener("change", save);
   autoOpen.addEventListener("change", save);
+  allowContent.addEventListener("change", save);
   days.addEventListener("change", save);
   // I612: logged out, the settings that need an account (device name, Log out, Delete account) are not offered
   const loggedIn = st.reg === "registered";
@@ -640,7 +642,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     group(h("label", { class: "srow" }, h("span", {}, 'Show an "All" button when choosing devices'), showAll)),
     // received links on this device
     sh("Receiving"),
-    group(h("label", { class: "srow" }, h("span", {}, "Open links automatically"), autoOpen)),
+    group(h("label", { class: "srow" }, h("span", {}, "Open links automatically"), autoOpen), h("label", { class: "srow" }, h("span", {}, "Allow message content in notifications"), allowContent)),
     sh("History"),
     group(
       h("div", { class: "srow" }, h("span", {}, "Keep messages for"), days),
