@@ -15,7 +15,7 @@ test("History filter: chips All / peer names / Unknown, peer chips hidden with o
   ];
   assert.deepEqual(historyChips(one).map((c) => c.label), ["All"]);
   const rows = [...one, { dir: "in" as const, peer: "B", sender: "Laptop" }, { dir: "in" as const, peer: null, sender: "Unknown sender" }];
-  assert.deepEqual(historyChips(rows).map((c) => c.label), ["All", "Phone", "Laptop", "Unknown"]);
+  assert.deepEqual(historyChips(rows).map((c) => c.label), ["All", "Laptop", "Phone", "Unknown"]);
   assert.deepEqual(applyFilter(rows, "A").rows, [rows[0]]); // received rows from that peer only
   assert.deepEqual(applyFilter(rows, "unknown").rows, [rows[3]]);
   assert.equal(applyFilter(one, "A").key, "all"); // resets to All

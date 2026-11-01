@@ -40,3 +40,8 @@ export function canReceiveNow(p: { sendable: boolean; greyed: string | null }): 
 export function sendDisabled(bytes: number, cap: number, selected: number): boolean {
   return bytes === 0 || bytes > cap || selected === 0;
 }
+
+/** Devices in alphabetical order of the shown name: case-insensitive, locale-aware (I630). The sort is stable. */
+export function sortByLabel<T extends { label: string }>(items: T[]): T[] {
+  return [...items].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "accent" }));
+}

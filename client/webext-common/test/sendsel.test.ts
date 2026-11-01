@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter } from "../src/model/sendsel.ts";
+import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter, sortByLabel } from "../src/model/sendsel.ts";
 
 test("Send view: remembered selection keeps only ids that can still receive", () => {
   assert.deepEqual(rememberedSelection(["a", "gone", "c"], ["a", "b", "c"]), ["a", "c"]);
@@ -50,4 +50,9 @@ test("Send view: Send is disabled with no device selected", () => {
   assert.equal(sendDisabled(10, 2048, 1), false);
   assert.equal(sendDisabled(0, 2048, 1), true);
   assert.equal(sendDisabled(3000, 2048, 1), true);
+});
+
+test("devices sort by name, ignoring case", () => {
+  const out = sortByLabel([{ label: "gamma" }, { label: "Beta" }, { label: "alpha" }]).map((x) => x.label);
+  assert.deepEqual(out, ["alpha", "Beta", "gamma"]);
 });
