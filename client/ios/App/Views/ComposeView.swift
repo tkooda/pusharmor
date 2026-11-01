@@ -162,6 +162,10 @@ struct ComposeView: View {
     @State private var toAll = false
     @State private var selected: Set<String> = []
     @State private var restored = false
+    #if DEBUG
+    /// Screenshot mode fills the sample draft and selection once per launch, even over a draft the system restored.
+    @State private var sampled = false
+    #endif
     /// Global tops of the list and of the pinned send bar; between them is the visible list area.
     @State private var listTop: CGFloat = 0
     @State private var barTop: CGFloat = 0
@@ -225,7 +229,8 @@ struct ComposeView: View {
         .onChange(of: candidates.map { $0.id.text }) { _, _ in restoreSelection() }
         #if DEBUG
         .onAppear {
-            if ScreenshotSample.isOn && text.isEmpty {
+            if ScreenshotSample.isOn && !sampled {
+                sampled = true
                 text = ScreenshotSample.draft
                 selected = [ScreenshotSample.draftPeer]
             }
