@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -100,6 +101,19 @@ fun GreenButton(onClick: () -> Unit, text: String, icon: ImageVector?, modifier:
         if (icon != null) { Icon(icon, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)) }
         Text(text, style = MaterialTheme.typography.labelLarge)
     }
+}
+
+/** Light green tonal button (no icon): the pairing Approve. Contrast >= 7:1 in light and dark. */
+@Composable
+fun TonalGreenButton(onClick: () -> Unit, text: String, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    val dark = LocalPaExtra.current.dark
+    FilledTonalButton(
+        onClick, modifier.heightIn(min = 48.dp), enabled = enabled,
+        colors = ButtonDefaults.filledTonalButtonColors(
+            containerColor = if (dark) Color(0xFF14452B) else Color(0xFFD3F5E2),
+            contentColor = if (dark) Color(0xFFC4F2D9) else Color(0xFF0B4F2E),
+        ),
+    ) { Text(text, style = MaterialTheme.typography.labelLarge) }
 }
 
 /** Rounded-square tile behind a leading row icon. */

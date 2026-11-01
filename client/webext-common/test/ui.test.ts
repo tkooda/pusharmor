@@ -523,3 +523,19 @@ test("pairing screen: Approve is a light green tonal button with no check icon; 
   assert.match(rd("style.css"), /button\.approve \{ background: var\(--okc\); color: var\(--onokc\);/);
   for (const t of ["tokens-chrome.css", "tokens-firefox.css"]) assert.equal((rd(t).match(/--okc:/g) ?? []).length, t === "tokens-chrome.css" ? 3 : 3);
 });
+
+test("history multi-select: long-press, right-click, Shift+Enter, checkboxes, Delete N selected with confirm (I621)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  assert.match(pop, /LONG_PRESS_MS = 500/);
+  assert.match(pop, /addEventListener\("contextmenu"/);
+  assert.match(pop, /ev\.shiftKey && ev\.key === "Enter"/);
+  assert.match(pop, /type: "checkbox", class: "hsel"/);
+  assert.match(pop, /if \(!picked\.size\) picked = null;/); // unchecking every row leaves the mode
+  assert.match(pop, /"Delete " \+ n \+ " selected"/);
+  assert.match(pop, /confirmDialog\(title,/);
+  assert.match(pop, /ids\.length === 1 \? "Delete 1 message\?" : "Delete " \+ ids\.length \+ " messages\?"/);
+  assert.match(pop, /ev\.key === "Escape" && picked/);
+  assert.match(readFileSync(new URL("../src/core/rpc.ts", import.meta.url), "utf8"), /case "historyDelete":/);
+  assert.match(readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8"), /button\.dellight/);
+});

@@ -8,6 +8,7 @@ import type { HistoryRow } from "../store/db.ts";
 import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, nextTabIndex, peerStatus, rpc, sh, shortTime } from "./dom.ts";
 import { confirmDialog, toast } from "./dialog.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
+import { type MsgAction, msgActions, saveFilename } from "../model/msgactions.ts";
 import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
 import { ownCard, renderPeers } from "./peersview.ts";
 import { THEME_CHOICES, parseTheme, setTheme, startTheme } from "./theme.ts";
@@ -312,6 +313,30 @@ export async function historyView(env: UiEnv, root: HTMLElement, resend: (text: 
   await rpc(env, "historyOpened");
   const rows = await rpc<(HistoryRow & { sender: string })[]>(env, "history");
   let key = "all";
+  // I621: long-press (or right-click, or Shift+Enter) starts multi-select; null means the mode is off.
+  let picked: Set<number> | null = null;
+  let focusId: number | null = null;
+  const bar = h("div", { class: "hselbar", hidden: true });
+  const ctl: SelectCtl = {
+    on: () => picked !== null,
+    has: (id) => picked?.has(id) ?? false,
+    start: (id) => {
+      picked = new Set([id]);
+      focusId = id;
+      draw();
+    },
+    toggle: (id) => {
+      if (!picked) return;
+      if (!picked.delete(id)) picked.add(id);
+      if (!picked.size) picked = null;
+      focusId = id;
+      draw();
+    },
+    exit: () => {
+      picked = null;
+      draw();
+    },
+  };
   if (!rows.length) {
     root.append(
       h(
@@ -344,14 +369,40 @@ export async function historyView(env: UiEnv, root: HTMLElement, resend: (text: 
     filterRow.hidden = opts.length < 2;
     clear(list);
     const now = Date.now();
-    for (const r of f.rows) list.append(historyRow(env, r, resend, now));
+    for (const r of f.rows) list.append(historyRow(env, r, resend, now, ctl));
+    drawBar();
+    if (focusId !== null) document.getElementById("h-" + focusId)?.querySelector<HTMLElement>("input.hsel, .content")?.focus();
+    focusId = null;
   };
+  const drawBar = () => {
+    bar.hidden = !picked;
+    clear(bar);
+    if (!picked) return;
+    const n = picked.size;
+    bar.append(
+      h("button", {
+        type: "button",
+        class: "dellight",
+        onclick: async () => {
+          const ids = [...(picked ?? [])];
+          const title = ids.length === 1 ? "Delete 1 message?" : "Delete " + ids.length + " messages?";
+          if (!(await confirmDialog(title, "This deletes the selected messages from this device.", "Delete"))) return;
+          await rpc(env, "historyDelete", { ids });
+          clear(root);
+          await historyView(env, root, resend, undefined, nav);
+        },
+      }, "Delete " + n + " selected"),
+    );
+  };
+  root.addEventListener("keydown", (ev: KeyboardEvent) => {
+    if (ev.key === "Escape" && picked && !document.querySelector("dialog[open]")) ctl.exit();
+  });
   filter.addEventListener("change", () => {
     key = filter.value;
     draw();
   });
   draw();
-  root.append(filterRow, list, h("div", { class: "grow" }));
+  root.append(filterRow, bar, list, h("div", { class: "grow" }));
   if (focus) document.getElementById("h-" + focus)?.scrollIntoView({ block: "center" });
 }
 
@@ -376,7 +427,65 @@ function eventText(r: HistoryRow & { sender: string }): string {
   }
 }
 
-function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (text: string) => void, now: number): HTMLElement {
+type SelectCtl = { on: () => boolean; has: (id: number) => boolean; start: (id: number) => void; toggle: (id: number) => void; exit: () => void };
+const LONG_PRESS_MS = 500;
+
+/** I621: the checkbox, the long-press and right-click starts, and the tap that toggles while the mode is on. */
+function wireSelect(row: HTMLElement, id: number, ctl: SelectCtl): void {
+  if (ctl.on()) {
+    row.classList.add("msel");
+    row.prepend(h("input", { type: "checkbox", class: "hsel", "aria-label": "Select message", checked: ctl.has(id) }));
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let suppress = false;
+  let x = 0;
+  let y = 0;
+  const stop = () => clearTimeout(timer);
+  row.addEventListener("pointerdown", (ev: PointerEvent) => {
+    suppress = false;
+    if (ev.button !== 0 || (ev.target as Element).closest("button")) return;
+    x = ev.clientX;
+    y = ev.clientY;
+    timer = setTimeout(() => {
+      suppress = true;
+      if (ctl.on()) ctl.toggle(id);
+      else ctl.start(id);
+    }, LONG_PRESS_MS);
+  });
+  row.addEventListener("pointermove", (ev: PointerEvent) => {
+    if (Math.abs(ev.clientX - x) > 8 || Math.abs(ev.clientY - y) > 8) stop();
+  });
+  for (const t of ["pointerup", "pointercancel", "pointerleave"]) row.addEventListener(t, stop);
+  row.addEventListener("contextmenu", (ev: Event) => {
+    ev.preventDefault();
+    if (ctl.on()) ctl.toggle(id);
+    else ctl.start(id);
+  });
+  // capture: while the mode is on, a tap toggles and never expands the row or reaches its buttons
+  row.addEventListener("click", (ev: Event) => {
+    if (suppress) {
+      suppress = false;
+      ev.stopPropagation();
+      return;
+    }
+    if (!ctl.on()) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    ctl.toggle(id);
+  }, true);
+}
+
+/** I622: a plain download of the text, so no extra permission is needed. */
+function saveText(text: string, ms: number): void {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+  const a = h("a", { href: url, download: saveFilename(ms) });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (text: string) => void, now: number, ctl: SelectCtl): HTMLElement {
   const full = new Date(r.received).toLocaleString();
   const time = h("span", { class: "time", title: full }, shortTime(r.received, now));
   const row = h("div", { class: "hrow", id: "h-" + r.id });
@@ -387,6 +496,7 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (tex
     if (!named) col.append(h("div", { class: "content ev" }, eventText(r)));
     row.classList.add("event");
     row.append(h("div", { class: "av bare" }, icon(r.event === "logged_out" ? "pause" : "info", 18)), col);
+    wireSelect(row, r.id ?? 0, ctl);
     return row;
   }
   const sent = r.results ? Object.values(r.results).filter((v) => v === "sent").length : (r.targets?.length ?? 0);
@@ -434,6 +544,8 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (tex
   content.addEventListener("keydown", (ev: KeyboardEvent) => {
     if (ev.key !== "Enter" && ev.key !== " ") return;
     ev.preventDefault();
+    if (ev.shiftKey && ev.key === "Enter") return ctl.on() ? ctl.toggle(r.id ?? 0) : ctl.start(r.id ?? 0);
+    if (ctl.on()) return ctl.toggle(r.id ?? 0);
     markRead();
   });
   row.addEventListener("click", (ev: Event) => {
@@ -442,12 +554,18 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (tex
     if (t?.closest(".content") || row.classList.contains("sel")) markRead();
     else select();
   });
+  // I622: URL or phone number: Copy, Open, Share. Text: Read, Copy, Share, Save. Send to... stays last.
   const acts = h("div", { class: "actions acts" });
-  if (r.type === "url") acts.append(h("button", { class: "ac", onclick: () => env.openUrl(r.content) }, icon("open", 15), "Open"));
-  acts.append(
-    h("button", { class: "ac", onclick: () => void env.copy(r.content) }, icon("copy", 15), "Copy"),
-    h("button", { class: "ac", onclick: () => resend(r.content) }, icon("send", 15), "Send to..."),
-  );
+  const canShare = typeof navigator.share === "function";
+  const btn: Record<MsgAction, () => HTMLElement> = {
+    copy: () => h("button", { class: "ac", onclick: () => void env.copy(r.content) }, icon("copy", 15), "Copy"),
+    open: () => h("button", { class: "ac", onclick: () => env.openUrl(r.type === "tel" ? "tel:" + r.content : r.content) }, icon("open", 15), "Open"),
+    share: () => h("button", { class: "ac", onclick: () => void navigator.share({ [r.type === "url" ? "url" : "text"]: r.content }).catch(() => undefined) }, icon("share", 15), "Share"),
+    read: () => h("button", { class: "ac", onclick: () => void env.openPage("#read=" + r.id) }, icon("read", 15), "Read"),
+    save: () => h("button", { class: "ac", onclick: () => saveText(r.content, r.received) }, icon("save", 15), "Save"),
+  };
+  for (const a of msgActions(r.type)) if (a !== "share" || canShare) acts.append(btn[a]());
+  acts.append(h("button", { class: "ac", onclick: () => resend(r.content) }, icon("send", 15), "Send to..."));
   col.append(content);
   if (r.dir === "out" && r.results) {
     const fails = Object.values(r.results).filter((v) => v !== "sent").length;
@@ -455,6 +573,7 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (tex
   }
   col.append(acts);
   row.append(h("div", { class: "av" }, icon(r.dir === "in" ? "received" : "sent", 18)), col);
+  wireSelect(row, r.id ?? 0, ctl);
   return row;
 }
 

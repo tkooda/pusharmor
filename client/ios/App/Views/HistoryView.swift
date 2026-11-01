@@ -5,6 +5,9 @@ import PushArmorCore
 struct HistoryView: View {
     @EnvironmentObject var model: AppModel
     @State private var filter: HistoryFilter = .all
+    /// Multi-select (I621); the History tab owns it and ends it when the tab goes away.
+    @Binding var selection: HistorySelection
+    @Binding var confirmDelete: Bool
     /// Switch to the Send tab (I611) and the Devices tab (I612).
     let onSend: () -> Void
     let onPair: () -> Void
@@ -24,6 +27,19 @@ struct HistoryView: View {
         Section {
             if options.count > 1 {
                 filterControl
+            }
+            if selection.active {
+                HStack {
+                    Spacer()
+                    Button(selection.deleteLabel) { confirmDelete = true }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.red)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7)
+                        .background(Capsule().fill(Color.red.opacity(0.15)))
+                        .buttonStyle(.plain)
+                }
+                .listRowSeparator(.hidden)
             }
             if rows.isEmpty {
                 VStack(spacing: 8) {
@@ -46,11 +62,13 @@ struct HistoryView: View {
                 .padding(.vertical, 16)
             }
             ForEach(rows, id: \.rowid) { row in
-                HistoryRowView(row: row)
+                HistoryRowView(row: row, selecting: selection.active, selected: selection.contains(row.rowid),
+                               onToggle: { selection.toggle(row.rowid) }, onLongPress: { selection.start(row.rowid) })
             }
             .onDelete { idx in
                 for i in idx { model.deleteRow(rows[i]) }
             }
+            .deleteDisabled(selection.active)
         }
     }
 
@@ -76,6 +94,11 @@ struct HistoryView: View {
 
 struct HistoryRowView: View {
     let row: HistoryRow
+    /// Multi-select (I621): a checkbox shows on the left and a tap toggles it.
+    var selecting = false
+    var selected = false
+    var onToggle: () -> Void = {}
+    var onLongPress: () -> Void = {}
     @EnvironmentObject var model: AppModel
     @Environment(\.dynamicTypeSize) private var typeSize
     /// The event icon grows with the text, like IconTile (I505).
@@ -131,6 +154,12 @@ struct HistoryRowView: View {
     var body: some View {
         // Unread rows are bold, with no marker column, so the times line up (F32).
         HStack(alignment: .top, spacing: 10) {
+            if selecting {
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(selected ? .accentColor : .secondaryText)
+                    .imageScale(.large)
+                    .accessibilityHidden(true)
+            }
             if isEvent {
                 Image(systemName: iconName)
                     .foregroundColor(.secondaryText)
@@ -177,11 +206,13 @@ struct HistoryRowView: View {
         // The whole row is one tap target and one VoiceOver button; the sender link is
         // a named action.
         .contentShape(Rectangle())
-        .onTapGesture { tap() }
+        .onTapGesture { selecting ? onToggle() : tap() }
+        .onLongPressGesture { if selecting { onToggle() } else { onLongPress() } }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(a11yLabel)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction { tap() }
+        .accessibilityAddTraits(selecting && selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction { selecting ? onToggle() : tap() }
+        .accessibilityAction(named: "Select") { if selecting { onToggle() } else { onLongPress() } }
         .accessibilityActions {
             if !unknown && !outgoing, let id = row.peerId {
                 Button("Show \(senderName)") { model.highlightPeer = id }
@@ -243,11 +274,7 @@ struct HistoryRowView: View {
             if let id = row.peerId { model.highlightPeer = id }
             return
         }
-        if row.type == "url" && !outgoing {
-            model.open(row)
-        } else {
-            model.markRead(row)
-            model.detailRow = row
-        }
+        model.markRead(row)
+        model.detailRow = row
     }
 }

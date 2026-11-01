@@ -65,6 +65,14 @@ class AppViewModelTest {
         assertEquals(null, toggleOpenRow(5L, 5L)) // I620
         assertEquals(6L, toggleOpenRow(5L, 6L))
         assertEquals(5L, toggleOpenRow(null, 5L))
+        // I621
+        assertEquals(listOf(5L), toggleSelected(emptyList(), 5L))
+        assertEquals(listOf(5L, 6L), toggleSelected(listOf(5L), 6L))
+        assertEquals(emptyList<Long>(), toggleSelected(listOf(5L), 5L))
+        assertEquals("Delete 1 selected", deleteSelectedLabel(1))
+        assertEquals("Delete 3 selected", deleteSelectedLabel(3))
+        assertEquals("Delete 1 message?", deleteSelectedTitle(1))
+        assertEquals("Delete 2 messages?", deleteSelectedTitle(2))
     }
 
     /** Robolectric has no AndroidKeyStore, so key generation fails as a broken Keystore would (I549). */
