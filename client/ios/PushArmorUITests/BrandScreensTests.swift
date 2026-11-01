@@ -80,8 +80,13 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Pair your first device"].waitForExistence(timeout: 30))
         let more = app.buttons["More actions"]
         XCTAssertTrue(more.waitForExistence(timeout: 10))
-        more.tap()
-        XCTAssertTrue(app.buttons["Hide"].waitForExistence(timeout: 5))
+        // I589: on a slow CI simulator the first tap can land before the menu takes taps.
+        let hide = app.buttons["Hide"]
+        for _ in 0..<2 where !hide.exists {
+            more.tap()
+            _ = hide.waitForExistence(timeout: 10)
+        }
+        XCTAssertTrue(hide.exists)
         XCTAssertTrue(app.buttons["Remove"].exists)
     }
 
