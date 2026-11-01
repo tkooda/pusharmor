@@ -1040,7 +1040,7 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
             if (reading) ReadDialog(hc) { reading = false }
             MessageActions {
                 for (label in historyActionLabels(kind)) when (label) {
-                    "Read" -> MessageAction("Read", PaIcons.Article) { reading = true }
+                    "View" -> MessageAction("View", PaIcons.Article) { reading = true }
                     "Copy" -> MessageAction("Copy", PaIcons.ContentCopy) { com.pusharmor.app.notify.ActionActivity.copy(context, hc) }
                     "Open" -> if (kind == MessageKind.URL) com.pusharmor.protocol.UrlCheck.parse(hc)?.let { u ->
                         MessageAction("Open", PaIcons.OpenInNew) { startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(u.href)).addCategory(Intent.CATEGORY_BROWSABLE)) { vm.message.value = it } }
