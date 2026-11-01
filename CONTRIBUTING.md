@@ -21,13 +21,13 @@ in [LICENSE](LICENSE).
 
 ## Landing changes on main
 
-Main accepts only pull requests that pass the `ci-ok` check. Direct pushes
-are blocked, and only squash merges are allowed.
+Main accepts only commits that already passed the `ci-ok` check.
 
-1. Branch from main as `agent/<topic>` (or any short topic name).
-2. Push the branch and run `gh pr create`.
-3. Run `gh pr merge --auto --squash`. GitHub merges the pull request once
-   `ci-ok` is green and deletes the branch.
+1. Branch from main as `internal/<topic>` and push it. CI runs on the push.
+2. When `ci-ok` is green on that commit, run
+   `git push origin <sha>:main` to fast-forward main to it.
+3. If main moved meanwhile, rebase or merge main, push the branch again,
+   and wait for `ci-ok` again.
 
 Release tags are not affected: push `<platform>/vX.Y.Z` on a commit that is
 already on main, as described in [RELEASING.md](RELEASING.md).
