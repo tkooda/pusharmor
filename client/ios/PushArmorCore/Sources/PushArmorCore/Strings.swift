@@ -114,6 +114,11 @@ public enum S {
     public static let lockScreenSwitch = "Allow message content on lock screen"
     public static let peerShowContentSwitch = "Show message content in notifications"
     public static let peerLockScreenSwitch = "Show message content on lock screen"
+    /// One spoken label for the device row status icons (Q412).
+    public static func peerStatusIcons(sendScreen: Bool, content: Bool, lockScreen: Bool) -> String {
+        func onOff(_ b: Bool) -> String { b ? "on" : "off" }
+        return "Send screen \(onOff(sendScreen)); content in notifications \(onOff(content)); content on lock screen \(onOff(lockScreen))"
+    }
     public static func pairWith(_ x: String) -> String { "Pair with new device: \"\(x)\"" }
     public static func checkSameCode(_ x: String) -> String { "Verify that \"\(x)\" shows this same code." }
     public static let codesMismatch = "Codes do not match? Tap Codes differ."

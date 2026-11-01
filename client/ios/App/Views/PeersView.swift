@@ -386,7 +386,7 @@ struct PeerRowView: View {
 
     var body: some View {
         if removed {
-            header
+            header(icons: false)
                 .padding(.vertical, 4)
                 .contentShape(Rectangle())
                 .onTapGesture { Task { await model.tapGreyed() } }
@@ -396,14 +396,15 @@ struct PeerRowView: View {
         } else {
             HStack(alignment: .top, spacing: 8) {
                 VStack(alignment: .leading, spacing: 8) {
-                    header
+                    header(icons: true)
                         .contentShape(Rectangle())
                         .onTapGesture { if greyed { Task { await model.tapGreyed() } } }
                     PeerPendingLines(p: p)
                 }
-                Spacer(minLength: 0)
+                // Full width so the status icons in the header sit just left of the menu button.
+                .frame(maxWidth: .infinity, alignment: .leading)
                 Menu { PeerMenuItems(p: p, model: model, confirmRemove: $confirmRemove) } label: {
-                    Image(systemName: "ellipsis.circle")
+                    Image(systemName: "ellipsis")
                         .font(.title3)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
@@ -419,7 +420,30 @@ struct PeerRowView: View {
         }
     }
 
-    private var header: some View {
+    /// Status icons for the device settings, in the device menu order (Q412): on when effectively on.
+    private var statusIcons: some View {
+        let content = model.boolSetting(SettingKey.showContent, true) && p.showContent
+        let lock = content && model.boolSetting(SettingKey.lockShow, true) && p.lockShow
+        let send = !p.hidden
+        return HStack(spacing: 3) {
+            statusIcon("paperplane", send)
+            statusIcon("bell", content)
+            statusIcon("lock", lock)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(S.peerStatusIcons(sendScreen: send, content: content, lockScreen: lock))
+    }
+
+    private func statusIcon(_ name: String, _ on: Bool) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 14))
+            .frame(width: 16, height: 16)
+            .foregroundStyle(Color.primary)
+            .opacity(on ? 1 : 0.3)
+            .accessibilityHidden(true)
+    }
+
+    private func header(icons: Bool) -> some View {
         HStack(spacing: 14) {
             IconTile(platformSymbol(p.platform))
                 .opacity(greyed ? 0.6 : 1)
@@ -427,10 +451,19 @@ struct PeerRowView: View {
                 Text(removed ? label + " (removed)" : label)
                     .font(.body)
                     .foregroundColor(greyed ? .secondaryText : .primary)
-                Text(PeerLabel.platformName(p.platform))
-                    .font(.subheadline)
-                    .foregroundColor(.secondaryText)
-                StatusLine(kind: status.kind, text: status.text)
+                // The status icons sit right of lines 2-3 only; the name keeps its full width (Q413).
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(PeerLabel.platformName(p.platform))
+                            .font(.subheadline)
+                            .foregroundColor(.secondaryText)
+                        StatusLine(kind: status.kind, text: status.text)
+                    }
+                    if icons {
+                        Spacer(minLength: 0)
+                        statusIcons
+                    }
+                }
             }
             .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
         }
