@@ -431,7 +431,7 @@ test("fdroid/android.txt: 2 lines, versionName then versionCode", () => {
 test("retention: 4 weeks on /privacy; stored list", () => {
   assert.ok(text("privacy.html").includes("4 weeks"));
   const p = text("privacy.html");
-  for (const s of ["platform", "logged-out flag", "approve messages", "last-active month",
+  for (const s of ["platform", "logged-out flag", "pairing confirmation messages", "last-active month",
     "We will never sell or share your data. The services below run parts of PushArmor for us and only ever see the minimum needed to do their part.",
     "We do not store your email address. We keep only a one-way hash of it, which cannot be turned back into the address.",
     "If an address is banned for abuse, we store its account ID so it stays banned, even after the account is deleted.",
