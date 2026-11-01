@@ -348,7 +348,7 @@ test("Rename this device: Enter saves, Esc keeps the old name and focus (I487)",
   const pv = readFileSync(new URL("../src/ui/peersview.ts", import.meta.url), "utf8");
   assert.match(pv, /if \(ev\.key === "Enter"\) save\.click\(\);\s*else if \(ev\.key === "Escape"\) show\(nm, true\);/);
   // I610: inline field, Save replaces the pencil, and a temporary Cancel
-  assert.match(pv, /\}, "Save"\);\s*const cancel = h\("button", \{ class: "quiet", onclick: \(\) => show\(nm, true\) \}, "Cancel"\);\s*clear\(card\)\.append\(input, save, cancel\);/);
+  assert.match(pv, /\}, "Save"\);\s*const cancel = h\("button", \{ class: "quiet", onclick: \(\) => show\(nm, true\) \}, "Cancel"\);\s*clear\(card\)\.append\(input, cancel, save\);/);
 });
 
 test("Settings account row: Delete account left, Log out right, one centered row (I610)", async () => {
@@ -522,6 +522,13 @@ test("pairing screen: Approve is a light green tonal button with no check icon; 
   assert.doesNotMatch(pv, /a === "approve" \? \[icon\("check"/);
   assert.match(rd("style.css"), /button\.approve \{ background: var\(--okc\); color: var\(--onokc\);/);
   for (const t of ["tokens-chrome.css", "tokens-firefox.css"]) assert.equal((rd(t).match(/--okc:/g) ?? []).length, t === "tokens-chrome.css" ? 3 : 3);
+});
+
+test("button rows put the negative action left and the affirmative right (I627)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pv = readFileSync(new URL("../src/ui/peersview.ts", import.meta.url), "utf8");
+  assert.match(pv, /sort\(\(x, y\) => neg\(x\) - neg\(y\) \|\| rank\(x\) - rank\(y\)\)/);
+  assert.match(pv, /const order = main\.includes\("deny"\)/);
 });
 
 test("history multi-select: long-press, right-click, Shift+Enter, checkboxes, Delete N selected with confirm (I621)", async () => {
