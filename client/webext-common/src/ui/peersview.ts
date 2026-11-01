@@ -143,7 +143,7 @@ export function ownCard(env: UiEnv, name: string, platform: string): HTMLElement
     card.classList.remove("editing");
     clear(card).append(
       h("div", { class: "hav" }, platformIcon(platform, 20)),
-      h("div", { class: "txt" }, h("div", { class: "name" }, nm), h("div", { class: "t2" }, platformLabel(platform) + ", this device")),
+      h("div", { class: "txt" }, h("div", { class: "name" }, nm), h("div", { class: "t2" }, platformLabel(platform))),
       edit,
     );
     if (refocus) edit.focus();
