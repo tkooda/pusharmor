@@ -87,7 +87,7 @@ final class BrandScreensTests: XCTestCase {
             _ = hide.waitForExistence(timeout: 10)
         }
         XCTAssertTrue(hide.exists)
-        XCTAssertTrue(app.buttons["Remove"].exists)
+        XCTAssertTrue(app.buttons["Remove device from account"].exists)
     }
 
     /// F25, F30, F31: Devices has no This device row and offers the pairing how-to; the
