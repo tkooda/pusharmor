@@ -58,6 +58,11 @@ private struct BarHeightKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
+private struct InsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
 struct MessageDetailView: View {
     let row: HistoryRow
     @EnvironmentObject var model: AppModel
@@ -65,12 +70,13 @@ struct MessageDetailView: View {
     @State private var saving = false
     @State private var textHeight: CGFloat = 0
     @State private var barHeight: CGFloat = 0
+    @State private var bottomInset: CGFloat = 34
 
     private var digits: String { DialString.make(row.content) }
 
-    /// Sheet height that fits the text, the button bar, and the navigation bar; the sheet
-    /// can also grow to full screen.
-    private var fitHeight: CGFloat { max(240, textHeight + barHeight + 64) }
+    /// Sheet height that fits the text, the button bar, the navigation bar with the grabber,
+    /// and the bottom safe area; the sheet can also grow to full screen.
+    private var fitHeight: CGFloat { max(240, textHeight + barHeight + bottomInset + 80) }
 
     var body: some View {
         NavigationStack {
@@ -105,6 +111,10 @@ struct MessageDetailView: View {
                 }
             }
         }
+        .background(GeometryReader { g in
+            Color.clear.preference(key: InsetKey.self, value: g.safeAreaInsets.bottom)
+        })
+        .onPreferenceChange(InsetKey.self) { if $0 > 0 { bottomInset = $0 } }
         .presentationDetents([.height(fitHeight), .large])
         .fileExporter(
             isPresented: $saving,

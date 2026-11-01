@@ -260,6 +260,9 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertFalse(app.buttons["View"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["messageText"].exists)
         XCTAssertTrue(copy.isHittable)
+        // I639: the last text line ends above the button row, not under it
+        let text = app.descendants(matching: .any)["messageText"]
+        XCTAssertLessThanOrEqual(text.frame.maxY, copy.frame.minY)
         app.buttons["Done"].tap()
         XCTAssertFalse(copy.waitForExistence(timeout: 3))
     }
