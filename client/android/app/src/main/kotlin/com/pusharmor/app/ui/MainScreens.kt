@@ -457,7 +457,10 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                     IconButton(onClick = { menu = true }) { Icon(PaIcons.MoreVert, "More options for $x") }
                     DropdownMenu(menu, { menu = false }) {
                         DropdownMenuItem(text = { Text("Remove device from account") }, onClick = { menu = false; onRemove() })
-                        if (p.pinned) DropdownMenuItem(text = { Text(if (p.hidden) "Unhide" else "Hide") }, onClick = { menu = false; vm.setHidden(p.id, !p.hidden) })
+                        // Same pattern as "Show in share sheet": the tick is the state; stored as the inverse (hidden).
+                        if (p.pinned) DropdownMenuItem(text = { Text("Show on Send screen") }, onClick = { menu = false; vm.setHidden(p.id, !p.hidden) },
+                            modifier = Modifier.semantics { stateDescription = if (!p.hidden) "On" else "Off" },
+                            trailingIcon = { Checkbox(!p.hidden, null) })
                         // Per device, on by default (I598); the tick is the state, so the row reads as a checkbox.
                         if (p.pinned) DropdownMenuItem(text = { Text("Show in share sheet") }, onClick = { menu = false; vm.setShareShown(p.id, !shareShown) },
                             modifier = Modifier.semantics { stateDescription = if (shareShown) "On" else "Off" },
@@ -740,7 +743,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                     Text(UiText.counter(bytes), Modifier.padding(start = 32.dp, end = 32.dp, top = 6.dp).fillMaxWidth(),
                         style = MaterialTheme.typography.bodySmall, color = cs.error, textAlign = TextAlign.End)
                 }
-                val chips = UiText.sortedByName(others(peers, me?.id).filter { it.pinned }, ::label)
+                val chips = UiText.sortedByName(others(peers, me?.id).filter { it.pinned && !it.hidden }, ::label)
                 if (UiText.noDevicesShown(me != null, chips.size)) Column(Modifier.onSizeChanged { chipsPx = it.height }.rowPad.padding(top = 16.dp).fillMaxWidth()) {
                     Text(UiText.NO_DEVICES_TITLE, style = MaterialTheme.typography.titleMedium)
                     Text(UiText.NO_DEVICES_BODY, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
