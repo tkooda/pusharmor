@@ -103,6 +103,10 @@ fun GreenButton(onClick: () -> Unit, text: String, icon: ImageVector?, modifier:
     }
 }
 
+/** Soft green fill and text shared by the tonal green button and the selected Send device chip. */
+internal fun softGreenFill(dark: Boolean) = if (dark) Color(0xFF14452B) else Color(0xFFD3F5E2)
+internal fun softGreenText(dark: Boolean) = if (dark) Color(0xFFC4F2D9) else Color(0xFF0B4F2E)
+
 /** Light green tonal button (no icon): the pairing Approve. Contrast >= 7:1 in light and dark. */
 @Composable
 fun TonalGreenButton(onClick: () -> Unit, text: String, modifier: Modifier = Modifier, enabled: Boolean = true) {
@@ -110,8 +114,8 @@ fun TonalGreenButton(onClick: () -> Unit, text: String, modifier: Modifier = Mod
     FilledTonalButton(
         onClick, modifier.heightIn(min = 48.dp), enabled = enabled,
         colors = ButtonDefaults.filledTonalButtonColors(
-            containerColor = if (dark) Color(0xFF14452B) else Color(0xFFD3F5E2),
-            contentColor = if (dark) Color(0xFFC4F2D9) else Color(0xFF0B4F2E),
+            containerColor = softGreenFill(dark),
+            contentColor = softGreenText(dark),
         ),
         border = BorderStroke(1.5.dp, BrandGreen),
     ) { Text(text, style = MaterialTheme.typography.labelLarge) }
