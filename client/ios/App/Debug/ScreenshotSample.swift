@@ -42,7 +42,8 @@ enum ScreenshotSample {
     /// -PAScreenshotsDetail: History opens with message 1 in its detail sheet (a received link
     /// opens in the browser on a tap, so the sheet is how its actions show).
     static func detail(_ rows: [HistoryRow]) -> HistoryRow? {
-        args.contains("-PAScreenshotsDetail") ? rows.first { $0.content.contains("Union_Station") } : nil
+        if args.contains("-PAScreenshotsDetailText") { return rows.first { $0.type == "text" && $0.dir == .incoming } }
+        return args.contains("-PAScreenshotsDetail") ? rows.first { $0.content.contains("Union_Station") } : nil
     }
 
     private enum StoreIds {

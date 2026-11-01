@@ -242,6 +242,22 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.buttons["Delete account"].exists)
     }
 
+    /// I622: a text message offers Read, Copy, Share, and Save; Read opens a full-screen view
+    /// that the X closes.
+    func testReadOpensAndCloses() {
+        let app = launch(["-PAScreenshotsStore", "-PAScreenshotsDetailText"])
+        let read = app.buttons["Read"]
+        XCTAssertTrue(read.waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Copy"].exists)
+        XCTAssertTrue(app.buttons["Save"].exists)
+        XCTAssertFalse(app.buttons["Open"].exists)
+        read.tap()
+        let close = app.buttons["readClose"]
+        XCTAssertTrue(close.waitForExistence(timeout: 10))
+        close.tap()
+        XCTAssertTrue(read.waitForExistence(timeout: 10))
+    }
+
     /// I604: Delete all history asks in a standard alert; Cancel closes it.
     func testDeleteHistoryAsksInAnAlert() {
         let app = launch()
