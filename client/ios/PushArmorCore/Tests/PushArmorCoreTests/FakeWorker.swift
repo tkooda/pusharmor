@@ -28,6 +28,8 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
     var scripted: [(method: String, prefix: String, status: Int, body: String)] = []
     var epoch: Int64 = 1761300000
     var offline = false
+    /// Stored remove messages handed out by GET /v1/peers: receiver id -> removed id -> sealed message.
+    var removed: [String: [String: String]] = [:]
 
     func add(_ id: PeerId, signPub: Data, encPub: Data, platform: String = "android") {
         lock.lock(); defer { lock.unlock() }
@@ -97,8 +99,12 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
                 if let l = r.listening { e.append(("listening", .bool(l))) }
                 list.append(.obj(e))
             }
-            return reply(200, JOut.obj([("my_push_sha256", .null), ("my_allow", .arr(me.allow.keys.sorted().map { .str($0) })),
-                                        ("peers", .arr(list))]).text)
+            var top: [(String, JOut)] = [("my_push_sha256", .null), ("my_allow", .arr(me.allow.keys.sorted().map { .str($0) })),
+                                         ("peers", .arr(list))]
+            if let rm = removed[idT], !rm.isEmpty {
+                top.append(("removed", .obj(rm.keys.sorted().map { ($0, JOut.str(rm[$0]!)) })))
+            }
+            return reply(200, JOut.obj(top).text)
         case ("POST", "pair"):
             let x = parts[2]
             guard let xr = rows[x] else { return reply(200, "{\"r\":\"unknown\"}") }

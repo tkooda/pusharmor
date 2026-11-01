@@ -723,6 +723,91 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(try n.core.store.peer(x.id)?.state, .removed)
     }
 
+    /// Q410: a remove(B) the peer missed live arrives in GET /v1/peers "removed".
+    /// o is the receiver, n removes x. Returns the sealed remove message n sent for o.
+    func pairAnyNames(_ n: Device, _ x: Device) async throws {
+        try await pairToShown(n, x)
+        let v2 = await x.core.approve(n.id)
+        XCTAssertEqual(v2, .stored)
+        let v3 = await n.core.approve(x.id)
+        XCTAssertEqual(v3, .completed)
+        await x.drainInbox(w)
+        XCTAssertTrue(try n.core.store.peer(x.id)!.approveVerified)
+        XCTAssertTrue(try x.core.store.peer(n.id)!.approveVerified)
+    }
+
+    func removedSetup(_ n: Device, _ x: Device, _ o: Device) async throws -> String {
+        try await pairAnyNames(n, o)
+        try await pairAnyNames(o, x)
+        _ = w.take(o.id)
+        _ = try await n.core.removePeer(x.id)
+        return try XCTUnwrap(w.take(o.id).last)
+    }
+
+    func testFetchedRemoveAppliesAndLaterLivePushIsDuplicate() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev"), o = try dev("Odev")
+        let m = try await removedSetup(n, x, o)
+        let before = try o.core.store.history().count
+        w.removed[o.id.text] = [x.id.text: m]
+        clock.now += 100
+        await o.core.fetchPeers(force: true)
+        let px = try o.core.store.peer(x.id)
+        XCTAssertEqual(px?.state, .removed)
+        XCTAssertEqual(px?.pinned, false)
+        XCTAssertEqual(px?.missing, false)
+        XCTAssertEqual(try o.core.store.history().count, before)
+        // the live push arriving later is a duplicate no-op
+        let r = await o.core.receive(m, mode: .drain)
+        XCTAssertFalse(r.committed)
+        XCTAssertEqual(try o.core.store.history().count, before)
+        XCTAssertEqual(try o.core.store.peer(x.id)?.state, .removed)
+    }
+
+    func testFetchedRemoveAfterLivePushIsSilentNoOp() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev"), o = try dev("Odev")
+        let m = try await removedSetup(n, x, o)
+        _ = await o.core.receive(m, mode: .drain)
+        XCTAssertEqual(try o.core.store.peer(x.id)?.state, .removed)
+        let before = try o.core.store.history().count
+        w.removed[o.id.text] = [x.id.text: m]
+        clock.now += 100
+        await o.core.fetchPeers(force: true)
+        XCTAssertEqual(try o.core.store.peer(x.id)?.state, .removed)
+        XCTAssertEqual(try o.core.store.history().count, before)
+    }
+
+    func testFetchedRemoveTamperedIsIgnoredAndPeerGoesMissing() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev"), o = try dev("Odev")
+        let m = try await removedSetup(n, x, o)
+        let before = try o.core.store.history().count
+        var chars = Array(m)
+        let i = chars.count / 2
+        chars[i] = chars[i] == "A" ? "B" : "A"
+        w.removed[o.id.text] = [x.id.text: String(chars)]
+        clock.now += 100
+        await o.core.fetchPeers(force: true)
+        let px = try o.core.store.peer(x.id)
+        XCTAssertEqual(px?.state, .approved)
+        XCTAssertEqual(px?.missing, true)
+        XCTAssertEqual(try o.core.store.history().count, before)
+    }
+
+    func testFetchedRemoveUnknownSignerIsIgnoredAndPeerGoesMissing() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev"), o = try dev("Odev"), z = try dev("Zdev")
+        _ = try await removedSetup(n, x, o)
+        try z.core.store.pin(o.id, signPub: o.keys.signer.publicKey, encPub: o.keys.decryptor.publicKey,
+                             pairingId: Data(count: 8), fingerprint: "AAAA")
+        let forged = try z.core.buildMessage(to: o.id) { _ in .remove(x.id.text) }
+        let before = try o.core.store.history().count
+        w.removed[o.id.text] = [x.id.text: forged]
+        clock.now += 100
+        await o.core.fetchPeers(force: true)
+        let px = try o.core.store.peer(x.id)
+        XCTAssertEqual(px?.state, .approved)
+        XCTAssertEqual(px?.missing, true)
+        XCTAssertEqual(try o.core.store.history().count, before)
+    }
+
     func testLogoutNoticeEventsAndOrdering() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try await pairFully(n, x)

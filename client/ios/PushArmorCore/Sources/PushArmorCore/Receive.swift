@@ -99,25 +99,45 @@ extension Core {
         var selfRemoved = false
     }
 
+    /// Steps 4-8 and the step 9 table for an inner message against the stored pins and windows.
+    func runPipeline(_ m: String, me: PeerId) -> ReceivePipeline.Result {
+        let store = self.store
+        return ReceivePipeline.run(
+            m: m, me: me, key: keys.decryptor,
+            pin: { id in
+                guard let p = try? store.peer(id), p.pinned else { return nil }
+                return PinState(id: id, signPub: p.signPub!, encPub: p.encPub!, pairingId: p.pairingId!, ruling: p.state)
+            },
+            window: { id in
+                guard let p = try? store.peer(id), let rp = try? store.replay(id), rp.pairingId == p.pairingId else { return nil }
+                return rp.window
+            },
+            hasHistory: { id, n in
+                guard let p = try? store.peer(id), let pid = p.pairingId else { return false }
+                return (try? store.historyRow(peer: id, pairingId: pid, n: n)) != nil
+            })
+    }
+
+    /// GET /peers "removed" (Q410): each entry is the sealed remove(B) a peer sent for me. Open it
+    /// like a live push, quietly: a fresh remove(B) applies exactly as the push would (same replay
+    /// bookkeeping); anything else is dropped with no notice and no History row.
+    func applyFetchedRemoves(_ removed: JSONValue?, me: PeerId, now: Int64) throws {
+        guard let members = removed?.objectMembers else { return }
+        for (bT, v) in members {
+            guard let b = PeerId(text: bT), b != me, let m = v.stringValue,
+                  m.utf8.count <= InnerMessage.maxWire, B64URL.isStrict(m) else { continue }
+            let r = runPipeline(m, me: me)
+            guard r.outcome == .accept, let j = r.json, case .remove(let t) = j.content, t == b.text else { continue }
+            _ = try apply(r, me: me, mode: .drain, now: now)
+        }
+    }
+
     func receiveInner(_ m: String, me: PeerId, mode: ReceiveMode) -> ReceiveResult {
         let now = clock()
         let store = self.store
         do {
             let (r, applied) = try store.db.write { () -> (ReceivePipeline.Result, Applied?) in
-                let r = ReceivePipeline.run(
-                    m: m, me: me, key: keys.decryptor,
-                    pin: { id in
-                        guard let p = try? store.peer(id), p.pinned else { return nil }
-                        return PinState(id: id, signPub: p.signPub!, encPub: p.encPub!, pairingId: p.pairingId!, ruling: p.state)
-                    },
-                    window: { id in
-                        guard let p = try? store.peer(id), let rp = try? store.replay(id), rp.pairingId == p.pairingId else { return nil }
-                        return rp.window
-                    },
-                    hasHistory: { id, n in
-                        guard let p = try? store.peer(id), let pid = p.pairingId else { return false }
-                        return (try? store.historyRow(peer: id, pairingId: pid, n: n)) != nil
-                    })
+                let r = runPipeline(m, me: me)
                 guard r.outcome == .accept else { return (r, nil) }
                 return (r, try apply(r, me: me, mode: mode, now: now))
             }
