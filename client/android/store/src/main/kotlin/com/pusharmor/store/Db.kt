@@ -165,6 +165,7 @@ interface PaDao {
     @Query("UPDATE history SET read = 1 WHERE id = :id") fun markRead(id: Long)
     @Query("DELETE FROM history WHERE received_at < :before") fun purgeHistory(before: Long)
     @Query("DELETE FROM history") fun deleteAllHistory()
+    @Query("DELETE FROM history WHERE id IN (:ids)") fun deleteHistory(ids: List<Long>)
 }
 
 @Database(
