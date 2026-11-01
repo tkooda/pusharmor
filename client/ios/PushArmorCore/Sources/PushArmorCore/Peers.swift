@@ -1,7 +1,7 @@
 import Foundation
 
 public enum ApproveOutcome: Equatable, Sendable {
-    case stored              // "Waiting for $X: open PushArmor there and tap Confirmed."
+    case stored              // "Waiting for $X: open PushArmor there and tap Codes match."
     case sent                // relayed; a returned c may complete the pairing
     case completed           // a returned c verified: X approves me
     case denied              // "Rejected by $X"

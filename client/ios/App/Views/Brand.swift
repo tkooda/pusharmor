@@ -122,7 +122,7 @@ struct GreenButtonStyle: ButtonStyle {
     }
 }
 
-/// Light green tonal button (no icon): the pairing Confirmed. Contrast is above 7:1 in light and dark.
+/// Light green tonal button (no icon): the pairing Codes match. Contrast is above 7:1 in light and dark.
 struct TonalGreenButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 

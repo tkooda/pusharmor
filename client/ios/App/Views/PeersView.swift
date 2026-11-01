@@ -305,10 +305,10 @@ struct PairingCardView: View {
         }
     }
 
-    private func denyButton() -> some View {
+    private func denyButton(_ title: String = "Reject") -> some View {
         // Destructive role for VoiceOver; the outline and ink keep the design's neutral look.
         Button(role: .destructive) { Task { await model.deny(p) } } label: {
-            Text("Reject")
+            Text(title)
         }
         .disabled(model.busy.contains("deny:" + p.id.text))
         .buttonStyle(OutlinedDenyButtonStyle())
@@ -335,8 +335,8 @@ struct PairingCardView: View {
                 FingerprintPlate(code: p.fingerprint ?? "", peer: label)
                     .onAppear { model.fingerprintShown(p) }
                 HStack(spacing: 12) {
-                    denyButton()
-                    Button("Confirmed") { Task { _ = await model.approve(p) } }
+                    denyButton("Codes differ")
+                    Button("Codes match") { Task { _ = await model.approve(p) } }
                         .buttonStyle(TonalGreenButtonStyle())
                     .disabled(model.busy.contains("approve:" + p.id.text))
                 }
