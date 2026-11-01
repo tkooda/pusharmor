@@ -169,7 +169,7 @@ export function ownCard(env: UiEnv, name: string, platform: string): HTMLElement
         },
       }, "Save");
     const cancel = h("button", { class: "quiet", onclick: () => show(nm, true) }, "Cancel");
-    clear(card).append(input, save, cancel);
+    clear(card).append(input, cancel, save);
     card.classList.add("editing");
     input.focus();
   };
@@ -201,7 +201,9 @@ export function peerRow(env: UiEnv, p: PeerView, redraw: Redraw): HTMLElement {
   else if (p.greyed) col.append(h("div", { class: "t2 line" }, p.greyed));
   for (const l of p.lines) col.append(h("div", { class: "t2 line" }, l));
   if (p.countdown) col.append(h("div", { class: "t2 countdown" }, T.countdownLeft(p.countdown)));
-  const main = [...p.actions].filter((a) => !inMenu(p, a)).sort((x, y) => rank(x) - rank(y));
+  // Negative actions (Deny, Cancel pairing) on the left, the main action on the right.
+  const neg = (a: string): number => (a === "deny" || a === "cancel" ? 0 : 1);
+  const main = [...p.actions].filter((a) => !inMenu(p, a)).sort((x, y) => neg(x) - neg(y) || rank(x) - rank(y));
   if (main.length) col.append(h("div", { class: "actions" }, ...main.map((a) => actionButton(env, a, p, redraw, ACTION_CLASS[a] ?? "quiet"))));
   row.append(h("div", { class: "av" }, platformIcon(p.platform)), col);
   const more = menuFor(env, p, redraw);
