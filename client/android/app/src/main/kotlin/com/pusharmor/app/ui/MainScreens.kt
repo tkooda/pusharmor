@@ -454,7 +454,7 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                 Box {
                     IconButton(onClick = { menu = true }) { Icon(PaIcons.MoreVert, "More options for $x") }
                     DropdownMenu(menu, { menu = false }) {
-                        DropdownMenuItem(text = { Text("Remove") }, onClick = { menu = false; onRemove() })
+                        DropdownMenuItem(text = { Text("Remove device from account") }, onClick = { menu = false; onRemove() })
                         if (p.pinned) DropdownMenuItem(text = { Text(if (p.hidden) "Unhide" else "Hide") }, onClick = { menu = false; vm.setHidden(p.id, !p.hidden) })
                         // Per device, on by default (I598); the tick is the state, so the row reads as a checkbox.
                         if (p.pinned) DropdownMenuItem(text = { Text("Show in share sheet") }, onClick = { menu = false; vm.setShareShown(p.id, !shareShown) },
