@@ -279,7 +279,7 @@ class AppLogicTest {
         val out = settings.indexOf("RowAction(\"Log out\", PaIcons.Logout")
         assertTrue(del in 0 until out)
         assertTrue(settings.substring(0, del).contains("horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)"))
-        assertTrue(main.contains("RowAction(\"Copy\", PaIcons.ContentCopy)"))
+        assertTrue(main.contains("MessageAction(\"Copy\", PaIcons.ContentCopy)"))
     }
 
     @Test fun transientMessagesUseTheOneSnackbar() {
