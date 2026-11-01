@@ -8,8 +8,8 @@ import { devicesArt, icon, platformIcon, shield } from "./icons.ts";
 const ACTION_LABEL: Record<string, string> = {
   pair: "Pair",
   pair_again: "Pair again",
-  deny: "Deny",
-  approve: "Approve",
+  deny: "Reject",
+  approve: "Confirmed",
   reply: "Reply",
   send_again: "Send again",
   approve_again: "Send again",
@@ -53,7 +53,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
       h(
         "ol",
         { class: "grp fp-steps" },
-        ...["Install PushArmor on another device.", "Log in with the same account.", "When it shows below, click Pair and approve it."].map((t, i) =>
+        ...["Install PushArmor on another device.", "Log in with the same account.", "When it shows below, click Pair, then click Confirmed when the fingerprints match."].map((t, i) =>
           h("li", {}, h("span", { class: "fp-num", "aria-hidden": "true" }, String(i + 1)), h("span", {}, t)),
         ),
       ),
@@ -201,7 +201,7 @@ export function peerRow(env: UiEnv, p: PeerView, redraw: Redraw): HTMLElement {
   else if (p.greyed) col.append(h("div", { class: "t2 line" }, p.greyed));
   for (const l of p.lines) col.append(h("div", { class: "t2 line" }, l));
   if (p.countdown) col.append(h("div", { class: "t2 countdown" }, T.countdownLeft(p.countdown)));
-  // Negative actions (Deny, Cancel pairing) on the left, the main action on the right.
+  // Negative actions (Reject, Cancel pairing) on the left, the main action on the right.
   const neg = (a: string): number => (a === "deny" || a === "cancel" ? 0 : 1);
   const main = [...p.actions].filter((a) => !inMenu(p, a)).sort((x, y) => neg(x) - neg(y) || rank(x) - rank(y));
   if (main.length) col.append(h("div", { class: "actions" }, ...main.map((a) => actionButton(env, a, p, redraw, ACTION_CLASS[a] ?? "quiet"))));
@@ -236,10 +236,10 @@ export function pairCard(env: UiEnv, p: PeerView, redraw: Redraw): HTMLElement {
   if (p.pk) void rpc(env, "fingerprintShown", { pk: p.pk }).catch(() => undefined);
   for (const l of p.lines) if (!l.startsWith("Pairing fingerprint")) card.append(h("div", { class: "t2 line" }, l));
   const main = [...p.actions].filter((a) => !MENU.has(a) && a !== "cancel").sort((x, y) => rank(x) - rank(y));
-  // Deny left, Approve right, equal width.
+  // Reject left, Confirmed right, equal width.
   const order = main.includes("deny") ? ["deny", ...main.filter((a) => a !== "deny")] : main;
   if (order.length) card.append(h("div", { class: "pair-acts" }, ...order.map((a) => actionButton(env, a, p, redraw, a === "deny" ? "danger" : ACTION_CLASS[a] ?? ""))));
-  if (p.actions.includes("deny") && p.actions.includes("approve")) card.append(h("div", { class: "hint" }, icon("info", 14), "Codes do not match? Click Deny."));
+  if (p.actions.includes("deny") && p.actions.includes("approve")) card.append(h("div", { class: "hint" }, icon("info", 14), "Codes do not match? Click Reject."));
   const foot = h("div", { class: "pair-foot" });
   if (p.actions.includes("cancel")) foot.append(actionButton(env, "cancel", p, redraw, ""));
   if (p.countdown) foot.append(h("span", { class: "t2 countdown" }, T.countdownLeft(p.countdown)));
@@ -270,7 +270,7 @@ async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, red
   else b.disabled = true; // I473: one request per click; the redraw below replaces the button
   try {
     const r = await rpc<unknown>(env, op, args);
-    if (op === "approve" && typeof r === "string" && r !== "stored" && r !== "sent") msg = r === "denied" ? T.declinedBy(p.label) : "Approve: " + r;
+    if (op === "approve" && typeof r === "string" && r !== "stored" && r !== "sent") msg = r === "denied" ? T.declinedBy(p.label) : "Confirmed: " + r;
   } catch (e) {
     msg = (e as Error).message;
   }
