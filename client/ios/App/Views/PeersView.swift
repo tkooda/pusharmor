@@ -323,7 +323,7 @@ struct PairingCardView: View {
             case .prompted where !e.authorized:
                 Text(S.newPeerWantsToPair).font(.subheadline).foregroundColor(.secondaryText)
                 Button("Reply") { Task { await model.reply(p) } }
-                    .buttonStyle(GreenButtonStyle())
+                    .buttonStyle(NeutralButtonStyle())
             case .prompted, .replied:
                 EmptyView()
             case .shown:
