@@ -16,15 +16,13 @@ const ACTION_LABEL: Record<string, string> = {
   approve_again: "Send again",
   cancel: "Cancel pairing",
   remove: "Remove device from account",
-  hide: "Hide",
-  unhide: "Unhide",
   localDelete: "Delete",
 };
 // Display order of a row's actions: the main action first, the row tools last.
-const ACTION_ORDER = ["pair", "pair_again", "approve", "approve_again", "reply", "send_again", "deny", "cancel", "localDelete", "remove", "hide", "unhide"];
+const ACTION_ORDER = ["pair", "pair_again", "approve", "approve_again", "reply", "send_again", "deny", "cancel", "localDelete", "remove"];
 const ACTION_CLASS: Record<string, string> = { pair: "approve", pair_again: "tonal", approve: "approve", reply: "tonal" };
 // Row tools live in the overflow menu.
-const MENU = new Set(["remove", "hide", "unhide", "localDelete"]);
+const MENU = new Set(["remove", "localDelete"]);
 // With Pair again on the row, Cancel pairing moves to the overflow menu.
 const inMenu = (p: PeerView, a: string): boolean => MENU.has(a) || (a === "cancel" && p.actions.includes("pair_again"));
 const rank = (a: string): number => (ACTION_ORDER.indexOf(a) + 1 || ACTION_ORDER.length + 1);
@@ -194,7 +192,7 @@ export function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = t
   const dim = p.greyed !== null && p.greyed !== "logged out" && p.greyed !== "send only";
   const row = h("div", { class: "prow peer" + (dim ? " off" : ""), id: "peer-" + p.id, tabindex: "-1" });
   const col = h("div", { class: "txt" });
-  const head = h("div", { class: "t1 name" }, p.label + (p.hidden ? " (hidden)" : ""));
+  const head = h("div", { class: "t1 name" }, p.label);
   if (p.greyed) head.addEventListener("click", () => void rpc(env, "greyedTap"));
   col.append(head, h("div", { class: "t2" }, platformLabel(p.platform)));
   const s = peerStatus(p);
@@ -211,6 +209,9 @@ export function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = t
     const allow = h("input", { type: "checkbox", role: "switch", checked: globalAllow && p.allowContent !== false, disabled: !globalAllow }) as HTMLInputElement;
     allow.addEventListener("change", () => void rpc(env, "allowContent", { id: p.id, allow: allow.checked }).catch((e) => toast((e as Error).message, "err")));
     col.append(h("label", { class: "srow" }, h("span", {}, "Allow message content in notifications"), allow));
+    const show = h("input", { type: "checkbox", checked: !p.hidden }) as HTMLInputElement;
+    show.addEventListener("change", () => void rpc(env, "hide", { id: p.id, hidden: !show.checked }).catch((e) => toast((e as Error).message, "err")));
+    col.append(h("label", { class: "srow" }, h("span", {}, "Show on Send screen"), show));
   }
   row.append(h("div", { class: "av" }, platformIcon(p.platform)), col);
   const more = menuFor(env, p, redraw);
@@ -270,9 +271,8 @@ async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, red
     await redraw(p.id);
     return toast(msg, ok ? "ok" : "err");
   }
-  const op = a === "pair_again" ? "pairAgain" : a === "send_again" ? "sendAgain" : a === "approve_again" ? "approve" : a === "unhide" || a === "hide" ? "hide" : a;
+  const op = a === "pair_again" ? "pairAgain" : a === "send_again" ? "sendAgain" : a === "approve_again" ? "approve" : a;
   const args: Record<string, unknown> = { id: p.id };
-  if (op === "hide") args.hidden = a === "hide";
   if (a === "send_again" || a === "approve_again") greyFor(b, 60_000);
   else b.disabled = true; // I473: one request per click; the redraw below replaces the button
   try {
