@@ -8,6 +8,7 @@ import type { HistoryRow } from "../store/db.ts";
 import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, nextTabIndex, peerStatus, rpc, sh, shortTime } from "./dom.ts";
 import { confirmDialog, toast } from "./dialog.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
+import { type MsgAction, msgActions, saveFilename } from "../model/msgactions.ts";
 import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
 import { ownCard, renderPeers } from "./peersview.ts";
 import { THEME_CHOICES, parseTheme, setTheme, startTheme } from "./theme.ts";
@@ -474,6 +475,16 @@ function wireSelect(row: HTMLElement, id: number, ctl: SelectCtl): void {
   }, true);
 }
 
+/** I622: a plain download of the text, so no extra permission is needed. */
+function saveText(text: string, ms: number): void {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+  const a = h("a", { href: url, download: saveFilename(ms) });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
 function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (text: string) => void, now: number, ctl: SelectCtl): HTMLElement {
   const full = new Date(r.received).toLocaleString();
   const time = h("span", { class: "time", title: full }, shortTime(r.received, now));
@@ -543,15 +554,17 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (tex
     if (t?.closest(".content") || row.classList.contains("sel")) markRead();
     else select();
   });
-  // I622: URL or phone number: Copy, Open, Share. Text: Read, Copy, Share. Send to... stays last.
+  // I622: URL or phone number: Copy, Open, Share. Text: Read, Copy, Share, Save. Send to... stays last.
   const acts = h("div", { class: "actions acts" });
   const canShare = typeof navigator.share === "function";
-  const copyBtn = h("button", { class: "ac", onclick: () => void env.copy(r.content) }, icon("copy", 15), "Copy");
-  const shareBtn = h("button", { class: "ac", onclick: () => void navigator.share({ [r.type === "url" ? "url" : "text"]: r.content }).catch(() => undefined) }, icon("share", 15), "Share");
-  if (r.type === "url") acts.append(copyBtn, h("button", { class: "ac", onclick: () => env.openUrl(r.content) }, icon("open", 15), "Open"));
-  else if (r.type === "tel") acts.append(copyBtn);
-  else acts.append(h("button", { class: "ac", onclick: () => void env.openPage("#read=" + r.id) }, icon("read", 15), "Read"), copyBtn);
-  if (canShare) acts.append(shareBtn);
+  const btn: Record<MsgAction, () => HTMLElement> = {
+    copy: () => h("button", { class: "ac", onclick: () => void env.copy(r.content) }, icon("copy", 15), "Copy"),
+    open: () => h("button", { class: "ac", onclick: () => env.openUrl(r.type === "tel" ? "tel:" + r.content : r.content) }, icon("open", 15), "Open"),
+    share: () => h("button", { class: "ac", onclick: () => void navigator.share({ [r.type === "url" ? "url" : "text"]: r.content }).catch(() => undefined) }, icon("share", 15), "Share"),
+    read: () => h("button", { class: "ac", onclick: () => void env.openPage("#read=" + r.id) }, icon("read", 15), "Read"),
+    save: () => h("button", { class: "ac", onclick: () => saveText(r.content, r.received) }, icon("save", 15), "Save"),
+  };
+  for (const a of msgActions(r.type)) if (a !== "share" || canShare) acts.append(btn[a]());
   acts.append(h("button", { class: "ac", onclick: () => resend(r.content) }, icon("send", 15), "Send to..."));
   col.append(content);
   if (r.dir === "out" && r.results) {
