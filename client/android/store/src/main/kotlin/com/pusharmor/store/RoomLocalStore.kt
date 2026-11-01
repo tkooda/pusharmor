@@ -106,6 +106,7 @@ fun Peer.toEntity(old: PeerEntity?) = PeerEntity(
     listDeniesMe, listAfterVerify, declined, reachable, loggedOut, logoutN, hidden, name, nameN, removed, missing, old?.lastN ?: lastN,
     channelId ?: old?.channelId, storedApprove, storedApproveName, lastApproveResult, lastSendAt, note, pairAgain,
     lockScreen = old?.lockScreen ?: true, watch = old?.watch ?: true, hideContent = old?.hideContent ?: false, listening = listening,
+    showContent = old?.showContent ?: true,
 )
 
 fun PairingEntity.toRow() = PairingRow(

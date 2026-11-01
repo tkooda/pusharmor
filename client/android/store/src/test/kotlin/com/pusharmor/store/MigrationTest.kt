@@ -68,4 +68,20 @@ class MigrationTest {
             assertEquals(1, c.getInt(1))
         }
     }
+
+    @Test fun migrate4To5InvertsHideContent() {
+        helper.createDatabase("m5.db", 4).apply {
+            for ((id, hide) in listOf("a" to 1, "b" to 0)) execSQL(
+                "INSERT INTO peers (id, platform, created, approved, denied_by_me, approve_verified, approves_me, denies_me, list_after_verify, " +
+                    "declined, reachable, logged_out, logout_n, hidden, name_n, removed, missing, last_n, last_send_at, pair_again, lock_screen, watch, hide_content) " +
+                    "VALUES ('$id', 'chrome', 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, $hide)",
+            )
+            close()
+        }
+        val db = helper.runMigrationsAndValidate("m5.db", 5, true, PaDatabase.MIGRATION_4_5)
+        db.query("SELECT id, show_content FROM peers ORDER BY id").use { c ->
+            c.moveToFirst(); assertEquals(0, c.getInt(1))
+            c.moveToNext(); assertEquals(1, c.getInt(1))
+        }
+    }
 }

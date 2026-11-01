@@ -143,7 +143,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
     /** url / text / tel (no sender name, Q12 A; except "New message from $peer" when hidden, Q187). */
     fun content(historyId: Long, peerId: String, c: ShownContent) {
         val peer = dao.peer(peerId)
-        val policy = Policy.of(settings.lockScreen, peer?.lockScreen ?: true, settings.watch, peer?.watch ?: true, !settings.showContent, peer?.hideContent ?: false)
+        val policy = Policy.of(settings.lockScreen, peer?.lockScreen ?: true, settings.watch, peer?.watch ?: true, !settings.showContent, !(peer?.showContent ?: true))
         val channel = peer?.channelId?.takeIf { nm.getNotificationChannel(it) != null } ?: messagesChannel
         val b = NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setAutoCancel(true)
             .setGroup(GROUP_PREFIX + channel).setLocalOnly(policy.localOnly)
