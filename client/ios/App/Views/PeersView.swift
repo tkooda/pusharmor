@@ -432,7 +432,6 @@ struct PeerRowView: View {
                     ))
                     actions
                 }
-                .tint(.brandGreen)
                 .padding(.leading, 48)
             } label: {
                 VStack(alignment: .leading, spacing: 8) {

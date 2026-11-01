@@ -275,7 +275,6 @@ struct ComposeView: View {
                         Toggle("Send as text", isOn: $asText)
                             .font(.footnote)
                             .foregroundColor(.secondaryText)
-                            .tint(.brandGreen)
                             .fixedSize()
                     }
                 }
