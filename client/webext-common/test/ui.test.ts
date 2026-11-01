@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { PeerView } from "../src/core/rpc.ts";
-import { accountLine, fitMiddle, nextTabIndex, peerStatus, platformLabel, shortTime } from "../src/ui/dom.ts";
+import { accountLine, fitMiddle, menuFit, nextTabIndex, peerStatus, platformLabel, shortTime } from "../src/ui/dom.ts";
 
 const peer = (o: Partial<PeerView>): PeerView => ({
   id: "x", label: "Phone", platform: "android", lines: [], actions: [], countdown: null, fingerprint: null, pk: null,
@@ -562,4 +562,12 @@ test("device row status icon label", async () => {
   const { statusLabel } = await import("../src/ui/peersview.ts");
   assert.equal(statusLabel(true, false), "Send screen on; content in notifications off");
   assert.equal(statusLabel(false, true), "Send screen off; content in notifications on");
+});
+
+test("overflow menu opens upward only when it does not fit below and above has more room", () => {
+  assert.deepEqual(menuFit(100, 300, 50), { up: false, maxH: 300 });
+  assert.deepEqual(menuFit(100, 60, 400), { up: true, maxH: 400 });
+  assert.deepEqual(menuFit(100, 60, 40), { up: false, maxH: 60 });
+  assert.deepEqual(menuFit(500, 120.7, 200.4), { up: true, maxH: 200 });
+  assert.deepEqual(menuFit(100, -5, -10), { up: false, maxH: 0 });
 });
