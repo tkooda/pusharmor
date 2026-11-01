@@ -21,6 +21,7 @@ import {
   pushHash,
 } from "../crypto/labels.ts";
 import { formatCountdown, PAIRING_TIMEOUT_DAYS } from "../model/countdown.ts";
+import { ellipsize } from "../model/msgactions.ts";
 import { autoOpenAllowed, detectType, isPhone, parseHttpUrl, type SendType } from "../model/detect.ts";
 import {
   type Content,
@@ -402,7 +403,7 @@ export class Engine {
 
   private notifyRow(row: HistoryRow): void {
     const title = row.type === "url" ? T.titleUrl : row.type === "tel" ? T.titleTel : T.titleText;
-    this.p.notify("h:" + row.id, title, row.content.length > 120 ? row.content.slice(0, 119) + "\u2026" : row.content);
+    this.p.notify("h:" + row.id, title, ellipsize(row.content, 120));
   }
 
   /** Auto-open rules (section 9). Returns true when the tab was opened. */
