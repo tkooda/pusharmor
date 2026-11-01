@@ -69,8 +69,8 @@ final class BrandScreensTests: XCTestCase {
         let cells = app.descendants(matching: .any)["Pairing fingerprint K, 7, Q, D"]
         XCTAssertTrue(cells.waitForExistence(timeout: 10))
         XCTAssertTrue(app.tabBars.firstMatch.exists)
-        XCTAssertTrue(app.buttons["Approve"].exists)
-        XCTAssertTrue(app.buttons["Deny"].exists)
+        XCTAssertTrue(app.buttons["Confirmed"].exists)
+        XCTAssertTrue(app.buttons["Reject"].exists)
         XCTAssertTrue(app.staticTexts["Verify that \"New laptop\" shows this same code."].exists)
     }
 
@@ -192,7 +192,7 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Pair your first device"].waitForExistence(timeout: 30))
         XCTAssertTrue(app.staticTexts["Install PushArmor on another device."].exists)
         XCTAssertTrue(app.staticTexts["Log in with the same account."].exists)
-        XCTAssertTrue(app.staticTexts["When it shows below, tap Pair and approve it."].exists)
+        XCTAssertTrue(app.staticTexts["When it shows below, tap Pair, then tap Confirmed when the fingerprints match."].exists)
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@",
             "Waiting for another device to log in.")).firstMatch.exists)
         XCTAssertTrue(app.tabBars.firstMatch.exists)

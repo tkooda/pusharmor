@@ -40,7 +40,7 @@ final class ScreenshotTests: XCTestCase {
         app.terminate()
 
         app = launch(store + ["-PAScreenshotsPairFingerprint"])
-        XCTAssertTrue(app.buttons["Approve"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Confirmed"].waitForExistence(timeout: 30))
         assertTabs(app)
         sleep(1)
         shot("02-pair-fingerprint")
