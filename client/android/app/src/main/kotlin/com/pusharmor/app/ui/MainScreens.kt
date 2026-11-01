@@ -415,14 +415,14 @@ private fun BannerRow(text: String, action: String, fault: Boolean, icon: ImageV
     }
 }
 
-/** One peer in the Peers group: icon tile, name, platform, status line, overflow menu; tap shows the switches. */
+/** One peer in the Peers group: icon tile, name, platform, status line, overflow menu; the menu holds the per-device options. */
 @Composable
 private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, modifier: Modifier, onRemove: () -> Unit) {
     val x = label(p)
-    var detail by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     val pairingAgain by vm.pairingAgain.collectAsState()
     val running by vm.running.collectAsState()
+    val ents by vm.peerEntities.collectAsState()
     val prefs by vm.prefs.collectAsState()
     val shareShown = prefs?.get(Settings.K.SHARE_OFF)?.contains(p.id) != true
     val grey = p.missing || !p.reachable
@@ -439,8 +439,7 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
     val lines = listOfNotNull(p.note, stateText)
     Column(modifier.then(if (highlighted) Modifier.background(cs.secondaryContainer) else Modifier)) {
         ListItem(
-            modifier = Modifier.clickable(role = Role.Button) { if (grey) vm.tapGreyed() else detail = !detail }
-                .semantics { if (!grey) stateDescription = if (detail) "Expanded" else "Collapsed" },
+            modifier = Modifier.clickable(enabled = grey, role = Role.Button) { vm.tapGreyed() },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             leadingContent = { IconTile(platformIcon(p.platform), dim = grey) },
             headlineContent = {
@@ -456,17 +455,23 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                 Box {
                     IconButton(onClick = { menu = true }) { Icon(PaIcons.MoreVert, "More options for $x") }
                     DropdownMenu(menu, { menu = false }) {
-                        DropdownMenuItem(text = { Text("Remove device from account") }, onClick = { menu = false; onRemove() })
-                        // Same pattern as "Show shortcut when sharing": the tick is the state; stored as the inverse (hidden).
-                        if (p.pinned) DropdownMenuItem(text = { Text("Show on Send screen") }, onClick = { menu = false; vm.setHidden(p.id, !p.hidden) },
-                            modifier = Modifier.semantics { stateDescription = if (!p.hidden) "On" else "Off" },
-                            trailingIcon = { Checkbox(!p.hidden, null) })
-                        // Per device, on by default (I598); the tick is the state, so the row reads as a checkbox.
-                        if (p.pinned) DropdownMenuItem(text = { Text("Show shortcut when sharing") }, onClick = { menu = false; vm.setShareShown(p.id, !shareShown) },
-                            modifier = Modifier.semantics { stateDescription = if (shareShown) "On" else "Off" },
-                            trailingIcon = { Checkbox(shareShown, null) })
-                        if (p.missing) DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; vm.localDelete(p.id) })
+                        val e = ents.firstOrNull { it.id == p.id }
+                        val gs = vm.g.settings
+                        val showOn = Policy.peerSwitchEnabled(gs.showContent)
+                        val lockOn = Policy.peerLockEnabled(gs.showContent, gs.lockScreen, e?.showContent ?: true)
+                        // The tick is the state, so each row reads as a checkbox; "Show device on Send screen" is stored as the inverse (hidden).
+                        if (p.pinned) CheckItem("Show device on Send screen", !p.hidden) { menu = false; vm.setHidden(p.id, !p.hidden) }
+                        if (p.pinned && e != null) {
+                            CheckItem("Show message content in notifications", e.showContent && showOn, showOn) { vm.setPeerSwitch(p.id, showContent = !e.showContent) }
+                            CheckItem("Show message content on lock screen", e.lockScreen && lockOn, lockOn) { vm.setPeerSwitch(p.id, lock = !e.lockScreen) }
+                            CheckItem("Send messages to watch", e.watch && Policy.peerSwitchEnabled(gs.watch), Policy.peerSwitchEnabled(gs.watch)) { vm.setPeerSwitch(p.id, watch = !e.watch) }
+                        }
+                        // Per device, on by default (I598).
+                        if (p.pinned) CheckItem("Show shortcut in sharing menu", shareShown) { menu = false; vm.setShareShown(p.id, !shareShown) }
+                        HorizontalDivider()
                         if (p.offersPairAgain) DropdownMenuItem(text = { Text("Cancel pairing") }, onClick = { menu = false; vm.cancelPairing(p.id) })
+                        if (p.missing) DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; vm.localDelete(p.id) })
+                        DropdownMenuItem(text = { Text("Remove device from account") }, onClick = { menu = false; onRemove() })
                     }
                 }
             },
@@ -488,7 +493,6 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                 WaitingSendAgain(vm, p, now)
             }
         }
-        if (detail && p.pinned) Column(inset.padding(bottom = 8.dp)) { PeerDetail(vm, p) }
     }
 }
 
@@ -613,17 +617,12 @@ private fun FingerprintPlate(code: String, x: String) {
     }
 }
 
-/** Per-peer switches; greyed while the main switch is off. */
+/** A checkable menu row: the tick is the state; greyed while disabled. */
 @Composable
-private fun PeerDetail(vm: AppViewModel, p: Peer) {
-    val ents by vm.peerEntities.collectAsState()
-    val e = ents.firstOrNull { it.id == p.id } ?: return
-    val s = vm.g.settings
-    val showOn = Policy.peerSwitchEnabled(s.showContent)
-    val lockOn = Policy.peerLockEnabled(s.showContent, s.lockScreen, e.showContent)
-    SwitchRow("Allow message content in notifications", e.showContent && showOn, showOn) { vm.setPeerSwitch(p.id, showContent = it) }
-    SwitchRow("Allow message content on lock screen", e.lockScreen && lockOn, lockOn) { vm.setPeerSwitch(p.id, lock = it) }
-    SwitchRow("Send messages to watch", e.watch, Policy.peerSwitchEnabled(s.watch)) { vm.setPeerSwitch(p.id, watch = it) }
+private fun CheckItem(text: String, checked: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
+    DropdownMenuItem(text = { Text(text) }, onClick = onClick, enabled = enabled,
+        modifier = Modifier.semantics { stateDescription = if (checked) "On" else "Off" },
+        trailingIcon = { Checkbox(checked, null, enabled = enabled) })
 }
 
 /** A switch row; the whole row is the toggle target. */
@@ -1212,7 +1211,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                     }
                 }
                 add { m ->
-                    SwitchRow("Send messages to watch", b(Settings.K.WATCH, true), sub = "When off, nothing is sent to your watch.",
+                    SwitchRow("Allow sending messages to watch", b(Settings.K.WATCH, true), sub = "When off, nothing is sent to your watch.",
                         modifier = m.then(pad)) { vm.setPref(Settings.K.WATCH, it) }
                 }
                 if (vm.g.push.hasPlayServices) add { m ->
