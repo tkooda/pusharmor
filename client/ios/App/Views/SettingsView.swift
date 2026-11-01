@@ -111,20 +111,6 @@ struct SettingsView: View {
                     Button("Delete all history", role: .destructive) { confirmDeleteHistory = true }
                 }
 
-                let hidden = model.peers.filter { $0.hidden }
-                if !hidden.isEmpty {
-                    Section("Hidden devices") {
-                        ForEach(hidden, id: \.id.text) { p in
-                            HStack {
-                                Text(model.label(p))
-                                Spacer()
-                                Button("Unhide") { model.setHidden(p, false) }
-                                    .buttonStyle(.borderless)
-                            }
-                        }
-                    }
-                }
-
                 if model.phase == .main {
                     Section("Account") {
                         // One centered row, Delete account then Log out (I610). Log out acts at once (Q367).
