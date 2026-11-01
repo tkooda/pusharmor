@@ -288,9 +288,10 @@ button.danger { color: #ffffff; background: #b3261e; border-color: #b3261e; }
   padding-bottom: 0.75rem;
 }
 .shot { flex: 0 0 min(12rem, 62vw); margin: 0; scroll-snap-align: start; }
-.shot-android { --shot-ar: 560 / 996; }
+.shot-android { --shot-ar: 560 / 1244; }
 .shot-iphone { --shot-ar: 560 / 1217; }
 .shot-popup { --shot-ar: 400 / 560; }
+.shot-popup .shot-wide { flex-basis: min(24.75rem, 86vw); --shot-ar: 800 / 560; }
 .shot .shot-link { aspect-ratio: var(--shot-ar); }
 .shot img {
   display: block;
