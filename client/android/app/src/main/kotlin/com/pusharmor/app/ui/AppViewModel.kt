@@ -295,6 +295,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun deleteAllHistory() = io { g.dao.deleteAllHistory() }
+    fun deleteHistory(ids: List<Long>) = io { g.dao.deleteHistory(ids) }
     fun markRead(id: Long) = io { g.dao.markRead(id) }
     fun rename(name: String) = io { g.session.rename(name)?.let { message.value = it } }
     fun signOut(onDone: () -> Unit) = once("logout") {
