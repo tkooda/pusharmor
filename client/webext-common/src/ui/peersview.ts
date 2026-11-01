@@ -22,7 +22,7 @@ const ACTION_LABEL: Record<string, string> = {
 };
 // Display order of a row's actions: the main action first, the row tools last.
 const ACTION_ORDER = ["pair", "pair_again", "approve", "approve_again", "reply", "send_again", "deny", "cancel", "localDelete", "remove", "hide", "unhide"];
-const ACTION_CLASS: Record<string, string> = { pair: "tonal", pair_again: "tonal", approve: "approve", reply: "tonal" };
+const ACTION_CLASS: Record<string, string> = { pair: "approve", pair_again: "tonal", approve: "approve", reply: "tonal" };
 // Row tools live in the overflow menu.
 const MENU = new Set(["remove", "hide", "unhide", "localDelete"]);
 // With Pair again on the row, Cancel pairing moves to the overflow menu.
