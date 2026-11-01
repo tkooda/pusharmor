@@ -147,6 +147,8 @@ import com.pusharmor.app.ui.theme.MiddleEllipsisText
 import com.pusharmor.app.ui.theme.PaIcons
 import com.pusharmor.app.ui.theme.PaTopBar
 import com.pusharmor.app.ui.theme.TonalGreenButton
+import com.pusharmor.app.ui.theme.softGreenFill
+import com.pusharmor.app.ui.theme.softGreenText
 import com.pusharmor.app.ui.theme.SectionHeader
 import com.pusharmor.app.ui.theme.ThemePref
 import com.pusharmor.app.ui.theme.StatusLine
@@ -813,7 +815,8 @@ private fun DeviceChip(icon: ImageVector, name: String, selected: Boolean, enabl
         modifier = Modifier.alpha(if (enabled) 1f else 0.5f).semantics { if (status != null) contentDescription = "$name, $status" },
         label = { Text(name, Modifier.widthIn(max = 240.dp), maxLines = 1, overflow = TextOverflow.Ellipsis) },
         leadingIcon = { Icon(if (selected && enabled) PaIcons.Check else icon, null, Modifier.size(18.dp)) },
-        colors = FilterChipDefaults.filterChipColors(containerColor = LocalPaExtra.current.tile, selectedContainerColor = cs.secondaryContainer),
+        colors = FilterChipDefaults.filterChipColors(containerColor = LocalPaExtra.current.tile, selectedContainerColor = softGreenFill(LocalPaExtra.current.dark),
+            selectedLabelColor = softGreenText(LocalPaExtra.current.dark), selectedLeadingIconColor = softGreenText(LocalPaExtra.current.dark)),
         border = FilterChipDefaults.filterChipBorder(enabled = true, selected = selected && enabled, borderColor = cs.outline, selectedBorderColor = Color.Transparent))
 }
 
