@@ -18,12 +18,13 @@ const SHOTS = [
   ["03-history-received-link", "history"],
 ];
 // --popup=<dir>: the About-page popup shots (plus the send message and the Remove confirm) (400x560 popup alone, captured at 2x: 800x1120 files).
-// --review=<dir>: also write review images (sign-in, Settings, Log out) there; not store shots.
+// --review=<dir>: also write review images (sign-in, Settings, Log out, last device menu) there; not store shots.
 const REVIEW = [
   ["90-signin", "signin.html#email"],
   ["91-settings", "shots.html#settings"],
   ["92-signout", "shots.html#signout"],
   ["93-signin-popup", "signin.html#popup"],
+  ["94-device-menu-last", "shots.html?bare&n=9&menu=last#peers"],
 ];
 const POPUP = [
   ["04-first-pair-waiting", "shots.html?bare&n=0&wait#peers"],

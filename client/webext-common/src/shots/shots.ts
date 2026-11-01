@@ -166,6 +166,14 @@ async function main(): Promise<void> {
     [...document.querySelectorAll<HTMLElement>("[role=menuitem]")].find((b) => b.textContent === "Remove device from account")?.click();
     await new Promise((done) => setTimeout(done, 300));
   }
+  // ?menu=last: the overflow menu of the last device row, scrolled to the bottom of the list
+  if (q.get("menu") === "last") {
+    await new Promise((done) => setTimeout(done, 500));
+    const pn = document.getElementById("panel")!;
+    pn.scrollTop = pn.scrollHeight;
+    [...document.querySelectorAll<HTMLElement>(".prow .more button")].pop()?.click();
+    await new Promise((done) => setTimeout(done, 300));
+  }
   // ?open: the newest History row is opened (its actions show)
   if (q.has("open")) {
     await new Promise((done) => setTimeout(done, 500));

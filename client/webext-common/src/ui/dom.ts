@@ -204,6 +204,12 @@ export function midEllipsis(el: HTMLElement, text: string): void {
   }
 }
 
+/** Overflow menu placement: open upward when it does not fit below and there is more room above; cap its height to the chosen side. */
+export function menuFit(menuH: number, below: number, above: number): { up: boolean; maxH: number } {
+  const up = menuH > below && above > below;
+  return { up, maxH: Math.max(0, Math.floor(up ? above : below)) };
+}
+
 /** A more_vert button that opens a small menu (Escape and outside click close it). */
 export function overflowMenu(label: string, items: { label: string; run: (b: HTMLButtonElement) => void; checked?: boolean; disabled?: boolean; separator?: boolean }[], moreIcon: Node): HTMLElement {
   const wrap = h("span", { class: "more" });
@@ -245,6 +251,13 @@ export function overflowMenu(label: string, items: { label: string; run: (b: HTM
       ev.preventDefault();
     });
     wrap.append(menu);
+    // keep the menu inside the visible part of #panel (or the window): 34px is the .menu offset from the button row
+    const view = wrap.closest("#panel")?.getBoundingClientRect();
+    const top = Math.max(view?.top ?? 0, 0), bottom = Math.min(view?.bottom ?? innerHeight, innerHeight);
+    const r = wrap.getBoundingClientRect();
+    const fit = menuFit(menu.offsetHeight, bottom - (r.top + 34) - 8, r.bottom - 34 - top - 8);
+    menu.classList.toggle("up", fit.up);
+    menu.style.maxHeight = fit.maxH + "px";
     btn.setAttribute("aria-expanded", "true");
     document.addEventListener("pointerdown", outside, true);
     menu.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
