@@ -21,7 +21,7 @@ const ACTION_LABEL: Record<string, string> = {
 };
 // Display order of a row's actions: the main action first, the row tools last.
 const ACTION_ORDER = ["pair", "pair_again", "approve", "approve_again", "reply", "send_again", "deny", "cancel", "localDelete", "remove", "hide", "unhide"];
-const ACTION_CLASS: Record<string, string> = { pair: "tonal", pair_again: "tonal", approve: "primary", reply: "tonal" };
+const ACTION_CLASS: Record<string, string> = { pair: "tonal", pair_again: "tonal", approve: "approve", reply: "tonal" };
 // Row tools live in the overflow menu.
 const MENU = new Set(["remove", "hide", "unhide", "localDelete"]);
 // With Pair again on the row, Cancel pairing moves to the overflow menu.
@@ -178,7 +178,7 @@ export function ownCard(env: UiEnv, name: string, platform: string): HTMLElement
 }
 
 function actionButton(env: UiEnv, a: string, p: PeerView, redraw: Redraw, cls = ACTION_CLASS[a] ?? ""): HTMLButtonElement {
-  const b = h("button", cls ? { class: cls } : {}, ...(a === "approve" ? [icon("check", 18)] : []), ACTION_LABEL[a] ?? a) as HTMLButtonElement;
+  const b = h("button", cls ? { class: cls } : {}, ACTION_LABEL[a] ?? a) as HTMLButtonElement;
   b.addEventListener("click", () => void act(env, a, p, b, redraw));
   return b;
 }

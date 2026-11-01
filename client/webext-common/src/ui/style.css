@@ -58,6 +58,7 @@ button.big .lbl { display: inline-flex; min-width: 0; white-space: pre; }
 button.big .lbl .who { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 button.quiet { border-color: transparent; padding: 0 10px; }
 button.tonal { background: var(--pc); color: var(--onpc); border-color: transparent; }
+button.approve { background: var(--okc); color: var(--onokc); border-color: transparent; font-weight: 600; }
 button.danger { border-color: var(--err); color: var(--err); }
 button.errtext { color: var(--err); padding: 0; height: 28px; }
 button.ib { width: 32px; height: 32px; padding: 0; color: var(--ink2); border-radius: var(--rf); }
