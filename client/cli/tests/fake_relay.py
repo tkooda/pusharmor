@@ -139,8 +139,10 @@ class Net:
             return self.reply(200, {"r": self.relay(me, b["m"])})
         if method == "DELETE":
             self.peers.pop(parts[1], None)
-            for p in self.peers.values():
+            for pid, p in self.peers.items():
                 p["allow"].discard(parts[1])
+                if pid in b["m"] and pid != me:
+                    p["rm"][parts[1]] = b["m"][pid]
             return self.reply(200, {"r": self.relay(me, b["m"])})
         if parts == ["send"]:
             return self.reply(200, {"r": self.relay(me, b["m"])})
@@ -197,7 +199,7 @@ class Net:
         pid = pa.b64e(pa.peer_id(ID_SECRET, ACCOUNT, kh))
         self.peers[pid] = {"sign_pub": b["sign_pub"], "enc_pub": b["enc_pub"], "platform": "cli",
                            "created": int(time.time()), "push": b["push"], "push_ok": False, "probe": "",
-                           "allow": set(), "names": {}, "pending": {}, "logged_out": False}
+                           "allow": set(), "names": {}, "pending": {}, "logged_out": False, "rm": {}}
         self.probe(pid)
         out = self.list_body(pid)
         out["id"] = pid
@@ -213,7 +215,10 @@ class Net:
                   "created": p["created"], "logged_out": p["logged_out"], "approves_me": me in p["allow"],
                   "denies_me": False, "reachable": True, "name_for_me": p["names"].get(me)}
                  for i, p in self.peers.items()]
-        return {"my_push_sha256": None, "my_allow": sorted(self.peers[me]["allow"]), "peers": peers}
+        out = {"my_push_sha256": None, "my_allow": sorted(self.peers[me]["allow"]), "peers": peers}
+        if self.peers[me]["rm"]:
+            out["removed"], self.peers[me]["rm"] = self.peers[me]["rm"], {}
+        return out
 
     def reply(self, status, obj):
         return status, {"pa-epoch": str((int(time.time() * 1000) + self.clock_ms) // 1000)}, json.dumps(obj).encode()

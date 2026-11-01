@@ -1655,6 +1655,11 @@ class Ctx:
 def merge_peers(d, j, k):
     me, acct, peers = k["id"], b64d(k["id"])[:9], d["peers"]
     d["my_allow"] = [x for x in j["my_allow"] if isinstance(x, str)] if isinstance(j.get("my_allow"), list) else []
+    listed = {it.get("id") for it in j["peers"] if isinstance(it, dict)} if isinstance(j.get("peers"), list) else set()
+    # stored remove messages (optional "removed"): opened with the pre-merge pins, quiet, like a live push
+    for b, m in list(j["removed"].items())[:8] if isinstance(j.get("removed"), dict) else []:
+        if isinstance(m, str) and b != me and b not in listed:
+            open_fetched_remove(d, k, b, m)
     seen = []
     for it in j.get("peers", []) if isinstance(j.get("peers"), list) else []:
         if not isinstance(it, dict) or it.get("id") == me:
@@ -1693,6 +1698,24 @@ def merge_peers(d, j, k):
             elif pid not in d["pairs"]:
                 del peers[pid]
     d["listed"] = seen
+
+
+def open_fetched_remove(d, k, b, m):
+    """Applies a fetched remove(b) only when it opens fresh and valid from a pinned peer; else drops it silently."""
+    pins = {pid: {"sign_pub": b64d(p["sign_pub"]), "enc_pub": b64d(p["enc_pub"]),
+                  "pairing_id": b64d(p["pairing_id"]), "ruling": p["ruling"],
+                  "window": {"h": p["h"], "seen": p["seen"]}}
+            for pid, p in d["peers"].items() if p["pinned"] and p["pairing_id"]}
+    r = open_message(m, k["id"], k["enc"], b64d(k["id"])[:9], pins)
+    if r["outcome"] != "accept" or r["type"] != "remove" or r["value"] != b:
+        return
+    p = d["peers"][r["from"]]
+    w = window_accept({"h": p["h"], "seen": p["seen"]}, r["n"])
+    p["h"], p["seen"] = w["h"], w["seen"]
+    q = d["peers"].pop(b, None)
+    d["pairs"].pop(b, None)
+    if q:
+        log(peer_label(q) + " was removed from your account")
 
 
 def reconcile_allow(cx):
