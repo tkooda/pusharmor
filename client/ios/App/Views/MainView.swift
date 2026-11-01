@@ -156,7 +156,7 @@ struct HistoryTab: View {
     var body: some View {
         NavigationStack {
             List {
-                HistoryView(onSend: onSend, onPair: onPair, selection: $selection, confirmDelete: $confirmDelete)
+                HistoryView(selection: $selection, confirmDelete: $confirmDelete, onSend: onSend, onPair: onPair)
             }
             .onChange(of: model.history.map(\.rowid)) { _, ids in selection.keep(only: Set(ids)) }
             .onDisappear { selection.exit() }
