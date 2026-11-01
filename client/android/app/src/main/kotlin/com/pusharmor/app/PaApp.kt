@@ -81,7 +81,7 @@ class Graph(val app: PaApp) {
     fun approve(fcm: Boolean = true) = ApproveFlow(store, identity()!!, client, effects(fcm))
     fun receive(fcm: Boolean) = ReceiveEngine(store, identity()!!, effects(fcm))
     fun sender() = SendFlow(store, identity()!!, client, effects(true))
-    fun sync() = PeersSync(store, identity()!!)
+    fun sync() = PeersSync(store, identity()!!, effects(false))
     fun reconcile() = AllowReconcile(store, client) { session.selfRemoved(deleted = false, lostKeys = false) }
     fun logoutFlow() = LogoutFlow(store, identity()!!, client, reconcile())
 }

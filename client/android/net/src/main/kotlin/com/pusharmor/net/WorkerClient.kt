@@ -251,6 +251,7 @@ class WorkerClient(
         myPushSha256 = (j["my_push_sha256"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content,
         myAllow = (j["my_allow"] as? JsonArray)?.map { it.jsonPrimitive.content } ?: emptyList(),
         peers = (j["peers"] as? JsonArray)?.mapNotNull { e -> listed(e) } ?: emptyList(),
+        removed = (j["removed"] as? JsonObject)?.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.takeIf { it.isString }?.content?.let { k to it } }?.toMap() ?: emptyMap(),
     )
 
     private fun listed(e: JsonElement): ListedPeer? = try {

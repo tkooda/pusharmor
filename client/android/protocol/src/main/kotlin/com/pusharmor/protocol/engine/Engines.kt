@@ -270,6 +270,19 @@ class ReceiveEngine(
         return inbound
     }
 
+    /**
+     * Fetched remove(B) from GET /peers, opened like a live push but quiet: only a fresh, verified
+     * remove naming [targetId] applies; anything else is dropped with no notice and no History row.
+     * Runs inside the caller's transaction; returns the notices to post after it commits.
+     */
+    fun onFetchedRemove(wire: String, targetId: String, now: Long): (() -> Unit)? {
+        val inbound = ReceivePipeline.run(wire, me.keys, me.id, me.account, store::peer, store::window, store::historyIdFor)
+        if (inbound !is Inbound.Accepted) return null
+        val e = inbound.effect
+        if (e !is Effect.Remove || e.targetId != targetId) return null
+        return apply(inbound, now)
+    }
+
     private fun rePresentControl(peerId: String, body: MessageBody) {
         val peer = store.peer(peerId)
         when (body) {
@@ -338,12 +351,20 @@ class ReceiveEngine(
 }
 
 /** Merge of GET /peers into the local rows (catalog Removal rules, Approvals). */
-class PeersSync(private val store: LocalStore, private val me: Identity) {
-    fun merge(reply: PeersReply) {
+class PeersSync(private val store: LocalStore, private val me: Identity, effects: Effects = object : Effects {}) {
+    private val receive = ReceiveEngine(store, me, effects)
+
+    fun merge(reply: PeersReply, now: Long = System.currentTimeMillis()) {
+        val after = ArrayList<() -> Unit>()
         store.tx {
             store.replaceAllowSet(reply.myAllow)
             val listed = reply.peers.filter { it.id != me.id && PeerList.entryValid(it.id, it.signPub, it.encPub, me.account) }
             val ids = listed.map { it.id }.toSet()
+            // signed removes handed over by the Worker, opened with the pre-merge pins
+            for ((b, wire) in reply.removed) {
+                if (b in ids || b == me.id) continue
+                receive.onFetchedRemove(wire, b, now)?.let { after.add(it) }
+            }
             for (l in listed) {
                 val old = store.peer(l.id)
                 var p = (old ?: Peer(id = l.id)).copy(
@@ -367,6 +388,7 @@ class PeersSync(private val store: LocalStore, private val me: Identity) {
                 else if (store.pairing(p.id) == null) store.deletePeer(p.id)
             }
         }
+        after.forEach { it() }
     }
 }
 
