@@ -28,7 +28,7 @@ struct SelectableText: UIViewRepresentable {
         v.isEditable = false
         v.isSelectable = true
         v.backgroundColor = .clear
-        v.font = UIFont.preferredFont(forTextStyle: .body)
+        v.font = UIFont.preferredFont(forTextStyle: .title3)
         v.adjustsFontForContentSizeCategory = true
         v.textContainerInset = UIEdgeInsets(top: 16, left: 12, bottom: 16, right: 12)
         v.text = text
