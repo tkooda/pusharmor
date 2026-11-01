@@ -54,7 +54,7 @@ final class ScreenshotTests: XCTestCase {
         sleep(1)
         shot("03-devices")
         // the just-paired row expanded: its switches, Hide and Remove
-        let lockShow = app.switches["Show message content on lock screen"]
+        let lockShow = app.switches["Allow message content on lock screen"]
         for _ in 0..<2 where !lockShow.exists {
             labelled(app, "Galaxy S23").tap()
             _ = lockShow.waitForExistence(timeout: 10)

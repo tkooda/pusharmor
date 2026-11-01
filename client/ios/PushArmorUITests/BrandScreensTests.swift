@@ -134,15 +134,15 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertFalse(app.buttons["Save"].exists)
     }
 
-    /// I610: Show message content in notifications sits above the lock screen switch, which is
+    /// I610: Allow message content in notifications sits above the lock screen switch, which is
     /// disabled while content is off; Delete account and Log out share one centered row.
     func testContentSwitchAndAccountRow() {
         let app = launch()
         let tab = app.tabBars.buttons["Settings"]
         XCTAssertTrue(tab.waitForExistence(timeout: 30))
         tab.tap()
-        let show = app.switches["Show message content in notifications"]
-        let lock = app.switches["Show message content on lock screen"]
+        let show = app.switches["Allow message content in notifications"]
+        let lock = app.switches["Allow message content on lock screen"]
         for _ in 0..<10 where !(show.exists && show.isHittable && lock.exists && lock.isHittable) { app.swipeUp() }
         XCTAssertFalse(app.switches["Always hide content"].exists)
         XCTAssertLessThan(show.frame.minY, lock.frame.minY)
