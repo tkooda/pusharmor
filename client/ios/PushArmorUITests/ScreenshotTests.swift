@@ -63,10 +63,22 @@ final class ScreenshotTests: XCTestCase {
         shot("05-history")
         app.terminate()
 
+        app = launch(store + ["-PAScreenshotsDetailText"])
+        XCTAssertTrue(app.buttons["Read"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Save"].exists)
+        sleep(1)
+        shot("06-history-text")
+        app.buttons["Read"].tap()
+        XCTAssertTrue(app.buttons["readClose"].waitForExistence(timeout: 10))
+        sleep(1)
+        shot("08-read")
+        app.terminate()
+
         app = launch(store + ["-PAScreenshotsDetail"])
         XCTAssertTrue(app.buttons["Copy"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Open"].exists)
         sleep(1)
-        shot("06-history-open")
+        shot("07-history-link")
         app.terminate()
 
         app = launch(store)
@@ -75,7 +87,13 @@ final class ScreenshotTests: XCTestCase {
         settings.tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
         sleep(1)
-        shot("07-settings")
+        shot("09-settings")
+        // Settings is longer than one screen: the rest, scrolled to the Account section
+        let logOut = app.buttons["Log out"]
+        for _ in 0..<10 where !(logOut.exists && logOut.isHittable) { app.swipeUp() }
+        XCTAssertTrue(logOut.isHittable)
+        sleep(1)
+        shot("10-settings-more")
         app.terminate()
     }
 

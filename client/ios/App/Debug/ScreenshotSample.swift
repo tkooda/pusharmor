@@ -42,7 +42,7 @@ enum ScreenshotSample {
     /// -PAScreenshotsDetail: History opens with message 1 in its detail sheet (a received link
     /// opens in the browser on a tap, so the sheet is how its actions show).
     static func detail(_ rows: [HistoryRow]) -> HistoryRow? {
-        if args.contains("-PAScreenshotsDetailText") { return rows.first { $0.type == "text" && $0.dir == .incoming } }
+        if args.contains("-PAScreenshotsDetailText") { return rows.first { $0.type == "text" && $0.dir == .incoming && $0.content.count > 100 } }
         return args.contains("-PAScreenshotsDetail") ? rows.first { $0.content.contains("Union_Station") } : nil
     }
 
@@ -92,7 +92,7 @@ enum ScreenshotSample {
         // Oldest first, so message 1 is the newest. Message 1 is from Work laptop: iPhone 15 is this device.
         try store.addMessage(dir: .incoming, peer: galaxy, type: "text", content: "Meeting moved to 3:30 pm", n: nil,
                              pairingId: nil, read: true, results: nil, now: clock - 3 * 3600)
-        try store.addMessage(dir: .incoming, peer: homePC, type: "text", content: "Pick up milk and eggs on the way home",
+        try store.addMessage(dir: .incoming, peer: homePC, type: "text", content: "Pick up milk and eggs on the way home. Also get bread, two lemons, and some basil for the soup. The shop closes at 8 pm, so leave by 7:30 and call me if anything is missing.",
                              n: nil, pairingId: nil, read: true, results: nil, now: clock - 2 * 3600)
         try store.addMessage(dir: .outgoing, peer: laptop, type: "url", content: "https://github.com/tkooda/pusharmor", n: nil,
                              pairingId: nil, read: true, results: "{\"\(StoreIds.laptop)\":\"sent\"}", now: clock - 3600)
