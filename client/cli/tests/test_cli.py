@@ -68,9 +68,9 @@ def login(monkeypatch, cfg):
     return my_id(cfg)
 
 
-def pair_two(monkeypatch, net, a, b):
-    """a runs pair b; once a's commit reached b, b runs pair a. Both approve."""
-    ida, idb = login(monkeypatch, a), login(monkeypatch, b)
+def pair_two(monkeypatch, net, a, b, ids=None):
+    """a runs pair b; once a's commit reached b, b runs pair a. Both approve. ids: both already logged in."""
+    ida, idb = ids or (login(monkeypatch, a), login(monkeypatch, b))
     monkeypatch.setattr(pa, "input", lambda prompt="": "y", raising=False)
     codes = {}
     before = net.count(idb)
@@ -386,6 +386,31 @@ def test_pair_send_listen(net, tmp_path, monkeypatch, capsys):
     assert idb not in net.peers and idb not in state(a)["peers"]
     assert run(b, "listen") == 3
     assert not os.path.exists(b / "keys" / "private.toml")
+
+
+def test_peer_list_opens_stored_remove_messages(net, tmp_path, monkeypatch, capsys):
+    a, b, c = tmp_path / "a", tmp_path / "b", tmp_path / "c"
+    ida, idb = pair_two(monkeypatch, net, a, b)
+    idc = login(monkeypatch, c)
+    pair_two(monkeypatch, net, b, c, (idb, idc))
+    assert state(b)["peers"][idc]["ruling"] == "approved"
+    # a removes c; the relay server keeps the remove for b, and b reads it from the peer list, not the push
+    assert run(a, "pair") == 0  # a lists c
+    answers(monkeypatch, "y")
+    assert run(a, "delete", pa.id_hex(idc)[:6]) == 0
+    m = net.peers[idb]["rm"].pop(idc)
+    capsys.readouterr()
+    # quiet drops: unreadable, and a remove that names another device; c stays, marked missing
+    net.peers[idb]["rm"] = {idc: "x" * 50, ida: m}
+    assert run(b, "pair") == 0
+    assert state(b)["peers"][idc]["missing"] and net.peers[idb]["rm"] == {}
+    err = capsys.readouterr().err
+    assert "nvalid" not in err and "read" not in err
+    # a fresh, valid remove(c) from a pinned peer applies
+    net.peers[idb]["rm"] = {idc: m}
+    assert run(b, "pair") == 0
+    assert idc not in state(b)["peers"] and ida in state(b)["peers"]
+    assert "was removed from your account" in capsys.readouterr().err
 
 
 def test_listen_keeps_a_message_it_could_not_show(net, tmp_path, monkeypatch, capsys):
