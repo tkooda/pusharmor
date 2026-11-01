@@ -672,7 +672,7 @@ fun SwitchRow(text: String, checked: Boolean, enabled: Boolean = true, sub: Stri
 
 private val Modifier.rowPad get() = this.padding(horizontal = 16.dp)
 
-/** Send: field, type caption and counter, "Send as text", device chips, green Send pinned at the bottom (above the keyboard). */
+/** Send: field, type caption and counter, "Send as text", then the device chips just above the green Send pinned at the bottom (above the keyboard). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null, title: String? = null, inDialog: Boolean = false, onPair: () -> Unit = {}, onSent: (AppViewModel.SendResult) -> Unit = {}) {
@@ -742,36 +742,39 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
             // Chips and Send keep their space, and the field gets what is left; when that is too little, the page scrolls.
             Column(Modifier.weight(1f, fill = !inDialog).fillMaxWidth().onSizeChanged { areaPx = it.height }
                 .then(if (scrolls) Modifier.verticalScroll(rememberScrollState()) else Modifier)) {
-                // The field starts at 4 lines and grows with its text up to the free space, then scrolls inside;
-                // with the keyboard up it shrinks first, to 2 lines while the chips still fit.
-                OutlinedTextField(text, { text = it }, modifier = Modifier.rowPad.fillMaxWidth().then(if (scrolls) Modifier else Modifier.weight(1f, fill = false))
-                    .padding(top = if (title == null) 16.dp else 0.dp), minLines = 4, label = { Text("Message") },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = ex.tile, unfocusedContainerColor = ex.tile,
-                        focusedBorderColor = cs.primary, unfocusedBorderColor = cs.outline))
-                val counter = UiText.showCounter(bytes)
-                if (extras) Column(Modifier.onSizeChanged { extrasPx = it.height }) {
-                    val box = detected != ContentType.TEXT
-                    if (text.isNotEmpty() || counter || box) {
-                        // One row: the caption and counter at the left, "Send as text" at the far right (I617).
-                        Row(Modifier.padding(start = 32.dp, end = if (box) 16.dp else 32.dp, top = if (box) 0.dp else 6.dp).fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                if (text.isNotEmpty()) TypeCaption(type)
-                                if (counter) Text(UiText.counter(bytes), style = MaterialTheme.typography.bodySmall, color = cs.error)
-                            }
-                            if (box) Row(Modifier.heightIn(min = 40.dp).toggleable(asText, role = Role.Checkbox) { asText = it },
-                                verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(asText, null)
-                                Spacer(Modifier.width(12.dp))
-                                Text("Send as text", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                // The field and its caption row take the free space, so the chips sit at the bottom, just above Send.
+                Column(if (scrolls) Modifier else Modifier.weight(1f, fill = !inDialog)) {
+                    // The field starts at 4 lines and grows with its text up to the free space, then scrolls inside;
+                    // with the keyboard up it shrinks first, to 2 lines while the chips still fit.
+                    OutlinedTextField(text, { text = it }, modifier = Modifier.rowPad.fillMaxWidth().then(if (scrolls) Modifier else Modifier.weight(1f, fill = false))
+                        .padding(top = if (title == null) 16.dp else 0.dp), minLines = 4, label = { Text("Message") },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = ex.tile, unfocusedContainerColor = ex.tile,
+                            focusedBorderColor = cs.primary, unfocusedBorderColor = cs.outline))
+                    val counter = UiText.showCounter(bytes)
+                    if (extras) Column(Modifier.onSizeChanged { extrasPx = it.height }) {
+                        val box = detected != ContentType.TEXT
+                        if (text.isNotEmpty() || counter || box) {
+                            // One row: the caption and counter at the left, "Send as text" at the far right (I617).
+                            Row(Modifier.padding(start = 32.dp, end = if (box) 16.dp else 32.dp, top = if (box) 0.dp else 6.dp).fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    if (text.isNotEmpty()) TypeCaption(type)
+                                    if (counter) Text(UiText.counter(bytes), style = MaterialTheme.typography.bodySmall, color = cs.error)
+                                }
+                                if (box) Row(Modifier.heightIn(min = 40.dp).toggleable(asText, role = Role.Checkbox) { asText = it },
+                                    verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(asText, null)
+                                    Spacer(Modifier.width(12.dp))
+                                    Text("Send as text", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                                }
                             }
                         }
+                    } else if (counter) {
+                        // The counter does not give way: with the keyboard up it still says why Send is greyed.
+                        Text(UiText.counter(bytes), Modifier.padding(start = 32.dp, end = 32.dp, top = 6.dp).fillMaxWidth(),
+                            style = MaterialTheme.typography.bodySmall, color = cs.error, textAlign = TextAlign.End)
                     }
-                } else if (counter) {
-                    // The counter does not give way: with the keyboard up it still says why Send is greyed.
-                    Text(UiText.counter(bytes), Modifier.padding(start = 32.dp, end = 32.dp, top = 6.dp).fillMaxWidth(),
-                        style = MaterialTheme.typography.bodySmall, color = cs.error, textAlign = TextAlign.End)
                 }
                 val chips = UiText.sortedByName(others(peers, me?.id).filter { it.pinned && !it.hidden }, ::label)
                 if (UiText.noDevicesShown(me != null, chips.size)) Column(Modifier.onSizeChanged { chipsPx = it.height }.rowPad.padding(top = 16.dp).fillMaxWidth()) {

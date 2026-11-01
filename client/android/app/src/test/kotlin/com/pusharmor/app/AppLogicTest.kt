@@ -313,6 +313,17 @@ class AppLogicTest {
         assertTrue(screen in 0 until button && sends[0] > button && sends[0] < main.indexOf("text = UiText.sendLabel", button))
     }
 
+    @Test fun sendChipsSitAtTheBottomJustAboveSend() {
+        // As on iOS, the free space goes under the field and its caption row, so the chips sit just above Send.
+        val main = source("ui/MainScreens.kt")
+        val screen = main.substring(main.indexOf("fun SendScreen("), main.indexOf("private fun TypeCaption("))
+        val top = screen.indexOf("Column(if (scrolls) Modifier else Modifier.weight(1f, fill = !inDialog)) {")
+        val field = screen.indexOf("OutlinedTextField(text")
+        val chips = screen.indexOf("val chips = UiText.sortedByName")
+        val send = screen.indexOf("GreenButton(onClick")
+        assertTrue(top in 0 until field && field < chips && chips < send)
+    }
+
     @Test fun lastSendSelectionNeverBlocksTheMainThread() {
         // The Send screen reads and saves its last selection on the main thread: only suspending DataStore calls (I434).
         for (name in listOf("lastSendTo", "saveSendTo")) {
