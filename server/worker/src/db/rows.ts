@@ -20,6 +20,7 @@ export interface ListRow {
   reachable: number;
   logged_out: number;
   my_push: string | null;
+  my_rm: string | null;
   name_for_me: string | null;
 }
 

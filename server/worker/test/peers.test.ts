@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { env } from "cloudflare:test";
 import { b64urlEncode } from "../src/codec/b64url";
-import { acctOf, call, cliCodeFor, initP256, keys, message, newPeer, pushFor, randomEmail, register, row, setAllow, ticketFor, vendorRequests } from "./helpers";
+import { type Peer, acctOf, call, cliCodeFor, initP256, keys, message, newPeer, pushFor, randomEmail, register, row, setAllow, ticketFor, vendorRequests } from "./helpers";
 import { LABEL_TICKET, makeTicket, openToken } from "../src/crypto/tokens";
 import { TEST_SECRETS as S } from "./secrets";
 import { PUSH_FAILED_COL } from "../src/db/sql";
@@ -486,5 +486,130 @@ describe("pipeline", () => {
     expect((await call("GET", "/v1/nope")).status).toBe(404);
     expect((await call("PUT", "/v1/send")).status).toBe(405);
     expect((await call("POST", "/v1/approve/short", {})).status).toBe(400);
+  });
+});
+
+const NOW = Math.floor(Date.now() / 1000);
+describe("stored remove messages (peers.rm, Q410)", () => {
+  const rmOf = async (id: string) => JSON.parse((await row(id))!.rm as string) as Record<string, [number, string]>;
+  async function trio() {
+    const email = randomEmail();
+    const [a, b, c] = [await newPeer(email), await newPeer(email), await newPeer(email)];
+    await setAllow(a, [b.id, c.id]);
+    return { a, b, c };
+  }
+
+  it("DELETE stores m[C] in C's row; GET delivers it once and clears it", async () => {
+    const { a, b, c } = await trio();
+    const msg = message(300);
+    const d = await call("DELETE", "/v1/peers/" + b.id, { m: { [c.id]: msg } }, { peer: a });
+    expect(d.status).toBe(200);
+    const stored = await rmOf(c.id);
+    expect(Object.keys(stored)).toEqual([b.id]);
+    expect(stored[b.id][1]).toBe(msg);
+    expect(await row(a.id)).toMatchObject({ rm: "{}" });
+    const g = await call("GET", "/v1/peers", undefined, { peer: c });
+    expect(g.body.removed).toEqual({ [b.id]: msg });
+    expect((await row(c.id))!.rm).toBe("{}");
+    const g2 = await call("GET", "/v1/peers", undefined, { peer: c });
+    expect("removed" in g2.body).toBe(false);
+    expect("removed" in (await call("GET", "/v1/peers", undefined, { peer: a })).body).toBe(false);
+  });
+
+  it("compare-and-clear keeps an entry written between the read and the clear", async () => {
+    const { a, b, c } = await trio();
+    await call("DELETE", "/v1/peers/" + b.id, { m: { [c.id]: message(100) } }, { peer: a });
+    const read = (await row(c.id))!.rm as string;
+    const newer = JSON.stringify({ ...JSON.parse(read), x: [NOW, message(50)] });
+    await env.DB.prepare("UPDATE peers SET rm = ?1 WHERE id = ?2").bind(newer, c.id).run();
+    const { W_RM_CLEAR } = await import("../src/db/sql");
+    const r = await env.DB.prepare(W_RM_CLEAR).bind(c.id, c.id.slice(0, 12), read).run();
+    expect(r.meta.changes).toBe(0);
+    expect((await row(c.id))!.rm).toBe(newer);
+  });
+
+  it("keeps the newest 8 entries and drops entries older than 30 days on write", async () => {
+    const email = randomEmail();
+    const a = await newPeer(email);
+    const c = await newPeer(email);
+    const old = NOW - 2592000 - 100;
+    const seed: Record<string, [number, string]> = {};
+    for (let i = 0; i < 7; i++) seed["S" + String(i).padStart(39, "0")] = [NOW - 1000 + i, message(40)];
+    seed["O" + "0".repeat(39)] = [old, message(40)];
+    await env.DB.prepare("UPDATE peers SET rm = ?1 WHERE id = ?2").bind(JSON.stringify(seed), c.id).run();
+    const target = await newPeer(email);
+    await call("DELETE", "/v1/peers/" + target.id, { m: { [c.id]: message(60) } }, { peer: a });
+    let s = await rmOf(c.id);
+    expect(Object.keys(s).length).toBe(8);
+    expect(s["O" + "0".repeat(39)]).toBeUndefined();
+    expect(s[target.id]).toBeDefined();
+    // Two more removals: the oldest seeded entries fall out, the count stays 8.
+    for (let i = 0; i < 2; i++) {
+      const t = await newPeer(email);
+      await call("DELETE", "/v1/peers/" + t.id, { m: { [c.id]: message(60) } }, { peer: a });
+    }
+    s = await rmOf(c.id);
+    expect(Object.keys(s).length).toBe(8);
+    expect(s["S" + "0".repeat(39)]).toBeUndefined();
+    expect(s["S" + "0".repeat(38) + "1"]).toBeUndefined();
+    expect(s["S" + "0".repeat(38) + "2"]).toBeDefined();
+  });
+
+  it("max size entries fit the cap: 8 x 3800 chars never give 413", async () => {
+    const email = randomEmail();
+    const a = await newPeer(email);
+    const c = await newPeer(email);
+    for (let i = 0; i < 9; i++) {
+      const t = await newPeer(email);
+      const r = await call("DELETE", "/v1/peers/" + t.id, { m: { [c.id]: message(3800) } }, { peer: a });
+      expect(r.status).toBe(200);
+    }
+    expect(Object.keys(await rmOf(c.id)).length).toBeLessThanOrEqual(8);
+  });
+
+  it("GET omits an entry whose B is listed again; expired entries are not delivered", async () => {
+    const { a, b, c } = await trio();
+    const old = NOW - 2592000 - 100;
+    const gone = "G" + "1".repeat(39);
+    await env.DB.prepare("UPDATE peers SET rm = ?1 WHERE id = ?2")
+      .bind(JSON.stringify({ [b.id]: [NOW, message(40)], [gone]: [old, message(40)] }), c.id).run();
+    const g = await call("GET", "/v1/peers", undefined, { peer: c });
+    expect("removed" in g.body).toBe(false);
+    expect((await row(c.id))!.rm).toBe("{}");
+    void a;
+  });
+
+  it("deleting C removes C's rm with its row; deleting B removes B from other rm entries", async () => {
+    const { a, b, c } = await trio();
+    await call("DELETE", "/v1/peers/" + b.id, { m: { [c.id]: message(100) } }, { peer: a });
+    await env.DB.prepare("UPDATE peers SET rm = json_set(rm, '$.\"' || ?1 || '\"', json_array(?2, 'x')) WHERE id = ?3").bind(b.id, NOW, a.id).run();
+    expect(Object.keys(await rmOf(a.id))).toEqual([b.id]);
+    await call("DELETE", "/v1/peers/" + c.id, { m: {} }, { peer: a });
+    expect(await row(c.id)).toBeNull();
+  });
+
+  it("eviction path (m = {}) strips the evicted id from rm and writes no entry", async () => {
+    const { a, b, c } = await trio();
+    await env.DB.prepare("UPDATE peers SET rm = ?1 WHERE id = ?2").bind(JSON.stringify({ [b.id]: [NOW, "x"], ["K" + "0".repeat(39)]: [NOW, "y"] }), c.id).run();
+    const { W_DEL, W_PRUNE } = await import("../src/db/sql");
+    await env.DB.batch([env.DB.prepare(W_DEL).bind(b.id, a.acct), env.DB.prepare(W_PRUNE).bind(b.id, a.acct, "{}", NOW)]);
+    expect(Object.keys(await rmOf(c.id))).toEqual(["K" + "0".repeat(39)]);
+    expect((await row(a.id))!.rm).toBe("{}");
+  });
+});
+
+describe("rm expiry in the monthly cron (Q410)", () => {
+  it("expirePending drops rm entries older than PENDING_TTL_S and keeps fresh ones", async () => {
+    const { expirePending } = await import("../src/scheduled");
+    const { testEnv } = await import("./helpers");
+    const { Log } = await import("../src/log");
+    const email = randomEmail();
+    const c = await newPeer(email);
+    const NOWS = Math.floor(Date.now() / 1000);
+    await env.DB.prepare("UPDATE peers SET rm = ?1 WHERE id = ?2")
+      .bind(JSON.stringify({ ["O" + "0".repeat(39)]: [NOWS - 2592000 - 5, "a"], ["F" + "0".repeat(39)]: [NOWS - 10, "b"] }), c.id).run();
+    const n = await expirePending(await testEnv(), NOWS, new Log(), 2);
+    expect(n).toBe(1);
+    expect(JSON.parse((await row(c.id))!.rm as string)).toEqual({ ["F" + "0".repeat(39)]: [NOWS - 10, "b"] });
   });
 });
