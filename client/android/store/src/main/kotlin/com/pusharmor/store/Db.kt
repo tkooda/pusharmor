@@ -63,8 +63,11 @@ data class PeerEntity(
     /** Per-peer switches (section 6): lock screen, watch, always hide. */
     @ColumnInfo(name = "lock_screen") val lockScreen: Boolean = true,
     val watch: Boolean = true,
+    /** Legacy "Always hide content"; replaced by [showContent] in schema 5 and no longer read. */
     @ColumnInfo(name = "hide_content") val hideContent: Boolean = false,
     @ColumnInfo(defaultValue = "1") val listening: Boolean = true,
+    /** "Allow message content in notifications" for this peer; the inverse of the old hide_content. */
+    @ColumnInfo(name = "show_content", defaultValue = "1") val showContent: Boolean = true,
 )
 
 @Entity(tableName = "pairing")
@@ -170,7 +173,7 @@ interface PaDao {
 
 @Database(
     entities = [SelfEntity::class, PeerEntity::class, PairingEntity::class, CapEntity::class, ReplayEntity::class, AllowEntity::class, HistoryEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class PaDatabase : RoomDatabase() {
@@ -203,10 +206,18 @@ abstract class PaDatabase : RoomDatabase() {
             }
         }
 
+        /** 4 -> 5: peers.show_content = NOT hide_content ("Always hide content" became "Allow message content in notifications"). */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE peers ADD COLUMN show_content INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("UPDATE peers SET show_content = CASE WHEN hide_content = 0 THEN 1 ELSE 0 END")
+            }
+        }
+
         fun open(context: Context, name: String? = NAME): PaDatabase {
             val b = if (name == null) Room.inMemoryDatabaseBuilder(context, PaDatabase::class.java)
             else Room.databaseBuilder(context, PaDatabase::class.java, name).enableMultiInstanceInvalidation()
-            return b.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
+            return b.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()
         }
     }
 }

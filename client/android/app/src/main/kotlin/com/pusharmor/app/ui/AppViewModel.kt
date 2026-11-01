@@ -237,8 +237,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setHidden(id: String, hidden: Boolean) = io { g.session.setHidden(id, hidden) }
     fun setShareShown(id: String, shown: Boolean) = io { g.settings.setShareShown(id, shown); g.session.updateShortcuts() }
     fun tapGreyed() = io { g.session.fetchPeers() }
-    fun setPeerSwitch(id: String, lock: Boolean? = null, watch: Boolean? = null, hide: Boolean? = null) = io {
-        g.dao.peer(id)?.let { p -> g.dao.putPeer(p.copy(lockScreen = lock ?: p.lockScreen, watch = watch ?: p.watch, hideContent = hide ?: p.hideContent)) }
+    fun setPeerSwitch(id: String, lock: Boolean? = null, watch: Boolean? = null, showContent: Boolean? = null) = io {
+        g.dao.peer(id)?.let { p -> g.dao.putPeer(p.copy(lockScreen = lock ?: p.lockScreen, watch = watch ?: p.watch, showContent = showContent ?: p.showContent)) }
     }
 
     /** Peers-screen open: re-enqueue pending pair sends and check timeouts. */

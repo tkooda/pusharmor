@@ -614,9 +614,11 @@ private fun PeerDetail(vm: AppViewModel, p: Peer) {
     val ents by vm.peerEntities.collectAsState()
     val e = ents.firstOrNull { it.id == p.id } ?: return
     val s = vm.g.settings
-    SwitchRow("Show message content on lock screen", e.lockScreen, Policy.peerLockEnabled(s.showContent, s.lockScreen)) { vm.setPeerSwitch(p.id, lock = it) }
+    val showOn = Policy.peerSwitchEnabled(s.showContent)
+    val lockOn = Policy.peerLockEnabled(s.showContent, s.lockScreen, e.showContent)
+    SwitchRow("Allow message content in notifications", e.showContent && showOn, showOn) { vm.setPeerSwitch(p.id, showContent = it) }
+    SwitchRow("Allow message content on lock screen", e.lockScreen && lockOn, lockOn) { vm.setPeerSwitch(p.id, lock = it) }
     SwitchRow("Send messages to watch", e.watch, Policy.peerSwitchEnabled(s.watch)) { vm.setPeerSwitch(p.id, watch = it) }
-    SwitchRow("Always hide content", e.hideContent, true) { vm.setPeerSwitch(p.id, hide = it) }
 }
 
 /** A switch row; the whole row is the toggle target. */
