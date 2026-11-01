@@ -201,18 +201,34 @@ function menuFor(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow?: boolean)
   return overflowMenu(p.label, items, icon("more", 20));
 }
 
+/** Spoken summary of the per-device status icons. */
+export function statusLabel(send: boolean, notif: boolean): string {
+  return "Send screen " + (send ? "on" : "off") + "; content in notifications " + (notif ? "on" : "off");
+}
+
+function statusIcons(p: PeerView, globalAllow: boolean): HTMLElement {
+  const one = (name: "send" | "bell", on: boolean) => h("span", { class: "si" + (on ? "" : " off") }, icon(name, 16));
+  const send = !p.hidden;
+  const notif = globalAllow && p.allowContent !== false;
+  return h("span", { class: "stat", role: "img", "aria-label": statusLabel(send, notif) }, one("send", send), one("bell", notif));
+}
+
 export function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = true): HTMLElement {
   const dim = p.greyed !== null && p.greyed !== "logged out" && p.greyed !== "send only";
   const row = h("div", { class: "prow peer" + (dim ? " off" : ""), id: "peer-" + p.id, tabindex: "-1" });
   const col = h("div", { class: "txt" });
   const head = h("div", { class: "t1 name" }, p.label);
   if (p.greyed) head.addEventListener("click", () => void rpc(env, "greyedTap"));
-  col.append(head, h("div", { class: "t2" }, platformLabel(p.platform)));
+  const sub = h("div", { class: "sub" });
+  const info = h("div", { class: "info" }, h("div", { class: "t2" }, platformLabel(p.platform)));
   const s = peerStatus(p);
-  if (s) col.append(h("div", { class: "t2" }, statusLine(s.kind, s.word)));
-  else if (p.greyed) col.append(h("div", { class: "t2 line" }, p.greyed));
-  for (const l of p.lines) col.append(h("div", { class: "t2 line" }, l));
-  if (p.countdown) col.append(h("div", { class: "t2 countdown" }, T.countdownLeft(p.countdown)));
+  if (s) info.append(h("div", { class: "t2" }, statusLine(s.kind, s.word)));
+  else if (p.greyed) info.append(h("div", { class: "t2 line" }, p.greyed));
+  for (const l of p.lines) info.append(h("div", { class: "t2 line" }, l));
+  if (p.countdown) info.append(h("div", { class: "t2 countdown" }, T.countdownLeft(p.countdown)));
+  sub.append(info);
+  if (p.paired && globalAllow !== undefined) sub.append(statusIcons(p, globalAllow));
+  col.append(head, sub);
   // Negative actions (Reject, Cancel pairing) on the left, the main action on the right.
   const neg = (a: string): number => (a === "deny" || a === "cancel" ? 0 : 1);
   const main = [...p.actions].filter((a) => !inMenu(p, a)).sort((x, y) => neg(x) - neg(y) || rank(x) - rank(y));

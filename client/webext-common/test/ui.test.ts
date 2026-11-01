@@ -557,3 +557,9 @@ test("history message actions: View, Copy, Share, and Save share one equal-width
   assert.match(css, /\.acts-row button\.ac \{ flex: 1 1 0; padding: 0 6px; \}/);
   assert.match(css, /@media \(max-width: 339px\) \{ \.acts-row \{ flex-wrap: wrap; \}/);
 });
+
+test("device row status icon label", async () => {
+  const { statusLabel } = await import("../src/ui/peersview.ts");
+  assert.equal(statusLabel(true, false), "Send screen on; content in notifications off");
+  assert.equal(statusLabel(false, true), "Send screen off; content in notifications on");
+});
