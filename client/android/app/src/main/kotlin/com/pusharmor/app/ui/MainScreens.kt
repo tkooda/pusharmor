@@ -136,6 +136,7 @@ import com.pusharmor.app.ui.theme.MessagesIllustration
 import com.pusharmor.app.ui.theme.MiddleEllipsisText
 import com.pusharmor.app.ui.theme.PaIcons
 import com.pusharmor.app.ui.theme.PaTopBar
+import com.pusharmor.app.ui.theme.TonalGreenButton
 import com.pusharmor.app.ui.theme.SectionHeader
 import com.pusharmor.app.ui.theme.ThemePref
 import com.pusharmor.app.ui.theme.StatusLine
@@ -519,7 +520,7 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
                     OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.weight(1f).heightIn(min = 48.dp), enabled = "deny:${p.id}" !in running,
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = cs.error),
                         border = androidx.compose.foundation.BorderStroke(1.dp, cs.error)) { Text("Deny") }
-                    GreenButton(onClick = { vm.approve(p.id) }, text = "Approve", icon = PaIcons.Check, modifier = Modifier.weight(1f),
+                    TonalGreenButton(onClick = { vm.approve(p.id) }, text = "Approve", modifier = Modifier.weight(1f),
                         enabled = "approve:${p.id}" !in running)
                 }
                 Spacer(Modifier.height(12.dp))
