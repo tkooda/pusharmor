@@ -6,7 +6,7 @@ import android.content.Intent
 import android.widget.Toast
 
 const val NO_APP_LINK = "No app can open this link."
-const val NO_APP_DIAL = "No app can dial this number."
+const val NO_APP_DIAL = "No app can call this number."
 
 /**
  * Starts [intent]; with no app to handle it (no browser, dialer, or store), shows [text] instead of crashing (I550).
