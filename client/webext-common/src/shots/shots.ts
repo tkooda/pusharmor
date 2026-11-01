@@ -163,7 +163,7 @@ async function main(): Promise<void> {
   if (q.has("confirm")) {
     await new Promise((done) => setTimeout(done, 500));
     document.querySelector<HTMLElement>(".prow .more button")?.click();
-    [...document.querySelectorAll<HTMLElement>("[role=menuitem]")].find((b) => b.textContent === "Remove")?.click();
+    [...document.querySelectorAll<HTMLElement>("[role=menuitem]")].find((b) => b.textContent === "Remove device from account")?.click();
     await new Promise((done) => setTimeout(done, 300));
   }
   // ?open: the newest History row is opened (its actions show)
