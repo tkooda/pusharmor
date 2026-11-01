@@ -402,7 +402,7 @@ export class Engine {
 
   private notifyRow(row: HistoryRow): void {
     const title = row.type === "url" ? T.titleUrl : row.type === "tel" ? T.titleTel : T.titleText;
-    this.p.notify("h:" + row.id, title, row.content.slice(0, 120));
+    this.p.notify("h:" + row.id, title, row.content.length > 120 ? row.content.slice(0, 119) + "\u2026" : row.content);
   }
 
   /** Auto-open rules (section 9). Returns true when the tab was opened. */
