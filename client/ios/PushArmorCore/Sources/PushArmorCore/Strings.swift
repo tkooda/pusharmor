@@ -110,8 +110,8 @@ public enum S {
     public static func receivedWhileLocked(_ n: Int) -> String { "\(n) " + (n == 1 ? "message" : "messages") + " received while locked" }
     public static let thisPhoneOldInstall = "(this phone, old install)"
     public static let tooLongShare = "Send the first 2048 bytes"
-    public static let showContentSwitch = "Show message content in notifications"
-    public static let lockScreenSwitch = "Show message content on lock screen"
+    public static let showContentSwitch = "Allow message content in notifications"
+    public static let lockScreenSwitch = "Allow message content on lock screen"
     public static let alwaysHide = "Always hide content"
     public static func pairWith(_ x: String) -> String { "Pair with new device: \"\(x)\"" }
     public static func checkSameCode(_ x: String) -> String { "Verify that \"\(x)\" shows this same code." }
