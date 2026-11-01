@@ -457,12 +457,12 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                     IconButton(onClick = { menu = true }) { Icon(PaIcons.MoreVert, "More options for $x") }
                     DropdownMenu(menu, { menu = false }) {
                         DropdownMenuItem(text = { Text("Remove device from account") }, onClick = { menu = false; onRemove() })
-                        // Same pattern as "Show in share sheet": the tick is the state; stored as the inverse (hidden).
+                        // Same pattern as "Show shortcut when sharing": the tick is the state; stored as the inverse (hidden).
                         if (p.pinned) DropdownMenuItem(text = { Text("Show on Send screen") }, onClick = { menu = false; vm.setHidden(p.id, !p.hidden) },
                             modifier = Modifier.semantics { stateDescription = if (!p.hidden) "On" else "Off" },
                             trailingIcon = { Checkbox(!p.hidden, null) })
                         // Per device, on by default (I598); the tick is the state, so the row reads as a checkbox.
-                        if (p.pinned) DropdownMenuItem(text = { Text("Show in share sheet") }, onClick = { menu = false; vm.setShareShown(p.id, !shareShown) },
+                        if (p.pinned) DropdownMenuItem(text = { Text("Show shortcut when sharing") }, onClick = { menu = false; vm.setShareShown(p.id, !shareShown) },
                             modifier = Modifier.semantics { stateDescription = if (shareShown) "On" else "Off" },
                             trailingIcon = { Checkbox(shareShown, null) })
                         if (p.missing) DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; vm.localDelete(p.id) })

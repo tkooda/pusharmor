@@ -103,7 +103,7 @@ class Settings(private val context: Context) {
         }
     }
 
-    /** Per-device "Show in share sheet" (I598). */
+    /** Per-device "Show shortcut when sharing" (I598). */
     fun setShareShown(id: String, shown: Boolean) = runBlocking {
         context.ds.edit { val off = it[K.SHARE_OFF] ?: emptySet(); it[K.SHARE_OFF] = if (shown) off - id else off + id }
     }
