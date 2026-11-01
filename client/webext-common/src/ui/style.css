@@ -231,7 +231,7 @@ button.dellight { height: 32px; border-color: transparent; color: var(--err); ba
 .hrow.sel .acts, .hrow:focus-within .acts { display: flex; }
 .hrow.closed:not(.sel) .acts { display: none; }
 button.ac { height: 28px; padding: 0 10px 0 8px; gap: 5px; font-size: 12px; color: var(--ink); background: var(--card); }
-button.ac svg { color: var(--primary); }
+button.ac svg { color: var(--ink); }
 .acts-row { display: flex; gap: 6px; flex: 1 0 100%; }
 .acts-row button.ac { flex: 1 1 0; padding: 0 6px; }
 @media (max-width: 339px) { .acts-row { flex-wrap: wrap; } .acts-row button.ac { flex-basis: calc(50% - 3px); } }
