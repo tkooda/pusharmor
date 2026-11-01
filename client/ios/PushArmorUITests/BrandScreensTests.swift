@@ -264,7 +264,7 @@ final class BrandScreensTests: XCTestCase {
         let tab = app.tabBars.buttons["Settings"]
         XCTAssertTrue(tab.waitForExistence(timeout: 30))
         tab.tap()
-        let del = app.buttons["Delete all history"]
+        let del = app.buttons["Delete all message history from this device"]
         for _ in 0..<10 where !(del.exists && del.isHittable) { app.swipeUp() }
         XCTAssertTrue(del.isHittable)
         del.tap()
