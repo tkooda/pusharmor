@@ -875,12 +875,15 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
                     val fill = if (open == h.id) ex.expandedRow else ex.tile
                     HistoryRow(vm, h, open == h.id, ::nameOf, onPeer,
                         Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, group.size,
-                            if (glowId == h.id) lerp(fill, MaterialTheme.colorScheme.secondaryContainer, glow.value) else fill)) { open = h.id }
+                            if (glowId == h.id) lerp(fill, MaterialTheme.colorScheme.secondaryContainer, glow.value) else fill)) { open = toggleOpenRow(open, h.id) }
                 }
             }
         }
     }
 }
+
+/** Tapping the open History row closes it; tapping another opens that one (I620). */
+internal fun toggleOpenRow(open: Long?, id: Long): Long? = if (open == id) null else id
 
 /** LazyColumn index of History row [id], given the row ids of each day group under its day header (I596). */
 internal fun historyItemIndex(days: List<List<Long>>, id: Long): Int {
@@ -1061,17 +1064,10 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             if (!signedIn) return@Column
             SectionHeader("Sending")
             GroupedList(listOf<@Composable (Modifier) -> Unit>(
-                { m -> SwitchRow("Show \"All\" option", b(Settings.K.SHOW_ALL, true), modifier = m.then(pad)) { vm.setPref(Settings.K.SHOW_ALL, it) } },
-            ))
-            SectionHeader("History")
-            GroupedList(listOf<@Composable (Modifier) -> Unit>(
-                { m -> SettingRow("Keep messages for", UiText.days(days), m) { pickDays = true } },
-                { m -> SettingRow("Delete all history", modifier = m, color = cs.error) { confirmHistory = true } },
+                { m -> SwitchRow("Show an \"All\" button when choosing devices", b(Settings.K.SHOW_ALL, true), modifier = m.then(pad)) { vm.setPref(Settings.K.SHOW_ALL, it) } },
             ))
             SectionHeader("Notifications")
             GroupedList(buildList<@Composable (Modifier) -> Unit> {
-                // Received messages (I463): what a notification tap does.
-                add { m -> SwitchRow("Tap opens link", b(Settings.K.TAP_OPENS_LINK, true), modifier = m.then(pad)) { vm.setPref(Settings.K.TAP_OPENS_LINK, it) } }
                 add { m ->
                     SettingRow("Notifications", modifier = m, trailing = external) {
                         context.startActivity(Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
@@ -1085,6 +1081,8 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                     SwitchRow("Show message content on lock screen", b(Settings.K.LOCK_SCREEN, true), enabled = b(Settings.K.SHOW_CONTENT, true),
                         sub = "When off, the lock screen shows only \"New message\".", modifier = m.then(pad)) { vm.setPref(Settings.K.LOCK_SCREEN, it) }
                 }
+                // Received messages (I463): what a notification tap does.
+                add { m -> SwitchRow("Tap opens link", b(Settings.K.TAP_OPENS_LINK, true), modifier = m.then(pad)) { vm.setPref(Settings.K.TAP_OPENS_LINK, it) } }
                 add { m ->
                     SettingRow("System lock screen setting", modifier = m, trailing = external) {
                         try { context.startActivity(Intent("android.settings.NOTIFICATION_SETTINGS")) } catch (e: Exception) { }
@@ -1103,6 +1101,11 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                     }
                 }
             })
+            SectionHeader("History")
+            GroupedList(listOf<@Composable (Modifier) -> Unit>(
+                { m -> SettingRow("Keep messages for", UiText.days(days), m) { pickDays = true } },
+                { m -> SettingRow("Delete all history", modifier = m, color = cs.error) { confirmHistory = true } },
+            ))
             SectionHeader("Account")
             me?.email?.let { email ->
                 // Dim label, then the email on its own line; a long address ends in an ellipsis (I460).
