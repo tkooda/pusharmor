@@ -16,5 +16,5 @@ export function saveFilename(ms: number): string {
 
 /** Cut to at most max characters, ending in an ellipsis when cut. */
 export function ellipsize(text: string, max: number): string {
-  return text.length > max ? text.slice(0, max - 1) + "…" : text;
+  return text.length > max ? text.slice(0, max - 1) + "\u2026" : text;
 }

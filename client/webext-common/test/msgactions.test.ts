@@ -20,7 +20,7 @@ test("ellipsize cuts with an ellipsis only when long", () => {
   assert.equal(ellipsize("x".repeat(120), 120), "x".repeat(120));
   const s = ellipsize("x".repeat(121), 120);
   assert.equal(s.length, 120);
-  assert.ok(s.endsWith("…"));
+  assert.ok(s.endsWith("\u2026"));
 });
 
 test("Read opens a new tab on the extension read page for the message", async () => {
