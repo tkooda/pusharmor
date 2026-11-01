@@ -30,7 +30,7 @@ struct PeersView: View {
 
     @ViewBuilder private var devices: some View {
         let pairing = PeerLabel.sorted(visible.filter { inPairing($0) })
-        // A pinned peer that pairs again keeps its row (switches, Hide, Remove) under its card.
+        // A pinned peer that pairs again keeps its row (switches, Remove) under its card.
         let listed = PeerLabel.sorted(visible.filter { $0.pinned || !inPairing($0) })
         NavigationStack {
             ScrollViewReader { proxy in
@@ -250,7 +250,7 @@ struct PairingCardView: View {
                 .accessibilityElement(children: .combine)
                 Spacer(minLength: 0)
                 if !p.pinned {
-                    // A peer not yet paired has no row under Peers: its switches, Hide and Remove live here.
+                    // A peer not yet paired has no row under Peers: its switches and Remove live here.
                     Menu { peerActions } label: {
                         Image(systemName: "ellipsis.circle")
                             .font(.title3)
@@ -295,7 +295,10 @@ struct PairingCardView: View {
             set: { model.setPeerSwitches(p, lockShow: $0) }
         ))
         .disabled(!model.boolSetting(SettingKey.lockShow, true) || !model.boolSetting(SettingKey.showContent, true) || !p.showContent)
-        Button(p.hidden ? "Unhide" : "Hide") { model.setHidden(p, !p.hidden) }
+        Toggle("Show on Send screen", isOn: Binding(
+            get: { !p.hidden },
+            set: { model.setHidden(p, !$0) }
+        ))
         Button("Remove device from account", role: .destructive) { confirmRemove = true }
         if p.missing {
             Button("Delete") { Task { await model.localDelete(p) } }
@@ -434,6 +437,10 @@ struct PeerRowView: View {
                         set: { model.setPeerSwitches(p, lockShow: $0) }
                     ))
                     .disabled(!model.boolSetting(SettingKey.lockShow, true) || !model.boolSetting(SettingKey.showContent, true) || !p.showContent)
+                    Toggle("Show on Send screen", isOn: Binding(
+                        get: { !p.hidden },
+                        set: { model.setHidden(p, !$0) }
+                    ))
                     actions
                 }
                 .padding(.leading, 48)
@@ -480,7 +487,6 @@ struct PeerRowView: View {
             }
         } else {
             HStack(spacing: 10) {
-                Button(p.hidden ? "Unhide" : "Hide") { model.setHidden(p, !p.hidden) }
                 Button("Remove device from account", role: .destructive) { confirmRemove = true }
                 if p.missing {
                     Button("Delete") { Task { await model.localDelete(p) } }

@@ -81,12 +81,13 @@ final class BrandScreensTests: XCTestCase {
         let more = app.buttons["More actions"]
         XCTAssertTrue(more.waitForExistence(timeout: 10))
         // I589: on a slow CI simulator the first tap can land before the menu takes taps.
-        let hide = app.buttons["Hide"]
-        for _ in 0..<2 where !hide.exists {
+        let remove = app.buttons["Remove device from account"]
+        for _ in 0..<2 where !remove.exists {
             more.tap()
-            _ = hide.waitForExistence(timeout: 10)
+            _ = remove.waitForExistence(timeout: 10)
         }
-        XCTAssertTrue(hide.exists)
+        // a Toggle in a menu shows as a menu item, so match any element type
+        XCTAssertTrue(app.descendants(matching: .any)["Show on Send screen"].exists)
         XCTAssertTrue(app.buttons["Remove device from account"].exists)
     }
 
