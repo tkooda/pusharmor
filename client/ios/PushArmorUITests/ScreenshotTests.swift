@@ -53,7 +53,7 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(labelled(app, "Galaxy S23").waitForExistence(timeout: 10))
         sleep(1)
         shot("03-devices")
-        // the just-paired row expanded: its switches, Hide and Remove
+        // the just-paired row expanded: its switches and Remove
         let lockShow = app.switches["Allow message content on lock screen"]
         for _ in 0..<2 where !lockShow.exists {
             labelled(app, "Galaxy S23").tap()
