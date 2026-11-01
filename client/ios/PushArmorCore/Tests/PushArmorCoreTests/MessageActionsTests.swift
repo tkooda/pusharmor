@@ -8,20 +8,7 @@ final class MessageActionsTests: XCTestCase {
     }
 
     func testTextActionOrderHasNoOpen() {
-        XCTAssertEqual(MessageActions.actions(forType: "text"), [.read, .copy, .share, .save])
-    }
-
-    func testShortTextDoesNotScroll() {
-        XCTAssertFalse(MessageActions.scrolls("one\ntwo\nthree"))
-        XCTAssertFalse(MessageActions.scrolls("hello"))
-    }
-
-    func testFourLinesScroll() {
-        XCTAssertTrue(MessageActions.scrolls("a\nb\nc\nd"))
-    }
-
-    func testLongWrappedLineScrolls() {
-        XCTAssertTrue(MessageActions.scrolls(String(repeating: "x", count: 200)))
+        XCTAssertEqual(MessageActions.actions(forType: "text"), [.copy, .share, .save])
     }
 
     func testSaveFilenameUsesLocalTime() {

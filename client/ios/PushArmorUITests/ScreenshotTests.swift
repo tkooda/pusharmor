@@ -64,14 +64,10 @@ final class ScreenshotTests: XCTestCase {
         app.terminate()
 
         app = launch(store + ["-PAScreenshotsDetailText"])
-        XCTAssertTrue(app.buttons["View"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Copy"].waitForExistence(timeout: 30))
         XCTAssertTrue(app.buttons["Save"].exists)
         sleep(1)
         shot("06-history-text")
-        app.buttons["View"].tap()
-        XCTAssertTrue(app.buttons["readClose"].waitForExistence(timeout: 10))
-        sleep(1)
-        shot("08-read")
         app.terminate()
 
         app = launch(store + ["-PAScreenshotsDetail"])
