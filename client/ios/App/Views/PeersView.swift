@@ -284,15 +284,17 @@ struct PairingCardView: View {
 
     @ViewBuilder
     private var peerActions: some View {
+        // Per-device switches follow the global ones: disabled and shown off while a global one is off.
+        Toggle(S.showContentSwitch, isOn: Binding(
+            get: { model.boolSetting(SettingKey.showContent, true) && p.showContent },
+            set: { model.setPeerSwitches(p, showContent: $0) }
+        ))
+        .disabled(!model.boolSetting(SettingKey.showContent, true))
         Toggle(S.lockScreenSwitch, isOn: Binding(
-            get: { p.lockShow },
+            get: { model.boolSetting(SettingKey.showContent, true) && model.boolSetting(SettingKey.lockShow, true) && p.showContent && p.lockShow },
             set: { model.setPeerSwitches(p, lockShow: $0) }
         ))
-        .disabled(!model.boolSetting(SettingKey.lockShow, true) || !model.boolSetting(SettingKey.showContent, true))
-        Toggle(S.alwaysHide, isOn: Binding(
-            get: { p.alwaysHide },
-            set: { model.setPeerSwitches(p, alwaysHide: $0) }
-        ))
+        .disabled(!model.boolSetting(SettingKey.lockShow, true) || !model.boolSetting(SettingKey.showContent, true) || !p.showContent)
         Button(p.hidden ? "Unhide" : "Hide") { model.setHidden(p, !p.hidden) }
         Button("Remove device from account", role: .destructive) { confirmRemove = true }
         if p.missing {
@@ -421,15 +423,17 @@ struct PeerRowView: View {
                 }
             )) {
                 Group {
+                    // Per-device switches follow the global ones: disabled and shown off while a global one is off.
+                    Toggle(S.showContentSwitch, isOn: Binding(
+                        get: { model.boolSetting(SettingKey.showContent, true) && p.showContent },
+                        set: { model.setPeerSwitches(p, showContent: $0) }
+                    ))
+                    .disabled(!model.boolSetting(SettingKey.showContent, true))
                     Toggle(S.lockScreenSwitch, isOn: Binding(
-                        get: { p.lockShow },
+                        get: { model.boolSetting(SettingKey.showContent, true) && model.boolSetting(SettingKey.lockShow, true) && p.showContent && p.lockShow },
                         set: { model.setPeerSwitches(p, lockShow: $0) }
                     ))
-                    .disabled(!model.boolSetting(SettingKey.lockShow, true) || !model.boolSetting(SettingKey.showContent, true))
-                    Toggle(S.alwaysHide, isOn: Binding(
-                        get: { p.alwaysHide },
-                        set: { model.setPeerSwitches(p, alwaysHide: $0) }
-                    ))
+                    .disabled(!model.boolSetting(SettingKey.lockShow, true) || !model.boolSetting(SettingKey.showContent, true) || !p.showContent)
                     actions
                 }
                 .padding(.leading, 48)

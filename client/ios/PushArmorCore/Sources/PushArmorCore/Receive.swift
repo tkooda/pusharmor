@@ -30,9 +30,9 @@ public struct ReceiveResult: Sendable {
 }
 
 extension Core {
-    var lockSettings: (show: Bool, always: Bool) {
+    var lockSettings: (show: Bool, content: Bool) {
         ((try? store.boolSetting(SettingKey.lockShow, default: true)) ?? true,
-         !((try? store.boolSetting(SettingKey.showContent, default: true)) ?? true))
+         (try? store.boolSetting(SettingKey.showContent, default: true)) ?? true)
     }
 
     /// The 6.2 banner for a History message row.
@@ -40,8 +40,8 @@ extension Core {
         let pid = row.peerId.flatMap { PeerId(text: $0) }
         let peer = pid.flatMap { try? store.peer($0) }
         let ls = lockSettings
-        let body = LockScreen.body(mainShow: ls.show, peerShow: peer?.lockShow ?? true, mainAlwaysHide: ls.always,
-                                   peerAlwaysHide: peer?.alwaysHide ?? false, locked: hooks?.isProtectedDataLocked() ?? false,
+        let body = LockScreen.body(mainShow: ls.show, peerShow: peer?.lockShow ?? true, mainContent: ls.content,
+                                   peerContent: peer?.showContent ?? true, locked: hooks?.isProtectedDataLocked() ?? false,
                                    peerName: peer?.noticeName ?? S.aPeer, content: row.content)
         let cat: BannerCategory
         let tap: Banner.Tap

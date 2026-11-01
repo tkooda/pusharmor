@@ -48,7 +48,7 @@ public struct Peer: Sendable {
     public var pendingN: Int64
     public var hidden: Bool
     public var lockShow: Bool
-    public var alwaysHide: Bool
+    public var showContent: Bool
     public var lastN: Int64
     public var pairingId: Data?
     public var fingerprint: String?
@@ -91,7 +91,7 @@ public struct Peer: Sendable {
         state = .unruled
         missing = false; listed = false; approveVerified = false; deniedMeMsg = false
         reachable = false; loggedOut = false; logoutN = 0; listening = true; nameN = 0; pendingN = 0
-        hidden = false; lockShow = true; alwaysHide = false; lastN = 0; approvePromptN = 0
+        hidden = false; lockShow = true; showContent = true; lastN = 0; approvePromptN = 0
     }
 }
 
@@ -190,7 +190,7 @@ public final class Store: @unchecked Sendable {
         p.platform = r.text("platform"); p.created = r.int("created")
         p.name = r.text("name"); p.nameN = r.int("name_n") ?? 0
         p.pendingName = r.text("pending_name"); p.pendingN = r.int("pending_n") ?? 0
-        p.hidden = r.bool("hidden"); p.lockShow = r.bool("lock_show"); p.alwaysHide = r.bool("always_hide")
+        p.hidden = r.bool("hidden"); p.lockShow = r.bool("lock_show"); p.showContent = r.bool("show_content")
         p.lastN = r.int("last_n") ?? 0; p.pairingId = r.blob("pairing_id"); p.fingerprint = r.text("fingerprint")
         p.approveC = r.text("approve_c"); p.approveName = r.text("approve_name"); p.approveNameRev = r.int("approve_name_rev")
         p.approveResult = r.text("approve_result"); p.approveSentAt = r.int("approve_sent_at")
@@ -234,7 +234,7 @@ public final class Store: @unchecked Sendable {
         cols.append(("pending_n", .int(p.pendingN)))
         cols.append(("hidden", .bool(p.hidden)))
         cols.append(("lock_show", .bool(p.lockShow)))
-        cols.append(("always_hide", .bool(p.alwaysHide)))
+        cols.append(("show_content", .bool(p.showContent)))
         cols.append(("last_n", .int(p.lastN)))
         cols.append(("pairing_id", .opt(p.pairingId)))
         cols.append(("fingerprint", .opt(p.fingerprint)))

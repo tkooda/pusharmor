@@ -324,11 +324,11 @@ extension Core {
         }
     }
 
-    public func setPeerSwitches(_ x: PeerId, lockShow: Bool? = nil, alwaysHide: Bool? = nil) throws {
+    public func setPeerSwitches(_ x: PeerId, lockShow: Bool? = nil, showContent: Bool? = nil) throws {
         try store.db.write {
             guard var p = try store.peer(x) else { return }
             if let v = lockShow { p.lockShow = v }
-            if let v = alwaysHide { p.alwaysHide = v }
+            if let v = showContent { p.showContent = v }
             try store.savePeer(p)
         }
     }
