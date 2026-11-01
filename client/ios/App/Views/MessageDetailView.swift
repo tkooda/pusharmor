@@ -28,7 +28,7 @@ struct SelectableText: UIViewRepresentable {
         v.isEditable = false
         v.isSelectable = true
         v.backgroundColor = .clear
-        v.font = UIFont.preferredFont(forTextStyle: .body)
+        v.font = UIFont.preferredFont(forTextStyle: .title3)
         v.adjustsFontForContentSizeCategory = true
         v.textContainerInset = UIEdgeInsets(top: 16, left: 12, bottom: 16, right: 12)
         v.text = text
@@ -134,7 +134,7 @@ struct MessageDetailView: View {
     private func button(_ a: MessageAction) -> some View {
         switch a {
         case .read:
-            Button { reading = true } label: { ActionLabel(title: "Read", icon: "text.alignleft") }
+            Button { reading = true } label: { ActionLabel(title: "View", icon: "text.alignleft") }
                 .buttonStyle(ActionButtonStyle())
         case .copy:
             Button { UIPasteboard.general.string = row.content } label: { ActionLabel(title: "Copy", icon: "doc.on.doc") }
