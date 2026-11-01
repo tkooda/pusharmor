@@ -23,7 +23,7 @@ public enum HistoryFilter: Hashable, Sendable {
             let received = Set(rows.filter { $0.dir == .incoming }.compactMap { $0.peerId })
             let named = peers.filter { received.contains($0.id.text) }
                 .map { HistoryFilter.peer($0.id.text, $0.name ?? PeerLabel.unnamed(platform: $0.platform, created: $0.created)) }
-            out += named.sorted { $0.label < $1.label }
+            out += PeerLabel.sortedByName(named) { $0.label }
         }
         if rows.contains(where: { $0.peerId == nil }) { out.append(.unknown) }
         return out

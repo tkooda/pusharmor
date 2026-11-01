@@ -29,9 +29,9 @@ struct PeersView: View {
     }
 
     @ViewBuilder private var devices: some View {
-        let pairing = visible.filter { inPairing($0) }
+        let pairing = PeerLabel.sorted(visible.filter { inPairing($0) })
         // A pinned peer that pairs again keeps its row (switches, Hide, Remove) under its card.
-        let listed = visible.filter { $0.pinned || !inPairing($0) }
+        let listed = PeerLabel.sorted(visible.filter { $0.pinned || !inPairing($0) })
         NavigationStack {
             ScrollViewReader { proxy in
                 List {
