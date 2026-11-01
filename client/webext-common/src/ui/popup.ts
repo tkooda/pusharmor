@@ -561,7 +561,7 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, now: number,
     copy: () => h("button", { class: "ac", onclick: () => void env.copy(r.content) }, icon("copy", 15), "Copy"),
     open: () => h("button", { class: "ac", onclick: () => env.openUrl(r.type === "tel" ? "tel:" + r.content : r.content) }, icon("open", 15), "Open"),
     share: () => h("button", { class: "ac", onclick: () => void navigator.share({ [r.type === "url" ? "url" : "text"]: r.content }).catch(() => undefined) }, icon("share", 15), "Share"),
-    read: () => h("button", { class: "ac", onclick: () => void env.openPage("#read=" + r.id) }, icon("read", 15), "Read"),
+    read: () => h("button", { class: "ac", onclick: () => void env.openPage("#read=" + r.id) }, icon("read", 15), "View"),
     save: () => h("button", { class: "ac", onclick: () => saveText(env, r.content, r.received) }, icon("save", 15), "Save"),
   };
   // I625: the actions share one equal-width row.
