@@ -68,8 +68,8 @@ content or pairing fingerprints, and we do not store them.</p>
 <li>Per account: the account ID (the one-way hash), the account creation date, and the
 last-active month.</li>
 <li>Per device: public keys, push token or endpoint, allow and deny lists, names you give devices (stored only encrypted, so we cannot read them),
-created time, platform, logged-out flag, and pending approve messages (end-to-end encrypted, kept
-until the other device is removed, denied, or withdrawn, or 30 days pass).</li>
+created time, platform, logged-out flag, and pending pairing confirmation messages (end-to-end encrypted, kept
+until the other device is removed, rejected, or withdrawn, or 30 days pass).</li>
 </ul>
 <p>An account with no send and no added device for about 3 years is deleted with its devices
 (banned accounts are kept). This also removes an account that has no devices left.</p>
