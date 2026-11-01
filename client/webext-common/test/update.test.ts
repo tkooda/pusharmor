@@ -73,6 +73,7 @@ test("426 from the relay server: popup and page show the update screen until the
     activeUrl: async () => "",
     openPage: () => undefined,
     openUrl: (u: string) => void opened.push(u),
+    saveFile: async () => null,
     copy: async () => undefined,
     beta: false,
     theme: memoryThemeStore("light"),

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { uiEnv } from "../src/shellkit.ts";
+import { saveTextFile } from "../src/model/savefile.ts";
 import { ellipsize, msgActions, saveFilename } from "../src/model/msgactions.ts";
 
 test("action order by message type", () => {
@@ -39,4 +40,25 @@ test("the read page has only an X that closes the tab", () => {
   assert.match(view, /class: "quiet ib readx"[^\n]*onclick: close/);
   assert.match(view, /window\.close\(\)/);
   assert.equal((view.slice(0, view.indexOf("\n}\n")).match(/h\("button"/g) ?? []).length, 1);
+});
+
+test("Save asks downloads.download for a Save-as dialog with the dated filename, then reports the real path (I626)", async () => {
+  const calls: { url: string; filename?: string; saveAs?: boolean }[] = [];
+  const d = {
+    download: async (o: { url: string; filename?: string; saveAs?: boolean }) => (calls.push(o), 7),
+    search: async (q: { id: number }) => (q.id === 7 ? [{ filename: "/home/u/Downloads/chosen.txt" }] : []),
+  };
+  const name = saveFilename(new Date(2026, 9, 26, 7, 33, 20).getTime());
+  assert.equal(await saveTextFile(d, "h\u00e9llo\nworld", name), "/home/u/Downloads/chosen.txt");
+  assert.equal(calls[0]!.saveAs, true);
+  assert.equal(calls[0]!.filename, "2026-10-26_073320_message.txt");
+  assert.equal(decodeURIComponent(calls[0]!.url.split(",")[1]!), "h\u00e9llo\nworld");
+});
+
+test("Save: cancelling the dialog is silent (null); other failures reject (I626)", async () => {
+  const cancel = { download: async () => Promise.reject(new Error("Download canceled by the user")), search: async () => [] };
+  assert.equal(await saveTextFile(cancel, "x", "f.txt"), null);
+  const bad = { download: async () => Promise.reject(new Error("Invalid filename")), search: async () => [] };
+  await assert.rejects(saveTextFile(bad, "x", "f.txt"), /Invalid filename/);
+  await assert.rejects(saveTextFile(undefined, "x", "f.txt"));
 });

@@ -475,14 +475,14 @@ function wireSelect(row: HTMLElement, id: number, ctl: SelectCtl): void {
   }, true);
 }
 
-/** I622: a plain download of the text, so no extra permission is needed. */
-function saveText(text: string, ms: number): void {
-  const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
-  const a = h("a", { href: url, download: saveFilename(ms) });
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
+/** I626: the browser's Save-as dialog, then a toast that stays with the saved path. */
+function saveText(env: UiEnv, text: string, ms: number): void {
+  env.saveFile(text, saveFilename(ms)).then(
+    (path) => {
+      if (path !== null) toast('Message saved to "' + path + '"', "ok", true);
+    },
+    () => toast("Could not save the message.", "err"),
+  );
 }
 
 function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (text: string) => void, now: number, ctl: SelectCtl): HTMLElement {
@@ -562,7 +562,7 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (tex
     open: () => h("button", { class: "ac", onclick: () => env.openUrl(r.type === "tel" ? "tel:" + r.content : r.content) }, icon("open", 15), "Open"),
     share: () => h("button", { class: "ac", onclick: () => void navigator.share({ [r.type === "url" ? "url" : "text"]: r.content }).catch(() => undefined) }, icon("share", 15), "Share"),
     read: () => h("button", { class: "ac", onclick: () => void env.openPage("#read=" + r.id) }, icon("read", 15), "Read"),
-    save: () => h("button", { class: "ac", onclick: () => saveText(r.content, r.received) }, icon("save", 15), "Save"),
+    save: () => h("button", { class: "ac", onclick: () => saveText(env, r.content, r.received) }, icon("save", 15), "Save"),
   };
   // I625: the main actions share one equal-width row; Send to... sits on its own row below.
   const main = h("div", { class: "acts-row" });

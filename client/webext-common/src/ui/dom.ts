@@ -12,6 +12,8 @@ export interface UiEnv {
   /** Opens page.html with the given hash in a full tab (or shows the tab already open on it). */
   openPage(hash: string): void | Promise<void>;
   openUrl(url: string): void;
+  /** I626: Save-as dialog for a text file; resolves to the saved path, or null when the user cancels. */
+  saveFile(text: string, filename: string): Promise<string | null>;
   copy(text: string): Promise<void>;
   /** true in the Beta build (manifest name "PushArmor Beta") */
   beta: boolean;
