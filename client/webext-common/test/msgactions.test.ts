@@ -24,7 +24,7 @@ test("ellipsize cuts with an ellipsis only when long", () => {
   assert.ok(s.endsWith("\u2026"));
 });
 
-test("Read opens a new tab on the extension read page for the message", async () => {
+test("View opens a new tab on the extension read page for the message", async () => {
   const created: { url: string; active: boolean }[] = [];
   const b = {
     runtime: { getURL: (p: string) => "chrome-extension://x/" + p, getContexts: async () => [], getManifest: () => ({ name: "PushArmor" }) },
