@@ -91,7 +91,6 @@ input[type=checkbox]:focus-visible { outline: 2px solid var(--primary); outline-
 .st.wait, .st.off { color: var(--ink2); }
 .srow { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 8px 16px; min-height: 44px; font-size: 14px; }
 label.srow { cursor: pointer; }
-.peer .srow { padding: 8px 0; }
 .srow.acct, .srow.acct-acts { display: block; }
 .acct .email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acct-acts .btns { padding: 0; flex-wrap: nowrap; justify-content: center; }
@@ -102,6 +101,9 @@ label.srow { cursor: pointer; }
 .menu { position: absolute; right: 0; top: 34px; z-index: 4; min-width: 140px; padding: 4px 0; background: var(--card); border: 1px solid var(--line); border-radius: var(--rf); display: flex; flex-direction: column; }
 .menu button { border: 0; border-radius: 0; height: 32px; justify-content: flex-start; color: var(--ink); font-weight: 400; padding: 0 14px; }
 .menu button:focus-visible { outline-offset: -2px; }
+.menu button:disabled { opacity: .5; }
+.menu .tick { display: inline-block; width: 18px; }
+.menu .sep { height: 1px; margin: 4px 0; background: var(--line); }
 
 /* This device row. */
 .own .hav { width: 36px; height: 36px; flex: none; display: grid; place-items: center; color: var(--ink2); }
