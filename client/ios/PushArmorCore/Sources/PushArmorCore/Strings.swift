@@ -112,6 +112,8 @@ public enum S {
     public static let tooLongShare = "Send the first 2048 bytes"
     public static let showContentSwitch = "Allow message content in notifications"
     public static let lockScreenSwitch = "Allow message content on lock screen"
+    public static let peerShowContentSwitch = "Show message content in notifications"
+    public static let peerLockScreenSwitch = "Show message content on lock screen"
     public static func pairWith(_ x: String) -> String { "Pair with new device: \"\(x)\"" }
     public static func checkSameCode(_ x: String) -> String { "Verify that \"\(x)\" shows this same code." }
     public static let codesMismatch = "Codes do not match? Tap Codes differ."
