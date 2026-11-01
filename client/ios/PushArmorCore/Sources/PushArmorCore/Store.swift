@@ -72,7 +72,7 @@ public struct Peer: Sendable {
     /// it shows approves_me false.
     public var approvesMe: Bool { approveVerified && !(getAfterVerify && getApprovesMe == false) }
 
-    /// "Not paired on $X" / "Declined by $X": pinned, X's approve verified, and a later GET
+    /// "Not paired on $X" / "Rejected by $X": pinned, X's approve verified, and a later GET
     /// shows approves_me false.
     public var notPairedOnPeer: Bool { pinned && getAfterVerify && getApprovesMe == false }
     public var declinedByPeer: Bool { notPairedOnPeer && getDeniesMe == true }
