@@ -419,10 +419,10 @@ struct ComposeView: View {
                 .frame(maxWidth: min(chipNameWidth, 260), alignment: .leading)
         }
         .font(.subheadline.weight(on ? .semibold : .regular))
-        .foregroundStyle(on ? Color(uiColor: .systemBackground) : Color.primary)
+        .foregroundStyle(on ? Color.onApproveFill : Color.primary)
         .padding(.horizontal, 12)
         .frame(minHeight: 34)
-        .background(Capsule().fill(on ? Color.accentColor : Color.clear))
+        .background(Capsule().fill(on ? Color.approveFill : Color.clear))
         .overlay(Capsule().strokeBorder(on ? Color.clear : Color(uiColor: .separator), lineWidth: 1))
         .contentShape(Capsule())
     }
