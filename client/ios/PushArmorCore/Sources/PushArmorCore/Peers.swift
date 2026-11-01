@@ -42,6 +42,7 @@ extension Core {
     /// Pins never come from this list.
     func mergePeerList(_ j: JSONValue, now: Int64) throws {
         let me = try myId()
+        try applyFetchedRemoves(j["removed"], me: me, now: now)   // with the pre-merge pins
         var listedIds = Set<String>()
         if case .array(let list)? = j["peers"] {
             for e in list {
