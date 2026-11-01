@@ -75,10 +75,20 @@ test("another platform may join a version already bound to the commit, also afte
   ]);
 });
 
-test("the committed version files agree with each other", () => {
-  const v = readFileSync(join(REPO, "release/version.properties"), "utf8").match(/^versionName=(.*)$/m)[1];
-  // Between releases /download keeps the SHA-256 of the released pusharmor.py.
-  assert.deepEqual(stampProblems(REPO, v).filter((l) => !l.startsWith("site/public/download.html holds " + v + " / ")), []);
+test("the committed version files of each platform agree with each other", () => {
+  // Q384 A: a release stamps only the platforms it tags, so platforms may hold different versions.
+  const read = (f) => readFileSync(join(REPO, f), "utf8");
+  const held = {
+    android: read("release/version.properties").match(/^versionName=(.*)$/m)[1],
+    ios: read("client/ios/project.yml").match(/^ *MARKETING_VERSION: "(.*)"$/m)[1],
+    chrome: JSON.parse(read("client/chrome/manifest.json")).version,
+    firefox: JSON.parse(read("client/firefox/manifest.json")).version,
+    cli: read("client/cli/pusharmor.py").match(/^VERSION = "([^"]*)"$/m)[1],
+  };
+  for (const [p, v] of Object.entries(held)) {
+    // Between releases /download keeps the SHA-256 of the released pusharmor.py.
+    assert.deepEqual(stampProblems(REPO, v, [p]).filter((l) => !l.startsWith("site/public/download.html holds " + v + " / ")), [], p);
+  }
 });
 
 test("the version comment on line 2 of pusharmor.py must match VERSION", (t) => {
