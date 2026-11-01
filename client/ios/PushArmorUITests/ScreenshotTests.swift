@@ -89,7 +89,7 @@ final class ScreenshotTests: XCTestCase {
         app.buttons["View"].tap()
         XCTAssertTrue(app.buttons["readClose"].waitForExistence(timeout: 10))
         sleep(1)
-        shot("09-view")
+        shot("98-view")
         app.terminate()
 
         app = launch(store + ["-PAScreenshotsDetail"])
