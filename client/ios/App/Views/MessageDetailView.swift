@@ -40,15 +40,20 @@ struct SelectableText: UIViewRepresentable {
     }
 }
 
-/// Tonal action button: icon above the label.
+/// Neutral action button: black text on white, thin gray border, icon above the label.
+/// In dark mode the surface turns dark and the text light.
 private struct ActionButtonStyle: ButtonStyle {
+    private static let surface = UIColor { $0.userInterfaceStyle == .dark ? .secondarySystemBackground : .white }
+    private static let pressed = UIColor { $0.userInterfaceStyle == .dark ? .tertiarySystemBackground : .systemGray5 }
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.subheadline.weight(.medium))
             .foregroundStyle(Color.primary)
             .frame(maxWidth: .infinity, minHeight: 64)
             .padding(.vertical, 6)
-            .background(RoundedRectangle(cornerRadius: 16).fill(Color.brandGreen.opacity(configuration.isPressed ? 0.30 : 0.18)))
+            .background(RoundedRectangle(cornerRadius: 16).fill(Color(uiColor: configuration.isPressed ? Self.pressed : Self.surface)))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(uiColor: .systemGray3), lineWidth: 1))
             .contentShape(RoundedRectangle(cornerRadius: 16))
     }
 }
