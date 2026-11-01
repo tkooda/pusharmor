@@ -238,7 +238,7 @@ class AppLogicTest {
         assertEquals("This device is not logged in. Log in again.", Session.NO_KEYS)
         assertEquals("Could not log in. Try again.", Session.BAD_REPLY)
         assertFalse(source("session/Session.kt").contains("\"Bad reply\""))
-        assertTrue(source("notify/AppEffects.kt").contains("approved this device.\""))
+        assertTrue(source("notify/AppEffects.kt").contains("confirmed this device.\""))
         assertTrue(source("notify/AppEffects.kt").contains("logged out.\""))
         assertFalse(source("session/Session.kt").contains("\"No keys\""))
         assertTrue(source("notify/AppEffects.kt").contains("peersNotice(\"Device list changed.\""))

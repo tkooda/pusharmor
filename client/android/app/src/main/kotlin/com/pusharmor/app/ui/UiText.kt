@@ -28,9 +28,9 @@ object UiText {
         p.loggedOut -> Mark.OFF to "Logged out"
         !p.listening -> Mark.OFF to "Send only"
         !p.reachable -> Mark.OFF to "Unreachable"
-        !p.pinned -> Mark.WAIT to "Ready to pair" // a Pair and Deny row (I526), same word as the extensions
+        !p.pinned -> Mark.WAIT to "Ready to pair" // a Pair and Reject row (I526), same word as the extensions
         p.approvesMe -> Mark.OK to "Paired"
-        else -> Mark.WAIT to "Has not approved this device"
+        else -> Mark.WAIT to "Has not confirmed this device"
     }
 
     /** Device-limit row: "Trusts 3 devices. Trusted by 1." then "Unreachable." and "Logged out." when they apply (Q369). */
@@ -122,7 +122,7 @@ object UiText {
     }
     const val FIRST_DEVICE_TITLE = "Pair your first device"
     /** Same steps as the iOS first-pair screen (I607); each shows with a numbered circle. */
-    val FIRST_DEVICE_STEPS = listOf("Install PushArmor on another device.", "Log in with the same account.", "When it shows below, tap Pair and approve it.")
+    val FIRST_DEVICE_STEPS = listOf("Install PushArmor on another device.", "Log in with the same account.", "When it shows below, tap Pair, then tap Confirmed when the fingerprints match.")
     const val FIRST_DEVICE_WAITING = "Waiting for another device to log in."
 
     /** Send with no paired device (I462): pairing guidance replaces the empty "Send to" block once this device is loaded. */

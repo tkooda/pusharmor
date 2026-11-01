@@ -25,7 +25,7 @@ data class Peer(
     val listApprovesMe: Boolean = false,
     val listDeniesMe: Boolean = false,
     val listAfterVerify: Boolean = false,
-    /** A signed deny from this peer was received ("Declined by $X"). */
+    /** A signed deny from this peer was received ("Rejected by $X"). */
     val declined: Boolean = false,
     val reachable: Boolean = true,
     val loggedOut: Boolean = false,
@@ -59,7 +59,7 @@ data class Peer(
     /** "Waiting for $X": I approved, X's approve has not verified. */
     val waiting: Boolean get() = pinned && approved && !approveVerified
 
-    /** Pinned row with no open entry that offers Cancel pairing ("Not paired on $X" / "Declined by $X"). */
+    /** Pinned row with no open entry that offers Cancel pairing ("Not paired on $X" / "Rejected by $X"). */
     val notPairedOnPeer: Boolean get() = pinned && approveVerified && listAfterVerify && !listApprovesMe
 
     /** Row offers [Pair again]: the pair-again notice fired and the row is still in the half state. */
