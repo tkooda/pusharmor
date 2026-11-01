@@ -79,10 +79,6 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--p
 input[type=checkbox] { width: 16px; height: 16px; margin: 0; padding: 0; flex: none; accent-color: var(--primary); }
 input[type=checkbox]:focus { box-shadow: none; }
 input[type=checkbox]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-input[role=switch] { appearance: none; width: 32px; height: 18px; border-radius: 9px; background: var(--s3); border: 1px solid var(--ctl); position: relative; cursor: pointer; }
-input[role=switch]::before { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--ink2); }
-input[role=switch]:checked { background: var(--primary); border-color: var(--primary); }
-input[role=switch]:checked::before { left: 16px; background: var(--onp); }
 
 /* Rows: icon tile, text, one trailing control. */
 .av { width: 32px; height: 32px; border-radius: var(--ra); background: var(--avbg); color: var(--avfg); display: grid; place-items: center; flex: none; }
