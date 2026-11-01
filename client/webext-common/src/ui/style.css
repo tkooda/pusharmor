@@ -180,8 +180,8 @@ body.page .foot { position: static; }
 .dchip .nm { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
 .dchip .pi, .dchip .ck { display: inline-flex; color: var(--ink2); }
 .dchip .ck, .dchip.on .pi { display: none; }
-.dchip.on .ck { display: inline-flex; color: var(--onpc); }
-.chip.dchip.on, .chip.dchip.on:hover { background: var(--pc); border-color: var(--pc); color: var(--onpc); }
+.dchip.on .ck { display: inline-flex; color: var(--onokc); }
+.chip.dchip.on, .chip.dchip.on:hover { background: var(--okc); border-color: var(--okc); color: var(--onokc); }
 .dchip.off { opacity: 0.5; }
 .dchip.greyed { cursor: default; }
 .counter { margin-left: auto; font-size: 12px; line-height: 16px; color: var(--err); }
