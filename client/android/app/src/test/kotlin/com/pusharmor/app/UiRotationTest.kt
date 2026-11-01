@@ -98,4 +98,11 @@ class UiRotationTest {
         for (v in listOf("val picked = rememberSaveable", "var restored by rememberSaveable", "var confirmRemove by rememberSaveable",
             "var pairHowTo by rememberSaveable", "var chip by rememberSaveable")) assertTrue(v, main.contains(v))
     }
+
+    @Test fun negativeActionIsLeftOfTheAffirmativeOne() {
+        val main = java.io.File("src/main/kotlin/com/pusharmor/app/ui/MainScreens.kt").readText()
+        // Device row: Deny left, Pair right; pairing card: Deny left, Approve right (I627).
+        assertTrue(main.indexOf("vm.deny(p.id) }, Modifier.heightIn") < main.indexOf("vm.pair(p.id) }, Modifier.heightIn"))
+        assertTrue(main.indexOf("{ Text(\"Deny\") }\n                    TonalGreenButton") > 0)
+    }
 }
