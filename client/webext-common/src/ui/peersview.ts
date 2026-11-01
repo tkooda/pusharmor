@@ -1,5 +1,6 @@
 // Peers list (popup and the full tab), component-webext section 7 Peers.
 import type { PeerView } from "../core/rpc.ts";
+import { sortByLabel } from "../model/sendsel.ts";
 import { T } from "../core/texts.ts";
 import { type UiEnv, add, clear, greyFor, group, h, overflowMenu, peerStatus, platformLabel, rpc, sh, statusLine } from "./dom.ts";
 import { confirmDialog, toast } from "./dialog.ts";
@@ -41,13 +42,13 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
   clear(root);
   // focusId: the list was rebuilt after an action, so put focus back on that row (or the first heading if it is gone).
   const redraw: Redraw = (focusId) => renderPeers(env, root, full, undefined, focusId);
-  const pairing = data.peers.filter((p) => p.fingerprint);
-  const rows = data.peers.filter((p) => !p.fingerprint);
+  const pairing = sortByLabel(data.peers.filter((p) => p.fingerprint));
+  const rows = sortByLabel(data.peers.filter((p) => !p.fingerprint));
   if (fpTimer) clearInterval(fpTimer);
   fpTimer = null;
   if (!data.peers.some((p) => p.paired)) {
     // I612: no paired device yet: the first-pair steps and the devices waiting to pair (live)
-    const waiting = data.peers.filter((p) => !p.hidden);
+    const waiting = sortByLabel(data.peers.filter((p) => !p.hidden));
     root.append(
       h("h1", { class: "fp-title", tabindex: "-1" }, "Pair your first device"),
       h(
