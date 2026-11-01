@@ -360,7 +360,7 @@ struct ComposeView: View {
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(toAll ? .isSelected : [])
             }
-            ForEach(candidates.filter { shown.contains($0.id.text) }, id: \.id.text) { p in
+            ForEach(PeerLabel.sorted(candidates.filter { shown.contains($0.id.text) }), id: \.id.text) { p in
                 let ok = enabled(p)
                 let on = selected.contains(p.id.text) && ok
                 Button {
