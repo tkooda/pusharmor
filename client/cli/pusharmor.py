@@ -1822,7 +1822,7 @@ def act(cx, d, r, p, notes):
         if p["ruling"] == "approved":
             p.update(approves_me=True, approve_verified=True, get_after_verify=False, pending_approve_n=0)
             d["pairs"].pop(frm, None)
-            notes.append(peer_label(p) + " approved this device")
+            notes.append(peer_label(p) + " confirmed this device")
         else:
             p["pending_approve_n"] = n
     elif t == "rename":
@@ -1845,7 +1845,7 @@ def act(cx, d, r, p, notes):
     elif t == "deny":
         p["denies_me"], p["approves_me"] = True, False
         d["pairs"].pop(frm, None)
-        notes.append(name + " denied this device")
+        notes.append(name + " rejected this device")
     return None, None
 
 
@@ -2366,10 +2366,10 @@ def peer_status(p, e):
     if e and e["state"] == "shown" and not e["approved"]:
         return "compare fingerprint " + e["fingerprint"]
     if p["pinned"] and p["ruling"] == "approved":
-        return "waiting for it to approve"
+        return "waiting for it to confirm"
     if e:
         return "wants to pair" if e["role"] == "X" and e["state"] == "prompted" else "pairing"
-    return "denied" if p["ruling"] == "denied" else "not paired"
+    return "rejected" if p["ruling"] == "denied" else "not paired"
 
 
 def pair_list(cx):
@@ -2425,7 +2425,7 @@ def cmd_pair(cx, args):
                 post_pair(cx, x, "open", e["msg"])
             first = False
             print("Pairing fingerprint %s" % e["fingerprint"])
-            if not ask_yes("Check that %s shows the same fingerprint. Approve %s? [y/N] " % (name, name)):
+            if not ask_yes("Check that %s shows the same fingerprint. Confirmed (y) or Reject (n)? [y/N] " % name):
                 deny(cx, x)
                 print("Did not pair with %s." % name)
                 return EXIT_OK
@@ -2434,7 +2434,7 @@ def cmd_pair(cx, args):
                 raise Fail("Could not reach %s (%s). Run pusharmor pair %s again later." % (name, r, sid))
             continue
         if p["pinned"] and p["ruling"] == "approved":
-            wait = "Waiting for %s to approve this device." % name
+            wait = "Waiting for %s to confirm this device." % name
             if first and e and e["approve_body"]:
                 r = post_approve(cx, x, json.loads(e["approve_body"]))
                 r = "sent" if r == "stored" else r
@@ -2570,7 +2570,7 @@ def cmd_send(cx, args):
 # /v1/send result word -> sentence for one device; any other word (failed, failed:CODE, ...) is SEND_FAILED.
 SEND_WHY = {"gone": "Not delivered. Open PushArmor on it.", "not listening": "Send only. It does not receive messages.",
             "logged out": "Logged out. Log in on it to receive messages.",
-            "unapproved": "Not paired. Run pusharmor pair to pair it.", "denied": "It declined this device.",
+            "unapproved": "Not paired. Run pusharmor pair to pair it.", "denied": "It rejected this device.",
             "unknown": "It is no longer on this account."}
 SEND_FAILED = "Not delivered. Try again."
 
@@ -2627,7 +2627,7 @@ def cmd_delete(cx, args):
 COMMANDS = {
     "login": (cmd_login, "Log in this device to your PushArmor account.", []),
     "logout": (cmd_logout, "Log out this device. Keys and paired devices stay on it.", []),
-    "pair": (cmd_pair, "List your devices, or pair with one (compare the fingerprint, then approve).",
+    "pair": (cmd_pair, "List your devices, or pair with one (compare the fingerprint, then confirm or reject).",
              [(("id",), {"nargs": "?", "metavar": "ID", "help": "device ID from the list (6 or more hex characters)"})]),
     "listen": (cmd_listen, "Receive messages and print them as they arrive.",
                [(("--json",), {"action": "store_true", "help": "one JSON object per line"}),
