@@ -151,8 +151,15 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(lock.isEnabled)
         // the switch itself, not its label: the inner switch where exposed, else the right end of the row
         let knob = show.switches.firstMatch
-        if knob.exists { knob.tap() } else { show.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap() }
-        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "0"), object: show)], timeout: 5)
+        let tapSwitch = {
+            if knob.exists { knob.tap() } else { show.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap() }
+        }
+        let isOff = { XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "0"), object: show) }
+        tapSwitch()
+        // The iOS 17 simulator sometimes drops a synthesized tap on a list switch (the screen
+        // recording shows no press at all). Tap once more only if the value never changed.
+        if XCTWaiter().wait(for: [isOff()], timeout: 3) != .completed, show.value as? String == "1" { tapSwitch() }
+        wait(for: [isOff()], timeout: 5)
         XCTAssertFalse(lock.isEnabled)
         let del = app.buttons["Delete account"]
         let out = app.buttons["Log out"]
