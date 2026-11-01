@@ -325,7 +325,7 @@ internal fun NameEditRow(current: String, modifier: Modifier = Modifier, onSave:
     val st = rememberSaveable(saver = NameEdit.Saver) { NameEdit() }
     val cs = MaterialTheme.colorScheme
     if (!st.editing) {
-        SettingRow("Device name", current, modifier, trailing = { Icon(PaIcons.Edit, null, tint = cs.onSurfaceVariant) }) { st.start(current) }
+        SettingRow(current, null, modifier, trailing = { Icon(PaIcons.Edit, null, tint = cs.onSurfaceVariant) }) { st.start(current) }
         return
     }
     val error = st.error
