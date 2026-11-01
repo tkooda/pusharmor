@@ -33,7 +33,7 @@ const state: StateView = {
 };
 
 const paired = (pid: string, label: string, platform: string, greyed: string | null = null): PeerView => ({
-  id: pid, label, platform, lines: [], actions: ["remove", "hide"], countdown: null, fingerprint: null, pk: null,
+  id: pid, label, platform, lines: [], actions: ["remove"], countdown: null, fingerprint: null, pk: null,
   greyed, hidden: false, sendable: true, approvesMe: true, paired: true,
 });
 
@@ -43,7 +43,7 @@ const peers: PeerView[] = [
   paired(TABLET, "Tablet", "android", "unreachable"),
   {
     id: NEW_LAPTOP, label: "New laptop", platform: THIS, lines: [T.fingerprint("K7QD")],
-    actions: ["cancel", "approve", "deny", "remove", "hide"], countdown: formatCountdown(PAIRING_TIMEOUT_DAYS * 86400e3 - 60_000),
+    actions: ["cancel", "approve", "deny", "remove"], countdown: formatCountdown(PAIRING_TIMEOUT_DAYS * 86400e3 - 60_000),
     fingerprint: "K7QD", pk: null, greyed: null, hidden: false, sendable: false, approvesMe: false, paired: false,
   },
 ];
@@ -76,7 +76,7 @@ const history: (HistoryRow & { sender: string })[] = [
 if (q.get("n") === "0") history.length = 0;
 // ?wait (with n=0): one device logged in on the account and waiting to pair
 if (q.has("wait")) {
-  peers.push({ id: id("W"), label: "Phone", platform: "android", lines: [], actions: ["pair", "deny", "remove", "hide"], countdown: null,
+  peers.push({ id: id("W"), label: "Phone", platform: "android", lines: [], actions: ["pair", "deny", "remove"], countdown: null,
     fingerprint: null, pk: null, greyed: null, hidden: false, sendable: false, approvesMe: false, paired: false });
 }
 

@@ -251,7 +251,7 @@ export class Rpc {
         else if (p.listening === false) v.greyed = "send only";
         else if (!p.reachable) v.greyed = "unreachable";
       }
-      v.actions.push("remove", p.hidden ? "unhide" : "hide");
+      v.actions.push("remove");
       out.push(v);
     }
     return { self: self ? { id: self.id, name: await e.myName() } : null, peers: out, allowContent: (await e.settings()).allowContent };
