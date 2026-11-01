@@ -381,7 +381,7 @@ struct PeerRowView: View {
         if !p.listening { return (.off, "Send only") }
         if !p.reachable { return (.off, "Unreachable") }
         if p.approvesMe { return (.approves, "Paired") }
-        return (.notApproved, "Has not confirmed this device")
+        return (.notApproved, "Unconfirmed")
     }
 
     var body: some View {
