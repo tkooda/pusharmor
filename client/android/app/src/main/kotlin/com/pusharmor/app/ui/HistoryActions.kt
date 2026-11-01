@@ -17,7 +17,7 @@ fun messageKind(type: String?, content: String): MessageKind = when {
 /** The action buttons of an opened message, in display order. */
 fun historyActionLabels(kind: MessageKind): List<String> = when (kind) {
     MessageKind.URL, MessageKind.TEL -> listOf("Copy", "Open", "Share")
-    MessageKind.TEXT -> listOf("Read", "Copy", "Share", "Save")
+    MessageKind.TEXT -> listOf("View", "Copy", "Share", "Save")
 }
 
 /** Number of text lines the opened text box shows before it scrolls. */

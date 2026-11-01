@@ -23,13 +23,13 @@ class HistoryActionsTest {
     @Test fun actionOrderByType() {
         assertEquals(listOf("Copy", "Open", "Share"), historyActionLabels(messageKind("url", "https://example.com/a")))
         assertEquals(listOf("Copy", "Open", "Share"), historyActionLabels(messageKind("tel", "+15551234567")))
-        assertEquals(listOf("Read", "Copy", "Share", "Save"), historyActionLabels(messageKind("text", "hello")))
+        assertEquals(listOf("View", "Copy", "Share", "Save"), historyActionLabels(messageKind("text", "hello")))
         assertEquals(MessageKind.TEXT, messageKind("url", "not a link"))
     }
 
     @Test fun readOpensAndCloses() {
         val main = source("ui/MainScreens.kt")
-        assertTrue(main.contains("MessageAction(\"Read\", PaIcons.Article) { reading = true }"))
+        assertTrue(main.contains("MessageAction(\"View\", PaIcons.Article) { reading = true }"))
         assertTrue(main.contains("if (reading) ReadDialog(hc) { reading = false }"))
         val dialog = main.substring(main.indexOf("private fun ReadDialog("))
         assertTrue(dialog.contains("IconButton(onClick = onClose) { Icon(PaIcons.Close"))
