@@ -173,3 +173,19 @@ test("toast: an error is an alert that stays until Close or the next click; a ne
     mock.timers.reset();
   }
 });
+
+test("toast: a sticky message has a Close button and does not auto-dismiss (I626)", () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    toast('Message saved to "/home/u/a.txt"', "ok", true);
+    const el = toastEl()!;
+    mock.timers.tick(60_000);
+    assert.equal(toastEl(), el, "still shown");
+    assert.equal(el.textContent.includes('Message saved to "/home/u/a.txt"'), true);
+    assert.equal(buttons(el).length, 1);
+    buttons(el)[0]!.click();
+    assert.equal(toastEl(), undefined);
+  } finally {
+    mock.timers.reset();
+  }
+});
