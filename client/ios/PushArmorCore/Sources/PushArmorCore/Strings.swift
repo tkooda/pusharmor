@@ -279,4 +279,14 @@ public enum PeerLabel {
         guard let p = p else { return S.aPeer }
         return p.name ?? unnamed(platform: p.platform, created: p.created)
     }
+
+    /// Devices in alphabetical order of the shown name: case-insensitive, locale-aware (I630). Ties keep their order.
+    public static func sortedByName<T>(_ items: [T], name: (T) -> String) -> [T] {
+        items.enumerated().sorted {
+            let c = name($0.element).localizedCaseInsensitiveCompare(name($1.element))
+            return c == .orderedSame ? $0.offset < $1.offset : c == .orderedAscending
+        }.map { $0.element }
+    }
+
+    public static func sorted(_ peers: [Peer]) -> [Peer] { sortedByName(peers) { label($0) } }
 }

@@ -975,4 +975,8 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(HistoryFilter.apply(.unknown, try s.history()).count, 1)
         XCTAssertEqual(HistoryFilter.apply(.all, try s.history()).count, 4)
     }
+
+    func testSortedByNameIgnoresCase() {
+        XCTAssertEqual(PeerLabel.sortedByName(["gamma", "Beta", "alpha", "Beta2"]) { $0 }, ["alpha", "Beta", "Beta2", "gamma"])
+    }
 }
