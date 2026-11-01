@@ -101,8 +101,8 @@ class UiRotationTest {
 
     @Test fun negativeActionIsLeftOfTheAffirmativeOne() {
         val main = java.io.File("src/main/kotlin/com/pusharmor/app/ui/MainScreens.kt").readText()
-        // Device row: Reject left, Pair right; pairing card: Reject left, Confirmed right (I627).
+        // Device row: Reject left, Pair right; pairing card: Reject left, Codes match right (I627).
         assertTrue(main.indexOf("vm.deny(p.id) }, Modifier.heightIn") < main.indexOf("TonalGreenButton(onClick = { vm.pair(p.id) }"))
-        assertTrue(main.indexOf("{ Text(\"Reject\") }\n                    TonalGreenButton") > 0)
+        assertTrue(main.indexOf("{ Text(\"Codes differ\") }\n                    TonalGreenButton") > 0)
     }
 }

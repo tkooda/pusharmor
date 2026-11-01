@@ -431,7 +431,7 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
     val stateText = when {
         !p.pinned -> null
         p.notPairedOnPeer -> if (p.listDeniesMe) "Rejected by $x" else "Not paired on $x"
-        p.waiting -> "Waiting for $x: open PushArmor there and tap Confirmed."
+        p.waiting -> "Waiting for $x: open PushArmor there and tap Codes match."
         p.missing -> null
         p.declined -> "Rejected by $x"
         else -> null
@@ -526,7 +526,7 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
         Spacer(Modifier.height(16.dp))
         when {
             row.state == PairState.SHOWN && p.waiting -> {
-                Text("Waiting for $x: open PushArmor there and tap Confirmed.", style = body, color = cs.onSurfaceVariant)
+                Text("Waiting for $x: open PushArmor there and tap Codes match.", style = body, color = cs.onSurfaceVariant)
                 WaitingSendAgain(vm, p, now)
             }
             row.state == PairState.SHOWN -> {
@@ -535,15 +535,15 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.weight(1f).heightIn(min = 48.dp), enabled = "deny:${p.id}" !in running,
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = cs.error),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, cs.error)) { Text("Reject") }
-                    TonalGreenButton(onClick = { vm.approve(p.id) }, text = "Confirmed", modifier = Modifier.weight(1f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, cs.error)) { Text("Codes differ") }
+                    TonalGreenButton(onClick = { vm.approve(p.id) }, text = "Codes match", modifier = Modifier.weight(1f),
                         enabled = "approve:${p.id}" !in running)
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically) {
                     Icon(PaIcons.Info, null, Modifier.size(16.dp), tint = cs.onSurfaceVariant)
-                    Text("Codes do not match? Tap Reject.", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+                    Text("Codes do not match? Tap Codes differ.", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
                 }
             }
             prompted -> {
