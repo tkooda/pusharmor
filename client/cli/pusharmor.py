@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# PushArmor command-line client, version 0.0.20
+# PushArmor command-line client, version 0.0.21
 """PushArmor command-line client.
 
 The top part is the core layer: encodings, keys, signed requests, HPKE,
@@ -42,7 +42,7 @@ except BaseException:  # missing, or broken: no _cffi_backend is ImportError, a 
     sys.stderr.write(CRYPTO_MISSING + "\n")
     sys.exit(1)
 
-VERSION = "0.0.20"
+VERSION = "0.0.21"
 
 # ---- encodings ----
 
