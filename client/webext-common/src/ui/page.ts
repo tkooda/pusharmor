@@ -46,9 +46,8 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
   const view = h("div", {});
   root.append(h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), view);
   const nav: Nav = { toDevices: () => (location.hash = "#pair"), toSend: () => (location.hash = "#send") };
-  // I497: Send to... sets the #send= hash (the hashchange mounts it), so a reload keeps the draft
   if (route === "read") return readView(env, root, Number(arg));
-  if (route === "history") return historyView(env, view, (text) => (location.hash = "#send=" + encodeURIComponent(text)), arg, nav);
+  if (route === "history") return historyView(env, view, arg, nav);
   if (route === "send") {
     let text = "";
     try {

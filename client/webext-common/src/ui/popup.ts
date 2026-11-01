@@ -65,8 +65,8 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   clear(root);
   const body = h("div", { class: "body", id: "panel", role: "tabpanel" });
   const tabs = h("div", { class: "tabs", role: "tablist" });
-  const nav: Nav = { toDevices: () => show("peers", undefined, true), toSend: () => show("send") };
-  const show = (t: Tab, prefill?: string, openPair = false) => {
+  const nav: Nav = { toDevices: () => show("peers", true), toSend: () => show("send") };
+  const show = (t: Tab, openPair = false) => {
     for (const b of Array.from(tabs.children)) {
       const on = (b as HTMLElement).dataset.tab === t;
       b.classList.toggle("on", on);
@@ -83,12 +83,12 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
     const wait = h("div", { class: "loading", role: "status" }, "Loading...");
     const slow = setTimeout(() => pane.isConnected && !pane.firstChild && body.prepend(wait), 150);
     let ready: Promise<unknown> = Promise.resolve();
-    if (t === "send") ready = sendView(env, pane, st, prefill, false, nav).then(() => prefill !== undefined && pane.querySelector("textarea")?.focus());
-    if (t === "history") ready = historyView(env, pane, (text) => show("send", text), undefined, nav);
+    if (t === "send") ready = sendView(env, pane, st, undefined, false, nav);
+    if (t === "history") ready = historyView(env, pane, undefined, nav);
     if (t === "peers") ready = renderPeers(env, pane, false, undefined, undefined, openPair);
     if (t === "settings") ready = settingsView(env, pane, st, () => mountPopup(env, root));
     // I473: a view that fails shows the error with Retry in place of an empty pane
-    void ready.catch((e) => pane.isConnected && failView(pane, (e as Error).message, () => show(t, prefill))).finally(() => {
+    void ready.catch((e) => pane.isConnected && failView(pane, (e as Error).message, () => show(t))).finally(() => {
       clearTimeout(slow);
       wait.remove();
     });
@@ -309,7 +309,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   await update();
 }
 
-export async function historyView(env: UiEnv, root: HTMLElement, resend: (text: string) => void, focus?: string, nav?: Nav): Promise<void> {
+export async function historyView(env: UiEnv, root: HTMLElement, focus?: string, nav?: Nav): Promise<void> {
   await rpc(env, "historyOpened");
   const rows = await rpc<(HistoryRow & { sender: string })[]>(env, "history");
   let key = "all";
@@ -369,7 +369,7 @@ export async function historyView(env: UiEnv, root: HTMLElement, resend: (text: 
     filterRow.hidden = opts.length < 2;
     clear(list);
     const now = Date.now();
-    for (const r of f.rows) list.append(historyRow(env, r, resend, now, ctl));
+    for (const r of f.rows) list.append(historyRow(env, r, now, ctl));
     drawBar();
     if (focusId !== null) document.getElementById("h-" + focusId)?.querySelector<HTMLElement>("input.hsel, .content")?.focus();
     focusId = null;
@@ -389,7 +389,7 @@ export async function historyView(env: UiEnv, root: HTMLElement, resend: (text: 
           if (!(await confirmDialog(title, "This deletes the selected messages from this device.", "Delete"))) return;
           await rpc(env, "historyDelete", { ids });
           clear(root);
-          await historyView(env, root, resend, undefined, nav);
+          await historyView(env, root, undefined, nav);
         },
       }, "Delete " + n + " selected"),
     );
@@ -485,7 +485,7 @@ function saveText(env: UiEnv, text: string, ms: number): void {
   );
 }
 
-function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (text: string) => void, now: number, ctl: SelectCtl): HTMLElement {
+function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, now: number, ctl: SelectCtl): HTMLElement {
   const full = new Date(r.received).toLocaleString();
   const time = h("span", { class: "time", title: full }, shortTime(r.received, now));
   const row = h("div", { class: "hrow", id: "h-" + r.id });
@@ -554,7 +554,7 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (tex
     if (t?.closest(".content") || row.classList.contains("sel")) markRead();
     else select();
   });
-  // I622: URL or phone number: Copy, Open, Share. Text: Read, Copy, Share, Save. Send to... stays last.
+  // I622: URL or phone number: Copy, Open, Share. Text: Read, Copy, Share, Save.
   const acts = h("div", { class: "actions acts" });
   const canShare = typeof navigator.share === "function";
   const btn: Record<MsgAction, () => HTMLElement> = {
@@ -564,10 +564,10 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (tex
     read: () => h("button", { class: "ac", onclick: () => void env.openPage("#read=" + r.id) }, icon("read", 15), "Read"),
     save: () => h("button", { class: "ac", onclick: () => saveText(env, r.content, r.received) }, icon("save", 15), "Save"),
   };
-  // I625: the main actions share one equal-width row; Send to... sits on its own row below.
+  // I625: the actions share one equal-width row.
   const main = h("div", { class: "acts-row" });
   for (const a of msgActions(r.type)) if (a !== "share" || canShare) main.append(btn[a]());
-  acts.append(main, h("button", { class: "ac", onclick: () => resend(r.content) }, icon("send", 15), "Send to..."));
+  acts.append(main);
   col.append(content);
   if (r.dir === "out" && r.results) {
     const fails = Object.values(r.results).filter((v) => v !== "sent").length;
