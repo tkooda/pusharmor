@@ -542,7 +542,7 @@ test("history multi-select: long-press, right-click, Shift+Enter, checkboxes, De
   assert.match(readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8"), /button\.dellight/);
 });
 
-test("history message actions: Read, Copy, Share, and Save share one equal-width row with no Send to...; wrap only under 340px (I625, Q393)", async () => {
+test("history message actions: View, Copy, Share, and Save share one equal-width row with no Send to...; wrap only under 340px (I625, Q393)", async () => {
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
   const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
