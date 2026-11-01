@@ -12,14 +12,6 @@ struct MainView: View {
         .onChange(of: model.needsFirstPair) { _, v in
             if !v { tab = 0 }
         }
-        .sheet(isPresented: Binding(
-            get: { model.detailRow != nil },
-            set: { if !$0 { model.detailRow = nil } }
-        )) {
-            if let row = model.detailRow {
-                MessageDetailView(row: row)
-            }
-        }
     }
 
     private var tabs: some View {

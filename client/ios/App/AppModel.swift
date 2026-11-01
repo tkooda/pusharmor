@@ -668,10 +668,11 @@ final class AppModel: ObservableObject {
         case "url": if let r = row { open(r) }
         case "peers": highlightPeer = info["peer"] as? String
         case "history": showHistory = true
-        case "detail": if let r = row { markRead(r); detailRow = r }
+        case "detail": if let r = row { markRead(r); detailRow = r; showHistory = true }
         default: break
         }
     }
 
+    /// The History row that is open, with its text and action buttons under it (Q402).
     @Published var detailRow: HistoryRow?
 }

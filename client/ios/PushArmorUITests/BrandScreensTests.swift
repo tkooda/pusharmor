@@ -248,24 +248,24 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.buttons["Delete account"].exists)
     }
 
-    /// Q398: a text message opens a sheet with its text and Copy, Share, and Save pinned at the
-    /// bottom; no Read, View, or Open button.
-    func testMessageSheetShowsTextAndButtons() {
+    /// Q402: an open text message shows View, Copy, Share, and Save under its row, with no
+    /// sheet; View opens a full-screen view that the X closes.
+    func testReadOpensAndCloses() {
         let app = launch(["-PAScreenshotsStore", "-PAScreenshotsDetailText"])
-        let copy = app.buttons["Copy"]
-        XCTAssertTrue(copy.waitForExistence(timeout: 30))
+        let read = app.buttons["View"]
+        XCTAssertTrue(read.waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Copy"].exists)
         XCTAssertTrue(app.buttons["Share"].exists)
         XCTAssertTrue(app.buttons["Save"].exists)
         XCTAssertFalse(app.buttons["Open"].exists)
-        XCTAssertFalse(app.buttons["Read"].exists)
-        XCTAssertFalse(app.buttons["View"].exists)
-        XCTAssertTrue(app.descendants(matching: .any)["messageText"].exists)
-        XCTAssertTrue(copy.isHittable)
-        // I639: the last text line ends above the button row, not under it
-        let text = app.descendants(matching: .any)["messageText"]
-        XCTAssertLessThanOrEqual(text.frame.maxY, copy.frame.minY, "text \(text.frame) copy \(copy.frame) window \(app.windows.firstMatch.frame)")
-        app.buttons["Done"].tap()
-        XCTAssertFalse(copy.waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["Done"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["messageTextBox"].exists)
+        XCTAssertTrue(app.tabBars.buttons["History"].isSelected)
+        read.tap()
+        let close = app.buttons["readClose"]
+        XCTAssertTrue(close.waitForExistence(timeout: 10))
+        close.tap()
+        XCTAssertTrue(read.waitForExistence(timeout: 10))
     }
 
     /// I604: Delete all history asks in a standard alert; Cancel closes it.

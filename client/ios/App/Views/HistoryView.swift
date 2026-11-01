@@ -62,7 +62,8 @@ struct HistoryView: View {
                 .padding(.vertical, 16)
             }
             ForEach(rows, id: \.rowid) { row in
-                HistoryRowView(row: row, selecting: selection.active, selected: selection.contains(row.rowid),
+                HistoryRowView(row: row, expanded: model.detailRow != nil && model.detailRow?.rowid == row.rowid,
+                               selecting: selection.active, selected: selection.contains(row.rowid),
                                onToggle: { selection.toggle(row.rowid) }, onLongPress: { selection.start(row.rowid) })
             }
             .onDelete { idx in
@@ -94,6 +95,8 @@ struct HistoryView: View {
 
 struct HistoryRowView: View {
     let row: HistoryRow
+    /// Open (Q402): the text and the action buttons show under the row; a tap opens or closes it.
+    var expanded = false
     /// Multi-select (I621): a checkbox shows on the left and a tap toggles it.
     var selecting = false
     var selected = false
@@ -125,6 +128,8 @@ struct HistoryRowView: View {
 
     private var unread: Bool { !row.read && !isEvent && !outgoing }
 
+    private var isOpen: Bool { expanded && !selecting && !isEvent }
+
     private var contentText: String {
         isEvent && row.count > 1 ? "\(row.content) (\(row.count))" : row.content
     }
@@ -152,6 +157,13 @@ struct HistoryRowView: View {
     }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            summary
+            if isOpen { MessageDetailView(row: row) }
+        }
+    }
+
+    private var summary: some View {
         // Unread rows are bold, with no marker column, so the times line up (F32).
         HStack(alignment: .top, spacing: 10) {
             if selecting {
@@ -183,10 +195,12 @@ struct HistoryRowView: View {
                         .fixedSize()
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    content
-                        .font(isEvent ? .subheadline : .body)
-                        .fontWeight(unread ? .semibold : nil)
-                        .foregroundColor(unread ? .primary : .secondaryText)
+                    if !isOpen {
+                        content
+                            .font(isEvent ? .subheadline : .body)
+                            .fontWeight(unread ? .semibold : nil)
+                            .foregroundColor(unread ? .primary : .secondaryText)
+                    }
                     if let name = soleRecipientName {
                         // The name truncates inside the quotes; the line stays one line.
                         HStack(spacing: 0) {
@@ -210,6 +224,7 @@ struct HistoryRowView: View {
         .onLongPressGesture { if selecting { onToggle() } else { onLongPress() } }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(a11yLabel)
+        .accessibilityValue(isEvent || selecting ? "" : (isOpen ? "Expanded" : "Collapsed"))
         .accessibilityAddTraits(selecting && selected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { selecting ? onToggle() : tap() }
         .accessibilityAction(named: "Select") { if selecting { onToggle() } else { onLongPress() } }
@@ -275,6 +290,6 @@ struct HistoryRowView: View {
             return
         }
         model.markRead(row)
-        model.detailRow = row
+        model.detailRow = expanded ? nil : row
     }
 }
