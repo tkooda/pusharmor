@@ -10,7 +10,7 @@ const ACTION_LABEL: Record<string, string> = {
   pair: "Pair",
   pair_again: "Pair again",
   deny: "Reject",
-  approve: "Confirmed",
+  approve: "Codes match",
   reply: "Reply",
   send_again: "Send again",
   approve_again: "Send again",
@@ -52,7 +52,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
       h(
         "ol",
         { class: "grp fp-steps" },
-        ...["Install PushArmor on another device.", "Log in with the same account.", "When it shows below, click Pair, then click Confirmed when the fingerprints match."].map((t, i) =>
+        ...["Install PushArmor on another device.", "Log in with the same account.", "When it shows below, click Pair, then click Codes match when the fingerprints match."].map((t, i) =>
           h("li", {}, h("span", { class: "fp-num", "aria-hidden": "true" }, String(i + 1)), h("span", {}, t)),
         ),
       ),
@@ -176,8 +176,8 @@ export function ownCard(env: UiEnv, name: string, platform: string): HTMLElement
   return group(card);
 }
 
-function actionButton(env: UiEnv, a: string, p: PeerView, redraw: Redraw, cls = ACTION_CLASS[a] ?? ""): HTMLButtonElement {
-  const b = h("button", cls ? { class: cls } : {}, ACTION_LABEL[a] ?? a) as HTMLButtonElement;
+function actionButton(env: UiEnv, a: string, p: PeerView, redraw: Redraw, cls = ACTION_CLASS[a] ?? "", label?: string): HTMLButtonElement {
+  const b = h("button", cls ? { class: cls } : {}, label ?? ACTION_LABEL[a] ?? a) as HTMLButtonElement;
   b.addEventListener("click", () => void act(env, a, p, b, redraw));
   return b;
 }
@@ -244,10 +244,10 @@ export function pairCard(env: UiEnv, p: PeerView, redraw: Redraw): HTMLElement {
   if (p.pk) void rpc(env, "fingerprintShown", { pk: p.pk }).catch(() => undefined);
   for (const l of p.lines) if (!l.startsWith("Pairing fingerprint")) card.append(h("div", { class: "t2 line" }, l));
   const main = [...p.actions].filter((a) => !MENU.has(a) && a !== "cancel").sort((x, y) => rank(x) - rank(y));
-  // Reject left, Confirmed right, equal width.
+  // Codes differ left, Codes match right, equal width.
   const order = main.includes("deny") ? ["deny", ...main.filter((a) => a !== "deny")] : main;
-  if (order.length) card.append(h("div", { class: "pair-acts" }, ...order.map((a) => actionButton(env, a, p, redraw, a === "deny" ? "danger" : ACTION_CLASS[a] ?? ""))));
-  if (p.actions.includes("deny") && p.actions.includes("approve")) card.append(h("div", { class: "hint" }, icon("info", 14), "Codes do not match? Click Reject."));
+  if (order.length) card.append(h("div", { class: "pair-acts" }, ...order.map((a) => actionButton(env, a, p, redraw, a === "deny" ? "danger" : ACTION_CLASS[a] ?? "", a === "deny" && p.actions.includes("approve") ? "Codes differ" : undefined))));
+  if (p.actions.includes("deny") && p.actions.includes("approve")) card.append(h("div", { class: "hint" }, icon("info", 14), "Codes do not match? Click Codes differ."));
   const foot = h("div", { class: "pair-foot" });
   if (p.actions.includes("cancel")) foot.append(actionButton(env, "cancel", p, redraw, ""));
   if (p.countdown) foot.append(h("span", { class: "t2 countdown" }, T.countdownLeft(p.countdown)));

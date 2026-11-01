@@ -29,7 +29,7 @@ export const T = {
   pairing: "Pairing...",
   pairingWith: (x: string) => "Pairing with " + x,
   wantsToPair: (x: string) => x + " wants to pair",
-  waiting: (x: string) => "Waiting for " + x + ": open PushArmor there and click Confirmed",
+  waiting: (x: string) => "Waiting for " + x + ": open PushArmor there and click Codes match",
   noReplyYet: (x: string) => "No reply yet. Open PushArmor on " + x + ", or click Send again.",
   stillHolds: (x: string) => x + " still holds an earlier pairing. On " + x + ", click Cancel pairing, then click Send again.",
   notPairedOn: (x: string) => "Not paired on " + x,

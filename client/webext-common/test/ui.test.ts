@@ -244,7 +244,7 @@ test("no paired device: the tabs stay, and Devices shows the first-pair content,
   assert.match(pv, /if \(!data\.peers\.some\(\(p\) => p\.paired\)\) \{/);
   assert.match(pv, /"Pair your first device"/);
   assert.match(pv, /"Install PushArmor on another device\."/);
-  assert.match(pv, /"When it shows below, click Pair, then click Confirmed when the fingerprints match\."/);
+  assert.match(pv, /"When it shows below, click Pair, then click Codes match when the fingerprints match\."/);
   assert.match(pv, /class: "fp-num"/);
   assert.match(pv, /class: "fp-spin"[^)]*\), "Waiting for another device to log in\."/);
   assert.match(pv, /JSON\.stringify\(now\.peers\) === key/); // the live read redraws only on a change
@@ -510,7 +510,7 @@ test("history row: a tap on the selected row collapses it, with aria-expanded an
   assert.match(readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8"), /\.hrow\.closed:not\(\.sel\) \.acts \{ display: none; \}/);
 });
 
-test("pairing screen: Confirmed is a light green tonal button with no check icon; Reject stays outlined (I624)", async () => {
+test("pairing screen: Codes match is a light green tonal button with no check icon; Codes differ stays outlined (I624)", async () => {
   const { readFileSync } = await import("node:fs");
   const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
   const pv = rd("peersview.ts");
