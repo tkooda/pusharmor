@@ -53,28 +53,38 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(labelled(app, "Galaxy S23").waitForExistence(timeout: 10))
         sleep(1)
         shot("03-devices")
+        // the just-paired row expanded: its switches, Hide and Remove
+        let lockShow = app.switches["Show message content on lock screen"]
+        for _ in 0..<2 where !lockShow.exists {
+            labelled(app, "Galaxy S23").tap()
+            _ = lockShow.waitForExistence(timeout: 10)
+        }
+        XCTAssertTrue(lockShow.exists)
+        XCTAssertTrue(app.buttons["Remove"].exists)
+        sleep(1)
+        shot("04-device-options")
         app.tabBars.buttons["Send"].tap()
         XCTAssertTrue(app.buttons["Send to \"Pixel 8\""].waitForExistence(timeout: 10))
         sleep(1)
-        shot("04-send")
+        shot("05-send")
         app.tabBars.buttons["History"].tap()
         XCTAssertTrue(labelled(app, "Meeting moved to 3:30 pm").waitForExistence(timeout: 10))
         sleep(1)
-        shot("05-history")
+        shot("06-history")
         app.terminate()
 
         app = launch(store + ["-PAScreenshotsDetailText"])
         XCTAssertTrue(app.buttons["Copy"].waitForExistence(timeout: 30))
         XCTAssertTrue(app.buttons["Save"].exists)
         sleep(1)
-        shot("06-history-text")
+        shot("07-history-text")
         app.terminate()
 
         app = launch(store + ["-PAScreenshotsDetail"])
         XCTAssertTrue(app.buttons["Copy"].waitForExistence(timeout: 30))
         XCTAssertTrue(app.buttons["Open"].exists)
         sleep(1)
-        shot("07-history-link")
+        shot("08-history-link")
         app.terminate()
 
         app = launch(store)
@@ -83,13 +93,13 @@ final class ScreenshotTests: XCTestCase {
         settings.tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
         sleep(1)
-        shot("09-settings")
+        shot("10-settings")
         // Settings is longer than one screen: the rest, scrolled to the Account section
         let logOut = app.buttons["Log out"]
         for _ in 0..<10 where !(logOut.exists && logOut.isHittable) { app.swipeUp() }
         XCTAssertTrue(logOut.isHittable)
         sleep(1)
-        shot("10-settings-more")
+        shot("11-settings-more")
         app.terminate()
     }
 
