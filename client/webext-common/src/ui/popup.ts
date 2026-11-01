@@ -543,12 +543,16 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, resend: (tex
     if (t?.closest(".content") || row.classList.contains("sel")) markRead();
     else select();
   });
+  // I622: URL or phone number: Copy, Open, Share. Text: Read, Copy, Share. Send to... stays last.
   const acts = h("div", { class: "actions acts" });
-  if (r.type === "url") acts.append(h("button", { class: "ac", onclick: () => env.openUrl(r.content) }, icon("open", 15), "Open"));
-  acts.append(
-    h("button", { class: "ac", onclick: () => void env.copy(r.content) }, icon("copy", 15), "Copy"),
-    h("button", { class: "ac", onclick: () => resend(r.content) }, icon("send", 15), "Send to..."),
-  );
+  const canShare = typeof navigator.share === "function";
+  const copyBtn = h("button", { class: "ac", onclick: () => void env.copy(r.content) }, icon("copy", 15), "Copy");
+  const shareBtn = h("button", { class: "ac", onclick: () => void navigator.share({ [r.type === "url" ? "url" : "text"]: r.content }).catch(() => undefined) }, icon("share", 15), "Share");
+  if (r.type === "url") acts.append(copyBtn, h("button", { class: "ac", onclick: () => env.openUrl(r.content) }, icon("open", 15), "Open"));
+  else if (r.type === "tel") acts.append(copyBtn);
+  else acts.append(h("button", { class: "ac", onclick: () => void env.openPage("#read=" + r.id) }, icon("read", 15), "Read"), copyBtn);
+  if (canShare) acts.append(shareBtn);
+  acts.append(h("button", { class: "ac", onclick: () => resend(r.content) }, icon("send", 15), "Send to..."));
   col.append(content);
   if (r.dir === "out" && r.results) {
     const fails = Object.values(r.results).filter((v) => v !== "sent").length;

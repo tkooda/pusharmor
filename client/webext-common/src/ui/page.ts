@@ -47,6 +47,7 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
   root.append(h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), view);
   const nav: Nav = { toDevices: () => (location.hash = "#pair"), toSend: () => (location.hash = "#send") };
   // I497: Send to... sets the #send= hash (the hashchange mounts it), so a reload keeps the draft
+  if (route === "read") return readView(env, root, Number(arg));
   if (route === "history") return historyView(env, view, (text) => (location.hash = "#send=" + encodeURIComponent(text)), arg, nav);
   if (route === "send") {
     let text = "";
@@ -549,4 +550,20 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
     ),
   );
   heading.focus();
+}
+
+/** I622: the whole message in a full tab, selectable, with only a close X at the top right. */
+async function readView(env: UiEnv, root: HTMLElement, id: number): Promise<void> {
+  const row = (await rpc<{ id?: number; content: string }[]>(env, "history")).find((r) => r.id === id);
+  clear(root);
+  const close = () => {
+    window.close();
+    // a tab the user opened by hand cannot close itself
+    location.hash = "#history";
+  };
+  root.append(
+    h("div", { class: "readview" },
+      h("button", { type: "button", class: "quiet ib readx", "aria-label": "Close", title: "Close", onclick: close }, icon("close", 22)),
+      h("div", { class: "readtext", tabindex: "0" }, row?.content ?? "")),
+  );
 }
