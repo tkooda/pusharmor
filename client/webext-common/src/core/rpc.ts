@@ -104,6 +104,10 @@ export class Rpc {
         for (const r of await e.db.history()) if (!r.read) await e.db.put("history", { ...r, read: true });
         await e.updateBadge();
         return null;
+      case "historyDelete":
+        for (const id of a.ids as number[]) await e.db.del("history", Number(id));
+        await e.updateBadge();
+        return null;
       case "historyDeleteAll":
         await e.db.clear(["history"]);
         await e.updateBadge();
