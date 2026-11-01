@@ -1189,11 +1189,11 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                     }
                 }
                 add { m ->
-                    SwitchRow("Show message content in notifications", b(Settings.K.SHOW_CONTENT, true), sub = "When off, notifications show only \"New message\".",
+                    SwitchRow("Allow message content in notifications", b(Settings.K.SHOW_CONTENT, true), sub = "When off, notifications show only \"New message\".",
                         modifier = m.then(pad)) { vm.setPref(Settings.K.SHOW_CONTENT, it) }
                 }
                 add { m ->
-                    SwitchRow("Show message content on lock screen", b(Settings.K.LOCK_SCREEN, true), enabled = b(Settings.K.SHOW_CONTENT, true),
+                    SwitchRow("Allow message content on lock screen", b(Settings.K.LOCK_SCREEN, true), enabled = b(Settings.K.SHOW_CONTENT, true),
                         sub = "When off, the lock screen shows only \"New message\".", modifier = m.then(pad)) { vm.setPref(Settings.K.LOCK_SCREEN, it) }
                 }
                 // Received messages (I463): what a notification tap does.
