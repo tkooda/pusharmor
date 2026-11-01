@@ -571,3 +571,9 @@ test("overflow menu opens upward only when it does not fit below and above has m
   assert.deepEqual(menuFit(500, 120.7, 200.4), { up: true, maxH: 200 });
   assert.deepEqual(menuFit(100, -5, -10), { up: false, maxH: 0 });
 });
+
+test("Send: the free space sits under the field, so the device chips sit just above Send (like iOS)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  assert.match(pop, /root\.append\(h\("div", \{ class: "grow" \}\), head, chips, [^\n]*h\("div", \{ class: "foot send-foot" \}, sendBtn\)\);/);
+});

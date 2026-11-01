@@ -304,7 +304,8 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   // I494: every device is greyed: say why Send is off
   const none = !sendable.length && chips.childElementCount ? h("p", { class: "dim nosend" }, "No device can receive messages right now.") : null;
   const noPair = nav && !data.peers.some((p) => p.paired) ? cta("Pair your first device to start sending.", "Pair a device", nav.toDevices) : null;
-  root.append(head, chips, ...(none ? [none] : []), ...(noPair ? [noPair] : []), h("div", { class: "grow" }), h("div", { class: "foot send-foot" }, sendBtn));
+  // Like iOS: the free space sits under the field, so the chips sit just above Send.
+  root.append(h("div", { class: "grow" }), head, chips, ...(none ? [none] : []), ...(noPair ? [noPair] : []), h("div", { class: "foot send-foot" }, sendBtn));
   relabel();
   await update();
 }
