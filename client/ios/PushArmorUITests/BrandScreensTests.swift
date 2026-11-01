@@ -242,20 +242,21 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.buttons["Delete account"].exists)
     }
 
-    /// I622: a text message offers View, Copy, Share, and Save; View opens a full-screen view
-    /// that the X closes.
-    func testReadOpensAndCloses() {
+    /// Q398: a text message opens a sheet with its text and Copy, Share, and Save pinned at the
+    /// bottom; no Read, View, or Open button.
+    func testMessageSheetShowsTextAndButtons() {
         let app = launch(["-PAScreenshotsStore", "-PAScreenshotsDetailText"])
-        let read = app.buttons["View"]
-        XCTAssertTrue(read.waitForExistence(timeout: 30))
-        XCTAssertTrue(app.buttons["Copy"].exists)
+        let copy = app.buttons["Copy"]
+        XCTAssertTrue(copy.waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Share"].exists)
         XCTAssertTrue(app.buttons["Save"].exists)
         XCTAssertFalse(app.buttons["Open"].exists)
-        read.tap()
-        let close = app.buttons["readClose"]
-        XCTAssertTrue(close.waitForExistence(timeout: 10))
-        close.tap()
-        XCTAssertTrue(read.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Read"].exists)
+        XCTAssertFalse(app.buttons["View"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["messageText"].exists)
+        XCTAssertTrue(copy.isHittable)
+        app.buttons["Done"].tap()
+        XCTAssertFalse(copy.waitForExistence(timeout: 3))
     }
 
     /// I604: Delete all history asks in a standard alert; Cancel closes it.

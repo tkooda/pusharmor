@@ -19,27 +19,6 @@ struct MessageTextFile: FileDocument {
     }
 }
 
-/// Read-only text that stays selectable, so part of it can be copied or shared.
-struct SelectableText: UIViewRepresentable {
-    let text: String
-
-    func makeUIView(context: Context) -> UITextView {
-        let v = UITextView()
-        v.isEditable = false
-        v.isSelectable = true
-        v.backgroundColor = .clear
-        v.font = UIFont.preferredFont(forTextStyle: .title3)
-        v.adjustsFontForContentSizeCategory = true
-        v.textContainerInset = UIEdgeInsets(top: 16, left: 12, bottom: 16, right: 12)
-        v.text = text
-        return v
-    }
-
-    func updateUIView(_ v: UITextView, context: Context) {
-        if v.text != text { v.text = text }
-    }
-}
-
 /// Neutral action button: black text on white, thin gray border, icon above the label.
 /// In dark mode the surface turns dark and the text light.
 private struct ActionButtonStyle: ButtonStyle {
@@ -69,31 +48,54 @@ private struct ActionLabel: View {
     }
 }
 
+private struct SheetHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+private struct BarHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
 struct MessageDetailView: View {
     let row: HistoryRow
     @EnvironmentObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
-    @State private var reading = false
     @State private var saving = false
+    @State private var textHeight: CGFloat = 0
+    @State private var barHeight: CGFloat = 0
 
     private var digits: String { DialString.make(row.content) }
+
+    /// Sheet height that fits the text, the button bar, and the navigation bar; the sheet
+    /// can also grow to full screen.
+    private var fitHeight: CGFloat { max(240, textHeight + barHeight + 64) }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    if row.type == "url" || row.type == "tel" {
-                        Text(row.content)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else {
-                        textBox
-                    }
-                    HStack(spacing: 10) {
-                        ForEach(MessageActions.actions(forType: row.type), id: \.self) { button($0) }
-                    }
+                Text(row.content)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .background(GeometryReader { g in
+                        Color.clear.preference(key: SheetHeightKey.self, value: g.size.height)
+                    })
+                    .onPreferenceChange(SheetHeightKey.self) { textHeight = $0 }
+                    .accessibilityIdentifier("messageText")
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                HStack(spacing: 10) {
+                    ForEach(MessageActions.actions(forType: row.type), id: \.self) { button($0) }
                 }
-                .padding(16)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color(uiColor: .systemBackground))
+                .background(GeometryReader { g in
+                    Color.clear.preference(key: BarHeightKey.self, value: g.size.height)
+                })
+                .onPreferenceChange(BarHeightKey.self) { barHeight = $0 }
             }
             .navigationTitle("Message")
             .navigationBarTitleDisplayMode(.inline)
@@ -103,7 +105,7 @@ struct MessageDetailView: View {
                 }
             }
         }
-        .fullScreenCover(isPresented: $reading) { ReadMessageView(text: row.content) }
+        .presentationDetents([.height(fitHeight), .large])
         .fileExporter(
             isPresented: $saving,
             document: MessageTextFile(text: row.content),
@@ -113,29 +115,8 @@ struct MessageDetailView: View {
     }
 
     @ViewBuilder
-    private var textBox: some View {
-        let box = Text(row.content)
-            .textSelection(.enabled)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
-        Group {
-            if MessageActions.scrolls(row.content) {
-                ScrollView { box }
-                    .frame(height: UIFont.preferredFont(forTextStyle: .body).lineHeight * CGFloat(MessageActions.previewLines) + 24)
-            } else {
-                box
-            }
-        }
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color(uiColor: .secondarySystemBackground)))
-        .accessibilityIdentifier("messageTextBox")
-    }
-
-    @ViewBuilder
     private func button(_ a: MessageAction) -> some View {
         switch a {
-        case .read:
-            Button { reading = true } label: { ActionLabel(title: "View", icon: "text.alignleft") }
-                .buttonStyle(ActionButtonStyle())
         case .copy:
             Button { UIPasteboard.general.string = row.content } label: { ActionLabel(title: "Copy", icon: "doc.on.doc") }
                 .buttonStyle(ActionButtonStyle())
@@ -160,30 +141,5 @@ struct MessageDetailView: View {
         } else if let u = URL(string: row.content), URLRule.isOpenable(u) {
             UIApplication.shared.open(u)
         }
-    }
-}
-
-/// Near-full-screen reader: the text and an X at the top right.
-struct ReadMessageView: View {
-    let text: String
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            SelectableText(text: text)
-                .padding(.top, 44)
-                .accessibilityIdentifier("readText")
-            Button { dismiss() } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title)
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(Color.secondary)
-                    .frame(minWidth: 44, minHeight: 44)
-            }
-            .accessibilityLabel("Close")
-            .accessibilityIdentifier("readClose")
-            .padding(8)
-        }
-        .background(Color(uiColor: .systemBackground))
     }
 }
