@@ -467,9 +467,9 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
         val inset = Modifier.padding(start = 72.dp, end = 16.dp)
         when {
             !p.pinned -> Row(inset.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                FilledTonalButton(onClick = { vm.pair(p.id) }, Modifier.heightIn(min = 48.dp), enabled = "pair:${p.id}" !in running) { Text("Pair") }
                 OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.heightIn(min = 48.dp), enabled = "deny:${p.id}" !in running, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)) { Text("Deny") }
+                FilledTonalButton(onClick = { vm.pair(p.id) }, Modifier.heightIn(min = 48.dp), enabled = "pair:${p.id}" !in running) { Text("Pair") }
             }
             p.notPairedOnPeer -> Row(inset.padding(bottom = 8.dp)) {
                 if (p.offersPairAgain) OutlinedButton(onClick = { vm.pairAgain(p.id) }, Modifier.heightIn(min = 48.dp), enabled = p.id !in pairingAgain) { Text("Pair again") }
