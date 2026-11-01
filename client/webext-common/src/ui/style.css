@@ -98,6 +98,11 @@ label.srow { cursor: pointer; }
 
 /* Overflow menu. */
 .more { position: relative; }
+.sub { display: flex; align-items: center; gap: 6px; }
+.sub .info { flex: 1; min-width: 0; }
+.stat { display: flex; gap: 2px; }
+.stat .si { display: flex; }
+.stat .si.off { opacity: 0.38; }
 .menu { position: absolute; right: 0; top: 34px; z-index: 4; min-width: 140px; padding: 4px 0; background: var(--card); border: 1px solid var(--line); border-radius: var(--rf); display: flex; flex-direction: column; }
 .menu button { border: 0; border-radius: 0; height: 32px; justify-content: flex-start; color: var(--ink); font-weight: 400; padding: 0 14px; }
 .menu button:focus-visible { outline-offset: -2px; }
