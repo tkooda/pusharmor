@@ -113,6 +113,7 @@ fun TonalGreenButton(onClick: () -> Unit, text: String, modifier: Modifier = Mod
             containerColor = if (dark) Color(0xFF14452B) else Color(0xFFD3F5E2),
             contentColor = if (dark) Color(0xFFC4F2D9) else Color(0xFF0B4F2E),
         ),
+        border = BorderStroke(1.5.dp, BrandGreen),
     ) { Text(text, style = MaterialTheme.typography.labelLarge) }
 }
 
