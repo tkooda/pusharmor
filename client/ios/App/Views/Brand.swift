@@ -135,6 +135,27 @@ struct TonalGreenButtonStyle: ButtonStyle {
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, minHeight: 50)
             .background(Capsule().fill(Color.approveFill))
+            .overlay(Capsule().strokeBorder(Color.brandGreen, lineWidth: 1.5))
+            .contentShape(Capsule())
+            .opacity(configuration.isPressed ? 0.85 : (isEnabled ? 1 : 0.45))
+    }
+}
+
+/// Neutral button: black text on white with a thin gray border; dark surface and light text in dark mode.
+struct NeutralButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    private static let surface = UIColor { $0.userInterfaceStyle == .dark ? .secondarySystemBackground : .white }
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline)
+            .foregroundStyle(Color.primary)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: 50)
+            .background(Capsule().fill(Color(uiColor: Self.surface)))
+            .overlay(Capsule().strokeBorder(Color(uiColor: .systemGray3), lineWidth: 1))
             .contentShape(Capsule())
             .opacity(configuration.isPressed ? 0.85 : (isEnabled ? 1 : 0.45))
     }

@@ -323,7 +323,7 @@ struct PairingCardView: View {
             case .prompted where !e.authorized:
                 Text(S.newPeerWantsToPair).font(.subheadline).foregroundColor(.secondaryText)
                 Button("Reply") { Task { await model.reply(p) } }
-                    .buttonStyle(GreenButtonStyle())
+                    .buttonStyle(NeutralButtonStyle())
             case .prompted, .replied:
                 EmptyView()
             case .shown:
@@ -345,7 +345,7 @@ struct PairingCardView: View {
             HStack(spacing: 12) {
                 denyButton()
                 Button("Pair") { Task { await model.pair(p) } }
-                    .buttonStyle(GreenButtonStyle())
+                    .buttonStyle(TonalGreenButtonStyle())
                     .disabled(model.busy.contains("pair:" + p.id.text))
             }
         }
