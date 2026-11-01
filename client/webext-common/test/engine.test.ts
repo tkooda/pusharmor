@@ -1079,3 +1079,63 @@ test("error texts are sentences with periods; no raw error code (I474)", () => {
   assert.equal(errorText(new ApiError(429, "rate limited", {}, null)), "Too many requests. Try again in 60 seconds.");
   assert.equal(errorText(new ApiError(418, "teapot", {}, null)), "Something went wrong. Try again.");
 });
+
+async function removedSetup() {
+  const { clock, w, a, b } = await setup();
+  const c = await device(w, clock);
+  await pairAndApprove(w, a, b);
+  await pairAndApprove(w, a, c);
+  await pairAndApprove(w, b, c);
+  await refresh(a, b, c);
+  const listWithout = (x: string, removed: Record<string, string>) => {
+    const j = w.listFor(c.id);
+    return { ...j, peers: j.peers.filter((p) => p.id !== x), removed };
+  };
+  const rm = (n: number) => `{"n":${n},"remove":"${b.id}"}`;
+  return { clock, w, a, b, c, listWithout, rm };
+}
+
+test("fetched remove: applied like a live push, quiet, and a later live push is a duplicate no-op", async () => {
+  const { a, b, c, listWithout, rm } = await removedSetup();
+  const m = await mkMsg(a, c, rm(900));
+  const hist = (await c.db.history()).length;
+  await c.e.mergePeers(listWithout(b.id, { [b.id]: m }), (await c.e.self())!);
+  const row = (await c.db.peer(b.id))!;
+  assert.equal(row.removed, true);
+  assert.equal(row.missing, false);
+  assert.equal((await c.db.history()).length, hist, "no history entry");
+  await c.e.receive(m, "push");
+  assert.equal((await c.db.history()).length, hist, "live duplicate is silent");
+  assert.equal((await c.db.peer(b.id))!.removed, true);
+});
+
+test("fetched remove: already applied by a live push is dropped silently", async () => {
+  const { a, b, c, listWithout, rm } = await removedSetup();
+  const m = await mkMsg(a, c, rm(901));
+  await c.e.receive(m, "push");
+  const hist = (await c.db.history()).length;
+  await c.e.mergePeers(listWithout(b.id, { [b.id]: m }), (await c.e.self())!);
+  assert.equal((await c.db.history()).length, hist);
+  assert.equal((await c.db.peer(b.id))!.removed, true);
+});
+
+test("fetched remove: tampered, unknown-signer, and wrong-target entries are ignored silently and the peer goes missing", async () => {
+  const { clock, w, a, b, c, listWithout, rm } = await removedSetup();
+  const self = (await c.e.self())!;
+  const good = await mkMsg(a, c, rm(902));
+  const bad = good.slice(0, -4) + (good.endsWith("AAAA") ? "BBBB" : "AAAA");
+  const d = await device(w, clock);
+  const dSelf = (await d.e.self())!;
+  const cPeer = (await a.db.peer(c.id))!;
+  const stranger = await encodeInner({ signKey: dSelf.sign.privateKey, fromId: b64urlDecode(d.id), pairingId: cPeer.pairing_id!, json: rm(903), recipientId: c.id, recipientEncPub: cPeer.enc_pub });
+  const other = await mkMsg(a, c, `{"n":904,"remove":"${a.id}"}`);
+  const hist = (await c.db.history()).length;
+  for (const m of [bad, stranger, other]) {
+    await c.e.mergePeers(listWithout(b.id, { [b.id]: m }), self);
+    const row = (await c.db.peer(b.id))!;
+    assert.equal(row.removed, false);
+    assert.equal(row.missing, true);
+    await c.db.updatePeer(b.id, (p) => (p ? { ...p, missing: false } : null));
+  }
+  assert.equal((await c.db.history()).length, hist, "no Invalid message event");
+});

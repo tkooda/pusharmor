@@ -61,7 +61,7 @@ import {
 import { T, peerLabel, sendResultText } from "./texts.ts";
 import { AUTH_CHANGED } from "../model/signin.ts";
 
-export type Src = "push" | "bridge" | "returned";
+export type Src = "push" | "bridge" | "returned" | "fetched";
 export const FETCH_WINDOW_MS = 60_000;
 export const SEND_AGAIN_MS = 60_000;
 export const AUTO_OPEN_MAX = 3;
@@ -208,7 +208,7 @@ export class Engine {
   }
 
   private async dropEvent(kind: "unreadable" | "invalid", peer: string | null, src: Src): Promise<void> {
-    if (src === "returned") return;
+    if (src === "returned" || src === "fetched") return;
     await this.addEvent(kind, peer);
     if (this.penalized && src === "push") this.p.notify("drop", T.appName, kind === "invalid" ? T.invalid : T.couldNotRead);
   }
@@ -240,7 +240,7 @@ export class Engine {
     } as HistoryRow);
   }
 
-  private async receiveInner(m: string, self: SelfKeys, src: Src): Promise<void> {
+  private async receiveInner(m: string, self: SelfKeys, src: Src, onlyRemove?: string): Promise<void> {
     const r = await receiveDecide({
       enc: self.enc,
       id: self.id,
@@ -261,7 +261,7 @@ export class Engine {
       hasHistory: async (from, pid, n) => (await this.db.historyRowFor(from, pid, n)) !== undefined,
     });
     if (r.outcome === "unreadable") {
-      if (r.unknownSender && src !== "returned") await this.fetchTrigger();
+      if (r.unknownSender && src !== "returned" && src !== "fetched") await this.fetchTrigger();
       return this.dropEvent("unreadable", r.from, src);
     }
     if (src === "returned" && r.content.type !== "approve") return;
@@ -277,6 +277,7 @@ export class Engine {
       return;
     }
     const c = r.content;
+    if (src === "fetched" && !(c.type === "remove" && c.id === onlyRemove)) return;
     const peer = (await this.db.peer(r.from))!;
     const pidB64 = b64urlEncode(r.pin.pairing_id);
     const row = c.type === "url" || c.type === "text" || c.type === "tel" ? this.inboundRow(peer, c.type, c.value, r.n, pidB64) : null;
@@ -1027,6 +1028,13 @@ export class Engine {
     const list = Array.isArray(json.peers) ? (json.peers as Record<string, unknown>[]) : [];
     const myAllow = Array.isArray(json.my_allow) ? (json.my_allow as unknown[]).filter((v): v is string => typeof v === "string") : [];
     await this.p.storageLocal.set({ [ALLOW_SET]: myAllow });
+    // stored remove messages (optional "removed"): opened with the pre-merge pins, quiet, like a live push
+    if (json.removed && typeof json.removed === "object" && !Array.isArray(json.removed)) {
+      for (const [b, m] of Object.entries(json.removed as Record<string, unknown>).slice(0, 8)) {
+        if (typeof m !== "string" || b === self.id) continue;
+        await this.receiveInner(m, self, "fetched", b).catch(() => undefined);
+      }
+    }
     const seen = new Set<string>();
     for (const it of list) {
       if (typeof it.id !== "string" || it.id === self.id) continue;
