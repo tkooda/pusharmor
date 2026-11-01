@@ -78,7 +78,6 @@ struct SettingsView: View {
 
                 Section("Sending") {
                     Toggle("Show an \"All\" button when choosing devices", isOn: boolBinding(SettingKey.showAll, true))
-                        .tint(.brandGreen)
                 }
 
                 Section("Notifications") {
@@ -94,11 +93,9 @@ struct SettingsView: View {
                     }
                     // Was Always hide content, inverted; lock screen applies only while content shows (I610).
                     Toggle(S.showContentSwitch, isOn: boolBinding(SettingKey.showContent, true))
-                        .tint(.brandGreen)
                     Text("When off, every notification shows \"New message from\" and the device name, with no content.")
                         .font(.caption).foregroundColor(.secondaryText)
                     Toggle(S.lockScreenSwitch, isOn: boolBinding(SettingKey.lockShow, true))
-                        .tint(.brandGreen)
                         .disabled(!model.boolSetting(SettingKey.showContent, true))
                     Text("Follows the iOS Show Previews setting. Set it to When Unlocked to hide content on the lock screen. Your Apple Watch follows this choice.")
                         .font(.caption).foregroundColor(.secondaryText)
