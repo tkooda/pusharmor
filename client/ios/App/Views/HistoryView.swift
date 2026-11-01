@@ -274,11 +274,7 @@ struct HistoryRowView: View {
             if let id = row.peerId { model.highlightPeer = id }
             return
         }
-        if row.type == "url" && !outgoing {
-            model.open(row)
-        } else {
-            model.markRead(row)
-            model.detailRow = row
-        }
+        model.markRead(row)
+        model.detailRow = row
     }
 }
