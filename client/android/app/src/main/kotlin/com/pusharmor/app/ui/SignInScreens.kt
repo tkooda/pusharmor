@@ -220,8 +220,10 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onSe
                     CodeCells(code) { v ->
                         // paste takes a standalone 6-char token; typing is cleaned as typed
                         if (v != code) { error = null; vm.message.value = null } // a rejected code's error goes as soon as the code is edited
-                        code = if (v.length > code.length + 1) CodeInput.fromPaste(v) ?: CodeInput.clean(v) else CodeInput.clean(v)
-                        if (code.length == 6) requestToken?.let { vm.emailVerify(it, code, purpose, onDone) }
+                        val cleaned = if (v.length > code.length + 1) CodeInput.fromPaste(v) ?: CodeInput.clean(v) else CodeInput.clean(v)
+                        val submit = shouldSubmit(code, cleaned)
+                        code = cleaned
+                        if (submit) requestToken?.let { vm.emailVerify(it, code, purpose, onDone) }
                     }
                 }
             }
@@ -230,6 +232,9 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onSe
         }
     }
 }
+
+/** A full code is sent once: a keystroke beyond the sixth digit leaves the code as it was and sends nothing. */
+internal fun shouldSubmit(old: String, new: String): Boolean = new != old && new.length == 6
 
 /** Six mono code cells over one text field. Screen readers hear the typed digits and "Code, n of 6 entered";
  *  a content description would replace the digits, so the label rides in the state description. */
