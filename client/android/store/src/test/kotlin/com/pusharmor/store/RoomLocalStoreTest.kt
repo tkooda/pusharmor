@@ -189,4 +189,16 @@ class RoomLocalStoreTest {
         s.clampPairingStart("gone", 1000)
         assertNull(s.pairing("gone"))
     }
+
+    @Test fun rowsStampedAheadOfTheClockDoNotPushANewRowOut() {
+        val s = RoomLocalStore(Room.inMemoryDatabaseBuilder(ctx, PaDatabase::class.java).allowMainThreadQueries().build())
+        val now = System.currentTimeMillis()
+        val ahead = now + 365 * 86_400_000L
+        for (i in 1..500) s.dao.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = "x", type = "text", content = "f$i", at = ahead + i).toEntity())
+        val fresh = s.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = "x", type = "text", content = "new", at = now))
+        assertEquals("new", s.dao.history(fresh)!!.content)
+        val own = s.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = "x", type = "text", content = "own", at = ahead))
+        assertTrue(s.dao.history(own)!!.at <= System.currentTimeMillis())
+        assertTrue(s.dao.history(fresh) != null)
+    }
 }

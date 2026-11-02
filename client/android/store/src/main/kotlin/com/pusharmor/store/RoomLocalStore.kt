@@ -62,16 +62,20 @@ class RoomLocalStore(val db: PaDatabase) : LocalStore {
     /**
      * Consecutive could-not-read (or invalid) events merge into the newest row with a count.
      * A new row drops rows beyond the newest [HISTORY_CAP] by received time.
+     * Times ahead of the clock are moved back to the new row's time (at most now) first, so they never push it out.
      */
     override fun insertHistory(row: HistoryRow): Long = tx {
+        val now = System.currentTimeMillis()
+        val at = minOf(row.at, now)
+        dao.clampHistoryTimes(now, at)
         if (row.type == "unreadable" || row.type == "invalid") {
             val newest = dao.newestHistory()
             if (newest != null && newest.type == row.type && newest.peerId == row.peerId) {
-                dao.bumpEvent(newest.id, row.at)
+                dao.bumpEvent(newest.id, at)
                 return@tx newest.id
             }
         }
-        dao.insertHistory(row.toEntity()).also { dao.trimHistory(HISTORY_CAP) }
+        dao.insertHistory(row.copy(at = at).toEntity()).also { dao.trimHistory(HISTORY_CAP) }
     }
 
     override fun ownName() = dao.self()?.name ?: ""

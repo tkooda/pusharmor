@@ -182,6 +182,7 @@ interface PaDao {
     @Query("DELETE FROM history") fun deleteAllHistory()
     @Query("DELETE FROM history WHERE id IN (:ids)") fun deleteHistory(ids: List<Long>)
     /** Keeps the [keep] newest rows by received time (ties: newest id). */
+    @Query("UPDATE history SET received_at = :to WHERE received_at > :now") fun clampHistoryTimes(now: Long, to: Long)
     @Query("DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY received_at DESC, id DESC LIMIT :keep)") fun trimHistory(keep: Int)
 }
 
