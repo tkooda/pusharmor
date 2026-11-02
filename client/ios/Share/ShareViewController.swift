@@ -40,13 +40,13 @@ final class ShareModel: ObservableObject {
         // Logged out keeps the id and keys: it must not offer a send that cannot go through.
         guard let store = try? env.openStore(), let keys = try? env.keychain.load(), let me = try? store.me(),
               me.id != nil, !me.loggedOut, !me.removed else {
-            step = .failed("Open PushArmor and log in first.")
+            step = .failed(S.shareLoggedOut)
             return
         }
         core = env.makeCore(store: store, keys: keys)
         all = (try? core!.allSet()) ?? []
         showAll = (try? store.boolSetting(SettingKey.showAll, default: true)) ?? true
-        guard let shared = await sharedContent() else { step = .failed("Nothing to send."); return }
+        guard let shared = await sharedContent() else { step = .failed(S.shareNothing); return }
         text = shared.0
         type = shared.1
         if SizeCap.isOver(text) {
@@ -67,7 +67,7 @@ final class ShareModel: ObservableObject {
         if all.count == 1 {
             await send(to: all.map { $0.id })
         } else if all.isEmpty {
-            step = .failed("No paired devices to send to.")
+            step = .failed(S.shareNoPeers)
         } else {
             step = .pick
         }
