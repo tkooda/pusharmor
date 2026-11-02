@@ -289,3 +289,23 @@ test("a Google or Apple login that comes back to the login tab says Unable to lo
   assert.deepEqual(r, { ok: false, error: want });
   assert.equal(((await p.storageSession.get([AUTH_RESULT]))[AUTH_RESULT] as { error: string }).error, want);
 });
+
+test("Pair, Codes match, and Codes differ that cannot go on show the action line and why", async () => {
+  const { a, b, rpc, nm } = await paired();
+  assert.equal(await fails(rpc, "pair", { id: b.id }), 'Unable to pair with "' + nm + '".\nIt is already paired with this device.');
+  const clock = new Clock();
+  const w = new MockWorker(clock);
+  const c = await device(w, clock);
+  const d = await device(w, clock, "firefox");
+  await refresh(c, d);
+  const r2 = new Rpc(c.e);
+  const nd = (await r2.peers()).peers.find((v) => v.id === d.id)!.label;
+  assert.equal(await fails(r2, "approve", { id: d.id }), 'Unable to confirm "' + nd + '".\nThe pairing with it has not reached the code check. Pair with it again.');
+  await c.e.pairStart(d.id);
+  assert.equal(await fails(r2, "pair", { id: d.id }), 'Unable to pair with "' + nd + '".\nA pairing with it is already open. Cancel it first.');
+  await c.db.updatePeer(d.id, (p) => (p ? { ...p, removed: true } : null));
+  await c.p.storageLocal.remove(["pair:" + d.id]);
+  assert.equal(await fails(r2, "pair", { id: d.id }), 'Unable to pair with "' + nd + '".\nIt is no longer on this account.');
+  assert.equal(await fails(rpc, "deny", { id: "gone" }), 'Unable to reject "A device".\nIt is no longer on this account.');
+  void a;
+});

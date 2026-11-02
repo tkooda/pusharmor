@@ -171,6 +171,10 @@ export const R = {
   saveFailed: "PushArmor could not save its data on this device. Restart PushArmor and try again.",
   saveDenied: "PushArmor is not allowed to save there. Choose another location.",
   tryAgain: "Try again.",
+  noLongerOnAccount: "It is no longer on this account.",
+  alreadyPaired: "It is already paired with this device.",
+  pairingOpen: "A pairing with it is already open. Cancel it first.",
+  notAtCodeCheck: "The pairing with it has not reached the code check. Pair with it again.",
 } as const;
 
 /** Save a message to a file: no access, a full disk, else a plain retry. */

@@ -747,9 +747,9 @@ export class Engine {
     await this.lock.run(async () => {
       const self = await this.self();
       const peer = await this.db.peer(x);
-      if (!self || !peer || peer.removed) throw new UserError("Unknown device");
-      if (peer.pinned) throw new UserError("Already paired");
-      if (await getEntry(this.p.storageLocal, x)) throw new UserError("A pairing with this device is already open");
+      if (!self || !peer || peer.removed) throw new ReasonError(R.noLongerOnAccount);
+      if (peer.pinned) throw new ReasonError(R.alreadyPaired);
+      if (await getEntry(this.p.storageLocal, x)) throw new ReasonError(R.pairingOpen);
       const rN = randomBytes(32);
       const cN = await commitHash(self.sign_pub, self.enc_pub, rN);
       const msg = await encodePair(b64urlDecode(self.id), { kind: "commit", c_N: cN }, x, peer.enc_pub);
@@ -809,8 +809,8 @@ export class Engine {
     const self = await this.self();
     const e = await getEntry(this.p.storageLocal, x);
     let peer = await this.db.peer(x);
-    if (!self || !peer || !peer.pinned || !peer.pairing_id) throw new UserError("Pair first");
-    if (e && e.state !== "shown") throw new UserError("Pair first");
+    if (!self || !peer || !peer.pinned || !peer.pairing_id) throw new ReasonError(R.notAtCodeCheck);
+    if (e && e.state !== "shown") throw new ReasonError(R.notAtCodeCheck);
     // field-level update on the current row: a concurrent pushed approve or reserveN is kept
     peer =
       (await this.db.updatePeer(x, (cur) => {
@@ -927,7 +927,7 @@ export class Engine {
   async deny(x: string): Promise<string> {
     const self = await this.self();
     const peer = await this.db.peer(x);
-    if (!self || !peer) throw new UserError("Unknown device");
+    if (!self || !peer) throw new ReasonError(R.noLongerOnAccount);
     const pid = peer.pairing_id ?? new Uint8Array(8);
     const n = await this.db.reserveN(x);
     const c = await encodeInner({
