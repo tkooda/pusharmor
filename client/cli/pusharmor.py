@@ -328,7 +328,7 @@ def parse_strict(b):
 
 def counter_n(v):
     """The n counter from its raw token (^[1-9][0-9]*$, <= 2^53 - 1), else None."""
-    if not isinstance(v, _Num) or not re.fullmatch(r"[1-9][0-9]*", v):
+    if not isinstance(v, _Num) or len(v) > 16 or not re.fullmatch(r"[1-9][0-9]*", v):
         return None
     n = int(v)
     return n if n <= 2 ** 53 - 1 else None

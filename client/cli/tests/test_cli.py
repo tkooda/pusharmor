@@ -834,3 +834,9 @@ def test_ntfy_line_over_the_cap_is_skipped(monkeypatch, capsys):
     monkeypatch.setattr(s, "connect", lambda: setattr(s, "resp", io.BytesIO(ok + big + big)))
     assert s.next(time.time() + 5) is None
     assert s.since == "ok"
+
+
+def test_counter_n_limits():
+    assert pa.counter_n(pa._Num("1" * 5000)) is None
+    assert pa.counter_n(pa._Num("9007199254740991")) == 2 ** 53 - 1
+    assert pa.counter_n(pa._Num("9007199254740992")) is None
