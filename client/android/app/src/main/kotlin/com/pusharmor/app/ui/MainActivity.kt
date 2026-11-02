@@ -12,6 +12,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -66,6 +68,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
+import androidx.navigation.NavGraphBuilder
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -347,7 +351,7 @@ internal fun App(vm: AppViewModel) {
             Box(Modifier.padding(pad).consumeWindowInsets(pad)) {
             androidx.compose.runtime.CompositionLocalProvider(LocalSnackbar provides snack) {
             CannotReceiveHost(vm, topInset = false) {
-            NavHost(nav, startDestination = "peers", modifier = Modifier.fillMaxSize()) {
+            TabHost(nav) {
                 composable("peers") { PeersScreen(vm) }
                 composable("send") { SendScreen(vm, title = "Send", onPair = pair) }
                 composable("history") { HistoryScreen(vm, onPair = pair, onSend = { tab("send") }) { id -> vm.highlight.value = id; nav.navigate("peers") } }
@@ -362,6 +366,12 @@ internal fun App(vm: AppViewModel) {
         }
     }
 }
+
+/** The tab screens, from Devices. A tab switch shows the new tab at once, with no animation. */
+@Composable
+internal fun TabHost(nav: NavHostController, builder: NavGraphBuilder.() -> Unit) =
+    NavHost(nav, startDestination = "peers", modifier = Modifier.fillMaxSize(),
+        enterTransition = { EnterTransition.None }, exitTransition = { ExitTransition.None }, builder = builder)
 
 /** How long the note after a send stays. */
 internal const val SENT_SNACK_MS = 2000L
