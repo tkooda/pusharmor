@@ -2324,7 +2324,7 @@ def choose_evict(peers):
         a = ask("Numbers to remove (for example: 1 3), or Enter to stop: ")
     except EOFError:
         a = ""
-    picks = sorted({int(w) for w in a.split() if w.isdigit() and 1 <= int(w) <= len(rows)})
+    picks = sorted({int(w) for w in a.split() if re.fullmatch(r"[0-9]{1,2}", w) and 1 <= int(w) <= len(rows)})
     if not picks or len(picks) > 9:
         raise Fail("Not logged in.")
     return [rows[i - 1]["id"] for i in picks]

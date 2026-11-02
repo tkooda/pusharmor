@@ -862,3 +862,10 @@ def test_odd_strings_from_the_relay_server_are_dropped(net, tmp_path, monkeypatc
     assert "Traceback" not in capsys.readouterr().err
     assert pa._ids(["a b", "\ud800", 5, pid, pid]) == [pid]
     assert (tmp_path / "devices.toml").exists()
+
+
+def test_choose_evict_ignores_unicode_digits(monkeypatch, capsys):
+    rows = [{"id": "A" * 40, "platform": "ios", "created": 10}]
+    monkeypatch.setattr(pa, "ask", lambda prompt="": "\u00b2 \u0663")
+    with pytest.raises(pa.Fail):
+        pa.choose_evict(rows)
