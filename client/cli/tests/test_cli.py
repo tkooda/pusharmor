@@ -589,18 +589,18 @@ def _group(monkeypatch, name, members):
     monkeypatch.setattr(grp, "getgrgid", lambda gid: SimpleNamespace(gr_name=name, gr_mem=members))
 
 
-@pytest.mark.parametrize("name, members, ok", [
-    ("me", [], True), ("me", ["me"], True), ("staff", [], False), ("me", ["other"], False), ("me", ["me", "other"], False)])
-def test_group_writable_only_with_a_user_private_group(name, members, ok, net, tmp_path, monkeypatch, capsys):
-    cfg = _logged_in(monkeypatch, tmp_path, net)
+@pytest.mark.parametrize("name, members", [
+    ("me", []), ("me", ["me"]), ("staff", []), ("me", ["other"]), ("me", ["me", "other"])])
+def test_group_writable_is_refused_even_with_a_user_private_group(name, members, net, tmp_path, monkeypatch, capsys):
+    cfg = tmp_path / "my cfg"
+    login(monkeypatch, cfg)
     _group(monkeypatch, name, members)
     for path in (cfg, cfg / "devices.toml"):
         path.chmod(0o775 if path == cfg else 0o664)
         capsys.readouterr()
-        assert run(cfg, "send", "hi") == (4 if ok else 1)
-        if not ok:
-            assert capsys.readouterr().err == (
-                "Unable to send.\n%s can be changed by other users. Fix it with: chmod go-w %s\n" % (path, path))
+        assert run(cfg, "send", "hi") == 1
+        assert capsys.readouterr().err == (
+            "Unable to send.\n%s can be changed by other users. Fix it with: chmod go-w '%s'\n" % (path, path))
         path.chmod(0o700 if path == cfg else 0o600)
 
 
@@ -661,8 +661,9 @@ def test_config_folder_and_state_files_others_can_change_are_refused(net, tmp_pa
     assert capsys.readouterr().err == (
         "Unable to send.\n%s can be changed by other users. Fix it with: chmod go-w %s\n" % (cfg, cfg))
     _group(monkeypatch, "me", [])
-    cfg.chmod(0o775)  # group-writable with the user's own private primary group: still fine
-    assert run(cfg, "send", "hi") == 4
+    cfg.chmod(0o775)  # group-writable, even with the user's own private primary group: refused
+    assert run(cfg, "send", "hi") == 1
+    assert "can be changed by other users" in capsys.readouterr().err
     cfg.chmod(0o700)
     for name in ("devices.toml", "settings.toml"):
         path = cfg / name
