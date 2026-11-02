@@ -5,6 +5,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
@@ -104,7 +105,7 @@ data class ReplayEntity(
 @Entity(tableName = "allow_set")
 data class AllowEntity(@PrimaryKey val id: String)
 
-@Entity(tableName = "history")
+@Entity(tableName = "history", indices = [Index("received_at"), Index("peer_id", "pairing_id", "n")])
 data class HistoryEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val direction: String,
@@ -179,11 +180,13 @@ interface PaDao {
     @Query("DELETE FROM history WHERE received_at < :before") fun purgeHistory(before: Long)
     @Query("DELETE FROM history") fun deleteAllHistory()
     @Query("DELETE FROM history WHERE id IN (:ids)") fun deleteHistory(ids: List<Long>)
+    /** Keeps the [keep] newest rows by received time (ties: newest id). */
+    @Query("DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY received_at DESC, id DESC LIMIT :keep)") fun trimHistory(keep: Int)
 }
 
 @Database(
     entities = [SelfEntity::class, PeerEntity::class, PairingEntity::class, CapEntity::class, ReplayEntity::class, AllowEntity::class, HistoryEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class PaDatabase : RoomDatabase() {
@@ -224,11 +227,19 @@ abstract class PaDatabase : RoomDatabase() {
             }
         }
 
+        /** 5 -> 6: history indexes for the id lookup and the received-time order. */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_history_received_at` ON `history` (`received_at`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_history_peer_id_pairing_id_n` ON `history` (`peer_id`, `pairing_id`, `n`)")
+            }
+        }
+
         /** [onCreate] runs when the file is made new: first start, or after SQLite dropped a corrupt file. */
         fun open(context: Context, name: String? = NAME, onCreate: () -> Unit = {}): PaDatabase {
             val b = if (name == null) Room.inMemoryDatabaseBuilder(context, PaDatabase::class.java)
             else Room.databaseBuilder(context, PaDatabase::class.java, name).enableMultiInstanceInvalidation()
-            return b.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            return b.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .addCallback(object : RoomDatabase.Callback() { override fun onCreate(db: SupportSQLiteDatabase) = onCreate() }).build()
         }
     }

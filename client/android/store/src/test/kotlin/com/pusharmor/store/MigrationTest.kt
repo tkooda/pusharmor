@@ -84,4 +84,17 @@ class MigrationTest {
             c.moveToNext(); assertEquals(1, c.getInt(1))
         }
     }
+
+    @Test fun migrate5To6KeepsHistoryAndAddsIndexes() {
+        helper.createDatabase("m6.db", 5).apply {
+            execSQL("INSERT INTO history (direction, peer_id, type, received_at, read, results, count) VALUES ('received', 'p', 'text', 1, 0, '', 0)")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate("m6.db", 6, true, PaDatabase.MIGRATION_5_6)
+        db.query("SELECT COUNT(*) FROM history").use { c -> c.moveToFirst(); assertEquals(1, c.getInt(0)) }
+        val names = db.query("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'history' ORDER BY name").use { c ->
+            buildList { while (c.moveToNext()) add(c.getString(0)) }
+        }
+        assertEquals(listOf("index_history_peer_id_pairing_id_n", "index_history_received_at"), names)
+    }
 }

@@ -58,7 +58,10 @@ class RoomLocalStore(val db: PaDatabase) : LocalStore {
 
     override fun historyIdFor(peerId: String, pairingId: ByteArray, n: Long) = dao.historyId(peerId, pairingId, n)
 
-    /** Consecutive could-not-read (or invalid) events merge into the newest row with a count. */
+    /**
+     * Consecutive could-not-read (or invalid) events merge into the newest row with a count.
+     * A new row drops rows beyond the newest [HISTORY_CAP] by received time.
+     */
     override fun insertHistory(row: HistoryRow): Long = tx {
         if (row.type == "unreadable" || row.type == "invalid") {
             val newest = dao.newestHistory()
@@ -67,7 +70,7 @@ class RoomLocalStore(val db: PaDatabase) : LocalStore {
                 return@tx newest.id
             }
         }
-        dao.insertHistory(row.toEntity())
+        dao.insertHistory(row.toEntity()).also { dao.trimHistory(HISTORY_CAP) }
     }
 
     override fun ownName() = dao.self()?.name ?: ""
@@ -81,6 +84,11 @@ class RoomLocalStore(val db: PaDatabase) : LocalStore {
         dao.clearAllow()
         dao.deleteAllPeers()
         dao.deleteSelf()
+    }
+
+    companion object {
+        /** History keeps at most this many rows. */
+        const val HISTORY_CAP = 500
     }
 }
 

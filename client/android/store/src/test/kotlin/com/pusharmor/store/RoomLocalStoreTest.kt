@@ -153,4 +153,28 @@ class RoomLocalStoreTest {
         assertEquals("d@e.f", self.email)
         assertEquals("s", self.id)
     }
+
+    @Test fun historyKeepsTheNewest500ByReceivedTime() {
+        val s = RoomLocalStore(Room.inMemoryDatabaseBuilder(ctx, PaDatabase::class.java).allowMainThreadQueries().build())
+        for (i in 1..519) s.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = "x", type = "text", content = "m$i", at = 1000L + i))
+        // Inserted last but received first: it is the oldest, so it goes.
+        val late = s.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = "x", type = "text", content = "late", at = 5))
+        val kept = s.db.query("SELECT received_at FROM history ORDER BY received_at", null).use { c ->
+            buildList { while (c.moveToNext()) add(c.getLong(0)) }
+        }
+        assertEquals(500, kept.size)
+        assertNull(s.dao.history(late))
+        assertEquals((1020L..1519L).toList(), kept)
+    }
+
+    @Test fun historyLookupsUseIndexes() {
+        val s = RoomLocalStore(Room.inMemoryDatabaseBuilder(ctx, PaDatabase::class.java).allowMainThreadQueries().build())
+        fun plan(sql: String, vararg args: Any) = s.db.query("EXPLAIN QUERY PLAN $sql", args).use { c ->
+            buildList { while (c.moveToNext()) add(c.getString(3)) }.joinToString(" | ")
+        }
+        val byId = plan("SELECT id FROM history WHERE peer_id = ? AND pairing_id = ? AND n = ? LIMIT 1", "p", ByteArray(8), 1L)
+        assertTrue(byId, byId.contains("index_history_peer_id_pairing_id_n"))
+        val ordered = plan("SELECT * FROM history ORDER BY received_at DESC, id DESC LIMIT 1")
+        assertTrue(ordered, ordered.contains("index_history_received_at") && !ordered.contains("TEMP B-TREE"))
+    }
 }
