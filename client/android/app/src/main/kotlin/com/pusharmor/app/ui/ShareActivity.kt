@@ -9,7 +9,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -26,7 +25,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
@@ -84,8 +82,8 @@ class ShareActivity : ComponentActivity() {
                     if (tooLong && cut == null) Column(Modifier.verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 24.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(UiText.SHARE_TOO_LONG)
-                        // Dialog buttons at the end, as in a standard dialog.
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                        // Dialog buttons at the end, as in a standard dialog; stacked, Send first, when they do not fit.
+                        ButtonRow(Modifier.fillMaxWidth(), end = true) {
                             TextButton(onClick = { finish() }) { Text("Close") }
                             if (type == ContentType.TEXT) TextButton(onClick = { cut = SizeCap.truncateUtf8(text) }) { Text("Send the first 2048 characters") }
                         }

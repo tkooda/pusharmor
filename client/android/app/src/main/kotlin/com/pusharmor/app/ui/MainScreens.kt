@@ -130,6 +130,11 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.PackageManagerCompat
@@ -172,6 +177,7 @@ import com.pusharmor.protocol.SizeCap
 import com.pusharmor.protocol.engine.PairingEngine
 import com.pusharmor.protocol.engine.PairingRow
 import com.pusharmor.store.toRow
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.update
@@ -514,11 +520,10 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
             },
             supportingContent = {
                 // Status icons sit beside lines 2-3, so the name line keeps its full width.
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(AppEffects.platformLabel(p.platform))
-                        if (lines.isEmpty()) { val (k, w) = UiText.status(p); StatusLine(k, w) } else for (l in lines) Text(l)
-                    }
+                LinesBesideIcons({
+                    Text(AppEffects.platformLabel(p.platform))
+                    if (lines.isEmpty()) { val (k, w) = UiText.status(p); StatusLine(k, w) } else for (l in lines) Text(l)
+                }) {
                     val se = ents.firstOrNull { it.id == p.id }
                     if (p.pinned && se != null) {
                         PeerStatusIcons(listOf(
@@ -572,7 +577,7 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                 if (p.offersPairAgain) OutlinedButton(onClick = { vm.pairAgain(p.id) }, Modifier.heightIn(min = 48.dp), enabled = p.id !in pairingAgain) { Text("Pair again") }
                 else OutlinedButton(onClick = { vm.cancelPairing(p.id) }, Modifier.heightIn(min = 48.dp)) { Text("Cancel pairing") }
             }
-            p.waiting -> Row(inset.padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            p.waiting -> ButtonRow(inset.padding(bottom = 8.dp)) {
                 if (p.offersPairAgain) OutlinedButton(onClick = { vm.pairAgain(p.id) }, Modifier.heightIn(min = 48.dp), enabled = p.id !in pairingAgain) { Text("Pair again") }
                 else OutlinedButton(onClick = { vm.cancelPairing(p.id) }, Modifier.heightIn(min = 48.dp)) { Text("Cancel pairing") }
                 WaitingSendAgain(vm, p, now)
@@ -585,8 +590,67 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
 @Composable
 internal fun PeerStatusIcons(items: List<Pair<ImageVector, PeerStatus>>) {
     val label = peerStatusLabel(items.map { it.second })
-    Row(Modifier.padding(start = 8.dp).clearAndSetSemantics { contentDescription = label }, horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.clearAndSetSemantics { contentDescription = label }, horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
         for ((icon, st) in items) Icon(icon, null, Modifier.size(16.dp).alpha(if (st.on) 1f else 0.38f))
+    }
+}
+
+/** The platform names, as the device rows show them. */
+private val PLATFORM_LABELS = listOf("android", "ios", "chrome", "firefox", "cli").map { AppEffects.platformLabel(it) }
+
+/**
+ * A device row's lines with the status icons at their right. The icons go under the lines when the lines beside them
+ * would be narrower than the longest platform name (a small screen or a large font), so no line breaks into fragments.
+ */
+@Composable
+internal fun LinesBesideIcons(lines: @Composable () -> Unit, icons: @Composable () -> Unit) {
+    val measurer = rememberTextMeasurer()
+    val style = LocalTextStyle.current
+    val need = PLATFORM_LABELS.maxOf { measurer.measure(it, style).size.width }
+    Layout({ Column { lines() }; Box { icons() } }) { (t, i), c ->
+        val ip = i.measure(c.copy(minWidth = 0, minHeight = 0))
+        val gap = if (ip.width > 0) 8.dp.roundToPx() else 0
+        val w = c.maxWidth - ip.width - gap
+        if (w >= need) {
+            // As a Row: the lines fill the width left by the icons and an 8 dp gap; both centred vertically.
+            val tp = t.measure(Constraints(minWidth = w, maxWidth = w, maxHeight = c.maxHeight))
+            val h = maxOf(tp.height, ip.height, c.minHeight)
+            layout(c.maxWidth, h) { tp.placeRelative(0, ((h - tp.height) / 2f).roundToInt()); ip.placeRelative(w + gap, ((h - ip.height) / 2f).roundToInt()) }
+        } else {
+            val tp = t.measure(c.copy(minWidth = 0, minHeight = 0))
+            val top = tp.height + 4.dp.roundToPx()
+            layout(c.maxWidth, maxOf(top + ip.height, c.minHeight)) { tp.placeRelative(0, 0); ip.placeRelative(0, top) }
+        }
+    }
+}
+
+/**
+ * Buttons in a row, in the order given, at the start (or at the [end]). When they do not all fit whole, they stack
+ * instead, the last (primary) button on top, so no label breaks inside a word.
+ */
+@Composable
+internal fun ButtonRow(modifier: Modifier = Modifier, end: Boolean = false, content: @Composable () -> Unit) {
+    Layout(content, modifier) { ms, c ->
+        val gap = 8.dp.roundToPx()
+        val fits = ms.sumOf { it.maxIntrinsicWidth(c.maxHeight) } + gap * (ms.size - 1).coerceAtLeast(0) <= c.maxWidth
+        if (fits) {
+            // As a Row with spacedBy(8.dp): each button measured in the space left, top aligned.
+            var left = c.maxWidth
+            val ps = ms.map { m -> m.measure(Constraints(maxWidth = left.coerceAtLeast(0), maxHeight = c.maxHeight)).also { left -= it.width + gap } }
+            val sum = ps.sumOf { it.width } + gap * (ps.size - 1).coerceAtLeast(0)
+            val w = maxOf(sum, c.minWidth)
+            layout(w, maxOf(ps.maxOfOrNull { it.height } ?: 0, c.minHeight)) {
+                var x = if (end) w - sum else 0
+                for (p in ps) { p.placeRelative(x, 0); x += p.width + gap }
+            }
+        } else {
+            val ps = ms.reversed().map { it.measure(c.copy(minWidth = 0, minHeight = 0)) }
+            val w = maxOf(ps.maxOf { it.width }, c.minWidth)
+            layout(w, maxOf(ps.sumOf { it.height } + gap * (ps.size - 1), c.minHeight)) {
+                var y = 0
+                for (p in ps) { p.placeRelative(if (end) w - p.width else 0, y); y += p.height + gap }
+            }
+        }
     }
 }
 
@@ -669,12 +733,27 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
             val pl = m.measure(c.copy(minWidth = c.maxWidth + extra, maxWidth = c.maxWidth + extra))
             layout(c.maxWidth, pl.height) { pl.place(-extra / 2, 0) }
         }, color = cs.outlineVariant)
-        Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(onClick = { vm.cancelPairing(p.id) }, Modifier.heightIn(min = 48.dp)) { Text("Cancel pairing") }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(PaIcons.Schedule, null, Modifier.size(16.dp), tint = cs.onSurfaceVariant)
-                Text("Times out in " + Countdown.format(row.startedAt, now), style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
-            }
+        PairingFooter("Times out in " + Countdown.format(row.startedAt, now)) { vm.cancelPairing(p.id) }
+    }
+}
+
+/** Arrangement.SpaceBetween that keeps at least [gap] between items, so a FlowRow wraps an item instead of placing it flush. */
+private class SpaceBetweenMin(gap: Dp) : Arrangement.Horizontal {
+    override val spacing = gap
+    override fun Density.arrange(totalSize: Int, sizes: IntArray, layoutDirection: LayoutDirection, outPositions: IntArray) =
+        with(Arrangement.SpaceBetween) { arrange(totalSize, sizes, layoutDirection, outPositions) }
+}
+
+/** Pairing card footer: Cancel pairing at the left, the timeout at the right, or under the button when both do not fit. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun PairingFooter(timeout: String, onCancel: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    FlowRow(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = SpaceBetweenMin(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = onCancel, Modifier.heightIn(min = 48.dp)) { Text("Cancel pairing") }
+        Row(Modifier.align(Alignment.CenterVertically), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(PaIcons.Schedule, null, Modifier.size(16.dp), tint = cs.onSurfaceVariant)
+            Text(timeout, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
         }
     }
 }
@@ -821,9 +900,10 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                             // One row: the caption and counter at the left, "Send as text" at the far right.
                             Row(Modifier.padding(start = 32.dp, end = if (box) 16.dp else 32.dp, top = if (box) 0.dp else 6.dp).fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    if (text.isNotEmpty()) TypeCaption(type)
-                                    if (counter) Text(UiText.counter(bytes), style = MaterialTheme.typography.bodySmall, color = cs.error)
+                                // Wraps the counter under the caption instead of squeezing it.
+                                FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    if (text.isNotEmpty()) Box(Modifier.align(Alignment.CenterVertically)) { TypeCaption(type) }
+                                    if (counter) Text(UiText.counter(bytes), Modifier.align(Alignment.CenterVertically), style = MaterialTheme.typography.bodySmall, color = cs.error)
                                 }
                                 if (box) Row(Modifier.heightIn(min = 40.dp).toggleable(asText, role = Role.Checkbox) { asText = it },
                                     verticalAlignment = Alignment.CenterVertically) {
@@ -1124,7 +1204,11 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
             })
             Column(Modifier.weight(1f)) {
                 if (event) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    // A large font puts the time on its own line, so the text keeps the full width.
+                    if (LocalDensity.current.fontScale >= 1.3f) {
+                        Text(time, Modifier.padding(top = 10.dp), style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+                        Text(body, style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                    } else Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(body, Modifier.weight(1f).padding(top = 10.dp), style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
                         Text(time, Modifier.padding(top = 10.dp), style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
                     }
@@ -1180,7 +1264,8 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
 /** The opened text message: its first [TEXT_BOX_LINES] lines, in a box that scrolls when the text is longer. */
 @Composable
 private fun TextBox(text: String, style: androidx.compose.ui.text.TextStyle) {
-    val lineDp = with(LocalDensity.current) { style.lineHeight.toDp() }
+    // From the font size: a large font scales sizes non-linearly, and the line height follows the font size, not the curve.
+    val lineDp = with(LocalDensity.current) { style.fontSize.toDp() } * (style.lineHeight.value / style.fontSize.value)
     Box(Modifier.fillMaxWidth().heightIn(max = lineDp * TEXT_BOX_LINES).verticalScroll(rememberScrollState())) {
         SelectionContainer { Text(text, style = style) }
     }

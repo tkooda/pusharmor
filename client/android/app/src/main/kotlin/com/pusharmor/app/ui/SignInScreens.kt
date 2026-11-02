@@ -112,7 +112,8 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onCanc
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight).padding(horizontal = 24.dp),
         verticalArrangement = Arrangement.SpaceBetween, horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(0.dp))
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        // Even padding keeps the text centred and leaves a gap above the buttons when a large font fills the screen.
+        Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             SignInHalo()
             Spacer(Modifier.height(8.dp))
             Wordmark(34.sp)
