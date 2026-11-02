@@ -712,7 +712,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     group(h("label", { class: "srow" }, h("span", {}, 'Show an "All" button when choosing devices'), showAll)),
     // received links on this device
     sh("Receiving"),
-    group(h("label", { class: "srow" }, h("span", {}, "Open links automatically"), autoOpen), h("label", { class: "srow" }, h("span", {}, "Allow message content in notifications"), allowContent)),
+    group(h("label", { class: "srow" }, h("span", {}, "Open URLs automatically"), autoOpen), h("label", { class: "srow" }, h("span", {}, "Allow message content in notifications"), allowContent)),
     sh("History"),
     group(
       h("div", { class: "srow" }, h("span", {}, "Delete messages older than"), days),

@@ -182,12 +182,12 @@ test("popup header stays mounted: only the content area scrolls, reset on each t
   assert.match(pop, /clear\(body\);/); // a tab switch replaces the content area only
 });
 
-test("Settings: Open links automatically sits under Receiving, not Sending", async () => {
+test("Settings: Open URLs automatically sits under Receiving, not Sending", async () => {
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
   const recv = pop.indexOf('sh("Receiving")');
   assert.ok(recv > pop.indexOf('sh("Sending")'));
-  assert.ok(pop.indexOf('"Open links automatically"') > recv);
+  assert.ok(pop.indexOf('"Open URLs automatically"') > recv);
 });
 
 test("Settings order: name, appearance, All button, receiving, history, account", async () => {
@@ -630,4 +630,15 @@ test("Settings: retention says Delete messages older than, and every value or co
   assert.match(pop, /h\("select", \{ "aria-label": "Delete messages older than" \}\)/);
   assert.match(pop, /h\("span", \{\}, "Delete messages older than"\), days\)/);
   assert.match(css, /\.srow > select, \.srow > input \{ margin-left: auto; \}/);
+});
+
+test("user text says URL for a web address; the sign-in email's login link stays", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { T, R } = await import("../src/core/texts.ts");
+  assert.equal(T.titleUrl, "URL");
+  assert.match(R.badLink, /login link/);
+  for (const f of ["../../chrome/manifest.json", "../../firefox/manifest.json"]) {
+    assert.match(JSON.parse(readFileSync(new URL(f, import.meta.url), "utf8")).description, /^Send URLs and text /);
+  }
+  assert.match(readFileSync(new URL("../src/shots/shots.ts", import.meta.url), "utf8"), /"Send URLs or text to your devices/);
 });
