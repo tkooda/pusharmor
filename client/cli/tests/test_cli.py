@@ -913,3 +913,11 @@ def test_config_dir_with_empty_home(monkeypatch):
     monkeypatch.delenv("PUSHARMOR_CONFIG", raising=False)
     d = pa.config_dir()
     assert d.endswith("/.config/pusharmor") and d != "/.config/pusharmor"
+
+
+def test_write_file_syncs_the_directory(monkeypatch, tmp_path):
+    kinds = []
+    real = os.fsync
+    monkeypatch.setattr(os, "fsync", lambda fd: (kinds.append(stat.S_ISDIR(os.fstat(fd).st_mode)), real(fd)))
+    pa.write_file(str(tmp_path / "f"), "x")
+    assert kinds == [False, True]

@@ -1240,6 +1240,12 @@ def write_file(path, text):
         with contextlib.suppress(OSError):
             os.unlink(tmp)
         raise
+    with contextlib.suppress(OSError):
+        dfd = os.open(os.path.dirname(path), os.O_RDONLY)
+        try:
+            os.fsync(dfd)
+        finally:
+            os.close(dfd)
 
 
 def check_private(path, want):
