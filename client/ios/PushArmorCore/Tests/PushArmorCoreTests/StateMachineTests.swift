@@ -75,6 +75,21 @@ final class StateMachineTests: XCTestCase {
         XCTAssertFalse(try x.core.store.history().contains { $0.event == .invalid })
     }
 
+    /// a returned c that is not an approve is dropped with no History row, and its n
+    /// is not consumed, so the real push still applies.
+    func testReturnedCOtherThanApproveIsDropped() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        _ = try await n.core.send("https://example.com/c", as: .url, to: [x.id], allCount: 1)
+        let m = w.take(x.id)[0]
+        let rc = await x.core.receive(m, mode: .returnedC)
+        XCTAssertNil(rc.rowid)
+        XCTAssertFalse(try x.core.store.history().contains { $0.type == "url" })
+        let r = await x.core.receive(m, mode: .nse)
+        XCTAssertEqual(r.banner?.body, "https://example.com/c")
+        XCTAssertEqual(try x.core.store.history().filter { $0.type == "url" }.count, 1)
+    }
+
     func testCounterReservedByTwoProcessesIsDistinct() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try await pairFully(n, x)
