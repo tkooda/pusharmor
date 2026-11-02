@@ -1494,7 +1494,7 @@ class Stream:
                     continue
             try:
                 line = self.resp.readline(NTFY_LINE_CAP)
-            except TimeoutError:
+            except (TimeoutError, socket.timeout):
                 self.close(False)
                 continue
             except (OSError, http.client.HTTPException):

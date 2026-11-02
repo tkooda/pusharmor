@@ -883,3 +883,24 @@ def test_log_with_closed_stderr_writes_nothing(monkeypatch, capsys):
     monkeypatch.setattr(sys, "stderr", None)
     pa.log("a note")
     assert capsys.readouterr().out == ""
+
+
+def test_stream_socket_timeout_reconnects_without_delay(monkeypatch):
+    class Timeout(OSError):
+        """Stands for socket.timeout on Python 3.9, where it is not TimeoutError."""
+
+    class Resp:
+        def readline(self, cap):
+            raise Timeout("timed out")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(pa.socket, "timeout", Timeout)
+    s = pa.Stream("https://ntfy.example", "up0", {}, "", 5, poll=True)
+    seen = []
+    orig = s.close
+    monkeypatch.setattr(s, "connect", lambda: setattr(s, "resp", Resp()))
+    monkeypatch.setattr(s, "close", lambda delay: (seen.append(delay), orig(delay)))
+    s.next(time.time() + 0.2)
+    assert seen and set(seen) == {False}
