@@ -19,6 +19,7 @@ final class AppModel: ObservableObject {
         case removed                    // "This device was removed. Log in again"
         case banned
         case signedOut                  // "Logged out. Log in to resume"
+        case keysBroken                 // the saved keys failed the launch check
     }
 
     struct LimitEntry: Identifiable, Hashable {
@@ -114,10 +115,11 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// Opens the store and loads the keys. A failure shows plain text; the next foreground
-    /// tries again.
+    /// Opens the store and loads the keys. A store that does not open shows plain text; keys
+    /// that do not work show their own screen. The next foreground tries again.
     private func open() async {
         launchRetry = false
+        launchStop = nil
         do {
             try env.prepareDirectories()
             if store == nil {
@@ -128,9 +130,10 @@ final class AppModel: ObservableObject {
             if let store = store, let keys = try env.keychain.bootstrap(store: store) {
                 core = env.makeCore(store: store, keys: keys)
             }
-        } catch KeyBootstrap.Stop.retryLater {
-            launchRetry = true
-            errorText = S.launchFailed
+        } catch let stop as KeyBootstrap.Stop {
+            // nothing was changed or deleted
+            launchRetry = stop == .retryLater
+            launchStop = AppModel.phase(for: stop)
         } catch {
             errorText = S.launchFailed
         }
@@ -138,6 +141,48 @@ final class AppModel: ObservableObject {
 
     /// The last launch stopped on a passing Keychain fault and changed nothing.
     private var launchRetry = false
+    /// The screen the last launch stopped on; route() shows it instead of the usual one.
+    private var launchStop: Phase?
+
+    /// Keys that fail the launch check get their own screen. A passing fault (before the
+    /// first unlock) keeps the usual screen; the next foreground tries again.
+    static func phase(for stop: KeyBootstrap.Stop) -> Phase? {
+        switch stop {
+        case .unusable: return .keysBroken
+        case .retryLater: return nil
+        }
+    }
+
+    /// Retry on the broken keys screen: the launch again, on this device only.
+    func retryKeys() async {
+        await once("open") {
+            await open()
+            await route()
+        }
+    }
+
+    /// Delete broken keys, after the confirmation: the user then signs in again.
+    func deleteBrokenKeys() {
+        guard let store = store else { return }
+        do {
+            phase = try AppModel.deleteBrokenKeys(store: store, hooks: env)
+            launchStop = nil
+            pendingKeys = nil
+        } catch {
+            toast = ErrorCopy.Reason.saveFailed.line
+        }
+    }
+
+    /// The DB part first, keeping this id as old_id for the DELETE after the next sign-in;
+    /// if it fails the keys stay. Then the keys, the locked inbox, and the delivered
+    /// notifications. The next screen is the sign-in.
+    static func deleteBrokenKeys(store: Store, hooks: PlatformHooks) throws -> Phase {
+        try store.keysLost()
+        hooks.wipeKeys()
+        hooks.removeLockedInbox()
+        hooks.removeDeliveredNotifications()
+        return .signIn(.register)
+    }
 
     /// a launch error must not leave the app dead until force-quit. True when the
     /// store did not open, a signed-in device has no keys loaded, or a device with no
@@ -158,6 +203,7 @@ final class AppModel: ObservableObject {
     func route() async {
         guard let store = store, let me = try? store.me() else { phase = .loading; return }
         self.me = me
+        if let p = launchStop { phase = p; return }
         if notificationsOff && me.id == nil { phase = .welcome; return }
         if let r = AppModel.restoredCode(me: me, email: try? store.setting("code_email"),
                                          purpose: try? store.setting("code_purpose")) {

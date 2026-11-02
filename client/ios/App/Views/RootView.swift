@@ -90,6 +90,8 @@ struct RootView: View {
                     .multilineTextAlignment(.center)
                     .padding(24)
             }
+        case .keysBroken:
+            KeysBrokenView()
         case .signedOut:
             VStack(spacing: 0) {
                 Text(S.signedOutResume)
@@ -100,6 +102,49 @@ struct RootView: View {
             }
             .modifier(SettingsGear(shown: true))
         }
+    }
+}
+
+/// The saved keys failed the launch check. Retry runs the launch again on this device
+/// only; Delete broken keys asks first, then deletes them and opens the sign-in.
+struct KeysBrokenView: View {
+    @EnvironmentObject var model: AppModel
+    @State private var confirmDelete = false
+
+    var body: some View {
+        CenteredScroll {
+            VStack(spacing: 16) {
+                Text(S.keysBrokenTitle)
+                    .font(.title2.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                Text(S.keysBrokenBody)
+                    .foregroundColor(.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 330)
+                // Retry is the primary action, on the right; stacks at large text sizes
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) { buttons }
+                    VStack(spacing: 12) { buttons }
+                }
+                .padding(.top, 8)
+            }
+            .padding(24)
+        }
+        // standard alert; Cancel and the destructive action are placed by the system
+        .alert(S.keysBrokenConfirmTitle, isPresented: $confirmDelete) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) { model.deleteBrokenKeys() }
+        } message: {
+            Text(S.keysBrokenConfirmBody)
+        }
+    }
+
+    @ViewBuilder private var buttons: some View {
+        Button("Delete broken keys", role: .destructive) { confirmDelete = true }
+            .buttonStyle(.bordered)
+        Button("Retry") { Task { await model.retryKeys() } }
+            .buttonStyle(.borderedProminent)
+            .disabled(model.busy.contains("open"))
     }
 }
 
