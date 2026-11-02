@@ -125,9 +125,10 @@ public final class Core: @unchecked Sendable {
     // MARK: wipe
 
     /// Self-removed path (catalog Removal rules, ios 11 Wipe): keys gone, pins, pairing rows,
-    /// pair_cap, counters and replay rows gone; history kept.
+    /// pair_cap, counters and replay rows gone; history kept. The DB part commits first: if it
+    /// fails, the keys stay so the next signed call gets the 401 and tries again.
     public func selfRemoved() {
-        try? store.wipe()
+        do { try store.wipe() } catch { return }
         hooks?.wipeKeys()
         hooks?.removeLockedInbox()
         hooks?.removeDeliveredNotifications()
@@ -135,6 +136,16 @@ public final class Core: @unchecked Sendable {
 }
 
 extension Store {
+    /// a signed-in device whose sign key is gone from the Keychain. The DB part of the
+    /// wipe, with this id kept as old_id, so the device can sign in again instead of failing
+    /// to open on every launch.
+    public func keysLost() throws {
+        try db.write {
+            if let id = try me().id { try setMe("old_id", .text(id.text)) }
+            try wipe()
+        }
+    }
+
     /// The DB part of the wipe (one transaction).
     public func wipe() throws {
         try db.write {

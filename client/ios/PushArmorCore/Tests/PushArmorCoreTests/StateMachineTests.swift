@@ -120,6 +120,39 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(p.nameN, 0)
     }
 
+    final class RecordingHooks: PlatformHooks {
+        var wiped = 0
+        func wipeKeys() { wiped += 1 }
+        func removeLockedInbox() {}
+        func removeDeliveredNotifications() {}
+        func isProtectedDataLocked() -> Bool { false }
+    }
+
+    /// a failed DB wipe keeps the keys (the next 401 tries again); once it commits the
+    /// keys go.
+    func testSelfRemovedKeepsKeysWhenWipeFails() throws {
+        let n = try dev("Ndev")
+        let hooks = RecordingHooks()
+        n.core.hooks = hooks
+        try n.core.store.db.exec("CREATE TEMP TRIGGER fail_wipe BEFORE UPDATE ON me BEGIN SELECT RAISE(ABORT, 'disk full'); END")
+        n.core.selfRemoved()
+        XCTAssertEqual(hooks.wiped, 0)
+        XCTAssertFalse(try n.core.store.me().removed)
+        try n.core.store.db.exec("DROP TRIGGER fail_wipe")
+        n.core.selfRemoved()
+        XCTAssertEqual(hooks.wiped, 1)
+        XCTAssertTrue(try n.core.store.me().removed)
+    }
+
+    /// a signed-in device with no sign key is marked removed and keeps its id as old_id.
+    func testKeysLostMarksRemovedAndKeepsOldId() throws {
+        let n = try dev("Ndev")
+        try n.core.store.keysLost()
+        let me = try n.core.store.me()
+        XCTAssertTrue(me.removed)
+        XCTAssertEqual(me.oldId, n.id.text)
+    }
+
     func testRegisterRetriesOnceOnClockSkew() async throws {
         let n = try dev("Ndev")
         w.script("POST", "/v1/peers", 401, "{\"error\":\"clock skew\"}")

@@ -121,6 +121,8 @@ public final class KeychainKeyStore {
             return try create()
         }
         if me.removed { return nil }   // keys wiped; the next sign-in creates new keys
+        // id set but no sign key (a wipe whose DB part failed): removed, not a launch error
+        if try read(.sign) == nil { try store.keysLost(); return nil }
         return try load()
     }
 }
