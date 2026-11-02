@@ -70,7 +70,7 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
 const E2E = "All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.";
 const CODE_HELP = "Paste or type the code. Spaces and dashes are fine.";
 /** A code check that failed for one of these reasons starts again at the email step. */
-const ENDS_FLOW = [R.loginExpired, R.codeExpired];
+const ENDS_FLOW = [R.loginExpired, R.codeExpired, R.logInAgain];
 const endsFlow = (msg: string) => ENDS_FLOW.some((r) => msg.endsWith("\n" + r));
 
 /** One message listener per page (a hash change mounts the view again). */
@@ -551,7 +551,7 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
             } else if (r.limit) limitView(env, root, r.limit, r.ticket ?? ticket);
           } catch (e) {
             toast((e as Error).message, "err");
-            if ((e as Error).message.endsWith("\n" + R.loginExpired)) env.openPage("#login");
+            if (endsFlow((e as Error).message)) env.openPage("#login");
           } finally {
             btn.disabled = false;
           }

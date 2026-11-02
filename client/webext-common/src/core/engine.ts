@@ -1746,51 +1746,52 @@ export class Engine {
   /** POST /peers with a "register" ticket. Returns the 409 "peer limit" body when the picker is needed. */
   async register(ticket: string, email: string | null, evict?: string[]): Promise<Record<string, unknown> | null> {
     const lost = (await this.p.storageLocal.get([REG_MARKER]))[REG_MARKER] as { id: string; registered: boolean } | undefined;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const keys = await this.signInKeys();
-      const body: Record<string, unknown> = {
-        ticket,
-        sign_pub: b64urlEncode(keys.sign_pub),
-        enc_pub: b64urlEncode(keys.enc_pub),
-        platform: this.p.platformName,
-        push: null,
-      };
-      if (evict && evict.length) body.evict = evict;
-      let r: ApiReply;
-      try {
-        r = await this.api.call("POST", "/peers", { signer: { id: null, key: keys.sign.privateKey }, body });
-      } catch (e) {
-        if (e instanceof ApiError && e.status === 409 && e.error === "peer limit") return e.body;
-        if (e instanceof ApiError && e.status === 409 && e.error === "id collision") {
-          await this.db.clear(["keys"]);
-          continue;
-        }
-        throw e;
+    const keys = await this.signInKeys();
+    const body: Record<string, unknown> = {
+      ticket,
+      sign_pub: b64urlEncode(keys.sign_pub),
+      enc_pub: b64urlEncode(keys.enc_pub),
+      platform: this.p.platformName,
+      push: null,
+    };
+    if (evict && evict.length) body.evict = evict;
+    let r: ApiReply;
+    try {
+      r = await this.api.call("POST", "/peers", { signer: { id: null, key: keys.sign.privateKey }, body });
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409 && e.error === "peer limit") return e.body;
+      if (e instanceof ApiError && e.status === 409 && e.error === "id collision") {
+        // the ticket is bound to these keys, so it cannot be sent again: only keys that
+        // never registered are replaced, and the next sign-in gets a ticket for the new ones
+        if (keys.id !== "") throw new ReasonError(R.tryAgain);
+        await this.db.del("keys", "self");
+        await this.signInKeys();
+        throw new ReasonError(R.logInAgain);
       }
-      const id = typeof r.json.id === "string" ? r.json.id : "";
-      const idb = b64urlTryDecode(id);
-      // the id must carry our own keyhash, or peers drop every message from us
-      if (!idb || idb.length !== ID_LEN || !equal(idb.subarray(ACCOUNT_LEN, ACCOUNT_LEN + KEYHASH_LEN), await keyhash(keys.sign_pub, keys.enc_pub)))
-        throw new ReasonError(R.badReply);
-      await this.db.put("keys", { ...keys, id }, "self");
-      await this.p.storageLocal.set({ [REG_MARKER]: { id, registered: true } });
-      await this.db.setMeta("reg", "registered");
-      await this.db.setMeta("banner", null);
-      if (email) await this.db.setMeta("email", email);
-      await this.authChanged();
-      const self = (await this.self())!;
-      await this.mergePeers(r.json, self);
-      if (lost && lost.id && lost.id !== id) {
-        try {
-          await this.api.call("DELETE", "/peers/" + lost.id, { signer: this.signerOf(self), body: { m: {} } });
-        } catch {
-          // 400 "bad request" counts as done; other errors: the peers mark it missing
-        }
-      }
-      await this.pushReconcile().catch(() => undefined);
-      return null;
+      throw e;
     }
-    throw new ReasonError(R.tryAgain);
+    const id = typeof r.json.id === "string" ? r.json.id : "";
+    const idb = b64urlTryDecode(id);
+    // the id must carry our own keyhash, or peers drop every message from us
+    if (!idb || idb.length !== ID_LEN || !equal(idb.subarray(ACCOUNT_LEN, ACCOUNT_LEN + KEYHASH_LEN), await keyhash(keys.sign_pub, keys.enc_pub)))
+      throw new ReasonError(R.badReply);
+    await this.db.put("keys", { ...keys, id }, "self");
+    await this.p.storageLocal.set({ [REG_MARKER]: { id, registered: true } });
+    await this.db.setMeta("reg", "registered");
+    await this.db.setMeta("banner", null);
+    if (email) await this.db.setMeta("email", email);
+    await this.authChanged();
+    const self = (await this.self())!;
+    await this.mergePeers(r.json, self);
+    if (lost && lost.id && lost.id !== id) {
+      try {
+        await this.api.call("DELETE", "/peers/" + lost.id, { signer: this.signerOf(self), body: { m: {} } });
+      } catch {
+        // 400 "bad request" counts as done; other errors: the peers mark it missing
+      }
+    }
+    await this.pushReconcile().catch(() => undefined);
+    return null;
   }
 
   async start(): Promise<void> {
