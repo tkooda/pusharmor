@@ -621,3 +621,13 @@ test("the pairing timer row button says Cancel pairing request; the time left wr
   assert.match(pv, /cancel: "Cancel pairing request",/);
   assert.match(readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8"), /\.pair-foot \{[^}]*flex-wrap: wrap;/);
 });
+
+test("Settings: retention says Delete messages older than, and every value or control stays on the right when it wraps", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  assert.doesNotMatch(pop, /Keep messages for|500 messages/);
+  assert.match(pop, /h\("select", \{ "aria-label": "Delete messages older than" \}\)/);
+  assert.match(pop, /h\("span", \{\}, "Delete messages older than"\), days\)/);
+  assert.match(css, /\.srow > select, \.srow > input \{ margin-left: auto; \}/);
+});

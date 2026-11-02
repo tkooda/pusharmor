@@ -654,7 +654,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
   const showAll = h("input", { type: "checkbox", role: "switch", checked: s.showAll }) as HTMLInputElement;
   const autoOpen = h("input", { type: "checkbox", role: "switch", checked: s.autoOpen }) as HTMLInputElement;
   const allowContent = h("input", { type: "checkbox", role: "switch", checked: s.allowContent }) as HTMLInputElement;
-  const days = h("select", { "aria-label": "Keep messages for" }) as HTMLSelectElement;
+  const days = h("select", { "aria-label": "Delete messages older than" }) as HTMLSelectElement;
   for (const d of [1, 7, 30, 90, 365]) days.append(h("option", { value: String(d), selected: d === s.historyDays }, d + (d === 1 ? " day" : " days")));
   const theme = h("select", { "aria-label": "Theme" }) as HTMLSelectElement;
   const pref = parseTheme(await env.theme.get().catch(() => undefined));
@@ -715,7 +715,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     group(h("label", { class: "srow" }, h("span", {}, "Open links automatically"), autoOpen), h("label", { class: "srow" }, h("span", {}, "Allow message content in notifications"), allowContent)),
     sh("History"),
     group(
-      h("div", { class: "srow" }, h("span", {}, "Keep messages for"), days),
+      h("div", { class: "srow" }, h("span", {}, "Delete messages older than"), days),
       h("div", { class: "srow" }, delAll),
     ),
     ...(loggedIn ? [sh("Account"), group(acctRow, h("div", { class: "srow acct-acts" }, btns))] : []),
