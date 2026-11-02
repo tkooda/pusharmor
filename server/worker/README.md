@@ -51,7 +51,7 @@ test route.
 
 One compact JSON line per request (`src/log.ts`): allow-listed fields only, no bodies,
 tokens or messages; the largest field is the per-recipient list (at most 9 short entries).
-Workers Logs bills every line. `head_sampling_rate` stays 1: head sampling is decided before
+Every logged line adds to the log volume. `head_sampling_rate` stays 1: head sampling is decided before
 the request runs and would drop errors as well. Sampling is done in code with the var
 `PA_LOG_SAMPLE` (wrangler.jsonc):
 
@@ -62,9 +62,7 @@ the request runs and would drop errors as well. Sampling is done in code with th
 
 Now `PA_LOG_SAMPLE` is `"1"` (every line), for launch and the first users.
 
-When to lower it: when Workers Logs events approach this Worker's share of the plan's
-included 20M events per month (about 650k per day for the whole Cloudflare account), or when
-the monthly Workers Logs overage passes a few dollars. How: set `"PA_LOG_SAMPLE": "0.1"` in
+When to lower it: when log volume grows. How: set `"PA_LOG_SAMPLE": "0.1"` in
 `wrangler.jsonc` and release a new Worker tag (`RELEASING.md`, Worker). 5xx lines stay
 complete; 4xx counts become estimates.
 

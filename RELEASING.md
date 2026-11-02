@@ -141,9 +141,8 @@ Rollback: never roll the Worker back below 0.0.17 (migration 0004 stores pending
 `[time, "c"]`, which an older Worker returns as a bad c). Roll forward only
 (`server/deploy/README.md`, step 7).
 
-Log volume: the Worker logs every request while `PA_LOG_SAMPLE` is `"1"`. When Workers Logs
-events near the account's included 20M per month, or the logs overage passes a few dollars a
-month, change that one line in `server/worker/wrangler.jsonc` to `"PA_LOG_SAMPLE": "0.1"` and
+Log volume: the Worker logs every request while `PA_LOG_SAMPLE` is `"1"`. When log volume grows,
+change that one line in `server/worker/wrangler.jsonc` to `"PA_LOG_SAMPLE": "0.1"` and
 release a new Worker tag. Errors are always logged (`server/worker/README.md`, Logs).
 
 ## Android (`android/vX.Y.Z`)
