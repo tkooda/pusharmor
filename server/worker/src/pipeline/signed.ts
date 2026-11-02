@@ -18,7 +18,7 @@ export function checkTime(headers: Headers, nowMs: number): string {
 // Step b. Returns PA-ID (MAC verified, no D1).
 export async function checkPaId(idSecret: string, headers: Headers): Promise<string> {
   const id = headers.get("PA-ID");
-  if (id === null || !(await checkPeerIdMac(idSecret, id))) throw new ApiError(401, "unknown peer");
+  if (id === null || !(await checkPeerIdMac(idSecret, id))) throw new ApiError(401, "bad id");
   return id;
 }
 

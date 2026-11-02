@@ -427,12 +427,15 @@ describe("pipeline", () => {
     expect(r.status).toBe(200);
   });
 
-  it("forged PA-ID -> 401 unknown peer with no D1 query", async () => {
+  it("forged or missing PA-ID -> 401 bad id with no D1 query", async () => {
     const p = await newPeer(randomEmail());
     const forged = { ...p, id: p.id.slice(0, 30) + "AAAAAAAAAA" };
-    const r = await call("GET", "/v1/peers", undefined, { peer: forged });
+    let r = await call("GET", "/v1/peers", undefined, { peer: forged });
     expect(r.status).toBe(401);
-    expect(r.body.error).toBe("unknown peer");
+    expect(r.body.error).toBe("bad id");
+    r = await call("GET", "/v1/peers", undefined, { sign: p.sign });
+    expect(r.status).toBe(401);
+    expect(r.body.error).toBe("bad id");
   });
 
   it("bad signature and missing signature", async () => {
