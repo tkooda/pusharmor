@@ -305,7 +305,7 @@ final class AppModel: ObservableObject {
 
     func emailStart(_ email: String, purpose: AuthPurpose, turnstile: String) async {
         guard Ids.normalizeEmail(email) != nil else { toast = S.badEmail; return }
-        guard let k = try? keysForSignIn(purpose) else { return }
+        guard let k = try? keysForSignIn(purpose) else { toast = ErrorCopy.text(.prepareLogin, .keysUnusable); return }
         let r = await auth.emailStart(email: email, signPub: k.signer.publicKey, purpose: purpose, turnstile: turnstile)
         let nowMs = Int(Date().timeIntervalSince1970 * 1000)
         switch r {
@@ -346,12 +346,12 @@ final class AppModel: ObservableObject {
     }
 
     func appleToken(idToken: String, code: String?, purpose: AuthPurpose) async {
-        guard let k = try? keysForSignIn(purpose) else { return }
+        guard let k = try? keysForSignIn(purpose) else { toast = ErrorCopy.text(.prepareLogin, .keysUnusable); return }
         await finishTicket(await auth.appleToken(idToken: idToken, signPub: k.signer.publicKey, purpose: purpose, code: code), purpose: purpose)
     }
 
     func googleToken(idToken: String, purpose: AuthPurpose) async {
-        guard let k = try? keysForSignIn(purpose) else { return }
+        guard let k = try? keysForSignIn(purpose) else { toast = ErrorCopy.text(.prepareLogin, .keysUnusable); return }
         await finishTicket(await auth.googleToken(idToken: idToken, signPub: k.signer.publicKey, purpose: purpose), purpose: purpose)
     }
 

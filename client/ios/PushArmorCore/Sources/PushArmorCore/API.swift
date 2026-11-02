@@ -83,10 +83,15 @@ public struct APIReply: Sendable {
 public enum APIOutcome: Sendable {
     case reply(APIReply)          // any HTTP reply after the retry policy ran
     case network                  // no reply after the retry policy ran
+    case keysUnusable             // the request could not be signed: nothing was sent
 
     public var reply: APIReply? {
         if case .reply(let r) = self { return r }
         return nil
+    }
+    public var isKeysUnusable: Bool {
+        if case .keysUnusable = self { return true }
+        return false
     }
     public var isClockSkew: Bool { reply?.status == 401 && reply?.error == "clock skew" }
 }
@@ -192,10 +197,10 @@ public final class APIClient: @unchecked Sendable {
         while true {
             var headers = ["Content-Type": "application/json", "PA-Client": client]
             if case .signed(let signer, let id) = auth {
-                if let h = try? RequestSigning.headers(signer: signer, peerId: id, method: method, path: path,
-                                                       timeMs: workerNowMs, body: body) {
-                    headers.merge(h) { $1 }
-                }
+                // a signing fault sends nothing: an unsigned request would only be refused
+                guard let h = try? RequestSigning.headers(signer: signer, peerId: id, method: method, path: path,
+                                                          timeMs: workerNowMs, body: body) else { return .keysUnusable }
+                headers.merge(h) { $1 }
             }
             var status: Int? = nil
             var reply: APIReply? = nil

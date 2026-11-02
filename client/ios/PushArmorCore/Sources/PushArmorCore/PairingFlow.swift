@@ -361,6 +361,7 @@ extension Core {
         guard let out = out else { return S.notDone }
         if out.reply?.ok == true { return nil }
         if out.isClockSkew { return S.clockOff }
+        if out.isKeysUnusable { return ErrorCopy.Reason.keysUnusable.line }
         return out.reply == nil ? S.noConnection : S.notDone
     }
 

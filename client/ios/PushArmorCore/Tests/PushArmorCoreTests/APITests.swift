@@ -129,4 +129,25 @@ final class APITests: XCTestCase {
         XCTAssertFalse(UpdateGate.required(d, version: "0.0.20"))
         XCTAssertNil(d.string(forKey: UpdateGate.key))
     }
+
+    struct FailingSigner: PASigner {
+        struct Fault: Error {}
+        var publicKey: Data { SoftwareSigner().publicKey }
+        func sign(_ data: Data) throws -> Data { throw Fault() }
+    }
+
+    /// a signing fault sends nothing and reports unusable keys, never an unsigned request.
+    func testSigningFailureSendsNothing() async {
+        let w = FakeWorker(), rec = Recorder()
+        let api = client(w, rec)
+        let out = await api.call("GET", "/v1/peers", auth: .signed(FailingSigner(), nil))
+        XCTAssertTrue(out.isKeysUnusable)
+        XCTAssertNil(out.reply)
+        XCTAssertTrue(w.calls.isEmpty)
+        XCTAssertEqual(rec.sleeps, [])
+        XCTAssertEqual(ErrorCopy.text(.prepareLogin, .keysUnusable),
+                       "Unable to start the login.\nThis device's security keys cannot be used right now. Restart the device and try again.")
+        XCTAssertEqual(Core.failText(out),
+                       "This device's security keys cannot be used right now. Restart the device and try again.")
+    }
 }
