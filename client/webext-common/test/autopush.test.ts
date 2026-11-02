@@ -44,6 +44,7 @@ function setup(savedMode: "direct" | "fallback" = "direct") {
   let keys: WebPushKeys | null = null;
   const delivered: string[] = [];
   const failDeliver = { on: false };
+  const holdDeliver: { p: Promise<void> | null } = { p: null };
   const endpoints: string[] = [];
   const modes: string[] = [];
   let t = 1_000_000;
@@ -64,6 +65,7 @@ function setup(savedMode: "direct" | "fallback" = "direct") {
       keys = k;
     },
     deliver: async (m) => {
+      if (holdDeliver.p) await holdDeliver.p;
       if (failDeliver.on) throw new Error("db down");
       delivered.push(m);
     },
@@ -87,7 +89,7 @@ function setup(savedMode: "direct" | "fallback" = "direct") {
     },
     uuid: () => "chan-" + ++n,
   });
-  return { ap, sockets, timers, delivered, endpoints, modes, keys: () => keys!, wipeKeys: () => (keys = null), failDeliver, advance: (ms: number) => (t += ms) };
+  return { ap, sockets, timers, delivered, endpoints, modes, keys: () => keys!, wipeKeys: () => (keys = null), failDeliver, holdDeliver, advance: (ms: number) => (t += ms) };
 }
 
 test("autopush: hello, register, notification decrypt and ack, dedupe, decrypt error 101, unknown channel", async () => {
@@ -161,6 +163,28 @@ test("autopush: no ack while deliver fails, the same version is delivered again 
   await ws.rx({ messageType: "notification", channelID: "chan-1", version: "v9", data, headers: {} });
   assert.deepEqual(s.delivered, ["M-RETRY"]);
   assert.deepEqual(ws.sent.at(-1), { messageType: "ack", updates: [{ channelID: "chan-1", version: "v9", code: 100 }] });
+});
+
+test("autopush: in fallback, a delivery that ends after a reconnect does not ack on or close the new socket", async () => {
+  const s = setup();
+  await s.ap.start();
+  const old = s.sockets[0]!;
+  old.onopen!();
+  await old.rx({ messageType: "hello", status: 200, uaid: "U1" });
+  await old.rx({ messageType: "register", status: 200, channelID: "chan-1", pushEndpoint: "https://updates.push.services.mozilla.com/wpush/v2/a" });
+  s.ap.mode = "fallback";
+  let release: () => void = () => undefined;
+  s.holdDeliver.p = new Promise<void>((r) => (release = r));
+  const data = await encrypt(s.keys(), "M-OLD");
+  await old.rx({ messageType: "notification", channelID: "chan-1", version: "v1", data, headers: {} });
+  s.ap.reconnectNow();
+  const ws = s.sockets.at(-1)!;
+  assert.notEqual(ws, old);
+  release();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.deepEqual(s.delivered, ["M-OLD"]);
+  assert.equal(ws.closed, false);
+  assert.equal(ws.sent.filter((f) => f.messageType === "ack").length, 0);
 });
 
 test("autopush: backoff 5 s * 2^k, fallback after 30 min of failures, 4774 switches at once", async () => {

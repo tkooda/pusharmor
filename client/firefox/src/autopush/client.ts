@@ -275,6 +275,7 @@ export class Autopush {
   }
 
   private async onNotification(f: Frame): Promise<void> {
+    const ws = this.ws; // a reconnect during the awaits below installs a new socket
     const channelID = String(f.channelID ?? "");
     const version = String(f.version ?? "");
     if (channelID !== this.state.channelID) {
@@ -305,10 +306,12 @@ export class Autopush {
         await this.d.deliver(m);
       } catch {
         this.versions = this.versions.filter((v) => v !== version);
-        if (this.mode === "fallback") this.ws?.close();
+        if (this.mode === "fallback" && this.ws === ws) ws?.close();
         return;
       }
     }
+    // the old socket is closed: autopush sends this again on the new one, and it is acked there
+    if (this.ws !== ws) return;
     this.send({ messageType: "ack", updates: [{ channelID, version, code }] });
     if (this.mode === "fallback") this.ws?.close();
   }
