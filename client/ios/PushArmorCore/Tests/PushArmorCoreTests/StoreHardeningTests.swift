@@ -43,4 +43,15 @@ final class StoreHardeningTests: XCTestCase {
         try s.db.exec("DELETE FROM me")
         XCTAssertThrowsError(try s.me())
     }
+
+    /// opening a store that needs no migration does not wait for another writer.
+    func testOpenDoesNotWaitForWriter() throws {
+        let path = tmpPath("open")
+        let a = try DB(path: path)
+        try a.exec("BEGIN IMMEDIATE")
+        defer { try? a.exec("ROLLBACK") }
+        let t0 = Date()
+        XCTAssertNoThrow(try DB(path: path))
+        XCTAssertLessThan(Date().timeIntervalSince(t0), 1)
+    }
 }

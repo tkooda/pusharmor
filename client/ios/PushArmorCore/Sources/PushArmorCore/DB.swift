@@ -271,9 +271,13 @@ enum Schema {
         """,
     ]
 
+    /// Reads user_version first with no transaction; takes the write lock only when a
+    /// migration is due, and reads the version again under it.
     static func migrate(_ db: DB) throws {
+        func version() throws -> Int { Int(try db.one("PRAGMA user_version")?.int("user_version") ?? 0) }
+        if try version() >= migrations.count { return }
         try db.write {
-            let v = Int(try db.one("PRAGMA user_version")?.int("user_version") ?? 0)
+            let v = try version()
             for (i, m) in migrations.enumerated() where i >= v {
                 for stmt in m.components(separatedBy: ";\n") where !stmt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     try db.exec(stmt)
