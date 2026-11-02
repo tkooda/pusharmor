@@ -585,3 +585,12 @@ test("Open on a phone number row uses one tel: prefix", async () => {
   assert.equal(openHref("tel", "tel:+1555"), "tel:+1555");
   assert.equal(openHref("url", "https://example.com/"), "https://example.com/");
 });
+
+test("motion: a tab switch has no animation, and no transition runs longer than 100 ms", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  assert.doesNotMatch(css, /\.(tabs|pane|body)[^{]*\{[^}]*(transition|animation)/);
+  for (const m of css.matchAll(/transition:([^;]+);/g)) {
+    for (const d of m[1].matchAll(/(\d*\.?\d+)(ms|s)\b/g)) assert.ok(Number(d[1]) * (d[2] === "s" ? 1000 : 1) <= 100, m[0]);
+  }
+});
