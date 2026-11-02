@@ -25,6 +25,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         const val NAVY = 0xFF1F3A5F.toInt()
         const val DEFAULT_CHANNEL = "default"
         const val TAG_MSG = "msg"
+        const val MAX_MESSAGES = 25
         const val TAG_NOTICE = "notice"
         const val TAG_PAIR = "pair"
         const val NOTICE_ID = 1
@@ -172,8 +173,16 @@ class Notifier(private val context: Context, private val settings: Settings, pri
                 b.setPublicVersion(NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setContentTitle("New message").build())
             }
         }
+        trimMessages(historyId.toInt())
         notify(TAG_MSG, historyId.toInt(), b.build())
         summary(channel, policy)
+    }
+
+    /** At most [MAX_MESSAGES] message notifications: cancel the oldest ones; history is untouched. */
+    private fun trimMessages(incoming: Int) {
+        val old = nm.activeNotifications.filter { it.tag == TAG_MSG && it.id >= 0 && it.id != incoming }
+            .sortedWith(compareBy({ it.postTime }, { it.id }))
+        old.take((old.size - (MAX_MESSAGES - 1)).coerceAtLeast(0)).forEach { nm.cancel(TAG_MSG, it.id) }
     }
 
     /** One summary per channel: no content, localOnly if a child is, strictest visibility. */
