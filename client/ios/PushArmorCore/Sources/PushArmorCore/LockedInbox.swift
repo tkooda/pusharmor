@@ -58,12 +58,26 @@ public struct LockedInbox: Sendable {
     /// Side file holding the number of files the cap removed since the last drain.
     var droppedFile: URL { dir.appendingPathComponent("dropped") }
 
-    public func droppedCount() -> Int {
-        guard let d = try? Data(contentsOf: droppedFile), let s = String(data: d, encoding: .ascii) else { return 0 }
+    public func droppedCount() -> Int { count(in: droppedFile) }
+
+    func count(in f: URL) -> Int {
+        guard let d = try? Data(contentsOf: f), let s = String(data: d, encoding: .ascii) else { return 0 }
         return Int(s.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
     }
 
-    func clearDropped() { try? FileManager.default.removeItem(at: droppedFile) }
+    /// Renames the counter to a unique claimed name before it is read, so a count the app
+    /// or the extension adds later starts a new counter and is not removed with this one.
+    /// Returns every claimed counter not yet removed (a failed store leaves them for the
+    /// next drain) and their total.
+    func claimDropped() -> (files: [URL], count: Int) {
+        let mine = dir.appendingPathComponent("dropped-" + UUID().uuidString + ".claimed")
+        try? FileManager.default.moveItem(at: droppedFile, to: mine)
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
+        let files = names.filter { $0.hasSuffix(".claimed") }.sorted().map { dir.appendingPathComponent($0) }
+        return (files, files.reduce(0) { $0 + count(in: $1) })
+    }
+
+    func removeClaimed(_ files: [URL]) { for f in files { try? FileManager.default.removeItem(at: f) } }
 }
 
 /// One drain at a time per Core: the locked drain, the delivered drain and a tap
@@ -133,9 +147,9 @@ extension Core {
             try? FileManager.default.removeItem(at: f)
         }
         // files the cap removed: one could-not-read event; the count stays until it is stored
-        if inbox.droppedCount() > 0,
-           (try? store.addEvent(.couldNotRead, peer: nil, content: S.dropped, now: clock())) != nil {
-            inbox.clearDropped()
+        let claimed = inbox.claimDropped()
+        if claimed.count <= 0 || (try? store.addEvent(.couldNotRead, peer: nil, content: S.dropped, now: clock())) != nil {
+            inbox.removeClaimed(claimed.files)
         }
         return (count, ms.subtracting(held), held)
     }

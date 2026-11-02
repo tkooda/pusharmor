@@ -51,6 +51,26 @@ final class InboxTests: XCTestCase {
         inbox.removeAll()
     }
 
+    /// a count added after the drain claims the counter is kept for the next drain.
+    func testDropCountAddedDuringDrainIsKept() throws {
+        let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-claim-\(UUID().uuidString)"))
+        for i in 0 ..< 101 { try inbox.write("m\(i)", nowMs: 1761300000000 + Int64(i)) }
+        let claimed = inbox.claimDropped()
+        XCTAssertEqual(claimed.count, 1)
+        XCTAssertEqual(inbox.droppedCount(), 0)
+        try inbox.write("late", nowMs: 1761300001000)                   // another drop while the event is stored
+        XCTAssertEqual(inbox.droppedCount(), 1)
+        inbox.removeClaimed(claimed.files)
+        XCTAssertEqual(inbox.droppedCount(), 1)
+        let next = inbox.claimDropped()
+        XCTAssertEqual(next.count, 1)
+        XCTAssertEqual(next.files.count, 1)
+        // a claim whose event was not stored is counted again by the next claim
+        try inbox.write("later", nowMs: 1761300002000)
+        XCTAssertEqual(inbox.claimDropped().count, 2)
+        inbox.removeAll()
+    }
+
     func testPKCEAndTurnstileOrigin() {
         // RFC 7636 appendix B
         let p = PKCE(verifier: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk")
