@@ -95,6 +95,8 @@ struct RootView: View {
             }
         case .keysBroken:
             KeysBrokenView()
+        case .dataBroken:
+            DataBrokenView()
         case .signedOut:
             VStack(spacing: 0) {
                 Text(S.signedOutResume)
@@ -144,6 +146,49 @@ struct KeysBrokenView: View {
 
     @ViewBuilder private var buttons: some View {
         Button("Delete broken keys", role: .destructive) { confirmDelete = true }
+            .buttonStyle(.bordered)
+        Button("Retry") { Task { await model.retryKeys() } }
+            .buttonStyle(.borderedProminent)
+            .disabled(model.busy.contains("open"))
+    }
+}
+
+/// pa.sqlite is corrupt. Retry opens it again on this device only; Reset this device asks
+/// first, then deletes this device and its data and opens the sign-in.
+struct DataBrokenView: View {
+    @EnvironmentObject var model: AppModel
+    @State private var confirmReset = false
+
+    var body: some View {
+        CenteredScroll {
+            VStack(spacing: 16) {
+                Text(S.dataBrokenTitle)
+                    .font(.title2.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                Text(S.dataBrokenBody)
+                    .foregroundColor(.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 330)
+                // Retry is the primary action, on the right; stacks at large text sizes
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) { buttons }
+                    VStack(spacing: 12) { buttons }
+                }
+                .padding(.top, 8)
+            }
+            .padding(24)
+        }
+        // standard alert; Cancel and the destructive action are placed by the system
+        .alert(S.dataBrokenConfirmTitle, isPresented: $confirmReset) {
+            Button("Cancel", role: .cancel) {}
+            Button("Reset", role: .destructive) { Task { await model.resetDevice() } }
+        } message: {
+            Text(S.dataBrokenConfirmBody)
+        }
+    }
+
+    @ViewBuilder private var buttons: some View {
+        Button("Reset this device", role: .destructive) { confirmReset = true }
             .buttonStyle(.bordered)
         Button("Retry") { Task { await model.retryKeys() } }
             .buttonStyle(.borderedProminent)

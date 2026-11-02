@@ -59,12 +59,20 @@ final class AppEnvironment: PlatformHooks {
         return s
     }
 
-    /// App launch only: as openStore, but a corrupt pa.sqlite is replaced by an empty
-    /// one after a best-effort DELETE of this device with the surviving Keychain keys.
-    func openStoreRepairing() async throws -> (store: Store, repaired: Bool) {
-        let r = try await StoreRepair.open(path: dbURL.path) { await self.deleteSelfBestEffort() }
+    /// App launch only: as openStore, but nil for a corrupt pa.sqlite. Nothing is changed
+    /// or deleted.
+    func openStoreChecked() throws -> Store? {
+        let s = try StoreRepair.open(path: dbURL.path)
         protectFiles()
-        return r
+        return s
+    }
+
+    /// Reset this device, only after the user confirms it: an empty pa.sqlite after a
+    /// best-effort DELETE of this device with the surviving Keychain keys.
+    func resetStore() async throws -> Store {
+        let s = try await StoreRepair.reset(path: dbURL.path) { await self.deleteSelfBestEffort() }
+        protectFiles()
+        return s
     }
 
     private func deleteSelfBestEffort() async {

@@ -20,6 +20,7 @@ final class AppModel: ObservableObject {
         case banned
         case signedOut                  // "Logged out. Log in to resume"
         case keysBroken                 // the saved keys failed the launch check
+        case dataBroken                 // pa.sqlite is corrupt; nothing is deleted until Reset this device
     }
 
     struct LimitEntry: Identifiable, Hashable {
@@ -49,7 +50,7 @@ final class AppModel: ObservableObject {
     @Published var resend = ResendGate()
     /// The relay server answered 426: this version is too old. Kept until the version changes.
     @Published var updateRequired = AppEnvironment.shared.updateRequired
-    /// pa.sqlite was corrupt at launch and was recreated; shown on the log-in screen.
+    /// pa.sqlite was corrupt and was recreated by Reset this device; shown on the log-in screen.
     @Published var repairedNotice = false
     @Published var lockedLine: String?
     @Published var notificationsOff = false
@@ -125,9 +126,12 @@ final class AppModel: ObservableObject {
         do {
             try env.prepareDirectories()
             if store == nil {
-                let (store, repaired) = try await env.openStoreRepairing()
+                guard let store = try env.openStoreChecked() else {
+                    // corrupt: nothing was changed or deleted
+                    launchStop = .dataBroken
+                    return
+                }
                 self.store = store
-                repairedNotice = repaired
             }
             if let store = store, let keys = try env.keychain.bootstrap(store: store) {
                 core = env.makeCore(store: store, keys: keys)
@@ -155,9 +159,24 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// Retry on the broken keys screen: the launch again, on this device only.
+    /// Retry on the broken keys or broken data screen: the launch again, on this device only.
     func retryKeys() async {
         await once("open") {
+            await open()
+            await route()
+        }
+    }
+
+    /// Reset this device, after the confirmation on the broken data screen: a best-effort
+    /// delete of this device on the relay server, then an empty store; the user then signs in again.
+    func resetDevice() async {
+        await once("open") {
+            do {
+                store = try await env.resetStore()
+                repairedNotice = true
+            } catch {
+                toast = ErrorCopy.text(.prepareLogin, ErrorCopy.reason(local: error))
+            }
             await open()
             await route()
         }
@@ -210,6 +229,7 @@ final class AppModel: ObservableObject {
 
     /// Which screen to show.
     func route() async {
+        if launchStop == .dataBroken { phase = .dataBroken; return }
         guard let store = store, let me = try? store.me() else { phase = .loading; return }
         self.me = me
         if let p = launchStop { phase = p; return }

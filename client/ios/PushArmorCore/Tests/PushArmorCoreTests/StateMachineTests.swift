@@ -1399,21 +1399,25 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(try s.peer(a.id)?.showContent, false)
     }
 
-    /// a corrupt pa.sqlite runs onCorrupt and is recreated empty; a healthy one is kept.
-    func testCorruptStoreRepaired() async throws {
+    /// a corrupt pa.sqlite is only reported: the file stays as it was and nothing runs. Only
+    /// a reset (after the user confirms) runs beforeReset and recreates it empty; a healthy
+    /// one is kept.
+    func testCorruptStoreIsNotRepairedUntilReset() async throws {
         let path = NSTemporaryDirectory() + "pa-bad-\(UUID().uuidString).sqlite"
-        try Data(repeating: 0x5a, count: 4096).write(to: URL(fileURLWithPath: path))
+        let bad = Data(repeating: 0x5a, count: 4096)
+        try bad.write(to: URL(fileURLWithPath: path))
+        XCTAssertNil(try StoreRepair.open(path: path))
+        XCTAssertNil(try StoreRepair.open(path: path))
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: path)), bad)
         var called = 0
-        let r = try await StoreRepair.open(path: path) { called += 1 }
-        XCTAssertTrue(r.repaired)
+        let s = try await StoreRepair.reset(path: path) { called += 1 }
         XCTAssertEqual(called, 1)
-        XCTAssertNil(try r.store.me().id)
-        XCTAssertEqual(try r.store.db.one("PRAGMA user_version")?.int("user_version"), 7)
-        try r.store.setMe("name", .text("kept"))
-        let r2 = try await StoreRepair.open(path: path) { called += 1 }
-        XCTAssertFalse(r2.repaired)
+        XCTAssertNil(try s.me().id)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
+        try s.setMe("name", .text("kept"))
+        let s2 = try XCTUnwrap(try StoreRepair.open(path: path))
         XCTAssertEqual(called, 1)
-        XCTAssertEqual(try r2.store.me().name, "kept")
+        XCTAssertEqual(try s2.me().name, "kept")
     }
 
     /// the best-effort DELETE of this device is signed with the surviving keys and
