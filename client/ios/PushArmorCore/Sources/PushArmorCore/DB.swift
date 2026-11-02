@@ -110,7 +110,10 @@ public final class DB: @unchecked Sendable {
             let brc: Int32
             switch a {
             case .int(let v): brc = sqlite3_bind_int64(s, idx, v)
-            case .text(let v): brc = sqlite3_bind_text(s, idx, v, -1, SQLITE_TRANSIENT)
+            case .text(let v):
+                // explicit byte count: a NUL inside the text is kept, not an end mark
+                let c = v.utf8CString
+                brc = c.withUnsafeBufferPointer { sqlite3_bind_text(s, idx, $0.baseAddress, Int32(c.count - 1), SQLITE_TRANSIENT) }
             case .blob(let v):
                 brc = v.withUnsafeBytes { p in
                     sqlite3_bind_blob(s, idx, p.baseAddress ?? UnsafeRawPointer(bitPattern: 1), Int32(v.count), SQLITE_TRANSIENT)
@@ -131,7 +134,12 @@ public final class DB: @unchecked Sendable {
                 switch sqlite3_column_type(s, c) {
                 case SQLITE_INTEGER: vals[name] = .int(sqlite3_column_int64(s, c))
                 case SQLITE_TEXT:
-                    if let p = sqlite3_column_text(s, c) { vals[name] = .text(String(cString: p)) } else { vals[name] = .null }
+                    if let p = sqlite3_column_text(s, c) {
+                        let n = Int(sqlite3_column_bytes(s, c))
+                        vals[name] = .text(String(decoding: UnsafeBufferPointer(start: p, count: n), as: UTF8.self))
+                    } else {
+                        vals[name] = .null
+                    }
                 case SQLITE_BLOB:
                     let n = Int(sqlite3_column_bytes(s, c))
                     if let p = sqlite3_column_blob(s, c), n > 0 {
