@@ -1655,7 +1655,7 @@ class Ctx:
 def merge_peers(d, j, k):
     me, acct, peers = k["id"], b64d(k["id"])[:9], d["peers"]
     d["my_allow"] = [x for x in j["my_allow"] if isinstance(x, str)] if isinstance(j.get("my_allow"), list) else []
-    listed = {it.get("id") for it in j["peers"] if isinstance(it, dict)} if isinstance(j.get("peers"), list) else set()
+    listed = {it.get("id") for it in j["peers"] if isinstance(it, dict) and isinstance(it.get("id"), str)} if isinstance(j.get("peers"), list) else set()
     # stored remove messages (optional "removed"): opened with the pre-merge pins, quiet, like a live push
     for b, m in list(j["removed"].items())[:8] if isinstance(j.get("removed"), dict) else []:
         if isinstance(m, str) and b != me and b not in listed:

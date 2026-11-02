@@ -840,3 +840,11 @@ def test_counter_n_limits():
     assert pa.counter_n(pa._Num("1" * 5000)) is None
     assert pa.counter_n(pa._Num("9007199254740991")) == 2 ** 53 - 1
     assert pa.counter_n(pa._Num("9007199254740992")) is None
+
+
+def test_non_string_peer_id_from_the_relay_server(net, tmp_path, monkeypatch, capsys):
+    login(monkeypatch, tmp_path)
+    body = json.dumps({"my_allow": [], "peers": [{"id": []}, {"id": 5}]}).encode()
+    net.hooks[("GET", "peers")] = lambda *a: (200, {}, body)
+    capsys.readouterr()
+    assert run(tmp_path, "pair") == 0
