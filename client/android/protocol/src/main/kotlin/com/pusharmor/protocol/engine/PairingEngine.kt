@@ -366,18 +366,28 @@ class PairingEngine(
         if (t == PairDecide.Timeout.RESEND) {
             t = PairDecide.timeout(false, approved, refetch(peerId))
         }
+        // the resend above may have taken a while: act only on the same, still expired row
+        fun same(): PairingRow? = store.pairing(peerId)?.takeIf {
+            it.r.contentEquals(row.r) && it.startedAt == row.startedAt && Countdown.expired(it.startedAt, now)
+        }
         when (t) {
             PairDecide.Timeout.DROP_PIN -> {
+                var did = false
                 store.tx {
-                    store.pairing(peerId)?.let { it.r.fill(0); store.deletePairing(peerId) }
-                    dropPairingPin(peerId)
-                    store.peer(peerId)?.let { store.putPeer(it.copy(note = TIMED_OUT)) }
+                    same()?.let {
+                        did = true
+                        it.r.fill(0); store.deletePairing(peerId)
+                        dropPairingPin(peerId)
+                        store.peer(peerId)?.let { store.putPeer(it.copy(note = TIMED_OUT)) }
+                    }
                 }
-                effects.peerChannelDelete(peerId)
-                effects.reconcileSoon()
+                if (did) {
+                    effects.peerChannelDelete(peerId)
+                    effects.reconcileSoon()
+                }
             }
             PairDecide.Timeout.KEEP_PIN, PairDecide.Timeout.COMPLETE ->
-                store.tx { store.pairing(peerId)?.let { it.r.fill(0); store.deletePairing(peerId) } }
+                store.tx { same()?.let { it.r.fill(0); store.deletePairing(peerId) } }
             else -> Unit
         }
         return t

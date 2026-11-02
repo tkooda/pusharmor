@@ -314,6 +314,19 @@ class EngineTest {
         assertNull(n.store.pairing(x.id))
     }
 
+    @Test fun timeoutCheckLeavesAPairingStartedAgainDuringTheResend() {
+        pairShown()
+        n.approve.approve(x.id)
+        x.approve.approve(n.id)
+        n.deliver(t0, drop = true)
+        val day = 24 * 3600_000L
+        val now = t0 + 15 * day
+        val fresh = n.store.pairing(x.id)!!.copy(r = ByteArray(32) { 7 }, startedAt = now)
+        val t = n.pairing.checkTimeout(x.id, now) { n.store.putPairing(fresh); PairDecide.Resend.OK_C_VERIFIED }
+        assertEquals(PairDecide.Timeout.COMPLETE, t)
+        assertEquals(now, n.store.pairing(x.id)!!.startedAt)
+    }
+
     @Test fun timeoutWhileLoggedOutKeepsWaitingThenRefetchCompletes() {
         pairShown()
         n.approve.approve(x.id)
