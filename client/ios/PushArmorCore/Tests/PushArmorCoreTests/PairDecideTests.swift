@@ -78,6 +78,14 @@ final class PairDecideTests: XCTestCase {
         XCTAssertEqual(d(input(cap: rolled)).action, .prompt)
     }
 
+    /// stamps from a clock that was set ahead do not fill the cap.
+    func testFutureCapStampsNotCounted() {
+        let future = [Int64](repeating: now + 86400 * 365, count: 10)
+        XCTAssertEqual(PairDecide.capUsed(future, now: now), 0)
+        XCTAssertEqual(PairDecide.capUsed([now, now + 1], now: now), 1)
+        XCTAssertEqual(d(input(cap: future)).action, .reply)
+    }
+
     func testTimeoutAndHint() {
         XCTAssertEqual(PairDecide.timeout(approveVerified: true, approved: true, resend: nil), .keepPin)
         XCTAssertEqual(PairDecide.timeout(approveVerified: false, approved: false, resend: nil), .dropPin)

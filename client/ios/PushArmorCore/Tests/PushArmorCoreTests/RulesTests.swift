@@ -88,6 +88,14 @@ final class RulesTests: XCTestCase {
         XCTAssertTrue(Pairing.isExpired(startedAt: t0, now: t0 + 30 * 86400))
     }
 
+    /// a start later than now (a clock that was set ahead) reads as a start now.
+    func testCountdownFutureStart() {
+        let t0: Int64 = 1_000_000
+        let full = Pairing.countdown(startedAt: t0, now: t0)
+        XCTAssertEqual(Pairing.countdown(startedAt: t0 + 365 * 86400, now: t0), full)
+        XCTAssertFalse(Pairing.isExpired(startedAt: t0 + 365 * 86400, now: t0))
+    }
+
     func testEmailCode() {
         XCTAssertEqual(EmailCode.clean("7kq-m9x"), "7KQM9X")
         XCTAssertEqual(EmailCode.clean("oIl u"), "011")

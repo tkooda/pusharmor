@@ -88,10 +88,14 @@ public enum PairDecide {
         return i.approveVerified && i.getAfterVerify && i.approvesMe == false
     }
 
-    /// Automatic replies counted in the rolling 24 h window.
+    /// Automatic replies counted in the rolling 24 h window. A stamp later than now (a clock
+    /// that was set ahead) does not count.
     public static func capUsed(_ cap: [Int64], now: Int64) -> Int {
-        cap.filter { now - $0 < capWindow }.count
+        cap.filter { inWindow($0, now: now) }.count
     }
+
+    /// 0 <= now - t < 24 h, written so that no stamp value can overflow.
+    static func inWindow(_ t: Int64, now: Int64) -> Bool { t <= now && t > now - capWindow }
 
     public static func decide(_ i: Input) -> Output {
         let e = i.entry

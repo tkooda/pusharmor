@@ -7,9 +7,10 @@ public enum Pairing {
 
     /// Countdown text: "X days" at 24 h or more left, "X hours" under 24 h, "X minutes"
     /// under 60 min (from started_at + 30 days). Days and hours round down; minutes round up
-    /// so the row never reads "0 minutes" before it expires. nil when expired.
+    /// so the row never reads "0 minutes" before it expires. nil when expired. A start later
+    /// than now counts as now.
     public static func countdown(startedAt: Int64, now: Int64) -> String? {
-        let left = startedAt + timeout - now
+        let left = min(startedAt, now) + timeout - now
         if left <= 0 { return nil }
         func unit(_ v: Int64, _ one: String, _ many: String) -> String { "\(v) " + (v == 1 ? one : many) }
         if left >= 86400 { return unit(left / 86400, "day", "days") }
@@ -17,7 +18,7 @@ public enum Pairing {
         return unit((left + 59) / 60, "minute", "minutes")
     }
 
-    public static func isExpired(startedAt: Int64, now: Int64) -> Bool { now >= startedAt + timeout }
+    public static func isExpired(startedAt: Int64, now: Int64) -> Bool { now >= min(startedAt, now) + timeout }
 }
 
 /// The dial string for a tel message: a leading "+" is kept, every other separator is dropped.

@@ -108,4 +108,13 @@ final class StoreHardeningTests: XCTestCase {
         try s.dropPin(a.id)
         XCTAssertThrowsError(try s.reserveCounter(a.id))
     }
+
+    /// appending a cap stamp drops stamps later than it as well as stamps 24 h or older.
+    func testAppendCapDropsFutureStamps() throws {
+        let s = try Store(path: tmpPath("cap"))
+        let t: Int64 = 2_000_000_000
+        try s.setSetting("pair_cap", [t + 365 * 86400, t - 60, t - 86400].map(String.init).joined(separator: ","))
+        try s.appendCap(t)
+        XCTAssertEqual(try s.capTimestamps(), [t - 60, t])
+    }
 }

@@ -365,7 +365,7 @@ public final class Store: @unchecked Sendable {
     }
 
     public func appendCap(_ t: Int64) throws {
-        let keep = try capTimestamps().filter { t - $0 < PairDecide.capWindow } + [t]
+        let keep = try capTimestamps().filter { PairDecide.inWindow($0, now: t) } + [t]
         try setSetting("pair_cap", keep.map(String.init).joined(separator: ","))
     }
 
