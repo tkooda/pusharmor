@@ -36,7 +36,7 @@ final class LoginErrorTests: XCTestCase {
         XCTAssertEqual(S.pushRegistrationFailed,
                        "Unable to turn on notifications.\nApple's notification service could not be reached. Check your internet connection and try again.")
         XCTAssertEqual(S.loginFailed,
-                       "Unable to log in with Google.\nThe relay server did not accept the request. Update PushArmor and try again.")
+                       "Unable to log in with Google.\nGoogle login is not available in this version. Update PushArmor.")
         XCTAssertEqual(S.updateRequired, "Update PushArmor to continue.")
         XCTAssertEqual(S.approved("Ndev"), "Ndev confirmed this device.")
         XCTAssertEqual(S.loggedOutNotice("Ndev"), "Ndev logged out.")

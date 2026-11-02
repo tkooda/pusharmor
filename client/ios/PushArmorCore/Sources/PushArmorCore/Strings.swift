@@ -77,7 +77,7 @@ public enum S {
     public static let loggedOutBadge = "Logged out"
     public static let pushRegistrationFailed = ErrorCopy.text(.turnOnNotifications, .appleUnreachable)
     /// Google login with no client id in this build.
-    public static let loginFailed = ErrorCopy.text(.loginGoogle, .refused)
+    public static let loginFailed = ErrorCopy.text(.loginGoogle, .googleUnavailable)
     /// Wait text: over 60 s whole minutes rounded up, else whole seconds rounded up; same words as the other clients.
     public static func wait(ms: Int) -> String {
         let s = max(1, (ms + 999) / 1000)

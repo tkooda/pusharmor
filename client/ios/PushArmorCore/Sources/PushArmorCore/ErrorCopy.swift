@@ -77,6 +77,7 @@ public enum ErrorCopy {
         case tooLong
         case notificationsUnavailable
         case appleUnreachable
+        case googleUnavailable
         case keysUnusable
         case storageFull
         case saveFailed
@@ -111,6 +112,7 @@ public enum ErrorCopy {
                 return "Notifications are not available on this device. Allow notifications for PushArmor in iOS Settings, then try again."
             case .appleUnreachable:
                 return "Apple's notification service could not be reached. Check your internet connection and try again."
+            case .googleUnavailable: return "Google login is not available in this version. Update PushArmor."
             case .keysUnusable: return "This device's security keys cannot be used right now. Restart the device and try again."
             case .storageFull: return "Storage is full. Free some space and try again."
             case .saveFailed: return "PushArmor could not save its data on this device. Restart PushArmor and try again."
