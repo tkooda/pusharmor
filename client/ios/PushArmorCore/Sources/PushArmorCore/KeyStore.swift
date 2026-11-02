@@ -109,21 +109,50 @@ public final class KeychainKeyStore {
         SecItemDelete(q as CFDictionary)
     }
 
+    func readState(_ item: Item) -> KeyBootstrap.ItemRead {
+        do { return try read(item) == nil ? .missing : .present }
+        catch let e as KeyLoadError { return .failed(e) }
+        catch { return .failed(.other(errSecInternalError)) }
+    }
+
     /// Launch invariant (section 3): with no me row, read the old Keychain peer id, delete
-    /// every item of the group, then create keys. The old id is kept for the DELETE.
+    /// every item of the group, then create keys. The old id is kept for the DELETE. A
+    /// signed-in device never deletes on a failed read: it throws KeyBootstrap.Stop.
     public func bootstrap(store: Store) throws -> DeviceKeys? {
         let me = try store.me()
-        if me.id == nil && !me.removed {
+        switch KeyBootstrap.decide(me: me, signItem: readState(.sign), requestTokenSet: me.requestToken != nil) {
+        case .lost:
+            // id set but no sign key (a wipe whose DB part failed): removed, not a launch error
+            if !me.removed { try store.keysLost() }
+            return nil   // keys wiped; the next sign-in creates new keys
+        case .retryLater:
+            throw KeyBootstrap.Stop.retryLater
+        case .unusable:
+            throw KeyBootstrap.Stop.unusable
+        case .useExisting where me.id == nil:
             // a saved email-code step is bound to the keys made for it
-            if me.requestToken != nil, let k = try? load() { return k }
-            if let old = peerId() { try store.setMe("old_id", .text(old)) }
-            deleteAll()
-            return try create()
+            if let k = try? load() { return k }
+            return try createFresh(store: store)
+        case .createFresh:
+            return try createFresh(store: store)
+        case .useExisting:
+            let k: DeviceKeys
+            do {
+                k = try load()
+            } catch KeyLoadError.beforeFirstUnlock {
+                throw KeyBootstrap.Stop.retryLater
+            } catch {
+                throw KeyBootstrap.Stop.unusable
+            }
+            guard KeyBootstrap.selfTest(k) else { throw KeyBootstrap.Stop.unusable }
+            return k
         }
-        if me.removed { return nil }   // keys wiped; the next sign-in creates new keys
-        // id set but no sign key (a wipe whose DB part failed): removed, not a launch error
-        if try read(.sign) == nil { try store.keysLost(); return nil }
-        return try load()
+    }
+
+    private func createFresh(store: Store) throws -> DeviceKeys {
+        if let old = peerId() { try store.setMe("old_id", .text(old)) }
+        deleteAll()
+        return try create()
     }
 }
 #endif
