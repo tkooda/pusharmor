@@ -3,6 +3,7 @@ package com.pusharmor.app.data
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -10,7 +11,7 @@ import org.robolectric.annotation.Config
 import java.io.File
 
 /**
- * A corrupt settings file resets to defaults instead of crashing every launch. Its own SDK gives it its own
+ * A corrupt settings file resets to defaults, marked as mid sign-in so startup keeps the keys, instead of crashing every launch. Its own SDK gives it its own
  * Robolectric sandbox: the settings DataStore is one instance per sandbox, and no other class may have opened it.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -22,6 +23,7 @@ class SettingsCorruptTest {
         f.parentFile!!.mkdirs(); f.writeBytes(byteArrayOf(0x0a, 0x7f, 0x01, 0x02, 0x03))
         val s = Settings(ctx)
         assertNull(s.get(Settings.K.CH_MESSAGES))
+        assertTrue(s.flag(Settings.K.SIGN_IN_KEYS, false))
         s.set(Settings.K.CH_MESSAGES, "m1")
         assertEquals("m1", s.get(Settings.K.CH_MESSAGES))
     }
