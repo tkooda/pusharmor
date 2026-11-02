@@ -246,7 +246,7 @@ object UiText {
 
     /** Quiet caption for the detected type, present tense. */
     fun typeCaption(type: ContentType): String = when (type) {
-        ContentType.URL -> "Will open as a link"
+        ContentType.URL -> "Will open as a URL"
         ContentType.TEL -> "Will open as a phone number"
         ContentType.TEXT -> "Will arrive as text"
     }

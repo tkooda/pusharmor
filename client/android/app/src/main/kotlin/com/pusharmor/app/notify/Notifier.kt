@@ -162,7 +162,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
             b.setContentTitle(UiText.newMessageFrom(peer?.name)).setContentIntent(open)
         } else {
             val (title, body) = when {
-                c.type == ContentType.URL && !c.showAsText -> "Link" to (c.href ?: c.value)
+                c.type == ContentType.URL && !c.showAsText -> "URL" to (c.href ?: c.value)
                 c.type == ContentType.TEL && c.canDial -> "Phone number" to c.value
                 else -> "Text" to c.value
             }

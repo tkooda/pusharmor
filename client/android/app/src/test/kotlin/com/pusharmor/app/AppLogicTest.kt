@@ -285,6 +285,13 @@ class AppLogicTest {
         assertTrue(main.contains("MessageAction(\"Copy\", PaIcons.ContentCopy)"))
     }
 
+    @Test fun aWebAddressIsCalledAUrl() {
+        assertTrue(source("notify/Notifier.kt").contains("\"URL\" to (c.href ?: c.value)"))
+        assertEquals("No app can open this URL.", com.pusharmor.app.ui.NO_APP_LINK)
+        assertTrue(source("ui/SignInScreens.kt").contains("\"Send URLs or text to your devices."))
+        assertTrue(source("ui/MainScreens.kt").contains("Share a URL from any app"))
+    }
+
     @Test fun settingsLabelsAndValuesOnTheRight() {
         val main = source("ui/MainScreens.kt")
         val settings = main.substring(main.indexOf("fun SettingsScreen("))

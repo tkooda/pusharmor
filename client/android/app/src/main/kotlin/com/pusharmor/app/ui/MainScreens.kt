@@ -971,7 +971,7 @@ internal fun DismissSnackbarOnChange(state: SnackbarHostState, key: Any?) {
     LaunchedEffect(key) { state.currentSnackbarData?.dismiss() }
 }
 
-/** Detected type as quiet supporting text, not a control: "Will open as a link". */
+/** Detected type as quiet supporting text, not a control: "Will open as a URL". */
 @Composable
 private fun TypeCaption(type: ContentType) {
     val cs = MaterialTheme.colorScheme
@@ -1032,7 +1032,7 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 val cta = UiText.historyCta(me != null, others(peers, me?.id).count { it.pinned && !it.removed })
                 EmptyState({ MessagesIllustration() }, "No messages yet",
-                    "Everything you send or receive shows up here. Share a link from any app to send it to your devices.", top = 110.dp,
+                    "Everything you send or receive shows up here. Share a URL from any app to send it to your devices.", top = 110.dp,
                     action = cta?.let { c -> {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(if (c == UiText.EmptyCta.PAIR) UiText.PAIR_FIRST_CTA else UiText.SEND_FIRST_CTA, Modifier.padding(bottom = 12.dp),

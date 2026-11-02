@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 
-const val NO_APP_LINK = "No app can open this link."
+const val NO_APP_LINK = "No app can open this URL."
 const val NO_APP_DIAL = "No app can call this number."
 
 /**
