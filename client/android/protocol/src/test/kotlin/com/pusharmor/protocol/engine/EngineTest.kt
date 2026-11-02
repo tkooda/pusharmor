@@ -266,14 +266,16 @@ class EngineTest {
         assertEquals(1, x.store.capTimestamps().size) // not counted again
     }
 
-    @Test fun differentCommitAbortsVisibly() {
+    @Test fun differentCommitEndsOldEntryThenIsDecided() {
         n.pairing.tapPair(x.id, t0); n.runPairSends(t0); x.deliver(t0)
         n.pairing.cancelPairing(x.id)
         n.pairing.tapPair(x.id, t0 + 1); n.runPairSends(t0 + 1)
         x.deliver(t0 + 1)
-        assertNull(x.store.pairing(n.id))
-        assertEquals(PairingEngine.PAIRING_FAILED, x.store.peer(n.id)!!.note)
-        assertTrue(x.effects.log.contains("couldNotRead"))
+        val e = x.store.pairing(n.id)!!
+        assertEquals(PairRole.X, e.role)
+        assertTrue(e.cN!!.contentEquals(n.store.pairing(x.id)!!.cN))
+        assertNull(x.store.peer(n.id)!!.note)
+        assertFalse(x.effects.log.contains("couldNotRead"))
     }
 
     @Test fun crossingLowerIdStaysN() {

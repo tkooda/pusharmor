@@ -114,8 +114,14 @@ class PairingEngine(
         while (true) {
             // The cap check, the open-entry count, the cap append and the entry persist are ONE transaction.
             decision = store.tx {
-                val d = PairDecide.commit(commitInput(from, cN, now, listed))
+                var d = PairDecide.commit(commitInput(from, cN, now, listed))
                 applyCommit(from, cN, now, d)
+                if (d.entry == EntryChange.ABORTED) {
+                    // The old entry is gone: decide the new commit on its own.
+                    d = PairDecide.commit(commitInput(from, cN, now, listed))
+                    applyCommit(from, cN, now, d)
+                    if (store.pairing(from) != null) store.peer(from)?.let { store.putPeer(it.copy(note = null)) }
+                }
                 d
             }
             if (decision.action != PairAction.FETCH) break
