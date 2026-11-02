@@ -578,3 +578,10 @@ test("Send: the free space sits under the field, so the device chips sit just ab
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
   assert.match(pop, /root\.append\(h\("div", \{ class: "grow" \}\), head, chips, [^\n]*h\("div", \{ class: "foot send-foot" \}, sendBtn\)\);/);
 });
+
+test("Open on a phone number row uses one tel: prefix", async () => {
+  const { openHref } = await import("../src/ui/dom.ts");
+  assert.equal(openHref("tel", "+1555"), "tel:+1555");
+  assert.equal(openHref("tel", "tel:+1555"), "tel:+1555");
+  assert.equal(openHref("url", "https://example.com/"), "https://example.com/");
+});

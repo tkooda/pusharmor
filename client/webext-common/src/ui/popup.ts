@@ -5,7 +5,7 @@ import { T, pushIssueText } from "../core/texts.ts";
 import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter, sortByLabel } from "../model/sendsel.ts";
 import { AUTH_CHANGED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
-import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, nextTabIndex, peerStatus, rpc, sh, shortTime } from "./dom.ts";
+import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, nextTabIndex, openHref, peerStatus, rpc, sh, shortTime } from "./dom.ts";
 import { confirmDialog, toast } from "./dialog.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
 import { type MsgAction, msgActions, saveFilename } from "../model/msgactions.ts";
@@ -574,7 +574,7 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, now: number,
   const canShare = typeof navigator.share === "function";
   const btn: Record<MsgAction, () => HTMLElement> = {
     copy: () => h("button", { class: "ac", onclick: () => void env.copy(r.content) }, icon("copy", 15), "Copy"),
-    open: () => h("button", { class: "ac", onclick: () => env.openUrl(r.type === "tel" ? "tel:" + r.content : r.content) }, icon("open", 15), "Open"),
+    open: () => h("button", { class: "ac", onclick: () => env.openUrl(openHref(r.type, r.content)) }, icon("open", 15), "Open"),
     share: () => h("button", { class: "ac", onclick: () => void navigator.share({ [r.type === "url" ? "url" : "text"]: r.content }).catch(() => undefined) }, icon("share", 15), "Share"),
     read: () => h("button", { class: "ac", onclick: () => void env.openPage("#read=" + r.id) }, icon("read", 15), "View"),
     save: () => h("button", { class: "ac", onclick: () => saveText(env, r.content, r.received) }, icon("save", 15), "Save"),
