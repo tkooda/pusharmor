@@ -552,7 +552,8 @@ final class AppModel: ObservableObject {
     func refresh() async {
         guard Date() >= refreshGreyUntil, let core = core else { return }
         refreshGreyUntil = Date().addingTimeInterval(60)
-        await core.refresh(push: pushInfo)
+        let out = await core.refresh(push: pushInfo)
+        if let t = ErrorCopy.refreshFailText(out) { toast = t }
         reload()
     }
 

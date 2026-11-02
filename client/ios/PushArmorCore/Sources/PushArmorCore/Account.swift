@@ -183,10 +183,13 @@ extension Core {
     }
 
     /// Refresh button (greyed 60 s after use): one GET /peers, push reconcile, re-sends.
-    public func refresh(push: PushInfo?) async {
-        await fetchPeers(force: true)
+    /// Returns the outcome of the GET; nil when none was made.
+    @discardableResult
+    public func refresh(push: PushInfo?) async -> APIOutcome? {
+        let out = await fetchPeersOutcome(force: true)
         await reconcilePush(push, refresh: true)
         await resendWaitingApproves()
         await checkTimeouts()
+        return out
     }
 }

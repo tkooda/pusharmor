@@ -18,24 +18,36 @@ extension Core {
     /// sets fetch_due for later. In the NSE the fetch has a 5 s cap and one try.
     @discardableResult
     public func fetchPeers(force: Bool = false, nse: Bool = false) async -> Bool {
+        guard let out = await fetchPeersOutcome(force: force, nse: nse) else { return false }
+        return Core.fetchOk(out)
+    }
+
+    /// Same as fetchPeers, with the outcome of the GET; nil when no GET was made.
+    public func fetchPeersOutcome(force: Bool = false, nse: Bool = false) async -> APIOutcome? {
         let now = clock()
-        guard let me = try? store.me(), me.id != nil else { return false }
+        guard let me = try? store.me(), me.id != nil else { return nil }
         if !force && now - me.lastFetchAt < 60 {
             try? store.setMe("fetch_due", .int(1))
-            return false
+            return nil
         }
         try? store.setMe("last_fetch_at", .int(now))
         let out = await signed("GET", "/v1/peers", retry: !nse, timeout: nse ? 5 : 15)
-        guard let r = out.reply, r.ok, let j = r.json else {
+        guard Core.fetchOk(out), let j = out.reply?.json else {
             try? store.setMe("fetch_due", .int(1))
-            return false
+            return out
         }
         try? store.db.write {
             try mergePeerList(j, now: now)
             try store.setMe("fetch_due", .int(0))
         }
         if !nse { await allowReconcile() }
-        return true
+        return out
+    }
+
+    /// A GET /peers reply this device can use: 2xx with a JSON body.
+    public static func fetchOk(_ out: APIOutcome) -> Bool {
+        guard let r = out.reply else { return false }
+        return r.ok && r.json != nil
     }
 
     /// Merge a GET /peers (or POST /peers) body (catalog Removal rules, GET /peers merge).

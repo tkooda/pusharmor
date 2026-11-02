@@ -175,6 +175,12 @@ public enum ErrorCopy {
         }
     }
 
+    /// The toast after Refresh, nil when the device list came back (or no call was made).
+    public static func refreshFailText(_ out: APIOutcome?) -> String? {
+        guard let out = out, !Core.fetchOk(out) else { return nil }
+        return text(.refresh, reason(from: out))
+    }
+
     /// The reason for a local data error: SQLITE_FULL = storage full, any other store error =
     /// could not save.
     public static func reason(local e: Error) -> Reason {

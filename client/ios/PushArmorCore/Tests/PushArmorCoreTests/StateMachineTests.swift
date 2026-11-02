@@ -1121,6 +1121,24 @@ final class StateMachineTests: XCTestCase {
         XCTAssertFalse(ok2)
     }
 
+    /// a failed Refresh gives its outcome and the mapped toast; a good one gives no toast.
+    func testRefreshReportsFailure() async throws {
+        let n = try dev("Ndev")
+        for _ in 0 ..< 4 { w.script("GET", "/v1/peers", 503, "{\"error\":\"unavailable\"}") }
+        let out = await n.core.refresh(push: nil)
+        XCTAssertEqual(out?.reply?.status, 503)
+        XCTAssertEqual(ErrorCopy.refreshFailText(out),
+                       "Unable to refresh the device list.\nThe relay server is not working right now. Try again later.")
+        w.script("GET", "/v1/peers", 401, "{\"error\":\"bad id\"}")
+        let bad = await n.core.refresh(push: nil)
+        XCTAssertEqual(ErrorCopy.refreshFailText(bad), "Unable to refresh the device list.\nTry again.")
+        XCTAssertEqual(try n.core.store.me().id, n.id)
+        let good = await n.core.refresh(push: nil)
+        XCTAssertEqual(good?.reply?.status, 200)
+        XCTAssertNil(ErrorCopy.refreshFailText(good))
+        XCTAssertNil(ErrorCopy.refreshFailText(nil))
+    }
+
     /// a 401 "bad id" (a failed id check) is not a confirmed delete; only "unknown peer"
     /// (no row for this device) counts as done.
     func testDeleteSelfBadIdIsFailure() async {
