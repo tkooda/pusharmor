@@ -1005,10 +1005,13 @@ def ask(prompt):
         return "\ufffd"
 
 
-def ask_yes(question, default=False):
+def ask_yes(question, default=False, strict=False):
+    """strict: end of input (Ctrl-D) raises EOFError instead of answering no."""
     try:
         a = ask(question).strip().lower()
     except EOFError:
+        if strict:
+            raise
         return False
     return default if a == "" else a in ("y", "yes")
 
@@ -2544,7 +2547,13 @@ def cmd_pair(cx, args):
                 post_pair(cx, x, "open", e["msg"])
             first = False
             print("Pairing fingerprint %s" % e["fingerprint"])
-            if not ask_yes("Check that %s shows the same fingerprint. Confirmed (y) or Reject (n)? [y/N] " % name):
+            try:
+                yes = ask_yes("Check that %s shows the same fingerprint. Confirmed (y) or Reject (n)? [y/N] " % name,
+                              strict=True)
+            except EOFError:
+                print()  # Ctrl-D leaves the cursor after the prompt
+                raise Fail("No answer. Run pusharmor pair %s again." % sid)
+            if not yes:
                 deny(cx, x)
                 print("Did not pair with %s." % name)
                 return EXIT_OK

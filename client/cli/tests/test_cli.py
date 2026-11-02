@@ -389,6 +389,43 @@ def test_pair_send_listen(net, tmp_path, monkeypatch, capsys):
     assert not os.path.exists(b / "keys" / "private.toml")
 
 
+def test_ctrl_d_at_the_fingerprint_prompt_keeps_the_pairing(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = login(monkeypatch, a), login(monkeypatch, b)
+    eof = [True]
+
+    def inp(prompt=""):
+        if threading.current_thread().name == "b" and eof[0]:
+            eof[0] = False
+            raise EOFError
+        return "y"
+
+    monkeypatch.setattr(pa, "input", inp, raising=False)
+    codes = {}
+    before = net.count(idb)
+    ta = threading.Thread(target=lambda: codes.__setitem__("a", run(a, "pair", pa.id_hex(idb)[:6])))
+    ta.start()
+    end = time.time() + 10
+    while net.count(idb) == before and time.time() < end:
+        time.sleep(0.02)
+    capsys.readouterr()
+    tb = threading.Thread(target=lambda: codes.__setitem__("b", run(b, "pair", pa.id_hex(ida)[:8])), name="b")
+    tb.start()
+    tb.join(30)
+    assert codes.get("b") == 1 and not eof[0]
+    err = capsys.readouterr().err
+    sid = err.split("Run pusharmor pair ")[1].split(" ")[0]
+    assert "No answer. Run pusharmor pair %s again.\n" % sid in err and pa.id_hex(ida).startswith(sid)
+    assert not any(m == "POST" and "/deny/" in path for m, path in net.log)
+    sb = state(b)
+    assert sb["pairs"][ida]["state"] == "shown" and sb["peers"][ida]["pinned"]
+    tb = threading.Thread(target=lambda: codes.__setitem__("b", run(b, "pair", pa.id_hex(ida)[:8])), name="b")
+    tb.start()
+    tb.join(30)
+    ta.join(30)
+    assert codes == {"a": 0, "b": 0}
+
+
 def test_abort_in_shown_drops_the_pin_and_keeps_the_ruling(net, tmp_path, monkeypatch, capsys):
     """a different c_N while X shows the fingerprint drops the pin X made; the ruling stays."""
     a, b = tmp_path / "a", tmp_path / "b"
