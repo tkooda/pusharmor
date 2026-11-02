@@ -1688,9 +1688,10 @@ export class Engine {
    * Delete broken keys, after the user confirmed: only the keys go, in one transaction with the
    * login state, so a failed write keeps them. The register marker stays, so the next sign-in
    * deletes the old device on the relay server. No relay server call (the keys cannot sign).
+   * The keys are checked again first: keys that pass now are kept and the mark is cleared.
    */
   async deleteBrokenKeys(): Promise<void> {
-    if (!(await this.self()) || !(await this.keysBroken())) return;
+    if (!(await this.self()) || (await this.probeKeys())) return;
     try {
       await this.db.tx(["keys", "meta"], async (tx) => {
         tx.objectStore("keys").delete("self");
