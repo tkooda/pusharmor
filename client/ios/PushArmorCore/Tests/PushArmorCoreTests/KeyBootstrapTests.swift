@@ -56,6 +56,16 @@ final class KeyBootstrapTests: XCTestCase {
         XCTAssertEqual(d(id: false, sign: .present, inFlight: false), .createFresh)
     }
 
+    func testReadFaultKeepsKeysThatMayBeRegistered() {
+        XCTAssertEqual(d(id: false, sign: .failed(.other(-34018)), inFlight: true), .unusable)
+        XCTAssertEqual(d(id: false, sign: .failed(.other(-34018)), token: true), .unusable)
+        XCTAssertEqual(d(id: false, sign: .failed(.beforeFirstUnlock), inFlight: true), .retryLater)
+        // with neither, there is nothing to keep
+        XCTAssertEqual(d(id: false, sign: .failed(.other(-34018)), peerId: .present), .createFresh)
+        // a sign-in does not replace them either
+        XCTAssertFalse(KeyBootstrap.mayReplaceForSignIn(me: me(id: false), registerInFlight: true))
+    }
+
     func testSignInReplacesKeysOnlyWithNoAccount() {
         XCTAssertTrue(KeyBootstrap.mayReplaceForSignIn(me: me(id: false)))
         XCTAssertTrue(KeyBootstrap.mayReplaceForSignIn(me: me(id: true, removed: true)))

@@ -40,6 +40,8 @@ public enum KeyBootstrap {
         if me.id == nil {
             if signItem == .failed(.beforeFirstUnlock) { return .retryLater }
             if (requestTokenSet || registerInFlight) && signItem == .present { return .useExisting }
+            // these keys may be registered already: a read fault keeps them
+            if requestTokenSet || registerInFlight, case .failed = signItem { return .unusable }
             // the old id is needed for the DELETE of the old device: keep the keys until it reads
             if case .failed = peerIdItem { return .retryLater }
             return .createFresh
@@ -53,9 +55,10 @@ public enum KeyBootstrap {
     }
 
     /// A sign-in may delete the keys and make new ones only with no account on this device. A
-    /// signed-in device whose keys did not load (a stopped launch) keeps them.
-    public static func mayReplaceForSignIn(me: Me?) -> Bool {
-        guard let me = me else { return false }
+    /// signed-in device whose keys did not load (a stopped launch) keeps them, and so do the
+    /// keys of a register that may have reached the relay server.
+    public static func mayReplaceForSignIn(me: Me?, registerInFlight: Bool = false) -> Bool {
+        guard let me = me, !registerInFlight else { return false }
         return me.id == nil || me.removed
     }
 

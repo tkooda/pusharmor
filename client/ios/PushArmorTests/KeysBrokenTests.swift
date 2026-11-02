@@ -23,8 +23,10 @@ final class KeysBrokenTests: XCTestCase {
     func testDeleteGoesToSignInAndKeepsTheOldId() throws {
         let store = try ScreenshotSample.makeStore()
         let id = try XCTUnwrap(store.me().id)
+        try store.setSetting(KeyBootstrap.registerKeysSetting, "1")
         let hooks = RecordingHooks()
         XCTAssertEqual(try AppModel.deleteBrokenKeys(store: store, hooks: hooks), .signIn(.register))
+        XCTAssertNil(try store.setting(KeyBootstrap.registerKeysSetting))
         let me = try store.me()
         XCTAssertTrue(me.removed)
         XCTAssertEqual(me.oldId, id.text)

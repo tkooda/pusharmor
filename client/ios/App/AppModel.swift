@@ -180,6 +180,8 @@ final class AppModel: ObservableObject {
     /// notifications. The next screen is the sign-in.
     static func deleteBrokenKeys(store: Store, hooks: PlatformHooks) throws -> Phase {
         try store.keysLost()
+        // the next register makes new keys
+        try store.setSetting(KeyBootstrap.registerKeysSetting, nil)
         hooks.wipeKeys()
         hooks.removeLockedInbox()
         hooks.removeDeliveredNotifications()
@@ -375,12 +377,14 @@ final class AppModel: ObservableObject {
         if purpose != .register, let c = core { return c.keys }
         if let k = pendingKeys { return k }
         // a register that may have reached the relay server: the same keys give the same id
-        if purpose == .register, (try? store?.setting(KeyBootstrap.registerKeysSetting)) == "1",
-           let k = try? env.keychain.load() {
+        let inFlight = purpose == .register && (try? store?.setting(KeyBootstrap.registerKeysSetting)) == "1"
+        if inFlight, let k = try? env.keychain.load() {
             pendingKeys = k
             return k
         }
-        guard KeyBootstrap.mayReplaceForSignIn(me: try? store?.me()) else { throw KeyBootstrap.Stop.unusable }
+        guard KeyBootstrap.mayReplaceForSignIn(me: try? store?.me(), registerInFlight: inFlight) else {
+            throw KeyBootstrap.Stop.unusable
+        }
         env.keychain.deleteAll()
         let k = try env.keychain.create()
         pendingKeys = k
