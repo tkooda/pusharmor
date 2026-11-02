@@ -183,8 +183,8 @@ final class RulesTests: XCTestCase {
     }
 
     func testStatusSentencesEndWithAPeriod() {
-        for t in [S.cannotPairNow, S.thisDeviceRemoved, S.accountDeleted, S.waiting("X"), S.emailSendFailed, S.clockOff,
-                  S.signInExpired, S.signedOutResume, S.notificationsOff, S.noConnection, S.notDone] {
+        for t in [S.thisDeviceRemoved, S.accountDeleted, S.waiting("X"), S.emailSendFailed,
+                  S.signInExpired, S.signedOutResume, S.notificationsOff, S.noConnection] {
             XCTAssertTrue(t.hasSuffix("."), t)
             XCTAssertTrue(t.first!.isUppercase, t)
         }

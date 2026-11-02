@@ -13,15 +13,12 @@ public enum S {
     public static func pairOpen(_ fp: String) -> String { "New device: compare \(fp)" }
     public static let pairReply = "Pairing fingerprint ready. Open PushArmor."
     public static func pairAgain(_ x: String) -> String { "\(x) wants to pair again. Tap Pair again on its row." }
-    public static let cannotPairNow = "Cannot pair with this device now."
     /// Pair refused on this device: one line per reason, each says why and what to do.
     public static func alreadyPaired(_ x: String) -> String { "Already paired with \"\(x)\"." }
     public static func pairingInProgress(_ x: String) -> String { "Pairing with \"\(x)\" is already in progress." }
     public static func cannotPairYet(_ x: String) -> String { "\"\(x)\" can't pair right now. Open PushArmor on that device, then try again." }
     public static let tooManyPairings = "Too many pairings are in progress. Finish or cancel one, then try again."
-    public static let pairNotSent = "Pairing not sent. Tap Send again in a minute."
     public static let noConnection = "No connection. Try again."
-    public static let notDone = "Something went wrong. Try again."
     public static func pairCrossing(_ x: String) -> String { "Pairing with \(x) in progress. Open PushArmor." }
     public static func approved(_ name: String) -> String { "\(name) confirmed this device." }
     public static func renamed(_ old: String, _ new: String) -> String { "'\(old)' renamed to '\(new)'" }
@@ -71,7 +68,6 @@ public enum S {
     public static let updateRequired = "Update PushArmor to continue."
     public static let updateTitle = "Please update PushArmor"
     public static let updateBody = "This version no longer works with the relay server. Update to keep sending and receiving."
-    public static let clockOff = "This device's clock is off by more than 5 minutes."
     public static let emailInvalid = "Not a valid email address"
     public static let badEmail = "Only email addresses with plain ASCII characters are supported."
     public static let signInExpired = "Login expired. Log in again."

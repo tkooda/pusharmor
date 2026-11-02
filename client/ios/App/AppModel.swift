@@ -565,7 +565,7 @@ final class AppModel: ObservableObject {
         await once("remove:" + p.id.text) {
             let out = try? await core.removePeer(p.id)
             reload()
-            if phase == .main, let t = Core.failText(out) { toast = t }
+            if phase == .main, let t = Core.failText(out, .remove(label(p))) { toast = t }
         }
     }
     func localDelete(_ p: Peer) async { await core?.localDelete(p.id); reload() }
@@ -581,7 +581,7 @@ final class AppModel: ObservableObject {
             r = await core?.approve(p.id)
             // the app removes the reply notice once N shows the fingerprint
             reload()
-            if phase == .main, let t = Core.failText(r) { toast = t }
+            if phase == .main, let t = Core.failText(r, .confirm(label(p))) { toast = t }
         }
         return r
     }
@@ -592,7 +592,7 @@ final class AppModel: ObservableObject {
         await once("deny:" + p.id.text) {
             let r = await core?.deny(p.id)
             reload()
-            if phase == .main, let t = Core.failText(r) { toast = t }
+            if phase == .main, let t = Core.failText(r, .reject(label(p))) { toast = t }
         }
     }
 

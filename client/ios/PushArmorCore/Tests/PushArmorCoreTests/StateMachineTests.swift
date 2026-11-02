@@ -786,9 +786,16 @@ final class StateMachineTests: XCTestCase {
         func t(_ r: Result<PairSendResult, Error>) -> String? { Core.pairAgainToast(r, name: "Laptop") }
         XCTAssertNil(t(.success(.sent)))
         XCTAssertNil(t(.success(.rateLimited(5))))
-        XCTAssertEqual(t(.success(.network)), S.pairNotSent)
-        XCTAssertEqual(t(.success(.error(500))), S.pairNotSent)
-        XCTAssertEqual(t(.success(.result("gone"))), S.cannotPairNow)
+        XCTAssertEqual(t(.success(.network)),
+                       "Unable to pair with \"Laptop\".\nThe relay server could not be reached. Check your internet connection and try again.")
+        XCTAssertEqual(t(.success(.error(500))), "Unable to pair with \"Laptop\".\nThe relay server is not working right now. Try again later.")
+        XCTAssertEqual(t(.success(.error(426))), "Unable to pair with \"Laptop\".\nThis version of PushArmor is too old. Update PushArmor to continue.")
+        XCTAssertEqual(t(.success(.result("gone"))), "Unable to pair with \"Laptop\".\nTry again.")
+        XCTAssertEqual(t(.success(.result("failed:net"))),
+                       "Unable to pair with \"Laptop\".\nIts push service did not accept the message. Try again later.")
+        XCTAssertEqual(t(.success(.result("failed"))),
+                       "Unable to pair with \"Laptop\".\nIt has not finished turning on notifications. Open PushArmor on it.")
+        XCTAssertEqual(t(.failure(Core.CoreError.notPinned)), "Unable to pair with \"Laptop\".\nTry again.")
         // each refusal says why and what to do
         XCTAssertNil(t(.failure(Core.PairStartError.notOffered)))
         XCTAssertEqual(t(.failure(Core.PairStartError.pinned)), "Already paired with \"Laptop\".")
@@ -801,15 +808,28 @@ final class StateMachineTests: XCTestCase {
 
     func testFailedCallShowsAToast() {
         func reply(_ status: Int, _ body: String) -> APIOutcome { .reply(APIReply(status: status, body: Data(body.utf8))) }
-        XCTAssertNil(Core.failText(reply(200, "{}")))
-        XCTAssertEqual(Core.failText(APIOutcome.network), S.noConnection)
-        XCTAssertEqual(Core.failText(reply(500, "{\"error\":\"x\"}")), S.notDone)
-        XCTAssertEqual(Core.failText(reply(401, "{\"error\":\"clock skew\"}")), S.clockOff)
-        XCTAssertEqual(Core.failText(nil as APIOutcome?), S.notDone)              // threw before any reply
-        XCTAssertNil(Core.failText(ApproveOutcome.denied))
-        XCTAssertNil(Core.failText(ApproveOutcome.result("gone")))
-        XCTAssertEqual(Core.failText(ApproveOutcome.network), S.noConnection)
-        XCTAssertEqual(Core.failText(ApproveOutcome.error(500)), S.notDone)
+        let rm = ErrorCopy.Action.remove("Laptop")
+        XCTAssertNil(Core.failText(reply(200, "{}"), rm))
+        XCTAssertEqual(Core.failText(APIOutcome.network, rm),
+                       "Unable to remove \"Laptop\".\nThe relay server could not be reached. Check your internet connection and try again.")
+        XCTAssertEqual(Core.failText(reply(500, "{\"error\":\"x\"}"), rm),
+                       "Unable to remove \"Laptop\".\nThe relay server is not working right now. Try again later.")
+        XCTAssertEqual(Core.failText(reply(401, "{\"error\":\"clock skew\"}"), rm),
+                       "Unable to remove \"Laptop\".\nThis device's clock is off by more than 5 minutes. Fix the clock and try again.")
+        XCTAssertEqual(Core.failText(nil as APIOutcome?, rm), "Unable to remove \"Laptop\".\nTry again.")   // threw before any reply
+        XCTAssertNil(Core.failText(ApproveOutcome.denied, .confirm("Laptop")))
+        XCTAssertNil(Core.failText(ApproveOutcome.result("gone"), .confirm("Laptop")))
+        XCTAssertEqual(Core.failText(ApproveOutcome.network, .confirm("Laptop")),
+                       "Unable to confirm \"Laptop\".\nThe relay server could not be reached. Check your internet connection and try again.")
+        XCTAssertEqual(Core.failText(ApproveOutcome.error(500), .reject("Laptop")),
+                       "Unable to reject \"Laptop\".\nThe relay server is not working right now. Try again later.")
+        XCTAssertEqual(Core.failText(ApproveOutcome.error(0), .reject("Laptop")), "Unable to reject \"Laptop\".\nTry again.")
+        XCTAssertEqual(Core.failText(nil as ApproveOutcome?, .confirm("Laptop")), "Unable to confirm \"Laptop\".\nTry again.")
+        // too many tries says how long to wait
+        XCTAssertEqual(Core.failText(ApproveOutcome.rateLimited(1_000_090), .confirm("Laptop"), now: 1_000_000),
+                       "Unable to confirm \"Laptop\".\nToo many tries. Try again in 2 minutes.")
+        XCTAssertEqual(Core.failText(ApproveOutcome.rateLimited(1_000_030), .reject("Laptop"), now: 1_000_000),
+                       "Unable to reject \"Laptop\".\nToo many tries. Try again in 30 seconds.")
     }
 
     func testWaitingRowGets3dNoticeOnCommitFromX() async throws {

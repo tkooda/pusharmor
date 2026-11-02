@@ -341,8 +341,11 @@ extension Core {
     public static func pairAgainToast(_ r: Result<PairSendResult, Error>, name: String) -> String? {
         switch r {
         case .success(.sent), .success(.waiting), .success(.rateLimited): return nil
-        case .success(.network), .success(.error): return S.pairNotSent
-        case .success(.result): return S.cannotPairNow
+        case .success(.network): return ErrorCopy.text(.pair(name), .unreachable)
+        case .success(.error(let s)): return ErrorCopy.text(.pair(name), ErrorCopy.reason(status: s, error: nil))
+        case .success(.result(let w)):
+            let r: ErrorCopy.Reason = w.hasPrefix("failed:") ? .pushRejected : w == "failed" ? .notReady : .unknown
+            return ErrorCopy.text(.pair(name), r)
         case .failure(let e as PairStartError):
             switch e {
             case .notOffered: return nil
@@ -351,25 +354,27 @@ extension Core {
             case .notListed: return S.cannotPairYet(name)
             case .tooManyOpen: return S.tooManyPairings
             }
-        case .failure: return S.cannotPairNow
+        case .failure(let e): return ErrorCopy.text(.pair(name), ErrorCopy.reason(local: e))
         }
     }
 
-    /// The toast after a Log out, Remove, Deny, or Approve call: nil when it went through,
-    /// so a failed call never looks like a silent no-op; the button stays for a retry.
-    public static func failText(_ out: APIOutcome?) -> String? {
-        guard let out = out else { return S.notDone }
+    /// The toast after a Remove call: nil when it went through, so a failed call never looks
+    /// like a silent no-op; the button stays for a retry. Line 1 is the action `a`.
+    public static func failText(_ out: APIOutcome?, _ a: ErrorCopy.Action) -> String? {
+        guard let out = out else { return ErrorCopy.text(a, .unknown) }
         if out.reply?.ok == true { return nil }
-        if out.isClockSkew { return S.clockOff }
-        if out.isKeysUnusable { return ErrorCopy.Reason.keysUnusable.line }
-        return out.reply == nil ? S.noConnection : S.notDone
+        return ErrorCopy.text(a, ErrorCopy.reason(from: out))
     }
 
     /// Same for an ApproveOutcome (Approve, Deny): the relay server's answers are not failures.
-    public static func failText(_ o: ApproveOutcome?) -> String? {
+    /// Too many tries shows the wait left at `now` (unix s).
+    public static func failText(_ o: ApproveOutcome?, _ a: ErrorCopy.Action,
+                                now: Int64 = Int64(Date().timeIntervalSince1970)) -> String? {
         switch o {
-        case .network?: return S.noConnection
-        case .error?, nil: return S.notDone
+        case .network?: return ErrorCopy.text(a, .unreachable)
+        case .rateLimited(let until)?: return ErrorCopy.text(a, .rateLimited(waitMs: Int(max(0, until - now)) * 1000))
+        case .error(let s)?: return ErrorCopy.text(a, ErrorCopy.reason(status: s, error: nil))
+        case nil: return ErrorCopy.text(a, .unknown)
         default: return nil
         }
     }

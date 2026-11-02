@@ -147,7 +147,7 @@ final class APITests: XCTestCase {
         XCTAssertEqual(rec.sleeps, [])
         XCTAssertEqual(ErrorCopy.text(.prepareLogin, .keysUnusable),
                        "Unable to start the login.\nThis device's security keys cannot be used right now. Restart the device and try again.")
-        XCTAssertEqual(Core.failText(out),
-                       "This device's security keys cannot be used right now. Restart the device and try again.")
+        XCTAssertEqual(Core.failText(out, .remove("Laptop")),
+                       "Unable to remove \"Laptop\".\nThis device's security keys cannot be used right now. Restart the device and try again.")
     }
 }
