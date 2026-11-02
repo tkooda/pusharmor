@@ -1,7 +1,7 @@
 // Peers list (popup and the full tab), component-webext section 7 Peers.
 import type { PeerView } from "../core/rpc.ts";
 import { sortByLabel } from "../model/sendsel.ts";
-import { T } from "../core/texts.ts";
+import { T, confirmResultText } from "../core/texts.ts";
 import { type UiEnv, add, clear, greyFor, group, h, overflowMenu, peerStatus, platformLabel, rpc, sh, statusLine } from "./dom.ts";
 import { confirmDialog, toast } from "./dialog.ts";
 import { devicesArt, icon, platformIcon, shield } from "./icons.ts";
@@ -297,7 +297,7 @@ async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, red
   else b.disabled = true; // one request per click; the redraw below replaces the button
   try {
     const r = await rpc<unknown>(env, op, args);
-    if (op === "approve" && typeof r === "string" && r !== "stored" && r !== "sent") msg = r === "denied" ? T.declinedBy(p.label) : "Confirmed: " + r;
+    if (op === "approve" && typeof r === "string" && r !== "stored" && r !== "sent") msg = r === "denied" ? T.declinedBy(p.label) : confirmResultText(p.label, r);
   } catch (e) {
     msg = (e as Error).message;
   }

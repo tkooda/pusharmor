@@ -87,6 +87,11 @@ export function sendResultText(name: string, res: string): string {
   return to + "It has not finished turning on notifications. Open PushArmor on it.";
 }
 
+/** The two lines when Codes match reached the relay server but not the device: why, as for a send. */
+export function confirmResultText(name: string, res: string): string {
+  return 'Unable to deliver the confirmation to "' + name + '".\n' + sendResultText(name, res).split("\n")[1];
+}
+
 export function peerLabel(name: string | null): string {
   return name ?? T.aPeer;
 }

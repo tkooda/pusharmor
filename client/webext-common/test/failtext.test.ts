@@ -332,3 +332,13 @@ test("a menu send that some devices did not get, with no text back, says so in t
   const r = await menuSend(engine, "hi", "all", false);
   assert.equal(r.notice, "Unable to send.\nSome devices did not get the message. Open PushArmor to see which.");
 });
+
+test("Codes match that the device did not get: the confirmation line, then why as for a send", async () => {
+  const { confirmResultText } = await import("../src/core/texts.ts");
+  assert.equal(confirmResultText("Lap", "logged out"), 'Unable to deliver the confirmation to "Lap".\nThat device is logged out. Log in on that device to receive messages.');
+  assert.equal(confirmResultText("Lap", "gone"), 'Unable to deliver the confirmation to "Lap".\nOpen PushArmor on it to resolve.');
+  assert.equal(confirmResultText("Lap", "failed:net"), 'Unable to deliver the confirmation to "Lap".\nIts push service did not accept the message. Try again later.');
+  const { readFileSync } = await import("node:fs");
+  const pv = readFileSync(new URL("../src/ui/peersview.ts", import.meta.url), "utf8");
+  assert.match(pv, /T\.declinedBy\(p\.label\) : confirmResultText\(p\.label, r\);/);
+});
