@@ -215,3 +215,19 @@ test("autopush: an open socket that sends no frame is closed after the dead-peer
   await new Promise((r) => setTimeout(r, 5));
   assert.equal(s.timers.at(-1)!.ms, 5000);
 });
+
+test("autopush: reconnectNow in fallback mode probes at once", async () => {
+  const s = setup();
+  await s.ap.start();
+  s.sockets[0]!.onclose!({ code: 4774 });
+  await new Promise((r) => setTimeout(r, 5));
+  assert.deepEqual(s.modes, ["fallback"]);
+  assert.equal(s.sockets.length, 1);
+  s.ap.reconnectNow();
+  assert.equal(s.sockets.length, 2);
+  const probe = s.sockets[1]!;
+  probe.onopen!();
+  assert.equal(probe.sent[0]!.messageType, "hello");
+  await probe.rx({ messageType: "hello", status: 200, uaid: "U1" });
+  assert.deepEqual(s.modes, ["fallback", "direct"]);
+});

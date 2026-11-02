@@ -109,10 +109,10 @@ export class Autopush {
 
   /** "online" event or a timer drift: reconnect at once. */
   reconnectNow(): void {
-    if (this.stopped || this.mode === "fallback") return;
+    if (this.stopped) return;
     this.attempt = 0;
     this.ws?.close();
-    this.connect(false);
+    this.connect(this.mode === "fallback");
   }
 
   private clearTimers(): void {
