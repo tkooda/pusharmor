@@ -2132,23 +2132,27 @@ def pair_note(cx, d, x, text):
 def on_commit(cx, frm, c_n, listed):
     k, notes, now = cx.keys, [], int(time.time())
     with cx.store.state() as d:
-        e, p = d["pairs"].get(frm), d["peers"].get(frm) or {}
-        dec = pair_decide({
-            "own_id": k["id"], "from_id": frm, "commit_c_N": c_n,
-            "entry": e and {"role": e["role"], "state": e["state"], "c_N": b64d(e["c_N"]),
-                            "reply_authorized": e["authorized"]},
-            "pinned": p.get("pinned", False), "approved": p.get("ruling") == "approved",
-            "approve_verified": p.get("approve_verified", False), "approves_me": p.get("approves_me", False),
-            "get_after_verify": p.get("get_after_verify", False), "listed": listed,
-            "open_entries": len(d["pairs"]), "cap": d["pair_auto"], "now": now})
-        if dec["entry"] == "aborted":
+        p = d["peers"].get(frm) or {}
+        while True:
+            e = d["pairs"].get(frm)
+            dec = pair_decide({
+                "own_id": k["id"], "from_id": frm, "commit_c_N": c_n,
+                "entry": e and {"role": e["role"], "state": e["state"], "c_N": b64d(e["c_N"]),
+                                "reply_authorized": e["authorized"]},
+                "pinned": p.get("pinned", False), "approved": p.get("ruling") == "approved",
+                "approve_verified": p.get("approve_verified", False), "approves_me": p.get("approves_me", False),
+                "get_after_verify": p.get("get_after_verify", False), "listed": listed,
+                "open_entries": len(d["pairs"]), "cap": d["pair_auto"], "now": now})
+            if dec["entry"] != "aborted":
+                break
             d["pairs"].pop(frm, None)
             if p.get("pinned") and not p.get("approve_verified"):  # step 8: drop this pairing's pin
                 ruling = p["ruling"]
                 unpin(p)
                 p["ruling"] = ruling
             notes.append(pair_note(cx, d, frm, 'Pairing with "%s" failed. Run: pusharmor pair %s to start again.'))
-        elif dec["entry"].startswith("created") or dec["entry"] == "n_wiped_x_replied":
+            # the old entry is gone: decide the new commit on its own
+        if dec["entry"].startswith("created") or dec["entry"] == "n_wiped_x_replied":
             e = d["pairs"][frm] = new_entry("X", "prompted", secrets.token_bytes(32), c_n)
             e["authorized"] = dec["action"] == "reply"
             if dec["cap_counted"]:

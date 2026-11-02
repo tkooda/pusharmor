@@ -519,14 +519,31 @@ def test_abort_in_shown_drops_the_pin_and_keeps_the_ruling(net, tmp_path, monkey
     cx.refresh()
     with cx.store.state() as d:
         p = d["peers"][ida]
-        pa.pin_peer(p, b"s" * 32, b"e" * 32, b"i" * 32)
+        pa.pin_peer(p, pa.b64d(p["sign_pub"]), pa.b64d(p["enc_pub"]), b"i" * 32)
         p["ruling"] = "denied"
         d["pairs"][ida] = pa.new_entry("X", "shown", b"r" * 32, b"c" * 32)
     pa.on_commit(cx, ida, b"d" * 32, "yes")
     p = state(b)["peers"][ida]
-    assert state(b)["pairs"] == {}
+    assert state(b)["pairs"][ida]["c_N"] == pa.b64e(b"d" * 32)
     assert not p["pinned"] and p["pairing_id"] == "" and p["ruling"] == "denied"
     assert 'failed. Run: pusharmor pair %s to start again.' % pa.id_hex(ida)[:6] in capsys.readouterr().err
+
+
+def test_abort_then_decides_the_new_commit(net, tmp_path, monkeypatch, capsys):
+    """a different c_N ends the old X entry; the new commit is then decided, not dropped."""
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, _ = login(monkeypatch, a), login(monkeypatch, b)
+    cx = pa.Ctx(b)
+    cx.setup()
+    cx.refresh()
+    with cx.store.state() as d:
+        d["pairs"][ida] = pa.new_entry("X", "prompted", b"r" * 32, b"c" * 32)
+    pa.on_commit(cx, ida, b"d" * 32, "yes")
+    e = state(b)["pairs"][ida]
+    assert e["role"] == "X" and e["c_N"] == pa.b64e(b"d" * 32)
+    err = capsys.readouterr().err
+    assert 'failed. Run: pusharmor pair %s to start again.' % pa.id_hex(ida)[:6] in err
+    assert "wants to pair. Run: pusharmor pair %s" % pa.id_hex(ida)[:6] in err
 
 
 def test_peer_list_opens_stored_remove_messages(net, tmp_path, monkeypatch, capsys):
