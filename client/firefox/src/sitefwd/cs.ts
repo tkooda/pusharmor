@@ -3,12 +3,16 @@
 import { fxSubFields } from "../gate.ts";
 import { browser } from "../shim.ts";
 import { fwdAllowed } from "./fwd.ts";
+import { relayRetry } from "./relay.ts";
 
 const SITE = "https://pusharmor.com";
 
 function relay(op: string, args: Record<string, unknown>): Promise<unknown> {
   return browser.runtime.sendMessage({ op, args });
 }
+
+const relayWake = (op: string, args: Record<string, unknown>) =>
+  relayRetry(() => relay(op, args), (ms) => new Promise((r) => setTimeout(r, ms)));
 
 if (location.origin === SITE) {
   const path = location.pathname;
@@ -23,14 +27,14 @@ if (location.origin === SITE) {
       if (ev.source !== window || ev.origin !== SITE) return;
       const d = ev.data as { pa?: string } | null;
       const f = d && d.pa === "fx-sub" ? fxSubFields(d) : null;
-      if (f) void relay("fx-sub", f);
+      if (f) void relayWake("fx-sub", f);
     });
   } else if (path === "/fx/open") {
     window.addEventListener("message", (ev: MessageEvent) => {
       if (ev.source !== window || ev.origin !== SITE) return;
       const d = ev.data as { pa?: string; id?: unknown; M?: unknown };
       if (d && d.pa === "fx-msg" && fwdAllowed(d.M)) {
-        void relay("fx-msg", { m: d.M }).then((r) => {
+        void relayWake("fx-msg", { m: d.M }).then((r) => {
           if ((r as { ok?: boolean } | undefined)?.ok) window.postMessage({ pa: "fx-ack", id: d.id }, SITE);
         });
       }
