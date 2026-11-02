@@ -286,7 +286,7 @@ fun PeersScreen(vm: AppViewModel) {
     peers.firstOrNull { it.id == confirmRemove }?.let { p ->
         val x = label(p)
         AlertDialog(onDismissRequest = { confirmRemove = null },
-            text = { Text("Remove $x from this account? $x must log in again and pair with every device again.") },
+            text = { Text(UiText.removeDeviceBody(x)) },
             confirmButton = { TextButton(onClick = { vm.remove(p.id); confirmRemove = null }) { Text("Remove") } },
             dismissButton = { TextButton(onClick = { confirmRemove = null }) { Text("Cancel") } })
     }
@@ -373,7 +373,7 @@ private fun Banners(vm: AppViewModel, banner: String?, prefs: androidx.datastore
     val tick = resumeTick()
     val n = vm.g.notifier
     val noPushApp = banner?.startsWith("no_distributor") == true
-    n.blockedChannelPeer(vm.peerEntities.collectAsState().value)?.let { BannerRow("Messages from $it are blocked.", "Fix", fault = true, PaIcons.NotificationsOff) {
+    n.blockedChannelPeer(vm.peerEntities.collectAsState().value)?.let { BannerRow(UiText.blockedChannel(it.name), "Fix", fault = true, PaIcons.NotificationsOff) {
         safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
     } }
     if (noPushApp && vm.g.push.hasPlayServices) TextButton(onClick = { vm.switchPush(toUp = false) }) { Text("Switch back to Google") }
@@ -483,10 +483,10 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
     // Pairing and note lines replace the status line (catalog order).
     val stateText = when {
         !p.pinned -> null
-        p.notPairedOnPeer -> if (p.listDeniesMe) "Rejected by $x" else "Not paired on $x"
-        p.waiting -> "Waiting for $x: open PushArmor there and tap Codes match."
+        p.notPairedOnPeer -> if (p.listDeniesMe) UiText.rejectedBy(x) else UiText.notPairedOn(x)
+        p.waiting -> UiText.waitingCodesMatch(x)
         p.missing -> null
-        p.declined -> "Rejected by $x"
+        p.declined -> UiText.rejectedBy(x)
         else -> null
     }
     val lines = listOfNotNull(p.note, stateText)
@@ -610,7 +610,7 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
         Spacer(Modifier.height(16.dp))
         when {
             row.state == PairState.SHOWN && p.waiting -> {
-                Text("Waiting for $x: open PushArmor there and tap Codes match.", style = body, color = cs.onSurfaceVariant)
+                Text(UiText.waitingCodesMatch(x), style = body, color = cs.onSurfaceVariant)
                 WaitingSendAgain(vm, p, now)
             }
             row.state == PairState.SHOWN -> {
@@ -635,12 +635,12 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
                 Spacer(Modifier.height(12.dp))
                 GreenButton(onClick = { vm.reply(p.id) }, text = "Reply", icon = null, modifier = Modifier.fillMaxWidth())
             }
-            row.role == PairRole.X -> Text("Replied. Waiting for $x.", style = body, color = cs.onSurfaceVariant)
+            row.role == PairRole.X -> Text(UiText.repliedWaiting(x), style = body, color = cs.onSurfaceVariant)
             else -> {
-                Text("Waiting for $x to reply.", style = body, color = cs.onSurfaceVariant)
+                Text(UiText.waitingReply(x), style = body, color = cs.onSurfaceVariant)
                 when (PairingEngine.hint(row, p, now)) {
-                    PairDecide.Hint.STILL_HOLDS -> Text("$x still holds an earlier pairing. On $x, tap Cancel pairing, then tap Send again.", style = body, color = cs.onSurfaceVariant)
-                    PairDecide.Hint.NO_REPLY_YET -> Text("No reply yet. Open PushArmor on $x, or tap Send again.", style = body, color = cs.onSurfaceVariant)
+                    PairDecide.Hint.STILL_HOLDS -> Text(UiText.stillHolds(x), style = body, color = cs.onSurfaceVariant)
+                    PairDecide.Hint.NO_REPLY_YET -> Text(UiText.noReplyYet(x), style = body, color = cs.onSurfaceVariant)
                     null -> Unit
                 }
             }
@@ -842,7 +842,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                             val ok = p.inAll
                             if (!UiText.chipVisible(ok && p.id in picked, keyboardUp)) continue
                             DeviceChip(platformIcon(p.platform), label(p), p.id in sendTo, ok, if (ok) null else UiText.status(p).second) {
-                                if (!ok) { vm.tapGreyed(); scope.launch { snack.showSnackbar("${label(p)}: ${UiText.status(p).second}") } }
+                                if (!ok) { vm.tapGreyed(); scope.launch { snack.showSnackbar(UiText.greyedChip(label(p), UiText.status(p).second)) } }
                                 else if (p.id in picked) picked.remove(p.id) else picked.add(p.id)
                             }
                         }

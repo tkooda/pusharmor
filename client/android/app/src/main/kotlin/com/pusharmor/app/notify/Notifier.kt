@@ -11,6 +11,7 @@ import androidx.core.app.NotificationManagerCompat
 import com.pusharmor.app.R
 import com.pusharmor.app.data.Settings
 import com.pusharmor.app.ui.MainActivity
+import com.pusharmor.app.ui.UiText
 import com.pusharmor.crypto.B64url
 import com.pusharmor.protocol.ContentType
 import com.pusharmor.protocol.ShownContent
@@ -85,9 +86,9 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         for (p in dao.peers()) p.channelId?.let { nm.deleteNotificationChannel(it) }
     }
 
-    fun blockedChannelPeer(peers: List<PeerEntity>): String? = peers.firstOrNull { p ->
+    fun blockedChannelPeer(peers: List<PeerEntity>): PeerEntity? = peers.firstOrNull { p ->
         p.channelId?.let { nm.getNotificationChannel(it)?.importance == NotificationManager.IMPORTANCE_NONE } == true
-    }?.let { it.name ?: "a device" }
+    }
 
     fun mainChannelsBlocked(): Boolean = listOfNotNull(settings.get(Settings.K.CH_MESSAGES), settings.get(Settings.K.CH_PEERS))
         .any { nm.getNotificationChannel(it)?.importance == NotificationManager.IMPORTANCE_NONE }
@@ -158,7 +159,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
             .setGroup(GROUP_PREFIX + channel).setLocalOnly(policy.localOnly)
         val open = action(historyId, "item")
         if (policy.hideAll) {
-            b.setContentTitle("New message from ${peer?.name ?: "a device"}").setContentIntent(open)
+            b.setContentTitle(UiText.newMessageFrom(peer?.name)).setContentIntent(open)
         } else {
             val (title, body) = when {
                 c.type == ContentType.URL && !c.showAsText -> "Link" to (c.href ?: c.value)

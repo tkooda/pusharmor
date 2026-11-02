@@ -120,7 +120,36 @@ class UiTextTest {
     }
 
     @Test fun pairAgainNotice() {
-        assertEquals("Chrome wants to pair again. Tap Pair again on its row.", UiText.pairAgainNotice("Chrome"))
+        assertEquals("\"Chrome\" wants to pair again. Tap Pair again on its row.", UiText.pairAgainNotice("Chrome"))
+    }
+
+    /** Device names are always in straight double quotes; no name reads "a device". */
+    @Test fun deviceNoticesQuoteTheName() {
+        assertEquals("\"Pixel\" confirmed this device.", UiText.approvedNotice("Pixel"))
+        assertEquals("A device confirmed this device.", UiText.approvedNotice(null))
+        assertEquals("\"Pixel\" renamed to \"Phone\"", UiText.renamedNotice("Pixel", "Phone"))
+        assertEquals("A device renamed to \"Phone\"", UiText.renamedNotice(null, "Phone"))
+        assertEquals("Rejected by \"Pixel\".", UiText.rejectedNotice("Pixel"))
+        assertEquals("Rejected by a device.", UiText.rejectedNotice(null))
+        assertEquals("\"Pixel\" logged out.", UiText.logoutNotice("Pixel", loggedOut = true))
+        assertEquals("\"Pixel\" logged in.", UiText.logoutNotice("Pixel", loggedOut = false))
+        assertEquals("A device logged out.", UiText.logoutNotice(null, loggedOut = true))
+        assertEquals("\"Pixel\": Logged out", UiText.greyedChip("Pixel", "Logged out"))
+        assertEquals("Messages from \"Pixel\" are blocked.", UiText.blockedChannel("Pixel"))
+        assertEquals("Messages from a device are blocked.", UiText.blockedChannel(null))
+        assertEquals("A device wants to pair again. Tap Pair again on its row.", UiText.pairAgainNotice(null))
+        assertEquals("Pairing with \"Pixel\" in progress. Open PushArmor.", UiText.pairingInProgress("Pixel"))
+        assertEquals("Pairing with a device in progress. Open PushArmor.", UiText.pairingInProgress(null))
+        assertEquals("New message from \"Pixel\"", UiText.newMessageFrom("Pixel"))
+        assertEquals("New message from a device", UiText.newMessageFrom(null))
+        assertEquals("Remove \"Pixel\" from this account? \"Pixel\" must log in again and pair with every device again.", UiText.removeDeviceBody("Pixel"))
+        assertEquals("Rejected by \"Pixel\"", UiText.rejectedBy("Pixel"))
+        assertEquals("Not paired on \"Pixel\"", UiText.notPairedOn("Pixel"))
+        assertEquals("Waiting for \"Pixel\": open PushArmor there and tap Codes match.", UiText.waitingCodesMatch("Pixel"))
+        assertEquals("Replied. Waiting for \"Pixel\".", UiText.repliedWaiting("Pixel"))
+        assertEquals("Waiting for \"Pixel\" to reply.", UiText.waitingReply("Pixel"))
+        assertEquals("No reply yet. Open PushArmor on \"Pixel\", or tap Send again.", UiText.noReplyYet("Pixel"))
+        assertEquals("\"Pixel\" still holds an earlier pairing. On \"Pixel\", tap Cancel pairing, then tap Send again.", UiText.stillHolds("Pixel"))
     }
 
     @Test fun sendablePrunesDevicesThatCannotReceive() {

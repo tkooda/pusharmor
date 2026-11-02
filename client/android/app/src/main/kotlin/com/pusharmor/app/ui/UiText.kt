@@ -264,7 +264,26 @@ object UiText {
     }
 
     /** Notice when a device in the half state sends a new pairing request. */
-    fun pairAgainNotice(x: String): String = "$x wants to pair again. Tap Pair again on its row."
+    fun pairAgainNotice(x: String?): String = "${quoted(x, "A device")} wants to pair again. Tap Pair again on its row."
+
+    // Device texts: the name is always in straight double quotes; no name reads "A device" / "a device".
+    fun approvedNotice(name: String?): String = "${quoted(name, "A device")} confirmed this device."
+    fun renamedNotice(old: String?, new: String): String = "${quoted(old, "A device")} renamed to \"$new\""
+    fun rejectedNotice(name: String?): String = "Rejected by ${quoted(name, "a device")}."
+    fun logoutNotice(name: String?, loggedOut: Boolean): String = quoted(name, "A device") + if (loggedOut) " logged out." else " logged in."
+    fun greyedChip(name: String, status: String): String = "\"$name\": $status"
+    fun blockedChannel(name: String?): String = "Messages from ${quoted(name, "a device")} are blocked."
+    fun stillHolds(x: String): String = "\"$x\" still holds an earlier pairing. On \"$x\", tap Cancel pairing, then tap Send again."
+    fun pairingInProgress(name: String?): String = "Pairing with ${quoted(name, "a device")} in progress. Open PushArmor."
+    fun newMessageFrom(name: String?): String = "New message from ${quoted(name, "a device")}"
+    fun removeDeviceBody(x: String): String = "Remove \"$x\" from this account? \"$x\" must log in again and pair with every device again."
+    fun rejectedBy(x: String): String = "Rejected by \"$x\""
+    fun notPairedOn(x: String): String = "Not paired on \"$x\""
+    fun waitingCodesMatch(x: String): String = "Waiting for \"$x\": open PushArmor there and tap Codes match."
+    fun repliedWaiting(x: String): String = "Replied. Waiting for \"$x\"."
+    fun waitingReply(x: String): String = "Waiting for \"$x\" to reply."
+    fun noReplyYet(x: String): String = "No reply yet. Open PushArmor on \"$x\", or tap Send again."
+    private fun quoted(name: String?, none: String): String = if (name == null) none else "\"$name\""
 
     /** Screen reader state of the sign-in code field, which has no visible label: "Code, 2 of 6 entered". */
     fun codeState(n: Int): String = "Code, $n of 6 entered"
