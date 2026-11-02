@@ -304,6 +304,16 @@ class EngineTest {
         assertTrue(n.effects.log.contains("reconcile"))
     }
 
+    @Test fun pairingStartedAheadOfTheClockStillTimesOutAfter14Days() {
+        n.pairing.tapPair(x.id, t0); n.runPairSends(t0)
+        val day = 24 * 3600_000L
+        n.store.putPairing(n.store.pairing(x.id)!!.copy(startedAt = t0 + 365 * day))
+        assertNull(n.pairing.checkTimeout(x.id, t0) { error("no") })
+        assertEquals(t0, n.store.pairing(x.id)!!.startedAt)
+        assertEquals(PairDecide.Timeout.DROP_PIN, n.pairing.checkTimeout(x.id, t0 + 14 * day) { error("no") })
+        assertNull(n.store.pairing(x.id))
+    }
+
     @Test fun timeoutWhileLoggedOutKeepsWaitingThenRefetchCompletes() {
         pairShown()
         n.approve.approve(x.id)

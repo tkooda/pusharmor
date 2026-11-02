@@ -354,7 +354,11 @@ class PairingEngine(
      * and reports its outcome. Returns the decision taken.
      */
     fun checkTimeout(peerId: String, now: Long, refetch: (String) -> PairDecide.Resend): PairDecide.Timeout? {
-        val row = store.pairing(peerId) ?: return null
+        var row = store.pairing(peerId) ?: return null
+        if (row.startedAt > now) { // a start set ahead of the clock counts from now on
+            row = row.copy(startedAt = now)
+            store.putPairing(row)
+        }
         if (!Countdown.expired(row.startedAt, now)) return null
         val peer = store.peer(peerId)
         val approved = peer?.approved == true && peer.pinned
