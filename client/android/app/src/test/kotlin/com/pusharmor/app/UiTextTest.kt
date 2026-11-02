@@ -218,6 +218,11 @@ class UiTextTest {
         assertEquals("Will arrive as text", UiText.typeCaption(ContentType.TEXT))
     }
 
+    @Test fun screenReaderLabelsQuoteDeviceNames() {
+        assertEquals("More options for \"Pixel 8\"", UiText.moreOptionsFor("Pixel 8"))
+        assertEquals("\"Pixel 8\", Not paired yet", UiText.chipLabel("Pixel 8", "Not paired yet"))
+    }
+
     @Test fun fingerprintIsReadPerCharacter() {
         assertEquals("Pairing fingerprint K, 7, Q, D", UiText.fingerprintLabel("K7QD"))
     }

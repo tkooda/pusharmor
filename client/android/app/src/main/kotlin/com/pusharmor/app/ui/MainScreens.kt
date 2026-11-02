@@ -519,7 +519,7 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
             },
             trailingContent = {
                 Box {
-                    IconButton(onClick = { menu = true }) { Icon(PaIcons.MoreVert, "More options for $x") }
+                    IconButton(onClick = { menu = true }) { Icon(PaIcons.MoreVert, UiText.moreOptionsFor(x)) }
                     // Cap the height to the visible window less the menu's own 48dp margins, so a tall menu (large font, short window)
                     // scrolls inside the screen instead of running under the status or navigation bar.
                     val view = LocalView.current
@@ -897,7 +897,7 @@ private fun TypeCaption(type: ContentType) {
 private fun DeviceChip(icon: ImageVector, name: String, selected: Boolean, enabled: Boolean, status: String? = null, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     FilterChip(selected = selected && enabled, onClick = onClick,
-        modifier = Modifier.alpha(if (enabled) 1f else 0.5f).semantics { if (status != null) contentDescription = "$name, $status" },
+        modifier = Modifier.alpha(if (enabled) 1f else 0.5f).semantics { if (status != null) contentDescription = UiText.chipLabel(name, status) },
         label = { Text(name, Modifier.widthIn(max = 240.dp), maxLines = 1, overflow = TextOverflow.Ellipsis) },
         leadingIcon = { Icon(if (selected && enabled) PaIcons.Check else icon, null, Modifier.size(18.dp)) },
         colors = FilterChipDefaults.filterChipColors(containerColor = LocalPaExtra.current.tile, selectedContainerColor = softGreenFill(LocalPaExtra.current.dark),

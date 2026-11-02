@@ -78,7 +78,7 @@ class DeviceMenuTest {
         // Room loads the device on another thread.
         for (i in 0 until 100) {
             more = nodes(a.window.decorView).firstOrNull { n ->
-                n.config.getOrNull(SemanticsProperties.ContentDescription)?.any { it == "More options for Galaxy S23" } == true
+                n.config.getOrNull(SemanticsProperties.ContentDescription)?.any { it == "More options for \"Galaxy S23\"" } == true
             }
             if (more != null) break
             Thread.sleep(50); idle()
