@@ -292,13 +292,13 @@ class EngineTest {
         assertEquals(low.store.pairing(high.id)!!.fingerprint, high.store.pairing(low.id)!!.fingerprint)
     }
 
-    @Test fun persistedStateValidAtDay29AndTimeoutAtDay30() {
+    @Test fun persistedStateValidAtDay13AndTimeoutAtDay14() {
         n.pairing.tapPair(x.id, t0); n.runPairSends(t0)
         val day = 24 * 3600_000L
         val restarted = PairingEngine(n.store, n.me, n.api, n.effects) { ByteArray(it) }
-        assertNull(restarted.checkTimeout(x.id, t0 + 29 * day) { error("no") })
-        assertEquals("1 days", Countdown.format(n.store.pairing(x.id)!!.startedAt, t0 + 29 * day))
-        assertEquals(PairDecide.Timeout.DROP_PIN, restarted.checkTimeout(x.id, t0 + 30 * day) { error("no") })
+        assertNull(restarted.checkTimeout(x.id, t0 + 13 * day) { error("no") })
+        assertEquals("1 days", Countdown.format(n.store.pairing(x.id)!!.startedAt, t0 + 13 * day))
+        assertEquals(PairDecide.Timeout.DROP_PIN, restarted.checkTimeout(x.id, t0 + 14 * day) { error("no") })
         assertNull(n.store.pairing(x.id))
         assertEquals(PairingEngine.TIMED_OUT, n.store.peer(x.id)!!.note)
         assertTrue(n.effects.log.contains("reconcile"))
