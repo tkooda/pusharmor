@@ -185,6 +185,17 @@ export function onNotificationClick(b: Browser, boot: () => Promise<Booted>) {
   };
 }
 
+/** Re-read the selection in the tab (keeps line breaks, no length cap); on any error keep the click text. */
+export async function readTabSelection(b: Browser, tab: Tab | undefined, text: string): Promise<string> {
+  if (tab?.id === undefined || !b.scripting) return text;
+  try {
+    const [r] = await b.scripting.executeScript({ target: { tabId: tab.id }, func: () => String(getSelection() ?? "") });
+    return typeof r?.result === "string" && r.result ? r.result : text;
+  } catch {
+    return text;
+  }
+}
+
 export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelection: (tab: Tab | undefined, text: string) => Promise<string>) {
   return (info: MenuInfo, tab?: Tab): void => {
     void (async () => {

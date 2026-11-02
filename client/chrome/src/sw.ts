@@ -1,7 +1,7 @@
 // Chrome MV3 service worker entry. Every listener is registered at the top
 // level, synchronously; lazy init runs inside the handlers (section 3).
 import { b64urlTryDecode } from "../../webext-common/src/crypto/b64url.ts";
-import { lazyBoot, onMenuClick, onNotificationClick, onRuntimeMessage } from "../../webext-common/src/shellkit.ts";
+import { lazyBoot, onMenuClick, readTabSelection, onNotificationClick, onRuntimeMessage } from "../../webext-common/src/shellkit.ts";
 import { chromePlatform } from "./platform-chrome.ts";
 import { browser } from "./shim.ts";
 
@@ -13,12 +13,6 @@ interface ExtendableEvent extends Event {
 interface PushEvent extends ExtendableEvent {
   data: { text(): string } | null;
 }
-
-/**
- * OnClickData.selectionText cap: not yet measured (device checklist,
- * section 11). A selection at least this long is re-read in the tab.
- */
-const SELECTION_TEXT_CAP = 4096;
 
 const vapid = b64urlTryDecode(VAPID_PUBLIC_KEY) ?? new Uint8Array(0);
 const boot = lazyBoot(chromePlatform, vapid);
@@ -59,14 +53,5 @@ browser.runtime.onInstalled.addListener(() => {
   void boot().then(({ engine }) => engine.start());
 });
 browser.contextMenus?.onClicked.addListener(
-  onMenuClick(browser, boot, async (tab, text) => {
-    // a selection whose length equals the platform cap is read in full (activeTab on the click)
-    if (tab?.id === undefined || !browser.scripting || text.length < SELECTION_TEXT_CAP) return text;
-    try {
-      const [r] = await browser.scripting.executeScript({ target: { tabId: tab.id }, func: () => String(getSelection() ?? "") });
-      return typeof r?.result === "string" && r.result ? r.result : text;
-    } catch {
-      return text;
-    }
-  }),
+  onMenuClick(browser, boot, (tab, text) => readTabSelection(browser, tab, text)),
 );

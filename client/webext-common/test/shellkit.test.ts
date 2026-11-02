@@ -127,3 +127,12 @@ test("a huge selection opens the send window with a URL below the browser limit"
   assert.equal(urls.length, 1);
   assert.ok(urls[0]!.length < 2 * 1024 * 1024);
 });
+
+test("a selection is re-read in the tab even when it is short", async () => {
+  const { readTabSelection } = await import("../src/shellkit.ts");
+  const b = { scripting: { executeScript: async () => [{ result: "line one\nline two" }] } };
+  assert.equal(await readTabSelection(b as never, { id: 3 } as never, "line one line two"), "line one\nline two");
+  const bad = { scripting: { executeScript: async () => Promise.reject(new Error("no access")) } };
+  assert.equal(await readTabSelection(bad as never, { id: 3 } as never, "short"), "short");
+  assert.equal(await readTabSelection({} as never, { id: 3 } as never, "short"), "short");
+});
