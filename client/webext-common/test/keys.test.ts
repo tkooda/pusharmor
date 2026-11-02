@@ -185,7 +185,7 @@ test("keys screen: popup and page show it, Retry on the right, and Delete asks f
       await mount(root as unknown as HTMLElement);
       const t = texts(root);
       assert.ok(t.includes("This device's keys have become unusable."));
-      assert.ok(t.includes("Tap Retry to try again. If this keeps happening, you can delete the broken keys. You will then sign in again and pair all your devices again."));
+      assert.ok(t.includes("Click Retry to try again. If this keeps happening, you can delete the broken keys. You will then sign in again and pair all your devices again."));
       assert.deepEqual(buttons(root).map(label), ["Delete broken keys", "Retry"]);
     });
   }
