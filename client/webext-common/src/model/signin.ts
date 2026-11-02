@@ -110,3 +110,8 @@ export function emailProblem(raw: string): string {
   const v = raw.trim();
   return v === "" ? "Enter your email address." : /[^\x00-\x7f]/.test(v) ? T.badEmail : !/^[^@\s]+@[^@\s]+$/.test(v) ? "Check the email address." : "";
 }
+
+/** The code to check on its own after an edit: six characters, and not the one that was just tried. */
+export function autoVerifyCode(cleaned: string, lastTried: string): string | null {
+  return cleaned.length === 6 && cleaned !== lastTried ? cleaned : null;
+}

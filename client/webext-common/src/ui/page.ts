@@ -4,7 +4,7 @@ import type { LoginResult, Purpose } from "../core/login.ts";
 import type { StateView } from "../core/rpc.ts";
 import { T } from "../core/texts.ts";
 import { type UiEnv, add, clear, failView, group, h, platformLabel, rpc } from "./dom.ts";
-import { AUTH_CHANGED, AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResult, type Restore, formatWait, resendLeftMs, sendLeftMs } from "../model/signin.ts";
+import { AUTH_CHANGED, AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResult, type Restore, autoVerifyCode, formatWait, resendLeftMs, sendLeftMs } from "../model/signin.ts";
 import { toast } from "./dialog.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
@@ -311,6 +311,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   const signBtn = h("button", { type: "submit", class: "primary big" }, "Log in") as HTMLButtonElement;
   const resend = h("button", { type: "button", class: "text" }, "Get a new code") as HTMLButtonElement;
   let busy = false;
+  let lastTried = ""; // the last code sent to the relay server; an edit back to it is not sent again
   const countdown = () => {
     clearTimeout(tick);
     const left = resendLeftMs(sentAt, Date.now());
@@ -321,6 +322,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   const verify = async () => {
     if (busy) return;
     busy = true;
+    lastTried = code.value.replace(/[\s-]/g, "");
     signBtn.disabled = true;
     try {
       await done(await rpc<LoginResult>(env, "emailVerify", { code: code.value }));
@@ -342,7 +344,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     codeField.classList.remove("bad");
     setHelp(codeHelp, CODE_HELP, false, code);
     const cleaned = code.value.replace(/[\s-]/g, "");
-    if (cleaned.length === 6) void verify();
+    if (autoVerifyCode(cleaned, lastTried)) void verify();
   });
   code.addEventListener("paste", (ev: ClipboardEvent) => {
     const text = ev.clipboardData?.getData("text") ?? "";
@@ -350,7 +352,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     if (m) {
       ev.preventDefault();
       code.value = m[1]!;
-      void verify();
+      if (autoVerifyCode(m[1]!.replace(/[\s-]/g, ""), lastTried)) void verify();
     }
   });
   const back = h("button", { type: "button", class: "back", "aria-label": "Back", hidden: true, onclick: () => showEmail(email.value) }, icon("back", 24));
@@ -419,6 +421,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       s2notes.append(note("history", "Welcome back. You can pick up where you left off: the code we sent at " + t + " still works."));
     }
     code.value = "";
+    lastTried = "";
     codeField.classList.remove("bad");
     setHelp(codeHelp, CODE_HELP, false, code);
     step1.hidden = true;

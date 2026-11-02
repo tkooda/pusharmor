@@ -92,3 +92,12 @@ test("wait text: seconds up to 60, whole minutes rounded up above, singular form
   assert.equal(formatWait(120_000), "2 minutes");
   assert.equal(formatWait(121_000), "3 minutes");
 });
+
+test("a code is checked on its own only once: the same rejected code is not sent again after an edit", async () => {
+  const { autoVerifyCode } = await import("../src/model/signin.ts");
+  assert.equal(autoVerifyCode("ABC12", ""), null);
+  assert.equal(autoVerifyCode("ABC123", ""), "ABC123");
+  assert.equal(autoVerifyCode("ABC123", "ABC123"), null); // typed a 7th character, then deleted it
+  assert.equal(autoVerifyCode("ABC1234", "ABC123"), null);
+  assert.equal(autoVerifyCode("ABC124", "ABC123"), "ABC124"); // a changed code is checked
+});
