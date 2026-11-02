@@ -135,6 +135,8 @@ export class Engine {
   private loggingOut: Promise<void> | null = null;
   /** The one removal check in flight; every caller shares it. */
   private checking: Promise<boolean> | null = null;
+  /** The one "Check again" in flight; a second click shares it. */
+  private rechecking: Promise<void> | null = null;
   private authN = 0;
 
   constructor(d: EngineDeps) {
@@ -190,7 +192,15 @@ export class Engine {
    * The time is stored first, so a failed check locks the button too. Only a 2xx
    * clears the update screen; 426, any other status, or no reply keeps it.
    */
-  async recheckUpdate(): Promise<void> {
+  recheckUpdate(): Promise<void> {
+    if (this.rechecking) return this.rechecking;
+    this.rechecking = this.doRecheck().finally(() => {
+      this.rechecking = null;
+    });
+    return this.rechecking;
+  }
+
+  private async doRecheck(): Promise<void> {
     if (await this.recheckLocked()) return;
     await this.p.storageLocal.set({ [RECHECK_AT]: now(this.p) });
     try {
