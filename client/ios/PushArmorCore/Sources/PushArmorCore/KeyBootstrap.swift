@@ -29,12 +29,17 @@ public enum KeyBootstrap {
         case retryLater
     }
 
+    /// Store setting: "1" while a register call with the current keys may have reached the
+    /// relay server; its keys are kept across a kill so the next register heals the same id.
+    public static let registerKeysSetting = "register_keys"
+
     /// peerIdItem is the read of the old peer id; it matters only with no account.
-    public static func decide(me: Me, signItem: ItemRead, peerIdItem: ItemRead, requestTokenSet: Bool) -> Plan {
+    public static func decide(me: Me, signItem: ItemRead, peerIdItem: ItemRead, registerInFlight: Bool,
+                              requestTokenSet: Bool) -> Plan {
         if me.removed { return .lost }
         if me.id == nil {
             if signItem == .failed(.beforeFirstUnlock) { return .retryLater }
-            if requestTokenSet && signItem == .present { return .useExisting }
+            if (requestTokenSet || registerInFlight) && signItem == .present { return .useExisting }
             // the old id is needed for the DELETE of the old device: keep the keys until it reads
             if case .failed = peerIdItem { return .retryLater }
             return .createFresh

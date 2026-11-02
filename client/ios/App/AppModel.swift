@@ -287,6 +287,12 @@ final class AppModel: ObservableObject {
     func keysForSignIn(_ purpose: AuthPurpose) throws -> DeviceKeys {
         if purpose != .register, let c = core { return c.keys }
         if let k = pendingKeys { return k }
+        // a register that may have reached the relay server: the same keys give the same id
+        if purpose == .register, (try? store?.setting(KeyBootstrap.registerKeysSetting)) == "1",
+           let k = try? env.keychain.load() {
+            pendingKeys = k
+            return k
+        }
         env.keychain.deleteAll()
         let k = try env.keychain.create()
         pendingKeys = k
@@ -367,7 +373,10 @@ final class AppModel: ObservableObject {
         guard let store = store, let keys = pendingKeys ?? core?.keys else { return }
         let c = env.makeCore(store: store, keys: keys)
         core = c
-        switch await c.register(ticket: ticket, push: pushInfo, evict: evict) {
+        try? store.setSetting(KeyBootstrap.registerKeysSetting, "1")
+        let r = await c.register(ticket: ticket, push: pushInfo, evict: evict)
+        settleRegisterKeys(r)
+        switch r {
         case .registered(let id):
             pendingKeys = nil
             try? env.keychain.savePeerId(id)
@@ -391,7 +400,10 @@ final class AppModel: ObservableObject {
             if let k = try? env.keychain.create() {
                 pendingKeys = k
                 core = env.makeCore(store: store, keys: k)
-                if case .registered(let id) = await core!.register(ticket: ticket, push: pushInfo, evict: evict) {
+                try? store.setSetting(KeyBootstrap.registerKeysSetting, "1")
+                let r2 = await core!.register(ticket: ticket, push: pushInfo, evict: evict)
+                settleRegisterKeys(r2)
+                if case .registered(let id) = r2 {
                     pendingKeys = nil
                     try? env.keychain.savePeerId(id)
                     await route()
@@ -403,6 +415,21 @@ final class AppModel: ObservableObject {
         case .ticketExpired: toast = S.signInExpired; phase = .signIn(.register)
         case .network: toast = S.noConnection
         case .failed: toast = S.loginFailed
+        }
+    }
+
+    private func settleRegisterKeys(_ r: RegisterOutcome) {
+        if !AppModel.keepsRegisterKeys(r) { try? store?.setSetting(KeyBootstrap.registerKeysSetting, nil) }
+    }
+
+    /// True when the register may have reached the relay server without this device
+    /// saving the result: no reply, a peer limit still to settle, a 5xx, or a success the
+    /// store failed to save. The keys are then kept for the next register.
+    static func keepsRegisterKeys(_ r: RegisterOutcome) -> Bool {
+        switch r {
+        case .network, .peerLimit: return true
+        case .failed(let status, _): return (200..<300).contains(status) || status >= 500
+        case .registered, .idCollision, .banned, .ticketExpired: return false
         }
     }
 

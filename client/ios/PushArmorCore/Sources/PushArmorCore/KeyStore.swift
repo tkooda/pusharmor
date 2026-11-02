@@ -132,8 +132,9 @@ public final class KeychainKeyStore {
                 peerIdItem = .failed(.other(errSecInternalError))
             }
         }
+        let inFlight = (try? store.setting(KeyBootstrap.registerKeysSetting)) == "1"
         switch KeyBootstrap.decide(me: me, signItem: readState(.sign), peerIdItem: peerIdItem,
-                                   requestTokenSet: me.requestToken != nil) {
+                                   registerInFlight: inFlight, requestTokenSet: me.requestToken != nil) {
         case .lost:
             // id set but no sign key (a wipe whose DB part failed): removed, not a launch error
             if !me.removed { try store.keysLost() }
@@ -143,7 +144,8 @@ public final class KeychainKeyStore {
         case .unusable:
             throw KeyBootstrap.Stop.unusable
         case .useExisting where me.id == nil:
-            // a saved email-code step is bound to the keys made for it
+            // a saved email-code step, or a register that may have reached the relay server,
+            // is bound to these keys
             if let k = try? load() { return k }
             return try createFresh(store: store, oldId: old)
         case .createFresh:

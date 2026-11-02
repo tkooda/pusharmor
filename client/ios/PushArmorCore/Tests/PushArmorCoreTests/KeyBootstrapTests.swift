@@ -11,8 +11,9 @@ final class KeyBootstrapTests: XCTestCase {
     }
 
     func d(id: Bool, removed: Bool = false, sign: KeyBootstrap.ItemRead, peerId: KeyBootstrap.ItemRead = .missing,
-           token: Bool = false) -> KeyBootstrap.Plan {
-        KeyBootstrap.decide(me: me(id: id, removed: removed), signItem: sign, peerIdItem: peerId, requestTokenSet: token)
+           inFlight: Bool = false, token: Bool = false) -> KeyBootstrap.Plan {
+        KeyBootstrap.decide(me: me(id: id, removed: removed), signItem: sign, peerIdItem: peerId,
+                            registerInFlight: inFlight, requestTokenSet: token)
     }
 
     func testSignedInDevice() {
@@ -45,6 +46,14 @@ final class KeyBootstrapTests: XCTestCase {
         XCTAssertEqual(d(id: false, sign: .present, peerId: .present), .createFresh)
         // it does not matter once signed in
         XCTAssertEqual(d(id: true, sign: .present, peerId: .failed(.other(-34018))), .useExisting)
+    }
+
+    func testRegisterInFlight() {
+        // a register that may have reached the relay server keeps its keys across a kill
+        XCTAssertEqual(d(id: false, sign: .present, inFlight: true), .useExisting)
+        XCTAssertEqual(d(id: false, sign: .present, peerId: .failed(.other(-34018)), inFlight: true), .useExisting)
+        XCTAssertEqual(d(id: false, sign: .missing, inFlight: true), .createFresh)
+        XCTAssertEqual(d(id: false, sign: .present, inFlight: false), .createFresh)
     }
 
     struct BrokenSigner: PASigner {
