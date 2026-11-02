@@ -76,6 +76,7 @@ public enum ErrorCopy {
         case refused
         case tooLong
         case notificationsUnavailable
+        case appleUnreachable
         case keysUnusable
         case storageFull
         case saveFailed
@@ -108,6 +109,8 @@ public enum ErrorCopy {
             case .tooLong: return "The message is longer than 2048 characters."
             case .notificationsUnavailable:
                 return "Notifications are not available on this device. Allow notifications for PushArmor in iOS Settings, then try again."
+            case .appleUnreachable:
+                return "Apple's notification service could not be reached. Check your internet connection and try again."
             case .keysUnusable: return "This device's security keys cannot be used right now. Restart the device and try again."
             case .storageFull: return "Storage is full. Free some space and try again."
             case .saveFailed: return "PushArmor could not save its data on this device. Restart PushArmor and try again."
