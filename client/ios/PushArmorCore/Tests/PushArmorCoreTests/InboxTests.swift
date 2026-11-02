@@ -103,6 +103,36 @@ final class NSEFlowTests: XCTestCase {
         inbox.removeAll()
     }
 
+    /// a key fault other than a missing key keeps the push in the locked inbox with no event;
+    /// a missing key or no Secure Enclave is still a drop with one event.
+    func testKeyFaultKeepsPush() async throws {
+        struct Fault: Error {}
+        let w = FakeWorker(), clock = TestClock()
+        let x = try Device(worker: w, clock: clock, name: "Xdev")
+        let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-nse-\(UUID().uuidString)"))
+        func events() throws -> Int64 { try x.core.store.history().filter { $0.event == .couldNotRead }.map { $0.count }.reduce(0, +) }
+        let a = String(repeating: "A", count: 400), b = String(repeating: "B", count: 400)
+        var r = await NSEFlow.handle(m: a, loadKeys: { throw KeyLoadError.other(-25291) }, openCore: { _ in x.core }, inbox: inbox,
+                                     nowMs: 1, budgetLeft: { 30 })
+        XCTAssertEqual(r.banner, .dropped)
+        XCTAssertEqual(inbox.files().count, 1)
+        XCTAssertEqual(try events(), 0)
+        r = await NSEFlow.handle(m: b, loadKeys: { throw Fault() }, openCore: { _ in x.core }, inbox: inbox, nowMs: 2, budgetLeft: { 30 })
+        XCTAssertEqual(r.banner, .dropped)
+        XCTAssertEqual(inbox.files().count, 2)
+        XCTAssertEqual(try events(), 0)
+        r = await NSEFlow.handle(m: a, loadKeys: { throw KeyLoadError.other(-25300) }, openCore: { _ in x.core }, inbox: inbox,
+                                 nowMs: 3, budgetLeft: { 30 })
+        XCTAssertEqual(r.banner, .dropped)
+        XCTAssertEqual(try events(), 1)
+        r = await NSEFlow.handle(m: b, loadKeys: { throw KeyLoadError.noSecureEnclave }, openCore: { _ in x.core }, inbox: inbox,
+                                 nowMs: 4, budgetLeft: { 30 })
+        XCTAssertEqual(r.banner, .dropped)
+        XCTAssertEqual(try events(), 2)
+        XCTAssertEqual(inbox.files().count, 2)
+        inbox.removeAll()
+    }
+
     /// a push the NSE dropped is marked handled under the stamp; the drain then counts no
     /// second could-not-read event. A relay "done" without the stamp is still drained.
     func testDrainSkipsHandledDrop() async throws {

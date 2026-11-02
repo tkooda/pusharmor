@@ -3,7 +3,8 @@ import Foundation
 public enum KeyLoadError: Error, Equatable {
     /// errSecInteractionNotAllowed: before first unlock (ios 6.3).
     case beforeFirstUnlock
-    /// Any other Keychain error, errSecItemNotFound included: a drop, never 6.3.
+    /// Any other Keychain error, never 6.3. errSecItemNotFound is a drop; any other code
+    /// keeps the push in the locked inbox.
     case other(Int32)
     /// A device without a Secure Enclave (no iOS 17 device lacks one): no keys are created.
     case noSecureEnclave
@@ -39,8 +40,14 @@ public enum NSEFlow {
             } catch {
                 return .plain(.dropped)
             }
-        } catch {
+        } catch KeyLoadError.other(let s) where s == -25300 {   // errSecItemNotFound: no keys on this device
             return dropWithEvent(openCore(nil))
+        } catch KeyLoadError.noSecureEnclave {
+            return dropWithEvent(openCore(nil))
+        } catch {
+            // any other key fault may pass: keep "m" in the locked inbox for the app drain, no event
+            try? inbox.write(ms, nowMs: nowMs)
+            return .plain(.dropped)
         }
         // step 3
         // a fault (DB not open, thrown store error) also keeps "m" in the locked inbox, so a
