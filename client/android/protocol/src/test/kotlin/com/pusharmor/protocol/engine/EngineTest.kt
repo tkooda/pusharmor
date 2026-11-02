@@ -46,6 +46,27 @@ class EngineTest {
         n.deliver(now)
     }
 
+    /** X's reply reached N but X saw a network failure: N's open still completes X's pairing. */
+    @Test fun openIsAcceptedWhileTheReplyIsStillPrompted() {
+        assertEquals(PairStart.STARTED, n.pairing.tapPair(x.id, t0))
+        n.runPairSends(t0)
+        x.deliver(t0)
+        x.relayThenNetworkFail = true
+        assertEquals(PairingEngine.SendStep.RETRY, x.pairing.sendPending(n.id, t0))
+        // the retries ran out: the reply row shows [Reply] again, still authorized
+        x.store.putPairing(x.pairing.promptOnFailure(x.store.pairing(n.id)!!))
+        assertTrue(x.store.pairing(n.id)!!.authorized)
+        assertEquals(PairState.PROMPTED, x.store.pairing(n.id)!!.state)
+        n.deliver(t0)
+        n.runPairSends(t0)
+        x.deliver(t0)
+        val row = x.store.pairing(n.id)!!
+        assertEquals(PairState.SHOWN, row.state)
+        assertNotNull(row.fingerprint)
+        assertNull(row.pendingMessage)
+        assertNull(row.pendingKind)
+    }
+
     @Test fun fullPairingThenSend() {
         pairShown()
         assertEquals(n.store.pairing(x.id)!!.fingerprint, x.store.pairing(n.id)!!.fingerprint)

@@ -27,6 +27,8 @@ class FakeWorker {
         var skewNext = 0
         var rateLimitNext = 0
         var offline = false
+        /** The next pair message is relayed, but the sender sees a network failure. */
+        var relayThenNetworkFail = false
         val calls = ArrayList<String>()
         private var rnd = 0
         val api = DeviceApi(this)
@@ -109,6 +111,7 @@ class FakeWorker {
             val t = devices[x] ?: return ApiResult.Ok("unknown")
             if (d.id in t.deny) return ApiResult.Ok("denied")
             t.inbox.add(c)
+            if (d.relayThenNetworkFail) { d.relayThenNetworkFail = false; return ApiResult.Network }
             return ApiResult.Ok("sent")
         }
 

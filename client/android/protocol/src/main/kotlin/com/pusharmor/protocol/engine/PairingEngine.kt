@@ -204,7 +204,8 @@ class PairingEngine(
                 if (m.signPub.contentEquals(row.peerSignPub) && m.encPub.contentEquals(row.peerEncPub) && m.r.contentEquals(row.peerR)) result = 2
                 return@tx
             }
-            if (row.state != PairState.REPLIED) return@tx
+            // A reply that reached N while X saw a network failure leaves X prompted but authorized; the open still counts.
+            if (row.state != PairState.REPLIED && !(row.state == PairState.PROMPTED && row.authorized)) return@tx
             if (row.cN == null || !m.matchesCommit(row.cN)) {
                 row.r.fill(0); store.deletePairing(from)
                 store.peer(from)?.let { store.putPeer(it.copy(note = PAIRING_FAILED)) }
@@ -214,7 +215,7 @@ class PairingEngine(
             val fp = Ids.fingerprint(m.signPub, m.encPub, me.keys.signPub, me.keys.encPub, m.r, row.r)
             val pid = Ids.pairingId(m.r, row.r)
             pin(from, m.signPub, m.encPub, pid)
-            store.putPairing(row.copy(state = PairState.SHOWN, peerSignPub = m.signPub, peerEncPub = m.encPub, peerR = m.r, fingerprint = fp))
+            store.putPairing(row.copy(state = PairState.SHOWN, peerSignPub = m.signPub, peerEncPub = m.encPub, peerR = m.r, fingerprint = fp, pendingKind = null, pendingMessage = null))
             result = 1
         }
         val row = store.pairing(from)
