@@ -441,27 +441,28 @@ final class AppModel: ObservableObject {
             }
             phase = .limitPicker
         case .idCollision:
-            // new keys, retry once
-            env.keychain.deleteAll()
-            if let k = try? env.keychain.create() {
-                pendingKeys = k
-                core = env.makeCore(store: store, keys: k)
-                try? store.setSetting(KeyBootstrap.registerKeysSetting, "1")
-                let r2 = await core!.register(ticket: ticket, push: pushInfo, evict: evict)
-                settleRegisterKeys(r2)
-                if case .registered(let id) = r2 {
-                    pendingKeys = nil
-                    try? env.keychain.savePeerId(id)
-                    await route()
-                    return
-                }
-            }
-            toast = S.loginFailed
+            let next = AppModel.afterIdCollision(deleteKeys: { env.keychain.deleteAll() },
+                                                 createKeys: { try env.keychain.create() })
+            pendingKeys = next.keys
+            core = next.keys.map { env.makeCore(store: store, keys: $0) }
+            limitTicket = nil
+            toast = next.toast
+            phase = .signIn(.register)
         case .banned: phase = .banned
         case .ticketExpired: toast = S.signInExpired; phase = .signIn(.register)
         case .network: toast = S.noConnection
         case .failed: toast = S.loginFailed
         }
+    }
+
+    /// 409 id collision: the ticket is bound to the old key, so it cannot be sent again.
+    /// New keys are made for a fresh login. A failed create leaves no keys; the next
+    /// login makes them.
+    static func afterIdCollision(deleteKeys: () -> Void,
+                                 createKeys: () throws -> DeviceKeys) -> (keys: DeviceKeys?, toast: String) {
+        deleteKeys()
+        guard let k = try? createKeys() else { return (nil, ErrorCopy.text(.login, .keysUnusable)) }
+        return (k, ErrorCopy.Action.login.line + "\nLog in again.")
     }
 
     private func settleRegisterKeys(_ r: RegisterOutcome) {
