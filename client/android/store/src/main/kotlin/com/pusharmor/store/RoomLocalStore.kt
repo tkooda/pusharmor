@@ -47,6 +47,7 @@ class RoomLocalStore(val db: PaDatabase) : LocalStore {
     override fun capTimestamps() = dao.cap()
     override fun addCapTimestamp(t: Long) = tx {
         dao.pruneCap(t - 2 * 86_400)
+        dao.pruneCapAfter(t)
         dao.addCap(CapEntity(at = t))
     }
 

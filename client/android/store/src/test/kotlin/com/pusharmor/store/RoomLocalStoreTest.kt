@@ -66,6 +66,13 @@ class RoomLocalStoreTest {
         assertEquals(0L, s.peer("p")!!.lastN)
     }
 
+    @Test fun addingACapStampDropsStampsLaterThanIt() {
+        val s = RoomLocalStore(Room.inMemoryDatabaseBuilder(ctx, PaDatabase::class.java).allowMainThreadQueries().build())
+        s.addCapTimestamp(1_000_000)
+        s.addCapTimestamp(1_000)
+        assertEquals(listOf(1_000L), s.capTimestamps())
+    }
+
     @Test fun pairingRowSurvivesReopen() {
         val db1 = Room.databaseBuilder(ctx, PaDatabase::class.java, "p.db").allowMainThreadQueries().build()
         val s1 = RoomLocalStore(db1)

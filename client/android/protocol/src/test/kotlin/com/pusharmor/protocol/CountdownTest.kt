@@ -22,4 +22,11 @@ class CountdownTest {
         assertFalse(Countdown.expired(start, start + 13 * 24 * h))
         assertTrue(Countdown.expired(start, start + Countdown.PAIRING_TIMEOUT_DAYS * 24 * h))
     }
+
+    @Test fun startLaterThanNowCountsAsNow() {
+        val future = start + 100 * 24 * h
+        assertFalse(Countdown.expired(future, start))
+        assertTrue(Countdown.expired(future, future + Countdown.PAIRING_TIMEOUT_DAYS * 24 * h))
+        assertEquals("14 days", Countdown.format(future, start))
+    }
 }

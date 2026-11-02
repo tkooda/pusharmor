@@ -23,4 +23,8 @@ class PairDecideTest {
         val n = PairEntryView(PairRole.N, PairState.COMMITTED, null, false)
         assertEquals(PairNotice.CROSSING, PairDecide.commit(input(entry = n)).notice)
     }
+
+    @Test fun capStampLaterThanNowDoesNotCount() {
+        assertEquals(1, PairDecide.capCount(listOf(now - 10, now + 5, now + 100_000), now))
+    }
 }

@@ -161,6 +161,7 @@ interface PaDao {
     @Query("SELECT at FROM pairing_cap") fun cap(): List<Long>
     @Insert fun addCap(c: CapEntity)
     @Query("DELETE FROM pairing_cap WHERE at < :before") fun pruneCap(before: Long)
+    @Query("DELETE FROM pairing_cap WHERE at > :after") fun pruneCapAfter(after: Long)
     @Query("DELETE FROM pairing_cap") fun deleteAllCap()
 
     @Query("SELECT id FROM allow_set") fun allow(): List<String>

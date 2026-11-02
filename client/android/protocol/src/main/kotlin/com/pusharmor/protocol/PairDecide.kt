@@ -60,8 +60,8 @@ object PairDecide {
     const val CAP = 10
     const val CAP_WINDOW_S = 86_400L
 
-    /** Automatic replies counted at [now]: a timestamp t counts while now - t < 86400. */
-    fun capCount(timestamps: List<Long>, now: Long): Int = timestamps.count { now - it < CAP_WINDOW_S }
+    /** Automatic replies counted at [now]: a timestamp t counts while 0 <= now - t < 86400 (a later one does not). */
+    fun capCount(timestamps: List<Long>, now: Long): Int = timestamps.count { it <= now && now - it < CAP_WINDOW_S }
 
     private val drop = PairDecision(PairAction.DROP, PairNotice.COULD_NOT_READ, EntryChange.UNCHANGED, false)
     private val half = PairDecision(PairAction.DROP, PairNotice.HALF_STATE, EntryChange.UNCHANGED, false)
