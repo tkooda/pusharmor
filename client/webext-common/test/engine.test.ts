@@ -10,6 +10,7 @@ import { Rpc } from "../src/core/rpc.ts";
 import { ALLOW_SET, allEntries, getAllowSet, getEntry } from "../src/core/state.ts";
 import { encodeInner } from "../src/model/message.ts";
 import { IDBFactory } from "fake-indexeddb";
+import type { HistoryRow } from "../src/store/db.ts";
 import { Clock, FakePlatform, MockWorker, deliver, device, makeEngine, pairAndApprove, refresh, restart } from "./harness.ts";
 import { AUTH_PENDING, Login } from "../src/core/login.ts";
 import { AUTH_CHANGED, AUTH_RESULT, type AuthResult, readAuthResult } from "../src/model/signin.ts";
@@ -1405,4 +1406,65 @@ test("an open that arrives while the automatic reply is still marked unsent move
   assert.equal(after.state, "shown");
   assert.equal(after.unsent, false);
   assert.equal(after.msg, undefined);
+});
+
+function histRow(received: number, content = "m"): HistoryRow {
+  return { dir: "in", peer: null, type: "text", content, n: null, pairing_id: null, received, read: true };
+}
+
+test("History keeps the newest 500 rows", async () => {
+  const clock = new Clock();
+  const p = new FakePlatform("chrome", new MockWorker(clock), clock);
+  const { db } = await makeEngine(p, new IDBFactory(), clock);
+  for (let i = 0; i < 520; i++) await db.addHistory(histRow(clock.t - (520 - i) * 1000, "m" + i));
+  const rows = await db.history();
+  assert.equal(rows.length, 500);
+  assert.equal(rows[0]!.content, "m519");
+  assert.equal(rows[499]!.content, "m20");
+});
+
+test("History drops the lowest id first among rows with the same time", async () => {
+  const clock = new Clock();
+  const p = new FakePlatform("chrome", new MockWorker(clock), clock);
+  const { db } = await makeEngine(p, new IDBFactory(), clock);
+  for (let i = 0; i < 502; i++) await db.addHistory(histRow(clock.t, "m" + i));
+  const contents = new Set((await db.history()).map((r) => r.content));
+  assert.equal(contents.size, 500);
+  assert.equal(contents.has("m0"), false);
+  assert.equal(contents.has("m1"), false);
+  assert.ok(contents.has("m2") && contents.has("m501"));
+});
+
+test("History keeps a new row when older rows are stamped in the future", async () => {
+  const clock = new Clock();
+  const p = new FakePlatform("chrome", new MockWorker(clock), clock);
+  const { db } = await makeEngine(p, new IDBFactory(), clock);
+  for (let i = 0; i < 500; i++) await db.put("history", histRow(clock.t + DAY + i, "f" + i)); // clock was ahead
+  await db.addHistory(histRow(clock.t, "new"));
+  const rows = await db.history();
+  assert.equal(rows.length, 500);
+  assert.ok(rows.some((r) => r.content === "new"));
+  assert.ok(rows.every((r) => r.received <= clock.t));
+});
+
+test("a received message keeps History at 500 rows", async () => {
+  const { w, a, b, clock } = await setup();
+  await pairAndApprove(w, a, b);
+  for (let i = 0; i < 500; i++) await a.db.put("history", histRow(clock.t - DAY + i, "o" + i));
+  await b.e.send("hello", false, "all");
+  await deliver(w, a);
+  const rows = await a.db.history();
+  assert.equal(rows.length, 500);
+  assert.equal(rows[0]!.content, "hello");
+});
+
+test("the History purge also keeps only the newest 500 rows", async () => {
+  const clock = new Clock();
+  const p = new FakePlatform("chrome", new MockWorker(clock), clock);
+  const { e, db } = await makeEngine(p, new IDBFactory(), clock);
+  for (let i = 0; i < 510; i++) await db.put("history", histRow(clock.t - 1000 + i, "m" + i));
+  await e.purgeHistory();
+  const rows = await db.history();
+  assert.equal(rows.length, 500);
+  assert.equal(rows[499]!.content, "m10");
 });

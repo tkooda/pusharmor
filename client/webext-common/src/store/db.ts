@@ -76,6 +76,40 @@ function req<T>(r: IDBRequest<T>): Promise<T> {
   });
 }
 
+/** History keeps at most this many rows (the same value on every client). */
+export const HISTORY_MAX = 500;
+
+/**
+ * Inside a history transaction: rows dated after t are moved to t (a clock
+ * that ran ahead), then only the newest HISTORY_MAX rows stay (by received,
+ * then id), so a row added at t is never the one dropped.
+ */
+function trimHistory(h: IDBObjectStore, t: number): void {
+  const idx = h.index("received");
+  const f = idx.openCursor(IDBKeyRange.lowerBound(t, true));
+  f.onsuccess = () => {
+    const c = f.result;
+    if (c) {
+      c.update({ ...(c.value as HistoryRow), received: t });
+      c.continue();
+      return;
+    }
+    const n = h.count();
+    n.onsuccess = () => {
+      let extra = n.result - HISTORY_MAX;
+      if (extra <= 0) return;
+      const d = idx.openCursor();
+      d.onsuccess = () => {
+        const c2 = d.result;
+        if (c2 && extra-- > 0) {
+          c2.delete();
+          c2.continue();
+        }
+      };
+    };
+  };
+}
+
 export function txDone(tx: IDBTransaction): Promise<void> {
   return new Promise((res, rej) => {
     tx.oncomplete = () => res();
@@ -361,7 +395,10 @@ export class Db {
             };
             if (row) {
               const a = tx.objectStore("history").add(row);
-              a.onsuccess = () => done(a.result as number);
+              a.onsuccess = () => {
+                trimHistory(tx.objectStore("history"), row.received);
+                done(a.result as number);
+              };
               a.onerror = () => rej(a.error);
             } else done();
             return;
@@ -390,9 +427,12 @@ export class Db {
   // ---- history ----
   async addHistory(row: HistoryRow): Promise<number> {
     const tx = this.db.transaction("history", "readwrite");
-    const k = (await req(tx.objectStore("history").add(row))) as number;
-    await txDone(tx);
-    return k;
+    const done = txDone(tx);
+    const h = tx.objectStore("history");
+    const a = h.add(row);
+    a.onsuccess = () => trimHistory(h, row.received);
+    await done;
+    return a.result as number;
   }
 
   async history(): Promise<HistoryRow[]> {
@@ -400,7 +440,7 @@ export class Db {
     return rows.sort((a, b) => b.received - a.received || (b.id ?? 0) - (a.id ?? 0));
   }
 
-  async purgeHistory(before: number): Promise<void> {
+  async purgeHistory(before: number, t: number): Promise<void> {
     const tx = this.db.transaction("history", "readwrite");
     const idx = tx.objectStore("history").index("received");
     const r = idx.openCursor(IDBKeyRange.upperBound(before, true));
@@ -409,7 +449,7 @@ export class Db {
       if (c) {
         c.delete();
         c.continue();
-      }
+      } else trimHistory(tx.objectStore("history"), t);
     };
     await txDone(tx);
   }

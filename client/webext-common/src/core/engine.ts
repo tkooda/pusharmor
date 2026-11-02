@@ -1634,7 +1634,8 @@ export class Engine {
 
   async purgeHistory(): Promise<void> {
     const s = await this.settings();
-    await this.db.purgeHistory(now(this.p) - s.historyDays * 86400_000);
+    const t = now(this.p);
+    await this.db.purgeHistory(t - s.historyDays * 86400_000, t);
   }
 
   /** Popup open: re-fetch waiting approves, timeouts, reconcile, gone recovery. */
