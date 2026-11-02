@@ -368,10 +368,10 @@ private fun Banners(vm: AppViewModel, banner: String?) {
     val tick = resumeTick()
     val n = vm.g.notifier
     if (!n.enabled() || n.mainChannelsBlocked()) BannerRow("Notifications are off. Messages will not be shown.", "Fix", fault = true, PaIcons.NotificationsOff) {
-        context.startActivity(Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
+        safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
     }
     n.blockedChannelPeer(vm.peerEntities.collectAsState().value)?.let { BannerRow("Messages from $it are blocked.", "Fix", fault = true, PaIcons.NotificationsOff) {
-        context.startActivity(Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
+        safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
     } }
     if (banner?.startsWith("no_distributor") == true) {
         BannerRow("Install a UnifiedPush app (we suggest ntfy).", "Get", fault = false, PaIcons.Info) {
@@ -389,12 +389,12 @@ private fun Banners(vm: AppViewModel, banner: String?) {
     val st = remember(tick) { try { PackageManagerCompat.getUnusedAppRestrictionsStatus(context).get(2, java.util.concurrent.TimeUnit.SECONDS) } catch (e: Exception) { 0 } }
     if (st == androidx.core.content.UnusedAppRestrictionsConstants.API_31) {
         BannerRow(UiText.HIBERNATION_BANNER, "Settings", fault = false, PaIcons.Info) {
-            context.startActivity(IntentCompat.createManageUnusedAppRestrictionsIntent(context, context.packageName))
+            safeStart(context, IntentCompat.createManageUnusedAppRestrictionsIntent(context, context.packageName))
         }
     }
     val am = context.getSystemService(android.app.ActivityManager::class.java)
     if (am.isBackgroundRestricted) BannerRow("Battery setting Restricted delays messages.", "Settings", fault = false, PaIcons.Info) {
-        context.startActivity(Intent(SysSettings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName)))
+        safeStart(context, Intent(SysSettings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName)))
     }
 }
 
@@ -1227,7 +1227,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             GroupedList(buildList<@Composable (Modifier) -> Unit> {
                 add { m ->
                     SettingRow("Notifications", modifier = m, trailing = external) {
-                        context.startActivity(Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
+                        safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
                     }
                 }
                 add { m ->

@@ -358,7 +358,7 @@ internal fun PermissionGate(content: @Composable () -> Unit) {
         Modifier.safeDrawingPadding()) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             GreenButton(onClick = {
-                if (permanent) ctx.startActivity(Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, ctx.packageName))
+                if (permanent) safeStart(ctx, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, ctx.packageName))
                 else launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }, text = if (permanent) "Open notification settings" else "Allow notifications", icon = null, modifier = Modifier.fillMaxWidth())
             TextButton(onClick = { skipped = true }) { Text("Not now") }

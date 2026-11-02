@@ -16,3 +16,8 @@ fun startOrToast(context: Context, intent: Intent, text: String = NO_APP_LINK,
                  show: (String) -> Unit = { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }) {
     try { context.startActivity(intent) } catch (e: ActivityNotFoundException) { show(text) }
 }
+
+/** Starts [intent]; with no app to handle it, does nothing instead of crashing. */
+fun safeStart(context: Context, intent: Intent) {
+    try { context.startActivity(intent) } catch (e: ActivityNotFoundException) { }
+}
