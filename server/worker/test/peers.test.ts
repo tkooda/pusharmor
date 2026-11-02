@@ -353,10 +353,8 @@ describe("PATCH /peers/$id push", () => {
       expect(r.status, endpoint).toBe(400);
       expect(r.body.error).toBe("push endpoint not allowed");
     }
-    for (const endpoint of ["https://NTFY.sh./x", "https://ntfy.sh:443/x"]) {
-      const r = await call("PATCH", "/v1/peers/" + p.id, { push: { ...up, endpoint } }, { peer: p });
-      expect(r.status, endpoint).toBe(200);
-    }
+    const r = await call("PATCH", "/v1/peers/" + p.id, { push: up }, { peer: p });
+    expect(r.status).toBe(200);
   });
 });
 
@@ -383,7 +381,24 @@ describe("cli push endpoint", () => {
     }
     let r = await call("PATCH", "/v1/peers/" + p.id, { push: { ...up, endpoint: `https://ntfy.sh/up${t}?up=1` } }, { peer: p });
     expect(r.status).toBe(200);
-    r = await call("POST", "/v1/peers", { ticket: await ticketFor(p.email, p.signPub, "register"), sign_pub: p.signPub, enc_pub: p.encPub, platform: "cli", push: pushFor("android", "unifiedpush") }, { sign: p.sign });
+    r = await call("POST", "/v1/peers", { ticket: await ticketFor(p.email, p.signPub, "register"), sign_pub: p.signPub, enc_pub: p.encPub, platform: "cli", push: { ...up, endpoint: "https://ntfy.sh/push/x" } }, { sign: p.sign });
+    expect(r.body.error).toBe("push endpoint not allowed");
+  });
+});
+
+describe("android UnifiedPush endpoint", () => {
+  it("only https://<allowed host>/up<12 chars>?up=1", async () => {
+    const p = await newPeer(randomEmail(), "android", null);
+    const up = pushFor("android", "unifiedpush");
+    const t = "AbC-_123xyz9";
+    for (const endpoint of ["https://ntfy.sh/mytopic", `https://ntfy.sh/up${t}`, `https://ntfy.sh/a/up${t}?up=1`, "https://NTFY.sh./x", "https://ntfy.sh:443/x"]) {
+      const r = await call("PATCH", "/v1/peers/" + p.id, { push: { ...up, endpoint } }, { peer: p });
+      expect(r.status, endpoint).toBe(400);
+      expect(r.body.error).toBe("push endpoint not allowed");
+    }
+    let r = await call("PATCH", "/v1/peers/" + p.id, { push: { ...up, endpoint: `https://ntfy.sh/up${t}?up=1` } }, { peer: p });
+    expect(r.status).toBe(200);
+    r = await call("POST", "/v1/peers", { ticket: await ticketFor(p.email, p.signPub, "register"), sign_pub: p.signPub, enc_pub: p.encPub, platform: "android", push: { ...up, endpoint: "https://ntfy.sh/mytopic" } }, { sign: p.sign });
     expect(r.body.error).toBe("push endpoint not allowed");
   });
 });

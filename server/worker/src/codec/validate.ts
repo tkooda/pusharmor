@@ -146,10 +146,11 @@ export function fitsPlatform(platform: Platform, pushType: number): boolean {
   return PLATFORM_TYPES[platform].includes(pushType);
 }
 
-// Platform rules for a push: type per platform (400), and the cli topic form.
+// Platform rules for a push: type per platform (400), and the UnifiedPush topic form
+// (cli and android type 6).
 export function checkPushPlatform(platform: Platform, push: PushValue): void {
   if (!fitsPlatform(platform, push.pushType)) throw bad();
-  if (platform === "cli" && !cliTopicOk(push.fields.endpoint)) throw new ApiError(400, "push endpoint not allowed");
+  if (push.pushType === 6 && !cliTopicOk(push.fields.endpoint)) throw new ApiError(400, "push endpoint not allowed");
 }
 
 // my_push_sha256 = b64url(first 16 bytes of sha256(type "\n" token) or

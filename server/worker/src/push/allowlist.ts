@@ -76,7 +76,7 @@ export function checkUnifiedPushEndpoint(endpoint: string, hosts: string[]): str
   return null;
 }
 
-// cli endpoints: exactly https://<allowed host>/up<12 b64url chars>?up=1 (checked after
+// UnifiedPush endpoints (cli and android): exactly https://<allowed host>/up<12 b64url chars>?up=1 (checked after
 // checkUnifiedPushEndpoint). ntfy then charges the topic's subscriber, not the Worker.
 export function cliTopicOk(endpoint: string): boolean {
   return /^https:\/\/[a-z0-9.-]+\/up[A-Za-z0-9_-]{12}\?up=1$/.test(endpoint);

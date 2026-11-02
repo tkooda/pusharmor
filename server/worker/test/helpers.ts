@@ -183,7 +183,7 @@ export function pushFor(platform: string, kind?: string): Record<string, unknown
     case "cli":
       return { type: "unifiedpush", endpoint: secretString("https://ntfy.sh/up" + b64urlEncode(randBytes(9)) + "?up=1"), p256dh: p256, auth };
     case "unifiedpush":
-      return { type: "unifiedpush", endpoint: secretString("https://ntfy.sh/push/" + b64urlEncode(randBytes(24))), p256dh: p256, auth };
+      return { type: "unifiedpush", endpoint: secretString("https://ntfy.sh/up" + b64urlEncode(randBytes(9)) + "?up=1"), p256dh: p256, auth };
   }
   throw new Error("platform");
 }
