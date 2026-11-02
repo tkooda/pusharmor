@@ -1,6 +1,28 @@
 // PA-Client: "<platform>/<x.y.z>". Logged when well formed; 426 when older than PA_MIN_CLIENT.
 // A missing or malformed header, or PA_MIN_CLIENT unset or malformed, never blocks a request.
+// The website sends "delete-account" or "cli-login" instead: never held to a floor, and
+// refused on every route and action other than its own.
 import { ApiError } from "../errors";
+
+const SITE = new Map<string, string[]>([
+  ["delete-account", ["POST /v1/auth/email", "POST /v1/auth/email/verify", "DELETE /v1/account"]],
+  ["cli-login", ["POST /v1/auth/email", "POST /v1/auth/email/verify"]],
+]);
+
+export function isSiteValue(h: string | null): boolean {
+  return h !== null && SITE.has(h);
+}
+
+// Pipeline step: a website value on a route outside its action is refused.
+export function checkSiteRoute(h: string | null, route: string): void {
+  if (h !== null && SITE.has(h) && !SITE.get(h)!.includes(route)) throw new ApiError(426, "update required");
+}
+
+// Handler step: on a shared route, the value must name the action the body asks for
+// (action is null for a request of neither action).
+export function checkSiteAction(h: string | null, action: "delete-account" | "cli-login" | null): void {
+  if (isSiteValue(h) && h !== action) throw new ApiError(426, "update required");
+}
 
 const CLIENT = /^(android|ios|chrome|firefox|web|cli)\/([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})$/;
 const VERSION = /^([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})$/;

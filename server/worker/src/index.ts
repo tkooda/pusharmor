@@ -5,7 +5,7 @@ import { ApiError } from "./errors";
 import { errorResponse, finish, json, preflight } from "./http";
 import { Log, sampleRate } from "./log";
 import { readBody } from "./pipeline/body";
-import { checkMinClient, parseClient } from "./pipeline/client";
+import { checkMinClient, checkSiteRoute, isSiteValue, parseClient } from "./pipeline/client";
 import { enforce, ipKey } from "./pipeline/limits";
 import { route } from "./router";
 import { scheduled } from "./scheduled";
@@ -21,7 +21,7 @@ export async function handle(req: Request, env: Env, exec: ExecutionContext): Pr
     if (typeof colo === "string") log.colo = colo;
     const ch = req.headers.get("PA-Client");
     const client = parseClient(ch);
-    if (ch !== null) log.client = client ? ch : "invalid";
+    if (ch !== null) log.client = client || isSiteValue(ch) ? ch : "invalid";
     // 1. RL_IP (the IP is only a key, never logged).
     await enforce(env, "RL_IP", ipKey(req.headers.get("CF-Connecting-IP") ?? ""), log);
     // 2. Route match.
@@ -30,7 +30,8 @@ export async function handle(req: Request, env: Env, exec: ExecutionContext): Pr
     if (m.handler === "preflight") {
       res = preflight();
     } else {
-      // 3. Client version floor (PA_MIN_CLIENT).
+      // 3. Client version floor (PA_MIN_CLIENT); website values only on their own routes.
+      checkSiteRoute(ch, m.template);
       checkMinClient(client, env.PA_MIN_CLIENT);
       // 4. Capped body read; raw bytes kept for PA-Sig.
       const body = await readBody(req);

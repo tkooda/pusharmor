@@ -5,7 +5,7 @@
 
   var SITE = "https://pusharmor.com";
   var PA = window.PA;
-  var client = new PA.Client();
+  var client = new PA.Client({ client: "cli-login" });
   var link = null;
   var tsToken = null;
   var requestToken = null;

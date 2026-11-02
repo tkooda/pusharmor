@@ -84,6 +84,22 @@ function fakeApi(replies, start = 1761300000000) {
   return { client, calls, advance: (ms) => { now += ms; }, now: () => now };
 }
 
+test("PA-Client: the delete-account and CLI login pages send their own value", async () => {
+  for (const v of ["delete-account", "cli-login"]) {
+    const calls = [];
+    const fetch = async (url, init) => {
+      calls.push(init);
+      return { status: 200, headers: { get: () => null }, json: async () => ({}) };
+    };
+    await new PA.Client({ fetch, client: v }).request("POST", "/v1/auth/email/verify", {}, null);
+    assert.equal(calls[0].headers["PA-Client"], v);
+  }
+  for (const [file, v] of [["delete-account.js", "delete-account"], ["auth-cli.js", "cli-login"]]) {
+    const src = readFileSync(join(PUB, "js", file), "utf8");
+    assert.ok(src.includes('new PA.Client({ client: "' + v + '" })'), file);
+  }
+});
+
 test("DELETE /v1/account: headers, body, signature; deleted 0", async () => {
   const key = await PA.newKey();
   const api = fakeApi([{ status: 200, body: { r: {}, deleted: 0 }, headers: { "PA-Epoch": 1761300000 } }]);

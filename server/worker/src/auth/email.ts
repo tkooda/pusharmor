@@ -23,6 +23,7 @@ import {
 import { ApiError } from "../errors";
 import { json } from "../http";
 import { parseJsonObject } from "../pipeline/body";
+import { checkSiteAction } from "../pipeline/client";
 import { enforce, ipKey } from "../pipeline/limits";
 import { deps } from "../push/deps";
 import { mailboxKey, normalizeEmail } from "./normalize";
@@ -78,6 +79,7 @@ export async function start(c: Ctx): Promise<Response> {
   const k = cli ? checkCliK(b.cli_k) : await keyRef(await checkSignPub(b.sign_pub));
   const purpose = checkPurpose(b.purpose);
   if (cli) checkCliPurpose(purpose);
+  checkSiteAction(c.req.headers.get("PA-Client"), cli ? "cli-login" : purpose === "delete-account" ? purpose : null);
   if (typeof b.email !== "string" || typeof b.turnstile !== "string" || b.turnstile.length === 0 || b.turnstile.length > 4096) throw bad();
   await verifyTurnstile(c.env, b.turnstile, c.req.headers.get("CF-Connecting-IP"));
   const email = normalizeEmail(b.email);
@@ -105,6 +107,7 @@ export async function verify(c: Ctx): Promise<Response> {
     throw new ApiError(401, "wrong code");
   }
   const purpose = checkPurpose(rt.p);
+  checkSiteAction(c.req.headers.get("PA-Client"), rt.c === 1 ? "cli-login" : purpose === "delete-account" ? purpose : null);
   if (nowS() - rt.t > REQUEST_TOKEN_LIFE_S) throw new ApiError(401, "code expired");
   // One cap over every token of one email. It is checked before the code, so a correct guess
   // cannot pass once the cap is spent; the limit binding has no read-only check, so this also

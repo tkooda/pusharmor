@@ -6,7 +6,7 @@
   var SITE = "https://pusharmor.com";
   var PURPOSE = "delete-account";
   var PA = window.PA;
-  var client = new PA.Client();
+  var client = new PA.Client({ client: "delete-account" });
   var key = null;
   var tsToken = null;
   var requestToken = null;

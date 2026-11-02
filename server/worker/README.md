@@ -76,6 +76,11 @@ log line carries it as `client` (`"invalid"` when malformed). When the var `PA_M
 `{"error":"update required"}`. Unset (now): never 426. A missing or malformed header is
 always allowed.
 
+The website sends `PA-Client: delete-account` on the /delete-account page and
+`PA-Client: cli-login` on the /auth/cli page. These two values are never held to a floor.
+Each is accepted only for its own action (the email code steps of that action, plus
+`DELETE /v1/account` for delete-account); any other request with either value gets 426.
+
 ## Deploy
 
 Only with `server/deploy/deploy.sh worker/vX.Y.Z` from a clean checkout of that

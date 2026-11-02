@@ -63,7 +63,8 @@
     }
   }
 
-  // API client. opts: {fetch, sleep, now} (injectable for tests).
+  // API client. opts: {fetch, sleep, now} (injectable for tests); client: the PA-Client value,
+  // "delete-account" or "cli-login" for those two pages (never held to a version floor).
   // Retries: up to 3 on 429, 503 and network errors; backoff 0.5, 1.5, 3 s; 8 s budget;
   // Retry-After honored when it fits the budget. Offset re-synced from every PA-Epoch (seconds).
   function Client(opts) {
@@ -71,6 +72,7 @@
     this.fetch = opts.fetch || g.fetch.bind(g);
     this.sleep = opts.sleep || function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
     this.now = opts.now || Date.now;
+    this.client = opts.client || "web/" + VERSION;
     this.offset = 0;
   }
 
@@ -87,7 +89,7 @@
     var start = this.now();
     var unsure = false;
     for (var attempt = 0; ; attempt++) {
-      var headers = { "Content-Type": "application/json", "PA-Client": "web/" + VERSION };
+      var headers = { "Content-Type": "application/json", "PA-Client": this.client };
       if (key) {
         var t = this.paTime();
         headers["PA-Time"] = t;

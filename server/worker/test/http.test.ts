@@ -2,6 +2,8 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { env } from "cloudflare:test";
 import { call, captured, countingLimit, initP256, message, newPeer, randomEmail, testEnv, keys, ticketFor } from "./helpers";
 import { ipKey } from "../src/pipeline/limits";
+import { LABEL_REQUEST_TOKEN, makeToken } from "../src/crypto/tokens";
+import { TEST_SECRETS as S } from "./secrets";
 import type { Env, RateLimit } from "../src/env";
 import { CRON_HEALTH, CRON_MONTHLY } from "../src/crons";
 import wranglerText from "../wrangler.jsonc?raw";
@@ -195,6 +197,55 @@ describe("PA-Client", () => {
     for (const h of ["android/0.0.22", "ios/0.0.20", "chrome/0.0.1", "cli/0.0.1"]) expect((await st(h, per)).status, h).toBe(200);
     // Preflight carries no PA-Client and is never refused.
     expect((await call("OPTIONS", "/v1/account", undefined, { env: min, headers: { Origin: ORIGIN } })).status).toBe(204);
+  });
+});
+
+describe("PA-Client website values", () => {
+  const cliK = "AAAAAAAAAAAAAAAAAAAAAA";
+  const rt = (o: Record<string, unknown>) => makeToken(S.PA_TOKEN_SECRET, LABEL_REQUEST_TOKEN, { t: Math.floor(Date.now() / 1000), e: "x", m: "a@example.com", k: "k", ...o });
+
+  it("delete-account and cli-login skip every floor and pass only for their own action", async () => {
+    const k = await keys();
+    const min = await testEnv({ PA_MIN_CLIENT: "9.9.9" } as Partial<Env>);
+    const st = async (method: string, path: string, body: unknown, h: string) => (await call(method, path, body, { env: min, headers: { "PA-Client": h } })).status;
+    // Delete account: the email step, the code step, and DELETE /v1/account. An empty
+    // turnstile or a wrong code still fails after the version check, not at it.
+    const del = { email: randomEmail(), sign_pub: k.signPub, purpose: "delete-account", turnstile: "" };
+    const cli = { email: randomEmail(), cli_k: cliK, purpose: "login", turnstile: "" };
+    expect(await st("POST", "/v1/auth/email", del, "delete-account")).toBe(400);
+    expect(await st("POST", "/v1/auth/email", del, "web/0.0.20")).toBe(426);
+    expect(await st("POST", "/v1/auth/email", del, "cli-login")).toBe(426);
+    expect(await st("POST", "/v1/auth/email", cli, "cli-login")).toBe(400);
+    expect(await st("POST", "/v1/auth/email", cli, "delete-account")).toBe(426);
+    expect(await st("POST", "/v1/auth/email", { ...del, purpose: "login" }, "delete-account")).toBe(426);
+    const delRt = await rt({ p: "delete-account" });
+    const cliRt = await rt({ p: "login", c: 1 });
+    const loginRt = await rt({ p: "login" });
+    const code = (t: string) => ({ request_token: t, code: "AAAAAA" });
+    expect(await st("POST", "/v1/auth/email/verify", code(delRt), "delete-account")).toBe(401);
+    expect(await st("POST", "/v1/auth/email/verify", code(delRt), "cli-login")).toBe(426);
+    expect(await st("POST", "/v1/auth/email/verify", code(cliRt), "cli-login")).toBe(401);
+    expect(await st("POST", "/v1/auth/email/verify", code(cliRt), "delete-account")).toBe(426);
+    expect(await st("POST", "/v1/auth/email/verify", code(loginRt), "cli-login")).toBe(426);
+    expect(await st("POST", "/v1/auth/email/verify", code(loginRt), "delete-account")).toBe(426);
+    expect(await st("DELETE", "/v1/account", {}, "delete-account")).toBe(400);
+    expect(await st("DELETE", "/v1/account", {}, "cli-login")).toBe(426);
+    // Any other route refuses both values, with or without a floor.
+    const p = await newPeer(randomEmail());
+    for (const e of [min, await testEnv()]) {
+      for (const h of ["delete-account", "cli-login"]) {
+        const r = await call("GET", "/v1/peers", undefined, { peer: p, env: e, headers: { "PA-Client": h } });
+        expect(r.status, h).toBe(426);
+        expect(r.body).toEqual({ error: "update required" });
+        expect((await call("GET", "/v1/health", undefined, { env: e, headers: { "PA-Client": h } })).status, h).toBe(426);
+      }
+    }
+  });
+
+  it("logged as sent", async () => {
+    const before = captured.length;
+    await call("GET", "/v1/nope", undefined, { headers: { "PA-Client": "cli-login" } });
+    expect(JSON.parse(captured.slice(before)[0]).client).toBe("cli-login");
   });
 });
 
