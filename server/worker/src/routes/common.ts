@@ -26,7 +26,6 @@ export async function signedStart(c: Ctx): Promise<Signed> {
   const me = await checkPaId(c.env.PA_ID_SECRET, c.req.headers);
   c.log.peer = me;
   c.log.account = me.slice(0, 12);
-  await enforce(c.env, "RL_PEER", "id:" + me, c.log);
   return { me, acct: me.slice(0, 12), paTime };
 }
 
@@ -36,12 +35,14 @@ export interface CallerRow {
   logged_out: number;
 }
 
-// Steps d, e, f. RL_ACCT is charged only here, after the signature and keyhash pass, so
-// unsigned or badly signed calls with a known PA-ID cannot use up the account's budget.
+// Steps d, e, f. RL_PEER and RL_ACCT are charged only here, after the signature and keyhash
+// pass, so unsigned or badly signed calls with a known PA-ID cannot use up the peer's or the
+// account's budget.
 export async function callerCheck(c: Ctx, s: Signed, row: CallerRow | undefined | null, allowLoggedOut = false): Promise<void> {
   if (!row) throw new ApiError(401, "unknown peer");
   await checkSig(row.sign_pub, c.req.headers, c.method, c.path, s.paTime, c.body);
   await checkKeyhash(s.me, row.sign_pub, row.enc_pub);
+  await enforce(c.env, "RL_PEER", "id:" + s.me, c.log);
   if (row.logged_out === 1 && !allowLoggedOut) throw new ApiError(401, "logged out");
   await enforceAccount(c.env, s.acct, c.log);
 }

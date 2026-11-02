@@ -79,6 +79,15 @@ describe("rate limits", () => {
     expect(r.res.headers.get("Retry-After")).toBe("60");
   });
 
+  it("RL_PEER: unsigned calls with a valid PA-ID do not charge the peer", async () => {
+    const p = await newPeer(randomEmail());
+    const rl = countingLimit(60);
+    const e = await testEnv({ RL_PEER: rl, RL_ACCT: countingLimit(1000) });
+    for (let i = 0; i < 60; i++) expect((await call("GET", "/v1/peers", undefined, { peer: p, env: e, noSig: true })).status).toBe(401);
+    expect(rl.seen.length).toBe(0);
+    expect((await call("GET", "/v1/peers", undefined, { peer: p, env: e })).status).toBe(200);
+  });
+
   it("RL_ACCT: one counter per account across its peers, sends and register churn", async () => {
     const email = randomEmail();
     const a = await newPeer(email);
