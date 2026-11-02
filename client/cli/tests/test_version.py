@@ -21,7 +21,7 @@ def test_old_python_exits_2_with_message(capsys):
     with pytest.raises(SystemExit) as e:
         pa.check_python((3, 8, 10))
     assert e.value.code == 2
-    assert capsys.readouterr().err == "PushArmor needs Python 3.9 or later. Install a newer Python and try again.\n"
+    assert capsys.readouterr().err == "error: PushArmor needs Python 3.9 or later. Install a newer Python and try again.\n"
     pa.check_python((3, 9, 0))
 
 
@@ -41,6 +41,6 @@ def test_broken_cryptography_exits_1_with_one_line(tmp_path):
     r = subprocess.run([sys.executable, os.path.join(os.path.dirname(HERE), "pusharmor.py"), "--help"],
                        env=env, capture_output=True, text=True)
     assert r.returncode == 1 and r.stdout == ""
-    assert r.stderr == pa.CRYPTO_MISSING + "\n"
-    assert r.stderr == ('The Python "cryptography" package is missing. Install it with: '
+    assert r.stderr == "error: " + pa.CRYPTO_MISSING + "\n"
+    assert r.stderr == ('error: The Python "cryptography" package is missing. Install it with: '
                         "python3 -m pip install --user cryptography\n")

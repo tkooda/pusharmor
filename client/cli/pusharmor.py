@@ -13,7 +13,7 @@ import sys
 def check_python(version_info=None):
     """Exit before any import that needs Python 3.9 (this file's syntax parses on 3.6 and later)."""
     if tuple(version_info or sys.version_info)[:2] < (3, 9):
-        sys.stderr.write("PushArmor needs Python 3.9 or later. Install a newer Python and try again.\n")
+        sys.stderr.write("error: PushArmor needs Python 3.9 or later. Install a newer Python and try again.\n")
         sys.exit(2)
 
 
@@ -39,7 +39,7 @@ try:
 except (KeyboardInterrupt, SystemExit):
     raise
 except BaseException:  # missing, or broken: no _cffi_backend is ImportError, a Rust panic is BaseException
-    sys.stderr.write(CRYPTO_MISSING + "\n")
+    sys.stderr.write("error: " + CRYPTO_MISSING + "\n")
     sys.exit(1)
 
 VERSION = "0.0.21"
@@ -1039,10 +1039,12 @@ def check_os():
         raise Fail("PushArmor command line is not supported on Windows yet.")
 
 
-def log(msg):
+def log(level, msg):
+    """One line on stderr. level: error (the command fails), warning (a problem; the command goes on),
+    or info (an event)."""
     if sys.stderr is None:
         return
-    print(msg, file=sys.stderr, flush=True)
+    print(level + ": " + msg, file=sys.stderr, flush=True)
 
 
 def stdin_tty():
@@ -1696,7 +1698,7 @@ class Stream:
                 body = base64.b64decode(msg, validate=True) if ev.get("encoding") == "base64" else msg.encode()
                 return webpush_decrypt(body, self.keys["push"], self.keys["auth"]).decode("ascii")
             except Exception:
-                log(UNREADABLE)
+                log("warning", UNREADABLE)
         return None
 
 
@@ -1901,7 +1903,7 @@ def open_fetched_remove(d, k, b, m):
     q = d["peers"].pop(b, None)
     d["pairs"].pop(b, None)
     if q:
-        log('"%s" was removed from your account.' % peer_label(q))
+        log("info", '"%s" was removed from your account.' % peer_label(q))
 
 
 def reconcile_allow(cx):
@@ -1985,10 +1987,10 @@ def receive_inner(cx, pt, src):
         out = r["outcome"]
         if out == "unreadable":
             if src != "returned":
-                notes.append(UNREADABLE)
+                notes.append(("warning", UNREADABLE))
                 fetch = r.get("why") == "unknown sender"
         elif out == "invalid" and r["n"] not in pins[r["from"]]["window"]["seen"]:
-            notes.append("Invalid message received")
+            notes.append(("warning", "Invalid message received"))
         elif out == "accept" and cx.mode != "listen" and r["type"] in ("url", "text", "tel"):
             cx.skipped = True  # content waits for listen
         elif out == "accept" and (src != "returned" or r["type"] == "approve"):
@@ -1997,7 +1999,7 @@ def receive_inner(cx, pt, src):
             p["h"], p["seen"] = w["h"], w["seen"]
             wipe, rec = act(cx, d, r, p, notes)
     for n in notes:
-        log(n)
+        log(*n)
     if fetch:
         cx.refresh_soon()
     if wipe == REMOVED:
@@ -2050,30 +2052,30 @@ def act(cx, d, r, p, notes):
         if p["ruling"] == "approved":
             p.update(approves_me=True, approve_verified=True, get_after_verify=False, pending_approve_n=0)
             d["pairs"].pop(frm, None)
-            notes.append('"%s" confirmed this device.' % peer_label(p))
+            notes.append(("info", '"%s" confirmed this device.' % peer_label(p)))
         else:
             p["pending_approve_n"] = n
     elif t == "rename":
         if n > p["name_n"]:
             p["name"], p["name_n"] = v["name"], n
-            notes.append('"%s" is now named "%s".' % (name, v["name"]))
+            notes.append(("info", '"%s" is now named "%s".' % (name, v["name"])))
     elif t == "remove":
         if v == cx.me:
             return REMOVED, None
         q = d["peers"].pop(v, None)
         d["pairs"].pop(v, None)
         if q:
-            notes.append('"%s" was removed from your account.' % peer_label(q))
+            notes.append(("info", '"%s" was removed from your account.' % peer_label(q)))
     elif t == "delete":
         return "Your PushArmor account was deleted.", None
     elif t in ("logout", "login"):
         if n > p["logout_n"]:
             p["logged_out"], p["logout_n"] = t == "logout", n
-        notes.append('"%s" %s.' % (name, "logged out" if t == "logout" else "logged in"))
+        notes.append(("info", '"%s" %s.' % (name, "logged out" if t == "logout" else "logged in")))
     elif t == "deny":
         p["denies_me"], p["approves_me"] = True, False
         d["pairs"].pop(frm, None)
-        notes.append('"%s" rejected this device.' % name)
+        notes.append(("info", '"%s" rejected this device.' % name))
     return None, None
 
 
@@ -2081,7 +2083,7 @@ def receive_pair(cx, pt):
     k = cx.keys
     o = open_pair(pt, k["id"], k["enc"], b64d(k["id"])[:9])
     if not o["ok"] or o["from"] == k["id"]:
-        return log(UNREADABLE)
+        return log("warning", UNREADABLE)
     frm = o["from"]
     if o["kind"] == "commit":
         with cx.store.state(write=False) as d:
@@ -2097,21 +2099,21 @@ def receive_pair(cx, pt):
         e, p = d["pairs"].get(frm), d["peers"].get(frm)
         want = {"N": "reply", "X": "open"}.get(e["role"]) if e else None
         if o["kind"] != want or p is None:
-            notes.append(UNREADABLE)
+            notes.append(("warning", UNREADABLE))
         elif want == "reply":
             send = on_reply(cx, e, p, o, notes)
         else:
             on_open(cx, d, e, p, o, notes)
     for n in notes:
         if n:
-            log(n)
+            log(*n)
     if send:
         post_pair(cx, frm, "open", send)
 
 
 def pair_note(cx, d, x, text):
     """A pairing line for stderr, unless `pair` already runs for this device."""
-    return None if cx.target == x else text % (peer_label(d["peers"].get(x)), short_id(x, d["peers"]))
+    return None if cx.target == x else ("info", text % (peer_label(d["peers"].get(x)), short_id(x, d["peers"])))
 
 
 def on_commit(cx, frm, c_n, listed):
@@ -2146,10 +2148,10 @@ def on_commit(cx, frm, c_n, listed):
         elif notice == "half_state":
             notes.append(pair_note(cx, d, frm, '"%s" wants to pair again. Run: pusharmor pair %s'))
         else:
-            notes.append(UNREADABLE)
+            notes.append(("warning", UNREADABLE))
     for n in notes:
         if n:
-            log(n)
+            log(*n)
     if dec["action"] == "reply":
         send_reply(cx, frm)
 
@@ -2161,7 +2163,7 @@ def on_reply(cx, e, p, o, notes):
     pid = pairing_id(r_n, o["r"])
     if e["state"] != "committed":
         if not (e["state"] == "shown" and p["pinned"] and p["pairing_id"] == b64e(pid)):
-            notes.append(UNREADABLE)
+            notes.append(("warning", UNREADABLE))
         return None
     pin_peer(p, o["sign_pub"], o["enc_pub"], pid)
     msg = seal_pair("open", k["id"], keys_body(k["sign_pub"], k["enc_pub"], r_n), o["from"], o["enc_pub"])
@@ -2175,10 +2177,10 @@ def on_open(cx, d, e, p, o, notes):
     k, frm = cx.keys, o["from"]
     if e["state"] == "shown":
         if e["sign_pub"] != b64e(o["sign_pub"]) or e["enc_pub"] != b64e(o["enc_pub"]):
-            notes.append(UNREADABLE)
+            notes.append(("warning", UNREADABLE))
         return
     if e["state"] != "replied":
-        return notes.append(UNREADABLE)
+        return notes.append(("warning", UNREADABLE))
     if not open_matches_commit(o, b64d(e["c_N"])):
         d["pairs"].pop(frm, None)
         return notes.append(pair_note(cx, d, frm, 'Pairing with "%s" failed. Run: pusharmor pair %s to start again.'))
@@ -2322,7 +2324,7 @@ def sweep(cx):
             if a == "drop_pin" and p and not p["approve_verified"]:
                 unpin(p)
                 dropped = True
-                log('Pairing with "%s" timed out. Run: pusharmor pair %s to start again.'
+                log("info", 'Pairing with "%s" timed out. Run: pusharmor pair %s to start again.'
                     % (peer_label(p), short_id(x, d["peers"])))
     if dropped:
         reconcile_allow(cx)
@@ -2386,10 +2388,11 @@ def run_exec(prog, rec):
         r = subprocess.run([prog] + [re.sub("[\x00\ud800-\udfff]", "\ufffd", rec[k])
                                      for k in ("from", "name", "platform", "type", "body")])
         if r.returncode:
-            log('The notify program "%s" stopped with status %d. Listening continues.' % (prog, r.returncode))
+            log("warning", 'The notify program "%s" stopped with status %d. Listening continues.'
+                % (prog, r.returncode))
     except (OSError, ValueError) as e:
         why = (getattr(e, "strerror", None) or str(e)).rstrip(".")
-        log('The notify program "%s" could not be run: %s. Listening continues.' % (prog, why))
+        log("warning", 'The notify program "%s" could not be run: %s. Listening continues.' % (prog, why))
 
 
 # ---- command functions ----
@@ -2518,7 +2521,7 @@ def register_with(cx, code, stream, push, ntfy):
         if attempt == 0:
             with contextlib.suppress(ApiError, TempFail):
                 send_push(cx)
-    log("This device could not confirm that it can receive messages. Run pusharmor listen to try again.")
+    log("warning", "This device could not confirm that it can receive messages. Run pusharmor listen to try again.")
 
 
 def undo_register(cx):
@@ -2526,8 +2529,8 @@ def undo_register(cx):
     try:
         cx.api.call("DELETE", "/v1/peers/" + cx.me, {"m": {}})
     except (Fail, ApiError):
-        log("This device could not be removed from your account again. To free its place, remove it on another "
-            "device.")
+        log("warning", "This device could not be removed from your account again. To free its place, remove it "
+            "on another device.")
     with contextlib.suppress(OSError):
         os.unlink(cx.store.key_path)
 
@@ -2604,7 +2607,7 @@ def cmd_logout(cx, args):
     retry_pending_logout(cx)
     with cx.store.state(write=False) as d:
         if d.get("logout_pending"):
-            log("The relay server could not be reached yet. PushArmor will try again the next time it runs.")
+            log("warning", "The relay server could not be reached yet. PushArmor will try again the next time it runs.")
     return EXIT_OK
 
 
@@ -2714,7 +2717,7 @@ def cmd_pair(cx, args):
         if r not in ("sent", "429"):
             raise Fail(pair_reason(r, name))
         if wait != told:
-            log(wait)
+            log("info", wait)
             told = wait
         pt = stream.next(deadline)
         if pt is None:
@@ -2751,7 +2754,7 @@ def cmd_listen(cx, args):
     stream = start_receive(cx, since, LISTEN_TIMEOUT_S)
     cx.refresh()
     sweep(cx)
-    log("Listening. Press Ctrl+C to stop.")
+    log("info", "Listening. Press Ctrl+C to stop.")
     while True:
         with cx.store.state(write=False) as d:
             due = d.get("listen_at", 0) + LISTEN_REPORT_S
@@ -2760,18 +2763,18 @@ def cmd_listen(cx, args):
             try:
                 report_listening(cx)
             except TempFail as e:
-                log("%s Listening continues." % e)
+                log("warning", "%s Listening continues." % e)
                 with cx.store.state() as d:
                     d["listen_at"] = int(time.time()) - LISTEN_REPORT_S + 3600
             continue
         try:
             receive(cx, pt)
         except TempFail as e:
-            log("%s Listening continues." % e)
+            log("warning", "%s Listening continues." % e)
         except ApiError as e:
             if e.status == 401:
                 raise
-            log("%s Listening continues." % e.reason())
+            log("warning", "%s Listening continues." % e.reason())
         with cx.store.state() as d:
             d["since"] = stream.since
 
@@ -2830,13 +2833,13 @@ def cmd_send(cx, args):
     with cx.store.state() as d:
         for pid in failed:
             r = res.get(pid) if isinstance(res.get(pid), str) else "failed"
-            log(device_reason(r, names[pid]))
+            log("error", device_reason(r, names[pid]))
             p = d["peers"].get(pid)
             if p and r == "logged out":
                 p["logged_out"] = True
             if p and r == "not listening":
                 p["listening"] = False
-    log("Sent to %d of %d device%s." % (len(m) - len(failed), len(m), "" if len(m) == 1 else "s"))
+    log("info", "Sent to %d of %d device%s." % (len(m) - len(failed), len(m), "" if len(m) == 1 else "s"))
     return EXIT_SEND if failed else EXIT_OK
 
 
@@ -2974,18 +2977,19 @@ def main(argv=None):
         return EXIT_ERR
     except OSError as e:
         _quiet_stdout()
-        log(STORAGE_FULL if e.errno == errno.ENOSPC else _os_error_text(e))
+        log("error", STORAGE_FULL if e.errno == errno.ENOSPC else _os_error_text(e))
         return EXIT_ERR
     except UnicodeError as e:
         _quiet_stdout()
         if isinstance(e, UnicodeEncodeError):
-            log("This terminal cannot show some characters. Set LANG=C.UTF-8 and try again.")
+            log("error", "This terminal cannot show some characters. Set LANG=C.UTF-8 and try again.")
         else:
-            log("Some text could not be read as text. Try again.")
+            log("error", "Some text could not be read as text. Try again.")
         return EXIT_ERR
     except Exception as e:
         _quiet_stdout()
-        log("PushArmor stopped on an unexpected error (%s)." % " ".join(("%s: %s" % (type(e).__name__, e)).split()))
+        log("error", "PushArmor stopped on an unexpected error (%s)."
+            % " ".join(("%s: %s" % (type(e).__name__, e)).split()))
         return EXIT_BUG
 
 
@@ -2993,7 +2997,7 @@ def _main(argv):
     try:
         check_os()
     except Fail as e:
-        log(str(e))
+        log("error", str(e))
         return e.code
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -3001,36 +3005,38 @@ def _main(argv):
         parser.error("Use only one of --json, --tsv, and --exec.")
     cx = Ctx(config_dir(args.config))
     if args.config and os.path.exists(cx.store.root) and not os.path.isdir(cx.store.root):
-        log("The --config path %s is a file, not a folder." % quoted_path(cx.store.root))
+        log("error", "The --config path %s is a file, not a folder." % quoted_path(cx.store.root))
         return EXIT_USAGE
     if args.config and args.command not in ("login", "logout") and not os.path.isdir(cx.store.root):
-        log("This device is not logged in. The --config folder %s does not exist." % quoted_path(cx.store.root))
+        log("error", "This device is not logged in. The --config folder %s does not exist."
+            % quoted_path(cx.store.root))
         return EXIT_LOGIN
     try:
         if args.command not in ("login", "logout"):
             retry_pending_logout(cx)
         return COMMANDS[args.command][0](cx, args)
     except KeyboardInterrupt:
-        log("Stopped.")
+        log("info", "Stopped.")
         return 130
     except Fail as e:
-        log(str(e))
+        log("error", str(e))
         return e.code
     except ApiError as e:
         if e.status == 401 and e.error == "unknown peer":
             gone = removed_confirmed(cx)
             if not gone:
-                log(UNREACHABLE if gone is None else "The relay server did not confirm this device yet. Try again.")
+                log("error", UNREACHABLE if gone is None
+                    else "The relay server did not confirm this device yet. Try again.")
                 return EXIT_TEMP
             cx.store.wipe()
-            log(REMOVED)
+            log("error", REMOVED)
             return EXIT_LOGIN
         if e.status == 401 and e.error == "logged out":
             with contextlib.suppress(Fail, OSError), cx.store.state() as d:
                 d["reg"] = "logged_out"
-            log(LOGGED_OUT)
+            log("error", LOGGED_OUT)
             return EXIT_LOGIN
-        log(e.reason())
+        log("error", e.reason())
         return EXIT_ERR
 
 
