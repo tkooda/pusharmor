@@ -108,7 +108,7 @@ struct SettingsView: View {
                 }
 
                 Section("History") {
-                    Picker("Keep messages for", selection: Binding(
+                    Picker("Delete messages older than", selection: Binding(
                         get: { model.historyDays },
                         set: { model.setHistoryDays($0) }
                     )) {
