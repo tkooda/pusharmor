@@ -1923,6 +1923,10 @@ def on_commit(cx, frm, c_n, listed):
             "open_entries": len(d["pairs"]), "cap": d["pair_auto"], "now": now})
         if dec["entry"] == "aborted":
             d["pairs"].pop(frm, None)
+            if p.get("pinned") and not p.get("approve_verified"):  # step 8: drop this pairing's pin
+                ruling = p["ruling"]
+                unpin(p)
+                p["ruling"] = ruling
             notes.append(pair_note(cx, d, frm, "Pairing with %s failed. Start again on the new device. (%s)"))
         elif dec["entry"].startswith("created") or dec["entry"] == "n_wiped_x_replied":
             e = d["pairs"][frm] = new_entry("X", "prompted", secrets.token_bytes(32), c_n)

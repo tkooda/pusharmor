@@ -388,6 +388,25 @@ def test_pair_send_listen(net, tmp_path, monkeypatch, capsys):
     assert not os.path.exists(b / "keys" / "private.toml")
 
 
+def test_abort_in_shown_drops_the_pin_and_keeps_the_ruling(net, tmp_path, monkeypatch, capsys):
+    """a different c_N while X shows the fingerprint drops the pin X made; the ruling stays."""
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, _ = login(monkeypatch, a), login(monkeypatch, b)
+    cx = pa.Ctx(b)
+    cx.setup()
+    cx.refresh()
+    with cx.store.state() as d:
+        p = d["peers"][ida]
+        pa.pin_peer(p, b"s" * 32, b"e" * 32, b"i" * 32)
+        p["ruling"] = "denied"
+        d["pairs"][ida] = pa.new_entry("X", "shown", b"r" * 32, b"c" * 32)
+    pa.on_commit(cx, ida, b"d" * 32, "yes")
+    p = state(b)["peers"][ida]
+    assert state(b)["pairs"] == {}
+    assert not p["pinned"] and p["pairing_id"] == "" and p["ruling"] == "denied"
+    assert "failed. Start again on the new device." in capsys.readouterr().err
+
+
 def test_peer_list_opens_stored_remove_messages(net, tmp_path, monkeypatch, capsys):
     a, b, c = tmp_path / "a", tmp_path / "b", tmp_path / "c"
     ida, idb = pair_two(monkeypatch, net, a, b)
