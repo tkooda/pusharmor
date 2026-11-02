@@ -1417,7 +1417,8 @@ class Store:
         def unusable():  # never deleted automatically: the user decides
             return Fail("This device's keys have become unusable.\n"
                         "Delete them and log in again. You will then pair with all your devices again.\n"
-                        "To delete them, run: rm -r %s" % shlex.quote(str(self.root)), full=True)
+                        "To delete them, run: rm -r %s %s" % (shlex.quote(self.keys_dir), shlex.quote(self.dev_path)),
+                        full=True)
 
         try:
             d = read_toml(self.key_path)

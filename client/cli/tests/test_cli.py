@@ -864,7 +864,7 @@ def test_damaged_state_file_is_one_line_exit_1(monkeypatch, tmp_path, net, capsy
     if rel == os.path.join("keys", "private.toml"):
         assert err.splitlines() == ["This device's keys have become unusable.",
                                     "Delete them and log in again. You will then pair with all your devices again.",
-                                    "To delete them, run: rm -r %s" % cfg]
+                                    "To delete them, run: rm -r %s %s" % (cfg / "keys", cfg / "devices.toml")]
         assert path.read_bytes() == data
     else:
         assert err.splitlines()[0] == "Unable to send." and len(err.splitlines()) == 2 and str(path) in err
@@ -901,11 +901,16 @@ def test_unusable_keys_are_three_lines_and_kept(change, monkeypatch, tmp_path, n
     before = path.read_bytes()
     capsys.readouterr()
     assert run(cfg, "send", "hi") == 1
-    assert capsys.readouterr().err == (
+    err = capsys.readouterr().err
+    assert err == (
         "This device's keys have become unusable.\n"
         "Delete them and log in again. You will then pair with all your devices again.\n"
-        "To delete them, run: rm -r '%s'\n" % cfg)
+        "To delete them, run: rm -r '%s' '%s'\n" % (cfg / "keys", cfg / "devices.toml"))
     assert path.read_bytes() == before
+    (cfg / "settings.toml").write_text("")
+    import subprocess
+    subprocess.run(["sh", "-c", err.splitlines()[2].split(": ", 1)[1]], check=True)
+    assert sorted(os.listdir(cfg)) == ["devices.toml.lock", "settings.toml"]
 
 
 def test_help_and_readme_list_every_exit_code(capsys):
