@@ -250,7 +250,7 @@ fun PeersScreen(vm: AppViewModel) {
         LazyColumn(Modifier.padding(inner).fillMaxSize(), state = state, contentPadding = PaddingValues(top = 8.dp, bottom = FAB_SPACE + 16.dp)) {
             item(key = "banners") {
                 Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Banners(vm, prefs?.get(Settings.K.BANNER))
+                    Banners(vm, prefs?.get(Settings.K.BANNER), prefs)
                 }
             }
             if (firstDevice) item(key = "steps") {
@@ -362,7 +362,7 @@ internal class NameEdit(editing: Boolean = false, typed: TextFieldValue = TextFi
 }
 
 @Composable
-private fun Banners(vm: AppViewModel, banner: String?) {
+private fun Banners(vm: AppViewModel, banner: String?, prefs: androidx.datastore.preferences.core.Preferences?) {
     val context = LocalContext.current
     // Read here, so every check below runs again on each return to the app.
     val tick = resumeTick()
@@ -380,9 +380,8 @@ private fun Banners(vm: AppViewModel, banner: String?) {
         }
         if (vm.g.push.hasPlayServices) TextButton(onClick = { vm.switchPush(toUp = false) }) { Text("Switch back to Google") }
     }
-    val s = vm.g.settings
-    val upAt = s.get(Settings.K.UP_REGISTERED_AT)
-    if (s.get(Settings.K.PUSH_TYPE) == "unifiedpush" && upAt != null && !s.flag(Settings.K.UP_VERIFIED, false) && System.currentTimeMillis() - upAt > 10 * 60_000) {
+    val upAt = prefs?.get(Settings.K.UP_REGISTERED_AT)
+    if (prefs?.get(Settings.K.PUSH_TYPE) == "unifiedpush" && upAt != null && !Settings.flagOf(prefs, Settings.K.UP_VERIFIED, false) && System.currentTimeMillis() - upAt > 10 * 60_000) {
         BannerRow("This push server did not deliver. Check your UnifiedPush app.", "Retry", fault = true, PaIcons.Info) { vm.retryPush() }
         if (vm.g.push.hasPlayServices) TextButton(onClick = { vm.switchPush(toUp = false) }) { Text("Switch back to Google") }
     }
@@ -455,14 +454,13 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                         Text(AppEffects.platformLabel(p.platform))
                         if (lines.isEmpty()) { val (k, w) = UiText.status(p); StatusLine(k, w) } else for (l in lines) Text(l)
                     }
-                    val sg = vm.g.settings
                     val se = ents.firstOrNull { it.id == p.id }
                     if (p.pinned && se != null) {
                         PeerStatusIcons(listOf(
                             PaIcons.Send to PeerStatus("Send screen", !p.hidden),
-                            PaIcons.Notifications to PeerStatus("Content in notifications", se.showContent && Policy.peerSwitchEnabled(sg.showContent)),
-                            PaIcons.Lock to PeerStatus("Content on lock screen", se.lockScreen && Policy.peerLockEnabled(sg.showContent, sg.lockScreen, se.showContent)),
-                            PaIcons.Watch to PeerStatus("Watch", se.watch && Policy.peerSwitchEnabled(sg.watch)),
+                            PaIcons.Notifications to PeerStatus("Content in notifications", se.showContent && Policy.peerSwitchEnabled(Settings.flagOf(prefs, Settings.K.SHOW_CONTENT, true))),
+                            PaIcons.Lock to PeerStatus("Content on lock screen", se.lockScreen && Policy.peerLockEnabled(Settings.flagOf(prefs, Settings.K.SHOW_CONTENT, true), Settings.flagOf(prefs, Settings.K.LOCK_SCREEN, true), se.showContent)),
+                            PaIcons.Watch to PeerStatus("Watch", se.watch && Policy.peerSwitchEnabled(Settings.flagOf(prefs, Settings.K.WATCH, true))),
                             PaIcons.Share to PeerStatus("Sharing shortcut", shareShown),
                         ))
                     }

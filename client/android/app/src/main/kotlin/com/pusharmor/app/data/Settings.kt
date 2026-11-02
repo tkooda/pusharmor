@@ -23,6 +23,11 @@ private val Context.ds by preferencesDataStore("settings", corruptionHandler = R
 class Settings(private val context: Context) {
     init { migrateShowContent() }
 
+    companion object {
+        /** A flag from an already loaded snapshot; [default] until it loads or while unset. */
+        fun flagOf(p: Preferences?, key: Preferences.Key<Boolean>, default: Boolean): Boolean = p?.get(key) ?: default
+    }
+
     object K {
         val SHOW_ALL = booleanPreferencesKey("show_all")
         val TAP_OPENS_LINK = booleanPreferencesKey("tap_opens_link")
