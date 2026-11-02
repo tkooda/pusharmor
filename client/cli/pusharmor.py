@@ -1216,7 +1216,14 @@ def config_dir(arg=None):
         if v:
             return os.path.abspath(os.path.expanduser(v))
     xdg = os.environ.get("XDG_CONFIG_HOME")
-    base = xdg if xdg and os.path.isabs(xdg) else os.path.join(os.path.expanduser("~"), ".config")
+    if xdg and os.path.isabs(xdg):
+        return os.path.join(xdg, "pusharmor")
+    home = os.path.expanduser("~")
+    if not os.path.isabs(home) or home == "/":
+        with contextlib.suppress(KeyError, ImportError):
+            import pwd  # not on Windows; check_os runs later
+            home = pwd.getpwuid(os.getuid()).pw_dir
+    base = os.path.join(home, ".config")
     return os.path.join(base, "pusharmor")
 
 

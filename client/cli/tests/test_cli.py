@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 import os
+import stat
 import sys
 import threading
 import time
@@ -904,3 +905,11 @@ def test_stream_socket_timeout_reconnects_without_delay(monkeypatch):
     monkeypatch.setattr(s, "close", lambda delay: (seen.append(delay), orig(delay)))
     s.next(time.time() + 0.2)
     assert seen and set(seen) == {False}
+
+
+def test_config_dir_with_empty_home(monkeypatch):
+    monkeypatch.setenv("HOME", "")
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.delenv("PUSHARMOR_CONFIG", raising=False)
+    d = pa.config_dir()
+    assert d.endswith("/.config/pusharmor") and d != "/.config/pusharmor"
