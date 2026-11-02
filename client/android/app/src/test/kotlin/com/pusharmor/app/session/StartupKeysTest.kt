@@ -47,6 +47,18 @@ class StartupKeysTest {
         assertArrayEquals(signPub, g.session.keysForSignIn())
     }
 
+    /** A process death mid sign-in: the next process keeps the keys and signs in with the same public key. */
+    @Test fun signInKeysSurviveProcessDeath() = io {
+        g.dao.self(); g.keysOrNull = null
+        val signPub = g.session.keysForSignIn()
+        val g2 = Graph(ApplicationProvider.getApplicationContext<PaApp>())
+        g2.keysOrNull = null // no cached keys in the new process
+        assertEquals(Session.Start.SIGN_IN, g2.session.startup(fromMainActivity = true))
+        assertTrue(KeystoreKeyOps.present())
+        assertTrue(g2.settings.flag(Settings.K.SIGN_IN_KEYS, false))
+        assertArrayEquals(signPub, g2.session.keysForSignIn())
+    }
+
     /** Leftover keys with no sign-in in progress are deleted, and the cached keys go with them. */
     @Test fun leftoverKeysAreDeletedWithTheCache() = io {
         g.settings.set(Settings.K.SIGN_IN_KEYS, null)
