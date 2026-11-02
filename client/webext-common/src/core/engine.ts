@@ -671,7 +671,8 @@ export class Engine {
       }
       return this.dropEvent("unreadable", null, src);
     }
-    if (e.state !== "replied") return this.dropEvent("unreadable", null, src);
+    // an authorized entry still marked prompted got its reply through, so the open is for it too
+    if (e.state !== "replied" && !(e.state === "prompted" && e.authorized)) return this.dropEvent("unreadable", null, src);
     const c = await commitHash(sp, ep, rN);
     if (!equal(c, b64urlDecode(e.c_N)) || !(await isValidPub(sp)) || !(await isValidPub(ep))) {
       await this.endEntry(from, T.pairFailed, false);
@@ -682,7 +683,7 @@ export class Engine {
     await this.db.pin(from, sp, ep, pid, peer);
     const fp = await pairingFingerprint(sp, ep, self.sign_pub, self.enc_pub, rN, rX);
     await this.p.storageLocal.set({
-      [pairKeyOf(from)]: { ...e, state: "shown", fingerprint: fp, keys: { sign_pub: b64urlEncode(sp), enc_pub: b64urlEncode(ep) } } satisfies PairEntry,
+      [pairKeyOf(from)]: { ...e, state: "shown", msg: undefined, unsent: false, fingerprint: fp, keys: { sign_pub: b64urlEncode(sp), enc_pub: b64urlEncode(ep) } } satisfies PairEntry,
     });
     await this.pairNotice(e.pk, T.pairOpen(fp));
   }

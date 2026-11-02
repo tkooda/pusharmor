@@ -1344,3 +1344,18 @@ test("a peer list is cut to the relay server limits before it is checked", async
   await a.e.mergePeers({ ...j, peers: [...filler.slice(0, 8), ...j.peers] }, self);
   assert.ok(await a.db.peer(b.id)); // the tenth entry is still read
 });
+
+test("an open that arrives while the automatic reply is still marked unsent moves the entry to shown", async () => {
+  const { w, a, b } = await setup();
+  await refresh(a, b);
+  await a.e.pairStart(b.id);
+  await deliver(w, b);
+  const e = (await getEntry(b.p.storageLocal, a.id))!;
+  await b.p.storageLocal.set({ ["pair:" + a.id]: { ...e, state: "prompted", authorized: true, unsent: true, last_result: "failed" } });
+  await deliver(w, a);
+  await deliver(w, b);
+  const after = (await getEntry(b.p.storageLocal, a.id))!;
+  assert.equal(after.state, "shown");
+  assert.equal(after.unsent, false);
+  assert.equal(after.msg, undefined);
+});
