@@ -38,7 +38,7 @@
     "gecko": {
       "id": "{00000000-0000-0000-0000-000000000000}",
       "strict_min_version": "140.0",
-      "data_collection_permissions": { "required": ["personallyIdentifyingInfo", "personalCommunications"] }
+      "data_collection_permissions": { "required": ["personallyIdentifyingInfo", "personalCommunications", "websiteContent"] }
     },
     "gecko_android": { "strict_min_version": "142.0" }
   }

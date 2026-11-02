@@ -40,7 +40,7 @@ test("Firefox manifest asks for unlimitedStorage", () => {
 
 test("Firefox data_collection_permissions present; the committed gecko id is a placeholder (the build sets it)", () => {
   const g = firefox.browser_specific_settings.gecko;
-  assert.deepEqual(g.data_collection_permissions.required, ["personallyIdentifyingInfo", "personalCommunications"]);
+  assert.deepEqual(g.data_collection_permissions.required, ["personallyIdentifyingInfo", "personalCommunications", "websiteContent"]);
   assert.equal(g.id, "{00000000-0000-0000-0000-000000000000}");
   assert.equal(g.strict_min_version, "140.0");
   assert.equal(firefox.browser_specific_settings.gecko_android.strict_min_version, "142.0");
