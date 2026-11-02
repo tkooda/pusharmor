@@ -1263,6 +1263,17 @@ def check_private(path, want):
                "Fix: %s" % (path, mode, st.st_uid, want, os.getuid(), fix))
 
 
+def check_unshared(path, folder):
+    """A folder or regular file owned by this user that other users cannot change. It may be
+    group-writable when the group is the user's own primary group (umask 002)."""
+    st = os.lstat(path)
+    mode = stat.S_IMODE(st.st_mode)
+    if not (stat.S_ISDIR if folder else stat.S_ISREG)(st.st_mode) or st.st_uid != os.getuid():
+        raise Fail("%s must be a %s owned by you." % (path, "folder" if folder else "file"))
+    if mode & 0o002 or (mode & 0o020 and st.st_gid != os.getgid()):
+        raise Fail("%s can be changed by other users. Fix it with: chmod go-w %s" % (path, path))
+
+
 def read_toml(path):
     try:
         with open(path, "rb") as f:
@@ -1322,7 +1333,10 @@ class Store:
 
     def settings(self):
         p = os.path.join(self.root, "settings.toml")
-        s = read_toml(p) if os.path.exists(p) else {}
+        s = {}
+        if os.path.lexists(p):
+            check_unshared(p, False)
+            s = read_toml(p)
         for k in ("server", "ntfy"):
             if k in s and not (isinstance(s[k], str) and re.match(r"https?://[^/?#]+/?$", s[k]) and _host_ok(s[k])):
                 raise Fail("%s: %s must be a URL like https://host" % (p, k))
@@ -1352,6 +1366,8 @@ class Store:
         return k
 
     def save_keys(self, k):
+        os.makedirs(self.root, 0o700, exist_ok=True)
+        check_unshared(self.root, True)
         os.makedirs(self.keys_dir, 0o700, exist_ok=True)
         check_private(self.keys_dir, 0o700)
         write_file(self.key_path, KEY_HEADER + toml_dumps({
@@ -1363,10 +1379,12 @@ class Store:
         """devices.toml under an exclusive flock (listen and send may run at the same time)."""
         import fcntl
         os.makedirs(self.root, 0o700, exist_ok=True)
+        check_unshared(self.root, True)
         with open(self.lock_path, "a") as lf:
             fcntl.flock(lf, fcntl.LOCK_EX)
             d = {"version": STATE_VERSION}
-            if os.path.exists(self.dev_path):
+            if os.path.lexists(self.dev_path):
+                check_unshared(self.dev_path, False)
                 d = read_toml(self.dev_path)
                 check_version(d, self.dev_path)
             for k, v in (("peers", {}), ("pairs", {}), ("my_allow", []), ("listed", []), ("pair_auto", [])):

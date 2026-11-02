@@ -313,7 +313,7 @@ def test_login_that_cannot_save_removes_the_device(net, tmp_path, monkeypatch, c
     answers(monkeypatch, CODE)
     assert run(tmp_path, "login") == 1
     assert net.peers == {} and not (tmp_path / "keys" / "private.toml").exists()
-    assert "Is a directory" in capsys.readouterr().err
+    assert "devices.toml must be a file owned by you." in capsys.readouterr().err
     (tmp_path / "devices.toml").rmdir()
     pid = login(monkeypatch, tmp_path)
     assert list(net.peers) == [pid]
@@ -489,6 +489,34 @@ def test_wipe_removes_temp_files(net, tmp_path, monkeypatch):
     pa.Store(str(tmp_path)).wipe()
     assert not (tmp_path / "keys").exists()
     assert [n for n in os.listdir(tmp_path) if n.startswith(".tmp-")] == []
+
+
+def test_config_folder_and_state_files_others_can_change_are_refused(net, tmp_path, monkeypatch, capsys):
+    cfg = tmp_path / "cfg"
+    old = os.umask(0)
+    try:
+        login(monkeypatch, cfg)
+    finally:
+        os.umask(old)
+    assert stat.S_IMODE(os.stat(cfg).st_mode) == 0o700
+    capsys.readouterr()
+    cfg.chmod(0o777)
+    assert run(cfg, "send", "hi") == 1
+    assert capsys.readouterr().err == "%s can be changed by other users. Fix it with: chmod go-w %s\n" % (cfg, cfg)
+    cfg.chmod(0o775)  # group-writable with the user's own primary group: still fine
+    assert run(cfg, "send", "hi") == 4
+    cfg.chmod(0o700)
+    for name in ("devices.toml", "settings.toml"):
+        path = cfg / name
+        if not path.exists():
+            path.write_text("")
+        path.chmod(0o666)
+        capsys.readouterr()
+        assert run(cfg, "send", "hi") == 1
+        assert capsys.readouterr().err == "%s can be changed by other users. Fix it with: chmod go-w %s\n" % (
+            path, path)
+        path.chmod(0o644)
+    assert run(cfg, "send", "hi") == 4
 
 
 def test_send_no_devices_and_logout(net, tmp_path, monkeypatch, capsys):
@@ -742,7 +770,7 @@ def test_unreadable_file_is_one_line(monkeypatch, tmp_path, net, capsys):
     capsys.readouterr()
     assert run(cfg, "send", "hi") == 1
     err = capsys.readouterr().err
-    assert err == "Cannot read or write %s: Is a directory.\n" % (cfg / "devices.toml")
+    assert err == "%s must be a file owned by you.\n" % (cfg / "devices.toml")
 
 
 def test_config_path_that_is_a_file_or_too_long(monkeypatch, tmp_path, capsys):
