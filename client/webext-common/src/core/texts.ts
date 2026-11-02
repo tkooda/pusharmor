@@ -67,10 +67,10 @@ export const T = {
 
 /** The sticky message while this browser cannot receive (the push service or the relay server refused). */
 export function pushIssueText(issue: "refused" | "relay", brave: boolean): string {
-  const head = "This browser cannot receive messages.\n";
+  const head = "Unable to turn on notifications.\n";
   if (issue === "relay") return head + "The relay server did not accept its push service. Try again later.";
   if (brave) return head + 'Turn on "Use Google services for push messaging" in Brave\'s privacy settings.';
-  return head + "Its push service is turned off or not available.";
+  return head + "Notifications are not available on this device.";
 }
 
 /** The two lines for one device that did not get a send (sent excluded); an unknown word reads as not ready yet. */

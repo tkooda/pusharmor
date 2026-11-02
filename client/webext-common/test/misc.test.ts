@@ -142,9 +142,9 @@ test("boot runs the storage migration before the engine", async () => {
 });
 
 test("push issue texts: two lines, Brave names its setting, the relay text says to try later", () => {
-  assert.equal(pushIssueText("refused", true), 'This browser cannot receive messages.\nTurn on "Use Google services for push messaging" in Brave\'s privacy settings.');
-  assert.equal(pushIssueText("refused", false), "This browser cannot receive messages.\nIts push service is turned off or not available.");
-  assert.equal(pushIssueText("relay", true), "This browser cannot receive messages.\nThe relay server did not accept its push service. Try again later.");
+  assert.equal(pushIssueText("refused", true), 'Unable to turn on notifications.\nTurn on "Use Google services for push messaging" in Brave\'s privacy settings.');
+  assert.equal(pushIssueText("refused", false), "Unable to turn on notifications.\nNotifications are not available on this device.");
+  assert.equal(pushIssueText("relay", true), "Unable to turn on notifications.\nThe relay server did not accept its push service. Try again later.");
 });
 
 test("the log in banner after a removal, unusable keys, a logout, or an account deletion", () => {
