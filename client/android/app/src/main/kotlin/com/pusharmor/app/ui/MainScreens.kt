@@ -897,8 +897,8 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
     androidx.activity.compose.BackHandler(enabled = picked.isNotEmpty()) { picked = emptyList() }
     DisposableEffect(Unit) { onDispose { picked = emptyList() } }
     fun nameOf(id: String) = peers.firstOrNull { it.id == id }?.let { (it.name ?: label(it)) + if (it.removed) " (removed)" else "" } ?: "(removed)"
-    val frows = rows.map { HistoryFilter.Row(it.peerId, it.direction == "RECEIVED") }
-    val eff = HistoryFilter.effective(frows, chip)
+    val view = remember(rows, peers, chip, dir) { historyView(rows, chip, dir, ::nameOf) }
+    val eff = view.eff
     val ex = LocalPaExtra.current
     val now = System.currentTimeMillis()
     val flashId by vm.flashRow.collectAsState()
@@ -928,16 +928,16 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
             return@Column
         }
         ChipRow(Modifier.padding(top = 4.dp, bottom = 8.dp)) {
-            for (c in HistoryFilter.chips(frows, ::nameOf)) {
+            for (c in view.chips) {
                 val t = when (c) { HistoryFilter.Chip.All -> "All"; HistoryFilter.Chip.Unknown -> "Unknown"; is HistoryFilter.Chip.PeerChip -> c.name }
                 PaChip(eff == c, t) { chip = c }
             }
             PaChip(dir == "SENT", "Sent") { dir = if (dir == "SENT") null else "SENT" }
             PaChip(dir == "RECEIVED", "Received") { dir = if (dir == "RECEIVED") null else "RECEIVED" }
         }
-        val shown = rows.filter { HistoryFilter.matches(HistoryFilter.Row(it.peerId, it.direction == "RECEIVED"), eff) && (dir == null || it.direction == dir) }
+        val shown = view.shown
         // Rows that were deleted or filtered away leave the selection; none left ends the mode.
-        val shownIds = shown.map { it.id }.toSet()
+        val shownIds = view.shownIds
         if (picked.any { it !in shownIds }) picked = picked.filter { it in shownIds }
         if (picked.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.End) {
             FilledTonalButton(onClick = { confirmDeleteSel = true }, Modifier.heightIn(min = 48.dp),
@@ -948,7 +948,7 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
             title = { Text(deleteSelectedTitle(picked.size)) }, text = { Text("This deletes the selected messages from this device.") },
             confirmButton = { TextButton(onClick = { vm.deleteHistory(picked); picked = emptyList(); confirmDeleteSel = false }) { Text("Delete") } },
             dismissButton = { TextButton(onClick = { confirmDeleteSel = false }) { Text("Cancel") } })
-        val days = shown.groupBy { UiText.day(it.at) }
+        val days = view.days
         // A row just sent from the Send tab: scrolled to and flashed once; a filter that hides it is cleared.
         LaunchedEffect(flashId, shown) {
             val id = flashId ?: return@LaunchedEffect
@@ -977,6 +977,23 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
             }
         }
     }
+}
+
+/** What History shows: the chip in effect, the chips, the shown rows and their day groups. */
+internal class HistoryView(
+    val eff: HistoryFilter.Chip,
+    val chips: List<HistoryFilter.Chip>,
+    val shown: List<com.pusharmor.store.HistoryEntity>,
+    val shownIds: Set<Long>,
+    val days: Map<java.time.LocalDate, List<com.pusharmor.store.HistoryEntity>>,
+)
+
+/** Computes [HistoryView] once per change of rows, devices, or filters (the screen remembers it). */
+internal fun historyView(rows: List<com.pusharmor.store.HistoryEntity>, chip: HistoryFilter.Chip, dir: String?, nameOf: (String) -> String): HistoryView {
+    val frows = rows.map { HistoryFilter.Row(it.peerId, it.direction == "RECEIVED") }
+    val eff = HistoryFilter.effective(frows, chip)
+    val shown = rows.filter { HistoryFilter.matches(HistoryFilter.Row(it.peerId, it.direction == "RECEIVED"), eff) && (dir == null || it.direction == dir) }
+    return HistoryView(eff, HistoryFilter.chips(frows, nameOf), shown, shown.map { it.id }.toSet(), shown.groupBy { UiText.day(it.at) })
 }
 
 /** Tapping the open History row closes it; tapping another opens that one. */
