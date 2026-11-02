@@ -145,12 +145,15 @@ class Session(private val g: Graph) {
         val k = g.keysOrNull ?: return SignIn.Error(NO_KEYS)
         val sp = B64url.encode(k.signPub); val ep = B64url.encode(k.encPub)
         // POST /peers is signed by the new key with no PA-ID: the client signs with keysOrNull.
-        return when (val r = g.client.register(ticket, sp, ep, evict)) {
+        var first = g.client.register(ticket, sp, ep, evict)
+        // A clock skew re-synced the clock from the reply; sign again once (a second skew is returned).
+        if (first is WorkerClient.RegisterResult.Error && first.result.isClockSkew) first = g.client.register(ticket, sp, ep, evict)
+        return when (val r = first) {
             is WorkerClient.RegisterResult.Ok -> {
                 val id = r.registered.id
                 val raw = Ids.decodeId(id)
                 if (raw == null || !raw.copyOfRange(9, 21).contentEquals(Ids.keyhash(k.signPub, k.encPub))) return SignIn.Error(BAD_REPLY)
-                dao.putSelf(SelfEntity(id = id, accountPrefix = raw.copyOf(9), email = email, name = defaultName()))
+                dao.putSelf(SelfEntity(id = id, accountPrefix = raw.copyOf(9), email = email, name = defaultName(), clockOffset = g.offset.offsetS))
                 g.sync().merge(r.registered.peers)
                 s.set(Settings.K.SIGNED_OUT, false)
                 s.set(Settings.K.SIGN_IN_KEYS, null)
@@ -254,6 +257,7 @@ class Session(private val g: Graph) {
         try { KeystoreKeyOps.deleteBoth() } catch (e: Exception) { }
         g.keysOrNull = null
         g.store.wipeRegistration()
+        g.bootOffsetS = 0
         Work.scheduleDaily(g.app)
     }
 

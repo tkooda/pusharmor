@@ -22,10 +22,14 @@ import com.pusharmor.protocol.engine.SendFlow
 import com.pusharmor.store.PaDatabase
 import com.pusharmor.store.RoomLocalStore
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.OkHttpClient
 import java.security.SecureRandom
 
 open class PaApp : Application() {
     lateinit var graph: Graph
+
+    /** The HTTP client for the relay server; tests replace it. */
+    open fun httpClient(): OkHttpClient = WorkerClient.defaultHttp()
 
     override fun onCreate() {
         super.onCreate()
@@ -49,15 +53,18 @@ class Graph(val app: PaApp) {
 
     @Volatile var keysOrNull: KeyOps? = try { KeystoreKeyOps.load() } catch (e: Exception) { null }
 
+    /** Clock offset learned while there is no self row (a registration in progress); dropped by a wipe. */
+    @Volatile var bootOffsetS = 0L
+
     /** Worker clock offset in seconds, persisted in the self row. */
     val offset = object : ClockOffset {
         override var offsetS: Long
-            get() = dao.self()?.clockOffset ?: 0
-            set(v) { dao.setClockOffset(v) }
+            get() = dao.self()?.clockOffset ?: bootOffsetS
+            set(v) { if (dao.self() == null) bootOffsetS = v else dao.setClockOffset(v) }
     }
 
     val client = WorkerClient({ keysOrNull ?: error("no keys") }, { dao.self()?.id }, offset, BuildConfig.API_BASE.toHttpUrl(),
-        http = if (BuildConfig.SCREENSHOT_MODE) ScreenshotMode.guard(WorkerClient.defaultHttp()) else WorkerClient.defaultHttp(),
+        http = if (BuildConfig.SCREENSHOT_MODE) ScreenshotMode.guard(app.httpClient()) else app.httpClient(),
         onAuthState = ::onAuthState, paClient = "android/${BuildConfig.VERSION_NAME}",
         onUpdateRequired = { settings.markUpdateRequired(BuildConfig.VERSION_NAME) })
 
