@@ -559,6 +559,28 @@ def test_group_writable_only_with_a_user_private_group(name, members, ok, net, t
         path.chmod(0o700 if path == cfg else 0o600)
 
 
+def test_saving_keys_checks_the_config_folder(tmp_path):
+    root = tmp_path / "cfg"
+    root.mkdir()
+    root.chmod(0o777)
+    k = {"id": pa.b64e(b"i" * 30), "sign": b"s" * 32, "enc": b"e" * 32, "push": b"p" * 32, "auth": b"a" * 16}
+    with pytest.raises(pa.Fail) as e:
+        pa.Store(str(root)).save_keys(k)
+    assert str(e.value) == "%s can be changed by other users. Fix it with: chmod go-w %s" % (root, root)
+    assert not (root / "keys").exists()
+
+
+def test_a_config_file_owned_by_another_user_is_refused(tmp_path, monkeypatch):
+    path = tmp_path / "devices.toml"
+    path.write_text("")
+    path.chmod(0o600)
+    uid = os.getuid()
+    monkeypatch.setattr(pa.os, "getuid", lambda: uid + 1)
+    with pytest.raises(pa.Fail) as e:
+        pa.check_unshared(str(path), False)
+    assert str(e.value) == "%s must be a file owned by you." % path
+
+
 def test_wipe_waits_for_a_state_write_and_is_not_written_back(net, tmp_path, monkeypatch):
     login(monkeypatch, tmp_path)
     one, two = pa.Store(str(tmp_path)), pa.Store(str(tmp_path))
@@ -1071,6 +1093,25 @@ def test_huge_reply_is_a_network_failure(code):
     with local_http(reply) as url:
         with pytest.raises(OSError):
             pa.http_request("GET", url + "/v1/peers", {}, None)
+
+
+def test_error_body_is_read_with_a_size_bound(monkeypatch):
+    import urllib.error
+    sizes = []
+
+    class Body(io.BytesIO):
+        def read(self, n=-1):
+            sizes.append(n)
+            return super().read(n)
+
+    class Opener:
+        def open(self, req, timeout):
+            raise urllib.error.HTTPError(req.full_url, 500, "x", {}, Body(b" " * (pa.MAX_REPLY + 10)))
+
+    monkeypatch.setattr(pa, "_OPENER", Opener())
+    with pytest.raises(OSError):
+        pa.http_request("GET", "https://h/v1/peers", {}, None)
+    assert sizes == [pa.MAX_REPLY + 1]
 
 
 def test_redirect_is_not_followed():
