@@ -37,6 +37,15 @@ class AppViewModelTest {
         while (!cond() && System.currentTimeMillis() < end) { Thread.sleep(20); shadowOf(Looper.getMainLooper()).idle() }
     }
 
+    /** Closing the database posts no service callback to the main looper, so no later idle (or test) gets one. */
+    @Test fun databaseCloseLeavesNoServiceCallback() {
+        val app = ApplicationProvider.getApplicationContext<PaApp>()
+        runBlocking(kotlinx.coroutines.Dispatchers.IO) { app.graph.dao.self() }
+        app.graph.db.close()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertNull(uncaught)
+    }
+
     /** A tap that throws shows its action line and "Try again." on the next line. */
     @Test fun ioErrorSetsMessage() {
         val vm = vm()

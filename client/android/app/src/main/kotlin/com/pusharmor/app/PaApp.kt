@@ -31,6 +31,9 @@ open class PaApp : Application() {
     /** The HTTP client for the relay server; tests replace it. */
     open fun httpClient(): OkHttpClient = WorkerClient.defaultHttp()
 
+    /** Room's invalidation across processes; tests turn it off (Robolectric answers its service bind with no name). */
+    open fun multiInstanceDb(): Boolean = true
+
     override fun onCreate() {
         super.onCreate()
         graph = Graph(this)
@@ -44,7 +47,7 @@ class Graph(val app: PaApp) {
     val settings = Settings(app)
     /** The database file was made new in this process (first start, or a corrupt file replaced); its "no self row" is not proof. */
     @Volatile var dbCreated = false
-    val db = PaDatabase.open(app) { dbCreated = true }
+    val db = PaDatabase.open(app, multiInstance = app.multiInstanceDb()) { dbCreated = true }
     val store = RoomLocalStore(db)
     val dao = store.dao
     val notifier = Notifier(app, settings, dao)

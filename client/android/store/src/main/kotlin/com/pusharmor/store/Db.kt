@@ -238,9 +238,9 @@ abstract class PaDatabase : RoomDatabase() {
         }
 
         /** [onCreate] runs when the file is made new: first start, or after SQLite dropped a corrupt file. */
-        fun open(context: Context, name: String? = NAME, onCreate: () -> Unit = {}): PaDatabase {
+        fun open(context: Context, name: String? = NAME, multiInstance: Boolean = true, onCreate: () -> Unit = {}): PaDatabase {
             val b = if (name == null) Room.inMemoryDatabaseBuilder(context, PaDatabase::class.java)
-            else Room.databaseBuilder(context, PaDatabase::class.java, name).enableMultiInstanceInvalidation()
+            else Room.databaseBuilder(context, PaDatabase::class.java, name).let { if (multiInstance) it.enableMultiInstanceInvalidation() else it }
             return b.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .addCallback(object : RoomDatabase.Callback() { override fun onCreate(db: SupportSQLiteDatabase) = onCreate() }).build()
         }
