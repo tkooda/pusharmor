@@ -6,10 +6,10 @@ import { detectType } from "../model/detect.ts";
 import { utf8Len } from "../model/padding.ts";
 import type { HistoryRow, PeerRow } from "../store/db.ts";
 import { type Engine, type Settings, UserError } from "./engine.ts";
+import { reasonOf, failText } from "./failtext.ts";
 import { Login, type Purpose } from "./login.ts";
 import { PAIR_MSG_PREFIX, allEntries } from "./state.ts";
-import { T, peerLabel } from "./texts.ts";
-import { errorText } from "../api/client.ts";
+import { type ActionId, T, peerLabel } from "./texts.ts";
 
 export interface Req {
   op: string;
@@ -70,6 +70,32 @@ function created(p: PeerRow): string {
   return Number.isFinite(d.getTime()) ? plat + ", added " + d.toISOString().slice(0, 10) : plat;
 }
 
+/** The action line of each request that can fail where the user clicked. */
+const ACTION: Record<string, ActionId> = {
+  send: "send",
+  refresh: "refresh",
+  rename: "rename",
+  pair: "pair",
+  pairAgain: "pair",
+  sendAgain: "pair",
+  reply: "pair",
+  approve: "confirm",
+  deny: "reject",
+  cancel: "cancel",
+  remove: "remove",
+  localDelete: "remove",
+  hide: "changeSetting",
+  allowContent: "changeSetting",
+  settings: "changeSetting",
+  signout: "logout",
+  historyDelete: "deleteHistory",
+  historyDeleteAll: "deleteHistory",
+  emailStart: "sendCode",
+  emailVerify: "checkCode",
+  evict: "evict",
+  authDone: "login",
+};
+
 export class Rpc {
   readonly e: Engine;
   readonly login: Login;
@@ -82,9 +108,20 @@ export class Rpc {
     try {
       return { ok: true, data: await this.dispatch(req, senderTabId) };
     } catch (err) {
-      if (err instanceof UserError) return { ok: false, error: err.message };
-      return { ok: false, error: errorText(err) };
+      return { ok: false, error: await this.failure(req, err) };
     }
+  }
+
+  /** The error text for a failed request: its own action line (with the device name), then why. */
+  private async failure(req: Req, err: unknown): Promise<string> {
+    if (err instanceof UserError) return err.message;
+    const a = req.args ?? {};
+    const action = req.op === "oauth" ? (a.provider === "apple" ? "loginApple" : "loginGoogle") : ACTION[req.op];
+    if (!action) return reasonOf(err); // no action line for a view that only reads
+    const selfKept = !!(await this.e.self().catch(() => null));
+    let name: string | undefined;
+    if (typeof a.id === "string") name = peerLabel((await this.e.db.peer(a.id).catch(() => undefined))?.name ?? null);
+    return failText(action, err, { name, selfKept });
   }
 
   private async dispatch(req: Req, tab?: number): Promise<unknown> {

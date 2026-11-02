@@ -1,7 +1,8 @@
 // Stalled or offline network: requests time out and the popup never waits on them.
 import assert from "node:assert/strict";
 import { mock, test } from "node:test";
-import { Api, ApiError, FETCH_TIMEOUT_MS, errorText } from "../src/api/client.ts";
+import { Api, ApiError, FETCH_TIMEOUT_MS } from "../src/api/client.ts";
+import { failText } from "../src/core/failtext.ts";
 import { Rpc } from "../src/core/rpc.ts";
 import { Clock, MockWorker, device } from "./harness.ts";
 
@@ -24,7 +25,7 @@ test("popup open returns the local state at once while the network is stalled", 
   for (const f of held) f();
 });
 
-test("a stalled request is aborted after the timeout and reads as a reachability error", async () => {
+test("a stalled request is aborted after the timeout and reads as a timeout", async () => {
   mock.timers.enable({ apis: ["setTimeout"] });
   try {
     let t = 0;
@@ -35,7 +36,7 @@ test("a stalled request is aborted after the timeout and reads as a reachability
     const err = await seen;
     assert.ok(err instanceof ApiError);
     assert.equal(err.status, 0);
-    assert.equal(errorText(err), "Could not reach the relay server. Check your connection.");
+    assert.equal(failText("refresh", err), "Unable to refresh the device list.\nThe relay server did not answer in time. Try again.");
   } finally {
     mock.timers.reset();
   }

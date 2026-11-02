@@ -294,7 +294,7 @@ button.google:hover, button.apple:hover { filter: brightness(0.97); }
 .field.bad label, .field.bad input:focus + label { color: var(--err); }
 .login .field.code input { height: 64px; font: 500 28px/1 ui-monospace, "Source Code Pro", monospace; letter-spacing: 6px; text-indent: 6px; text-align: center; }
 .field.code label { top: 32px; }
-.help { display: flex; gap: 6px; align-items: flex-start; padding: 6px 4px 0; font-size: 14px; line-height: 20px; color: var(--ink2); }
+.help { display: flex; gap: 6px; align-items: flex-start; padding: 6px 4px 0; font-size: 14px; line-height: 20px; color: var(--ink2); white-space: pre-line; }
 .help[hidden] { display: none; }
 .help.bad { color: var(--err); }
 .help svg { flex: none; margin-top: 1px; }

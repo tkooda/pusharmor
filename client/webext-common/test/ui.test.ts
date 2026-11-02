@@ -326,7 +326,6 @@ test("copy: device limit rows read as sentences; desktop says Click; status line
     if (k !== "keysBrokenBody") assert.doesNotMatch(s, /\bTap\b|\btap\b/, k); // the keys screen keeps its approved wording
     if (/[.!?] /.test(s)) assert.match(s, /[.!?]$/, k); // a multi-sentence text ends with a period
   }
-  assert.equal(T.loginExpired, "Login expired. Log in again.");
   assert.equal(T.notificationsOff, "Notifications are off. This device cannot receive messages.");
 });
 

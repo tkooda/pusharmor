@@ -99,7 +99,7 @@ function reply(req: Req): unknown {
       state.reg = "logged_out";
       return null;
     case "send":
-      if (q.has("senderr")) throw new Error("Could not reach the relay server. Check your connection and try again.");
+      if (q.has("senderr")) throw new Error("Unable to send.\nThe relay server could not be reached. Check your internet connection and try again.");
       return { sent: 2, total: 2, failures: [] };
     case "sendSel":
       return sendSel;

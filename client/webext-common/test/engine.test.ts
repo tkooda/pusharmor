@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ApiError, errorText } from "../src/api/client.ts";
+import { failText } from "../src/core/failtext.ts";
 import { PushRefused } from "../src/platform.ts";
 import { b64urlDecode, b64urlEncode } from "../src/crypto/b64url.ts";
 import { pairingKey } from "../src/crypto/labels.ts";
@@ -221,7 +221,7 @@ test("clock skew: rebuild with a new n, then a second skew stops", async () => {
   // second skew: inject two clock-skew replies
   w.inject.push({ match: /POST \/v1\/send/, status: 401, body: { error: "clock skew" }, times: 2 });
   const r2 = await a.e.send("again", false, "all");
-  assert.equal(r2.error, T.clockOff);
+  assert.equal(r2.error, "Unable to send.\nThis device's clock is off by more than 5 minutes. Fix the clock and try again.");
   void clock;
 });
 
@@ -236,8 +236,7 @@ test("PA-Client on every relay server call; 426 shows the update text", async ()
   assert.ok(w.calls.some((c) => c.client === "firefox/0.0.19"));
   w.inject.push({ match: /POST \/v1\/send/, status: 426, body: { error: "update required" }, times: 1 });
   const r = await a.e.send("again", false, "all");
-  assert.equal(r.error, "Update PushArmor to continue.");
-  assert.equal(errorText(new ApiError(426, "update required", {}, null)), "Update PushArmor to continue.");
+  assert.equal(r.error, "Unable to send.\nThis version of PushArmor is too old. Update PushArmor to continue.");
 });
 
 test("send: a URL whose normalized href exceeds the cap is refused before any counter or call", async () => {
@@ -245,7 +244,7 @@ test("send: a URL whose normalized href exceeds the cap is refused before any co
   await pairAndApprove(w, a, b);
   const n0 = (await a.db.peer(b.id))!.last_n;
   const url = "https://example.com/" + "\u4e2d".repeat(400); // 1220 raw bytes, 3620 as href
-  await assert.rejects(a.e.send(url, false, "all"), (e: unknown) => e instanceof UserError && /^Too long/.test(e.message));
+  await assert.rejects(a.e.send(url, false, "all"), (e: unknown) => failText("send", e) === "Unable to send.\nThe message is longer than 2048 characters.");
   assert.equal((await a.db.peer(b.id))!.last_n, n0);
   assert.equal(w.calls.filter((c) => c.path === "/v1/send").length, 0);
 });
@@ -879,7 +878,7 @@ test("register rejects an assigned id whose keyhash is not ours", async () => {
   const { clock, w, b } = await setup();
   const { e } = await makeEngine(new FakePlatform("chrome", w, clock), new IDBFactory(), clock);
   w.inject.push({ match: /POST \/v1\/peers$/, status: 200, body: { id: b.id, peers: [], my_allow: [] }, times: 1 });
-  await assert.rejects(e.register("T", "a@b.com"), /Bad reply from the relay server\./);
+  await assert.rejects(e.register("T", "a@b.com"), /The relay server sent a reply this device cannot use\. Try again\./);
   assert.equal(await e.self(), null);
   assert.equal(await e.regState(), null);
 });
@@ -952,20 +951,20 @@ test("send result not listening shows Send only and marks the peer send only", a
   w.inject.push({ match: /POST \/v1\/send/, status: 200, body: { r: { [b.id]: "not listening" } }, times: 1 });
   const r = await a.e.send("hi", false, "all");
   assert.equal(r.sent, 0);
-  assert.equal(r.failures[0]!.text, "Chrome: Send only. It does not receive messages.");
+  assert.equal(r.failures[0]!.text, 'Unable to send to "Chrome".\nIt is set to send only. It does not receive messages.');
   assert.equal((await a.db.peer(b.id))!.listening, false);
   assert.equal((await a.e.allSet()).length, 0);
 });
 
 test("send failures read as sentences, never raw result words", async () => {
   const want: Record<string, string> = {
-    gone: "Not delivered to Chrome: open PushArmor on it.",
-    "logged out": "Chrome: Logged out. Log in on it to receive messages.",
-    unapproved: "Chrome: Not paired. Pair with it to send messages.",
-    denied: "Chrome: It rejected this device.",
-    unknown: "Chrome: It is no longer on this account.",
-    failed: "Chrome: Not delivered. Try again.",
-    "failed:net": "Chrome: Not delivered. Try again.",
+    gone: 'Unable to deliver message to "Chrome".\nOpen PushArmor on it to resolve.',
+    "logged out": 'Unable to send to "Chrome".\nThat device is logged out. Log in on that device to receive messages.',
+    unapproved: 'Unable to send to "Chrome".\nIt is not paired with this device. Pair with it to send it messages.',
+    denied: 'Unable to send to "Chrome".\nIt isn\'t paired with this device.',
+    unknown: 'Unable to send to "Chrome".\nIt is no longer on this account.',
+    failed: 'Unable to send to "Chrome".\nIt has not finished turning on notifications. Open PushArmor on it.',
+    "failed:net": 'Unable to send to "Chrome".\nIts push service did not accept the message. Try again later.',
   };
   for (const [word, text] of Object.entries(want)) {
     const { w, a, b } = await setup();
@@ -978,9 +977,8 @@ test("send failures read as sentences, never raw result words", async () => {
   await pairAndApprove(w, a, b);
   w.inject.push({ match: /POST \/v1\/send/, status: 500, body: { error: "internal" }, times: 1 });
   const r = await a.e.send("hi", false, [b.id]);
-  assert.equal(r.error, "Something went wrong. Try again.");
-  assert.equal(r.failures[0]!.text, "Chrome: Something went wrong. Try again.");
-  assert.equal(errorText(new ApiError(0, "network", {}, null)), "Could not reach the relay server. Check your connection.");
+  assert.equal(r.error, "Unable to send.\nThe relay server is not working right now. Try again later.");
+  assert.equal(r.failures[0]!.text, r.error);
 });
 
 test("Firefox Google login: authDone leaves the result for the login tab (done, device limit, error)", async () => {
@@ -1000,7 +998,7 @@ test("Firefox Google login: authDone leaves the result for the login tab (done, 
   assert.equal(limit?.done, false);
   assert.deepEqual(limit?.limit?.peers, []);
   const expired = await run({ status: 401, body: { error: "ticket expired" } });
-  assert.equal(expired?.error, "Login expired. Log in again.");
+  assert.equal(expired?.error, "Unable to log in.\nThe login expired. Log in again.");
   // another tab id: nothing is written
   const p = new FakePlatform("firefox", w, clock);
   const { e } = await makeEngine(p, new IDBFactory(), clock);
@@ -1031,7 +1029,7 @@ test("Firefox Google login in the same tab: the login tab goes to the provider a
   // device limit and error also come back to the same tab
   for (const [inject, check] of [
     [{ status: 409, body: { error: "peer limit", peers: [], ticket: "x".repeat(20) } }, (x: AuthResult | null) => assert.ok(x?.limit)],
-    [{ status: 401, body: { error: "ticket expired" } }, (x: AuthResult | null) => assert.equal(x?.error, "Login expired. Log in again.")],
+    [{ status: 401, body: { error: "ticket expired" } }, (x: AuthResult | null) => assert.equal(x?.error, "Unable to log in.\nThe login expired. Log in again.")],
   ] as const) {
     const b = await fresh();
     await b.login.oauthStart("google", "register", 7);
@@ -1139,7 +1137,7 @@ test("a pending logout is dropped on a 4xx answer and on log in again", async ()
   assert.equal(await a.db.meta("logout_pending"), undefined);
 });
 
-test("Chrome sign-in window closed: Sign-in was closed. Try again.", async () => {
+test("Chrome sign-in window closed: the login window was closed", async () => {
   const clock = new Clock();
   const w = new MockWorker(clock);
   const p = new FakePlatform("chrome", w, clock);
@@ -1148,18 +1146,7 @@ test("Chrome sign-in window closed: Sign-in was closed. Try again.", async () =>
     throw new Error("The user did not approve access.");
   };
   const r = await new Rpc(e).handle({ op: "oauth", args: { provider: "apple", purpose: "register" } });
-  assert.deepEqual(r, { ok: false, error: "Sign-in was closed. Try again." });
-});
-
-test("error texts are sentences with periods; no raw error code", () => {
-  assert.equal(errorText(new ApiError(401, "clock skew twice", {}, null)), "This device's clock is off by more than 5 minutes.");
-  assert.equal(errorText(new ApiError(502, "", {}, null)), "Could not send the email. Try again.");
-  assert.equal(errorText(new ApiError(400, "push endpoint not allowed", {}, null)), "This browser's push service is not supported yet.");
-  assert.equal(errorText(new ApiError(429, "rate limited", {}, 30)), "Too many requests. Try again in 30 seconds.");
-  assert.equal(errorText(new ApiError(429, "rate limited", {}, 1)), "Too many requests. Try again in 1 second.");
-  assert.equal(errorText(new ApiError(429, "rate limited", {}, 61)), "Too many requests. Try again in 2 minutes.");
-  assert.equal(errorText(new ApiError(429, "rate limited", {}, null)), "Too many requests. Try again in 60 seconds.");
-  assert.equal(errorText(new ApiError(418, "teapot", {}, null)), "Something went wrong. Try again.");
+  assert.deepEqual(r, { ok: false, error: "Unable to log in with Apple.\nThe login window was closed. Try again." });
 });
 
 async function removedSetup() {

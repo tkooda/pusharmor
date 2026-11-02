@@ -1,12 +1,13 @@
 // Sign-in flows (catalog Auth; component-webext section 7 Login): email code,
 // Google and Apple. The ticket then registers, logs in or deletes.
-import { API_BASE, ApiError, errorText } from "../api/client.ts";
+import { API_BASE } from "../api/client.ts";
 import { b64urlEncode } from "../crypto/b64url.ts";
 import { normalizeEmail, oauthK } from "../crypto/labels.ts";
 import { AUTH_RESULT, type AuthResult, type Restore, SIGNIN_PROGRESS, restoreStep } from "../model/signin.ts";
 import type { Engine } from "./engine.ts";
 import { UserError } from "./engine.ts";
-import { T } from "./texts.ts";
+import { ReasonError, failText } from "./failtext.ts";
+import { R } from "./texts.ts";
 
 export type Purpose = "register" | "login" | "delete-account";
 export const AUTH_PENDING = "auth_pending";
@@ -41,12 +42,12 @@ export class Login {
 
   async emailStart(email: string, turnstile: string, purpose: Purpose): Promise<void> {
     const n = normalizeEmail(email);
-    if (n === null) throw new UserError(T.badEmail);
+    if (n === null) throw new ReasonError(R.badEmail);
     const keys = await this.e.signInKeys();
     const r = await this.e.api.call("POST", "/auth/email", {
       body: { email: n, sign_pub: b64urlEncode(keys.sign_pub), purpose, turnstile },
     });
-    if (typeof r.json.request_token !== "string") throw new UserError(T.badReply);
+    if (typeof r.json.request_token !== "string") throw new ReasonError(R.badReply);
     await this.e.p.storageSession.set({
       [REQUEST_TOKEN]: { token: r.json.request_token, purpose },
       [SIGNIN_PROGRESS]: { v: 1, step: "code", email: email.trim(), purpose, sentAt: this.e.p.now() },
@@ -73,7 +74,7 @@ export class Login {
     const c = cleanCode(code);
     if (!c) throw new UserError("Enter the 6-character code");
     const st = (await this.e.p.storageSession.get([REQUEST_TOKEN]))[REQUEST_TOKEN] as { token: string; purpose: Purpose } | undefined;
-    if (!st) throw new UserError(T.loginExpired);
+    if (!st) throw new ReasonError(R.loginExpired);
     const r = await this.e.api.call("POST", "/auth/email/verify", { body: { request_token: st.token, code: c } });
     const ticket = typeof r.json.ticket === "string" ? r.json.ticket : "";
     const email = typeof r.json.email === "string" ? r.json.email : null;
@@ -96,7 +97,7 @@ export class Login {
     const url = await this.oauthUrl(provider, purpose);
     const redirect = await this.e.p.authFlow(url).catch((e: unknown) => {
       // Chrome rejects with "The user did not approve access." when the window is closed
-      if (e instanceof Error && /did not approve|closed|cancel/i.test(e.message)) throw new UserError("Sign-in was closed. Try again.");
+      if (e instanceof Error && /did not approve|closed|cancel/i.test(e.message)) throw new ReasonError(R.windowClosed);
       throw e;
     });
     if (redirect !== null) {
@@ -126,26 +127,21 @@ export class Login {
       await report(r);
       return r;
     } catch (err) {
-      await report({ done: false, error: err instanceof UserError ? err.message : errorText(err) });
+      await report({ done: false, error: failText("login", err) });
       throw err;
     }
   }
 
   async complete(purpose: Purpose, ticket: string, email: string | null, evict?: string[]): Promise<LoginResult> {
-    if (!TICKET_RE.test(ticket)) throw new UserError("Login failed. Try again.");
-    try {
-      if (purpose === "register") {
-        const limit = await this.e.register(ticket, email, evict);
-        if (limit) {
-          if (email !== null) await this.e.db.setMeta("email", email);
-          return { done: false, limit, ticket: typeof limit.ticket === "string" ? limit.ticket : ticket };
-        }
-      } else if (purpose === "login") await this.e.login(ticket);
-      else await this.e.deleteAccount(ticket);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401 && err.error === "ticket expired") throw new UserError(T.loginExpired);
-      throw err;
-    }
+    if (!TICKET_RE.test(ticket)) throw new ReasonError(R.badLink);
+    if (purpose === "register") {
+      const limit = await this.e.register(ticket, email, evict);
+      if (limit) {
+        if (email !== null) await this.e.db.setMeta("email", email);
+        return { done: false, limit, ticket: typeof limit.ticket === "string" ? limit.ticket : ticket };
+      }
+    } else if (purpose === "login") await this.e.login(ticket);
+    else await this.e.deleteAccount(ticket);
     if (email !== null && purpose !== "delete-account") await this.e.db.setMeta("email", email);
     await this.clearProgress();
     return { done: true };

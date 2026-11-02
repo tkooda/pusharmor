@@ -37,7 +37,7 @@ test("a check GET that also answers 401 unknown peer deletes the keys, with one 
   unknown(/POST \/v1\/send/);
   unknown(/GET \/v1\/peers$/);
   const r = await a.e.send("hi", false, "all");
-  assert.equal(r.error, T.removed);
+  assert.equal(r.error, "Unable to send.\nThis device was removed from the account. Log in again.");
   assert.equal(await a.db.self(), undefined);
   assert.equal(await a.db.meta("banner"), T.removed);
   assert.equal(gets(), g0 + 1);
@@ -114,7 +114,7 @@ test("401 bad id starts no check and keeps the keys", async () => {
   const g0 = gets();
   w.inject.push({ match: /POST \/v1\/send/, status: 401, body: { error: "bad id" }, times: 1 });
   const r = await a.e.send("hi", false, "all");
-  assert.equal(r.error, "Something went wrong. Try again.");
+  assert.equal(r.error, "Unable to send.\nTry again.");
   assert.equal(gets(), g0);
   assert.ok(await a.db.self());
   assert.equal(await a.db.meta("wipe_check"), undefined);

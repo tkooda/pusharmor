@@ -1,7 +1,7 @@
 // Toolbar popup: Send, History, Peers, Settings (component-webext section 7).
 import type { PeerView, StateView } from "../core/rpc.ts";
 import type { SendResult } from "../core/engine.ts";
-import { T, pushIssueText } from "../core/texts.ts";
+import { T, pushIssueText, saveFailText } from "../core/texts.ts";
 import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter, sortByLabel } from "../model/sendsel.ts";
 import { AUTH_CHANGED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
@@ -337,8 +337,8 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
       const r = await rpc<SendResult>(env, "send", { text: field.value, asText: asText.checked, targets: to });
       // one device sent to is named
       const one = r.total === 1 && r.sent === 1 && count() === 1 ? sendable.find((p) => p.id === checks.find((c) => on(c.chip))?.id) : undefined;
-      if (r.failures.length) toast([T.sentToNofM(r.sent, r.total) + ".", ...r.failures.map((f) => f.text)].join("\n"), "err");
-      else if (r.error) toast(r.error, "err");
+      if (r.error) toast(r.error, "err");
+      else if (r.failures.length) toast([T.sentToNofM(r.sent, r.total) + ".", ...r.failures.map((f) => f.text)].join("\n"), "err");
       else toast(one ? T.messageSentToOne(one.label) : T.messageSentToN(r.sent), "ok");
     } catch (e) {
       toast((e as Error).message, "err");
@@ -544,7 +544,7 @@ function saveText(env: UiEnv, text: string, ms: number): void {
     (path) => {
       if (path !== null) toast('Message saved to "' + path + '"', "ok", true);
     },
-    () => toast("Could not save the message.", "err"),
+    (e: unknown) => toast(saveFailText(e), "err"),
   );
 }
 

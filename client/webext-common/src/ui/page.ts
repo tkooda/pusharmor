@@ -2,7 +2,7 @@
 // (long flows run in a tab because a popup closes on blur).
 import type { LoginResult, Purpose } from "../core/login.ts";
 import type { StateView } from "../core/rpc.ts";
-import { T } from "../core/texts.ts";
+import { R, T } from "../core/texts.ts";
 import { type UiEnv, add, clear, failView, group, h, platformLabel, rpc } from "./dom.ts";
 import { AUTH_CHANGED, AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResult, type Restore, autoVerifyCode, formatWait, resendLeftMs, sendLeftMs } from "../model/signin.ts";
 import { toast } from "./dialog.ts";
@@ -69,7 +69,9 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
 
 const E2E = "All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.";
 const CODE_HELP = "Paste or type the code. Spaces and dashes are fine.";
-const ENDS_FLOW = [T.loginExpired, "This code has expired. Get a new code to continue."];
+/** A code check that failed for one of these reasons starts again at the email step. */
+const ENDS_FLOW = [R.loginExpired, R.codeExpired];
+const endsFlow = (msg: string) => ENDS_FLOW.some((r) => msg.endsWith("\n" + r));
 
 /** One message listener per page (a hash change mounts the view again). */
 let onFrameMessage: ((ev: MessageEvent) => void) | null = null;
@@ -333,7 +335,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       await done(await rpc<LoginResult>(env, "emailVerify", { code: code.value }));
     } catch (e) {
       const msg = (e as Error).message;
-      if (ENDS_FLOW.includes(msg)) {
+      if (endsFlow(msg)) {
         showEmail(email.value);
         toast(msg, "err");
       } else {
@@ -549,7 +551,7 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
             } else if (r.limit) limitView(env, root, r.limit, r.ticket ?? ticket);
           } catch (e) {
             toast((e as Error).message, "err");
-            if ((e as Error).message === T.loginExpired) env.openPage("#login");
+            if ((e as Error).message.endsWith("\n" + R.loginExpired)) env.openPage("#login");
           } finally {
             btn.disabled = false;
           }

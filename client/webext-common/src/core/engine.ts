@@ -2,7 +2,8 @@
 // counters, replay state and Worker calls. Every operation reads state at
 // start and commits before it returns, so a stopped service worker loses
 // nothing.
-import { type ApiReply, Api, ApiError, UPDATE_REQUIRED, errorText } from "../api/client.ts";
+import { type ApiReply, Api, ApiError, UPDATE_REQUIRED } from "../api/client.ts";
+import { ReasonError, failText } from "./failtext.ts";
 import { b64urlDecode, b64urlEncode, b64urlTryDecode } from "../crypto/b64url.ts";
 import { equal, randomBytes } from "../crypto/bytes.ts";
 import { checkKeys, generateKeySet, isValidPub } from "../crypto/keys.ts";
@@ -59,7 +60,7 @@ import {
   getEntry,
   pairKeyOf,
 } from "./state.ts";
-import { T, peerLabel, sendResultText } from "./texts.ts";
+import { R, T, peerLabel, sendResultText } from "./texts.ts";
 import { AUTH_CHANGED } from "../model/signin.ts";
 
 export type Src = "push" | "bridge" | "returned" | "fetched";
@@ -812,9 +813,11 @@ export class Engine {
     const body = await this.buildApprove(x, self, name);
     if (e) await this.p.storageLocal.set({ [pairKeyOf(x)]: { ...e, approved: true, approve_body: body, approve_name: name } satisfies PairEntry });
     if (peer.approve_verified) await this.p.storageLocal.remove([pairKeyOf(x)]);
-    const r = await this.postApprove(x, body, self);
-    await this.rebuildMenus();
-    return r;
+    try {
+      return await this.postApprove(x, body, self);
+    } finally {
+      await this.rebuildMenus();
+    }
   }
 
   private async buildApprove(x: string, self: SelfKeys, name: string): Promise<string> {
@@ -840,6 +843,7 @@ export class Engine {
     if (!allow.includes(x)) await this.p.storageLocal.set({ [ALLOW_SET]: [...allow, x] });
     let result: string;
     let notBefore: number | undefined;
+    let failure: unknown = null;
     let built = body;
     let calls = 0;
     try {
@@ -862,6 +866,7 @@ export class Engine {
         notBefore = f.notBefore;
       }
       if (quiet) return result;
+      failure = err;
     }
     const e = await getEntry(this.p.storageLocal, x);
     if (e) {
@@ -873,6 +878,7 @@ export class Engine {
       await this.db.updatePeer(x, (p) => (p ? { ...p, denies_me: true } : null));
       await this.p.storageLocal.remove([pairKeyOf(x)]);
     }
+    if (failure !== null) throw failure; // the click shows why
     return result;
   }
 
@@ -1252,12 +1258,12 @@ export class Engine {
   /** engine.send (section 10). */
   async send(text: string, asText: boolean, targets: string[] | "all"): Promise<SendResult> {
     const self = await this.self();
-    if (!self) throw new UserError(T.signedOut);
+    if (!self) throw new ReasonError(R.loggedOut);
     const all = await this.allSet();
     const ids = targets === "all" ? all.map((p) => p.id) : targets.filter((t) => all.some((p) => p.id === t));
     const total = all.length;
     const len = utf8Len(text);
-    if (len > CONTENT_CAP) throw new UserError(T.tooLong(len));
+    if (len > CONTENT_CAP) throw new ReasonError(R.tooLong);
     let type: SendType = asText ? "text" : detectType(text);
     let value = text;
     if (type === "url") {
@@ -1266,7 +1272,7 @@ export class Engine {
       else type = "text";
     }
     const valueLen = utf8Len(value);
-    if (valueLen > CONTENT_CAP) throw new UserError(T.tooLong(valueLen)); // href percent-encodes
+    if (valueLen > CONTENT_CAP) throw new ReasonError(R.tooLong); // href percent-encodes
     if (ids.length === 0) return { sent: 0, total, failures: [] };
     const build = async () => {
       const m: Record<string, string> = {};
@@ -1292,7 +1298,7 @@ export class Engine {
       if (r.json.r && typeof r.json.r === "object") results = r.json.r as Record<string, string>;
     } catch (e) {
       await this.callFailure(e);
-      error = e instanceof ApiError && e.status === 401 && e.error === "unknown peer" && !(await this.self()) ? T.removed : errorText(e);
+      error = failText("send", e, { selfKept: !!(await this.self()) });
       if (e instanceof ApiError && (e.status === 429 || e.status === 503) && e.retryAfter !== null) {
         await this.p.storageLocal.set({ [NET_NOT_BEFORE]: now(this.p) + e.retryAfter * 1000 });
       }
@@ -1307,7 +1313,7 @@ export class Engine {
         continue;
       }
       const nm = await this.peerName(id);
-      failures.push({ id, result: res, text: error ? nm + ": " + error : sendResultText(nm, res) });
+      failures.push({ id, result: res, text: error ?? sendResultText(nm, res) });
       if (res === "unapproved" || res === "unknown" || res === "gone") trigger = true;
       if (res === "logged out") {
         await this.db.updatePeer(id, (p) => (p ? { ...p, logged_out: true } : null));
@@ -1728,7 +1734,7 @@ export class Engine {
       const idb = b64urlTryDecode(id);
       // the id must carry our own keyhash, or peers drop every message from us
       if (!idb || idb.length !== ID_LEN || !equal(idb.subarray(ACCOUNT_LEN, ACCOUNT_LEN + KEYHASH_LEN), await keyhash(keys.sign_pub, keys.enc_pub)))
-        throw new UserError(T.badReply);
+        throw new ReasonError(R.badReply);
       await this.db.put("keys", { ...keys, id }, "self");
       await this.p.storageLocal.set({ [REG_MARKER]: { id, registered: true } });
       await this.db.setMeta("reg", "registered");
@@ -1747,7 +1753,7 @@ export class Engine {
       await this.pushReconcile().catch(() => undefined);
       return null;
     }
-    throw new UserError("Could not register. Try again.");
+    throw new ReasonError(R.tryAgain);
   }
 
   async start(): Promise<void> {

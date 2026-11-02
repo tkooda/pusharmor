@@ -2,8 +2,6 @@
 // retries on 429 / 503 / network errors only, clock-skew rebuild.
 import { utf8 } from "../crypto/bytes.ts";
 import { paSig } from "../crypto/pasig.ts";
-import { T } from "../core/texts.ts";
-import { formatWait } from "../model/signin.ts";
 
 export const API_BASE = "https://api.pusharmor.com";
 export const RETRY_DELAYS_MS = [500, 1500, 3000];
@@ -16,12 +14,15 @@ export class ApiError extends Error {
   readonly error: string;
   readonly body: Record<string, unknown>;
   readonly retryAfter: number | null; // seconds
-  constructor(status: number, error: string, body: Record<string, unknown>, retryAfter: number | null) {
+  /** No reply (status 0): aborted after the timeout, the browser is offline, or any other network error. */
+  readonly kind: "timeout" | "offline" | "network";
+  constructor(status: number, error: string, body: Record<string, unknown>, retryAfter: number | null, kind: "timeout" | "offline" | "network" = "network") {
     super(status + " " + error);
     this.status = status;
     this.error = error;
     this.body = body;
     this.retryAfter = retryAfter;
+    this.kind = kind;
   }
 }
 
@@ -130,12 +131,12 @@ export class Api {
         if (bodyText !== "") init.body = bodyText;
         res = await this.d.fetch(API_BASE + fullPath, init);
       } catch {
-        throw new ApiError(0, "network", {}, null);
+        throw noReply(abort.signal.aborted);
       }
       try {
         t = await res.text();
       } catch {
-        if (abort.signal.aborted) throw new ApiError(0, "network", {}, null);
+        if (abort.signal.aborted) throw noReply(true);
       }
     } finally {
       clearTimeout(timer);
@@ -161,6 +162,12 @@ export class Api {
   }
 }
 
+/** A request with no reply: timed out, offline (navigator.onLine false), or another network error. */
+function noReply(aborted: boolean): ApiError {
+  const offline = (globalThis as { navigator?: { onLine?: boolean } }).navigator?.onLine === false;
+  return new ApiError(0, "network", {}, null, aborted ? "timeout" : offline ? "offline" : "network");
+}
+
 /** Retry-After seconds clamped to 0..1 hour, so a bad value cannot hold calls back for ever. */
 export function clampRetry(s: number): number {
   return Math.min(Math.max(s, 0), 3600);
@@ -168,23 +175,3 @@ export function clampRetry(s: number): number {
 
 /** HTTP 426: the relay server no longer accepts this version. */
 export const UPDATE_REQUIRED = "Update PushArmor to continue.";
-
-/** User-facing text for an API error (catalog Results and errors). */
-export function errorText(e: unknown): string {
-  if (!(e instanceof ApiError)) return "Something went wrong. Try again.";
-  if (e.error === "clock skew twice") return T.clockOff;
-  if (e.status === 426) return UPDATE_REQUIRED;
-  if (e.status === 502) return "Could not send the email. Try again.";
-  if (e.status === 400 && e.error === "bad email") return "Only email addresses with plain ASCII characters are supported.";
-  if (e.status === 400 && e.error === "push endpoint not allowed") return T.unsupportedPush;
-  if (e.status === 401 && e.error === "ticket expired") return T.loginExpired;
-  if (e.status === 401 && e.error === "wrong code") return "That code did not work. Check the newest email from PushArmor and try again.";
-  if (e.status === 401 && e.error === "code expired") return "This code has expired. Get a new code to continue.";
-  if (e.status === 403 && e.error === "turnstile failed") return "The security check did not finish. Try it again.";
-  if (e.status === 401 && e.error === "logged out") return "Logged out. Log in to resume.";
-  if (e.status === 429) {
-    return "Too many requests. Try again in " + formatWait((e.retryAfter ?? 60) * 1000) + ".";
-  }
-  if (e.status === 0) return "Could not reach the relay server. Check your connection.";
-  return "Something went wrong. Try again.";
-}
