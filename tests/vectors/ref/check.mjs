@@ -96,7 +96,7 @@ test('cli_code', () => {
   for (const c of G.cli_code.cases) {
     const r = cliCode(b64d(G.cli_code.token_secret), b64d(c.account), b64d(c.sign_pub), c.p, c.window);
     assert.equal(r.k16, c.k16);
-    assert.equal('https://pusharmor.com/auth/cli#' + c.p + '.' + r.k16, c.link);
+    assert.equal('https://pusharmor.com/auth/cli#' + c.p + r.k16, c.link);
     assert.equal(r.code, c.code);
     assert.equal(c.code.length, 34);
   }

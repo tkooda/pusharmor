@@ -275,7 +275,7 @@ def test_login_code_tries(net, tmp_path, monkeypatch, capsys):
     answers(monkeypatch, "short", CODE[:-1] + "!", "'" + CODE + "x'")
     assert run(tmp_path, "login") == 1
     out = capsys.readouterr()
-    assert "\n\n  https://pusharmor.com/auth/cli#r." in out.out
+    assert pa.re.search(r"\n\n  https://pusharmor\.com/auth/cli#r[A-Za-z0-9_-]{22}\s", out.out)
     assert "after 3 tries" in out.err and net.log == []
     assert not os.path.exists(tmp_path / "keys")
 
@@ -303,7 +303,7 @@ def test_login_registers_and_confirms(net, tmp_path, monkeypatch, capsys):
     assert os.stat(tmp_path / "keys").st_mode & 0o777 == 0o700
     assert os.stat(tmp_path / "keys" / "private.toml").st_mode & 0o777 == 0o600
     out = capsys.readouterr().out
-    assert "#r." + pa.b64e(pa.sha256(pa.b64d(p["sign_pub"]))[:16]) in out
+    assert "#r" + pa.b64e(pa.sha256(pa.b64d(p["sign_pub"]))[:16]) in out
     assert run(tmp_path, "login") == 0 and "already logged in" in capsys.readouterr().out
 
 

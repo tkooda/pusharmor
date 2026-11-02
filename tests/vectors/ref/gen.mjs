@@ -232,11 +232,11 @@ function cliCodeSection() {
   const tokenSecret = label('TOKEN_SECRET');
   const cases = [['register', 'r', 2969856], ['login', 'l', 2969857]].map(([purpose, p, window]) => {
     const r = cliCode(tokenSecret, N.account, N.signPub, p, window);
-    return { purpose, p, window, sign_pub: b64e(N.signPub), account: b64e(N.account), k16: r.k16, link: 'https://pusharmor.com/auth/cli#' + p + '.' + r.k16, code: r.code };
+    return { purpose, p, window, sign_pub: b64e(N.signPub), account: b64e(N.account), k16: r.k16, link: 'https://pusharmor.com/auth/cli#' + p + r.k16, code: r.code };
   });
   return {
     description:
-      'Command line login code. k16 = b64url(sha256(sign_pub)[0..16]) (22 chars); link = "https://pusharmor.com/auth/cli#" + p + "." + k16 ' +
+      'Command line login code. k16 = b64url(sha256(sign_pub)[0..16]) (22 chars); link = "https://pusharmor.com/auth/cli#" + p + k16 ' +
       '(p = r register, l login, d delete-account); code = b64url(account (9 bytes) || HMAC-SHA256(token_secret, "PA-CLI1\\n" + ' +
       'b64url(account) + "\\n" + k16 + "\\n" + p + "\\n" + window)[0..16]) (34 chars), window = floor(unix s / 600) in decimal. ' +
       'token_secret is a test PA_TOKEN_SECRET. Assert k16, link and code (the Worker and the command line client).',

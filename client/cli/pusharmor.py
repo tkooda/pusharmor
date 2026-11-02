@@ -2182,7 +2182,7 @@ def cmd_login(cx, args):
         for name in ("sign", "enc", "push"):
             k[name], k[name + "_pub"] = new_key()
         cx.keys = cx.api.keys = k
-    link = "%s/auth/cli#%s.%s" % (SITE, purpose, b64e(sha256(cx.keys["sign_pub"])[:16]))
+    link = "%s/auth/cli#%s%s" % (SITE, purpose, b64e(sha256(cx.keys["sign_pub"])[:16]))
     print("Open this link in a browser and log in:\n\n  %s\n\nThen paste the code from the page here." % link)
     shown, tries, code = time.time(), 0, None
     while True:
