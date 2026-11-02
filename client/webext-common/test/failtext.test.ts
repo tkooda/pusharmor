@@ -325,3 +325,10 @@ test("a device name that is not allowed says Unable to rename, then the rule", a
   const { rpc } = await paired();
   assert.equal(await fails(rpc, "rename", { name: 'Lap"top' }), "Unable to rename this device.\nUse 1 to 32 plain ASCII characters, with no double quote.");
 });
+
+test("a menu send that some devices did not get, with no text back, says so in two lines", async () => {
+  const { menuSend } = await import("../src/core/actions.ts");
+  const engine = { send: async () => ({ sent: 1, total: 2, failures: [] }) } as unknown as Engine;
+  const r = await menuSend(engine, "hi", "all", false);
+  assert.equal(r.notice, "Unable to send.\nSome devices did not get the message. Open PushArmor to see which.");
+});

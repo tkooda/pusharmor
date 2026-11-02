@@ -5,6 +5,7 @@ import { CONTENT_CAP, utf8Len } from "../model/padding.ts";
 import type { HistoryRow } from "../store/db.ts";
 import type { Engine } from "./engine.ts";
 import { allEntries } from "./state.ts";
+import { R, actionLine } from "./texts.ts";
 
 export type ClickTarget = { url: string } | { page: string } | null;
 
@@ -66,6 +67,6 @@ export async function menuSend(e: Engine, text: string, child: string, fromSelec
   void fromSelection;
   const total = targets === "all" ? r.total : 1;
   const badge = r.sent + "/" + total;
-  const notice = r.sent < total ? (r.error || r.failures.map((f) => f.text).join("\n") || "Not all devices received it") : null;
+  const notice = r.sent < total ? (r.error || r.failures.map((f) => f.text).join("\n") || actionLine("send") + "\n" + R.someNotSent) : null;
   return { badge, notice, overCap: null };
 }
