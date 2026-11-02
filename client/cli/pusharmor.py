@@ -1371,6 +1371,19 @@ def _loopback(url):
         return False
 
 
+LOCAL_NETS = tuple(ipaddress.ip_network(n) for n in (
+    "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7", "fe80::/10"))
+
+
+def _local_net(url):
+    """An IP address on a private network (written as an IP address; names are not looked up)."""
+    try:
+        ip = ipaddress.ip_address(urllib.parse.urlsplit(url).hostname)
+    except ValueError:
+        return False
+    return any(ip in n for n in LOCAL_NETS)
+
+
 STATE_LISTS = (("my_allow", str), ("listed", str), ("pair_auto", int))
 STATE_OPTIONAL = (("reg", str), ("name", str), ("ntfy", str), ("topic", str), ("since", str), ("listen_at", int),
                   ("push_ok", bool), ("logout_pending", bool))
@@ -1408,7 +1421,8 @@ class Store:
             s = read_toml(p)
         for k in ("server", "ntfy"):
             if k in s and not (isinstance(s[k], str) and re.match(r"https?://[^/?#]+/?$", s[k]) and _host_ok(s[k])
-                               and (s[k].startswith("https://") or _loopback(s[k]))):
+                               and (s[k].startswith("https://") or _loopback(s[k])
+                                    or (k == "ntfy" and _local_net(s[k])))):
                 raise Fail("%s: %s must be an https:// URL like https://host" % (p, k))
         return s
 
