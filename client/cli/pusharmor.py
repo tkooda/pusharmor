@@ -667,7 +667,7 @@ def pair_decide(i):
         return out("drop", "half_state" if half else "could_not_read", "unchanged")
     if i["listed"] == "no" or i["open_entries"] >= PAIR_MAX_OPEN:
         return out("drop", "could_not_read", "none")
-    if sum(1 for t in i["cap"] if i["now"] - t < PAIR_CAP_WINDOW_S) >= PAIR_CAP_MAX:
+    if sum(1 for t in i["cap"] if 0 <= i["now"] - t < PAIR_CAP_WINDOW_S) >= PAIR_CAP_MAX:
         return out("prompt", "commit", "created_prompted")
     return out("reply", "commit", "created_replied", True)
 
@@ -809,6 +809,26 @@ def _dot_segments(path):
     return "/".join(out)
 
 
+def _ipv6_text(text):
+    """The URL standard form of an IPv6 literal: lowercase hex pieces, the first longest run of
+    two or more zero pieces as "::", embedded IPv4 as hex (Python's own text differs by version)."""
+    if "%" in text:
+        raise ValueError(text)
+    b = ipaddress.IPv6Address(text).packed
+    w = [b[i] << 8 | b[i + 1] for i in range(0, 16, 2)]
+    best, blen, i = -1, 1, 0
+    while i < 8:
+        j = i
+        while j < 8 and w[j] == 0:
+            j += 1
+        if j - i > blen:
+            best, blen = i, j - i
+        i = j + 1 if j > i else i + 1
+    if best < 0:
+        return ":".join("%x" % x for x in w)
+    return ":".join("%x" % x for x in w[:best]) + "::" + ":".join("%x" % x for x in w[best + blen:])
+
+
 def _auto_open(scheme, host, port_text):
     if scheme != "https" or port_text or host.startswith("["):
         return False
@@ -850,7 +870,7 @@ def parse_url(s):
                 return no
             port = after[1:]
         try:
-            host = "[" + ipaddress.IPv6Address(auth[1:close]).compressed + "]"
+            host = "[" + _ipv6_text(auth[1:close]) + "]"
         except ValueError:
             return no
     else:
@@ -2112,7 +2132,7 @@ def on_commit(cx, frm, c_n, listed):
             e = d["pairs"][frm] = new_entry("X", "prompted", secrets.token_bytes(32), c_n)
             e["authorized"] = dec["action"] == "reply"
             if dec["cap_counted"]:
-                d["pair_auto"] = [t for t in d["pair_auto"] if now - t < PAIR_CAP_WINDOW_S] + [now]
+                d["pair_auto"] = [t for t in d["pair_auto"] if 0 <= now - t < PAIR_CAP_WINDOW_S] + [now]
         notice = dec["notice"]
         if notice in ("commit", "represent"):
             notes.append(pair_note(cx, d, frm, "%s wants to pair. Run: pusharmor pair %s"))

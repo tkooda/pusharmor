@@ -131,7 +131,7 @@ export function pairDecide(i) {
   // e. new entry
   if (i.listed === 'no') return out('drop', 'could_not_read', 'none');
   if (i.open_entries >= MAX_OPEN_ENTRIES) return out('drop', 'could_not_read', 'none');
-  const inWindow = i.cap.filter((t) => i.now - t < CAP_WINDOW_S).length;
+  const inWindow = i.cap.filter((t) => t <= i.now && i.now - t < CAP_WINDOW_S).length;
   if (inWindow >= CAP_MAX) return out('prompt', 'commit', 'created_prompted');
   return out('reply', 'commit', 'created_replied', true);
 }

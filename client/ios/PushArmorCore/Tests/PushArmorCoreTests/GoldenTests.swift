@@ -187,7 +187,7 @@ final class GoldenTests: XCTestCase {
 
     func testPairDecide() {
         let cs = cases("pair_decide")
-        XCTAssertEqual(cs.count, 28)
+        XCTAssertEqual(cs.count, 29)
         for c in cs {
             let o = PairDecide.decide(pdInput(c["input"] as! J))
             let e = c["output"] as! J

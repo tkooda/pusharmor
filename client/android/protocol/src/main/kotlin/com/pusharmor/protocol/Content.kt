@@ -95,15 +95,13 @@ object UrlCheck {
                 if (!after.startsWith(":")) return null
                 portText = after.substring(1)
             }
-            hostPart = authority.substring(0, close + 1)
-            val inner = hostPart.substring(1, hostPart.length - 1)
-            if (inner.isEmpty() || !inner.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' || it == ':' || it == '.' }) return null
+            hostPart = "[" + (ipv6(authority.substring(1, close)) ?: return null) + "]"
         } else {
             val c = authority.lastIndexOf(':')
             if (c >= 0) { portText = authority.substring(c + 1); hostPart = authority.substring(0, c) }
         }
         if (hostPart.isEmpty()) return null
-        val host = if (hostPart.startsWith("[")) hostPart.lowercase() else asciiHost(hostPart) ?: return null
+        val host = if (hostPart.startsWith("[")) hostPart else asciiHost(hostPart) ?: return null
         val port = if (portText.isNullOrEmpty()) -1 else {
             val digits = portText.trimStart('0').ifEmpty { "0" }
             if (!portText.all { it in '0'..'9' } || digits.length > 5) return null
@@ -217,6 +215,102 @@ object UrlCheck {
     }
 
     /** Percent-encodes non-ASCII (as UTF-8) and the chars in [set]; existing escapes stay as given. */
+    /**
+     * WHATWG IPv6 parser and serializer: the text between "[" and "]" in, the canonical form
+     * out (lowercase hex, first longest run of two or more zero pieces as "::", an embedded
+     * IPv4 part printed as hex). Null when it does not parse. No name lookup.
+     */
+    private fun ipv6(s: String): String? {
+        val a = IntArray(8)
+        var piece = 0
+        var compress = -1
+        var p = 0
+        fun c(): Char? = if (p < s.length) s[p] else null
+        if (c() == ':') {
+            if (p + 1 >= s.length || s[p + 1] != ':') return null
+            p += 2
+            piece++
+            compress = piece
+        }
+        while (c() != null) {
+            if (piece == 8) return null
+            if (c() == ':') {
+                if (compress != -1) return null
+                p++
+                piece++
+                compress = piece
+                continue
+            }
+            var value = 0
+            var length = 0
+            while (length < 4 && c() != null && Character.digit(c()!!, 16) >= 0 && c()!!.code < 0x80) {
+                value = value * 16 + Character.digit(c()!!, 16)
+                p++
+                length++
+            }
+            if (c() == '.') {
+                if (length == 0) return null
+                p -= length
+                if (piece > 6) return null
+                var seen = 0
+                while (c() != null) {
+                    var v4 = -1
+                    if (seen > 0) {
+                        if (c() == '.' && seen < 4) p++ else return null
+                    }
+                    if (c() == null || c()!! !in '0'..'9') return null
+                    while (c() != null && c()!! in '0'..'9') {
+                        val n = c()!! - '0'
+                        v4 = when (v4) { -1 -> n; 0 -> return null; else -> v4 * 10 + n }
+                        if (v4 > 255) return null
+                        p++
+                    }
+                    a[piece] = a[piece] * 0x100 + v4
+                    seen++
+                    if (seen == 2 || seen == 4) piece++
+                }
+                if (seen != 4) return null
+                break
+            } else if (c() == ':') {
+                p++
+                if (c() == null) return null
+            } else if (c() != null) return null
+            a[piece] = value
+            piece++
+        }
+        if (compress != -1) {
+            var swaps = piece - compress
+            piece = 7
+            while (piece != 0 && swaps > 0) {
+                val t = a[piece]; a[piece] = a[compress + swaps - 1]; a[compress + swaps - 1] = t
+                piece--
+                swaps--
+            }
+        } else if (piece != 8) return null
+        var best = -1
+        var bestLen = 1
+        var i = 0
+        while (i < 8) {
+            var j = i
+            while (j < 8 && a[j] == 0) j++
+            if (j - i > bestLen) { best = i; bestLen = j - i }
+            i = if (j > i) j else i + 1
+        }
+        return buildString {
+            var k = 0
+            while (k < 8) {
+                if (k == best) {
+                    append(if (k == 0) "::" else ":")
+                    k += bestLen
+                    continue
+                }
+                append(Integer.toHexString(a[k]))
+                if (k != 7) append(':')
+                k++
+            }
+        }
+    }
+
     private fun encode(s: String, set: String): String {
         if (s.all { it.code < 0x80 && it !in set }) return s
         val out = StringBuilder()

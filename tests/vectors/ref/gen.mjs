@@ -347,6 +347,7 @@ function pairDecideSection() {
     ['d_pinned_approves_me_true', { pinned: true, approved: true, approve_verified: true, approves_me: true, get_after_verify: true }],
     ['d_pinned_no_get_since_verify', { pinned: true, approved: true, approve_verified: true }],
     ['d_pinned_not_approved_not_counted', { pinned: true, cap: capFull.slice(0, 5) }],
+    ['e_cap_future_stamps_not_counted', { cap: Array.from({ length: 10 }, () => now + 365 * 86400) }],
   ];
   return {
     description:
@@ -361,7 +362,7 @@ function pairDecideSection() {
       '$X in progress. Open PushArmor.", platforms that notify every push only) | could_not_read (generic, platforms that ' +
       'notify every push only) | represent (re-present the current notice, same tag/id); entry created_replied | ' +
       'created_prompted | n_wiped_x_replied | aborted | unchanged | none; cap_counted (the reply counts in the cap). ' +
-      'A cap timestamp t counts while now - t < 86400. Lower id = unsigned byte compare (see id_order). ' +
+      'A cap timestamp t counts while 0 <= now - t < 86400 (a future t does not count and is not kept). Lower id = unsigned byte compare (see id_order). ' +
       'Every leg (android, ios, webext) asserts all four output fields.',
     cases: cases.map(([name, over]) => {
       const input = { ...base, ...over };
@@ -708,6 +709,9 @@ function urlSection() {
     'https://example.com/a.', 'https://example.com/a)', 'https://example.com/a,', 'https://example.com).',
     // ASCII hosts
     'http://my_host.com/', 'https://a..com/', 'https://./', 'https://ex%61mple.com/', 'https://@a.com/',
+    // IPv6 literals: parse, then print in the URL standard form
+    'https://[1::2::3]/', 'https://[0:0:0:0:0:0:0:1]/', 'https://[0:0::1]/x', 'https://[1]/', 'https://[:::]/',
+    'https://[::ffff:1.2.3.4]/', 'https://[2001:DB8::A]/', 'https://[1:0:0:2:0:0:3:4]/', 'https://[1:2:3:0:5:6:7:8]/',
     'https://0x7f.1/', 'https://1.2.3/', 'https://1.2.3.4./', 'https://example.123/', 'https://09.a/',
     'https:/a.com/', 'https:a.com', 'https:///a.com/',
     // ports

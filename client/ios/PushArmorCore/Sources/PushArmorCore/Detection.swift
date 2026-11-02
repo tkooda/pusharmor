@@ -76,6 +76,7 @@ public enum URLRule {
         if authority.contains("@") || authority.contains("%") { return nil }
         var hostPart = authority[...]
         var port: ArraySlice<Unicode.Scalar>? = nil
+        var ipHost = ""
         if hostPart.first == "[" {
             guard let close = hostPart.firstIndex(of: "]") else { return nil }
             let after = hostPart[(close + 1)...]
@@ -83,9 +84,9 @@ public enum URLRule {
                 guard after.first == ":" else { return nil }
                 port = after.dropFirst()
             }
+            guard let v6 = ipv6(Array(hostPart[(hostPart.startIndex + 1)..<close])) else { return nil }
+            ipHost = "[" + v6 + "]"
             hostPart = hostPart[...close]
-            let inner = hostPart.dropFirst().dropLast()
-            guard !inner.isEmpty, inner.allSatisfy({ $0.properties.isASCIIHexDigit || $0 == ":" || $0 == "." }) else { return nil }
         } else if let c = hostPart.lastIndex(of: ":") {
             port = hostPart[(c + 1)...]
             hostPart = hostPart[..<c]
@@ -93,7 +94,7 @@ public enum URLRule {
         guard !hostPart.isEmpty else { return nil }
         let host: String
         if hostPart.first == "[" {
-            host = str(hostPart).lowercased()
+            host = ipHost
         } else {
             guard let h = asciiHost(Array(hostPart)) else { return nil }
             host = h
@@ -171,6 +172,121 @@ public enum URLRule {
         let endsInNumber = (!last.isEmpty && last.utf8.allSatisfy(isDigit)) ||
             (last.hasPrefix("0x") && last.utf8.dropFirst(2).allSatisfy { isDigit($0) || ($0 >= 0x61 && $0 <= 0x66) })
         if endsInNumber && quad.firstMatch(in: out, range: NSRange(out.startIndex..., in: out)) == nil { return nil }
+        return out
+    }
+
+    /// WHATWG IPv6 parser and serializer: the text between "[" and "]" in, the canonical form
+    /// out (lowercase hex, first longest run of two or more zero pieces as "::", an embedded
+    /// IPv4 part printed as hex). Nil when it does not parse. No name lookup.
+    static func ipv6(_ s: [Unicode.Scalar]) -> String? {
+        var a = [Int](repeating: 0, count: 8)
+        var piece = 0
+        var compress: Int? = nil
+        var p = 0
+        func cur() -> Unicode.Scalar? { p < s.count ? s[p] : nil }
+        func hex(_ u: Unicode.Scalar?) -> Int? {
+            guard let v = u?.value else { return nil }
+            switch v {
+            case 0x30...0x39: return Int(v) - 0x30
+            case 0x41...0x46: return Int(v) - 0x37
+            case 0x61...0x66: return Int(v) - 0x57
+            default: return nil
+            }
+        }
+        func digit(_ u: Unicode.Scalar?) -> Int? {
+            guard let v = u?.value, v >= 0x30, v <= 0x39 else { return nil }
+            return Int(v) - 0x30
+        }
+        if cur() == ":" {
+            guard p + 1 < s.count, s[p + 1] == ":" else { return nil }
+            p += 2
+            piece += 1
+            compress = piece
+        }
+        while cur() != nil {
+            if piece == 8 { return nil }
+            if cur() == ":" {
+                if compress != nil { return nil }
+                p += 1
+                piece += 1
+                compress = piece
+                continue
+            }
+            var value = 0
+            var length = 0
+            while length < 4, let h = hex(cur()) {
+                value = value * 16 + h
+                p += 1
+                length += 1
+            }
+            if cur() == "." {
+                if length == 0 || piece > 6 { return nil }
+                p -= length
+                var seen = 0
+                while cur() != nil {
+                    var v4: Int? = nil
+                    if seen > 0 {
+                        guard cur() == ".", seen < 4 else { return nil }
+                        p += 1
+                    }
+                    guard digit(cur()) != nil else { return nil }
+                    while let n = digit(cur()) {
+                        if let v = v4 {
+                            if v == 0 { return nil }
+                            v4 = v * 10 + n
+                        } else {
+                            v4 = n
+                        }
+                        if v4! > 255 { return nil }
+                        p += 1
+                    }
+                    a[piece] = a[piece] * 0x100 + v4!
+                    seen += 1
+                    if seen == 2 || seen == 4 { piece += 1 }
+                }
+                if seen != 4 { return nil }
+                break
+            } else if cur() == ":" {
+                p += 1
+                if cur() == nil { return nil }
+            } else if cur() != nil {
+                return nil
+            }
+            a[piece] = value
+            piece += 1
+        }
+        if let cp = compress {
+            var swaps = piece - cp
+            piece = 7
+            while piece != 0 && swaps > 0 {
+                a.swapAt(piece, cp + swaps - 1)
+                piece -= 1
+                swaps -= 1
+            }
+        } else if piece != 8 {
+            return nil
+        }
+        var best = -1
+        var bestLen = 1
+        var i = 0
+        while i < 8 {
+            var j = i
+            while j < 8 && a[j] == 0 { j += 1 }
+            if j - i > bestLen { best = i; bestLen = j - i }
+            i = j > i ? j : i + 1
+        }
+        var out = ""
+        var k = 0
+        while k < 8 {
+            if k == best {
+                out += k == 0 ? "::" : ":"
+                k += bestLen
+                continue
+            }
+            out += String(a[k], radix: 16)
+            if k != 7 { out += ":" }
+            k += 1
+        }
         return out
     }
 

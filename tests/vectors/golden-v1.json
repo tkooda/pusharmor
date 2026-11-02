@@ -3893,9 +3893,44 @@
           "entry": "unchanged",
           "notice": "could_not_read"
         }
+      },
+      {
+        "input": {
+          "approve_verified": false,
+          "approved": false,
+          "approves_me": null,
+          "cap": [
+            1792836000,
+            1792836000,
+            1792836000,
+            1792836000,
+            1792836000,
+            1792836000,
+            1792836000,
+            1792836000,
+            1792836000,
+            1792836000
+          ],
+          "commit_c_N": "oTHP3GKy4ZtI_ex_Mz0ke-g9voz-WynwPRWLnsrePwc",
+          "entry": null,
+          "from_id": "CuVpna7--EmbFH3LCvfiANtnCurGpyStSXIO6AUz",
+          "get_after_verify": false,
+          "listed": "yes",
+          "now": 1761300000,
+          "open_entries": 0,
+          "own_id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
+          "pinned": false
+        },
+        "name": "e_cap_future_stamps_not_counted",
+        "output": {
+          "action": "reply",
+          "cap_counted": true,
+          "entry": "created_replied",
+          "notice": "commit"
+        }
       }
     ],
-    "description": "PURE pairing decision on X for a commit push (Pairing flow step 3, rules a-e, first match wins). Input fields: own_id, from_id; commit_c_N; entry (null or the open entry for from_id: role N|X, state N: committed|shown, X: replied|prompted|shown, c_N and reply_authorized for X role); pinned; approved (implies pinned); approve_verified (from_id's approve verified here); approves_me (last GET /peers, null if none) and get_after_verify (that GET was fetched after the approve verified); listed (yes | after_fetch | no: in the last GET /peers, after one fetch, still absent); open_entries (all roles); cap (unix s of counted automatic replies); now (unix s). Output: action reply|notice|abort|prompt|drop; notice commit (\"A new peer wants to pair. Open PushArmor.\") | half_state (\"$X wants to pair again. Tap Cancel pairing on its row, then pair.\", tag pk) | crossing (\"Pairing with $X in progress. Open PushArmor.\", platforms that notify every push only) | could_not_read (generic, platforms that notify every push only) | represent (re-present the current notice, same tag/id); entry created_replied | created_prompted | n_wiped_x_replied | aborted | unchanged | none; cap_counted (the reply counts in the cap). A cap timestamp t counts while now - t < 86400. Lower id = unsigned byte compare (see id_order). Every leg (android, ios, webext) asserts all four output fields."
+    "description": "PURE pairing decision on X for a commit push (Pairing flow step 3, rules a-e, first match wins). Input fields: own_id, from_id; commit_c_N; entry (null or the open entry for from_id: role N|X, state N: committed|shown, X: replied|prompted|shown, c_N and reply_authorized for X role); pinned; approved (implies pinned); approve_verified (from_id's approve verified here); approves_me (last GET /peers, null if none) and get_after_verify (that GET was fetched after the approve verified); listed (yes | after_fetch | no: in the last GET /peers, after one fetch, still absent); open_entries (all roles); cap (unix s of counted automatic replies); now (unix s). Output: action reply|notice|abort|prompt|drop; notice commit (\"A new peer wants to pair. Open PushArmor.\") | half_state (\"$X wants to pair again. Tap Cancel pairing on its row, then pair.\", tag pk) | crossing (\"Pairing with $X in progress. Open PushArmor.\", platforms that notify every push only) | could_not_read (generic, platforms that notify every push only) | represent (re-present the current notice, same tag/id); entry created_replied | created_prompted | n_wiped_x_replied | aborted | unchanged | none; cap_counted (the reply counts in the cap). A cap timestamp t counts while 0 <= now - t < 86400 (a future t does not count and is not kept). Lower id = unsigned byte compare (see id_order). Every leg (android, ios, webext) asserts all four output fields."
   },
   "pair_hint": {
     "cases": [
@@ -4903,6 +4938,60 @@
       {
         "input": "https://@a.com/",
         "url": false
+      },
+      {
+        "input": "https://[1::2::3]/",
+        "url": false
+      },
+      {
+        "auto_open": false,
+        "host": "[::1]",
+        "href": "https://[::1]/",
+        "input": "https://[0:0:0:0:0:0:0:1]/",
+        "url": true
+      },
+      {
+        "auto_open": false,
+        "host": "[::1]",
+        "href": "https://[::1]/x",
+        "input": "https://[0:0::1]/x",
+        "url": true
+      },
+      {
+        "input": "https://[1]/",
+        "url": false
+      },
+      {
+        "input": "https://[:::]/",
+        "url": false
+      },
+      {
+        "auto_open": false,
+        "host": "[::ffff:102:304]",
+        "href": "https://[::ffff:102:304]/",
+        "input": "https://[::ffff:1.2.3.4]/",
+        "url": true
+      },
+      {
+        "auto_open": false,
+        "host": "[2001:db8::a]",
+        "href": "https://[2001:db8::a]/",
+        "input": "https://[2001:DB8::A]/",
+        "url": true
+      },
+      {
+        "auto_open": false,
+        "host": "[1::2:0:0:3:4]",
+        "href": "https://[1::2:0:0:3:4]/",
+        "input": "https://[1:0:0:2:0:0:3:4]/",
+        "url": true
+      },
+      {
+        "auto_open": false,
+        "host": "[1:2:3:0:5:6:7:8]",
+        "href": "https://[1:2:3:0:5:6:7:8]/",
+        "input": "https://[1:2:3:0:5:6:7:8]/",
+        "url": true
       },
       {
         "input": "https://0x7f.1/",
