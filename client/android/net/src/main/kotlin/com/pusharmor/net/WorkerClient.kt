@@ -338,7 +338,7 @@ object ErrorText {
             r.status == 400 && r.error == "bad email" -> BAD_EMAIL
             r.status == 400 && r.error == "push endpoint not allowed" -> PUSH_NOT_SUPPORTED + (pushHost?.let { "\n($it)" } ?: "")
             (r.status == 400 && r.error == "bad request") || r.status == 404 || r.status == 405 -> REFUSED
-            r.status == 502 -> EMAIL_NOT_SENT
+            r.status == 502 && r.error == "email send failed" -> EMAIL_NOT_SENT
             r.status in 500..599 -> SERVER_DOWN
             else -> TRY_AGAIN
         }

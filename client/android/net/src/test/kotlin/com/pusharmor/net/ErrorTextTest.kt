@@ -25,6 +25,8 @@ class ErrorTextTest {
             ApiResult.Http(401, "code expired") to "The code expired. Request a new code to continue.",
             ApiResult.Http(403, "turnstile failed") to "The security check did not finish. Try again.",
             ApiResult.Http(502, "email send failed") to "The relay server could not send the email. Try again.",
+            ApiResult.Http(502, null) to "The relay server is not working right now. Try again later.",
+            ApiResult.Http(502, "bad gateway") to "The relay server is not working right now. Try again later.",
             ApiResult.Http(400, "bad email") to "Only email addresses with plain ASCII characters are supported.",
             ApiResult.Http(401, "email not verified") to "This Google account has no verified email address.",
             ApiResult.Http(401, "invalid id_token") to "Google did not confirm the login. Try again.",
