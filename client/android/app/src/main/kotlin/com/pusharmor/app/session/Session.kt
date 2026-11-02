@@ -1,7 +1,6 @@
 package com.pusharmor.app.session
 
 import android.content.Intent
-import android.os.SystemClock
 import android.provider.Settings as SysSettings
 import androidx.core.app.Person
 import androidx.core.content.pm.ShortcutInfoCompat
@@ -45,7 +44,6 @@ class Session(private val g: Graph) {
         const val REMOVED = "This device was removed. Log in again."
         const val LOST_KEYS = "This device lost its keys. Log in again."
         const val DELETED = "Account deleted on another device."
-        const val KEYS_UNAVAILABLE = "Keys unavailable. Restart this device."
         const val NO_GOOGLE_PUSH = "This build has no Google push. Install a UnifiedPush app or reinstall from Play."
         const val REFRESH_GREY_MS = 60_000L
 
@@ -57,22 +55,16 @@ class Session(private val g: Graph) {
     private val dao get() = g.dao
 
     /** Startup invariant, before any network call (section 9). */
-    fun startup(fromMainActivity: Boolean): Start {
+    fun startup(): Start {
         val present: Boolean
         val any: Boolean
         try {
             present = KeystoreKeyOps.present()
             any = KeystoreKeyOps.anyPresent()
         } catch (e: Exception) {
-            // The same Keystore error counts only across two distinct boots, from MainActivity starts.
-            if (!fromMainActivity) return Start.KEYS_UNAVAILABLE
-            val anchor = (System.currentTimeMillis() - SystemClock.elapsedRealtime()) / 60_000
-            val prev = s.get(Settings.K.KS_ERROR_BOOT)
-            if (prev != null && kotlin.math.abs(prev - anchor) > 2) { selfRemoved(deleted = false, lostKeys = true); return Start.SIGN_IN }
-            s.set(Settings.K.KS_ERROR_BOOT, anchor)
+            // A Keystore error changes nothing: the keys screen offers Retry, and only the user deletes keys.
             return Start.KEYS_UNAVAILABLE
         }
-        s.set(Settings.K.KS_ERROR_BOOT, null)
         val self = dao.self()
         if (self == null) {
             // Leftover keys go only on a sure "no self row": not mid sign-in, and not from a database file made new
@@ -81,6 +73,7 @@ class Session(private val g: Graph) {
             return Start.SIGN_IN
         }
         if (!present) { selfRemoved(deleted = false, lostKeys = true); return Start.SIGN_IN }
+        if (!KeystoreKeyOps.probe()) return Start.KEYS_UNAVAILABLE
         g.keysOrNull = KeystoreKeyOps.load()
         return if (s.flag(Settings.K.SIGNED_OUT, false)) Start.SIGNED_OUT else Start.READY
     }

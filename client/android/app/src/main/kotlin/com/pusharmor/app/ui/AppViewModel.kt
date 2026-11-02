@@ -103,9 +103,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun setStart(s: Session.Start) { signInPurpose.value = purpose(); start.value = s }
 
-    fun boot(fromMain: Boolean = true) = io {
+    fun boot() = io {
         g.settings.updateRequired(com.pusharmor.app.BuildConfig.VERSION_NAME)
-        val s = g.session.startup(fromMain)
+        val s = g.session.startup()
         setStart(s)
         if (s == Session.Start.READY) g.session.onAppOpen(System.currentTimeMillis())
         if (s == Session.Start.SIGNED_OUT) g.session.retryPendingLogout()

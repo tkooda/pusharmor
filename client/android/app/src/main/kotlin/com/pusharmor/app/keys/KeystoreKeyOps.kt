@@ -51,6 +51,15 @@ class KeystoreKeyOps private constructor(private val ks: KeyStore) : KeyOps {
 
         fun load(): KeystoreKeyOps? = if (present()) KeystoreKeyOps(store()) else null
 
+        /** The saved keys still sign (checked against their public key) and still agree a key. Never deletes. */
+        fun probe(): Boolean = try {
+            val k = load()
+            val d = ByteArray(32) { it.toByte() }
+            k != null && P256.verify(k.signPub, d, k.sign(d)) && k.ecdh(k.encPub).size == 32
+        } catch (e: Exception) {
+            false
+        }
+
         private fun gen(alias: String, purpose: Int, f: (KeyGenParameterSpec.Builder) -> KeyGenParameterSpec.Builder) {
             val spec = f(
                 KeyGenParameterSpec.Builder(alias, purpose)

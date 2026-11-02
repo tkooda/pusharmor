@@ -69,6 +69,35 @@ class DialogsTest {
         assertEquals(1 to 1, confirmed to dismissed)
     }
 
+    /** Semantics nodes of the activity window (not a dialog). */
+    private fun screenNodes(a: android.app.Activity): List<SemanticsNode> = roots(a.window.decorView).flatMap { flat(it.semanticsOwner.unmergedRootSemanticsNode) }
+
+    private fun clickIn(nodes: List<SemanticsNode>, text: String) {
+        var n: SemanticsNode? = nodes.first { it.config.getOrNull(SemanticsProperties.Text)?.any { t -> t.text == text } == true }
+        while (n != null && n.config.getOrNull(SemanticsActions.OnClick) == null) n = n.parent
+        n!!.config[SemanticsActions.OnClick].action!!.invoke()
+        idle()
+    }
+
+    @Test fun keysBrokenScreenDeletesOnlyAfterTheDialogDelete() {
+        var retried = 0
+        var deleted = 0
+        UiHostActivity.content = { KeysBrokenScreen(onRetry = { retried++ }, onDelete = { deleted++ }) }
+        val a = Robolectric.buildActivity(UiHostActivity::class.java).setup().get()
+        idle()
+        val screen = screenNodes(a).flatMap { n -> n.config.getOrNull(SemanticsProperties.Text)?.map { it.text } ?: emptyList() }
+        assertTrue(screen.toString(), screen.containsAll(listOf(UiText.KEYS_BROKEN_TITLE, UiText.KEYS_BROKEN_BODY, "Retry", "Delete broken keys")))
+        clickIn(screenNodes(a), "Retry")
+        assertEquals(1 to 0, retried to deleted)
+        clickIn(screenNodes(a), "Delete broken keys")
+        assertTrue(texts().containsAll(listOf(UiText.KEYS_BROKEN_DIALOG_TITLE, UiText.KEYS_BROKEN_DIALOG_BODY, "Cancel", "Delete")))
+        click("Cancel")
+        assertEquals(1 to 0, retried to deleted)
+        clickIn(screenNodes(a), "Delete broken keys")
+        click("Delete")
+        assertEquals(1 to 1, retried to deleted)
+    }
+
     @Test fun choiceDialogAppliesOnOkOnly() {
         var open by mutableStateOf(true)
         val chosen = mutableListOf<String>()

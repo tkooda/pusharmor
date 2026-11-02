@@ -18,6 +18,15 @@ object UiText {
     /** Same words as iOS: Delete account asks first and says what follows. */
     const val DELETE_CONFIRM = "Delete this account? You must log in again to confirm. This cannot be undone."
 
+    /** Same words as iOS: keys that fail the start check; deleting them is the user's choice and asks first. */
+    const val KEYS_BROKEN_TITLE = "This device's keys have become unusable."
+    const val KEYS_BROKEN_BODY = "Tap Retry to try again. If this keeps happening, you can delete the broken keys. " +
+        "You will then sign in again and pair all your devices again."
+    const val KEYS_BROKEN_RETRY = "Retry"
+    const val KEYS_BROKEN_DELETE = "Delete broken keys"
+    const val KEYS_BROKEN_DIALOG_TITLE = "Delete broken keys?"
+    const val KEYS_BROKEN_DIALOG_BODY = "This cannot be undone. You will need to pair all your devices again."
+
     const val CANNOT_RECEIVE = "This device cannot receive messages."
     const val CANNOT_RECEIVE_NO_PUSH_APP = "Install a UnifiedPush app, or install PushArmor from Google Play."
     const val CANNOT_RECEIVE_NOTIFICATIONS_OFF = "Allow notifications for PushArmor in Settings."

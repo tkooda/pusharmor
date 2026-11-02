@@ -8,6 +8,7 @@ import com.pusharmor.app.TestApp
 import com.pusharmor.app.data.Settings
 import com.pusharmor.app.keys.KeystoreKeyOps
 import com.pusharmor.store.PaDatabase
+import com.pusharmor.store.SelfEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -41,7 +42,7 @@ class StartupKeysTest {
     @Test fun signInKeysSurviveStartup() = io {
         g.keysOrNull = null
         val signPub = g.session.keysForSignIn()
-        assertEquals(Session.Start.SIGN_IN, g.session.startup(fromMainActivity = true))
+        assertEquals(Session.Start.SIGN_IN, g.session.startup())
         assertTrue(KeystoreKeyOps.present())
         g.keysOrNull!!.sign(byteArrayOf(1, 2, 3))
         assertArrayEquals(signPub, g.session.keysForSignIn())
@@ -53,7 +54,7 @@ class StartupKeysTest {
         val signPub = g.session.keysForSignIn()
         val g2 = Graph(ApplicationProvider.getApplicationContext<PaApp>())
         g2.keysOrNull = null // no cached keys in the new process
-        assertEquals(Session.Start.SIGN_IN, g2.session.startup(fromMainActivity = true))
+        assertEquals(Session.Start.SIGN_IN, g2.session.startup())
         assertTrue(KeystoreKeyOps.present())
         assertTrue(g2.settings.flag(Settings.K.SIGN_IN_KEYS, false))
         assertArrayEquals(signPub, g2.session.keysForSignIn())
@@ -64,7 +65,7 @@ class StartupKeysTest {
         g.settings.set(Settings.K.SIGN_IN_KEYS, null)
         g.dao.self(); g.dbCreated = false // a database file from an earlier process
         g.keysOrNull = KeystoreKeyOps.createFresh()
-        assertEquals(Session.Start.SIGN_IN, g.session.startup(fromMainActivity = true))
+        assertEquals(Session.Start.SIGN_IN, g.session.startup())
         assertFalse(KeystoreKeyOps.anyPresent())
         assertNull(g.keysOrNull)
     }
@@ -75,7 +76,7 @@ class StartupKeysTest {
         g.dao.self(); g.dbCreated = false
         KeystoreKeyOps.createFresh()
         g.db.openHelper.writableDatabase.execSQL("DROP TABLE self")
-        assertThrows(Exception::class.java) { g.session.startup(fromMainActivity = true) }
+        assertThrows(Exception::class.java) { g.session.startup() }
         assertTrue(KeystoreKeyOps.present())
     }
 
@@ -88,8 +89,62 @@ class StartupKeysTest {
         g.db.close()
         app.getDatabasePath(PaDatabase.NAME).writeBytes(ByteArray(4096) { 0x5a })
         val g2 = Graph(app)
-        assertEquals(Session.Start.SIGN_IN, g2.session.startup(fromMainActivity = true))
+        assertEquals(Session.Start.SIGN_IN, g2.session.startup())
         assertTrue(g2.dbCreated)
         assertTrue(KeystoreKeyOps.present())
+    }
+
+    private fun signedIn() {
+        g.keysOrNull = KeystoreKeyOps.createFresh()
+        g.dao.putSelf(SelfEntity(id = "A".repeat(40), accountPrefix = ByteArray(9), name = "t"))
+        g.settings.set(Settings.K.SIGNED_OUT, false)
+        g.settings.set(Settings.K.BANNER, null)
+    }
+
+    /** A Keystore that fails on two starts, boots apart, shows the keys screen each time and deletes nothing. */
+    @Test fun keystoreErrorOnTwoStartsKeepsKeys() = io {
+        signedIn()
+        FakeAndroidKeyStore.storeFault = true
+        assertEquals(Session.Start.KEYS_UNAVAILABLE, g.session.startup())
+        assertEquals(Session.Start.KEYS_UNAVAILABLE, g.session.startup())
+        FakeAndroidKeyStore.storeFault = false
+        assertEquals("A".repeat(40), g.dao.self()?.id)
+        assertTrue(KeystoreKeyOps.present())
+        assertNull(g.settings.get(Settings.K.BANNER))
+    }
+
+    /** A Keystore error on two starts mid sign-in keeps the keys and the sign-in mark, and the sign-in goes on with the same key. */
+    @Test fun keystoreErrorMidSignInKeepsKeys() = io {
+        g.dao.self(); g.dbCreated = false; g.keysOrNull = null
+        val signPub = g.session.keysForSignIn()
+        FakeAndroidKeyStore.storeFault = true
+        assertEquals(Session.Start.KEYS_UNAVAILABLE, g.session.startup())
+        assertEquals(Session.Start.KEYS_UNAVAILABLE, g.session.startup())
+        FakeAndroidKeyStore.storeFault = false
+        assertTrue(g.settings.flag(Settings.K.SIGN_IN_KEYS, false))
+        assertTrue(KeystoreKeyOps.present())
+        g.keysOrNull = null
+        assertArrayEquals(signPub, g.session.keysForSignIn())
+    }
+
+    /** Keys that are listed but cannot sign stop at the keys screen; the account and the keys stay. */
+    @Test fun unusableKeysShowKeysScreenAndKeepAccount() = io {
+        signedIn()
+        FakeAndroidKeyStore.keyFault = true
+        assertEquals(Session.Start.KEYS_UNAVAILABLE, g.session.startup())
+        FakeAndroidKeyStore.keyFault = false
+        assertEquals("A".repeat(40), g.dao.self()?.id)
+        assertTrue(KeystoreKeyOps.present())
+    }
+
+    /** Retry after the fault clears starts normally with the same keys. */
+    @Test fun retryAfterFaultClearsStartsReady() = io {
+        signedIn()
+        val signPub = g.keysOrNull!!.signPub
+        FakeAndroidKeyStore.keyFault = true
+        assertEquals(Session.Start.KEYS_UNAVAILABLE, g.session.startup())
+        FakeAndroidKeyStore.keyFault = false
+        assertEquals(Session.Start.READY, g.session.startup())
+        assertArrayEquals(signPub, g.keysOrNull!!.signPub)
     }
 }

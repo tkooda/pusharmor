@@ -16,6 +16,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsTopHeight
@@ -27,7 +33,10 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -50,6 +59,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import androidx.core.content.ContextCompat
@@ -76,7 +86,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        vm.boot(fromMain = true)
+        vm.boot()
         if (shouldHandle(savedInstanceState != null, intent.flags)) handle(intent)
         setContent { AppTheme(vm) { Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { App(vm) } } }
     }
@@ -183,6 +193,31 @@ internal const val UPDATE_TITLE = "Please update PushArmor"
 internal const val UPDATE_BODY = "This version no longer works with the relay server. Update to keep sending and receiving."
 internal const val UPDATE_URL = "https://pusharmor.com/download"
 
+/**
+ * Keys that fail the start check. Retry runs the check again on this device only. Delete broken keys asks
+ * first; only the dialog's Delete runs [onDelete]. Retry, the primary action, is on the right.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun KeysBrokenScreen(onRetry: () -> Unit, onDelete: () -> Unit, modifier: Modifier = Modifier) {
+    var confirm by rememberSaveable { mutableStateOf(false) }
+    BlockingState(PaIcons.Info, UiText.KEYS_BROKEN_TITLE, modifier) {
+        Text(UiText.KEYS_BROKEN_BODY, Modifier.widthIn(max = 320.dp), style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(24.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(onClick = { confirm = true }, Modifier.heightIn(min = 48.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)) { Text(UiText.KEYS_BROKEN_DELETE) }
+            GreenButton(onClick = onRetry, text = UiText.KEYS_BROKEN_RETRY, icon = null)
+        }
+    }
+    if (confirm) AlertDialog(onDismissRequest = { confirm = false }, title = { Text(UiText.KEYS_BROKEN_DIALOG_TITLE) }, text = { Text(UiText.KEYS_BROKEN_DIALOG_BODY) },
+        confirmButton = {
+            TextButton(onClick = { confirm = false; onDelete() }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Delete") }
+        },
+        dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } })
+}
+
 /** Delete mode ends when the session is no longer signed in. */
 internal fun deletingAfter(start: Session.Start?, deleting: Boolean): Boolean = deleting && (start == null || start == Session.Start.READY)
 
@@ -201,9 +236,8 @@ private fun App(vm: AppViewModel) {
             return
         }
         Session.Start.KEYS_UNAVAILABLE -> {
-            BlockingState(PaIcons.Info, Session.KEYS_UNAVAILABLE, Modifier.safeDrawingPadding()) {
-                GreenButton(onClick = { vm.io { vm.g.session.selfRemoved(deleted = false, lostKeys = true); vm.boot() } }, text = "Log in again", icon = null)
-            }
+            KeysBrokenScreen(onRetry = { vm.boot() }, onDelete = { vm.io { vm.g.session.selfRemoved(deleted = false, lostKeys = true); vm.boot() } },
+                Modifier.safeDrawingPadding())
             return
         }
         else -> Unit

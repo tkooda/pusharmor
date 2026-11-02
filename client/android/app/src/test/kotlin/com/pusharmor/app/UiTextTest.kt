@@ -15,6 +15,15 @@ class UiTextTest {
     private val pinned = Peer(id = "p", platform = "chrome", signPub = "s", encPub = "e", pairingId = ByteArray(16),
         approved = true, approveVerified = true)
 
+    @Test fun keysBrokenTexts() {
+        assertEquals("This device's keys have become unusable.", UiText.KEYS_BROKEN_TITLE)
+        assertEquals("Tap Retry to try again. If this keeps happening, you can delete the broken keys. You will then sign in again and pair all your devices again.", UiText.KEYS_BROKEN_BODY)
+        assertEquals("Retry", UiText.KEYS_BROKEN_RETRY)
+        assertEquals("Delete broken keys", UiText.KEYS_BROKEN_DELETE)
+        assertEquals("Delete broken keys?", UiText.KEYS_BROKEN_DIALOG_TITLE)
+        assertEquals("This cannot be undone. You will need to pair all your devices again.", UiText.KEYS_BROKEN_DIALOG_BODY)
+    }
+
     @Test fun cannotReceiveTruthTable() {
         assertEquals(false, UiText.cannotReceive(true, false, null))
         assertEquals(false, UiText.cannotReceive(true, false, "other"))

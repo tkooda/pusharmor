@@ -61,7 +61,6 @@ class Settings(private val context: Context) {
         val BANNER = stringPreferencesKey("banner")
         val LAST_FETCH = longPreferencesKey("last_fetch")
         val LAST_REFRESH = longPreferencesKey("last_refresh")
-        val KS_ERROR_BOOT = longPreferencesKey("ks_error_boot")
         val FLAVOR_NOTICE_SHOWN = booleanPreferencesKey("flavor_notice_shown")
         /** Device ids ticked on the last send, comma-separated. */
         val LAST_SEND_TO = stringPreferencesKey("last_send_to")

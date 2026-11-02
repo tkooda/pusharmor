@@ -15,7 +15,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.security.KeyStore
 
-/** Startup invariant (section 9) on a device: aliases without a self row (kept mid sign-in), a missing alias. */
+/** Startup invariant (section 9) on a device: aliases without a self row (kept mid sign-in), a missing alias, the key check. */
 @RunWith(AndroidJUnit4::class)
 class StartupInvariantTest {
     private val g = (ApplicationProvider.getApplicationContext<PaApp>()).graph
@@ -25,7 +25,7 @@ class StartupInvariantTest {
         g.settings.set(Settings.K.SIGN_IN_KEYS, null)
         g.dbCreated = false // as a database file from an earlier process
         g.keysOrNull = KeystoreKeyOps.createFresh()
-        assertEquals(Session.Start.SIGN_IN, g.session.startup(fromMainActivity = true))
+        assertEquals(Session.Start.SIGN_IN, g.session.startup())
         assertFalse(KeystoreKeyOps.anyPresent())
         assertNull(g.keysOrNull)
     }
@@ -35,7 +35,7 @@ class StartupInvariantTest {
         g.store.wipeRegistration()
         g.keysOrNull = null
         val signPub = g.session.keysForSignIn()
-        assertEquals(Session.Start.SIGN_IN, g.session.startup(fromMainActivity = true))
+        assertEquals(Session.Start.SIGN_IN, g.session.startup())
         assertTrue(KeystoreKeyOps.present())
         g.keysOrNull!!.sign(byteArrayOf(1, 2, 3))
         assertArrayEquals(signPub, g.session.keysForSignIn())
@@ -45,9 +45,21 @@ class StartupInvariantTest {
         KeystoreKeyOps.createFresh()
         g.dao.putSelf(SelfEntity(id = "A".repeat(40), accountPrefix = ByteArray(9), name = "t"))
         KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.deleteEntry(KeystoreKeyOps.ENC)
-        assertEquals(Session.Start.SIGN_IN, g.session.startup(fromMainActivity = true))
+        assertEquals(Session.Start.SIGN_IN, g.session.startup())
         assertEquals("A".repeat(40), g.settings.get(Settings.K.OLD_ID))
         assertEquals(Session.LOST_KEYS, g.settings.get(Settings.K.BANNER))
         assertFalse(KeystoreKeyOps.anyPresent())
+    }
+
+    /** Working Keystore keys pass the start check (sign and agree) and the app starts signed in. */
+    @Test fun workingKeysPassTheStartCheck() {
+        KeystoreKeyOps.createFresh()
+        g.dao.putSelf(SelfEntity(id = "B".repeat(40), accountPrefix = ByteArray(9), name = "t"))
+        g.settings.set(Settings.K.SIGNED_OUT, false)
+        assertTrue(KeystoreKeyOps.probe())
+        assertEquals(Session.Start.READY, g.session.startup())
+        g.store.wipeRegistration()
+        KeystoreKeyOps.deleteBoth()
+        g.keysOrNull = null
     }
 }
