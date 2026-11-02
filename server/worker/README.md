@@ -55,10 +55,9 @@ Workers Logs bills every line. `head_sampling_rate` stays 1: head sampling is de
 the request runs and would drop errors as well. Sampling is done in code with the var
 `PA_LOG_SAMPLE` (wrangler.jsonc):
 
-- always logged, whatever the rate: 5xx and exceptions, 4xx other than 429, rate-limit
-  binding errors, failed gone write-backs, rejected push endpoints, any recipient not
+- always logged, whatever the rate: 5xx and exceptions, rate-limit binding errors, failed gone write-backs, rejected push endpoints, any recipient not
   delivered on the first try, and every cron run;
-- logged at the rate: plain successes and 429s; when the rate is below 1 such a line has
+- logged at the rate: plain successes and all 4xx; when the rate is below 1 such a line has
   `"sample": N` (N = 1 / rate), so multiply counts by N.
 
 Now `PA_LOG_SAMPLE` is `"1"` (every line), for launch and the first users.
@@ -66,7 +65,8 @@ Now `PA_LOG_SAMPLE` is `"1"` (every line), for launch and the first users.
 When to lower it: when Workers Logs events approach this Worker's share of the plan's
 included 20M events per month (about 650k per day for the whole Cloudflare account), or when
 the monthly Workers Logs overage passes a few dollars. How: set `"PA_LOG_SAMPLE": "0.1"` in
-`wrangler.jsonc` and release a new Worker tag (`RELEASING.md`, Worker). Errors stay complete.
+`wrangler.jsonc` and release a new Worker tag (`RELEASING.md`, Worker). 5xx lines stay
+complete; 4xx counts become estimates.
 
 ## Client versions
 

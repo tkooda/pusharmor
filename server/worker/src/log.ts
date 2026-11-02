@@ -68,16 +68,17 @@ export class Log {
     return JSON.stringify(o);
   }
 
-  // A line worth keeping whatever the sample rate: server errors, client errors other than
-  // 429, rate-limit binding errors, failed write-backs, endpoint rejects, and any recipient
-  // that was not delivered on the first attempt.
+  // A line worth keeping whatever the sample rate: server errors, rate-limit binding errors,
+  // failed write-backs, endpoint rejects, and any recipient that was not delivered on the
+  // first attempt. Client errors (4xx) are sampled, so a flood of refused requests is not
+  // logged line by line.
   notable(): boolean {
     if (this.exception || this.rl_error.length || this.gone_write || this.endpoint_reject) return true;
-    if (this.status >= 400 && this.status !== 429) return true;
+    if (this.status >= 500) return true;
     return this.recipients.some((r) => r.result !== "sent" || r.retry);
   }
 
-  // Workers Logs bills every line, so plain successes and 429s are sampled at `rate` (0..1).
+  // Workers Logs bills every line, so plain successes and 4xx are sampled at `rate` (0..1).
   // A sampled line carries "sample": 1/rate, to scale counts back up.
   emit(rate = 1): void {
     if (rate >= 1 || this.notable()) {

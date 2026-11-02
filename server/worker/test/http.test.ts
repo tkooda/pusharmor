@@ -281,15 +281,22 @@ describe("logging", () => {
     expect(lines[0]).not.toContain(k.signPub);
   });
 
-  it("log sampling: plain successes and 429s sampled, other errors always logged", async () => {
+  it("log sampling: successes and 4xx sampled, 5xx always logged", async () => {
     const off = await testEnv({ PA_LOG_SAMPLE: "0" } as Partial<Env>);
     const k = await keys();
+    const p = await newPeer(randomEmail());
     let before = captured.length;
     const ok = await call("POST", "/v1/peers", { ticket: await ticketFor(randomEmail(), k.signPub, "register"), sign_pub: k.signPub, enc_pub: k.encPub, platform: "android", push: null }, { sign: k.sign, env: off });
     expect(ok.status).toBe(200);
     expect(captured.slice(before)).toHaveLength(0);
     before = captured.length;
     expect((await call("POST", "/v1/peers", { x: 1 }, { env: off })).status).toBe(400);
+    expect((await call("GET", "/v1/nope", undefined, { env: off })).status).toBe(404);
+    expect((await call("GET", "/v1/peers", undefined, { env: off, peer: { ...p, id: p.id.slice(0, 30) + "AAAAAAAAAA" } })).status).toBe(401);
+    expect(captured.slice(before)).toHaveLength(0);
+    before = captured.length;
+    const broken = { prepare: () => ({ bind: () => ({ all: async () => { throw new Error("down"); } }) }) } as unknown as D1Database;
+    expect((await call("GET", "/v1/peers", undefined, { peer: p, env: { ...off, DB: broken } })).status).toBe(503);
     expect(captured.slice(before)).toHaveLength(1);
     before = captured.length;
     const limited = await call("GET", "/v1/peers", undefined, { env: { ...off, RL_IP: countingLimit(0) } });

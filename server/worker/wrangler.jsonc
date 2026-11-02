@@ -13,8 +13,8 @@
   "limits": { "cpu_ms": 2000 },
   "triggers": { "crons": ["0 3 1 * *", "*/15 * * * *"] },
   // Workers Logs bills each line. head_sampling_rate stays 1 (head sampling is decided before
-  // the request runs and would drop errors too). PA_LOG_SAMPLE samples plain successes and 429s
-  // in code; errors are always logged. It is 1 (log all) during launch; see README "Logs".
+  // the request runs and would drop errors too). PA_LOG_SAMPLE samples plain successes and 4xx
+  // in code; 5xx errors are always logged. It is 1 (log all) during launch; see README "Logs".
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1,
