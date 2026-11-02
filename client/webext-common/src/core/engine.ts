@@ -1666,7 +1666,7 @@ export class Engine {
       actions.push("send_again");
     } else if (e.state === "prompted") {
       lines.push(T.wantsToPair(nm), T.pairing);
-      actions.push("reply");
+      if (!e.authorized) actions.push("reply");
     } else if (e.state === "replied") {
       lines.push(T.pairing);
     } else if (e.state === "shown") {

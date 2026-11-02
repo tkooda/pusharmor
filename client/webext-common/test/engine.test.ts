@@ -716,6 +716,21 @@ test("a new commit that ends an old open pairing on X is then answered, not drop
   assert.equal((await a.e.pairRowView(b.id))!.fingerprint, (await b.e.pairRowView(a.id))!.fingerprint);
 });
 
+test("an automatic reply that did not go out shows no Reply button", async () => {
+  const { w, a, b } = await setup();
+  await refresh(a, b);
+  await a.e.pairStart(b.id);
+  w.inject.push({ match: /POST \/v1\/pair\//, status: 500, body: { error: "internal" }, times: 1 });
+  await deliver(w, b);
+  const eb = (await getEntry(b.p.storageLocal, a.id))!;
+  assert.equal(eb.state, "prompted");
+  assert.equal(eb.authorized, true);
+  assert.equal((await b.e.pairRowView(a.id))!.actions.includes("reply"), false);
+  // a prompted entry that waits for a tap still shows Reply
+  await b.p.storageLocal.set({ ["pair:" + a.id]: { ...eb, authorized: false } });
+  assert.ok((await b.e.pairRowView(a.id))!.actions.includes("reply"));
+});
+
 test("crossing: lower id stays N, higher side replies as X", async () => {
   const { w, a, b } = await setup();
   await refresh(a, b);
