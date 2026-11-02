@@ -127,7 +127,7 @@ browser.notifications.onClicked.addListener(onNotificationClick(browser, boot));
 browser.alarms.onAlarm.addListener((a) => {
   void whenReady().then(boot).then(async ({ engine }) => {
     if (a.name === "fetch") await engine.onFetchAlarm();
-    else if (a.name === "pushretry") await engine.pushReconcile(false, true).catch(() => undefined);
+    else if (a.name === "pushretry") await engine.onPushRetryAlarm();
     else if (a.name.startsWith("pair:")) {
       const id = a.name.slice(5);
       await engine.sendReply(id);

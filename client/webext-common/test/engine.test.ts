@@ -1289,7 +1289,7 @@ test("push issue: a PATCH the relay server refuses is tried again at 30 s, 2 min
     assert.equal((await new Rpc(a.e).state()).pushIssue, null);
     clock.t += wait;
     a.p.alarms.delete("pushretry"); // the alarm fires
-    await a.e.pushReconcile(false, true).catch(() => undefined);
+    await a.e.onPushRetryAlarm();
   }
   assert.equal((await new Rpc(a.e).state()).pushIssue, "relay");
   assert.equal(a.p.alarms.has("pushretry"), false);

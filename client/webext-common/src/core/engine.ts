@@ -1209,7 +1209,7 @@ export class Engine {
   // ------------------------------------------------------------------ push
 
   /** Gone recovery: compare the current subscription with the last PATCHed hash. fresh: ask for a new endpoint. */
-  async pushReconcile(force = false, quiet = false, fresh = false): Promise<void> {
+  async pushReconcile(force = false, quiet = false, fresh = false, retry = false): Promise<void> {
     if (this.checking) return; // a removal check may wipe: no new subscription now
     const self = await this.self();
     if (!self || (await this.regState()) !== "registered") return;
@@ -1223,7 +1223,7 @@ export class Engine {
       await this.api.call("PATCH", "/peers/" + self.id, { signer: this.signerOf(self), body: { push: cur } });
     } catch (e) {
       if (e instanceof ApiError && e.status !== 0 && ((e.status >= 400 && e.status < 500 && ![401, 426, 429].includes(e.status)) || e.status >= 500)) {
-        await this.pushRefusedByRelay();
+        await this.pushRefusedByRelay(retry);
       }
       throw e;
     }
@@ -1231,11 +1231,29 @@ export class Engine {
     await this.pushWorked();
   }
 
-  /** A push PATCH the relay server refused: try again at +30 s, +2 min, +10 min, then show the issue. */
-  private async pushRefusedByRelay(): Promise<void> {
+  /** The "pushretry" alarm: PATCH again; a refusal here counts toward the issue. */
+  async onPushRetryAlarm(): Promise<void> {
+    await this.pushReconcile(false, true, false, true).catch(() => undefined);
+  }
+
+  /**
+   * A push PATCH the relay server refused: try again at +30 s, +2 min, +10 min, then show the issue.
+   * Only refusals on the retry alarm count; any other caller only starts the schedule once.
+   */
+  private async pushRefusedByRelay(retry: boolean): Promise<void> {
     await this.db.del("meta", "push_hash"); // the next reconcile PATCHes again
-    const n = (await this.db.updateMeta<number>("push_fail", (v) => (v ?? 0) + 1)) ?? 1;
-    const wait = PUSH_RETRY_MS[n - 1];
+    if (!retry) {
+      let start = false;
+      await this.db.updateMeta<number>("push_fail", (v) => {
+        if (v !== undefined) return v; // the retry alarm owns it
+        start = true;
+        return 0;
+      });
+      if (start) this.p.alarmAt("pushretry", now(this.p) + PUSH_RETRY_MS[0]);
+      return;
+    }
+    const n = (await this.db.updateMeta<number>("push_fail", (v) => Math.max(v ?? 0, 0) + 1)) ?? 1;
+    const wait = PUSH_RETRY_MS[n];
     if (wait !== undefined) this.p.alarmAt("pushretry", now(this.p) + wait);
     else await this.db.setMeta("push_issue", "relay");
   }
