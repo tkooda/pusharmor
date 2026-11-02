@@ -342,3 +342,14 @@ test("Codes match that the device did not get: the confirmation line, then why a
   const pv = readFileSync(new URL("../src/ui/peersview.ts", import.meta.url), "utf8");
   assert.match(pv, /T\.declinedBy\(p\.label\) : confirmResultText\(p\.label, r\);/);
 });
+
+test("a greyed device chip on Send says Unable to send to the device, then why", async () => {
+  const { greyedText, T } = await import("../src/core/texts.ts");
+  const to = 'Unable to send to "Lap".\n';
+  assert.equal(greyedText("Lap", "logged out"), to + "That device is logged out. Log in on that device to receive messages.");
+  assert.equal(greyedText("Lap", "send only"), to + "It is set to send only. It does not receive messages.");
+  assert.equal(greyedText("Lap", "unreachable"), to + "It cannot be reached right now. Try again later.");
+  assert.equal(greyedText("Lap", "(missing)"), to + "It is no longer on this account.");
+  assert.equal(greyedText("Lap", T.declinedBy("Lap")), to + "It rejected this device. Pair with it again to send it messages.");
+  assert.equal(greyedText("Lap", T.notPairedOn("Lap")), to + "It is not paired with this device. Pair with it to send it messages.");
+});

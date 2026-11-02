@@ -1,11 +1,11 @@
 // Toolbar popup: Send, History, Peers, Settings (component-webext section 7).
 import type { PeerView, StateView } from "../core/rpc.ts";
 import type { SendResult } from "../core/engine.ts";
-import { T, pushIssueText, quoted, saveFailText } from "../core/texts.ts";
+import { T, greyedText, pushIssueText, quoted, saveFailText } from "../core/texts.ts";
 import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter, sortByLabel } from "../model/sendsel.ts";
 import { AUTH_CHANGED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
-import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, nextTabIndex, openHref, peerStatus, rpc, sh, shortTime } from "./dom.ts";
+import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, nextTabIndex, openHref, rpc, sh, shortTime } from "./dom.ts";
 import { confirmDialog, dismissToast, toast } from "./dialog.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
 import { type MsgAction, msgActions, saveFilename } from "../model/msgactions.ts";
@@ -316,15 +316,13 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     chips.append(c);
   }
   for (const p of sortByLabel(data.peers.filter((x) => !canReceiveNow(x) && x.greyed && !x.hidden))) {
-    const s = peerStatus(p);
-    const why = s ? s.word : p.greyed ?? "";
     const c = chip(platformIcon(p.platform, 16), p.label, false, true);
     c.classList.add("greyed");
     c.setAttribute("aria-disabled", "true");
     c.removeAttribute("aria-pressed");
-    c.title = quoted(p.label) + ": " + why;
+    c.title = greyedText(p.label, p.greyed ?? "");
     c.addEventListener("click", () => {
-      toast(quoted(p.label) + ": " + why, "info");
+      toast(c.title, "info");
       void rpc(env, "greyedTap");
     });
     chips.append(c);

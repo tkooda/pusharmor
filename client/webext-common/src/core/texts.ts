@@ -92,6 +92,17 @@ export function confirmResultText(name: string, res: string): string {
   return 'Unable to deliver the confirmation to "' + name + '".\n' + sendResultText(name, res).split("\n")[1];
 }
 
+/** The two lines for a greyed device chip on Send: why it cannot get a message right now. */
+export function greyedText(name: string, greyed: string): string {
+  if (greyed === "logged out") return sendResultText(name, "logged out");
+  if (greyed === "send only") return sendResultText(name, "not listening");
+  if (greyed === "(missing)") return sendResultText(name, "unknown");
+  if (greyed.startsWith("Not paired on ")) return sendResultText(name, "unapproved");
+  const to = 'Unable to send to "' + name + '".\n';
+  if (greyed.startsWith("Rejected by ")) return to + "It rejected this device. Pair with it again to send it messages.";
+  return to + "It cannot be reached right now. Try again later.";
+}
+
 export function peerLabel(name: string | null): string {
   return name ?? T.aPeer;
 }
