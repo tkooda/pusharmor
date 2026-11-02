@@ -549,7 +549,7 @@ export class Engine {
       case "abort": {
         // step 8: drop the pin this pairing made; keep the ruling
         const ruling = (await this.db.peer(from))?.ruling;
-        await this.endEntry(from, T.pairFailed, true);
+        await this.endEntry(from, T.pairFailed(name), true);
         if (ruling) await this.db.updatePeer(from, (p) => (p ? { ...p, ruling } : null));
         return this.dropEvent("unreadable", null, src);
       }
@@ -717,7 +717,7 @@ export class Engine {
     if (e.state !== "replied" && !(e.state === "prompted" && e.authorized)) return this.dropEvent("unreadable", null, src);
     const c = await commitHash(sp, ep, rN);
     if (!equal(c, b64urlDecode(e.c_N)) || !(await isValidPub(sp)) || !(await isValidPub(ep))) {
-      await this.endEntry(from, T.pairFailed, false);
+      await this.endEntry(from, T.pairFailed(await this.halfName(from)), false);
       return this.dropEvent("unreadable", null, src);
     }
     const rX = b64urlDecode(e.r);
@@ -1032,7 +1032,7 @@ export class Engine {
         }
         if (act === "keep_pin" || act === "complete") await this.p.storageLocal.remove([pairKeyOf(x)]);
         else if (act === "drop_pin") {
-          await this.endEntry(x, T.pairTimedOut, true);
+          await this.endEntry(x, T.pairTimedOut(await this.halfName(x)), true);
           dropped = true;
         }
         break;

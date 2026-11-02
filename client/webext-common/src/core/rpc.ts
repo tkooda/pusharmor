@@ -310,7 +310,7 @@ export class Rpc {
       } else if (!p.pinned) {
         v.actions = ["pair", "deny"];
         const msg = local[PAIR_MSG_PREFIX + p.id];
-        if (typeof msg === "string") v.lines.push(msg);
+        if (typeof msg === "string") v.lines.push(...msg.split("\n"));
         if (p.ruling === "denied") v.lines.push("Denied");
       } else if (p.denies_me) {
         v.greyed = T.declinedBy(nm);

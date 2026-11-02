@@ -15,6 +15,9 @@ import { Clock, FakePlatform, MockWorker, deliver, device, makeEngine, pairAndAp
 import { AUTH_PENDING, Login } from "../src/core/login.ts";
 import { AUTH_CHANGED, AUTH_RESULT, type AuthResult, readAuthResult } from "../src/model/signin.ts";
 
+/** The device name a pairing text shows for id on d (its name, else its platform and date). */
+const named = async (d: { e: unknown }, id: string) => '"' + (await (d.e as { halfName(i: string): Promise<string> }).halfName(id)) + '"';
+
 const DAY = 86400_000;
 
 async function setup(bName: "chrome" | "firefox" = "chrome") {
@@ -278,7 +281,7 @@ test("pairing state survives restarts, valid at day 13, expires at day 14", asyn
   await a2.e.sweep();
   assert.equal(await getEntry(a2.p.storageLocal, b.id), null);
   assert.equal((await a2.db.peer(b.id))!.pinned, false); // pin dropped
-  assert.equal(a2.p.storageLocal.data["pairmsg:" + b.id], T.pairTimedOut);
+  assert.equal(a2.p.storageLocal.data["pairmsg:" + b.id], 'Unable to pair with ' + (await named(a2, b.id)) + '.\nIt did not answer in time. Click Pair to start again.');
   b2 = await restart(b2, clock);
 });
 
@@ -289,7 +292,9 @@ test("a pairing started 15 days ago is timed out", async () => {
   clock.t += 15 * DAY;
   await a.e.sweep();
   assert.equal(await getEntry(a.p.storageLocal, b.id), null);
-  assert.equal(a.p.storageLocal.data["pairmsg:" + b.id], T.pairTimedOut);
+  assert.equal(a.p.storageLocal.data["pairmsg:" + b.id], 'Unable to pair with ' + (await named(a, b.id)) + '.\nIt did not answer in time. Click Pair to start again.');
+  const row = (await new Rpc(a.e).peers()).peers.find((v) => v.id === b.id)!;
+  assert.deepEqual(row.lines, ['Unable to pair with ' + (await named(a, b.id)) + '.', "It did not answer in time. Click Pair to start again."]);
 });
 
 test("a pairing start in the future is stored as now and expires 14 days later", async () => {
@@ -665,7 +670,7 @@ test("wrong c_N on open aborts with no pin", async () => {
   await deliver(w, b);
   assert.equal(await getEntry(b.p.storageLocal, a.id), null);
   assert.equal((await b.db.peer(a.id))!.pinned, false);
-  assert.equal(b.p.storageLocal.data["pairmsg:" + a.id], T.pairFailed);
+  assert.equal(b.p.storageLocal.data["pairmsg:" + a.id], 'Unable to pair with ' + (await named(b, a.id)) + '.\nClick Pair to start again.');
 });
 
 test("abort in state shown drops the pin, keeps the ruling, and the next pairing reaches X", async () => {
@@ -688,7 +693,7 @@ test("abort in state shown drops the pin, keeps the ruling, and the next pairing
   assert.equal(pb.pairing_id, null);
   assert.equal(await b.db.replay(a.id), undefined);
   assert.equal(pb.ruling, "denied");
-  assert.equal(b.p.storageLocal.data["pairmsg:" + a.id], T.pairFailed);
+  assert.equal(b.p.storageLocal.data["pairmsg:" + a.id], 'Unable to pair with ' + (await named(b, a.id)) + '.\nClick Pair to start again.');
   // a pairs again: b takes the new commit instead of dropping it
   await a.e.cancelPairing(b.id);
   await a.e.pairStart(b.id);
