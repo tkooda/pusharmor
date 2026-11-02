@@ -9,9 +9,12 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.File
 
-/** A corrupt settings file resets to defaults instead of crashing every launch. */
+/**
+ * A corrupt settings file resets to defaults instead of crashing every launch. Its own SDK gives it its own
+ * Robolectric sandbox: the settings DataStore is one instance per sandbox, and no other class may have opened it.
+ */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], application = android.app.Application::class)
+@Config(sdk = [31], application = android.app.Application::class)
 class SettingsCorruptTest {
     @Test fun corruptFileResetsToDefaults() {
         val ctx = ApplicationProvider.getApplicationContext<android.app.Application>()
