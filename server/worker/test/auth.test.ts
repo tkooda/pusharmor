@@ -28,6 +28,13 @@ describe("email normalization", () => {
     expect(normalizeEmail("A.B+tag@Gmail.com")).toBe("a.b+tag@gmail.com");
   });
 
+  it("dotless domains and domain literals -> 400", () => {
+    for (const bad of ["a@localhost", "a@[1.2.3.4]", "a@[ipv6:2001:db8::1]", "a@b.", "a@.b", "a@b..c"]) {
+      expect(() => normalizeEmail(bad), bad).toThrow("bad request");
+    }
+    expect(normalizeEmail("a@b.co")).toBe("a@b.co");
+  });
+
   it("mailboxKey: +tags dropped and Gmail dots removed, for common providers only", () => {
     expect(mailboxKey("a.b+x@gmail.com")).toBe("ab@gmail.com");
     expect(mailboxKey("a.b+x@googlemail.com")).toBe("ab@gmail.com");

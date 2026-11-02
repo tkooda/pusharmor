@@ -1,5 +1,6 @@
 // Email normalization: trim ASCII whitespace, then ASCII-only lowercase (A-Z -> a-z).
-// Any char outside ASCII -> 400 "bad email"; controls, space and <>"(),;:\ -> 400.
+// Any char outside ASCII -> 400 "bad email"; controls, space and <>"(),;:\ -> 400;
+// a domain without a dot, with an empty label, or in [brackets] -> 400.
 // Relay addresses are accepted. The account identity is mailboxKey() of the result;
 // login codes still go to the normalized address as typed.
 import { ApiError } from "../errors";
@@ -10,7 +11,8 @@ export function normalizeEmail(input: unknown): string {
   for (let i = 0; i < s.length; i++) if (s.charCodeAt(i) > 127) throw new ApiError(400, "bad email");
   const out = s.replace(/[A-Z]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) + 32));
   const at = out.indexOf("@");
-  if (out.length > 254 || at < 1 || at !== out.lastIndexOf("@") || at === out.length - 1 || /[\x00-\x20\x7f<>"(),;:\\]/.test(out)) {
+  // The domain needs a dot and no empty labels; dotless hosts and [literals] -> 400.
+  if (out.length > 254 || at < 1 || at !== out.lastIndexOf("@") || at === out.length - 1 || !/^[^.[\]]+(\.[^.[\]]+)+$/.test(out.slice(at + 1)) || /[\x00-\x20\x7f<>"(),;:\\]/.test(out)) {
     throw new ApiError(400, "bad request");
   }
   return out;
