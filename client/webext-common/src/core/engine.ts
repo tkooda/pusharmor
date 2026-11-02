@@ -1059,8 +1059,9 @@ export class Engine {
   /** GET /peers merge (section 4.2, catalog Removal rules). */
   async mergePeers(json: Record<string, unknown>, self: SelfKeys): Promise<void> {
     const acct = accountOf(b64urlDecode(self.id));
-    const list = Array.isArray(json.peers) ? (json.peers as Record<string, unknown>[]) : [];
-    const myAllow = Array.isArray(json.my_allow) ? (json.my_allow as unknown[]).filter((v): v is string => typeof v === "string") : [];
+    // the literals track the relay server limits: 10 listed devices, 9 allow entries, 8 remove messages
+    const list = Array.isArray(json.peers) ? (json.peers as Record<string, unknown>[]).slice(0, 10) : [];
+    const myAllow = Array.isArray(json.my_allow) ? (json.my_allow as unknown[]).slice(0, 9).filter((v): v is string => typeof v === "string") : [];
     await this.p.storageLocal.set({ [ALLOW_SET]: myAllow });
     // stored remove messages (optional "removed"): opened with the pre-merge pins, quiet, like a live push
     if (json.removed && typeof json.removed === "object" && !Array.isArray(json.removed)) {

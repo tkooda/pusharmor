@@ -7,7 +7,7 @@ import { pairingKey } from "../src/crypto/labels.ts";
 import { T } from "../src/core/texts.ts";
 import { UserError } from "../src/core/engine.ts";
 import { Rpc } from "../src/core/rpc.ts";
-import { allEntries, getAllowSet, getEntry } from "../src/core/state.ts";
+import { ALLOW_SET, allEntries, getAllowSet, getEntry } from "../src/core/state.ts";
 import { encodeInner } from "../src/model/message.ts";
 import { IDBFactory } from "fake-indexeddb";
 import { Clock, FakePlatform, MockWorker, deliver, device, makeEngine, pairAndApprove, refresh, restart } from "./harness.ts";
@@ -521,6 +521,11 @@ test("cap: 11th automatic reply in 24 h is prompted; a tapped reply is not count
   for (let i = 0; i < 11; i++) ns.push(await device(w, clock));
   await refresh(x, ...ns);
   for (const n of ns) {
+    if (n === ns[9]) {
+      // an account lists at most 10 devices: the first nine leave the list before the next two are read
+      for (const o of ns.slice(0, 9)) w.rows.delete(o.id);
+      await x.e.fetchPeersNow();
+    }
     await n.e.pairStart(x.id);
     await deliver(w, x);
     // close X's entry so the open-entry limit (9) does not apply
@@ -1325,4 +1330,17 @@ test("a removed device that the relay server lists again with the same keys is s
   assert.equal(row.removed, false);
   assert.equal(row.pinned, false);
   assert.ok((await new Rpc(c.e).peers()).peers.some((v) => v.id === b.id));
+});
+
+test("a peer list is cut to the relay server limits before it is checked", async () => {
+  const { w, a, b } = await setup();
+  const self = (await a.e.self())!;
+  const j = w.listFor(a.id);
+  const junk = Array.from({ length: 1000 }, (_, i) => "id" + i);
+  const filler = Array.from({ length: 10 }, () => ({ id: 5 }));
+  await a.e.mergePeers({ ...j, my_allow: junk, peers: [...filler, ...j.peers] }, self);
+  assert.equal(((await a.p.storageLocal.get([ALLOW_SET]))[ALLOW_SET] as string[]).length, 9);
+  assert.equal(await a.db.peer(b.id), undefined); // listed after the tenth entry
+  await a.e.mergePeers({ ...j, peers: [...filler.slice(0, 8), ...j.peers] }, self);
+  assert.ok(await a.db.peer(b.id)); // the tenth entry is still read
 });
