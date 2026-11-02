@@ -2,11 +2,11 @@ import Foundation
 
 /// Small pure helpers for the UI and sign-in.
 public enum Pairing {
-    public static let timeoutDays: Int64 = 30
+    public static let timeoutDays: Int64 = 14
     public static let timeout: Int64 = timeoutDays * 86400
 
     /// Countdown text: "X days" at 24 h or more left, "X hours" under 24 h, "X minutes"
-    /// under 60 min (from started_at + 30 days). Days and hours round down; minutes round up
+    /// under 60 min (from started_at + 14 days). Days and hours round down; minutes round up
     /// so the row never reads "0 minutes" before it expires. nil when expired. A start later
     /// than now counts as now.
     public static func countdown(startedAt: Int64, now: Int64) -> String? {
