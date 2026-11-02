@@ -1481,7 +1481,15 @@ class Store:
         with open(self.lock_path, "a") as lf:
             fcntl.flock(lf, fcntl.LOCK_EX)
             tmps = glob.glob(os.path.join(self.keys_dir, ".tmp-*")) + glob.glob(os.path.join(self.root, ".tmp-*"))
-            for p in [self.key_path, self.dev_path] + tmps:
+            paths = [self.key_path, self.dev_path]
+            if os.path.islink(self.dev_path):
+                # a symlinked devices.toml: reset the target to no devices (the link and the target stay), clean beside it
+                real = os.path.realpath(self.dev_path)
+                if os.path.isfile(real):
+                    write_file(self.dev_path, toml_dumps({"version": STATE_VERSION}))
+                paths.remove(self.dev_path)
+                tmps += glob.glob(os.path.join(os.path.dirname(real), ".tmp-*"))
+            for p in paths + tmps:
                 with contextlib.suppress(FileNotFoundError):
                     os.unlink(p)
             with contextlib.suppress(OSError):

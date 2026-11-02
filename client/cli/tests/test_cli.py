@@ -562,6 +562,24 @@ def test_wipe_removes_temp_files(net, tmp_path, monkeypatch):
     assert [n for n in os.listdir(tmp_path) if n.startswith(".tmp-")] == []
 
 
+def test_wipe_clears_the_target_of_a_symlinked_devices_toml(net, tmp_path, monkeypatch):
+    root, other = tmp_path / "root", tmp_path / "other"
+    other.mkdir()
+    root.mkdir()
+    login(monkeypatch, root)
+    target = other / "real.toml"
+    os.replace(root / "devices.toml", target)
+    os.symlink(target, root / "devices.toml")
+    assert target.read_text() != ""
+    (other / ".tmp-z").write_text("state")
+    pa.Store(str(root)).wipe()
+    assert os.path.islink(root / "devices.toml")
+    assert pa.read_toml(str(target)) == {"version": pa.STATE_VERSION}
+    assert [n for n in os.listdir(other) if n.startswith(".tmp-")] == []
+    login(monkeypatch, root)
+    assert pa.read_toml(str(target))["version"] == pa.STATE_VERSION
+
+
 def _group(monkeypatch, name, members):
     import grp
     import pwd
