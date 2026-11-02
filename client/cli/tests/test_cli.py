@@ -559,6 +559,22 @@ def test_send_failures_are_sentences(net, tmp_path, monkeypatch, capsys):
         assert ": " + text in err and ": " + word not in err
 
 
+def test_relay_error_text_is_cleaned_and_short(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = pair_two(monkeypatch, net, a, b)
+    capsys.readouterr()
+    for status, word in ((400, "\x1b]0;x\x07bad\u202e"), (401, "w" * 200)):
+        net.hooks[("POST", "send")] = lambda m, p, h, body, s=status, w=word: net.reply(s, {"error": w})
+        assert run(a, "send", "hi") == 1
+        err = capsys.readouterr().err
+        assert "\x1b" not in err and "\x07" not in err and "\u202e" not in err
+        assert "w" * 81 not in err
+    assert "w" * 80 in err
+    net.hooks.clear()
+    e = pa.ApiError(400, "\x1b[2Jbad", {})
+    assert e.error == "?[2Jbad"
+
+
 def test_send_too_long(net, tmp_path, monkeypatch, capsys):
     login(monkeypatch, tmp_path)
     assert run(tmp_path, "send", "x" * 2049) == 2

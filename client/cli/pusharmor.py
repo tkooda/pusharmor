@@ -974,6 +974,7 @@ class TempFail(Fail):
 
 class ApiError(Exception):
     def __init__(self, status, error, body):
+        error = _clean(error)[:80]
         super().__init__("%d %s" % (status, error))
         self.status, self.error, self.body = status, error, body
 
