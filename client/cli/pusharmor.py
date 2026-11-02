@@ -1385,11 +1385,21 @@ class Store:
 
 # ---- HTTP (urllib only) ----
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A 3xx reply comes back as an HTTPError; signed headers never go to another URL."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
+
 def http_request(method, url, headers, body):
     """One HTTP exchange -> (status, lower-case headers, body). Raises OSError when the network fails."""
     try:
         req = urllib.request.Request(url, data=body, headers=headers, method=method)
-        with urllib.request.urlopen(req, timeout=30) as r:
+        with _OPENER.open(req, timeout=30) as r:
             return r.status, {k.lower(): v for k, v in r.headers.items()}, r.read()
     except urllib.error.HTTPError as e:
         with e:

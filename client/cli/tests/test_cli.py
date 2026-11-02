@@ -834,6 +834,28 @@ def test_cut_off_error_body_keeps_the_status():
     assert (status, body) == (500, b"")
 
 
+def test_redirect_is_not_followed():
+    hits = []
+
+    def target(h):
+        hits.append(h.path)
+        h.send_response(200)
+        h.send_header("Content-Length", "2")
+        h.end_headers()
+        h.wfile.write(b"{}")
+
+    with local_http(target) as other:
+        def reply(h):
+            h.send_response(302)
+            h.send_header("Location", other + "/v1/peers")
+            h.send_header("Content-Length", "0")
+            h.end_headers()
+
+        with local_http(reply) as url:
+            status, _, _ = pa.http_request("GET", url + "/v1/peers", {"PA-Sig": "x"}, None)
+    assert status == 302 and hits == []
+
+
 @pytest.mark.parametrize("server", ["http://[::1", "http://a..b", "https://" + "a" * 64 + ".com", "https://h:99999",
                                     "https://\\u0080"])
 def test_bad_server_setting(tmp_path, server, capsys):
