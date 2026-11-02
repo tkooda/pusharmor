@@ -1324,7 +1324,7 @@ def check_unshared(path, folder):
     if not (stat.S_ISDIR if folder else stat.S_ISREG)(st.st_mode) or st.st_uid != os.getuid():
         raise Fail("%s must be a %s owned by you." % (path, "folder" if folder else "file"))
     if mode & 0o002 or (mode & 0o020 and not (st.st_gid == os.getgid() and private_group(st.st_gid))):
-        raise Fail("%s can be changed by other users. Fix it with: chmod go-w %s" % (path, path))
+        raise Fail("%s can be changed by other users. Fix it with: chmod go-w %s" % (path, shlex.quote(path)))
 
 
 def read_toml(path):

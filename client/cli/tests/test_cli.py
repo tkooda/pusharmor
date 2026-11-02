@@ -544,6 +544,15 @@ def test_pair_timeouts_quote_the_device_name(net, tmp_path, monkeypatch, capsys)
     assert 'No answer from "bee" yet. Run pusharmor pair %s again to continue.\n' % pa.id_hex(idb)[:6] in err
 
 
+def test_chmod_hint_quotes_a_path_with_a_space(tmp_path):
+    path = tmp_path / "my cfg"
+    path.mkdir()
+    path.chmod(0o777)
+    with pytest.raises(pa.Fail) as e:
+        pa.check_unshared(str(path), True)
+    assert str(e.value) == "%s can be changed by other users. Fix it with: chmod go-w '%s'" % (path, path)
+
+
 def test_wipe_removes_temp_files(net, tmp_path, monkeypatch):
     login(monkeypatch, tmp_path)
     (tmp_path / "keys" / ".tmp-x").write_text("key")
