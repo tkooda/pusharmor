@@ -219,6 +219,87 @@ final class StateMachineTests: XCTestCase {
         XCTAssertNil(try n.core.store.setting(Core.removalCheckKey))
     }
 
+    /// a 401 "unknown peer" whose removal check GET gets the `check` replies, in order.
+    func unknownPeerThenCheck(_ check: [(Int, String)]) async throws -> (Device, RecordingHooks, APIOutcome) {
+        let n = try dev("Ndev")
+        let hooks = RecordingHooks()
+        n.core.hooks = hooks
+        w.script("GET", "/v1/peers", 401, "{\"error\":\"unknown peer\"}")
+        for (status, body) in check { w.script("GET", "/v1/peers", status, body) }
+        let out = await n.core.signed("GET", "/v1/peers")
+        return (n, hooks, out)
+    }
+
+    /// a removal check GET answered with clock skew is sent once more; a second clock skew
+    /// keeps the keys and the check for the next app open.
+    func testRemovalCheckClockSkewTwiceKeepsKeys() async throws {
+        let skew = (401, "{\"error\":\"clock skew\"}")
+        let (n, hooks, out) = try await unknownPeerThenCheck([skew, skew])
+        XCTAssertNil(out.reply)
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 3)
+        XCTAssertEqual(hooks.wiped, 0)
+        XCTAssertFalse(try n.core.store.me().removed)
+        XCTAssertEqual(try n.core.store.setting(Core.removalCheckKey), "401")
+        // one clock skew, then "unknown peer": the retry confirms it
+        let (n2, h2, _) = try await unknownPeerThenCheck([skew, (401, "{\"error\":\"unknown peer\"}")])
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 6)
+        XCTAssertEqual(h2.wiped, 1)
+        XCTAssertTrue(try n2.core.store.me().removed)
+    }
+
+    /// a removal check GET answered with 426 keeps the keys and the check.
+    func testRemovalCheck426KeepsKeys() async throws {
+        let (n, hooks, out) = try await unknownPeerThenCheck([(426, "{\"error\":\"upgrade required\"}")])
+        XCTAssertNil(out.reply)
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 2)
+        XCTAssertEqual(hooks.wiped, 0)
+        XCTAssertFalse(try n.core.store.me().removed)
+        XCTAssertEqual(try n.core.store.setting(Core.removalCheckKey), "401")
+    }
+
+    /// a removal check GET answered with 429 is not retried and keeps the keys and the check.
+    func testRemovalCheck429KeepsKeys() async throws {
+        let (n, hooks, out) = try await unknownPeerThenCheck([(429, "{\"error\":\"rate limited\"}")])
+        XCTAssertNil(out.reply)
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 2)
+        XCTAssertEqual(hooks.wiped, 0)
+        XCTAssertFalse(try n.core.store.me().removed)
+        XCTAssertEqual(try n.core.store.setting(Core.removalCheckKey), "401")
+    }
+
+    /// a removal check GET answered with 401 "logged out" refutes the removal: keys kept,
+    /// the check cleared.
+    func testRemovalCheckLoggedOutKeepsKeys() async throws {
+        let (n, hooks, out) = try await unknownPeerThenCheck([(401, "{\"error\":\"logged out\"}")])
+        XCTAssertNil(out.reply)
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 2)
+        XCTAssertEqual(hooks.wiped, 0)
+        XCTAssertFalse(try n.core.store.me().removed)
+        XCTAssertNil(try n.core.store.setting(Core.removalCheckKey))
+    }
+
+    /// a pushed delete only sets the removal check; the keys stay until the check GET also
+    /// says "unknown peer".
+    func testDeleteMessageSetsTheCheckOnly() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        let hooks = RecordingHooks()
+        x.core.hooks = hooks
+        let m = try n.core.buildMessage(to: x.id) { _ in .delete }
+        let g = w.count("GET", "/v1/peers")
+        let r = await x.core.receive(m, mode: .nse)
+        XCTAssertTrue(r.removalSignal)
+        XCTAssertEqual(w.count("GET", "/v1/peers"), g)
+        XCTAssertEqual(hooks.wiped, 0)
+        XCTAssertFalse(try x.core.store.me().removed)
+        XCTAssertEqual(try x.core.store.setting(Core.removalCheckKey), "delete")
+        w.script("GET", "/v1/peers", 401, "{\"error\":\"unknown peer\"}")
+        await x.core.appOpen(push: nil)
+        XCTAssertEqual(w.count("GET", "/v1/peers"), g + 1)
+        XCTAssertEqual(hooks.wiped, 1)
+        XCTAssertTrue(try x.core.store.me().removed)
+    }
+
     /// a 401 "bad id" is a failed id check: no removal check GET, no wipe.
     func testBadIdNeverStartsRemovalCheck() async throws {
         let n = try dev("Ndev")
