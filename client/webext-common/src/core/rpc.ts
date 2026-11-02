@@ -4,12 +4,12 @@ import { formatCountdown, PAIRING_TIMEOUT_DAYS } from "../model/countdown.ts";
 import { SEND_SEL_KEY } from "../model/sendsel.ts";
 import { detectType } from "../model/detect.ts";
 import { utf8Len } from "../model/padding.ts";
-import type { HistoryRow, PeerRow } from "../store/db.ts";
+import type { HistoryRow } from "../store/db.ts";
 import { type Engine, type Settings, UserError } from "./engine.ts";
 import { ActionError, RestartError, reasonOf, failText } from "./failtext.ts";
 import { Login, type Purpose } from "./login.ts";
 import { PAIR_MSG_PREFIX, allEntries } from "./state.ts";
-import { type ActionId, T, peerLabel } from "./texts.ts";
+import { type ActionId, T, peerLabel, rowLabel } from "./texts.ts";
 
 export interface Req {
   op: string;
@@ -63,17 +63,6 @@ export interface StateView {
   pushIssue: "refused" | "relay" | null;
   /** The saved keys failed the local check: every view shows the keys screen. */
   keysBroken: boolean;
-}
-
-function created(p: PeerRow): string {
-  const d = new Date(p.created * 1000);
-  const plat = p.platform === "cli" ? "Command line" : p.platform.charAt(0).toUpperCase() + p.platform.slice(1);
-  return Number.isFinite(d.getTime()) ? plat + ", added " + d.toISOString().slice(0, 10) : plat;
-}
-
-/** The device name its row in the list shows. */
-function rowLabel(p: PeerRow): string {
-  return p.name ?? created(p);
 }
 
 /** The action line of each request that can fail where the user clicked. */
@@ -293,7 +282,6 @@ export class Rpc {
     for (const p of await e.db.peers()) {
       if (p.removed || p.id === self?.id) continue;
       const label = rowLabel(p);
-      const nm = peerLabel(p.name);
       const v: PeerView = { id: p.id, label, platform: p.platform, lines: [], actions: [], countdown: null, fingerprint: null, pk: null, greyed: null, hidden: p.hidden, allowContent: p.allow_content !== false, sendable: false, approvesMe: p.approves_me, paired: false };
       const pv = entries.has(p.id) ? await e.pairRowView(p.id) : null;
       if (pv) {
@@ -313,10 +301,10 @@ export class Rpc {
         if (typeof msg === "string") v.lines.push(...msg.split("\n"));
         if (p.ruling === "denied") v.lines.push("Denied");
       } else if (p.denies_me) {
-        v.greyed = T.declinedBy(nm);
+        v.greyed = T.declinedBy(label);
         v.actions = ["cancel"];
       } else if (p.approve_verified && p.get_after_verify && !p.approves_me) {
-        v.greyed = T.notPairedOn(nm);
+        v.greyed = T.notPairedOn(label);
         v.actions = ["pair_again", "cancel"];
       } else if (p.ruling === "approved" && p.approves_me) {
         v.paired = true;

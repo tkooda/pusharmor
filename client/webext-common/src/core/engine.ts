@@ -60,7 +60,7 @@ import {
   getEntry,
   pairKeyOf,
 } from "./state.ts";
-import { R, T, peerLabel, sendResultText } from "./texts.ts";
+import { R, T, peerLabel, rowLabel, sendResultText } from "./texts.ts";
 import { AUTH_CHANGED } from "../model/signin.ts";
 
 export type Src = "push" | "bridge" | "returned" | "fetched";
@@ -1666,7 +1666,7 @@ export class Engine {
     const e = await getEntry(this.p.storageLocal, x);
     const peer = await this.db.peer(x);
     if (!e || !peer) return null;
-    const nm = peerLabel(peer.name);
+    const nm = rowLabel(peer); // the same name as the row title
     const t = now(this.p);
     const lines: string[] = [];
     const actions: string[] = e.half && peer.pinned ? ["pair_again", "cancel"] : ["cancel"];

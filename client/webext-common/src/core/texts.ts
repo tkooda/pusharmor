@@ -1,5 +1,7 @@
 // User-facing strings (component-webext sections 5, 7; catalog).
 
+import type { PeerRow } from "../store/db.ts";
+
 const A_DEVICE = "A device";
 /** A device name in a text, in straight double quotes; a device with no name stays "A device" unquoted. */
 export const quoted = (x: string): string => (x === A_DEVICE ? x : '"' + x + '"');
@@ -104,6 +106,17 @@ export function greyedText(name: string, greyed: string): string {
 
 export function peerLabel(name: string | null): string {
   return name ?? T.aPeer;
+}
+
+function created(p: PeerRow): string {
+  const d = new Date(p.created * 1000);
+  const plat = p.platform === "cli" ? "Command line" : p.platform.charAt(0).toUpperCase() + p.platform.slice(1);
+  return Number.isFinite(d.getTime()) ? plat + ", added " + d.toISOString().slice(0, 10) : plat;
+}
+
+/** The device name its row in the list shows. */
+export function rowLabel(p: PeerRow): string {
+  return p.name ?? created(p);
 }
 
 // Error texts, same words as Android and iOS: line 1 says what could not be done,

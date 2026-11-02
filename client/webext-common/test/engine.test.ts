@@ -811,10 +811,13 @@ test("N-side hint: approves_me true while committed reads still holds an earlier
   await a.db.putPeer({ ...(await a.db.peer(b.id))!, approves_me: true });
   clock.t += 3 * DAY;
   const v = (await a.e.pairRowView(b.id))!;
-  assert.ok(v.lines.includes(T.stillHolds("A device")));
+  // the row text names the device as the row title does
+  const label = (await new Rpc(a.e).peers()).peers.find((p) => p.id === b.id)!.label;
+  assert.match(label, /^Chrome, added \d{4}-\d{2}-\d{2}$/);
+  assert.ok(v.lines.includes(T.stillHolds(label)));
   await a.db.putPeer({ ...(await a.db.peer(b.id))!, approves_me: false });
-  assert.ok((await a.e.pairRowView(b.id))!.lines.includes(T.noReplyYet("A device")));
-  assert.equal((await a.e.pairRowView(b.id))!.lines[0], "Pairing with A device: compare the codes on both devices, then click Codes match only if they are the same.");
+  assert.ok((await a.e.pairRowView(b.id))!.lines.includes(T.noReplyYet(label)));
+  assert.equal((await a.e.pairRowView(b.id))!.lines[0], 'Pairing with "' + label + '": compare the codes on both devices, then click Codes match only if they are the same.');
 });
 
 test("clock skew on POST /approve: a new n and new bytes in the retry", async () => {
