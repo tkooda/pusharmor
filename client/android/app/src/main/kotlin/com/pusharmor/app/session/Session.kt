@@ -57,6 +57,7 @@ class Session(private val g: Graph) {
 
     /** Startup invariant, before any network call (section 9). */
     fun startup(): Start {
+        s.moveToDb() // a move deferred by a damaged database, or the first try on a database made new by a reset
         val present: Boolean
         val any: Boolean
         try {

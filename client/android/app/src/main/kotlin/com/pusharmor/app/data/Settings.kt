@@ -135,15 +135,20 @@ class Settings(private val context: Context, private val dao: PaDao) {
         else runBlocking { context.ds.data.first()[key] }
 
     fun <T> set(key: Preferences.Key<T>, value: T?) {
-        if (key.name in IN_DB) db { if (value == null) dao.deleteState(key.name) else dao.putState(StateEntity(key.name, encode(value))) }
+        if (key.name in IN_DB) {
+            db { if (value == null) dao.deleteState(key.name) else dao.putState(StateEntity(key.name, encode(value))) }
+            // A copy an older version left in the file (its move deferred) must not come back on the next move.
+            runBlocking { if (context.ds.data.first().contains(key)) context.ds.edit { it.remove(key) } }
+        }
         else runBlocking { context.ds.edit { if (value == null) it.remove(key) else it[key] = value } }
     }
 
     /**
      * Security state an older version kept in the settings file goes to the database; a value already there wins.
-     * The file keys are dropped only after the database write; a damaged database keeps them for the next start.
+     * The file keys are dropped only after the database write; a damaged database keeps them for the next try
+     * (each startup check runs it again).
      */
-    private fun moveToDb() {
+    fun moveToDb() {
         val p = runBlocking { context.ds.data.first() }
         val old = IN_DB.values.filter { p.contains(it) }
         if (old.isEmpty()) return
@@ -214,9 +219,15 @@ class Settings(private val context: Context, private val dao: PaDao) {
         return false
     }
 
-    /** Clears everything except old_id (kept across the wipe for DELETE /peers/$old-id). */
+    /** Clears everything except old_id (kept across the wipe for DELETE /peers/$old-id; a copy not yet moved stays in the file). */
     fun clearKeepingOldId() {
         db { dao.clearStateExcept(K.OLD_ID.name) }
-        runBlocking { context.ds.edit { it.clear() } }
+        runBlocking {
+            context.ds.edit {
+                val old = it[K.OLD_ID]
+                it.clear()
+                if (old != null) it[K.OLD_ID] = old
+            }
+        }
     }
 }

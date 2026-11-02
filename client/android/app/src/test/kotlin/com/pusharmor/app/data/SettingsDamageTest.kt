@@ -106,3 +106,48 @@ class SettingsMoveTest {
         assertFalse(s.takeResetNotice())
     }
 }
+
+/** A database that fails while [failing] is set, as a damaged or busy file does on the first start after an upgrade. */
+private class FlakyDao(private val real: PaDao) : PaDao by real {
+    @Volatile var failing = true
+    override fun state(k: String): String? = if (failing) throw android.database.SQLException("io") else real.state(k)
+    override fun putState(s: StateEntity) = if (failing) throw android.database.SQLException("io") else real.putState(s)
+}
+
+private fun writeOld(c: Context, p: Preferences) {
+    val buf = okio.Buffer(); runBlocking { PreferencesSerializer.writeTo(p, buf) }
+    settingsFile(c).writeBytes(buf.readByteArray())
+}
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [31], application = android.app.Application::class, instrumentedPackages = ["com.pusharmor.sandbox.deferred"])
+class DeferredMoveTest {
+    /** A deferred move: a value cleared since then stays cleared, and a later try moves the rest. */
+    @Test fun clearedKeyDoesNotComeBackFromTheFile() {
+        val c = ctx(); val real = dao(c); val d = FlakyDao(real)
+        writeOld(c, preferencesOf(Settings.K.LOGOUT_PENDING to true, Settings.K.SIGNED_OUT to true))
+        val s = Settings(c, d) // the move is deferred
+        d.failing = false
+        s.set(Settings.K.LOGOUT_PENDING, null)
+        val s2 = Settings(c, real) // the next start
+        assertNull(s2.get(Settings.K.LOGOUT_PENDING))
+        assertTrue(s2.flag(Settings.K.SIGNED_OUT, false))
+        assertEquals(s2.flag(Settings.K.SIGNED_OUT, false), runBlocking { s2.data.first() }[Settings.K.SIGNED_OUT])
+    }
+}
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [31], application = android.app.Application::class, instrumentedPackages = ["com.pusharmor.sandbox.oldid"])
+class DeferredOldIdTest {
+    /** A wipe before the deferred move keeps the old device id. */
+    @Test fun wipeKeepsAnUnmovedOldId() {
+        val c = ctx(); val real = dao(c); val d = FlakyDao(real)
+        writeOld(c, preferencesOf(Settings.K.OLD_ID to "C".repeat(40), Settings.K.THEME to "dark"))
+        val s = Settings(c, d)
+        d.failing = false
+        s.clearKeepingOldId()
+        s.moveToDb() // the next startup check
+        assertEquals("C".repeat(40), s.get(Settings.K.OLD_ID))
+        assertNull(s.get(Settings.K.THEME))
+    }
+}

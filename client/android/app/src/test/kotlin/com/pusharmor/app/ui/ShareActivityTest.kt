@@ -22,8 +22,16 @@ class ShareActivityTest {
         return Robolectric.buildActivity(ShareActivity::class.java, i).create().get()
     }
 
+    /**
+     * The update screen holds the sheet open whatever the background read's timing: a device with no log in
+     * would otherwise close it as soon as that read returns. A text the sheet could not read closes it at once.
+     */
     @Test fun styledTextShareStaysOpen() {
-        assertFalse(launch { it.putExtra(Intent.EXTRA_TEXT, SpannableString("hello")) }.isFinishing)
+        val s = ApplicationProvider.getApplicationContext<com.pusharmor.app.PaApp>().graph.settings
+        s.markUpdateRequired(com.pusharmor.app.BuildConfig.VERSION_NAME)
+        try {
+            assertFalse(launch { it.putExtra(Intent.EXTRA_TEXT, SpannableString("hello")) }.isFinishing)
+        } finally { s.set(com.pusharmor.app.data.Settings.K.UPDATE_REQUIRED, null) }
     }
 
     @Test fun shareWithoutTextCloses() {
