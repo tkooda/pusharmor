@@ -931,8 +931,8 @@ def test_damaged_state_file_is_one_line_exit_1(monkeypatch, tmp_path, net, capsy
     assert "Traceback" not in err
     if rel == os.path.join("keys", "private.toml"):
         assert err.splitlines() == ["This device's keys have become unusable.",
-                                    "Delete them and log in again. You will then pair with all your devices again.",
-                                    "To delete them, run: rm -r %s %s" % (cfg / "keys", cfg / "devices.toml")]
+                                    "Delete '%s', then log in again. You will then pair with all your devices again."
+                                    % (cfg / "keys")]
         assert path.read_bytes() == data
     else:
         assert err.splitlines()[0] == "Unable to send." and len(err.splitlines()) == 2 and str(path) in err
@@ -968,9 +968,12 @@ def test_a_new_login_replaces_a_damaged_devices_file_and_never_removes_the_devic
 @pytest.mark.parametrize("change", [
     lambda d: d.update(sign_key=pa.b64e(b"\x01" * 31)), lambda d: d.update(enc_key="not*base64"),
     lambda d: d.pop("version")])
-def test_unusable_keys_are_three_lines_and_kept(change, monkeypatch, tmp_path, net, capsys):
+def test_unusable_keys_are_two_lines_and_kept(change, monkeypatch, tmp_path, net, capsys):
     cfg = tmp_path / "my cfg"
     login(monkeypatch, cfg)
+    d0 = state(cfg)
+    d0["name"] = "stale"
+    (cfg / "devices.toml").write_text(pa.toml_dumps(d0))
     path = cfg / "keys" / "private.toml"
     d = pa.toml_loads(path.read_text())
     change(d)
@@ -982,13 +985,15 @@ def test_unusable_keys_are_three_lines_and_kept(change, monkeypatch, tmp_path, n
     err = capsys.readouterr().err
     assert err == (
         "This device's keys have become unusable.\n"
-        "Delete them and log in again. You will then pair with all your devices again.\n"
-        "To delete them, run: rm -r '%s' '%s'\n" % (cfg / "keys", cfg / "devices.toml"))
+        "Delete '%s', then log in again. You will then pair with all your devices again.\n" % (cfg / "keys"))
     assert path.read_bytes() == before
-    (cfg / "settings.toml").write_text("")
     import subprocess
-    subprocess.run(["sh", "-c", err.splitlines()[2].split(": ", 1)[1]], check=True)
-    assert sorted(os.listdir(cfg)) == ["devices.toml.lock", "settings.toml"]
+    subprocess.run(["sh", "-c", "rm -r " + err.splitlines()[1].split(", then")[0][len("Delete "):]], check=True)
+    assert sorted(os.listdir(cfg)) == ["devices.toml", "devices.toml.lock"]
+    answers(monkeypatch, "x", "x", "x")  # a login that fails leaves the old devices.toml as it is
+    assert run(cfg, "login") == 1 and state(cfg)["name"] == "stale"
+    login(monkeypatch, cfg)  # the new login replaces it
+    assert state(cfg)["name"] != "stale" and state(cfg)["reg"] == "registered"
 
 
 def test_help_and_readme_list_every_exit_code(capsys):

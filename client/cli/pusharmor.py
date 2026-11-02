@@ -1334,6 +1334,12 @@ def check_unshared(path, folder):
         raise Fail("%s can be changed by other users. Fix it with: chmod go-w %s" % (path, shlex.quote(path)))
 
 
+def quoted_path(path):
+    """A path in single quotes the shell takes as is (shlex.quote leaves a plain path bare)."""
+    q = shlex.quote(path)
+    return q if q.startswith("'") else "'%s'" % q
+
+
 def read_toml(path):
     try:
         with open(path, "rb") as f:
@@ -1437,9 +1443,8 @@ class Store:
 
         def unusable():  # never deleted automatically: the user decides
             return Fail("This device's keys have become unusable.\n"
-                        "Delete them and log in again. You will then pair with all your devices again.\n"
-                        "To delete them, run: rm -r %s %s" % (shlex.quote(self.keys_dir), shlex.quote(self.dev_path)),
-                        full=True)
+                        "Delete %s, then log in again. You will then pair with all your devices again."
+                        % quoted_path(self.keys_dir), full=True)
 
         try:
             d = read_toml(self.key_path)
