@@ -1006,7 +1006,12 @@ export class Engine {
   private async doFetch(): Promise<void> {
     const self = await this.self();
     if (!self) return;
-    const nb = ((await this.p.storageLocal.get([NET_NOT_BEFORE]))[NET_NOT_BEFORE] as number | undefined) ?? 0;
+    let nb = ((await this.p.storageLocal.get([NET_NOT_BEFORE]))[NET_NOT_BEFORE] as number | undefined) ?? 0;
+    if (nb > now(this.p) + 3600_000) {
+      // A wait stored longer than the 1 hour cap is cut back to it.
+      nb = now(this.p) + 3600_000;
+      await this.p.storageLocal.set({ [NET_NOT_BEFORE]: nb });
+    }
     if (now(this.p) < nb) {
       await this.db.setMeta("fetch_pending", true);
       this.p.alarmAt("fetch", Math.max(nb, now(this.p) + 30_000));

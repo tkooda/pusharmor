@@ -1167,3 +1167,23 @@ test("fetched remove: tampered, unknown-signer, and wrong-target entries are ign
   }
   assert.equal((await c.db.history()).length, hist, "no Invalid message event");
 });
+
+test("Retry-After is clamped to one hour, and a stored wait longer than an hour is read as one hour", async () => {
+  const { w, a, clock } = await setup();
+  w.inject.push({ match: /GET \/v1\/peers/, status: 429, body: { error: "rate limited" }, headers: { "Retry-After": "2000000000" }, times: 1 });
+  await a.e.fetchPeersNow().catch(() => undefined);
+  const nb = (await a.p.storageLocal.get(["net_not_before"])).net_not_before as number;
+  assert.ok(nb - clock.t <= 3600_000);
+  const gets = () => w.calls.filter((x) => x.method === "GET" && x.path === "/v1/peers").length;
+  const n0 = gets();
+  clock.t += 3601_000;
+  await a.e.fetchPeersNow();
+  assert.equal(gets(), n0 + 1);
+  // a deadline stored far ahead (by an older version) is capped when read
+  await a.p.storageLocal.set({ net_not_before: clock.t + 1e12 });
+  await a.e.fetchPeersNow();
+  assert.equal(gets(), n0 + 1);
+  clock.t += 3601_000;
+  await a.e.fetchPeersNow();
+  assert.equal(gets(), n0 + 2);
+});

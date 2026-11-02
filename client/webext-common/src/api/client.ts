@@ -157,8 +157,13 @@ export class Api {
     const h = res.headers.get("Retry-After");
     if (h && /^[0-9]+$/.test(h)) ra = Number(h);
     else if (typeof json.retry_after === "number") ra = json.retry_after;
-    throw new ApiError(res.status, err, json, ra);
+    throw new ApiError(res.status, err, json, ra === null ? null : clampRetry(ra));
   }
+}
+
+/** Retry-After seconds clamped to 0..1 hour, so a bad value cannot hold calls back for ever. */
+export function clampRetry(s: number): number {
+  return Math.min(Math.max(s, 0), 3600);
 }
 
 /** HTTP 426: the relay server no longer accepts this version. */
