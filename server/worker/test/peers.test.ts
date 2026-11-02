@@ -374,6 +374,7 @@ describe("cli push endpoint", () => {
       `https://ntfy.sh:443/up${t}?up=1`,
       `https://ntfy.sh/a/up${t}?up=1`,
       `https://up.example.org/up${t}?up=1`,
+      "https://updates.push.services.mozilla.com/wpush/v2/gAAAAABk-x_y=",
     ]) {
       const r = await call("PATCH", "/v1/peers/" + p.id, { push: { ...up, endpoint } }, { peer: p });
       expect(r.status, endpoint).toBe(400);
@@ -400,6 +401,27 @@ describe("android UnifiedPush endpoint", () => {
     expect(r.status).toBe(200);
     r = await call("POST", "/v1/peers", { ticket: await ticketFor(p.email, p.signPub, "register"), sign_pub: p.signPub, enc_pub: p.encPub, platform: "android", push: { ...up, endpoint: "https://ntfy.sh/mytopic" } }, { sign: p.sign });
     expect(r.body.error).toBe("push endpoint not allowed");
+  });
+});
+
+describe("android Sunup endpoint", () => {
+  it("accepts https://updates.push.services.mozilla.com/wpush/v2/<token> only", async () => {
+    const p = await newPeer(randomEmail(), "android", null);
+    const up = pushFor("android", "unifiedpush");
+    for (const endpoint of [
+      "https://updates.push.services.mozilla.com/wpush/v1/gAAAAABk-x_y",
+      "https://updates.push.services.mozilla.com/wpush/v2/",
+      "https://updates.push.services.mozilla.com/wpush/v2/gAAAA?x=1",
+      "https://updates.push.services.mozilla.com/wpush/v2/a/b",
+      "https://updates.push.services.mozilla.com/upAbC-_123xyz9?up=1",
+      "https://updates.push.services.mozilla.com:8443/wpush/v2/gAAAAABk-x_y",
+    ]) {
+      const r = await call("PATCH", "/v1/peers/" + p.id, { push: { ...up, endpoint } }, { peer: p });
+      expect(r.status, endpoint).toBe(400);
+      expect(r.body.error).toBe("push endpoint not allowed");
+    }
+    const r = await call("PATCH", "/v1/peers/" + p.id, { push: { ...up, endpoint: "https://updates.push.services.mozilla.com/wpush/v2/gAAAAABk-x_y=" } }, { peer: p });
+    expect(r.status).toBe(200);
   });
 });
 

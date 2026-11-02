@@ -1,7 +1,7 @@
 // Request validators: ids, keys, messages, name entries, "m" maps, push objects.
 import { ApiError } from "../errors";
 import { b64urlDecode, isB64url } from "./b64url";
-import { checkUnifiedPushEndpoint, checkWebpushEndpoint, cliTopicOk, prefixes, type EndpointReject } from "../push/allowlist";
+import { checkUnifiedPushEndpoint, checkWebpushEndpoint, prefixes, upShapeOk, type EndpointReject } from "../push/allowlist";
 import { importEcdhPub, rawPoint } from "../crypto/ecdsa";
 import { sha256, utf8 } from "../crypto/hash";
 import { b64urlEncode } from "./b64url";
@@ -146,11 +146,11 @@ export function fitsPlatform(platform: Platform, pushType: number): boolean {
   return PLATFORM_TYPES[platform].includes(pushType);
 }
 
-// Platform rules for a push: type per platform (400), and the UnifiedPush topic form
-// (cli and android type 6).
+// Platform rules for a push: type per platform (400), and the UnifiedPush endpoint shape
+// (cli and android type 6: ntfy topic form; android also Sunup).
 export function checkPushPlatform(platform: Platform, push: PushValue): void {
   if (!fitsPlatform(platform, push.pushType)) throw bad();
-  if (push.pushType === 6 && !cliTopicOk(push.fields.endpoint)) throw new ApiError(400, "push endpoint not allowed");
+  if (push.pushType === 6 && !upShapeOk(platform, push.fields.endpoint)) throw new ApiError(400, "push endpoint not allowed");
 }
 
 // my_push_sha256 = b64url(first 16 bytes of sha256(type "\n" token) or

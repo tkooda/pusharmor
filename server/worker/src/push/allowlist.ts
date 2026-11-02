@@ -81,3 +81,14 @@ export function checkUnifiedPushEndpoint(endpoint: string, hosts: string[]): str
 export function cliTopicOk(endpoint: string): boolean {
   return /^https:\/\/[a-z0-9.-]+\/up[A-Za-z0-9_-]{12}\?up=1$/.test(endpoint);
 }
+
+// Sunup (android only): a Mozilla autopush v2 endpoint, bound to our VAPID key, so only the Worker can push to it.
+export const SUNUP_PREFIX = "https://updates.push.services.mozilla.com/wpush/v2/";
+
+// UnifiedPush endpoint shape per host and platform (checked after checkUnifiedPushEndpoint).
+export function upShapeOk(platform: string, endpoint: string): boolean {
+  if (endpoint.startsWith("https://updates.push.services.mozilla.com/")) {
+    return endpoint.startsWith(SUNUP_PREFIX) && platform === "android" && /^[A-Za-z0-9_=-]+$/.test(endpoint.slice(SUNUP_PREFIX.length));
+  }
+  return cliTopicOk(endpoint);
+}
