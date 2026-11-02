@@ -236,8 +236,13 @@ internal fun App(vm: AppViewModel) {
             return
         }
         Session.Start.KEYS_UNAVAILABLE -> {
-            KeysBrokenScreen(onRetry = { vm.boot() }, onDelete = { vm.io(null) { vm.g.session.selfRemoved(deleted = false, lostKeys = true); vm.boot() } },
-                Modifier.safeDrawingPadding())
+            // A failed Delete broken keys says why in a snackbar, as on the other screens.
+            val snack = remember { SnackbarHostState() }
+            androidx.compose.runtime.LaunchedEffect(Unit) { vm.message.collect { m -> if (m != null) { vm.message.value = null; snack.showSnackbar(m) } } }
+            Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                KeysBrokenScreen(onRetry = { vm.boot() }, onDelete = { vm.deleteBrokenKeys() })
+                SnackbarHost(snack, Modifier.align(Alignment.BottomCenter))
+            }
             return
         }
         else -> Unit

@@ -266,16 +266,20 @@ class Session(private val g: Graph) {
         }
     }
 
-    /** Self removed (remove about me, delete, 401 "unknown peer") or keys lost. */
-    fun selfRemoved(deleted: Boolean, lostKeys: Boolean) {
+    /** Self removed (remove about me, delete, 401 "unknown peer") or keys lost; returns the key delete error, if any. */
+    fun selfRemoved(deleted: Boolean, lostKeys: Boolean): Exception? {
         val oldId = dao.self()?.id
-        wipe(keepOldId = lostKeys)
+        val keyError = wipe(keepOldId = lostKeys)
         if (lostKeys && oldId != null) s.set(Settings.K.OLD_ID, oldId)
         s.set(Settings.K.BANNER, if (deleted) DELETED else if (lostKeys) LOST_KEYS else REMOVED)
+        return keyError
     }
 
-    /** The one wipe routine, in order (section 9); history is kept. */
-    private fun wipe(keepOldId: Boolean) {
+    /** The user's confirmed Delete broken keys: the lost-keys wipe; keys that could not be deleted throw, so the screen says so. */
+    fun deleteBrokenKeys() { selfRemoved(deleted = false, lostKeys = true)?.let { throw it } }
+
+    /** The one wipe routine, in order (section 9); history is kept. Returns the key delete error, if any. */
+    private fun wipe(keepOldId: Boolean): Exception? {
         g.notifier.cancelAll()
         g.notifier.deleteAllPeerChannels()
         ShortcutManagerCompat.removeAllDynamicShortcuts(g.app)
@@ -283,11 +287,12 @@ class Session(private val g: Graph) {
         if (keepOldId) s.clearKeepingOldId() else s.clearKeepingOldId().also { s.set(Settings.K.OLD_ID, null) }
         g.notifier.ensureChannels()
         try { g.push.stop(g) } catch (e: Exception) { }
-        try { KeystoreKeyOps.deleteBoth() } catch (e: Exception) { }
+        val keyError = try { KeystoreKeyOps.deleteBoth(); null } catch (e: Exception) { e }
         g.keysOrNull = null
         g.store.wipeRegistration()
         g.bootOffsetS = 0
         Work.scheduleDaily(g.app)
+        return keyError
     }
 
     // ---- peers ----------------------------------------------------------------------------

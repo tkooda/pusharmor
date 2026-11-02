@@ -188,6 +188,21 @@ class AppViewModelTest {
         assertNull(uncaught)
     }
 
+    /** A Delete broken keys that cannot delete the keys says the login could not start and why. */
+    @Test fun failedKeyDeleteSaysWhy() {
+        com.pusharmor.app.FakeAndroidKeyStore.install()
+        try {
+            val vm = vm()
+            com.pusharmor.app.FakeAndroidKeyStore.storeFault = true
+            val job = vm.deleteBrokenKeys()
+            waitFor { job.isCompleted }
+            assertNull(uncaught)
+            assertEquals("Unable to start the login.\nPushArmor could not save its data on this device. Restart PushArmor and try again.", vm.message.value)
+            assertEquals("Storage is full. Free some space and try again.", AppViewModel.keyDeleteReason(android.database.sqlite.SQLiteFullException("full")))
+            assertEquals("Storage is full. Free some space and try again.", AppViewModel.keyDeleteReason(java.io.IOException("write failed: ENOSPC (No space left on device)")))
+        } finally { com.pusharmor.app.FakeAndroidKeyStore.remove() }
+    }
+
     /** A switch change never rewrites the message counter: counting and switching at once keeps every count. */
     @Test fun switchChangesKeepTheCounter() {
         val vm = vm()

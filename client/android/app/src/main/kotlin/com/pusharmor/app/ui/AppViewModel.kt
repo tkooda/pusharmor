@@ -64,6 +64,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             else -> ErrorText.TRY_AGAIN
         }
 
+        /** Line 2 when broken keys could not be deleted: a full disk, else could not save. */
+        fun keyDeleteReason(e: Throwable): String =
+            if (e is android.database.sqlite.SQLiteFullException || e.message?.contains("ENOSPC") == true || e.message?.contains("No space left") == true) ErrorText.STORAGE_FULL
+            else ErrorText.SAVE_FAILED
+
         /** A signed-in screen whose device the relay server removed or logged out goes back to log in. */
         fun needsReboot(start: Session.Start?, selfPresent: Boolean, signedOut: Boolean): Boolean =
             start == Session.Start.READY && (!selfPresent || signedOut)
@@ -118,6 +123,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         setStart(s)
         if (s == Session.Start.READY) g.session.onAppOpen(System.currentTimeMillis())
         if (s == Session.Start.SIGNED_OUT) g.session.retryPendingLogout()
+    }
+
+    /** Delete broken keys, after the user confirmed: keys that could not be deleted say the login could not start and why. */
+    fun deleteBrokenKeys() = io(null) {
+        try { g.session.deleteBrokenKeys() } catch (e: CancellationException) { throw e } catch (e: Exception) {
+            Log.w("PushArmor", "delete broken keys failed", e)
+            message.value = ErrorText.text(UiText.UNABLE_START_LOGIN, keyDeleteReason(e)); return@io
+        }
+        boot()
     }
 
     // ---- sign in ----
