@@ -27,3 +27,19 @@ export function readForward(d: WebRequestDetails): { m: string | null; cancel: b
   for (const b of out) m += String.fromCharCode(b);
   return { m, cancel: true };
 }
+
+/**
+ * webRequest listener result. A delivery that fails lets the request reach the
+ * network (404): the site SW then keeps its notification for a click to retry.
+ */
+export async function onForward(d: WebRequestDetails, deliver: (m: string) => Promise<void>): Promise<{ cancel?: boolean }> {
+  const r = readForward(d);
+  if (r.m !== null) {
+    try {
+      await deliver(r.m);
+    } catch {
+      return {};
+    }
+  }
+  return r.cancel ? { cancel: true } : {};
+}

@@ -10,7 +10,7 @@ import type { WebPushKeys } from "../../webext-common/src/crypto/rfc8291.ts";
 import { Autopush, type ApState } from "./autopush/client.ts";
 import { fxSubFields, senderAllowed } from "./gate.ts";
 import { FWD_URL, SETUP_URL, endpointAllowed, firefoxPlatform } from "./platform-firefox.ts";
-import { readForward } from "./sitefwd/fwd.ts";
+import { onForward } from "./sitefwd/fwd.ts";
 import { browser } from "./shim.ts";
 
 declare const VAPID_PUBLIC_KEY: string;
@@ -138,14 +138,7 @@ browser.runtime.onInstalled.addListener((d) => {
   if (d.reason === "install") void browser.tabs.create({ url: SETUP_URL, active: true });
 });
 browser.webRequest?.onBeforeRequest.addListener(
-  (d) => {
-    const r = readForward(d);
-    if (r.m !== null) {
-      const m = r.m;
-      void whenReady().then(boot).then(({ engine }) => engine.receive(m, "push"));
-    }
-    return r.cancel ? { cancel: true } : {};
-  },
+  (d) => onForward(d, (m) => whenReady().then(boot).then(({ engine }) => engine.receive(m, "push"))),
   { urls: [FWD_URL] },
   ["blocking", "requestBody"],
 );

@@ -92,7 +92,7 @@ export interface Browser {
   webRequest?: {
     onBeforeRequest: {
       addListener(
-        f: (d: WebRequestDetails) => { cancel?: boolean } | Record<string, never>,
+        f: (d: WebRequestDetails) => { cancel?: boolean } | Record<string, never> | Promise<{ cancel?: boolean }>,
         filter: { urls: string[] },
         extra: string[],
       ): void;
