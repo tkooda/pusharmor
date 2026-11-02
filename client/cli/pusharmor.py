@@ -1302,6 +1302,15 @@ def _host_ok(url):
         return False
 
 
+def _loopback(url):
+    """localhost or a loopback IP address: plain http is allowed only for a server on this machine."""
+    host = urllib.parse.urlsplit(url).hostname
+    try:
+        return host == "localhost" or ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
 STATE_LISTS = (("my_allow", str), ("listed", str), ("pair_auto", int))
 STATE_OPTIONAL = (("reg", str), ("name", str), ("ntfy", str), ("topic", str), ("since", str), ("listen_at", int),
                   ("push_ok", bool), ("logout_pending", bool))
@@ -1338,8 +1347,9 @@ class Store:
             check_unshared(p, False)
             s = read_toml(p)
         for k in ("server", "ntfy"):
-            if k in s and not (isinstance(s[k], str) and re.match(r"https?://[^/?#]+/?$", s[k]) and _host_ok(s[k])):
-                raise Fail("%s: %s must be a URL like https://host" % (p, k))
+            if k in s and not (isinstance(s[k], str) and re.match(r"https?://[^/?#]+/?$", s[k]) and _host_ok(s[k])
+                               and (s[k].startswith("https://") or _loopback(s[k]))):
+                raise Fail("%s: %s must be an https:// URL like https://host" % (p, k))
         return s
 
     def has_keys(self):

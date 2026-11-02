@@ -925,7 +925,21 @@ def test_redirect_is_not_followed():
 def test_bad_server_setting(tmp_path, server, capsys):
     (tmp_path / "settings.toml").write_text('server = "%s"\n' % server)
     assert run(tmp_path, "send", "hi") == 1
-    assert capsys.readouterr().err == "%s: server must be a URL like https://host\n" % (tmp_path / "settings.toml")
+    assert capsys.readouterr().err == "%s: server must be an https:// URL like https://host\n" % (
+        tmp_path / "settings.toml")
+
+
+@pytest.mark.parametrize("key", ["server", "ntfy"])
+def test_plain_http_only_for_loopback(tmp_path, key, capsys):
+    path = tmp_path / "settings.toml"
+    for url in ("http://example.com", "http://10.0.0.1:8080", "http://localhost.example.com"):
+        path.write_text('%s = "%s"\n' % (key, url))
+        with pytest.raises(pa.Fail) as e:
+            pa.Store(str(tmp_path)).settings()
+        assert str(e.value) == "%s: %s must be an https:// URL like https://host" % (path, key)
+    for url in ("http://127.0.0.1:8080", "http://[::1]:1", "http://localhost:9", "https://example.com"):
+        path.write_text('%s = "%s"\n' % (key, url))
+        assert pa.Store(str(tmp_path)).settings()[key] == url
 
 
 def test_bad_redirect_is_a_network_error():
