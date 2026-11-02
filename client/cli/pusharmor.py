@@ -2580,8 +2580,11 @@ def cmd_send(cx, args):
     if args.message and args.message != ["-"]:
         text = " ".join(args.message)
     elif args.message == ["-"] or not stdin_tty():
+        data = sys.stdin.buffer.read(CONTENT_CAP * 4 + 1) if sys.stdin else b""
+        if len(data) > CONTENT_CAP * 4:
+            raise Fail("The message is longer than 2048 characters.", EXIT_USAGE)
         try:
-            text = (sys.stdin.buffer.read() if sys.stdin else b"").decode("utf-8").rstrip("\r\n")
+            text = data.decode("utf-8").rstrip("\r\n")
         except UnicodeDecodeError:
             raise Fail("The input is not UTF-8 text.")
     else:

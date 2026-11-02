@@ -470,6 +470,18 @@ def test_listen_exec_replaces_nul_and_lone_surrogates(net, tmp_path, monkeypatch
     assert out.read_bytes().decode() == "a\ufffdb\ufffd"
 
 
+def test_send_reads_a_bounded_amount_of_stdin(net, tmp_path, monkeypatch, capsys):
+    login(monkeypatch, tmp_path)
+    big = Stdin(tty=False, data=b"x" * (3 << 20))
+    monkeypatch.setattr(sys, "stdin", big)
+    assert run(tmp_path, "send") == 2
+    assert "The message is longer than 2048 characters." in capsys.readouterr().err
+    assert big.buffer.tell() == pa.CONTENT_CAP * 4 + 1
+    monkeypatch.setattr(sys, "stdin", Stdin(tty=False, data=b"y" * 100 + b"\n"))
+    assert run(tmp_path, "send") == 4
+    assert "No paired devices" in capsys.readouterr().err
+
+
 def test_send_no_devices_and_logout(net, tmp_path, monkeypatch, capsys):
     login(monkeypatch, tmp_path)
     assert run(tmp_path, "send", "hi") == 4
