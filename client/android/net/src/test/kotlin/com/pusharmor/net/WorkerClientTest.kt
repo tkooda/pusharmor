@@ -124,6 +124,16 @@ class WorkerClientTest {
         assertEquals(1, server.requestCount)
     }
 
+    @Test fun retryAfterIsClampedToOneHour() {
+        server.enqueue(MockResponse().setResponseCode(429).setHeader("Retry-After", "2000000000").setBody("{\"error\":\"rate limited\"}"))
+        assertEquals(3600L, (client.send(mapOf("x" to "M")) as ApiResult.Http).retryAfter)
+        server.enqueue(MockResponse().setResponseCode(429).setBody("{\"error\":\"rate limited\",\"retry_after\":-5}"))
+        server.enqueue(MockResponse().setResponseCode(429).setBody("{\"error\":\"rate limited\",\"retry_after\":-5}"))
+        server.enqueue(MockResponse().setResponseCode(429).setBody("{\"error\":\"rate limited\",\"retry_after\":-5}"))
+        server.enqueue(MockResponse().setResponseCode(429).setBody("{\"error\":\"rate limited\",\"retry_after\":-5}"))
+        assertEquals(0L, (client.send(mapOf("x" to "M")) as ApiResult.Http).retryAfter)
+    }
+
     @Test fun backoffOn503ThenGiveUpAfterThreeRetries() {
         repeat(4) { server.enqueue(MockResponse().setResponseCode(503).setBody("{\"error\":\"unavailable\"}")) }
         val r = client.peers() as ApiResult.Http

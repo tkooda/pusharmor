@@ -111,7 +111,8 @@ class WorkerClient(
                     r.header("PA-Epoch")?.toLongOrNull()?.let { offset.offsetS = it - now() / 1000 }
                     val text = r.body?.let { readCapped(it) }.orEmpty()
                     val json = try { Json.parseToJsonElement(text) as? JsonObject } catch (e: Exception) { null }
-                    retryAfter = r.header("Retry-After")?.toLongOrNull() ?: json?.get("retry_after")?.jsonPrimitive?.longOrNull
+                    // Clamped to 0..1 hour, so a bad value cannot hold a call back for ever.
+                    retryAfter = (r.header("Retry-After")?.toLongOrNull() ?: json?.get("retry_after")?.jsonPrimitive?.longOrNull)?.coerceIn(0L, 3600L)
                     Reply(r.code, json, retryAfter)
                 }
             } catch (e: BodyTooLarge) {
