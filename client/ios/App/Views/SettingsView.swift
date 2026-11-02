@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var confirmDeleteHistory = false
     @State private var confirmDeleteAccount = false
     @AppStorage(AppearancePreference.storageKey) private var appearance = AppearancePreference.system.rawValue
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     private var dayChoices: [Int] { Array(Set([1, 7, 30, 90, 365, model.historyDays])).sorted() }
     private var email: String? { model.me?.signedInEmail }
@@ -24,7 +25,10 @@ struct SettingsView: View {
                 if model.phase == .main {
                     Section("Device name") {
                         // Inline rename: Rename turns the name into a field, with Cancel and Save.
-                        HStack(spacing: 16) {
+                        // Large text: Cancel and Save go below the field.
+                        let stack = renaming && typeSize.isAccessibilitySize
+                        let row = stack ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12)) : AnyLayout(HStackLayout(spacing: 16))
+                        row {
                             if renaming {
                                 TextField("Name this device", text: $name)
                                     .autocorrectionDisabled()
@@ -32,9 +36,11 @@ struct SettingsView: View {
                                     .submitLabel(.done)
                                     .onSubmit(saveName)
                                     .onAppear { nameFocused = true }
-                                Button("Cancel") { renaming = false }
-                                Button("Save", action: saveName)
-                                    .disabled(!NameEntry.isValidName(name))
+                                HStack(spacing: 16) {
+                                    Button("Cancel") { renaming = false }
+                                    Button("Save", action: saveName)
+                                        .disabled(!NameEntry.isValidName(name))
+                                }
                             } else {
                                 Text(model.me?.name ?? "This device")
                                 Spacer(minLength: 8)
@@ -52,7 +58,7 @@ struct SettingsView: View {
                                     .font(.footnote)
                                     .foregroundColor(.secondaryText)
                                 Text(e)
-                                    .lineLimit(1)
+                                    .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
                                     .truncationMode(.middle)
                             }
                             .accessibilityElement(children: .combine)

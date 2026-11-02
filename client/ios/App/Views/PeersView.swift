@@ -143,6 +143,7 @@ struct PeersView: View {
 /// The "Pair a new device" how-to (F30): pairing starts from the new device's row here.
 struct PairHowToView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         NavigationStack {
@@ -161,7 +162,8 @@ struct PairHowToView: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        // the steps need the full height at the largest text sizes
+        .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.medium])
     }
 }
 
@@ -250,6 +252,7 @@ struct PairingCardView: View {
                     Menu { peerActions } label: {
                         Image(systemName: "ellipsis.circle")
                             .font(.title3)
+                            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                             .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
@@ -311,11 +314,12 @@ struct PairingCardView: View {
             case .shown:
                 FingerprintPlate(code: p.fingerprint ?? "", peer: label)
                     .onAppear { model.fingerprintShown(p) }
-                HStack(spacing: 12) {
-                    denyButton("Codes differ")
+                ButtonPair {
                     Button("Codes match") { Task { _ = await model.approve(p) } }
                         .buttonStyle(TonalGreenButtonStyle())
                     .disabled(model.busy.contains("approve:" + p.id.text))
+                } secondary: {
+                    denyButton("Codes differ")
                 }
                 .padding(.top, 4)
                 Label(S.codesMismatch, systemImage: "info.circle.fill")
@@ -324,11 +328,12 @@ struct PairingCardView: View {
                     .frame(maxWidth: .infinity)
             }
         } else {
-            HStack(spacing: 12) {
-                denyButton()
+            ButtonPair {
                 Button("Pair") { Task { await model.pair(p) } }
                     .buttonStyle(TonalGreenButtonStyle())
                     .disabled(model.busy.contains("pair:" + p.id.text))
+            } secondary: {
+                denyButton()
             }
         }
     }
@@ -390,6 +395,9 @@ struct PairingCardView: View {
 struct PeerRowView: View {
     let p: Peer
     @EnvironmentObject var model: AppModel
+    /// Status icon glyph and frame: 14 and 16 pt at the default text size; they grow with the text.
+    @ScaledMetric private var statusGlyph: CGFloat = 14
+    @ScaledMetric private var statusFrame: CGFloat = 16
     @State private var confirmRemove = false
 
     private var label: String { model.label(p) }
@@ -427,6 +435,7 @@ struct PeerRowView: View {
                 Menu { PeerMenuItems(p: p, model: model, confirmRemove: $confirmRemove) } label: {
                     Image(systemName: "ellipsis")
                         .font(.title3)
+                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
@@ -457,8 +466,8 @@ struct PeerRowView: View {
 
     private func statusIcon(_ name: String, _ on: Bool) -> some View {
         Image(systemName: name)
-            .font(.system(size: 14))
-            .frame(width: 16, height: 16)
+            .font(.system(size: statusGlyph))
+            .frame(width: statusFrame, height: statusFrame)
             .foregroundStyle(Color.primary)
             .opacity(on ? 1 : 0.3)
             .accessibilityHidden(true)

@@ -84,6 +84,7 @@ struct MessageDetailView: View {
     @EnvironmentObject var model: AppModel
     @State private var reading = false
     @State private var saving = false
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     private var digits: String { DialString.make(row.content) }
 
@@ -96,8 +97,15 @@ struct MessageDetailView: View {
             } else {
                 textBox
             }
-            HStack(spacing: 10) {
-                ForEach(MessageActions.actions(forType: row.type), id: \.self) { button($0) }
+            if typeSize >= .accessibility1 {
+                // large text: two columns, so the labels do not break mid-word
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                    ForEach(MessageActions.actions(forType: row.type), id: \.self) { button($0) }
+                }
+            } else {
+                HStack(spacing: 10) {
+                    ForEach(MessageActions.actions(forType: row.type), id: \.self) { button($0) }
+                }
             }
         }
         .padding(.vertical, 4)
@@ -165,11 +173,13 @@ struct MessageDetailView: View {
 struct ReadMessageView: View {
     let text: String
     @Environment(\.dismiss) private var dismiss
+    /// Room above the text for the X: 44 pt at the default text size; it grows with the X.
+    @ScaledMetric(relativeTo: .title) private var closeRoom: CGFloat = 44
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
             SelectableText(text: text)
-                .padding(.top, 44)
+                .padding(.top, closeRoom)
                 .accessibilityIdentifier("readText")
             Button { instantly { dismiss() } } label: {
                 Image(systemName: "xmark.circle.fill")

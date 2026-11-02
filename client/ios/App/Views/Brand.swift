@@ -9,6 +9,26 @@ func instantly(_ change: () -> Void) {
     withTransaction(t, change)
 }
 
+/// Two buttons side by side with the primary on the right; when they do not fit (large
+/// text), stacked with the primary on top.
+struct ButtonPair<Primary: View, Secondary: View>: View {
+    @ViewBuilder let primary: () -> Primary
+    @ViewBuilder let secondary: () -> Secondary
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                secondary()
+                primary()
+            }
+            VStack(spacing: 12) {
+                primary()
+                secondary()
+            }
+        }
+    }
+}
+
 /// Brand colours from App/Assets.xcassets (light, dark and high contrast live in the catalog).
 extension Color {
     static let brandGreen = Color("BrandGreen")
@@ -192,19 +212,23 @@ enum StatusKind { case approves, notApproved, off }
 
 struct StatusMark: View {
     let kind: StatusKind
+    /// 10 pt at the default text size; grows with the text.
+    @ScaledMetric private var size: CGFloat = 10
 
     var body: some View {
+        let ring = size * 0.9
+        let line = size * 0.16
         switch kind {
         case .approves:
-            Circle().fill(Color.success).frame(width: 10, height: 10)
+            Circle().fill(Color.success).frame(width: size, height: size)
         case .notApproved:
-            Circle().stroke(Color.secondaryText, lineWidth: 1.6).frame(width: 9, height: 9).frame(width: 10, height: 10)
+            Circle().stroke(Color.secondaryText, lineWidth: line).frame(width: ring, height: ring).frame(width: size, height: size)
         case .off:
             ZStack {
-                Circle().stroke(Color.secondaryText, lineWidth: 1.6).frame(width: 9, height: 9)
-                Capsule().fill(Color.secondaryText).frame(width: 6, height: 1.6)
+                Circle().stroke(Color.secondaryText, lineWidth: line).frame(width: ring, height: ring)
+                Capsule().fill(Color.secondaryText).frame(width: size * 0.6, height: line)
             }
-            .frame(width: 10, height: 10)
+            .frame(width: size, height: size)
         }
     }
 }
@@ -251,8 +275,10 @@ struct IconTile: View {
 struct FingerprintPlate: View {
     let code: String
     let peer: String
-    @ScaledMetric private var cell: CGFloat = 40
+    @ScaledMetric private var scaledCell: CGFloat = 40
     @Environment(\.dynamicTypeSize) private var typeSize
+    // Two cells must fit side by side on the plate at the largest text sizes.
+    private var cell: CGFloat { min(scaledCell, 64) }
 
     var body: some View {
         VStack(spacing: 12) {

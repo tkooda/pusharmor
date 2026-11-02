@@ -9,12 +9,23 @@ struct CodeEntryView: View {
     @State private var busy = false
     @FocusState private var focused: Bool
     @ScaledMetric private var scaled: CGFloat = 28
+    @Environment(\.dynamicTypeSize) private var typeSize
     // Six cells share the width: past about 44 pt a monospaced glyph no longer fits a cell.
     private var cellSize: CGFloat { min(scaled, 44) }
 
     private var chars: [String] { EmailCode.clean(raw).map(String.init) }
 
     var body: some View {
+        // Large text: it scrolls, so Back stays reachable above the keyboard.
+        if typeSize.isAccessibilitySize {
+            ScrollView { form }
+                .scrollBounceBehavior(.basedOnSize)
+        } else {
+            form
+        }
+    }
+
+    private var form: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Enter the code")
                 .font(.title2.bold())

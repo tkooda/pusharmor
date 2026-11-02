@@ -266,8 +266,8 @@ struct HistoryRowView: View {
     @ViewBuilder
     private var content: some View {
         switch row.type {
-        case "url": Text(contentText).lineLimit(1).truncationMode(.middle)
-        case "tel": Text(contentText).lineLimit(1)
+        case "url": Text(contentText).lineLimit(typeSize.isAccessibilitySize ? 3 : 1).truncationMode(.middle)
+        case "tel": Text(contentText).lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
         default: Text(contentText).lineLimit(3)
         }
     }

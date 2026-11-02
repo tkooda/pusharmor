@@ -171,6 +171,7 @@ struct ComposeView: View {
     @State private var barTop: CGFloat = 0
     /// Starts at one chip row (chip minHeight), so the chips do not flicker in from 0.
     @State private var chipsHeight: CGFloat = 34
+    @Environment(\.dynamicTypeSize) private var typeSize
     @FocusState private var editing: Bool
     /// Chip name width: 150 pt at the default text size, wider at large Dynamic Type (L8).
     @ScaledMetric(relativeTo: .subheadline) private var chipNameWidth: CGFloat = 150
@@ -267,12 +268,15 @@ struct ComposeView: View {
                         .strokeBorder(editing ? Color.brandGreen : Color(uiColor: .separator), lineWidth: editing ? 1.5 : 1)
                 )
             if !text.isEmpty {
-                HStack(spacing: 8) {
+                // large text: the caption, counter, and switch stack
+                let ax = typeSize.isAccessibilitySize
+                let row = ax ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))
+                row {
                     let c = SendScreenRules.caption(detected, asText: asText)
                     Label(c.title, systemImage: c.symbol)
                         .font(.footnote)
                         .foregroundColor(.secondaryText)
-                    Spacer(minLength: 8)
+                    if !ax { Spacer(minLength: 8) }
                     if SendScreenRules.showsCounter(text) {
                         Text(counter)
                             .font(.footnote)
@@ -283,7 +287,7 @@ struct ComposeView: View {
                         Toggle("Send as text", isOn: $asText)
                             .font(.footnote)
                             .foregroundColor(.secondaryText)
-                            .fixedSize()
+                            .fixedSize(horizontal: !ax, vertical: true)
                     }
                 }
             }
@@ -327,8 +331,9 @@ struct ComposeView: View {
                 }
             } label: {
                 Label {
-                    if let name = soleRecipientName {
+                    if let name = soleRecipientName, !typeSize.isAccessibilitySize {
                         // The name truncates inside the quotes; the button stays one line.
+                        // Large text: the whole label wraps instead.
                         HStack(spacing: 0) {
                             Text("Send to \"").fixedSize()
                             Text(name).lineLimit(1).truncationMode(.tail)
@@ -421,10 +426,11 @@ struct ComposeView: View {
         HStack(spacing: 6) {
             Image(systemName: on ? "checkmark" : symbol)
                 .accessibilityHidden(true)
+            // large text: two lines and no 260 pt cap, so similar names stay apart
             Text(title)
-                .lineLimit(1)
+                .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
                 .truncationMode(.tail)
-                .frame(maxWidth: min(chipNameWidth, 260), alignment: .leading)
+                .frame(maxWidth: typeSize.isAccessibilitySize ? chipNameWidth : min(chipNameWidth, 260), alignment: .leading)
         }
         .font(.subheadline.weight(on ? .semibold : .regular))
         .foregroundStyle(on ? Color.onApproveFill : Color.primary)

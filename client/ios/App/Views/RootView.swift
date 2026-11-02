@@ -208,6 +208,7 @@ struct SettingsGear: ViewModifier {
                     Button { instantly { show = true } } label: {
                         Image(systemName: "gearshape")
                             .font(.title3)
+                            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                             .frame(minWidth: 44, minHeight: 44)
                     }
                     .accessibilityLabel("Settings")
