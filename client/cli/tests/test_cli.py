@@ -921,3 +921,18 @@ def test_write_file_syncs_the_directory(monkeypatch, tmp_path):
     monkeypatch.setattr(os, "fsync", lambda fd: (kinds.append(stat.S_ISDIR(os.fstat(fd).st_mode)), real(fd)))
     pa.write_file(str(tmp_path / "f"), "x")
     assert kinds == [False, True]
+
+
+def test_sweep_expires_pairings_after_14_days(tmp_path):
+    import types
+    cx = types.SimpleNamespace(store=pa.Store(str(tmp_path)))
+    now = int(time.time())
+    with cx.store.state() as d:
+        for name, started in (("old", now - 15 * 86400), ("young", now - 13 * 86400), ("future", now + 40 * 86400)):
+            d["pairs"][name] = pa.new_entry("X", "shown", b"r" * 32, b"c" * 32)
+            d["pairs"][name]["started"] = started
+    pa.sweep(cx)
+    with cx.store.state(write=False) as d:
+        assert sorted(d["pairs"]) == ["future", "young"]
+        assert now <= d["pairs"]["future"]["started"] <= int(time.time())
+    assert pa.PAIR_TIMEOUT_DAYS == 14
