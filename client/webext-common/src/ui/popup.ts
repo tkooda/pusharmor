@@ -46,6 +46,11 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
     root.querySelector<HTMLElement>("button.primary")?.focus(); // start on the one action
     return;
   }
+  if (st.keysBroken) {
+    clear(root).append(keysCard(env, () => void mountPopup(env, root)));
+    root.querySelector<HTMLElement>("button.primary")?.focus();
+    return;
+  }
   if (st.reg !== "registered") {
     const going = (await rpc<Restore | null>(env, "signinProgress").catch(() => null))?.step === "code";
     if (my !== mounts) return;
@@ -157,6 +162,38 @@ export function updateCard(env: UiEnv, locked: boolean, again: () => void): HTML
     h("h1", { class: "banner" }, "Please update PushArmor"),
     h("p", { class: "slogan" }, "This version no longer works with the relay server. Update to keep sending and receiving."),
     h("div", { class: "btns" }, check, h("button", { class: "primary big", onclick: () => env.openUrl("https://pusharmor.com/download") }, "Update")),
+  );
+}
+
+/**
+ * The saved keys failed the local check. Retry checks again on this device only; Delete broken
+ * keys asks first, then deletes them. again() draws the view after either.
+ */
+export function keysCard(env: UiEnv, again: () => void): HTMLElement {
+  const del = h("button", { class: "big danger" }, "Delete broken keys") as HTMLButtonElement;
+  del.addEventListener("click", async () => {
+    if (!(await confirmDialog(T.keysDeleteTitle, T.keysDeleteBody, "Delete"))) return;
+    try {
+      await rpc(env, "keysDelete");
+    } catch (e) {
+      toast((e as Error).message, "err");
+      return;
+    }
+    again();
+  });
+  const retry = h("button", { class: "primary big" }, "Retry") as HTMLButtonElement;
+  retry.addEventListener("click", async () => {
+    await rpc(env, "keysRetry").catch(() => undefined);
+    again();
+  });
+  return h(
+    "div",
+    { class: "signin", role: "alert" },
+    h("img", { src: "icons/icon-128.png", width: "64", height: "64", alt: "", class: "big-tile" }),
+    wordmark(env, 24),
+    h("h1", { class: "banner" }, T.keysBrokenTitle),
+    h("p", { class: "slogan" }, T.keysBrokenBody),
+    h("div", { class: "btns" }, del, retry),
   );
 }
 

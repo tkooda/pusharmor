@@ -60,6 +60,8 @@ export interface StateView {
   recheckLocked: boolean;
   /** This browser cannot receive: its push service refused, or the relay server refused the push. */
   pushIssue: "refused" | "relay" | null;
+  /** The saved keys failed the local check: every view shows the keys screen. */
+  keysBroken: boolean;
 }
 
 function created(p: PeerRow): string {
@@ -96,9 +98,15 @@ export class Rpc {
       case "recheck":
         return e.recheckUpdate();
       case "popupOpen":
+        await e.probeKeys().catch(() => undefined); // local only
         // draw from the local state at once; the network work runs behind it
         void e.onPopupOpen().catch(() => undefined);
         return this.state();
+      case "keysRetry":
+        await e.probeKeys();
+        return null;
+      case "keysDelete":
+        return e.deleteBrokenKeys();
       case "peers":
         return this.peers();
       case "history":
@@ -214,6 +222,7 @@ export class Rpc {
       receiveNote: (await e.db.meta<string>("receive_note")) ?? null,
       updateRequired: await e.updateRequired(),
       recheckLocked: await e.recheckLocked(),
+      keysBroken: await e.keysBroken(),
       setupNeeded,
       // the Firefox setup note covers a missing push
       pushIssue: setupNeeded ? null : ((await e.db.meta<"refused" | "relay">("push_issue")) ?? null),

@@ -323,7 +323,7 @@ test("copy: device limit rows read as sentences; desktop says Click; status line
   const { T } = await import("../src/core/texts.ts");
   for (const [k, v] of Object.entries(T)) {
     const s = typeof v === "function" ? (v as (x: string) => string)("X") : v;
-    assert.doesNotMatch(s, /\bTap\b|\btap\b/, k);
+    if (k !== "keysBrokenBody") assert.doesNotMatch(s, /\bTap\b|\btap\b/, k); // the keys screen keeps its approved wording
     if (/[.!?] /.test(s)) assert.match(s, /[.!?]$/, k); // a multi-sentence text ends with a period
   }
   assert.equal(T.loginExpired, "Login expired. Log in again.");

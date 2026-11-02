@@ -9,7 +9,7 @@ import { toast } from "./dialog.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
 import { startTheme } from "./theme.ts";
-import { historyView, sendView, type Nav, showPushIssue, signinCard, updateCard, wordmark } from "./popup.ts";
+import { historyView, keysCard, sendView, type Nav, showPushIssue, signinCard, updateCard, wordmark } from "./popup.ts";
 
 export const SITE = "https://pusharmor.com";
 
@@ -31,6 +31,10 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
   const up = await rpc<StateView>(env, "state");
   if (up.updateRequired) {
     root.append(updateCard(env, up.recheckLocked, () => void mountRoute(env, root, hash, selfOrigin)));
+    return;
+  }
+  if (up.keysBroken) {
+    root.append(keysCard(env, () => void mountRoute(env, root, hash, selfOrigin)));
     return;
   }
   if (route === "login") return loginView(env, root, arg ?? null, selfOrigin);

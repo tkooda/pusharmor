@@ -5,7 +5,7 @@
 import { type ApiReply, Api, ApiError, UPDATE_REQUIRED, errorText } from "../api/client.ts";
 import { b64urlDecode, b64urlEncode, b64urlTryDecode } from "../crypto/b64url.ts";
 import { equal, randomBytes } from "../crypto/bytes.ts";
-import { generateKeySet, isValidPub } from "../crypto/keys.ts";
+import { checkKeys, generateKeySet, isValidPub } from "../crypto/keys.ts";
 import {
   type PushFields,
   ACCOUNT_LEN,
@@ -116,6 +116,8 @@ function approveRow(n: number, name: string | null, pairingId: Uint8Array): (cur
 
 /** meta key: a Log out the relay server has not confirmed yet. */
 const LOGOUT_PENDING = "logout_pending";
+/** meta key: the saved keys failed the local check (the keys screen shows). */
+const KEYS_BROKEN = "keys_broken";
 /** Waits before the retries of a push PATCH the relay server refused. */
 const PUSH_RETRY_MS = [30_000, 120_000, 600_000];
 
@@ -1524,7 +1526,7 @@ export class Engine {
   async wipe(): Promise<void> {
     await this.p.storageLocal.remove([REG_MARKER]);
     await this.db.clear(["keys", "peers", "replay"]);
-    for (const k of ["reg", LOGOUT_PENDING, "push_hash", "listed", "my_push_sha256", "fetch_pending", "last_fetch", "push_issue", "push_fail"]) await this.db.del("meta", k);
+    for (const k of ["reg", LOGOUT_PENDING, "push_hash", "listed", "my_push_sha256", "fetch_pending", "last_fetch", "push_issue", "push_fail", KEYS_BROKEN]) await this.db.del("meta", k);
     const all = await this.p.storageLocal.get(null);
     const drop = Object.keys(all).filter((k) => k.startsWith(PAIR_PREFIX) || k.startsWith(PAIR_MSG_PREFIX) || k === PAIR_AUTO || k === ALLOW_SET || k === NET_NOT_BEFORE);
     await this.p.storageLocal.remove(drop);
@@ -1595,6 +1597,53 @@ export class Engine {
     return !(await this.db.self());
   }
 
+  /**
+   * Checks the saved keys on this device only (no relay server call). A failure marks them
+   * broken and a later success clears the mark; keys are never deleted here. Keys with no id
+   * yet (a sign-in in progress) are not checked. Returns false while they are broken.
+   */
+  async probeKeys(): Promise<boolean> {
+    const self = await this.self();
+    if (!self) return true;
+    let ok = true;
+    try {
+      await checkKeys(self.sign.privateKey, self.enc.privateKey, self.enc_pub);
+    } catch {
+      ok = false;
+    }
+    if (ok !== (await this.keysBroken())) return ok;
+    if (ok) await this.db.del("meta", KEYS_BROKEN);
+    else await this.db.setMeta(KEYS_BROKEN, true);
+    await this.authChanged(); // open views show or leave the keys screen
+    return ok;
+  }
+
+  async keysBroken(): Promise<boolean> {
+    return (await this.db.meta<boolean>(KEYS_BROKEN)) === true;
+  }
+
+  /**
+   * Delete broken keys, after the user confirmed: only the keys go, in one transaction with the
+   * login state, so a failed write keeps them. The register marker stays, so the next sign-in
+   * deletes the old device on the relay server. No relay server call (the keys cannot sign).
+   */
+  async deleteBrokenKeys(): Promise<void> {
+    if (!(await this.self()) || !(await this.keysBroken())) return;
+    try {
+      await this.db.tx(["keys", "meta"], async (tx) => {
+        tx.objectStore("keys").delete("self");
+        const m = tx.objectStore("meta");
+        m.delete("reg");
+        m.delete(KEYS_BROKEN);
+        m.put(T.keysLost, "banner");
+      });
+    } catch (e) {
+      const full = (e as { name?: unknown } | null)?.name === "QuotaExceededError";
+      throw new UserError(T.startLoginFailed + "\n" + (full ? T.storageFull : T.saveFailed));
+    }
+    await this.authChanged();
+  }
+
   /** POST /peers with a "register" ticket. Returns the 409 "peer limit" body when the picker is needed. */
   async register(ticket: string, email: string | null, evict?: string[]): Promise<Record<string, unknown> | null> {
     const lost = (await this.p.storageLocal.get([REG_MARKER]))[REG_MARKER] as { id: string; registered: boolean } | undefined;
@@ -1651,6 +1700,7 @@ export class Engine {
       return;
     }
     if (!(await this.self())) return;
+    if (!(await this.probeKeys())) return;
     await this.sweep();
     await this.pushReconcile().catch(() => undefined);
     await this.purgeHistory();
@@ -1667,7 +1717,7 @@ export class Engine {
   async onPopupOpen(): Promise<void> {
     void this.retryPendingLogout().catch(() => undefined);
     await this.purgeHistory().catch(() => undefined);
-    if ((await this.regState()) !== "registered") return;
+    if ((await this.regState()) !== "registered" || (await this.keysBroken())) return;
     await this.timeoutCheck();
     await this.reconcileAllow();
     await this.pushReconcile(false, true).catch(() => undefined); // no setup tab from the popup

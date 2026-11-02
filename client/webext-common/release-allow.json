@@ -5,7 +5,7 @@
   },
   "ops": [
     "approve", "authDone", "cancel", "deny", "detect", "emailStart", "emailVerify", "evict", "fingerprintShown",
-    "allowContent", "fx-msg", "fx-sub", "greyedTap", "hide", "history", "historyDelete", "historyDeleteAll", "historyOpened", "historyRead",
+    "allowContent", "fx-msg", "fx-sub", "greyedTap", "hide", "history", "historyDelete", "historyDeleteAll", "historyOpened", "historyRead", "keysDelete", "keysRetry",
     "localDelete", "loginPurpose", "oauth", "pair", "pairAgain", "peers", "popupOpen", "recheck", "refresh", "remove", "rename", "reply",
     "send", "sendAgain", "sendSel", "sendSelSet", "settings", "signinClear", "signinDraft", "signinProgress", "signout",
     "state"

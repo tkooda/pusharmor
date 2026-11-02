@@ -45,6 +45,15 @@ export async function importEcdhPub(pub: Uint8Array): Promise<CryptoKey> {
   return crypto.subtle.importKey("raw", buf(pub), ECDH, true, []);
 }
 
+/**
+ * Local check of saved private keys: one signature over a fixed 16-byte string and one
+ * key agreement with its own public key. Throws when a key no longer works.
+ */
+export async function checkKeys(signKey: CryptoKey, encKey: CryptoKey, encPub: Uint8Array): Promise<void> {
+  await crypto.subtle.sign(SIG, signKey, buf(new TextEncoder().encode("PA keys check v1")));
+  await crypto.subtle.deriveBits({ name: "ECDH", public: await importEcdhPub(encPub) }, encKey, 256);
+}
+
 /** ECDSA P-256 SHA-256, raw r||s (64 bytes). */
 export async function sign(priv: CryptoKey, data: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.sign(SIG, priv, buf(data)));
