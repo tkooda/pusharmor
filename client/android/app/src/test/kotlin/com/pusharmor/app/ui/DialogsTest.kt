@@ -98,6 +98,25 @@ class DialogsTest {
         assertEquals(1 to 1, retried to deleted)
     }
 
+    @Test fun dataBrokenScreenResetsOnlyAfterTheDialogReset() {
+        var retried = 0
+        var reset = 0
+        UiHostActivity.content = { DataBrokenScreen(onRetry = { retried++ }, onReset = { reset++ }) }
+        val a = Robolectric.buildActivity(UiHostActivity::class.java).setup().get()
+        idle()
+        val screen = screenNodes(a).flatMap { n -> n.config.getOrNull(SemanticsProperties.Text)?.map { it.text } ?: emptyList() }
+        assertTrue(screen.toString(), screen.containsAll(listOf("This device's data has become unusable.", UiText.DATA_BROKEN_BODY, "Retry", "Reset this device")))
+        clickIn(screenNodes(a), "Retry")
+        assertEquals(1 to 0, retried to reset)
+        clickIn(screenNodes(a), "Reset this device")
+        assertTrue(texts().containsAll(listOf(UiText.DATA_BROKEN_DIALOG_TITLE, UiText.DATA_BROKEN_DIALOG_BODY, "Cancel", "Reset")))
+        click("Cancel")
+        assertEquals(1 to 0, retried to reset)
+        clickIn(screenNodes(a), "Reset this device")
+        click("Reset")
+        assertEquals(1 to 1, retried to reset)
+    }
+
     @Test fun choiceDialogAppliesOnOkOnly() {
         var open by mutableStateOf(true)
         val chosen = mutableListOf<String>()

@@ -1,6 +1,7 @@
 package com.pusharmor.app.ui
 
 import android.app.Application
+import android.database.sqlite.SQLiteDatabaseCorruptException
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -23,11 +24,14 @@ import com.pusharmor.store.toPeer
 import com.pusharmor.store.toRow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -44,11 +48,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val resend = MutableStateFlow("" to 0L)
     val busy = MutableStateFlow(false)
 
-    val peerEntities: StateFlow<List<PeerEntity>> = g.dao.peersFlow().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    val peers: StateFlow<List<Peer>> = g.dao.peersFlow().map { l -> l.map { it.toPeer() } }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    val pairings: StateFlow<List<PairingRow>> = g.dao.pairingsFlow().map { l -> l.map { it.toRow() } }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    val history: StateFlow<List<HistoryEntity>> = g.dao.historyFlow().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    val self: StateFlow<SelfEntity?> = g.dao.selfFlow().stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    /** A database list on a corrupt file waits, instead of crashing the app, until the start state changes (Retry or Reset). */
+    private fun <T> Flow<T>.waitOutCorrupt(): Flow<T> = retryWhen { e, _ ->
+        if (e !is SQLiteDatabaseCorruptException) return@retryWhen false
+        val seen = start.value
+        start.first { it != seen && it != Session.Start.DATA_UNAVAILABLE }
+        true
+    }
+
+    val peerEntities: StateFlow<List<PeerEntity>> = g.dao.peersFlow().waitOutCorrupt().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val peers: StateFlow<List<Peer>> = g.dao.peersFlow().waitOutCorrupt().map { l -> l.map { it.toPeer() } }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val pairings: StateFlow<List<PairingRow>> = g.dao.pairingsFlow().waitOutCorrupt().map { l -> l.map { it.toRow() } }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val history: StateFlow<List<HistoryEntity>> = g.dao.historyFlow().waitOutCorrupt().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val self: StateFlow<SelfEntity?> = g.dao.selfFlow().waitOutCorrupt().stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val prefs = g.settings.data.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /** Peer limit picker state (409 "peer limit"). */
@@ -83,7 +95,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         viewModelScope.launch {
-            combine(g.dao.selfFlow(), g.settings.data) { s, p -> (s != null) to (p[Settings.K.SIGNED_OUT] == true) }
+            combine(g.dao.selfFlow().waitOutCorrupt(), g.settings.data) { s, p -> (s != null) to (p[Settings.K.SIGNED_OUT] == true) }
                 .collect { (present, out) -> if (needsReboot(start.value, present, out)) boot() }
         }
     }
@@ -123,6 +135,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         setStart(s)
         if (s == Session.Start.READY) g.session.onAppOpen(System.currentTimeMillis())
         if (s == Session.Start.SIGNED_OUT) g.session.retryPendingLogout()
+    }
+
+    /** Reset this device on a corrupt database, after the user confirmed; then the start check runs again. */
+    fun resetData() = io(UiText.UNABLE_OPEN_DATA) {
+        g.session.resetData()
+        boot()
     }
 
     /** Delete broken keys, after the user confirmed: keys that could not be deleted say the login could not start and why. */

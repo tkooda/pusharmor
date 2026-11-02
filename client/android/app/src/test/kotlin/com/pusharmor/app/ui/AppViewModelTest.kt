@@ -212,6 +212,30 @@ class AppViewModelTest {
         } finally { com.pusharmor.app.FakeAndroidKeyStore.remove() }
     }
 
+    /** A corrupt database file shows the data screen instead of crashing; the confirmed reset goes to sign in and the lists work again. */
+    @Test fun corruptDatabaseShowsDataScreenUntilReset() {
+        com.pusharmor.app.FakeAndroidKeyStore.install()
+        try {
+            val app = ApplicationProvider.getApplicationContext<PaApp>()
+            onIo { app.graph.dao.self() }
+            app.graph.db.close()
+            app.getDatabasePath(com.pusharmor.store.PaDatabase.NAME).writeBytes(ByteArray(4096) { 0x5a })
+            app.graph = com.pusharmor.app.Graph(app)
+            val vm = vm()
+            vm.boot()
+            waitFor { vm.start.value != null }
+            assertEquals(Session.Start.DATA_UNAVAILABLE, vm.start.value)
+            assertNull(uncaught)
+            vm.resetData()
+            waitFor { vm.start.value == Session.Start.SIGN_IN }
+            assertEquals(Session.Start.SIGN_IN, vm.start.value)
+            onIo { vm.g.store.putPeer(com.pusharmor.protocol.Peer(id = "P".repeat(40), name = "Laptop")) }
+            waitFor { vm.peers.value.isNotEmpty() }
+            assertEquals(listOf("P".repeat(40)), vm.peers.value.map { it.id })
+            assertNull(uncaught)
+        } finally { com.pusharmor.app.FakeAndroidKeyStore.remove() }
+    }
+
     /** A switch change never rewrites the message counter: counting and switching at once keeps every count. */
     @Test fun switchChangesKeepTheCounter() {
         val vm = vm()

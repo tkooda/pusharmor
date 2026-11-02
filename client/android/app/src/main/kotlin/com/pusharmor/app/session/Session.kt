@@ -1,6 +1,7 @@
 package com.pusharmor.app.session
 
 import android.content.Intent
+import android.database.sqlite.SQLiteDatabaseCorruptException
 import android.provider.Settings as SysSettings
 import androidx.core.app.Person
 import androidx.core.content.pm.ShortcutInfoCompat
@@ -30,12 +31,13 @@ import com.pusharmor.protocol.allSet
 import com.pusharmor.protocol.engine.ApiResult
 import com.pusharmor.protocol.engine.ClockSkew
 import com.pusharmor.protocol.engine.Outbox
+import com.pusharmor.store.PaDatabase
 import com.pusharmor.store.SelfEntity
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** Sign-in, registration, sign out, removal, refresh and the startup invariant (sections 5, 8, 9). */
 class Session(private val g: Graph) {
-    enum class Start { SIGN_IN, SIGNED_OUT, READY, KEYS_UNAVAILABLE }
+    enum class Start { SIGN_IN, SIGNED_OUT, READY, KEYS_UNAVAILABLE, DATA_UNAVAILABLE }
 
     companion object {
         /** Share sheet targets: the All set less the devices turned off in their menu. */
@@ -64,10 +66,11 @@ class Session(private val g: Graph) {
             // A Keystore error changes nothing: the keys screen offers Retry, and only the user deletes keys.
             return Start.KEYS_UNAVAILABLE
         }
-        val self = dao.self()
+        // A corrupt database file changes nothing: the data screen offers Retry, and only the user resets.
+        val self = try { dao.self() } catch (e: SQLiteDatabaseCorruptException) { return Start.DATA_UNAVAILABLE }
         if (self == null) {
             // Leftover keys go only on a sure "no self row": not mid sign-in, and not from a database file made new
-            // in this process (a corrupt file SQLite replaced reads as empty). A read error throws and deletes nothing.
+            // in this process (a reset corrupt file reads as empty). A read error throws and deletes nothing.
             if (any && !g.dbCreated && !s.flag(Settings.K.SIGN_IN_KEYS, false)) { KeystoreKeyOps.deleteBoth(); g.keysOrNull = null }
             return Start.SIGN_IN
         }
@@ -278,6 +281,12 @@ class Session(private val g: Graph) {
 
     /** The user's confirmed Delete broken keys: the lost-keys wipe; keys that could not be deleted throw, so the screen says so. */
     fun deleteBrokenKeys() { selfRemoved(deleted = false, lostKeys = true)?.let { throw it } }
+
+    /** The user's confirmed Reset this device on a corrupt database: SQLite's corrupt-file repair drops the file; the keys stay. */
+    fun resetData() {
+        g.corruptDb?.let { PaDatabase.deleteCorrupt(it) }
+        g.corruptDb = null
+    }
 
     /** The one wipe routine, in order (section 9); history is kept. Returns the key delete error, if any. */
     private fun wipe(keepOldId: Boolean): Exception? {

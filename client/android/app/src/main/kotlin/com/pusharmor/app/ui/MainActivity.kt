@@ -197,23 +197,38 @@ internal const val UPDATE_URL = "https://pusharmor.com/download"
  * Keys that fail the start check. Retry runs the check again on this device only. Delete broken keys asks
  * first; only the dialog's Delete runs [onDelete]. Retry, the primary action, is on the right.
  */
+@Composable
+internal fun KeysBrokenScreen(onRetry: () -> Unit, onDelete: () -> Unit, modifier: Modifier = Modifier) =
+    BrokenScreen(UiText.KEYS_BROKEN_TITLE, UiText.KEYS_BROKEN_BODY, UiText.KEYS_BROKEN_DELETE, UiText.KEYS_BROKEN_DIALOG_TITLE,
+        UiText.KEYS_BROKEN_DIALOG_BODY, "Delete", onRetry, onDelete, modifier)
+
+/**
+ * A database file that cannot be read. Retry opens it again on this device only. Reset this device asks
+ * first; only the dialog's Reset runs [onReset]. Same layout as [KeysBrokenScreen].
+ */
+@Composable
+internal fun DataBrokenScreen(onRetry: () -> Unit, onReset: () -> Unit, modifier: Modifier = Modifier) =
+    BrokenScreen(UiText.DATA_BROKEN_TITLE, UiText.DATA_BROKEN_BODY, UiText.DATA_BROKEN_RESET, UiText.DATA_BROKEN_DIALOG_TITLE,
+        UiText.DATA_BROKEN_DIALOG_BODY, "Reset", onRetry, onReset, modifier)
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun KeysBrokenScreen(onRetry: () -> Unit, onDelete: () -> Unit, modifier: Modifier = Modifier) {
+private fun BrokenScreen(title: String, body: String, destroy: String, dialogTitle: String, dialogBody: String, confirmWord: String,
+                         onRetry: () -> Unit, onDestroy: () -> Unit, modifier: Modifier) {
     var confirm by rememberSaveable { mutableStateOf(false) }
-    BlockingState(PaIcons.Info, UiText.KEYS_BROKEN_TITLE, modifier) {
-        Text(UiText.KEYS_BROKEN_BODY, Modifier.widthIn(max = 320.dp), style = MaterialTheme.typography.bodyMedium,
+    BlockingState(PaIcons.Info, title, modifier) {
+        Text(body, Modifier.widthIn(max = 320.dp), style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
         Spacer(Modifier.height(24.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(onClick = { confirm = true }, Modifier.heightIn(min = 48.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)) { Text(UiText.KEYS_BROKEN_DELETE) }
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)) { Text(destroy) }
             GreenButton(onClick = onRetry, text = UiText.KEYS_BROKEN_RETRY, icon = null)
         }
     }
-    if (confirm) AlertDialog(onDismissRequest = { confirm = false }, title = { Text(UiText.KEYS_BROKEN_DIALOG_TITLE) }, text = { Text(UiText.KEYS_BROKEN_DIALOG_BODY) },
+    if (confirm) AlertDialog(onDismissRequest = { confirm = false }, title = { Text(dialogTitle) }, text = { Text(dialogBody) },
         confirmButton = {
-            TextButton(onClick = { confirm = false; onDelete() }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Delete") }
+            TextButton(onClick = { confirm = false; onDestroy() }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(confirmWord) }
         },
         dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } })
 }
@@ -235,12 +250,13 @@ internal fun App(vm: AppViewModel) {
             Box(Modifier.fillMaxSize().safeDrawingPadding(), Alignment.Center) { CircularProgressIndicator() }
             return
         }
-        Session.Start.KEYS_UNAVAILABLE -> {
-            // A failed Delete broken keys says why in a snackbar, as on the other screens.
+        Session.Start.KEYS_UNAVAILABLE, Session.Start.DATA_UNAVAILABLE -> {
+            // A failed Delete broken keys or Reset this device says why in a snackbar, as on the other screens.
             val snack = remember { SnackbarHostState() }
             androidx.compose.runtime.LaunchedEffect(Unit) { vm.message.collect { m -> if (m != null) { vm.message.value = null; snack.showSnackbar(m) } } }
             Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-                KeysBrokenScreen(onRetry = { vm.boot() }, onDelete = { vm.deleteBrokenKeys() })
+                if (start == Session.Start.KEYS_UNAVAILABLE) KeysBrokenScreen(onRetry = { vm.boot() }, onDelete = { vm.deleteBrokenKeys() })
+                else DataBrokenScreen(onRetry = { vm.boot() }, onReset = { vm.resetData() })
                 SnackbarHost(snack, Modifier.align(Alignment.BottomCenter))
             }
             return

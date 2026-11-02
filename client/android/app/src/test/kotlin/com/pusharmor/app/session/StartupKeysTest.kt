@@ -80,17 +80,30 @@ class StartupKeysTest {
         assertTrue(KeystoreKeyOps.present())
     }
 
-    /** A corrupt database file that SQLite replaces with an empty one is not proof of "no self row". */
-    @Test fun corruptDatabaseKeepsKeys() = io {
+    /**
+     * A corrupt database file stops at the data screen on every start: the file, the keys, and the settings
+     * stay, and nothing is sent. Only the confirmed reset drops the file; the keys still stay.
+     */
+    @Test fun corruptDatabaseKeepsKeysUntilReset() = io {
         val app = ApplicationProvider.getApplicationContext<PaApp>()
         g.settings.set(Settings.K.SIGN_IN_KEYS, null)
         g.dao.self()
         KeystoreKeyOps.createFresh()
         g.db.close()
-        app.getDatabasePath(PaDatabase.NAME).writeBytes(ByteArray(4096) { 0x5a })
+        val file = app.getDatabasePath(PaDatabase.NAME)
+        val junk = ByteArray(4096) { 0x5a }
+        file.writeBytes(junk)
         val g2 = Graph(app)
-        assertEquals(Session.Start.SIGN_IN, g2.session.startup())
-        assertTrue(g2.dbCreated)
+        assertEquals(Session.Start.DATA_UNAVAILABLE, g2.session.startup())
+        assertEquals(Session.Start.DATA_UNAVAILABLE, g2.session.startup()) // Retry
+        val g3 = Graph(app) // the next process
+        assertEquals(Session.Start.DATA_UNAVAILABLE, g3.session.startup())
+        assertFalse(g3.dbCreated)
+        assertTrue(KeystoreKeyOps.present())
+        assertArrayEquals(junk, file.readBytes())
+        g3.session.resetData()
+        assertEquals(Session.Start.SIGN_IN, g3.session.startup())
+        assertTrue(g3.dbCreated)
         assertTrue(KeystoreKeyOps.present())
     }
 

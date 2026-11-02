@@ -13,6 +13,8 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.db.SupportSQLiteOpenHelper
+import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.room.RoomDatabase
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
@@ -237,12 +239,41 @@ abstract class PaDatabase : RoomDatabase() {
             }
         }
 
-        /** [onCreate] runs when the file is made new: first start, or after SQLite dropped a corrupt file. */
-        fun open(context: Context, name: String? = NAME, multiInstance: Boolean = true, onCreate: () -> Unit = {}): PaDatabase {
+        /**
+         * [onCreate] runs when the file is made new: first start, or after a confirmed [deleteCorrupt]. A corrupt
+         * file is kept: SQLite hands it to [onCorrupt] instead of deleting it, and the call that met it throws.
+         */
+        fun open(context: Context, name: String? = NAME, multiInstance: Boolean = true, onCorrupt: (SupportSQLiteDatabase) -> Unit = {}, onCreate: () -> Unit = {}): PaDatabase {
             val b = if (name == null) Room.inMemoryDatabaseBuilder(context, PaDatabase::class.java)
             else Room.databaseBuilder(context, PaDatabase::class.java, name).let { if (multiInstance) it.enableMultiInstanceInvalidation() else it }
             return b.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .openHelperFactory(KeepCorruptFactory(onCorrupt))
                 .addCallback(object : RoomDatabase.Callback() { override fun onCreate(db: SupportSQLiteDatabase) = onCreate() }).build()
         }
+
+        /** The user's confirmed reset: SQLite's own corrupt-file repair (close, then delete the file); the next call opens a new file. */
+        fun deleteCorrupt(db: SupportSQLiteDatabase) = object : SupportSQLiteOpenHelper.Callback(1) {
+            override fun onCreate(db: SupportSQLiteDatabase) = Unit
+            override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+        }.onCorruption(db)
+    }
+}
+
+/** SQLite's open helper with one change: a corrupt file goes to [onCorrupt] and is not deleted. */
+private class KeepCorruptFactory(private val onCorrupt: (SupportSQLiteDatabase) -> Unit) : SupportSQLiteOpenHelper.Factory {
+    private val base = FrameworkSQLiteOpenHelperFactory()
+
+    override fun create(configuration: SupportSQLiteOpenHelper.Configuration): SupportSQLiteOpenHelper {
+        val cb = configuration.callback
+        val keep = object : SupportSQLiteOpenHelper.Callback(cb.version) {
+            override fun onConfigure(db: SupportSQLiteDatabase) = cb.onConfigure(db)
+            override fun onCreate(db: SupportSQLiteDatabase) = cb.onCreate(db)
+            override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) = cb.onUpgrade(db, oldVersion, newVersion)
+            override fun onDowngrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) = cb.onDowngrade(db, oldVersion, newVersion)
+            override fun onOpen(db: SupportSQLiteDatabase) = cb.onOpen(db)
+            override fun onCorruption(db: SupportSQLiteDatabase) = onCorrupt(db)
+        }
+        return base.create(SupportSQLiteOpenHelper.Configuration(configuration.context, configuration.name, keep,
+            configuration.useNoBackupDirectory, configuration.allowDataLossOnRecovery))
     }
 }
