@@ -2302,6 +2302,8 @@ def cmd_login(cx, args):
             (register if purpose == "r" else relogin)(cx, code)
             break
         except ApiError as e:
+            if e.status == 401 and e.error == "unknown peer":
+                raise
             if e.status == 401 and e.error == "ticket expired":
                 print("That code expired. Open the link again to get a new code:\n\n  %s\n" % link)
                 shown, code = time.time(), None

@@ -1167,3 +1167,19 @@ def test_sweep_expires_pairings_after_14_days(tmp_path):
         assert sorted(d["pairs"]) == ["future", "young"]
         assert now <= d["pairs"]["future"]["started"] <= int(time.time())
     assert pa.PAIR_TIMEOUT_DAYS == 14
+
+
+def test_login_after_remote_removal_drops_the_keys_and_registers_fresh(net, tmp_path, monkeypatch, capsys):
+    me = login(monkeypatch, tmp_path)
+    answers(monkeypatch)
+    assert run(tmp_path, "logout") == 0 and state(tmp_path)["reg"] == "logged_out"
+    del net.peers[me]  # removed from another device while logged out
+    capsys.readouterr()
+    answers(monkeypatch, CODE)
+    assert run(tmp_path, "login") == pa.EXIT_LOGIN
+    assert pa.REMOVED in capsys.readouterr().err
+    assert not os.path.exists(tmp_path / "keys" / "private.toml")
+    n = len(net.log)
+    answers(monkeypatch, CODE)
+    assert run(tmp_path, "login") == 0 and state(tmp_path)["reg"] == "registered"
+    assert ("POST", "/v1/peers") in net.log[n:]
