@@ -445,7 +445,8 @@ test("popup shows a Finish Firefox setup prompt with a button while setup is nee
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
   assert.match(pop, /if \(st\.platform !== "firefox" \|\| !st\.setupNeeded\) return null;/);
   assert.match(pop, /"Finish Firefox setup so this device can receive messages\."/);
-  assert.match(pop, /onclick: \(\) => env\.openUrl\("https:\/\/pusharmor\.com\/fx\/setup"\) \}, "Finish Firefox setup"\)/);
+  // the add-on opens the setup page in a normal (not private) window
+  assert.match(pop, /onclick: \(\) => void env\.call\(\{ op: "fx-open-setup" \}\) \}, "Finish Firefox setup"\)/);
   assert.equal(pop.match(/setupBar\(env, st\)\)?, (tabs|panel)\)/g)?.length, 1); // the tabs view
   const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
   assert.match(css, /\.setup-bar \{/);

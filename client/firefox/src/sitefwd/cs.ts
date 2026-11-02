@@ -26,6 +26,7 @@ if (location.origin === SITE) {
     window.addEventListener("message", (ev: MessageEvent) => {
       if (ev.source !== window || ev.origin !== SITE) return;
       const d = ev.data as { pa?: string } | null;
+      if (d && d.pa === "fx-close") return void relay("fx-close", {});
       const f = d && d.pa === "fx-sub" ? fxSubFields(d) : null;
       if (f) void relayWake("fx-sub", f);
     });

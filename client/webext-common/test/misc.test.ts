@@ -88,6 +88,11 @@ test("Firefox sender gate: a site content script gets only its own site op", () 
   assert.equal(senderAllowed("fx-msg", site("/fx/setup"), id, base), false);
   assert.equal(senderAllowed("authDone", site("/fx/open"), id, base), false);
   assert.equal(senderAllowed("fx-sub", { id, url: base + "popup.html" }, id, base), false);
+  // Close this tab: only the setup page; opening setup: only the add-on's own pages
+  assert.equal(senderAllowed("fx-close", site("/fx/setup"), id, base), true);
+  assert.equal(senderAllowed("fx-close", site("/fx/open"), id, base), false);
+  assert.equal(senderAllowed("fx-open-setup", site("/fx/setup"), id, base), false);
+  assert.equal(senderAllowed("fx-open-setup", { id, url: base + "popup.html" }, id, base), true);
   assert.equal(senderAllowed("approve", { id: "other", url: base + "popup.html" }, id, base), false);
   assert.equal(senderAllowed("approve", { id }, id, base), false);
 });

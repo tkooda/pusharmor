@@ -1,9 +1,9 @@
 // Sender gate for runtime messages on Firefox. A content script on the site
-// may only use the three site ops, each from its own page; every other op
+// may only use the four site ops, each from its own page; every other op
 // needs an extension page sender.
 import type { MessageSender } from "../../webext-common/src/shim-types.ts";
 
-const SITE_PAGE: Record<string, string> = { "fx-sub": "/fx/setup", "fx-msg": "/fx/open", authDone: "/auth/done" };
+const SITE_PAGE: Record<string, string> = { "fx-sub": "/fx/setup", "fx-close": "/fx/setup", "fx-msg": "/fx/open", authDone: "/auth/done" };
 
 export function fromSite(sender: MessageSender, path: string, runtimeId: string): boolean {
   if (typeof sender.url !== "string" || sender.id !== runtimeId) return false;

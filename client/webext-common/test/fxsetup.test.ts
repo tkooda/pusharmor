@@ -11,7 +11,34 @@ const tabs: string[] = [];
   storage: { local: {}, session: {} },
   tabs: { create: async (t: { url: string }) => void tabs.push(t.url) },
 };
-const { firefoxPlatform, SETUP_URL } = await import("../../firefox/src/platform-firefox.ts");
+const { firefoxPlatform, openSetup, SETUP_URL } = await import("../../firefox/src/platform-firefox.ts");
+
+test("setup opens in a normal window, never in a private one", async () => {
+  const b = (globalThis as unknown as { browser: Record<string, unknown> }).browser;
+  const created: { url: string; windowId?: number }[] = [];
+  const focused: number[] = [];
+  const made: { url: string; incognito?: boolean }[] = [];
+  let wins = [{ id: 1, incognito: false, focused: false }, { id: 2, incognito: true, focused: true }];
+  const realTabs = b.tabs;
+  b.tabs = { create: async (t: { url: string; windowId?: number }) => void created.push(t) };
+  b.windows = {
+    getAll: async () => wins,
+    update: async (id: number) => void focused.push(id),
+    create: async (p: { url: string; incognito?: boolean }) => void made.push(p),
+  };
+  try {
+    await openSetup();
+    assert.deepEqual(created, [{ url: SETUP_URL, active: true, windowId: 1 }]);
+    assert.deepEqual(focused, [1]);
+    wins = [{ id: 2, incognito: true, focused: true }]; // only a private window is open
+    await openSetup();
+    assert.deepEqual(made, [{ url: SETUP_URL, incognito: false, focused: true }]);
+    assert.equal(created.length, 1);
+  } finally {
+    b.tabs = realTabs;
+    delete b.windows;
+  }
+});
 
 test("fallback without a subscription: setup opens at most once per state change, never when quiet", async () => {
   const db = new Db(await openDb(new IDBFactory()));

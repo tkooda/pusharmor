@@ -69,6 +69,8 @@ export interface Browser {
   windows?: {
     getLastFocused(q: { windowTypes: string[] }): Promise<{ id?: number }>;
     update(id: number, p: { focused?: boolean }): Promise<unknown>;
+    getAll?(q: { windowTypes: string[] }): Promise<{ id?: number; incognito?: boolean; focused?: boolean }[]>;
+    create?(p: { url: string; incognito?: boolean; focused?: boolean }): Promise<unknown>;
   };
   alarms: {
     create(name: string, info: { when?: number; delayInMinutes?: number }): void;

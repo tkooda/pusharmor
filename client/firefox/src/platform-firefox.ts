@@ -13,6 +13,25 @@ export const FWD_URL = "https://pusharmor.com/fx/fwd";
 
 export { ALLOWED_PUSH_ENDPOINT_PREFIXES, endpointAllowed };
 
+/** Opens /fx/setup in a normal (not private) window: push and the add-on do not work in a private tab. */
+export async function openSetup(): Promise<void> {
+  const w = browser.windows;
+  if (w?.getAll) {
+    const normal = (await w.getAll({ windowTypes: ["normal"] })).filter((x) => !x.incognito && x.id !== undefined);
+    const win = normal.find((x) => x.focused) ?? normal[normal.length - 1];
+    if (win) {
+      await browser.tabs.create({ url: SETUP_URL, active: true, windowId: win.id });
+      await w.update(win.id!, { focused: true });
+      return;
+    }
+    if (w.create) {
+      await w.create({ url: SETUP_URL, incognito: false, focused: true });
+      return;
+    }
+  }
+  await browser.tabs.create({ url: SETUP_URL, active: true });
+}
+
 export interface FxCtx {
   isAndroid: boolean;
   autopush: () => Autopush | null;
@@ -38,7 +57,7 @@ export function firefoxPlatform(ctx: FxCtx): Platform {
           const db = await ctx.db();
           if (!quiet && !(await db.meta("setup_opened"))) {
             await db.setMeta("setup_opened", true);
-            await browser.tabs.create({ url: SETUP_URL, active: true });
+            await openSetup();
           }
           throw new Error("no fallback subscription");
         }

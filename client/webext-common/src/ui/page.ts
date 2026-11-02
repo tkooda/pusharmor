@@ -148,7 +148,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   // still needed, with a button that opens it again), or the receive note.
   const setupNote = () => {
     const n = note("info", T.ffFinishSetup);
-    n.append(h("button", { type: "button", class: "text", onclick: () => env.openUrl(SITE + "/fx/setup") }, "Open setup"));
+    n.append(h("button", { type: "button", class: "text", onclick: () => void env.call({ op: "fx-open-setup" }) }, "Open setup"));
     return n;
   };
   // a banner (device removed, keys lost) is the one reason shown; the body does not add "logged out"

@@ -157,7 +157,7 @@ function setupBar(env: UiEnv, st: StateView): HTMLElement | null {
     "div",
     { class: "setup-bar", role: "status" },
     h("span", {}, "Finish Firefox setup so this device can receive messages."),
-    h("button", { onclick: () => env.openUrl("https://pusharmor.com/fx/setup") }, "Finish Firefox setup"),
+    h("button", { onclick: () => void env.call({ op: "fx-open-setup" }) }, "Finish Firefox setup"),
   );
 }
 

@@ -5,11 +5,12 @@ import type { PushFields } from "../../webext-common/src/crypto/labels.ts";
 import { MENU_SEL, selectionTitle } from "../../webext-common/src/core/actions.ts";
 import { lazyBoot, onMenuClick, onNotificationClick, onRuntimeMessage } from "../../webext-common/src/shellkit.ts";
 import type { Req } from "../../webext-common/src/core/rpc.ts";
+import type { MessageSender } from "../../webext-common/src/shim-types.ts";
 import { Db, openDb } from "../../webext-common/src/store/db.ts";
 import type { WebPushKeys } from "../../webext-common/src/crypto/rfc8291.ts";
 import { Autopush, type ApState } from "./autopush/client.ts";
 import { fxSubFields, senderAllowed } from "./gate.ts";
-import { FWD_URL, SETUP_URL, endpointAllowed, firefoxPlatform } from "./platform-firefox.ts";
+import { FWD_URL, endpointAllowed, firefoxPlatform, openSetup } from "./platform-firefox.ts";
 import { fwdAllowed, onForward } from "./sitefwd/fwd.ts";
 import { browser } from "./shim.ts";
 
@@ -91,7 +92,17 @@ setInterval(() => {
 }, 30_000);
 addEventListener("online", () => autopush?.reconnectNow());
 
-async function extra(msg: Req): Promise<unknown> {
+async function extra(msg: Req, sender: MessageSender): Promise<unknown> {
+  if (msg.op === "fx-open-setup") {
+    await openSetup();
+    return { ok: true };
+  }
+  if (msg.op === "fx-close") {
+    // the setup page's Close this tab button
+    if (sender.tab?.id === undefined) return { ok: false };
+    await browser.tabs.remove(sender.tab.id);
+    return { ok: true };
+  }
   await whenReady();
   const { engine } = await boot();
   const a = msg.args ?? {};
@@ -119,7 +130,7 @@ async function extra(msg: Req): Promise<unknown> {
 browser.runtime.onMessage.addListener(
   onRuntimeMessage(boot, (msg, sender) => {
     if (!senderAllowed(msg.op, sender, browser.runtime.id, browser.runtime.getURL(""))) return Promise.resolve({ ok: false });
-    if (msg.op === "fx-sub" || msg.op === "fx-msg") return extra(msg);
+    if (msg.op === "fx-sub" || msg.op === "fx-msg" || msg.op === "fx-close" || msg.op === "fx-open-setup") return extra(msg, sender);
     return null;
   }),
 );
@@ -138,7 +149,7 @@ browser.alarms.onAlarm.addListener((a) => {
 browser.runtime.onStartup.addListener(() => void whenReady());
 browser.runtime.onInstalled.addListener((d) => {
   // the site SW fallback is set up at install, on desktop and on Android
-  if (d.reason === "install") void browser.tabs.create({ url: SETUP_URL, active: true });
+  if (d.reason === "install") void openSetup();
 });
 browser.webRequest?.onBeforeRequest.addListener(
   (d) => onForward(d, (m) => whenReady().then(boot).then(({ engine }) => engine.receive(m, "push"))),
