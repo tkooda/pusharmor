@@ -45,6 +45,23 @@ class UiTextTest {
         assertEquals("Try again.", UiText.saveReason(java.io.IOException("no stream")))
     }
 
+    /** One picked device that did not get the message: what failed on line 1, why on line 2. */
+    @Test fun sendResultForOneDevice() {
+        val to = "Unable to send to \"Laptop\".\n"
+        assertEquals(null, UiText.sendResultText("sent", "Laptop"))
+        assertEquals("Unable to deliver message to \"Laptop\".\nOpen PushArmor on it to resolve.", UiText.sendResultText("gone", "Laptop"))
+        assertEquals(to + "That device is logged out. Log in on that device to receive messages.", UiText.sendResultText("logged out", "Laptop"))
+        assertEquals(to + "It is set to send only. It does not receive messages.", UiText.sendResultText("not listening", "Laptop"))
+        assertEquals(to + "It is not paired with this device. Pair with it to send it messages.", UiText.sendResultText("unapproved", "Laptop"))
+        assertEquals(to + "It isn't paired with this device.", UiText.sendResultText("denied", "Laptop"))
+        assertEquals(to + "It is no longer on this account.", UiText.sendResultText("unknown", "Laptop"))
+        assertEquals(to + "Its push service did not accept the message. Try again later.", UiText.sendResultText("failed:410", "Laptop"))
+        val notReady = to + "It has not finished turning on notifications. Open PushArmor on it."
+        assertEquals(notReady, UiText.sendResultText("failed", "Laptop"))
+        assertEquals(notReady, UiText.sendResultText("", "Laptop"))
+        assertEquals(notReady, UiText.sendResultText("some new word", "Laptop"))
+    }
+
     @Test fun cannotReceiveTruthTable() {
         assertEquals(false, UiText.cannotReceive(true, false, null))
         assertEquals(false, UiText.cannotReceive(true, false, "other"))

@@ -291,17 +291,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val value = if (type == ContentType.TEXT) text else text.trim()
             val out = g.sender().send(recipients, type, value, System.currentTimeMillis())
             if (out.error != null) return@withContext SendResult(ErrorText.of(UiText.UNABLE_SEND, out.error!!, UiText.pushHost(g.settings.get(Settings.K.UP_ENDPOINT))))
-            sendResult(recipients.size, out) { id -> g.store.peer(id)?.let(::label) }
+            sendResult(recipients.size, out, recipients.singleOrNull()) { id -> g.store.peer(id)?.let(::label) }
         } catch (e: CancellationException) { throw e } catch (e: Exception) {
             Log.w("PushArmor", "send failed", e)
             SendResult(ErrorText.text(UiText.UNABLE_SEND, localReason(e)))
         }
     }
 
-    /** Snackbar text for [out]; a send that reached a device carries its History row and is posted to [sent]. */
-    internal fun sendResult(picked: Int, out: com.pusharmor.protocol.engine.SendFlow.Outcome, nameOf: (String) -> String?): SendResult {
+    /**
+     * Snackbar text for [out]; a send that reached a device carries its History row and is posted to [sent]. One
+     * picked device ([only]) that did not get it says why.
+     */
+    internal fun sendResult(picked: Int, out: com.pusharmor.protocol.engine.SendFlow.Outcome, only: String? = null, nameOf: (String) -> String?): SendResult {
         val name = out.results.entries.singleOrNull { it.value == "sent" }?.let { nameOf(it.key) }
-        val text = UiText.sendToast(picked, out.sent, out.total, name)
+        val one = if (picked == 1) only ?: out.results.keys.singleOrNull() else null
+        val text = one?.let { UiText.sendResultText(out.results[it] ?: "", nameOf(it) ?: "") } ?: UiText.sendToast(picked, out.sent, out.total, name)
         val id = out.historyId?.takeIf { out.sent > 0 } ?: return SendResult(text)
         return SendResult(text, id).also { sent.value = it }
     }

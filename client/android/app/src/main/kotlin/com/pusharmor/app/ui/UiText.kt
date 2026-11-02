@@ -127,6 +127,22 @@ object UiText {
         else -> "Sent to $sent of $total ${if (total == 1) "device" else "devices"}"
     }
 
+    /** The two lines for the one picked device that did not get a send; null when it did. An unknown or missing word reads as not ready yet. */
+    fun sendResultText(word: String, x: String): String? {
+        val to = "Unable to send to \"$x\".\n"
+        return when {
+            word == "sent" -> null
+            word == "gone" -> "Unable to deliver message to \"$x\".\nOpen PushArmor on it to resolve."
+            word == "logged out" -> to + "That device is logged out. Log in on that device to receive messages."
+            word == "not listening" -> to + "It is set to send only. It does not receive messages."
+            word == "unapproved" -> to + "It is not paired with this device. Pair with it to send it messages."
+            word == "denied" -> to + "It isn't paired with this device."
+            word == "unknown" -> to + "It is no longer on this account."
+            word.startsWith("failed:") -> to + "Its push service did not accept the message. Try again later."
+            else -> to + "It has not finished turning on notifications. Open PushArmor on it."
+        }
+    }
+
     private fun cutName(name: String) = if (name.length > SEND_NAME_MAX) name.take(SEND_NAME_MAX - 3).trimEnd() + "..." else name
 
     /** History title of a sent row (F22): reached its one device reads Sent to "Laptop", cut like the Send button; else "Sent". */
