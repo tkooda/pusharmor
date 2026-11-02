@@ -206,7 +206,10 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
       let text = "";
       if (parent === MENU_URL) text = info.linkUrl ?? "";
       else if (parent === MENU_PAGE) text = info.pageUrl ?? tab?.url ?? "";
-      else text = (await readSelection(tab, info.selectionText ?? "", info.frameId)).slice(0, 200000); // the send window URL stays under 2 MiB
+      else {
+        text = (await readSelection(tab, info.selectionText ?? "", info.frameId)).slice(0, 200000); // the send window URL stays under 2 MiB
+        if (/[\uD800-\uDBFF]$/.test(text)) text = text.slice(0, -1); // a cut inside a pair would make encodeURIComponent throw
+      }
       if (!text) return;
       const { engine } = await boot();
       let r: Awaited<ReturnType<typeof menuSend>>;
