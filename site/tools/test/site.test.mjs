@@ -635,9 +635,19 @@ test("/auth/cli: headers, labelled inputs, Turnstile iframe, no jargon", () => {
   assert.match(html, /id="status"[^>]*aria-live="polite"/);
   assert.equal(tags(html, "iframe")[0].attrs["data-src"], "/turnstile#o=https://pusharmor.com");
   const t = text("auth/cli.html");
-  for (const s of ["Continue only if you're trying to log in via the pusharmor login command line command.", "Continue with Google", "Continue with Apple", "Email me a code", "Paste this code into your terminal."]) assert.ok(t.includes(s), s);
-  assert.ok(html.includes("<code>pusharmor login</code>"));
+  for (const s of ["Continue with Google", "Continue with Apple", "Email me a code", "Paste this code into your terminal."]) assert.ok(t.includes(s), s);
   assert.ok(!/Sign in|Worker|ticket|peer/.test(t));
+});
+
+test("/auth/cli: warning before login and next to the code", () => {
+  const html = read("auth/cli.html");
+  const section = (id) => html.slice(html.indexOf('<section id="' + id + '"'), html.indexOf("</section>", html.indexOf('<section id="' + id + '"')));
+  const prove = section("prove");
+  assert.ok(prove.indexOf('<h2>Log in</h2>\n<p class="sub">Only continue if you ran "pusharmor login" yourself.</p>') >= 0);
+  assert.ok(prove.indexOf("Only continue") < prove.indexOf('id="start"'));
+  const done = section("done");
+  assert.ok(done.includes('<p class="da-who"><span id="cli-code" class="mono"></span></p>\n<p class="sub">Never give this code to anyone. Anyone who has it can log in to your account.</p>'));
+  assert.ok(!/fingerprint/i.test(text("auth/cli.html")));
 });
 
 test("/auth/cli script: /v1/ paths, fragment cleared, cli_code used", () => {
