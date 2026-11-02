@@ -44,6 +44,8 @@ export interface AutopushDeps {
   onEndpoint(p: PushFields): Promise<void>;
   /** Switch: "fallback" after 30 min of failed connects while the Worker is reachable, or close 4774; "direct" after a good probe. */
   onMode(mode: "direct" | "fallback"): Promise<void>;
+  /** The mode saved before a restart. */
+  loadMode(): Promise<"direct" | "fallback">;
   workerReachable(): Promise<boolean>;
   now(): number;
   setTimer(fn: () => void, ms: number): unknown;
@@ -75,7 +77,8 @@ export class Autopush {
     this.stopped = false;
     this.state = await this.d.loadState();
     if (!(await this.d.loadKeys())) await this.d.saveKeys(await generateWebPushKeys());
-    this.connect(false);
+    this.mode = await this.d.loadMode();
+    this.connect(this.mode === "fallback");
   }
 
   /** Start again after unregister() (wipe, then log in): fresh keys and a new channel. */

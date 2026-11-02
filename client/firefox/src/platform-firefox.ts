@@ -81,6 +81,7 @@ export function firefoxPlatform(ctx: FxCtx): Platform {
       await ctx.autopush()?.unregister();
       const db = await ctx.db();
       await db.del("meta", "fallback_push");
+      await db.del("meta", "receive_mode");
       await db.del("meta", "setup_opened");
     },
   });

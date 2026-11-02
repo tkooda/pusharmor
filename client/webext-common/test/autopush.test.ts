@@ -37,7 +37,7 @@ async function encrypt(k: WebPushKeys, text: string): Promise<string> {
   return b64urlEncode(concat(salt, new Uint8Array([0, 0, 16, 0, 65]), asPub, ct));
 }
 
-function setup() {
+function setup(savedMode: "direct" | "fallback" = "direct") {
   const sockets: FakeSocket[] = [];
   const timers: { fn: () => void; ms: number }[] = [];
   let state: ApState = { uaid: null, channelID: null, endpoint: null };
@@ -73,6 +73,7 @@ function setup() {
     onMode: async (m) => {
       modes.push(m);
     },
+    loadMode: async () => savedMode,
     workerReachable: async () => true,
     now: () => t,
     setTimer: (fn, ms) => {
@@ -190,4 +191,15 @@ test("autopush: backoff 5 s * 2^k, fallback after 30 min of failures, 4774 switc
   s2.sockets[0]!.onclose!({ code: 4774 });
   await new Promise((r) => setTimeout(r, 5));
   assert.deepEqual(s2.modes, ["fallback"]);
+});
+
+test("autopush: a restart with the saved fallback mode starts as a probe and switches to direct on a good hello", async () => {
+  const s = setup("fallback");
+  await s.ap.start();
+  assert.equal(s.ap.mode, "fallback");
+  const ws = s.sockets[0]!;
+  ws.onopen!();
+  await ws.rx({ messageType: "hello", status: 200, uaid: "U1" });
+  assert.deepEqual(s.modes, ["direct"]);
+  assert.equal(s.ap.mode, "direct");
 });

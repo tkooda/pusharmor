@@ -51,6 +51,7 @@ async function init(): Promise<void> {
         await d.del("meta", "setup_opened"); // a new mode may open setup once again
         if ((await engine.regState()) === "registered") await engine.pushReconcile(true).catch(() => undefined);
       },
+      loadMode: async () => ((await d.meta<string>("receive_mode")) === "fallback" ? "fallback" : "direct"),
       workerReachable: async () => {
         try {
           await engine.fetchPeersNow();

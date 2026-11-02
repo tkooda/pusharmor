@@ -23,6 +23,7 @@ test("fallback without a subscription: setup opens at most once per state change
   for (let i = 0; i < 3; i++) await assert.rejects(p.pushSubscribe(new Uint8Array(65)));
   assert.deepEqual(tabs, [SETUP_URL]); // once, not on every call
   await p.pushUnsubscribe(); // log out: a new state
+  await db.setMeta("receive_mode", "fallback"); // the next login probes and falls back again
   await assert.rejects(p.pushSubscribe(new Uint8Array(65)));
   assert.equal(tabs.length, 2);
 });
@@ -43,4 +44,12 @@ test("popup open reconciles push quietly; other paths do not", async () => {
   a.p.sub = null;
   await a.e.pushReconcile(true); // push_missing in a signed reply
   assert.deepEqual(seen, [true, false]);
+});
+
+test("log out clears the saved receive mode so the next login takes the direct branch", async () => {
+  const db = new Db(await openDb(new IDBFactory()));
+  await db.setMeta("receive_mode", "fallback");
+  const p = firefoxPlatform({ isAndroid: false, autopush: () => null, db: async () => db });
+  await p.pushUnsubscribe();
+  assert.equal(await db.meta("receive_mode"), undefined);
 });
