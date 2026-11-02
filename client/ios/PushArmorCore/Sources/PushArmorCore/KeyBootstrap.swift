@@ -52,6 +52,13 @@ public enum KeyBootstrap {
         }
     }
 
+    /// A sign-in may delete the keys and make new ones only with no account on this device. A
+    /// signed-in device whose keys did not load (a stopped launch) keeps them.
+    public static func mayReplaceForSignIn(me: Me?) -> Bool {
+        guard let me = me else { return false }
+        return me.id == nil || me.removed
+    }
+
     /// The loaded keys still sign and open: a fixed message is signed and verified, and a
     /// 1-byte message sealed to the enc key is opened again.
     public static func selfTest(_ keys: DeviceKeys) -> Bool {

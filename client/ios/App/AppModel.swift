@@ -147,11 +147,11 @@ final class AppModel: ObservableObject {
     private var launchStop: Phase?
 
     /// Keys that fail the launch check get their own screen. A passing fault (before the
-    /// first unlock) keeps the usual screen; the next foreground tries again.
+    /// first unlock) shows the loading screen; the next foreground tries again.
     static func phase(for stop: KeyBootstrap.Stop) -> Phase? {
         switch stop {
         case .unusable: return .keysBroken
-        case .retryLater: return nil
+        case .retryLater: return .loading
         }
     }
 
@@ -380,6 +380,7 @@ final class AppModel: ObservableObject {
             pendingKeys = k
             return k
         }
+        guard KeyBootstrap.mayReplaceForSignIn(me: try? store?.me()) else { throw KeyBootstrap.Stop.unusable }
         env.keychain.deleteAll()
         let k = try env.keychain.create()
         pendingKeys = k

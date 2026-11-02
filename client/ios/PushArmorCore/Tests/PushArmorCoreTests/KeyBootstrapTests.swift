@@ -56,6 +56,14 @@ final class KeyBootstrapTests: XCTestCase {
         XCTAssertEqual(d(id: false, sign: .present, inFlight: false), .createFresh)
     }
 
+    func testSignInReplacesKeysOnlyWithNoAccount() {
+        XCTAssertTrue(KeyBootstrap.mayReplaceForSignIn(me: me(id: false)))
+        XCTAssertTrue(KeyBootstrap.mayReplaceForSignIn(me: me(id: true, removed: true)))
+        // a signed-in device whose launch stopped keeps its keys
+        XCTAssertFalse(KeyBootstrap.mayReplaceForSignIn(me: me(id: true)))
+        XCTAssertFalse(KeyBootstrap.mayReplaceForSignIn(me: nil))
+    }
+
     struct BrokenSigner: PASigner {
         let publicKey = SoftwareSigner().publicKey
         func sign(_ data: Data) throws -> Data { throw PAKeyError.unavailable }

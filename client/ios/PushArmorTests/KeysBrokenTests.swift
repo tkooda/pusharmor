@@ -16,7 +16,8 @@ private final class RecordingHooks: PlatformHooks {
 final class KeysBrokenTests: XCTestCase {
     func testOnlyUnusableKeysShowTheScreen() {
         XCTAssertEqual(AppModel.phase(for: .unusable), .keysBroken)
-        XCTAssertNil(AppModel.phase(for: .retryLater))
+        // a passing fault shows the loading screen, so no sign-in can start without keys
+        XCTAssertEqual(AppModel.phase(for: .retryLater), .loading)
     }
 
     func testDeleteGoesToSignInAndKeepsTheOldId() throws {
