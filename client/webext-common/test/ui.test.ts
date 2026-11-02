@@ -594,3 +594,23 @@ test("motion: a tab switch has no animation, and no transition runs longer than 
     for (const d of m[1].matchAll(/(\d*\.?\d+)(ms|s)\b/g)) assert.ok(Number(d[1]) * (d[2] === "s" ? 1000 : 1) <= 100, m[0]);
   }
 });
+
+test("large text: wrapped lines keep their spacing, rows wrap, and the popup scrolls when zoomed", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  const rule = (sel: string) => {
+    const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const m = css.match(new RegExp("(^|\\n)" + esc + " \\{([^}]*)\\}"));
+    assert.ok(m, sel);
+    return m[2];
+  };
+  assert.match(css, /html \{ overflow: auto; \}/);
+  for (const sel of [".dim, .t2", ".t1", ".sh", ".plate-label", ".plate p", ".hint", ".cta p", ".fp-steps", ".fp-wait", ".empty p", ".caption", ".astext", ".hmeta", ".content", ".content.ev", ".e2e", ".login .sub", ".help", ".dlg p", ".toast"]) {
+    assert.match(rule(sel), /line-height: \d*\.?\d+;/, sel);
+  }
+  for (const sel of [".tabs", ".pair-foot", ".foot.bar"]) assert.match(rule(sel), /flex-wrap: wrap;/, sel);
+  assert.match(rule(".tabs"), /min-height: 40px/);
+  // Codes match sits right of Codes differ; when they stack, it is on top
+  assert.match(rule(".pair-acts"), /flex-wrap: wrap-reverse;/);
+  assert.match(rule(".links button.text"), /height: auto; min-height: 48px; white-space: normal;/);
+});
