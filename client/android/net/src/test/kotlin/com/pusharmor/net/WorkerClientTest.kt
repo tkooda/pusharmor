@@ -67,7 +67,7 @@ class WorkerClientTest {
         server.enqueue(MockResponse().setResponseCode(426).setBody("{\"error\":\"update required\"}"))
         val r = c.peers()
         assertEquals("android/0.0.19", server.takeRequest().getHeader("PA-Client"))
-        assertEquals("Update PushArmor to continue.", ErrorText.of(r))
+        assertEquals("This version of PushArmor is too old. Update PushArmor to continue.", ErrorText.reason(r))
         assertEquals(2, server.requestCount)
     }
 
@@ -112,16 +112,16 @@ class WorkerClientTest {
     }
 
     @Test fun rateLimitTextIsPlainSentence() {
-        assertEquals("Too many requests. Try again in 60 seconds.", ErrorText.of(ApiResult.Http(429, "rate limited", null)))
-        assertEquals("Too many requests. Try again in 2 minutes.", ErrorText.tooMany(120))
-        assertEquals("Too many requests. Try again in 30 seconds.", ErrorText.tooMany(30))
-        assertEquals("Too many requests. Try again in 1 second.", ErrorText.tooMany(1))
+        assertEquals("Too many tries. Try again in 60 seconds.", ErrorText.reason(ApiResult.Http(429, "rate limited", null)))
+        assertEquals("Too many tries. Try again in 2 minutes.", ErrorText.tooMany(120))
+        assertEquals("Too many tries. Try again in 30 seconds.", ErrorText.tooMany(30))
+        assertEquals("Too many tries. Try again in 1 second.", ErrorText.tooMany(1))
         assertEquals("1 second", ErrorText.wait(500))
         assertEquals("60 seconds", ErrorText.wait(60_000))
         assertEquals("2 minutes", ErrorText.wait(61_000))
         assertEquals("2 minutes", ErrorText.wait(120_000))
         assertEquals("3 minutes", ErrorText.wait(121_000))
-        assertEquals("Too many requests. Try again in 2 minutes.", ErrorText.tooMany(90))
+        assertEquals("Too many tries. Try again in 2 minutes.", ErrorText.tooMany(90))
     }
 
     @Test fun retryAfterOverBudgetIsNotRetried() {
@@ -153,16 +153,16 @@ class WorkerClientTest {
         val cases = listOf(401 to "clock skew", 401 to "logged out", 401 to "ticket expired", 401 to "unknown peer", 400 to "bad email",
             400 to "push endpoint not allowed", 413 to null, 429 to null, 502 to null, 403 to "banned", 409 to "some code", 500 to null)
         for ((status, error) in cases) {
-            val t = ErrorText.of(ApiResult.Http(status, error))
+            val t = ErrorText.reason(ApiResult.Http(status, error))
             assertTrue(t, t.endsWith(".") && t[0].isUpperCase() && !t.contains("browser") && !t.contains("code") && !t.contains("Error:"))
         }
-        assertEquals("No connection. Try again.", ErrorText.of(ApiResult.Network))
+        assertEquals("The relay server could not be reached. Check your internet connection and try again.", ErrorText.reason(ApiResult.Network))
     }
 
     @Test fun no502RetryAndPermanentErrors() {
         server.enqueue(MockResponse().setResponseCode(502).setBody("{\"error\":\"email send failed\"}"))
         val r = client.authEmail("a@b.com", "k", "register", "t")
-        assertEquals("Could not send the email. Try again.", ErrorText.of(r))
+        assertEquals("The relay server could not send the email. Try again.", ErrorText.reason(r))
         server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"clock skew\"}"))
         assertTrue(client.peers().isClockSkew)
         server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"logged out\"}"))

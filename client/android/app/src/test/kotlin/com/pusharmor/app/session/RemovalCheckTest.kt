@@ -86,7 +86,7 @@ class RemovalCheckTest {
         script(unknownPeer, 200 to "{}")
         val r = g.client.send(mapOf("x" to "M"))
         assertEquals(ApiResult.Network, r)
-        assertEquals(ErrorText.of(ApiResult.Network), ErrorText.of(r))
+        assertEquals("Unable to send.\nThe relay server could not be reached. Check your internet connection and try again.", ErrorText.of("Unable to send.", r))
         assertEquals(listOf("POST /v1/send", "GET /v1/peers"), calls)
         assertKept()
         assertNull(g.settings.get(Settings.K.REMOVAL_CHECK))
@@ -131,12 +131,12 @@ class RemovalCheckTest {
         assertWiped(Session.REMOVED)
     }
 
-    /** 401 "bad id" is a plain failure: no check, no wipe, the generic text. */
+    /** 401 "bad id" is a plain failure: no check, no wipe, the action line and the plain retry line. */
     @Test fun badIdNeverStartsTheCheck() = io {
         script(401 to "{\"error\":\"bad id\"}")
         val r = g.client.peers()
         assertEquals(ApiResult.Http(401, "bad id"), r)
-        assertEquals("Something went wrong. Try again.", ErrorText.of(r))
+        assertEquals("Unable to refresh the device list.\nTry again.", ErrorText.of("Unable to refresh the device list.", r))
         assertEquals(1, calls.size)
         assertKept()
         assertNull(g.settings.get(Settings.K.REMOVAL_CHECK))

@@ -36,22 +36,29 @@ class AppViewModelTest {
         while (!cond() && System.currentTimeMillis() < end) { Thread.sleep(20); shadowOf(Looper.getMainLooper()).idle() }
     }
 
+    /** A tap that throws shows its action line and "Try again." on the next line. */
     @Test fun ioErrorSetsMessage() {
         val vm = vm()
-        val job = vm.io { throw IllegalStateException("boom") }
+        val job = vm.io(UiText.UNABLE_DELETE_HISTORY) { throw IllegalStateException("boom") }
         waitFor { job.isCompleted }
         assertNull(uncaught)
         assertFalse(vm.busy.value)
-        assertEquals(AppViewModel.NOT_DONE, vm.message.value)
+        assertEquals("Unable to delete the history.\nTry again.", vm.message.value)
+        // a full disk, another store error, and a Keystore fault each say why
+        assertEquals("Storage is full. Free some space and try again.", AppViewModel.localReason(android.database.sqlite.SQLiteFullException("full")))
+        assertEquals("PushArmor could not save its data on this device. Restart PushArmor and try again.",
+            AppViewModel.localReason(android.database.sqlite.SQLiteException("io")))
+        assertEquals("This device's security keys cannot be used right now. Restart the device and try again.",
+            AppViewModel.localReason(java.security.KeyStoreException("ks")))
     }
 
     @Test fun onceErrorReleasesKey() {
         val vm = vm()
-        vm.once("send") { throw IllegalStateException("boom") }
+        vm.once("send", UiText.UNABLE_SEND) { throw IllegalStateException("boom") }
         waitFor { vm.running.value.isEmpty() && vm.message.value != null }
         assertNull(uncaught)
         assertEquals(emptySet<String>(), vm.running.value)
-        assertEquals(AppViewModel.NOT_DONE, vm.message.value)
+        assertEquals("Unable to send.\nTry again.", vm.message.value)
     }
 
     /** A send that reached a device posts its History row, so the main screen opens History there. */
@@ -84,7 +91,7 @@ class AppViewModelTest {
         assertNull(runBlocking { vm.oauthUrl("apple", "register") })
         assertNull(runBlocking { vm.nonce("register") })
         assertNull(uncaught)
-        assertEquals(AppViewModel.NOT_DONE, vm.message.value)
+        assertEquals("Unable to start the login.\nThis device's security keys cannot be used right now. Restart the device and try again.", vm.message.value)
     }
 
     private fun <T> onIo(block: () -> T): T = runBlocking(kotlinx.coroutines.Dispatchers.IO) { block() }
@@ -121,16 +128,16 @@ class AppViewModelTest {
         onIo { vm.g.store.wipeRegistration(); vm.g.settings.set(Settings.K.PENDING_PURPOSE, "register") }
         val job = vm.onAppLinkTicket("t", "a@example.com") {}
         waitFor { job.isCompleted }
-        assertEquals(Session.NO_KEYS, vm.message.value) // reached register(), which needs keys
+        assertEquals("Unable to log in.\n" + Session.NO_KEYS, vm.message.value) // reached register(), which needs keys
     }
 
-    /** A send that throws (here: no keys) returns the not-done text instead of crashing the app. */
+    /** A send that throws (here: no keys) returns "Unable to send." and why instead of crashing the app. */
     @Test fun sendErrorGivesNotDone() {
         val vm = vm()
         vm.g.keysOrNull = null
         onIo { vm.g.dao.putSelf(SelfEntity(id = "A".repeat(40), accountPrefix = ByteArray(9), name = "t")) }
         val r = runBlocking { vm.send(listOf("B".repeat(40)), "hi", asText = true) }
-        assertEquals(AppViewModel.NOT_DONE, r.text)
+        assertEquals("Unable to send.\nTry again.", r.text)
         assertFalse(r.ok)
     }
 

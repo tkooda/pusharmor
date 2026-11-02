@@ -1141,8 +1141,8 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
             var reading by rememberSaveable(h.id) { mutableStateOf(false) }
             val saver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
                 if (uri != null) {
-                    val ok = runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(hc.toByteArray(Charsets.UTF_8)) } != null }.getOrDefault(false)
-                    vm.message.value = if (ok) "Saved." else "Could not save the message."
+                    val err = runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(hc.toByteArray(Charsets.UTF_8)) } ?: throw java.io.IOException("no stream") }.exceptionOrNull()
+                    vm.message.value = if (err == null) "Saved." else com.pusharmor.net.ErrorText.text(UiText.UNABLE_SAVE_MESSAGE, UiText.saveReason(err))
                 }
             }
             if (reading) ReadDialog(hc) { reading = false }

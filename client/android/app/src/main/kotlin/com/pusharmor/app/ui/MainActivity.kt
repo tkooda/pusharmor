@@ -236,7 +236,7 @@ internal fun App(vm: AppViewModel) {
             return
         }
         Session.Start.KEYS_UNAVAILABLE -> {
-            KeysBrokenScreen(onRetry = { vm.boot() }, onDelete = { vm.io { vm.g.session.selfRemoved(deleted = false, lostKeys = true); vm.boot() } },
+            KeysBrokenScreen(onRetry = { vm.boot() }, onDelete = { vm.io(null) { vm.g.session.selfRemoved(deleted = false, lostKeys = true); vm.boot() } },
                 Modifier.safeDrawingPadding())
             return
         }

@@ -24,6 +24,27 @@ class UiTextTest {
         assertEquals("This cannot be undone. You will need to pair all your devices again.", UiText.KEYS_BROKEN_DIALOG_BODY)
     }
 
+    /** The push service line names only the host: lower case, a-z 0-9 . - only, at most 64, never the path or token. */
+    @Test fun pushHostIsSanitised() {
+        assertEquals("push.example.com", UiText.pushHost("https://Push.Example.com/abc?x=1"))
+        val long = "a".repeat(96) + ".com"
+        assertEquals("a".repeat(64), UiText.pushHost("https://$long/secret-token"))
+        assertEquals("up.example.org", UiText.pushHost("https://up.example.org:8443/wpush/v2/tok3n#frag"))
+        assertEquals(null, UiText.pushHost(null))
+        assertEquals(null, UiText.pushHost("not a url"))
+        val shown = com.pusharmor.net.ErrorText.of(UiText.UNABLE_SEND, com.pusharmor.protocol.engine.ApiResult.Http(400, "push endpoint not allowed"),
+            UiText.pushHost("https://Push.Example.com/abc?x=1"))
+        assertEquals("Unable to send.\nThis device's push service is not supported yet.\n(push.example.com)", shown)
+        assertTrue(!shown.contains("abc") && !shown.contains("x=1"))
+    }
+
+    /** A message file that could not be written says why. */
+    @Test fun saveFileReason() {
+        assertEquals("PushArmor is not allowed to save there. Choose another location.", UiText.saveReason(SecurityException("denied")))
+        assertEquals("Storage is full. Free some space and try again.", UiText.saveReason(java.io.IOException("write failed: ENOSPC (No space left on device)")))
+        assertEquals("Try again.", UiText.saveReason(java.io.IOException("no stream")))
+    }
+
     @Test fun cannotReceiveTruthTable() {
         assertEquals(false, UiText.cannotReceive(true, false, null))
         assertEquals(false, UiText.cannotReceive(true, false, "other"))

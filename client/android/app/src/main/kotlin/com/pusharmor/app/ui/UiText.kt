@@ -18,6 +18,41 @@ object UiText {
     /** Same words as iOS: Delete account asks first and says what follows. */
     const val DELETE_CONFIRM = "Delete this account? You must log in again to confirm. This cannot be undone."
 
+    // Line 1 of an error: what could not be done. Line 2 (ErrorText) says why.
+    const val UNABLE_SEND = "Unable to send."
+    const val UNABLE_REFRESH = "Unable to refresh the device list."
+    const val UNABLE_RENAME = "Unable to rename this device."
+    fun unablePair(x: String) = "Unable to pair with \"$x\"."
+    fun unableConfirm(x: String) = "Unable to confirm \"$x\"."
+    fun unableReject(x: String) = "Unable to reject \"$x\"."
+    fun unableRemove(x: String) = "Unable to remove \"$x\"."
+    const val UNABLE_EVICT = "Unable to remove the chosen devices."
+    const val UNABLE_LOGOUT = "Unable to log out."
+    const val UNABLE_SEND_CODE = "Unable to send the code."
+    const val UNABLE_CHECK_CODE = "Unable to check the code."
+    const val UNABLE_LOGIN = "Unable to log in."
+    const val UNABLE_LOGIN_GOOGLE = "Unable to log in with Google."
+    const val UNABLE_START_LOGIN = "Unable to start the login."
+    const val UNABLE_DELETE_ACCOUNT = "Unable to delete the account."
+    const val UNABLE_DELETE_HISTORY = "Unable to delete the history."
+    const val UNABLE_SAVE_MESSAGE = "Unable to save the message."
+    const val UNABLE_CHANGE_SETTING = "Unable to change this setting."
+    const val UNABLE_TURN_ON_NOTIFICATIONS = "Unable to turn on notifications."
+    const val UNABLE_OPEN_DATA = "Unable to open PushArmor data."
+
+    /** Line 2 for a message file that could not be written: no access, a full disk, else a plain retry. */
+    fun saveReason(e: Throwable): String = when {
+        e is SecurityException -> com.pusharmor.net.ErrorText.SAVE_DENIED
+        e.message?.contains("ENOSPC") == true || e.message?.contains("No space left") == true -> com.pusharmor.net.ErrorText.STORAGE_FULL
+        else -> com.pusharmor.net.ErrorText.TRY_AGAIN
+    }
+
+    /** Host of a push endpoint for an error line: lower case, only a-z 0-9 . -, at most 64; never the path or token. */
+    fun pushHost(endpoint: String?): String? {
+        val host = endpoint?.let { runCatching { java.net.URI(it).host }.getOrNull() } ?: return null
+        return host.lowercase().filter { it in 'a'..'z' || it in '0'..'9' || it == '.' || it == '-' }.take(64).ifEmpty { null }
+    }
+
     /** Same words as iOS: keys that fail the start check; deleting them is the user's choice and asks first. */
     const val KEYS_BROKEN_TITLE = "This device's keys have become unusable."
     const val KEYS_BROKEN_BODY = "Tap Retry to try again. If this keeps happening, you can delete the broken keys. " +

@@ -92,7 +92,7 @@ class ShareActivity : ComponentActivity() {
                     } else Column(Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
                         SendScreen(vm, cut ?: text, preselect = direct, inDialog = true, onPair = {
                             startActivity(MainActivity.openIntent(this@ShareActivity, "peers").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); finish()
-                        }) { r -> if (r.text == ErrorText.UPDATE) showUpdate() else if (r.ok) toastAndFinish(r.text) }
+                        }) { r -> if (r.text.endsWith(ErrorText.UPDATE)) showUpdate() else if (r.ok) toastAndFinish(r.text) }
                     }
                 }
             }

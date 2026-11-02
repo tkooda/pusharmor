@@ -238,7 +238,6 @@ class AppLogicTest {
     @Test fun messagesAreSentences() {
         // no raw "No keys", no unended notice, no "a > b" path as the Apple relay hint.
         assertEquals("This device is not logged in. Log in again.", Session.NO_KEYS)
-        assertEquals("Could not log in. Try again.", Session.BAD_REPLY)
         assertFalse(source("session/Session.kt").contains("\"Bad reply\""))
         assertTrue(source("notify/AppEffects.kt").contains("confirmed this device.\""))
         assertTrue(source("notify/AppEffects.kt").contains("logged out.\""))
@@ -259,10 +258,11 @@ class AppLogicTest {
 
     @Test fun refreshFailureSaysWhy() {
         // Refresh offline shows the connection text; a busy relay server shows its own text.
-        assertEquals("No connection. Try again.", Session.refreshError(com.pusharmor.protocol.engine.ApiResult.Network))
-        assertEquals("No connection. Try again.", Session.refreshError(null))
-        assertEquals("Something went wrong. Try again.", Session.refreshError(com.pusharmor.protocol.engine.ApiResult.Http(503, null)))
-        assertTrue(source("ui/AppViewModel.kt").contains("fun refresh() = io { g.session.refresh()?.let { message.value = it } }"))
+        assertEquals("Unable to refresh the device list.\nThe relay server could not be reached. Check your internet connection and try again.", Session.refreshError(com.pusharmor.protocol.engine.ApiResult.Network))
+        assertEquals("Unable to refresh the device list.\nThe relay server could not be reached. Check your internet connection and try again.", Session.refreshError(null))
+        assertEquals("Unable to refresh the device list.\nThe relay server is not working right now. Try again later.",
+            Session.refreshError(com.pusharmor.protocol.engine.ApiResult.Http(503, null)))
+        assertTrue(source("ui/AppViewModel.kt").contains("fun refresh() = io(UiText.UNABLE_REFRESH) { g.session.refresh()?.let { message.value = it } }"))
     }
 
     @Test fun pairingCardFooterHasRoomBelow() {
@@ -416,7 +416,7 @@ class AppLogicTest {
         assertTrue(AppViewModel.claim(running, "send")) // the call ended: a new tap runs
         val vm = source("ui/AppViewModel.kt")
         for (k in listOf("\"logout\"", "\"evict\"", "\"verify\"", "\"pair:\$id\"", "\"deny:\$id\"", "\"approve:\$id\"", "\"remove:\$id\""))
-            assertTrue(k, vm.contains("once($k)"))
+            assertTrue(k, vm.contains("once($k, "))
     }
 
     @Test fun removedOrLoggedOutWhileOpenLeavesTheSignedInScreens() {

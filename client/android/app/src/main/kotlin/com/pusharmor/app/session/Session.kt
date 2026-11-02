@@ -15,6 +15,8 @@ import com.pusharmor.app.data.Settings
 import com.pusharmor.app.keys.KeystoreKeyOps
 import com.pusharmor.app.push.UnifiedPushSupport
 import com.pusharmor.app.ui.ShareActivity
+import com.pusharmor.app.ui.UiText
+import com.pusharmor.app.ui.label
 import com.pusharmor.app.work.Work
 import com.pusharmor.crypto.B64url
 import com.pusharmor.crypto.Ids
@@ -38,7 +40,6 @@ class Session(private val g: Graph) {
     companion object {
         /** A call that needs this device's keys, with none set up. */
         const val NO_KEYS = "This device is not logged in. Log in again."
-        const val BAD_REPLY = "Could not log in. Try again."
 
         /** Share sheet targets: the All set less the devices turned off in their menu. */
         fun shareTargets(peers: List<Peer>, off: Set<String>): List<Peer> = allSet(peers).filter { it.id !in off }
@@ -49,7 +50,7 @@ class Session(private val g: Graph) {
         const val REFRESH_GREY_MS = 60_000L
 
         /** Refresh text for a GET /peers that did not settle: its relay server error, else the connection text. */
-        fun refreshError(failure: ApiResult<*>?): String = ErrorText.of(failure ?: ApiResult.Network)
+        fun refreshError(failure: ApiResult<*>?): String = ErrorText.of(UiText.UNABLE_REFRESH, failure ?: ApiResult.Network)
     }
 
     private val s get() = g.settings
@@ -136,7 +137,8 @@ class Session(private val g: Graph) {
     }
 
     private fun register(ticket: String, email: String?, evict: List<String>?): SignIn {
-        val k = g.keysOrNull ?: return SignIn.Error(NO_KEYS)
+        val action = if (evict != null) UiText.UNABLE_EVICT else UiText.UNABLE_LOGIN
+        val k = g.keysOrNull ?: return SignIn.Error(ErrorText.text(action, NO_KEYS))
         val sp = B64url.encode(k.signPub); val ep = B64url.encode(k.encPub)
         // POST /peers is signed by the new key with no PA-ID: the client signs with keysOrNull.
         var first = g.client.register(ticket, sp, ep, evict)
@@ -146,7 +148,7 @@ class Session(private val g: Graph) {
             is WorkerClient.RegisterResult.Ok -> {
                 val id = r.registered.id
                 val raw = Ids.decodeId(id)
-                if (raw == null || !raw.copyOfRange(9, 21).contentEquals(Ids.keyhash(k.signPub, k.encPub))) return SignIn.Error(BAD_REPLY)
+                if (raw == null || !raw.copyOfRange(9, 21).contentEquals(Ids.keyhash(k.signPub, k.encPub))) return SignIn.Error(ErrorText.text(action, ErrorText.BAD_REPLY))
                 dao.putSelf(SelfEntity(id = id, accountPrefix = raw.copyOf(9), email = email, name = defaultName(), clockOffset = g.offset.offsetS))
                 g.sync().merge(r.registered.peers)
                 s.set(Settings.K.SIGNED_OUT, false)
@@ -161,14 +163,14 @@ class Session(private val g: Graph) {
                 val e = r.result
                 if (e is ApiResult.Http && e.status == 409 && e.error == "id collision") {
                     g.keysOrNull = KeystoreKeyOps.createFresh(); SignIn.NeedNewTicket
-                } else SignIn.Error(ErrorText.of(e))
+                } else SignIn.Error(ErrorText.of(action, e))
             }
         }
     }
 
     private fun login(ticket: String): SignIn {
         val r = g.logoutFlow().login(ticket)
-        if (r !is ApiResult.Ok) return SignIn.Error(ErrorText.of(r))
+        if (r !is ApiResult.Ok) return SignIn.Error(ErrorText.of(UiText.UNABLE_LOGIN, r))
         s.set(Settings.K.SIGNED_OUT, false)
         s.set(Settings.K.LOGOUT_PENDING, null)
         // after a successful login: the app-start push reconcile at once, and one GET /peers
@@ -221,12 +223,12 @@ class Session(private val g: Graph) {
 
     /** DELETE /account with a delete-account ticket; then wipe everything including the keys. */
     fun deleteAccount(ticket: String): String? {
-        val me = g.identity() ?: return NO_KEYS
+        val me = g.identity() ?: return ErrorText.text(UiText.UNABLE_DELETE_ACCOUNT, NO_KEYS)
         val outbox = Outbox(g.store, me)
         val r = ClockSkew.run({
             g.store.allowSet().mapNotNull { g.store.peer(it)?.takeIf { p -> p.pinned } }.associate { it.id to outbox.simple(it, MessageBody.Delete).message }
         }) { g.client.deleteAccount(ticket, B64url.encode(me.keys.signPub), it) }
-        if (r !is ApiResult.Ok) return ErrorText.of(r)
+        if (r !is ApiResult.Ok) return ErrorText.of(UiText.UNABLE_DELETE_ACCOUNT, r)
         wipe(keepOldId = false)
         return null
     }
@@ -357,14 +359,15 @@ class Session(private val g: Graph) {
 
     /** Remove (account-wide): DELETE /peers/$X with a remove message for every pinned allow id. */
     fun removePeer(peerId: String): String? {
-        val me = g.identity() ?: return NO_KEYS
+        val action = UiText.unableRemove(g.store.peer(peerId)?.let(::label) ?: "")
+        val me = g.identity() ?: return ErrorText.text(action, NO_KEYS)
         val outbox = Outbox(g.store, me)
         val r = g.reconcile().withMissingRetry {
             ClockSkew.run({
                 g.store.allowSet().mapNotNull { g.store.peer(it)?.takeIf { p -> p.pinned } }.associate { it.id to outbox.simple(it, MessageBody.Remove(peerId)).message }
             }) { g.client.deletePeer(peerId, it) }
         }
-        if (r !is ApiResult.Ok) return ErrorText.of(r)
+        if (r !is ApiResult.Ok) return ErrorText.of(action, r)
         g.notifier.deletePeerChannel(peerId)
         g.store.tx {
             g.store.pairing(peerId)?.let { g.store.deletePairing(peerId) }
@@ -391,8 +394,8 @@ class Session(private val g: Graph) {
     /** Rename this device: PATCH name entries + rename messages for every pinned allow id. */
     fun rename(newName: String): String? {
         if (!NameEntry.isValidName(newName)) return "Use 1 to 32 plain ASCII characters, no double quotes."
-        val me = g.identity() ?: return NO_KEYS
-        dao.self() ?: return NO_KEYS
+        val me = g.identity() ?: return ErrorText.text(UiText.UNABLE_RENAME, NO_KEYS)
+        dao.self() ?: return ErrorText.text(UiText.UNABLE_RENAME, NO_KEYS)
         dao.setSelfName(newName)
         val outbox = Outbox(g.store, me)
         val r = g.reconcile().withMissingRetry {
@@ -401,7 +404,7 @@ class Session(private val g: Graph) {
                 built.mapValues { it.value.nameEntry!! } to built.mapValues { it.value.message }
             }) { (names, m) -> g.client.rename(names, m) }
         }
-        return if (r is ApiResult.Ok) null else ErrorText.of(r)
+        return if (r is ApiResult.Ok) null else ErrorText.of(UiText.UNABLE_RENAME, r)
     }
 
     // ---- push -----------------------------------------------------------------------------

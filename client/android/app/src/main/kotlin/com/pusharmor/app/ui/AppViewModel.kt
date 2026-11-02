@@ -56,8 +56,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val highlight = MutableStateFlow<String?>(null)
 
     companion object {
-        /** Shown when a tap fails with an unexpected error. */
-        const val NOT_DONE = "Something went wrong. Try again."
+        /** Line 2 for a tap that failed with an exception: keys, storage, or a plain retry. */
+        fun localReason(e: Throwable): String = when (e) {
+            is android.database.sqlite.SQLiteFullException -> ErrorText.STORAGE_FULL
+            is android.database.SQLException, is java.io.IOException -> ErrorText.SAVE_FAILED
+            is java.security.GeneralSecurityException, is java.security.ProviderException -> ErrorText.KEYS_UNUSABLE
+            else -> ErrorText.TRY_AGAIN
+        }
 
         /** A signed-in screen whose device the relay server removed or logged out goes back to log in. */
         fun needsReboot(start: Session.Start?, selfPresent: Boolean, signedOut: Boolean): Boolean =
@@ -78,24 +83,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun io(block: suspend () -> Unit) = viewModelScope.launch(Dispatchers.IO) {
+    /** Runs a tap handler; an error shows [action] and why, or only goes to the log when [action] is null. */
+    fun io(action: String?, block: suspend () -> Unit) = viewModelScope.launch(Dispatchers.IO) {
         busy.value = true
-        try { block() } catch (e: CancellationException) { throw e } catch (e: Exception) { failed(e) } finally { busy.value = false }
+        try { block() } catch (e: CancellationException) { throw e } catch (e: Exception) { failed(action, e) } finally { busy.value = false }
     }
 
-    /** An unexpected error in a tap handler shows [NOT_DONE] instead of crashing the app. */
-    private fun failed(e: Exception) {
+    /** An unexpected error in a tap handler shows [action] and the reason instead of crashing the app. */
+    private fun failed(action: String?, e: Exception) {
         Log.w("PushArmor", "action failed", e)
-        message.value = NOT_DONE
+        if (action != null) message.value = ErrorText.text(action, localReason(e))
     }
+
+    /** Quoted name of the device [id] for an error line. */
+    private fun nameOf(id: String): String = peers.value.firstOrNull { it.id == id }?.let(::label) ?: ""
 
     /** Keys of taps still running ("send", "logout", "pair:<id>", ...); their button is greyed until the call ends. */
     val running = MutableStateFlow<Set<String>>(emptySet())
 
     /** [io], unless the same [key] is still running. */
-    fun once(key: String, block: suspend () -> Unit) {
+    fun once(key: String, action: String, block: suspend () -> Unit) {
         if (!claim(running, key)) return
-        io { try { block() } finally { running.update { it - key } } }
+        io(action) { try { block() } finally { running.update { it - key } } }
     }
 
     /** Sign-in purpose, read off the main thread with each start change (Room refuses main-thread reads). */
@@ -103,7 +112,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun setStart(s: Session.Start) { signInPurpose.value = purpose(); start.value = s }
 
-    fun boot() = io {
+    fun boot() = io(UiText.UNABLE_OPEN_DATA) {
         g.settings.updateRequired(com.pusharmor.app.BuildConfig.VERSION_NAME)
         val s = g.session.startup()
         setStart(s)
@@ -126,28 +135,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             else {
                 // A 429 starts the countdown from Retry-After so the next try does not spend a security check for nothing.
                 if (r is ApiResult.Http && r.status == 429) resend.value = addr to System.currentTimeMillis() + (r.retryAfter ?: 60L) * 1000
-                message.value = ErrorText.of(r); null
+                message.value = ErrorText.of(UiText.UNABLE_SEND_CODE, r); null
             }
-        } catch (e: CancellationException) { throw e } catch (e: Exception) { failed(e); null }
+        } catch (e: CancellationException) { throw e } catch (e: Exception) { failed(UiText.UNABLE_SEND_CODE, e); null }
     }
 
-    fun emailVerify(requestToken: String, code: String, purpose: String, onDone: () -> Unit) = once("verify") {
+    fun emailVerify(requestToken: String, code: String, purpose: String, onDone: () -> Unit) = once("verify", UiText.UNABLE_CHECK_CODE) {
         when (val r = g.client.authEmailVerify(requestToken, code)) {
             is ApiResult.Ok -> ticket(r.value.ticket, r.value.email, purpose, onDone)
-            else -> message.value = ErrorText.of(r)
+            else -> message.value = ErrorText.of(UiText.UNABLE_CHECK_CODE, r)
         }
     }
 
-    fun googleToken(idToken: String, purpose: String, onDone: () -> Unit) = io {
+    fun googleToken(idToken: String, purpose: String, onDone: () -> Unit) = io(UiText.UNABLE_LOGIN_GOOGLE) {
         when (val r = g.client.authGoogleToken(idToken, signPubB64(), purpose)) {
             is ApiResult.Ok -> ticket(r.value.ticket, r.value.email, purpose, onDone)
-            else -> message.value = ErrorText.of(r)
+            else -> message.value = ErrorText.of(UiText.UNABLE_LOGIN_GOOGLE, r)
         }
     }
 
-    /** Key preparation runs off the main thread; a Keystore failure shows [NOT_DONE] and returns null. */
+    /** Key preparation runs off the main thread; a Keystore failure says the login could not start and returns null. */
     private suspend fun <T> withKeys(block: () -> T): T? = withContext(Dispatchers.IO) {
-        try { block() } catch (e: CancellationException) { throw e } catch (e: Exception) { failed(e); null }
+        try { block() } catch (e: CancellationException) { throw e } catch (e: Exception) { failed(UiText.UNABLE_START_LOGIN, e); null }
     }
 
     suspend fun nonce(purpose: String): String? = withKeys { g.session.nonce(purpose) }
@@ -161,7 +170,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * Only a sign-in started on this device is redeemed; a ticket from any other link is dropped. A logged-in
      * device takes only a delete-account ticket, so a link cannot move it to another account.
      */
-    fun onAppLinkTicket(ticket: String, email: String?, onDone: () -> Unit) = io {
+    fun onAppLinkTicket(ticket: String, email: String?, onDone: () -> Unit) = io(UiText.UNABLE_LOGIN) {
         val purpose = g.settings.get(Settings.K.PENDING_PURPOSE) ?: return@io
         g.settings.set(Settings.K.PENDING_PURPOSE, null)
         if (purpose != "delete-account" && g.dao.self() != null && !g.session.signedOut) return@io
@@ -186,9 +195,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.Main) { onDone() }
             }
             is Session.SignIn.Limit -> { limitTicket = r.limit.ticket; message.value = null; limit.value = r.limit }
-            Session.SignIn.NeedNewTicket -> message.value = "Please log in again."
+            Session.SignIn.NeedNewTicket -> message.value = ErrorText.text(if (evict != null) UiText.UNABLE_EVICT else UiText.UNABLE_LOGIN, "Log in again.")
             is Session.SignIn.Error -> {
-                if (r.text == "Login expired. Log in again.") limit.value = limit.value // ticks kept
+                if (r.text.endsWith(ErrorText.LOGIN_EXPIRED)) limit.value = limit.value // ticks kept
                 message.value = r.text
             }
         }
@@ -198,7 +207,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var pendingEvict: List<String>? = null
 
     /** Submit of the peer limit picker: POST /peers with evict, using the 10-min ticket. */
-    fun evict(ids: List<String>, onDone: () -> Unit) = once("evict") {
+    fun evict(ids: List<String>, onDone: () -> Unit) = once("evict", UiText.UNABLE_EVICT) {
         pendingEvict = ids
         val t = limitTicket ?: return@once
         ticket(t, null, "register", onDone)
@@ -208,21 +217,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- peers ----
 
-    fun refresh() = io { g.session.refresh()?.let { message.value = it } } // offline says so
-    fun pair(id: String) = once("pair:$id") { refused(id, g.pairing().tapPair(id, System.currentTimeMillis())) }
+    fun refresh() = io(UiText.UNABLE_REFRESH) { g.session.refresh()?.let { message.value = it } } // offline says so
+    fun pair(id: String) = once("pair:$id", UiText.unablePair(nameOf(id))) { refused(id, g.pairing().tapPair(id, System.currentTimeMillis())) }
     /** Says why a Pair or Pair again tap did not start. */
     private fun refused(id: String, r: PairStart) {
         UiText.pairRefused(r, peers.value.firstOrNull { it.id == id }?.let(::label) ?: "")?.let { message.value = it }
     }
-    fun reply(id: String) = io { g.pairing().tapReply(id) }
-    fun sendAgainPair(id: String) = io { g.pairing().sendAgain(id, System.currentTimeMillis()) }
-    fun cancelPairing(id: String) = io { g.pairing().cancelPairing(id); g.reconcile().run() }
+    fun reply(id: String) = io(UiText.unablePair(nameOf(id))) { g.pairing().tapReply(id) }
+    fun sendAgainPair(id: String) = io(UiText.unablePair(nameOf(id))) { g.pairing().sendAgain(id, System.currentTimeMillis()) }
+    fun cancelPairing(id: String) = io(UiText.unablePair(nameOf(id))) { g.pairing().cancelPairing(id); g.reconcile().run() }
     /** Peer ids with a Pair again call running; their button is greyed so a second tap cannot cancel the first. */
     val pairingAgain = MutableStateFlow<Set<String>>(emptySet())
     fun pairAgain(id: String) {
         if (id in pairingAgain.value) return
         pairingAgain.update { it + id }
-        io {
+        io(UiText.unablePair(nameOf(id))) {
             try {
                 val offered = g.store.peer(id)?.offersPairAgain == true
                 val r = g.pairing().pairAgain(id, System.currentTimeMillis()) { g.reconcile().run() }
@@ -234,23 +243,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
-    fun approve(id: String) = once("approve:$id") {
+    fun approve(id: String) = once("approve:$id", UiText.unableConfirm(nameOf(id))) {
         val r = g.approve().approve(id)
-        if (r !is ApiResult.Ok) message.value = ErrorText.of(r)
+        if (r !is ApiResult.Ok) message.value = ErrorText.of(UiText.unableConfirm(nameOf(id)), r)
         g.session.updateShortcuts()
     }
-    fun deny(id: String) = once("deny:$id") { val r = g.approve().deny(id); if (r !is ApiResult.Ok) message.value = ErrorText.of(r) }
-    fun remove(id: String) = once("remove:$id") { g.session.removePeer(id)?.let { message.value = it } }
-    fun localDelete(id: String) = io { g.session.localDelete(id) }
-    fun setHidden(id: String, hidden: Boolean) = io { g.session.setHidden(id, hidden) }
-    fun setShareShown(id: String, shown: Boolean) = io { g.settings.setShareShown(id, shown); g.session.updateShortcuts() }
-    fun tapGreyed() = io { g.session.fetchPeers() }
-    fun setPeerSwitch(id: String, lock: Boolean? = null, watch: Boolean? = null, showContent: Boolean? = null) = io {
+    fun deny(id: String) = once("deny:$id", UiText.unableReject(nameOf(id))) {
+        val r = g.approve().deny(id); if (r !is ApiResult.Ok) message.value = ErrorText.of(UiText.unableReject(nameOf(id)), r)
+    }
+    fun remove(id: String) = once("remove:$id", UiText.unableRemove(nameOf(id))) { g.session.removePeer(id)?.let { message.value = it } }
+    fun localDelete(id: String) = io(UiText.unableRemove(nameOf(id))) { g.session.localDelete(id) }
+    fun setHidden(id: String, hidden: Boolean) = io(UiText.UNABLE_CHANGE_SETTING) { g.session.setHidden(id, hidden) }
+    fun setShareShown(id: String, shown: Boolean) = io(UiText.UNABLE_CHANGE_SETTING) { g.settings.setShareShown(id, shown); g.session.updateShortcuts() }
+    fun tapGreyed() = io(UiText.UNABLE_REFRESH) { g.session.fetchPeers() }
+    fun setPeerSwitch(id: String, lock: Boolean? = null, watch: Boolean? = null, showContent: Boolean? = null) = io(UiText.UNABLE_CHANGE_SETTING) {
         g.dao.updatePeerSwitches(id, lock, watch, showContent)
     }
 
     /** Peers-screen open: re-enqueue pending pair sends and check timeouts. */
-    fun onPeersOpen() = io {
+    fun onPeersOpen() = io(UiText.UNABLE_REFRESH) {
         if (g.identity() == null) return@io
         for (r in g.store.pairings()) if (r.pendingMessage != null) com.pusharmor.app.work.Work.pairSend(g.app, r.peerId, replace = true)
         g.session.checkTimeouts(System.currentTimeMillis(), refetch = true)
@@ -272,18 +283,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** History row to scroll to and flash once. */
     val flashRow = MutableStateFlow<Long?>(null)
 
-    /** An unexpected error (no keys, a Keystore failure) gives [NOT_DONE] instead of crashing the app. */
+    /** An unexpected error (no keys, a Keystore failure) gives "Unable to send." and why instead of crashing the app. */
     suspend fun send(recipients: List<String>, text: String, asText: Boolean): SendResult = withContext(Dispatchers.IO) {
         if (com.pusharmor.app.BuildConfig.SCREENSHOT_MODE && com.pusharmor.app.ScreenshotMode.on) com.pusharmor.app.ScreenshotMode.sendResult?.let { return@withContext SendResult(it) }
         try {
             val type = if (asText) ContentType.TEXT else Detect.type(text)
             val value = if (type == ContentType.TEXT) text else text.trim()
             val out = g.sender().send(recipients, type, value, System.currentTimeMillis())
-            if (out.error != null) return@withContext SendResult(ErrorText.of(out.error!!))
+            if (out.error != null) return@withContext SendResult(ErrorText.of(UiText.UNABLE_SEND, out.error!!, UiText.pushHost(g.settings.get(Settings.K.UP_ENDPOINT))))
             sendResult(recipients.size, out) { id -> g.store.peer(id)?.let(::label) }
         } catch (e: CancellationException) { throw e } catch (e: Exception) {
             Log.w("PushArmor", "send failed", e)
-            SendResult(NOT_DONE)
+            SendResult(ErrorText.text(UiText.UNABLE_SEND, localReason(e)))
         }
     }
 
@@ -297,7 +308,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- settings ----
 
-    fun <T> setPref(key: androidx.datastore.preferences.core.Preferences.Key<T>, v: T?) = io {
+    fun <T> setPref(key: androidx.datastore.preferences.core.Preferences.Key<T>, v: T?) = io(UiText.UNABLE_CHANGE_SETTING) {
         g.settings.set(key, v)
         if (key == Settings.K.HISTORY_DAYS) g.session.purgeHistory()
     }
@@ -308,15 +319,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         com.pusharmor.app.ui.theme.ThemePref.applyToSystem(getApplication(), t)
     }
 
-    fun deleteAllHistory() = io { g.dao.deleteAllHistory() }
-    fun deleteHistory(ids: List<Long>) = io { g.dao.deleteHistory(ids) }
-    fun markRead(id: Long) = io { g.dao.markRead(id) }
-    fun rename(name: String) = io { g.session.rename(name)?.let { message.value = it } }
-    fun signOut(onDone: () -> Unit) = once("logout") {
+    fun deleteAllHistory() = io(UiText.UNABLE_DELETE_HISTORY) { g.dao.deleteAllHistory() }
+    fun deleteHistory(ids: List<Long>) = io(UiText.UNABLE_DELETE_HISTORY) { g.dao.deleteHistory(ids) }
+    fun markRead(id: Long) = io(null) { g.dao.markRead(id) }
+    fun rename(name: String) = io(UiText.UNABLE_RENAME) { g.session.rename(name)?.let { message.value = it } }
+    fun signOut(onDone: () -> Unit) = once("logout", UiText.UNABLE_LOGOUT) {
         g.session.signOut()
         setStart(Session.Start.SIGNED_OUT)
         withContext(Dispatchers.Main) { onDone() }
     }
-    fun switchPush(toUp: Boolean) = io { if (toUp) g.push.switchToUnifiedPush(g) else g.push.switchToGoogle(g) }
-    fun retryPush() = io { com.pusharmor.app.work.Work.patchPush(g.app) }
+    fun switchPush(toUp: Boolean) = io(UiText.UNABLE_CHANGE_SETTING) { if (toUp) g.push.switchToUnifiedPush(g) else g.push.switchToGoogle(g) }
+    fun retryPush() = io(UiText.UNABLE_TURN_ON_NOTIFICATIONS) { com.pusharmor.app.work.Work.patchPush(g.app) }
 }

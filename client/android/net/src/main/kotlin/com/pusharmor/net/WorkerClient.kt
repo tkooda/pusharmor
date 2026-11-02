@@ -274,27 +274,73 @@ class WorkerClient(
     }
 }
 
-/** Catalog error words -> UI strings. */
+/** Catalog error words -> UI strings: line 1 says what could not be done, line 2 ([reason]) says why. */
 object ErrorText {
+    const val UNREACHABLE = "The relay server could not be reached. Check your internet connection and try again."
+    const val SERVER_DOWN = "The relay server is not working right now. Try again later."
     /** Text for HTTP 426. */
-    const val UPDATE = "Update PushArmor to continue."
+    const val UPDATE = "This version of PushArmor is too old. Update PushArmor to continue."
+    const val REMOVED = "This device was removed from the account. Log in again."
+    const val LOGGED_OUT = "This device is logged out. Log in to resume."
+    const val LOGIN_EXPIRED = "The login expired. Log in again."
+    const val BAD_LINK = "The login link is not valid. Request a new code and try again."
+    const val CLOCK_OFF = "This device's clock is off by more than 5 minutes. Fix the clock and try again."
+    const val BLOCKED = "This account is blocked."
+    const val WRONG_CODE = "The code is not correct. Check the newest email from PushArmor and try again."
+    const val CODE_EXPIRED = "The code expired. Request a new code to continue."
+    const val SECURITY_CHECK = "The security check did not finish. Try again."
+    const val EMAIL_NOT_SENT = "The relay server could not send the email. Try again."
+    const val BAD_EMAIL = "Only email addresses with plain ASCII characters are supported."
+    const val EMAIL_NOT_VERIFIED = "This Google account has no verified email address."
+    const val GOOGLE_NOT_CONFIRMED = "Google did not confirm the login. Try again."
+    const val BAD_REPLY = "The relay server sent a reply this device cannot use. Try again."
+    const val REFUSED = "The relay server did not accept the request. Update PushArmor and try again."
+    const val TOO_LONG = "The message is longer than 2048 characters."
+    const val PUSH_NOT_SUPPORTED = "This device's push service is not supported yet."
+    const val KEYS_UNUSABLE = "This device's security keys cannot be used right now. Restart the device and try again."
+    const val STORAGE_FULL = "Storage is full. Free some space and try again."
+    const val SAVE_FAILED = "PushArmor could not save its data on this device. Restart PushArmor and try again."
+    const val SAVE_DENIED = "PushArmor is not allowed to save there. Choose another location."
+    /** Any other or unexpected failure: no reason sentence. */
+    const val TRY_AGAIN = "Try again."
 
-    fun of(r: ApiResult<*>): String = when (r) {
-        is ApiResult.Ok -> ""
-        ApiResult.Network -> "No connection. Try again."
+    /** Two lines: [action] ("Unable to send.") and [reason]. */
+    fun text(action: String, reason: String): String = action + "\n" + reason
+
+    /** [action] and the reason for [r]. */
+    fun of(action: String, r: ApiResult<*>, pushHost: String? = null): String = text(action, reason(r, pushHost))
+
+    /**
+     * Why a call failed. A 2xx reply reaches here only when its body could not be used. A failed id check
+     * (401 "bad id") is not a removal: it gets the plain [TRY_AGAIN]. [pushHost] is added as a third line
+     * to an unsupported push service.
+     */
+    fun reason(r: ApiResult<*>, pushHost: String? = null): String = when (r) {
+        is ApiResult.Ok -> BAD_REPLY
+        ApiResult.Network -> UNREACHABLE
         is ApiResult.Http -> when {
-            r.status == 401 && r.error == "clock skew" -> "This device's clock is off by more than 5 minutes."
-            r.status == 401 && r.error == "logged out" -> "Logged out. Log in to resume."
-            r.status == 401 && r.error == "ticket expired" -> "Login expired. Log in again."
-            r.status == 401 && r.error == "unknown peer" -> "This device was removed. Log in again."
-            r.status == 400 && r.error == "bad email" -> "Only email addresses with plain ASCII characters are supported."
-            r.status == 400 && r.error == "push endpoint not allowed" -> "This push service is not supported yet."
-            r.status == 413 -> "Too long."
+            r.error == "bad reply" || r.status in 200..299 -> BAD_REPLY
             r.status == 426 -> UPDATE
             r.status == 429 -> tooMany(r.retryAfter ?: 60)
-            r.status == 502 -> "Could not send the email. Try again."
-            r.status == 403 && r.error == "banned" -> "This account is blocked."
-            else -> "Something went wrong. Try again."
+            r.status == 413 -> TOO_LONG
+            r.status == 401 && r.error == "clock skew" -> CLOCK_OFF
+            r.status == 401 && r.error == "unknown peer" -> REMOVED
+            r.status == 401 && r.error == "logged out" -> LOGGED_OUT
+            r.status == 401 && r.error == "invalid client signature" -> REFUSED
+            r.status == 401 && r.error == "ticket expired" -> LOGIN_EXPIRED
+            r.status == 401 && (r.error == "invalid ticket" || r.error == "bad ticket") -> BAD_LINK
+            r.status == 401 && r.error == "wrong code" -> WRONG_CODE
+            r.status == 401 && r.error == "code expired" -> CODE_EXPIRED
+            r.status == 401 && r.error == "email not verified" -> EMAIL_NOT_VERIFIED
+            r.status == 401 && r.error == "invalid id_token" -> GOOGLE_NOT_CONFIRMED
+            r.status == 403 && r.error == "banned" -> BLOCKED
+            r.status == 403 && r.error == "turnstile failed" -> SECURITY_CHECK
+            r.status == 400 && r.error == "bad email" -> BAD_EMAIL
+            r.status == 400 && r.error == "push endpoint not allowed" -> PUSH_NOT_SUPPORTED + (pushHost?.let { "\n($it)" } ?: "")
+            (r.status == 400 && r.error == "bad request") || r.status == 404 || r.status == 405 -> REFUSED
+            r.status == 502 -> EMAIL_NOT_SENT
+            r.status in 500..599 -> SERVER_DOWN
+            else -> TRY_AGAIN
         }
     }
 
@@ -305,6 +351,6 @@ object ErrorText {
         return if (s == 1L) "1 second" else "$s seconds"
     }
 
-    /** HTTP 429: "Too many requests. Try again in 2 minutes." or "... in 30 seconds.". */
-    fun tooMany(seconds: Long): String = "Too many requests. Try again in ${wait(seconds * 1000)}."
+    /** HTTP 429: "Too many tries. Try again in 2 minutes." or "... in 30 seconds.". */
+    fun tooMany(seconds: Long): String = "Too many tries. Try again in ${wait(seconds * 1000)}."
 }

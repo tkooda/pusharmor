@@ -245,9 +245,9 @@ class ScreenshotCapture {
         ScreenshotMode.sendText = "https://example.com/recipes/weeknight-pasta"
         ScreenshotMode.sendTo = listOf(laptop, desktop, tablet)
         main("send", await = "Tablet")
-        ScreenshotMode.sendResult = ErrorText.of(ApiResult.Network)
+        ScreenshotMode.sendResult = ErrorText.of("Unable to send.", ApiResult.Network)
         tap("Send to 3 devices")
-        awaitText("No connection")
+        awaitText("Unable to send.")
         settle(500)
         shot("96-send-error")
         ScreenshotMode.sendResult = null
