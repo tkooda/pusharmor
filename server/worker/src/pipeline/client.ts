@@ -1,5 +1,6 @@
 // PA-Client: "<platform>/<x.y.z>". Logged when well formed; 426 when older than PA_MIN_CLIENT.
-// A missing or malformed header, or PA_MIN_CLIENT unset or malformed, never blocks a request.
+// PA_MIN_CLIENT unset or malformed never blocks a request. With a floor set, a signed request
+// (PA-ID or PA-Sig) with a missing or malformed header gets 426; an unsigned one passes.
 // The website sends "delete-account" or "cli-login" instead: never held to a floor, and
 // refused on every route and action other than its own.
 import { ApiError } from "../errors";
@@ -40,8 +41,19 @@ function lower(a: number[], b: number[]): boolean {
 // PA_MIN_CLIENT is "x.y.z" (the floor of every platform) or a list "android=0.0.22,ios=0.0.20"
 // (a floor per platform; an unlisted platform has none). Platforms skip version numbers, so
 // one floor above the latest release of a platform would lock that platform out.
-export function checkMinClient(client: { platform: string; version: number[] } | null, min: string | undefined): void {
-  if (client === null || min === undefined) return;
+function anyFloor(min: string): boolean {
+  return VERSION.test(min) || min.split(",").some((e) => {
+    const m = /^([a-z]+)=(.+)$/.exec(e.trim());
+    return m !== null && VERSION.test(m[2]);
+  });
+}
+
+export function checkMinClient(client: { platform: string; version: number[] } | null, min: string | undefined, signed: boolean): void {
+  if (min === undefined) return;
+  if (client === null) {
+    if (signed && anyFloor(min)) throw new ApiError(426, "update required");
+    return;
+  }
   let floor = VERSION.exec(min);
   if (floor === null) {
     const hit = min.split(",").map((e) => /^([a-z]+)=(.+)$/.exec(e.trim())).find((m) => m !== null && m[1] === client.platform);

@@ -32,7 +32,8 @@ export async function handle(req: Request, env: Env, exec: ExecutionContext): Pr
     } else {
       // 3. Client version floor (PA_MIN_CLIENT); website values only on their own routes.
       checkSiteRoute(ch, m.template);
-      checkMinClient(client, env.PA_MIN_CLIENT);
+      const signed = req.headers.has("PA-ID") || req.headers.has("PA-Sig");
+      if (!isSiteValue(ch)) checkMinClient(client, env.PA_MIN_CLIENT, signed);
       // 4. Capped body read; raw bytes kept for PA-Sig.
       const body = await readBody(req);
       log.body_bytes = body.length;

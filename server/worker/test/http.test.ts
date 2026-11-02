@@ -177,7 +177,7 @@ describe("PA-Client", () => {
     expect(seen).toEqual(["android/0.0.19", "cli/1.2.3", "invalid", undefined]);
   });
 
-  it("426 only when PA_MIN_CLIENT is set and the version is lower", async () => {
+  it("426 only when PA_MIN_CLIENT is set and the version is lower, or missing on a signed request", async () => {
     const p = await newPeer(randomEmail());
     const min = await testEnv({ PA_MIN_CLIENT: "0.1.10" } as Partial<Env>);
     const st = async (h: string | null, e: Env) => (await call("GET", "/v1/peers", undefined, { peer: p, env: e, headers: h === null ? {} : { "PA-Client": h } }));
@@ -186,15 +186,31 @@ describe("PA-Client", () => {
     expect(r.body).toEqual({ error: "update required" });
     expect(r.res.headers.get("PA-Epoch")).toMatch(/^[0-9]{10}$/);
     expect((await st("chrome/0.0.99", min)).status).toBe(426);
-    for (const h of ["ios/0.1.10", "web/0.2.0", "cli/1.0.0", "ios/0.1", null]) expect((await st(h, min)).status, String(h)).toBe(200);
+    for (const h of ["ios/0.1.10", "web/0.2.0", "cli/1.0.0"]) expect((await st(h, min)).status, String(h)).toBe(200);
     const unset = await testEnv();
-    expect((await st("android/0.0.1", unset)).status).toBe(200);
-    expect((await st("android/0.0.1", await testEnv({ PA_MIN_CLIENT: "junk" } as Partial<Env>))).status).toBe(200);
+    const junk = await testEnv({ PA_MIN_CLIENT: "junk" } as Partial<Env>);
+    for (const h of ["android/0.0.1", "ios/0.1", null]) {
+      expect((await st(h, unset)).status, String(h)).toBe(200);
+      expect((await st(h, junk)).status, String(h)).toBe(200);
+    }
     // A per-platform floor blocks only the listed platforms.
     const per = await testEnv({ PA_MIN_CLIENT: "android=0.0.22, ios=0.0.20" } as Partial<Env>);
     expect((await st("android/0.0.21", per)).status).toBe(426);
     expect((await st("ios/0.0.19", per)).status).toBe(426);
     for (const h of ["android/0.0.22", "ios/0.0.20", "chrome/0.0.1", "cli/0.0.1"]) expect((await st(h, per)).status, h).toBe(200);
+    // With a floor set, a signed request must carry a well-formed PA-Client.
+    for (const e of [min, per]) {
+      for (const h of ["ios/0.1", "android/0.0.19 x", null]) {
+        const r = await st(h, e);
+        expect(r.status, String(h)).toBe(426);
+        expect(r.body).toEqual({ error: "update required" });
+      }
+    }
+    const k = await keys();
+    expect((await call("DELETE", "/v1/account", { x: 1 }, { sign: k.sign, env: min })).status).toBe(426);
+    expect((await call("DELETE", "/v1/account", { x: 1 }, { sign: k.sign, env: min, headers: { "PA-Client": "delete-account" } })).status).toBe(400);
+    // Unsigned requests without the header pass.
+    expect((await call("POST", "/v1/auth/email", { x: 1 }, { env: min })).status).toBe(400);
     // Preflight carries no PA-Client and is never refused.
     expect((await call("OPTIONS", "/v1/account", undefined, { env: min, headers: { Origin: ORIGIN } })).status).toBe(204);
   });

@@ -73,8 +73,8 @@ the monthly Workers Logs overage passes a few dollars. How: set `"PA_LOG_SAMPLE"
 Clients send `PA-Client: <platform>/<x.y.z>` (android, ios, chrome, firefox, web, cli). The
 log line carries it as `client` (`"invalid"` when malformed). When the var `PA_MIN_CLIENT`
 (`x.y.z`, or a per-platform list `android=0.0.22,ios=0.0.20` where an unlisted platform has no floor) is set, a request whose PA-Client version is lower gets 426
-`{"error":"update required"}`. Unset (now): never 426. A missing or malformed header is
-always allowed.
+`{"error":"update required"}`. Unset (now): never 426. With a floor set, a signed request
+(PA-ID or PA-Sig) with a missing or malformed header also gets 426; an unsigned one passes.
 
 The website sends `PA-Client: delete-account` on the /delete-account page and
 `PA-Client: cli-login` on the /auth/cli page. These two values are never held to a floor.
