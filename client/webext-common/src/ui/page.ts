@@ -28,8 +28,9 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
   clear(root);
   const [route, arg] = hash.replace(/^#/, "").split("=");
   document.body.classList.toggle("signin-bg", route === "login");
-  if ((await rpc<StateView>(env, "state")).updateRequired) {
-    root.append(updateCard(env));
+  const up = await rpc<StateView>(env, "state");
+  if (up.updateRequired) {
+    root.append(updateCard(env, up.recheckLocked, () => void mountRoute(env, root, hash, selfOrigin)));
     return;
   }
   if (route === "login") return loginView(env, root, arg ?? null, selfOrigin);

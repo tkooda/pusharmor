@@ -393,7 +393,7 @@ test("Send with every device greyed says no device can receive now", async () =>
 test("popup update and log in screens start with focus on their button", async () => {
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
-  assert.match(pop, /append\(updateCard\(env\)\);\s*root\.querySelector<HTMLElement>\("button\.primary"\)\?\.focus\(\);/);
+  assert.match(pop, /append\(updateCard\(env, [^\n]*\)\);\s*root\.querySelector<HTMLElement>\("button\.primary"\)\?\.focus\(\);/);
   assert.match(pop, /clear\(root\)\.append\(h\("div", \{ class: "top" \}[^\n]*, panel\);\s*root\.querySelector<HTMLElement>\("button\.primary"\)\?\.focus\(\);/);
 });
 

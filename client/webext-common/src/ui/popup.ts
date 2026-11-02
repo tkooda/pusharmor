@@ -42,7 +42,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   }
   if (my !== mounts) return;
   if (st.updateRequired) {
-    clear(root).append(updateCard(env));
+    clear(root).append(updateCard(env, st.recheckLocked, () => void mountPopup(env, root)));
     root.querySelector<HTMLElement>("button.primary")?.focus(); // start on the one action
     return;
   }
@@ -136,8 +136,19 @@ function setupBar(env: UiEnv, st: StateView): HTMLElement | null {
   );
 }
 
-/** HTTP 426: this version no longer works with the relay server. */
-export function updateCard(env: UiEnv): HTMLElement {
+/**
+ * HTTP 426: this version no longer works with the relay server. "Check again"
+ * asks once (then greyed for an hour); again() draws the view after the check.
+ */
+export function updateCard(env: UiEnv, locked: boolean, again: () => void): HTMLElement {
+  const check = h("button", { class: "big", disabled: locked }, locked ? "Try again later." : "Check again") as HTMLButtonElement;
+  check.addEventListener("click", async () => {
+    if (check.disabled) return;
+    check.disabled = true;
+    check.textContent = "Try again later.";
+    await rpc(env, "recheck").catch(() => undefined);
+    again();
+  });
   return h(
     "div",
     { class: "signin", role: "alert" },
@@ -145,7 +156,7 @@ export function updateCard(env: UiEnv): HTMLElement {
     wordmark(env, 24),
     h("h1", { class: "banner" }, "Please update PushArmor"),
     h("p", { class: "slogan" }, "This version no longer works with the relay server. Update to keep sending and receiving."),
-    h("button", { class: "primary big", onclick: () => env.openUrl("https://pusharmor.com/download") }, "Update"),
+    h("div", { class: "btns" }, check, h("button", { class: "primary big", onclick: () => env.openUrl("https://pusharmor.com/download") }, "Update")),
   );
 }
 

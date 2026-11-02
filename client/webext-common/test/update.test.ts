@@ -12,8 +12,12 @@ import { Clock, FakePlatform, MockWorker, device, pairAndApprove } from "./harne
 class N {
   kids: N[] = [];
   attrs: Record<string, string> = {};
-  on: Record<string, () => void> = {};
+  on: Record<string, () => unknown> = {};
   text = "";
+  disabled = false;
+  set textContent(s: string) {
+    this.kids = [Object.assign(new N("#text"), { text: s })];
+  }
   tag: string;
   constructor(tag: string) {
     this.tag = tag;
@@ -55,6 +59,9 @@ function withDom<T>(fn: () => Promise<T>): Promise<T> {
   });
 }
 
+const label = (n: N) => n.kids.map((k) => k.text).join("");
+const isOff = (n: N) => n.disabled || "disabled" in n.attrs;
+
 test("426 from the relay server: popup and page show the update screen until the version changes", async () => {
   const clock = new Clock();
   const w = new MockWorker(clock);
@@ -86,9 +93,9 @@ test("426 from the relay server: popup and page show the update screen until the
       const texts = all.filter((n) => n.tag === "#text").map((n) => n.text);
       assert.ok(texts.includes("Please update PushArmor"));
       assert.ok(texts.some((t) => /no longer works with the relay server/.test(t)));
-      const btn = all.find((n) => n.tag === "button")!;
-      assert.equal(all.filter((n) => n.tag === "button").length, 1);
-      btn.on.click!();
+      const btns = all.filter((n) => n.tag === "button");
+      assert.deepEqual(btns.map(label), ["Check again", "Update"]); // the affirmative action on the right
+      btns[1]!.on.click!();
     });
   }
   assert.deepEqual(opened, ["https://pusharmor.com/download", "https://pusharmor.com/download"]);
@@ -96,4 +103,68 @@ test("426 from the relay server: popup and page show the update screen until the
   // a newer extension version starts clean
   (a.p as FakePlatform).appVersion = "0.0.20";
   assert.equal((await rpc.state()).updateRequired, false);
+});
+
+test("Check again asks the relay server at most once an hour and leaves the update screen when it accepts this version", async () => {
+  const clock = new Clock();
+  const w = new MockWorker(clock);
+  const a = await device(w, clock);
+  const rpc = new Rpc(a.e);
+  w.floor = "0.0.20"; // this device runs 0.0.19
+  await a.e.fetchPeersNow().catch(() => undefined);
+  assert.equal((await rpc.state()).updateRequired, true);
+  let opens = 0;
+  let stubOpen = false; // the tiny DOM cannot draw the full popup: the redraw after the check fails on purpose
+  const env = {
+    call: (r) => {
+      if (r.op === "popupOpen") opens++;
+      return stubOpen && r.op === "popupOpen" ? Promise.resolve({ ok: false, error: "stub" }) : rpc.handle(r);
+    },
+    activeUrl: async () => "",
+    openPage: () => undefined,
+    openUrl: () => undefined,
+    saveFile: async () => null,
+    copy: async () => undefined,
+    beta: false,
+    theme: memoryThemeStore("light"),
+  } as UiEnv;
+  const health = () => w.calls.filter((c) => c.method === "GET" && c.path === "/v1/health");
+  const open = async () => {
+    const root = new N("main");
+    await mountPopup(env, root as unknown as HTMLElement);
+    return root;
+  };
+  const check = (root: N) => root.all().filter((n) => n.tag === "button")[0]!; // left of Update
+  await withDom(async () => {
+    // still refused: the screen stays and the button is locked for the hour
+    let root = await open();
+    let btn = check(root);
+    assert.equal(label(btn), "Check again");
+    assert.equal(isOff(btn), false);
+    await btn.on.click!();
+    assert.equal(health().length, 1);
+    assert.equal(health()[0]!.client, "chrome/0.0.19");
+    assert.equal((await rpc.state()).updateRequired, true);
+    root = await open();
+    btn = check(root);
+    assert.equal(label(btn), "Try again later.");
+    assert.ok(isOff(btn));
+    // within the hour: no request even when asked directly
+    w.floor = "0.0.1";
+    await rpc.handle({ op: "recheck" });
+    assert.equal(health().length, 1);
+    assert.equal((await rpc.state()).updateRequired, true);
+    // after the hour the button is enabled again; the relay server now accepts this version
+    clock.t += 3600_000;
+    root = await open();
+    btn = check(root);
+    assert.equal(label(btn), "Check again");
+    assert.equal(isOff(btn), false);
+    stubOpen = true;
+    const before = opens;
+    await btn.on.click!();
+    assert.equal(opens, before + 1); // the popup draws again
+    assert.equal(health().length, 2);
+    assert.equal((await rpc.state()).updateRequired, false);
+  });
 });

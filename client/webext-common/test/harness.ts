@@ -147,6 +147,8 @@ export class MockWorker {
   calls: { method: string; path: string; body: unknown; client: string | null }[] = [];
   inject: Injected[] = [];
   skewMs = 0;
+  /** Lowest accepted client version "x.y.z"; an older PA-Client gets 426 on every route. */
+  floor: string | null = null;
   readonly clock: Clock;
   constructor(clock: Clock) {
     this.clock = clock;
@@ -197,6 +199,13 @@ export class MockWorker {
       }
     }
     const h = new Headers(init.headers);
+    if (this.floor) {
+      const v = (h.get("PA-Client") ?? "").split("/")[1]?.split(".").map(Number) ?? [];
+      const f = this.floor.split(".").map(Number);
+      const i = [0, 1, 2].find((k) => v[k] !== f[k]);
+      if (i !== undefined && !((v[i] ?? 0) > f[i]!)) return this.reply(426, { error: "update required" });
+    }
+    if (path === "/v1/health" && method === "GET") return new Response("ok", { status: 200 });
     const t = h.get("PA-Time");
     const sig = h.get("PA-Sig");
     const pid = h.get("PA-ID");

@@ -56,6 +56,8 @@ export interface StateView {
   setupNeeded: boolean;
   /** The relay server refused this version (HTTP 426): every view shows the update screen. */
   updateRequired: boolean;
+  /** "Check again" on the update screen was used less than an hour ago. */
+  recheckLocked: boolean;
   /** This browser cannot receive: its push service refused, or the relay server refused the push. */
   pushIssue: "refused" | "relay" | null;
 }
@@ -91,6 +93,8 @@ export class Rpc {
       case "state":
         void e.retryPendingLogout().catch(() => undefined); // full tab open
         return this.state();
+      case "recheck":
+        return e.recheckUpdate();
       case "popupOpen":
         // draw from the local state at once; the network work runs behind it
         void e.onPopupOpen().catch(() => undefined);
@@ -209,6 +213,7 @@ export class Rpc {
       receiveMode: (await e.db.meta<string>("receive_mode")) ?? null,
       receiveNote: (await e.db.meta<string>("receive_note")) ?? null,
       updateRequired: await e.updateRequired(),
+      recheckLocked: await e.recheckLocked(),
       setupNeeded,
       // the Firefox setup note covers a missing push
       pushIssue: setupNeeded ? null : ((await e.db.meta<"refused" | "relay">("push_issue")) ?? null),

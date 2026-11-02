@@ -51,6 +51,7 @@ import {
   PAIR_MSG_PREFIX,
   PAIR_PREFIX,
   type PairEntry,
+  RECHECK_AT,
   REG_MARKER,
   UPDATE_NEEDED,
   allEntries,
@@ -168,6 +169,30 @@ export class Engine {
   /** true once the relay server refused this version (HTTP 426); a newer version starts clean. */
   async updateRequired(): Promise<boolean> {
     return (await this.p.storageLocal.get([UPDATE_NEEDED]))[UPDATE_NEEDED] === this.p.appVersion;
+  }
+
+  /** true for an hour after "Check again" on the update screen. */
+  async recheckLocked(): Promise<boolean> {
+    const at = (await this.p.storageLocal.get([RECHECK_AT]))[RECHECK_AT];
+    const d = now(this.p) - (typeof at === "number" ? at : 0);
+    return d >= 0 && d < 3600e3;
+  }
+
+  /**
+   * "Check again" on the update screen: one GET /v1/health, at most once an hour.
+   * The time is stored first, so a failed check locks the button too. Only a 2xx
+   * clears the update screen; 426, any other status, or no reply keeps it.
+   */
+  async recheckUpdate(): Promise<void> {
+    if (await this.recheckLocked()) return;
+    await this.p.storageLocal.set({ [RECHECK_AT]: now(this.p) });
+    try {
+      await this.api.call("GET", "/health", { noRetry: true });
+    } catch {
+      return;
+    }
+    await this.p.storageLocal.remove([UPDATE_NEEDED]);
+    await this.authChanged();
   }
 
   /** Tells open popups and tabs that the login state changed: they mount again. */
