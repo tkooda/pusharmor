@@ -98,8 +98,9 @@ RETURNING 1`;
 export const W_DEL = `DELETE FROM peers WHERE account = ?2 AND id = ?1`;
 
 // A pending entry is [store time, c]; the monthly cron drops it this long after the store.
-// Longer than the 30-day pairing timeout, so a waiting re-fetch still finds it.
-export const PENDING_TTL_S = 2592000;
+// The Worker stamps an entry when it is written, at or after the time the client starts its 14-day
+// pairing timer, so the entry lives at least as long as a client waits.
+export const PENDING_TTL_S = 1209600;
 // peers.rm (migrations/0008): at most 8 entries of about 3900 chars (key, time, message of at most
 // 3800 chars), so 32000 chars always fit and a DELETE never gets 413. Entries expire like pending.
 export const RM_MAX_ENTRIES = 8;

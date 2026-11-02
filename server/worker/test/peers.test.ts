@@ -546,11 +546,11 @@ describe("stored remove messages (peers.rm)", () => {
     expect((await row(c.id))!.rm).toBe(newer);
   });
 
-  it("keeps the newest 8 entries and drops entries older than 30 days on write", async () => {
+  it("keeps the newest 8 entries and drops entries older than 14 days on write", async () => {
     const email = randomEmail();
     const a = await newPeer(email);
     const c = await newPeer(email);
-    const old = NOW - 2592000 - 100;
+    const old = NOW - 1209600 - 100;
     const seed: Record<string, [number, string]> = {};
     for (let i = 0; i < 7; i++) seed["S" + String(i).padStart(39, "0")] = [NOW - 1000 + i, message(40)];
     seed["O" + "0".repeat(39)] = [old, message(40)];
@@ -587,7 +587,7 @@ describe("stored remove messages (peers.rm)", () => {
 
   it("GET omits an entry whose B is listed again; expired entries are not delivered", async () => {
     const { a, b, c } = await trio();
-    const old = NOW - 2592000 - 100;
+    const old = NOW - 1209600 - 100;
     const gone = "G" + "1".repeat(39);
     await env.DB.prepare("UPDATE peers SET rm = ?1 WHERE id = ?2")
       .bind(JSON.stringify({ [b.id]: [NOW, message(40)], [gone]: [old, message(40)] }), c.id).run();
@@ -625,7 +625,7 @@ describe("rm expiry in the monthly cron", () => {
     const c = await newPeer(email);
     const NOWS = Math.floor(Date.now() / 1000);
     await env.DB.prepare("UPDATE peers SET rm = ?1 WHERE id = ?2")
-      .bind(JSON.stringify({ ["O" + "0".repeat(39)]: [NOWS - 2592000 - 5, "a"], ["F" + "0".repeat(39)]: [NOWS - 10, "b"] }), c.id).run();
+      .bind(JSON.stringify({ ["O" + "0".repeat(39)]: [NOWS - 1209600 - 5, "a"], ["F" + "0".repeat(39)]: [NOWS - 10, "b"] }), c.id).run();
     const n = await expirePending(await testEnv(), NOWS, new Log(), 2);
     expect(n).toBe(1);
     expect(JSON.parse((await row(c.id))!.rm as string)).toEqual({ ["F" + "0".repeat(39)]: [NOWS - 10, "b"] });
