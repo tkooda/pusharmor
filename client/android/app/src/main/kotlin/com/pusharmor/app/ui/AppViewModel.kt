@@ -269,13 +269,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** History row to scroll to and flash once. */
     val flashRow = MutableStateFlow<Long?>(null)
 
+    /** An unexpected error (no keys, a Keystore failure) gives [NOT_DONE] instead of crashing the app. */
     suspend fun send(recipients: List<String>, text: String, asText: Boolean): SendResult = withContext(Dispatchers.IO) {
         if (com.pusharmor.app.BuildConfig.SCREENSHOT_MODE && com.pusharmor.app.ScreenshotMode.on) com.pusharmor.app.ScreenshotMode.sendResult?.let { return@withContext SendResult(it) }
-        val type = if (asText) ContentType.TEXT else Detect.type(text)
-        val value = if (type == ContentType.TEXT) text else text.trim()
-        val out = g.sender().send(recipients, type, value, System.currentTimeMillis())
-        if (out.error != null) return@withContext SendResult(ErrorText.of(out.error!!))
-        sendResult(recipients.size, out) { id -> g.store.peer(id)?.let(::label) }
+        try {
+            val type = if (asText) ContentType.TEXT else Detect.type(text)
+            val value = if (type == ContentType.TEXT) text else text.trim()
+            val out = g.sender().send(recipients, type, value, System.currentTimeMillis())
+            if (out.error != null) return@withContext SendResult(ErrorText.of(out.error!!))
+            sendResult(recipients.size, out) { id -> g.store.peer(id)?.let(::label) }
+        } catch (e: CancellationException) { throw e } catch (e: Exception) {
+            Log.w("PushArmor", "send failed", e)
+            SendResult(NOT_DONE)
+        }
     }
 
     /** Snackbar text for [out]; a send that reached a device carries its History row and is posted to [sent]. */

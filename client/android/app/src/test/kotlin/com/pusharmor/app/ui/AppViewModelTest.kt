@@ -123,4 +123,14 @@ class AppViewModelTest {
         waitFor { job.isCompleted }
         assertEquals(Session.NO_KEYS, vm.message.value) // reached register(), which needs keys
     }
+
+    /** A send that throws (here: no keys) returns the not-done text instead of crashing the app. */
+    @Test fun sendErrorGivesNotDone() {
+        val vm = vm()
+        vm.g.keysOrNull = null
+        onIo { vm.g.dao.putSelf(SelfEntity(id = "A".repeat(40), accountPrefix = ByteArray(9), name = "t")) }
+        val r = runBlocking { vm.send(listOf("B".repeat(40)), "hi", asText = true) }
+        assertEquals(AppViewModel.NOT_DONE, r.text)
+        assertFalse(r.ok)
+    }
 }
