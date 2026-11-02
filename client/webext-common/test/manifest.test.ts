@@ -34,6 +34,10 @@ test("Firefox matches and host permissions equal FIREFOX-MATCH-LIST and release/
   assert.deepEqual(constants.firefox_host_permissions, HOSTS);
 });
 
+test("Firefox manifest asks for unlimitedStorage", () => {
+  assert.ok(firefox.permissions.includes("unlimitedStorage"));
+});
+
 test("Firefox data_collection_permissions present; the committed gecko id is a placeholder (the build sets it)", () => {
   const g = firefox.browser_specific_settings.gecko;
   assert.deepEqual(g.data_collection_permissions.required, ["personallyIdentifyingInfo", "personalCommunications"]);

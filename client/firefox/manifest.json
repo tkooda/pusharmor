@@ -10,6 +10,7 @@
     "notifications",
     "menus",
     "storage",
+    "unlimitedStorage",
     "activeTab",
     "alarms",
     "downloads",
