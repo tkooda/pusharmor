@@ -454,11 +454,11 @@ final class AppModel: ObservableObject {
     }
 
     func setName(_ name: String) async {
-        guard let core = core, NameEntry.isValidName(name) else { toast = "Use 1 to 32 plain ASCII characters, no double quotes."; return }
+        guard let core = core, NameEntry.isValidName(name) else { toast = ErrorCopy.nameRule; return }
         if (try? core.store.me().name) == nil {
             try? core.store.setMe("name", .text(name))
         } else {
-            _ = try? await core.rename(name)
+            await renameToast(core, name)
         }
         await route()
     }
@@ -675,12 +675,15 @@ final class AppModel: ObservableObject {
 
     func rename(_ name: String) async {
         guard let core = core else { return }
-        do {
-            _ = try await core.rename(name)
-        } catch {
-            toast = "Use 1 to 32 plain ASCII characters, no double quotes."
-        }
+        await renameToast(core, name)
         reload()
+    }
+
+    /// Renames this device; a failure shows the name rule only for a bad name, else the reason.
+    private func renameToast(_ core: Core, _ name: String) async {
+        let result: Result<APIOutcome, Error>
+        do { result = .success(try await core.rename(name)) } catch { result = .failure(error) }
+        if let t = ErrorCopy.renameFailText(name, result) { toast = t }
     }
 
     /// Notification tap routing (section 10).

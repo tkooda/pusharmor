@@ -125,6 +125,7 @@ public enum ErrorCopy {
     /// reaches here only when its body could not be used. `provider` names the sign-in
     /// service for a refused id token.
     public static func reason(from out: APIOutcome?, provider: String? = nil) -> Reason {
+        if out?.isKeysUnusable == true { return .keysUnusable }
         guard let r = out?.reply else { return .unreachable }
         return reason(status: r.status, error: r.error, retryAfter: r.retryAfter, provider: provider)
     }
@@ -155,6 +156,22 @@ public enum ErrorCopy {
         case (502, "email send failed"?): return .emailSendFailed
         case (500 ..< 600, _): return .serverDown
         default: return .unknown
+        }
+    }
+
+    /// The name rule; shown only for a name that breaks it.
+    public static let nameRule = "Use 1 to 32 plain ASCII characters, no double quote."
+
+    /// The toast after a rename of this device, nil when it went through: the name rule only
+    /// for a bad name, else "Unable to rename this device." and the reason.
+    public static func renameFailText(_ name: String, _ result: Result<APIOutcome, Error>) -> String? {
+        guard NameEntry.isValidName(name) else { return nameRule }
+        switch result {
+        case .success(let out):
+            if out.reply?.ok == true { return nil }
+            return text(.rename, reason(from: out))
+        case .failure(let e):
+            return text(.rename, reason(local: e))
         }
     }
 

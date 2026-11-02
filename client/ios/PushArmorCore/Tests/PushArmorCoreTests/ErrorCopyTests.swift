@@ -123,4 +123,20 @@ final class ErrorCopyTests: XCTestCase {
         XCTAssertEqual(ErrorCopy.reason(local: DBError.open("x")), .saveFailed)
         XCTAssertEqual(ErrorCopy.reason(local: Core.CoreError.notPinned), .unknown)
     }
+
+    /// a rename shows the name rule only for a bad name; any other failure says why.
+    func testRenameFailText() {
+        XCTAssertEqual(ErrorCopy.renameFailText("a\"b", .success(.network)), ErrorCopy.nameRule)
+        XCTAssertEqual(ErrorCopy.nameRule, "Use 1 to 32 plain ASCII characters, no double quote.")
+        XCTAssertNil(ErrorCopy.renameFailText("Ndev", .success(reply(200))))
+        XCTAssertEqual(ErrorCopy.renameFailText("Ndev", .success(.network)),
+                       "Unable to rename this device.\nThe relay server could not be reached. Check your internet connection and try again.")
+        XCTAssertEqual(ErrorCopy.renameFailText("Ndev", .success(reply(503))),
+                       "Unable to rename this device.\nThe relay server is not working right now. Try again later.")
+        XCTAssertEqual(ErrorCopy.renameFailText("Ndev", .success(.keysUnusable)),
+                       "Unable to rename this device.\nThis device's security keys cannot be used right now. Restart the device and try again.")
+        XCTAssertEqual(ErrorCopy.renameFailText("Ndev", .failure(Core.CoreError.notPinned)), "Unable to rename this device.\nTry again.")
+        XCTAssertEqual(ErrorCopy.renameFailText("Ndev", .failure(DBError.sql(13, "full"))),
+                       "Unable to rename this device.\nStorage is full. Free some space and try again.")
+    }
 }
