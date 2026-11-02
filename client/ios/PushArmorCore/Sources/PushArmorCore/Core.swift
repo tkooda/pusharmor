@@ -137,9 +137,10 @@ public final class Core: @unchecked Sendable {
     public static let removalCheckKey = "removal_check"
 
     /// The removal check: when a removal signal is pending, one signed GET /v1/peers. A 401
-    /// "unknown peer" reply confirms it: the wipe runs. Any other reply clears the signal and
-    /// keeps the keys. No reply (or 5xx, 426, 429, or a second clock skew) keeps the keys and
-    /// the signal for the next app open. Returns true when the wipe ran.
+    /// "unknown peer" reply confirms it: the wipe runs. A good reply (the device list) clears
+    /// the signal and keeps the keys. Any other answer (no reply, 5xx, 426, 429, any other
+    /// 401, or a second clock skew) keeps the keys and the signal for the next app open.
+    /// Returns true when the wipe ran.
     @discardableResult
     public func confirmRemoval(timeout: Double = 15) async -> Bool {
         guard (try? store.setting(Core.removalCheckKey)) != nil, let id = try? myId(), beginConfirm() else { return false }
@@ -147,12 +148,11 @@ public final class Core: @unchecked Sendable {
         var out = await api.call("GET", "/v1/peers", auth: .signed(keys.signer, id), retry: false, timeout: timeout)
         if out.isClockSkew { out = await api.call("GET", "/v1/peers", auth: .signed(keys.signer, id), retry: false, timeout: timeout) }
         guard let r = out.reply, !out.isClockSkew else { return false }
-        if r.status == 426 || r.status == 429 || r.status >= 500 { return false }
         if r.status == 401 && r.error == "unknown peer" {
             selfRemoved()
             return (try? store.me().removed) == true
         }
-        try? store.setSetting(Core.removalCheckKey, nil)
+        if r.ok { try? store.setSetting(Core.removalCheckKey, nil) }
         return false
     }
 

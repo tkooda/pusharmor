@@ -267,15 +267,20 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(try n.core.store.setting(Core.removalCheckKey), "401")
     }
 
-    /// a removal check GET answered with 401 "logged out" refutes the removal: keys kept,
-    /// the check cleared.
-    func testRemovalCheckLoggedOutKeepsKeys() async throws {
-        let (n, hooks, out) = try await unknownPeerThenCheck([(401, "{\"error\":\"logged out\"}")])
-        XCTAssertNil(out.reply)
-        XCTAssertEqual(w.count("GET", "/v1/peers"), 2)
-        XCTAssertEqual(hooks.wiped, 0)
-        XCTAssertFalse(try n.core.store.me().removed)
-        XCTAssertNil(try n.core.store.setting(Core.removalCheckKey))
+    /// a removal check GET answered with any other 401 or a 4xx is no clear answer: keys
+    /// kept, and the check stays for the next app open.
+    func testRemovalCheckOtherAnswersKeepTheCheck() async throws {
+        var gets = 0
+        for check in [(401, "{\"error\":\"logged out\"}"), (401, "{\"error\":\"bad id\"}"),
+                      (400, "{\"error\":\"bad request\"}"), (404, "{\"error\":\"not found\"}")] {
+            let (n, hooks, out) = try await unknownPeerThenCheck([check])
+            gets += 2
+            XCTAssertNil(out.reply)
+            XCTAssertEqual(w.count("GET", "/v1/peers"), gets)
+            XCTAssertEqual(hooks.wiped, 0)
+            XCTAssertFalse(try n.core.store.me().removed)
+            XCTAssertEqual(try n.core.store.setting(Core.removalCheckKey), "401")
+        }
     }
 
     /// a pushed delete only sets the removal check; the keys stay until the check GET also
