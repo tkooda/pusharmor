@@ -678,6 +678,32 @@ final class StateMachineTests: XCTestCase {
         XCTAssertTrue(try n.core.store.peer(x.id)!.pinned)
     }
 
+    /// a pairing started again while the timeout check waits on a reply is not dropped by
+    /// that check.
+    func testTimeoutCheckSparesPairingStartedDuringResend() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev"), o = try dev("Odev")
+        try await pairToShown(n, x)
+        clock.now += 60
+        try await pairToShown(n, o)
+        let v = await n.core.approve(x.id)                              // waits for X: resent at timeout
+        XCTAssertEqual(v, .stored)
+        _ = w.take(x.id)
+        clock.now += 14 * 86400 + 1
+        let fresh = Data(repeating: 7, count: 32)
+        let store = n.core.store, now = clock.now, oid = o.id.text
+        w.onRequest = { method, path in
+            guard method == "POST", path.hasPrefix("/v1/approve/") else { return }
+            // a new pairing with O starts while the approve to X is in flight
+            try? store.db.exec("UPDATE pairing SET r = ?, started_at = ? WHERE peer_id = ?", [.blob(fresh), .int(now), .text(oid)])
+        }
+        await n.core.checkTimeouts()
+        w.onRequest = nil
+        let eo = try XCTUnwrap(try n.core.store.pairing(o.id))
+        XCTAssertEqual(eo.r, fresh)
+        XCTAssertEqual(eo.startedAt, now)
+        XCTAssertTrue(try n.core.store.peer(o.id)!.pinned)
+    }
+
     func testTimeoutFoundWhileLoggedOutDropsLocallyAndWithdraws() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         await n.core.fetchPeers(force: true)

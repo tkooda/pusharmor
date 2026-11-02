@@ -386,15 +386,24 @@ extension Core {
                 let r = await resendApprove(pp)
                 action = PairDecide.timeout(approveVerified: verified, approved: approved, resend: r)
             }
+            // the read above may be stale after an await: act only on the same, still expired entry
+            func same() throws -> Bool {
+                guard let cur = try store.pairing(e.peerId) else { return false }
+                return cur.r == e.r && cur.startedAt == e.startedAt && Pairing.isExpired(startedAt: cur.startedAt, now: now)
+            }
             switch action {
             case .dropPin:
-                try? store.db.write {
+                let did = (try? store.db.write { () throws -> Bool in
+                    guard try same() else { return false }
                     try store.dropPin(e.peerId)
                     if var q = try store.peer(e.peerId) { q.note = PairNote.timedOut.rawValue; try store.savePeer(q) }
-                }
-                dropped = true
+                    return true
+                }) ?? false
+                if did { dropped = true }
             case .keepPin, .complete:
-                try? store.deletePairing(e.peerId)
+                try? store.db.write {
+                    if try same() { try store.deletePairing(e.peerId) }
+                }
             case .keepWaiting, .resend:
                 break
             }
