@@ -47,7 +47,7 @@ class ShareActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: intent.getStringExtra(Intent.EXTRA_SUBJECT)
+        val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString() ?: intent.getCharSequenceExtra(Intent.EXTRA_SUBJECT)?.toString()
         if (text == null) { finish(); return }
         // The dialog shows at once: a placeholder until the peer read returns, never a blank box.
         setContent { Frame { CircularProgressIndicator(Modifier.padding(24.dp)) } }
