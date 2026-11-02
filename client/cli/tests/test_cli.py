@@ -1183,3 +1183,70 @@ def test_login_after_remote_removal_drops_the_keys_and_registers_fresh(net, tmp_
     answers(monkeypatch, CODE)
     assert run(tmp_path, "login") == 0 and state(tmp_path)["reg"] == "registered"
     assert ("POST", "/v1/peers") in net.log[n:]
+
+
+def _down(*a):
+    raise OSError("network down")
+
+
+@pytest.mark.parametrize("check, code, kept", [
+    (None, pa.EXIT_TEMP, True),  # the relay server still lists this device
+    ("unknown peer", pa.EXIT_LOGIN, False),
+    (_down, pa.EXIT_TEMP, True),
+])
+def test_unknown_device_is_confirmed_before_the_keys_are_deleted(check, code, kept, net, tmp_path, monkeypatch, capsys):
+    login(monkeypatch, tmp_path)
+    monkeypatch.setattr(pa.time, "sleep", lambda s: None)
+    net.hooks[("PATCH", "peers")] = lambda *a: net.reply(401, {"error": "unknown peer"})
+    if check == "unknown peer":
+        net.hooks[("GET", "peers")] = lambda *a: net.reply(401, {"error": "unknown peer"})
+    elif check:
+        net.hooks[("GET", "peers")] = check
+    capsys.readouterr()
+    n = len(net.log)
+    assert run(tmp_path, "rename", "zz") == code
+    assert ("GET", "/v1/peers") in net.log[n:]
+    err = capsys.readouterr().err
+    assert os.path.exists(tmp_path / "keys" / "private.toml") == kept
+    if kept:
+        net.hooks.clear()
+        assert pa.Store(str(tmp_path)).load_keys()["id"]
+        assert err == "The relay server could not be reached. Check your internet connection and try again.\n"
+    else:
+        assert err == pa.REMOVED + "\n"
+
+
+def test_bad_id_never_deletes_the_keys(net, tmp_path, monkeypatch, capsys):
+    login(monkeypatch, tmp_path)
+    net.hooks[("PATCH", "peers")] = lambda *a: net.reply(401, {"error": "bad id"})
+    n = len(net.log)
+    assert run(tmp_path, "rename", "zz") == 1
+    assert net.log[n:] == [("PATCH", net.log[-1][1])]
+    assert os.path.exists(tmp_path / "keys" / "private.toml")
+
+
+def test_remove_message_for_this_device_is_confirmed_first(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = pair_two(monkeypatch, net, a, b)
+    got = {}
+
+    def keep(method, path, headers, body):  # a removes b; the relay server never does it
+        got.update(json.loads(body)["m"])
+        return net.reply(200, {"r": {}})
+
+    net.hooks[("DELETE", "peers")] = keep
+    answers(monkeypatch, "y")
+    assert run(a, "delete", pa.id_hex(idb)[:6]) == 0
+    net.hooks.clear()
+    net.deliver(idb, got[idb])
+    net.stop.set()
+    capsys.readouterr()
+    assert run(b, "listen") == 130
+    err = capsys.readouterr().err
+    assert "could not be reached" in err and pa.REMOVED not in err
+    assert os.path.exists(b / "keys" / "private.toml") and ida in state(b)["peers"]
+    # the same message again is not acted on twice
+    net.deliver(idb, got[idb])
+    capsys.readouterr()
+    assert run(b, "listen") == 130
+    assert "could not be reached" not in capsys.readouterr().err

@@ -955,6 +955,7 @@ REC_KEYS = ("from", "name", "platform", "type", "body", "date")
 NOT_LOGGED_IN = "Not logged in. Run: pusharmor login"
 LOGGED_OUT = "This device is logged out. Run: pusharmor login"
 REMOVED = "This device was removed. Log in again."
+UNREACHABLE = "The relay server could not be reached. Check your internet connection and try again."
 UNREADABLE = "PushArmor received a message it could not read"
 KEY_HEADER = ("# PushArmor private keys of this device. Keep this file secret: with it, anyone can\n"
               "# read the messages sent to this device and send as this device. Do not copy or share it.\n")
@@ -1897,6 +1898,8 @@ def receive_inner(cx, pt, src):
         log(n)
     if fetch:
         cx.refresh_soon()
+    if wipe == REMOVED and not removed_confirmed(cx):
+        raise TempFail(UNREACHABLE, 0)  # keys kept; the message is already marked seen, so it is not acted on again
     if wipe:
         cx.store.wipe()
         raise Fail(wipe, EXIT_LOGIN)
@@ -1909,6 +1912,18 @@ def receive_inner(cx, pt, src):
                 if p:
                     p["seen"] = [m for m in p["seen"] if m != r["n"]]
             raise
+
+
+def removed_confirmed(cx):
+    """One signed GET /v1/peers before the keys are deleted: True only when the relay server
+    answers 401 unknown peer again. Any other answer, or no answer, keeps the keys."""
+    try:
+        cx.api.call("GET", "/v1/peers")
+    except ApiError as e:
+        return e.status == 401 and e.error == "unknown peer"
+    except Fail:
+        return False
+    return False
 
 
 def act(cx, d, r, p, notes):
@@ -2876,6 +2891,9 @@ def _main(argv):
         return e.code
     except ApiError as e:
         if e.status == 401 and e.error == "unknown peer":
+            if not removed_confirmed(cx):
+                log(UNREACHABLE)
+                return EXIT_TEMP
             cx.store.wipe()
             log(REMOVED)
             return EXIT_LOGIN
