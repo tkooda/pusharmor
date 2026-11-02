@@ -13,7 +13,7 @@ import sys
 def check_python(version_info=None):
     """Exit before any import that needs Python 3.9 (this file's syntax parses on 3.6 and later)."""
     if tuple(version_info or sys.version_info)[:2] < (3, 9):
-        sys.stderr.write("PushArmor needs Python 3.9 or later.\n")
+        sys.stderr.write("PushArmor needs Python 3.9 or later. Install a newer Python and try again.\n")
         sys.exit(2)
 
 
@@ -27,8 +27,8 @@ import re
 import unicodedata
 import zlib
 
-CRYPTO_MISSING = ("PushArmor needs the Python cryptography package. Install it with: "
-                  "python3 -m pip install --user cryptography (or: pipx install PushArmor).")
+CRYPTO_MISSING = ('The Python "cryptography" package is missing. Install it with: '
+                  "python3 -m pip install --user cryptography")
 
 try:
     from cryptography.exceptions import InvalidSignature
@@ -985,7 +985,9 @@ REFUSED = "The relay server did not accept the request. Update PushArmor and try
 BAD_LINK = "The login link is not valid. Request a new code and try again."
 TOO_LONG = "The message is longer than 2048 characters."
 STORAGE_FULL = "Storage is full. Free some space and try again."
-UNREADABLE = "PushArmor received a message it could not read"
+DAMAGED = "The file %s is damaged. Delete it and log in again."
+UNREADABLE = "PushArmor could not read a message. It is not valid or was damaged."
+PUSH_DOWN = "The push service at %s could not be reached. Check your internet connection and try again."
 KEY_HEADER = ("# PushArmor private keys of this device. Keep this file secret: with it, anyone can\n"
               "# read the messages sent to this device and send as this device. Do not copy or share it.\n")
 
@@ -1311,11 +1313,12 @@ def check_private(path, want):
     mode = stat.S_IMODE(st.st_mode)
     if st.st_uid == os.getuid() and not mode & 0o077:
         return
-    fix = "chmod %o %s" % (want, path)
+    q = quoted_path(path)
     if st.st_uid != os.getuid():
-        fix = "chown $(id -un) %s && %s" % (path, fix)
-    raise Fail("Refusing to use %s: found mode %04o, owner uid %d. It must be mode %04o and owned by you (uid %d). "
-               "Fix: %s" % (path, mode, st.st_uid, want, os.getuid(), fix))
+        raise Fail("%s belongs to another user. Run: chown $(id -un) %s" % (q, q))
+    if mode & 0o022:
+        raise Fail("%s can be changed by other users. Run: chmod go-w %s" % (q, q))
+    raise Fail("%s can be read by other users. Run: chmod %o %s" % (q, want, q))
 
 
 def check_unshared(path, folder):
@@ -1324,9 +1327,9 @@ def check_unshared(path, folder):
     st = os.stat(path)
     mode = stat.S_IMODE(st.st_mode)
     if not (stat.S_ISDIR if folder else stat.S_ISREG)(st.st_mode) or st.st_uid != os.getuid():
-        raise Fail("%s must be a %s owned by you." % (path, "folder" if folder else "file"))
+        raise Fail("%s must be a %s that you own." % (quoted_path(path), "folder" if folder else "file"))
     if mode & 0o022:
-        raise Fail("%s can be changed by other users. Fix it with: chmod go-w %s" % (path, shlex.quote(path)))
+        raise Fail("%s can be changed by other users. Run: chmod go-w %s" % (quoted_path(path), quoted_path(path)))
 
 
 def quoted_path(path):
@@ -1340,17 +1343,17 @@ def read_toml(path):
         with open(path, "rb") as f:
             return toml_loads(f.read().decode("utf-8"))
     except TomlError as e:
-        raise Fail("%s is not valid TOML: %s" % (path, e))
+        raise Fail("The file %s has a mistake (%s). Fix it or delete it." % (quoted_path(path), e))
     except UnicodeDecodeError:
-        raise Fail("%s is not valid UTF-8 text. It is damaged." % path)
+        raise Fail(DAMAGED % quoted_path(path))
 
 
 def check_version(d, path):
     v = d.get("version")
     if v is None:
-        raise Fail("%s is damaged (no version). Delete it and log in again." % path)
+        raise Fail(DAMAGED % quoted_path(path))
     if type(v) is not int or v != STATE_VERSION:
-        raise Fail("%s has version %r, which this PushArmor does not know. %s" % (path, v, UPDATE_REQUIRED))
+        raise Fail("The file %s was made by a newer PushArmor. %s" % (quoted_path(path), UPDATE_REQUIRED))
 
 
 def _host_ok(url):
@@ -1403,7 +1406,7 @@ def check_shape(d, path):
           and all(type(d.get(k, t())) is t for k, t in STATE_OPTIONAL)
           and ("reg" not in d or all(k in d for k in ("name", "ntfy", "topic"))))
     if not ok:
-        raise Fail("%s is damaged. Delete it and log in again." % path)
+        raise Fail(DAMAGED % quoted_path(path))
 
 
 class Store:
@@ -1424,7 +1427,8 @@ class Store:
             if k in s and not (isinstance(s[k], str) and re.match(r"https?://[^/?#]+/?$", s[k]) and _host_ok(s[k])
                                and (s[k].startswith("https://") or _loopback(s[k])
                                     or (k == "ntfy" and _local_net(s[k])))):
-                raise Fail("%s: %s must be an https:// URL like https://host" % (p, k))
+                raise Fail('The setting "%s" in %s must be a web address that starts with https://, such as '
+                           "https://example.com." % (k, quoted_path(p)))
         return s
 
     def has_keys(self):
@@ -1492,7 +1496,7 @@ class Store:
             try:
                 toml_dumps(d)
             except ValueError:  # a value this PushArmor cannot write back, such as a float
-                raise Fail("%s is damaged. Delete it and log in again." % self.dev_path)
+                raise Fail(DAMAGED % quoted_path(self.dev_path))
             yield d
             if write:
                 write_file(self.dev_path, toml_dumps(d))
@@ -1897,7 +1901,7 @@ def open_fetched_remove(d, k, b, m):
     q = d["peers"].pop(b, None)
     d["pairs"].pop(b, None)
     if q:
-        log(peer_label(q) + " was removed from your account")
+        log('"%s" was removed from your account.' % peer_label(q))
 
 
 def reconcile_allow(cx):
@@ -2046,30 +2050,30 @@ def act(cx, d, r, p, notes):
         if p["ruling"] == "approved":
             p.update(approves_me=True, approve_verified=True, get_after_verify=False, pending_approve_n=0)
             d["pairs"].pop(frm, None)
-            notes.append(peer_label(p) + " confirmed this device")
+            notes.append('"%s" confirmed this device.' % peer_label(p))
         else:
             p["pending_approve_n"] = n
     elif t == "rename":
         if n > p["name_n"]:
             p["name"], p["name_n"] = v["name"], n
-            notes.append("%s is now named %s" % (name, v["name"]))
+            notes.append('"%s" is now named "%s".' % (name, v["name"]))
     elif t == "remove":
         if v == cx.me:
             return REMOVED, None
         q = d["peers"].pop(v, None)
         d["pairs"].pop(v, None)
         if q:
-            notes.append(peer_label(q) + " was removed from your account")
+            notes.append('"%s" was removed from your account.' % peer_label(q))
     elif t == "delete":
         return "Your PushArmor account was deleted.", None
     elif t in ("logout", "login"):
         if n > p["logout_n"]:
             p["logged_out"], p["logout_n"] = t == "logout", n
-        notes.append(name + (" logged out" if t == "logout" else " logged in"))
+        notes.append('"%s" %s.' % (name, "logged out" if t == "logout" else "logged in"))
     elif t == "deny":
         p["denies_me"], p["approves_me"] = True, False
         d["pairs"].pop(frm, None)
-        notes.append(name + " rejected this device")
+        notes.append('"%s" rejected this device.' % name)
     return None, None
 
 
@@ -2128,7 +2132,7 @@ def on_commit(cx, frm, c_n, listed):
                 ruling = p["ruling"]
                 unpin(p)
                 p["ruling"] = ruling
-            notes.append(pair_note(cx, d, frm, "Pairing with %s failed. Start again on the new device. (%s)"))
+            notes.append(pair_note(cx, d, frm, 'Pairing with "%s" failed. Run: pusharmor pair %s to start again.'))
         elif dec["entry"].startswith("created") or dec["entry"] == "n_wiped_x_replied":
             e = d["pairs"][frm] = new_entry("X", "prompted", secrets.token_bytes(32), c_n)
             e["authorized"] = dec["action"] == "reply"
@@ -2136,11 +2140,11 @@ def on_commit(cx, frm, c_n, listed):
                 d["pair_auto"] = [t for t in d["pair_auto"] if 0 <= now - t < PAIR_CAP_WINDOW_S] + [now]
         notice = dec["notice"]
         if notice in ("commit", "represent"):
-            notes.append(pair_note(cx, d, frm, "%s wants to pair. Run: pusharmor pair %s"))
+            notes.append(pair_note(cx, d, frm, '"%s" wants to pair. Run: pusharmor pair %s'))
         elif notice == "crossing":
-            notes.append(pair_note(cx, d, frm, "Pairing with %s in progress. (%s)"))
+            notes.append(pair_note(cx, d, frm, 'Pairing with "%s" is in progress. (%s)'))
         elif notice == "half_state":
-            notes.append(pair_note(cx, d, frm, "%s wants to pair again. Run: pusharmor pair %s"))
+            notes.append(pair_note(cx, d, frm, '"%s" wants to pair again. Run: pusharmor pair %s'))
         else:
             notes.append(UNREADABLE)
     for n in notes:
@@ -2177,12 +2181,12 @@ def on_open(cx, d, e, p, o, notes):
         return notes.append(UNREADABLE)
     if not open_matches_commit(o, b64d(e["c_N"])):
         d["pairs"].pop(frm, None)
-        return notes.append(pair_note(cx, d, frm, "Pairing with %s failed. Start again on the new device. (%s)"))
+        return notes.append(pair_note(cx, d, frm, 'Pairing with "%s" failed. Run: pusharmor pair %s to start again.'))
     r_x = b64d(e["r"])
     pin_peer(p, o["sign_pub"], o["enc_pub"], pairing_id(o["r"], r_x))
     e.update(state="shown", fingerprint=sas(o["sign_pub"], o["enc_pub"], k["sign_pub"], k["enc_pub"], o["r"], r_x),
              sign_pub=b64e(o["sign_pub"]), enc_pub=b64e(o["enc_pub"]))
-    notes.append(pair_note(cx, d, frm, "%s wants to pair. Compare the fingerprint: pusharmor pair %s"))
+    notes.append(pair_note(cx, d, frm, '"%s" wants to pair. Compare the fingerprint: pusharmor pair %s'))
 
 
 def post_pair(cx, x, kind, c):
@@ -2318,7 +2322,8 @@ def sweep(cx):
             if a == "drop_pin" and p and not p["approve_verified"]:
                 unpin(p)
                 dropped = True
-                log('Pairing with "%s" timed out.' % peer_label(p))
+                log('Pairing with "%s" timed out. Run: pusharmor pair %s to start again.'
+                    % (peer_label(p), short_id(x, d["peers"])))
     if dropped:
         reconcile_allow(cx)
 
@@ -2345,7 +2350,7 @@ def start_receive(cx, since, timeout):
     try:
         s.connect()
     except OSError:
-        raise TempFail("Could not reach the push service at %s. Check the network and try again." % s.url, 0)
+        raise TempFail(PUSH_DOWN % urllib.parse.urlsplit(s.url).hostname, 0)
     report_listening(cx)
     if not ok or cx.api.push_missing:
         send_push(cx)
@@ -2391,7 +2396,7 @@ def run_exec(prog, rec):
 
 def cmd_login(cx, args):
     if not stdin_tty():
-        raise Fail("pusharmor login needs a terminal.", EXIT_USAGE)
+        raise Fail("pusharmor login needs a terminal. Run it in a terminal window.", EXIT_USAGE)
     cx.setup(need_keys=False)
     purpose = "r"
     if cx.store.has_keys():
@@ -2415,13 +2420,14 @@ def cmd_login(cx, args):
             try:
                 raw = ask("Code: ")
             except EOFError:
-                raise Fail("No code entered.")
+                raise Fail("No code was entered. Run pusharmor login again.")
             code = re.sub(r"[\s\"'`]", "", raw)
             if not re.fullmatch(r"[A-Za-z0-9_-]{34}", code):
                 code, tries = None, tries + 1
                 if tries >= CODE_TRIES:
-                    raise Fail("No valid code after %d tries. Run pusharmor login again." % CODE_TRIES)
-                print("That is not a PushArmor code. Copy the whole code from the page and paste it again.")
+                    raise Fail("The code was not accepted after %d tries. Run pusharmor login to get a new code."
+                               % CODE_TRIES)
+                print("The code is not correct. Copy the whole code from the page and paste it again.")
                 continue
         if time.time() - shown > LINK_LIFE_S:
             print("The link expired. Open it again to get a new code:\n\n  %s\n" % link)
@@ -2434,14 +2440,14 @@ def cmd_login(cx, args):
             if e.status == 401 and e.error == "unknown peer":
                 raise
             if e.status == 401 and e.error == "ticket expired":
-                print("That code expired. Open the link again to get a new code:\n\n  %s\n" % link)
+                print("The code expired. Open the link to get a new code:\n\n  %s\n" % link)
                 shown, code = time.time(), None
                 continue
             if e.status == 401 and e.error in ("bad ticket", "invalid ticket"):
                 code, tries = None, tries + 1
                 if tries >= CODE_TRIES:
                     raise Fail(BAD_LINK)
-                print("That code did not work. Check it and paste it again.")
+                print("The code is not correct. Check it and paste it again.")
                 continue
             raise Fail(e.reason())
         except TempFail as e:
@@ -2464,7 +2470,7 @@ def register(cx, code):
     try:
         stream.connect()
     except OSError:
-        raise TempFail("Could not reach the push service at %s." % ntfy, 0)
+        raise TempFail(PUSH_DOWN % urllib.parse.urlsplit(ntfy).hostname, 0)
     try:
         register_with(cx, code, stream, push_value(d0, k), ntfy)
     finally:
@@ -2485,7 +2491,7 @@ def register_with(cx, code, stream, push, ntfy):
             body["evict"], body["ticket"] = choose_evict(e.body.get("peers")), e.body["ticket"]
     pid = j.get("id")
     if not isinstance(pid, str) or not b64ok(pid) or not peer_keys_ok(pid, b64d(pid)[:9], k["sign_pub"], k["enc_pub"]):
-        raise Fail("The relay server sent a reply this device cannot use.")
+        raise Fail("The relay server sent a reply this device cannot use. Try again.")
     k["id"] = pid
     try:
         cx.store.save_keys(k)
@@ -2512,7 +2518,7 @@ def register_with(cx, code, stream, push, ntfy):
         if attempt == 0:
             with contextlib.suppress(ApiError, TempFail):
                 send_push(cx)
-    log("Could not confirm that this device can receive messages. pusharmor listen tries again.")
+    log("This device could not confirm that it can receive messages. Run pusharmor listen to try again.")
 
 
 def undo_register(cx):
@@ -2520,7 +2526,8 @@ def undo_register(cx):
     try:
         cx.api.call("DELETE", "/v1/peers/" + cx.me, {"m": {}})
     except (Fail, ApiError):
-        log("Could not remove this device from your account again. To free its place, remove it on another device.")
+        log("This device could not be removed from your account again. To free its place, remove it on another "
+            "device.")
     with contextlib.suppress(OSError):
         os.unlink(cx.store.key_path)
 
@@ -2539,7 +2546,7 @@ def choose_evict(peers):
         a = ""
     picks = sorted({int(w) for w in a.split() if re.fullmatch(r"[0-9]{1,2}", w) and 1 <= int(w) <= len(rows)})
     if not picks or len(picks) > 9:
-        raise Fail("Not logged in.")
+        raise Fail("No devices were chosen to remove, so you are not logged in. Run pusharmor login to try again.")
     return [rows[i - 1]["id"] for i in picks]
 
 
@@ -2597,7 +2604,7 @@ def cmd_logout(cx, args):
     retry_pending_logout(cx)
     with cx.store.state(write=False) as d:
         if d.get("logout_pending"):
-            log("The relay server could not be told yet. PushArmor will try again the next time it runs.")
+            log("The relay server could not be reached yet. PushArmor will try again the next time it runs.")
     return EXIT_OK
 
 
@@ -2606,7 +2613,7 @@ def resolve_peer(cx, text, with_self=False):
         ids = list(d["peers"]) + ([cx.me] if with_self else [])
     x = resolve_id(text, ids)
     if x is None:
-        raise Fail("No device matches %s. Run pusharmor pair to see your devices." % text)
+        raise Fail('No device matches "%s". Run pusharmor pair to see your devices.' % text)
     return x
 
 
@@ -2643,12 +2650,13 @@ def cmd_pair(cx, args):
     if not args.id:
         return pair_list(cx)
     if not stdin_tty():
-        raise Fail("pusharmor pair ID needs a terminal to compare the pairing fingerprint.", EXIT_USAGE)
+        raise Fail("pusharmor pair needs a terminal to compare the pairing fingerprint. Run it in a terminal window.",
+                   EXIT_USAGE)
     cx.mode = "pair"
     cx.refresh()
     x = cx.target = resolve_peer(cx, args.id, with_self=True)
     if x == cx.me:
-        raise Fail("That is this device.")
+        raise Fail("This is the device you are using. Choose another device.")
     with cx.store.state(write=False) as d:
         drain = Stream(d["ntfy"], d["topic"], cx.keys, d.get("since", ""), WAIT_TIMEOUT_S, poll=True)
     while True:  # pairing messages the relay server sent while nothing listened
@@ -2665,32 +2673,32 @@ def cmd_pair(cx, args):
             sid = short_id(x, d["peers"])
         name = peer_label(p)
         if p is None:
-            raise Fail("%s is no longer on this account." % name)
+            raise Fail('"%s" is no longer on this account.' % name)
         if p["pinned"] and p["ruling"] == "approved" and p["approves_me"]:
-            print("Paired with %s." % name)
+            print('Paired with "%s".' % name)
             return EXIT_OK
-        r, wait = "sent", "Waiting for %s. Open PushArmor on it to continue pairing." % name
+        r, wait = "sent", 'Waiting for "%s". Open PushArmor on it to continue pairing.' % name
         if e and e["state"] == "shown" and not e["approved"]:
             if first and e["role"] == "N":
                 post_pair(cx, x, "open", e["msg"])
             first = False
             print("Pairing fingerprint %s" % e["fingerprint"])
             try:
-                yes = ask_yes("Check that %s shows the same fingerprint. Confirmed (y) or Reject (n)? [y/N] " % name,
+                yes = ask_yes('Check that "%s" shows the same fingerprint. Confirmed (y) or Reject (n)? [y/N] ' % name,
                               strict=True)
             except EOFError:
                 print()  # Ctrl-D leaves the cursor after the prompt
-                raise Fail("No answer. Run pusharmor pair %s again." % sid)
+                raise Fail("No answer was given. Run pusharmor pair %s again." % sid)
             if not yes:
                 deny(cx, x)
-                print("Did not pair with %s." % name)
+                print('Did not pair with "%s".' % name)
                 return EXIT_OK
             r = approve(cx, x)
             if r not in ("sent", "stored"):
                 raise Fail(pair_reason(r, name))
             continue
         if p["pinned"] and p["ruling"] == "approved":
-            wait = "Waiting for %s to confirm this device." % name
+            wait = 'Waiting for "%s" to confirm this device.' % name
             if first and e and e["approve_body"]:
                 r = post_approve(cx, x, json.loads(e["approve_body"]))
                 r = "sent" if r == "stored" else r
@@ -2710,7 +2718,7 @@ def cmd_pair(cx, args):
             told = wait
         pt = stream.next(deadline)
         if pt is None:
-            raise Fail('No answer from "%s" yet. Run pusharmor pair %s again to continue.' % (name, sid))
+            raise Fail('"%s" has not answered yet. Run pusharmor pair %s again to continue.' % (name, sid))
         pair_receive(cx, pt, stream)
 
 
@@ -2779,15 +2787,15 @@ def cmd_send(cx, args):
         try:
             text = data.decode("utf-8").rstrip("\r\n")
         except UnicodeDecodeError:
-            raise Fail("The input is not UTF-8 text.")
+            raise Fail("The input is not text that PushArmor can send. Check what you pipe in.")
     else:
-        raise Fail("Nothing to send. Give a message, or pipe text into pusharmor send.", EXIT_USAGE)
+        raise Fail("There is no message to send. Give a message, or pipe text into pusharmor send.", EXIT_USAGE)
     try:
         text.encode("utf-8")
     except UnicodeEncodeError:
-        raise Fail("The message is not UTF-8 text.")
+        raise Fail("The message is not text that PushArmor can send.")
     if not text.strip():
-        raise Fail("Nothing to send.", EXIT_USAGE)
+        raise Fail("The message is empty.", EXIT_USAGE)
     type_, value = ("text", text) if args.text else detect(text)
     size = len(value.encode("utf-8"))
     if size > CONTENT_CAP:
@@ -2801,7 +2809,7 @@ def cmd_send(cx, args):
             for t in args.to:
                 pid = resolve_id(t, list(d["peers"]))
                 if pid is None:
-                    raise Fail("No device matches %s. Run pusharmor pair to see your devices." % t)
+                    raise Fail('No device matches "%s". Run pusharmor pair to see your devices.' % t)
                 if pid not in ready:
                     p = d["peers"][pid]
                     why = ("unknown" if p["missing"] else "unapproved" if not (
@@ -2810,7 +2818,7 @@ def cmd_send(cx, args):
                     raise Fail(SEND_WHY[why] % peer_label(p), EXIT_SEND)
                 targets.append(pid)
         if not targets:
-            raise Fail("No paired devices to send to. Run pusharmor pair to pair one.", EXIT_SEND)
+            raise Fail("No device is paired yet. Run pusharmor pair to pair one.", EXIT_SEND)
         m, names = {}, {}
         for pid in dict.fromkeys(targets):
             p = d["peers"][pid]
@@ -2850,7 +2858,7 @@ def device_reason(r, name):
 
 def cmd_rename(cx, args):
     if not NAME_RE.fullmatch(args.name):
-        raise Fail("Use 1 to 32 plain ASCII characters, no double quote.", EXIT_USAGE)
+        raise Fail("The name must be 1 to 32 plain ASCII characters, with no double quote.", EXIT_USAGE)
     cx.need()
     k = cx.keys
 
@@ -2879,7 +2887,7 @@ def cmd_delete(cx, args):
         q = "Remove %s from your account? %s must log in again and pair with every device again. [y/N] " % (name, name)
     if not args.yes:
         if not stdin_tty():
-            raise Fail("Refusing to delete without a terminal. Use --yes.", EXIT_USAGE)
+            raise Fail("Removing needs your answer in a terminal. Add --yes to remove without asking.", EXIT_USAGE)
         if not ask_yes(q):
             print("Nothing removed.")
             return EXIT_ERR
@@ -2971,9 +2979,9 @@ def main(argv=None):
     except UnicodeError as e:
         _quiet_stdout()
         if isinstance(e, UnicodeEncodeError):
-            log("This terminal cannot show some characters. Use a UTF-8 locale, such as LANG=C.UTF-8.")
+            log("This terminal cannot show some characters. Set LANG=C.UTF-8 and try again.")
         else:
-            log("Some text is not valid UTF-8 text.")
+            log("Some text could not be read as text. Try again.")
         return EXIT_ERR
     except Exception as e:
         _quiet_stdout()
@@ -2990,7 +2998,7 @@ def _main(argv):
     parser = build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "_check", lambda a: True)(args):
-        parser.error("use only one of --json, --tsv, and --exec")
+        parser.error("Use only one of --json, --tsv, and --exec.")
     cx = Ctx(config_dir(args.config))
     if args.config and os.path.exists(cx.store.root) and not os.path.isdir(cx.store.root):
         log("The --config path %s is a file, not a folder." % quoted_path(cx.store.root))

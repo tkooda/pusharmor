@@ -181,7 +181,8 @@ def test_bad_toml_file(tmp_path):
     p.write_text("server = \n")
     with pytest.raises(pa.Fail) as e:
         pa.read_toml(str(p))
-    assert "is not valid TOML" in str(e.value)
+    assert str(e.value).startswith("The file '%s' has a mistake (" % p) and str(e.value).endswith(
+        "). Fix it or delete it.")
 
 
 def make_keys(cfg, dmode=0o700, fmode=0o600):
@@ -203,13 +204,23 @@ def test_permissions(tmp_path):
     os.chmod(st.keys_dir, 0o755)
     with pytest.raises(pa.Fail) as e:
         st.load_keys()
-    assert str(e.value).startswith("Refusing to use %s: found mode 0755" % st.keys_dir)
-    assert "Fix: chmod 700 %s" % st.keys_dir in str(e.value)
+    assert str(e.value) == "'%s' can be read by other users. Run: chmod 700 '%s'" % (st.keys_dir, st.keys_dir)
+    os.chmod(st.keys_dir, 0o775)
+    with pytest.raises(pa.Fail) as e:
+        st.load_keys()
+    assert str(e.value) == "'%s' can be changed by other users. Run: chmod go-w '%s'" % (st.keys_dir, st.keys_dir)
     os.chmod(st.keys_dir, 0o700)
     os.chmod(st.key_path, 0o644)
     with pytest.raises(pa.Fail) as e:
         st.load_keys()
-    assert "found mode 0644" in str(e.value) and "Fix: chmod 600 %s" % st.key_path in str(e.value)
+    assert str(e.value) == "'%s' can be read by other users. Run: chmod 600 '%s'" % (st.key_path, st.key_path)
+    os.chmod(st.key_path, 0o600)
+    uid = os.getuid()
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(pa.os, "getuid", lambda: uid + 1)
+        with pytest.raises(pa.Fail) as e:
+            pa.check_private(st.key_path, 0o600)
+    assert str(e.value) == "'%s' belongs to another user. Run: chown $(id -un) '%s'" % (st.key_path, st.key_path)
 
 
 def test_version_refused(tmp_path):
@@ -219,7 +230,7 @@ def test_version_refused(tmp_path):
     with pytest.raises(pa.Fail) as e:
         with st.state():
             pass
-    assert str(e.value) == "%s has version 2, which this PushArmor does not know. Update PushArmor to continue." % st.dev_path
+    assert str(e.value) == "The file '%s' was made by a newer PushArmor. Update PushArmor to continue." % st.dev_path
     with open(st.key_path, "w") as f:
         f.write('id = "x"\n')
     with pytest.raises(pa.Fail) as e:
@@ -296,7 +307,7 @@ def test_typed_text_that_is_not_utf8(net, tmp_path, monkeypatch, capsys):
 
     monkeypatch.setattr(pa, "input", bad, raising=False)
     assert run(tmp_path / "a", "login") == 1
-    assert "No valid code after 3 tries" in capsys.readouterr().err
+    assert "The code was not accepted after 3 tries. Run pusharmor login to get a new code." in capsys.readouterr().err
     me = login(monkeypatch, tmp_path / "b")
     monkeypatch.setattr(pa, "input", bad, raising=False)
     assert run(tmp_path / "b", "delete", pa.id_hex(me)[:8]) == 1
@@ -322,7 +333,7 @@ def test_login_that_cannot_save_removes_the_device(net, tmp_path, monkeypatch, c
     answers(monkeypatch, CODE)
     assert run(tmp_path, "login") == 1
     assert net.peers == {} and not (tmp_path / "keys" / "private.toml").exists()
-    assert "devices.toml must be a file owned by you." in capsys.readouterr().err
+    assert "devices.toml' must be a file that you own." in capsys.readouterr().err
     (tmp_path / "devices.toml").rmdir()
     pid = login(monkeypatch, tmp_path)
     assert list(net.peers) == [pid]
@@ -424,7 +435,7 @@ def test_ctrl_d_at_the_fingerprint_prompt_keeps_the_pairing(net, tmp_path, monke
     assert codes.get("b") == 1 and not eof[0]
     err = capsys.readouterr().err
     sid = err.split("Run pusharmor pair ")[1].split(" ")[0]
-    assert "No answer. Run pusharmor pair %s again.\n" % sid in err and pa.id_hex(ida).startswith(sid)
+    assert "No answer was given. Run pusharmor pair %s again.\n" % sid in err and pa.id_hex(ida).startswith(sid)
     assert not any(m == "POST" and "/deny/" in path for m, path in net.log)
     sb = state(b)
     assert sb["pairs"][ida]["state"] == "shown" and sb["peers"][ida]["pinned"]
@@ -451,7 +462,7 @@ def test_abort_in_shown_drops_the_pin_and_keeps_the_ruling(net, tmp_path, monkey
     p = state(b)["peers"][ida]
     assert state(b)["pairs"] == {}
     assert not p["pinned"] and p["pairing_id"] == "" and p["ruling"] == "denied"
-    assert "failed. Start again on the new device." in capsys.readouterr().err
+    assert 'failed. Run: pusharmor pair %s to start again.' % pa.id_hex(ida)[:6] in capsys.readouterr().err
 
 
 def test_peer_list_opens_stored_remove_messages(net, tmp_path, monkeypatch, capsys):
@@ -476,7 +487,7 @@ def test_peer_list_opens_stored_remove_messages(net, tmp_path, monkeypatch, caps
     net.peers[idb]["rm"] = {idc: m}
     assert run(b, "pair") == 0
     assert idc not in state(b)["peers"] and ida in state(b)["peers"]
-    assert "was removed from your account" in capsys.readouterr().err
+    assert "\" was removed from your account.\n" in capsys.readouterr().err
 
 
 def test_listen_keeps_a_message_it_could_not_show(net, tmp_path, monkeypatch, capsys):
@@ -525,7 +536,7 @@ def test_send_reads_a_bounded_amount_of_stdin(net, tmp_path, monkeypatch, capsys
     assert big.buffer.tell() == pa.CONTENT_CAP * 4 + 1
     monkeypatch.setattr(sys, "stdin", Stdin(tty=False, data=b"y" * 100 + b"\n"))
     assert run(tmp_path, "send") == 4
-    assert "No paired devices" in capsys.readouterr().err
+    assert "No device is paired yet. Run pusharmor pair to pair one." in capsys.readouterr().err
 
 
 def test_pair_timeouts_quote_the_device_name(net, tmp_path, monkeypatch, capsys):
@@ -541,8 +552,8 @@ def test_pair_timeouts_quote_the_device_name(net, tmp_path, monkeypatch, capsys)
     capsys.readouterr()
     assert run(a, "pair", pa.id_hex(idb)[:6]) == 1
     err = capsys.readouterr().err
-    assert 'Pairing with "bee" timed out.\n' in err
-    assert 'No answer from "bee" yet. Run pusharmor pair %s again to continue.\n' % pa.id_hex(idb)[:6] in err
+    assert 'Pairing with "bee" timed out. Run: pusharmor pair %s to start again.\n' % pa.id_hex(idb)[:6] in err
+    assert '"bee" has not answered yet. Run pusharmor pair %s again to continue.\n' % pa.id_hex(idb)[:6] in err
 
 
 def test_chmod_hint_quotes_a_path_with_a_space(tmp_path):
@@ -551,7 +562,7 @@ def test_chmod_hint_quotes_a_path_with_a_space(tmp_path):
     path.chmod(0o777)
     with pytest.raises(pa.Fail) as e:
         pa.check_unshared(str(path), True)
-    assert str(e.value) == "%s can be changed by other users. Fix it with: chmod go-w '%s'" % (path, path)
+    assert str(e.value) == "'%s' can be changed by other users. Run: chmod go-w '%s'" % (path, path)
 
 
 def test_wipe_removes_temp_files(net, tmp_path, monkeypatch):
@@ -600,7 +611,7 @@ def test_group_writable_is_refused_even_with_a_user_private_group(name, members,
         capsys.readouterr()
         assert run(cfg, "send", "hi") == 1
         assert capsys.readouterr().err == (
-            "%s can be changed by other users. Fix it with: chmod go-w '%s'\n" % (path, path))
+            "'%s' can be changed by other users. Run: chmod go-w '%s'\n" % (path, path))
         path.chmod(0o700 if path == cfg else 0o600)
 
 
@@ -611,7 +622,7 @@ def test_saving_keys_checks_the_config_folder(tmp_path):
     k = {"id": pa.b64e(b"i" * 30), "sign": b"s" * 32, "enc": b"e" * 32, "push": b"p" * 32, "auth": b"a" * 16}
     with pytest.raises(pa.Fail) as e:
         pa.Store(str(root)).save_keys(k)
-    assert str(e.value) == "%s can be changed by other users. Fix it with: chmod go-w %s" % (root, root)
+    assert str(e.value) == "'%s' can be changed by other users. Run: chmod go-w '%s'" % (root, root)
     assert not (root / "keys").exists()
 
 
@@ -623,7 +634,7 @@ def test_a_config_file_owned_by_another_user_is_refused(tmp_path, monkeypatch):
     monkeypatch.setattr(pa.os, "getuid", lambda: uid + 1)
     with pytest.raises(pa.Fail) as e:
         pa.check_unshared(str(path), False)
-    assert str(e.value) == "%s must be a file owned by you." % path
+    assert str(e.value) == "'%s' must be a file that you own." % path
 
 
 def test_wipe_waits_for_a_state_write_and_is_not_written_back(net, tmp_path, monkeypatch):
@@ -659,7 +670,7 @@ def test_config_folder_and_state_files_others_can_change_are_refused(net, tmp_pa
     cfg.chmod(0o777)
     assert run(cfg, "send", "hi") == 1
     assert capsys.readouterr().err == (
-        "%s can be changed by other users. Fix it with: chmod go-w %s\n" % (cfg, cfg))
+        "'%s' can be changed by other users. Run: chmod go-w '%s'\n" % (cfg, cfg))
     _group(monkeypatch, "me", [])
     cfg.chmod(0o775)  # group-writable, even with the user's own private primary group: refused
     assert run(cfg, "send", "hi") == 1
@@ -673,7 +684,7 @@ def test_config_folder_and_state_files_others_can_change_are_refused(net, tmp_pa
         capsys.readouterr()
         assert run(cfg, "send", "hi") == 1
         assert capsys.readouterr().err == (
-            "%s can be changed by other users. Fix it with: chmod go-w %s\n" % (path, path))
+            "'%s' can be changed by other users. Run: chmod go-w '%s'\n" % (path, path))
         path.chmod(0o644)
     assert run(cfg, "send", "hi") == 4
 
@@ -704,7 +715,7 @@ def test_symlinked_config_folder_files_and_chains_are_followed(net, tmp_path, mo
         (store / name).chmod(0o666)
         capsys.readouterr()
         assert run(top, "send", "hi") == 1
-        assert capsys.readouterr().err == "%s can be changed by other users. Fix it with: chmod go-w %s\n" % (
+        assert capsys.readouterr().err == "'%s' can be changed by other users. Run: chmod go-w '%s'\n" % (
             top / name, top / name)
         (store / name).chmod(0o600)
     real.chmod(0o777)
@@ -720,7 +731,7 @@ def test_unsupported_toml_value_is_damaged(net, tmp_path, monkeypatch, capsys):
     path.write_text("x = 1.5\n" + path.read_text())
     capsys.readouterr()
     assert run(tmp_path, "send", "hi") == 1
-    assert capsys.readouterr().err == "%s is damaged. Delete it and log in again.\n" % path
+    assert capsys.readouterr().err == "The file '%s' is damaged. Delete it and log in again.\n" % path
 
 
 @pytest.mark.parametrize("prog", ["/nonexistent/notify", "pusharmor-no-such-notify", "NOEXEC"])
@@ -831,7 +842,8 @@ def test_delete_non_tty_needs_yes(net, tmp_path, monkeypatch, capsys):
     pid = login(monkeypatch, tmp_path)
     monkeypatch.setattr(sys, "stdin", Stdin(tty=False))
     assert run(tmp_path, "delete", pa.id_hex(pid)[:6]) == 2
-    assert "Use --yes" in capsys.readouterr().err and pid in net.peers
+    assert "Removing needs your answer in a terminal. Add --yes to remove without asking." in capsys.readouterr().err
+    assert pid in net.peers
     assert run(tmp_path, "delete", pa.id_hex(pid)[:6], "--yes") == 0
     assert pid not in net.peers
 
@@ -950,7 +962,7 @@ def test_damaged_state_shape_is_one_line_exit_1(change, monkeypatch, tmp_path, n
     capsys.readouterr()
     for argv in (["send", "hi"], ["pair"], ["listen"], ["rename", "zz"], ["logout"]):
         assert run(cfg, *argv) == 1
-        assert capsys.readouterr().err == "%s is damaged. Delete it and log in again.\n" % path
+        assert capsys.readouterr().err == "The file '%s' is damaged. Delete it and log in again.\n" % path
 
 
 def test_a_new_login_replaces_a_damaged_devices_file_and_never_removes_the_device(net, tmp_path, monkeypatch, capsys):
@@ -1025,7 +1037,7 @@ def test_unreadable_file_is_one_line(monkeypatch, tmp_path, net, capsys):
     capsys.readouterr()
     assert run(cfg, "send", "hi") == 1
     err = capsys.readouterr().err
-    assert err == "%s must be a file owned by you.\n" % (cfg / "devices.toml")
+    assert err == "'%s' must be a file that you own.\n" % (cfg / "devices.toml")
 
 
 def test_config_path_that_is_a_file_or_too_long(monkeypatch, tmp_path, capsys):
@@ -1088,7 +1100,7 @@ def test_output_the_terminal_cannot_show(monkeypatch, tmp_path, capsys):
     monkeypatch.setitem(pa.COMMANDS, "logout", (lambda cx, args: print("caf\u00e9"), "", []))
     monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(io.BytesIO(), encoding="ascii"))
     assert run(tmp_path, "logout") == 1
-    assert "Use a UTF-8 locale" in capsys.readouterr().err
+    assert "This terminal cannot show some characters. Set LANG=C.UTF-8 and try again." in capsys.readouterr().err
 
 
 @contextlib.contextmanager
@@ -1199,8 +1211,8 @@ def test_redirect_is_not_followed():
 def test_bad_server_setting(tmp_path, server, capsys):
     (tmp_path / "settings.toml").write_text('server = "%s"\n' % server)
     assert run(tmp_path, "send", "hi") == 1
-    assert capsys.readouterr().err == "%s: server must be an https:// URL like https://host\n" % (
-        tmp_path / "settings.toml")
+    assert capsys.readouterr().err == ('The setting "server" in \'%s\' must be a web address that starts with '
+                                       "https://, such as https://example.com.\n" % (tmp_path / "settings.toml"))
 
 
 @pytest.mark.parametrize("key", ["server", "ntfy"])
@@ -1211,7 +1223,8 @@ def test_plain_http_only_for_loopback(tmp_path, key, capsys):
         path.write_text('%s = "%s"\n' % (key, url))
         with pytest.raises(pa.Fail) as e:
             pa.Store(str(tmp_path)).settings()
-        assert str(e.value) == "%s: %s must be an https:// URL like https://host" % (path, key)
+        assert str(e.value) == ('The setting "%s" in \'%s\' must be a web address that starts with https://, '
+                                "such as https://example.com." % (key, path))
     for url in ("http://127.0.0.1:8080", "http://[::1]:1", "http://localhost:9", "https://example.com"):
         path.write_text('%s = "%s"\n' % (key, url))
         assert pa.Store(str(tmp_path)).settings()[key] == url
@@ -1274,7 +1287,7 @@ def test_too_deep_nesting(monkeypatch, tmp_path, capsys):
     assert s.next(time.time() + 5) is None
     (tmp_path / "settings.toml").write_text("a = " + "[" * 100000)
     assert run(tmp_path, "send", "hi") == 1
-    assert capsys.readouterr().err == "%s is not valid TOML: nested too deeply\n" % (
+    assert capsys.readouterr().err == "The file '%s' has a mistake (nested too deeply). Fix it or delete it.\n" % (
         tmp_path / "settings.toml")
 
 
@@ -1609,3 +1622,43 @@ def test_listen_error_is_one_line_and_listening_continues(net, tmp_path, monkeyp
     assert run(b, "listen") == 130
     err = capsys.readouterr().err.splitlines()
     assert pa.UNREACHABLE + " Listening continues." in err and not any("Unable" in x for x in err)
+
+
+def test_command_texts_are_the_approved_sentences(net, tmp_path, monkeypatch, capsys):
+    def err_of(code, *argv):
+        capsys.readouterr()
+        assert run(tmp_path, *argv) == code
+        return capsys.readouterr().err
+
+    me = login(monkeypatch, tmp_path)
+    assert err_of(2, "send") == "There is no message to send. Give a message, or pipe text into pusharmor send.\n"
+    assert err_of(2, "send", "   ") == "The message is empty.\n"
+    assert err_of(1, "send", "--to", "abcdef", "hi") == (
+        'No device matches "abcdef". Run pusharmor pair to see your devices.\n')
+    assert err_of(2, "rename", 'bad "name"') == (
+        "The name must be 1 to 32 plain ASCII characters, with no double quote.\n")
+    assert err_of(1, "pair", pa.id_hex(me)[:6]) == "This is the device you are using. Choose another device.\n"
+    monkeypatch.setattr(pa, "ntfy_open", lambda url, timeout: (_ for _ in ()).throw(OSError("down")))
+    assert err_of(pa.EXIT_TEMP, "listen") == (
+        "The push service at ntfy.sh could not be reached. Check your internet connection and try again.\n")
+    with pytest.raises(SystemExit):
+        run(tmp_path, "listen", "--json", "--tsv")
+    assert "error: Use only one of --json, --tsv, and --exec.\n" in capsys.readouterr().err
+    answers(monkeypatch, "")
+    with pytest.raises(pa.Fail) as e:
+        pa.choose_evict([])
+    assert str(e.value) == (
+        "No devices were chosen to remove, so you are not logged in. Run pusharmor login to try again.")
+    net.hooks[("POST", "peers")] = lambda *a: net.reply(503, {})
+    monkeypatch.setattr(pa.time, "sleep", lambda s: None)
+    assert err_of(0, "logout") == (
+        "The relay server could not be reached yet. PushArmor will try again the next time it runs.\n")
+
+
+def test_login_ctrl_d_at_the_code_prompt(net, tmp_path, monkeypatch, capsys):
+    def eof(prompt=""):
+        raise EOFError
+
+    monkeypatch.setattr(pa, "input", eof, raising=False)
+    assert run(tmp_path, "login") == 1
+    assert capsys.readouterr().err == "No code was entered. Run pusharmor login again.\n"
