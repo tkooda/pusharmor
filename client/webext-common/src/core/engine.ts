@@ -118,6 +118,8 @@ function approveRow(n: number, name: string | null, pairingId: Uint8Array): (cur
 const LOGOUT_PENDING = "logout_pending";
 /** meta key: the saved keys failed the local check (the keys screen shows). */
 const KEYS_BROKEN = "keys_broken";
+/** meta key: a removal signal not confirmed yet ("removed" or "deleted"); checked again on start and popup open. */
+const WIPE_CHECK = "wipe_check";
 /** Waits before the retries of a push PATCH the relay server refused. */
 const PUSH_RETRY_MS = [30_000, 120_000, 600_000];
 
@@ -130,6 +132,8 @@ export class Engine {
   private readonly pairingAgain = new Set<string>();
   private fetching: Promise<void> | null = null;
   private loggingOut: Promise<void> | null = null;
+  /** The one removal check in flight; every caller shares it. */
+  private checking: Promise<boolean> | null = null;
   private authN = 0;
 
   constructor(d: EngineDeps) {
@@ -384,7 +388,7 @@ export class Engine {
       }
       case "remove": {
         if (c.id === self.id) {
-          await this.selfRemoved(T.removed);
+          await this.removalSignal("removed");
           return;
         }
         const target = await this.db.peer(c.id);
@@ -394,7 +398,7 @@ export class Engine {
         return;
       }
       case "delete":
-        await this.selfRemoved(T.accountDeleted);
+        await this.removalSignal("deleted");
         return;
       case "logout":
       case "login": {
@@ -646,7 +650,7 @@ export class Engine {
   private async callFailure(e: unknown): Promise<{ result: string; notBefore?: number }> {
     if (e instanceof ApiError) {
       if (e.status === 426) return { result: UPDATE_REQUIRED };
-      if (e.status === 401 && e.error === "unknown peer") await this.selfRemoved(T.removed);
+      if (e.status === 401 && e.error === "unknown peer") await this.removalSignal("removed");
       if ((e.status === 429 || e.status === 503) && e.retryAfter !== null) {
         return { result: String(e.status), notBefore: now(this.p) + Math.max(30, e.retryAfter) * 1000 };
       }
@@ -971,7 +975,7 @@ export class Engine {
       } catch (e) {
         if (e instanceof ApiError && e.status === 400) remove = true;
         else if (e instanceof ApiError && e.status === 401 && e.error === "unknown peer") {
-          await this.selfRemoved(T.removed);
+          await this.removalSignal("removed");
           return;
         }
       }
@@ -1184,6 +1188,7 @@ export class Engine {
 
   /** Gone recovery: compare the current subscription with the last PATCHed hash. fresh: ask for a new endpoint. */
   async pushReconcile(force = false, quiet = false, fresh = false): Promise<void> {
+    if (this.checking) return; // a removal check may wipe: no new subscription now
     const self = await this.self();
     if (!self || (await this.regState()) !== "registered") return;
     let cur = await this.currentPush();
@@ -1287,7 +1292,7 @@ export class Engine {
       if (r.json.r && typeof r.json.r === "object") results = r.json.r as Record<string, string>;
     } catch (e) {
       await this.callFailure(e);
-      error = e instanceof ApiError && e.status === 401 && e.error === "unknown peer" ? T.removed : errorText(e);
+      error = e instanceof ApiError && e.status === 401 && e.error === "unknown peer" && !(await this.self()) ? T.removed : errorText(e);
       if (e instanceof ApiError && (e.status === 429 || e.status === 503) && e.retryAfter !== null) {
         await this.p.storageLocal.set({ [NET_NOT_BEFORE]: now(this.p) + e.retryAfter * 1000 });
       }
@@ -1386,7 +1391,7 @@ export class Engine {
           extra = named;
           continue;
         }
-        if (e instanceof ApiError && e.status === 401 && e.error === "unknown peer") await this.selfRemoved(T.removed);
+        if (e instanceof ApiError && e.status === 401 && e.error === "unknown peer") await this.removalSignal("removed");
         throw e;
       }
     }
@@ -1429,6 +1434,7 @@ export class Engine {
         await this.allowListCall("POST", "/peers/" + self.id + "/logout", self, (m) => ({ m }), async () => ({ type: "logout" }));
       } catch (e) {
         if (!(e instanceof ApiError) || e.status === 0 || e.status === 429 || e.status >= 500 || e.error.startsWith("clock skew")) return;
+        if (e.status === 401 && e.error === "unknown peer" && (await this.self())) return; // removal not confirmed: still pending
       }
     }
     await this.db.del("meta", LOGOUT_PENDING);
@@ -1516,6 +1522,56 @@ export class Engine {
 
   // ------------------------------------------------------- removal / wipe
 
+  /**
+   * A removal signal (401 "unknown peer", or a remove about this device or a delete message):
+   * stored, then confirmed by the one check. Returns true when the device was wiped.
+   */
+  private removalSignal(kind: "removed" | "deleted"): Promise<boolean> {
+    const mark = this.db.updateMeta<string>(WIPE_CHECK, (v) => (kind === "deleted" ? kind : (v ?? kind)));
+    if (this.checking) {
+      void mark.catch(() => undefined);
+      return this.checking;
+    }
+    return this.runCheck(mark.then(() => this.doCheck()));
+  }
+
+  /** Runs a stored removal check (start, popup open). Returns true when the device was wiped. */
+  confirmRemoval(): Promise<boolean> {
+    return this.checking ?? this.runCheck(this.doCheck());
+  }
+
+  private runCheck(p: Promise<boolean>): Promise<boolean> {
+    const c: Promise<boolean> = p.finally(() => {
+      if (this.checking === c) this.checking = null;
+    });
+    this.checking = c;
+    return c;
+  }
+
+  /**
+   * One signed GET /peers, no retries and no failure handling of its own (so no new check).
+   * 401 "unknown peer" wipes; a list clears the check; anything else keeps the keys and the
+   * check for the next start or popup open.
+   */
+  private async doCheck(): Promise<boolean> {
+    if (!(await this.db.meta(WIPE_CHECK))) return false;
+    const self = await this.self();
+    if (!self) {
+      await this.db.del("meta", WIPE_CHECK);
+      return false;
+    }
+    try {
+      await this.api.call("GET", "/peers", { signer: this.signerOf(self), noRetry: true });
+    } catch (e) {
+      if (!(e instanceof ApiError && e.status === 401 && e.error === "unknown peer")) return false;
+      const kind = await this.db.meta<string>(WIPE_CHECK);
+      await this.selfRemoved(kind === "deleted" ? T.accountDeleted : T.removed);
+      return true;
+    }
+    await this.db.del("meta", WIPE_CHECK);
+    return false;
+  }
+
   async selfRemoved(banner: string): Promise<void> {
     await this.wipe();
     await this.db.setMeta("banner", banner);
@@ -1526,7 +1582,7 @@ export class Engine {
   async wipe(): Promise<void> {
     await this.p.storageLocal.remove([REG_MARKER]);
     await this.db.clear(["keys", "peers", "replay"]);
-    for (const k of ["reg", LOGOUT_PENDING, "push_hash", "listed", "my_push_sha256", "fetch_pending", "last_fetch", "push_issue", "push_fail", KEYS_BROKEN]) await this.db.del("meta", k);
+    for (const k of ["reg", LOGOUT_PENDING, "push_hash", "listed", "my_push_sha256", "fetch_pending", "last_fetch", "push_issue", "push_fail", KEYS_BROKEN, WIPE_CHECK]) await this.db.del("meta", k);
     const all = await this.p.storageLocal.get(null);
     const drop = Object.keys(all).filter((k) => k.startsWith(PAIR_PREFIX) || k.startsWith(PAIR_MSG_PREFIX) || k === PAIR_AUTO || k === ALLOW_SET || k === NET_NOT_BEFORE);
     await this.p.storageLocal.remove(drop);
@@ -1701,6 +1757,7 @@ export class Engine {
     }
     if (!(await this.self())) return;
     if (!(await this.probeKeys())) return;
+    if ((await this.confirmRemoval()) || this.checking) return;
     await this.sweep();
     await this.pushReconcile().catch(() => undefined);
     await this.purgeHistory();
@@ -1717,7 +1774,10 @@ export class Engine {
   async onPopupOpen(): Promise<void> {
     void this.retryPendingLogout().catch(() => undefined);
     await this.purgeHistory().catch(() => undefined);
-    if ((await this.regState()) !== "registered" || (await this.keysBroken())) return;
+    if (await this.keysBroken()) return;
+    // a removal check that may wipe decides first; nothing below starts while one runs
+    if ((await this.confirmRemoval()) || this.checking) return;
+    if ((await this.regState()) !== "registered") return;
     await this.timeoutCheck();
     await this.reconcileAllow();
     await this.pushReconcile(false, true).catch(() => undefined); // no setup tab from the popup
