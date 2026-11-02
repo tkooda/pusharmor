@@ -1287,3 +1287,14 @@ test("a peer list with an impossible created time still shows the device list", 
   await a.db.putPeer({ ...stored, created: 1e20 });
   assert.ok((await new Rpc(a.e).peers()).peers.some((v) => v.id === b.id));
 });
+
+test("a failed sign-in keeps the saved email", async () => {
+  const clock = new Clock();
+  const w = new MockWorker(clock);
+  const p = new FakePlatform("firefox", w, clock);
+  const { e } = await makeEngine(p, new IDBFactory(), clock);
+  const login = new Login(e);
+  w.inject.push({ match: /POST \/v1\/peers$/, status: 401, body: { error: "ticket expired" }, times: 1 });
+  await assert.rejects(login.complete("register", "t".repeat(20), "x@y.example"));
+  assert.equal(await e.db.meta("email"), undefined);
+});

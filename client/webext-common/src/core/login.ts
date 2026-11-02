@@ -133,17 +133,20 @@ export class Login {
 
   async complete(purpose: Purpose, ticket: string, email: string | null, evict?: string[]): Promise<LoginResult> {
     if (!TICKET_RE.test(ticket)) throw new UserError("Login failed. Try again.");
-    if (email !== null) await this.e.db.setMeta("email", email);
     try {
       if (purpose === "register") {
         const limit = await this.e.register(ticket, email, evict);
-        if (limit) return { done: false, limit, ticket: typeof limit.ticket === "string" ? limit.ticket : ticket };
+        if (limit) {
+          if (email !== null) await this.e.db.setMeta("email", email);
+          return { done: false, limit, ticket: typeof limit.ticket === "string" ? limit.ticket : ticket };
+        }
       } else if (purpose === "login") await this.e.login(ticket);
       else await this.e.deleteAccount(ticket);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401 && err.error === "ticket expired") throw new UserError(T.loginExpired);
       throw err;
     }
+    if (email !== null && purpose !== "delete-account") await this.e.db.setMeta("email", email);
     await this.clearProgress();
     return { done: true };
   }
