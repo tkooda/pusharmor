@@ -32,7 +32,7 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
     var removed: [String: [String: String]] = [:]
     /// Runs at the start of each request (method, path), before it is handled: a test uses it
     /// to change a device's state while that device waits for a reply.
-    var onRequest: ((String, String) -> Void)?
+    var onRequest: ((String, String) async -> Void)?
 
     func add(_ id: PeerId, signPub: Data, encPub: Data, platform: String = "android") {
         lock.lock(); defer { lock.unlock() }
@@ -61,7 +61,7 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
     }
 
     func perform(method: String, url: URL, headers: [String: String], body: Data, timeout: Double) async throws -> HTTPResponse {
-        onRequest?(method, url.path)
+        await onRequest?(method, url.path)
         lock.lock(); defer { lock.unlock() }
         if offline { throw URLError(.notConnectedToInternet) }
         let path = url.path

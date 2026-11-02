@@ -97,12 +97,17 @@ extension Core {
 
     /// Log out = mark this peer logged out, with a logout message for every allowed peer.
     public func logout() async throws -> APIOutcome {
-        let me = try myId()
-        let out = try await signedWithMessages("POST", "/v1/peers/" + me.text + "/logout") {
-            JOut.obj([("m", JOut.messages(try allowMessages { _, _ in .logout }))]).data
-        }
+        let out = try await sendLogout()
         if out.reply?.ok == true { try store.setMe("logged_out", .int(1)) }
         return out
+    }
+
+    /// The logout call alone; the caller records the result.
+    func sendLogout() async throws -> APIOutcome {
+        let me = try myId()
+        return try await signedWithMessages("POST", "/v1/peers/" + me.text + "/logout") {
+            JOut.obj([("m", JOut.messages(try allowMessages { _, _ in .logout }))]).data
+        }
     }
 
     /// Log out tap: logged out here at once, with the relay server call kept as
@@ -126,8 +131,14 @@ extension Core {
             try? store.setSetting(Core.logoutPendingKey, nil)
             return
         }
-        guard let out = try? await logout(), let r = out.reply, r.status != 429, r.status < 500, !out.isClockSkew else { return }
-        try? store.setSetting(Core.logoutPendingKey, nil)
+        guard let out = try? await sendLogout() else { return }
+        // a login while the call was out cleared the pending flag: its logged-in state stands
+        try? store.db.write { () throws -> Void in
+            guard try store.setting(Core.logoutPendingKey) != nil else { return }
+            if out.reply?.ok == true { try store.setMe("logged_out", .int(1)) }
+            guard let r = out.reply, r.status != 429, r.status < 500, !out.isClockSkew else { return }
+            try store.setSetting(Core.logoutPendingKey, nil)
+        }
     }
 
     /// Log in again after a logout: a fresh "login" ticket, login messages, then one

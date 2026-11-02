@@ -296,6 +296,24 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(w.count("POST", "/v1/peers/" + n.id.text + "/logout"), 0)
     }
 
+    /// a login that finishes while a pending logout call is out stays logged in when the
+    /// logout reply arrives.
+    func testPendingLogoutReplyDoesNotUndoALogin() async throws {
+        let n = try dev("Ndev")
+        await n.core.fetchPeers(force: true)
+        try n.core.logoutLocal()
+        let core = n.core
+        w.onRequest = { method, path in
+            guard method == "POST", path.hasSuffix("/logout") else { return }
+            _ = try? await core.login(ticket: "t", push: nil)
+        }
+        await n.core.retryPendingLogout()
+        w.onRequest = nil
+        XCTAssertEqual(w.count("POST", "/v1/peers/" + n.id.text + "/login"), 1)
+        XCTAssertFalse(try n.core.store.me().loggedOut)
+        XCTAssertFalse(n.core.logoutPending)
+    }
+
     func testStaleAllowIdPlusOpenNEntryWithdrawnPauseSucceeds() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         await n.core.fetchPeers(force: true)
