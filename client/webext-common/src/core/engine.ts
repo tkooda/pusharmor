@@ -1015,7 +1015,11 @@ export class Engine {
         });
       }
       if (Math.min(e.started, t) + PAIRING_TIMEOUT_DAYS * 86400e3 > t) {
-        if (e.role === "X" && e.authorized && e.unsent) await this.sendReply(x);
+        if (e.role === "X" && e.authorized && e.unsent) {
+          // Fresh read: an earlier sweep may have sent it after this list was read.
+          const cur = await getEntry(this.p.storageLocal, x);
+          if (cur?.role === "X" && cur.authorized && cur.unsent) await this.sendReply(x);
+        }
         continue;
       }
       const peer = await this.db.peer(x);
