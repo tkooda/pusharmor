@@ -687,17 +687,33 @@ test("abort in state shown drops the pin, keeps the ruling, and the next pairing
   await a.e.pairStart(b.id);
   await deliver(w, b);
   const pb = (await b.db.peer(a.id))!;
-  assert.equal(await getEntry(b.p.storageLocal, a.id), null);
   assert.equal(pb.pinned, false);
   assert.equal(pb.pairing_id, null);
   assert.equal(await b.db.replay(a.id), undefined);
   assert.equal(pb.ruling, "denied");
-  assert.equal(b.p.storageLocal.data["pairmsg:" + a.id], 'Unable to pair with ' + (await named(b, a.id)) + '.\nClick Pair to start again.');
-  // a pairs again: b takes the new commit instead of dropping it
+  // b takes the new commit instead of dropping it
+  const nb = (await getEntry(b.p.storageLocal, a.id))!;
+  assert.equal(nb.role, "X");
+  assert.equal(nb.c_N, (await getEntry(a.p.storageLocal, b.id))!.c_N);
+});
+
+test("a new commit that ends an old open pairing on X is then answered, not dropped", async () => {
+  const { w, a, b } = await setup();
+  await refresh(a, b);
+  await a.e.pairStart(b.id);
+  await deliver(w, b); // b: X entry, replied
+  w.take(a.id); // the reply never reaches a
   await a.e.cancelPairing(b.id);
   await a.e.pairStart(b.id);
+  await deliver(w, b); // a different c_N: the old X entry ends, the new commit is decided
+  const eb = (await getEntry(b.p.storageLocal, a.id))!;
+  assert.equal(eb.role, "X");
+  assert.equal(eb.state, "replied");
+  assert.equal(eb.c_N, (await getEntry(a.p.storageLocal, b.id))!.c_N);
+  assert.equal(b.p.storageLocal.data["pairmsg:" + a.id], undefined);
+  await deliver(w, a);
   await deliver(w, b);
-  assert.equal((await getEntry(b.p.storageLocal, a.id))?.role, "X");
+  assert.equal((await a.e.pairRowView(b.id))!.fingerprint, (await b.e.pairRowView(a.id))!.fingerprint);
 });
 
 test("crossing: lower id stays N, higher side replies as X", async () => {

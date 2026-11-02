@@ -551,7 +551,8 @@ export class Engine {
         const ruling = (await this.db.peer(from))?.ruling;
         await this.endEntry(from, T.pairFailed(name), true);
         if (ruling) await this.db.updatePeer(from, (p) => (p ? { ...p, ruling } : null));
-        return this.dropEvent("unreadable", null, src);
+        // the old entry is gone: decide the new commit on its own
+        return this.onCommit(from, cN, self, src, afterFetch);
       }
       case "notice": {
         if (d.notice === "half") {
