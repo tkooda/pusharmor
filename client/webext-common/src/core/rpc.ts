@@ -70,6 +70,11 @@ function created(p: PeerRow): string {
   return Number.isFinite(d.getTime()) ? plat + ", added " + d.toISOString().slice(0, 10) : plat;
 }
 
+/** The device name its row in the list shows. */
+function rowLabel(p: PeerRow): string {
+  return p.name ?? created(p);
+}
+
 /** The action line of each request that can fail where the user clicked. */
 const ACTION: Record<string, ActionId> = {
   send: "send",
@@ -120,7 +125,10 @@ export class Rpc {
     if (!action) return reasonOf(err); // no action line for a view that only reads
     const selfKept = !!(await this.e.self().catch(() => null));
     let name: string | undefined;
-    if (typeof a.id === "string") name = peerLabel((await this.e.db.peer(a.id).catch(() => undefined))?.name ?? null);
+    if (typeof a.id === "string") {
+      const p = await this.e.db.peer(a.id).catch(() => undefined);
+      name = p ? rowLabel(p) : peerLabel(null);
+    }
     return failText(action, err, { name, selfKept });
   }
 
@@ -275,7 +283,7 @@ export class Rpc {
     const t = e.p.now();
     for (const p of await e.db.peers()) {
       if (p.removed || p.id === self?.id) continue;
-      const label = p.name ?? created(p);
+      const label = rowLabel(p);
       const nm = peerLabel(p.name);
       const v: PeerView = { id: p.id, label, platform: p.platform, lines: [], actions: [], countdown: null, fingerprint: null, pk: null, greyed: null, hidden: p.hidden, allowContent: p.allow_content !== false, sendable: false, approvesMe: p.approves_me, paired: false };
       const pv = entries.has(p.id) ? await e.pairRowView(p.id) : null;

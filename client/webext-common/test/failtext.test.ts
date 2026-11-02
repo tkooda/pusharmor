@@ -223,7 +223,7 @@ test("Codes match that the relay server does not take says Unable to confirm", a
   await deliver(w, b);
   await deliver(w, a);
   await deliver(w, b);
-  const nm = (await a.db.peer(b.id))!.name ?? "A device";
+  const nm = (await new Rpc(a.e).peers()).peers.find((v) => v.id === b.id)!.label;
   w.inject.push({ match: /POST \/v1\/approve\//, status: 500, body: {}, times: 9 });
   assert.equal(await fails(new Rpc(a.e), "approve", { id: b.id }), 'Unable to confirm "' + nm + '".\n' + DOWN);
 });
