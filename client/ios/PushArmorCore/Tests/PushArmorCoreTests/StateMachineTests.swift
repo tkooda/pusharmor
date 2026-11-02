@@ -471,13 +471,20 @@ final class StateMachineTests: XCTestCase {
         await n.core.fetchPeers(force: true)
         try n.core.logoutLocal()
         let core = n.core
+        let fw: FakeWorker = w
+        let me = n.id.text
+        // the Worker handles the logout first; its reply arrives only after the login
         w.onRequest = { method, path in
             guard method == "POST", path.hasSuffix("/logout") else { return }
+            fw.rows[me]!.loggedOut = true
+            fw.script("POST", path, 200, "{\"r\":{}}")
             _ = try? await core.login(ticket: "t", push: nil)
         }
         await n.core.retryPendingLogout()
         w.onRequest = nil
         XCTAssertEqual(w.count("POST", "/v1/peers/" + n.id.text + "/login"), 1)
+        XCTAssertEqual(w.count("POST", "/v1/peers/" + n.id.text + "/logout"), 1)
+        XCTAssertFalse(w.rows[n.id.text]!.loggedOut)
         XCTAssertFalse(try n.core.store.me().loggedOut)
         XCTAssertFalse(n.core.logoutPending)
     }
