@@ -31,6 +31,26 @@ final class InboxTests: XCTestCase {
         inbox.removeAll()
     }
 
+    /// a file the 100-file cap removes is not lost silently: the next drain writes one
+    /// could-not-read event.
+    func testCapDropWritesOneEvent() async throws {
+        let w = FakeWorker(), clock = TestClock()
+        let x = try Device(worker: w, clock: clock, name: "Xdev")
+        let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-cap-\(UUID().uuidString)"))
+        for i in 0 ..< 101 { try inbox.write("m\(i)", nowMs: 1761300000000 + Int64(i)) }
+        XCTAssertEqual(inbox.files().count, 100)
+        XCTAssertEqual(inbox.droppedCount(), 1)
+        for f in inbox.files() { try FileManager.default.removeItem(at: f) }
+        _ = await x.core.drainLockedInbox(inbox)
+        let ev = try x.core.store.history().filter { $0.event == .couldNotRead }
+        XCTAssertEqual(ev.count, 1)
+        XCTAssertEqual(ev.first?.count, 1)
+        XCTAssertEqual(inbox.droppedCount(), 0)
+        _ = await x.core.drainLockedInbox(inbox)
+        XCTAssertEqual(try x.core.store.history().filter { $0.event == .couldNotRead }.count, 1)
+        inbox.removeAll()
+    }
+
     func testPKCEAndTurnstileOrigin() {
         // RFC 7636 appendix B
         let p = PKCE(verifier: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk")

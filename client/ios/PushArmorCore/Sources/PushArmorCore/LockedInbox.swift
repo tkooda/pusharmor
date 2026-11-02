@@ -23,20 +23,24 @@ public struct LockedInbox: Sendable {
         return names.filter { $0.hasSuffix(".m") }.sorted().map { dir.appendingPathComponent($0) }
     }
 
-    /// Store the exact ASCII string of M.
+    /// Store the exact ASCII string of M. A file the cap removes is counted in "dropped";
+    /// a failed count write never blocks the new file.
     public func write(_ m: String, nowMs: Int64) throws {
         try ensureDirectory()
-        var existing = files()
-        while existing.count >= LockedInbox.cap {
-            try? FileManager.default.removeItem(at: existing.removeFirst())
-        }
-        var g = SystemRandomNumberGenerator()
-        let rnd = (0 ..< 4).map { _ in String(format: "%02x", UInt8.random(in: 0 ... 255, using: &g)) }.joined()
-        let name = String(format: "%013lld", nowMs) + "-" + rnd + ".m"
         var opts: Data.WritingOptions = [.atomic]
         #if os(iOS)
         opts.insert(.noFileProtection)
         #endif
+        var existing = files()
+        var removed = 0
+        while existing.count >= LockedInbox.cap {
+            try? FileManager.default.removeItem(at: existing.removeFirst())
+            removed += 1
+        }
+        if removed > 0 { try? Data(String(droppedCount() + removed).utf8).write(to: droppedFile, options: opts) }
+        var g = SystemRandomNumberGenerator()
+        let rnd = (0 ..< 4).map { _ in String(format: "%02x", UInt8.random(in: 0 ... 255, using: &g)) }.joined()
+        let name = String(format: "%013lld", nowMs) + "-" + rnd + ".m"
         try Data(m.utf8).write(to: dir.appendingPathComponent(name), options: opts)
     }
 
@@ -50,6 +54,16 @@ public struct LockedInbox: Sendable {
     public func files(holding m: String) -> [URL] { files().filter { self.m(of: $0) == m } }
 
     public func removeAll() { try? FileManager.default.removeItem(at: dir) }
+
+    /// Side file holding the number of files the cap removed since the last drain.
+    var droppedFile: URL { dir.appendingPathComponent("dropped") }
+
+    public func droppedCount() -> Int {
+        guard let d = try? Data(contentsOf: droppedFile), let s = String(data: d, encoding: .ascii) else { return 0 }
+        return Int(s.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+    }
+
+    func clearDropped() { try? FileManager.default.removeItem(at: droppedFile) }
 }
 
 /// One drain at a time per Core: the locked drain, the delivered drain and a tap
@@ -117,6 +131,11 @@ extension Core {
                 continue
             }
             try? FileManager.default.removeItem(at: f)
+        }
+        // files the cap removed: one could-not-read event; the count stays until it is stored
+        if inbox.droppedCount() > 0,
+           (try? store.addEvent(.couldNotRead, peer: nil, content: S.dropped, now: clock())) != nil {
+            inbox.clearDropped()
         }
         return (count, ms.subtracting(held), held)
     }
