@@ -74,7 +74,9 @@ extension Core {
                     try newX(authorized: true)   // a tapped reply: not counted in the cap
                 case .aborted:
                     try store.deletePairing(from)
-                    if var q = p { q.note = PairNote.failed.rawValue; try store.savePeer(q) }
+                    // step 8: drop the pin this pairing made; keep the ruling
+                    if let q = try store.peer(from) { try store.dropPin(from, state: q.state) }
+                    if var q = try store.peer(from) { q.note = PairNote.failed.rawValue; try store.savePeer(q) }
                 case .unchanged, .none:
                     break
                 }

@@ -690,6 +690,34 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(try x.core.store.peer(n.id)!.note, PairNote.failed.rawValue)
     }
 
+    /// an abort while X shows the fingerprint drops the pin X made, keeps the ruling,
+    /// and N's next pairing reaches X.
+    func testAbortInShownDropsPinKeepsRulingAndNextPairingWorks() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await Scenario.pairToShown(w, n, x)
+        XCTAssertTrue(try x.core.store.peer(n.id)!.pinned)
+        try x.core.store.db.exec("UPDATE peers SET state = 'denied' WHERE id = ?", [.text(n.id.text)])
+        // N taps Cancel pairing, then Pair, before X approved: a different c_N aborts X's entry
+        await n.core.cancelPairing(x.id)
+        _ = w.take(x.id)
+        _ = try await n.core.startPair(x.id)
+        await x.drainInbox(w)
+        let p = try x.core.store.peer(n.id)!
+        XCTAssertNil(try x.core.store.pairing(n.id))
+        XCTAssertFalse(p.pinned)
+        XCTAssertNil(p.fingerprint)
+        XCTAssertNil(try x.core.store.replay(n.id))
+        XCTAssertEqual(p.state, .denied)
+        XCTAssertEqual(p.note, PairNote.failed.rawValue)
+        // N pairs again: X takes the new commit instead of dropping it
+        await n.core.cancelPairing(x.id)
+        _ = w.take(x.id)
+        _ = try await n.core.startPair(x.id)
+        let r = await x.drainInbox(w)
+        XCTAssertEqual(r.first?.banner?.body, S.pairCommit)
+        XCTAssertEqual(try x.core.store.pairing(n.id)?.role, .x)
+    }
+
     func testWrongPairingIdIsCouldNotRead() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try await pairFully(n, x)
