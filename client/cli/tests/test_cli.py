@@ -129,14 +129,59 @@ def test_parse_args_per_command():
     assert p.parse_args(["delete", "abcdef"]).id == "abcdef"
 
 
-def test_windows_refused(monkeypatch, capsys):
+@pytest.fixture
+def as_windows(monkeypatch):
+    """Windows as the CLI sees it: a fake msvcrt that records its calls, and no fcntl, pwd, grp, getuid, or getgid."""
+    from types import SimpleNamespace
+    calls = []
     monkeypatch.setattr(pa.sys, "platform", "win32")
-    assert pa.main(["send", "x"]) == 1
-    assert capsys.readouterr().err == "error: PushArmor command line is not supported on Windows yet.\n"
+    monkeypatch.setitem(sys.modules, "msvcrt", SimpleNamespace(
+        LK_LOCK=1, LK_UNLCK=0, locking=lambda fd, mode, n: calls.append((mode, n))))
+    for name in ("fcntl", "pwd", "grp"):
+        monkeypatch.setitem(sys.modules, name, None)  # import raises ImportError
+    for name in ("getuid", "getgid"):
+        monkeypatch.setattr(pa.os, name, lambda: pytest.fail("POSIX user id lookup on Windows"), raising=False)
+    return calls
+
+
+def test_windows_config_dir_is_appdata(as_windows, monkeypatch, tmp_path):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", "/xdg")
+    monkeypatch.delenv("PUSHARMOR_CONFIG", raising=False)
+    assert pa.config_dir() == os.path.join(str(tmp_path), "PushArmor")
+    monkeypatch.setenv("PUSHARMOR_CONFIG", str(tmp_path / "env"))
+    assert pa.config_dir() == str(tmp_path / "env")
+    assert pa.Store(pa.config_dir(str(tmp_path / "arg"))).keys_dir == os.path.join(str(tmp_path / "arg"), "keys")
+
+
+def test_windows_runs_with_msvcrt_locks_and_no_posix_checks(as_windows, net, monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    answers(monkeypatch, CODE)
+    assert pa.main(["login"]) == 0
+    cfg = tmp_path / "PushArmor"
+    assert (cfg / "keys" / "private.toml").is_file() and (cfg / "devices.toml").is_file()
+    assert as_windows and as_windows[0] == (1, 1) and as_windows.count((1, 1)) == as_windows.count((0, 1))
+    if os.name != "nt":
+        for path in (cfg, cfg / "keys", cfg / "keys" / "private.toml", cfg / "devices.toml"):
+            path.chmod(0o777)  # no mode check on Windows: the private profile folder protects the files
+    capsys.readouterr()
+    assert pa.main(["send", "hi"]) == 4
+    assert capsys.readouterr().err.startswith("error: ")
+
+
+def test_windows_closed_pipe_exits_quietly(as_windows, tmp_path, monkeypatch, capsys):
+    class ClosedPipe(io.StringIO):
+        def flush(self):  # a write into a closed pipe on Windows fails with EINVAL, not EPIPE
+            raise OSError(22, "Invalid argument")
+
+    monkeypatch.setattr(sys, "stdout", ClosedPipe())
+    assert run(tmp_path, "logout") == 1
+    assert capsys.readouterr().err == ""
 
 
 # ---- files ----
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows uses APPDATA")
 def test_config_dir(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.delenv("PUSHARMOR_CONFIG", raising=False)
@@ -196,6 +241,7 @@ def make_keys(cfg, dmode=0o700, fmode=0o600):
     return st
 
 
+@pytest.mark.skipif(os.name == "nt", reason="no POSIX modes or owners on Windows")
 def test_permissions(tmp_path):
     st = make_keys(tmp_path)
     assert st.load_keys()["id"] == pa.b64e(bytes(30))
@@ -339,7 +385,7 @@ def test_login_that_cannot_save_removes_the_device(net, tmp_path, monkeypatch, c
     assert list(net.peers) == [pid]
 
 
-@pytest.mark.skipif(os.getuid() == 0, reason="root writes any folder")
+@pytest.mark.skipif(os.name == "nt" or os.getuid() == 0, reason="root writes any folder; no folder modes on Windows")
 def test_login_in_a_read_only_folder_removes_the_device(net, tmp_path, monkeypatch):
     tmp_path.chmod(0o500)
     answers(monkeypatch, CODE)
@@ -507,6 +553,7 @@ def test_peer_list_opens_stored_remove_messages(net, tmp_path, monkeypatch, caps
     assert "\" was removed from your account.\n" in capsys.readouterr().err
 
 
+@pytest.mark.skipif(os.name == "nt", reason="stdout is always UTF-8 on Windows")
 def test_listen_keeps_a_message_it_could_not_show(net, tmp_path, monkeypatch, capsys):
     a, b = tmp_path / "a", tmp_path / "b"
     pair_two(monkeypatch, net, a, b)
@@ -527,6 +574,7 @@ def test_listen_keeps_a_message_it_could_not_show(net, tmp_path, monkeypatch, ca
     assert capsys.readouterr().out == ""
 
 
+@pytest.mark.skipif(os.name == "nt", reason="the notify program is a shell script")
 def test_listen_exec_replaces_nul_and_lone_surrogates(net, tmp_path, monkeypatch, capsys):
     a, b = tmp_path / "a", tmp_path / "b"
     pair_two(monkeypatch, net, a, b)
@@ -573,6 +621,7 @@ def test_pair_timeouts_quote_the_device_name(net, tmp_path, monkeypatch, capsys)
     assert '"bee" has not answered yet. Run pusharmor pair %s again to continue.\n' % pa.id_hex(idb)[:6] in err
 
 
+@pytest.mark.skipif(os.name == "nt", reason="no POSIX modes on Windows")
 def test_chmod_hint_quotes_a_path_with_a_space(tmp_path):
     path = tmp_path / "my cfg"
     path.mkdir()
@@ -617,6 +666,7 @@ def _group(monkeypatch, name, members):
     monkeypatch.setattr(grp, "getgrgid", lambda gid: SimpleNamespace(gr_name=name, gr_mem=members))
 
 
+@pytest.mark.skipif(os.name == "nt", reason="no POSIX modes or groups on Windows")
 @pytest.mark.parametrize("name, members", [
     ("me", []), ("me", ["me"]), ("staff", []), ("me", ["other"]), ("me", ["me", "other"])])
 def test_group_writable_is_refused_even_with_a_user_private_group(name, members, net, tmp_path, monkeypatch, capsys):
@@ -632,6 +682,7 @@ def test_group_writable_is_refused_even_with_a_user_private_group(name, members,
         path.chmod(0o700 if path == cfg else 0o600)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="no POSIX modes on Windows")
 def test_saving_keys_checks_the_config_folder(tmp_path):
     root = tmp_path / "cfg"
     root.mkdir()
@@ -643,6 +694,7 @@ def test_saving_keys_checks_the_config_folder(tmp_path):
     assert not (root / "keys").exists()
 
 
+@pytest.mark.skipif(os.name == "nt", reason="no POSIX owners on Windows")
 def test_a_config_file_owned_by_another_user_is_refused(tmp_path, monkeypatch):
     path = tmp_path / "devices.toml"
     path.write_text("")
@@ -675,6 +727,7 @@ def test_wipe_waits_for_a_state_write_and_is_not_written_back(net, tmp_path, mon
     assert [n for n in os.listdir(tmp_path) if n.startswith(".tmp-")] == []
 
 
+@pytest.mark.skipif(os.name == "nt", reason="no POSIX modes on Windows")
 def test_config_folder_and_state_files_others_can_change_are_refused(net, tmp_path, monkeypatch, capsys):
     cfg = tmp_path / "cfg"
     old = os.umask(0)
@@ -706,6 +759,7 @@ def test_config_folder_and_state_files_others_can_change_are_refused(net, tmp_pa
     assert run(cfg, "send", "hi") == 4
 
 
+@pytest.mark.skipif(os.name == "nt", reason="checks POSIX modes of link targets")
 def test_symlinked_config_folder_files_and_chains_are_followed(net, tmp_path, monkeypatch, capsys):
     real = tmp_path / "dotfiles" / "pusharmor"
     login(monkeypatch, real)
@@ -751,7 +805,8 @@ def test_unsupported_toml_value_is_damaged(net, tmp_path, monkeypatch, capsys):
     assert capsys.readouterr().err == "error: The file '%s' is damaged. Delete it and log in again.\n" % path
 
 
-@pytest.mark.parametrize("prog", ["/nonexistent/notify", "pusharmor-no-such-notify", "NOEXEC"])
+@pytest.mark.parametrize("prog", ["/nonexistent/notify", "pusharmor-no-such-notify", pytest.param(
+    "NOEXEC", marks=pytest.mark.skipif(os.name == "nt", reason="no execute bit on Windows"))])
 def test_listen_exec_missing_program_keeps_the_message(net, tmp_path, monkeypatch, capsys, prog):
     a, b = tmp_path / "a", tmp_path / "b"
     pair_two(monkeypatch, net, a, b)
@@ -992,6 +1047,7 @@ def test_a_new_login_replaces_a_damaged_devices_file_and_never_removes_the_devic
     assert state(cfg)["reg"] == "registered"
 
 
+@pytest.mark.skipif(os.name == "nt", reason="runs the hint in a POSIX shell")
 @pytest.mark.parametrize("change", [
     lambda d: d.update(sign_key=pa.b64e(b"\x01" * 31)), lambda d: d.update(enc_key="not*base64"),
     lambda d: d.pop("version")])
@@ -1057,6 +1113,7 @@ def test_unreadable_file_is_one_line(monkeypatch, tmp_path, net, capsys):
     assert err == "error: '%s' must be a file that you own.\n" % (cfg / "devices.toml")
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows words these OS errors differently")
 def test_config_path_that_is_a_file_or_too_long(monkeypatch, tmp_path, capsys):
     f = tmp_path / "file"
     f.write_text("x")
@@ -1069,7 +1126,7 @@ def test_config_path_that_is_a_file_or_too_long(monkeypatch, tmp_path, capsys):
     assert err.startswith("error: Cannot read or write '") and err.endswith(": File name too long.\n")
 
 
-@pytest.mark.skipif(os.getuid() == 0, reason="root reads any file")
+@pytest.mark.skipif(os.name == "nt" or os.getuid() == 0, reason="root reads any file; no file modes on Windows")
 def test_file_without_permission(monkeypatch, tmp_path, net, capsys):
     cfg = _logged_in(monkeypatch, tmp_path, net)
     (cfg / "devices.toml").chmod(0)
@@ -1113,6 +1170,7 @@ def test_unexpected_error_is_one_line_exit_70(monkeypatch, tmp_path, capsys):
     assert capsys.readouterr().err == "error: PushArmor stopped on an unexpected error (TypeError: bad value).\n"
 
 
+@pytest.mark.skipif(os.name == "nt", reason="stdout is always UTF-8 on Windows")
 def test_output_the_terminal_cannot_show(monkeypatch, tmp_path, capsys):
     monkeypatch.setitem(pa.COMMANDS, "logout", (lambda cx, args: print("caf\u00e9"), "", []))
     monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(io.BytesIO(), encoding="ascii"))
@@ -1390,6 +1448,7 @@ def test_stream_socket_timeout_reconnects_without_delay(monkeypatch):
     assert seen and set(seen) == {False}
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows uses APPDATA")
 def test_config_dir_with_empty_home(monkeypatch):
     monkeypatch.setenv("HOME", "")
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
@@ -1398,6 +1457,7 @@ def test_config_dir_with_empty_home(monkeypatch):
     assert d.endswith("/.config/pusharmor") and d != "/.config/pusharmor"
 
 
+@pytest.mark.skipif(os.name == "nt", reason="no directory fsync on Windows")
 def test_write_file_syncs_the_directory(monkeypatch, tmp_path):
     kinds = []
     real = os.fsync
@@ -1603,6 +1663,7 @@ def test_pair_result_word_is_never_shown_raw(net, tmp_path, monkeypatch, capsys)
     assert err[-1] == 'error: "%s" is not paired with this device.' % name and not any("Unable" in x for x in err)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="the notify program is a shell script")
 def test_notify_program_that_fails_is_one_line(tmp_path, capsys):
     prog = tmp_path / "notify"
     prog.write_text("#!/bin/sh\nexit 3\n")

@@ -938,6 +938,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 
 try:
     import tomllib
@@ -1033,10 +1034,9 @@ def wait_text(s):
     return "1 second" if s == 1 else "%d seconds" % s
 
 
-def check_os():
-    """The one OS check: Linux and macOS only."""
-    if os.name == "nt" or sys.platform.startswith("win"):
-        raise Fail("PushArmor command line is not supported on Windows yet.")
+def windows():
+    """Windows: files in the APPDATA folder, msvcrt locks, and no POSIX owner or mode bits to check."""
+    return sys.platform == "win32"
 
 
 def log(level, msg):
@@ -1275,13 +1275,16 @@ def config_dir(arg=None):
     for v in (arg, os.environ.get("PUSHARMOR_CONFIG")):
         if v:
             return os.path.abspath(os.path.expanduser(v))
+    if windows():
+        return os.path.join(os.environ.get("APPDATA") or os.path.join(str(Path.home()), "AppData", "Roaming"),
+                            "PushArmor")
     xdg = os.environ.get("XDG_CONFIG_HOME")
     if xdg and os.path.isabs(xdg):
         return os.path.join(xdg, "pusharmor")
     home = os.path.expanduser("~")
     if not os.path.isabs(home) or home == "/":
         with contextlib.suppress(KeyError, ImportError):
-            import pwd  # not on Windows; check_os runs later
+            import pwd  # not on Windows, which returned above
             home = pwd.getpwuid(os.getuid()).pw_dir
     base = os.path.join(home, ".config")
     return os.path.join(base, "pusharmor")
@@ -1292,7 +1295,7 @@ def write_file(path, text):
     path = os.path.realpath(path)
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".tmp-")
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
             f.write(text)
             f.flush()
             os.fsync(f.fileno())
@@ -1310,7 +1313,9 @@ def write_file(path, text):
 
 
 def check_private(path, want):
-    """Owner must be this user, no group or other bits."""
+    """Owner must be this user, no group or other bits. Windows: the private profile folder protects it."""
+    if windows():
+        return
     st = os.stat(path)
     mode = stat.S_IMODE(st.st_mode)
     if st.st_uid == os.getuid() and not mode & 0o077:
@@ -1325,11 +1330,13 @@ def check_private(path, want):
 
 def check_unshared(path, folder):
     """A folder or regular file owned by this user that no group and no other user can change.
-    A symlink, at any level, is followed and its target checked."""
+    A symlink, at any level, is followed and its target checked. Windows: only the kind is checked."""
     st = os.stat(path)
-    mode = stat.S_IMODE(st.st_mode)
-    if not (stat.S_ISDIR if folder else stat.S_ISREG)(st.st_mode) or st.st_uid != os.getuid():
+    if not (stat.S_ISDIR if folder else stat.S_ISREG)(st.st_mode) or not windows() and st.st_uid != os.getuid():
         raise Fail("%s must be a %s that you own." % (quoted_path(path), "folder" if folder else "file"))
+    if windows():
+        return
+    mode = stat.S_IMODE(st.st_mode)
     if mode & 0o022:
         raise Fail("%s can be changed by other users. Run: chmod go-w %s" % (quoted_path(path), quoted_path(path)))
 
@@ -1462,14 +1469,36 @@ class Store:
             "push_key": b64e(k["push"]), "push_auth": b64e(k["auth"])}))
 
     @contextlib.contextmanager
+    def locked(self):
+        """An exclusive lock on devices.toml.lock: flock, or on Windows msvcrt on its first byte."""
+        with open(self.lock_path, "a") as lf:
+            if not windows():
+                import fcntl
+                fcntl.flock(lf, fcntl.LOCK_EX)
+                yield
+                return
+            import msvcrt
+            lf.seek(0)
+            while True:
+                try:
+                    msvcrt.locking(lf.fileno(), msvcrt.LK_LOCK, 1)
+                    break
+                except OSError as e:  # LK_LOCK gives up after 10 seconds: wait on, as flock does
+                    if e.errno != errno.EDEADLOCK:
+                        raise
+            try:
+                yield
+            finally:
+                lf.seek(0)
+                msvcrt.locking(lf.fileno(), msvcrt.LK_UNLCK, 1)
+
+    @contextlib.contextmanager
     def state(self, write=True, fresh=False):
         """devices.toml under an exclusive flock (listen and send may run at the same time).
         fresh: a new login replaces the old file without reading it, so a damaged one never stops it."""
-        import fcntl
         os.makedirs(self.root, 0o700, exist_ok=True)
         check_unshared(self.root, True)
-        with open(self.lock_path, "a") as lf:
-            fcntl.flock(lf, fcntl.LOCK_EX)
+        with self.locked():
             if write and not self.has_keys():  # deleted by another PushArmor run: nothing to write back
                 raise Fail(NOT_LOGGED_IN, EXIT_LOGIN)
             d = {"version": STATE_VERSION}
@@ -1491,9 +1520,7 @@ class Store:
 
     def wipe(self):
         """Under the devices.toml lock, so a run writing state at the same time is never cut off."""
-        import fcntl
-        with open(self.lock_path, "a") as lf:
-            fcntl.flock(lf, fcntl.LOCK_EX)
+        with self.locked():
             tmps = glob.glob(os.path.join(self.keys_dir, ".tmp-*")) + glob.glob(os.path.join(self.root, ".tmp-*"))
             paths = [self.key_path, self.dev_path]
             if os.path.islink(self.dev_path):
@@ -2921,7 +2948,8 @@ def build_parser():
                                 "devices, end-to-end encrypted. See https://pusharmor.com",
                                 epilog="exit codes:\n" + "\n".join("  %-3d %s" % c for c in EXIT_CODES),
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--config", metavar="DIR", help="config dir (default: $PUSHARMOR_CONFIG, else "
+    p.add_argument("--config", metavar="DIR", help="config dir (default: %%PUSHARMOR_CONFIG%%, else "
+                   "%%APPDATA%%\\PushArmor)" if windows() else "config dir (default: $PUSHARMOR_CONFIG, else "
                    "$XDG_CONFIG_HOME/pusharmor, else ~/.config/pusharmor)")
     p.add_argument("--version", action="version", version="pusharmor " + VERSION)
     sub = p.add_subparsers(dest="command", metavar="COMMAND", required=True)
@@ -2935,12 +2963,15 @@ def build_parser():
 
 
 def _quiet_stdout():
-    """After a failed write to stdout: point it at /dev/null so the flush at exit cannot fail again."""
+    """After a failed write to stdout: point it at /dev/null so the flush at exit cannot fail again.
+    True when stdout was the part that failed."""
     try:
         sys.stdout.flush()
     except (OSError, ValueError, AttributeError):
         with contextlib.suppress(OSError, ValueError, AttributeError):
             os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        return True
+    return False
 
 
 def _os_error_text(e):
@@ -2963,7 +2994,8 @@ def main(argv=None):
         _quiet_stdout()
         return EXIT_ERR
     except OSError as e:
-        _quiet_stdout()
+        if _quiet_stdout() and windows() and e.errno == errno.EINVAL:  # a closed pipe on Windows
+            return EXIT_ERR
         log("error", STORAGE_FULL if e.errno == errno.ENOSPC else _os_error_text(e))
         return EXIT_ERR
     except UnicodeError as e:
@@ -2981,11 +3013,10 @@ def main(argv=None):
 
 
 def _main(argv):
-    try:
-        check_os()
-    except Fail as e:
-        log("error", str(e))
-        return e.code
+    if windows():  # the same UTF-8 bytes and line ends as on Linux and macOS, also into a pipe or file
+        for f in (sys.stdout, sys.stderr):
+            with contextlib.suppress(AttributeError, ValueError):
+                f.reconfigure(encoding="utf-8", newline="\n")
     parser = build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "_check", lambda a: True)(args):

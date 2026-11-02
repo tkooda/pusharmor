@@ -44,6 +44,7 @@ distribution:
 
 Run `pusharmor COMMAND --help` for details. Files live in `~/.config/pusharmor`
 (or `$XDG_CONFIG_HOME/pusharmor`, `$PUSHARMOR_CONFIG`, or `--config DIR`).
+On Windows they live in `%APPDATA%\PushArmor` (or `%PUSHARMOR_CONFIG%`, or `--config DIR`).
 
 ## Exit codes
 
@@ -60,6 +61,6 @@ Run `pusharmor COMMAND --help` for details. Files live in `~/.config/pusharmor`
 
 ## Needs
 
-- Linux or macOS. Windows is not supported yet.
+- Linux, macOS, or Windows.
 - Python 3.9 or newer.
 - The `cryptography` package (version 3.3.2 or newer). pipx installs it for you.
