@@ -85,11 +85,19 @@ and its job does not run. The first job checks, per platform, the tag
 `<platform>/vX.Y.Z` and its published GitHub release with the needed assets; a
 platform without them is skipped (a SKIP line in the summary). It refuses to
 run when the tags of X.Y.Z point at different commits, and it lists the client
-platforms that have no tag of X.Y.Z as a WARNING line. It also checks the
+platforms that have no tag of X.Y.Z as a WARNING line. A selected platform
+whose tag commit has no `.github/workflows/store.yml` is skipped too (tags
+made before store.yml existed cannot be promoted by the workflow). It also checks the
 listing files. Then the run waits for the owner's approval (Environment
 `promote`, the owner is the required reviewer): one tap on "Review
-deployments" > Approve. The store jobs then run in parallel, each with the
-store's release Environment:
+deployments" > Approve. The `dispatch` job (only `actions: write`, no
+Environment, no secret) then starts the `store` workflow
+(`.github/workflows/store.yml`) once per ready platform, by workflow_dispatch
+on the tag `<platform>/vX.Y.Z`, so each store job runs on a tag ref that the
+tag-only release Environment allows. In each store run, the `gate` job checks
+the tag and that an approved promote run on `main` for this version and
+platform started it, then the store job checks out that promote run's commit
+and runs with the store's release Environment:
 
 | Job        | What it does (`release/promote.mjs`)                                        |
 |------------|-----------------------------------------------------------------------------|
@@ -108,8 +116,8 @@ stores still go. The `play` job tests them again.
 
 Every job skips a version that is already live or in review, and a version
 older than the one the store has, so a rerun is safe. When one store fails,
-rerun only that job ("Re-run failed jobs"); the others are not redone. Each
-job ends with one summary line per store.
+rerun only its `store` run ("Re-run failed jobs"); the others are not redone.
+Each job ends with one summary line per store.
 
 Listings: `store/listing/play/en-US/*.txt`,
 `store/listing/appstore/en-US/*.txt` and the screenshots in
@@ -305,10 +313,8 @@ tag commit, so only reviewed commits may be tagged:
    assertion.ref.startsWith('refs/tags/android/v') &&
    assertion.environment == 'android-release'`;
    Chrome Web Store: the same with `refs/tags/chrome/v` and `chrome-release`.
-   Each condition also accepts the promote workflow on `main` (item 7):
-   `(assertion.ref.startsWith('refs/tags/android/v') || assertion.workflow_ref
-   == 'tkooda/pusharmor/.github/workflows/promote.yml@refs/heads/main')`, and
-   the same with `chrome/v` for the Chrome Web Store.
+   Promote needs no extra clause: its store jobs (store.yml) run on the
+   platform tag in the same Environment (item 7).
    Grant each service account to the principalSet of its own store's pool only.
 6. GitHub immutable releases are on and supported: the release workflows add
    every asset to a draft and publish it last. A published release cannot get
@@ -316,8 +322,10 @@ tag commit, so only reviewed commits may be tagged:
    version.
 7. Promote (`.github/workflows/promote.yml`, dispatched on `main`):
    Environment `promote`, required reviewer the owner, "Prevent self-review"
-   off, deployment branch `main` only. The store jobs use the existing store
-   Environments for their secrets, so `android-release`, `ios-release`,
-   `chrome-release` and `firefox-release` also allow the branch `main`; only
-   promote.yml and the tag-triggered release workflows name them. No secret
-   is copied.
+   off, deployment branch `main` only. promote.yml names no store
+   Environment and gets no store secret; its `dispatch` job has only
+   `actions: write`. The store jobs are in `.github/workflows/store.yml`,
+   started by promote on each platform tag, so `android-release`,
+   `ios-release`, `chrome-release` and `firefox-release` stay tags only (item
+   3); only store.yml and the tag-triggered release workflows name them. No
+   secret is copied.

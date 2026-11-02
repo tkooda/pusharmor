@@ -1,10 +1,11 @@
-// Promote (workflow promote.yml): sends the
+// Promote (workflow promote.yml, then store.yml on each platform tag): sends the
 // already tested build of version X.Y.Z to the public channel of one store.
 // Nothing is rebuilt: Play promotes the internal-track versionCode, App Store
 // submits the TestFlight build, Chrome and Firefox upload the public zip of the
 // GitHub prerelease. Every command is safe to rerun: it skips a version that is
 // already live or in review.
 //   node release/promote.mjs check X.Y.Z      tags, prereleases, listings
+//   node release/promote.mjs gate X.Y.Z       store.yml: tag ref, approved promote run
 //   node release/promote.mjs play X.Y.Z       env TOKEN (androidpublisher)
 //   node release/promote.mjs appstore X.Y.Z   env ASC_API_KEY_P8, ASC_API_KEY_ID, ASC_API_ISSUER_ID
 //   node release/promote.mjs chrome X.Y.Z     env TOKEN (chromewebstore)
@@ -182,6 +183,28 @@ export function commitProblems(version, commits) {
   return { error, missing };
 }
 
+/** The platform whose tag of X.Y.Z is ref (refs/tags/<platform>/vX.Y.Z), or "". */
+export function tagPlatform(ref, version) {
+  return PLATFORMS.find((p) => ref === "refs/tags/" + p + "/v" + version) || "";
+}
+
+/** Why store.yml must not run for platform and version (a string), or "".
+ *  run is the GitHub run that started it (or null), approvals its review
+ *  history: a promote.yml run on main, dispatched by hand, approved in the
+ *  Environment promote, with this version and platform in its run name. */
+export function promoteRunProblem(run, approvals, version, platform) {
+  if (!run) return "no promote run";
+  if (String(run.path).split("@")[0] !== ".github/workflows/promote.yml") return "run is " + run.path + ", not promote.yml";
+  if (run.head_branch !== "main") return "promote run is on " + run.head_branch + ", not main";
+  if (run.event !== "workflow_dispatch") return "promote run event is " + run.event + ", not workflow_dispatch";
+  const head = "promote " + version + " ";
+  const title = String(run.display_title || "");
+  if (!title.startsWith(head)) return "promote run is not for " + version + " (" + title + ")";
+  if (!selectedPlatforms(title.slice(head.length)).list.includes(platform)) return "promote run did not select " + platform + " (" + title + ")";
+  const ok = (approvals || []).some((a) => a.state === "approved" && (a.environments || []).some((e) => e.name === "promote"));
+  return ok ? "" : "promote run has no approval in the Environment promote";
+}
+
 // ---- output ----
 
 function summary(line) {
@@ -238,6 +261,18 @@ async function releaseFile(platform, version, name) {
 function repo() {
   return process.env.GITHUB_REPOSITORY || "tkooda/pusharmor";
 }
+const gh = (path) =>
+  http("GET", "https://api.github.com/repos/" + repo() + path, {
+    headers: { Authorization: "Bearer " + process.env.GH_TOKEN, Accept: "application/vnd.github+json" },
+    ok: [200, 404],
+  });
+/** Store ids of release/public.json as step outputs (WIF needs them in with:). */
+function outputPublicIds() {
+  const pub = loadPublic();
+  for (const k of ["google_play_wif_provider", "google_play_wif_service_account", "google_cws_wif_provider", "google_cws_wif_service_account", "google_cws_publisher_id", "google_chrome_extension_id", "mozilla_firefox_addon_id"]) {
+    output(k, pub[k]);
+  }
+}
 
 // ---- check ----
 
@@ -253,11 +288,6 @@ export function selectedPlatforms(raw) {
   return { list: PLATFORMS.filter((p) => names.includes(p)), error: "" };
 }
 async function check(version) {
-  const gh = (path) =>
-    http("GET", "https://api.github.com/repos/" + repo() + path, {
-      headers: { Authorization: "Bearer " + process.env.GH_TOKEN, Accept: "application/vnd.github+json" },
-      ok: [200, 404],
-    });
   summary("### Promote " + version);
   const sel = selectedPlatforms(process.env.PLATFORMS);
   if (sel.error) throw new Error("platforms: " + sel.error);
@@ -271,7 +301,11 @@ async function check(version) {
     if (obj && obj.type === "tag") obj = (await gh("/git/tags/" + obj.sha)).json?.object || null;
     commits[p] = obj ? obj.sha : null;
     const rel = await gh("/releases/tags/" + tag);
-    const why = releaseProblem(p, version, ref.status === 200, rel.status === 200 ? rel.json : null);
+    let why = releaseProblem(p, version, ref.status === 200, rel.status === 200 ? rel.json : null);
+    // store.yml runs on the tag commit, so the tag must hold it.
+    if (!why && sel.list.includes(p) && (await gh("/contents/.github/workflows/store.yml?ref=" + encodeURIComponent(tag))).status !== 200) {
+      why = "tag " + tag + " has no .github/workflows/store.yml; promote a version tagged after it was added";
+    }
     // the Play gate is tested here, before the owner approval.
     const gate = p === "android" && !why ? playGateProblem(process.env) : "";
     const off = sel.list.includes(p) ? "" : "not in platforms";
@@ -285,12 +319,27 @@ async function check(version) {
   if (same.error) throw new Error(same.error);
   const bad = [...listingProblems("play"), ...listingProblems("appstore"), ...amoNotesProblems()];
   for (const b of bad) summary("- listing: " + b);
-  const pub = loadPublic();
-  for (const k of ["google_play_wif_provider", "google_play_wif_service_account", "google_cws_wif_provider", "google_cws_wif_service_account", "google_cws_publisher_id", "google_chrome_extension_id", "mozilla_firefox_addon_id"]) {
-    output(k, pub[k]);
-  }
-  if (!any) throw new Error("no platform has tag and release " + version);
+  if (!any) throw new Error("no selected platform is ready to promote " + version);
   if (bad.length) throw new Error("listing problems");
+}
+
+// ---- gate (store.yml) ----
+
+/** store.yml runs on the tag <platform>/vX.Y.Z, started by promote.yml after
+ *  the owner approval. Outputs the platform, the promote commit and the ids. */
+async function gate(version) {
+  const platform = tagPlatform(process.env.GITHUB_REF, version);
+  if (!platform) throw new Error("ref " + process.env.GITHUB_REF + " is not a release tag of " + version);
+  const id = String(process.env.PROMOTE_RUN || "");
+  if (!/^[0-9]+$/.test(id)) throw new Error("promote_run is not a run id");
+  const run = await gh("/actions/runs/" + id);
+  const approvals = run.status === 200 ? (await gh("/actions/runs/" + id + "/approvals")).json : [];
+  const why = promoteRunProblem(run.status === 200 ? run.json : null, approvals, version, platform);
+  if (why) throw new Error(why);
+  output("platform", platform);
+  output("commit", run.json.head_sha);
+  outputPublicIds();
+  summary("- " + platform + " " + version + ": started by the approved promote run " + id);
 }
 
 // ---- Google Play ----
@@ -586,7 +635,7 @@ async function firefox(version) {
   return done("Firefox " + version + ": public zip and source submitted as a listed version");
 }
 
-const COMMANDS = { check, play, appstore, chrome, firefox };
+const COMMANDS = { check, gate, play, appstore, chrome, firefox };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [cmd, version] = process.argv.slice(2);
@@ -596,7 +645,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     process.exit(2);
   }
   COMMANDS[cmd](version).then((r) => {
-    if (cmd !== "check") output("clear_prerelease", clearOutput(r));
+    if (cmd !== "check" && cmd !== "gate") output("clear_prerelease", clearOutput(r));
   }, (e) => {
     summary("- " + cmd + " " + version + ": FAILED: " + e.message.split("\n")[0].slice(0, 300));
     console.error(e.message);

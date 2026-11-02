@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { generateKeyPairSync, verify } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { AMO_REVIEW_NOTES, amoNotesProblems, amoToken, ascToken, clearOutput, cmpVersion, commitProblems, contactProblems, listingProblems, playGateProblem, readListing, releaseAssets, releaseProblem, selectedPlatforms } from "./promote.mjs";
+import { AMO_REVIEW_NOTES, amoNotesProblems, amoToken, ascToken, clearOutput, cmpVersion, commitProblems, contactProblems, listingProblems, playGateProblem, readListing, releaseAssets, promoteRunProblem, releaseProblem, selectedPlatforms, tagPlatform } from "./promote.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -195,7 +195,61 @@ test("promote runs only the platforms named in the platforms input", () => {
   assert.match(input, /required: true/);
   assert.doesNotMatch(input, /default:/);
   assert.match(wf, /PLATFORMS: \$\{\{ inputs\.platforms \}\}/);
-  for (const [job, p] of [["play", "android"], ["appstore", "ios"], ["chrome", "chrome"], ["firefox", "firefox"]]) {
-    assert.match(wf, new RegExp("\\n  " + job + ":\\n(?:    .*\\n)*?    if: needs\\.check\\.outputs\\." + p + " == 'true'\\n"));
+  for (const p of ["android", "ios", "chrome", "firefox"]) {
+    assert.match(wf, new RegExp("\\n {10}" + p.toUpperCase() + ": \\$\\{\\{ needs\\.check\\.outputs\\." + p + " \\}\\}\\n"));
+    assert.match(wf, new RegExp('"' + p + ':\\$' + p.toUpperCase() + '"'));
   }
+  assert.match(wf, /\[ "\$\{pair#\*:\}" = "true" \] \|\| continue\n/);
+});
+
+// The store Environments allow only their own release tags, so promote never
+// names them: after the approval it starts store.yml on each platform tag
+// (workflow_dispatch with ref <platform>/vX.Y.Z), and only that run gets the
+// store secrets. store.yml checks that an approved promote run on main started it.
+test("promote starts store.yml on the platform tags and holds no store secret", () => {
+  const promote = readFileSync(join(ROOT, ".github", "workflows", "promote.yml"), "utf8");
+  const code = promote.split("\n").filter((l) => !/^\s*#/.test(l)).join("\n");
+  assert.doesNotMatch(code, /secrets\./);
+  assert.doesNotMatch(code, /id-token/);
+  assert.deepEqual([...code.matchAll(/environment: (\S+)/g)].map((m) => m[1]), ["promote"]);
+  assert.match(code, /\n  dispatch:\n {4}name: .*\n {4}needs: \[check, approve\]\n/);
+  assert.match(code, /\n {4}permissions:\n {6}actions: write\n {4}steps:/);
+  assert.match(code, /gh workflow run store\.yml --repo "\$GITHUB_REPOSITORY" --ref "\$p\/v\$VERSION" -f version="\$VERSION" -f promote_run="\$GITHUB_RUN_ID"/);
+  assert.match(code, /\nrun-name: promote \$\{\{ inputs\.version \}\} \$\{\{ inputs\.platforms \}\}\n/);
+
+  const store = readFileSync(join(ROOT, ".github", "workflows", "store.yml"), "utf8");
+  assert.match(store, /\non:\n {2}workflow_dispatch:\n/);
+  assert.doesNotMatch(store.slice(store.indexOf("\non:"), store.indexOf("\npermissions:")), /\n {2}(push|schedule|workflow_call|repository_dispatch):/);
+  for (const [job, p, env] of [["play", "android", "android-release"], ["appstore", "ios", "ios-release"], ["chrome", "chrome", "chrome-release"], ["firefox", "firefox", "firefox-release"]]) {
+    const i = store.indexOf("\n  " + job + ":\n");
+    assert.ok(i > 0, job);
+    const body = store.slice(i, store.indexOf("\n\n  ", i + 1) > 0 ? store.indexOf("\n\n  ", i + 1) : undefined);
+    assert.match(body, new RegExp("\\n {4}needs: gate\\n {4}if: needs\\.gate\\.outputs\\.platform == '" + p + "' && startsWith\\(github\\.ref, 'refs/tags/" + p + "/v'\\)\\n"), job);
+    assert.match(body, new RegExp("\\n {4}environment: " + env + "\\n"), job);
+    assert.match(body, /\n {10}ref: \$\{\{ needs\.gate\.outputs\.commit \}\}\n/, job);
+    assert.match(body, new RegExp("run: node release/promote\\.mjs " + job + " \"\\$VERSION\""), job);
+  }
+  assert.match(store, /\n  gate:\n(?: {4}.*\n|\n)*? {4}permissions:\n {6}actions: read\n {6}contents: read\n/);
+  assert.match(store, /run: node release\/promote\.mjs gate "\$VERSION"/);
+});
+
+test("store.yml runs only for the tag of its platform and an approved promote run", () => {
+  assert.equal(tagPlatform("refs/tags/firefox/v1.2.3", "1.2.3"), "firefox");
+  assert.equal(tagPlatform("refs/tags/android/v1.2.3", "1.2.3"), "android");
+  assert.equal(tagPlatform("refs/tags/firefox/v1.2.4", "1.2.3"), "");
+  assert.equal(tagPlatform("refs/heads/main", "1.2.3"), "");
+  assert.equal(tagPlatform("refs/tags/cli/v1.2.3", "1.2.3"), "");
+  const run = { path: ".github/workflows/promote.yml", head_branch: "main", event: "workflow_dispatch", display_title: "promote 1.2.3 chrome, firefox", head_sha: "a".repeat(40) };
+  const ok = [{ state: "approved", environments: [{ name: "promote" }] }];
+  assert.equal(promoteRunProblem(run, ok, "1.2.3", "firefox"), "");
+  assert.match(promoteRunProblem(run, ok, "1.2.3", "android"), /android/);
+  assert.match(promoteRunProblem(run, ok, "1.2.4", "firefox"), /1\.2\.4/);
+  assert.match(promoteRunProblem({ ...run, display_title: "promote 1.2.3x firefox" }, ok, "1.2.3", "firefox"), /1\.2\.3/);
+  assert.match(promoteRunProblem({ ...run, head_branch: "dev" }, ok, "1.2.3", "firefox"), /main/);
+  assert.match(promoteRunProblem({ ...run, path: ".github/workflows/store.yml" }, ok, "1.2.3", "firefox"), /promote\.yml/);
+  assert.match(promoteRunProblem({ ...run, event: "push" }, ok, "1.2.3", "firefox"), /workflow_dispatch/);
+  assert.match(promoteRunProblem(run, [], "1.2.3", "firefox"), /approv/);
+  assert.match(promoteRunProblem(run, [{ state: "rejected", environments: [{ name: "promote" }] }], "1.2.3", "firefox"), /approv/);
+  assert.match(promoteRunProblem(run, [{ state: "approved", environments: [{ name: "other" }] }], "1.2.3", "firefox"), /approv/);
+  assert.match(promoteRunProblem(null, ok, "1.2.3", "firefox"), /no promote run/);
 });
