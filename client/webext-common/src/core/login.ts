@@ -6,8 +6,8 @@ import { normalizeEmail, oauthK } from "../crypto/labels.ts";
 import { AUTH_RESULT, type AuthResult, type Restore, SIGNIN_PROGRESS, restoreStep } from "../model/signin.ts";
 import type { Engine } from "./engine.ts";
 import { UserError } from "./engine.ts";
-import { ReasonError, failText } from "./failtext.ts";
-import { R } from "./texts.ts";
+import { ActionError, ReasonError, failText } from "./failtext.ts";
+import { type ActionId, R } from "./texts.ts";
 
 export type Purpose = "register" | "login" | "delete-account";
 export const AUTH_PENDING = "auth_pending";
@@ -28,6 +28,11 @@ export function cleanCode(input: string): string | null {
   const m = /(?:^|[^0-9A-Za-z])([0-9A-Za-z](?:[ -]?[0-9A-Za-z]){5})(?![0-9A-Za-z])/.exec(input.trim());
   if (!m) return null;
   return m[1]!.replace(/[ -]/g, "").toUpperCase();
+}
+
+/** The action line of a failed sign-in step after the code or link was accepted. */
+function actionFor(purpose: Purpose): ActionId {
+  return purpose === "delete-account" ? "deleteAccount" : "login";
 }
 
 export class Login {
@@ -75,10 +80,14 @@ export class Login {
     if (!c) throw new UserError("Enter the 6-character code");
     const st = (await this.e.p.storageSession.get([REQUEST_TOKEN]))[REQUEST_TOKEN] as { token: string; purpose: Purpose } | undefined;
     if (!st) throw new ReasonError(R.loginExpired);
-    const r = await this.e.api.call("POST", "/auth/email/verify", { body: { request_token: st.token, code: c } });
-    const ticket = typeof r.json.ticket === "string" ? r.json.ticket : "";
-    const email = typeof r.json.email === "string" ? r.json.email : null;
-    return this.complete(st.purpose, ticket, email, evict);
+    try {
+      const r = await this.e.api.call("POST", "/auth/email/verify", { body: { request_token: st.token, code: c } });
+      const ticket = typeof r.json.ticket === "string" ? r.json.ticket : "";
+      const email = typeof r.json.email === "string" ? r.json.email : null;
+      return await this.complete(st.purpose, ticket, email, evict);
+    } catch (err) {
+      throw st.purpose === "delete-account" ? new ActionError("deleteAccount", err) : err;
+    }
   }
 
   async oauthUrl(provider: "google" | "apple", purpose: Purpose): Promise<string> {
@@ -127,8 +136,9 @@ export class Login {
       await report(r);
       return r;
     } catch (err) {
-      await report({ done: false, error: failText("login", err) });
-      throw err;
+      const action = actionFor(pend.purpose);
+      await report({ done: false, error: failText(action, err) });
+      throw new ActionError(action, err);
     }
   }
 

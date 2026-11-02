@@ -8,6 +8,17 @@ import { type ActionId, R, actionLine } from "./texts.ts";
 /** A failure whose reason line is known where it happens; the caller adds the action line. */
 export class ReasonError extends Error {}
 
+/** A failure whose action line is known only where it happens (the sign-in purpose). */
+export class ActionError extends Error {
+  readonly action: ActionId;
+  readonly err: unknown;
+  constructor(action: ActionId, err: unknown) {
+    super(err instanceof Error ? err.message : String(err));
+    this.action = action;
+    this.err = err;
+  }
+}
+
 const KEY_ERRORS = new Set(["OperationError", "InvalidAccessError", "NotSupportedError"]);
 const STORE_ERRORS = new Set(["UnknownError", "InvalidStateError", "TransactionInactiveError", "ReadOnlyError", "ConstraintError", "AbortError", "VersionError"]);
 
@@ -53,6 +64,7 @@ export function reasonOf(err: unknown, provider?: string): string {
  * check did not confirm is not called a removal.
  */
 export function failText(a: ActionId, err: unknown, ctx: { name?: string; selfKept?: boolean } = {}): string {
+  if (err instanceof ActionError) return failText(err.action, err.err, ctx);
   if (err instanceof UserError) return err.message;
   const provider = a === "loginGoogle" ? "Google" : a === "loginApple" ? "Apple" : undefined;
   const unconfirmed = ctx.selfKept && err instanceof ApiError && err.status === 401 && err.error === "unknown peer";

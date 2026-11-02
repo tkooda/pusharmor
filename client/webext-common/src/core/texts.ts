@@ -104,6 +104,7 @@ export type ActionId =
   | "login"
   | "loginGoogle"
   | "loginApple"
+  | "deleteAccount"
   | "deleteHistory"
   | "saveMessage"
   | "changeSetting";
@@ -127,6 +128,7 @@ export function actionLine(a: ActionId, x = ""): string {
     case "login": return "Unable to log in.";
     case "loginGoogle": return "Unable to log in with Google.";
     case "loginApple": return "Unable to log in with Apple.";
+    case "deleteAccount": return "Unable to delete the account.";
     case "deleteHistory": return "Unable to delete the history.";
     case "saveMessage": return "Unable to save the message.";
     case "changeSetting": return "Unable to change this setting.";

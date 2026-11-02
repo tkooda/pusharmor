@@ -121,7 +121,8 @@ export class Rpc {
   private async failure(req: Req, err: unknown): Promise<string> {
     if (err instanceof UserError) return err.message;
     const a = req.args ?? {};
-    const action = req.op === "oauth" ? (a.provider === "apple" ? "loginApple" : "loginGoogle") : ACTION[req.op];
+    const action =
+      req.op === "oauth" ? (a.purpose === "delete-account" ? "deleteAccount" : a.provider === "apple" ? "loginApple" : "loginGoogle") : ACTION[req.op];
     if (!action) return reasonOf(err); // no action line for a view that only reads
     const selfKept = !!(await this.e.self().catch(() => null));
     let name: string | undefined;
