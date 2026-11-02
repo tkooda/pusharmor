@@ -59,6 +59,8 @@ class Settings(private val context: Context) {
         /** a Log out the relay server has not yet confirmed; retried until it is settled. */
         val LOGOUT_PENDING = booleanPreferencesKey("logout_pending")
         val BANNER = stringPreferencesKey("banner")
+        /** A removal signal ("removed" | "deleted") not yet confirmed by a second GET /peers; checked again on app open. */
+        val REMOVAL_CHECK = stringPreferencesKey("removal_check")
         val LAST_FETCH = longPreferencesKey("last_fetch")
         val LAST_REFRESH = longPreferencesKey("last_refresh")
         val FLAVOR_NOTICE_SHOWN = booleanPreferencesKey("flavor_notice_shown")

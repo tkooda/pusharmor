@@ -53,8 +53,11 @@ class WorkerClient(
     private val http: OkHttpClient = defaultHttp(),
     private val now: () -> Long = System::currentTimeMillis,
     private val sleep: (Long) -> Unit = { Thread.sleep(it) },
-    /** Called for any call signed with PA-ID that gets 401 "unknown peer" or 401 "logged out" (the error text). */
-    private val onAuthState: (String) -> Unit = {},
+    /**
+     * Called for any call signed with PA-ID that gets 401 "unknown peer" or 401 "logged out" (the error text).
+     * false: the reply is not passed on and the call reads as no reply.
+     */
+    private val onAuthState: (String) -> Boolean = { true },
     /** PA-Client header value sent on every request: "android/<versionName>". */
     private val paClient: String = "android/0.0.0",
     /** Called for any call that gets HTTP 426: this app version is too old for the relay server. */
@@ -124,7 +127,7 @@ class WorkerClient(
             }
             if (signed && reply != null && reply.status == 401) {
                 val err = (reply.json?.get("error") as? JsonPrimitive)?.content
-                if (err == "unknown peer" || err == "logged out") onAuthState(err)
+                if ((err == "unknown peer" || err == "logged out") && !onAuthState(err)) return null
             }
             if (reply?.status == 426) onUpdateRequired()
             val retryable = reply == null || reply.status == 429 || reply.status == 503

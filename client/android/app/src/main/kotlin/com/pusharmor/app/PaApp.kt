@@ -68,10 +68,14 @@ class Graph(val app: PaApp) {
         onAuthState = ::onAuthState, paClient = "android/${BuildConfig.VERSION_NAME}",
         onUpdateRequired = { settings.markUpdateRequired(BuildConfig.VERSION_NAME) })
 
-    /** 401 "unknown peer": this device was removed; 401 "logged out": signed out. Applies to every signed call. */
-    private fun onAuthState(error: String) {
-        if (error == "unknown peer") session.selfRemoved(deleted = false, lostKeys = false)
-        else settings.set(Settings.K.SIGNED_OUT, true)
+    /**
+     * 401 "unknown peer": the removal check runs (false = not confirmed, the call reads as no reply);
+     * 401 "logged out": signed out. Applies to every signed call.
+     */
+    private fun onAuthState(error: String): Boolean {
+        if (error == "unknown peer") return session.onRemovedSignal(deleted = false)
+        settings.set(Settings.K.SIGNED_OUT, true)
+        return true
     }
 
     fun identity(): Identity? {
@@ -91,6 +95,6 @@ class Graph(val app: PaApp) {
     fun receive(fcm: Boolean) = ReceiveEngine(store, identity()!!, effects(fcm))
     fun sender() = SendFlow(store, identity()!!, client, effects(true))
     fun sync() = PeersSync(store, identity()!!, effects(false))
-    fun reconcile() = AllowReconcile(store, client) { session.selfRemoved(deleted = false, lostKeys = false) }
+    fun reconcile() = AllowReconcile(store, client) { session.onRemovedSignal(deleted = false) }
     fun logoutFlow() = LogoutFlow(store, identity()!!, client, reconcile())
 }

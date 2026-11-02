@@ -94,6 +94,13 @@ class WorkerClientTest {
         assertEquals(listOf("unknown peer", "logged out"), seen)
     }
 
+    @Test fun authStateHookCanHoldBackTheReply() {
+        val c = WorkerClient({ keys }, { id }, offset, server.url("/"), WorkerClient.defaultHttp(), { clock }, { clock += it }, { false })
+        server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"unknown peer\"}"))
+        assertTrue(c.peers() is ApiResult.Network)
+        assertEquals(1, server.requestCount)
+    }
+
     @Test fun retries429WithinBudgetWithSameBytesAndSignature() {
         server.enqueue(MockResponse().setResponseCode(429).setHeader("Retry-After", "2").setBody("{\"error\":\"rate limited\",\"retry_after\":2}"))
         server.enqueue(ok())

@@ -46,7 +46,7 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
     override fun logoutNotice(peerId: String, loggedOut: Boolean) {
         if (fcm) n.notice(if (loggedOut) "${nameOf(peerId)} logged out." else "${nameOf(peerId)} logged in.")
     }
-    override fun selfRemoved(deleted: Boolean) = g.session.selfRemoved(deleted = deleted, lostKeys = false)
+    override fun selfRemoved(deleted: Boolean) { g.session.onRemovedSignal(deleted = deleted) }
 
     companion object {
         fun platformLabel(p: String) = when (p) { "android" -> "Android"; "ios" -> "iPhone"; "chrome" -> "Chrome"; "firefox" -> "Firefox"; "cli" -> "Command line"; else -> p }

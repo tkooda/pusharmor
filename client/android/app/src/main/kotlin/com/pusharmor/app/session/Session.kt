@@ -29,6 +29,7 @@ import com.pusharmor.protocol.engine.ApiResult
 import com.pusharmor.protocol.engine.ClockSkew
 import com.pusharmor.protocol.engine.Outbox
 import com.pusharmor.store.SelfEntity
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** Sign-in, registration, sign out, removal, refresh and the startup invariant (sections 5, 8, 9). */
 class Session(private val g: Graph) {
@@ -81,6 +82,7 @@ class Session(private val g: Graph) {
     /** App start / open work when signed in (no GET /peers on app open). */
     fun onAppOpen(now: Long) {
         if (BuildConfig.SCREENSHOT_MODE && ScreenshotMode.on) return
+        if (confirmRemoval()) return
         if (g.identity() == null || s.flag(Settings.K.SIGNED_OUT, false)) return
         s.migrateDirectShare(g.store.peers().map { it.id }) // before the device menus show their share sheet ticks
         flavorRule()
@@ -229,6 +231,42 @@ class Session(private val g: Graph) {
         return null
     }
 
+    private val confirming = AtomicBoolean(false)
+    @Volatile private var confirmThread: Thread? = null
+
+    /**
+     * A removal signal (401 "unknown peer", or a remove about me or delete from an approved device). It is
+     * stored, and the keys go only when one more GET /peers also gets 401 "unknown peer". Returns true when
+     * the device is wiped (or has no registration left), false while the removal is not confirmed.
+     */
+    fun onRemovedSignal(deleted: Boolean): Boolean {
+        if (confirmThread === Thread.currentThread()) return true // the check's own GET: its reply decides
+        if (dao.self() == null) return true
+        if (deleted || s.get(Settings.K.REMOVAL_CHECK) == null) s.set(Settings.K.REMOVAL_CHECK, if (deleted) "deleted" else "removed")
+        return confirmRemoval()
+    }
+
+    /**
+     * One signed GET /peers for a stored removal signal: 401 "unknown peer" wipes; a reply that lists the
+     * devices clears the signal; anything else keeps the keys and the signal for the next app open.
+     * One check at a time. Returns true when the wipe ran.
+     */
+    fun confirmRemoval(): Boolean {
+        val kind = s.get(Settings.K.REMOVAL_CHECK) ?: return false
+        if (g.identity() == null || !confirming.compareAndSet(false, true)) return false
+        confirmThread = Thread.currentThread()
+        try {
+            var r = g.client.peersOnce()
+            if (r.isClockSkew) r = g.client.peersOnce()
+            if (r.isUnknownPeer) { selfRemoved(deleted = kind == "deleted", lostKeys = false); return true }
+            if (r is ApiResult.Ok) s.set(Settings.K.REMOVAL_CHECK, null)
+            return false
+        } finally {
+            confirmThread = null
+            confirming.set(false)
+        }
+    }
+
     /** Self removed (remove about me, delete, 401 "unknown peer") or keys lost. */
     fun selfRemoved(deleted: Boolean, lostKeys: Boolean) {
         val oldId = dao.self()?.id
@@ -279,7 +317,7 @@ class Session(private val g: Graph) {
                 true
             }
             is ApiResult.Http -> {
-                if (r.isUnknownPeer) selfRemoved(deleted = false, lostKeys = false)
+                if (r.isUnknownPeer) onRemovedSignal(deleted = false)
                 if (r.isLoggedOut) s.set(Settings.K.SIGNED_OUT, true)
                 r.status != 503 && r.status != 429
             }
@@ -388,7 +426,7 @@ class Session(private val g: Graph) {
         return when {
             r is ApiResult.Ok -> { dao.setPushHash(p?.let { x -> Ids.pushSha256(x.second) }); true }
             r.isLoggedOut -> null
-            r.isUnknownPeer -> { selfRemoved(deleted = false, lostKeys = false); null }
+            r.isUnknownPeer -> { onRemovedSignal(deleted = false); null }
             r is ApiResult.Http && r.status in 400..499 && r.status != 429 -> null
             else -> false
         }
