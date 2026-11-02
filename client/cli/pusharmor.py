@@ -2271,7 +2271,7 @@ def register_with(cx, code, stream, push, ntfy):
                 raise
             body["evict"], body["ticket"] = choose_evict(e.body.get("peers")), e.body["ticket"]
     pid = j.get("id")
-    if not isinstance(pid, str) or not peer_keys_ok(pid, b64d(pid)[:9], k["sign_pub"], k["enc_pub"]):
+    if not isinstance(pid, str) or not b64ok(pid) or not peer_keys_ok(pid, b64d(pid)[:9], k["sign_pub"], k["enc_pub"]):
         raise Fail("The relay server sent a reply this device cannot use.")
     k["id"] = pid
     try:

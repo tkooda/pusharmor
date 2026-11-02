@@ -869,3 +869,11 @@ def test_choose_evict_ignores_unicode_digits(monkeypatch, capsys):
     monkeypatch.setattr(pa, "ask", lambda prompt="": "\u00b2 \u0663")
     with pytest.raises(pa.Fail):
         pa.choose_evict(rows)
+
+
+def test_bad_id_in_register_reply(net, tmp_path, monkeypatch, capsys):
+    net.hooks[("POST", "peers")] = lambda *a: net.reply(200, {"id": "!!"})
+    answers(monkeypatch, "  `" + CODE + "`  ")
+    capsys.readouterr()
+    assert run(tmp_path, "login") == 1
+    assert "The relay server sent a reply this device cannot use." in capsys.readouterr().err
