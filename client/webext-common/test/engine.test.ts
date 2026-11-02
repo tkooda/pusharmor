@@ -56,7 +56,7 @@ test("happy path: commit, automatic reply, open, same fingerprint, approve both,
   assert.equal(b.p.notes.has("a:" + a.id), false);
   await deliver(w, a);
   assert.ok((await a.db.peer(b.id))!.approves_me);
-  assert.equal(a.p.notes.get("a:" + b.id)!.body, "Chrome confirmed this device");
+  assert.equal(a.p.notes.get("a:" + b.id)!.body, '"Chrome" confirmed this device');
   assert.equal(await getEntry(a.p.storageLocal, b.id), null); // r wiped
   assert.equal(await getEntry(b.p.storageLocal, a.id), null);
   assert.equal((await a.db.peer(b.id))!.name, "Chrome");
@@ -541,7 +541,7 @@ test("half notice during an open pairing: the row offers Pair again", async () =
 });
 
 test("half notice text names the device and the Pair again button", () => {
-  assert.equal(T.pairHalf("Phone"), "Phone wants to pair again. Click Pair again on its row.");
+  assert.equal(T.pairHalf("Phone"), '"Phone" wants to pair again. Click Pair again on its row.');
 });
 
 test("commit from a pinned and fully approved peer is a plain drop", async () => {

@@ -280,7 +280,7 @@ async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, red
   let ok = false;
   if (a === "remove") {
     if (!(await confirmDialog("Remove device?", T.removeConfirm(p.label), "Remove"))) return;
-    msg = "Removed " + p.label + ".";
+    msg = T.removedDevice(p.label);
     ok = true;
     try {
       await rpc(env, "remove", { id: p.id });

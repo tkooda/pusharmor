@@ -1,7 +1,7 @@
 // Toolbar popup: Send, History, Peers, Settings (component-webext section 7).
 import type { PeerView, StateView } from "../core/rpc.ts";
 import type { SendResult } from "../core/engine.ts";
-import { T, pushIssueText, saveFailText } from "../core/texts.ts";
+import { T, pushIssueText, quoted, saveFailText } from "../core/texts.ts";
 import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter, sortByLabel } from "../model/sendsel.ts";
 import { AUTH_CHANGED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
@@ -322,9 +322,9 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     c.classList.add("greyed");
     c.setAttribute("aria-disabled", "true");
     c.removeAttribute("aria-pressed");
-    c.title = p.label + ": " + why;
+    c.title = quoted(p.label) + ": " + why;
     c.addEventListener("click", () => {
-      toast(p.label + ": " + why, "info");
+      toast(quoted(p.label) + ": " + why, "info");
       void rpc(env, "greyedTap");
     });
     chips.append(c);
@@ -481,7 +481,7 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
 }
 
 function filterLabel(key: string, label: string): string {
-  return key === "all" ? "All messages" : key === "unknown" ? T.unknownSender : "From " + label;
+  return key === "all" ? "All messages" : key === "unknown" ? T.unknownSender : "From " + quoted(label);
 }
 
 function eventText(r: HistoryRow & { sender: string }): string {
