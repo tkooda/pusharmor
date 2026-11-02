@@ -352,6 +352,7 @@ public final class Store: @unchecked Sendable {
         try db.write {
             try db.exec("UPDATE pairing SET r = zeroblob(length(r)), c_n = zeroblob(length(c_n)) WHERE peer_id = ?", [.text(id.text)])
             try db.exec("DELETE FROM pairing WHERE peer_id = ?", [.text(id.text)])
+            db.checkpointAfterCommit = true
         }
     }
 

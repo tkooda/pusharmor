@@ -50,6 +50,9 @@ public final class DB: @unchecked Sendable {
     let handle: OpaquePointer
     private let lock = NSRecursiveLock()
     private var depth = 0
+    /// Set inside a write that removed key material; after its outermost COMMIT the WAL is
+    /// checkpointed and truncated so no old page copy stays in pa.sqlite-wal.
+    var checkpointAfterCommit = false
 
     public init(path: String) throws {
         var h: OpaquePointer?
@@ -60,6 +63,7 @@ public final class DB: @unchecked Sendable {
         handle = h
         sqlite3_busy_timeout(h, 2000)
         try exec("PRAGMA journal_mode=WAL")
+        try exec("PRAGMA secure_delete=ON")
         try Schema.migrate(self)
     }
 
@@ -82,9 +86,14 @@ public final class DB: @unchecked Sendable {
             let r = try body()
             depth = 0
             try exec("COMMIT")
+            if checkpointAfterCommit {
+                checkpointAfterCommit = false
+                try? exec("PRAGMA wal_checkpoint(TRUNCATE)")
+            }
             return r
         } catch {
             depth = 0
+            checkpointAfterCommit = false
             try? exec("ROLLBACK")
             throw error
         }

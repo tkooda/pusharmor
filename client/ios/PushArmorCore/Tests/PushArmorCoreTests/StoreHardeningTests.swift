@@ -54,4 +54,19 @@ final class StoreHardeningTests: XCTestCase {
         XCTAssertNoThrow(try DB(path: path))
         XCTAssertLessThan(Date().timeIntervalSince(t0), 1)
     }
+
+    /// an ended pairing leaves no copy of its secret in pa.sqlite or pa.sqlite-wal.
+    func testDeletedPairingSecretNotOnDisk() throws {
+        let path = tmpPath("secdel")
+        let s = try Store(path: path)
+        let a = TestPeer()
+        let r = Data((0 ..< 32).map { UInt8(0xa5 ^ $0) })
+        try s.savePairing(PairingEntry(peerId: a.id, role: .n, state: .committed, r: r, cN: nil, authorized: false,
+                                       unsent: false, startedAt: 1, notBefore: 0, lastSendAt: 0))
+        try s.deletePairing(a.id)
+        for suffix in ["", "-wal"] {
+            let bytes = (try? Data(contentsOf: URL(fileURLWithPath: path + suffix))) ?? Data()
+            XCTAssertNil(bytes.range(of: r), "secret found in pa.sqlite" + suffix)
+        }
+    }
 }
