@@ -22,6 +22,11 @@ export function wordmark(env: UiEnv, size: number): HTMLElement {
   return add(h("span", { class: "brand" }, wm), env.beta && h("span", { class: "beta" }, "Beta"));
 }
 
+/** The view a plain open starts on: Send once a pairing is complete, else Devices. */
+export function launchTab(peers: PeerView[]): "send" | "peers" {
+  return peers.some((p) => p.paired) ? "send" : "peers";
+}
+
 /** Counts mounts: a mount that a newer one overtook while it waited stops before it draws. */
 let mounts = 0;
 let watching = false;
@@ -68,6 +73,10 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
     root.querySelector<HTMLElement>("button.primary")?.focus();
     return;
   }
+  // a failed read keeps Send, the view this open showed before
+  const peers = (await rpc<{ peers: PeerView[] }>(env, "peers").catch(() => null))?.peers;
+  if (my !== mounts) return;
+  const first: Tab = peers ? launchTab(peers) : "send";
   clear(root);
   const body = h("div", { class: "body", id: "panel", role: "tabpanel" });
   const tabs = h("div", { class: "tabs", role: "tablist" });
@@ -115,7 +124,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   const top = h("div", { class: "top" }, h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), setupBar(env, st), tabs);
   root.append(top, body);
   // after the first view is drawn, so the message keeps clear of its footer
-  void show("send")
+  void show(first)
     .then(() => showPushIssue(st, () => my === mounts))
     .then(() => settlePushIssue(env, st, () => my === mounts));
 }

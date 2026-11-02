@@ -145,10 +145,11 @@ async function main(): Promise<void> {
   if (tab === "settings" || tab === "signout") state.email = "sam@example.com";
   document.getElementById("headline")!.textContent = HEADLINES[tab] ?? "";
   await mountPopup(env, document.getElementById("app")!);
-  // let the first (Send) view finish drawing before switching tabs
+  // let the first view finish drawing before switching tabs
   await new Promise((done) => setTimeout(done, 500));
   const open = tab === "signout" ? "settings" : tab;
-  if (open !== "send") (document.querySelector('[data-tab="' + open + '"]') as HTMLElement | null)?.click();
+  const btn = document.querySelector('[data-tab="' + open + '"]') as HTMLElement | null;
+  if (!btn?.classList.contains("on")) btn?.click();
   if (q.has("senderr")) {
     document.querySelector<HTMLElement>(".send-foot button.primary")?.click();
     await new Promise((done) => setTimeout(done, 300));

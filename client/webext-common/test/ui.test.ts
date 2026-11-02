@@ -642,3 +642,16 @@ test("user text says URL for a web address; the sign-in email's login link stays
   }
   assert.match(readFileSync(new URL("../src/shots/shots.ts", import.meta.url), "utf8"), /"Send URLs or text to your devices/);
 });
+
+test("a plain open of the popup or the full tab shows Send with a completed pairing, else Devices", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { launchTab } = await import("../src/ui/popup.ts");
+  const peer = (paired: boolean) => ({ paired }) as PeerView;
+  assert.equal(launchTab([peer(false), peer(true)]), "send");
+  assert.equal(launchTab([peer(false)]), "peers");
+  assert.equal(launchTab([]), "peers");
+  const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
+  assert.match(rd("popup.ts"), /void show\(first\)/);
+  // a hash (notification, share, menu, or a link inside the add-on) keeps its view
+  assert.match(rd("page.ts"), /if \(route === ""\) \{[^}]*launchTab\(/);
+});

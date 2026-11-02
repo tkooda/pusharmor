@@ -1,7 +1,7 @@
 // Full extension tab: login, Peers full view, limit picker, over-cap send
 // (long flows run in a tab because a popup closes on blur).
 import type { LoginResult, Purpose } from "../core/login.ts";
-import type { StateView } from "../core/rpc.ts";
+import type { PeerView, StateView } from "../core/rpc.ts";
 import { R, T, actionLine } from "../core/texts.ts";
 import { type UiEnv, add, clear, failView, group, h, platformLabel, rpc } from "./dom.ts";
 import { AUTH_CHANGED, AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResult, type Restore, autoVerifyCode, formatWait, resendLeftMs, sendLeftMs } from "../model/signin.ts";
@@ -9,7 +9,7 @@ import { toast } from "./dialog.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
 import { startTheme } from "./theme.ts";
-import { historyView, keysCard, sendView, type Nav, showPushIssue, signinCard, updateCard, wordmark } from "./popup.ts";
+import { historyView, keysCard, launchTab, sendView, type Nav, showPushIssue, signinCard, updateCard, wordmark } from "./popup.ts";
 
 export const SITE = "https://pusharmor.com";
 
@@ -52,6 +52,11 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
   root.append(h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), view);
   const nav: Nav = { toDevices: () => (location.hash = "#pair"), toSend: () => (location.hash = "#send") };
   void showPushIssue(st);
+  // a plain open (no hash): Send once a pairing is complete, else Devices
+  if (route === "") {
+    if (launchTab((await rpc<{ peers: PeerView[] }>(env, "peers")).peers) === "send") return sendView(env, view, st, "", true, nav);
+    return renderPeers(env, view, true);
+  }
   if (route === "read") return readView(env, root, Number(arg));
   if (route === "history") return historyView(env, view, arg, nav);
   if (route === "send") {
