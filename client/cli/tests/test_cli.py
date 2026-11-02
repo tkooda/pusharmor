@@ -877,3 +877,9 @@ def test_bad_id_in_register_reply(net, tmp_path, monkeypatch, capsys):
     capsys.readouterr()
     assert run(tmp_path, "login") == 1
     assert "The relay server sent a reply this device cannot use." in capsys.readouterr().err
+
+
+def test_log_with_closed_stderr_writes_nothing(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "stderr", None)
+    pa.log("a note")
+    assert capsys.readouterr().out == ""

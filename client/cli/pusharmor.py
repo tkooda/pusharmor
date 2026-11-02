@@ -985,6 +985,8 @@ def check_os():
 
 
 def log(msg):
+    if sys.stderr is None:
+        return
     print(msg, file=sys.stderr, flush=True)
 
 
