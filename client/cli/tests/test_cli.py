@@ -527,6 +527,23 @@ def test_send_reads_a_bounded_amount_of_stdin(net, tmp_path, monkeypatch, capsys
     assert "No paired devices" in capsys.readouterr().err
 
 
+def test_pair_timeouts_quote_the_device_name(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    login(monkeypatch, a)
+    idb = login(monkeypatch, b)
+    monkeypatch.setattr(pa, "PAIR_WAIT_S", 0.5)
+    assert run(a, "pair", pa.id_hex(idb)[:6]) == 1
+    d = state(a)
+    d["peers"][idb].update(name="bee", pinned=True)
+    d["pairs"][idb]["started"] -= 15 * 86400
+    (a / "devices.toml").write_text(pa.toml_dumps(d))
+    capsys.readouterr()
+    assert run(a, "pair", pa.id_hex(idb)[:6]) == 1
+    err = capsys.readouterr().err
+    assert 'Pairing with "bee" timed out.\n' in err
+    assert 'No answer from "bee" yet. Run pusharmor pair %s again to continue.\n' % pa.id_hex(idb)[:6] in err
+
+
 def test_wipe_removes_temp_files(net, tmp_path, monkeypatch):
     login(monkeypatch, tmp_path)
     (tmp_path / "keys" / ".tmp-x").write_text("key")

@@ -2289,7 +2289,7 @@ def sweep(cx):
             if a == "drop_pin" and p and not p["approve_verified"]:
                 unpin(p)
                 dropped = True
-                log("Pairing with %s timed out." % peer_label(p))
+                log('Pairing with "%s" timed out.' % peer_label(p))
     if dropped:
         reconcile_allow(cx)
 
@@ -2684,7 +2684,7 @@ def cmd_pair(cx, args):
             told = wait
         pt = stream.next(deadline)
         if pt is None:
-            raise Fail("No answer from %s yet. Run pusharmor pair %s again to continue." % (name, sid))
+            raise Fail('No answer from "%s" yet. Run pusharmor pair %s again to continue.' % (name, sid))
         pair_receive(cx, pt, stream)
 
 
