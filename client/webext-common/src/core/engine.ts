@@ -1076,7 +1076,7 @@ export class Engine {
       if (!id || id.length !== ID_LEN || !sp || !ep) continue;
       if (!(await validPeerEntry(id, sp, ep, acct))) continue;
       const platform = (["android", "ios", "chrome", "firefox", "cli"] as const).includes(it.platform as Platform4) ? (it.platform as Platform4) : "android";
-      const created = typeof it.created === "number" ? it.created : 0;
+      const created = typeof it.created === "number" && Number.isFinite(it.created) && it.created >= 0 && it.created <= 8.64e9 ? it.created : 0;
       const snap = await this.db.peer(it.id);
       if (snap?.removed) continue;
       seen.add(it.id);

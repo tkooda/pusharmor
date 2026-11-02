@@ -62,7 +62,8 @@ export interface StateView {
 
 function created(p: PeerRow): string {
   const d = new Date(p.created * 1000);
-  return (p.platform === "cli" ? "Command line" : p.platform.charAt(0).toUpperCase() + p.platform.slice(1)) + ", added " + d.toISOString().slice(0, 10);
+  const plat = p.platform === "cli" ? "Command line" : p.platform.charAt(0).toUpperCase() + p.platform.slice(1);
+  return Number.isFinite(d.getTime()) ? plat + ", added " + d.toISOString().slice(0, 10) : plat;
 }
 
 export class Rpc {

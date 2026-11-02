@@ -1275,3 +1275,15 @@ test("two concurrent starts send one pairing reply", async () => {
   const after = w.calls.filter((c) => c.path === "/v1/pair/" + a.id && c.method === "POST").length;
   assert.equal(after - before, 1);
 });
+
+test("a peer list with an impossible created time still shows the device list", async () => {
+  const { w, a, b } = await setup();
+  w.rows.get(b.id)!.created = 1e20;
+  await a.e.fetchPeersNow();
+  const row = (await new Rpc(a.e).peers()).peers.find((v) => v.id === b.id)!;
+  assert.match(row.label, /^Chrome, added /);
+  const stored = (await a.db.peer(b.id))!;
+  assert.equal(stored.created, 0);
+  await a.db.putPeer({ ...stored, created: 1e20 });
+  assert.ok((await new Rpc(a.e).peers()).peers.some((v) => v.id === b.id));
+});
