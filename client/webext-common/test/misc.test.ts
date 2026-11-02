@@ -146,3 +146,10 @@ test("push issue texts: two lines, Brave names its setting, the relay text says 
   assert.equal(pushIssueText("refused", false), "This browser cannot receive messages.\nIts push service is turned off or not available.");
   assert.equal(pushIssueText("relay", true), "This browser cannot receive messages.\nThe relay server did not accept its push service. Try again later.");
 });
+
+test("the log in banner after a removal, unusable keys, a logout, or an account deletion", () => {
+  assert.equal(T.removed, "This device was removed from the account. Log in again.");
+  assert.equal(T.keysLost, "This device's security keys cannot be used right now. Log in again.");
+  assert.equal(T.signedOut, "This device is logged out. Log in to resume.");
+  assert.equal(T.accountDeleted, "The account was deleted on another device.");
+});

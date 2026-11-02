@@ -272,7 +272,7 @@ test("login page: one note at a time, setup note only while needed with Open set
   assert.match(page, /"You are logged out\. Log in to resume\."/);
   const texts = readFileSync(new URL("../src/core/texts.ts", import.meta.url), "utf8");
   assert.match(texts, /ffFinishSetup: "Finish setup in the Firefox setup tab\.",/);
-  assert.match(texts, /signedOut: "Logged out\. Log in to resume\.",/);
+  assert.match(texts, /signedOut: "This device is logged out\. Log in to resume\.",/);
 });
 
 test("Turnstile loads only when the email field is used; a send waits for the check", async () => {
