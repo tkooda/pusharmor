@@ -94,6 +94,24 @@ final class StoreHardeningTests: XCTestCase {
         XCTAssertTrue(plan.contains { ($0.text("detail") ?? "").contains("history_created") })
     }
 
+    /// the cap and the list go by received time, not by insert order.
+    func testHistoryCapAndOrderByReceivedTime() throws {
+        let s = try Store(path: tmpPath("hord"))
+        try s.db.exec("""
+            WITH RECURSIVE c(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM c WHERE i < 500)
+            INSERT INTO history (dir, type, content, created_local) SELECT 'in', 'text', 'm' || i, 1000 + i FROM c
+            """)
+        let a = TestPeer()
+        let late = try s.addMessage(dir: .incoming, peer: a.id, type: "text", content: "old", n: nil, pairingId: nil,
+                                    read: false, results: nil, now: 1)
+        XCTAssertNil(try s.historyRow(late))                            // the oldest by time goes
+        XCTAssertEqual(try s.db.one("SELECT min(rowid) AS m FROM history")?.int("m"), 1)
+        XCTAssertEqual(try s.history().count, 500)
+        try s.db.exec("UPDATE history SET created_local = 99999 WHERE rowid = 1")
+        XCTAssertEqual(try s.history().first?.rowid, 1)
+        XCTAssertEqual(try s.history().last?.rowid, 2)
+    }
+
     /// the counter comes with the pin it was reserved under; no pin, no counter.
     func testReserveCounterReturnsPin() throws {
         let s = try Store(path: tmpPath("ctr"))

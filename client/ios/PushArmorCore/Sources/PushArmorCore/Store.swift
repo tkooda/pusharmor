@@ -405,14 +405,18 @@ public final class Store: @unchecked Sendable {
     /// History keeps at most this many rows, the newest.
     public static let historyCap = 500
 
+    /// Newest received first.
     public func history() throws -> [HistoryRow] {
-        try db.query("SELECT * FROM history ORDER BY rowid DESC LIMIT ?", [.int(Int64(Store.historyCap))]).compactMap(Store.history)
+        try db.query("SELECT * FROM history ORDER BY created_local DESC, rowid DESC LIMIT ?",
+                     [.int(Int64(Store.historyCap))]).compactMap(Store.history)
     }
 
-    /// Delete every history row beyond the newest historyCap.
+    /// Delete every history row beyond the newest historyCap, by received time.
     public func capHistory() throws {
-        try db.exec("DELETE FROM history WHERE rowid <= (SELECT rowid FROM history ORDER BY rowid DESC LIMIT 1 OFFSET ?)",
-                    [.int(Int64(Store.historyCap))])
+        try db.exec("""
+            DELETE FROM history WHERE rowid IN
+            (SELECT rowid FROM history ORDER BY created_local DESC, rowid DESC LIMIT -1 OFFSET ?)
+            """, [.int(Int64(Store.historyCap))])
     }
 
     public func historyRow(_ rowid: Int64) throws -> HistoryRow? {
