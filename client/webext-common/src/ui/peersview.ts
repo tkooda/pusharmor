@@ -14,7 +14,7 @@ const ACTION_LABEL: Record<string, string> = {
   reply: "Reply",
   send_again: "Send again",
   approve_again: "Send again",
-  cancel: "Cancel pairing",
+  cancel: "Cancel pairing request",
   remove: "Remove device from account",
   localDelete: "Delete",
 };
@@ -23,7 +23,7 @@ const ACTION_ORDER = ["pair", "pair_again", "approve", "approve_again", "reply",
 const ACTION_CLASS: Record<string, string> = { pair: "approve", pair_again: "tonal", approve: "approve", reply: "tonal", deny: "reject" };
 // Row tools live in the overflow menu.
 const MENU = new Set(["remove", "localDelete"]);
-// With Pair again on the row, Cancel pairing moves to the overflow menu.
+// With Pair again on the row, Cancel pairing request moves to the overflow menu.
 const inMenu = (p: PeerView, a: string): boolean => MENU.has(a) || (a === "cancel" && p.actions.includes("pair_again"));
 const rank = (a: string): number => (ACTION_ORDER.indexOf(a) + 1 || ACTION_ORDER.length + 1);
 
@@ -229,7 +229,7 @@ export function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = t
   sub.append(info);
   if (p.paired && globalAllow !== undefined) sub.append(statusIcons(p, globalAllow));
   col.append(head, sub);
-  // Negative actions (Reject, Cancel pairing) on the left, the main action on the right.
+  // Negative actions (Reject, Cancel pairing request) on the left, the main action on the right.
   const neg = (a: string): number => (a === "deny" || a === "cancel" ? 0 : 1);
   const main = [...p.actions].filter((a) => !inMenu(p, a)).sort((x, y) => neg(x) - neg(y) || rank(x) - rank(y));
   if (main.length) col.append(h("div", { class: "actions" }, ...main.map((a) => actionButton(env, a, p, redraw, ACTION_CLASS[a] ?? "quiet"))));

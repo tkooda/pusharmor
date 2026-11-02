@@ -614,3 +614,10 @@ test("large text: wrapped lines keep their spacing, rows wrap, and the popup scr
   assert.match(rule(".pair-acts"), /flex-wrap: wrap-reverse;/);
   assert.match(rule(".links button.text"), /height: auto; min-height: 48px; white-space: normal;/);
 });
+
+test("the pairing timer row button says Cancel pairing request; the time left wraps below it", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pv = readFileSync(new URL("../src/ui/peersview.ts", import.meta.url), "utf8");
+  assert.match(pv, /cancel: "Cancel pairing request",/);
+  assert.match(readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8"), /\.pair-foot \{[^}]*flex-wrap: wrap;/);
+});

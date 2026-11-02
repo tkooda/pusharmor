@@ -23,7 +23,7 @@ test("device name texts keep their words, with the name quoted", () => {
   assert.equal(T.loggedInRecv("X"), '"X" logged in.');
   assert.equal(T.denied("X"), '"X" rejected this device.');
   assert.equal(T.approved("X"), '"X" confirmed this device.');
-  assert.equal(T.stillHolds("X"), '"X" still holds an earlier pairing. On "X", click Cancel pairing, then click Send again.');
+  assert.equal(T.stillHolds("X"), '"X" still holds an earlier pairing. On "X", click Cancel pairing request, then click Send again.');
   assert.equal(T.declinedBy("X"), 'Rejected by "X".');
   assert.equal(T.notPairedOn("X"), 'Not paired on "X".');
   assert.equal(T.wantsToPair("X"), '"X" wants to pair.');
