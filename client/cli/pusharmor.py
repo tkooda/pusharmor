@@ -2168,8 +2168,12 @@ def start_receive(cx, since, timeout):
 
 # ---- output ----
 
+# C0 and C1 controls except tab and newline, line and paragraph separators, and bidi controls
+CONTROL_CHARS = r"[\x00-\x08\x0b-\x1f\x7f-\x9f\u2028\u2029\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]"
+
+
 def _clean(s):
-    return re.sub(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]", "?", s)
+    return re.sub(CONTROL_CHARS, "?", s)
 
 
 def format_record(rec, fmt):

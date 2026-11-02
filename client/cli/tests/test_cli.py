@@ -583,6 +583,14 @@ def test_format_blocks():
     assert out[3].startswith("Date: ") and out[4] == "Body: a\tb" and out[5] == " c\\d?"
 
 
+def test_format_blocks_drops_bidi_and_line_separators():
+    rec = dict(REC, body="a\u202eb\u2066c\u2028d\u061ce")
+    out = pa.format_record(rec, "blocks")
+    for ch in ("\u202e", "\u2066", "\u2028", "\u061c"):
+        assert ch not in out
+    assert "Body: a?b?c?d?e" in out
+
+
 # ---- damaged files: one line naming the file, exit 1, no traceback ----
 
 def _logged_in(monkeypatch, tmp_path, net):
