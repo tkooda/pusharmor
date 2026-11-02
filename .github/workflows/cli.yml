@@ -6,7 +6,7 @@ name: cli
 # this file also runs on a push to any other branch that touches the client or
 # this file; that way a branch run shows up in gh run list before a pull
 # request exists. Python 3.9 runs with the oldest supported cryptography and
-# Python 3.14 with the newest.
+# Python 3.14 with the newest, each on Linux and on Windows.
 on:
   workflow_call:
   workflow_dispatch:
@@ -21,8 +21,8 @@ permissions: {}
 
 jobs:
   cli:
-    name: tests and build (Python ${{ matrix.python }})
-    runs-on: ubuntu-24.04
+    name: tests and build (Python ${{ matrix.python }}${{ matrix.os == 'windows-latest' && ', Windows' || '' }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -30,12 +30,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - python: "3.9"
+          - os: ubuntu-24.04
+            python: "3.9"
             cryptography: "cryptography==3.3.2"
-          - python: "3.14"
+          - os: ubuntu-24.04
+            python: "3.14"
+            cryptography: "cryptography"
+          - os: windows-latest
+            python: "3.9"
+            cryptography: "cryptography==3.3.2"
+          - os: windows-latest
+            python: "3.14"
             cryptography: "cryptography"
     defaults:
       run:
+        shell: bash
         working-directory: client/cli
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
