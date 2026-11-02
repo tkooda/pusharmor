@@ -31,6 +31,8 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         const val NOTICE_ID = 1
         const val UNDELIVERED_ID = 2
         const val GROUP_PREFIX = "group:"
+        /** A post this process made still counts this long while the system list does not show it yet. */
+        const val POST_LAG_MS = 5_000L
 
         const val COULD_NOT_READ = "PushArmor received a message it could not read"
         const val INVALID = "Invalid message received"
@@ -45,6 +47,9 @@ class Notifier(private val context: Context, private val settings: Settings, pri
     }
 
     private val nm = context.getSystemService(NotificationManager::class.java)
+
+    /** Message notification ids this process posted, with their post time; also the lock of post and trim. */
+    private val posted = HashMap<Int, Long>()
 
     /** Created on first start; "messages" and "peers" ids are random per install, kept in DataStore. */
     fun ensureChannels() {
@@ -133,7 +138,10 @@ class Notifier(private val context: Context, private val settings: Settings, pri
 
     fun cancelPair(pk: String) = nm.cancel(TAG_PAIR, pairId(pk))
 
-    fun cancel(tag: String, id: Int) = nm.cancel(tag, id)
+    fun cancel(tag: String, id: Int) {
+        if (tag == TAG_MSG) synchronized(posted) { posted.remove(id) }
+        nm.cancel(tag, id)
+    }
 
     private fun action(historyId: Long, act: String): PendingIntent {
         val i = Intent(context, ActionActivity::class.java).setAction("$act:$historyId").putExtra("history", historyId).putExtra("act", act)
@@ -173,16 +181,25 @@ class Notifier(private val context: Context, private val settings: Settings, pri
                 b.setPublicVersion(NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setContentTitle("New message").build())
             }
         }
-        trimMessages(historyId.toInt())
-        notify(TAG_MSG, historyId.toInt(), b.build())
+        synchronized(posted) {
+            trimMessages(historyId.toInt())
+            notify(TAG_MSG, historyId.toInt(), b.build())
+            posted[historyId.toInt()] = System.currentTimeMillis()
+        }
         summary(channel, policy)
     }
 
     /** At most [MAX_MESSAGES] message notifications: cancel the oldest ones; history is untouched. */
     private fun trimMessages(incoming: Int) {
-        val old = nm.activeNotifications.filter { it.tag == TAG_MSG && it.id >= 0 && it.id != incoming }
-            .sortedWith(compareBy({ it.postTime }, { it.id }))
-        old.take((old.size - (MAX_MESSAGES - 1)).coerceAtLeast(0)).forEach { nm.cancel(TAG_MSG, it.id) }
+        val now = System.currentTimeMillis()
+        val shown = HashMap<Int, Long>()
+        nm.activeNotifications.filter { it.tag == TAG_MSG && it.id >= 0 }.forEach { shown[it.id] = it.postTime }
+        // a post the system list still leaves out after the lag was dismissed
+        posted.entries.removeIf { it.key !in shown && now - it.value > POST_LAG_MS }
+        posted.forEach { (id, t) -> shown[id] = maxOf(t, shown[id] ?: t) }
+        shown.remove(incoming)
+        val old = shown.entries.sortedWith(compareBy({ it.value }, { it.key }))
+        old.take((old.size - (MAX_MESSAGES - 1)).coerceAtLeast(0)).forEach { posted.remove(it.key); nm.cancel(TAG_MSG, it.key) }
     }
 
     /** One summary per channel: no content, localOnly if a child is, strictest visibility. */
@@ -201,5 +218,8 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         content(historyId, h.peerId ?: return, c)
     }
 
-    fun cancelAll() = nm.cancelAll()
+    fun cancelAll() {
+        synchronized(posted) { posted.clear() }
+        nm.cancelAll()
+    }
 }
