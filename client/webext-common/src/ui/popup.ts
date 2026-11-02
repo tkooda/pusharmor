@@ -1,7 +1,7 @@
 // Toolbar popup: Send, History, Peers, Settings (component-webext section 7).
 import type { PeerView, StateView } from "../core/rpc.ts";
 import type { SendResult } from "../core/engine.ts";
-import { T, greyedText, pushIssueText, quoted, saveFailText } from "../core/texts.ts";
+import { R, T, greyedText, pushIssueText, quoted, saveFailText } from "../core/texts.ts";
 import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter, sortByLabel } from "../model/sendsel.ts";
 import { AUTH_CHANGED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
@@ -170,8 +170,8 @@ export function updateCard(env: UiEnv, locked: boolean, again: () => void): HTML
     { class: "signin", role: "alert" },
     h("img", { src: "icons/icon-128.png", width: "64", height: "64", alt: "", class: "big-tile" }),
     wordmark(env, 24),
-    h("h1", { class: "banner" }, "Please update PushArmor"),
-    h("p", { class: "slogan" }, "This version no longer works with the relay server. Update to keep sending and receiving."),
+    h("h1", { class: "banner" }, "Unable to connect."),
+    h("p", { class: "slogan" }, R.tooOld),
     h("div", { class: "btns" }, check, h("button", { class: "primary big", onclick: () => env.openUrl("https://pusharmor.com/download") }, "Update")),
   );
 }

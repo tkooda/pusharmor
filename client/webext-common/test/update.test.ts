@@ -1,4 +1,4 @@
-// HTTP 426 shows a dedicated "Please update PushArmor" screen in the popup and the page.
+// HTTP 426 shows a dedicated "Unable to connect." update screen in the popup and the page.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Rpc } from "../src/core/rpc.ts";
@@ -91,8 +91,8 @@ test("426 from the relay server: popup and page show the update screen until the
       await mount(root);
       const all = (root as unknown as N).all();
       const texts = all.filter((n) => n.tag === "#text").map((n) => n.text);
-      assert.ok(texts.includes("Please update PushArmor"));
-      assert.ok(texts.some((t) => /no longer works with the relay server/.test(t)));
+      assert.ok(texts.includes("Unable to connect."));
+      assert.ok(texts.includes("This version of PushArmor is too old. Update PushArmor to continue."));
       const btns = all.filter((n) => n.tag === "button");
       assert.deepEqual(btns.map(label), ["Check again", "Update"]); // the affirmative action on the right
       btns[1]!.on.click!();
