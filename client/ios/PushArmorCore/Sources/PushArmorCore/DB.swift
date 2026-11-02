@@ -107,15 +107,17 @@ public final class DB: @unchecked Sendable {
         defer { sqlite3_finalize(s) }
         for (i, a) in args.enumerated() {
             let idx = Int32(i + 1)
+            let brc: Int32
             switch a {
-            case .int(let v): sqlite3_bind_int64(s, idx, v)
-            case .text(let v): sqlite3_bind_text(s, idx, v, -1, SQLITE_TRANSIENT)
+            case .int(let v): brc = sqlite3_bind_int64(s, idx, v)
+            case .text(let v): brc = sqlite3_bind_text(s, idx, v, -1, SQLITE_TRANSIENT)
             case .blob(let v):
-                _ = v.withUnsafeBytes { p in
+                brc = v.withUnsafeBytes { p in
                     sqlite3_bind_blob(s, idx, p.baseAddress ?? UnsafeRawPointer(bitPattern: 1), Int32(v.count), SQLITE_TRANSIENT)
                 }
-            case .null: sqlite3_bind_null(s, idx)
+            case .null: brc = sqlite3_bind_null(s, idx)
             }
+            guard brc == SQLITE_OK else { throw err(brc) }
         }
         var rows: [Row] = []
         while true {
@@ -124,10 +126,12 @@ public final class DB: @unchecked Sendable {
             guard r == SQLITE_ROW else { throw err(r) }
             var vals: [String: SQLValue] = [:]
             for c in 0 ..< sqlite3_column_count(s) {
-                let name = String(cString: sqlite3_column_name(s, c))
+                guard let cname = sqlite3_column_name(s, c) else { continue }
+                let name = String(cString: cname)
                 switch sqlite3_column_type(s, c) {
                 case SQLITE_INTEGER: vals[name] = .int(sqlite3_column_int64(s, c))
-                case SQLITE_TEXT: vals[name] = .text(String(cString: sqlite3_column_text(s, c)))
+                case SQLITE_TEXT:
+                    if let p = sqlite3_column_text(s, c) { vals[name] = .text(String(cString: p)) } else { vals[name] = .null }
                 case SQLITE_BLOB:
                     let n = Int(sqlite3_column_bytes(s, c))
                     if let p = sqlite3_column_blob(s, c), n > 0 {
