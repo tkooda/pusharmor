@@ -104,7 +104,7 @@ final class StateMachineTests: XCTestCase {
             Thread.detachNewThread {
                 let s = try! Store(path: path)   // a second connection, as another process would open
                 var mine: [UInt64] = []
-                for _ in 0 ..< per { mine.append(try! s.reserveCounter(x.id)) }
+                for _ in 0 ..< per { mine.append(try! s.reserveCounter(x.id).n) }
                 lock.lock(); got += mine; lock.unlock()
                 group.leave()
             }

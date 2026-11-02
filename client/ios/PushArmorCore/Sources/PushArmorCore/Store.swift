@@ -260,13 +260,15 @@ public final class Store: @unchecked Sendable {
     }
 
     /// Reserve counter n for a recipient: one BEGIN IMMEDIATE increment shared by every
-    /// process, BEFORE any encrypt (section 3).
-    public func reserveCounter(_ id: PeerId) throws -> UInt64 {
+    /// process, BEFORE any encrypt (section 3). Returns the pin read in the same
+    /// transaction, so n always belongs to the keys and pairing id it is sealed with.
+    public func reserveCounter(_ id: PeerId) throws -> (n: UInt64, encPub: Data, pairingId: Data) {
         try db.write {
             try db.exec("UPDATE peers SET last_n = last_n + 1 WHERE id = ? AND pairing_id IS NOT NULL", [.text(id.text)])
-            guard db.changes == 1, let n = try db.one("SELECT last_n FROM peers WHERE id = ?", [.text(id.text)])?.int("last_n")
+            guard db.changes == 1, let r = try db.one("SELECT last_n, enc_pub, pairing_id FROM peers WHERE id = ?", [.text(id.text)]),
+                  let n = r.int("last_n"), let enc = r.blob("enc_pub"), let pid = r.blob("pairing_id")
             else { throw StoreError.notPinned }
-            return UInt64(n)
+            return (UInt64(n), enc, pid)
         }
     }
 

@@ -93,4 +93,19 @@ final class StoreHardeningTests: XCTestCase {
         let plan = try s.db.query("EXPLAIN QUERY PLAN DELETE FROM history WHERE created_local < ?", [.int(0)])
         XCTAssertTrue(plan.contains { ($0.text("detail") ?? "").contains("history_created") })
     }
+
+    /// the counter comes with the pin it was reserved under; no pin, no counter.
+    func testReserveCounterReturnsPin() throws {
+        let s = try Store(path: tmpPath("ctr"))
+        let a = TestPeer()
+        XCTAssertThrowsError(try s.reserveCounter(a.id))
+        let pid = Data(repeating: 9, count: 16)
+        try s.pin(a.id, signPub: a.signPub, encPub: a.encPub, pairingId: pid, fingerprint: "f")
+        let r = try s.reserveCounter(a.id)
+        XCTAssertEqual(r.n, 1)
+        XCTAssertEqual(r.encPub, a.encPub)
+        XCTAssertEqual(r.pairingId, pid)
+        try s.dropPin(a.id)
+        XCTAssertThrowsError(try s.reserveCounter(a.id))
+    }
 }

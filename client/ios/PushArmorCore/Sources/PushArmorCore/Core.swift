@@ -103,12 +103,13 @@ public final class Core: @unchecked Sendable {
     /// Build one inner message to a pinned peer: reserve n first (one atomic increment), then
     /// encrypt.
     public func buildMessage(to id: PeerId, withKeys: Bool = false, _ content: (UInt64) throws -> MessageContent) throws -> String {
-        guard let p = try store.peer(id), p.pinned, let enc = p.encPub, let pid = p.pairingId else { throw CoreError.notPinned }
+        guard let p = try store.peer(id), p.pinned else { throw CoreError.notPinned }
         let me = try myId()
-        let n = try store.reserveCounter(id)
+        let pin = try store.reserveCounter(id)
+        let n = pin.n
         let keys: (Data, Data)? = withKeys ? (self.keys.signer.publicKey, self.keys.decryptor.publicKey) : nil
         return try InnerMessage.seal(InnerJSON(n: n, content: try content(n)), signer: self.keys.signer, from: me, to: id,
-                                     toEncPub: enc, pairingId: pid, keys: keys)
+                                     toEncPub: pin.encPub, pairingId: pin.pairingId, keys: keys)
     }
 
     /// Messages for every id in the allow set that has a pin (logout, login, rename, remove,
