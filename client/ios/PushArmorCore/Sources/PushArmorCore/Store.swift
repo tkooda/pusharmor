@@ -400,8 +400,17 @@ public final class Store: @unchecked Sendable {
                    count: r.int("count") ?? 1, createdLocal: created)
     }
 
+    /// History keeps at most this many rows, the newest.
+    public static let historyCap = 500
+
     public func history() throws -> [HistoryRow] {
-        try db.query("SELECT * FROM history ORDER BY rowid DESC").compactMap(Store.history)
+        try db.query("SELECT * FROM history ORDER BY rowid DESC LIMIT ?", [.int(Int64(Store.historyCap))]).compactMap(Store.history)
+    }
+
+    /// Delete every history row beyond the newest historyCap.
+    public func capHistory() throws {
+        try db.exec("DELETE FROM history WHERE rowid <= (SELECT rowid FROM history ORDER BY rowid DESC LIMIT 1 OFFSET ?)",
+                    [.int(Int64(Store.historyCap))])
     }
 
     public func historyRow(_ rowid: Int64) throws -> HistoryRow? {
@@ -416,10 +425,14 @@ public final class Store: @unchecked Sendable {
     @discardableResult
     public func addMessage(dir: HistoryDir, peer: PeerId, type: String, content: String, n: UInt64?, pairingId: Data?,
                            read: Bool, results: String?, now: Int64) throws -> Int64 {
-        try db.exec("INSERT INTO history (dir, peer_id, type, content, n, pairing_id, read, results, created_local) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    [.text(dir.rawValue), .text(peer.text), .text(type), .text(content), .opt(n.map { Int64($0) }),
-                     .opt(pairingId), .bool(read), .opt(results), .int(now)])
-        return db.lastInsertRowId
+        try db.write {
+            try db.exec("INSERT INTO history (dir, peer_id, type, content, n, pairing_id, read, results, created_local) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        [.text(dir.rawValue), .text(peer.text), .text(type), .text(content), .opt(n.map { Int64($0) }),
+                         .opt(pairingId), .bool(read), .opt(results), .int(now)])
+            let id = db.lastInsertRowId
+            try capHistory()
+            return id
+        }
     }
 
     /// Event rows are never unread. Consecutive could-not-read events merge into the newest
@@ -436,7 +449,9 @@ public final class Store: @unchecked Sendable {
             }
             try db.exec("INSERT INTO history (dir, peer_id, type, content, read, event, created_local) VALUES ('in', ?, 'event', ?, 1, ?, ?)",
                         [.opt(peer?.text), .text(content), .text(e.rawValue), .int(now)])
-            return db.lastInsertRowId
+            let id = db.lastInsertRowId
+            try capHistory()
+            return id
         }
     }
 }

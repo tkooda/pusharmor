@@ -278,6 +278,10 @@ enum Schema {
         UPDATE peers SET show_content = CASE always_hide WHEN 0 THEN 1 ELSE 0 END;
         ALTER TABLE peers DROP COLUMN always_hide;
         """,
+        // History retention deletes by age.
+        """
+        CREATE INDEX IF NOT EXISTS history_created ON history(created_local);
+        """,
     ]
 
     /// Reads user_version first with no transaction; takes the write lock only when a

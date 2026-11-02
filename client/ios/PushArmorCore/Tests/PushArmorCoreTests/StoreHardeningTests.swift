@@ -69,4 +69,28 @@ final class StoreHardeningTests: XCTestCase {
             XCTAssertNil(bytes.range(of: r), "secret found in pa.sqlite" + suffix)
         }
     }
+
+    /// history keeps at most the newest 500 rows: on prune and on every insert.
+    func testHistoryCappedAt500() throws {
+        let w = FakeWorker(), clock = TestClock()
+        let d = try Device(worker: w, clock: clock, name: "Ndev")
+        let s = d.core.store
+        try s.db.exec("""
+            WITH RECURSIVE c(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM c WHERE i < 100000)
+            INSERT INTO history (dir, type, content, created_local) SELECT 'in', 'text', 'm' || i, ? FROM c
+            """, [.int(clock.now)])
+        let top = try XCTUnwrap(s.db.one("SELECT max(rowid) AS m FROM history")?.int("m"))
+        try d.core.pruneHistory()
+        XCTAssertEqual(try s.db.one("SELECT count(*) AS n FROM history")?.int("n"), 500)
+        XCTAssertEqual(try s.db.one("SELECT min(rowid) AS m FROM history")?.int("m"), top - 499)
+        let a = TestPeer()
+        let id = try s.addMessage(dir: .incoming, peer: a.id, type: "text", content: "new", n: nil, pairingId: nil,
+                                  read: false, results: nil, now: clock.now)
+        XCTAssertEqual(try s.db.one("SELECT count(*) AS n FROM history")?.int("n"), 500)
+        XCTAssertEqual(try s.history().first?.rowid, id)
+        try s.addEvent(.loggedIn, peer: a.id, content: "e", now: clock.now)
+        XCTAssertEqual(try s.history().count, 500)
+        let plan = try s.db.query("EXPLAIN QUERY PLAN DELETE FROM history WHERE created_local < ?", [.int(0)])
+        XCTAssertTrue(plan.contains { ($0.text("detail") ?? "").contains("history_created") })
+    }
 }

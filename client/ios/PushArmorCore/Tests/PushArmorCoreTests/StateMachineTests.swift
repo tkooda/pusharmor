@@ -932,7 +932,7 @@ final class StateMachineTests: XCTestCase {
         let path = NSTemporaryDirectory() + "pa-mig-\(UUID().uuidString).sqlite"
         _ = try Store(path: path)
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
         XCTAssertEqual(try s.db.one("PRAGMA journal_mode")?.text("journal_mode"), "wal")
         XCTAssertNil(try s.me().id)
     }
@@ -957,7 +957,7 @@ final class StateMachineTests: XCTestCase {
             try s.db.exec("PRAGMA user_version = 1")
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
         XCTAssertTrue(try s.me().loggedOut)
         let p = try s.db.one("SELECT logged_out, logout_n FROM peers WHERE id = 'p1'")
         XCTAssertEqual(p?.int("logged_out"), 1)
@@ -977,7 +977,7 @@ final class StateMachineTests: XCTestCase {
             try s.db.exec("PRAGMA user_version = 2")
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
         XCTAssertEqual(try s.db.one("SELECT listening FROM peers WHERE id = 'p1'")?.int("listening"), 1)
         let a = TestPeer()
         var p = Peer(id: a.id); p.listening = false; try s.savePeer(p)
@@ -994,7 +994,7 @@ final class StateMachineTests: XCTestCase {
             try s.db.exec("PRAGMA user_version = 3")
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
         XCTAssertEqual(try s.me().clockOffset, -7)
     }
 
@@ -1009,7 +1009,7 @@ final class StateMachineTests: XCTestCase {
                 try s.db.exec("PRAGMA user_version = 4")
             }
             let s = try Store(path: path)
-            XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
+            XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
             XCTAssertNil(try s.setting("always_hide"))
             XCTAssertEqual(try s.setting(SettingKey.showContent), want)
             XCTAssertEqual(try s.boolSetting(SettingKey.showContent, default: true), want != "0")
@@ -1032,7 +1032,7 @@ final class StateMachineTests: XCTestCase {
             try s.db.exec("PRAGMA user_version = 5")
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
         XCTAssertEqual(try s.db.one("SELECT show_content FROM peers WHERE id = 'p1'")?.int("show_content"), 0)
         XCTAssertEqual(try s.db.one("SELECT show_content FROM peers WHERE id = 'p2'")?.int("show_content"), 1)
         let cols = try s.db.query("PRAGMA table_info(peers)").compactMap { $0.text("name") }
@@ -1053,7 +1053,7 @@ final class StateMachineTests: XCTestCase {
         XCTAssertTrue(r.repaired)
         XCTAssertEqual(called, 1)
         XCTAssertNil(try r.store.me().id)
-        XCTAssertEqual(try r.store.db.one("PRAGMA user_version")?.int("user_version"), 6)
+        XCTAssertEqual(try r.store.db.one("PRAGMA user_version")?.int("user_version"), 7)
         try r.store.setMe("name", .text("kept"))
         let r2 = try await StoreRepair.open(path: path) { called += 1 }
         XCTAssertFalse(r2.repaired)

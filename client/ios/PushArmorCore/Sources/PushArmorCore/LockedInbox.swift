@@ -164,10 +164,14 @@ extension Core {
         }
     }
 
-    /// History retention: auto-delete rows older than N days (default 30).
+    /// History retention: auto-delete rows older than N days (default 30), and every row
+    /// beyond the newest Store.historyCap.
     public func pruneHistory() throws {
         let days = Int64(try store.setting(SettingKey.historyDays) ?? "30") ?? 30
-        try store.db.exec("DELETE FROM history WHERE created_local < ?", [.int(clock() - days * 86400)])
+        try store.db.write {
+            try store.db.exec("DELETE FROM history WHERE created_local < ?", [.int(clock() - days * 86400)])
+            try store.capHistory()
+        }
     }
 
     /// Delete all history (the caller also clears delivered notifications).
