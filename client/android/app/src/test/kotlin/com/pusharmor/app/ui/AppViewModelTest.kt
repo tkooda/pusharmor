@@ -4,6 +4,9 @@ import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import com.pusharmor.app.PaApp
 import com.pusharmor.app.TestApp
+import com.pusharmor.app.data.Settings
+import com.pusharmor.app.session.Session
+import com.pusharmor.store.SelfEntity
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -82,5 +85,42 @@ class AppViewModelTest {
         assertNull(runBlocking { vm.nonce("register") })
         assertNull(uncaught)
         assertEquals(AppViewModel.NOT_DONE, vm.message.value)
+    }
+
+    private fun <T> onIo(block: () -> T): T = runBlocking(kotlinx.coroutines.Dispatchers.IO) { block() }
+
+    /** An App Link ticket with no sign-in started on this device is dropped. */
+    @Test fun appLinkTicketWithNoPendingSignInIsDropped() {
+        val vm = vm()
+        vm.g.keysOrNull = null
+        onIo { vm.g.store.wipeRegistration(); vm.g.settings.set(Settings.K.PENDING_PURPOSE, null) }
+        val job = vm.onAppLinkTicket("t", "a@example.com") {}
+        waitFor { job.isCompleted }
+        assertNull(uncaught)
+        assertNull(vm.message.value)
+    }
+
+    /** A logged-in device drops a register ticket even with a stale pending purpose. */
+    @Test fun loggedInDeviceDropsRegisterTicket() {
+        val vm = vm()
+        vm.g.keysOrNull = null
+        onIo {
+            vm.g.dao.putSelf(SelfEntity(id = "A".repeat(40), accountPrefix = ByteArray(9), name = "t"))
+            vm.g.settings.set(Settings.K.PENDING_PURPOSE, "register")
+        }
+        val job = vm.onAppLinkTicket("t", "a@example.com") {}
+        waitFor { job.isCompleted }
+        assertNull(vm.message.value)
+        assertNull(onIo { vm.g.settings.get(Settings.K.PENDING_PURPOSE) })
+    }
+
+    /** A sign-in started on this device still takes its ticket. */
+    @Test fun pendingSignInTakesAppLinkTicket() {
+        val vm = vm()
+        vm.g.keysOrNull = null
+        onIo { vm.g.store.wipeRegistration(); vm.g.settings.set(Settings.K.PENDING_PURPOSE, "register") }
+        val job = vm.onAppLinkTicket("t", "a@example.com") {}
+        waitFor { job.isCompleted }
+        assertEquals(Session.NO_KEYS, vm.message.value) // reached register(), which needs keys
     }
 }

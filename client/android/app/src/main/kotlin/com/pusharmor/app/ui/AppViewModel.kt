@@ -155,9 +155,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         g.client.oauthUrl(provider, g.session.keysForSignIn(), purpose)
     }
 
+    /**
+     * Only a sign-in started on this device is redeemed; a ticket from any other link is dropped. A logged-in
+     * device takes only a delete-account ticket, so a link cannot move it to another account.
+     */
     fun onAppLinkTicket(ticket: String, email: String?, onDone: () -> Unit) = io {
-        val purpose = g.settings.get(Settings.K.PENDING_PURPOSE) ?: purpose()
+        val purpose = g.settings.get(Settings.K.PENDING_PURPOSE) ?: return@io
         g.settings.set(Settings.K.PENDING_PURPOSE, null)
+        if (purpose != "delete-account" && g.dao.self() != null && !g.session.signedOut) return@io
         ticket(ticket, email, purpose, onDone)
     }
 
