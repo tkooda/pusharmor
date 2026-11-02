@@ -80,31 +80,41 @@ function req<T>(r: IDBRequest<T>): Promise<T> {
 export const HISTORY_MAX = 500;
 
 /**
- * Inside a history transaction: rows dated after t are moved to t (a clock
- * that ran ahead), then only the newest HISTORY_MAX rows stay (by received,
- * then id), so a row added at t is never the one dropped.
+ * Inside a history transaction: only the newest HISTORY_MAX rows stay (by
+ * received, then id). Rows dated after t (a clock that ran ahead, or a clock
+ * set back) keep their time, unless a row at t would be dropped: only then
+ * are they moved to t, so a row added at t is never the one dropped.
  */
 function trimHistory(h: IDBObjectStore, t: number): void {
   const idx = h.index("received");
-  const f = idx.openCursor(IDBKeyRange.lowerBound(t, true));
-  f.onsuccess = () => {
-    const c = f.result;
-    if (c) {
-      c.update({ ...(c.value as HistoryRow), received: t });
-      c.continue();
-      return;
-    }
-    const n = h.count();
-    n.onsuccess = () => {
-      let extra = n.result - HISTORY_MAX;
-      if (extra <= 0) return;
-      const d = idx.openCursor();
-      d.onsuccess = () => {
-        const c2 = d.result;
-        if (c2 && extra-- > 0) {
-          c2.delete();
-          c2.continue();
+  const n = h.count();
+  n.onsuccess = () => {
+    const extra = n.result - HISTORY_MAX;
+    if (extra <= 0) return;
+    const g = idx.getAll(null, extra);
+    g.onsuccess = () => {
+      const old = g.result as HistoryRow[];
+      if (old[old.length - 1]!.received < t) {
+        for (const r of old) h.delete(r.id!);
+        return;
+      }
+      const f = idx.openCursor(IDBKeyRange.lowerBound(t, true));
+      f.onsuccess = () => {
+        const c = f.result;
+        if (c) {
+          c.update({ ...(c.value as HistoryRow), received: t });
+          c.continue();
+          return;
         }
+        let left = extra;
+        const d = idx.openCursor();
+        d.onsuccess = () => {
+          const c2 = d.result;
+          if (c2 && left-- > 0) {
+            c2.delete();
+            c2.continue();
+          }
+        };
       };
     };
   };
