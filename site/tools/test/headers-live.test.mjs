@@ -65,7 +65,7 @@ test("header snapshot: every path matches _headers, one CSP, HSTS, nosniff", asy
     const want = headersFor(rules, p);
     assert.equal((r.raw["content-security-policy"] || []).length, 1, p + ": CSP count");
     assert.deepEqual(r.raw["content-security-policy"], want["content-security-policy"], p);
-    assert.deepEqual(r.raw["strict-transport-security"], ["max-age=63072000; includeSubDomains"], p);
+    assert.deepEqual(r.raw["strict-transport-security"], ["max-age=63072000; includeSubDomains; preload"], p);
     assert.deepEqual(r.raw["x-content-type-options"], ["nosniff"], p);
     assert.deepEqual(r.raw["cache-control"], want["cache-control"], p);
     assert.deepEqual(r.raw["x-robots-tag"], want["x-robots-tag"], p);
