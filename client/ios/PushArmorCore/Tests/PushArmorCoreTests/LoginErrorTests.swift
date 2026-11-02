@@ -34,6 +34,7 @@ final class LoginErrorTests: XCTestCase {
         XCTAssertEqual(ErrorCopy.text(.loginGoogle, .windowClosed), "Unable to log in with Google.\nThe login window was closed. Try again.")
         XCTAssertEqual(S.launchFailedTitle, "Unable to open PushArmor data")
         XCTAssertEqual(S.dataBrokenTitle, "This device's data has become unusable.")
+        XCTAssertEqual(S.dataBrokenBody, "Tap Retry to try again. If this keeps happening, you can reset this device. You will then log in again and pair all your devices again.")
         XCTAssertEqual(S.dataBrokenConfirmTitle, "Reset this device?")
         XCTAssertEqual(S.pushRegistrationFailed,
                        "Unable to turn on notifications.\nApple's notification service could not be reached. Check your internet connection and try again.")

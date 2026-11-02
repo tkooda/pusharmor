@@ -66,7 +66,7 @@ object UiText {
     /** Same layout as the keys screen: a database file that cannot be read; resetting it is the user's choice and asks first. */
     const val DATA_BROKEN_TITLE = "This device's data has become unusable."
     const val DATA_BROKEN_BODY = "Tap Retry to try again. If this keeps happening, you can reset this device. " +
-        "You will then sign in again and pair all your devices again."
+        "You will then log in again and pair all your devices again."
     const val DATA_BROKEN_RESET = "Reset this device"
     const val DATA_BROKEN_DIALOG_TITLE = "Reset this device?"
     const val DATA_BROKEN_DIALOG_BODY = "This cannot be undone. You will need to pair all your devices again."
