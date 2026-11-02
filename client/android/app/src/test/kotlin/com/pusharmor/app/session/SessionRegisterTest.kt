@@ -4,6 +4,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.pusharmor.app.FakeAndroidKeyStore
 import com.pusharmor.app.PaApp
 import com.pusharmor.app.TestApp
+import com.pusharmor.app.data.Settings
 import com.pusharmor.crypto.B64url
 import com.pusharmor.crypto.Ids
 import kotlinx.coroutines.Dispatchers
@@ -61,5 +62,13 @@ class SessionRegisterTest {
         assertEquals(2, times.size)
         assertTrue(Math.abs(times[1] - epoch * 1000) < 5000)
         assertTrue(g.offset.offsetS in 500L..605L) // about 600 s, less the seconds the test took
+    }
+
+    /** A sign-in that fails leaves the "removed" banner on screen. */
+    @Test fun failedSignInKeepsTheBanner() = io {
+        g.keysOrNull = null
+        g.settings.set(Settings.K.BANNER, Session.REMOVED)
+        assertTrue(g.session.onTicket("t", "a@b.c") is Session.SignIn.Error)
+        assertEquals(Session.REMOVED, g.settings.get(Settings.K.BANNER))
     }
 }

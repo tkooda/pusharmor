@@ -176,6 +176,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         when (val r = g.session.onTicket(ticket, email, evict)) {
             Session.SignIn.Done -> {
                 message.value = null // a failed earlier step must not show on Peers
+                g.settings.set(Settings.K.BANNER, null)
                 email?.let { e -> g.dao.setSelfEmail(e) }
                 limit.value = null
                 setStart(Session.Start.READY)

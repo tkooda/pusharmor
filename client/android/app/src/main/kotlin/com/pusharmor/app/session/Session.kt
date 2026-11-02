@@ -137,7 +137,6 @@ class Session(private val g: Graph) {
 
     /** A ticket arrived (email code, Google token, or the App Link). */
     fun onTicket(ticket: String, email: String?, evict: List<String>? = null): SignIn {
-        if (email != null) s.set(Settings.K.BANNER, null)
         return if (signedOut) login(ticket) else register(ticket, email, evict)
     }
 
