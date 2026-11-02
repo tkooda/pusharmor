@@ -367,8 +367,9 @@ def test_login_registers_and_confirms(net, tmp_path, monkeypatch, capsys):
     d = state(tmp_path)
     assert d["reg"] == "registered" and d["push_ok"]
     assert pa.re.fullmatch(r"up[A-Za-z0-9]{12}", d["topic"])
-    assert os.stat(tmp_path / "keys").st_mode & 0o777 == 0o700
-    assert os.stat(tmp_path / "keys" / "private.toml").st_mode & 0o777 == 0o600
+    if os.name != "nt":  # no POSIX modes on Windows
+        assert os.stat(tmp_path / "keys").st_mode & 0o777 == 0o700
+        assert os.stat(tmp_path / "keys" / "private.toml").st_mode & 0o777 == 0o600
     out = capsys.readouterr().out
     assert "#r" + pa.b64e(pa.sha256(pa.b64d(p["sign_pub"]))[:16]) in out
     assert run(tmp_path, "login") == 0 and "already logged in" in capsys.readouterr().out
