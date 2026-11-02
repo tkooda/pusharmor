@@ -143,6 +143,7 @@ export class Autopush {
         use_webpush: true,
         broadcasts: {},
       });
+      this.deadTimer = this.d.setTimer(() => this.ws?.close(), PING_DEAD_MS);
     };
     ws.onmessage = (ev) => void this.onFrame(ev.data);
     ws.onerror = () => undefined;

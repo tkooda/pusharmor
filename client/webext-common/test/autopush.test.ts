@@ -203,3 +203,15 @@ test("autopush: a restart with the saved fallback mode starts as a probe and swi
   assert.deepEqual(s.modes, ["direct"]);
   assert.equal(s.ap.mode, "direct");
 });
+
+test("autopush: an open socket that sends no frame is closed after the dead-peer wait and retried", async () => {
+  const s = setup();
+  await s.ap.start();
+  const ws = s.sockets[0]!;
+  ws.onopen!();
+  assert.equal(s.timers.length, 1);
+  s.timers[0]!.fn();
+  assert.equal(ws.closed, true);
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(s.timers.at(-1)!.ms, 5000);
+});
