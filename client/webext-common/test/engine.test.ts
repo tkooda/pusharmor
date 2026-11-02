@@ -1298,3 +1298,19 @@ test("a failed sign-in keeps the saved email", async () => {
   await assert.rejects(login.complete("register", "t".repeat(20), "x@y.example"));
   assert.equal(await e.db.meta("email"), undefined);
 });
+
+test("history older than the kept days is purged on popup open and when the days change", async () => {
+  const clock = new Clock();
+  const w = new MockWorker(clock);
+  const p = new FakePlatform("chrome", w, clock);
+  const { e } = await makeEngine(p, new IDBFactory(), clock);
+  const row = { dir: "in" as const, peer: null, type: "text" as const, content: "old", n: null, pairing_id: null, received: clock.t - 2 * DAY, read: true };
+  await e.setSettings({ historyDays: 1 });
+  await e.db.addHistory(row); // not registered: popup open still purges
+  await e.onPopupOpen();
+  assert.equal((await e.db.history()).length, 0);
+  await e.setSettings({ historyDays: 365 });
+  await e.db.addHistory(row);
+  await e.setSettings({ historyDays: 1 });
+  assert.equal((await e.db.history()).length, 0);
+});

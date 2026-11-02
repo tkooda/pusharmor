@@ -154,7 +154,9 @@ export class Engine {
   }
 
   async setSettings(s: Partial<Settings>): Promise<void> {
-    await this.db.setMeta("settings", { ...(await this.settings()), ...s });
+    const old = await this.settings();
+    await this.db.setMeta("settings", { ...old, ...s });
+    if (s.historyDays !== undefined && s.historyDays !== old.historyDays) await this.purgeHistory();
     await this.rebuildMenus();
   }
 
@@ -1630,6 +1632,7 @@ export class Engine {
   /** Popup open: re-fetch waiting approves, timeouts, reconcile, gone recovery. */
   async onPopupOpen(): Promise<void> {
     void this.retryPendingLogout().catch(() => undefined);
+    await this.purgeHistory().catch(() => undefined);
     if ((await this.regState()) !== "registered") return;
     await this.timeoutCheck();
     await this.reconcileAllow();
