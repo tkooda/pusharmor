@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Autopush, type ApState, type SocketLike } from "../../firefox/src/autopush/client.ts";
+import { Autopush, PING_DEAD_MS, type ApState, type SocketLike } from "../../firefox/src/autopush/client.ts";
 import type { WebPushKeys } from "../src/crypto/rfc8291.ts";
 
 class FakeSocket implements SocketLike {
@@ -69,10 +69,12 @@ function setup() {
 // Fail once, wait past the fallback limit, and fail again: failed() now awaits workerReachable.
 async function failPastLimit(s: ReturnType<typeof setup>) {
   await s.ap.start();
+  s.sockets[0]!.closed = true;
   s.sockets[0]!.onclose!({ code: 1006 });
   await tick();
   s.advance(31 * 60_000);
   s.timers.pop()!.fn();
+  s.sockets[1]!.closed = true;
   s.sockets[1]!.onclose!({ code: 1006 });
   await tick();
 }
@@ -97,4 +99,32 @@ test("autopush: stop during the relay server check arms no retry when the relay 
   s.resolveReachable(false);
   await tick();
   assert.equal(s.timers.length, 0);
+});
+
+test("autopush: a reconnect while the relay server check waits leaves one open socket", async () => {
+  const s = setup();
+  await failPastLimit(s);
+  s.ap.reconnectNow();
+  s.resolveReachable(true);
+  await tick();
+  s.timers.pop()!.fn();
+  const open = s.sockets.filter((x) => !x.closed);
+  assert.equal(open.length, 1);
+  assert.equal(open[0], s.sockets.at(-1));
+});
+
+test("autopush: a frame from an old socket does not clear the dead-peer wait of the new socket", async () => {
+  const s = setup();
+  await s.ap.start();
+  const old = s.sockets[0]!;
+  old.onopen!();
+  const oldHandler = old.onmessage!;
+  s.ap.reconnectNow();
+  const ws = s.sockets[1]!;
+  ws.onopen!();
+  assert.equal(s.timers.filter((x) => x.ms === PING_DEAD_MS).length, 1);
+  oldHandler({ data: JSON.stringify({ messageType: "hello", status: 200, uaid: "U1" }) });
+  await tick();
+  assert.equal(s.timers.filter((x) => x.ms === PING_DEAD_MS).length, 1);
+  assert.equal(ws.sent.length, 1);
 });

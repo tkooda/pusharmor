@@ -129,6 +129,9 @@ export class Autopush {
     if (this.stopped) return;
     this.clearTimers();
     this.probing = probe;
+    const prev = this.ws;
+    this.ws = null;
+    prev?.close();
     let ws: SocketLike;
     try {
       ws = this.d.socket(AUTOPUSH_URL);
@@ -138,6 +141,7 @@ export class Autopush {
     }
     this.ws = ws;
     ws.onopen = () => {
+      if (this.ws !== ws) return;
       this.send({
         messageType: "hello",
         uaid: this.state.uaid ?? "",
@@ -147,7 +151,9 @@ export class Autopush {
       });
       this.deadTimer = this.d.setTimer(() => this.ws?.close(), PING_DEAD_MS);
     };
-    ws.onmessage = (ev) => void this.onFrame(ev.data);
+    ws.onmessage = (ev) => {
+      if (this.ws === ws) void this.onFrame(ev.data);
+    };
     ws.onerror = () => undefined;
     ws.onclose = (ev) => {
       if (this.ws !== ws) return;
