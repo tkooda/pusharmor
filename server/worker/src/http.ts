@@ -47,7 +47,6 @@ export function finish(res: Response, path: string, origin: string | null, webOr
   h.set("PA-Epoch", String(Math.floor(Date.now() / 1000)));
   h.set("Access-Control-Expose-Headers", "PA-Epoch");
   h.set("Cache-Control", "no-store");
-  h.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains");
   if (CORS_PATHS.has(path)) {
     h.append("Vary", "Origin");
     if (origin !== null && webOrigins(webOriginsVar).includes(origin)) h.set("Access-Control-Allow-Origin", origin);

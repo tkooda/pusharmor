@@ -266,7 +266,7 @@ describe("GET /peers", () => {
     expect(r.res.headers.get("PA-Epoch")).toMatch(/^[0-9]{10}$/);
     expect(r.res.headers.get("Access-Control-Expose-Headers")).toBe("PA-Epoch");
     expect(r.res.headers.get("Cache-Control")).toBe("no-store");
-    expect(r.res.headers.get("Strict-Transport-Security")).toBe("max-age=63072000; includeSubDomains");
+    expect(r.res.headers.get("Strict-Transport-Security")).toBeNull();
   });
 
   it("removed caller -> 401 unknown peer", async () => {

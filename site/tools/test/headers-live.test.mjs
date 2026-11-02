@@ -1,6 +1,7 @@
 // Header snapshot against a local "wrangler dev" (the pinned, project-local wrangler).
-// Compares each response with the _headers rules: CSP per path, HSTS, nosniff, exactly one
-// CSP header. Skips (with a note) when wrangler cannot start here.
+// Compares each response with the _headers rules: CSP per path, exactly one CSP header, and
+// no HSTS or nosniff (the zone settings add those at the edge). Skips (with a note) when
+// wrangler cannot start here.
 // Run: node --test site/tools/test/   (needs "npm ci" in site/ first)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -55,7 +56,7 @@ before(async () => {
 
 after(() => { if (proc) proc.kill("SIGTERM"); });
 
-test("header snapshot: every path matches _headers, one CSP, HSTS, nosniff", async (t) => {
+test("header snapshot: every path matches _headers, one CSP, no HSTS or nosniff", async (t) => {
   if (!up) { t.skip(why); return; }
   const rules = parseHeaders(readFileSync(join(PUB, "_headers"), "utf8"));
   const paths = listFiles(PUB).filter((f) => !f.startsWith("_")).map(urlPath);
@@ -65,8 +66,9 @@ test("header snapshot: every path matches _headers, one CSP, HSTS, nosniff", asy
     const want = headersFor(rules, p);
     assert.equal((r.raw["content-security-policy"] || []).length, 1, p + ": CSP count");
     assert.deepEqual(r.raw["content-security-policy"], want["content-security-policy"], p);
-    assert.deepEqual(r.raw["strict-transport-security"], ["max-age=63072000; includeSubDomains; preload"], p);
-    assert.deepEqual(r.raw["x-content-type-options"], ["nosniff"], p);
+    // HSTS and nosniff come from the zone settings at the edge, not from _headers
+    assert.equal(r.raw["strict-transport-security"], undefined, p + ": HSTS");
+    assert.equal(r.raw["x-content-type-options"], undefined, p + ": nosniff");
     assert.deepEqual(r.raw["cache-control"], want["cache-control"], p);
     assert.deepEqual(r.raw["x-robots-tag"], want["x-robots-tag"], p);
     assert.deepEqual(r.raw["referrer-policy"], ["no-referrer"], p);

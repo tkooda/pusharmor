@@ -174,8 +174,8 @@ test("_headers: <= 100 rules, lines <= 2000 chars, exactly one CSP per path", ()
     const h = headersFor(rules, p);
     assert.equal((h["content-security-policy"] || []).length, 1, p + " CSP count");
     assert.equal((h["cache-control"] || []).length, 1, p + " Cache-Control count");
-    assert.deepEqual(h["strict-transport-security"], ["max-age=63072000; includeSubDomains; preload"], p);
-    assert.deepEqual(h["x-content-type-options"], ["nosniff"], p);
+    assert.equal(h["strict-transport-security"], undefined, p + ": HSTS comes from the zone settings");
+    assert.equal(h["x-content-type-options"], undefined, p + ": nosniff comes from the zone settings");
     assert.deepEqual(h["referrer-policy"], ["no-referrer"], p);
     const d = cspDirectives(h["content-security-policy"][0]);
     assert.deepEqual(d["default-src"], ["'none'"], p);

@@ -8,7 +8,6 @@ export default {
         "PA-Epoch": String(Math.floor(Date.now() / 1000)),
         "Access-Control-Expose-Headers": "PA-Epoch",
         "Cache-Control": "no-store",
-        "Strict-Transport-Security": "max-age=63072000; includeSubDomains",
         "Retry-After": "300",
       },
     });
