@@ -482,6 +482,15 @@ def test_send_reads_a_bounded_amount_of_stdin(net, tmp_path, monkeypatch, capsys
     assert "No paired devices" in capsys.readouterr().err
 
 
+def test_wipe_removes_temp_files(net, tmp_path, monkeypatch):
+    login(monkeypatch, tmp_path)
+    (tmp_path / "keys" / ".tmp-x").write_text("key")
+    (tmp_path / ".tmp-y").write_text("state")
+    pa.Store(str(tmp_path)).wipe()
+    assert not (tmp_path / "keys").exists()
+    assert [n for n in os.listdir(tmp_path) if n.startswith(".tmp-")] == []
+
+
 def test_send_no_devices_and_logout(net, tmp_path, monkeypatch, capsys):
     login(monkeypatch, tmp_path)
     assert run(tmp_path, "send", "hi") == 4

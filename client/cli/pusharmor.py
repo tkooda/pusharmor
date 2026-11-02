@@ -902,6 +902,7 @@ import base64
 import contextlib
 import datetime
 import email.utils
+import glob
 import http.client
 import os
 import secrets
@@ -1376,7 +1377,8 @@ class Store:
                 write_file(self.dev_path, toml_dumps(d))
 
     def wipe(self):
-        for p in (self.key_path, self.dev_path, self.lock_path):
+        tmps = glob.glob(os.path.join(self.keys_dir, ".tmp-*")) + glob.glob(os.path.join(self.root, ".tmp-*"))
+        for p in [self.key_path, self.dev_path, self.lock_path] + tmps:
             with contextlib.suppress(FileNotFoundError):
                 os.unlink(p)
         with contextlib.suppress(OSError):
