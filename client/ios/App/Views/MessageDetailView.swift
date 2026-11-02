@@ -28,10 +28,14 @@ struct SelectableText: UIViewRepresentable {
         UIFontMetrics(forTextStyle: .title3).scaledFont(for: UIFont.systemFont(ofSize: 20 * 1.5))
     }
 
-    func makeUIView(context: Context) -> UITextView {
+    func makeUIView(context: Context) -> UITextView { Self.makeTextView(text: text) }
+
+    /// Plain text only: no links, phone numbers, or dates are detected, and no markup renders.
+    static func makeTextView(text: String) -> UITextView {
         let v = UITextView()
         v.isEditable = false
         v.isSelectable = true
+        v.dataDetectorTypes = []
         v.backgroundColor = .clear
         v.font = Self.font
         v.adjustsFontForContentSizeCategory = true
