@@ -131,7 +131,7 @@ public enum ErrorCopy {
     }
 
     /// The reason for one Worker reply status and error word. A failed id check (401
-    /// "bad id") is not a removal: it gets the plain retry line.
+    /// "bad id") is not a removal: the relay server did not accept the request.
     public static func reason(status: Int, error: String?, retryAfter: Int? = nil, provider: String? = nil) -> Reason {
         switch (status, error) {
         case (200 ..< 300, _): return .badReply
@@ -141,7 +141,7 @@ public enum ErrorCopy {
         case (401, "clock skew"?): return .clockOff
         case (401, "unknown peer"?): return .removed
         case (401, "logged out"?): return .loggedOut
-        case (401, "bad id"?): return .unknown
+        case (401, "bad id"?): return .refused
         case (401, "invalid client signature"?): return .refused
         case (401, "ticket expired"?): return .loginExpired
         case (401, "invalid ticket"?), (401, "bad ticket"?): return .badLink

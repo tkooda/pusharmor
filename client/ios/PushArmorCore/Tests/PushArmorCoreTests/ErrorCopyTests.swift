@@ -109,12 +109,13 @@ final class ErrorCopyTests: XCTestCase {
         XCTAssertEqual(ErrorCopy.reason(from: reply(409, "{\"error\":\"other\"}")), .unknown)
     }
 
-    /// a failed id check is not a removal: its own retry line, never the removed line.
+    /// a failed id check is not a removal: the not-accepted line, never the removed line.
     func testBadIdIsNotRemoval() {
         let r = ErrorCopy.reason(from: reply(401, "{\"error\":\"bad id\"}"))
-        XCTAssertEqual(r, .unknown)
+        XCTAssertEqual(r, .refused)
         XCTAssertNotEqual(r, .removed)
-        XCTAssertEqual(ErrorCopy.text(.refresh, r), "Unable to refresh the device list.\nTry again.")
+        XCTAssertEqual(ErrorCopy.text(.refresh, r),
+                       "Unable to refresh the device list.\nThe relay server did not accept the request. Update PushArmor and try again.")
     }
 
     func testLocalErrors() {

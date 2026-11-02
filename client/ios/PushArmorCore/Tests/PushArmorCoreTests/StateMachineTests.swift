@@ -1442,7 +1442,8 @@ final class StateMachineTests: XCTestCase {
                        "Unable to refresh the device list.\nThe relay server is not working right now. Try again later.")
         w.script("GET", "/v1/peers", 401, "{\"error\":\"bad id\"}")
         let bad = await n.core.refresh(push: nil)
-        XCTAssertEqual(ErrorCopy.refreshFailText(bad), "Unable to refresh the device list.\nTry again.")
+        XCTAssertEqual(ErrorCopy.refreshFailText(bad),
+                       "Unable to refresh the device list.\nThe relay server did not accept the request. Update PushArmor and try again.")
         XCTAssertEqual(try n.core.store.me().id, n.id)
         let good = await n.core.refresh(push: nil)
         XCTAssertEqual(good?.reply?.status, 200)
