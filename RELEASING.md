@@ -111,8 +111,9 @@ job ends with one summary line per store.
 Listings: `store/listing/play/en-US/*.txt`,
 `store/listing/appstore/en-US/*.txt` and the screenshots in
 `store/screenshots/{play,appstore}/en-US/` are the source for those stores;
-promote sends them (Play: only when they differ). Change them in a normal
-commit. `release/promote.test.mjs` checks the store limits, plain ASCII, and
+promote sends them (Play: only when they differ). The Chrome Web Store and
+AMO screenshots in `store/screenshots/{cws,amo}/en-US/` (1280x800, at most 5)
+are uploaded by hand. Change them in a normal commit. `release/promote.test.mjs` checks the store limits, plain ASCII, and
 that no listing or release file holds a phone number or an address at the
 project or company domains. Promote never sets or overwrites a contact field
 (email, phone, website, support or marketing URL, address) through any store
