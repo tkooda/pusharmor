@@ -1218,8 +1218,7 @@ def test_bad_server_setting(tmp_path, server, capsys):
 @pytest.mark.parametrize("key", ["server", "ntfy"])
 def test_plain_http_only_for_loopback(tmp_path, key, capsys):
     path = tmp_path / "settings.toml"
-    private = ("http://10.0.0.1:8080",) if key == "server" else ()  # ntfy may use a private network
-    for url in ("http://example.com", "http://localhost.example.com") + private:
+    for url in ("http://example.com", "http://10.0.0.1:8080", "http://localhost.example.com"):
         path.write_text('%s = "%s"\n' % (key, url))
         with pytest.raises(pa.Fail) as e:
             pa.Store(str(tmp_path)).settings()
@@ -1230,25 +1229,15 @@ def test_plain_http_only_for_loopback(tmp_path, key, capsys):
         assert pa.Store(str(tmp_path)).settings()[key] == url
 
 
-LOCAL_NET_URLS = ("http://10.0.0.1:8080", "http://172.16.0.1", "http://172.31.255.254/", "http://192.168.1.2:80",
-                  "http://[fc00::1]", "http://[fdff::2]:8", "http://[fe80::1]", "http://[febf::1]")
-NOT_LOCAL_URLS = ("http://172.32.0.1", "http://172.15.0.1", "http://192.169.0.1", "http://11.0.0.1", "http://[fec0::1]",
-                  "http://[fbff::1]", "http://100.64.0.1", "http://169.254.1.1", "http://router.local",
-                  "http://10.example.com")
-
-
-@pytest.mark.parametrize("url, ok", [(u, True) for u in LOCAL_NET_URLS] + [(u, False) for u in NOT_LOCAL_URLS])
-def test_plain_http_ntfy_also_on_a_private_network_but_never_the_relay_server(url, ok, tmp_path):
+@pytest.mark.parametrize("url", ["http://192.168.1.5", "http://10.0.0.1:8080", "http://172.16.0.1", "http://[fc00::1]"])
+def test_plain_http_ntfy_on_a_private_network_is_refused(url, tmp_path):
     path = tmp_path / "settings.toml"
-    path.write_text('ntfy = "%s"\n' % url)
-    if ok:
-        assert pa.Store(str(tmp_path)).settings()["ntfy"] == url
-    else:
+    for key in ("ntfy", "server"):
+        path.write_text('%s = "%s"\n' % (key, url))
         with pytest.raises(pa.Fail):
             pa.Store(str(tmp_path)).settings()
-    path.write_text('server = "%s"\n' % url)
-    with pytest.raises(pa.Fail):
-        pa.Store(str(tmp_path)).settings()
+    path.write_text('ntfy = "http://127.0.0.1:8080"\n')
+    assert pa.Store(str(tmp_path)).settings()["ntfy"] == "http://127.0.0.1:8080"
 
 
 def test_bad_redirect_is_a_network_error():
