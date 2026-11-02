@@ -285,6 +285,19 @@ class AppLogicTest {
         assertTrue(main.contains("MessageAction(\"Copy\", PaIcons.ContentCopy)"))
     }
 
+    @Test fun settingsLabelsAndValuesOnTheRight() {
+        val main = source("ui/MainScreens.kt")
+        val settings = main.substring(main.indexOf("fun SettingsScreen("))
+        assertTrue(settings.contains("SettingRow(\"System notification settings\", \"Choose whether PushArmor can notify you, and set its sound, vibration, and pop-up style.\""))
+        assertTrue(settings.contains("SettingRow(\"System lock screen settings\", \"Choose what Android shows on your lock screen for all apps, including PushArmor messages.\""))
+        assertTrue(settings.contains("SwitchRow(\"Tapping a URL notification opens the URL\""))
+        assertTrue(settings.contains("sub = \"When off, tapping opens the message in PushArmor, so you can check the URL first.\""))
+        assertTrue(settings.contains("SettingRow(\"Delete messages older than\", modifier = m, value = UiText.days(days))"))
+        assertTrue(settings.contains("SettingRow(\"Theme\", modifier = m, value = themePref.label)"))
+        assertTrue(settings.contains("SettingRow(\"Push method\", modifier = Modifier, value = pushLabel(up))"))
+        assertFalse(settings.contains("Keep messages for"))
+    }
+
     @Test fun transientMessagesUseTheOneSnackbar() {
         // one SnackbarHost for the signed-in screens, fed by vm.message, which it takes at once (so none
         // comes back on another screen later). Toasts only where the screen closes at once.

@@ -135,4 +135,10 @@ class RowFitTest {
         assertEquals(1, lines("Times out in 23 hours")); assertEquals(1, lines("Cancel pairing request"))
         assertTrue(box("Times out in 23 hours").top >= box("Cancel pairing request").bottom)
     }
+
+    @Test fun settingValueSitsRightOfTheLabel() {
+        show(411, 1.0f) { Box(Modifier.width(379.dp)) { SettingRow("Delete messages older than", modifier = Modifier, value = "30 days") {} } }
+        assertTrue("${box("30 days")}", box("30 days").left >= box("Delete messages older than").right)
+        assertEquals(box("Delete messages older than").center.y, box("30 days").center.y, 1f)
+    }
 }

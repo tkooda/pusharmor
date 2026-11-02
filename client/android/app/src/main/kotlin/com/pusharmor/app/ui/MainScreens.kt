@@ -1337,7 +1337,7 @@ internal fun MessageAction(text: String, icon: ImageVector, onClick: () -> Unit)
 
 /** A plain settings row (no icon tile); [onClick] null makes it static text. */
 @Composable
-private fun SettingRow(title: String, sub: String? = null, modifier: Modifier, color: Color = Color.Unspecified,
+internal fun SettingRow(title: String, sub: String? = null, modifier: Modifier, color: Color = Color.Unspecified, value: String? = null,
                        trailing: (@Composable () -> Unit)? = null, onClick: (() -> Unit)?) {
     Row(modifier.heightIn(min = 56.dp).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
         .padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1345,6 +1345,8 @@ private fun SettingRow(title: String, sub: String? = null, modifier: Modifier, c
             Text(title, style = MaterialTheme.typography.bodyLarge, color = color)
             sub?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
+        // The current value sits on the right, like a switch or an icon.
+        value?.let { Spacer(Modifier.width(16.dp)); Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         trailing?.let { Spacer(Modifier.width(16.dp)); it() }
     }
 }
@@ -1380,7 +1382,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             }
             SectionHeader("Appearance")
             GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
-                SettingRow("Theme", themePref.label, m) { pickTheme = true }
+                SettingRow("Theme", modifier = m, value = themePref.label) { pickTheme = true }
             })
             // Logged out: only what needs no account and no device.
             if (!signedIn) return@Column
@@ -1391,7 +1393,8 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             SectionHeader("Notifications")
             GroupedList(buildList<@Composable (Modifier) -> Unit> {
                 add { m ->
-                    SettingRow("Notifications", modifier = m, trailing = external) {
+                    SettingRow("System notification settings", "Choose whether PushArmor can notify you, and set its sound, vibration, and pop-up style.",
+                        modifier = m, trailing = external) {
                         safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
                     }
                 }
@@ -1404,9 +1407,13 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                         sub = "When off, the lock screen shows only \"New message\".", modifier = m.then(pad)) { vm.setPref(Settings.K.LOCK_SCREEN, it) }
                 }
                 // Received messages: what a notification tap does.
-                add { m -> SwitchRow("Tap opens link", b(Settings.K.TAP_OPENS_LINK, true), modifier = m.then(pad)) { vm.setPref(Settings.K.TAP_OPENS_LINK, it) } }
                 add { m ->
-                    SettingRow("System lock screen setting", modifier = m, trailing = external) {
+                    SwitchRow("Tapping a URL notification opens the URL", b(Settings.K.TAP_OPENS_LINK, true),
+                        sub = "When off, tapping opens the message in PushArmor, so you can check the URL first.", modifier = m.then(pad)) { vm.setPref(Settings.K.TAP_OPENS_LINK, it) }
+                }
+                add { m ->
+                    SettingRow("System lock screen settings", "Choose what Android shows on your lock screen for all apps, including PushArmor messages.",
+                        modifier = m, trailing = external) {
                         try { context.startActivity(Intent("android.settings.NOTIFICATION_SETTINGS")) } catch (e: Exception) { }
                     }
                 }
@@ -1416,7 +1423,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                 }
                 if (vm.g.push.hasPlayServices) add { m ->
                     Column(m) {
-                        SettingRow("Push method", pushLabel(up), Modifier) { pickPush = true }
+                        SettingRow("Push method", modifier = Modifier, value = pushLabel(up)) { pickPush = true }
                         if (up && UnifiedPushSupport.distributors(context).size > 1) Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
                             for (d in UnifiedPushSupport.distributors(context)) TextButton(onClick = { UnifiedPushSupport.pick(vm.g, d) }) { Text(d) }
                         }
@@ -1425,7 +1432,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             })
             SectionHeader("History")
             GroupedList(listOf<@Composable (Modifier) -> Unit>(
-                { m -> SettingRow("Keep messages for", UiText.days(days), m) { pickDays = true } },
+                { m -> SettingRow("Delete messages older than", modifier = m, value = UiText.days(days)) { pickDays = true } },
                 { m -> SettingRow("Delete all history", modifier = m, color = cs.error) { confirmHistory = true } },
             ))
             SectionHeader("Account")
@@ -1450,7 +1457,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             }
         }
     }
-    if (pickDays) ChoiceDialog("Keep messages for", listOf(1, 7, 30, 90, 365), days, { UiText.days(it) }, onDismiss = { pickDays = false }) {
+    if (pickDays) ChoiceDialog("Delete messages older than", listOf(1, 7, 30, 90, 365), days, { UiText.days(it) }, onDismiss = { pickDays = false }) {
         vm.setPref(Settings.K.HISTORY_DAYS, it)
     }
     if (pickTheme) ChoiceDialog("Theme", ThemePref.entries, themePref, { it.label }, note = "Dark uses a true black background.",
