@@ -1587,7 +1587,8 @@ def test_send_per_device_error_is_one_line(word, line, net, tmp_path, monkeypatc
     net.hooks[("POST", "send")] = lambda *x: net.reply(200, {"r": {idb: word}})
     capsys.readouterr()
     assert run(a, "send", "hi") == pa.EXIT_SEND
-    assert capsys.readouterr().err.splitlines() == ["error: " + line % name, "info: Sent to 0 of 1 device."]
+    cap = capsys.readouterr()
+    assert cap.err.splitlines() == ["error: " + line % name] and cap.out == "Sent to 0 of 1 device.\n"
 
 
 def test_pair_result_word_is_never_shown_raw(net, tmp_path, monkeypatch, capsys):
@@ -1681,6 +1682,6 @@ def test_every_stderr_line_has_a_severity_prefix(net, tmp_path, monkeypatch, cap
     lines = cap.err.splitlines()
     assert lines and all(x.startswith(("error: ", "warning: ", "info: ")) for x in lines)
     assert "info: Listening. Press Ctrl+C to stop." in lines and "info: Stopped." in lines
-    assert "info: Sent to 1 of 1 device." in lines
+    assert "Sent to 1 of 1 device." in cap.out.splitlines() and not any("Sent to" in x for x in lines)
     assert any(x.startswith('info: Waiting for "') for x in lines)
     assert not any(x.startswith(("error: ", "warning: ", "info: ")) for x in cap.out.splitlines())

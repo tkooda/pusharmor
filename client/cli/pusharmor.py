@@ -2825,7 +2825,7 @@ def cmd_send(cx, args):
                 p["logged_out"] = True
             if p and r == "not listening":
                 p["listening"] = False
-    log("info", "Sent to %d of %d device%s." % (len(m) - len(failed), len(m), "" if len(m) == 1 else "s"))
+    print("Sent to %d of %d device%s." % (len(m) - len(failed), len(m), "" if len(m) == 1 else "s"))
     return EXIT_SEND if failed else EXIT_OK
 
 
