@@ -350,7 +350,7 @@ final class AppModel: ObservableObject {
     }
 
     func emailStart(_ email: String, purpose: AuthPurpose, turnstile: String) async {
-        guard Ids.normalizeEmail(email) != nil else { toast = S.badEmail; return }
+        guard Ids.normalizeEmail(email) != nil else { toast = ErrorCopy.text(.sendCode, .badEmail); return }
         guard let k = try? keysForSignIn(purpose) else { toast = ErrorCopy.text(.prepareLogin, .keysUnusable); return }
         let r = await auth.emailStart(email: email, signPub: k.signer.publicKey, purpose: purpose, turnstile: turnstile)
         let nowMs = Int(Date().timeIntervalSince1970 * 1000)
@@ -365,7 +365,7 @@ final class AppModel: ObservableObject {
         default:
             // A 429 starts the countdown from Retry-After so the next try does not spend a security check for nothing.
             if case .rateLimited(let s) = r { resend = ResendGate(sentTo: ResendGate.key(email), untilMs: nowMs + s * 1000) }
-            toast = S.loginError(r)
+            toast = S.loginError(r, .sendCode)
         }
     }
 
@@ -388,22 +388,24 @@ final class AppModel: ObservableObject {
 
     private func emailVerifyOnce(_ code: String, purpose: AuthPurpose) async {
         guard let t = requestToken ?? (try? store?.me().requestToken) ?? nil else { phase = .signIn(purpose); return }
-        await finishTicket(await auth.emailVerify(requestToken: t, code: code), purpose: purpose)
+        await finishTicket(await auth.emailVerify(requestToken: t, code: code), purpose: purpose, action: .checkCode)
     }
 
     func appleToken(idToken: String, code: String?, purpose: AuthPurpose) async {
         guard let k = try? keysForSignIn(purpose) else { toast = ErrorCopy.text(.prepareLogin, .keysUnusable); return }
-        await finishTicket(await auth.appleToken(idToken: idToken, signPub: k.signer.publicKey, purpose: purpose, code: code), purpose: purpose)
+        await finishTicket(await auth.appleToken(idToken: idToken, signPub: k.signer.publicKey, purpose: purpose, code: code), purpose: purpose,
+                           action: .loginApple)
     }
 
     func googleToken(idToken: String, purpose: AuthPurpose) async {
         guard let k = try? keysForSignIn(purpose) else { toast = ErrorCopy.text(.prepareLogin, .keysUnusable); return }
-        await finishTicket(await auth.googleToken(idToken: idToken, signPub: k.signer.publicKey, purpose: purpose), purpose: purpose)
+        await finishTicket(await auth.googleToken(idToken: idToken, signPub: k.signer.publicKey, purpose: purpose), purpose: purpose,
+                           action: .loginGoogle)
     }
 
-    func finishTicket(_ r: AuthResult, purpose: AuthPurpose) async {
+    func finishTicket(_ r: AuthResult, purpose: AuthPurpose, action: ErrorCopy.Action) async {
         guard case .ticket(let ticket, let email) = r else {
-            toast = S.loginError(r)
+            toast = S.loginError(r, action)
             return
         }
         try? store?.setMe("signed_in_email", .text(email))
@@ -449,9 +451,9 @@ final class AppModel: ObservableObject {
             toast = next.toast
             phase = .signIn(.register)
         case .banned: phase = .banned
-        case .ticketExpired: toast = S.signInExpired; phase = .signIn(.register)
-        case .network: toast = S.noConnection
-        case .failed: toast = S.loginFailed
+        case .ticketExpired: toast = ErrorCopy.text(.login, .loginExpired); phase = .signIn(.register)
+        case .network: toast = ErrorCopy.text(.login, .unreachable)
+        case .failed(let s, let e): toast = ErrorCopy.text(.login, ErrorCopy.reason(status: s, error: e))
         }
     }
 
@@ -488,7 +490,7 @@ final class AppModel: ObservableObject {
     private func submitEvictOnce() async {
         guard let t = limitTicket else { return }
         if Date().timeIntervalSince(t.at) > 600 {
-            toast = S.signInExpired
+            toast = ErrorCopy.text(.login, .loginExpired)
             phase = .signIn(.register)
             return
         }
@@ -520,17 +522,18 @@ final class AppModel: ObservableObject {
     /// later app opens until it goes through.
     func signOut() async {
         guard let core = core else { return }
-        try? core.logoutLocal()
+        do { try core.logoutLocal() } catch { toast = ErrorCopy.text(.logout, ErrorCopy.reason(local: error)) }
         await route()
         Task { await core.retryPendingLogout() }
     }
 
     func deleteAccount(ticket: String) async {
         guard let core = core else { return }
-        if let out = try? await core.deleteAccount(ticket: ticket), out.reply?.ok == true {
-            phase = .removed
-        } else {
-            toast = "Delete failed. Try again."
+        do {
+            let out = try await core.deleteAccount(ticket: ticket)
+            if out.reply?.ok == true { phase = .removed } else { toast = ErrorCopy.text(.deleteAccount, ErrorCopy.reason(from: out)) }
+        } catch {
+            toast = ErrorCopy.text(.deleteAccount, ErrorCopy.reason(local: error))
         }
     }
 
@@ -569,9 +572,12 @@ final class AppModel: ObservableObject {
         }
     }
     func localDelete(_ p: Peer) async { await core?.localDelete(p.id); reload() }
-    func setHidden(_ p: Peer, _ h: Bool) { try? core?.setHidden(p.id, h); reload() }
+    func setHidden(_ p: Peer, _ h: Bool) {
+        do { try core?.setHidden(p.id, h) } catch { settingFailed(error) }
+        reload()
+    }
     func setPeerSwitches(_ p: Peer, lockShow: Bool? = nil, showContent: Bool? = nil) {
-        try? core?.setPeerSwitches(p.id, lockShow: lockShow, showContent: showContent)
+        do { try core?.setPeerSwitches(p.id, lockShow: lockShow, showContent: showContent) } catch { settingFailed(error) }
         reload()
     }
 
@@ -696,7 +702,7 @@ final class AppModel: ObservableObject {
     }
 
     func deleteAllHistory() {
-        try? core?.deleteAllHistory()
+        do { try core?.deleteAllHistory() } catch { toast = ErrorCopy.text(.deleteHistory, ErrorCopy.reason(local: error)) }
         UNUserNotificationCenter.current().removeAllDeliveredNotifications()
         reload()
     }
@@ -711,9 +717,17 @@ final class AppModel: ObservableObject {
     // MARK: settings
 
     func boolSetting(_ k: String, _ d: Bool) -> Bool { (try? store?.boolSetting(k, default: d)) ?? d }
-    func setBool(_ k: String, _ v: Bool) { try? store?.setSetting(k, v ? "1" : "0"); objectWillChange.send() }
+    func setBool(_ k: String, _ v: Bool) {
+        do { try store?.setSetting(k, v ? "1" : "0") } catch { settingFailed(error) }
+        objectWillChange.send()
+    }
     var historyDays: Int { Int((try? store?.setting(SettingKey.historyDays)) ?? nil ?? "30") ?? 30 }
-    func setHistoryDays(_ d: Int) { try? store?.setSetting(SettingKey.historyDays, String(d)); objectWillChange.send() }
+    func setHistoryDays(_ d: Int) {
+        do { try store?.setSetting(SettingKey.historyDays, String(d)) } catch { settingFailed(error) }
+        objectWillChange.send()
+    }
+    /// A setting write that threw: "Unable to change this setting." and why.
+    private func settingFailed(_ e: Error) { toast = ErrorCopy.text(.changeSetting, ErrorCopy.reason(local: e)) }
 
     func rename(_ name: String) async {
         guard let core = core else { return }

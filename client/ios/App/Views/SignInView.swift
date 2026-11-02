@@ -50,7 +50,7 @@ struct SignInView: View {
                         let left = model.resend.leftMs(for: email, nowMs: Int(ctx.date.timeIntervalSince1970 * 1000))
                         Button {
                             if Ids.normalizeEmail(email) == nil {
-                                model.toast = S.badEmail
+                                model.toast = ErrorCopy.text(.sendCode, .badEmail)
                             } else {
                                 showTurnstile = true
                             }
@@ -100,7 +100,7 @@ struct SignInView: View {
               let idToken = String(data: tokenData, encoding: .utf8)
         else {
             if case .failure(let e) = result, (e as? ASAuthorizationError)?.code == .canceled { return }
-            model.toast = S.loginFailed
+            model.toast = ErrorCopy.text(.loginApple, .notConfirmed(provider: "Apple"))
             return
         }
         var code: String?

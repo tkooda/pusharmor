@@ -29,14 +29,16 @@ final class GoogleSignIn: NSObject, ASWebAuthenticationPresentationContextProvid
         let pkce = PKCE.make()
         let state = PKCE.make().verifier
         guard let nonce = try? model.nonce(purpose) else {
-            model.toast = S.loginFailed
+            model.toast = ErrorCopy.text(.prepareLogin, .keysUnusable)
             return
         }
         let url = GoogleOAuth.authURL(clientId: clientId, redirect: redirect, pkce: pkce, nonce: nonce, state: state)
 
         var resumed = false
+        var closed = false
         let callback: URL? = await withCheckedContinuation { cont in
-            let s = ASWebAuthenticationSession(url: url, callbackURLScheme: scheme) { u, _ in
+            let s = ASWebAuthenticationSession(url: url, callbackURLScheme: scheme) { u, e in
+                if (e as? ASWebAuthenticationSessionError)?.code == .canceledLogin { closed = true }
                 if !resumed { resumed = true; cont.resume(returning: u) }
             }
             s.presentationContextProvider = self
@@ -54,7 +56,7 @@ final class GoogleSignIn: NSObject, ASWebAuthenticationPresentationContextProvid
               items.first(where: { $0.name == "state" })?.value == state,
               let code = items.first(where: { $0.name == "code" })?.value
         else {
-            model.toast = S.loginFailed
+            model.toast = ErrorCopy.text(.loginGoogle, closed ? .windowClosed : .notConfirmed(provider: "Google"))
             return
         }
 
@@ -66,7 +68,7 @@ final class GoogleSignIn: NSObject, ASWebAuthenticationPresentationContextProvid
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let idToken = obj["id_token"] as? String
         else {
-            model.toast = S.loginFailed
+            model.toast = ErrorCopy.text(.loginGoogle, .notConfirmed(provider: "Google"))
             return
         }
         await model.googleToken(idToken: idToken, purpose: purpose)

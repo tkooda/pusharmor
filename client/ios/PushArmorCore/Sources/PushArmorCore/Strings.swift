@@ -18,7 +18,6 @@ public enum S {
     public static func pairingInProgress(_ x: String) -> String { "Pairing with \"\(x)\" is already in progress." }
     public static func cannotPairYet(_ x: String) -> String { "\"\(x)\" can't pair right now. Open PushArmor on that device, then try again." }
     public static let tooManyPairings = "Too many pairings are in progress. Finish or cancel one, then try again."
-    public static let noConnection = "No connection. Try again."
     public static func pairCrossing(_ x: String) -> String { "Pairing with \(x) in progress. Open PushArmor." }
     public static func approved(_ name: String) -> String { "\(name) confirmed this device." }
     public static func renamed(_ old: String, _ new: String) -> String { "'\(old)' renamed to '\(new)'" }
@@ -50,7 +49,6 @@ public enum S {
     /// Send banner when every chosen device got the message.
     public static func messageSentTo(_ x: String) -> String { "Message sent to \"\(x)\"" }
     public static func messageSentTo(count n: Int) -> String { "Message sent to \(n) devices" }
-    public static let emailSendFailed = "Could not send the email. Try again."
     public static let pairHowTo1 = "Install PushArmor on the other device."
     public static let pairHowTo2 = "Log in with the same account."
     public static let pairHowTo3 = "It appears here. Tap Pair."
@@ -59,7 +57,7 @@ public enum S {
     public static let firstPairStep3 = "When it shows below, tap Pair, then tap Codes match when the fingerprints match."
     public static let firstPairWaiting = "Waiting for another device to log in."
     public static let storeRepaired = "Local data was found corrupted and repaired. Please log in again."
-    public static let launchFailedTitle = "Could not open data"
+    public static let launchFailedTitle = "Unable to open PushArmor data"
     public static let launchFailed = "PushArmor could not open its data on this device. Free some storage space, then leave PushArmor and open it again."
     public static let keysBrokenTitle = "This device's keys have become unusable."
     public static let keysBrokenBody = "Tap Retry to try again. If this keeps happening, you can delete the broken keys. You will then sign in again and pair all your devices again."
@@ -69,8 +67,6 @@ public enum S {
     public static let updateTitle = "Please update PushArmor"
     public static let updateBody = "This version no longer works with the relay server. Update to keep sending and receiving."
     public static let emailInvalid = "Not a valid email address"
-    public static let badEmail = "Only email addresses with plain ASCII characters are supported."
-    public static let signInExpired = "Login expired. Log in again."
     public static let signedOutResume = "Logged out. Log in to resume."
     public static let notificationsOff = "Notifications are off. This device cannot receive messages."
     public static let relayHelp = "To log in on another device, use this address. Find it in iOS Settings > Apple ID > Sign in with Apple, or at appleid.apple.com > Hide My Email."
@@ -78,8 +74,6 @@ public enum S {
     public static let loggedOutBadge = "Logged out"
     public static let pushRegistrationFailed = "Push registration failed."
     public static let loginFailed = "Login failed."
-    public static let wrongCode = "That code did not work. Check the newest email from PushArmor and try again."
-    public static let codeExpired = "This code has expired. Get a new code to continue."
     /// Wait text: over 60 s whole minutes rounded up, else whole seconds rounded up; same words as the other clients.
     public static func wait(ms: Int) -> String {
         let s = max(1, (ms + 999) / 1000)
@@ -88,17 +82,20 @@ public enum S {
     }
     /// Send button label: the label alone, or "Send code in 42 seconds" while the countdown runs.
     public static func sendLabel(_ label: String, leftMs: Int) -> String { leftMs > 0 ? label + " in " + wait(ms: leftMs) : label }
-    /// Login error text, with its cause when the result has one.
-    public static func loginError(_ r: AuthResult) -> String {
+    /// Login error text: line 1 the step `a`, line 2 the cause. The id token of a Google or
+    /// Apple login that the relay server refuses names that service.
+    public static func loginError(_ r: AuthResult, _ a: ErrorCopy.Action) -> String {
+        let provider: String? = a == .loginGoogle ? "Google" : a == .loginApple ? "Apple" : nil
+        let reason: ErrorCopy.Reason
         switch r {
-        case .network: return noConnection
-        case .badEmail: return badEmail
-        case .emailSendFailed: return emailSendFailed
-        case .rateLimited(let s): return "Too many requests. Try again in \(wait(ms: s * 1000))."
-        case .failed(401, "wrong code"?): return wrongCode
-        case .failed(401, "code expired"?): return codeExpired
-        default: return loginFailed
+        case .network: reason = .unreachable
+        case .badEmail: reason = .badEmail
+        case .emailSendFailed: reason = .emailSendFailed
+        case .rateLimited(let s): reason = .rateLimited(waitMs: s * 1000)
+        case .failed(let status, let word): reason = ErrorCopy.reason(status: status, error: word, provider: provider)
+        case .ticket, .requestToken: reason = .unknown
         }
+        return ErrorCopy.text(a, reason)
     }
     public static func receivedWhileLocked(_ n: Int) -> String { "\(n) " + (n == 1 ? "message" : "messages") + " received while locked" }
     public static let thisPhoneOldInstall = "(this phone, old install)"
