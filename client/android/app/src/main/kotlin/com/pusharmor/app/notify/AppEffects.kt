@@ -28,8 +28,8 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
         when (kind) {
             PairNoticeKind.COMMIT -> n.pairNotice(pk, "A new device wants to pair. Open PushArmor.", peerId)
             PairNoticeKind.COMPARE -> n.pairNotice(pk, "New device: compare ${fingerprint ?: ""}", peerId)
-            PairNoticeKind.READY -> if (fcm) n.pairNotice(pk, "Pairing fingerprint ready. Open PushArmor.", peerId)
-            PairNoticeKind.IN_PROGRESS -> if (fcm) n.pairNotice(pk, UiText.pairingInProgress(x), peerId)
+            PairNoticeKind.READY -> n.pairNotice(pk, "Pairing fingerprint ready. Open PushArmor.", peerId)
+            PairNoticeKind.IN_PROGRESS -> n.pairNotice(pk, UiText.pairingInProgress(x), peerId)
             PairNoticeKind.PAIR_AGAIN -> n.pairNotice(pk, UiText.pairAgainNotice(x), peerId, highlight = true, ok = true)
         }
     }
