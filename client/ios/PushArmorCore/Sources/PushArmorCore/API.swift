@@ -145,7 +145,7 @@ public final class APIClient: @unchecked Sendable {
         self.base = base
         self.client = client
         self.transport = transport
-        self._offset = offsetS
+        self._offset = APIClient.clampOffset(offsetS)
         self.clockMs = clockMs
         self.sleep = sleep
     }
@@ -157,14 +157,26 @@ public final class APIClient: @unchecked Sendable {
     }
 
     func setOffset(_ o: Int64) {
+        let o = APIClient.clampOffset(o)
         lock.lock()
         _offset = o
         lock.unlock()
         onOffset?(o)
     }
 
+    /// PA-Epoch values taken as real: 1...9999999999 unix seconds (up to 10 digits, as the
+    /// web extension and CLI accept). Any other value is ignored, so a bad reply cannot store
+    /// an offset that overflows. A device clock far off (even 1970) still fits.
+    static let maxEpochS: Int64 = 9_999_999_999
+
+    /// Bounds an offset (also one read back from the DB) so offset * 1000 cannot overflow.
+    static func clampOffset(_ o: Int64) -> Int64 { min(max(o, -maxEpochS), maxEpochS) }
+
     /// Estimate of Worker time in ms (PA-Time stays ms).
-    public var workerNowMs: Int64 { clockMs() + offsetS * 1000 }
+    public var workerNowMs: Int64 {
+        let (t, over) = clockMs().addingReportingOverflow(offsetS * 1000)
+        return over ? clockMs() : t
+    }
 
     public enum Auth {
         case none
@@ -190,7 +202,9 @@ public final class APIClient: @unchecked Sendable {
             do {
                 let r = try await transport.perform(method: method, url: URL(string: path, relativeTo: base)!.absoluteURL,
                                                     headers: headers, body: body, timeout: timeout)
-                if let e = r.headers["pa-epoch"], let sec = Int64(e) { setOffset(sec - clockMs() / 1000) }
+                if let e = r.headers["pa-epoch"], let sec = Int64(e), (1 ... APIClient.maxEpochS).contains(sec) {
+                    setOffset(sec - clockMs() / 1000)
+                }
                 if r.status == 426 { NotificationCenter.default.post(name: APIClient.upgradeRequired, object: self) }
                 reply = APIReply(status: r.status, body: r.body)
                 status = r.status

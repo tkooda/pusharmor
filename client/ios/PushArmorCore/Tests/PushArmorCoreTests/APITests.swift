@@ -70,6 +70,37 @@ final class APITests: XCTestCase {
         XCTAssertEqual(api.offsetS, -400)
     }
 
+    /// an out-of-range PA-Epoch is ignored and a bad stored offset is clamped, so a
+    /// later signed call cannot trap on overflow. A device clock reset to 1970 still syncs.
+    func testExtremeEpochIgnoredAndOffsetClamped() async {
+        let w = FakeWorker(), rec = Recorder()
+        let api = client(w, rec)
+        let signer = SoftwareSigner()
+        for e in [Int64.max, Int64.min, 0, -5, 10_000_000_000] {
+            w.epoch = e
+            _ = await api.call("GET", "/v1/x", auth: .none)
+            XCTAssertEqual(api.offsetS, 0)
+            _ = await api.call("GET", "/v1/x", auth: .signed(signer, nil))
+            XCTAssertNotNil(w.lastHeaders["PA-Time"])
+        }
+        w.epoch = 9_999_999_999
+        _ = await api.call("GET", "/v1/x", auth: .none)
+        XCTAssertEqual(api.offsetS, 9_999_999_999 - 1761300000)
+        // phone clock at 1970: the real Worker time is accepted
+        let old = APIClient(base: URL(string: "https://api.test")!, transport: w, clockMs: { 1000 }, sleep: { _ in })
+        w.epoch = 1761300000
+        _ = await old.call("GET", "/v1/x", auth: .none)
+        XCTAssertEqual(old.offsetS, 1761300000 - 1)
+        XCTAssertEqual(old.workerNowMs, 1761300000000)
+        // an offset already stored by an older build is clamped on load
+        for o in [Int64.max, Int64.min] {
+            let bad = APIClient(base: URL(string: "https://api.test")!, transport: w, offsetS: o,
+                                clockMs: { 1761300000000 }, sleep: { _ in })
+            XCTAssertEqual(abs(bad.offsetS), 9_999_999_999)
+            _ = bad.workerNowMs
+        }
+    }
+
     /// every request carries PA-Client; a 426 reply posts upgradeRequired once and is not retried.
     func testClientHeaderAnd426() async {
         let w = FakeWorker(), rec = Recorder()
