@@ -56,6 +56,8 @@ export interface StateView {
   setupNeeded: boolean;
   /** The relay server refused this version (HTTP 426): every view shows the update screen. */
   updateRequired: boolean;
+  /** This browser cannot receive: its push service refused, or the relay server refused the push. */
+  pushIssue: "refused" | "relay" | null;
 }
 
 function created(p: PeerRow): string {
@@ -191,6 +193,10 @@ export class Rpc {
 
   async state(): Promise<StateView> {
     const e = this.e;
+    const setupNeeded =
+      e.p.platformName === "firefox" &&
+      (e.p.isAndroid || ((await e.db.meta<string>("receive_mode")) ?? "direct") !== "direct") &&
+      !(await e.db.meta("fallback_push"));
     return {
       reg: await e.regState(),
       banner: (await e.db.meta<string | null>("banner")) ?? null,
@@ -202,10 +208,9 @@ export class Rpc {
       receiveMode: (await e.db.meta<string>("receive_mode")) ?? null,
       receiveNote: (await e.db.meta<string>("receive_note")) ?? null,
       updateRequired: await e.updateRequired(),
-      setupNeeded:
-        e.p.platformName === "firefox" &&
-        (e.p.isAndroid || ((await e.db.meta<string>("receive_mode")) ?? "direct") !== "direct") &&
-        !(await e.db.meta("fallback_push")),
+      setupNeeded,
+      // the Firefox setup note covers a missing push
+      pushIssue: setupNeeded ? null : ((await e.db.meta<"refused" | "relay">("push_issue")) ?? null),
     };
   }
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ApiError, errorText } from "../src/api/client.ts";
+import { PushRefused } from "../src/platform.ts";
 import { b64urlDecode, b64urlEncode } from "../src/crypto/b64url.ts";
 import { pairingKey } from "../src/crypto/labels.ts";
 import { T } from "../src/core/texts.ts";
@@ -1210,4 +1211,54 @@ test("push_missing in a signed reply subscribes fresh and PATCHes the new endpoi
   assert.equal((patch.body as { push: { endpoint: string } }).push.endpoint, a.p.sub!.endpoint);
   await a.e.pushReconcile(true); // what a refresh does
   assert.notEqual(a.p.subscribeFresh[1], true);
+});
+
+test("push issue: a refused subscribe shows refused until a subscribe and PATCH work", async () => {
+  const { a } = await setup();
+  const orig = a.p.pushSubscribe;
+  a.p.pushSubscribe = async () => {
+    throw new PushRefused("AbortError");
+  };
+  await a.e.pushReconcile(true);
+  assert.equal((await new Rpc(a.e).state()).pushIssue, "refused");
+  a.p.pushSubscribe = orig;
+  await a.e.pushReconcile(true);
+  assert.equal((await new Rpc(a.e).state()).pushIssue, null);
+});
+
+test("push issue: an offline PATCH sets nothing and arms no retry", async () => {
+  const { w, a } = await setup();
+  a.p.fetch = async (i: string, init: RequestInit) => {
+    if (init.method === "PATCH") throw new TypeError("offline");
+    return w.handle(i, init);
+  };
+  a.p.sub = null;
+  await a.e.pushReconcile().catch(() => undefined);
+  assert.equal((await new Rpc(a.e).state()).pushIssue, null);
+  assert.equal(await a.db.meta("push_fail"), undefined);
+  assert.equal(a.p.alarms.has("pushretry"), false);
+});
+
+test("push issue: a PATCH the relay server refuses is tried again at 30 s, 2 min, 10 min, then shows relay; success and wipe clear it", async () => {
+  const { w, a, clock } = await setup();
+  w.inject.push({ match: /PATCH \/v1\/peers\//, status: 400, body: { error: "push endpoint not allowed" }, times: 4 });
+  a.p.sub = null;
+  await a.e.pushReconcile().catch(() => undefined);
+  for (const wait of [30_000, 120_000, 600_000]) {
+    assert.equal(a.p.alarms.get("pushretry"), clock.t + wait);
+    assert.equal((await new Rpc(a.e).state()).pushIssue, null);
+    clock.t += wait;
+    a.p.alarms.delete("pushretry"); // the alarm fires
+    await a.e.pushReconcile(false, true).catch(() => undefined);
+  }
+  assert.equal((await new Rpc(a.e).state()).pushIssue, "relay");
+  assert.equal(a.p.alarms.has("pushretry"), false);
+  await a.e.pushReconcile(false, true);
+  assert.equal((await new Rpc(a.e).state()).pushIssue, null);
+  assert.equal(await a.db.meta("push_fail"), undefined);
+  await a.db.setMeta("push_issue", "relay");
+  await a.db.setMeta("push_fail", 4);
+  await a.e.wipe();
+  assert.equal(await a.db.meta("push_issue"), undefined);
+  assert.equal(await a.db.meta("push_fail"), undefined);
 });

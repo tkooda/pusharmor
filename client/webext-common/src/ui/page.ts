@@ -9,7 +9,7 @@ import { toast } from "./dialog.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
 import { startTheme } from "./theme.ts";
-import { historyView, sendView, type Nav, signinCard, updateCard, wordmark } from "./popup.ts";
+import { historyView, sendView, type Nav, showPushIssue, signinCard, updateCard, wordmark } from "./popup.ts";
 
 export const SITE = "https://pusharmor.com";
 
@@ -46,6 +46,7 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
   const view = h("div", {});
   root.append(h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), view);
   const nav: Nav = { toDevices: () => (location.hash = "#pair"), toSend: () => (location.hash = "#send") };
+  void showPushIssue(st);
   if (route === "read") return readView(env, root, Number(arg));
   if (route === "history") return historyView(env, view, arg, nav);
   if (route === "send") {

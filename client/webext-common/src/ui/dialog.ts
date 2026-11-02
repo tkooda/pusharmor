@@ -67,7 +67,7 @@ export function toast(msg: string, kind: ToastKind = "info", sticky = false): vo
   timer = setTimeout(() => {
     text.textContent = msg;
     el.classList.add("on");
-    if (kind === "err") document.addEventListener("click", onClick, true);
+    if (kind === "err" && !sticky) document.addEventListener("click", onClick, true);
     else if (!sticky) timer = setTimeout(() => current?.el === el && dismissToast(), 2000);
   }, 50);
 }

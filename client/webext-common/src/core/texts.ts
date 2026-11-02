@@ -56,6 +56,14 @@ export const T = {
   unsupportedPush: "This browser's push service is not supported yet.",
 } as const;
 
+/** The sticky message while this browser cannot receive (the push service or the relay server refused). */
+export function pushIssueText(issue: "refused" | "relay", brave: boolean): string {
+  const head = "This browser cannot receive messages.\n";
+  if (issue === "relay") return head + "The relay server did not accept its push service. Try again later.";
+  if (brave) return head + 'Turn on "Use Google services for push messaging" in Brave\'s privacy settings.';
+  return head + "Its push service is turned off or not available.";
+}
+
 /** User-facing text for one device's /send result word (sent excluded). */
 export function sendResultText(name: string, res: string): string {
   if (res === "gone") return T.notDelivered(name);

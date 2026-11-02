@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { pushIssueText } from "../src/core/texts.ts";
 import { applyFilter, historyChips } from "../src/ui/historyfilter.ts";
 import { cleanCode, parseFragment } from "../src/core/login.ts";
 import { MENU_PARENTS, selectionTitle } from "../src/core/actions.ts";
@@ -138,4 +139,10 @@ test("boot runs the storage migration before the engine", async () => {
   const { readFileSync } = await import("node:fs");
   const src = readFileSync(new URL("../src/shellkit.ts", import.meta.url), "utf8");
   assert.match(src, /await migrateStorage\(platform\.storageLocal\);\s+const engine = new Engine/);
+});
+
+test("push issue texts: two lines, Brave names its setting, the relay text says to try later", () => {
+  assert.equal(pushIssueText("refused", true), 'This browser cannot receive messages.\nTurn on "Use Google services for push messaging" in Brave\'s privacy settings.');
+  assert.equal(pushIssueText("refused", false), "This browser cannot receive messages.\nIts push service is turned off or not available.");
+  assert.equal(pushIssueText("relay", true), "This browser cannot receive messages.\nThe relay server did not accept its push service. Try again later.");
 });

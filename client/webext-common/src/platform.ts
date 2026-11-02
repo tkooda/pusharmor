@@ -46,3 +46,6 @@ export interface Platform {
   fetch(input: string, init: RequestInit): Promise<Response>;
   now(): number;
 }
+
+/** The browser refused a push subscription (push service off or not available). */
+export class PushRefused extends Error {}

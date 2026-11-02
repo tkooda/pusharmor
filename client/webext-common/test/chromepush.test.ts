@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { subscribeRecovering } from "../../chrome/src/platform-chrome.ts";
+import { PushRefused } from "../src/platform.ts";
 
 // Chrome-like PushManager: subscribe returns the stored subscription for the same key and
 // throws InvalidStateError when a subscription with a different key exists.
@@ -42,4 +43,12 @@ test("chrome push: fresh asks for a new endpoint, not fresh keeps the current on
   const a = await subscribeRecovering(pm, v, false);
   assert.equal((await subscribeRecovering(pm, v, false)).endpoint, a.endpoint);
   assert.notEqual((await subscribeRecovering(pm, v, true)).endpoint, a.endpoint);
+});
+
+test("chrome push: a subscribe the browser refuses is a PushRefused", async () => {
+  const pm = new FakePM();
+  pm.subscribe = async () => {
+    throw new DOMException("Registration failed - push service not available", "AbortError");
+  };
+  await assert.rejects(subscribeRecovering(pm, new Uint8Array([1]), false), PushRefused);
 });

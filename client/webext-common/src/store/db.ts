@@ -164,6 +164,23 @@ export class Db {
   }
 
   // ---- meta ----
+  /** Reads and writes one meta key in one transaction; fn returning undefined deletes the key. */
+  async updateMeta<T>(key: string, fn: (v: T | undefined) => T | undefined): Promise<T | undefined> {
+    return this.tx(["meta"], (tx) =>
+      new Promise<T | undefined>((res, rej) => {
+        const s = tx.objectStore("meta");
+        const g = s.get(key);
+        g.onsuccess = () => {
+          const v = fn(g.result as T | undefined);
+          if (v === undefined) s.delete(key);
+          else s.put(v, key);
+          res(v);
+        };
+        g.onerror = () => rej(g.error);
+      }),
+    );
+  }
+
   async meta<T>(key: string): Promise<T | undefined> {
     return this.get<T>("meta", key);
   }

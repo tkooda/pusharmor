@@ -1,7 +1,7 @@
 // Toolbar popup: Send, History, Peers, Settings (component-webext section 7).
 import type { PeerView, StateView } from "../core/rpc.ts";
 import type { SendResult } from "../core/engine.ts";
-import { T } from "../core/texts.ts";
+import { T, pushIssueText } from "../core/texts.ts";
 import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter, sortByLabel } from "../model/sendsel.ts";
 import { AUTH_CHANGED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
@@ -88,7 +88,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
     if (t === "peers") ready = renderPeers(env, pane, false, undefined, undefined, openPair);
     if (t === "settings") ready = settingsView(env, pane, st, () => mountPopup(env, root));
     // a view that fails shows the error with Retry in place of an empty pane
-    void ready.catch((e) => pane.isConnected && failView(pane, (e as Error).message, () => show(t))).finally(() => {
+    return ready.catch((e) => pane.isConnected && failView(pane, (e as Error).message, () => show(t))).finally(() => {
       clearTimeout(slow);
       wait.remove();
     });
@@ -108,7 +108,21 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   });
   const top = h("div", { class: "top" }, h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), setupBar(env, st), tabs);
   root.append(top, body);
-  show("send");
+  // after the first view is drawn, so the message keeps clear of its footer
+  void show("send").then(() => showPushIssue(st, () => my === mounts));
+}
+
+/** While this browser cannot receive, an error that stays until its Close button; it comes back on the next open. */
+export async function showPushIssue(st: StateView, live: () => boolean = () => true): Promise<void> {
+  if (!st.pushIssue) return;
+  let brave = false;
+  try {
+    // Brave answers only in a page, never in the service worker
+    brave = (await (navigator as unknown as { brave?: { isBrave?: () => Promise<boolean> } }).brave?.isBrave?.()) === true;
+  } catch {
+    brave = false;
+  }
+  if (live()) toast(pushIssueText(st.pushIssue, brave), "err", true);
 }
 
 /** Firefox setup is not finished; the setup tab opens only from this button, never on popup open. */

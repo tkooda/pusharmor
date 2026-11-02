@@ -41,7 +41,7 @@ import { CONTENT_CAP, utf8Len } from "../model/padding.ts";
 import { AUTO_REPLY_WINDOW_MS, pairDecide, type PairDecision, pairHint, pairTimeout, type ResendResult } from "../model/pairdecide.ts";
 import { replayCheck, replayRecord } from "../model/replay.ts";
 import { receiveDecide } from "../model/receive.ts";
-import type { Platform } from "../platform.ts";
+import { type Platform, PushRefused } from "../platform.ts";
 import { type HistoryRow, type PeerRow, type Platform4, type SelfKeys, Db, newPeerRow } from "../store/db.ts";
 import {
   ALLOW_SET,
@@ -115,6 +115,8 @@ function approveRow(n: number, name: string | null, pairingId: Uint8Array): (cur
 
 /** meta key: a Log out the relay server has not confirmed yet. */
 const LOGOUT_PENDING = "logout_pending";
+/** Waits before the retries of a push PATCH the relay server refused. */
+const PUSH_RETRY_MS = [30_000, 120_000, 600_000];
 
 export class Engine {
   readonly p: Platform;
@@ -1141,9 +1143,32 @@ export class Engine {
     if (!cur) return;
     const h = await pushHash(cur);
     const last = await this.db.meta<string>("push_hash");
-    if (!force && last === h) return;
-    await this.api.call("PATCH", "/peers/" + self.id, { signer: this.signerOf(self), body: { push: cur } });
+    if (!force && last === h) return this.pushWorked();
+    try {
+      await this.api.call("PATCH", "/peers/" + self.id, { signer: this.signerOf(self), body: { push: cur } });
+    } catch (e) {
+      if (e instanceof ApiError && e.status !== 0 && ((e.status >= 400 && e.status < 500 && ![401, 426, 429].includes(e.status)) || e.status >= 500)) {
+        await this.pushRefusedByRelay();
+      }
+      throw e;
+    }
     await this.db.setMeta("push_hash", h);
+    await this.pushWorked();
+  }
+
+  /** A push PATCH the relay server refused: try again at +30 s, +2 min, +10 min, then show the issue. */
+  private async pushRefusedByRelay(): Promise<void> {
+    await this.db.del("meta", "push_hash"); // the next reconcile PATCHes again
+    const n = (await this.db.updateMeta<number>("push_fail", (v) => (v ?? 0) + 1)) ?? 1;
+    const wait = PUSH_RETRY_MS[n - 1];
+    if (wait !== undefined) this.p.alarmAt("pushretry", now(this.p) + wait);
+    else await this.db.setMeta("push_issue", "relay");
+  }
+
+  private async pushWorked(): Promise<void> {
+    await this.db.del("meta", "push_issue");
+    await this.db.del("meta", "push_fail");
+    this.p.clearAlarm("pushretry");
   }
 
   /** The push PATCHed for this platform (Firefox: autopush or the site fallback). */
@@ -1153,8 +1178,11 @@ export class Engine {
 
   async subscribePush(quiet = false, fresh = false): Promise<PushFields | null> {
     try {
-      return await this.p.pushSubscribe(this.vapid, quiet, fresh);
-    } catch {
+      const sub = await this.p.pushSubscribe(this.vapid, quiet, fresh);
+      await this.db.updateMeta<string>("push_issue", (v) => (v === "refused" ? undefined : v));
+      return sub;
+    } catch (e) {
+      if (e instanceof PushRefused) await this.db.setMeta("push_issue", "refused");
       return null;
     }
   }
@@ -1450,7 +1478,7 @@ export class Engine {
   async wipe(): Promise<void> {
     await this.p.storageLocal.remove([REG_MARKER]);
     await this.db.clear(["keys", "peers", "replay"]);
-    for (const k of ["reg", LOGOUT_PENDING, "push_hash", "listed", "my_push_sha256", "fetch_pending", "last_fetch"]) await this.db.del("meta", k);
+    for (const k of ["reg", LOGOUT_PENDING, "push_hash", "listed", "my_push_sha256", "fetch_pending", "last_fetch", "push_issue", "push_fail"]) await this.db.del("meta", k);
     const all = await this.p.storageLocal.get(null);
     const drop = Object.keys(all).filter((k) => k.startsWith(PAIR_PREFIX) || k.startsWith(PAIR_MSG_PREFIX) || k === PAIR_AUTO || k === ALLOW_SET || k === NET_NOT_BEFORE);
     await this.p.storageLocal.remove(drop);

@@ -2,7 +2,7 @@
 import { b64urlEncode } from "../../webext-common/src/crypto/b64url.ts";
 import { buf } from "../../webext-common/src/crypto/bytes.ts";
 import type { PushFields } from "../../webext-common/src/crypto/labels.ts";
-import type { Platform } from "../../webext-common/src/platform.ts";
+import { type Platform, PushRefused } from "../../webext-common/src/platform.ts";
 import { basePlatform } from "../../webext-common/src/shellkit.ts";
 import { browser } from "./shim.ts";
 
@@ -30,16 +30,22 @@ function fields(s: PushSub): PushFields {
 /**
  * Subscribe; fresh drops the current subscription first (new endpoint). A subscription made with
  * another key makes subscribe throw InvalidStateError: it is dropped and subscribe runs once more.
+ * A subscribe that still fails while online is a PushRefused (the browser's push service is off).
  */
 export async function subscribeRecovering(m: PushManagerLike, vapid: Uint8Array, fresh: boolean): Promise<PushSub> {
   const o = { userVisibleOnly: false, applicationServerKey: buf(vapid) };
   if (fresh) await (await m.getSubscription())?.unsubscribe();
   try {
-    return await m.subscribe(o);
+    try {
+      return await m.subscribe(o);
+    } catch (e) {
+      if (!(e instanceof Error && e.name === "InvalidStateError")) throw e;
+      await (await m.getSubscription())?.unsubscribe();
+      return await m.subscribe(o);
+    }
   } catch (e) {
-    if (!(e instanceof Error && e.name === "InvalidStateError")) throw e;
-    await (await m.getSubscription())?.unsubscribe();
-    return m.subscribe(o);
+    if (globalThis.navigator?.onLine === false) throw e;
+    throw new PushRefused(e instanceof Error ? e.message : String(e));
   }
 }
 

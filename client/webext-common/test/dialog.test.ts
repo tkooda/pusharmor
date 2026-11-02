@@ -189,3 +189,21 @@ test("toast: a sticky message has a Close button and does not auto-dismiss", () 
     mock.timers.reset();
   }
 });
+
+test("toast: a sticky error stays on a click elsewhere and goes only with its Close button", () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    toast("This browser cannot receive messages.\nIts push service is turned off or not available.", "err", true);
+    const el = toastEl()!;
+    assert.equal(el.attrs.role, "alert");
+    mock.timers.tick(50);
+    doc.fire("click", new N("button"));
+    assert.equal(toastEl(), el, "a click elsewhere keeps it");
+    mock.timers.tick(60_000);
+    assert.equal(toastEl(), el);
+    buttons(el)[0]!.click();
+    assert.equal(toastEl(), undefined);
+  } finally {
+    mock.timers.reset();
+  }
+});
