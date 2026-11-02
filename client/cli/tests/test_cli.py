@@ -215,7 +215,7 @@ def test_version_refused(tmp_path):
         f.write('id = "x"\n')
     with pytest.raises(pa.Fail) as e:
         st.load_keys()
-    assert "damaged" in str(e.value) and "version None" not in str(e.value)
+    assert "unusable" in str(e.value) and "version None" not in str(e.value)
 
 
 def test_not_logged_in(tmp_path, capsys):
@@ -770,8 +770,14 @@ def test_damaged_state_file_is_one_line_exit_1(monkeypatch, tmp_path, net, capsy
     monkeypatch.setattr(sys, "stdin", Stdin(tty=False, data=b"hi"))
     assert run(cfg, "send", "hi") == 1
     err = capsys.readouterr().err.strip()
-    assert "\n" not in err and "Traceback" not in err
-    assert str(path) in err
+    assert "Traceback" not in err
+    if rel == os.path.join("keys", "private.toml"):
+        assert err.splitlines() == ["This device's keys have become unusable.",
+                                    "Delete them and log in again. You will then pair with all your devices again.",
+                                    "To delete them, run: rm -r %s" % cfg]
+        assert path.read_bytes() == data
+    else:
+        assert "\n" not in err and str(path) in err
 
 
 @pytest.mark.parametrize("change", [
@@ -790,17 +796,25 @@ def test_damaged_state_shape_is_one_line_exit_1(change, monkeypatch, tmp_path, n
         assert capsys.readouterr().err == "%s is damaged. Delete it and log in again.\n" % path
 
 
-def test_wrong_key_length_is_damaged(monkeypatch, tmp_path, net, capsys):
-    cfg = _logged_in(monkeypatch, tmp_path, net)
+@pytest.mark.parametrize("change", [
+    lambda d: d.update(sign_key=pa.b64e(b"\x01" * 31)), lambda d: d.update(enc_key="not*base64"),
+    lambda d: d.pop("version")])
+def test_unusable_keys_are_three_lines_and_kept(change, monkeypatch, tmp_path, net, capsys):
+    cfg = tmp_path / "my cfg"
+    login(monkeypatch, cfg)
     path = cfg / "keys" / "private.toml"
     d = pa.toml_loads(path.read_text())
-    d["sign_key"] = pa.b64e(b"\x01" * 31)
+    change(d)
     path.write_text(pa.KEY_HEADER + pa.toml_dumps(d))
     path.chmod(0o600)
+    before = path.read_bytes()
     capsys.readouterr()
     assert run(cfg, "send", "hi") == 1
-    err = capsys.readouterr().err.strip()
-    assert err == "%s is damaged. Delete it and log in again." % path
+    assert capsys.readouterr().err == (
+        "This device's keys have become unusable.\n"
+        "Delete them and log in again. You will then pair with all your devices again.\n"
+        "To delete them, run: rm -r '%s'\n" % cfg)
+    assert path.read_bytes() == before
 
 
 def test_help_and_readme_list_every_exit_code(capsys):

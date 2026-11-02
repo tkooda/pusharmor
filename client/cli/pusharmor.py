@@ -906,6 +906,7 @@ import glob
 import http.client
 import os
 import secrets
+import shlex
 import shutil
 import socket
 import stat
@@ -1365,7 +1366,18 @@ class Store:
             raise Fail(NOT_LOGGED_IN, EXIT_LOGIN)
         check_private(self.keys_dir, 0o700)
         check_private(self.key_path, 0o600)
-        d = read_toml(self.key_path)
+
+        def unusable():  # never deleted automatically: the user decides
+            return Fail("This device's keys have become unusable.\n"
+                        "Delete them and log in again. You will then pair with all your devices again.\n"
+                        "To delete them, run: rm -r %s" % shlex.quote(str(self.root)))
+
+        try:
+            d = read_toml(self.key_path)
+        except Fail:
+            raise unusable()
+        if d.get("version") is None:
+            raise unusable()
         check_version(d, self.key_path)
         try:
             k = {"id": d["id"], "auth": b64d(d["push_auth"])}
@@ -1377,7 +1389,7 @@ class Store:
             if len(b64d(k["id"])) != 30 or len(k["auth"]) != 16:
                 raise ValueError("bad id")
         except (KeyError, ValueError, TypeError):
-            raise Fail("%s is damaged. Delete it and log in again." % self.key_path)
+            raise unusable()
         return k
 
     def save_keys(self, k):
