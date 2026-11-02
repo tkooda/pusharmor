@@ -41,6 +41,9 @@ class CannotReceiveCardTest {
     private fun nodes(a: android.app.Activity) = roots(a.window.decorView).flatMap { flat(it.semanticsOwner.unmergedRootSemanticsNode) }
     private fun text(n: SemanticsNode) = n.config.getOrNull(SemanticsProperties.Text)?.joinToString { it.text } ?: ""
     private fun cards(a: android.app.Activity) = nodes(a).count { text(it) == title }
+    /** Line 2 says why and the button says what to do (notifications are off in these tests). */
+    private fun reasonAndAction(a: android.app.Activity) =
+        nodes(a).count { text(it) == "Allow notifications for PushArmor in Settings." } == 1 && nodes(a).count { text(it) == "Fix" } == 1
 
     /** A frame left pending by an earlier test would stop every tap here from recomposing; clear it. */
     private fun unstickFrames() {
@@ -83,6 +86,7 @@ class CannotReceiveCardTest {
     @Test fun signedInShowsOneCardOnDevicesAndOnOtherTabs() {
         val (a, _) = show(app(false), Session.Start.READY)
         assertTrue(cards(a) == 1)
+        assertTrue("reason and action", reasonAndAction(a))
         tap(a, "Send")
         assertTrue("send tab", cards(a) == 1)
         tap(a, "History")
@@ -106,6 +110,7 @@ class CannotReceiveCardTest {
     @Test fun loggedOutScreenShowsTheCardAndCloseHidesIt() {
         val (a, _) = show(app(false), Session.Start.SIGNED_OUT)
         assertTrue(cards(a) == 1)
+        assertTrue("reason and action", reasonAndAction(a))
         tap(a, "Close")
         assertTrue(cards(a) == 0)
     }
