@@ -74,6 +74,7 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
         let j = (try? StrictJSON.parse(body)) ?? .object([])
         // POST /v1/peers: register (keys in body)
         if method == "POST" && path == "/v1/peers" { return reply(500, "{}") }
+        if let idT = headers["PA-ID"], rows[idT] == nil { return reply(401, "{\"error\":\"unknown peer\"}") }
         guard let idT = headers["PA-ID"], var me = rows[idT], let sigT = headers["PA-Sig"], let sig = B64URL.decode(sigT),
               let t = headers["PA-Time"],
               RequestSigning.verify(method: method, path: path, paTime: t, body: body, sig: sig, signPub: me.signPub) else {
@@ -220,7 +221,10 @@ final class Device {
     @discardableResult
     func drainInbox(_ w: FakeWorker) async -> [ReceiveResult] {
         var out: [ReceiveResult] = []
-        for m in w.take(id) { out.append(await core.receive(m, mode: .nse)) }
+        for m in w.take(id) {
+            let r = await core.receive(m, mode: .nse)
+            out.append(await core.confirmPushedRemoval(r, run: true))
+        }
         return out
     }
 }

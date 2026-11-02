@@ -31,7 +31,7 @@ extension Core {
             return nil
         }
         try? store.setMe("last_fetch_at", .int(now))
-        let out = await signed("GET", "/v1/peers", retry: !nse, timeout: nse ? 5 : 15)
+        let out = await signed("GET", "/v1/peers", retry: !nse, timeout: nse ? 5 : 15, confirm: !nse)
         guard Core.fetchOk(out), let j = out.reply?.json else {
             try? store.setMe("fetch_due", .int(1))
             return out

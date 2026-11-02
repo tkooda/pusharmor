@@ -39,6 +39,9 @@ public final class Core: @unchecked Sendable {
     public let clock: @Sendable () -> Int64
     /// Serializes the app's drain entry points.
     let gate = DrainGate()
+    /// One removal check at a time.
+    let confirmLock = NSLock()
+    var confirming = false
 
     public init(store: Store, api: APIClient, keys: DeviceKeys, hooks: PlatformHooks? = nil,
                 clock: @escaping @Sendable () -> Int64 = { Int64(Date().timeIntervalSince1970) }) {
@@ -60,16 +63,20 @@ public final class Core: @unchecked Sendable {
 
     // MARK: signed calls
 
-    /// A signed call with PA-ID. Applies the client-wide reply rules: 401 "unknown peer" takes
-    /// the self-removed path, 401 "logged out" marks this device logged out, "push_missing"
-    /// sets me.push_missing.
+    /// A signed call with PA-ID. Applies the client-wide reply rules: 401 "unknown peer" starts
+    /// the removal check (the wipe only once a second GET /v1/peers also says "unknown peer";
+    /// until then the call gives no reply), 401 "logged out" marks this device logged out,
+    /// "push_missing" sets me.push_missing. `confirm` false (the NSE fetch) stores the check
+    /// for the app without running it.
     public func signed(_ method: String, _ path: String, body: Data = Data(), retry: Bool = true,
-                       timeout: Double = 15) async -> APIOutcome {
+                       timeout: Double = 15, confirm: Bool = true) async -> APIOutcome {
         guard let id = try? myId() else { return .network }
         let out = await api.call(method, path, body: body, auth: .signed(keys.signer, id), retry: retry, timeout: timeout)
         if let r = out.reply {
             if r.status == 401 && r.error == "unknown peer" {
-                selfRemoved()
+                try? store.setSetting(Core.removalCheckKey, "401")
+                if !confirm { return .network }
+                if !(await confirmRemoval(timeout: min(timeout, 15))) { return .network }
             } else if r.status == 401 && r.error == "logged out" {
                 try? store.setMe("logged_out", .int(1))
             }
@@ -125,6 +132,43 @@ public final class Core: @unchecked Sendable {
 
     // MARK: wipe
 
+    /// Store setting: a removal signal ("401", "remove" or "delete") not yet confirmed.
+    public static let removalCheckKey = "removal_check"
+
+    /// The removal check: when a removal signal is pending, one signed GET /v1/peers. A 401
+    /// "unknown peer" reply confirms it: the wipe runs. Any other reply clears the signal and
+    /// keeps the keys. No reply (or 5xx, 426, 429, or a second clock skew) keeps the keys and
+    /// the signal for the next app open. Returns true when the wipe ran.
+    @discardableResult
+    public func confirmRemoval(timeout: Double = 15) async -> Bool {
+        guard (try? store.setting(Core.removalCheckKey)) != nil, let id = try? myId(), beginConfirm() else { return false }
+        defer { endConfirm() }
+        var out = await api.call("GET", "/v1/peers", auth: .signed(keys.signer, id), retry: false, timeout: timeout)
+        if out.isClockSkew { out = await api.call("GET", "/v1/peers", auth: .signed(keys.signer, id), retry: false, timeout: timeout) }
+        guard let r = out.reply, !out.isClockSkew else { return false }
+        if r.status == 426 || r.status == 429 || r.status >= 500 { return false }
+        if r.status == 401 && r.error == "unknown peer" {
+            selfRemoved()
+            return (try? store.me().removed) == true
+        }
+        try? store.setSetting(Core.removalCheckKey, nil)
+        return false
+    }
+
+    func beginConfirm() -> Bool {
+        confirmLock.lock()
+        defer { confirmLock.unlock() }
+        if confirming { return false }
+        confirming = true
+        return true
+    }
+
+    func endConfirm() {
+        confirmLock.lock()
+        confirming = false
+        confirmLock.unlock()
+    }
+
     /// Self-removed path (catalog Removal rules, ios 11 Wipe): keys gone, pins, pairing rows,
     /// pair_cap, counters and replay rows gone; history kept. The DB part commits first: if it
     /// fails, the keys stay so the next signed call gets the 401 and tries again.
@@ -163,7 +207,7 @@ extension Store {
             try db.exec("DELETE FROM pairing")
             try db.exec("DELETE FROM replay")
             try db.exec("DELETE FROM allow_set")
-            try db.exec("DELETE FROM settings WHERE key = 'pair_cap'")
+            try db.exec("DELETE FROM settings WHERE key IN ('pair_cap', 'removal_check')")
             db.checkpointAfterCommit = true
         }
     }

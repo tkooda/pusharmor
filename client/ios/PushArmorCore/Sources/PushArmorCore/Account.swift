@@ -171,8 +171,10 @@ extension Core {
     }
 
     /// App open (ios 7, 9): locked-inbox drain is done by the caller first. No fetch on app
-    /// open unless one is due.
+    /// open unless one is due. A removal check left from an earlier try runs first.
     public func appOpen(push: PushInfo?) async {
+        await confirmRemoval()
+        if (try? store.me().removed) == true { return }
         await reconcilePush(push)
         if (try? store.me().fetchDue) == true { await fetchPeers() }
         await allowReconcile()

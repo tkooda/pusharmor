@@ -159,6 +159,154 @@ final class StateMachineTests: XCTestCase {
         XCTAssertTrue(try n.core.store.me().removed)
     }
 
+    /// a 401 "unknown peer" the removal check GET answers with 200: keys kept, the check
+    /// cleared, and the call shows as could not be reached.
+    func testUnknownPeerRefutedByCheckKeepsKeys() async throws {
+        let n = try dev("Ndev")
+        let hooks = RecordingHooks()
+        n.core.hooks = hooks
+        w.script("GET", "/v1/peers", 401, "{\"error\":\"unknown peer\"}")
+        let out = await n.core.signed("GET", "/v1/peers")
+        XCTAssertNil(out.reply)
+        XCTAssertEqual(ErrorCopy.reason(from: out), .unreachable)
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 2)
+        XCTAssertEqual(hooks.wiped, 0)
+        XCTAssertFalse(try n.core.store.me().removed)
+        XCTAssertNil(try n.core.store.setting(Core.removalCheckKey))
+    }
+
+    /// a 401 "unknown peer" the removal check GET also answers with "unknown peer": wiped.
+    func testUnknownPeerConfirmedByCheckWipes() async throws {
+        let n = try dev("Ndev")
+        let hooks = RecordingHooks()
+        n.core.hooks = hooks
+        w.script("GET", "/v1/peers", 401, "{\"error\":\"unknown peer\"}")
+        w.script("GET", "/v1/peers", 401, "{\"error\":\"unknown peer\"}")
+        let out = await n.core.signed("GET", "/v1/peers")
+        XCTAssertEqual(out.reply?.error, "unknown peer")
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 2)
+        XCTAssertEqual(hooks.wiped, 1)
+        XCTAssertTrue(try n.core.store.me().removed)
+        XCTAssertNil(try n.core.store.setting(Core.removalCheckKey))
+    }
+
+    /// a removal check with no reply keeps the keys and the check; the next app open runs
+    /// it again and wipes on "unknown peer".
+    func testUnknownPeerCheckWithNoReplyRunsAgainAtAppOpen() async throws {
+        let n = try dev("Ndev")
+        let hooks = RecordingHooks()
+        n.core.hooks = hooks
+        let fw: FakeWorker = w
+        var seen = 0
+        fw.onRequest = { _, _ in
+            seen += 1
+            if seen == 2 { fw.offline = true }
+        }
+        w.script("GET", "/v1/peers", 401, "{\"error\":\"unknown peer\"}")
+        let out = await n.core.signed("GET", "/v1/peers")
+        fw.onRequest = nil
+        fw.offline = false
+        XCTAssertNil(out.reply)
+        XCTAssertEqual(ErrorCopy.reason(from: out), .unreachable)
+        XCTAssertEqual(seen, 2)
+        XCTAssertEqual(hooks.wiped, 0)
+        XCTAssertFalse(try n.core.store.me().removed)
+        XCTAssertEqual(try n.core.store.setting(Core.removalCheckKey), "401")
+        w.script("GET", "/v1/peers", 401, "{\"error\":\"unknown peer\"}")
+        await n.core.appOpen(push: nil)
+        XCTAssertEqual(hooks.wiped, 1)
+        XCTAssertTrue(try n.core.store.me().removed)
+        XCTAssertNil(try n.core.store.setting(Core.removalCheckKey))
+    }
+
+    /// a 401 "bad id" is a failed id check: no removal check GET, no wipe.
+    func testBadIdNeverStartsRemovalCheck() async throws {
+        let n = try dev("Ndev")
+        let hooks = RecordingHooks()
+        n.core.hooks = hooks
+        w.script("GET", "/v1/peers", 401, "{\"error\":\"bad id\"}")
+        let out = await n.core.signed("GET", "/v1/peers")
+        XCTAssertEqual(out.reply?.error, "bad id")
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 1)
+        XCTAssertEqual(hooks.wiped, 0)
+        XCTAssertFalse(try n.core.store.me().removed)
+        XCTAssertNil(try n.core.store.setting(Core.removalCheckKey))
+    }
+
+    /// n removes x; `prepare` sets up the Worker for x's removal check, then x runs the push.
+    func removedByPeer(_ prepare: (FakeWorker) -> Void) async throws -> (Device, RecordingHooks) {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        let hooks = RecordingHooks()
+        x.core.hooks = hooks
+        _ = try await n.core.removePeer(x.id)
+        prepare(w)
+        await x.drainInbox(w)
+        return (x, hooks)
+    }
+
+    /// a verified remove(me) wipes only when the removal check GET also says "unknown peer".
+    func testRemoveMessageWipesOnlyWhenConfirmed() async throws {
+        let (x1, h1) = try await removedByPeer { $0.script("GET", "/v1/peers", 200, "{}") }
+        XCTAssertEqual(h1.wiped, 0)
+        XCTAssertFalse(try x1.core.store.me().removed)
+        XCTAssertNil(try x1.core.store.setting(Core.removalCheckKey))
+        let (x2, h2) = try await removedByPeer { _ in }
+        XCTAssertEqual(h2.wiped, 1)
+        XCTAssertTrue(try x2.core.store.me().removed)
+        XCTAssertNil(try x2.core.store.setting(Core.removalCheckKey))
+        let (x3, h3) = try await removedByPeer { $0.offline = true }
+        w.offline = false
+        XCTAssertEqual(h3.wiped, 0)
+        XCTAssertFalse(try x3.core.store.me().removed)
+        XCTAssertEqual(try x3.core.store.setting(Core.removalCheckKey), "remove")
+        await x3.core.appOpen(push: nil)
+        XCTAssertEqual(h3.wiped, 1)
+        XCTAssertTrue(try x3.core.store.me().removed)
+    }
+
+    /// the NSE runs the removal check only with >= 10 s of budget left, at most once per
+    /// push, and shows the removal banner only once the wipe is confirmed.
+    func testNSERemovalCheckBudgetOnceAndBanner() async throws {
+        let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-nse-\(UUID().uuidString)"))
+        func pushed() async throws -> (Device, RecordingHooks, String) {
+            let n = try dev("Ndev"), x = try dev("Xdev")
+            try await pairFully(n, x)
+            let hooks = RecordingHooks()
+            x.core.hooks = hooks
+            await x.drainInbox(w)
+            _ = try await n.core.removePeer(x.id)
+            return (x, hooks, try XCTUnwrap(w.take(x.id).last))
+        }
+        // little budget: no check, the check stays for the app, no removal banner
+        let (x1, h1, m1) = try await pushed()
+        let g1 = w.count("GET", "/v1/peers")
+        let r1 = await NSEFlow.handle(m: m1, loadKeys: { x1.keys }, openCore: { _ in x1.core }, inbox: inbox, nowMs: 1,
+                                      budgetLeft: { 5 })
+        XCTAssertEqual(w.count("GET", "/v1/peers"), g1)
+        XCTAssertEqual(h1.wiped, 0)
+        XCTAssertEqual(try x1.core.store.setting(Core.removalCheckKey), "remove")
+        XCTAssertEqual(r1.banner?.body, S.peerListChanged)
+        // a check with no good reply, then the NSE fetch gets "unknown peer": no second check
+        let (x2, h2, m2) = try await pushed()
+        clock.now += 100
+        try x2.core.store.setMe("fetch_due", .int(1))
+        let g2 = w.count("GET", "/v1/peers")
+        w.script("GET", "/v1/peers", 503, "{}")
+        let r2 = await NSEFlow.handle(m: m2, loadKeys: { x2.keys }, openCore: { _ in x2.core }, inbox: inbox, nowMs: 2,
+                                      budgetLeft: { 30 })
+        XCTAssertEqual(w.count("GET", "/v1/peers"), g2 + 2)
+        XCTAssertEqual(h2.wiped, 0)
+        XCTAssertNotNil(try x2.core.store.setting(Core.removalCheckKey))
+        XCTAssertEqual(r2.banner?.body, S.peerListChanged)
+        // enough budget and a confirmed removal: wiped, removal banner
+        let (x3, h3, m3) = try await pushed()
+        let r3 = await NSEFlow.handle(m: m3, loadKeys: { x3.keys }, openCore: { _ in x3.core }, inbox: inbox, nowMs: 3,
+                                      budgetLeft: { 30 })
+        XCTAssertEqual(h3.wiped, 1)
+        XCTAssertEqual(r3.banner?.body, S.thisDeviceRemoved)
+    }
+
     /// a signed-in device with no sign key is marked removed and keeps its id as old_id.
     func testKeysLostMarksRemovedAndKeepsOldId() throws {
         let n = try dev("Ndev")

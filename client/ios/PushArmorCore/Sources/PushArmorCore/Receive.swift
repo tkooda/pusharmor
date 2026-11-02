@@ -23,6 +23,8 @@ public struct ReceiveResult: Sendable {
     public var handled = false
     /// A drop caused by a thrown store error (busy, I/O, me() read), not a final verdict.
     public var fault = false
+    /// A verified remove(me) or delete applied: the removal check runs before any wipe.
+    var removalSignal = false
 
     static func plain(_ b: Banner?) -> ReceiveResult {
         ReceiveResult(banner: b, rowid: nil, committed: false, newMessage: false, approveVerified: false)
@@ -88,7 +90,21 @@ extension Core {
             if mode == .returnedC { return .plain(nil) }
             return await receivePair(m, me: myId, mode: mode)
         }
-        return receiveInner(m, me: myId, mode: mode)
+        let r = receiveInner(m, me: myId, mode: mode)
+        if r.removalSignal && mode != .nse { await confirmRemoval() }
+        return r
+    }
+
+    /// NSE: the removal check for a pushed remove(me) or delete, run only when `run` (enough
+    /// budget left). Its removal banner shows only once the wipe is confirmed; until then the
+    /// banner says the device list changed.
+    public func confirmPushedRemoval(_ r: ReceiveResult, run: Bool) async -> ReceiveResult {
+        guard r.removalSignal else { return r }
+        if run, await confirmRemoval(timeout: 5) { return r }
+        var u = r
+        u.banner = Banner(body: S.peerListChanged, locKey: nil, category: .event,
+                          threadId: r.banner?.threadId ?? Banner.dropThread, rowid: nil, tap: .peers(nil))
+        return u
     }
 
     struct Applied {
@@ -96,7 +112,7 @@ extension Core {
         var rowid: Int64?
         var newMessage = false
         var approveVerified = false
-        var selfRemoved = false
+        var removalSignal = false
     }
 
     /// Steps 4-8 and the step 9 table for an inner message against the stored pins and windows.
@@ -147,9 +163,10 @@ extension Core {
             switch r.outcome {
             case .accept:
                 guard let a = applied else { return drop(mode) }
-                if a.selfRemoved { hooks?.wipeKeys(); hooks?.removeLockedInbox(); hooks?.removeDeliveredNotifications() }
-                return ReceiveResult(banner: mode == .nse ? a.banner : nil, rowid: a.rowid, committed: true,
-                                     newMessage: a.newMessage, approveVerified: a.approveVerified)
+                var res = ReceiveResult(banner: mode == .nse ? a.banner : nil, rowid: a.rowid, committed: true,
+                                        newMessage: a.newMessage, approveVerified: a.approveVerified)
+                res.removalSignal = a.removalSignal
+                return res
             case .invalid:
                 return drop(mode, peer: r.verifiedFrom, invalid: true)
             case .represent:
@@ -232,8 +249,8 @@ extension Core {
         case .remove(let t):
             try store.savePeer(p)
             if t == me.text {
-                try store.wipe()
-                a.selfRemoved = true
+                try store.setSetting(Core.removalCheckKey, "remove")
+                a.removalSignal = true
             } else if let tid = PeerId(text: t) {
                 if try store.peer(tid) == nil {
                     var np = Peer(id: tid)
@@ -245,8 +262,8 @@ extension Core {
             }
         case .delete:
             try store.savePeer(p)
-            try store.wipe()
-            a.selfRemoved = true
+            try store.setSetting(Core.removalCheckKey, "delete")
+            a.removalSignal = true
         case .logout, .login:
             var loggedOut = false
             if case .logout = j.content { loggedOut = true }
