@@ -2,7 +2,7 @@
 // (long flows run in a tab because a popup closes on blur).
 import type { LoginResult, Purpose } from "../core/login.ts";
 import type { StateView } from "../core/rpc.ts";
-import { R, T } from "../core/texts.ts";
+import { R, T, actionLine } from "../core/texts.ts";
 import { type UiEnv, add, clear, failView, group, h, platformLabel, rpc } from "./dom.ts";
 import { AUTH_CHANGED, AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResult, type Restore, autoVerifyCode, formatWait, resendLeftMs, sendLeftMs } from "../model/signin.ts";
 import { toast } from "./dialog.ts";
@@ -233,7 +233,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       sending = false;
       refreshSend();
       if (!ok) {
-        setHelp(frameHelp, "Finish the check above first.", true);
+        setHelp(frameHelp, actionLine("sendCode") + "\n" + R.securityCheck, true);
         return;
       }
     }
@@ -340,7 +340,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
         toast(msg, "err");
       } else {
         codeField.classList.add("bad");
-        setHelp(codeHelp, msg === "Enter the 6-character code" ? "Enter the 6-character code from the email." : msg, true, code);
+        setHelp(codeHelp, msg, true, code);
       }
     } finally {
       busy = false;

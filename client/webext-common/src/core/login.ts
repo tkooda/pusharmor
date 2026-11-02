@@ -5,7 +5,6 @@ import { b64urlEncode } from "../crypto/b64url.ts";
 import { normalizeEmail, oauthK } from "../crypto/labels.ts";
 import { AUTH_RESULT, type AuthResult, type Restore, SIGNIN_PROGRESS, restoreStep } from "../model/signin.ts";
 import type { Engine } from "./engine.ts";
-import { UserError } from "./engine.ts";
 import { ActionError, ReasonError, failText } from "./failtext.ts";
 import { type ActionId, R } from "./texts.ts";
 
@@ -77,7 +76,7 @@ export class Login {
 
   async emailVerify(code: string, evict?: string[]): Promise<LoginResult> {
     const c = cleanCode(code);
-    if (!c) throw new UserError("Enter the 6-character code");
+    if (!c) throw new ReasonError(R.enterCode);
     const st = (await this.e.p.storageSession.get([REQUEST_TOKEN]))[REQUEST_TOKEN] as { token: string; purpose: Purpose } | undefined;
     if (!st) throw new ReasonError(R.loginExpired);
     const r = await this.e.api.call("POST", "/auth/email/verify", { body: { request_token: st.token, code: c } }).catch((err: unknown) => {

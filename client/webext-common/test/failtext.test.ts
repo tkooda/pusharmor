@@ -251,6 +251,7 @@ test("sign-in steps show their own action lines", async () => {
   w.inject.push({ match: /POST \/v1\/auth\/email$/, status: 403, body: { error: "turnstile failed" }, times: 1 });
   assert.equal(await fails(rpc, "emailStart", { email: "a@b.com", purpose: "register" }), "Unable to send the code.\nThe security check did not finish. Try again.");
   assert.equal(await fails(rpc, "emailVerify", { code: "ABCDEF" }), "Unable to check the code.\nThe login expired. Log in again.");
+  assert.equal(await fails(rpc, "emailVerify", { code: "" }), "Unable to check the code.\nEnter the 6-character code from the email.");
   p.authFlow = async () => {
     throw new Error("The user did not approve access.");
   };

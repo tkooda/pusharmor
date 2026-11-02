@@ -1,6 +1,6 @@
 // Sign-in tab: saved progress (storage.session, key SIGNIN_PROGRESS) and the
 // Turnstile frame height. Never holds the code or the Turnstile token.
-import { T } from "../core/texts.ts";
+import { R, T, actionLine } from "../core/texts.ts";
 export const SIGNIN_PROGRESS = "signin_progress";
 /** Restore step 2 only while the code still works: Worker REQUEST_TOKEN_LIFE_S 900 s less 60 s. */
 export const RESTORE_MS = 14 * 60_000;
@@ -105,10 +105,11 @@ export function readAuthResult(v: unknown, now: number): AuthResult | null {
   return out;
 }
 
-/** The check before a code is sent: "" when the address is usable, else the help text. */
+/** The check before a code is sent: "" when the address is usable, else the two-line help text. */
 export function emailProblem(raw: string): string {
   const v = raw.trim();
-  return v === "" ? "Enter your email address." : /[^\x00-\x7f]/.test(v) ? T.badEmail : !/^[^@\s]+@[^@\s]+$/.test(v) ? "Check the email address." : "";
+  const why = v === "" ? R.enterEmail : /[^\x00-\x7f]/.test(v) ? T.badEmail : !/^[^@\s]+@[^@\s]+$/.test(v) ? R.emailNotValid : "";
+  return why && actionLine("sendCode") + "\n" + why;
 }
 
 /** The code to check on its own after an edit: six characters, and not the one that was just tried. */
