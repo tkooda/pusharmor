@@ -1332,6 +1332,22 @@ def test_unknown_device_is_confirmed_before_the_keys_are_deleted(check, code, ke
         assert err == "Unable to rename this device.\n" + pa.REMOVED + "\n"
 
 
+@pytest.mark.parametrize("second, wiped", [
+    ((401, {"error": "logged out"}), False), ((401, {"error": "clock skew"}), False), ((403, {"error": "banned"}), False),
+    ((404, {"error": "not found"}), False), ((500, {"error": "internal"}), False), (_down, False),
+    ((401, {"error": "unknown peer"}), True),
+])
+def test_keys_are_deleted_only_when_one_more_get_says_unknown(second, wiped, net, tmp_path, monkeypatch, capsys):
+    login(monkeypatch, tmp_path)
+    monkeypatch.setattr(pa.time, "sleep", lambda s: None)
+    net.hooks[("PATCH", "peers")] = lambda *a: net.reply(401, {"error": "unknown peer"})
+    net.hooks[("GET", "peers")] = second if callable(second) else lambda *a: net.reply(*second)
+    n = len(net.log)
+    run(tmp_path, "rename", "zz")
+    assert net.log[n:].count(("GET", "/v1/peers")) >= 1
+    assert os.path.exists(tmp_path / "keys" / "private.toml") == (not wiped)
+
+
 def test_bad_id_never_deletes_the_keys(net, tmp_path, monkeypatch, capsys):
     login(monkeypatch, tmp_path)
     net.hooks[("PATCH", "peers")] = lambda *a: net.reply(401, {"error": "bad id"})
