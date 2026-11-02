@@ -183,6 +183,9 @@ internal const val UPDATE_TITLE = "Please update PushArmor"
 internal const val UPDATE_BODY = "This version no longer works with the relay server. Update to keep sending and receiving."
 internal const val UPDATE_URL = "https://pusharmor.com/download"
 
+/** Delete mode ends when the session is no longer signed in. */
+internal fun deletingAfter(start: Session.Start?, deleting: Boolean): Boolean = deleting && (start == null || start == Session.Start.READY)
+
 @Composable
 private fun App(vm: AppViewModel) {
     val prefs by vm.prefs.collectAsState()
@@ -207,6 +210,8 @@ private fun App(vm: AppViewModel) {
     }
     if (limit != null) { LimitScreen(vm) {}; return }
     val signedIn = start == Session.Start.READY
+    // Delete mode starts from Settings while signed in; a later sign-in start means the session is gone, so the next sign-in is a plain one.
+    androidx.compose.runtime.LaunchedEffect(start) { deleting = deletingAfter(start, deleting) }
     if (!signedIn || deleting) {
         val purpose = if (deleting) "delete-account" else signInPurpose
         var email by rememberSaveable { mutableStateOf(false) }
