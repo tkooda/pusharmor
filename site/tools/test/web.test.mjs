@@ -202,6 +202,9 @@ test("retries: 503 and network errors up to 3, not 502; 429 beyond the 8 s budge
   assert.equal(PA.errorText(r), "Too many requests. Try again in 60 seconds.");
   assert.equal(PA.errorText({ status: 429, data: { retry_after: 1 } }), "Too many requests. Try again in 1 second.");
   assert.equal(PA.errorText({ status: 429, data: {} }), "Too many requests. Try again in 60 seconds.");
+  assert.equal(PA.errorText({ status: 429, data: { retry_after: 61 } }), "Too many requests. Try again in 2 minutes.");
+  assert.equal(PA.errorText({ status: 429, data: { retry_after: 120 } }), "Too many requests. Try again in 2 minutes.");
+  assert.equal(PA.errorText({ status: 429, data: { retry_after: 3600 } }), "Too many requests. Try again in 60 minutes.");
 
   api = fakeApi([{ status: 429, body: { retry_after: 2 }, headers: { "Retry-After": 2 } }, { status: 200, body: {} }]);
   r = await api.client.request("POST", "/v1/auth/email", {}, null);
