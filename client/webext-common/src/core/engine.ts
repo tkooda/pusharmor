@@ -1201,9 +1201,11 @@ export class Engine {
     await this.rebuildMenus();
   }
 
-  /** push_missing in any signed reply -> re-subscribe and PATCH. */
+  /** push_missing in any signed reply -> re-subscribe and PATCH, unless a push retry is already set. */
   private async afterSignedReply(r: ApiReply): Promise<void> {
-    if (r.json.push_missing === true) await this.pushReconcile(true, false, true).catch(() => undefined);
+    if (r.json.push_missing !== true) return;
+    if ((await this.db.meta<number>("push_fail")) !== undefined) return; // the "pushretry" alarm tries again
+    await this.pushReconcile(true, false, true).catch(() => undefined);
   }
 
   // ------------------------------------------------------------------ push
