@@ -124,12 +124,21 @@ interface PaDao {
     @Query("SELECT * FROM self WHERE k = 0") fun self(): SelfEntity?
     @Query("SELECT * FROM self WHERE k = 0") fun selfFlow(): Flow<SelfEntity?>
     @Upsert fun putSelf(s: SelfEntity)
+    @Query("UPDATE self SET clock_offset = :v WHERE k = 0") fun setClockOffset(v: Long)
+    @Query("UPDATE self SET name = :n WHERE k = 0") fun setSelfName(n: String)
+    @Query("UPDATE self SET push_hash = :h WHERE k = 0") fun setPushHash(h: String?)
+    @Query("UPDATE self SET email = :e WHERE k = 0") fun setSelfEmail(e: String?)
     @Query("DELETE FROM self") fun deleteSelf()
 
     @Query("SELECT * FROM peers WHERE id = :id") fun peer(id: String): PeerEntity?
     @Query("SELECT * FROM peers ORDER BY created") fun peers(): List<PeerEntity>
     @Query("SELECT * FROM peers ORDER BY created") fun peersFlow(): Flow<List<PeerEntity>>
     @Upsert fun putPeer(p: PeerEntity)
+    /** Changes only the switches given (null keeps a switch), so a concurrent write to another column is never undone. */
+    @Query("UPDATE peers SET lock_screen = COALESCE(:lock, lock_screen), watch = COALESCE(:watch, watch), show_content = COALESCE(:show, show_content) WHERE id = :id")
+    fun updatePeerSwitches(id: String, lock: Boolean?, watch: Boolean?, show: Boolean?)
+    @Query("UPDATE peers SET hidden = :hidden WHERE id = :id") fun setHidden(id: String, hidden: Boolean)
+    @Query("UPDATE peers SET channel_id = :ch WHERE id = :id") fun setChannelId(id: String, ch: String?)
     @Query("DELETE FROM peers WHERE id = :id") fun deletePeer(id: String)
     @Query("DELETE FROM peers") fun deleteAllPeers()
     @Query("UPDATE peers SET last_n = last_n + 1 WHERE id = :id") fun bumpCounter(id: String): Int

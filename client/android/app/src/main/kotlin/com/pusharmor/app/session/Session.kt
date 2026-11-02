@@ -350,7 +350,7 @@ class Session(private val g: Graph) {
     }
 
     fun setHidden(peerId: String, hidden: Boolean) {
-        g.store.peer(peerId)?.let { g.store.putPeer(it.copy(hidden = hidden)) }
+        dao.setHidden(peerId, hidden)
         updateShortcuts()
     }
 
@@ -358,8 +358,8 @@ class Session(private val g: Graph) {
     fun rename(newName: String): String? {
         if (!NameEntry.isValidName(newName)) return "Use 1 to 32 plain ASCII characters, no double quotes."
         val me = g.identity() ?: return NO_KEYS
-        val self = dao.self() ?: return NO_KEYS
-        dao.putSelf(self.copy(name = newName))
+        dao.self() ?: return NO_KEYS
+        dao.setSelfName(newName)
         val outbox = Outbox(g.store, me)
         val r = g.reconcile().withMissingRetry {
             ClockSkew.run({
@@ -390,7 +390,7 @@ class Session(private val g: Graph) {
         val p = currentPush()
         val r = g.client.patchPush(p?.first ?: "null")
         return when {
-            r is ApiResult.Ok -> { dao.self()?.let { dao.putSelf(it.copy(pushHash = p?.let { x -> Ids.pushSha256(x.second) })) }; true }
+            r is ApiResult.Ok -> { dao.setPushHash(p?.let { x -> Ids.pushSha256(x.second) }); true }
             r.isLoggedOut -> null
             r.isUnknownPeer -> { selfRemoved(deleted = false, lostKeys = false); null }
             r is ApiResult.Http && r.status in 400..499 && r.status != 429 -> null

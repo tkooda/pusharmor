@@ -53,7 +53,7 @@ class Graph(val app: PaApp) {
     val offset = object : ClockOffset {
         override var offsetS: Long
             get() = dao.self()?.clockOffset ?: 0
-            set(v) { dao.self()?.let { dao.putSelf(it.copy(clockOffset = v)) } }
+            set(v) { dao.setClockOffset(v) }
     }
 
     val client = WorkerClient({ keysOrNull ?: error("no keys") }, { dao.self()?.id }, offset, BuildConfig.API_BASE.toHttpUrl(),

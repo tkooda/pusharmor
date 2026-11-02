@@ -103,4 +103,47 @@ class RoomLocalStoreTest {
         assertEquals(emptyList<Long>(), s.capTimestamps())
         assertEquals("hi", s.dao.history(m)!!.content) // history kept
     }
+
+    @Test fun updatePeerSwitchesKeepsCounter() {
+        val db = Room.databaseBuilder(ctx, PaDatabase::class.java, "u.db").allowMainThreadQueries().build()
+        val s = RoomLocalStore(db)
+        s.putPeer(Peer(id = "p"))
+        repeat(5) { s.reserveCounter("p") }
+        db.dao().updatePeerSwitches("p", lock = false, watch = null, show = null)
+        val p = db.dao().peer("p")!!
+        assertEquals(5L, p.lastN)
+        assertEquals(false, p.lockScreen)
+        assertEquals(true, p.watch)
+        assertEquals(true, p.showContent)
+    }
+
+    @Test fun peerSettersChangeOnlyTheirColumn() {
+        val db = Room.databaseBuilder(ctx, PaDatabase::class.java, "v.db").allowMainThreadQueries().build()
+        val s = RoomLocalStore(db)
+        s.putPeer(Peer(id = "p"))
+        db.dao().setHidden("p", true)
+        db.dao().setChannelId("p", "ch1")
+        db.dao().updatePeerSwitches("p", lock = null, watch = false, show = false)
+        val p = db.dao().peer("p")!!
+        assertEquals(true, p.hidden)
+        assertEquals("ch1", p.channelId)
+        assertEquals(true, p.lockScreen)
+        assertEquals(false, p.watch)
+        assertEquals(false, p.showContent)
+    }
+
+    @Test fun selfSettersLeaveOtherColumns() {
+        val db = Room.databaseBuilder(ctx, PaDatabase::class.java, "w.db").allowMainThreadQueries().build()
+        db.dao().putSelf(SelfEntity(id = "s", accountPrefix = ByteArray(9), name = "old", email = "a@b.c"))
+        db.dao().setClockOffset(42)
+        db.dao().setSelfName("new")
+        db.dao().setPushHash("h")
+        db.dao().setSelfEmail("d@e.f")
+        val self = db.dao().self()!!
+        assertEquals(42L, self.clockOffset)
+        assertEquals("new", self.name)
+        assertEquals("h", self.pushHash)
+        assertEquals("d@e.f", self.email)
+        assertEquals("s", self.id)
+    }
 }

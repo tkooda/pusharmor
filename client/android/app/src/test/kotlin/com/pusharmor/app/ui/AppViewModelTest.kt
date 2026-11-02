@@ -133,4 +133,17 @@ class AppViewModelTest {
         assertEquals(AppViewModel.NOT_DONE, r.text)
         assertFalse(r.ok)
     }
+
+    /** A switch change never rewrites the message counter: counting and switching at once keeps every count. */
+    @Test fun switchChangesKeepTheCounter() {
+        val vm = vm()
+        val id = "P".repeat(40)
+        onIo { vm.g.store.putPeer(com.pusharmor.protocol.Peer(id = id)) }
+        val counter = Thread { repeat(300) { vm.g.dao.bumpCounter(id) } }
+        val switcher = Thread { repeat(300) { i -> vm.setPeerSwitch(id, lock = i % 2 == 0) } }
+        counter.start(); switcher.start(); counter.join(); switcher.join()
+        waitFor { vm.running.value.isEmpty() && !vm.busy.value }
+        Thread.sleep(300)
+        assertEquals(300L, onIo { vm.g.dao.counter(id) })
+    }
 }

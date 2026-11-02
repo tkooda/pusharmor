@@ -176,7 +176,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         when (val r = g.session.onTicket(ticket, email, evict)) {
             Session.SignIn.Done -> {
                 message.value = null // a failed earlier step must not show on Peers
-                email?.let { e -> g.dao.self()?.let { g.dao.putSelf(it.copy(email = e)) } }
+                email?.let { e -> g.dao.setSelfEmail(e) }
                 limit.value = null
                 setStart(Session.Start.READY)
                 g.session.onAppOpen(System.currentTimeMillis())
@@ -243,7 +243,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setShareShown(id: String, shown: Boolean) = io { g.settings.setShareShown(id, shown); g.session.updateShortcuts() }
     fun tapGreyed() = io { g.session.fetchPeers() }
     fun setPeerSwitch(id: String, lock: Boolean? = null, watch: Boolean? = null, showContent: Boolean? = null) = io {
-        g.dao.peer(id)?.let { p -> g.dao.putPeer(p.copy(lockScreen = lock ?: p.lockScreen, watch = watch ?: p.watch, showContent = showContent ?: p.showContent)) }
+        g.dao.updatePeerSwitches(id, lock, watch, showContent)
     }
 
     /** Peers-screen open: re-enqueue pending pair sends and check timeouts. */

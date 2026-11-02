@@ -60,7 +60,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
     /** Per-peer channel: created at pairing, renamed on rename, deleted at removal. */
     fun createPeerChannel(peerId: String) {
         val p = dao.peer(peerId) ?: return
-        val id = p.channelId ?: randomChannelId().also { dao.putPeer(p.copy(channelId = it)) }
+        val id = p.channelId ?: randomChannelId().also { dao.setChannelId(peerId, it) }
         nm.createNotificationChannel(NotificationChannel(id, p.name ?: "Device", NotificationManager.IMPORTANCE_HIGH))
     }
 
