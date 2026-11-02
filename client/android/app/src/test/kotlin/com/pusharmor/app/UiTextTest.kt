@@ -101,8 +101,7 @@ class UiTextTest {
     }
 
     @Test fun shareTooLongIsSentence() {
-        assertEquals("This link is too long to send: 2100 bytes. The limit is 2048 bytes.", UiText.shareTooLong(2100, text = false))
-        assertEquals("This text is too long to send: 3000 bytes. The limit is 2048 bytes.", UiText.shareTooLong(3000, text = true))
+        assertEquals("Unable to send.\nThe message is longer than 2048 characters.", UiText.SHARE_TOO_LONG)
     }
 
     @Test fun codeFieldState() {

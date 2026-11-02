@@ -83,11 +83,11 @@ class ShareActivity : ComponentActivity() {
                     Text("Send", Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp), style = MaterialTheme.typography.headlineSmall)
                     if (tooLong && cut == null) Column(Modifier.verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 24.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(UiText.shareTooLong(SizeCap.utf8Size(text), type == ContentType.TEXT))
+                        Text(UiText.SHARE_TOO_LONG)
                         // Dialog buttons at the end, as in a standard dialog.
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
                             TextButton(onClick = { finish() }) { Text("Close") }
-                            if (type == ContentType.TEXT) TextButton(onClick = { cut = SizeCap.truncateUtf8(text) }) { Text("Send the first 2048 bytes") }
+                            if (type == ContentType.TEXT) TextButton(onClick = { cut = SizeCap.truncateUtf8(text) }) { Text("Send the first 2048 characters") }
                         }
                     } else Column(Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
                         SendScreen(vm, cut ?: text, preselect = direct, inDialog = true, onPair = {

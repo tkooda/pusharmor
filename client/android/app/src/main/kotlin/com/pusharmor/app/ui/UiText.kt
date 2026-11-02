@@ -94,9 +94,8 @@ object UiText {
     fun counter(bytes: Int): String =
         if (bytes > SizeCap.MAX_CONTENT_BYTES) "Too long ($bytes / 2048)" else "$bytes / 2048"
 
-    /** Share sheet over the cap: one full sentence, then Close (and for text, Send the first 2048 bytes). */
-    fun shareTooLong(bytes: Int, text: Boolean): String =
-        "This ${if (text) "text" else "link"} is too long to send: $bytes bytes. The limit is 2048 bytes."
+    /** Share sheet over the cap, then Close (and for text, Send the first 2048 characters). The cap still counts UTF-8 bytes. */
+    const val SHARE_TOO_LONG = UNABLE_SEND + "\n" + com.pusharmor.net.ErrorText.TOO_LONG
 
     /** Remembered recipient ids ("a,b,c") that can still receive; empty when none, so the default stays. */
     fun rememberedSelection(remembered: String?, available: List<String>): List<String> {
