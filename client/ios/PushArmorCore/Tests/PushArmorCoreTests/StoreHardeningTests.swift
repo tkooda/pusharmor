@@ -70,6 +70,33 @@ final class StoreHardeningTests: XCTestCase {
         }
     }
 
+    /// a replaced secret r leaves no old copy on disk; while another connection reads, the
+    /// checkpoint does not wait and runs again after the next commit.
+    func testReplacedPairingSecretNotOnDisk() throws {
+        let path = tmpPath("secrep")
+        let s = try Store(path: path)
+        let a = TestPeer()
+        let r1 = Data((0 ..< 32).map { UInt8(0x5a ^ $0) })
+        var e = PairingEntry(peerId: a.id, role: .n, state: .committed, r: r1, cN: nil, authorized: false,
+                             unsent: false, startedAt: 1, notBefore: 0, lastSendAt: 0)
+        try s.savePairing(e)
+        let reader = try DB(path: path)
+        try reader.exec("BEGIN")
+        _ = try reader.query("SELECT * FROM pairing")
+        e.r = Data(repeating: 1, count: 32)
+        let t0 = Date()
+        try s.savePairing(e)
+        XCTAssertLessThan(Date().timeIntervalSince(t0), 1)
+        XCTAssertTrue(s.db.checkpointAfterCommit)                       // busy: tried again later
+        try reader.exec("COMMIT")
+        try s.db.write {}
+        XCTAssertFalse(s.db.checkpointAfterCommit)
+        for suffix in ["", "-wal"] {
+            let bytes = (try? Data(contentsOf: URL(fileURLWithPath: path + suffix))) ?? Data()
+            XCTAssertNil(bytes.range(of: r1), "old secret found in pa.sqlite" + suffix)
+        }
+    }
+
     /// history keeps at most the newest 500 rows: on prune and on every insert.
     func testHistoryCappedAt500() throws {
         let w = FakeWorker(), clock = TestClock()

@@ -82,18 +82,22 @@ public final class DB: @unchecked Sendable {
         }
         try exec("BEGIN IMMEDIATE")
         depth = 1
+        let armed = checkpointAfterCommit
         do {
             let r = try body()
             depth = 0
             try exec("COMMIT")
             if checkpointAfterCommit {
-                checkpointAfterCommit = false
-                try? exec("PRAGMA wal_checkpoint(TRUNCATE)")
+                // no wait while another process reads: busy keeps the flag for the next commit
+                sqlite3_busy_timeout(handle, 0)
+                let busy = (try? one("PRAGMA wal_checkpoint(TRUNCATE)"))?.int("busy") ?? 1
+                sqlite3_busy_timeout(handle, 2000)
+                checkpointAfterCommit = busy != 0
             }
             return r
         } catch {
             depth = 0
-            checkpointAfterCommit = false
+            checkpointAfterCommit = armed
             try? exec("ROLLBACK")
             throw error
         }

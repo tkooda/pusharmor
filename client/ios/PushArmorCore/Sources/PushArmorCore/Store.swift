@@ -339,14 +339,20 @@ public final class Store: @unchecked Sendable {
     }
 
     public func savePairing(_ e: PairingEntry) throws {
-        try db.exec("""
-            INSERT INTO pairing (peer_id, role, state, r, c_n, authorized, unsent, started_at, not_before, last_send_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(peer_id) DO UPDATE SET role = excluded.role,
-            state = excluded.state, r = excluded.r, c_n = excluded.c_n, authorized = excluded.authorized,
-            unsent = excluded.unsent, started_at = excluded.started_at, not_before = excluded.not_before,
-            last_send_at = excluded.last_send_at
-            """, [.text(e.peerId.text), .text(e.role.rawValue), .text(e.state.rawValue), .opt(e.r), .opt(e.cN),
-                  .bool(e.authorized), .bool(e.unsent), .int(e.startedAt), .int(e.notBefore), .int(e.lastSendAt)])
+        try db.write {
+            // a replaced secret r leaves no old copy in pa.sqlite-wal
+            if let old = try db.one("SELECT r FROM pairing WHERE peer_id = ?", [.text(e.peerId.text)])?.blob("r"), old != e.r {
+                db.checkpointAfterCommit = true
+            }
+            try db.exec("""
+                INSERT INTO pairing (peer_id, role, state, r, c_n, authorized, unsent, started_at, not_before, last_send_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(peer_id) DO UPDATE SET role = excluded.role,
+                state = excluded.state, r = excluded.r, c_n = excluded.c_n, authorized = excluded.authorized,
+                unsent = excluded.unsent, started_at = excluded.started_at, not_before = excluded.not_before,
+                last_send_at = excluded.last_send_at
+                """, [.text(e.peerId.text), .text(e.role.rawValue), .text(e.state.rawValue), .opt(e.r), .opt(e.cN),
+                      .bool(e.authorized), .bool(e.unsent), .int(e.startedAt), .int(e.notBefore), .int(e.lastSendAt)])
+        }
     }
 
     /// Ends an entry: r and c_N are zeroed first, then the row is deleted.
