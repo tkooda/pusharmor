@@ -53,18 +53,16 @@ One compact JSON line per request (`src/log.ts`): allow-listed fields only, no b
 tokens or messages; the largest field is the per-recipient list (at most 9 short entries).
 Every logged line adds to the log volume. `head_sampling_rate` stays 1: head sampling is decided before
 the request runs and would drop errors as well. Sampling is done in code with the var
-`PA_LOG_SAMPLE` (wrangler.jsonc):
+`PA_LOG_SAMPLE`, a Cloudflare dashboard variable (not in wrangler.jsonc):
 
 - always logged, whatever the rate: 5xx and exceptions, rate-limit binding errors, failed gone write-backs, rejected push endpoints, any recipient not
   delivered on the first try, and every cron run;
 - logged at the rate: plain successes and all 4xx; when the rate is below 1 such a line has
   `"sample": N` (N = 1 / rate), so multiply counts by N.
 
-Now `PA_LOG_SAMPLE` is `"1"` (every line), for launch and the first users.
-
-When to lower it: when log volume grows. How: set `"PA_LOG_SAMPLE": "0.1"` in
-`wrangler.jsonc` and release a new Worker tag (`RELEASING.md`, Worker). 5xx lines stay
-complete; 4xx counts become estimates.
+When to lower it: when log volume grows. How: set `PA_LOG_SAMPLE` in the Cloudflare
+dashboard (for example `0.1`); a deploy keeps it (`keep_vars`). 5xx lines stay complete;
+4xx counts become estimates.
 
 ## Client versions
 

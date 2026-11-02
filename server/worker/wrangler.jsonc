@@ -1,6 +1,6 @@
 // PushArmor Worker. Bindings and vars only; secrets are set with "wrangler secret put".
-// Deployment ids (GOOGLE_*, APPLE_*, WEBPUSH_*, AWS_*, *_AUD_*, PA_OAUTH_REDIRECT_CHROME)
-// are Cloudflare dashboard variables, never in this file; keep_vars keeps them on deploy.
+// Deployment ids (GOOGLE_*, APPLE_*, WEBPUSH_*, AWS_*, *_AUD_*, PA_OAUTH_REDIRECT_CHROME) and
+// PA_LOG_SAMPLE are Cloudflare dashboard variables, never in this file; keep_vars keeps them on deploy.
 // The D1 binding names the database; wrangler looks its id up by name.
 {
   "name": "pusharmor-api",
@@ -12,9 +12,9 @@
   "routes": [{ "pattern": "api.pusharmor.com", "custom_domain": true }],
   "limits": { "cpu_ms": 2000 },
   "triggers": { "crons": ["0 3 1 * *", "*/15 * * * *"] },
-  // Workers Logs bills each line. head_sampling_rate stays 1 (head sampling is decided before
-  // the request runs and would drop errors too). PA_LOG_SAMPLE samples plain successes and 4xx
-  // in code; 5xx errors are always logged. It is 1 (log all) during launch; see README "Logs".
+  // head_sampling_rate stays 1 (head sampling is decided before the request runs and would drop
+  // errors too). PA_LOG_SAMPLE (a dashboard variable) samples plain successes and 4xx in code;
+  // 5xx errors are always logged. See README "Logs".
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1,
@@ -51,7 +51,6 @@
     "PA_OAUTH_REDIRECT_ANDROID": "https://pusharmor.com/auth/android",
     "PA_OAUTH_REDIRECT_WEB": "https://pusharmor.com/delete-account",
     "PA_OAUTH_REDIRECT_CLI": "https://pusharmor.com/auth/cli",
-    "PA_WEB_ORIGINS": "[\"https://pusharmor.com\"]",
-    "PA_LOG_SAMPLE": "1"
+    "PA_WEB_ORIGINS": "[\"https://pusharmor.com\"]"
   }
 }

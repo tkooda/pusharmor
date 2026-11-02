@@ -141,9 +141,9 @@ Rollback: never roll the Worker back below 0.0.17 (migration 0004 stores pending
 `[time, "c"]`, which an older Worker returns as a bad c). Roll forward only
 (`server/deploy/README.md`, step 7).
 
-Log volume: the Worker logs every request while `PA_LOG_SAMPLE` is `"1"`. When log volume grows,
-change that one line in `server/worker/wrangler.jsonc` to `"PA_LOG_SAMPLE": "0.1"` and
-release a new Worker tag. Errors are always logged (`server/worker/README.md`, Logs).
+Log volume: `PA_LOG_SAMPLE` is a Cloudflare dashboard variable (`1` logs every request). When
+log volume grows, set it in the Cloudflare dashboard (for example `0.1`); no release is needed.
+Errors are always logged (`server/worker/README.md`, Logs).
 
 ## Android (`android/vX.Y.Z`)
 
