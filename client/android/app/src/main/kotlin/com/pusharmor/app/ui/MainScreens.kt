@@ -559,7 +559,7 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                         // Per device, on by default.
                         if (p.pinned) CheckItem("Show shortcut in sharing menu", shareShown) { menu = false; vm.setShareShown(p.id, !shareShown) }
                         HorizontalDivider()
-                        if (p.offersPairAgain) DropdownMenuItem(text = { Text("Cancel pairing") }, onClick = { menu = false; vm.cancelPairing(p.id) })
+                        if (p.offersPairAgain) DropdownMenuItem(text = { Text("Cancel pairing request") }, onClick = { menu = false; vm.cancelPairing(p.id) })
                         if (p.missing) DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; vm.localDelete(p.id) })
                         DropdownMenuItem(text = { Text("Remove device from account") }, onClick = { menu = false; onRemove() })
                     }
@@ -575,11 +575,11 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
             }
             p.notPairedOnPeer -> Row(inset.padding(bottom = 8.dp)) {
                 if (p.offersPairAgain) OutlinedButton(onClick = { vm.pairAgain(p.id) }, Modifier.heightIn(min = 48.dp), enabled = p.id !in pairingAgain) { Text("Pair again") }
-                else OutlinedButton(onClick = { vm.cancelPairing(p.id) }, Modifier.heightIn(min = 48.dp)) { Text("Cancel pairing") }
+                else OutlinedButton(onClick = { vm.cancelPairing(p.id) }, Modifier.heightIn(min = 48.dp)) { Text("Cancel pairing request") }
             }
             p.waiting -> ButtonRow(inset.padding(bottom = 8.dp)) {
                 if (p.offersPairAgain) OutlinedButton(onClick = { vm.pairAgain(p.id) }, Modifier.heightIn(min = 48.dp), enabled = p.id !in pairingAgain) { Text("Pair again") }
-                else OutlinedButton(onClick = { vm.cancelPairing(p.id) }, Modifier.heightIn(min = 48.dp)) { Text("Cancel pairing") }
+                else OutlinedButton(onClick = { vm.cancelPairing(p.id) }, Modifier.heightIn(min = 48.dp)) { Text("Cancel pairing request") }
                 WaitingSendAgain(vm, p, now)
             }
         }
@@ -664,7 +664,7 @@ private fun WaitingSendAgain(vm: AppViewModel, p: Peer, now: Long) {
     }
 }
 
-/** Pairing card: header, fingerprint plate with Deny / Approve, or the other pairing states; footer with Cancel pairing and the timeout. */
+/** Pairing card: header, fingerprint plate with Deny / Approve, or the other pairing states; footer with Cancel pairing request and the timeout. */
 @Composable
 private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, modifier: Modifier) {
     val x = label(p)
@@ -676,7 +676,7 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
     val body = MaterialTheme.typography.bodyMedium
     val running by vm.running.collectAsState()
     Column(modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(shape).background(ex.tile).border(1.dp, ex.pairBorder, shape)
-        // Bottom padding as wide as the gap above the footer, so Cancel pairing does not sit on the border.
+        // Bottom padding as wide as the gap above the footer, so Cancel pairing request does not sit on the border.
         .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             IconTile(platformIcon(p.platform))
@@ -744,13 +744,13 @@ private class SpaceBetweenMin(gap: Dp) : Arrangement.Horizontal {
         with(Arrangement.SpaceBetween) { arrange(totalSize, sizes, layoutDirection, outPositions) }
 }
 
-/** Pairing card footer: Cancel pairing at the left, the timeout at the right, or under the button when both do not fit. */
+/** Pairing card footer: Cancel pairing request at the left, the timeout at the right, or under the button when both do not fit. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun PairingFooter(timeout: String, onCancel: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     FlowRow(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = SpaceBetweenMin(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = onCancel, Modifier.heightIn(min = 48.dp)) { Text("Cancel pairing") }
+        OutlinedButton(onClick = onCancel, Modifier.heightIn(min = 48.dp)) { Text("Cancel pairing request") }
         Row(Modifier.align(Alignment.CenterVertically), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(PaIcons.Schedule, null, Modifier.size(16.dp), tint = cs.onSurfaceVariant)
             Text(timeout, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)

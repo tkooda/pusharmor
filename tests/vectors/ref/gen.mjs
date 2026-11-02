@@ -358,7 +358,7 @@ function pairDecideSection() {
       '(that GET was fetched after the approve verified); listed (yes | after_fetch | no: in the last GET /peers, after one ' +
       'fetch, still absent); open_entries (all roles); cap (unix s of counted automatic replies); now (unix s). ' +
       'Output: action reply|notice|abort|prompt|drop; notice commit ("A new peer wants to pair. Open PushArmor.") | ' +
-      'half_state ("$X wants to pair again. Tap Cancel pairing on its row, then pair.", tag pk) | crossing ("Pairing with ' +
+      'half_state ("$X wants to pair again. Tap Cancel pairing request on its row, then pair.", tag pk) | crossing ("Pairing with ' +
       '$X in progress. Open PushArmor.", platforms that notify every push only) | could_not_read (generic, platforms that ' +
       'notify every push only) | represent (re-present the current notice, same tag/id); entry created_replied | ' +
       'created_prompted | n_wiped_x_replied | aborted | unchanged | none; cap_counted (the reply counts in the cap). ' +
@@ -389,7 +389,7 @@ function pairTimeoutSection() {
       'approved (this device approved; with approve_verified false the row is "Waiting for $X"), resend (result of the ' +
       're-send of POST /v1/approve/$X: null not run yet | offline | logged out | 429 | 5xx | 200_c_verified | 200_other). ' +
       'output: keep_pin | drop_pin (drop r, c_N and the pin, show "Pairing timed out. Tap Pair to start again.", then ' +
-      'the allow reconcile) | resend (run the re-send first) | keep_waiting (row stays Waiting with Cancel pairing; ' +
+      'the allow reconcile) | resend (run the re-send first) | keep_waiting (row stays Waiting with Cancel pairing request; ' +
       'retry at next app open, Refresh or login) | complete (the verified c completes the pairing).',
     cases: inputs.map(([name, input]) => ({ name, input, output: pairTimeout(input) })),
   };
@@ -408,7 +408,7 @@ function pairHintSection() {
     description:
       'N-side hint on a row in state committed (Pairing flow step 8). input: approves_me of X in the last GET /peers ' +
       '(null if none), committed_s (seconds in state committed). output: still_holds ("$X still holds an earlier pairing. ' +
-      'On $X, tap Cancel pairing, then tap Send again.") | no_reply_yet ("No reply yet. Open PushArmor on $X, or tap Send ' +
+      'On $X, tap Cancel pairing request, then tap Send again.") | no_reply_yet ("No reply yet. Open PushArmor on $X, or tap Send ' +
       'again.", from 3 days) | null.',
     cases: inputs.map(([name, input]) => ({ name, input, output: pairHint(input) })),
   };

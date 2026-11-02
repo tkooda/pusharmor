@@ -159,7 +159,7 @@ class UiTextTest {
         assertEquals("Replied. Waiting for \"Pixel\".", UiText.repliedWaiting("Pixel"))
         assertEquals("Waiting for \"Pixel\" to reply.", UiText.waitingReply("Pixel"))
         assertEquals("No reply yet. Open PushArmor on \"Pixel\", or tap Send again.", UiText.noReplyYet("Pixel"))
-        assertEquals("\"Pixel\" still holds an earlier pairing. On \"Pixel\", tap Cancel pairing, then tap Send again.", UiText.stillHolds("Pixel"))
+        assertEquals("\"Pixel\" still holds an earlier pairing. On \"Pixel\", tap Cancel pairing request, then tap Send again.", UiText.stillHolds("Pixel"))
     }
 
     @Test fun sendablePrunesDevicesThatCannotReceive() {

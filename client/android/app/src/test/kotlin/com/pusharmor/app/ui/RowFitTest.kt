@@ -95,26 +95,25 @@ class RowFitTest {
         assertTrue("${icons()}", icons().top >= box("(missing)").bottom)
     }
 
-    private fun buttons(widthDp: Int, font: Float) = show(widthDp, font) {
-        // The waiting row: the device row's inset leaves 240 dp on a 360 dp screen, 291 dp on a 411 dp screen.
-        Box(Modifier.width((widthDp - 120).dp)) {
+    private fun buttons(rowDp: Int) = show(411, 1.0f) {
+        Box(Modifier.width(rowDp.dp)) {
             ButtonRow {
-                OutlinedButton(onClick = {}) { Text("Cancel pairing") }
+                OutlinedButton(onClick = {}) { Text("Cancel pairing request") }
                 TextButton(onClick = {}) { Text("Send again") }
             }
         }
     }
 
     @Test fun buttonRowKeepsOneRowWhenTheButtonsFit() {
-        buttons(411, 1.0f)
-        assertEquals(box("Cancel pairing").center.y, box("Send again").center.y, 1f)
-        assertTrue(box("Cancel pairing").right < box("Send again").left)
+        buttons(340)
+        assertEquals(box("Cancel pairing request").center.y, box("Send again").center.y, 1f)
+        assertTrue(box("Cancel pairing request").right < box("Send again").left)
     }
 
     @Test fun buttonRowStacksWithThePrimaryButtonOnTop() {
-        buttons(360, 1.0f)
-        assertEquals(1, lines("Send again")); assertEquals(1, lines("Cancel pairing"))
-        assertTrue(box("Send again").bottom <= box("Cancel pairing").top)
+        buttons(260)
+        assertEquals(1, lines("Send again")); assertEquals(1, lines("Cancel pairing request"))
+        assertTrue(box("Send again").bottom <= box("Cancel pairing request").top)
     }
 
     private fun footer(widthDp: Int, font: Float) = show(widthDp, font) {
@@ -122,14 +121,18 @@ class RowFitTest {
         Box(Modifier.width((widthDp - 64).dp)) { PairingFooter("Times out in 23 hours") {} }
     }
 
-    @Test fun pairingTimeoutSitsBesideTheButtonAtDefaultSize() {
-        footer(411, 1.0f)
-        assertTrue(box("Times out in 23 hours").left > box("Cancel pairing").right)
+    @Test fun pairingTimeoutSitsBesideTheButtonWhenBothFit() {
+        footer(600, 1.0f)
+        assertTrue(box("Times out in 23 hours").left > box("Cancel pairing request").right)
     }
 
-    @Test fun pairingTimeoutWrapsUnderTheButtonAtLargeFont() {
-        footer(360, 1.3f)
-        assertEquals(1, lines("Times out in 23 hours")); assertEquals(1, lines("Cancel pairing"))
-        assertTrue(box("Times out in 23 hours").top >= box("Cancel pairing").bottom)
+    @Test fun pairingTimeoutWrapsUnderTheButtonAtLargeFont() = timeoutUnderButton(360, 1.3f)
+
+    @Test fun pairingTimeoutWrapsUnderTheButtonAt411dp() = timeoutUnderButton(411, 1.0f)
+
+    private fun timeoutUnderButton(widthDp: Int, font: Float) {
+        footer(widthDp, font)
+        assertEquals(1, lines("Times out in 23 hours")); assertEquals(1, lines("Cancel pairing request"))
+        assertTrue(box("Times out in 23 hours").top >= box("Cancel pairing request").bottom)
     }
 }

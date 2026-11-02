@@ -290,7 +290,7 @@ object UiText {
     fun logoutNotice(name: String?, loggedOut: Boolean): String = quoted(name, "A device") + if (loggedOut) " logged out." else " logged in."
     fun greyedChip(name: String, status: String): String = "\"$name\": $status"
     fun blockedChannel(name: String?): String = "Messages from ${quoted(name, "a device")} are blocked."
-    fun stillHolds(x: String): String = "\"$x\" still holds an earlier pairing. On \"$x\", tap Cancel pairing, then tap Send again."
+    fun stillHolds(x: String): String = "\"$x\" still holds an earlier pairing. On \"$x\", tap Cancel pairing request, then tap Send again."
     fun pairingInProgress(name: String?): String = "Pairing with ${quoted(name, "a device")} in progress. Open PushArmor."
     fun newMessageFrom(name: String?): String = "New message from ${quoted(name, "a device")}"
     fun removeDeviceBody(x: String): String = "Remove \"$x\" from this account? \"$x\" must log in again and pair with every device again."
