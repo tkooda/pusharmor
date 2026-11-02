@@ -1,7 +1,9 @@
 // Test harness: in-memory platform, fake-indexeddb, and a mock Worker that
 // implements the catalog endpoints the extension uses and relays pushes.
 import { createHash, createHmac } from "node:crypto";
-import { IDBFactory } from "fake-indexeddb";
+import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
+
+(globalThis as { IDBKeyRange?: unknown }).IDBKeyRange = IDBKeyRange;
 import { Api } from "../src/api/client.ts";
 import { b64urlDecode, b64urlEncode } from "../src/crypto/b64url.ts";
 import { ascii, concat } from "../src/crypto/bytes.ts";

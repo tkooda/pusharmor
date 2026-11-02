@@ -1262,3 +1262,16 @@ test("push issue: a PATCH the relay server refuses is tried again at 30 s, 2 min
   assert.equal(await a.db.meta("push_issue"), undefined);
   assert.equal(await a.db.meta("push_fail"), undefined);
 });
+
+test("two concurrent starts send one pairing reply", async () => {
+  const { w, a, b, clock } = await setup();
+  await refresh(a, b);
+  await a.e.pairStart(b.id);
+  w.inject.push({ match: /POST \/v1\/pair\//, status: 503, body: { error: "unavailable" }, times: 1 });
+  await deliver(w, b);
+  const b2 = await restart(b, clock);
+  const before = w.calls.filter((c) => c.path === "/v1/pair/" + a.id && c.method === "POST").length;
+  await Promise.all([b2.e.start(), b2.e.start()]);
+  const after = w.calls.filter((c) => c.path === "/v1/pair/" + a.id && c.method === "POST").length;
+  assert.equal(after - before, 1);
+});

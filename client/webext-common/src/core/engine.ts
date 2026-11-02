@@ -566,7 +566,18 @@ export class Engine {
   }
 
   /** X: send (or re-send) the reply of an authorized entry, same r_X. */
-  async sendReply(from: string): Promise<void> {
+  sendReply(from: string): Promise<void> {
+    let run = this.replying.get(from);
+    if (!run) {
+      run = this.doSendReply(from).finally(() => this.replying.delete(from));
+      this.replying.set(from, run);
+    }
+    return run;
+  }
+
+  private replying = new Map<string, Promise<void>>();
+
+  private async doSendReply(from: string): Promise<void> {
     const self = await this.self();
     const e = await getEntry(this.p.storageLocal, from);
     const peer = await this.db.peer(from);
