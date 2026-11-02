@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { generateKeyPairSync, verify } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { AMO_REVIEW_NOTES, amoNotesProblems, amoToken, ascToken, clearOutput, cmpVersion, commitProblems, contactProblems, listingProblems, playGateProblem, readListing, releaseAssets, releaseProblem } from "./promote.mjs";
+import { AMO_REVIEW_NOTES, amoNotesProblems, amoToken, ascToken, clearOutput, cmpVersion, commitProblems, contactProblems, listingProblems, playGateProblem, readListing, releaseAssets, releaseProblem, selectedPlatforms } from "./promote.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -178,4 +178,24 @@ test("AMO listed version: approval notes from store/listing/amo/review_notes.txt
   assert.match(ff, /vf\.append\("approval_notes", readFileSync\(AMO_REVIEW_NOTES, "utf8"\)\.trim\(\)\);\n {2}await amo\("POST", "\/addon\/" \+ id \+ "\/versions\/", vf\)/);
   const check = src.slice(src.indexOf("async function check("), src.indexOf("\n}\n", src.indexOf("async function check(")));
   assert.match(check, /\.\.\.amoNotesProblems\(\)/);
+});
+
+test("promote runs only the platforms named in the platforms input", () => {
+  assert.deepEqual(selectedPlatforms("firefox"), { list: ["firefox"], error: "" });
+  assert.deepEqual(selectedPlatforms(" Firefox , chrome,"), { list: ["chrome", "firefox"], error: "" });
+  assert.match(selectedPlatforms("").error, /no platform/);
+  assert.match(selectedPlatforms(" , ").error, /no platform/);
+  assert.match(selectedPlatforms(undefined).error, /no platform/);
+  assert.match(selectedPlatforms("firefox,all").error, /unknown platform all/);
+  const src = readFileSync(join(ROOT, "release", "promote.mjs"), "utf8");
+  const check = src.slice(src.indexOf("async function check("), src.indexOf("\n}\n", src.indexOf("async function check(")));
+  assert.match(check, /selectedPlatforms\(process\.env\.PLATFORMS\)/);
+  const wf = readFileSync(join(ROOT, ".github", "workflows", "promote.yml"), "utf8");
+  const input = wf.slice(wf.indexOf("      platforms:"), wf.indexOf("\npermissions:"));
+  assert.match(input, /required: true/);
+  assert.doesNotMatch(input, /default:/);
+  assert.match(wf, /PLATFORMS: \$\{\{ inputs\.platforms \}\}/);
+  for (const [job, p] of [["play", "android"], ["appstore", "ios"], ["chrome", "chrome"], ["firefox", "firefox"]]) {
+    assert.match(wf, new RegExp("\\n  " + job + ":\\n(?:    .*\\n)*?    if: needs\\.check\\.outputs\\." + p + " == 'true'\\n"));
+  }
 });

@@ -10,7 +10,8 @@ name: promote
 #   chrome    public zip of the chrome/vX.Y.Z prerelease to the public item
 #   firefox   public zip and source of the firefox/vX.Y.Z prerelease to the
 #             listed add-on
-# A platform without tag and prerelease X.Y.Z is skipped. Each store is its own
+# Only the platforms named in the platforms input run (a comma list, required,
+# no default). A platform without tag and prerelease X.Y.Z is skipped. Each store is its own
 # job: rerun only the failed one. Every job skips a version that is already
 # live or in review. After its store accepts the build, each job clears the
 # prerelease flag of its own GitHub release (not after a SKIP). Store jobs use the store's release Environment for its
@@ -20,6 +21,10 @@ on:
     inputs:
       version:
         description: "Version X.Y.Z to promote (tested on the test channels)"
+        required: true
+        type: string
+      platforms:
+        description: "Stores to promote, comma list of android, ios, chrome, firefox (no default)"
         required: true
         type: string
 
@@ -60,6 +65,7 @@ jobs:
         name: Version and listing check
         env:
           GH_TOKEN: ${{ github.token }}
+          PLATFORMS: ${{ inputs.platforms }}
           # Play gate, tested before the owner approval.
           PLAY_CONTACT_OK: ${{ vars.PLAY_CONTACT_OK }}
           PLAY_PUBLIC_OK: ${{ vars.PLAY_PUBLIC_OK }}

@@ -78,7 +78,10 @@ draft; it never changes a published release.
 ## Promote workflow (all stores)
 
 Actions > promote > Run workflow (also in the GitHub phone app), on `main`,
-with the version X.Y.Z. The first job checks, per platform, the tag
+with the version X.Y.Z and `platforms`, a comma list of `android`, `ios`,
+`chrome` and `firefox` (required, no default; for example `firefox` sends
+only the Firefox add-on). A platform not in the list is skipped (a SKIP line)
+and its job does not run. The first job checks, per platform, the tag
 `<platform>/vX.Y.Z` and its published GitHub release with the needed assets; a
 platform without them is skipped (a SKIP line in the summary). It refuses to
 run when the tags of X.Y.Z point at different commits, and it lists the client

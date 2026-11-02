@@ -241,6 +241,17 @@ function repo() {
 
 // ---- check ----
 
+/**
+ * The platforms input of the workflow: a comma list of android, ios, chrome
+ * and firefox. It must name at least one platform; an unknown name is an error.
+ */
+export function selectedPlatforms(raw) {
+  const names = String(raw || "").split(",").map((n) => n.trim().toLowerCase()).filter(Boolean);
+  const bad = names.filter((n) => !PLATFORMS.includes(n));
+  if (bad.length) return { list: [], error: "unknown platform " + bad.join(", ") + " (use " + PLATFORMS.join(", ") + ")" };
+  if (!names.length) return { list: [], error: "no platform selected (use " + PLATFORMS.join(", ") + ")" };
+  return { list: PLATFORMS.filter((p) => names.includes(p)), error: "" };
+}
 async function check(version) {
   const gh = (path) =>
     http("GET", "https://api.github.com/repos/" + repo() + path, {
@@ -248,6 +259,8 @@ async function check(version) {
       ok: [200, 404],
     });
   summary("### Promote " + version);
+  const sel = selectedPlatforms(process.env.PLATFORMS);
+  if (sel.error) throw new Error("platforms: " + sel.error);
   let any = false;
   const commits = {};
   for (const p of PLATFORMS) {
@@ -261,9 +274,10 @@ async function check(version) {
     const why = releaseProblem(p, version, ref.status === 200, rel.status === 200 ? rel.json : null);
     // the Play gate is tested here, before the owner approval.
     const gate = p === "android" && !why ? playGateProblem(process.env) : "";
-    output(p, why || gate ? "false" : "true");
-    summary(why ? "- " + p + ": SKIP (" + why + ")" : gate ? "- " + p + ": BLOCKED (" + gate + ")" : "- " + p + ": ready (" + tag + ")");
-    any ||= !why && !gate;
+    const off = sel.list.includes(p) ? "" : "not in platforms";
+    output(p, why || gate || off ? "false" : "true");
+    summary(why ? "- " + p + ": SKIP (" + why + ")" : gate ? "- " + p + ": BLOCKED (" + gate + ")" : off ? "- " + p + ": SKIP (" + off + ")" : "- " + p + ": ready (" + tag + ")");
+    any ||= !why && !gate && !off;
   }
   // one release is one commit on every platform (RELEASING.md, Versions).
   const same = commitProblems(version, commits);
