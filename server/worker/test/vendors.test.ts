@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { b64urlDecode } from "../src/codec/b64url";
+import { MAX_MESSAGE } from "../src/codec/validate";
 import { utf8 } from "../src/crypto/hash";
 import { BUDGET_MS, fanout, SUBREQUEST_WORST_CASE, type Target } from "../src/push/fanout";
 import { apnsPayload } from "../src/push/apns";
@@ -218,6 +219,16 @@ describe("request shapes: TTL, priority, sizes, no ids in headers", () => {
       expect(claims.aud).toBe("https://fcm.googleapis.com");
       expect(claims.sub).toBe("mailto:ops@example.com");
     }
+  });
+
+  it("largest push at M = MAX_MESSAGE fits the 4096-byte vendor limit (FCM data, APNs, Web Push, UnifiedPush)", async () => {
+    const e = await testEnv();
+    const m = message(MAX_MESSAGE);
+    await fanout(e, [await target("fcm", "send", m), await target("apns", "send", m), await target("wp", "send", m), await target("up", "send", m)], new Log());
+    const fcm = JSON.parse(new TextDecoder().decode(mock.requests.filter(isSend("fcm")).pop()!.body));
+    const data = Object.entries(fcm.message.data as Record<string, string>).reduce((n, [k, v]) => n + utf8(k).length + utf8(v).length, 0);
+    expect(data).toBeLessThanOrEqual(4096);
+    for (const v of ["apns", "wp", "up"]) expect(mock.requests.filter(isSend(v)).pop()!.body.length, v).toBeLessThanOrEqual(4096);
   });
 
   it("TTL on all three vendors for class pair is 604800", async () => {
