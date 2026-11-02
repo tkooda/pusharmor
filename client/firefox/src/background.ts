@@ -53,6 +53,7 @@ async function init(): Promise<void> {
       },
       loadMode: async () => ((await d.meta<string>("receive_mode")) === "fallback" ? "fallback" : "direct"),
       workerReachable: async () => {
+        if (!(await engine.canFetchNow())) return false;
         try {
           await engine.fetchPeersNow();
           return true;

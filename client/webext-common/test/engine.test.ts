@@ -1187,3 +1187,15 @@ test("Retry-After is clamped to one hour, and a stored wait longer than an hour 
   await a.e.fetchPeersNow();
   assert.equal(gets(), n0 + 2);
 });
+
+test("canFetchNow is false with no keys or during a wait the relay server asked for", async () => {
+  const { a, clock } = await setup();
+  assert.equal(await a.e.canFetchNow(), true);
+  await a.p.storageLocal.set({ net_not_before: clock.t + 60_000 });
+  assert.equal(await a.e.canFetchNow(), false);
+  clock.t += 60_000;
+  assert.equal(await a.e.canFetchNow(), true);
+  const p = new FakePlatform("firefox", new MockWorker(clock), clock);
+  const { e } = await makeEngine(p, new IDBFactory(), clock);
+  assert.equal(await e.canFetchNow(), false);
+});
