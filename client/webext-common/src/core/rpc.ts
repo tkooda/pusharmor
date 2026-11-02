@@ -254,7 +254,7 @@ export class Rpc {
         e.p.clearNotification("p:" + s("pk"));
         return null;
       default:
-        throw new UserError("Unknown request");
+        throw new UserError(T.requestFailed);
     }
   }
 

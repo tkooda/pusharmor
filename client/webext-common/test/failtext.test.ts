@@ -310,3 +310,13 @@ test("Pair, Codes match, and Codes differ that cannot go on show the action line
   assert.equal(await fails(rpc, "deny", { id: "gone" }), 'Unable to reject "A device".\nIt is no longer on this account.');
   void a;
 });
+
+test("a request the background does not know, and no reply from it, say what failed and what to do", async () => {
+  const clock = new Clock();
+  const w = new MockWorker(clock);
+  const { e } = await makeEngine(new FakePlatform("chrome", w, clock), new IDBFactory(), clock);
+  assert.equal(await fails(new Rpc(e), "nosuchop"), "Request failed.\nTry again.");
+  const { rpc } = await import("../src/ui/dom.ts");
+  const env = { call: async () => undefined } as unknown as Parameters<typeof rpc>[0];
+  await assert.rejects(rpc(env, "state"), { message: "Unable to reach PushArmor.\nClose this window, open it again, and try again." });
+});

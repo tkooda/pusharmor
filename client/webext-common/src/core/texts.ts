@@ -31,6 +31,8 @@ export const T = {
   keysDeleteTitle: "Delete broken keys?",
   keysDeleteBody: "This cannot be undone. You will need to pair all your devices again.",
   startLoginFailed: "Unable to start the login.",
+  requestFailed: "Request failed.\nTry again.",
+  noReply: "Unable to reach PushArmor.\nClose this window, open it again, and try again.",
   storageFull: "Storage is full. Free some space and try again.",
   saveFailed: "PushArmor could not save its data on this device. Restart PushArmor and try again.",
   signedOut: "Logged out. Log in to resume.",
