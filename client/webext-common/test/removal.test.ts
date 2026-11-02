@@ -114,7 +114,7 @@ test("401 bad id starts no check and keeps the keys", async () => {
   const g0 = gets();
   w.inject.push({ match: /POST \/v1\/send/, status: 401, body: { error: "bad id" }, times: 1 });
   const r = await a.e.send("hi", false, "all");
-  assert.equal(r.error, "Unable to send.\nTry again.");
+  assert.equal(r.error, "Unable to send.\nThe relay server did not accept the request. Update PushArmor and try again.");
   assert.equal(gets(), g0);
   assert.ok(await a.db.self());
   assert.equal(await a.db.meta("wipe_check"), undefined);

@@ -45,7 +45,7 @@ test("each relay server reply maps to its reason line under the action line", ()
     [api(401, "invalid client signature"), "The relay server did not accept the request. Update PushArmor and try again."],
     [api(413, "too large"), "The message is longer than 2048 characters."],
     [api(400, "push endpoint not allowed"), "This browser's push service is not supported yet."],
-    [api(401, "bad id"), "Try again."],
+    [api(401, "bad id"), "The relay server did not accept the request. Update PushArmor and try again."],
     [api(418, "teapot"), "Try again."],
   ];
   for (const [e, why] of rows) assert.equal(failText("send", e), "Unable to send.\n" + why, e.message);

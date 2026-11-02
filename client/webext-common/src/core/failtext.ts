@@ -39,6 +39,7 @@ export function reasonOf(err: unknown, provider?: string): string {
     if (s === 401 && w === "unknown peer") return R.removed;
     if (s === 401 && w === "logged out") return R.loggedOut;
     if (s === 401 && w === "invalid client signature") return R.refused;
+    if (s === 401 && w === "bad id") return R.refused; // not a removal
     if (s === 401 && w === "ticket expired") return R.loginExpired;
     if (s === 401 && (w === "invalid ticket" || w === "bad ticket")) return R.badLink;
     if (s === 401 && w === "wrong code") return R.wrongCode;
@@ -52,7 +53,7 @@ export function reasonOf(err: unknown, provider?: string): string {
     if ((s === 400 && w === "bad request") || s === 404 || s === 405) return R.refused;
     if (s === 502 && w === "email send failed") return R.emailSendFailed;
     if (s >= 500 && s <= 599) return R.serverDown;
-    return R.tryAgain; // includes 401 "bad id", which is not a removal
+    return R.tryAgain;
   }
   const name = (err as { name?: unknown } | null)?.name;
   if (name === "QuotaExceededError") return R.storageFull;
