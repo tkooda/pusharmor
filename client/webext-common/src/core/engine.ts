@@ -500,9 +500,13 @@ export class Engine {
         return this.onCommit(from, cN, self, src, true);
       case "drop":
         return this.dropEvent("unreadable", null, src);
-      case "abort":
-        await this.endEntry(from, T.pairFailed, false);
+      case "abort": {
+        // step 8: drop the pin this pairing made; keep the ruling
+        const ruling = (await this.db.peer(from))?.ruling;
+        await this.endEntry(from, T.pairFailed, true);
+        if (ruling) await this.db.updatePeer(from, (p) => (p ? { ...p, ruling } : null));
         return this.dropEvent("unreadable", null, src);
+      }
       case "notice": {
         if (d.notice === "half") {
           const cur = await getEntry(this.p.storageLocal, from);

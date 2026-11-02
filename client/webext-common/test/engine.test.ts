@@ -615,6 +615,34 @@ test("wrong c_N on open aborts with no pin", async () => {
   assert.equal(b.p.storageLocal.data["pairmsg:" + a.id], T.pairFailed);
 });
 
+test("abort in state shown drops the pin, keeps the ruling, and the next pairing reaches X", async () => {
+  const { w, a, b } = await setup();
+  await refresh(a, b);
+  await a.e.pairStart(b.id);
+  await deliver(w, b); // commit -> automatic reply
+  await deliver(w, a); // reply -> open
+  await deliver(w, b); // open -> b pins a, shown
+  assert.equal((await getEntry(b.p.storageLocal, a.id))!.state, "shown");
+  assert.ok((await b.db.peer(a.id))!.pinned);
+  await b.db.updatePeer(a.id, (p) => (p ? { ...p, ruling: "denied" } : null));
+  // a taps Cancel pairing, then Pair, before b approved: a different c_N aborts b's entry
+  await a.e.cancelPairing(b.id);
+  await a.e.pairStart(b.id);
+  await deliver(w, b);
+  const pb = (await b.db.peer(a.id))!;
+  assert.equal(await getEntry(b.p.storageLocal, a.id), null);
+  assert.equal(pb.pinned, false);
+  assert.equal(pb.pairing_id, null);
+  assert.equal(await b.db.replay(a.id), undefined);
+  assert.equal(pb.ruling, "denied");
+  assert.equal(b.p.storageLocal.data["pairmsg:" + a.id], T.pairFailed);
+  // a pairs again: b takes the new commit instead of dropping it
+  await a.e.cancelPairing(b.id);
+  await a.e.pairStart(b.id);
+  await deliver(w, b);
+  assert.equal((await getEntry(b.p.storageLocal, a.id))?.role, "X");
+});
+
 test("crossing: lower id stays N, higher side replies as X", async () => {
   const { w, a, b } = await setup();
   await refresh(a, b);
