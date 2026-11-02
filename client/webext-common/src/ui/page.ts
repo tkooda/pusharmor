@@ -70,8 +70,8 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
 const E2E = "All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.";
 const CODE_HELP = "Paste or type the code. Spaces and dashes are fine.";
 /** A code check that failed for one of these reasons starts again at the email step. */
-const ENDS_FLOW = [R.loginExpired, R.codeExpired, R.logInAgain];
-const endsFlow = (msg: string) => ENDS_FLOW.some((r) => msg.endsWith("\n" + r));
+const ENDS_FLOW = [R.loginExpired, R.codeExpired];
+const endsFlow = (e: unknown) => (e as { restart?: unknown }).restart === true || ENDS_FLOW.some((r) => (e as Error).message.endsWith("\n" + r));
 
 /** One message listener per page (a hash change mounts the view again). */
 let onFrameMessage: ((ev: MessageEvent) => void) | null = null;
@@ -335,7 +335,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       await done(await rpc<LoginResult>(env, "emailVerify", { code: code.value }));
     } catch (e) {
       const msg = (e as Error).message;
-      if (endsFlow(msg)) {
+      if (endsFlow(e)) {
         showEmail(email.value);
         toast(msg, "err");
       } else {
@@ -551,7 +551,7 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
             } else if (r.limit) limitView(env, root, r.limit, r.ticket ?? ticket);
           } catch (e) {
             toast((e as Error).message, "err");
-            if (endsFlow((e as Error).message)) env.openPage("#login");
+            if (endsFlow(e)) env.openPage("#login");
           } finally {
             btn.disabled = false;
           }

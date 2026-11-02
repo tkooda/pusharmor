@@ -6,7 +6,7 @@ import { detectType } from "../model/detect.ts";
 import { utf8Len } from "../model/padding.ts";
 import type { HistoryRow, PeerRow } from "../store/db.ts";
 import { type Engine, type Settings, UserError } from "./engine.ts";
-import { reasonOf, failText } from "./failtext.ts";
+import { ActionError, RestartError, reasonOf, failText } from "./failtext.ts";
 import { Login, type Purpose } from "./login.ts";
 import { PAIR_MSG_PREFIX, allEntries } from "./state.ts";
 import { type ActionId, T, peerLabel } from "./texts.ts";
@@ -20,6 +20,7 @@ export interface Reply {
   ok: boolean;
   data?: unknown;
   error?: string;
+  restart?: boolean; // the login page starts again at its first step
 }
 
 export interface PeerView {
@@ -115,7 +116,8 @@ export class Rpc {
     try {
       return { ok: true, data: await this.dispatch(req, senderTabId) };
     } catch (err) {
-      return { ok: false, error: await this.failure(req, err) };
+      const error = await this.failure(req, err);
+      return (err instanceof ActionError ? err.err : err) instanceof RestartError ? { ok: false, error, restart: true } : { ok: false, error };
     }
   }
 

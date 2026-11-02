@@ -8,6 +8,9 @@ import { type ActionId, R, actionLine } from "./texts.ts";
 /** A failure whose reason line is known where it happens; the caller adds the action line. */
 export class ReasonError extends Error {}
 
+/** A failure after which the login page starts again at its first step (the reply carries restart). */
+export class RestartError extends ReasonError {}
+
 /** A failure whose action line is known only where it happens (the sign-in purpose). */
 export class ActionError extends Error {
   readonly action: ActionId;

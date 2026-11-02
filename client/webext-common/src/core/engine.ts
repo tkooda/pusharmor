@@ -3,7 +3,7 @@
 // start and commits before it returns, so a stopped service worker loses
 // nothing.
 import { type ApiReply, Api, ApiError, UPDATE_REQUIRED } from "../api/client.ts";
-import { ReasonError, failText } from "./failtext.ts";
+import { ReasonError, RestartError, failText } from "./failtext.ts";
 import { b64urlDecode, b64urlEncode, b64urlTryDecode } from "../crypto/b64url.ts";
 import { equal, randomBytes } from "../crypto/bytes.ts";
 import { checkKeys, generateKeySet, isValidPub } from "../crypto/keys.ts";
@@ -1766,7 +1766,7 @@ export class Engine {
         if (keys.id !== "") throw new ReasonError(R.tryAgain);
         await this.db.del("keys", "self");
         await this.signInKeys();
-        throw new ReasonError(R.logInAgain);
+        throw new RestartError(R.tryAgain);
       }
       throw e;
     }

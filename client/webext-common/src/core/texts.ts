@@ -146,7 +146,6 @@ export const R = {
   removed: "This device was removed from the account. Log in again.",
   loggedOut: "This device is logged out. Log in to resume.",
   loginExpired: "The login expired. Log in again.",
-  logInAgain: "Log in again.",
   badLink: "The login link is not valid. Request a new code and try again.",
   clockOff: "This device's clock is off by more than 5 minutes. Fix the clock and try again.",
   blocked: "This account is blocked.",

@@ -57,7 +57,7 @@ export function failView(root: HTMLElement, message: string, retry: () => void):
 
 export async function rpc<T>(env: UiEnv, op: string, args?: Record<string, unknown>): Promise<T> {
   const r = await env.call(args ? { op, args } : { op });
-  if (!r || !r.ok) throw new Error(r?.error ?? "No reply");
+  if (!r || !r.ok) throw Object.assign(new Error(r?.error ?? "No reply"), { restart: r?.restart === true });
   return r.data as T;
 }
 
