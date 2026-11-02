@@ -177,4 +177,16 @@ class RoomLocalStoreTest {
         val ordered = plan("SELECT * FROM history ORDER BY received_at DESC, id DESC LIMIT 1")
         assertTrue(ordered, ordered.contains("index_history_received_at") && !ordered.contains("TEMP B-TREE"))
     }
+
+    @Test fun clampPairingStartChangesOnlyAStartAhead() {
+        val s = RoomLocalStore(Room.inMemoryDatabaseBuilder(ctx, PaDatabase::class.java).allowMainThreadQueries().build())
+        s.putPairing(PairingRow("x", PairRole.X, PairState.REPLIED, ByteArray(32) { 3 }, ByteArray(32) { 4 }, startedAt = 5000, authorized = true))
+        s.clampPairingStart("x", 9000)
+        assertEquals(5000L, s.pairing("x")!!.startedAt)
+        s.clampPairingStart("x", 1000)
+        assertEquals(1000L, s.pairing("x")!!.startedAt)
+        assertEquals(PairState.REPLIED, s.pairing("x")!!.state)
+        s.clampPairingStart("gone", 1000)
+        assertNull(s.pairing("gone"))
+    }
 }

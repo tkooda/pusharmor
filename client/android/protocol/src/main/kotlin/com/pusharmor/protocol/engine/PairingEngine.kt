@@ -356,8 +356,8 @@ class PairingEngine(
     fun checkTimeout(peerId: String, now: Long, refetch: (String) -> PairDecide.Resend): PairDecide.Timeout? {
         var row = store.pairing(peerId) ?: return null
         if (row.startedAt > now) { // a start set ahead of the clock counts from now on
-            row = row.copy(startedAt = now)
-            store.putPairing(row)
+            store.clampPairingStart(peerId, now)
+            row = store.pairing(peerId) ?: return null
         }
         if (!Countdown.expired(row.startedAt, now)) return null
         val peer = store.peer(peerId)

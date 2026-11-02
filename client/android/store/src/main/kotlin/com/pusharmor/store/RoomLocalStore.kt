@@ -39,6 +39,7 @@ class RoomLocalStore(val db: PaDatabase) : LocalStore {
     override fun pairing(peerId: String) = dao.pairing(peerId)?.toRow()
     override fun pairings() = dao.pairings().map { it.toRow() }
     override fun putPairing(r: PairingRow) = dao.putPairing(r.toEntity())
+    override fun clampPairingStart(peerId: String, now: Long) = dao.clampPairingStart(peerId, now)
     override fun deletePairing(peerId: String) = tx {
         dao.pairing(peerId)?.let { dao.putPairing(it.copy(r = ByteArray(32))) } // zero r first
         dao.deletePairing(peerId)

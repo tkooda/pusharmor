@@ -155,6 +155,7 @@ interface PaDao {
     @Query("SELECT * FROM pairing") fun pairings(): List<PairingEntity>
     @Query("SELECT * FROM pairing") fun pairingsFlow(): Flow<List<PairingEntity>>
     @Upsert fun putPairing(p: PairingEntity)
+    @Query("UPDATE pairing SET started_at = :now WHERE peer_id = :id AND started_at > :now") fun clampPairingStart(id: String, now: Long)
     @Query("DELETE FROM pairing WHERE peer_id = :id") fun deletePairing(id: String)
     @Query("UPDATE pairing SET own_r = zeroblob(32)") fun zeroAllR()
     @Query("DELETE FROM pairing") fun deleteAllPairings()

@@ -86,6 +86,8 @@ interface LocalStore {
     fun pairing(peerId: String): PairingRow?
     fun pairings(): List<PairingRow>
     fun putPairing(r: PairingRow)
+    /** Sets started_at to [now] only where it is ahead of [now]; no other column changes. */
+    fun clampPairingStart(peerId: String, now: Long)
     fun deletePairing(peerId: String)
 
     /** Automatic pair reply timestamps (unix s), rolling 24 h cap. */

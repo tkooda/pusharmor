@@ -314,6 +314,33 @@ class EngineTest {
         assertNull(n.store.pairing(x.id))
     }
 
+    /** A store whose first pairing read runs [hook] right after it, like a pair message on another thread. */
+    private class HookStore(val inner: LocalStore, var hook: (() -> Unit)?) : LocalStore by inner {
+        override fun pairing(peerId: String): PairingRow? = inner.pairing(peerId).also { hook?.let { h -> hook = null; h() } }
+    }
+
+    @Test fun clampOfAStartAheadKeepsAPairingDeletedMeanwhileDeleted() {
+        n.pairing.tapPair(x.id, t0); n.runPairSends(t0)
+        val day = 24 * 3600_000L
+        n.store.putPairing(n.store.pairing(x.id)!!.copy(startedAt = t0 + 365 * day))
+        val store = HookStore(n.store) { n.store.deletePairing(x.id) }
+        val engine = PairingEngine(store, n.me, n.api, n.effects) { ByteArray(it) }
+        assertNull(engine.checkTimeout(x.id, t0) { error("no") })
+        assertNull(n.store.pairing(x.id))
+    }
+
+    @Test fun clampOfAStartAheadKeepsAPairingMovedOnMeanwhile() {
+        n.pairing.tapPair(x.id, t0); n.runPairSends(t0)
+        val day = 24 * 3600_000L
+        val ahead = n.store.pairing(x.id)!!.copy(startedAt = t0 + 365 * day)
+        n.store.putPairing(ahead)
+        val store = HookStore(n.store) { n.store.putPairing(ahead.copy(state = PairState.SHOWN, startedAt = t0 - day)) }
+        val engine = PairingEngine(store, n.me, n.api, n.effects) { ByteArray(it) }
+        assertNull(engine.checkTimeout(x.id, t0) { error("no") })
+        assertEquals(PairState.SHOWN, n.store.pairing(x.id)!!.state)
+        assertEquals(t0 - day, n.store.pairing(x.id)!!.startedAt)
+    }
+
     @Test fun timeoutCheckLeavesAPairingStartedAgainDuringTheResend() {
         pairShown()
         n.approve.approve(x.id)

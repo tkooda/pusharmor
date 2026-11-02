@@ -31,6 +31,7 @@ class MemStore(var name: String = "This device") : LocalStore {
     override fun pairing(peerId: String) = synchronized(lock) { pairingRows[peerId] }
     override fun pairings() = synchronized(lock) { pairingRows.values.toList() }
     override fun putPairing(r: PairingRow) { synchronized(lock) { pairingRows[r.peerId] = r } }
+    override fun clampPairingStart(peerId: String, now: Long) { synchronized(lock) { pairingRows[peerId]?.takeIf { it.startedAt > now }?.let { pairingRows[peerId] = it.copy(startedAt = now) } } }
     override fun deletePairing(peerId: String) { synchronized(lock) { pairingRows.remove(peerId) } }
     override fun capTimestamps() = synchronized(lock) { cap.toList() }
     override fun addCapTimestamp(t: Long) { synchronized(lock) { cap.add(t) } }
