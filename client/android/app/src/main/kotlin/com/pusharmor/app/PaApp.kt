@@ -38,7 +38,9 @@ open class PaApp : Application() {
 /** Object graph (no DI framework). */
 class Graph(val app: PaApp) {
     val settings = Settings(app)
-    val db = PaDatabase.open(app)
+    /** The database file was made new in this process (first start, or a corrupt file replaced); its "no self row" is not proof. */
+    @Volatile var dbCreated = false
+    val db = PaDatabase.open(app) { dbCreated = true }
     val store = RoomLocalStore(db)
     val dao = store.dao
     val notifier = Notifier(app, settings, dao)

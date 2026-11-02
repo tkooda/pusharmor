@@ -63,6 +63,8 @@ class Settings(private val context: Context) {
         val PENDING_EVICT = stringPreferencesKey("pending_evict")
         /** Purpose of an OAuth flow in a Custom Tab ("register" | "login" | "delete-account"). */
         val PENDING_PURPOSE = stringPreferencesKey("pending_purpose")
+        /** Keys were made or loaded for a sign-in that has not registered yet; startup keeps them. */
+        val SIGN_IN_KEYS = booleanPreferencesKey("sign_in_keys")
         /** App version that got HTTP 426; the update screen shows while it is the running version. */
         val UPDATE_REQUIRED = stringPreferencesKey("update_required")
     }

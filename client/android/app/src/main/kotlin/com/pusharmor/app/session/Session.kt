@@ -75,7 +75,9 @@ class Session(private val g: Graph) {
         s.set(Settings.K.KS_ERROR_BOOT, null)
         val self = dao.self()
         if (self == null) {
-            if (any) KeystoreKeyOps.deleteBoth() // restored profile with keys but no counters
+            // Leftover keys go only on a sure "no self row": not mid sign-in, and not from a database file made new
+            // in this process (a corrupt file SQLite replaced reads as empty). A read error throws and deletes nothing.
+            if (any && !g.dbCreated && !s.flag(Settings.K.SIGN_IN_KEYS, false)) { KeystoreKeyOps.deleteBoth(); g.keysOrNull = null }
             return Start.SIGN_IN
         }
         if (!present) { selfRemoved(deleted = false, lostKeys = true); return Start.SIGN_IN }
@@ -119,7 +121,10 @@ class Session(private val g: Graph) {
      * Keys are made BEFORE sign-in (sign_pub goes into the auth call); a signed-out device keeps its keys.
      * The same keys serve every call of one sign-in attempt, so the nonce and sign_pub always match.
      */
-    fun keysForSignIn(): ByteArray = signInKeys(g.keysOrNull, { KeystoreKeyOps.load() }, { KeystoreKeyOps.createFresh() }) { g.keysOrNull = it }.signPub
+    fun keysForSignIn(): ByteArray {
+        s.set(Settings.K.SIGN_IN_KEYS, true) // set before the keys exist, so startup does not delete them mid sign-in
+        return signInKeys(g.keysOrNull, { KeystoreKeyOps.load() }, { KeystoreKeyOps.createFresh() }) { g.keysOrNull = it }.signPub
+    }
 
     fun nonce(purpose: String) = Ids.oauthNonce(purpose, keysForSignIn())
 
@@ -148,6 +153,7 @@ class Session(private val g: Graph) {
                 dao.putSelf(SelfEntity(id = id, accountPrefix = raw.copyOf(9), email = email, name = defaultName()))
                 g.sync().merge(r.registered.peers)
                 s.set(Settings.K.SIGNED_OUT, false)
+                s.set(Settings.K.SIGN_IN_KEYS, null)
                 deleteOldId()
                 g.push.start(g)
                 updateShortcuts()

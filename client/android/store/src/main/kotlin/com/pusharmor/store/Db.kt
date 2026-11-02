@@ -214,10 +214,12 @@ abstract class PaDatabase : RoomDatabase() {
             }
         }
 
-        fun open(context: Context, name: String? = NAME): PaDatabase {
+        /** [onCreate] runs when the file is made new: first start, or after SQLite dropped a corrupt file. */
+        fun open(context: Context, name: String? = NAME, onCreate: () -> Unit = {}): PaDatabase {
             val b = if (name == null) Room.inMemoryDatabaseBuilder(context, PaDatabase::class.java)
             else Room.databaseBuilder(context, PaDatabase::class.java, name).enableMultiInstanceInvalidation()
-            return b.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()
+            return b.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addCallback(object : RoomDatabase.Callback() { override fun onCreate(db: SupportSQLiteDatabase) = onCreate() }).build()
         }
     }
 }
