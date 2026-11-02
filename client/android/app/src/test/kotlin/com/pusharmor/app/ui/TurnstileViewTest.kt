@@ -9,8 +9,10 @@ import androidx.compose.ui.platform.ViewRootForTest
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.pusharmor.app.UiHostActivity
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -35,6 +37,20 @@ class SupportedWebViewFeature {
 @Implements(WebView::class)
 class MissingWebView : ShadowWebView() {
     @Implementation protected fun __constructor__(context: Context) { throw RuntimeException("No WebView installed") }
+}
+
+@Implements(WebViewCompat::class)
+class QuietWebViewCompat {
+    companion object {
+        @JvmStatic @Implementation
+        fun addWebMessageListener(webView: WebView, name: String, origins: Set<String>, listener: WebViewCompat.WebMessageListener) {}
+    }
+}
+
+@Implements(WebView::class)
+class RecordingWebView : ShadowWebView() {
+    companion object { var destroyed = 0 }
+    @Implementation override fun destroy() { destroyed++ }
 }
 
 /** A missing or updating WebView shows the update fallback on the email step instead of crashing. */
@@ -62,4 +78,15 @@ class TurnstileViewTest {
 
     @Config(shadows = [SupportedWebViewFeature::class, MissingWebView::class])
     @Test fun webViewCreationFailureShowsFallback() { assertTrue(showsFallback()) }
+
+    @Config(shadows = [SupportedWebViewFeature::class, RecordingWebView::class, QuietWebViewCompat::class])
+    @Test fun leavingTheScreenDestroysTheWebView() {
+        RecordingWebView.destroyed = 0
+        UiHostActivity.content = { TurnstileView(onNoApp = {}) {} }
+        val c = Robolectric.buildActivity(UiHostActivity::class.java).setup()
+        shadowOf(Looper.getMainLooper()).idle()
+        c.pause().stop().destroy()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(1, RecordingWebView.destroyed)
+    }
 }

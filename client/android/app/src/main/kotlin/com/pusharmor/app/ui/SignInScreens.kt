@@ -303,7 +303,7 @@ fun TurnstileView(onNoApp: (String) -> Unit, onToken: (String) -> Unit) {
             }
             loadUrl("https://pusharmor.com/turnstile")
         }
-    })
+    }, onRelease = { (it as? WebView)?.destroy() })
 }
 
 /** Peer limit picker on 409: platform, created, approves, approved_by; nothing pre-ticked. */
