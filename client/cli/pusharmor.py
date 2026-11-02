@@ -902,6 +902,7 @@ import base64
 import contextlib
 import datetime
 import email.utils
+import errno
 import glob
 import http.client
 import os
@@ -953,21 +954,33 @@ FETCH_GAP_S = 60
 PLATFORMS = {"android": "Android", "ios": "iPhone", "chrome": "Chrome", "firefox": "Firefox", "cli": "Command line"}
 MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
 REC_KEYS = ("from", "name", "platform", "type", "body", "date")
-NOT_LOGGED_IN = "Not logged in. Run: pusharmor login"
-LOGGED_OUT = "This device is logged out. Run: pusharmor login"
-REMOVED = "This device was removed. Log in again."
+NOT_LOGGED_IN = "This device is not logged in. Run: pusharmor login"
+LOGGED_OUT = "This device is logged out. Log in to resume."
+REMOVED = "This device was removed from the account. Log in again."
 UNREACHABLE = "The relay server could not be reached. Check your internet connection and try again."
+SERVER_DOWN = "The relay server is not working right now. Try again later."
+TOO_OLD = "This version of PushArmor is too old. " + UPDATE_REQUIRED
+CLOCK_OFF = "This device's clock is off by more than 5 minutes. Fix the clock and try again."
+REFUSED = "The relay server did not accept the request. Update PushArmor and try again."
+BAD_LINK = "The login link is not valid. Request a new code and try again."
+TOO_LONG = "The message is longer than 2048 characters."
+STORAGE_FULL = "Storage is full. Free some space and try again."
+# Line 1 of an error: the action that failed, per command (pair ID and delete name the device).
+ACTIONS = {"login": "Unable to log in.", "logout": "Unable to log out.", "pair": "Unable to refresh the device list.",
+           "listen": "Unable to receive a message.", "send": "Unable to send.",
+           "rename": "Unable to rename this device."}
 UNREADABLE = "PushArmor received a message it could not read"
 KEY_HEADER = ("# PushArmor private keys of this device. Keep this file secret: with it, anyone can\n"
               "# read the messages sent to this device and send as this device. Do not copy or share it.\n")
 
 
 class Fail(Exception):
-    """A message for stderr and an exit code."""
+    """A reason for stderr and an exit code. The reason is shown under the line naming the failed
+    action; full=True: the text already names it (or stands alone) and is shown as is."""
 
-    def __init__(self, msg, code=EXIT_ERR):
+    def __init__(self, msg, code=EXIT_ERR, full=False):
         super().__init__(msg)
-        self.code = code
+        self.code, self.full = code, full
 
 
 class TempFail(Fail):
@@ -981,6 +994,26 @@ class ApiError(Exception):
         error = _clean(error)[:80]
         super().__init__("%d %s" % (status, error))
         self.status, self.error, self.body = status, error, body
+
+    def reason(self):
+        """The sentence for the user; the relay server word itself is never shown."""
+        if self.status == 401 and self.error == "clock skew":
+            return CLOCK_OFF
+        if self.status == 401 and self.error in ("bad ticket", "invalid ticket"):
+            return BAD_LINK
+        if self.status == 403 and self.error == "banned":
+            return "This account is blocked."
+        if self.status == 413 and self.error == "too large":
+            return TOO_LONG
+        return REFUSED
+
+
+def wait_text(s):
+    """Seconds -> "30 seconds" or, over 60 seconds, whole minutes rounded up."""
+    if s > 60:
+        m = (s + 59) // 60
+        return "1 minute" if m == 1 else "%d minutes" % m
+    return "1 second" if s == 1 else "%d seconds" % s
 
 
 def check_os():
@@ -1370,7 +1403,7 @@ class Store:
         def unusable():  # never deleted automatically: the user decides
             return Fail("This device's keys have become unusable.\n"
                         "Delete them and log in again. You will then pair with all your devices again.\n"
-                        "To delete them, run: rm -r %s" % shlex.quote(str(self.root)))
+                        "To delete them, run: rm -r %s" % shlex.quote(str(self.root)), full=True)
 
         try:
             d = read_toml(self.key_path)
@@ -1511,7 +1544,7 @@ class Api:
                 j = {}
             j = j if isinstance(j, dict) else {}
             if status == 426:
-                raise Fail(UPDATE_REQUIRED)
+                raise Fail(TOO_OLD)
             epoch = hdrs.get("pa-epoch", "")
             if status == 401 and j.get("error") == "clock skew" and not skewed and re.fullmatch(r"[0-9]{1,12}", epoch):
                 skewed = True
@@ -1524,10 +1557,12 @@ class Api:
                     time.sleep(min(ra if type(ra) is int and ra > 0 else 2 ** attempt, 60))
                     continue
                 if status == 0:
-                    raise TempFail("Could not reach the relay server. Check the network and try again.", 0)
+                    raise TempFail(UNREACHABLE, 0)
                 if status == 429:
-                    raise TempFail("The relay server is busy. Wait a minute and try again.", 429)
-                raise TempFail("The relay server is not working right now (HTTP %d). Try again later." % status, status)
+                    ra = j.get("retry_after")
+                    ra = min(max(ra, 1), 3600) if type(ra) is int else 60
+                    raise TempFail("Too many tries. Try again in %s." % wait_text(ra), 429)
+                raise TempFail(SERVER_DOWN, status)
             if j.get("push_missing") is True:
                 self.push_missing = True
             if 200 <= status < 300:
@@ -1705,6 +1740,7 @@ class Ctx:
         self.store = Store(root)
         self.settings, self.keys, self.api = {}, None, None
         self.mode, self.target, self.emit, self.last_fetch, self.skipped = "", None, None, 0, False
+        self.action = ""  # line 1 of an error: what failed
 
     @property
     def me(self):
@@ -2107,6 +2143,16 @@ def post_pair(cx, x, kind, c):
     return j["r"] if isinstance(j.get("r"), str) else "failed"
 
 
+def pair_reason(r):
+    """A post_pair or post_approve result word -> reason; the word itself is never shown."""
+    if r == "network":
+        return UNREACHABLE
+    m = re.fullmatch(r"([0-9]{3}) ?(.*)", r)
+    if m:
+        return SERVER_DOWN if int(m.group(1)) >= 500 else ApiError(int(m.group(1)), m.group(2), {}).reason()
+    return device_reason(r)
+
+
 def send_reply(cx, x):
     k = cx.keys
     with cx.store.state() as d:
@@ -2280,9 +2326,10 @@ def run_exec(prog, rec):
         r = subprocess.run([prog] + [re.sub("[\x00\ud800-\udfff]", "\ufffd", rec[k])
                                      for k in ("from", "name", "platform", "type", "body")])
         if r.returncode:
-            log("%s exited with status %d" % (prog, r.returncode))
+            log('Unable to run the notify program "%s".\nIt stopped with status %d.' % (prog, r.returncode))
     except (OSError, ValueError) as e:
-        log("Could not run %s: %s" % (prog, e))
+        why = (getattr(e, "strerror", None) or str(e)).rstrip(".")
+        log('Unable to run the notify program "%s".\n%s.' % (prog, why))
 
 
 # ---- command functions ----
@@ -2338,17 +2385,13 @@ def cmd_login(cx, args):
             if e.status == 401 and e.error in ("bad ticket", "invalid ticket"):
                 code, tries = None, tries + 1
                 if tries >= CODE_TRIES:
-                    raise Fail("The code did not work after %d tries. Run pusharmor login again." % CODE_TRIES)
+                    raise Fail(BAD_LINK)
                 print("That code did not work. Check it and paste it again.")
                 continue
-            if e.status == 403:
-                raise Fail("This account cannot log in.")
-            raise Fail("Could not log in: %s" % (e.error or e.status))
+            raise Fail(e.reason())
         except TempFail as e:
-            if e.status == 429:
-                raise Fail("Too many tries. Wait a minute and run pusharmor login again.")
-            if not ask_yes("%s Retry? [Y/n] " % e, default=True):
-                raise Fail("Not logged in.")
+            if e.status == 429 or not ask_yes("%s Retry? [Y/n] " % e, default=True):
+                raise Fail(str(e))
     with cx.store.state(write=False) as d:
         name = d["name"]
     print("Logged in. This device is named %s. Next: run pusharmor pair to see your devices." % name)
@@ -2566,6 +2609,7 @@ def cmd_pair(cx, args):
             p, e = d["peers"].get(x), d["pairs"].get(x)
             sid = short_id(x, d["peers"])
         name = peer_label(p)
+        cx.action = 'Unable to pair with "%s".' % name
         if p is None:
             raise Fail("%s is no longer on this account." % name)
         if p["pinned"] and p["ruling"] == "approved" and p["approves_me"]:
@@ -2584,12 +2628,14 @@ def cmd_pair(cx, args):
                 print()  # Ctrl-D leaves the cursor after the prompt
                 raise Fail("No answer. Run pusharmor pair %s again." % sid)
             if not yes:
+                cx.action = 'Unable to reject "%s".' % name
                 deny(cx, x)
                 print("Did not pair with %s." % name)
                 return EXIT_OK
+            cx.action = 'Unable to confirm "%s".' % name
             r = approve(cx, x)
             if r not in ("sent", "stored"):
-                raise Fail("Could not reach %s (%s). Run pusharmor pair %s again later." % (name, r, sid))
+                raise Fail(pair_reason(r))
             continue
         if p["pinned"] and p["ruling"] == "approved":
             wait = "Waiting for %s to confirm this device." % name
@@ -2606,7 +2652,7 @@ def cmd_pair(cx, args):
             r = pair_start(cx, x)
         first = False
         if r not in ("sent", "429"):
-            raise Fail("Could not reach %s (%s). Run pusharmor pair %s again later." % (name, r, sid))
+            raise Fail(pair_reason(r))
         if wait != told:
             log(wait)
             told = wait
@@ -2640,7 +2686,7 @@ def cmd_listen(cx, args):
     if args.exec and not (os.path.isfile(args.exec) and os.access(args.exec, os.X_OK) if "/" in args.exec
                           else shutil.which(args.exec)):
         raise Fail('Unable to run the notify program "%s".\nIt was not found or cannot be run.' % args.exec,
-                   EXIT_USAGE)
+                   EXIT_USAGE, full=True)
     with cx.store.state(write=False) as d:
         since = d.get("since", "")
     stream = start_receive(cx, since, LISTEN_TIMEOUT_S)
@@ -2655,18 +2701,18 @@ def cmd_listen(cx, args):
             try:
                 report_listening(cx)
             except TempFail as e:
-                log(str(e))
+                log("%s\n%s Listening continues." % (cx.action, e))
                 with cx.store.state() as d:
                     d["listen_at"] = int(time.time()) - LISTEN_REPORT_S + 3600
             continue
         try:
             receive(cx, pt)
         except TempFail as e:
-            log(str(e))
+            log("%s\n%s Listening continues." % (cx.action, e))
         except ApiError as e:
             if e.status == 401:
                 raise
-            log("The relay server refused a request: %s" % (e.error or e.status))
+            log("%s\n%s Listening continues." % (cx.action, e.reason()))
         with cx.store.state() as d:
             d["since"] = stream.since
 
@@ -2678,7 +2724,7 @@ def cmd_send(cx, args):
     elif args.message == ["-"] or not stdin_tty():
         data = sys.stdin.buffer.read(CONTENT_CAP * 4 + 1) if sys.stdin else b""
         if len(data) > CONTENT_CAP * 4:
-            raise Fail("The message is longer than 2048 characters.", EXIT_USAGE)
+            raise Fail(TOO_LONG, EXIT_USAGE)
         try:
             text = data.decode("utf-8").rstrip("\r\n")
         except UnicodeDecodeError:
@@ -2694,7 +2740,7 @@ def cmd_send(cx, args):
     type_, value = ("text", text) if args.text else detect(text)
     size = len(value.encode("utf-8"))
     if size > CONTENT_CAP:
-        raise Fail("Too long (%d / %d bytes)." % (size, CONTENT_CAP), EXIT_USAGE)
+        raise Fail(TOO_LONG, EXIT_USAGE)
     cx.refresh()
     with cx.store.state() as d:
         ready = [pid for pid, p in d["peers"].items() if sendable(p)]
@@ -2707,7 +2753,10 @@ def cmd_send(cx, args):
                     raise Fail("No device matches %s. Run pusharmor pair to see your devices." % t)
                 if pid not in ready:
                     p = d["peers"][pid]
-                    raise Fail("Cannot send to %s: %s" % (peer_label(p), peer_status(p, d["pairs"].get(pid))), EXIT_SEND)
+                    why = ("unknown" if p["missing"] else "unapproved" if not (
+                        p["pinned"] and p["ruling"] == "approved" and p["approves_me"])
+                        else "logged out" if p["logged_out"] else "not listening")
+                    raise Fail('Unable to send to "%s".\n%s' % (peer_label(p), SEND_WHY[why]), EXIT_SEND, full=True)
                 targets.append(pid)
         if not targets:
             raise Fail("No paired devices to send to. Run pusharmor pair to pair one.", EXIT_SEND)
@@ -2721,8 +2770,9 @@ def cmd_send(cx, args):
     failed = [pid for pid in m if res.get(pid) != "sent"]
     with cx.store.state() as d:
         for pid in failed:
-            r = res.get(pid, "failed")
-            log("%s: %s" % (names[pid], SEND_WHY.get(r, SEND_FAILED)))
+            r = res.get(pid) if isinstance(res.get(pid), str) else "failed"
+            line1 = 'Unable to deliver message to "%s".' if r == "gone" else 'Unable to send to "%s".'
+            log("%s\n%s" % (line1 % names[pid], device_reason(r)))
             p = d["peers"].get(pid)
             if p and r == "logged out":
                 p["logged_out"] = True
@@ -2732,12 +2782,20 @@ def cmd_send(cx, args):
     return EXIT_SEND if failed else EXIT_OK
 
 
-# /v1/send result word -> sentence for one device; any other word (failed, failed:CODE, ...) is SEND_FAILED.
-SEND_WHY = {"gone": "Not delivered. Open PushArmor on it.", "not listening": "Send only. It does not receive messages.",
-            "logged out": "Logged out. Log in on it to receive messages.",
-            "unapproved": "Not paired. Run pusharmor pair to pair it.", "denied": "It rejected this device.",
-            "unknown": "It is no longer on this account."}
-SEND_FAILED = "Not delivered. Try again."
+# /v1/send, /v1/pair, and /v1/approve result word -> reason for one device (line 2 under its name).
+SEND_WHY = {"gone": "Open PushArmor on it to resolve.",
+            "logged out": "That device is logged out. Log in on that device to receive messages.",
+            "not listening": "It is set to send only. It does not receive messages.",
+            "unapproved": "It is not paired with this device. Pair with it to send it messages.",
+            "denied": "It isn't paired with this device.", "unknown": "It is no longer on this account."}
+SEND_FAILED = "Its push service did not accept the message. Try again later."  # failed:CODE
+SEND_NOT_READY = "It has not finished turning on notifications. Open PushArmor on it."  # failed, any other word
+
+
+def device_reason(r):
+    if r in SEND_WHY:
+        return SEND_WHY[r]
+    return SEND_FAILED if r.startswith("failed:") else SEND_NOT_READY
 
 
 def cmd_rename(cx, args):
@@ -2763,6 +2821,7 @@ def cmd_delete(cx, args):
     x = resolve_peer(cx, args.id, with_self=True)
     with cx.store.state(write=False) as d:
         reg, name = d.get("reg"), peer_label(d["peers"].get(x))
+    cx.action = "Unable to remove this device." if x == cx.me else 'Unable to remove "%s".' % name
     if reg != "registered" and (x != cx.me or reg != "logged_out"):
         raise Fail(LOGGED_OUT if reg == "logged_out" else NOT_LOGGED_IN, EXIT_LOGIN)
     if x == cx.me:
@@ -2845,11 +2904,19 @@ def _os_error_text(e):
     return "Cannot read or write a file on this device: %s." % reason
 
 
+def _unable(run):
+    """Line 1 for an error caught outside _main, once the command is known."""
+    cx = run.get("cx")
+    return cx.action + "\n" if cx and cx.action else ""
+
+
 def main(argv=None):
-    """Runs one command. Every error ends as one line on stderr and an exit code from EXIT_CODES."""
+    """Runs one command. Every error ends on stderr as the action that failed, then the reason,
+    and an exit code from EXIT_CODES."""
+    run = {}
     try:
         try:
-            return _main(argv)
+            return _main(argv, run)
         finally:
             if sys.stdout is not None:
                 sys.stdout.flush()  # a closed or full stdout fails here, not at exit
@@ -2858,7 +2925,7 @@ def main(argv=None):
         return EXIT_ERR
     except OSError as e:
         _quiet_stdout()
-        log(_os_error_text(e))
+        log(_unable(run) + (STORAGE_FULL if e.errno == errno.ENOSPC else _os_error_text(e)))
         return EXIT_ERR
     except UnicodeError as e:
         _quiet_stdout()
@@ -2869,12 +2936,21 @@ def main(argv=None):
         return EXIT_ERR
     except Exception as e:
         _quiet_stdout()
-        log("PushArmor stopped on an unexpected error (%s). Please report it." %
+        log(_unable(run) + "PushArmor stopped on an unexpected error (%s). Please report it." %
             " ".join(("%s: %s" % (type(e).__name__, e)).split()))
         return EXIT_BUG
 
 
-def _main(argv):
+def action_line(args):
+    """Line 1 of an error for this command, until the command names the device it works on."""
+    if args.command == "delete":
+        return 'Unable to remove "%s".' % args.id
+    if args.command == "pair" and args.id:
+        return 'Unable to pair with "%s".' % args.id
+    return ACTIONS[args.command]
+
+
+def _main(argv, run):
     try:
         check_os()
     except Fail as e:
@@ -2884,12 +2960,13 @@ def _main(argv):
     args = parser.parse_args(argv)
     if not getattr(args, "_check", lambda a: True)(args):
         parser.error("use only one of --json, --tsv, and --exec")
-    cx = Ctx(config_dir(args.config))
+    cx = run["cx"] = Ctx(config_dir(args.config))
+    cx.action = action_line(args)
     if args.config and os.path.exists(cx.store.root) and not os.path.isdir(cx.store.root):
-        log("The --config path %s is a file, not a folder." % cx.store.root)
+        log("%s\nThe --config path %s is a file, not a folder." % (cx.action, cx.store.root))
         return EXIT_USAGE
     if args.config and args.command not in ("login", "logout") and not os.path.isdir(cx.store.root):
-        log("Not logged in. The --config folder %s does not exist." % cx.store.root)
+        log("%s\nThis device is not logged in. The --config folder %s does not exist." % (cx.action, cx.store.root))
         return EXIT_LOGIN
     try:
         if args.command not in ("login", "logout"):
@@ -2899,25 +2976,22 @@ def _main(argv):
         log("Stopped.")
         return 130
     except Fail as e:
-        log(str(e))
+        log(str(e) if e.full else "%s\n%s" % (cx.action, e))
         return e.code
     except ApiError as e:
         if e.status == 401 and e.error == "unknown peer":
             if not removed_confirmed(cx):
-                log(UNREACHABLE)
+                log("%s\n%s" % (cx.action, UNREACHABLE))
                 return EXIT_TEMP
             cx.store.wipe()
-            log(REMOVED)
+            log("%s\n%s" % (cx.action, REMOVED))
             return EXIT_LOGIN
         if e.status == 401 and e.error == "logged out":
             with contextlib.suppress(Fail, OSError), cx.store.state() as d:
                 d["reg"] = "logged_out"
-            log(LOGGED_OUT)
+            log("%s\n%s" % (cx.action, LOGGED_OUT))
             return EXIT_LOGIN
-        if e.status == 401 and e.error == "clock skew":
-            log("This device's clock is off by more than 5 minutes. Fix the clock and try again.")
-            return EXIT_ERR
-        log("The relay server refused the request (%s)." % (("%d %s" % (e.status, e.error)).strip()))
+        log("%s\n%s" % (cx.action, e.reason()))
         return EXIT_ERR
 
 

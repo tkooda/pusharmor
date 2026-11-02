@@ -220,7 +220,7 @@ def test_version_refused(tmp_path):
 
 def test_not_logged_in(tmp_path, capsys):
     assert pa.main(["--config", str(tmp_path), "send", "hi"]) == 3
-    assert "Not logged in" in capsys.readouterr().err
+    assert capsys.readouterr().err.splitlines() == ["Unable to send.", pa.NOT_LOGGED_IN]
 
 
 # ---- HTTP rules ----
@@ -229,7 +229,7 @@ def test_426_update(monkeypatch):
     monkeypatch.setattr(pa, "http_request", lambda *a: (426, {}, b'{"error":"update required"}'))
     with pytest.raises(pa.Fail) as e:
         pa.Api("https://r.example", {"id": "x", "sign": pa.new_key()[0]}).call("GET", "/v1/peers")
-    assert str(e.value) == "Update PushArmor to continue." and e.value.code == 1
+    assert str(e.value) == "This version of PushArmor is too old. Update PushArmor to continue." and e.value.code == 1
 
 
 def test_clock_skew_resync(monkeypatch):
@@ -539,7 +539,8 @@ def test_config_folder_and_state_files_others_can_change_are_refused(net, tmp_pa
     capsys.readouterr()
     cfg.chmod(0o777)
     assert run(cfg, "send", "hi") == 1
-    assert capsys.readouterr().err == "%s can be changed by other users. Fix it with: chmod go-w %s\n" % (cfg, cfg)
+    assert capsys.readouterr().err == (
+        "Unable to send.\n%s can be changed by other users. Fix it with: chmod go-w %s\n" % (cfg, cfg))
     cfg.chmod(0o775)  # group-writable with the user's own primary group: still fine
     assert run(cfg, "send", "hi") == 4
     cfg.chmod(0o700)
@@ -550,8 +551,8 @@ def test_config_folder_and_state_files_others_can_change_are_refused(net, tmp_pa
         path.chmod(0o666)
         capsys.readouterr()
         assert run(cfg, "send", "hi") == 1
-        assert capsys.readouterr().err == "%s can be changed by other users. Fix it with: chmod go-w %s\n" % (
-            path, path)
+        assert capsys.readouterr().err == (
+            "Unable to send.\n%s can be changed by other users. Fix it with: chmod go-w %s\n" % (path, path))
         path.chmod(0o644)
     assert run(cfg, "send", "hi") == 4
 
@@ -562,7 +563,7 @@ def test_unsupported_toml_value_is_damaged(net, tmp_path, monkeypatch, capsys):
     path.write_text("x = 1.5\n" + path.read_text())
     capsys.readouterr()
     assert run(tmp_path, "send", "hi") == 1
-    assert capsys.readouterr().err == "%s is damaged. Delete it and log in again.\n" % path
+    assert capsys.readouterr().err == "Unable to send.\n%s is damaged. Delete it and log in again.\n" % path
 
 
 @pytest.mark.parametrize("prog", ["/nonexistent/notify", "pusharmor-no-such-notify", "NOEXEC"])
@@ -682,11 +683,11 @@ def test_send_failures_are_sentences(net, tmp_path, monkeypatch, capsys):
     a, b = tmp_path / "a", tmp_path / "b"
     ida, idb = pair_two(monkeypatch, net, a, b)
     capsys.readouterr()
-    for word, text in [("failed:net", "Not delivered. Try again."), ("logged out", "Logged out. Log in on it to receive messages.")]:
+    for word, text in [("failed:net", pa.SEND_FAILED), ("logged out", pa.SEND_WHY["logged out"])]:
         net.hooks[("POST", "send")] = lambda m, p, h, body, w=word: net.reply(200, {"r": {idb: w}})
         assert run(a, "send", "hi") == 4
         err = capsys.readouterr().err
-        assert ": " + text in err and ": " + word not in err
+        assert "\n" + text + "\n" in err and ": " + word not in err
 
 
 def test_relay_error_text_is_cleaned_and_short(net, tmp_path, monkeypatch, capsys):
@@ -698,8 +699,8 @@ def test_relay_error_text_is_cleaned_and_short(net, tmp_path, monkeypatch, capsy
         assert run(a, "send", "hi") == 1
         err = capsys.readouterr().err
         assert "\x1b" not in err and "\x07" not in err and "\u202e" not in err
-        assert "w" * 81 not in err
-    assert "w" * 80 in err
+        assert "bad" not in err and "www" not in err
+        assert err.splitlines() == ["Unable to send.", pa.REFUSED]
     net.hooks.clear()
     e = pa.ApiError(400, "\x1b[2Jbad", {})
     assert e.error == "?[2Jbad"
@@ -708,7 +709,7 @@ def test_relay_error_text_is_cleaned_and_short(net, tmp_path, monkeypatch, capsy
 def test_send_too_long(net, tmp_path, monkeypatch, capsys):
     login(monkeypatch, tmp_path)
     assert run(tmp_path, "send", "x" * 2049) == 2
-    assert "Too long (2049 / 2048 bytes)." in capsys.readouterr().err
+    assert capsys.readouterr().err.splitlines() == ["Unable to send.", "The message is longer than 2048 characters."]
 
 
 # ---- listen output ----
@@ -777,7 +778,7 @@ def test_damaged_state_file_is_one_line_exit_1(monkeypatch, tmp_path, net, capsy
                                     "To delete them, run: rm -r %s" % cfg]
         assert path.read_bytes() == data
     else:
-        assert "\n" not in err and str(path) in err
+        assert err.splitlines()[0] == "Unable to send." and len(err.splitlines()) == 2 and str(path) in err
 
 
 @pytest.mark.parametrize("change", [
@@ -793,7 +794,8 @@ def test_damaged_state_shape_is_one_line_exit_1(change, monkeypatch, tmp_path, n
     capsys.readouterr()
     for argv in (["send", "hi"], ["pair"], ["listen"], ["rename", "zz"], ["logout"]):
         assert run(cfg, *argv) == 1
-        assert capsys.readouterr().err == "%s is damaged. Delete it and log in again.\n" % path
+        assert capsys.readouterr().err == "%s\n%s is damaged. Delete it and log in again.\n" % (
+            pa.ACTIONS[argv[0]], path)
 
 
 @pytest.mark.parametrize("change", [
@@ -848,7 +850,7 @@ def test_unreadable_file_is_one_line(monkeypatch, tmp_path, net, capsys):
     capsys.readouterr()
     assert run(cfg, "send", "hi") == 1
     err = capsys.readouterr().err
-    assert err == "%s must be a file owned by you.\n" % (cfg / "devices.toml")
+    assert err == "Unable to send.\n%s must be a file owned by you.\n" % (cfg / "devices.toml")
 
 
 def test_config_path_that_is_a_file_or_too_long(monkeypatch, tmp_path, capsys):
@@ -856,11 +858,11 @@ def test_config_path_that_is_a_file_or_too_long(monkeypatch, tmp_path, capsys):
     f.write_text("x")
     monkeypatch.setenv("PUSHARMOR_CONFIG", str(f))
     assert pa.main(["logout"]) == 1
-    assert capsys.readouterr().err == "Cannot read or write %s: File exists.\n" % f
+    assert capsys.readouterr().err == "Unable to log out.\nCannot read or write %s: File exists.\n" % f
     monkeypatch.setenv("PUSHARMOR_CONFIG", str(tmp_path / ("a" * 5000)))
     assert pa.main(["logout"]) == 1
     err = capsys.readouterr().err
-    assert err.startswith("Cannot read or write ") and err.endswith(": File name too long.\n")
+    assert err.startswith("Unable to log out.\nCannot read or write ") and err.endswith(": File name too long.\n")
 
 
 @pytest.mark.skipif(os.getuid() == 0, reason="root reads any file")
@@ -869,7 +871,8 @@ def test_file_without_permission(monkeypatch, tmp_path, net, capsys):
     (cfg / "devices.toml").chmod(0)
     capsys.readouterr()
     assert run(cfg, "send", "hi") == 1
-    assert capsys.readouterr().err == "Cannot read or write %s: Permission denied.\n" % (cfg / "devices.toml")
+    assert capsys.readouterr().err == "Unable to send.\nCannot read or write %s: Permission denied.\n" % (
+        cfg / "devices.toml")
 
 
 def test_closed_output_exits_quietly(monkeypatch, tmp_path, net, capsys):
@@ -889,7 +892,7 @@ def test_help_to_closed_or_full_output(how, tmp_path):
             pytest.skip("no /dev/full")
         with open("/dev/full", "w") as out:
             p = subprocess.run([sys.executable, script, "--help"], stdout=out, stderr=subprocess.PIPE)
-        assert p.returncode == 1 and p.stderr == b"Cannot read or write a file on this device: No space left on device.\n"
+        assert p.returncode == 1 and p.stderr == b"Storage is full. Free some space and try again.\n"
         return
     p = subprocess.Popen([sys.executable, script, "--help"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     p.stdout.close()
@@ -903,8 +906,8 @@ def test_unexpected_error_is_one_line_exit_70(monkeypatch, tmp_path, capsys):
 
     monkeypatch.setitem(pa.COMMANDS, "logout", (boom, "", []))
     assert run(tmp_path, "logout") == pa.EXIT_BUG == 70
-    assert capsys.readouterr().err == ("PushArmor stopped on an unexpected error (TypeError: bad value). "
-                                       "Please report it.\n")
+    assert capsys.readouterr().err == ("Unable to log out.\nPushArmor stopped on an unexpected error "
+                                       "(TypeError: bad value). Please report it.\n")
 
 
 def test_output_the_terminal_cannot_show(monkeypatch, tmp_path, capsys):
@@ -1003,7 +1006,7 @@ def test_redirect_is_not_followed():
 def test_bad_server_setting(tmp_path, server, capsys):
     (tmp_path / "settings.toml").write_text('server = "%s"\n' % server)
     assert run(tmp_path, "send", "hi") == 1
-    assert capsys.readouterr().err == "%s: server must be an https:// URL like https://host\n" % (
+    assert capsys.readouterr().err == "Unable to send.\n%s: server must be an https:// URL like https://host\n" % (
         tmp_path / "settings.toml")
 
 
@@ -1056,7 +1059,8 @@ def test_too_deep_nesting(monkeypatch, tmp_path, capsys):
     assert s.next(time.time() + 5) is None
     (tmp_path / "settings.toml").write_text("a = " + "[" * 100000)
     assert run(tmp_path, "send", "hi") == 1
-    assert capsys.readouterr().err == "%s is not valid TOML: nested too deeply\n" % (tmp_path / "settings.toml")
+    assert capsys.readouterr().err == "Unable to send.\n%s is not valid TOML: nested too deeply\n" % (
+        tmp_path / "settings.toml")
 
 
 @pytest.mark.parametrize("allow", [None, 5, "x", {"a": 1}])
@@ -1225,9 +1229,10 @@ def test_unknown_device_is_confirmed_before_the_keys_are_deleted(check, code, ke
     if kept:
         net.hooks.clear()
         assert pa.Store(str(tmp_path)).load_keys()["id"]
-        assert err == "The relay server could not be reached. Check your internet connection and try again.\n"
+        assert err == ("Unable to rename this device.\n"
+                       "The relay server could not be reached. Check your internet connection and try again.\n")
     else:
-        assert err == pa.REMOVED + "\n"
+        assert err == "Unable to rename this device.\n" + pa.REMOVED + "\n"
 
 
 def test_bad_id_never_deletes_the_keys(net, tmp_path, monkeypatch, capsys):
@@ -1264,3 +1269,97 @@ def test_remove_message_for_this_device_is_confirmed_first(net, tmp_path, monkey
     capsys.readouterr()
     assert run(b, "listen") == 130
     assert "could not be reached" not in capsys.readouterr().err
+
+
+# ---- error text: line 1 names what failed, line 2 says why ----
+
+REFRESH = "Unable to refresh the device list."
+
+
+def _offline(*a):
+    raise OSError("network down")
+
+
+@pytest.mark.parametrize("reply, code, reason", [
+    (_offline, pa.EXIT_TEMP, "The relay server could not be reached. Check your internet connection and try again."),
+    ((503, {"error": "unavailable"}), pa.EXIT_TEMP, "The relay server is not working right now. Try again later."),
+    ((429, {"error": "rate limited", "retry_after": 120}), pa.EXIT_TEMP, "Too many tries. Try again in 2 minutes."),
+    ((429, {"error": "rate limited", "retry_after": 30}), pa.EXIT_TEMP, "Too many tries. Try again in 30 seconds."),
+    ((426, {"error": "update required"}), pa.EXIT_ERR,
+     "This version of PushArmor is too old. Update PushArmor to continue."),
+    ((401, {"error": "clock skew"}), pa.EXIT_ERR,
+     "This device's clock is off by more than 5 minutes. Fix the clock and try again."),
+    ((401, {"error": "logged out"}), pa.EXIT_LOGIN, "This device is logged out. Log in to resume."),
+    ((403, {"error": "banned"}), pa.EXIT_ERR, "This account is blocked."),
+    ((502, {"error": "email send failed"}), pa.EXIT_TEMP, "The relay server is not working right now. Try again later."),
+    ((400, {"error": "bad x"}), pa.EXIT_ERR,
+     "The relay server did not accept the request. Update PushArmor and try again."),
+])
+def test_error_is_action_then_reason(reply, code, reason, net, tmp_path, monkeypatch, capsys):
+    login(monkeypatch, tmp_path)
+    monkeypatch.setattr(pa.time, "sleep", lambda s: None)
+    net.hooks[("GET", "peers")] = reply if callable(reply) else lambda *a: net.reply(*reply)
+    capsys.readouterr()
+    assert run(tmp_path, "pair") == code
+    assert capsys.readouterr().err.splitlines() == [REFRESH, reason]
+
+
+def test_unknown_device_error_is_two_lines(net, tmp_path, monkeypatch, capsys):
+    me = login(monkeypatch, tmp_path)
+    del net.peers[me]
+    capsys.readouterr()
+    assert run(tmp_path, "rename", "zz") == pa.EXIT_LOGIN
+    assert capsys.readouterr().err.splitlines() == [
+        "Unable to rename this device.", "This device was removed from the account. Log in again."]
+
+
+def test_not_logged_in_is_two_lines(tmp_path, capsys):
+    (tmp_path / "c").mkdir(mode=0o700)
+    assert run(tmp_path / "c", "send", "hi") == pa.EXIT_LOGIN
+    assert capsys.readouterr().err.splitlines() == [
+        "Unable to send.", "This device is not logged in. Run: pusharmor login"]
+
+
+@pytest.mark.parametrize("word, first, second", [
+    ("gone", 'Unable to deliver message to "%s".', "Open PushArmor on it to resolve."),
+    ("logged out", 'Unable to send to "%s".',
+     "That device is logged out. Log in on that device to receive messages."),
+    ("not listening", 'Unable to send to "%s".', "It is set to send only. It does not receive messages."),
+    ("unapproved", 'Unable to send to "%s".', "It is not paired with this device. Pair with it to send it messages."),
+    ("denied", 'Unable to send to "%s".', "It isn't paired with this device."),
+    ("unknown", 'Unable to send to "%s".', "It is no longer on this account."),
+    ("failed:net", 'Unable to send to "%s".', "Its push service did not accept the message. Try again later."),
+    ("failed", 'Unable to send to "%s".', "It has not finished turning on notifications. Open PushArmor on it."),
+    ("other", 'Unable to send to "%s".', "It has not finished turning on notifications. Open PushArmor on it."),
+])
+def test_send_per_device_error_is_two_lines(word, first, second, net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = pair_two(monkeypatch, net, a, b)
+    name = pa.peer_label(state(a)["peers"][idb])
+    net.hooks[("POST", "send")] = lambda *x: net.reply(200, {"r": {idb: word}})
+    capsys.readouterr()
+    assert run(a, "send", "hi") == pa.EXIT_SEND
+    assert capsys.readouterr().err.splitlines() == [first % name, second, "Sent to 0 of 1 device."]
+
+
+def test_pair_result_word_is_never_shown_raw(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    login(monkeypatch, a)
+    idb = login(monkeypatch, b)
+    net.hooks[("POST", "pair")] = lambda *x: net.reply(200, {"r": "denied"})
+    capsys.readouterr()
+    assert run(a, "pair", pa.id_hex(idb)[:6]) == 1
+    name = pa.peer_label(state(a)["peers"][idb])
+    assert capsys.readouterr().err.splitlines()[-2:] == [
+        'Unable to pair with "%s".' % name, "It isn't paired with this device."]
+
+
+def test_notify_program_that_fails_is_two_lines(tmp_path, capsys):
+    prog = tmp_path / "notify"
+    prog.write_text("#!/bin/sh\nexit 3\n")
+    prog.chmod(0o755)
+    pa.run_exec(str(prog), REC)
+    pa.run_exec(str(tmp_path / "gone"), REC)
+    assert capsys.readouterr().err.splitlines() == [
+        'Unable to run the notify program "%s".' % prog, "It stopped with status 3.",
+        'Unable to run the notify program "%s".' % (tmp_path / "gone"), "No such file or directory."]
