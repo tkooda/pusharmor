@@ -52,7 +52,7 @@ struct SignInView: View {
                             if Ids.normalizeEmail(email) == nil {
                                 model.toast = ErrorCopy.text(.sendCode, .badEmail)
                             } else {
-                                showTurnstile = true
+                                instantly { showTurnstile = true }
                             }
                         } label: {
                             Text(S.sendLabel("Send code", leftMs: left))

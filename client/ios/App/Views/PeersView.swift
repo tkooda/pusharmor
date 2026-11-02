@@ -61,7 +61,7 @@ struct PeersView: View {
                     }
                     Section {
                         Button {
-                            showPairHowTo = true
+                            instantly { showPairHowTo = true }
                         } label: {
                             Label("Pair a new device", systemImage: "plus.circle")
                         }
@@ -157,7 +157,7 @@ struct PairHowToView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    Button("Done") { instantly { dismiss() } }
                 }
             }
         }

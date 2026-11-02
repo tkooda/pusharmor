@@ -205,7 +205,7 @@ struct SettingsGear: ViewModifier {
         content
             .overlay(alignment: .topTrailing) {
                 if shown {
-                    Button { show = true } label: {
+                    Button { instantly { show = true } } label: {
                         Image(systemName: "gearshape")
                             .font(.title3)
                             .frame(minWidth: 44, minHeight: 44)

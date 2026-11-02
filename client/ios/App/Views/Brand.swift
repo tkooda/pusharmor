@@ -1,6 +1,14 @@
 import SwiftUI
 import PushArmorCore
 
+/// Runs a state change with no animation: tab switches, sheets, and full screen views
+/// appear and go away at once.
+func instantly(_ change: () -> Void) {
+    var t = Transaction()
+    t.disablesAnimations = true
+    withTransaction(t, change)
+}
+
 /// Brand colours from App/Assets.xcassets (light, dark and high contrast live in the catalog).
 extension Color {
     static let brandGreen = Color("BrandGreen")

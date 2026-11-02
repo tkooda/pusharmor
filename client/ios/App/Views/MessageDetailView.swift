@@ -132,7 +132,7 @@ struct MessageDetailView: View {
     private func button(_ a: MessageAction) -> some View {
         switch a {
         case .read:
-            Button { reading = true } label: { ActionLabel(title: "View", icon: "text.alignleft") }
+            Button { instantly { reading = true } } label: { ActionLabel(title: "View", icon: "text.alignleft") }
                 .buttonStyle(ActionButtonStyle())
         case .copy:
             Button { UIPasteboard.general.string = row.content } label: { ActionLabel(title: "Copy", icon: "doc.on.doc") }
@@ -171,7 +171,7 @@ struct ReadMessageView: View {
             SelectableText(text: text)
                 .padding(.top, 44)
                 .accessibilityIdentifier("readText")
-            Button { dismiss() } label: {
+            Button { instantly { dismiss() } } label: {
                 Image(systemName: "xmark.circle.fill")
                     .font(.title)
                     .symbolRenderingMode(.hierarchical)

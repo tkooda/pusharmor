@@ -91,13 +91,13 @@ struct TurnstileSheet: View {
         NavigationStack {
             TurnstileWebView { token in
                 onToken(token)
-                dismiss()
+                instantly { dismiss() }
             }
             .navigationTitle("Verify")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") { instantly { dismiss() } }
                 }
             }
         }

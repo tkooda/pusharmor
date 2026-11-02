@@ -10,17 +10,22 @@ struct MainView: View {
         tabs
         // the first pairing done: Send opens
         .onChange(of: model.needsFirstPair) { _, v in
-            if !v { tab = 0 }
+            if !v { select(0) }
         }
+    }
+
+    /// A tab switch shows the new tab at once, with no animation.
+    private func select(_ t: Int) {
+        instantly { tab = t }
     }
 
     private var tabs: some View {
         TabView(selection: $tab) {
-            HomeView { tab = 1 } // its banner sits under the Send bar, in ComposeView
+            HomeView { select(1) } // its banner sits under the Send bar, in ComposeView
                 .tabBarMaterial()
                 .tabItem { Label("Send", systemImage: "paperplane") }
                 .tag(0)
-            HistoryTab(onSend: { tab = 0 }, onPair: { tab = 1 })
+            HistoryTab(onSend: { select(0) }, onPair: { select(1) })
                 .tabBarMaterial()
                 .tabItem { Label("History", systemImage: "clock") }
                 .tag(3)
@@ -39,10 +44,10 @@ struct MainView: View {
             if model.showHistory { tab = 3; model.showHistory = false }
         }
         .onChange(of: model.highlightPeer) { _, v in
-            if v != nil { tab = 1 }
+            if v != nil { select(1) }
         }
         .onChange(of: model.showHistory) { _, v in
-            if v { tab = 3; model.showHistory = false }
+            if v { select(3); model.showHistory = false }
         }
     }
 }
