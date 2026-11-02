@@ -13,6 +13,9 @@ import org.unifiedpush.android.connector.UnifiedPush
 class FlavorPush(private val context: Context) : PushFlavor {
     companion object {
         fun create(context: Context): PushFlavor = FlavorPush(context)
+
+        /** Turns FCM's own token fetch on or off; a test replaces it (no Firebase app runs in unit tests). */
+        internal var autoInit: (Boolean) -> Unit = { FirebaseMessaging.getInstance().isAutoInitEnabled = it }
     }
 
     override val hasPlayServices: Boolean
@@ -55,5 +58,7 @@ class FlavorPush(private val context: Context) : PushFlavor {
     override fun stop(g: Graph) {
         try { UnifiedPush.unregister(context, UnifiedPushSupport.INSTANCE) } catch (e: Exception) { }
         try { FirebaseMessaging.getInstance().deleteToken() } catch (e: Exception) { }
+        // Without this FCM fetches a new token on its own after the wipe.
+        try { autoInit(false) } catch (e: Exception) { }
     }
 }
