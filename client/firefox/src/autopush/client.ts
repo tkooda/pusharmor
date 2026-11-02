@@ -126,6 +126,7 @@ export class Autopush {
   }
 
   private connect(probe: boolean): void {
+    if (this.stopped) return;
     this.clearTimers();
     this.probing = probe;
     let ws: SocketLike;
@@ -169,14 +170,17 @@ export class Autopush {
       await this.toFallback();
       return;
     }
+    if (this.stopped) return;
     const wait = Math.min(BACKOFF_CAP_MS, BACKOFF_BASE_MS * 2 ** this.attempt);
     this.attempt++;
     this.retryTimer = this.d.setTimer(() => this.connect(false), wait);
   }
 
   private async toFallback(): Promise<void> {
+    if (this.stopped) return;
     this.mode = "fallback";
     await this.d.onMode("fallback");
+    if (this.stopped) return;
     this.retryTimer = this.d.setTimer(() => this.connect(true), PROBE_EVERY_MS);
   }
 
