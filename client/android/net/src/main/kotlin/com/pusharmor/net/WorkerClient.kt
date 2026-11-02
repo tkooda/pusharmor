@@ -38,7 +38,7 @@ interface ClockOffset {
 class MemoryClockOffset(override var offsetS: Long = 0) : ClockOffset
 
 /** Raw reply after retries. */
-class Reply(val status: Int, val json: JsonObject?, val retryAfter: Long?)
+class Reply(val status: Int, val json: JsonObject?, val retryAfter: Long?, val tooLarge: Boolean = false)
 
 /**
  * The Worker API client (api.pusharmor.com, /v1). Bodies are serialized once to bytes;
@@ -106,9 +106,11 @@ class WorkerClient(
         var attempt = 0
         while (true) {
             var retryAfter: Long? = null
+            var code = 0
             val reply: Reply? = try {
                 (if (once) onceHttp else http).newCall(req).execute().use { r ->
                     r.header("PA-Epoch")?.toLongOrNull()?.let { offset.offsetS = it - now() / 1000 }
+                    code = r.code
                     val text = r.body?.let { readCapped(it) }.orEmpty()
                     val json = try { Json.parseToJsonElement(text) as? JsonObject } catch (e: Exception) { null }
                     // Clamped to 0..1 hour, so a bad value cannot hold a call back for ever.
@@ -116,7 +118,7 @@ class WorkerClient(
                     Reply(r.code, json, retryAfter)
                 }
             } catch (e: BodyTooLarge) {
-                return null // a hostile or broken reply: not retried
+                return Reply(code, null, null, tooLarge = true) // a hostile or broken reply: not retried
             } catch (e: IOException) {
                 null
             }
@@ -144,6 +146,7 @@ class WorkerClient(
 
     private fun <T> result(reply: Reply?, parse: (JsonObject) -> T): ApiResult<T> {
         if (reply == null) return ApiResult.Network
+        if (reply.tooLarge) return ApiResult.Http(reply.status, "bad reply")
         val j = reply.json
         if (reply.status in 200..299) {
             return try {
