@@ -231,3 +231,17 @@ test("autopush: reconnectNow in fallback mode probes at once", async () => {
   await probe.rx({ messageType: "hello", status: 200, uaid: "U1" });
   assert.deepEqual(s.modes, ["fallback", "direct"]);
 });
+
+test("autopush: a register frame with a disallowed endpoint host closes the socket and keeps no endpoint", async () => {
+  const s = setup();
+  await s.ap.start();
+  const ws = s.sockets[0]!;
+  ws.onopen!();
+  await ws.rx({ messageType: "hello", status: 200, uaid: "U1" });
+  const n = ws.sent.length;
+  await ws.rx({ messageType: "register", status: 200, channelID: "chan-1", pushEndpoint: "https://evil.example/wpush/v2/x" });
+  assert.equal(ws.closed, true);
+  assert.deepEqual(s.endpoints, []);
+  assert.equal(ws.sent.length, n);
+  assert.equal(await s.ap.fields(), null);
+});

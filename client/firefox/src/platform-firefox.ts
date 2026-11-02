@@ -5,32 +5,13 @@ import type { Platform } from "../../webext-common/src/platform.ts";
 import { basePlatform } from "../../webext-common/src/shellkit.ts";
 import type { Db } from "../../webext-common/src/store/db.ts";
 import type { Autopush } from "./autopush/client.ts";
+import { ALLOWED_PUSH_ENDPOINT_PREFIXES, endpointAllowed } from "./endpoint.ts";
 import { browser } from "./shim.ts";
 
 export const SETUP_URL = "https://pusharmor.com/fx/setup";
 export const FWD_URL = "https://pusharmor.com/fx/fwd";
 
-/** Same prefix list the Worker uses (catalog Web push endpoint allow-list). */
-export const ALLOWED_PUSH_ENDPOINT_PREFIXES = [
-  "https://fcm.googleapis.com/fcm/send/",
-  "https://fcm.googleapis.com/wp/",
-  "https://updates.push.services.mozilla.com/wpush/v1/",
-  "https://updates.push.services.mozilla.com/wpush/v2/",
-];
-
-export function endpointAllowed(endpoint: string): boolean {
-  let u: URL;
-  try {
-    u = new URL(endpoint);
-  } catch {
-    return false;
-  }
-  if (u.protocol !== "https:" || u.username || u.password || u.port) return false;
-  return ALLOWED_PUSH_ENDPOINT_PREFIXES.some((p) => {
-    const pu = new URL(p);
-    return u.host === pu.host && u.pathname.startsWith(pu.pathname);
-  });
-}
+export { ALLOWED_PUSH_ENDPOINT_PREFIXES, endpointAllowed };
 
 export interface FxCtx {
   isAndroid: boolean;

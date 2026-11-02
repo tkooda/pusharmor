@@ -5,6 +5,7 @@
 import { b64urlEncode, b64urlTryDecode } from "../../../webext-common/src/crypto/b64url.ts";
 import { generateWebPushKeys, rfc8291Decrypt, type WebPushKeys } from "../../../webext-common/src/crypto/rfc8291.ts";
 import type { PushFields } from "../../../webext-common/src/crypto/labels.ts";
+import { endpointAllowed } from "../endpoint.ts";
 
 export const AUTOPUSH_URL = "wss://push.services.mozilla.com/";
 export const BACKOFF_BASE_MS = 5_000;
@@ -243,6 +244,10 @@ export class Autopush {
   private async onRegister(f: Frame): Promise<void> {
     if (f.status === 409) return this.register();
     if (f.status !== 200 || typeof f.pushEndpoint !== "string") {
+      this.ws?.close();
+      return;
+    }
+    if (!endpointAllowed(f.pushEndpoint)) {
       this.ws?.close();
       return;
     }
