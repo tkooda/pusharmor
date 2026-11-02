@@ -29,11 +29,14 @@ public enum KeyBootstrap {
         case retryLater
     }
 
-    public static func decide(me: Me, signItem: ItemRead, requestTokenSet: Bool) -> Plan {
+    /// peerIdItem is the read of the old peer id; it matters only with no account.
+    public static func decide(me: Me, signItem: ItemRead, peerIdItem: ItemRead, requestTokenSet: Bool) -> Plan {
         if me.removed { return .lost }
         if me.id == nil {
             if signItem == .failed(.beforeFirstUnlock) { return .retryLater }
             if requestTokenSet && signItem == .present { return .useExisting }
+            // the old id is needed for the DELETE of the old device: keep the keys until it reads
+            if case .failed = peerIdItem { return .retryLater }
             return .createFresh
         }
         switch signItem {

@@ -95,8 +95,8 @@ public final class KeychainKeyStore {
         return DeviceKeys(signer: SecureEnclaveSigner(key: sk), decryptor: SoftwareDecryptor(key: ek))
     }
 
-    public func peerId() -> String? {
-        guard let d = try? read(.peerId) else { return nil }
+    public func peerId() throws -> String? {
+        guard let d = try read(.peerId) else { return nil }
         return String(data: d, encoding: .ascii)
     }
 
@@ -120,7 +120,20 @@ public final class KeychainKeyStore {
     /// signed-in device never deletes on a failed read: it throws KeyBootstrap.Stop.
     public func bootstrap(store: Store) throws -> DeviceKeys? {
         let me = try store.me()
-        switch KeyBootstrap.decide(me: me, signItem: readState(.sign), requestTokenSet: me.requestToken != nil) {
+        var old: String?
+        var peerIdItem = KeyBootstrap.ItemRead.missing
+        if me.id == nil && !me.removed {
+            do {
+                old = try peerId()
+                if old != nil { peerIdItem = .present }
+            } catch let e as KeyLoadError {
+                peerIdItem = .failed(e)
+            } catch {
+                peerIdItem = .failed(.other(errSecInternalError))
+            }
+        }
+        switch KeyBootstrap.decide(me: me, signItem: readState(.sign), peerIdItem: peerIdItem,
+                                   requestTokenSet: me.requestToken != nil) {
         case .lost:
             // id set but no sign key (a wipe whose DB part failed): removed, not a launch error
             if !me.removed { try store.keysLost() }
@@ -132,9 +145,9 @@ public final class KeychainKeyStore {
         case .useExisting where me.id == nil:
             // a saved email-code step is bound to the keys made for it
             if let k = try? load() { return k }
-            return try createFresh(store: store)
+            return try createFresh(store: store, oldId: old)
         case .createFresh:
-            return try createFresh(store: store)
+            return try createFresh(store: store, oldId: old)
         case .useExisting:
             let k: DeviceKeys
             do {
@@ -149,8 +162,8 @@ public final class KeychainKeyStore {
         }
     }
 
-    private func createFresh(store: Store) throws -> DeviceKeys {
-        if let old = peerId() { try store.setMe("old_id", .text(old)) }
+    private func createFresh(store: Store, oldId: String?) throws -> DeviceKeys {
+        if let old = oldId { try store.setMe("old_id", .text(old)) }
         deleteAll()
         return try create()
     }

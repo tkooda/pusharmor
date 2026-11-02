@@ -117,6 +117,7 @@ final class AppModel: ObservableObject {
     /// Opens the store and loads the keys. A failure shows plain text; the next foreground
     /// tries again.
     private func open() async {
+        launchRetry = false
         do {
             try env.prepareDirectories()
             if store == nil {
@@ -127,17 +128,24 @@ final class AppModel: ObservableObject {
             if let store = store, let keys = try env.keychain.bootstrap(store: store) {
                 core = env.makeCore(store: store, keys: keys)
             }
+        } catch KeyBootstrap.Stop.retryLater {
+            launchRetry = true
+            errorText = S.launchFailed
         } catch {
             errorText = S.launchFailed
         }
     }
 
+    /// The last launch stopped on a passing Keychain fault and changed nothing.
+    private var launchRetry = false
+
     /// a launch error must not leave the app dead until force-quit. True when the
-    /// store did not open, or a signed-in device has no keys loaded.
-    static func needsReopen(hasStore: Bool, hasCore: Bool, me: Me?) -> Bool {
+    /// store did not open, a signed-in device has no keys loaded, or a device with no
+    /// account had its launch stopped by a passing Keychain fault.
+    static func needsReopen(hasStore: Bool, hasCore: Bool, me: Me?, launchRetry: Bool = false) -> Bool {
         if !hasStore { return true }
-        guard !hasCore, let me = me else { return false }
-        return me.id != nil && !me.removed
+        guard !hasCore, let me = me, !me.removed else { return false }
+        return me.id != nil || launchRetry
     }
 
     /// A notification tap that arrived before start() finished; replayed after it.
@@ -201,7 +209,7 @@ final class AppModel: ObservableObject {
     /// reconcile, retries, timeouts, permission check.
     func onForeground() async {
         await checkPermission()
-        if started, !sample, AppModel.needsReopen(hasStore: store != nil, hasCore: core != nil, me: try? store?.me()) {
+        if started, !sample, AppModel.needsReopen(hasStore: store != nil, hasCore: core != nil, me: try? store?.me(), launchRetry: launchRetry) {
             await once("open") {
                 await open()
                 await route()

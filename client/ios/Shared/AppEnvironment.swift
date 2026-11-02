@@ -68,7 +68,7 @@ final class AppEnvironment: PlatformHooks {
     }
 
     private func deleteSelfBestEffort() async {
-        guard let t = keychain.peerId(), let id = PeerId(text: t), let keys = try? keychain.load() else { return }
+        guard let t = try? keychain.peerId(), let id = PeerId(text: t), let keys = try? keychain.load() else { return }
         // confirmed: nothing left for the old_id DELETE after the next sign-in
         if await StoreRepair.deleteSelf(api: APIClient(), signer: keys.signer, id: id) { keychain.deleteAll() }
     }

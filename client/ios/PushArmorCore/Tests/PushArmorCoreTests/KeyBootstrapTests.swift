@@ -10,8 +10,9 @@ final class KeyBootstrapTests: XCTestCase {
            nameRev: 0, oldId: nil, requestToken: nil)
     }
 
-    func d(id: Bool, removed: Bool = false, sign: KeyBootstrap.ItemRead, token: Bool = false) -> KeyBootstrap.Plan {
-        KeyBootstrap.decide(me: me(id: id, removed: removed), signItem: sign, requestTokenSet: token)
+    func d(id: Bool, removed: Bool = false, sign: KeyBootstrap.ItemRead, peerId: KeyBootstrap.ItemRead = .missing,
+           token: Bool = false) -> KeyBootstrap.Plan {
+        KeyBootstrap.decide(me: me(id: id, removed: removed), signItem: sign, peerIdItem: peerId, requestTokenSet: token)
     }
 
     func testSignedInDevice() {
@@ -35,6 +36,15 @@ final class KeyBootstrapTests: XCTestCase {
         XCTAssertEqual(d(id: false, sign: .present, token: true), .useExisting)
         XCTAssertEqual(d(id: false, sign: .missing, token: true), .createFresh)
         XCTAssertEqual(d(id: false, sign: .failed(.beforeFirstUnlock), token: true), .retryLater)
+    }
+
+    func testOldIdReadFails() {
+        // the old id read failed: neither delete nor create, try again later
+        XCTAssertEqual(d(id: false, sign: .present, peerId: .failed(.other(-34018))), .retryLater)
+        XCTAssertEqual(d(id: false, sign: .missing, peerId: .failed(.beforeFirstUnlock)), .retryLater)
+        XCTAssertEqual(d(id: false, sign: .present, peerId: .present), .createFresh)
+        // it does not matter once signed in
+        XCTAssertEqual(d(id: true, sign: .present, peerId: .failed(.other(-34018))), .useExisting)
     }
 
     struct BrokenSigner: PASigner {

@@ -20,6 +20,17 @@ final class LaunchRecoveryTests: XCTestCase {
         XCTAssertFalse(AppModel.needsReopen(hasStore: true, hasCore: false, me: try store.me()))
     }
 
+    func testReopenAfterKeychainFaultWithNoAccount() throws {
+        let path = (NSTemporaryDirectory() as NSString).appendingPathComponent("pa-launch-retry.sqlite")
+        for suffix in ["", "-wal", "-shm"] { try? FileManager.default.removeItem(atPath: path + suffix) }
+        let me = try Store(path: path).me()
+        XCTAssertNil(me.id)
+        // the launch stopped before it read the old id: the next foreground tries again
+        XCTAssertTrue(AppModel.needsReopen(hasStore: true, hasCore: false, me: me, launchRetry: true))
+        XCTAssertFalse(AppModel.needsReopen(hasStore: true, hasCore: false, me: me, launchRetry: false))
+        XCTAssertFalse(AppModel.needsReopen(hasStore: true, hasCore: true, me: me, launchRetry: true))
+    }
+
     func testLaunchErrorIsPlainText() {
         XCTAssertTrue(S.launchFailed.hasSuffix("."))
         XCTAssertFalse(S.launchFailed.contains("sql"))
