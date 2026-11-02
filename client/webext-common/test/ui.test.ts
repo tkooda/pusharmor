@@ -519,6 +519,7 @@ test("pairing screen: Codes match is a light green tonal button with no check ic
   const pv = rd("peersview.ts");
   assert.match(pv, /approve: "approve"/);
   assert.doesNotMatch(pv, /a === "approve" \? \[icon\("check"/);
+  assert.doesNotMatch(pv, /a === "deny" \? "danger"/);
   assert.match(rd("style.css"), /button\.approve \{ background: var\(--okc\); color: var\(--onokc\);/);
   for (const t of ["tokens-chrome.css", "tokens-firefox.css"]) assert.equal((rd(t).match(/--okc:/g) ?? []).length, t === "tokens-chrome.css" ? 3 : 3);
 });
