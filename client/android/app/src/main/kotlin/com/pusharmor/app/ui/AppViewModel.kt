@@ -127,11 +127,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Sign-in purpose, read off the main thread with each start change (Room refuses main-thread reads). */
     val signInPurpose = MutableStateFlow("register")
 
+    /** A plain launch opens Send: set at startup when at least one pairing is complete. */
+    @Volatile var launchToSend = false
+
     private fun setStart(s: Session.Start) { signInPurpose.value = purpose(); start.value = s }
 
     fun boot() = io(UiText.UNABLE_OPEN_DATA) {
         g.settings.updateRequired(com.pusharmor.app.BuildConfig.VERSION_NAME)
         val s = g.session.startup()
+        if (s == Session.Start.READY) launchToSend = launchRoute(g.dao.peers().map { it.toPeer() }, g.dao.self()?.id) == "send"
         setStart(s)
         if (s == Session.Start.READY) g.session.onAppOpen(System.currentTimeMillis())
         if (s == Session.Start.SIGNED_OUT) g.session.retryPendingLogout()

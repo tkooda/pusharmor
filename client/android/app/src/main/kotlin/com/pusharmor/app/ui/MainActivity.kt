@@ -91,6 +91,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         vm.boot()
+        plainLaunch = shouldHandle(savedInstanceState != null, intent.flags) && isPlainLaunch(intent)
         if (shouldHandle(savedInstanceState != null, intent.flags)) handle(intent)
         setContent { AppTheme(vm) { Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { App(vm) } } }
     }
@@ -118,6 +119,13 @@ class MainActivity : ComponentActivity() {
          */
         fun shouldHandle(restored: Boolean, flags: Int): Boolean =
             !restored && flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY == 0
+
+        /** Set by a plain launch (not a notification, share, or deep link); taken once the tabs are up. */
+        var plainLaunch = false
+
+        /** A launcher start: no route, ticket, or other own extras. */
+        fun isPlainLaunch(intent: Intent): Boolean =
+            intent.action == Intent.ACTION_MAIN && ownExtras(intent) == null && authExtras(intent) == null
 
         /** Compose state, so a notification tap while the app is open recomposes and navigates. */
         var pendingRoute by mutableStateOf<String?>(null)
@@ -237,6 +245,10 @@ private fun BrokenScreen(title: String, body: String, destroy: String, dialogTit
         dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } })
 }
 
+/** Tab for a plain launch: Send when at least one pairing is complete, else Devices. */
+internal fun launchRoute(peers: List<com.pusharmor.protocol.Peer>, selfId: String?): String =
+    if (others(peers, selfId).any { it.pinned && it.approved && it.approvesMe && !it.removed }) "send" else "peers"
+
 /** Delete mode ends when the session is no longer signed in. */
 internal fun deletingAfter(start: Session.Start?, deleting: Boolean): Boolean = deleting && (start == null || start == Session.Start.READY)
 
@@ -328,6 +340,10 @@ internal fun App(vm: AppViewModel) {
                     shown?.cancel(); shown = launch { kotlinx.coroutines.withTimeoutOrNull(SENT_SNACK_MS) { snack.showSnackbar(r.text) } }
                 }
             }
+        }
+        // A plain launch with a complete pairing opens Send; the tab host starts on Devices.
+        androidx.compose.runtime.LaunchedEffect(back != null) {
+            if (back != null && MainActivity.plainLaunch) { MainActivity.plainLaunch = false; if (vm.launchToSend) tab("send") }
         }
         // Send and History with no paired device: to Devices, which shows the first-pair steps.
         val pair = { tab("peers") }
