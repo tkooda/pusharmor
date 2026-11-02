@@ -64,6 +64,13 @@ import { R, T, peerLabel, sendResultText } from "./texts.ts";
 import { AUTH_CHANGED } from "../model/signin.ts";
 
 export type Src = "push" | "bridge" | "returned" | "fetched";
+
+/** The outcome of one POST /pair: the relay word, or why the call failed (err). */
+interface PairPost {
+  result: string;
+  notBefore?: number;
+  err?: unknown;
+}
 export const FETCH_WINDOW_MS = 60_000;
 export const SEND_AGAIN_MS = 60_000;
 export const AUTO_OPEN_MAX = 3;
@@ -611,7 +618,7 @@ export class Engine {
   }
 
   /** X: send (or re-send) the reply of an authorized entry, same r_X. */
-  sendReply(from: string): Promise<void> {
+  sendReply(from: string): Promise<PairPost | null> {
     let run = this.replying.get(from);
     if (!run) {
       run = this.doSendReply(from).finally(() => this.replying.delete(from));
@@ -620,16 +627,16 @@ export class Engine {
     return run;
   }
 
-  private replying = new Map<string, Promise<void>>();
+  private replying = new Map<string, Promise<PairPost | null>>();
 
-  private async doSendReply(from: string): Promise<void> {
+  private async doSendReply(from: string): Promise<PairPost | null> {
     const self = await this.self();
     const e = await getEntry(this.p.storageLocal, from);
     const peer = await this.db.peer(from);
-    if (!self || !e || e.role !== "X" || !e.authorized || !peer) return;
+    if (!self || !e || e.role !== "X" || !e.authorized || !peer) return null;
     if (e.not_before && now(this.p) < e.not_before) {
       this.p.alarmAt("pair:" + from, Math.max(e.not_before, now(this.p) + 30_000));
-      return;
+      return null;
     }
     let msg = e.msg;
     if (!msg) {
@@ -637,7 +644,7 @@ export class Engine {
     }
     const res = await this.postPair(from, "reply", msg, self);
     const cur = await getEntry(this.p.storageLocal, from);
-    if (!cur) return;
+    if (!cur) return res;
     const upd: PairEntry = { ...cur, msg, last_send: now(this.p), last_result: res.result };
     if (res.result === "sent") {
       upd.unsent = false;
@@ -647,16 +654,24 @@ export class Engine {
       this.p.alarmAt("pair:" + from, res.notBefore);
     }
     await this.p.storageLocal.set({ [pairKeyOf(from)]: upd });
+    return res;
   }
 
-  private async postPair(x: string, kind: "commit" | "reply" | "open", c: string, self: SelfKeys): Promise<{ result: string; notBefore?: number }> {
+  private async postPair(x: string, kind: "commit" | "reply" | "open", c: string, self: SelfKeys): Promise<PairPost> {
     try {
       const r = await this.api.call("POST", "/pair/" + x, { signer: this.signerOf(self), body: { k: kind, c }, noRetry: true });
       await this.afterSignedReply(r);
       return { result: typeof r.json.r === "string" ? r.json.r : "failed" };
     } catch (e) {
-      return this.callFailure(e);
+      return { ...(await this.callFailure(e)), err: e };
     }
+  }
+
+  /** A tapped pairing send that did not reach the device throws, so the click shows why. */
+  private pairSent(res: PairPost | null): void {
+    if (!res || res.result === "sent") return;
+    if (res.err !== undefined) throw res.err;
+    throw new ReasonError(sendResultText("", res.result).split("\n")[1]);
   }
 
   private async callFailure(e: unknown): Promise<{ result: string; notBefore?: number }> {
@@ -765,19 +780,20 @@ export class Engine {
       };
       await this.p.storageLocal.remove([PAIR_MSG_PREFIX + x]);
       await this.p.storageLocal.set({ [pairKeyOf(x)]: e });
-      await this.sendStored(x, "commit", self);
+      this.pairSent(await this.sendStored(x, "commit", self));
     });
   }
 
-  private async sendStored(x: string, kind: "commit" | "open", self: SelfKeys): Promise<void> {
+  private async sendStored(x: string, kind: "commit" | "open", self: SelfKeys): Promise<PairPost | null> {
     const e = await getEntry(this.p.storageLocal, x);
-    if (!e || !e.msg) return;
+    if (!e || !e.msg) return null;
     const res = await this.postPair(x, kind, e.msg, self);
     const cur = await getEntry(this.p.storageLocal, x);
-    if (!cur) return;
+    if (!cur) return res;
     const upd: PairEntry = { ...cur, last_send: now(this.p), last_result: res.result };
     if (res.notBefore) upd.not_before = res.notBefore;
     await this.p.storageLocal.set({ [pairKeyOf(x)]: upd });
+    return res;
   }
 
   /** [Send again] on N: same commit (committed) or same open (shown); 60 s after the last send. */
@@ -791,8 +807,8 @@ export class Engine {
       this.p.alarmAt("pair:" + x, Math.max(e.not_before, t + 30_000));
       return;
     }
-    if (e.state === "committed") await this.sendStored(x, "commit", self);
-    else if (e.state === "shown" && !(await this.db.peer(x))?.approve_verified) await this.sendStored(x, "open", self);
+    if (e.state === "committed") this.pairSent(await this.sendStored(x, "commit", self));
+    else if (e.state === "shown" && !(await this.db.peer(x))?.approve_verified) this.pairSent(await this.sendStored(x, "open", self));
   }
 
   /** [Reply] tap on a prompted X entry (not counted in the cap). */
@@ -802,7 +818,7 @@ export class Engine {
       if (!e || e.role !== "X" || e.state !== "prompted") return;
       await this.p.storageLocal.set({ [pairKeyOf(x)]: { ...e, authorized: true, unsent: true } satisfies PairEntry });
     });
-    await this.sendReply(x);
+    this.pairSent(await this.sendReply(x));
   }
 
   /** Approve on a peer in state shown (step 7). */

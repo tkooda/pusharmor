@@ -609,7 +609,7 @@ test("Retry-After on an automatic reply: not_before stored, earlier triggers do 
   const { w, a, b, clock } = await setup();
   await refresh(a, b);
   w.inject.push({ match: /POST \/v1\/pair\//, status: 429, body: { error: "rate limited", retry_after: 120 }, headers: { "Retry-After": "120" }, times: 1 });
-  await a.e.pairStart(b.id);
+  await assert.rejects(a.e.pairStart(b.id)); // the click shows why
   const e = (await getEntry(a.p.storageLocal, b.id))!;
   assert.equal(e.not_before, clock.t + 120_000);
   clock.t += 61_000;

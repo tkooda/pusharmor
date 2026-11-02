@@ -171,6 +171,34 @@ async function fails(rpc: Rpc, op: string, args: Record<string, unknown> = {}): 
   return r.error!;
 }
 
+test("a Pair, Send again, or Reply that did not reach the device shows why", async () => {
+  const clock = new Clock();
+  const w = new MockWorker(clock);
+  const a = await device(w, clock);
+  const b = await device(w, clock, "firefox");
+  await refresh(a, b);
+  const ra = new Rpc(a.e);
+  const rb = new Rpc(b.e);
+  const first = /^Unable to pair with "[^"]+"\.\n/;
+  const pairFails = async (rpc: Rpc, op: string, id: string, reason: string) => {
+    const msg = await fails(rpc, op, { id });
+    assert.match(msg, first, op);
+    assert.equal(msg.split("\n")[1], reason, op);
+  };
+  w.inject.push({ match: /POST \/v1\/pair\//, status: 200, body: { r: "logged out" }, times: 1 });
+  await pairFails(ra, "pair", b.id, "That device is logged out. Log in on that device to receive messages.");
+  clock.t += 61_000;
+  w.inject.push({ match: /POST \/v1\/pair\//, status: 500, body: { error: "internal" }, times: 1 });
+  await pairFails(ra, "sendAgain", b.id, DOWN);
+  clock.t += 61_000;
+  assert.equal((await ra.handle({ op: "sendAgain", args: { id: b.id } })).ok, true); // sent: no error
+  // b is at its automatic reply cap: the commit waits for a Reply tap
+  await b.p.storageLocal.set({ pair_auto: Array(10).fill(clock.t) });
+  await deliver(w, b);
+  w.inject.push({ match: /POST \/v1\/pair\//, status: 200, body: { r: "gone" }, times: 1 });
+  await pairFails(rb, "reply", a.id, "Open PushArmor on it to resolve.");
+});
+
 test("each device list action shows its own action line", async () => {
   const { a, b, rpc, nm, down } = await paired();
   down(/GET \/v1\/peers$/);
