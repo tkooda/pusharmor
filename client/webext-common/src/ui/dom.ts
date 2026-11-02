@@ -143,7 +143,8 @@ export function peerStatus(p: PeerView): { kind: StatusKind; word: string } | nu
 
 /** The address an Open button opens: a phone number may already carry its tel: prefix. */
 export function openHref(type: string, content: string): string {
-  return type === "tel" && !content.startsWith("tel:") ? "tel:" + content : content;
+  const c = type === "tel" ? content.trim() : content;
+  return type === "tel" && !c.startsWith("tel:") ? "tel:" + c : c;
 }
 
 const PLATFORM_LABEL: Record<string, string> = { android: "Android", ios: "iPhone", chrome: "Chrome", firefox: "Firefox", cli: "Command line" };
