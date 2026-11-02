@@ -225,7 +225,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun reply(id: String) = io(UiText.unablePair(nameOf(id))) { g.pairing().tapReply(id) }
     fun sendAgainPair(id: String) = io(UiText.unablePair(nameOf(id))) { g.pairing().sendAgain(id, System.currentTimeMillis()) }
-    fun cancelPairing(id: String) = io(UiText.unablePair(nameOf(id))) { g.pairing().cancelPairing(id); g.reconcile().run() }
+    fun cancelPairing(id: String) = io(UiText.unableCancelPairing(nameOf(id))) { g.pairing().cancelPairing(id); g.reconcile().run() }
     /** Peer ids with a Pair again call running; their button is greyed so a second tap cannot cancel the first. */
     val pairingAgain = MutableStateFlow<Set<String>>(emptySet())
     fun pairAgain(id: String) {

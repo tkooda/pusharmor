@@ -23,6 +23,7 @@ object UiText {
     const val UNABLE_REFRESH = "Unable to refresh the device list."
     const val UNABLE_RENAME = "Unable to rename this device."
     fun unablePair(x: String) = "Unable to pair with \"$x\"."
+    fun unableCancelPairing(x: String) = "Unable to cancel pairing with \"$x\"."
     fun unableConfirm(x: String) = "Unable to confirm \"$x\"."
     fun unableReject(x: String) = "Unable to reject \"$x\"."
     fun unableRemove(x: String) = "Unable to remove \"$x\"."

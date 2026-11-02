@@ -146,6 +146,30 @@ class AppViewModelTest {
         assertFalse(r.ok)
     }
 
+    /** Each pairing and device tap that fails names its own action on line 1. */
+    @Test fun pairingTapsNameTheirAction() {
+        val vm = vm()
+        vm.g.keysOrNull = null
+        val id = "P".repeat(40)
+        onIo { vm.g.store.putPeer(com.pusharmor.protocol.Peer(id = id, name = "Laptop")) }
+        waitFor { vm.peers.value.any { it.id == id } }
+        fun line1(tap: () -> Unit): String? {
+            vm.message.value = null
+            tap()
+            waitFor { vm.message.value != null && vm.running.value.isEmpty() && vm.pairingAgain.value.isEmpty() }
+            return vm.message.value?.substringBefore('\n')
+        }
+        assertEquals("Unable to cancel pairing with \"Laptop\".", line1 { vm.cancelPairing(id) })
+        assertEquals("Unable to pair with \"Laptop\".", line1 { vm.pair(id) })
+        assertEquals("Unable to pair with \"Laptop\".", line1 { vm.reply(id) })
+        assertEquals("Unable to pair with \"Laptop\".", line1 { vm.sendAgainPair(id) })
+        assertEquals("Unable to pair with \"Laptop\".", line1 { vm.pairAgain(id) })
+        assertEquals("Unable to confirm \"Laptop\".", line1 { vm.approve(id) })
+        assertEquals("Unable to reject \"Laptop\".", line1 { vm.deny(id) })
+        assertEquals("Unable to remove \"Laptop\".", line1 { vm.remove(id) })
+        assertNull(uncaught)
+    }
+
     /** A switch change never rewrites the message counter: counting and switching at once keeps every count. */
     @Test fun switchChangesKeepTheCounter() {
         val vm = vm()
