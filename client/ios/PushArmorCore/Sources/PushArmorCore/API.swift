@@ -73,10 +73,15 @@ public struct APIReply: Sendable {
         if case .number(let t)? = json?["retry_after"], let v = Int(t) { return min(max(v, 0), 3600) }
         return nil
     }
+    /// The largest legal Worker reply is GET /v1/peers: at most 10 peers (register refuses an
+    /// 11th), each under 1500 chars with a name entry of at most 1024 (MAX_NAME_ENTRY), plus
+    /// "removed", stored under RM_JSON_MAX (32000 chars): under 48000 bytes in all. A body over
+    /// this cap is not parsed (json nil), like any other malformed reply.
+    public static let maxBody = 65536
     public init(status: Int, body: Data) {
         self.status = status
         self.body = body
-        self.json = try? StrictJSON.parse(body)
+        self.json = body.count <= APIReply.maxBody ? try? StrictJSON.parse(body) : nil
     }
 }
 

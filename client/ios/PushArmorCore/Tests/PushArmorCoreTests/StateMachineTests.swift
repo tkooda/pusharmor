@@ -1219,6 +1219,26 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(try o.core.store.history().count, before)
     }
 
+    /// only the first 8 "removed" entries (the Worker's limit) are opened; the rest are ignored.
+    func testFetchedRemovesPastTheWorkerLimitAreIgnored() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev"), o = try dev("Odev")
+        let m = try await removedSetup(n, x, o)
+        // keys starting with "!" sort before any id, so x's entry comes 9th
+        var rm: [String: String] = [x.id.text: m]
+        for i in 0 ..< 8 { rm["!\(i)"] = "AAAA" }
+        w.removed[o.id.text] = rm
+        clock.now += 100
+        await o.core.fetchPeers(force: true)
+        XCTAssertEqual(try o.core.store.peer(x.id)?.state, .approved)
+        XCTAssertEqual(try o.core.store.peer(x.id)?.missing, true)
+        // as the 8th entry it applies
+        rm.removeValue(forKey: "!7")
+        w.removed[o.id.text] = rm
+        clock.now += 100
+        await o.core.fetchPeers(force: true)
+        XCTAssertEqual(try o.core.store.peer(x.id)?.state, .removed)
+    }
+
     func testLogoutNoticeEventsAndOrdering() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try await pairFully(n, x)

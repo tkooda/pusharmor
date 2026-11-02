@@ -42,6 +42,16 @@ final class APITests: XCTestCase {
         XCTAssertEqual(rec.sleeps, [0])
     }
 
+    /// a body over the largest legal reply size is not parsed; one at the cap is.
+    func testReplyBodyOverTheCapIsNotParsed() {
+        func body(_ n: Int) -> Data { Data(("{\"a\":\"" + String(repeating: "x", count: n - 8) + "\"}").utf8) }
+        XCTAssertEqual(body(APIReply.maxBody).count, APIReply.maxBody)
+        XCTAssertNotNil(APIReply(status: 200, body: body(APIReply.maxBody)).json)
+        let r = APIReply(status: 200, body: body(APIReply.maxBody + 1))
+        XCTAssertNil(r.json)
+        XCTAssertFalse(Core.fetchOk(.reply(r)))
+    }
+
     func testNoRetryOn502AndLongRetryAfter() async {
         let w = FakeWorker(), rec = Recorder()
         let api = client(w, rec)

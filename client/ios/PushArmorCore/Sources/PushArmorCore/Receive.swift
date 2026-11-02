@@ -137,9 +137,13 @@ extension Core {
     /// GET /peers "removed": each entry is the sealed remove(B) a peer sent for me. Open it
     /// like a live push, quietly: a fresh remove(B) applies exactly as the push would (same replay
     /// bookkeeping); anything else is dropped with no notice and no History row.
+    /// The Worker keeps at most RM_MAX_ENTRIES (8) stored removes per device; entries past
+    /// that are ignored, as a malformed entry is, so a bad reply cannot cost more HPKE opens.
+    static let maxFetchedRemoves = 8
+
     func applyFetchedRemoves(_ removed: JSONValue?, me: PeerId, now: Int64) throws {
         guard let members = removed?.objectMembers else { return }
-        for (bT, v) in members {
+        for (bT, v) in members.prefix(Core.maxFetchedRemoves) {
             guard let b = PeerId(text: bT), b != me, let m = v.stringValue,
                   m.utf8.count <= InnerMessage.maxWire, B64URL.isStrict(m) else { continue }
             let r = runPipeline(m, me: me)
