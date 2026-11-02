@@ -80,14 +80,15 @@ export class Login {
     if (!c) throw new UserError("Enter the 6-character code");
     const st = (await this.e.p.storageSession.get([REQUEST_TOKEN]))[REQUEST_TOKEN] as { token: string; purpose: Purpose } | undefined;
     if (!st) throw new ReasonError(R.loginExpired);
-    try {
-      const r = await this.e.api.call("POST", "/auth/email/verify", { body: { request_token: st.token, code: c } });
-      const ticket = typeof r.json.ticket === "string" ? r.json.ticket : "";
-      const email = typeof r.json.email === "string" ? r.json.email : null;
-      return await this.complete(st.purpose, ticket, email, evict);
-    } catch (err) {
+    const r = await this.e.api.call("POST", "/auth/email/verify", { body: { request_token: st.token, code: c } }).catch((err: unknown) => {
       throw st.purpose === "delete-account" ? new ActionError("deleteAccount", err) : err;
-    }
+    });
+    const ticket = typeof r.json.ticket === "string" ? r.json.ticket : "";
+    const email = typeof r.json.email === "string" ? r.json.email : null;
+    // the code was accepted: what fails now is the login (or the deletion)
+    return this.complete(st.purpose, ticket, email, evict).catch((err: unknown) => {
+      throw new ActionError(actionFor(st.purpose), err);
+    });
   }
 
   async oauthUrl(provider: "google" | "apple", purpose: Purpose): Promise<string> {
