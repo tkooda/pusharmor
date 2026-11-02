@@ -64,8 +64,14 @@ final class GoogleSignIn: NSObject, ASWebAuthenticationPresentationContextProvid
         req.httpMethod = "POST"
         req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         req.httpBody = GoogleOAuth.tokenBody(clientId: clientId, redirect: redirect, code: code, pkce: pkce)
-        guard let (data, _) = try? await URLSession.shared.data(for: req),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        let data: Data
+        do {
+            data = try await URLSession.shared.data(for: req).0
+        } catch {
+            model.toast = ErrorCopy.text(.loginGoogle, ErrorCopy.tokenFailReason(error, provider: "Google"))
+            return
+        }
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let idToken = obj["id_token"] as? String
         else {
             model.toast = ErrorCopy.text(.loginGoogle, .notConfirmed(provider: "Google"))

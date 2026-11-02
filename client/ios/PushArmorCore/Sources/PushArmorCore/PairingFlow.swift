@@ -14,7 +14,7 @@ public enum PairSendResult: Equatable, Sendable {
     case rateLimited(Int64)      // not_before (unix s)
     case waiting(Int64)          // not_before not reached, nothing sent
     case network
-    case error(Int)
+    case error(Int, String? = nil)   // status, error word
 }
 
 extension Core {
@@ -185,7 +185,7 @@ extension Core {
             }
             return .rateLimited(nb)
         }
-        guard r.ok, let res = r.json?["r"]?.stringValue else { return .error(r.status) }
+        guard r.ok, let res = r.json?["r"]?.stringValue else { return .error(r.status, r.error) }
         return res == "sent" ? .sent : .result(res)
     }
 
@@ -342,7 +342,7 @@ extension Core {
         switch r {
         case .success(.sent), .success(.waiting), .success(.rateLimited): return nil
         case .success(.network): return ErrorCopy.text(.pair(name), .unreachable)
-        case .success(.error(let s)): return ErrorCopy.text(.pair(name), ErrorCopy.reason(status: s, error: nil))
+        case .success(.error(let s, let w)): return ErrorCopy.text(.pair(name), ErrorCopy.reason(status: s, error: w))
         case .success(.result(let w)):
             let r: ErrorCopy.Reason = w.hasPrefix("failed:") ? .pushRejected : w == "failed" ? .notReady : .unknown
             return ErrorCopy.text(.pair(name), r)
@@ -373,7 +373,7 @@ extension Core {
         switch o {
         case .network?: return ErrorCopy.text(a, .unreachable)
         case .rateLimited(let until)?: return ErrorCopy.text(a, .rateLimited(waitMs: Int(max(0, until - now)) * 1000))
-        case .error(let s)?: return ErrorCopy.text(a, ErrorCopy.reason(status: s, error: nil))
+        case .error(let s, let w)?: return ErrorCopy.text(a, ErrorCopy.reason(status: s, error: w))
         case nil: return ErrorCopy.text(a, .unknown)
         default: return nil
         }

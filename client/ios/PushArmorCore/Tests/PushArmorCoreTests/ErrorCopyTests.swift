@@ -139,4 +139,29 @@ final class ErrorCopyTests: XCTestCase {
         XCTAssertEqual(ErrorCopy.renameFailText("Ndev", .failure(DBError.sql(13, "full"))),
                        "Unable to rename this device.\nStorage is full. Free some space and try again.")
     }
+    func testPairingKeepsTheErrorWord() {
+        func t(_ s: Int, _ w: String) -> String? { Core.pairAgainToast(.success(.error(s, w)), name: "Laptop") }
+        XCTAssertEqual(t(401, "clock skew"),
+                       "Unable to pair with \"Laptop\".\nThis device's clock is off by more than 5 minutes. Fix the clock and try again.")
+        XCTAssertEqual(t(401, "logged out"), "Unable to pair with \"Laptop\".\nThis device is logged out. Log in to resume.")
+        XCTAssertEqual(t(401, "unknown peer"), "Unable to pair with \"Laptop\".\nThis device was removed from the account. Log in again.")
+        XCTAssertEqual(Core.failText(ApproveOutcome.error(401, "clock skew"), .confirm("Laptop")),
+                       "Unable to confirm \"Laptop\".\nThis device's clock is off by more than 5 minutes. Fix the clock and try again.")
+        XCTAssertEqual(Core.failText(ApproveOutcome.error(401, "logged out"), .reject("Laptop")),
+                       "Unable to reject \"Laptop\".\nThis device is logged out. Log in to resume.")
+        XCTAssertEqual(Core.failText(ApproveOutcome.error(401, "unknown peer"), .reject("Laptop")),
+                       "Unable to reject \"Laptop\".\nThis device was removed from the account. Log in again.")
+    }
+
+    func testTokenNetworkFailureSaysUnreachable() {
+        XCTAssertEqual(ErrorCopy.tokenFailReason(URLError(.notConnectedToInternet), provider: "Google"), .unreachable)
+        XCTAssertEqual(ErrorCopy.tokenFailReason(URLError(.timedOut), provider: "Google"), .unreachable)
+        let wrapped = NSError(domain: "com.apple.AuthenticationServices.AuthorizationError", code: 1000,
+                              userInfo: [NSUnderlyingErrorKey: URLError(.networkConnectionLost) as NSError])
+        XCTAssertEqual(ErrorCopy.tokenFailReason(wrapped, provider: "Apple"), .unreachable)
+        XCTAssertEqual(ErrorCopy.tokenFailReason(NSError(domain: "x", code: 1), provider: "Apple"), .notConfirmed(provider: "Apple"))
+        XCTAssertEqual(ErrorCopy.tokenFailReason(nil, provider: "Google"), .notConfirmed(provider: "Google"))
+        XCTAssertEqual(ErrorCopy.text(.loginGoogle, ErrorCopy.tokenFailReason(URLError(.notConnectedToInternet), provider: "Google")),
+                       "Unable to log in with Google.\nThe relay server could not be reached. Check your internet connection and try again.")
+    }
 }

@@ -8,7 +8,7 @@ public enum ApproveOutcome: Equatable, Sendable {
     case result(String)      // gone, unknown, logged out, unapproved, failed..
     case rateLimited(Int64)  // countdown until
     case network
-    case error(Int)
+    case error(Int, String? = nil)   // status, error word
 }
 
 extension Core {
@@ -206,7 +206,7 @@ extension Core {
             }
             return .rateLimited(nb)
         }
-        guard r.ok, let res = r.json?["r"]?.stringValue else { return .error(r.status) }
+        guard r.ok, let res = r.json?["r"]?.stringValue else { return .error(r.status, r.error) }
         try? store.db.write {
             if var p = try store.peer(x) { p.approveResult = res; p.approveSentAt = now; try store.savePeer(p) }
         }
@@ -236,8 +236,8 @@ extension Core {
         case .completed: return .cVerified
         case .network: return ((try? store.me().loggedOut) ?? false) ? .loggedOut : .offline
         case .rateLimited: return .rateLimited
-        case .error(let s) where s == 401: return .loggedOut
-        case .error(let s) where s >= 500: return .serverError
+        case .error(let s, _) where s == 401: return .loggedOut
+        case .error(let s, _) where s >= 500: return .serverError
         default: return .other
         }
     }
@@ -262,7 +262,7 @@ extension Core {
             }
             guard let r = out.reply else { return .network }
             if r.status == 429 { return .rateLimited(clock() + Int64(r.retryAfter ?? 60)) }
-            guard r.ok, let res = r.json?["r"]?.stringValue else { return .error(r.status) }
+            guard r.ok, let res = r.json?["r"]?.stringValue else { return .error(r.status, r.error) }
             outcome = res == "denied" ? .denied : .result(res)
         } catch {
             return .error(0)

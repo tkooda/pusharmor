@@ -389,6 +389,16 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(try n.core.store.peer(x.id)!.state, .denied)
     }
 
+    /// A refused deny keeps the relay server's error word, so the toast says why.
+    func testRefusedDenyKeepsTheErrorWord() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        await n.core.fetchPeers(force: true)
+        w.script("POST", "/v1/deny/" + x.id.text, 401, "{\"error\":\"logged out\"}")
+        let o = await n.core.deny(x.id)
+        XCTAssertEqual(o, .error(401, "logged out"))
+        XCTAssertEqual(Core.failText(o, .reject("Xdev")), "Unable to reject \"Xdev\".\nThis device is logged out. Log in to resume.")
+    }
+
     func testMessagesMissingWithdrawsThenRetriesOnce() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev"), o = try dev("Odev")
         try await pairFully(n, x)

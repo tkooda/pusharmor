@@ -159,6 +159,17 @@ public enum ErrorCopy {
         }
     }
 
+    /// The reason when Google or Apple gave no id token: a network error (also as an
+    /// underlying error) = could not be reached, else `provider` did not confirm the login.
+    public static func tokenFailReason(_ e: Error?, provider: String) -> Reason {
+        var cur = e.map { $0 as NSError }
+        while let n = cur {
+            if n.domain == NSURLErrorDomain { return .unreachable }
+            cur = n.userInfo[NSUnderlyingErrorKey] as? NSError
+        }
+        return .notConfirmed(provider: provider)
+    }
+
     /// The name rule; shown only for a name that breaks it.
     public static let nameRule = "Use 1 to 32 plain ASCII characters, no double quote."
 

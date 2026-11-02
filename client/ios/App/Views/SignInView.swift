@@ -99,8 +99,12 @@ struct SignInView: View {
               let tokenData = cred.identityToken,
               let idToken = String(data: tokenData, encoding: .utf8)
         else {
-            if case .failure(let e) = result, (e as? ASAuthorizationError)?.code == .canceled { return }
-            model.toast = ErrorCopy.text(.loginApple, .notConfirmed(provider: "Apple"))
+            var err: Error?
+            if case .failure(let e) = result {
+                if (e as? ASAuthorizationError)?.code == .canceled { return }
+                err = e
+            }
+            model.toast = ErrorCopy.text(.loginApple, ErrorCopy.tokenFailReason(err, provider: "Apple"))
             return
         }
         var code: String?
