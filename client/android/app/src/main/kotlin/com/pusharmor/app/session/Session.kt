@@ -80,7 +80,8 @@ class Session(private val g: Graph) {
     /** App start / open work when signed in (no GET /peers on app open). */
     fun onAppOpen(now: Long) {
         if (BuildConfig.SCREENSHOT_MODE && ScreenshotMode.on) return
-        if (confirmRemoval()) return
+        // Another thread's removal check may wipe: its reply decides, and this open waits for the next one.
+        if (confirmRemoval() || confirming.get()) return
         if (g.identity() == null || s.flag(Settings.K.SIGNED_OUT, false)) return
         s.migrateDirectShare(g.store.peers().map { it.id }) // before the device menus show their share sheet ticks
         flavorRule()

@@ -28,6 +28,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.IOException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /** A removal signal wipes the keys only when one more GET /peers also gets 401 "unknown peer". */
 @RunWith(RobolectricTestRunner::class)
@@ -138,6 +140,31 @@ class RemovalCheckTest {
         assertEquals(ApiResult.Http(401, "bad id"), r)
         assertEquals("Unable to refresh the device list.\nTry again.", ErrorText.of("Unable to refresh the device list.", r))
         assertEquals(1, calls.size)
+        assertKept()
+        assertNull(g.settings.get(Settings.K.REMOVAL_CHECK))
+    }
+
+    /** An app open while another thread holds the check does no app open work; the held check alone decides. */
+    @Test fun appOpenDuringHeldCheckDoesNothing() = io {
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        app.fakeHttp = Interceptor { chain ->
+            calls += chain.request().method + " " + chain.request().url.encodedPath
+            entered.countDown()
+            release.await(10, TimeUnit.SECONDS)
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("x")
+                .body("{}".toResponseBody("application/json".toMediaType())).build()
+        }
+        g.settings.set(Settings.K.REMOVAL_CHECK, "removed")
+        g.settings.set(Settings.K.DIRECT_SHARE, false)
+        val other = Thread { g.session.confirmRemoval() }
+        other.start()
+        assertTrue(entered.await(10, TimeUnit.SECONDS))
+        g.session.onAppOpen(System.currentTimeMillis())
+        assertEquals(false, g.settings.get(Settings.K.DIRECT_SHARE)) // the open work (share sheet migration first) did not run
+        assertEquals(listOf("GET /v1/peers"), calls)
+        release.countDown()
+        other.join(10_000)
         assertKept()
         assertNull(g.settings.get(Settings.K.REMOVAL_CHECK))
     }
