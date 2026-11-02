@@ -565,6 +565,24 @@ def test_unsupported_toml_value_is_damaged(net, tmp_path, monkeypatch, capsys):
     assert capsys.readouterr().err == "%s is damaged. Delete it and log in again.\n" % path
 
 
+@pytest.mark.parametrize("prog", ["/nonexistent/notify", "pusharmor-no-such-notify", "NOEXEC"])
+def test_listen_exec_missing_program_keeps_the_message(net, tmp_path, monkeypatch, capsys, prog):
+    a, b = tmp_path / "a", tmp_path / "b"
+    pair_two(monkeypatch, net, a, b)
+    if prog == "NOEXEC":
+        prog = str(tmp_path / "noexec")
+        open(prog, "w").close()
+    assert run(a, "send", "keep me") == 0
+    net.stop.set()
+    since = state(b).get("since", "")
+    capsys.readouterr()
+    assert run(b, "listen", "--exec", prog) == 2
+    assert capsys.readouterr().err == 'Unable to run the notify program "%s".\nIt was not found or cannot be run.\n' % prog
+    assert state(b).get("since", "") == since
+    assert run(b, "listen", "--json") == 130
+    assert [json.loads(x)["body"] for x in capsys.readouterr().out.splitlines()] == ["keep me"]
+
+
 def test_send_no_devices_and_logout(net, tmp_path, monkeypatch, capsys):
     login(monkeypatch, tmp_path)
     assert run(tmp_path, "send", "hi") == 4

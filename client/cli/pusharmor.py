@@ -906,6 +906,7 @@ import glob
 import http.client
 import os
 import secrets
+import shutil
 import socket
 import stat
 import string
@@ -2607,6 +2608,10 @@ def cmd_listen(cx, args):
         print(format_record(rec, fmt), flush=True)
 
     cx.emit = emit
+    if args.exec and not (os.path.isfile(args.exec) and os.access(args.exec, os.X_OK) if "/" in args.exec
+                          else shutil.which(args.exec)):
+        raise Fail('Unable to run the notify program "%s".\nIt was not found or cannot be run.' % args.exec,
+                   EXIT_USAGE)
     with cx.store.state(write=False) as d:
         since = d.get("since", "")
     stream = start_receive(cx, since, LISTEN_TIMEOUT_S)
