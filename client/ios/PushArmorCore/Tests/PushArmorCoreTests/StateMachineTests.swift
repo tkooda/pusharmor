@@ -864,6 +864,21 @@ final class StateMachineTests: XCTestCase {
         XCTAssertTrue(try n.core.store.peer(x.id)!.pinned)
     }
 
+    func testPairingStartedAheadOfTheClockStillTimesOutAfter14Days() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairToShown(n, x)
+        var e = try XCTUnwrap(try n.core.store.pairing(x.id))
+        e.startedAt = clock.now + 365 * 86400
+        try n.core.store.savePairing(e)
+        let t0 = clock.now
+        await n.core.checkTimeouts()
+        XCTAssertEqual(try n.core.store.pairing(x.id)?.startedAt, t0)   // stamped now, still pending
+        clock.now += 14 * 86400
+        await n.core.checkTimeouts()
+        XCTAssertNil(try n.core.store.pairing(x.id))
+        XCTAssertFalse(try n.core.store.peer(x.id)!.pinned)
+    }
+
     /// a pairing started again while the timeout check waits on a reply is not dropped by
     /// that check.
     func testTimeoutCheckSparesPairingStartedDuringResend() async throws {

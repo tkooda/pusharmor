@@ -383,6 +383,8 @@ extension Core {
     public func checkTimeouts() async {
         let now = clock()
         var dropped = false
+        // a start set ahead of the clock counts from now on
+        try? store.db.exec("UPDATE pairing SET started_at = ? WHERE started_at > ?", [.int(now), .int(now)])
         for e in (try? store.pairings()) ?? [] where Pairing.isExpired(startedAt: e.startedAt, now: now) {
             let p = try? store.peer(e.peerId)
             let verified = p?.approveVerified ?? false
