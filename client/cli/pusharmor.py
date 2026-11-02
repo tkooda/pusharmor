@@ -1652,9 +1652,18 @@ class Ctx:
                 self.refresh()
 
 
+def _ids(xs):
+    """The device ids in a list from the relay server: text of 40 base64url characters, each once."""
+    out = []
+    for x in xs:
+        if isinstance(x, str) and len(x) == 40 and b64ok(x) and x not in out:
+            out.append(x)
+    return out
+
+
 def merge_peers(d, j, k):
     me, acct, peers = k["id"], b64d(k["id"])[:9], d["peers"]
-    d["my_allow"] = [x for x in j["my_allow"] if isinstance(x, str)] if isinstance(j.get("my_allow"), list) else []
+    d["my_allow"] = _ids(j["my_allow"]) if isinstance(j.get("my_allow"), list) else []
     listed = {it.get("id") for it in j["peers"] if isinstance(it, dict) and isinstance(it.get("id"), str)} if isinstance(j.get("peers"), list) else set()
     # stored remove messages (optional "removed"): opened with the pre-merge pins, quiet, like a live push
     for b, m in list(j["removed"].items())[:8] if isinstance(j.get("removed"), dict) else []:
@@ -1677,7 +1686,8 @@ def merge_peers(d, j, k):
         elif not p["pinned"]:
             p["sign_pub"], p["enc_pub"] = it["sign_pub"], it["enc_pub"]
         seen.append(pid)
-        p.update(platform=it["platform"] if isinstance(it.get("platform"), str) else "",
+        p.update(platform=it["platform"] if isinstance(it.get("platform"), str)
+                 and re.fullmatch(r"[a-z0-9]{1,16}", it["platform"]) else "",
                  created=it["created"] if type(it.get("created")) is int else 0,
                  logged_out=it.get("logged_out") is True, listening=it.get("listening") is not False,
                  denies_me=it.get("denies_me") is True, missing=False)
@@ -1752,7 +1762,7 @@ def allow_list_call(cx, method, path, body_of, content, with_id=True):
         except ApiError as e:
             if attempt or e.status != 400 or e.error != "messages missing":
                 raise
-            extra = [i for i in e.body.get("ids", []) if isinstance(i, str)]
+            extra = _ids(e.body.get("ids", [])) if isinstance(e.body.get("ids"), list) else []
             with cx.store.state() as d:
                 d["my_allow"] = sorted(set(d["my_allow"]) | set(extra))
             reconcile_allow(cx)

@@ -848,3 +848,17 @@ def test_non_string_peer_id_from_the_relay_server(net, tmp_path, monkeypatch, ca
     net.hooks[("GET", "peers")] = lambda *a: (200, {}, body)
     capsys.readouterr()
     assert run(tmp_path, "pair") == 0
+
+
+def test_odd_strings_from_the_relay_server_are_dropped(net, tmp_path, monkeypatch, capsys):
+    login(monkeypatch, tmp_path)
+    s, e = pa.new_key()[1], pa.new_key()[1]
+    pid = pa.b64e(pa.peer_id(fake_relay.ID_SECRET, fake_relay.ACCOUNT, pa.keyhash(s, e)))
+    peers = [{"id": pid, "sign_pub": pa.b64e(s), "enc_pub": pa.b64e(e), "platform": "\ud800", "created": 10}]
+    body = json.dumps({"my_allow": ["a b", "\ud800", 5, "/../x", pid, pid], "peers": peers}).encode()
+    net.hooks[("GET", "peers")] = lambda *a: (200, {}, body)
+    capsys.readouterr()
+    assert run(tmp_path, "pair") == 0
+    assert "Traceback" not in capsys.readouterr().err
+    assert pa._ids(["a b", "\ud800", 5, pid, pid]) == [pid]
+    assert (tmp_path / "devices.toml").exists()
