@@ -53,13 +53,6 @@ public enum S {
     /// Send banner when every chosen device got the message.
     public static func messageSentTo(_ x: String) -> String { "Message sent to \"\(x)\"" }
     public static func messageSentTo(count n: Int) -> String { "Message sent to \(n) devices" }
-    public static func notDelivered(_ x: String) -> String { "Not delivered to \(x): open PushArmor on it." }
-    public static func signedOutPeer(_ x: String) -> String { "\(x): Logged out. Log in on it to receive messages." }
-    public static func sendOnlyPeer(_ x: String) -> String { "\(x): Send only. It does not receive messages." }
-    public static func notPairedPeer(_ x: String) -> String { "\(x): Not paired. Pair with it to send messages." }
-    public static func declinedPeer(_ x: String) -> String { "\(x): It rejected this device." }
-    public static func goneFromAccountPeer(_ x: String) -> String { "\(x): It is no longer on this account." }
-    public static func notDeliveredRetry(_ x: String) -> String { "\(x): Not delivered. Try again." }
     public static let emailSendFailed = "Could not send the email. Try again."
     public static let pairHowTo1 = "Install PushArmor on the other device."
     public static let pairHowTo2 = "Log in with the same account."
@@ -113,7 +106,7 @@ public enum S {
     }
     public static func receivedWhileLocked(_ n: Int) -> String { "\(n) " + (n == 1 ? "message" : "messages") + " received while locked" }
     public static let thisPhoneOldInstall = "(this phone, old install)"
-    public static let tooLongShare = "Send the first 2048 bytes"
+    public static let tooLongShare = "Send the first 2048 characters"
     public static let showContentSwitch = "Allow message content in notifications"
     public static let lockScreenSwitch = "Allow message content on lock screen"
     public static let peerShowContentSwitch = "Show message content in notifications"

@@ -181,6 +181,32 @@ public enum ErrorCopy {
         return text(.refresh, reason(from: out))
     }
 
+    /// The two lines for one chosen device that did not get a send; nil when it did. A
+    /// result word this version does not know reads as not ready yet.
+    public static func sendResultText(_ word: String, _ x: String) -> String? {
+        let sendTo = Action.sendOne(x).line
+        switch word {
+        case "sent": return nil
+        case "gone": return "Unable to deliver message to \"\(x)\".\nOpen PushArmor on it to resolve."
+        case "logged out": return sendTo + "\nThat device is logged out. Log in on that device to receive messages."
+        case "not listening": return sendTo + "\nIt is set to send only. It does not receive messages."
+        case "unapproved": return sendTo + "\nIt is not paired with this device. Pair with it to send it messages."
+        case "denied": return sendTo + "\nIt isn't paired with this device."
+        case "unknown": return sendTo + "\nIt is no longer on this account."
+        default: return text(.sendOne(x), word.hasPrefix("failed:") ? .pushRejected : .notReady)
+        }
+    }
+
+    /// The toast for a send that threw: "Unable to send." and the reason.
+    public static func sendFailText(_ e: Error) -> String {
+        switch e as? Core.SendError {
+        case .rejected(let r)?: return text(.send, r)
+        case .clockOff?: return text(.send, .clockOff)
+        case .tooLong?: return text(.send, .tooLong)
+        default: return text(.send, reason(local: e))
+        }
+    }
+
     /// The reason for a local data error: SQLITE_FULL = storage full, any other store error =
     /// could not save.
     public static func reason(local e: Error) -> Reason {

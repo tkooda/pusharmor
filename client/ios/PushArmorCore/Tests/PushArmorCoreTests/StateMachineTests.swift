@@ -1334,17 +1334,69 @@ final class StateMachineTests: XCTestCase {
         let label = PeerLabel.label(try n.core.store.peer(x.id))
         w.rows[x.id.text]!.allow[n.id.text] = nil
         var rep = try await n.core.send("hi", as: .text, to: [x.id], allCount: 1)
-        XCTAssertEqual(rep.lines, [label + ": Not paired. Pair with it to send messages."])
+        XCTAssertEqual(rep.lines, ["Unable to send to \"\(label)\".\nIt is not paired with this device. Pair with it to send it messages."])
         w.rows[x.id.text]!.allow[n.id.text] = true
         w.rows[x.id.text]!.deny[n.id.text] = true
         rep = try await n.core.send("hi", as: .text, to: [x.id], allCount: 1)
-        XCTAssertEqual(rep.lines, [label + ": It rejected this device."])
+        XCTAssertEqual(rep.lines, ["Unable to send to \"\(label)\".\nIt isn't paired with this device."])
         w.rows[x.id.text] = nil
         rep = try await n.core.send("hi", as: .text, to: [x.id], allCount: 1)
-        XCTAssertEqual(rep.lines, [label + ": It is no longer on this account."])
-        XCTAssertEqual(S.signedOutPeer("A"), "A: Logged out. Log in on it to receive messages.")
-        XCTAssertEqual(S.notDelivered("A"), "Not delivered to A: open PushArmor on it.")
-        XCTAssertEqual(S.notDeliveredRetry("A"), "A: Not delivered. Try again.")
+        XCTAssertEqual(rep.lines, ["Unable to send to \"\(label)\".\nIt is no longer on this account."])
+        XCTAssertEqual(rep.toast, "Sent to 0 of 1 device\nUnable to send to \"\(label)\".\nIt is no longer on this account.")
+    }
+
+    func testSendResultWordsShowTwoLinesEach() {
+        let x = "Tablet"
+        XCTAssertNil(ErrorCopy.sendResultText("sent", x))
+        XCTAssertEqual(ErrorCopy.sendResultText("gone", x), "Unable to deliver message to \"Tablet\".\nOpen PushArmor on it to resolve.")
+        XCTAssertEqual(ErrorCopy.sendResultText("logged out", x),
+                       "Unable to send to \"Tablet\".\nThat device is logged out. Log in on that device to receive messages.")
+        XCTAssertEqual(ErrorCopy.sendResultText("not listening", x),
+                       "Unable to send to \"Tablet\".\nIt is set to send only. It does not receive messages.")
+        XCTAssertEqual(ErrorCopy.sendResultText("unapproved", x),
+                       "Unable to send to \"Tablet\".\nIt is not paired with this device. Pair with it to send it messages.")
+        XCTAssertEqual(ErrorCopy.sendResultText("denied", x), "Unable to send to \"Tablet\".\nIt isn't paired with this device.")
+        XCTAssertEqual(ErrorCopy.sendResultText("unknown", x), "Unable to send to \"Tablet\".\nIt is no longer on this account.")
+        let rejected = "Unable to send to \"Tablet\".\nIts push service did not accept the message. Try again later."
+        let notReady = "Unable to send to \"Tablet\".\nIt has not finished turning on notifications. Open PushArmor on it."
+        XCTAssertEqual(ErrorCopy.sendResultText("failed:net", x), rejected)
+        XCTAssertEqual(ErrorCopy.sendResultText("failed:410", x), rejected)
+        XCTAssertEqual(ErrorCopy.sendResultText("failed", x), notReady)
+        XCTAssertEqual(ErrorCopy.sendResultText("some new word", x), notReady)
+    }
+
+    func testSendPushFailureAndMissingResult() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        await n.core.fetchPeers(force: true)
+        let label = PeerLabel.label(try n.core.store.peer(x.id))
+        w.script("POST", "/v1/send", 200, "{\"r\":{\"\(x.id.text)\":\"failed:net\"}}")
+        var rep = try await n.core.send("hi", as: .text, to: [x.id], allCount: 1)
+        XCTAssertEqual(rep.toast, "Sent to 0 of 1 device\nUnable to send to \"\(label)\".\nIts push service did not accept the message. Try again later.")
+        w.script("POST", "/v1/send", 200, "{\"r\":{}}")
+        rep = try await n.core.send("hi", as: .text, to: [x.id], allCount: 1)
+        XCTAssertEqual(rep.toast, "Sent to 0 of 1 device\nUnable to send to \"\(label)\".\nIt has not finished turning on notifications. Open PushArmor on it.")
+    }
+
+    func testSendFailureToasts() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        await n.core.fetchPeers(force: true)
+        w.script("POST", "/v1/send", 500, "{}")
+        do {
+            _ = try await n.core.send("hi", as: .text, to: [x.id], allCount: 1)
+            XCTFail("expected a failed send")
+        } catch {
+            XCTAssertEqual(error as? Core.SendError, .rejected(.serverDown))
+            XCTAssertEqual(ErrorCopy.sendFailText(error), "Unable to send.\nThe relay server is not working right now. Try again later.")
+        }
+        XCTAssertEqual(ErrorCopy.sendFailText(Core.SendError.clockOff),
+                       "Unable to send.\nThis device's clock is off by more than 5 minutes. Fix the clock and try again.")
+        XCTAssertEqual(ErrorCopy.sendFailText(Core.SendError.tooLong), "Unable to send.\nThe message is longer than 2048 characters.")
+        XCTAssertEqual(ErrorCopy.sendFailText(Core.SendError.rejected(.unreachable)),
+                       "Unable to send.\nThe relay server could not be reached. Check your internet connection and try again.")
+        XCTAssertEqual(ErrorCopy.sendFailText(Core.CoreError.notPinned), "Unable to send.\nTry again.")
+        XCTAssertEqual(S.tooLongShare, "Send the first 2048 characters")
     }
 
     func testSendNotListeningShowsSendOnly() async throws {
@@ -1356,8 +1408,7 @@ final class StateMachineTests: XCTestCase {
         let rep = try await n.core.send("hi", as: .text, to: [x.id], allCount: 1)
         XCTAssertEqual(rep.results[x.id.text], "not listening")
         let label = PeerLabel.label(try n.core.store.peer(x.id))
-        XCTAssertEqual(rep.toast, "Sent to 0 of 1 device\n" + S.sendOnlyPeer(label))
-        XCTAssertTrue(S.sendOnlyPeer("Xdev").hasSuffix("Send only. It does not receive messages."))
+        XCTAssertEqual(rep.toast, "Sent to 0 of 1 device\nUnable to send to \"\(label)\".\nIt is set to send only. It does not receive messages.")
         XCTAssertFalse(try n.core.store.peer(x.id)!.listening)
         XCTAssertTrue(try n.core.store.me().fetchDue)
         XCTAssertTrue(w.take(x.id).isEmpty)

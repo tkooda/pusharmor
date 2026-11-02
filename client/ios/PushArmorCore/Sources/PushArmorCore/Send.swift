@@ -17,7 +17,7 @@ public struct SendReport: Sendable {
 }
 
 extension Core {
-    public enum SendError: Error, Equatable { case tooLong, tooLarge, noRecipients, clockOff, failed(Int), network, emailSendFailed }
+    public enum SendError: Error, Equatable { case tooLong, tooLarge, noRecipients, clockOff, rejected(ErrorCopy.Reason) }
 
     /// Send pipeline (ios 8.3): reserve n per recipient, build, refuse any M > 3800 before
     /// the network, POST /send, toast, History row dir out with per-recipient results.
@@ -36,10 +36,10 @@ extension Core {
             for id in recipients { m[id] = try buildMessage(to: id) { _ in mc } }
             return JOut.obj([("v", .int(1)), ("m", JOut.messages(m))]).data
         }
-        guard let r = out.reply else { throw SendError.network }
-        if out.isClockSkew { throw SendError.clockOff }
-        if r.status == 502 { throw SendError.emailSendFailed }
-        guard r.ok else { throw SendError.failed(r.status) }
+        guard let r = out.reply, r.ok else {
+            if out.isClockSkew { throw SendError.clockOff }
+            throw SendError.rejected(ErrorCopy.reason(from: out))
+        }
         var results: [String: String] = [:]
         if let rm = r.json?["r"]?.objectMembers {
             for (k, v) in rm { results[k] = v.stringValue ?? "failed" }
@@ -55,20 +55,16 @@ extension Core {
             if recipients.count == 1 { soleName = label }
             switch res {
             case "sent": sent += 1
-            case "gone": lines.append(S.notDelivered(label)); due = true
+            case "gone", "unapproved", "unknown": due = true
             case "logged out":
-                lines.append(S.signedOutPeer(label))
                 try? store.db.write { if var q = try store.peer(id) { q.loggedOut = true; try store.savePeer(q) } }
                 due = true
             case "not listening":
-                lines.append(S.sendOnlyPeer(label))
                 try? store.db.write { if var q = try store.peer(id) { q.listening = false; try store.savePeer(q) } }
                 due = true
-            case "unapproved": lines.append(S.notPairedPeer(label)); due = true
-            case "unknown": lines.append(S.goneFromAccountPeer(label)); due = true
-            case "denied": lines.append(S.declinedPeer(label))
-            default: lines.append(S.notDeliveredRetry(label))
+            default: break
             }
+            if let t = ErrorCopy.sendResultText(res, label) { lines.append(t) }
         }
         if due { try? store.setMe("fetch_due", .int(1)) }
         let resultsJSON = JOut.obj(recipients.map { ($0.text, .str(results[$0.text] ?? "failed")) }).text

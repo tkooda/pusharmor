@@ -51,7 +51,7 @@ final class ShareModel: ObservableObject {
         type = shared.1
         if SizeCap.isOver(text) {
             // URL and tel over cap are refused; text offers the first 2048 bytes
-            if type == .text { step = .offerTruncate } else { step = .failed(SizeCap.label(text)) }
+            if type == .text { step = .offerTruncate } else { step = .failed(ErrorCopy.sendFailText(Core.SendError.tooLong)) }
             return
         }
         await route()
@@ -80,11 +80,9 @@ final class ShareModel: ObservableObject {
         do {
             let rep = try await core.send(text, as: type, to: ids, allCount: all.count)
             step = .done(rep.toast)
-        } catch Core.SendError.clockOff {
-            step = .done(S.clockOff)
         } catch {
             if AppEnvironment.shared.updateRequired { step = .update; return }
-            step = .done("Not sent. Try again.")
+            step = .done(ErrorCopy.sendFailText(error))
         }
         try? await Task.sleep(nanoseconds: 1_500_000_000)
         close()

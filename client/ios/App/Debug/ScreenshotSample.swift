@@ -18,13 +18,13 @@ enum ScreenshotSample {
     static var signIn: Bool { args.contains("-PAScreenshotsSignIn") }
     static var update: Bool { args.contains("-PAScreenshotsUpdate") }
     /// The send error toast of an offline send (about-page shot); it stays on screen.
-    static var sendErrorToast: String? { args.contains("-PAScreenshotsSendError") ? "Not sent. Try again." : nil }
+    static var sendErrorToast: String? { args.contains("-PAScreenshotsSendError") ? ErrorCopy.text(.send, .unreachable) : nil }
     static var staysOnScreen: Bool { sentToast != nil || sendErrorToast != nil }
     /// The send results toast for a send to all three sample devices;
     /// -PAScreenshotsSentOK shows the success banner of a send to one device.
     static var sentToast: String? {
         if sentOK { return S.messageSentTo("Laptop") }
-        return args.contains("-PAScreenshotsSent") ? [S.sentTo(2, 3), S.signedOutPeer("Tablet")].joined(separator: "\n") : nil
+        return args.contains("-PAScreenshotsSent") ? [S.sentTo(2, 3), ErrorCopy.sendResultText("logged out", "Tablet")!].joined(separator: "\n") : nil
     }
     static var sentOK: Bool { args.contains("-PAScreenshotsSentOK") }
 

@@ -671,14 +671,8 @@ final class AppModel: ObservableObject {
             toast = rep.toast
             toastIsSuccess = rep.allSent
             sent = true
-        } catch Core.SendError.clockOff {
-            toast = S.clockOff
-        } catch Core.SendError.emailSendFailed {
-            toast = S.emailSendFailed
-        } catch Core.SendError.tooLong {
-            toast = SizeCap.label(text)
         } catch {
-            toast = "Not sent. Try again."
+            toast = ErrorCopy.sendFailText(error)
         }
         reload()
         return sent
