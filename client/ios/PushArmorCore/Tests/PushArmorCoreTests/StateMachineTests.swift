@@ -1077,6 +1077,21 @@ final class StateMachineTests: XCTestCase {
         XCTAssertFalse(ok2)
     }
 
+    /// a 401 "bad id" (a failed id check) is not a confirmed delete; only "unknown peer"
+    /// (no row for this device) counts as done.
+    func testDeleteSelfBadIdIsFailure() async {
+        let w = FakeWorker(), p = TestPeer()
+        w.add(p.id, signPub: p.signPub, encPub: p.encPub)
+        let api = APIClient(base: URL(string: "https://api.test")!, transport: w, clockMs: { 1761300000000 }, sleep: { _ in })
+        w.script("DELETE", "/v1/peers/", 401, "{\"error\":\"bad id\"}")
+        let bad = await StoreRepair.deleteSelf(api: api, signer: p.signer, id: p.id)
+        XCTAssertFalse(bad)
+        XCTAssertEqual(w.count("DELETE", "/v1/peers/" + p.id.text), 1)
+        w.script("DELETE", "/v1/peers/", 401, "{\"error\":\"unknown peer\"}")
+        let gone = await StoreRepair.deleteSelf(api: api, signer: p.signer, id: p.id)
+        XCTAssertTrue(gone)
+    }
+
     func testCliPeerListeningParsedAndSendOnlyExcluded() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try await pairFully(n, x)

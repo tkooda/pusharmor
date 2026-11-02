@@ -326,7 +326,8 @@ public enum StoreRepair {
     }
 
     /// DELETE /v1/peers/$self with empty m, signed with the surviving keys; one retry on
-    /// clock skew. True when the relay server confirmed (or no longer knows the device).
+    /// clock skew. True when the relay server confirmed (or no longer knows the device:
+    /// 401 "unknown peer"). A 401 "bad id" is a failed id check, not a deleted device.
     public static func deleteSelf(api: APIClient, signer: PASigner, id: PeerId) async -> Bool {
         let body = JOut.obj([("m", .obj([]))]).data
         var out = await api.call("DELETE", "/v1/peers/" + id.text, body: body, auth: .signed(signer, id), timeout: 5)
