@@ -557,6 +557,42 @@ def test_config_folder_and_state_files_others_can_change_are_refused(net, tmp_pa
     assert run(cfg, "send", "hi") == 4
 
 
+def test_symlinked_config_folder_files_and_chains_are_followed(net, tmp_path, monkeypatch, capsys):
+    real = tmp_path / "dotfiles" / "pusharmor"
+    login(monkeypatch, real)
+    store = tmp_path / "store"
+    store.mkdir(mode=0o700)
+    os.replace(real / "devices.toml", store / "devices.toml")
+    os.replace(real / "keys", store / "keys")
+    (store / "settings.toml").write_text("")
+    (store / "settings.toml").chmod(0o600)
+    (real / "keys").symlink_to(store / "keys")
+    (real / "settings.toml").symlink_to(store / "settings.toml")
+    (store / "devices-link").symlink_to(store / "devices.toml")
+    (real / "devices.toml").symlink_to(store / "devices-link")  # a chain of two links
+    cfg = tmp_path / "cfg"
+    cfg.symlink_to(real)
+    top = tmp_path / "top"
+    top.symlink_to(cfg)  # the folder through a chain of two links
+    capsys.readouterr()
+    assert run(top, "send", "hi") == 4
+    assert run(top, "rename", "zz") == 0
+    assert os.path.islink(real / "devices.toml") and state(store)["name"] == "zz"
+    assert [n for n in os.listdir(real) if n.startswith(".tmp-")] == []
+    for name in ("devices.toml", "settings.toml"):  # the target gets the same check as a file
+        (store / name).chmod(0o666)
+        capsys.readouterr()
+        assert run(top, "send", "hi") == 1
+        assert capsys.readouterr().err == "Unable to send.\n%s can be changed by other users. Fix it with: chmod go-w %s\n" % (
+            top / name, top / name)
+        (store / name).chmod(0o600)
+    real.chmod(0o777)
+    assert run(top, "send", "hi") == 1
+    assert "can be changed by other users" in capsys.readouterr().err
+    real.chmod(0o700)
+    assert run(top, "send", "hi") == 4
+
+
 def test_unsupported_toml_value_is_damaged(net, tmp_path, monkeypatch, capsys):
     login(monkeypatch, tmp_path)
     path = tmp_path / "devices.toml"

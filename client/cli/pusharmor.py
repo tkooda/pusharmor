@@ -1269,7 +1269,8 @@ def config_dir(arg=None):
 
 
 def write_file(path, text):
-    """Temp file in the same dir + os.replace; mode 0600."""
+    """Temp file in the same dir + os.replace; mode 0600. A symlink is written through, so it stays a link."""
+    path = os.path.realpath(path)
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".tmp-")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -1304,8 +1305,9 @@ def check_private(path, want):
 
 def check_unshared(path, folder):
     """A folder or regular file owned by this user that other users cannot change. It may be
-    group-writable when the group is the user's own primary group (umask 002)."""
-    st = os.lstat(path)
+    group-writable when the group is the user's own primary group (umask 002). A symlink, at any
+    level, is followed and its target checked."""
+    st = os.stat(path)
     mode = stat.S_IMODE(st.st_mode)
     if not (stat.S_ISDIR if folder else stat.S_ISREG)(st.st_mode) or st.st_uid != os.getuid():
         raise Fail("%s must be a %s owned by you." % (path, "folder" if folder else "file"))
