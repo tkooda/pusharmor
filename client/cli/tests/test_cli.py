@@ -1325,8 +1325,9 @@ def test_unknown_device_is_confirmed_before_the_keys_are_deleted(check, code, ke
     if kept:
         net.hooks.clear()
         assert pa.Store(str(tmp_path)).load_keys()["id"]
-        assert err == ("Unable to rename this device.\n"
-                       "The relay server could not be reached. Check your internet connection and try again.\n")
+        assert err == "Unable to rename this device.\n" + (
+            "Try again.\n" if check is None else
+            "The relay server could not be reached. Check your internet connection and try again.\n")
     else:
         assert err == "Unable to rename this device.\n" + pa.REMOVED + "\n"
 
@@ -1358,7 +1359,7 @@ def test_remove_message_for_this_device_is_confirmed_first(net, tmp_path, monkey
     capsys.readouterr()
     assert run(b, "listen") == 130
     err = capsys.readouterr().err
-    assert "could not be reached" in err and pa.REMOVED not in err
+    assert "could not be reached" not in err and pa.REMOVED not in err  # the relay server still lists b
     assert os.path.exists(b / "keys" / "private.toml") and ida in state(b)["peers"]
     # the same message again is not acted on twice
     net.deliver(idb, got[idb])
