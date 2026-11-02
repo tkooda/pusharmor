@@ -1048,6 +1048,8 @@ export class Engine {
   }
 
   async onFetchAlarm(): Promise<void> {
+    // a stored removal check runs first; broken keys cannot sign it
+    if (!(await this.keysBroken()) && (await this.confirmRemoval().catch(() => false))) return;
     if (await this.db.meta<boolean>("fetch_pending")) {
       await this.db.setMeta("fetch_pending", false);
       await this.fetchPeersNow().catch(() => undefined);
@@ -1541,7 +1543,7 @@ export class Engine {
     return this.runCheck(mark.then(() => this.doCheck()));
   }
 
-  /** Runs a stored removal check (start, popup open). Returns true when the device was wiped. */
+  /** Runs a stored removal check (start, popup open, fetch alarm). Returns true when the device was wiped. */
   confirmRemoval(): Promise<boolean> {
     return this.checking ?? this.runCheck(this.doCheck());
   }
@@ -1557,7 +1559,7 @@ export class Engine {
   /**
    * One signed GET /peers, no retries and no failure handling of its own (so no new check).
    * 401 "unknown peer" wipes; a list clears the check; anything else keeps the keys and the
-   * check for the next start or popup open.
+   * check for the next start, popup open, or fetch alarm.
    */
   private async doCheck(): Promise<boolean> {
     if (!(await this.db.meta(WIPE_CHECK))) return false;
