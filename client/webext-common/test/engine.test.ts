@@ -152,7 +152,7 @@ test("must_fail: wrong pairing id is could-not-read; raw n vectors, n = 0, dupli
   for (const m of cases) {
     b.p.notes.clear();
     await b.e.receive(m, "push");
-    assert.equal(b.p.notes.get("drop")!.body, T.couldNotRead);
+    assert.equal(b.p.notes.get("drop")!.body, "Unable to read a message.\nIt is not valid or was damaged.");
     assert.equal((await b.db.history())[0]!.event, "unreadable");
   }
   // consecutive could-not-read events merge with a count
@@ -163,13 +163,13 @@ test("must_fail: wrong pairing id is could-not-read; raw n vectors, n = 0, dupli
   raw[200]! ^= 1;
   b.p.notes.clear();
   await b.e.receive(b64urlEncode(raw), "push");
-  assert.equal(b.p.notes.get("drop")!.body, T.couldNotRead);
+  assert.equal(b.p.notes.get("drop")!.body, "Unable to read a message.\nIt is not valid or was damaged.");
   // a replay yields Invalid, never could-not-read
   await b.e.receive(ok, "push");
   b.p.notes.clear();
   await b.db.clear(["history"]);
   await b.e.receive(ok, "push");
-  assert.equal(b.p.notes.get("drop")!.body, T.invalid);
+  assert.equal(b.p.notes.get("drop")!.body, "Unable to read a message.\nIt is not valid or was damaged.");
 });
 
 test("Chrome drops silently but writes the History event", async () => {

@@ -492,10 +492,8 @@ function eventText(r: HistoryRow & { sender: string }): string {
       return T.loggedOutRecv(nm);
     case "logged_in":
       return T.loggedInRecv(nm);
-    case "invalid":
-      return T.invalid + count;
     default:
-      return T.couldNotRead + count;
+      return T.unreadable + count;
   }
 }
 

@@ -6,8 +6,7 @@ export const quoted = (x: string): string => (x === A_DEVICE ? x : '"' + x + '"'
 
 export const T = {
   appName: "PushArmor",
-  couldNotRead: "PushArmor received a message it could not read",
-  invalid: "Invalid message received",
+  unreadable: "Unable to read a message.\nIt is not valid or was damaged.",
   pairCommit: "A new device wants to pair. Open PushArmor.",
   pairReply: "Pairing fingerprint ready. Open PushArmor.",
   pairOpen: (fp: string) => "New device: compare " + fp,

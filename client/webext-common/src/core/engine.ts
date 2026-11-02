@@ -256,7 +256,7 @@ export class Engine {
   private async dropEvent(kind: "unreadable" | "invalid", peer: string | null, src: Src): Promise<void> {
     if (src === "returned" || src === "fetched") return;
     await this.addEvent(kind, peer);
-    if (this.penalized && src === "push") this.p.notify("drop", T.appName, kind === "invalid" ? T.invalid : T.couldNotRead);
+    if (this.penalized && src === "push") this.p.notify("drop", T.appName, T.unreadable);
   }
 
   private async addEvent(kind: NonNullable<HistoryRow["event"]>, peer: string | null): Promise<number> {
