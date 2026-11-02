@@ -17,6 +17,8 @@ Or download `pusharmor.py` from the GitHub release, check its SHA-256 against
     sha256sum -c pusharmor.py.sha256
     python3 pusharmor.py --help
 
+Also compare the hash with the one on https://pusharmor.com/download.
+
 The single file needs the `cryptography` package. Install it from your
 distribution:
 
