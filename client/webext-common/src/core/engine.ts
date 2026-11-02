@@ -1080,7 +1080,6 @@ export class Engine {
       const platform = (["android", "ios", "chrome", "firefox", "cli"] as const).includes(it.platform as Platform4) ? (it.platform as Platform4) : "android";
       const created = typeof it.created === "number" && Number.isFinite(it.created) && it.created >= 0 && it.created <= 8.64e9 ? it.created : 0;
       const snap = await this.db.peer(it.id);
-      if (snap?.removed) continue;
       seen.add(it.id);
       if (snap?.pinned && (!equal(snap.sign_pub, sp) || !equal(snap.enc_pub, ep))) {
         // keys changed, not trusted: plain drop of the list keys (a Worker list never pins)
@@ -1097,8 +1096,8 @@ export class Engine {
       }
       // field-level update on the current row in one transaction: a concurrent reserveN is kept
       await this.db.updatePeer(it.id, (cur) => {
-        let row = cur ?? newPeerRow(it.id as string, sp, ep, platform, created);
-        if (row.removed) return null;
+        // a removed row listed again with valid keys starts over as a plain row (History is kept)
+        let row = cur && !cur.removed ? cur : newPeerRow(it.id as string, sp, ep, platform, created);
         if (!row.pinned) row = { ...row, sign_pub: sp, enc_pub: ep };
         row = {
           ...row,

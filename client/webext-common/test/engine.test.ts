@@ -1314,3 +1314,15 @@ test("history older than the kept days is purged on popup open and when the days
   await e.setSettings({ historyDays: 1 });
   assert.equal((await e.db.history()).length, 0);
 });
+
+test("a removed device that the relay server lists again with the same keys is shown again", async () => {
+  const { w, a, b, c, listWithout, rm } = await removedSetup();
+  const self = (await c.e.self())!;
+  await c.e.mergePeers(listWithout(b.id, { [b.id]: await mkMsg(a, c, rm(910)) }), self);
+  assert.equal((await c.db.peer(b.id))!.removed, true);
+  await c.e.mergePeers(w.listFor(c.id), self);
+  const row = (await c.db.peer(b.id))!;
+  assert.equal(row.removed, false);
+  assert.equal(row.pinned, false);
+  assert.ok((await new Rpc(c.e).peers()).peers.some((v) => v.id === b.id));
+});
