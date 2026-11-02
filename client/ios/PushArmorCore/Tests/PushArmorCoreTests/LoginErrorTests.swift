@@ -38,9 +38,26 @@ final class LoginErrorTests: XCTestCase {
         XCTAssertEqual(S.loginFailed,
                        "Unable to log in with Google.\nGoogle login is not available in this version. Update PushArmor.")
         XCTAssertEqual(S.updateRequired, "Update PushArmor to continue.")
-        XCTAssertEqual(S.approved("Ndev"), "Ndev confirmed this device.")
-        XCTAssertEqual(S.loggedOutNotice("Ndev"), "Ndev logged out.")
-        XCTAssertEqual(S.loggedInNotice("Ndev"), "Ndev logged in.")
+        XCTAssertEqual(S.approved("Ndev"), "\"Ndev\" confirmed this device.")
+        XCTAssertEqual(S.loggedOutNotice("Ndev"), "\"Ndev\" logged out.")
+        XCTAssertEqual(S.loggedInNotice("Ndev"), "\"Ndev\" logged in.")
+    }
+
+    /// device names are always in straight double quotes; "A device" (no known name) is not.
+    func testDeviceNamesAreQuoted() {
+        XCTAssertEqual(S.loggedOutNotice(S.aPeer), "A device logged out.")
+        XCTAssertEqual(S.denied("Ndev"), "\"Ndev\" rejected this device")
+        XCTAssertEqual(S.renamed("Old", "New"), "\"Old\" renamed to \"New\"")
+        XCTAssertEqual(S.pairCrossing("Ndev"), "Pairing with \"Ndev\" in progress. Open PushArmor.")
+        XCTAssertEqual(S.declinedBy("Ndev"), "Rejected by \"Ndev\"")
+        XCTAssertEqual(S.notPairedOn("Ndev"), "Not paired on \"Ndev\"")
+        XCTAssertEqual(S.waiting("Ndev"), "Waiting for \"Ndev\": open PushArmor there and tap Codes match.")
+        XCTAssertEqual(S.noReplyYet("Ndev"), "No reply yet. Open PushArmor on \"Ndev\", or tap Send again.")
+        XCTAssertEqual(S.stillHolds("Ndev"),
+                       "\"Ndev\" still holds an earlier pairing. On \"Ndev\", tap Cancel pairing, then tap Send again.")
+        XCTAssertEqual(S.removeConfirm("Ndev"),
+                       "Remove \"Ndev\" from this account? \"Ndev\" must log in again and pair with every device again.")
+        XCTAssertEqual(S.newMessageFrom(S.aPeer), "New message from A device")
     }
 
     func testWaitTextBoundaries() {

@@ -12,32 +12,34 @@ public enum S {
     public static let pairCommit = "A new device wants to pair. Open PushArmor."
     public static func pairOpen(_ fp: String) -> String { "New device: compare \(fp)" }
     public static let pairReply = "Pairing fingerprint ready. Open PushArmor."
-    public static func pairAgain(_ x: String) -> String { "\(x) wants to pair again. Tap Pair again on its row." }
+    /// A device name in straight double quotes; "A device" (a name that is not known) stays as it is.
+    public static func quoted(_ x: String) -> String { x == aPeer ? aPeer : "\"\(x)\"" }
+    public static func pairAgain(_ x: String) -> String { quoted(x) + " wants to pair again. Tap Pair again on its row." }
     /// Pair refused on this device: one line per reason, each says why and what to do.
     public static func alreadyPaired(_ x: String) -> String { "Already paired with \"\(x)\"." }
     public static func pairingInProgress(_ x: String) -> String { "Pairing with \"\(x)\" is already in progress." }
     public static func cannotPairYet(_ x: String) -> String { "\"\(x)\" can't pair right now. Open PushArmor on that device, then try again." }
     public static let tooManyPairings = "Too many pairings are in progress. Finish or cancel one, then try again."
-    public static func pairCrossing(_ x: String) -> String { "Pairing with \(x) in progress. Open PushArmor." }
-    public static func approved(_ name: String) -> String { "\(name) confirmed this device." }
-    public static func renamed(_ old: String, _ new: String) -> String { "'\(old)' renamed to '\(new)'" }
+    public static func pairCrossing(_ x: String) -> String { "Pairing with " + quoted(x) + " in progress. Open PushArmor." }
+    public static func approved(_ name: String) -> String { quoted(name) + " confirmed this device." }
+    public static func renamed(_ old: String, _ new: String) -> String { quoted(old) + " renamed to \"\(new)\"" }
     public static let peerListChanged = "Device list changed"
     public static let thisDeviceRemoved = "This device was removed. Log in again."
     public static let accountDeleted = "Account deleted on another device."
-    public static func denied(_ name: String) -> String { "\(name) rejected this device" }
-    public static func loggedOutNotice(_ name: String) -> String { "\(name) logged out." }
-    public static func loggedInNotice(_ name: String) -> String { "\(name) logged in." }
-    public static func newMessageFrom(_ peer: String) -> String { "New message from \(peer)" }
+    public static func denied(_ name: String) -> String { quoted(name) + " rejected this device" }
+    public static func loggedOutNotice(_ name: String) -> String { quoted(name) + " logged out." }
+    public static func loggedInNotice(_ name: String) -> String { quoted(name) + " logged in." }
+    public static func newMessageFrom(_ peer: String) -> String { "New message from " + quoted(peer) }
     public static let pairingFailed = "Pairing failed. Start again on the new device."
     public static let pairingTimedOut = "Pairing timed out. Tap Pair to start again."
-    public static func waiting(_ x: String) -> String { "Waiting for \(x): open PushArmor there and tap Codes match." }
-    public static func noReplyYet(_ x: String) -> String { "No reply yet. Open PushArmor on \(x), or tap Send again." }
-    public static func stillHolds(_ x: String) -> String { "\(x) still holds an earlier pairing. On \(x), tap Cancel pairing, then tap Send again." }
-    public static func notPairedOn(_ x: String) -> String { "Not paired on \(x)" }
-    public static func declinedBy(_ x: String) -> String { "Rejected by \(x)" }
+    public static func waiting(_ x: String) -> String { "Waiting for \"\(x)\": open PushArmor there and tap Codes match." }
+    public static func noReplyYet(_ x: String) -> String { "No reply yet. Open PushArmor on \"\(x)\", or tap Send again." }
+    public static func stillHolds(_ x: String) -> String { "\"\(x)\" still holds an earlier pairing. On \"\(x)\", tap Cancel pairing, then tap Send again." }
+    public static func notPairedOn(_ x: String) -> String { "Not paired on \"\(x)\"" }
+    public static func declinedBy(_ x: String) -> String { "Rejected by \"\(x)\"" }
     public static func pairingFingerprint(_ fp: String) -> String { "Pairing fingerprint \(fp)" }
     public static func removeConfirm(_ x: String) -> String {
-        "Remove \(x) from this account? \(x) must log in again and pair with every device again."
+        "Remove \"\(x)\" from this account? \"\(x)\" must log in again and pair with every device again."
     }
     /// Device-limit row: how many devices it trusts and how many trust it.
     public static func trusts(_ n: Int, trustedBy m: Int) -> String {

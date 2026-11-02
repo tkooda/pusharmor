@@ -791,7 +791,7 @@ final class StateMachineTests: XCTestCase {
     }
 
     func testPairAgainNoticeText() {
-        XCTAssertEqual(S.pairAgain("Ndev"), "Ndev wants to pair again. Tap Pair again on its row.")
+        XCTAssertEqual(S.pairAgain("Ndev"), "\"Ndev\" wants to pair again. Tap Pair again on its row.")
     }
 
     func testPairAgainOnHalfStateStartsFreshPairing() async throws {
@@ -1583,11 +1583,11 @@ final class StateMachineTests: XCTestCase {
             LockScreen.body(mainShow: ms, peerShow: ps, mainContent: !ma, peerContent: !pa, locked: locked, peerName: "P", content: "C")
         }
         XCTAssertEqual(b(true, true, false, false, true), "C")
-        XCTAssertEqual(b(false, true, false, false, true), "New message from P")
-        XCTAssertEqual(b(true, false, false, false, true), "New message from P")
+        XCTAssertEqual(b(false, true, false, false, true), "New message from \"P\"")
+        XCTAssertEqual(b(true, false, false, false, true), "New message from \"P\"")
         XCTAssertEqual(b(false, false, false, false, false), "C")          // unlocked: full content
-        XCTAssertEqual(b(true, true, true, false, false), "New message from P")
-        XCTAssertEqual(b(true, true, false, true, false), "New message from P")
+        XCTAssertEqual(b(true, true, true, false, false), "New message from \"P\"")
+        XCTAssertEqual(b(true, true, false, true, false), "New message from \"P\"")
     }
 
     func testHistoryFilter() throws {
