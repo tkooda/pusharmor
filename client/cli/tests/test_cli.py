@@ -29,6 +29,14 @@ class Stdin:
         return self.tty
 
 
+@pytest.fixture(autouse=True)
+def umask_022():
+    """Files the tests write get mode 0644 whatever the umask of the shell; group-writable tests set the mode."""
+    old = os.umask(0o022)
+    yield
+    os.umask(old)
+
+
 @pytest.fixture
 def net(monkeypatch):
     n = Net()
@@ -528,6 +536,29 @@ def test_wipe_removes_temp_files(net, tmp_path, monkeypatch):
     assert [n for n in os.listdir(tmp_path) if n.startswith(".tmp-")] == []
 
 
+def _group(monkeypatch, name, members):
+    import grp
+    import pwd
+    from types import SimpleNamespace
+    monkeypatch.setattr(pwd, "getpwuid", lambda uid: SimpleNamespace(pw_name="me", pw_dir=str(HERE)))
+    monkeypatch.setattr(grp, "getgrgid", lambda gid: SimpleNamespace(gr_name=name, gr_mem=members))
+
+
+@pytest.mark.parametrize("name, members, ok", [
+    ("me", [], True), ("me", ["me"], True), ("staff", [], False), ("me", ["other"], False), ("me", ["me", "other"], False)])
+def test_group_writable_only_with_a_user_private_group(name, members, ok, net, tmp_path, monkeypatch, capsys):
+    cfg = _logged_in(monkeypatch, tmp_path, net)
+    _group(monkeypatch, name, members)
+    for path in (cfg, cfg / "devices.toml"):
+        path.chmod(0o775 if path == cfg else 0o664)
+        capsys.readouterr()
+        assert run(cfg, "send", "hi") == (4 if ok else 1)
+        if not ok:
+            assert capsys.readouterr().err == (
+                "Unable to send.\n%s can be changed by other users. Fix it with: chmod go-w %s\n" % (path, path))
+        path.chmod(0o700 if path == cfg else 0o600)
+
+
 def test_config_folder_and_state_files_others_can_change_are_refused(net, tmp_path, monkeypatch, capsys):
     cfg = tmp_path / "cfg"
     old = os.umask(0)
@@ -541,7 +572,8 @@ def test_config_folder_and_state_files_others_can_change_are_refused(net, tmp_pa
     assert run(cfg, "send", "hi") == 1
     assert capsys.readouterr().err == (
         "Unable to send.\n%s can be changed by other users. Fix it with: chmod go-w %s\n" % (cfg, cfg))
-    cfg.chmod(0o775)  # group-writable with the user's own primary group: still fine
+    _group(monkeypatch, "me", [])
+    cfg.chmod(0o775)  # group-writable with the user's own private primary group: still fine
     assert run(cfg, "send", "hi") == 4
     cfg.chmod(0o700)
     for name in ("devices.toml", "settings.toml"):

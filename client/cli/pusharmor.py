@@ -1303,15 +1303,27 @@ def check_private(path, want):
                "Fix: %s" % (path, mode, st.st_uid, want, os.getuid(), fix))
 
 
+def private_group(gid):
+    """True when the group has the user's name and no other members (a user private group)."""
+    try:
+        import grp
+        import pwd
+        user = pwd.getpwuid(os.getuid()).pw_name
+        g = grp.getgrgid(gid)
+    except (KeyError, ImportError):
+        return False
+    return g.gr_name == user and all(m == user for m in g.gr_mem)
+
+
 def check_unshared(path, folder):
     """A folder or regular file owned by this user that other users cannot change. It may be
-    group-writable when the group is the user's own primary group (umask 002). A symlink, at any
-    level, is followed and its target checked."""
+    group-writable when the group is the user's own private primary group (umask 002). A symlink,
+    at any level, is followed and its target checked."""
     st = os.stat(path)
     mode = stat.S_IMODE(st.st_mode)
     if not (stat.S_ISDIR if folder else stat.S_ISREG)(st.st_mode) or st.st_uid != os.getuid():
         raise Fail("%s must be a %s owned by you." % (path, "folder" if folder else "file"))
-    if mode & 0o002 or (mode & 0o020 and st.st_gid != os.getgid()):
+    if mode & 0o002 or (mode & 0o020 and not (st.st_gid == os.getgid() and private_group(st.st_gid))):
         raise Fail("%s can be changed by other users. Fix it with: chmod go-w %s" % (path, path))
 
 
