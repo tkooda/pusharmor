@@ -156,8 +156,8 @@ struct ChipFlow: Layout {
 /// above the tab bar (and above the keyboard).
 struct ComposeView: View {
     @EnvironmentObject var model: AppModel
-    /// The draft survives process death; the system restores it with the scene.
-    @SceneStorage("sendDraft") private var text = ""
+    /// The draft survives process death: it is kept in the store (AppModel.draft).
+    @State private var text: String
     @State private var asText = false
     @State private var toAll = false
     @State private var selected: Set<String> = []
@@ -174,6 +174,8 @@ struct ComposeView: View {
     @FocusState private var editing: Bool
     /// Chip name width: 150 pt at the default text size, wider at large Dynamic Type (L8).
     @ScaledMetric(relativeTo: .subheadline) private var chipNameWidth: CGFloat = 150
+
+    init(draft: String) { _text = State(initialValue: draft) }
 
     private var candidates: [Peer] {
         model.peers.filter { $0.state == .approved && $0.pinned && !$0.hidden }
@@ -227,6 +229,7 @@ struct ComposeView: View {
         }
         .onAppear { restoreSelection() }
         .onChange(of: candidates.map { $0.id.text }) { _, _ in restoreSelection() }
+        .onChange(of: text) { _, t in model.setDraft(t) }
         #if DEBUG
         .onAppear {
             if ScreenshotSample.isOn && !sampled {

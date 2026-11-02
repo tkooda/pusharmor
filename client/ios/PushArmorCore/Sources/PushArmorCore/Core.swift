@@ -28,6 +28,7 @@ public enum SettingKey {
     public static let lockShow = "lock_show"               // main switch, default on
     public static let showContent = "show_content"         // main switch, default on (was always_hide, inverted)
     public static let historyDays = "history_days"         // default 30
+    public static let sendDraft = "send_draft"             // the Send draft; gone with the wipe
 }
 
 /// Shared logic of the app, the NSE and the share extension over one store and one API client.
@@ -207,7 +208,7 @@ extension Store {
             try db.exec("DELETE FROM pairing")
             try db.exec("DELETE FROM replay")
             try db.exec("DELETE FROM allow_set")
-            try db.exec("DELETE FROM settings WHERE key IN ('pair_cap', 'removal_check')")
+            try db.exec("DELETE FROM settings WHERE key IN ('pair_cap', 'removal_check', 'send_draft')")
             db.checkpointAfterCommit = true
         }
     }

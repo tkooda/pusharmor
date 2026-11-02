@@ -117,4 +117,14 @@ final class StoreHardeningTests: XCTestCase {
         try s.appendCap(t)
         XCTAssertEqual(try s.capTimestamps(), [t - 60, t])
     }
+
+    /// the Send draft goes with the wipe.
+    func testWipeDeletesTheSendDraft() throws {
+        let s = try Store(path: tmpPath("draft"))
+        try s.setSetting(SettingKey.sendDraft, "hi")
+        try s.setSetting(SettingKey.historyDays, "7")
+        try s.wipe()
+        XCTAssertNil(try s.setting(SettingKey.sendDraft))
+        XCTAssertEqual(try s.setting(SettingKey.historyDays), "7")
+    }
 }

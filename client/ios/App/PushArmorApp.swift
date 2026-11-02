@@ -23,6 +23,8 @@ struct PushArmorApp: App {
             if p == .active {
                 AppearancePreference(stored: appearance).apply()
                 Task { await delegate.model.onForeground() }
+            } else if p == .background {
+                Task { @MainActor in delegate.model.saveDraft() }
             }
         }
     }

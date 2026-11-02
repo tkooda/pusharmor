@@ -127,7 +127,7 @@ struct HomeView: View {
                     }
                     .safeAreaInset(edge: .bottom, spacing: 0) { ToastBanner() }
                 } else {
-                    ComposeView()
+                    ComposeView(draft: model.draft)
                 }
             }
             .navigationTitle("Send")

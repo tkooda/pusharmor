@@ -308,6 +308,38 @@ final class AppModel: ObservableObject {
         notificationsOff && !cannotReceiveDismissed && (phase == .main || phase == .signedOut)
     }
 
+    // MARK: draft
+
+    /// The Send draft: kept in the store (not in backups), so it survives a kill and goes
+    /// with the wipe. Typing changes it at once; the store write waits 0.5 s for more.
+    var draft: String { pendingDraft ?? AppModel.loadDraft(store) }
+    private var pendingDraft: String?
+    private var draftSave: Task<Void, Never>?
+
+    func setDraft(_ t: String) {
+        pendingDraft = t
+        draftSave?.cancel()
+        draftSave = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            if !Task.isCancelled { self?.saveDraft() }
+        }
+    }
+
+    /// Writes a draft still waiting; also when the app goes to the background.
+    func saveDraft() {
+        guard let t = pendingDraft else { return }
+        pendingDraft = nil
+        AppModel.saveDraft(t, to: store)
+    }
+
+    static func loadDraft(_ store: Store?) -> String { (try? store?.setting(SettingKey.sendDraft)) ?? nil ?? "" }
+
+    /// An empty draft deletes the row. A wiped device keeps none.
+    static func saveDraft(_ t: String, to store: Store?) {
+        guard let store = store, (try? store.me().removed) != true else { return }
+        try? store.setSetting(SettingKey.sendDraft, t.isEmpty ? nil : t)
+    }
+
     func openNotificationSettings() {
         if let u = URL(string: UIApplication.openNotificationSettingsURLString) { UIApplication.shared.open(u) }
     }

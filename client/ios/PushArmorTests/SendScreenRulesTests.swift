@@ -91,7 +91,7 @@ final class SendScreenRulesTests: XCTestCase {
         let guarded = try NSRegularExpression(
             pattern: #"if await RecipientMemory\.send\(sel, \{[^\n]*\}\) \{\s*text = \"\""#)
         XCTAssertEqual(guarded.numberOfMatches(in: src, range: NSRange(src.startIndex..., in: src)), 1)
-        // The @State declaration plus the guarded clear; no other clear of the draft.
-        XCTAssertEqual(src.components(separatedBy: "text = \"\"").count - 1, 2)
+        // The guarded clear is the only clear of the draft (the @State starts from the saved draft).
+        XCTAssertEqual(src.components(separatedBy: "text = \"\"").count - 1, 1)
     }
 }
