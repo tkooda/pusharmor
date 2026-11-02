@@ -219,6 +219,7 @@ export function keysCard(env: UiEnv, again: () => void): HTMLElement {
 
 /** Logged out: the log in prompt (popup, and the full tab's account views). going: a code was sent. */
 export function signinCard(env: UiEnv, st: StateView, going: boolean, inTab: boolean): HTMLElement {
+  const popup = env.inPopup?.() ?? true;
   const head = going ? "Check your email for your code" : st.reg === "logged_out" ? T.signedOut : st.banner ?? "Log in to use PushArmor";
   return h(
     "div",
@@ -234,11 +235,20 @@ export function signinCard(env: UiEnv, st: StateView, going: boolean, inTab: boo
           location.hash = "#login";
           return;
         }
-        await env.openPage("#login");
+        if (!popup) {
+          location.assign("page.html#login"); // not a real popup: log in right here
+          return;
+        }
+        try {
+          await env.openPage("#login");
+        } catch {
+          location.assign("page.html#login"); // no new tab: log in right here
+          return;
+        }
         window.close();
       },
     }, going ? "Continue logging in" : "Log in"),
-    inTab ? null : h("div", { class: "opens" }, icon("open", 16), "Opens in a new tab"),
+    inTab || !popup ? null : h("div", { class: "opens" }, icon("open", 16), "Opens in a new tab"),
     h("p", { class: "e2e" }, icon("lock", 20), h("span", {}, "All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.")),
     st.platform === "firefox" && st.receiveNote ? h("div", { class: "dim" }, st.receiveNote) : null,
   );

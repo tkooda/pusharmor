@@ -66,6 +66,7 @@ export interface Browser {
     reload(id: number): Promise<void>;
     update(id: number, p: { active?: boolean; url?: string }): Promise<Tab>;
   };
+  extension?: { getViews?(f: { type: string }): unknown[] };
   windows?: {
     getLastFocused(q: { windowTypes: string[] }): Promise<{ id?: number }>;
     update(id: number, p: { focused?: boolean }): Promise<unknown>;
