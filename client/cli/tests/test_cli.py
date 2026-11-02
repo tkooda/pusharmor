@@ -409,6 +409,23 @@ def test_pair_send_listen(net, tmp_path, monkeypatch, capsys):
     assert not os.path.exists(b / "keys" / "private.toml")
 
 
+def test_device_names_in_stdout_are_in_double_quotes(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida = login(monkeypatch, a)
+    assert 'Logged in. This device is named "%s". Next:' % state(a)["name"] in capsys.readouterr().out
+    idb = pair_two(monkeypatch, net, a, b, ids=(ida, login(monkeypatch, b)))[1]
+    capsys.readouterr()
+    assert run(a, "rename", "Desk") == 0
+    assert capsys.readouterr().out == 'This device is now named "Desk".\n'
+    name = state(a)["peers"][idb]["name"]
+    prompts = []
+    monkeypatch.setattr(pa, "input", lambda prompt="": prompts.append(prompt) or "y", raising=False)
+    assert run(a, "delete", pa.id_hex(idb)[:6]) == 0
+    assert prompts == ['Remove "%s" from your account? "%s" must log in again and pair with every device again. '
+                       "[y/N] " % (name, name)]
+    assert capsys.readouterr().out == 'Removed "%s".\n' % name
+
+
 def test_ctrl_d_at_the_fingerprint_prompt_keeps_the_pairing(net, tmp_path, monkeypatch, capsys):
     a, b = tmp_path / "a", tmp_path / "b"
     ida, idb = login(monkeypatch, a), login(monkeypatch, b)

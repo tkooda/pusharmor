@@ -2444,7 +2444,7 @@ def cmd_login(cx, args):
                 raise Fail(str(e))
     with cx.store.state(write=False) as d:
         name = d["name"]
-    print("Logged in. This device is named %s. Next: run pusharmor pair to see your devices." % name)
+    print('Logged in. This device is named "%s". Next: run pusharmor pair to see your devices.' % name)
     return EXIT_OK
 
 
@@ -2859,7 +2859,7 @@ def cmd_rename(cx, args):
     allow_list_call(cx, "PATCH", "/v1/peers/" + cx.me, lambda m, names: {"name": names, "m": m}, content)
     with cx.store.state() as d:
         d["name"] = args.name
-    print("This device is now named %s." % args.name)
+    print('This device is now named "%s".' % args.name)
     return EXIT_OK
 
 
@@ -2873,7 +2873,8 @@ def cmd_delete(cx, args):
     if x == cx.me:
         q = "Remove this device from your account? It must log in again and pair with every device again. [y/N] "
     else:
-        q = "Remove %s from your account? %s must log in again and pair with every device again. [y/N] " % (name, name)
+        q = ('Remove "%s" from your account? "%s" must log in again and pair with every device again. [y/N] '
+             % (name, name))
     if not args.yes:
         if not stdin_tty():
             raise Fail("Removing needs your answer in a terminal. Add --yes to remove without asking.", EXIT_USAGE)
@@ -2889,7 +2890,7 @@ def cmd_delete(cx, args):
         d["peers"].pop(x, None)
         d["pairs"].pop(x, None)
         d["my_allow"] = [i for i in d["my_allow"] if i != x]
-    print("Removed %s." % name)
+    print('Removed "%s".' % name)
     return EXIT_OK
 
 
