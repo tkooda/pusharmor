@@ -193,7 +193,7 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
       let text = "";
       if (parent === MENU_URL) text = info.linkUrl ?? "";
       else if (parent === MENU_PAGE) text = info.pageUrl ?? tab?.url ?? "";
-      else text = await readSelection(tab, info.selectionText ?? "");
+      else text = (await readSelection(tab, info.selectionText ?? "")).slice(0, 200000); // the send window URL stays under 2 MiB
       if (!text) return;
       const { engine } = await boot();
       let r: Awaited<ReturnType<typeof menuSend>>;
