@@ -15,6 +15,14 @@ class UiTextTest {
     private val pinned = Peer(id = "p", platform = "chrome", signPub = "s", encPub = "e", pairingId = ByteArray(16),
         approved = true, approveVerified = true)
 
+    @Test fun cannotReceiveTruthTable() {
+        assertEquals(false, UiText.cannotReceive(true, false, null))
+        assertEquals(false, UiText.cannotReceive(true, false, "other"))
+        assertEquals(true, UiText.cannotReceive(false, false, null))
+        assertEquals(true, UiText.cannotReceive(true, true, null))
+        assertEquals(true, UiText.cannotReceive(true, false, "no_distributor:x"))
+    }
+
     @Test fun statusPriority() {
         assertEquals(Mark.OFF to "(missing)", UiText.status(pinned.copy(missing = true, loggedOut = true, reachable = false)))
         assertEquals(Mark.OFF to "Logged out", UiText.status(pinned.copy(loggedOut = true, reachable = false)))

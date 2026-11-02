@@ -40,9 +40,7 @@ class DevicesScreenTest {
     private fun nodes(v: View) = roots(v).flatMap { flat(it.semanticsOwner.unmergedRootSemanticsNode) }
     private fun text(n: SemanticsNode) = n.config.getOrNull(SemanticsProperties.Text)?.joinToString { it.text } ?: ""
 
-    private fun show(): android.app.Activity {
-        val app = ApplicationProvider.getApplicationContext<PaApp>()
-        val vm = AppViewModel(app)
+    private fun show(vm: AppViewModel = AppViewModel(ApplicationProvider.getApplicationContext<PaApp>())): android.app.Activity {
         UiHostActivity.content = { PeersScreen(vm) }
         val a = Robolectric.buildActivity(UiHostActivity::class.java).setup().get()
         idle()
@@ -56,10 +54,30 @@ class DevicesScreenTest {
         val a = show()
         val all = nodes(a.window.decorView)
         val list = all.first { it.config.getOrNull(SemanticsActions.ScrollBy) != null }
-        val banner = all.first { text(it).startsWith("Notifications are off") }
+        val banner = all.first { text(it).startsWith("This device cannot receive messages.") }
         val d = a.resources.displayMetrics.density
         // 8 dp list padding plus the card's own 16 dp top padding.
         assertTrue("${banner.boundsInRoot.top - list.boundsInRoot.top}", banner.boundsInRoot.top - list.boundsInRoot.top >= 24 * d - 1)
+    }
+
+    @Test fun cannotReceiveCardShowsWithReasonCloseHidesItAndNewOpenShowsItAgain() {
+        val app = ApplicationProvider.getApplicationContext<PaApp>()
+        shadowOf(app.getSystemService(NotificationManager::class.java)).setNotificationsEnabled(false)
+        val vm = AppViewModel(app)
+        val a = show(vm)
+        val all = nodes(a.window.decorView)
+        assertTrue(all.any { text(it) == "This device cannot receive messages." })
+        assertTrue(all.any { text(it) == "Allow notifications for PushArmor in Settings." })
+        nodes(a.window.decorView).first { n -> n.config.getOrNull(SemanticsActions.OnClick) != null &&
+            flat(n).any { it.config.getOrNull(SemanticsProperties.ContentDescription)?.contains("Close") == true } }
+            .config[SemanticsActions.OnClick].action?.invoke()
+        idle()
+        assertTrue(nodes(a.window.decorView).none { text(it) == "This device cannot receive messages." })
+        val b = show(AppViewModel(app))
+        assertTrue(nodes(b.window.decorView).any { text(it) == "This device cannot receive messages." })
+        shadowOf(app.getSystemService(NotificationManager::class.java)).setNotificationsEnabled(true)
+        val c = show(AppViewModel(app))
+        assertTrue(nodes(c.window.decorView).none { text(it) == "This device cannot receive messages." })
     }
 
     /** Pair a new device is a floating button that opens the how-to; it is no longer a row at the end of the list. */

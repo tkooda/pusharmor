@@ -367,19 +367,24 @@ private fun Banners(vm: AppViewModel, banner: String?, prefs: androidx.datastore
     // Read here, so every check below runs again on each return to the app.
     val tick = resumeTick()
     val n = vm.g.notifier
-    if (!n.enabled() || n.mainChannelsBlocked()) BannerRow("Notifications are off. Messages will not be shown.", "Fix", fault = true, PaIcons.NotificationsOff) {
-        safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
+    val off = !n.enabled() || n.mainChannelsBlocked()
+    val noPushApp = banner?.startsWith("no_distributor") == true
+    val closed by vm.cannotReceiveClosed.collectAsState()
+    val cannot = UiText.cannotReceive(n.enabled(), n.mainChannelsBlocked(), banner)
+    LaunchedEffect(cannot) { if (!cannot) vm.cannotReceiveClosed.value = false }
+    if (cannot && !closed) CannotReceiveBanner(
+        if (off) UiText.CANNOT_RECEIVE_NOTIFICATIONS_OFF else UiText.CANNOT_RECEIVE_NO_PUSH_APP, if (off) "Fix" else "Get",
+        onClose = { vm.cannotReceiveClosed.value = true }) {
+        if (off) safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
+        else {
+            val url = if (vm.g.push.hasPlayServices) "https://play.google.com/store/apps/details?id=io.heckel.ntfy" else "https://f-droid.org/packages/io.heckel.ntfy/"
+            startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(url))) { vm.message.value = it }
+        }
     }
     n.blockedChannelPeer(vm.peerEntities.collectAsState().value)?.let { BannerRow("Messages from $it are blocked.", "Fix", fault = true, PaIcons.NotificationsOff) {
         safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
     } }
-    if (banner?.startsWith("no_distributor") == true) {
-        BannerRow("Install a UnifiedPush app (we suggest ntfy).", "Get", fault = false, PaIcons.Info) {
-            val url = if (vm.g.push.hasPlayServices) "https://play.google.com/store/apps/details?id=io.heckel.ntfy" else "https://f-droid.org/packages/io.heckel.ntfy/"
-            startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(url))) { vm.message.value = it }
-        }
-        if (vm.g.push.hasPlayServices) TextButton(onClick = { vm.switchPush(toUp = false) }) { Text("Switch back to Google") }
-    }
+    if (noPushApp && vm.g.push.hasPlayServices) TextButton(onClick = { vm.switchPush(toUp = false) }) { Text("Switch back to Google") }
     val upAt = prefs?.get(Settings.K.UP_REGISTERED_AT)
     if (prefs?.get(Settings.K.PUSH_TYPE) == "unifiedpush" && upAt != null && !Settings.flagOf(prefs, Settings.K.UP_VERIFIED, false) && System.currentTimeMillis() - upAt > 10 * 60_000) {
         BannerRow("This push server did not deliver. Check your UnifiedPush app.", "Retry", fault = true, PaIcons.Info) { vm.retryPush() }
@@ -394,6 +399,28 @@ private fun Banners(vm: AppViewModel, banner: String?, prefs: androidx.datastore
     val am = context.getSystemService(android.app.ActivityManager::class.java)
     if (am.isBackgroundRestricted) BannerRow("Battery setting Restricted delays messages.", "Settings", fault = false, PaIcons.Info) {
         safeStart(context, Intent(SysSettings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName)))
+    }
+}
+
+/** "This device cannot receive messages." with its reason on line 2, an action, and an X that hides it until the next app open. */
+@Composable
+private fun CannotReceiveBanner(reason: String, action: String, onClose: () -> Unit, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = cs.errorContainer, contentColor = cs.onErrorContainer)) {
+        Column(Modifier.padding(start = 16.dp, top = 16.dp, end = 8.dp, bottom = 8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Icon(PaIcons.NotificationsOff, null)
+                Column(Modifier.weight(1f)) {
+                    Text(UiText.CANNOT_RECEIVE, style = MaterialTheme.typography.bodyMedium)
+                    Text(reason, style = MaterialTheme.typography.bodyMedium)
+                }
+                IconButton(onClick = onClose, Modifier.size(24.dp)) { Icon(PaIcons.Close, "Close") }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onClick, colors = ButtonDefaults.textButtonColors(contentColor = cs.onErrorContainer)) { Text(action) }
+            }
+        }
     }
 }
 

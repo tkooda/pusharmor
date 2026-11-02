@@ -38,6 +38,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     val start = MutableStateFlow<Session.Start?>(null)
     val message = MutableStateFlow<String?>(null)
+    /** The "cannot receive messages" card was closed; not saved, so it shows again on the next app open. */
+    val cannotReceiveClosed = MutableStateFlow(false)
     /** Address last sent to (lower case) and the time its resend countdown ends; kept while the screen is left and re-entered. */
     val resend = MutableStateFlow("" to 0L)
     val busy = MutableStateFlow(false)

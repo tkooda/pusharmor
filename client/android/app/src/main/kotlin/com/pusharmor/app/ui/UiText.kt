@@ -18,6 +18,14 @@ object UiText {
     /** Same words as iOS: Delete account asks first and says what follows. */
     const val DELETE_CONFIRM = "Delete this account? You must log in again to confirm. This cannot be undone."
 
+    const val CANNOT_RECEIVE = "This device cannot receive messages."
+    const val CANNOT_RECEIVE_NO_PUSH_APP = "Install a UnifiedPush app, or install PushArmor from Google Play."
+    const val CANNOT_RECEIVE_NOTIFICATIONS_OFF = "Allow notifications for PushArmor in Settings."
+
+    /** True while this device cannot show or get messages: notifications off or blocked, or no push app. */
+    fun cannotReceive(enabled: Boolean, channelsBlocked: Boolean, banner: String?): Boolean =
+        !enabled || channelsBlocked || banner?.startsWith("no_distributor") == true
+
     /** Settings note under an Apple private relay address. */
     const val APPLE_RELAY_HINT = "To log in on another device, use this address. Find it on an iPhone in Settings, under your name, in Sign in with Apple. " +
         "You can also find it at appleid.apple.com, in Hide My Email."
