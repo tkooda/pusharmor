@@ -48,15 +48,30 @@ extension Core {
         let decided: (PairDecide.Output, PairingEntry?, Peer?)
         do {
             decided = try store.db.write {
-                let e = try store.pairing(from)
-                let p = try store.peer(from)
-                let input = PairDecide.Input(
-                    ownId: me, fromId: from, commitCN: cN,
-                    entry: e.map { PairDecide.Entry(role: $0.role, state: $0.state, cN: $0.cN, replyAuthorized: $0.authorized) },
-                    pinned: p?.pinned ?? false, approved: p?.state == .approved, approveVerified: p?.approveVerified ?? false,
-                    approvesMe: p?.getApprovesMe, getAfterVerify: p?.getAfterVerify ?? false, listed: listed,
-                    openEntries: try store.pairings().count, cap: try store.capTimestamps(), now: now)
-                let out = PairDecide.decide(input)
+                func decideNow() throws -> PairDecide.Output {
+                    let e = try store.pairing(from)
+                    let p = try store.peer(from)
+                    let input = PairDecide.Input(
+                        ownId: me, fromId: from, commitCN: cN,
+                        entry: e.map { PairDecide.Entry(role: $0.role, state: $0.state, cN: $0.cN, replyAuthorized: $0.authorized) },
+                        pinned: p?.pinned ?? false, approved: p?.state == .approved, approveVerified: p?.approveVerified ?? false,
+                        approvesMe: p?.getApprovesMe, getAfterVerify: p?.getAfterVerify ?? false, listed: listed,
+                        openEntries: try store.pairings().count, cap: try store.capTimestamps(), now: now)
+                    return PairDecide.decide(input)
+                }
+                func endOld() throws {
+                    try store.deletePairing(from)
+                    // step 8: drop the pin this pairing made; keep the ruling
+                    if let q = try store.peer(from) { try store.dropPin(from, state: q.state) }
+                    if var q = try store.peer(from) { q.note = PairNote.failed.rawValue; try store.savePeer(q) }
+                }
+                var out = try decideNow()
+                if out.entry == .aborted {
+                    // The old pairing ends visibly; the new commit is then decided on its own,
+                    // so a new pairing request is not dropped.
+                    try endOld()
+                    out = try decideNow()
+                }
                 func newX(authorized: Bool) throws {
                     try store.savePairing(PairingEntry(peerId: from, role: .x, state: .prompted, r: PairingCrypto.randomR(), cN: cN,
                                                        authorized: authorized, unsent: authorized, startedAt: now, notBefore: 0,
@@ -73,10 +88,7 @@ extension Core {
                     try store.deletePairing(from)
                     try newX(authorized: true)   // a tapped reply: not counted in the cap
                 case .aborted:
-                    try store.deletePairing(from)
-                    // step 8: drop the pin this pairing made; keep the ruling
-                    if let q = try store.peer(from) { try store.dropPin(from, state: q.state) }
-                    if var q = try store.peer(from) { q.note = PairNote.failed.rawValue; try store.savePeer(q) }
+                    try endOld()   // not reached: the old entry is already gone
                 case .unchanged, .none:
                     break
                 }

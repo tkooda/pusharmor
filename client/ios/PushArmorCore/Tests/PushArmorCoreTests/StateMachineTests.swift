@@ -1069,13 +1069,17 @@ final class StateMachineTests: XCTestCase {
         _ = try await n.core.startPair(x.id)
         await x.drainInbox(w)
         _ = w.take(n.id)
-        // N restarts the pairing (new r_N): a different c_N aborts X's entry
+        let oldCN = try x.core.store.pairing(n.id)?.cN
+        // N restarts the pairing (new r_N): a different c_N aborts X's entry, and the new
+        // commit is taken as a new pairing request, not dropped
         try n.core.store.deletePairing(x.id)
         _ = try await n.core.startPair(x.id)
         let r = await x.drainInbox(w)
-        XCTAssertEqual(r.first?.banner, .dropped)
-        XCTAssertNil(try x.core.store.pairing(n.id))
-        XCTAssertEqual(try x.core.store.peer(n.id)!.note, PairNote.failed.rawValue)
+        XCTAssertEqual(r.first?.banner?.body, S.pairCommit)
+        let e = try XCTUnwrap(try x.core.store.pairing(n.id))
+        XCTAssertEqual(e.role, .x)
+        XCTAssertNotEqual(e.cN, oldCN)
+        XCTAssertNil(try x.core.store.peer(n.id)!.note)
     }
 
     /// an abort while X shows the fingerprint drops the pin X made, keeps the ruling,
@@ -1085,23 +1089,17 @@ final class StateMachineTests: XCTestCase {
         try await Scenario.pairToShown(w, n, x)
         XCTAssertTrue(try x.core.store.peer(n.id)!.pinned)
         try x.core.store.db.exec("UPDATE peers SET state = 'denied' WHERE id = ?", [.text(n.id.text)])
-        // N taps Cancel pairing, then Pair, before X approved: a different c_N aborts X's entry
-        await n.core.cancelPairing(x.id)
-        _ = w.take(x.id)
-        _ = try await n.core.startPair(x.id)
-        await x.drainInbox(w)
-        let p = try x.core.store.peer(n.id)!
-        XCTAssertNil(try x.core.store.pairing(n.id))
-        XCTAssertFalse(p.pinned)
-        XCTAssertNil(p.fingerprint)
-        XCTAssertNil(try x.core.store.replay(n.id))
-        XCTAssertEqual(p.state, .denied)
-        XCTAssertEqual(p.note, PairNote.failed.rawValue)
-        // N pairs again: X takes the new commit instead of dropping it
+        // N taps Cancel pairing request, then Pair, before X approved: a different c_N aborts
+        // X's entry, and X takes the new commit instead of dropping it
         await n.core.cancelPairing(x.id)
         _ = w.take(x.id)
         _ = try await n.core.startPair(x.id)
         let r = await x.drainInbox(w)
+        let p = try x.core.store.peer(n.id)!
+        XCTAssertFalse(p.pinned)
+        XCTAssertNil(p.fingerprint)
+        XCTAssertNil(try x.core.store.replay(n.id))
+        XCTAssertEqual(p.state, .denied)
         XCTAssertEqual(r.first?.banner?.body, S.pairCommit)
         XCTAssertEqual(try x.core.store.pairing(n.id)?.role, .x)
     }
