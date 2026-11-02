@@ -39,7 +39,7 @@ class ErrorTextTest {
             ApiResult.Http(401, "invalid client signature") to "The relay server did not accept the request. Update PushArmor and try again.",
             ApiResult.Http(413, "too large") to "The message is longer than 2048 characters.",
             ApiResult.Http(400, "push endpoint not allowed") to "This device's push service is not supported yet.",
-            ApiResult.Http(401, "bad id") to "Try again.",
+            ApiResult.Http(401, "bad id") to "The relay server did not accept the request. Update PushArmor and try again.",
             ApiResult.Http(409, "some code") to "Try again.",
             ApiResult.Http(400, null) to "Try again.",
         )
@@ -49,7 +49,7 @@ class ErrorTextTest {
     @Test fun actionLineThenReason() {
         assertEquals("Unable to send.\nThe relay server could not be reached. Check your internet connection and try again.",
             ErrorText.of("Unable to send.", ApiResult.Network))
-        assertEquals("Unable to refresh the device list.\nTry again.", ErrorText.of("Unable to refresh the device list.", ApiResult.Http(401, "bad id")))
+        assertEquals("Unable to refresh the device list.\nThe relay server did not accept the request. Update PushArmor and try again.", ErrorText.of("Unable to refresh the device list.", ApiResult.Http(401, "bad id")))
         assertEquals("Unable to send.\nThis device's push service is not supported yet.\n(push.example.com)",
             ErrorText.of("Unable to send.", ApiResult.Http(400, "push endpoint not allowed"), pushHost = "push.example.com"))
         // the host goes only on the push service line

@@ -134,12 +134,12 @@ class RemovalCheckTest {
         assertWiped(Session.REMOVED)
     }
 
-    /** 401 "bad id" is a plain failure: no check, no wipe, the action line and the plain retry line. */
+    /** 401 "bad id" is a plain failure: no check, no wipe, the action line and the request-not-accepted line. */
     @Test fun badIdNeverStartsTheCheck() = io {
         script(401 to "{\"error\":\"bad id\"}")
         val r = g.client.peers()
         assertEquals(ApiResult.Http(401, "bad id"), r)
-        assertEquals("Unable to refresh the device list.\nTry again.", ErrorText.of("Unable to refresh the device list.", r))
+        assertEquals("Unable to refresh the device list.\nThe relay server did not accept the request. Update PushArmor and try again.", ErrorText.of("Unable to refresh the device list.", r))
         assertEquals(1, calls.size)
         assertKept()
         assertNull(g.settings.get(Settings.K.REMOVAL_CHECK))

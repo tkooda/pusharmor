@@ -312,7 +312,7 @@ object ErrorText {
 
     /**
      * Why a call failed. A 2xx reply reaches here only when its body could not be used. A failed id check
-     * (401 "bad id") is not a removal: it gets the plain [TRY_AGAIN]. [pushHost] is added as a third line
+     * (401 "bad id") is not a removal: it gets [REFUSED]. [pushHost] is added as a third line
      * to an unsupported push service.
      */
     fun reason(r: ApiResult<*>, pushHost: String? = null): String = when (r) {
@@ -326,7 +326,7 @@ object ErrorText {
             r.status == 401 && r.error == "clock skew" -> CLOCK_OFF
             r.status == 401 && r.error == "unknown peer" -> REMOVED
             r.status == 401 && r.error == "logged out" -> LOGGED_OUT
-            r.status == 401 && r.error == "invalid client signature" -> REFUSED
+            r.status == 401 && (r.error == "invalid client signature" || r.error == "bad id") -> REFUSED
             r.status == 401 && r.error == "ticket expired" -> LOGIN_EXPIRED
             r.status == 401 && (r.error == "invalid ticket" || r.error == "bad ticket") -> BAD_LINK
             r.status == 401 && r.error == "wrong code" -> WRONG_CODE
