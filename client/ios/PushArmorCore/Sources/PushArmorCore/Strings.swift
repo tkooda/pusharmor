@@ -112,7 +112,7 @@ public enum S {
     public static let tooLongShare = "Send the first 2048 characters"
     /// Share sheet texts when nothing can be sent: line 1, then line 2.
     public static let shareLoggedOut = ErrorCopy.Action.send.line + "\nThis device is logged out. Open PushArmor and log in."
-    public static let shareNothing = ErrorCopy.Action.send.line + "\nThere is no text or link to send."
+    public static let shareNothing = ErrorCopy.Action.send.line + "\nThere is no text or URL to send."
     public static let shareNoPeers = ErrorCopy.Action.send.line + "\nThis device is not paired with any devices yet. Open PushArmor to pair."
     public static let showContentSwitch = "Allow message content in notifications"
     public static let lockScreenSwitch = "Allow message content on lock screen"

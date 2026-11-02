@@ -34,7 +34,7 @@ final class SendScreenRulesTests: XCTestCase {
     }
 
     func testCaptionIsPresentTenseAndFollowsSendAsText() {
-        XCTAssertEqual(SendScreenRules.caption(.url, asText: false).title, "Will open as a link")
+        XCTAssertEqual(SendScreenRules.caption(.url, asText: false).title, "Will open as a URL")
         XCTAssertEqual(SendScreenRules.caption(.tel, asText: false).title, "Will open as a phone number")
         XCTAssertEqual(SendScreenRules.caption(.text, asText: false).title, "Will arrive as text")
         XCTAssertEqual(SendScreenRules.caption(.url, asText: true).title, "Will arrive as text")

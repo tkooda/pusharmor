@@ -85,7 +85,7 @@ enum SendScreenRules {
     static func caption(_ type: SendType, asText: Bool) -> (title: String, symbol: String) {
         if asText { return ("Will arrive as text", "text.alignleft") }
         switch type {
-        case .url: return ("Will open as a link", "link")
+        case .url: return ("Will open as a URL", "link")
         case .tel: return ("Will open as a phone number", "phone")
         case .text: return ("Will arrive as text", "text.alignleft")
         }

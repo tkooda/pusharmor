@@ -66,7 +66,7 @@ final class LoginErrorTests: XCTestCase {
     /// the share sheet says what failed and why on two lines.
     func testShareTexts() {
         XCTAssertEqual(S.shareLoggedOut, "Unable to send.\nThis device is logged out. Open PushArmor and log in.")
-        XCTAssertEqual(S.shareNothing, "Unable to send.\nThere is no text or link to send.")
+        XCTAssertEqual(S.shareNothing, "Unable to send.\nThere is no text or URL to send.")
         XCTAssertEqual(S.shareNoPeers, "Unable to send.\nThis device is not paired with any devices yet. Open PushArmor to pair.")
     }
 

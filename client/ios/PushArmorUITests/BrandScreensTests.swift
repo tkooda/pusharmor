@@ -20,7 +20,7 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.buttons["Send to \"Laptop\""].waitForExistence(timeout: 30))
         XCTAssertTrue(app.tabBars.buttons["Send"].exists)
         XCTAssertTrue(app.navigationBars["Send"].exists)
-        XCTAssertTrue(app.staticTexts["Will open as a link"].exists)
+        XCTAssertTrue(app.staticTexts["Will open as a URL"].exists)
         let header = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Send to (1 of ")).firstMatch
         XCTAssertTrue(header.exists)
     }
@@ -28,7 +28,7 @@ final class BrandScreensTests: XCTestCase {
     /// Send as text sits on the hint row, at its right end.
     func testSendAsTextSharesTheHintRow() {
         let app = launch()
-        let hint = app.staticTexts["Will open as a link"]
+        let hint = app.staticTexts["Will open as a URL"]
         XCTAssertTrue(hint.waitForExistence(timeout: 30))
         let toggle = app.switches["Send as text"]
         XCTAssertTrue(toggle.exists)
