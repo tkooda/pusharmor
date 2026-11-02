@@ -222,7 +222,7 @@ internal fun KeysBrokenScreen(onRetry: () -> Unit, onDelete: () -> Unit, modifie
 internal fun deletingAfter(start: Session.Start?, deleting: Boolean): Boolean = deleting && (start == null || start == Session.Start.READY)
 
 @Composable
-private fun App(vm: AppViewModel) {
+internal fun App(vm: AppViewModel) {
     val prefs by vm.prefs.collectAsState()
     if (prefs?.get(Settings.K.UPDATE_REQUIRED) == com.pusharmor.app.BuildConfig.VERSION_NAME) { UpdateScreen(Modifier.safeDrawingPadding()); return }
     val start by vm.start.collectAsState()
@@ -251,17 +251,23 @@ private fun App(vm: AppViewModel) {
         var email by rememberSaveable { mutableStateOf(false) }
         // Logged out: no bottom bar; a Settings button on the sign-in screens opens the settings that need no account.
         var settings by rememberSaveable { mutableStateOf(false) }
+        // The cannot-receive card shows on the logged-out screen (not while deleting the account, nor on a first sign-in).
+        val host: @Composable (@Composable () -> Unit) -> Unit = { c ->
+            if (start == Session.Start.SIGNED_OUT && !deleting) CannotReceiveHost(vm, topInset = true, c) else c()
+        }
         if (settings && !deleting) {
             val close = { settings = false }
             androidx.activity.compose.BackHandler(onBack = close)
-            Box(Modifier.fillMaxSize().safeDrawingPadding()) { SettingsScreen(vm, onDeleteAccount = {}, onSignedOut = {}, onBack = close, signedIn = false) }
+            host { Box(Modifier.fillMaxSize().safeDrawingPadding()) { SettingsScreen(vm, onDeleteAccount = {}, onSignedOut = {}, onBack = close, signedIn = false) } }
             return
         }
         val onSettings = if (deleting) null else ({ settings = true })
         // Each sign-in step starts with no message from the step before.
-        if (email) EmailScreen(vm, purpose, onBack = { vm.message.value = null; email = false }, onSettings = onSettings) { deleting = false; email = false }
-        else WelcomeScreen(vm, purpose, onEmail = { vm.message.value = null; email = true }, onSettings = onSettings,
-            onCancel = if (deleting) ({ vm.message.value = null; deleting = false }) else null) { deleting = false }
+        host {
+            if (email) EmailScreen(vm, purpose, onBack = { vm.message.value = null; email = false }, onSettings = onSettings) { deleting = false; email = false }
+            else WelcomeScreen(vm, purpose, onEmail = { vm.message.value = null; email = true }, onSettings = onSettings,
+                onCancel = if (deleting) ({ vm.message.value = null; deleting = false }) else null) { deleting = false }
+        }
         return
     }
     PermissionGate {
@@ -319,11 +325,13 @@ private fun App(vm: AppViewModel) {
             // Consumed, so the Send screen's imePadding does not count the bottom bar twice.
             Box(Modifier.padding(pad).consumeWindowInsets(pad)) {
             androidx.compose.runtime.CompositionLocalProvider(LocalSnackbar provides snack) {
+            CannotReceiveHost(vm, topInset = false) {
             NavHost(nav, startDestination = "peers", modifier = Modifier.fillMaxSize()) {
                 composable("peers") { PeersScreen(vm) }
                 composable("send") { SendScreen(vm, title = "Send", onPair = pair) }
                 composable("history") { HistoryScreen(vm, onPair = pair, onSend = { tab("send") }) { id -> vm.highlight.value = id; nav.navigate("peers") } }
                 composable("settings") { SettingsScreen(vm, onDeleteAccount = { vm.message.value = null; deleting = true }, onSignedOut = {}) }
+            }
             }
             }
             // On Send it sits above the Send button, on Devices above the Pair a new device button.

@@ -354,7 +354,7 @@ class AppLogicTest {
         // The app hook marks it; the main screen and the share sheet gate on it before anything else.
         assertTrue(source("PaApp.kt").contains("onUpdateRequired = { settings.markUpdateRequired(BuildConfig.VERSION_NAME) }"))
         val act = source("ui/MainActivity.kt")
-        val app = act.substring(act.indexOf("private fun App("))
+        val app = act.substring(act.indexOf("internal fun App("))
         assertTrue(app.substring(0, app.indexOf("vm.start.collectAsState()")).contains("UPDATE_REQUIRED) == com.pusharmor.app.BuildConfig.VERSION_NAME) { UpdateScreen("))
         assertTrue(act.contains("\"Please update PushArmor\"") && act.contains("\"https://pusharmor.com/download\""))
         val share = source("ui/ShareActivity.kt")

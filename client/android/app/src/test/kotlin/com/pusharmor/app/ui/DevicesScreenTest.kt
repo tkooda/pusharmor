@@ -47,37 +47,12 @@ class DevicesScreenTest {
         return a
     }
 
-    /** The first banner card sits 8 dp below the top bar, not against it. */
-    @Test fun bannerHasGapUnderTopBar() {
+    /** The cannot-receive card is shown once above every screen, so the Devices list holds none of its own. */
+    @Test fun devicesListHoldsNoCannotReceiveCard() {
         val app = ApplicationProvider.getApplicationContext<PaApp>()
         shadowOf(app.getSystemService(NotificationManager::class.java)).setNotificationsEnabled(false)
         val a = show()
-        val all = nodes(a.window.decorView)
-        val list = all.first { it.config.getOrNull(SemanticsActions.ScrollBy) != null }
-        val banner = all.first { text(it).startsWith("This device cannot receive messages.") }
-        val d = a.resources.displayMetrics.density
-        // 8 dp list padding plus the card's own 16 dp top padding.
-        assertTrue("${banner.boundsInRoot.top - list.boundsInRoot.top}", banner.boundsInRoot.top - list.boundsInRoot.top >= 24 * d - 1)
-    }
-
-    @Test fun cannotReceiveCardShowsWithReasonCloseHidesItAndNewOpenShowsItAgain() {
-        val app = ApplicationProvider.getApplicationContext<PaApp>()
-        shadowOf(app.getSystemService(NotificationManager::class.java)).setNotificationsEnabled(false)
-        val vm = AppViewModel(app)
-        val a = show(vm)
-        val all = nodes(a.window.decorView)
-        assertTrue(all.any { text(it) == "This device cannot receive messages." })
-        assertTrue(all.any { text(it) == "Allow notifications for PushArmor in Settings." })
-        nodes(a.window.decorView).first { n -> n.config.getOrNull(SemanticsActions.OnClick) != null &&
-            flat(n).any { it.config.getOrNull(SemanticsProperties.ContentDescription)?.contains("Close") == true } }
-            .config[SemanticsActions.OnClick].action?.invoke()
-        idle()
-        assertTrue(nodes(a.window.decorView).none { text(it) == "This device cannot receive messages." })
-        val b = show(AppViewModel(app))
-        assertTrue(nodes(b.window.decorView).any { text(it) == "This device cannot receive messages." })
-        shadowOf(app.getSystemService(NotificationManager::class.java)).setNotificationsEnabled(true)
-        val c = show(AppViewModel(app))
-        assertTrue(nodes(c.window.decorView).none { text(it) == "This device cannot receive messages." })
+        assertTrue(nodes(a.window.decorView).none { text(it).startsWith("This device cannot receive messages.") })
     }
 
     /** Pair a new device is a floating button that opens the how-to; it is no longer a row at the end of the list. */

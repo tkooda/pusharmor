@@ -27,6 +27,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
@@ -367,20 +372,7 @@ private fun Banners(vm: AppViewModel, banner: String?, prefs: androidx.datastore
     // Read here, so every check below runs again on each return to the app.
     val tick = resumeTick()
     val n = vm.g.notifier
-    val off = !n.enabled() || n.mainChannelsBlocked()
     val noPushApp = banner?.startsWith("no_distributor") == true
-    val closed by vm.cannotReceiveClosed.collectAsState()
-    val cannot = UiText.cannotReceive(n.enabled(), n.mainChannelsBlocked(), banner)
-    LaunchedEffect(cannot) { if (!cannot) vm.cannotReceiveClosed.value = false }
-    if (cannot && !closed) CannotReceiveBanner(
-        if (off) UiText.CANNOT_RECEIVE_NOTIFICATIONS_OFF else UiText.CANNOT_RECEIVE_NO_PUSH_APP, if (off) "Fix" else "Get",
-        onClose = { vm.cannotReceiveClosed.value = true }) {
-        if (off) safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
-        else {
-            val url = if (vm.g.push.hasPlayServices) "https://play.google.com/store/apps/details?id=io.heckel.ntfy" else "https://f-droid.org/packages/io.heckel.ntfy/"
-            startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(url))) { vm.message.value = it }
-        }
-    }
     n.blockedChannelPeer(vm.peerEntities.collectAsState().value)?.let { BannerRow("Messages from $it are blocked.", "Fix", fault = true, PaIcons.NotificationsOff) {
         safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
     } }
@@ -402,11 +394,43 @@ private fun Banners(vm: AppViewModel, banner: String?, prefs: androidx.datastore
     }
 }
 
+/**
+ * "This device cannot receive messages." above [content], on every signed-in tab and on the logged-out screen.
+ * [topInset] pads the card below the status bar and takes that inset off [content], for screens that pad it themselves.
+ */
+@Composable
+internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    // Read here, so the checks below run again on each return to the app.
+    resumeTick()
+    val n = vm.g.notifier
+    val banner = vm.prefs.collectAsState().value?.get(Settings.K.BANNER)
+    val off = !n.enabled() || n.mainChannelsBlocked()
+    val closed by vm.cannotReceiveClosed.collectAsState()
+    val cannot = UiText.cannotReceive(n.enabled(), n.mainChannelsBlocked(), banner)
+    LaunchedEffect(cannot) { if (!cannot) vm.cannotReceiveClosed.value = false }
+    val shown = cannot && !closed
+    val top = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+    Column(Modifier.fillMaxSize()) {
+        if (shown) CannotReceiveBanner(
+            if (off) UiText.CANNOT_RECEIVE_NOTIFICATIONS_OFF else UiText.CANNOT_RECEIVE_NO_PUSH_APP, if (off) "Fix" else "Get",
+            Modifier.then(if (topInset) Modifier.windowInsetsPadding(top) else Modifier).padding(horizontal = 16.dp, vertical = 8.dp),
+            onClose = { vm.cannotReceiveClosed.value = true }) {
+            if (off) safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
+            else {
+                val url = if (vm.g.push.hasPlayServices) "https://play.google.com/store/apps/details?id=io.heckel.ntfy" else "https://f-droid.org/packages/io.heckel.ntfy/"
+                startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(url))) { vm.message.value = it }
+            }
+        }
+        Box(Modifier.weight(1f).then(if (shown && topInset) Modifier.consumeWindowInsets(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)) else Modifier)) { content() }
+    }
+}
+
 /** "This device cannot receive messages." with its reason on line 2, an action, and an X that hides it until the next app open. */
 @Composable
-private fun CannotReceiveBanner(reason: String, action: String, onClose: () -> Unit, onClick: () -> Unit) {
+private fun CannotReceiveBanner(reason: String, action: String, modifier: Modifier, onClose: () -> Unit, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp),
+    Card(modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = cs.errorContainer, contentColor = cs.onErrorContainer)) {
         Column(Modifier.padding(start = 16.dp, top = 16.dp, end = 8.dp, bottom = 8.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
