@@ -985,22 +985,17 @@ REFUSED = "The relay server did not accept the request. Update PushArmor and try
 BAD_LINK = "The login link is not valid. Request a new code and try again."
 TOO_LONG = "The message is longer than 2048 characters."
 STORAGE_FULL = "Storage is full. Free some space and try again."
-# Line 1 of an error: the action that failed, per command (pair ID and delete name the device).
-ACTIONS = {"login": "Unable to log in.", "logout": "Unable to log out.", "pair": "Unable to refresh the device list.",
-           "listen": "Unable to receive a message.", "send": "Unable to send.",
-           "rename": "Unable to rename this device."}
 UNREADABLE = "PushArmor received a message it could not read"
 KEY_HEADER = ("# PushArmor private keys of this device. Keep this file secret: with it, anyone can\n"
               "# read the messages sent to this device and send as this device. Do not copy or share it.\n")
 
 
 class Fail(Exception):
-    """A reason for stderr and an exit code. The reason is shown under the line naming the failed
-    action; full=True: the text already names it (or stands alone) and is shown as is."""
+    """A one-line reason for stderr and an exit code."""
 
-    def __init__(self, msg, code=EXIT_ERR, full=False):
+    def __init__(self, msg, code=EXIT_ERR):
         super().__init__(msg)
-        self.code, self.full = code, full
+        self.code = code
 
 
 class TempFail(Fail):
@@ -1442,9 +1437,8 @@ class Store:
         check_private(self.key_path, 0o600)
 
         def unusable():  # never deleted automatically: the user decides
-            return Fail("This device's keys have become unusable.\n"
-                        "Delete %s, then log in again. You will then pair with all your devices again."
-                        % quoted_path(self.keys_dir), full=True)
+            return Fail("This device's keys have become unusable. Delete %s, then log in again. "
+                        "You will then pair with all your devices again." % quoted_path(self.keys_dir))
 
         try:
             d = read_toml(self.key_path)
@@ -1797,7 +1791,6 @@ class Ctx:
         self.store = Store(root)
         self.settings, self.keys, self.api = {}, None, None
         self.mode, self.target, self.emit, self.last_fetch, self.skipped = "", None, None, 0, False
-        self.action = ""  # line 1 of an error: what failed
 
     @property
     def me(self):
@@ -2205,14 +2198,14 @@ def post_pair(cx, x, kind, c):
     return j["r"] if isinstance(j.get("r"), str) else "failed"
 
 
-def pair_reason(r):
+def pair_reason(r, name):
     """A post_pair or post_approve result word -> reason; the word itself is never shown."""
     if r == "network":
         return UNREACHABLE
     m = re.fullmatch(r"([0-9]{3}) ?(.*)", r)
     if m:
         return SERVER_DOWN if int(m.group(1)) >= 500 else ApiError(int(m.group(1)), m.group(2), {}).reason()
-    return device_reason(r)
+    return device_reason(r, name)
 
 
 def send_reply(cx, x):
@@ -2388,10 +2381,10 @@ def run_exec(prog, rec):
         r = subprocess.run([prog] + [re.sub("[\x00\ud800-\udfff]", "\ufffd", rec[k])
                                      for k in ("from", "name", "platform", "type", "body")])
         if r.returncode:
-            log('Unable to run the notify program "%s".\nIt stopped with status %d.' % (prog, r.returncode))
+            log('The notify program "%s" stopped with status %d. Listening continues.' % (prog, r.returncode))
     except (OSError, ValueError) as e:
         why = (getattr(e, "strerror", None) or str(e)).rstrip(".")
-        log('Unable to run the notify program "%s".\n%s.' % (prog, why))
+        log('The notify program "%s" could not be run: %s. Listening continues.' % (prog, why))
 
 
 # ---- command functions ----
@@ -2671,7 +2664,6 @@ def cmd_pair(cx, args):
             p, e = d["peers"].get(x), d["pairs"].get(x)
             sid = short_id(x, d["peers"])
         name = peer_label(p)
-        cx.action = 'Unable to pair with "%s".' % name
         if p is None:
             raise Fail("%s is no longer on this account." % name)
         if p["pinned"] and p["ruling"] == "approved" and p["approves_me"]:
@@ -2690,14 +2682,12 @@ def cmd_pair(cx, args):
                 print()  # Ctrl-D leaves the cursor after the prompt
                 raise Fail("No answer. Run pusharmor pair %s again." % sid)
             if not yes:
-                cx.action = 'Unable to reject "%s".' % name
                 deny(cx, x)
                 print("Did not pair with %s." % name)
                 return EXIT_OK
-            cx.action = 'Unable to confirm "%s".' % name
             r = approve(cx, x)
             if r not in ("sent", "stored"):
-                raise Fail(pair_reason(r))
+                raise Fail(pair_reason(r, name))
             continue
         if p["pinned"] and p["ruling"] == "approved":
             wait = "Waiting for %s to confirm this device." % name
@@ -2714,7 +2704,7 @@ def cmd_pair(cx, args):
             r = pair_start(cx, x)
         first = False
         if r not in ("sent", "429"):
-            raise Fail(pair_reason(r))
+            raise Fail(pair_reason(r, name))
         if wait != told:
             log(wait)
             told = wait
@@ -2747,8 +2737,7 @@ def cmd_listen(cx, args):
     cx.emit = emit
     if args.exec and not (os.path.isfile(args.exec) and os.access(args.exec, os.X_OK) if "/" in args.exec
                           else shutil.which(args.exec)):
-        raise Fail('Unable to run the notify program "%s".\nIt was not found or cannot be run.' % args.exec,
-                   EXIT_USAGE, full=True)
+        raise Fail('The notify program "%s" was not found or cannot be run.' % args.exec, EXIT_USAGE)
     with cx.store.state(write=False) as d:
         since = d.get("since", "")
     stream = start_receive(cx, since, LISTEN_TIMEOUT_S)
@@ -2763,18 +2752,18 @@ def cmd_listen(cx, args):
             try:
                 report_listening(cx)
             except TempFail as e:
-                log("%s\n%s Listening continues." % (cx.action, e))
+                log("%s Listening continues." % e)
                 with cx.store.state() as d:
                     d["listen_at"] = int(time.time()) - LISTEN_REPORT_S + 3600
             continue
         try:
             receive(cx, pt)
         except TempFail as e:
-            log("%s\n%s Listening continues." % (cx.action, e))
+            log("%s Listening continues." % e)
         except ApiError as e:
             if e.status == 401:
                 raise
-            log("%s\n%s Listening continues." % (cx.action, e.reason()))
+            log("%s Listening continues." % e.reason())
         with cx.store.state() as d:
             d["since"] = stream.since
 
@@ -2818,7 +2807,7 @@ def cmd_send(cx, args):
                     why = ("unknown" if p["missing"] else "unapproved" if not (
                         p["pinned"] and p["ruling"] == "approved" and p["approves_me"])
                         else "logged out" if p["logged_out"] else "not listening")
-                    raise Fail('Unable to send to "%s".\n%s' % (peer_label(p), SEND_WHY[why]), EXIT_SEND, full=True)
+                    raise Fail(SEND_WHY[why] % peer_label(p), EXIT_SEND)
                 targets.append(pid)
         if not targets:
             raise Fail("No paired devices to send to. Run pusharmor pair to pair one.", EXIT_SEND)
@@ -2833,8 +2822,7 @@ def cmd_send(cx, args):
     with cx.store.state() as d:
         for pid in failed:
             r = res.get(pid) if isinstance(res.get(pid), str) else "failed"
-            line1 = 'Unable to deliver message to "%s".' if r == "gone" else 'Unable to send to "%s".'
-            log("%s\n%s" % (line1 % names[pid], device_reason(r)))
+            log(device_reason(r, names[pid]))
             p = d["peers"].get(pid)
             if p and r == "logged out":
                 p["logged_out"] = True
@@ -2844,20 +2832,20 @@ def cmd_send(cx, args):
     return EXIT_SEND if failed else EXIT_OK
 
 
-# /v1/send, /v1/pair, and /v1/approve result word -> reason for one device (line 2 under its name).
-SEND_WHY = {"gone": "Open PushArmor on it to resolve.",
-            "logged out": "That device is logged out. Log in on that device to receive messages.",
-            "not listening": "It is set to send only. It does not receive messages.",
-            "unapproved": "It is not paired with this device. Pair with it to send it messages.",
-            "denied": "It isn't paired with this device.", "unknown": "It is no longer on this account."}
-SEND_FAILED = "Its push service did not accept the message. Try again later."  # failed:CODE
-SEND_NOT_READY = "It has not finished turning on notifications. Open PushArmor on it."  # failed, any other word
+# /v1/send, /v1/pair, and /v1/approve result word -> reason for one device (%s: its name).
+SEND_WHY = {"gone": '"%s" needs attention. Open PushArmor on it to resolve.',
+            "logged out": '"%s" is logged out. Log in on it to receive messages.',
+            "not listening": '"%s" is set to send only. It does not receive messages.',
+            "unapproved": '"%s" is not paired with this device. Pair with it to send it messages.',
+            "denied": '"%s" is not paired with this device.', "unknown": '"%s" is no longer on this account.'}
+SEND_FAILED = 'The push service of "%s" did not accept the message. Try again later.'  # failed:CODE
+SEND_NOT_READY = '"%s" has not finished turning on notifications. Open PushArmor on it.'  # failed, any other word
 
 
-def device_reason(r):
+def device_reason(r, name):
     if r in SEND_WHY:
-        return SEND_WHY[r]
-    return SEND_FAILED if r.startswith("failed:") else SEND_NOT_READY
+        return SEND_WHY[r] % name
+    return (SEND_FAILED if r.startswith("failed:") else SEND_NOT_READY) % name
 
 
 def cmd_rename(cx, args):
@@ -2883,7 +2871,6 @@ def cmd_delete(cx, args):
     x = resolve_peer(cx, args.id, with_self=True)
     with cx.store.state(write=False) as d:
         reg, name = d.get("reg"), peer_label(d["peers"].get(x))
-    cx.action = "Unable to remove this device." if x == cx.me else 'Unable to remove "%s".' % name
     if reg != "registered" and (x != cx.me or reg != "logged_out"):
         raise Fail(LOGGED_OUT if reg == "logged_out" else NOT_LOGGED_IN, EXIT_LOGIN)
     if x == cx.me:
@@ -2962,23 +2949,15 @@ def _os_error_text(e):
     path = e.filename2 or e.filename
     reason = e.strerror or str(e) or type(e).__name__
     if path:
-        return "Cannot read or write %s: %s." % (path, reason)
+        return "Cannot read or write %s: %s." % (quoted_path(str(path)), reason)
     return "Cannot read or write a file on this device: %s." % reason
 
 
-def _unable(run):
-    """Line 1 for an error caught outside _main, once the command is known."""
-    cx = run.get("cx")
-    return cx.action + "\n" if cx and cx.action else ""
-
-
 def main(argv=None):
-    """Runs one command. Every error ends on stderr as the action that failed, then the reason,
-    and an exit code from EXIT_CODES."""
-    run = {}
+    """Runs one command. Every error ends on stderr as one line, and an exit code from EXIT_CODES."""
     try:
         try:
-            return _main(argv, run)
+            return _main(argv)
         finally:
             if sys.stdout is not None:
                 sys.stdout.flush()  # a closed or full stdout fails here, not at exit
@@ -2987,7 +2966,7 @@ def main(argv=None):
         return EXIT_ERR
     except OSError as e:
         _quiet_stdout()
-        log(_unable(run) + (STORAGE_FULL if e.errno == errno.ENOSPC else _os_error_text(e)))
+        log(STORAGE_FULL if e.errno == errno.ENOSPC else _os_error_text(e))
         return EXIT_ERR
     except UnicodeError as e:
         _quiet_stdout()
@@ -2998,21 +2977,11 @@ def main(argv=None):
         return EXIT_ERR
     except Exception as e:
         _quiet_stdout()
-        log(_unable(run) + "PushArmor stopped on an unexpected error (%s). Please report it." %
-            " ".join(("%s: %s" % (type(e).__name__, e)).split()))
+        log("PushArmor stopped on an unexpected error (%s)." % " ".join(("%s: %s" % (type(e).__name__, e)).split()))
         return EXIT_BUG
 
 
-def action_line(args):
-    """Line 1 of an error for this command, until the command names the device it works on."""
-    if args.command == "delete":
-        return 'Unable to remove "%s".' % args.id
-    if args.command == "pair" and args.id:
-        return 'Unable to pair with "%s".' % args.id
-    return ACTIONS[args.command]
-
-
-def _main(argv, run):
+def _main(argv):
     try:
         check_os()
     except Fail as e:
@@ -3022,13 +2991,12 @@ def _main(argv, run):
     args = parser.parse_args(argv)
     if not getattr(args, "_check", lambda a: True)(args):
         parser.error("use only one of --json, --tsv, and --exec")
-    cx = run["cx"] = Ctx(config_dir(args.config))
-    cx.action = action_line(args)
+    cx = Ctx(config_dir(args.config))
     if args.config and os.path.exists(cx.store.root) and not os.path.isdir(cx.store.root):
-        log("%s\nThe --config path %s is a file, not a folder." % (cx.action, cx.store.root))
+        log("The --config path %s is a file, not a folder." % quoted_path(cx.store.root))
         return EXIT_USAGE
     if args.config and args.command not in ("login", "logout") and not os.path.isdir(cx.store.root):
-        log("%s\nThis device is not logged in. The --config folder %s does not exist." % (cx.action, cx.store.root))
+        log("This device is not logged in. The --config folder %s does not exist." % quoted_path(cx.store.root))
         return EXIT_LOGIN
     try:
         if args.command not in ("login", "logout"):
@@ -3038,23 +3006,23 @@ def _main(argv, run):
         log("Stopped.")
         return 130
     except Fail as e:
-        log(str(e) if e.full else "%s\n%s" % (cx.action, e))
+        log(str(e))
         return e.code
     except ApiError as e:
         if e.status == 401 and e.error == "unknown peer":
             gone = removed_confirmed(cx)
             if not gone:
-                log("%s\n%s" % (cx.action, UNREACHABLE if gone is None else "Try again."))
+                log(UNREACHABLE if gone is None else "The relay server did not confirm this device yet. Try again.")
                 return EXIT_TEMP
             cx.store.wipe()
-            log("%s\n%s" % (cx.action, REMOVED))
+            log(REMOVED)
             return EXIT_LOGIN
         if e.status == 401 and e.error == "logged out":
             with contextlib.suppress(Fail, OSError), cx.store.state() as d:
                 d["reg"] = "logged_out"
-            log("%s\n%s" % (cx.action, LOGGED_OUT))
+            log(LOGGED_OUT)
             return EXIT_LOGIN
-        log("%s\n%s" % (cx.action, e.reason()))
+        log(e.reason())
         return EXIT_ERR
 
 
