@@ -14,7 +14,12 @@ import org.unifiedpush.android.connector.data.PushMessage
 class UpService : PushService() {
     private val g get() = (application as PaApp).graph
 
-    override fun onNewEndpoint(endpoint: PushEndpoint, instance: String) {
+    /** The push state is in the database: a damaged one drops this call (startup registers again) instead of crashing the app. */
+    private fun stored(block: () -> Unit) {
+        try { block() } catch (e: android.database.SQLException) { android.util.Log.w("PushArmor", "push state not saved", e) }
+    }
+
+    override fun onNewEndpoint(endpoint: PushEndpoint, instance: String) = stored {
         UnifiedPushSupport.onNewEndpoint(g, endpoint.url, endpoint.pubKeySet?.pubKey, endpoint.pubKeySet?.auth)
     }
 
@@ -28,11 +33,11 @@ class UpService : PushService() {
         Work.upPush(this, probe?.value, if (probe == null) text.trim() else null)
     }
 
-    override fun onRegistrationFailed(reason: FailedReason, instance: String) {
+    override fun onRegistrationFailed(reason: FailedReason, instance: String) = stored {
         if (UnifiedPushSupport.active(g)) g.settings.set(Settings.K.BANNER, "no_distributor:${reason.name}")
     }
 
-    override fun onUnregistered(instance: String) {
+    override fun onUnregistered(instance: String) = stored {
         UnifiedPushSupport.clearEndpoint(g)
         // After a switch to Google the distributor confirms the unregister: do not register again.
         if (UnifiedPushSupport.active(g)) UnifiedPushSupport.register(g)

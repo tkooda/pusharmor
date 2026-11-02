@@ -1,34 +1,61 @@
 package com.pusharmor.app.data
 
 import android.content.Context
+import android.database.SQLException
+import android.os.Looper
+import android.util.Log
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.preferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.pusharmor.store.PaDao
+import com.pusharmor.store.StateEntity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.runBlocking
 
 /**
- * A corrupt file (flash error, truncated restore) resets to defaults instead of failing every read. The reset
- * marks a sign-in in progress: the lost mark may belong to keys a sign-in just registered, so startup keeps them.
+ * A corrupt file (flash error, truncated restore) resets to defaults instead of failing every read, and the reset
+ * notice shows once. The reset also marks a sign-in in progress: a file from an older version may have held that
+ * mark for keys a sign-in just registered, so startup keeps them.
  */
-private val Context.ds by preferencesDataStore("settings", corruptionHandler = ReplaceFileCorruptionHandler { preferencesOf(Settings.K.SIGN_IN_KEYS to true) })
+private val Context.ds by preferencesDataStore("settings", corruptionHandler = ReplaceFileCorruptionHandler {
+    preferencesOf(Settings.K.SIGN_IN_KEYS to true, Settings.K.SETTINGS_RESET to true)
+})
 
-/** DataStore settings (section 8 list) plus small app state. */
-class Settings(private val context: Context) {
-    init { migrateShowContent() }
+/**
+ * DataStore preferences (section 8 list) plus small app state. The security state in [IN_DB] is kept in the
+ * database instead, which shows the data screen on damage: a damaged settings file never resets it.
+ */
+class Settings(private val context: Context, private val dao: PaDao) {
+    init { migrateShowContent(); moveToDb() }
 
     companion object {
         /** A flag from an already loaded snapshot; [default] until it loads or while unset. */
         fun flagOf(p: Preferences?, key: Preferences.Key<Boolean>, default: Boolean): Boolean = p?.get(key) ?: default
+
+        /** Keys kept in the database's app_state table, by name. */
+        val IN_DB: Map<String, Preferences.Key<*>> = listOf(
+            K.SIGNED_OUT, K.LOGOUT_PENDING, K.REMOVAL_CHECK, K.OLD_ID, K.SIGN_IN_KEYS, K.PENDING_PURPOSE,
+            K.PUSH_TYPE, K.PUSH_TOKEN, K.UP_ENDPOINT, K.UP_P256DH, K.UP_AUTH, K.UP_REGISTERED_AT, K.UP_VERIFIED, K.PUSH_REFUSED,
+        ).associateBy { it.name }
+        private val BOOLS = setOf(K.SIGNED_OUT, K.LOGOUT_PENDING, K.SIGN_IN_KEYS, K.UP_VERIFIED, K.PUSH_REFUSED).map { it.name }
+        private val LONGS = setOf(K.UP_REGISTERED_AT.name)
+
+        private fun encode(v: Any): String = if (v is Boolean) (if (v) "1" else "0") else v.toString()
+        private fun decode(name: String, v: String): Any = when (name) { in BOOLS -> v == "1"; in LONGS -> v.toLong(); else -> v }
     }
 
     object K {
@@ -78,14 +105,61 @@ class Settings(private val context: Context) {
         val SIGN_IN_KEYS = booleanPreferencesKey("sign_in_keys")
         /** App version that got HTTP 426; the update screen shows while it is the running version. */
         val UPDATE_REQUIRED = stringPreferencesKey("update_required")
+        /** The file was damaged and reset to defaults; cleared when the notice shows. */
+        val SETTINGS_RESET = booleanPreferencesKey("settings_reset")
     }
 
-    val data: Flow<Preferences> get() = context.ds.data
+    /** Room refuses main-thread calls: a main-thread call waits on an IO thread, as the DataStore reads here do. */
+    private fun <T> db(block: () -> T): T = if (Looper.myLooper() == Looper.getMainLooper()) runBlocking(Dispatchers.IO) { block() } else block()
 
-    fun <T> get(key: Preferences.Key<T>): T? = runBlocking { context.ds.data.first()[key] }
+    /** A damaged database reads as no state here (the data screen shows), checked again until it opens. */
+    private val dbState: Flow<List<StateEntity>> = dao.stateFlow().retryWhen { e, _ ->
+        if (e !is SQLException) return@retryWhen false
+        emit(emptyList()); delay(2000); true
+    }
 
-    fun <T> set(key: Preferences.Key<T>, value: T?) = runBlocking {
-        context.ds.edit { if (value == null) it.remove(key) else it[key] = value }
+    /** The preferences with the database state laid over them, so screens read both from one snapshot. */
+    val data: Flow<Preferences> get() = combine(context.ds.data, dbState) { p, rows ->
+        p.toMutablePreferences().also { m -> for (r in rows) put(m, r) }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun put(m: MutablePreferences, r: StateEntity) {
+        val key = IN_DB[r.k] as? Preferences.Key<Any> ?: return
+        m[key] = decode(r.k, r.v)
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    fun <T> get(key: Preferences.Key<T>): T? =
+        if (key.name in IN_DB) db { dao.state(key.name) }?.let { decode(key.name, it) as T }
+        else runBlocking { context.ds.data.first()[key] }
+
+    fun <T> set(key: Preferences.Key<T>, value: T?) {
+        if (key.name in IN_DB) db { if (value == null) dao.deleteState(key.name) else dao.putState(StateEntity(key.name, encode(value))) }
+        else runBlocking { context.ds.edit { if (value == null) it.remove(key) else it[key] = value } }
+    }
+
+    /**
+     * Security state an older version kept in the settings file goes to the database; a value already there wins.
+     * The file keys are dropped only after the database write; a damaged database keeps them for the next start.
+     */
+    private fun moveToDb() {
+        val p = runBlocking { context.ds.data.first() }
+        val old = IN_DB.values.filter { p.contains(it) }
+        if (old.isEmpty()) return
+        try {
+            db { for (k in old) if (dao.state(k.name) == null) dao.putState(StateEntity(k.name, encode(p[k]!!))) }
+        } catch (e: SQLException) {
+            Log.w("PushArmor", "settings move deferred", e); return
+        }
+        runBlocking { context.ds.edit { e -> old.forEach { e.remove(it) } } }
+    }
+
+    /** True once after the settings file was damaged and reset; the mark is then cleared. */
+    fun takeResetNotice(): Boolean = runBlocking {
+        var had = false
+        context.ds.edit { had = it[K.SETTINGS_RESET] == true; it.remove(K.SETTINGS_RESET) }
+        had
     }
 
     /** Last send selection; suspends on DataStore and never blocks the caller, so the Send screen calls it on main. */
@@ -97,7 +171,7 @@ class Settings(private val context: Context) {
 
     fun flag(key: Preferences.Key<Boolean>, default: Boolean): Boolean = get(key) ?: default
 
-    fun <T> flow(key: Preferences.Key<T>): Flow<T?> = context.ds.data.map { it[key] }
+    fun <T> flow(key: Preferences.Key<T>): Flow<T?> = data.map { it[key] }
 
     val showAll get() = flag(K.SHOW_ALL, true)
     val tapOpensLink get() = flag(K.TAP_OPENS_LINK, true)
@@ -141,11 +215,8 @@ class Settings(private val context: Context) {
     }
 
     /** Clears everything except old_id (kept across the wipe for DELETE /peers/$old-id). */
-    fun clearKeepingOldId() = runBlocking {
-        context.ds.edit {
-            val old = it[K.OLD_ID]
-            it.clear()
-            if (old != null) it[K.OLD_ID] = old
-        }
+    fun clearKeepingOldId() {
+        db { dao.clearStateExcept(K.OLD_ID.name) }
+        runBlocking { context.ds.edit { it.clear() } }
     }
 }

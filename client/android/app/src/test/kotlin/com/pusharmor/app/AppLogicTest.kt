@@ -358,14 +358,14 @@ class AppLogicTest {
         val screen = main.substring(main.indexOf("fun SendScreen("), main.indexOf("private fun TypeCaption("))
         assertFalse(screen.contains("LAST_SEND_TO") || screen.contains("runBlocking"))
         val ctx = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
-        val s = com.pusharmor.app.data.Settings(ctx)
+        val s = com.pusharmor.app.data.Settings(ctx, com.pusharmor.store.PaDatabase.open(ctx, name = null, multiInstance = false).dao())
         kotlinx.coroutines.runBlocking { s.saveSendTo(listOf("a", "b")) }
         assertEquals("a,b", kotlinx.coroutines.runBlocking { s.lastSendTo() })
     }
 
     @Test fun http426ShowsUpdateScreenUntilVersionChanges() {
         val ctx = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
-        val s = com.pusharmor.app.data.Settings(ctx)
+        val s = com.pusharmor.app.data.Settings(ctx, com.pusharmor.store.PaDatabase.open(ctx, name = null, multiInstance = false).dao())
         assertFalse(s.updateRequired("0.0.19"))
         s.markUpdateRequired("0.0.19")
         assertTrue(s.updateRequired("0.0.19"))

@@ -17,7 +17,7 @@ import org.robolectric.annotation.Config
 class ShowContentMigrationTest {
     private fun settings(): Settings {
         val ctx = ApplicationProvider.getApplicationContext<android.app.Application>()
-        return Settings(ctx).also { it.set(Settings.K.HIDE_CONTENT, null); it.set(Settings.K.SHOW_CONTENT, null) } // the DataStore is shared across tests
+        return Settings(ctx, com.pusharmor.store.PaDatabase.open(ctx, name = null, multiInstance = false).dao()).also { it.set(Settings.K.HIDE_CONTENT, null); it.set(Settings.K.SHOW_CONTENT, null) } // the DataStore is shared across tests
     }
 
     @Test fun oldTrueBecomesShowFalse() {

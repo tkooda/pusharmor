@@ -45,7 +45,6 @@ open class PaApp : Application() {
 
 /** Object graph (no DI framework). */
 class Graph(val app: PaApp) {
-    val settings = Settings(app)
     /** The database file was made new in this process (first start, or a reset of a corrupt file); its "no self row" is not proof. */
     @Volatile var dbCreated = false
     /** A corrupt database file met in this process; kept until the user confirms Reset this device. */
@@ -53,6 +52,7 @@ class Graph(val app: PaApp) {
     val db = PaDatabase.open(app, multiInstance = app.multiInstanceDb(), onCorrupt = { corruptDb = it }) { dbCreated = true }
     val store = RoomLocalStore(db)
     val dao = store.dao
+    val settings = Settings(app, dao)
     val notifier = Notifier(app, settings, dao)
     val push = PushFlavor.create(app)
     private val random = SecureRandom()

@@ -63,6 +63,9 @@ object UiText {
     const val KEYS_BROKEN_DIALOG_TITLE = "Delete broken keys?"
     const val KEYS_BROKEN_DIALOG_BODY = "This cannot be undone. You will need to pair all your devices again."
 
+    /** Snackbar once after a damaged settings file was reset to defaults. */
+    const val SETTINGS_RESET = "Your settings were reset."
+
     /** Same layout as the keys screen: a database file that cannot be read; resetting it is the user's choice and asks first. */
     const val DATA_BROKEN_TITLE = "This device's data has become unusable."
     const val DATA_BROKEN_BODY = "Tap Retry to try again. If this keeps happening, you can reset this device. " +

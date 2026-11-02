@@ -16,7 +16,7 @@ import org.robolectric.annotation.Config
 class ShareSheetMigrationTest {
     private fun settings(): Settings {
         val ctx = ApplicationProvider.getApplicationContext<android.app.Application>()
-        return Settings(ctx).also { it.set(Settings.K.DIRECT_SHARE, null); it.set(Settings.K.SHARE_OFF, null) } // the DataStore is shared across tests
+        return Settings(ctx, com.pusharmor.store.PaDatabase.open(ctx, name = null, multiInstance = false).dao()).also { it.set(Settings.K.DIRECT_SHARE, null); it.set(Settings.K.SHARE_OFF, null) } // the DataStore is shared across tests
     }
 
     @Test fun oldOffTurnsEveryDeviceOff() {

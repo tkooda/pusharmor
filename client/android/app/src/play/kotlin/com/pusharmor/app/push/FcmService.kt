@@ -18,7 +18,8 @@ class FcmService : FirebaseMessagingService() {
     }
 
     override fun onNewToken(token: String) {
-        (g.push as? FlavorPush)?.onToken(g, token)
+        // The push state is in the database: a damaged one drops this token (startup fetches it again) instead of crashing the app.
+        try { (g.push as? FlavorPush)?.onToken(g, token) } catch (e: android.database.SQLException) { android.util.Log.w("PushArmor", "push token not saved", e) }
     }
 
     override fun onDeletedMessages() {

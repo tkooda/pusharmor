@@ -21,7 +21,7 @@ class SettingsCorruptTest {
         val ctx = ApplicationProvider.getApplicationContext<android.app.Application>()
         val f = File(ctx.filesDir, "datastore/settings.preferences_pb")
         f.parentFile!!.mkdirs(); f.writeBytes(byteArrayOf(0x0a, 0x7f, 0x01, 0x02, 0x03))
-        val s = Settings(ctx)
+        val s = Settings(ctx, com.pusharmor.store.PaDatabase.open(ctx, name = null, multiInstance = false).dao())
         assertNull(s.get(Settings.K.CH_MESSAGES))
         assertTrue(s.flag(Settings.K.SIGN_IN_KEYS, false))
         s.set(Settings.K.CH_MESSAGES, "m1")

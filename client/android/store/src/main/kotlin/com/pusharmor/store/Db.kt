@@ -122,6 +122,10 @@ data class HistoryEntity(
     val count: Int,
 )
 
+/** App security state by key (signed out, removal check, old id, push registration); the app's Settings owns the keys. */
+@Entity(tableName = "app_state")
+data class StateEntity(@PrimaryKey val k: String, val v: String)
+
 @Dao
 interface PaDao {
     @Query("SELECT * FROM self WHERE k = 0") fun self(): SelfEntity?
@@ -186,11 +190,17 @@ interface PaDao {
     /** Keeps the [keep] newest rows by received time (ties: newest id). */
     @Query("UPDATE history SET received_at = :to WHERE received_at > :now") fun clampHistoryTimes(now: Long, to: Long)
     @Query("DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY received_at DESC, id DESC LIMIT :keep)") fun trimHistory(keep: Int)
+
+    @Query("SELECT v FROM app_state WHERE k = :k") fun state(k: String): String?
+    @Query("SELECT * FROM app_state") fun stateFlow(): Flow<List<StateEntity>>
+    @Upsert fun putState(s: StateEntity)
+    @Query("DELETE FROM app_state WHERE k = :k") fun deleteState(k: String)
+    @Query("DELETE FROM app_state WHERE k != :keep") fun clearStateExcept(keep: String)
 }
 
 @Database(
-    entities = [SelfEntity::class, PeerEntity::class, PairingEntity::class, CapEntity::class, ReplayEntity::class, AllowEntity::class, HistoryEntity::class],
-    version = 6,
+    entities = [SelfEntity::class, PeerEntity::class, PairingEntity::class, CapEntity::class, ReplayEntity::class, AllowEntity::class, HistoryEntity::class, StateEntity::class],
+    version = 7,
     exportSchema = true,
 )
 abstract class PaDatabase : RoomDatabase() {
@@ -239,6 +249,13 @@ abstract class PaDatabase : RoomDatabase() {
             }
         }
 
+        /** 6 -> 7: app_state, the security state that moved out of the settings file. */
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `app_state` (`k` TEXT NOT NULL, `v` TEXT NOT NULL, PRIMARY KEY(`k`))")
+            }
+        }
+
         /**
          * [onCreate] runs when the file is made new: first start, or after a confirmed [deleteCorrupt]. A corrupt
          * file is kept: SQLite hands it to [onCorrupt] instead of deleting it, and the call that met it throws.
@@ -246,7 +263,7 @@ abstract class PaDatabase : RoomDatabase() {
         fun open(context: Context, name: String? = NAME, multiInstance: Boolean = true, onCorrupt: (SupportSQLiteDatabase) -> Unit = {}, onCreate: () -> Unit = {}): PaDatabase {
             val b = if (name == null) Room.inMemoryDatabaseBuilder(context, PaDatabase::class.java)
             else Room.databaseBuilder(context, PaDatabase::class.java, name).let { if (multiInstance) it.enableMultiInstanceInvalidation() else it }
-            return b.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+            return b.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .openHelperFactory(KeepCorruptFactory(onCorrupt))
                 .addCallback(object : RoomDatabase.Callback() { override fun onCreate(db: SupportSQLiteDatabase) = onCreate() }).build()
         }

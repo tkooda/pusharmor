@@ -62,6 +62,17 @@ class AppViewModelTest {
             AppViewModel.localReason(java.security.KeyStoreException("ks")))
     }
 
+    /** A reset settings file says so once in the main screen's snackbar. */
+    @Test fun settingsResetNoticeShowsOnce() {
+        val vm = vm()
+        vm.g.settings.set(Settings.K.SETTINGS_RESET, true)
+        vm.resetNotice()
+        assertEquals("Your settings were reset.", vm.message.value)
+        vm.message.value = null
+        vm.resetNotice()
+        assertNull(vm.message.value)
+    }
+
     @Test fun onceErrorReleasesKey() {
         val vm = vm()
         vm.once("send", UiText.UNABLE_SEND) { throw IllegalStateException("boom") }

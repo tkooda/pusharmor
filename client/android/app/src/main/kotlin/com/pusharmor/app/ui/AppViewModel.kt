@@ -130,13 +130,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** A plain launch opens Send: set at startup when at least one pairing is complete. */
     @Volatile var launchToSend = false
 
-    private fun setStart(s: Session.Start) { signInPurpose.value = purpose(); start.value = s }
+    /** The purpose reads the database, so a damaged one (the data screen) keeps the last one. */
+    private fun setStart(s: Session.Start) { if (s != Session.Start.DATA_UNAVAILABLE) signInPurpose.value = purpose(); start.value = s }
+
+    /** A damaged settings file that was reset says so once, on the main screen. */
+    fun resetNotice() { if (g.settings.takeResetNotice()) message.value = UiText.SETTINGS_RESET }
 
     fun boot() = io(UiText.UNABLE_OPEN_DATA) {
         g.settings.updateRequired(com.pusharmor.app.BuildConfig.VERSION_NAME)
         val s = g.session.startup()
         if (s == Session.Start.READY) launchToSend = launchRoute(g.dao.peers().map { it.toPeer() }, g.dao.self()?.id) == "send"
         setStart(s)
+        if (s == Session.Start.READY) resetNotice()
         if (s == Session.Start.READY) g.session.onAppOpen(System.currentTimeMillis())
         if (s == Session.Start.SIGNED_OUT) g.session.retryPendingLogout()
     }
