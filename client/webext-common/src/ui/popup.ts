@@ -27,6 +27,7 @@ let mounts = 0;
 let watching = false;
 
 export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
+  dismissToast(); // a message that stays belongs to the view drawn before
   const my = ++mounts;
   if (!watching) {
     // a login state change (here, in a tab, or from the relay server) shows the matching view
