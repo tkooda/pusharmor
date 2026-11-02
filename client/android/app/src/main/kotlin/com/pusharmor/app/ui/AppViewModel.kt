@@ -195,7 +195,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.Main) { onDone() }
             }
             is Session.SignIn.Limit -> { limitTicket = r.limit.ticket; message.value = null; limit.value = r.limit }
-            Session.SignIn.NeedNewTicket -> message.value = ErrorText.text(if (evict != null) UiText.UNABLE_EVICT else UiText.UNABLE_LOGIN, "Log in again.")
+            Session.SignIn.NeedNewTicket -> message.value = ErrorText.text(if (evict != null) UiText.UNABLE_EVICT else UiText.UNABLE_LOGIN, ErrorText.TRY_AGAIN)
             is Session.SignIn.Error -> {
                 if (r.text.endsWith(ErrorText.LOGIN_EXPIRED)) limit.value = limit.value // ticks kept
                 message.value = r.text

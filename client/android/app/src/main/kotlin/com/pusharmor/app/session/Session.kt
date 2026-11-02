@@ -38,9 +38,6 @@ class Session(private val g: Graph) {
     enum class Start { SIGN_IN, SIGNED_OUT, READY, KEYS_UNAVAILABLE }
 
     companion object {
-        /** A call that needs this device's keys, with none set up. */
-        const val NO_KEYS = "This device is not logged in. Log in again."
-
         /** Share sheet targets: the All set less the devices turned off in their menu. */
         fun shareTargets(peers: List<Peer>, off: Set<String>): List<Peer> = allSet(peers).filter { it.id !in off }
         const val REMOVED = "This device was removed. Log in again."
@@ -138,7 +135,7 @@ class Session(private val g: Graph) {
 
     private fun register(ticket: String, email: String?, evict: List<String>?): SignIn {
         val action = if (evict != null) UiText.UNABLE_EVICT else UiText.UNABLE_LOGIN
-        val k = g.keysOrNull ?: return SignIn.Error(ErrorText.text(action, NO_KEYS))
+        val k = g.keysOrNull ?: return SignIn.Error(ErrorText.text(action, ErrorText.KEYS_UNUSABLE))
         val sp = B64url.encode(k.signPub); val ep = B64url.encode(k.encPub)
         // POST /peers is signed by the new key with no PA-ID: the client signs with keysOrNull.
         var first = g.client.register(ticket, sp, ep, evict)
@@ -223,7 +220,7 @@ class Session(private val g: Graph) {
 
     /** DELETE /account with a delete-account ticket; then wipe everything including the keys. */
     fun deleteAccount(ticket: String): String? {
-        val me = g.identity() ?: return ErrorText.text(UiText.UNABLE_DELETE_ACCOUNT, NO_KEYS)
+        val me = g.identity() ?: return ErrorText.text(UiText.UNABLE_DELETE_ACCOUNT, ErrorText.LOGGED_OUT)
         val outbox = Outbox(g.store, me)
         val r = ClockSkew.run({
             g.store.allowSet().mapNotNull { g.store.peer(it)?.takeIf { p -> p.pinned } }.associate { it.id to outbox.simple(it, MessageBody.Delete).message }
@@ -360,7 +357,7 @@ class Session(private val g: Graph) {
     /** Remove (account-wide): DELETE /peers/$X with a remove message for every pinned allow id. */
     fun removePeer(peerId: String): String? {
         val action = UiText.unableRemove(g.store.peer(peerId)?.let(::label) ?: "")
-        val me = g.identity() ?: return ErrorText.text(action, NO_KEYS)
+        val me = g.identity() ?: return ErrorText.text(action, ErrorText.LOGGED_OUT)
         val outbox = Outbox(g.store, me)
         val r = g.reconcile().withMissingRetry {
             ClockSkew.run({
@@ -394,8 +391,8 @@ class Session(private val g: Graph) {
     /** Rename this device: PATCH name entries + rename messages for every pinned allow id. */
     fun rename(newName: String): String? {
         if (!NameEntry.isValidName(newName)) return "Use 1 to 32 plain ASCII characters, no double quotes."
-        val me = g.identity() ?: return ErrorText.text(UiText.UNABLE_RENAME, NO_KEYS)
-        dao.self() ?: return ErrorText.text(UiText.UNABLE_RENAME, NO_KEYS)
+        val me = g.identity() ?: return ErrorText.text(UiText.UNABLE_RENAME, ErrorText.LOGGED_OUT)
+        dao.self() ?: return ErrorText.text(UiText.UNABLE_RENAME, ErrorText.LOGGED_OUT)
         dao.setSelfName(newName)
         val outbox = Outbox(g.store, me)
         val r = g.reconcile().withMissingRetry {

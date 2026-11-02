@@ -15,6 +15,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import kotlinx.coroutines.runBlocking
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
@@ -133,7 +134,24 @@ class AppViewModelTest {
         onIo { vm.g.store.wipeRegistration(); vm.g.settings.set(Settings.K.PENDING_PURPOSE, "register") }
         val job = vm.onAppLinkTicket("t", "a@example.com") {}
         waitFor { job.isCompleted }
-        assertEquals("Unable to log in.\n" + Session.NO_KEYS, vm.message.value) // reached register(), which needs keys
+        assertEquals("Unable to log in.\nThis device's security keys cannot be used right now. Restart the device and try again.", vm.message.value) // reached register(), which needs keys
+    }
+
+    /** An id collision makes new keys and asks for a new try, not a new login. */
+    @Test fun idCollisionSaysTryAgain() {
+        com.pusharmor.app.FakeAndroidKeyStore.install()
+        val app = ApplicationProvider.getApplicationContext<PaApp>() as TestApp
+        try {
+            val vm = vm()
+            onIo { vm.g.store.wipeRegistration(); vm.g.session.keysForSignIn(); vm.g.settings.set(Settings.K.PENDING_PURPOSE, "register") }
+            app.fakeHttp = okhttp3.Interceptor { chain ->
+                okhttp3.Response.Builder().request(chain.request()).protocol(okhttp3.Protocol.HTTP_1_1).code(409).message("x")
+                    .body("{\"error\":\"id collision\"}".toByteArray().toResponseBody()).build()
+            }
+            val job = vm.onAppLinkTicket("t", "a@example.com") {}
+            waitFor { job.isCompleted }
+            assertEquals("Unable to log in.\nTry again.", vm.message.value)
+        } finally { app.fakeHttp = null; com.pusharmor.app.FakeAndroidKeyStore.remove() }
     }
 
     /** A send that throws (here: no keys) returns "Unable to send." and why instead of crashing the app. */
