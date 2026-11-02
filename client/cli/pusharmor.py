@@ -2193,7 +2193,8 @@ def format_record(rec, fmt):
 
 def run_exec(prog, rec):
     try:
-        r = subprocess.run([prog] + [rec[k] for k in ("from", "name", "platform", "type", "body")])
+        r = subprocess.run([prog] + [re.sub("[\x00\ud800-\udfff]", "\ufffd", rec[k])
+                                     for k in ("from", "name", "platform", "type", "body")])
         if r.returncode:
             log("%s exited with status %d" % (prog, r.returncode))
     except (OSError, ValueError) as e:

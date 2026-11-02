@@ -453,6 +453,23 @@ def test_listen_keeps_a_message_it_could_not_show(net, tmp_path, monkeypatch, ca
     assert capsys.readouterr().out == ""
 
 
+def test_listen_exec_replaces_nul_and_lone_surrogates(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    pair_two(monkeypatch, net, a, b)
+    orig = pa.msg_json
+    monkeypatch.setattr(pa, "msg_json", lambda n, t, v: orig(n, t, "a\x00b\ud800" if v == "zz" else v))
+    assert run(a, "send", "zz") == 0
+    monkeypatch.setattr(pa, "msg_json", orig)
+    out, prog = tmp_path / "out", tmp_path / "prog"
+    prog.write_text('#!/bin/sh\nprintf %%s "$5" >> "%s"\n' % out)
+    prog.chmod(0o755)
+    net.stop.set()
+    assert run(b, "listen", "--exec", str(prog)) == 130
+    assert out.read_bytes().decode() == "a\ufffdb\ufffd"
+    assert run(b, "listen", "--exec", str(prog)) == 130
+    assert out.read_bytes().decode() == "a\ufffdb\ufffd"
+
+
 def test_send_no_devices_and_logout(net, tmp_path, monkeypatch, capsys):
     login(monkeypatch, tmp_path)
     assert run(tmp_path, "send", "hi") == 4
