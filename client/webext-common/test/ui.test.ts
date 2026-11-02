@@ -386,7 +386,8 @@ test("Send result names the one device; counts read singular for one", async () 
 
 test("Send with every device greyed says no device can receive now", async () => {
   const { readFileSync } = await import("node:fs");
-  assert.match(readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8"), /!sendable\.length && chips\.childElementCount \? h\("p", \{ class: "dim nosend" \}, "No device can receive messages right now\."\)/);
+  assert.match(readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8"), /!sendable\.length && chips\.childElementCount \? h\("p", \{ class: "dim nosend" \}, "Unable to send\. No device can receive messages right now\."\)/);
+  assert.match(readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8"), /\}, "Send the first 2048 characters"\)\),/);
 });
 
 test("popup update and log in screens start with focus on their button", async () => {
