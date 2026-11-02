@@ -259,13 +259,13 @@ test("a 401 logged out from any signed call sets reg to logged_out", async () =>
   assert.equal(await a.e.regState(), "logged_out");
 });
 
-test("pairing state survives restarts, valid at day 29, expires at day 30", async () => {
+test("pairing state survives restarts, valid at day 13, expires at day 14", async () => {
   const { w, a, b, clock } = await setup();
   await refresh(a, b);
   await a.e.pairStart(b.id);
   let a2 = await restart(a, clock);
   await deliver(w, b);
-  clock.t += 29 * DAY;
+  clock.t += 13 * DAY;
   let b2 = await restart(b, clock);
   await b2.e.sweep();
   assert.ok(await getEntry(b2.p.storageLocal, a.id));
@@ -280,6 +280,53 @@ test("pairing state survives restarts, valid at day 29, expires at day 30", asyn
   assert.equal((await a2.db.peer(b.id))!.pinned, false); // pin dropped
   assert.equal(a2.p.storageLocal.data["pairmsg:" + b.id], T.pairTimedOut);
   b2 = await restart(b2, clock);
+});
+
+test("a pairing started 15 days ago is timed out", async () => {
+  const { a, b, clock } = await setup();
+  await refresh(a, b);
+  await a.e.pairStart(b.id);
+  clock.t += 15 * DAY;
+  await a.e.sweep();
+  assert.equal(await getEntry(a.p.storageLocal, b.id), null);
+  assert.equal(a.p.storageLocal.data["pairmsg:" + b.id], T.pairTimedOut);
+});
+
+test("a pairing start in the future is stored as now and expires 14 days later", async () => {
+  const { a, b, clock } = await setup();
+  await refresh(a, b);
+  await a.e.pairStart(b.id);
+  const key = "pair:" + b.id;
+  (a.p.storageLocal.data[key] as { started: number }).started = clock.t + 100 * DAY; // clock was ahead
+  assert.equal((await a.e.pairRowView(b.id))!.countdown, "14 days");
+  await a.e.sweep();
+  assert.equal((await getEntry(a.p.storageLocal, b.id))!.started, clock.t);
+  clock.t += 13 * DAY;
+  await a.e.sweep();
+  assert.ok(await getEntry(a.p.storageLocal, b.id));
+  clock.t += DAY;
+  await a.e.sweep();
+  assert.equal(await getEntry(a.p.storageLocal, b.id), null);
+});
+
+test("moving a future pairing start to now keeps a state change made meanwhile", async () => {
+  const { a, b, clock } = await setup();
+  await refresh(a, b);
+  await a.e.pairStart(b.id);
+  const key = "pair:" + b.id;
+  (a.p.storageLocal.data[key] as { started: number }).started = clock.t + 5 * DAY;
+  const kv = a.p.storageLocal;
+  const get = kv.get.bind(kv);
+  kv.get = async (keys) => {
+    const out = await get(keys);
+    if (keys === null) (kv.data[key] as { state: string }).state = "shown"; // changed after the sweep read its list
+    return out;
+  };
+  await a.e.sweep();
+  kv.get = get;
+  const e = (await getEntry(kv, b.id))!;
+  assert.equal(e.state, "shown");
+  assert.equal(e.started, clock.t);
 });
 
 test("two pairings open at once have their own fingerprint and countdown", async () => {
@@ -297,7 +344,7 @@ test("two pairings open at once have their own fingerprint and countdown", async
   const vc = (await a.e.pairRowView(c.id))!;
   assert.equal(vb.fingerprint, (await b.e.pairRowView(a.id))!.fingerprint);
   assert.equal(vc.fingerprint, (await c.e.pairRowView(a.id))!.fingerprint);
-  assert.equal(vb.countdown, "29 days");
+  assert.equal(vb.countdown, "13 days");
   assert.equal((await allEntries(a.p.storageLocal)).size, 2);
 });
 

@@ -282,5 +282,5 @@ export class Rpc {
 }
 
 export function countdownFor(started: number, now: number): string {
-  return formatCountdown(started + PAIRING_TIMEOUT_DAYS * 86400e3 - now);
+  return formatCountdown(Math.min(started, now) + PAIRING_TIMEOUT_DAYS * 86400e3 - now);
 }
