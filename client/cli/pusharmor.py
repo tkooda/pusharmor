@@ -2178,9 +2178,10 @@ def _clean(s):
 
 def format_record(rec, fmt):
     if fmt == "json":
-        return json.dumps({k: rec[k] for k in REC_KEYS}, ensure_ascii=False)
+        return json.dumps({k: rec[k] for k in REC_KEYS}, ensure_ascii=True)
     if fmt == "tsv":
-        esc = lambda s: s.replace("\\", "\\\\").replace("\t", "\\t").replace("\n", "\\n").replace("\r", "\\r")  # noqa: E731
+        esc = lambda s: re.sub(CONTROL_CHARS, lambda m: "\\u%04x" % ord(m.group()),  # noqa: E731
+                               s.replace("\\", "\\\\").replace("\t", "\\t").replace("\n", "\\n").replace("\r", "\\r"))
         return "\t".join(esc(rec[k]) for k in REC_KEYS)
     t = datetime.datetime.strptime(rec["date"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
     body = _clean(rec["body"].replace("\r\n", "\n").replace("\r", "\n")).replace("\n", "\n ")

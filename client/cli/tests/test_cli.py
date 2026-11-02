@@ -573,8 +573,22 @@ REC = {"from": "ab" * 21, "name": "Pixel", "platform": "android", "type": "text"
 
 def test_format_json_and_tsv():
     assert json.loads(pa.format_record(REC, "json")) == REC
-    assert pa.format_record(REC, "tsv") == "\t".join(["ab" * 21, "Pixel", "android", "text", "a\\tb\\nc\\\\d\x1b",
+    assert pa.format_record(REC, "tsv") == "\t".join(["ab" * 21, "Pixel", "android", "text", "a\\tb\\nc\\\\d\\u001b",
                                                        "2026-10-30T12:00:00Z"])
+
+
+def test_tsv_escapes_controls_and_json_is_ascii():
+    for raw, esc in (("a\u2028b", "a\\u2028b"), ("\x9b", "\\u009b"), ("\x7f", "\\u007f"),
+                     ("\u202e", "\\u202e"), ("\u2069\u061c", "\\u2069\\u061c"), ("\u00e9", "\u00e9")):
+        assert pa.format_record(dict(REC, body=raw), "tsv").split("\t")[4] == esc
+    line = pa.format_record(dict(REC, body="\u00e9\u202e"), "json")
+    assert "\\u00e9" in line and all(ord(c) < 128 for c in line)
+    assert json.loads(line)["body"] == "\u00e9\u202e"
+    seen = []
+    with pytest.MonkeyPatch.context() as m:
+        m.setattr(pa.subprocess, "run", lambda argv: seen.append(argv) or pa.subprocess.CompletedProcess(argv, 0))
+        pa.run_exec("prog", dict(REC, body="\u00e9\u202e\x1b"))
+    assert seen[0][-1] == "\u00e9\u202e\x1b"
 
 
 def test_format_blocks():

@@ -33,7 +33,10 @@ distribution:
 - `pusharmor send TEXT` - send a link or text to all paired devices; `--to ID` for one,
   `--text` to send a link as plain text. With `-` or piped input it reads stdin.
 - `pusharmor listen` - print messages as they arrive; `--json`, `--tsv`, or
-  `--exec PROG` (runs PROG ID NAME PLATFORM TYPE BODY per message).
+  `--exec PROG` (runs PROG ID NAME PLATFORM TYPE BODY per message). `--json` escapes
+  every non-ASCII character as `\uXXXX`. `--tsv` writes `\\`, `\t`, `\n`, and `\r` for
+  backslash, tab, newline, and carriage return, and `\uXXXX` for other control
+  characters, line and paragraph separators, and bidi controls.
 - `pusharmor rename NAME` - change the name your other devices show.
 - `pusharmor logout` - log out; keys and paired devices stay on this device.
 - `pusharmor delete ID` - remove a device from your account (this device too). It asks
