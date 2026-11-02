@@ -1400,6 +1400,10 @@ class Store:
             for k, v in (("peers", {}), ("pairs", {}), ("my_allow", []), ("listed", []), ("pair_auto", [])):
                 d.setdefault(k, v)
             check_shape(d, self.dev_path)
+            try:
+                toml_dumps(d)
+            except ValueError:  # a value this PushArmor cannot write back, such as a float
+                raise Fail("%s is damaged. Delete it and log in again." % self.dev_path)
             yield d
             if write:
                 write_file(self.dev_path, toml_dumps(d))

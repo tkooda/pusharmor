@@ -519,6 +519,15 @@ def test_config_folder_and_state_files_others_can_change_are_refused(net, tmp_pa
     assert run(cfg, "send", "hi") == 4
 
 
+def test_unsupported_toml_value_is_damaged(net, tmp_path, monkeypatch, capsys):
+    login(monkeypatch, tmp_path)
+    path = tmp_path / "devices.toml"
+    path.write_text("x = 1.5\n" + path.read_text())
+    capsys.readouterr()
+    assert run(tmp_path, "send", "hi") == 1
+    assert capsys.readouterr().err == "%s is damaged. Delete it and log in again.\n" % path
+
+
 def test_send_no_devices_and_logout(net, tmp_path, monkeypatch, capsys):
     login(monkeypatch, tmp_path)
     assert run(tmp_path, "send", "hi") == 4
