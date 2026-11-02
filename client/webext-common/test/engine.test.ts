@@ -59,7 +59,7 @@ test("happy path: commit, automatic reply, open, same fingerprint, approve both,
   assert.equal(b.p.notes.has("a:" + a.id), false);
   await deliver(w, a);
   assert.ok((await a.db.peer(b.id))!.approves_me);
-  assert.equal(a.p.notes.get("a:" + b.id)!.body, '"Chrome" confirmed this device');
+  assert.equal(a.p.notes.get("a:" + b.id)!.body, '"Chrome" confirmed this device.');
   assert.equal(await getEntry(a.p.storageLocal, b.id), null); // r wiped
   assert.equal(await getEntry(b.p.storageLocal, a.id), null);
   assert.equal((await a.db.peer(b.id))!.name, "Chrome");
@@ -727,7 +727,7 @@ test("Firefox deny notice reads rejected this device; wipe leaves no pair keys",
   await b.e.approve(a.id); // b approved a: a's deny is relayed
   await a.e.deny(b.id);
   await deliver(w, b);
-  assert.ok([...b.p.notes.values()].some((n) => n.body === "A device rejected this device"));
+  assert.ok([...b.p.notes.values()].some((n) => n.body === "A device rejected this device."));
   await a.e.pairStart(b.id).catch(() => undefined);
   await a.e.wipe();
   assert.ok(Object.keys(a.p.storageLocal.data).every((k) => !k.startsWith("pair")));
@@ -784,7 +784,7 @@ test("N-side hint: approves_me true while committed reads still holds an earlier
   assert.ok(v.lines.includes(T.stillHolds("A device")));
   await a.db.putPeer({ ...(await a.db.peer(b.id))!, approves_me: false });
   assert.ok((await a.e.pairRowView(b.id))!.lines.includes(T.noReplyYet("A device")));
-  assert.equal((await a.e.pairRowView(b.id))!.lines[0], "Pairing with A device");
+  assert.equal((await a.e.pairRowView(b.id))!.lines[0], "Pairing with A device: compare the codes on both devices, then click Codes match only if they are the same.");
 });
 
 test("clock skew on POST /approve: a new n and new bytes in the retry", async () => {

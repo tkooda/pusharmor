@@ -19,16 +19,22 @@ test("every text with a device name quotes it", () => {
 });
 
 test("device name texts keep their words, with the name quoted", () => {
-  assert.equal(T.loggedOutRecv("X"), '"X" logged out');
-  assert.equal(T.loggedInRecv("X"), '"X" logged in');
-  assert.equal(T.denied("X"), '"X" rejected this device');
-  assert.equal(T.approved("X"), '"X" confirmed this device');
+  assert.equal(T.loggedOutRecv("X"), '"X" logged out.');
+  assert.equal(T.loggedInRecv("X"), '"X" logged in.');
+  assert.equal(T.denied("X"), '"X" rejected this device.');
+  assert.equal(T.approved("X"), '"X" confirmed this device.');
   assert.equal(T.stillHolds("X"), '"X" still holds an earlier pairing. On "X", click Cancel pairing, then click Send again.');
-  assert.equal(T.declinedBy("X"), 'Rejected by "X"');
-  assert.equal(T.removeConfirm("X"), 'Remove "X" from this account? "X" must log in again and pair with every device again.');
+  assert.equal(T.declinedBy("X"), 'Rejected by "X".');
+  assert.equal(T.notPairedOn("X"), 'Not paired on "X".');
+  assert.equal(T.wantsToPair("X"), '"X" wants to pair.');
+  assert.equal(T.pairCrossing("X"), 'Pairing with "X" is in progress. Open PushArmor.');
+  assert.equal(T.pairingWith("X"), 'Pairing with "X": compare the codes on both devices, then click Codes match only if they are the same.');
+  assert.equal(T.waiting("X"), 'Waiting for "X": open PushArmor there, compare the codes on both devices, and click Codes match only if they are the same.');
+  assert.equal(T.noReplyYet("X"), 'No reply yet. Open PushArmor on "X", or click Send again.');;
+  assert.equal(T.removeConfirm("X"), 'Remove "X" from this account? It must log in again and pair with every device again.');
   assert.equal(T.removedDevice("X"), 'Removed "X".');
-  assert.equal(T.loggedOutRecv(T.aPeer), "A device logged out");
-  assert.equal(T.declinedBy(T.aPeer), "Rejected by A device");
+  assert.equal(T.loggedOutRecv(T.aPeer), "A device logged out.");
+  assert.equal(T.declinedBy(T.aPeer), "Rejected by A device.");
 });
 
 test("the popup and the device list quote device names in toasts and the filter", () => {
