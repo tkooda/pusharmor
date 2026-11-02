@@ -176,6 +176,7 @@ export const R = {
   enterCode: "Enter the 6-character code from the email.",
   enterEmail: "Enter your email address.",
   emailNotValid: "The email address is not valid. Check it and try again.",
+  badName: "Use 1 to 32 plain ASCII characters, with no double quote.",
   noLongerOnAccount: "It is no longer on this account.",
   alreadyPaired: "It is already paired with this device.",
   pairingOpen: "A pairing with it is already open. Cancel it first.",

@@ -320,3 +320,8 @@ test("a request the background does not know, and no reply from it, say what fai
   const env = { call: async () => undefined } as unknown as Parameters<typeof rpc>[0];
   await assert.rejects(rpc(env, "state"), { message: "Unable to reach PushArmor.\nClose this window, open it again, and try again." });
 });
+
+test("a device name that is not allowed says Unable to rename, then the rule", async () => {
+  const { rpc } = await paired();
+  assert.equal(await fails(rpc, "rename", { name: 'Lap"top' }), "Unable to rename this device.\nUse 1 to 32 plain ASCII characters, with no double quote.");
+});

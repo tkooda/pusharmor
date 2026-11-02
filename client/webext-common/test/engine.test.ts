@@ -5,7 +5,6 @@ import { PushRefused } from "../src/platform.ts";
 import { b64urlDecode, b64urlEncode } from "../src/crypto/b64url.ts";
 import { pairingKey } from "../src/crypto/labels.ts";
 import { T } from "../src/core/texts.ts";
-import { UserError } from "../src/core/engine.ts";
 import { Rpc } from "../src/core/rpc.ts";
 import { ALLOW_SET, allEntries, getAllowSet, getEntry } from "../src/core/state.ts";
 import { encodeInner } from "../src/model/message.ts";
@@ -117,7 +116,7 @@ test("replay: duplicate re-presents, seen n without row is Invalid, control seen
   await b.e.receive(m1!, "bridge");
   assert.equal((await b.db.history()).length, before);
   // control type seen n: silent no-op
-  await assert.rejects(a.e.rename('Dad"s'), UserError);
+  await assert.rejects(a.e.rename('Dad"s'), { message: "Use 1 to 32 plain ASCII characters, with no double quote." });
   await a.e.rename("Laptop");
   const [rn] = w.take(b.id);
   await b.e.receive(rn!, "push");

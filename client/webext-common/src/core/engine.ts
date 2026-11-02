@@ -1498,7 +1498,7 @@ export class Engine {
   async rename(name: string): Promise<void> {
     const self = await this.self();
     if (!self) return;
-    if (!isPrintableName(name)) throw new UserError("Use 1 to 32 plain ASCII characters, no double quote.");
+    if (!isPrintableName(name)) throw new ReasonError(R.badName);
     let names: Record<string, string> = {};
     await this.allowListCall(
       "PATCH",
