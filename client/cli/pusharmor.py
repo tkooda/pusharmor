@@ -1400,13 +1400,21 @@ def http_request(method, url, headers, body):
     try:
         req = urllib.request.Request(url, data=body, headers=headers, method=method)
         with _OPENER.open(req, timeout=30) as r:
-            return r.status, {k.lower(): v for k, v in r.headers.items()}, r.read()
+            data = r.read(MAX_REPLY + 1)
+            if len(data) > MAX_REPLY:
+                raise OSError("reply too large")
+            data += r.read()  # at the end now: b"", or IncompleteRead for a cut-off reply
+            return r.status, {k.lower(): v for k, v in r.headers.items()}, data
     except urllib.error.HTTPError as e:
         with e:
             try:
-                data = e.read()
+                data = e.read(MAX_REPLY + 1)
+                if len(data) <= MAX_REPLY:
+                    data += e.read()
             except (OSError, http.client.HTTPException):  # a cut-off error body: the status still counts
                 data = b""
+            if len(data) > MAX_REPLY:
+                raise OSError("reply too large")
             return e.code, {k.lower(): v for k, v in e.headers.items()}, data
     except (http.client.HTTPException, ValueError) as e:  # ValueError: a bad host or redirect URL
         raise OSError(str(e)) from e
@@ -1479,6 +1487,7 @@ class Api:
 # ---- ntfy stream (UnifiedPush endpoint https://<ntfy>/<topic>?up=1) ----
 
 NTFY_LINE_CAP = 65536  # far above the largest push; a longer line is skipped, not held in memory
+MAX_REPLY = 1 << 20  # a longer relay server reply counts as a network failure
 
 
 class Stream:

@@ -834,6 +834,33 @@ def test_cut_off_error_body_keeps_the_status():
     assert (status, body) == (500, b"")
 
 
+def test_cut_off_success_body_is_a_network_failure():
+    def reply(h):
+        h.send_response(200)
+        h.send_header("Content-Length", "1000")
+        h.end_headers()
+        h.wfile.write(b"{")
+        h.close_connection = True
+
+    with local_http(reply) as url:
+        with pytest.raises(OSError):
+            pa.http_request("GET", url + "/v1/peers", {}, None)
+
+
+@pytest.mark.parametrize("code", [200, 500])
+def test_huge_reply_is_a_network_failure(code):
+    def reply(h):
+        h.send_response(code)
+        h.send_header("Content-Length", str(2 << 20))
+        h.end_headers()
+        with contextlib.suppress(OSError):
+            h.wfile.write(b" " * (2 << 20))
+
+    with local_http(reply) as url:
+        with pytest.raises(OSError):
+            pa.http_request("GET", url + "/v1/peers", {}, None)
+
+
 def test_redirect_is_not_followed():
     hits = []
 
