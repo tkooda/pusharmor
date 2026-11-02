@@ -104,6 +104,8 @@ const ACTION: Record<string, ActionId> = {
 export class Rpc {
   readonly e: Engine;
   readonly login: Login;
+  /** The network work of the last popup open (popupSettled waits for it). */
+  private opening: Promise<void> = Promise.resolve();
   constructor(e: Engine) {
     this.e = e;
     this.login = new Login(e);
@@ -146,7 +148,11 @@ export class Rpc {
       case "popupOpen":
         await e.probeKeys().catch(() => undefined); // local only
         // draw from the local state at once; the network work runs behind it
-        void e.onPopupOpen().catch(() => undefined);
+        this.opening = e.onPopupOpen().catch(() => undefined);
+        return this.state();
+      case "popupSettled":
+        // the state after that work, so the popup can update what it drew from the local state
+        await this.opening;
         return this.state();
       case "keysRetry":
         await e.probeKeys();

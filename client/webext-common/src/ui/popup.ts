@@ -6,7 +6,7 @@ import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendT
 import { AUTH_CHANGED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
 import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, nextTabIndex, openHref, peerStatus, rpc, sh, shortTime } from "./dom.ts";
-import { confirmDialog, toast } from "./dialog.ts";
+import { confirmDialog, dismissToast, toast } from "./dialog.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
 import { type MsgAction, msgActions, saveFilename } from "../model/msgactions.ts";
 import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
@@ -114,7 +114,17 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   const top = h("div", { class: "top" }, h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), setupBar(env, st), tabs);
   root.append(top, body);
   // after the first view is drawn, so the message keeps clear of its footer
-  void show("send").then(() => showPushIssue(st, () => my === mounts));
+  void show("send")
+    .then(() => showPushIssue(st, () => my === mounts))
+    .then(() => settlePushIssue(env, st, () => my === mounts));
+}
+
+/** After the popup open's network work: show, change, or take away the message drawn from the local state. */
+export async function settlePushIssue(env: UiEnv, st: StateView, live: () => boolean = () => true): Promise<void> {
+  const after = await rpc<StateView | null>(env, "popupSettled").catch(() => null);
+  if (!after || !live() || after.pushIssue === st.pushIssue) return;
+  if (!after.pushIssue) dismissToast();
+  else await showPushIssue(after, live);
 }
 
 /** While this browser cannot receive, an error that stays until its Close button; it comes back on the next open. */
