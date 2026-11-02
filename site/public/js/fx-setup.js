@@ -11,6 +11,7 @@
   var status = document.getElementById("status");
   var start = document.getElementById("start");
   var retry = document.getElementById("retry");
+  var close = document.getElementById("close");
   var android = /Android/.test(navigator.userAgent);
 
   function say(text, canRetry) {
@@ -29,7 +30,12 @@
     say("", false);
     var perm = await Notification.requestPermission();
     if (perm !== "granted") {
-      say("Allow notifications for pusharmor.com in the address bar, then Retry", true);
+      if (android) {
+        say("Firefox did not allow notifications. If this is a private tab, open PushArmor.com/fx/setup in a normal tab. " +
+          "Otherwise, allow notifications for PushArmor.com in Firefox Settings > Site permissions, then tap Retry.", true);
+      } else {
+        say("Allow notifications for PushArmor.com in the address bar, then Retry.", true);
+      }
       return;
     }
     var sub = null;
@@ -62,8 +68,16 @@
     }, location.origin);
     start.hidden = true;
     say("Done, you can close this tab", false);
+    close.hidden = false;
+  }
+
+  // Close this tab: the add-on content script closes it; window.close() is the fallback.
+  function closeTab() {
+    window.postMessage({ pa: "fx-close" }, location.origin);
+    setTimeout(function () { window.close(); }, 500);
   }
 
   start.addEventListener("click", run);
   retry.addEventListener("click", run);
+  close.addEventListener("click", closeTab);
 })();

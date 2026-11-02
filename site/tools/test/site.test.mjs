@@ -670,3 +670,14 @@ test("Turnstile frame has no src until the email field is used", () => {
     assert.ok(!/Turnstile|challenges\.cloudflare/.test(read("js/pa-web.js").replace(/turnstile(:| failed)/g, "")), "pa-web.js loads nothing");
   }
 });
+
+test("fx/setup: a refusal says what to do, and success offers Close this tab", () => {
+  const js = readFileSync(join(PUB, "js", "fx-setup.js"), "utf8");
+  const html = readFileSync(join(PUB, "fx", "setup.html"), "utf8");
+  assert.ok(js.includes('"Firefox did not allow notifications. If this is a private tab, open PushArmor.com/fx/setup in a normal tab. " +\n' +
+    '          "Otherwise, allow notifications for PushArmor.com in Firefox Settings > Site permissions, then tap Retry."'));
+  assert.ok(js.includes('"Allow notifications for PushArmor.com in the address bar, then Retry."'));
+  assert.ok(html.includes('<button id="close" type="button" hidden>Close this tab</button>'));
+  assert.ok(js.includes('window.postMessage({ pa: "fx-close" }, location.origin);'));
+  assert.ok(js.includes("window.close();"));
+});
