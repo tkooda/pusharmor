@@ -231,6 +231,16 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(hooks.wiped, 0)
         XCTAssertFalse(try n.core.store.me().removed)
         XCTAssertNil(try n.core.store.setting(Core.removalCheckKey))
+        // the NSE fetch stores no check for the app either
+        w.script("GET", "/v1/peers", 401, "{\"error\":\"bad id\"}")
+        _ = await n.core.signed("GET", "/v1/peers", confirm: false)
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 2)
+        XCTAssertNil(try n.core.store.setting(Core.removalCheckKey))
+        // the same device on the same path: "unknown peer" does start the check GET
+        w.script("GET", "/v1/peers", 401, "{\"error\":\"unknown peer\"}")
+        _ = await n.core.signed("GET", "/v1/peers")
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 4)
+        XCTAssertEqual(hooks.wiped, 0)
     }
 
     /// n removes x; `prepare` sets up the Worker for x's removal check, then x runs the push.

@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 import UIKit
 @testable import PushArmor
 
@@ -6,9 +7,23 @@ import UIKit
 /// number, or date, and markup is not rendered.
 @MainActor
 final class MessageTextViewTests: XCTestCase {
-    func testMessageTextIsPlain() {
+    /// The reader screen the app shows, rendered in a window: its text view is the one
+    /// SwiftUI made through SelectableText.makeUIView.
+    func testMessageTextIsPlain() throws {
         let s = "<b>x</b> call +1 555 0100 or open https://example.com tomorrow at 5 pm"
-        let v = SelectableText.makeTextView(text: s)
+        let host = UIHostingController(rootView: ReadMessageView(text: s))
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        host.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        func textViews(_ v: UIView) -> [UITextView] {
+            ((v as? UITextView).map { [$0] } ?? []) + v.subviews.flatMap { textViews($0) }
+        }
+        let found = textViews(host.view)
+        XCTAssertEqual(found.count, 1)
+        let v = try XCTUnwrap(found.first)
         XCTAssertFalse(v.isEditable)
         XCTAssertTrue(v.isSelectable)
         XCTAssertTrue(v.dataDetectorTypes.isEmpty)
