@@ -1470,8 +1470,9 @@ class Store:
             "push_key": b64e(k["push"]), "push_auth": b64e(k["auth"])}))
 
     @contextlib.contextmanager
-    def state(self, write=True):
-        """devices.toml under an exclusive flock (listen and send may run at the same time)."""
+    def state(self, write=True, fresh=False):
+        """devices.toml under an exclusive flock (listen and send may run at the same time).
+        fresh: a new login replaces the old file without reading it, so a damaged one never stops it."""
         import fcntl
         os.makedirs(self.root, 0o700, exist_ok=True)
         check_unshared(self.root, True)
@@ -1482,8 +1483,9 @@ class Store:
             d = {"version": STATE_VERSION}
             if os.path.lexists(self.dev_path):
                 check_unshared(self.dev_path, False)
-                d = read_toml(self.dev_path)
-                check_version(d, self.dev_path)
+                if not fresh:
+                    d = read_toml(self.dev_path)
+                    check_version(d, self.dev_path)
             for k, v in (("peers", {}), ("pairs", {}), ("my_allow", []), ("listed", []), ("pair_auto", [])):
                 d.setdefault(k, v)
             check_shape(d, self.dev_path)
@@ -2488,7 +2490,7 @@ def register_with(cx, code, stream, push, ntfy):
     k["id"] = pid
     try:
         cx.store.save_keys(k)
-        with cx.store.state() as d:
+        with cx.store.state(fresh=True) as d:
             d.clear()
             d.update(version=STATE_VERSION, name=default_name(), reg="registered", ntfy=ntfy, topic=cx.topic,
                      push_ok=False, since=str(int(time.time())), peers={}, pairs={}, my_allow=[], listed=[],

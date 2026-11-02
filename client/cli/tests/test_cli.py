@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 import os
+import shutil
 import stat
 import sys
 import threading
@@ -951,6 +952,16 @@ def test_damaged_state_shape_is_one_line_exit_1(change, monkeypatch, tmp_path, n
         assert run(cfg, *argv) == 1
         assert capsys.readouterr().err == "%s\n%s is damaged. Delete it and log in again.\n" % (
             pa.ACTIONS[argv[0]], path)
+
+
+def test_a_new_login_replaces_a_damaged_devices_file_and_never_removes_the_device(net, tmp_path, monkeypatch, capsys):
+    cfg = _logged_in(monkeypatch, tmp_path, net)
+    shutil.rmtree(cfg / "keys")
+    (cfg / "devices.toml").write_bytes(b"not = [valid toml")
+    n = len(net.log)
+    login(monkeypatch, cfg)
+    assert [m for m, _ in net.log[n:] if m == "DELETE"] == []
+    assert state(cfg)["reg"] == "registered"
 
 
 @pytest.mark.parametrize("change", [
