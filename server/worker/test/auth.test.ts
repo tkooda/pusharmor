@@ -167,6 +167,17 @@ describe("POST /auth/email + verify", () => {
     expect(st).toEqual([200, 200, 429]);
   });
 
+  it("RL_MAIL_IP is charged before RL_MAIL_EMAIL: calls over the IP cap do not use the mailbox budget", async () => {
+    const k = await keys();
+    const email = randomEmail();
+    const e = await testEnv({ RL_MAIL_EMAIL: countingLimit(2), RL_MAIL_IP: countingLimit(1) });
+    const body = { email, sign_pub: k.signPub, purpose: "register", turnstile: "t" };
+    const st = [];
+    for (let i = 0; i < 3; i++) st.push((await call("POST", "/v1/auth/email", body, { ip: "198.51.100.88", env: e })).status);
+    st.push((await call("POST", "/v1/auth/email", body, { ip: "198.51.100.89", env: e })).status);
+    expect(st).toEqual([200, 429, 429, 200]);
+  });
+
   it("RL_MAIL_EMAIL per mailbox: +tag and Gmail dot variants share the per-address limit", async () => {
     const k = await keys();
     const base = randomEmail().split("@")[0];

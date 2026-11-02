@@ -82,11 +82,12 @@ export async function start(c: Ctx): Promise<Response> {
   await verifyTurnstile(c.env, b.turnstile, c.req.headers.get("CF-Connecting-IP"));
   const email = normalizeEmail(b.email);
   const eh = b64urlEncode(await emailHash(mailboxKey(email)));
-  // Per mailbox (+tag and Gmail dot variants share it); a limiter key only, never stored.
-  await enforce(c.env, "RL_MAIL_EMAIL", "mail:" + eh, c.log);
   // Per IP (a limiter key only, never stored): address variants from one IP share this cap.
   // IPv6 by its /64 like RL_IP, so one /64 cannot rotate source addresses.
+  // Charged before the mailbox cap, so calls over the IP cap cannot use up a mailbox's budget.
   await enforce(c.env, "RL_MAIL_IP", "mail" + ipKey(c.req.headers.get("CF-Connecting-IP") ?? ""), c.log);
+  // Per mailbox (+tag and Gmail dot variants share it); a limiter key only, never stored.
+  await enforce(c.env, "RL_MAIL_EMAIL", "mail:" + eh, c.log);
   await enforce(c.env, "RL_MAIL_GLOBAL", "mail:all", c.log);
   const token = await makeToken(c.env.PA_TOKEN_SECRET, LABEL_REQUEST_TOKEN, { t: nowS(), e: eh, m: email, k, p: purpose, ...(cli ? { c: 1 } : {}) });
   const code = await deriveCode(c.env.PA_CODE_SECRET, token);
