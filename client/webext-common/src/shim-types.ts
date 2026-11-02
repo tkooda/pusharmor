@@ -31,6 +31,7 @@ export interface MenuInfo {
   linkUrl?: string;
   pageUrl?: string;
   selectionText?: string;
+  frameId?: number;
   contexts?: string[];
 }
 
@@ -87,7 +88,7 @@ export interface Browser {
   };
   identity?: { launchWebAuthFlow(d: { url: string; interactive: boolean }): Promise<string>; getRedirectURL(): string };
   scripting?: {
-    executeScript(d: { target: { tabId: number }; func: () => unknown }): Promise<{ result: unknown }[]>;
+    executeScript(d: { target: { tabId: number; frameIds?: number[] }; func: () => unknown }): Promise<{ result: unknown }[]>;
   };
   webRequest?: {
     onBeforeRequest: {

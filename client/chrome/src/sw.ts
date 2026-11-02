@@ -53,5 +53,5 @@ browser.runtime.onInstalled.addListener(() => {
   void boot().then(({ engine }) => engine.start());
 });
 browser.contextMenus?.onClicked.addListener(
-  onMenuClick(browser, boot, (tab, text) => readTabSelection(browser, tab, text)),
+  onMenuClick(browser, boot, (tab, text, frameId) => readTabSelection(browser, tab, text, frameId)),
 );

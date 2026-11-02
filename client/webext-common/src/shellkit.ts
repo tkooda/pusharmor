@@ -187,17 +187,18 @@ export function onNotificationClick(b: Browser, boot: () => Promise<Booted>) {
 }
 
 /** Re-read the selection in the tab (keeps line breaks, no length cap); on any error keep the click text. */
-export async function readTabSelection(b: Browser, tab: Tab | undefined, text: string): Promise<string> {
+export async function readTabSelection(b: Browser, tab: Tab | undefined, text: string, frameId?: number): Promise<string> {
   if (tab?.id === undefined || !b.scripting) return text;
   try {
-    const [r] = await b.scripting.executeScript({ target: { tabId: tab.id }, func: () => String(getSelection() ?? "") });
+    const target = frameId === undefined ? { tabId: tab.id } : { tabId: tab.id, frameIds: [frameId] };
+    const [r] = await b.scripting.executeScript({ target, func: () => String(getSelection() ?? "") });
     return typeof r?.result === "string" && r.result ? r.result : text;
   } catch {
     return text;
   }
 }
 
-export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelection: (tab: Tab | undefined, text: string) => Promise<string>) {
+export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelection: (tab: Tab | undefined, text: string, frameId?: number) => Promise<string>) {
   return (info: MenuInfo, tab?: Tab): void => {
     void (async () => {
       const [parent, child] = String(info.menuItemId).split("|");
@@ -205,7 +206,7 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
       let text = "";
       if (parent === MENU_URL) text = info.linkUrl ?? "";
       else if (parent === MENU_PAGE) text = info.pageUrl ?? tab?.url ?? "";
-      else text = (await readSelection(tab, info.selectionText ?? "")).slice(0, 200000); // the send window URL stays under 2 MiB
+      else text = (await readSelection(tab, info.selectionText ?? "", info.frameId)).slice(0, 200000); // the send window URL stays under 2 MiB
       if (!text) return;
       const { engine } = await boot();
       let r: Awaited<ReturnType<typeof menuSend>>;
