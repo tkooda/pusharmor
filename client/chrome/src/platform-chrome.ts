@@ -27,10 +27,26 @@ function fields(s: PushSub): PushFields {
   return { type: "webpush", endpoint: s.endpoint, p256dh: b64urlEncode(new Uint8Array(k)), auth: b64urlEncode(new Uint8Array(a)) };
 }
 
+/**
+ * Subscribe; fresh drops the current subscription first (new endpoint). A subscription made with
+ * another key makes subscribe throw InvalidStateError: it is dropped and subscribe runs once more.
+ */
+export async function subscribeRecovering(m: PushManagerLike, vapid: Uint8Array, fresh: boolean): Promise<PushSub> {
+  const o = { userVisibleOnly: false, applicationServerKey: buf(vapid) };
+  if (fresh) await (await m.getSubscription())?.unsubscribe();
+  try {
+    return await m.subscribe(o);
+  } catch (e) {
+    if (!(e instanceof Error && e.name === "InvalidStateError")) throw e;
+    await (await m.getSubscription())?.unsubscribe();
+    return m.subscribe(o);
+  }
+}
+
 export function chromePlatform(): Platform {
   return basePlatform(browser, "chrome", false, {
-    async pushSubscribe(vapid) {
-      return fields(await pm().subscribe({ userVisibleOnly: false, applicationServerKey: buf(vapid) }));
+    async pushSubscribe(vapid, _quiet, fresh) {
+      return fields(await subscribeRecovering(pm(), vapid, fresh === true));
     },
     async pushCurrent() {
       const s = await pm().getSubscription();

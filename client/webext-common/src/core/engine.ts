@@ -1127,17 +1127,17 @@ export class Engine {
 
   /** push_missing in any signed reply -> re-subscribe and PATCH. */
   private async afterSignedReply(r: ApiReply): Promise<void> {
-    if (r.json.push_missing === true) await this.pushReconcile(true).catch(() => undefined);
+    if (r.json.push_missing === true) await this.pushReconcile(true, false, true).catch(() => undefined);
   }
 
   // ------------------------------------------------------------------ push
 
-  /** Gone recovery: compare the current subscription with the last PATCHed hash. */
-  async pushReconcile(force = false, quiet = false): Promise<void> {
+  /** Gone recovery: compare the current subscription with the last PATCHed hash. fresh: ask for a new endpoint. */
+  async pushReconcile(force = false, quiet = false, fresh = false): Promise<void> {
     const self = await this.self();
     if (!self || (await this.regState()) !== "registered") return;
     let cur = await this.currentPush();
-    if (!cur || force) cur = await this.subscribePush(quiet);
+    if (!cur || force) cur = await this.subscribePush(quiet, fresh);
     if (!cur) return;
     const h = await pushHash(cur);
     const last = await this.db.meta<string>("push_hash");
@@ -1151,9 +1151,9 @@ export class Engine {
     return this.p.pushCurrent();
   }
 
-  async subscribePush(quiet = false): Promise<PushFields | null> {
+  async subscribePush(quiet = false, fresh = false): Promise<PushFields | null> {
     try {
-      return await this.p.pushSubscribe(this.vapid, quiet);
+      return await this.p.pushSubscribe(this.vapid, quiet, fresh);
     } catch {
       return null;
     }

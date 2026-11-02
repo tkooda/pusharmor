@@ -36,7 +36,7 @@ sw.addEventListener("push", (ev) => {
 });
 
 sw.addEventListener("pushsubscriptionchange", (ev) => {
-  (ev as ExtendableEvent).waitUntil(boot().then(({ engine }) => engine.pushReconcile(true)));
+  (ev as ExtendableEvent).waitUntil(boot().then(({ engine }) => engine.pushReconcile(true, false, true)));
 });
 
 browser.runtime.onMessage.addListener(onRuntimeMessage(boot));

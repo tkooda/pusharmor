@@ -52,7 +52,9 @@ export class FakePlatform implements Platform {
     this.worker = worker;
     this.clock = clock;
   }
-  async pushSubscribe(): Promise<PushFields> {
+  subscribeFresh: (boolean | undefined)[] = [];
+  async pushSubscribe(_vapid: Uint8Array, _quiet?: boolean, fresh?: boolean): Promise<PushFields> {
+    this.subscribeFresh.push(fresh);
     this.sub = { type: "webpush", endpoint: "https://fcm.googleapis.com/fcm/send/" + Math.random().toString(36).slice(2), p256dh: "P", auth: "A" };
     return this.sub;
   }

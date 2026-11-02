@@ -16,7 +16,7 @@ import { THEME_KEY } from "./ui/theme.ts";
 export const ICON = "icons/icon-128.png";
 
 export interface PushHooks {
-  pushSubscribe(vapid: Uint8Array, quiet?: boolean): Promise<PushFields>;
+  pushSubscribe(vapid: Uint8Array, quiet?: boolean, fresh?: boolean): Promise<PushFields>;
   pushCurrent(): Promise<PushFields | null>;
   pushUnsubscribe(): Promise<void>;
 }
@@ -34,7 +34,7 @@ export function basePlatform(b: Browser, name: "chrome" | "firefox", isAndroid: 
     platformName: name,
     appVersion: b.runtime.getManifest().version,
     isAndroid,
-    pushSubscribe: (v, quiet) => push.pushSubscribe(v, quiet),
+    pushSubscribe: (v, quiet, fresh) => push.pushSubscribe(v, quiet, fresh),
     pushCurrent: () => push.pushCurrent(),
     pushUnsubscribe: () => push.pushUnsubscribe(),
     notify(id, title, body) {

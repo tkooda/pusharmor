@@ -37,7 +37,7 @@ test("popup open reconciles push quietly; other paths do not", async () => {
   a.p.sub = null;
   a.p.pushSubscribe = async function (this: FakePlatform, _v?: Uint8Array, quiet?: boolean) {
     seen.push(quiet);
-    return orig.call(this);
+    return orig.call(this, _v!);
   } as never;
   await a.e.onPopupOpen();
   assert.deepEqual(seen, [true]);

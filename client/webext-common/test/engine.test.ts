@@ -1199,3 +1199,15 @@ test("canFetchNow is false with no keys or during a wait the relay server asked 
   const { e } = await makeEngine(p, new IDBFactory(), clock);
   assert.equal(await e.canFetchNow(), false);
 });
+
+test("push_missing in a signed reply subscribes fresh and PATCHes the new endpoint; a refresh does not ask for fresh", async () => {
+  const { w, a } = await setup();
+  w.inject.push({ match: /GET \/v1\/peers$/, status: 200, body: { ...w.listFor(a.id), push_missing: true }, times: 1 });
+  a.p.subscribeFresh = [];
+  await a.e.fetchPeersNow();
+  assert.deepEqual(a.p.subscribeFresh, [true]);
+  const patch = w.calls.filter((x) => x.method === "PATCH" && x.path === "/v1/peers/" + a.id).at(-1)!;
+  assert.equal((patch.body as { push: { endpoint: string } }).push.endpoint, a.p.sub!.endpoint);
+  await a.e.pushReconcile(true); // what a refresh does
+  assert.notEqual(a.p.subscribeFresh[1], true);
+});
