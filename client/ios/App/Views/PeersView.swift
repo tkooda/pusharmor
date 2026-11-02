@@ -190,7 +190,7 @@ struct PeerPendingLines: View {
                 .buttonStyle(.bordered)
                 .disabled(model.pairAgainBusy.contains(p.id.text))
         } else if showCancel && model.offersCancel(p) {
-            Button("Cancel pairing") { Task { await model.cancelPairing(p) } }
+            Button("Cancel pairing request") { Task { await model.cancelPairing(p) } }
                 .buttonStyle(.bordered)
         }
         if p.notPairedOnPeer {
@@ -341,27 +341,48 @@ struct PairingCardView: View {
             Divider()
                 .padding(.top, 12)
                 .padding(.horizontal, -16)
-            HStack {
-                if cancel && model.offersPairAgain(p) {
-                    Button("Pair again") { Task { await model.pairAgain(p) } }
-                        .buttonStyle(.bordered)
-                        .disabled(model.pairAgainBusy.contains(p.id.text))
-                        .font(.subheadline)
-                } else if cancel {
-                    Button("Cancel pairing") { Task { await model.cancelPairing(p) } }
-                        .buttonStyle(.bordered)
-                        .font(.subheadline)
+            // The button and the time on one line; the time goes below the button when
+            // they do not fit.
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    footerButton(cancel)
+                    Spacer()
+                    footerTime(countdown)
                 }
-                Spacer()
-                if let c = countdown {
-                    Text(S.timesOutIn(c))
-                        .font(.caption)
-                        .foregroundColor(.secondaryText)
+                VStack(alignment: .leading, spacing: 8) {
+                    footerButton(cancel)
+                    footerTime(countdown)
                 }
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(minHeight: 44)
         } else {
             Color.clear.frame(height: 14)
+        }
+    }
+
+    @ViewBuilder
+    private func footerButton(_ cancel: Bool) -> some View {
+        if cancel && model.offersPairAgain(p) {
+            Button("Pair again") { Task { await model.pairAgain(p) } }
+                .buttonStyle(.bordered)
+                .disabled(model.pairAgainBusy.contains(p.id.text))
+                .font(.subheadline)
+        } else if cancel {
+            Button("Cancel pairing request") { Task { await model.cancelPairing(p) } }
+                .buttonStyle(.bordered)
+                .font(.subheadline)
+        }
+    }
+
+    @ViewBuilder
+    private func footerTime(_ countdown: String?) -> some View {
+        if let c = countdown {
+            Text(S.timesOutIn(c))
+                .font(.caption)
+                .foregroundColor(.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

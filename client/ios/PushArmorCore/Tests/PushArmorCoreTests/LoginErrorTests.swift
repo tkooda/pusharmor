@@ -57,7 +57,7 @@ final class LoginErrorTests: XCTestCase {
         XCTAssertEqual(S.waiting("Ndev"), "Waiting for \"Ndev\": open PushArmor there and tap Codes match.")
         XCTAssertEqual(S.noReplyYet("Ndev"), "No reply yet. Open PushArmor on \"Ndev\", or tap Send again.")
         XCTAssertEqual(S.stillHolds("Ndev"),
-                       "\"Ndev\" still holds an earlier pairing. On \"Ndev\", tap Cancel pairing, then tap Send again.")
+                       "\"Ndev\" still holds an earlier pairing. On \"Ndev\", tap Cancel pairing request, then tap Send again.")
         XCTAssertEqual(S.removeConfirm("Ndev"),
                        "Remove \"Ndev\" from this account? \"Ndev\" must log in again and pair with every device again.")
         XCTAssertEqual(S.newMessageFrom(S.aPeer), "New message from A device")
