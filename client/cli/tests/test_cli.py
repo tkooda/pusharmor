@@ -559,6 +559,27 @@ def test_group_writable_only_with_a_user_private_group(name, members, ok, net, t
         path.chmod(0o700 if path == cfg else 0o600)
 
 
+def test_wipe_waits_for_a_state_write_and_is_not_written_back(net, tmp_path, monkeypatch):
+    login(monkeypatch, tmp_path)
+    one, two = pa.Store(str(tmp_path)), pa.Store(str(tmp_path))
+    with one.state() as d:
+        t = threading.Thread(target=two.wipe)
+        t.start()
+        time.sleep(0.3)
+        assert t.is_alive() and (tmp_path / "keys" / "private.toml").exists()
+        d["name"] = "zz"
+    t.join(5)
+    assert not t.is_alive()
+    assert not (tmp_path / "keys").exists() and not (tmp_path / "devices.toml").exists()
+    assert (tmp_path / "devices.toml.lock").exists()
+    with pytest.raises(pa.Fail) as e:
+        with one.state() as d:
+            d["name"] = "yy"
+    assert str(e.value) == pa.NOT_LOGGED_IN and e.value.code == pa.EXIT_LOGIN
+    assert not (tmp_path / "devices.toml").exists()
+    assert [n for n in os.listdir(tmp_path) if n.startswith(".tmp-")] == []
+
+
 def test_config_folder_and_state_files_others_can_change_are_refused(net, tmp_path, monkeypatch, capsys):
     cfg = tmp_path / "cfg"
     old = os.umask(0)
@@ -1243,6 +1264,8 @@ def test_write_file_syncs_the_directory(monkeypatch, tmp_path):
 def test_sweep_expires_pairings_after_14_days(tmp_path):
     import types
     cx = types.SimpleNamespace(store=pa.Store(str(tmp_path)))
+    (tmp_path / "keys").mkdir()
+    (tmp_path / "keys" / "private.toml").write_text("")
     now = int(time.time())
     with cx.store.state() as d:
         for name, started in (("old", now - 15 * 86400), ("young", now - 13 * 86400), ("future", now + 40 * 86400)):

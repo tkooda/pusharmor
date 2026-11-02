@@ -1456,6 +1456,8 @@ class Store:
         check_unshared(self.root, True)
         with open(self.lock_path, "a") as lf:
             fcntl.flock(lf, fcntl.LOCK_EX)
+            if write and not self.has_keys():  # deleted by another PushArmor run: nothing to write back
+                raise Fail(NOT_LOGGED_IN, EXIT_LOGIN)
             d = {"version": STATE_VERSION}
             if os.path.lexists(self.dev_path):
                 check_unshared(self.dev_path, False)
@@ -1473,12 +1475,16 @@ class Store:
                 write_file(self.dev_path, toml_dumps(d))
 
     def wipe(self):
-        tmps = glob.glob(os.path.join(self.keys_dir, ".tmp-*")) + glob.glob(os.path.join(self.root, ".tmp-*"))
-        for p in [self.key_path, self.dev_path, self.lock_path] + tmps:
-            with contextlib.suppress(FileNotFoundError):
-                os.unlink(p)
-        with contextlib.suppress(OSError):
-            os.rmdir(self.keys_dir)
+        """Under the devices.toml lock, so a run writing state at the same time is never cut off."""
+        import fcntl
+        with open(self.lock_path, "a") as lf:
+            fcntl.flock(lf, fcntl.LOCK_EX)
+            tmps = glob.glob(os.path.join(self.keys_dir, ".tmp-*")) + glob.glob(os.path.join(self.root, ".tmp-*"))
+            for p in [self.key_path, self.dev_path] + tmps:
+                with contextlib.suppress(FileNotFoundError):
+                    os.unlink(p)
+            with contextlib.suppress(OSError):
+                os.rmdir(self.keys_dir)
 
 
 # ---- HTTP (urllib only) ----
