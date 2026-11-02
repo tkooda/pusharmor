@@ -69,6 +69,9 @@ public enum S {
     public static let emailInvalid = "Not a valid email address"
     public static let signedOutResume = "Logged out. Log in to resume."
     public static let notificationsOff = "Notifications are off. This device cannot receive messages."
+    /// The "cannot receive" banner while notifications are off: line 1, then line 2.
+    public static let cannotReceive = "This device cannot receive messages."
+    public static let allowNotifications = "Allow notifications for PushArmor in Settings."
     public static let relayHelp = "To log in on another device, use this address. Find it in iOS Settings > Apple ID > Sign in with Apple, or at appleid.apple.com > Hide My Email."
     public static let unreachable = "Unreachable"
     public static let loggedOutBadge = "Logged out"

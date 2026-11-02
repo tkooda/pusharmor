@@ -166,12 +166,12 @@ struct HistoryTab: View {
     }
 }
 
-/// Locked, notifications-off and push-failure notices at the top of the Send tab.
+/// Locked and push-failure notices at the top of the Send tab.
 struct HomeBanners: View {
     @EnvironmentObject var model: AppModel
 
     var body: some View {
-        if model.lockedLine != nil || model.notificationsOff || model.pushRegisterFailed {
+        if model.lockedLine != nil || model.pushRegisterFailed {
             Section {
                 if let line = model.lockedLine {
                     HStack {
@@ -184,13 +184,6 @@ struct HomeBanners: View {
                         }
                         .buttonStyle(.borderless)
                         .accessibilityLabel("Dismiss")
-                    }
-                }
-                if model.notificationsOff {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(S.notificationsOff).foregroundColor(.errorText)
-                        Button("Open notification settings") { model.openNotificationSettings() }
-                            .buttonStyle(.borderless)
                     }
                 }
                 if model.pushRegisterFailed {

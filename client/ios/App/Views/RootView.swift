@@ -14,6 +14,9 @@ struct RootView: View {
             .onReceive(NotificationCenter.default.publisher(for: APIClient.upgradeRequired).receive(on: RunLoop.main)) { _ in
                 model.updateRequired = true
             }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if !model.updateRequired && model.showsCannotReceive { CannotReceiveBanner() }
+            }
             // the banner sits at the bottom, inside the safe area; on the tabs MainView puts
             // it above the tab bar and below the Send bar, so it covers neither.
             .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -167,6 +170,42 @@ struct SettingsGear: ViewModifier {
                 }
             }
             .sheet(isPresented: $show) { SettingsView() }
+    }
+}
+
+/// Notifications are off: a light red banner at the top that stays until its X is tapped
+/// and comes back on the next app open.
+struct CannotReceiveBanner: View {
+    @EnvironmentObject var model: AppModel
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(S.cannotReceive)
+                    .font(.subheadline.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(S.allowNotifications)
+                    .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Open notification settings") { model.openNotificationSettings() }
+                    .font(.subheadline)
+                    .buttonStyle(.borderless)
+            }
+            .foregroundStyle(.primary)
+            Spacer(minLength: 0)
+            Button {
+                model.cannotReceiveDismissed = true
+            } label: {
+                Image(systemName: "xmark.circle")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Dismiss")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color.red.opacity(0.15), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 }
 

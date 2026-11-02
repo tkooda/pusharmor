@@ -54,6 +54,8 @@ final class AppModel: ObservableObject {
     @Published var lockedLine: String?
     @Published var notificationsOff = false
     @Published var pushRegisterFailed = false
+    /// The X on the "cannot receive" banner hides it until the next app open.
+    @Published var cannotReceiveDismissed = false
     @Published var limitEntries: [LimitEntry] = []
     @Published var limitTicked: Set<String> = []
     @Published var refreshGreyUntil: Date = .distantPast
@@ -254,6 +256,7 @@ final class AppModel: ObservableObject {
     /// Launch and every foreground: locked-inbox drain, delivered notifications, push
     /// reconcile, retries, timeouts, permission check.
     func onForeground() async {
+        cannotReceiveDismissed = false
         await checkPermission()
         if started, !sample, AppModel.needsReopen(hasStore: store != nil, hasCore: core != nil, me: try? store?.me(), launchRetry: launchRetry) {
             await once("open") {
@@ -297,6 +300,12 @@ final class AppModel: ObservableObject {
     func checkPermission() async {
         let s = await UNUserNotificationCenter.current().notificationSettings()
         notificationsOff = s.authorizationStatus == .denied || s.alertSetting == .disabled
+    }
+
+    /// The "cannot receive" banner: on the tabs and the logged-out screen while notifications
+    /// are off, until its X is tapped.
+    var showsCannotReceive: Bool {
+        notificationsOff && !cannotReceiveDismissed && (phase == .main || phase == .signedOut)
     }
 
     func openNotificationSettings() {
