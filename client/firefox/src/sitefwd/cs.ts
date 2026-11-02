@@ -2,6 +2,7 @@
 // (FIREFOX-MATCH-LIST). Runs at document_start.
 import { fxSubFields } from "../gate.ts";
 import { browser } from "../shim.ts";
+import { fwdAllowed } from "./fwd.ts";
 
 const SITE = "https://pusharmor.com";
 
@@ -28,7 +29,7 @@ if (location.origin === SITE) {
     window.addEventListener("message", (ev: MessageEvent) => {
       if (ev.source !== window || ev.origin !== SITE) return;
       const d = ev.data as { pa?: string; id?: unknown; M?: unknown };
-      if (d && d.pa === "fx-msg" && typeof d.M === "string") {
+      if (d && d.pa === "fx-msg" && fwdAllowed(d.M)) {
         void relay("fx-msg", { m: d.M }).then((r) => {
           if ((r as { ok?: boolean } | undefined)?.ok) window.postMessage({ pa: "fx-ack", id: d.id }, SITE);
         });

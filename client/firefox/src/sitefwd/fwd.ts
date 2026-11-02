@@ -4,6 +4,9 @@ import type { WebRequestDetails } from "../../../webext-common/src/shim-types.ts
 
 export const FWD_MAX = 3800;
 
+/** A site message to relay: a string no longer than the forward cap. */
+export const fwdAllowed = (m: unknown): m is string => typeof m === "string" && m.length <= FWD_MAX;
+
 /**
  * Returns the forwarded M when the request is the site SW fetch (tabId -1,
  * type xmlhttprequest, origin under https://pusharmor.com/fx/ required), or

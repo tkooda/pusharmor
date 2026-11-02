@@ -10,7 +10,7 @@ import type { WebPushKeys } from "../../webext-common/src/crypto/rfc8291.ts";
 import { Autopush, type ApState } from "./autopush/client.ts";
 import { fxSubFields, senderAllowed } from "./gate.ts";
 import { FWD_URL, SETUP_URL, endpointAllowed, firefoxPlatform } from "./platform-firefox.ts";
-import { onForward } from "./sitefwd/fwd.ts";
+import { fwdAllowed, onForward } from "./sitefwd/fwd.ts";
 import { browser } from "./shim.ts";
 
 declare const VAPID_PUBLIC_KEY: string;
@@ -108,7 +108,8 @@ async function extra(msg: Req): Promise<unknown> {
     return { ok: true };
   }
   if (msg.op === "fx-msg") {
-    await engine.receive(String(a.m ?? ""), "bridge");
+    if (!fwdAllowed(a.m)) return { ok: false };
+    await engine.receive(a.m, "bridge");
     return { ok: true };
   }
   return { ok: false };
