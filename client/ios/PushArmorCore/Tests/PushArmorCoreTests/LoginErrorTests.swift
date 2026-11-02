@@ -33,7 +33,10 @@ final class LoginErrorTests: XCTestCase {
         XCTAssertEqual(S.loginError(.failed(400, "x"), .login), "Unable to log in.\nTry again.")
         XCTAssertEqual(ErrorCopy.text(.loginGoogle, .windowClosed), "Unable to log in with Google.\nThe login window was closed. Try again.")
         XCTAssertEqual(S.launchFailedTitle, "Unable to open PushArmor data")
-        XCTAssertTrue(S.pushRegistrationFailed.hasSuffix("."))
+        XCTAssertEqual(S.pushRegistrationFailed,
+                       "Unable to turn on notifications.\nThe relay server could not be reached. Check your internet connection and try again.")
+        XCTAssertEqual(S.loginFailed,
+                       "Unable to log in with Google.\nThe relay server did not accept the request. Update PushArmor and try again.")
         XCTAssertEqual(S.updateRequired, "Update PushArmor to continue.")
         XCTAssertEqual(S.approved("Ndev"), "Ndev confirmed this device.")
         XCTAssertEqual(S.loggedOutNotice("Ndev"), "Ndev logged out.")

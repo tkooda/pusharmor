@@ -41,4 +41,11 @@ final class KeysBrokenTests: XCTestCase {
         XCTAssertEqual(hooks.calls, [])
         XCTAssertFalse(try store.me().removed)
     }
+
+    func testFailedDeleteSaysWhatFailedAndWhy() {
+        XCTAssertEqual(AppModel.deleteBrokenKeysFailText(DBError.sql(13, "database or disk is full")),
+                       "Unable to start the login.\nStorage is full. Free some space and try again.")
+        XCTAssertEqual(AppModel.deleteBrokenKeysFailText(DBError.sql(4, "abort")),
+                       "Unable to start the login.\nPushArmor could not save its data on this device. Restart PushArmor and try again.")
+    }
 }

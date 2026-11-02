@@ -171,8 +171,13 @@ final class AppModel: ObservableObject {
             launchStop = nil
             pendingKeys = nil
         } catch {
-            toast = ErrorCopy.Reason.saveFailed.line
+            toast = AppModel.deleteBrokenKeysFailText(error)
         }
+    }
+
+    /// The toast when Delete broken keys did not complete: storage full or could not save.
+    static func deleteBrokenKeysFailText(_ e: Error) -> String {
+        ErrorCopy.text(.prepareLogin, ErrorCopy.reason(local: e))
     }
 
     /// The DB part first, keeping this id as old_id for the DELETE after the next sign-in;

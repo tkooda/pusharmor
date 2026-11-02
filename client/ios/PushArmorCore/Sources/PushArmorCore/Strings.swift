@@ -75,8 +75,9 @@ public enum S {
     public static let relayHelp = "To log in on another device, use this address. Find it in iOS Settings > Apple ID > Sign in with Apple, or at appleid.apple.com > Hide My Email."
     public static let unreachable = "Unreachable"
     public static let loggedOutBadge = "Logged out"
-    public static let pushRegistrationFailed = "Push registration failed."
-    public static let loginFailed = "Login failed."
+    public static let pushRegistrationFailed = ErrorCopy.text(.turnOnNotifications, .unreachable)
+    /// Google login with no client id in this build.
+    public static let loginFailed = ErrorCopy.text(.loginGoogle, .refused)
     /// Wait text: over 60 s whole minutes rounded up, else whole seconds rounded up; same words as the other clients.
     public static func wait(ms: Int) -> String {
         let s = max(1, (ms + 999) / 1000)
