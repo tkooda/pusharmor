@@ -55,6 +55,8 @@ class Settings(private val context: Context) {
         val UP_AUTH = stringPreferencesKey("up_auth")
         val UP_REGISTERED_AT = longPreferencesKey("up_registered_at")
         val UP_VERIFIED = booleanPreferencesKey("up_verified")
+        /** The relay server refused the stored UnifiedPush address; cleared when an address is accepted. */
+        val PUSH_REFUSED = booleanPreferencesKey("push_refused")
         val CH_MESSAGES = stringPreferencesKey("ch_messages")
         val CH_PEERS = stringPreferencesKey("ch_peers")
         val OLD_ID = stringPreferencesKey("old_id")

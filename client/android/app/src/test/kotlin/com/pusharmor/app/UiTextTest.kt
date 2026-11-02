@@ -64,11 +64,20 @@ class UiTextTest {
     }
 
     @Test fun cannotReceiveTruthTable() {
-        assertEquals(false, UiText.cannotReceive(true, false, null))
-        assertEquals(false, UiText.cannotReceive(true, false, "other"))
-        assertEquals(true, UiText.cannotReceive(false, false, null))
-        assertEquals(true, UiText.cannotReceive(true, true, null))
-        assertEquals(true, UiText.cannotReceive(true, false, "no_distributor:x"))
+        assertEquals(false, UiText.cannotReceive(true, false, false, false))
+        assertEquals(true, UiText.cannotReceive(false, false, false, false))
+        assertEquals(true, UiText.cannotReceive(true, true, false, false))
+        assertEquals(true, UiText.cannotReceive(true, false, true, false))
+        assertEquals(true, UiText.cannotReceive(true, false, false, true))
+    }
+
+    @Test fun cannotReceiveReasons() {
+        assertEquals("Install ntfy or Sunup, or set Push method to Google.", UiText.noPushApp(google = true))
+        assertEquals("Install ntfy or Sunup.", UiText.noPushApp(google = false))
+        assertEquals("The relay server cannot send to \"push.example\". In ntfy, use its default server, or set Push method to Google.",
+            UiText.pushRefused("push.example", "ntfy", google = true))
+        assertEquals("The relay server cannot send to \"push.example\". In ntfy, use its default server.", UiText.pushRefused("push.example", "ntfy", google = false))
+        assertEquals("Uses the free ntfy or Sunup app. Install one, keep its default server, then return to PushArmor.", UiText.UNIFIEDPUSH_NOTE)
     }
 
     @Test fun statusPriority() {

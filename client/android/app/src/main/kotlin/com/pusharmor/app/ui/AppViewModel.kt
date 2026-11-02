@@ -366,4 +366,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun switchPush(toUp: Boolean) = io(UiText.UNABLE_CHANGE_SETTING) { if (toUp) g.push.switchToUnifiedPush(g) else g.push.switchToGoogle(g) }
     fun retryPush() = io(UiText.UNABLE_TURN_ON_NOTIFICATIONS) { com.pusharmor.app.work.Work.patchPush(g.app) }
+
+    /** On each return to the app when signed in: register with a UnifiedPush app installed meanwhile. */
+    fun registerIfInstalled() {
+        if (start.value != Session.Start.READY) return
+        viewModelScope.launch(Dispatchers.IO) {
+            try { com.pusharmor.app.push.UnifiedPushSupport.registerIfInstalled(g) } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w("PushArmor", "push register failed", e) }
+        }
+    }
 }

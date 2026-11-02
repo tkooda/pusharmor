@@ -72,12 +72,21 @@ object UiText {
     const val DATA_BROKEN_DIALOG_BODY = "This cannot be undone. You will need to pair all your devices again."
 
     const val CANNOT_RECEIVE = "This device cannot receive messages."
-    const val CANNOT_RECEIVE_NO_PUSH_APP = "Install a UnifiedPush app, or install PushArmor from Google Play."
     const val CANNOT_RECEIVE_NOTIFICATIONS_OFF = "Allow notifications for PushArmor in Settings."
 
-    /** True while this device cannot show or get messages: notifications off or blocked, or no push app. */
-    fun cannotReceive(enabled: Boolean, channelsBlocked: Boolean, banner: String?): Boolean =
-        !enabled || channelsBlocked || banner?.startsWith("no_distributor") == true
+    /** Line 2 when no UnifiedPush app is installed; Google is offered only where the Push method setting exists. */
+    fun noPushApp(google: Boolean): String = if (google) "Install ntfy or Sunup, or set Push method to Google." else "Install ntfy or Sunup."
+
+    /** Line 2 when the relay server refused the push address of [app] at [host]. */
+    fun pushRefused(host: String, app: String, google: Boolean): String =
+        "The relay server cannot send to \"$host\". In $app, use its default server" + if (google) ", or set Push method to Google." else "."
+
+    /** Push method dialog: what the UnifiedPush choice needs. */
+    const val UNIFIEDPUSH_NOTE = "Uses the free ntfy or Sunup app. Install one, keep its default server, then return to PushArmor."
+
+    /** True while this device cannot show or get messages: notifications off or blocked, no push app, or a refused push address. */
+    fun cannotReceive(enabled: Boolean, channelsBlocked: Boolean, noPushApp: Boolean, refused: Boolean): Boolean =
+        !enabled || channelsBlocked || noPushApp || refused
 
     /** Settings note under an Apple private relay address. */
     const val APPLE_RELAY_HINT = "To log in on another device, use this address. Find it on an iPhone in Settings, under your name, in Sign in with Apple. " +

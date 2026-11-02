@@ -255,7 +255,7 @@ fun PeersScreen(vm: AppViewModel) {
         LazyColumn(Modifier.padding(inner).fillMaxSize(), state = state, contentPadding = PaddingValues(top = 8.dp, bottom = FAB_SPACE + 16.dp)) {
             item(key = "banners") {
                 Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Banners(vm, prefs?.get(Settings.K.BANNER), prefs)
+                    Banners(vm, prefs)
                 }
             }
             if (firstDevice) item(key = "steps") {
@@ -367,12 +367,13 @@ internal class NameEdit(editing: Boolean = false, typed: TextFieldValue = TextFi
 }
 
 @Composable
-private fun Banners(vm: AppViewModel, banner: String?, prefs: androidx.datastore.preferences.core.Preferences?) {
+private fun Banners(vm: AppViewModel, prefs: androidx.datastore.preferences.core.Preferences?) {
     val context = LocalContext.current
     // Read here, so every check below runs again on each return to the app.
     val tick = resumeTick()
     val n = vm.g.notifier
-    val noPushApp = banner?.startsWith("no_distributor") == true
+    val type = prefs?.get(Settings.K.PUSH_TYPE)
+    val noPushApp = remember(tick, prefs == null, type) { prefs != null && UnifiedPushSupport.noPushApp(context, type, vm.g.push.hasPlayServices) }
     n.blockedChannelPeer(vm.peerEntities.collectAsState().value)?.let { BannerRow(UiText.blockedChannel(it.name), "Fix", fault = true, PaIcons.NotificationsOff) {
         safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
     } }
@@ -402,33 +403,46 @@ private fun Banners(vm: AppViewModel, banner: String?, prefs: androidx.datastore
 internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, content: @Composable () -> Unit) {
     val context = LocalContext.current
     // Read here, so the checks below run again on each return to the app.
-    resumeTick()
+    val tick = resumeTick()
     val n = vm.g.notifier
-    val banner = vm.prefs.collectAsState().value?.get(Settings.K.BANNER)
+    val prefs = vm.prefs.collectAsState().value
+    val google = vm.g.push.hasPlayServices
+    val type = prefs?.get(Settings.K.PUSH_TYPE)
+    // Live on each resume: a UnifiedPush app installed meanwhile clears the card and gets registered.
+    val noPushApp = remember(tick, prefs == null, type) { prefs != null && UnifiedPushSupport.noPushApp(context, type, google) }
+    val refused = remember(tick, prefs) { UnifiedPushSupport.refused(context, prefs, google) }
+    LaunchedEffect(tick) { vm.registerIfInstalled() }
     val off = !n.enabled() || n.mainChannelsBlocked()
     val closed by vm.cannotReceiveClosed.collectAsState()
-    val cannot = UiText.cannotReceive(n.enabled(), n.mainChannelsBlocked(), banner)
+    val cannot = UiText.cannotReceive(n.enabled(), n.mainChannelsBlocked(), noPushApp, refused != null)
     LaunchedEffect(cannot) { if (!cannot) vm.cannotReceiveClosed.value = false }
     val shown = cannot && !closed
     val top = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
     Column(Modifier.fillMaxSize()) {
-        if (shown) CannotReceiveBanner(
-            if (off) UiText.CANNOT_RECEIVE_NOTIFICATIONS_OFF else UiText.CANNOT_RECEIVE_NO_PUSH_APP, if (off) "Fix" else "Get",
-            Modifier.then(if (topInset) Modifier.windowInsetsPadding(top) else Modifier).padding(horizontal = 16.dp, vertical = 8.dp),
-            onClose = { vm.cannotReceiveClosed.value = true }) {
-            if (off) safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
-            else {
-                val url = if (vm.g.push.hasPlayServices) "https://play.google.com/store/apps/details?id=io.heckel.ntfy" else "https://f-droid.org/packages/io.heckel.ntfy/"
-                startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(url))) { vm.message.value = it }
+        if (shown) {
+            fun get(url: String) = startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(url))) { vm.message.value = it }
+            val (reason, actions) = when {
+                off -> UiText.CANNOT_RECEIVE_NOTIFICATIONS_OFF to listOf<Pair<String, () -> Unit>>("Fix" to {
+                    safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
+                })
+                noPushApp -> UiText.noPushApp(google) to listOf("Get ntfy" to { get(NTFY_URL) }, "Get Sunup" to { get(SUNUP_URL) })
+                else -> UiText.pushRefused(refused!!.first, refused.second, google) to emptyList()
             }
+            CannotReceiveBanner(reason, actions,
+                Modifier.then(if (topInset) Modifier.windowInsetsPadding(top) else Modifier).padding(horizontal = 16.dp, vertical = 8.dp),
+                onClose = { vm.cannotReceiveClosed.value = true })
         }
         Box(Modifier.weight(1f).then(if (shown && topInset) Modifier.consumeWindowInsets(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)) else Modifier)) { content() }
     }
 }
 
-/** "This device cannot receive messages." with its reason on line 2, an action, and an X that hides it until the next app open. */
+/** Store listings of the UnifiedPush apps: Google Play for the play build, F-Droid for foss. Sunup is on F-Droid only. */
+private val NTFY_URL = if (BuildConfig.FLAVOR == "play") "https://play.google.com/store/apps/details?id=io.heckel.ntfy" else "https://f-droid.org/packages/io.heckel.ntfy/"
+private const val SUNUP_URL = "https://f-droid.org/packages/org.unifiedpush.distributor.sunup/"
+
+/** "This device cannot receive messages." with its reason on line 2, its actions, and an X that hides it until the next app open. */
 @Composable
-private fun CannotReceiveBanner(reason: String, action: String, modifier: Modifier, onClose: () -> Unit, onClick: () -> Unit) {
+private fun CannotReceiveBanner(reason: String, actions: List<Pair<String, () -> Unit>>, modifier: Modifier, onClose: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     Card(modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = cs.errorContainer, contentColor = cs.onErrorContainer)) {
@@ -441,8 +455,8 @@ private fun CannotReceiveBanner(reason: String, action: String, modifier: Modifi
                 }
                 IconButton(onClick = onClose, Modifier.size(24.dp)) { Icon(PaIcons.Close, "Close") }
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onClick, colors = ButtonDefaults.textButtonColors(contentColor = cs.onErrorContainer)) { Text(action) }
+            if (actions.isNotEmpty()) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                for ((label, onClick) in actions) TextButton(onClick = onClick, colors = ButtonDefaults.textButtonColors(contentColor = cs.onErrorContainer)) { Text(label) }
             }
         }
     }
@@ -1356,7 +1370,8 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     }
     if (pickTheme) ChoiceDialog("Theme", ThemePref.entries, themePref, { it.label }, note = "Dark uses a true black background.",
         onDismiss = { pickTheme = false }) { vm.setTheme(it) }
-    if (pickPush) ChoiceDialog("Push method", listOf(false, true), up, ::pushLabel, onDismiss = { pickPush = false }) { if (it != up) vm.switchPush(it) }
+    if (pickPush) ChoiceDialog("Push method", listOf(false, true), up, ::pushLabel, note = UiText.UNIFIEDPUSH_NOTE,
+        onDismiss = { pickPush = false }) { if (it != up) vm.switchPush(it) }
     if (confirmHistory) AlertDialog(onDismissRequest = { confirmHistory = false }, text = { Text("Delete all history?") },
         confirmButton = { TextButton(onClick = { vm.deleteAllHistory(); confirmHistory = false }) { Text("Delete") } },
         dismissButton = { TextButton(onClick = { confirmHistory = false }) { Text("Cancel") } })

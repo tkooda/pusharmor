@@ -16,6 +16,9 @@ class FlavorPush(private val context: Context) : PushFlavor {
 
         /** Turns FCM's own token fetch on or off; a test replaces it (no Firebase app runs in unit tests). */
         internal var autoInit: (Boolean) -> Unit = { FirebaseMessaging.getInstance().isAutoInitEnabled = it }
+
+        /** Fetches the FCM token; a test replaces it. */
+        internal var fetchToken: ((String) -> Unit) -> Unit = { cb -> FirebaseMessaging.getInstance().token.addOnSuccessListener { cb(it) } }
     }
 
     override val hasPlayServices: Boolean
@@ -35,6 +38,7 @@ class FlavorPush(private val context: Context) : PushFlavor {
         val s = g.settings
         if (s.get(Settings.K.PUSH_TYPE) == "unifiedpush") return
         s.set(Settings.K.PUSH_TYPE, "fcm")
+        UnifiedPushSupport.clearNoDistributor(g)
         if (s.get(Settings.K.PUSH_TOKEN) != token) { s.set(Settings.K.PUSH_TOKEN, token); Work.patchPush(g.app) }
     }
 
@@ -50,8 +54,9 @@ class FlavorPush(private val context: Context) : PushFlavor {
         UnifiedPush.unregister(context, UnifiedPushSupport.INSTANCE)
         UnifiedPushSupport.clearEndpoint(g)
         g.settings.set(Settings.K.PUSH_TYPE, null)
-        FirebaseMessaging.getInstance().isAutoInitEnabled = true
-        FirebaseMessaging.getInstance().token.addOnSuccessListener { onToken(g, it) }
+        UnifiedPushSupport.clearNoDistributor(g)
+        autoInit(true)
+        fetchToken { onToken(g, it) }
     }
 
     /** Wipe: called after the DataStore clear, so both methods are stopped. */

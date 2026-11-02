@@ -1,6 +1,7 @@
 package com.pusharmor.app.push
 
 import android.content.Context
+import androidx.datastore.preferences.core.Preferences
 import com.pusharmor.app.Graph
 import com.pusharmor.app.data.Settings
 import com.pusharmor.app.work.Work
@@ -37,15 +38,50 @@ interface PushFlavor {
 object UnifiedPushSupport {
     const val INSTANCE = "default"
 
+    /** The installed UnifiedPush apps; a test replaces it. */
+    internal var installed: (Context) -> List<String> = { UnifiedPush.getDistributors(it) }
+
+    /** The UnifiedPush app in use; a test replaces it. */
+    internal var saved: (Context) -> String? = { UnifiedPush.getSavedDistributor(it) }
+
     fun register(g: Graph) {
         val c = g.app
         UnifiedPush.tryUseCurrentOrDefaultDistributor(c) { ok ->
             if (ok) UnifiedPush.register(c, INSTANCE, null, BuildConfig.VAPID_PUBLIC_KEY.ifEmpty { null })
-            else g.settings.set(Settings.K.BANNER, "no_distributor")
+            else if (active(g)) g.settings.set(Settings.K.BANNER, "no_distributor")
         }
     }
 
-    fun distributors(context: Context): List<String> = UnifiedPush.getDistributors(context)
+    fun distributors(context: Context): List<String> = installed(context)
+
+    /** UnifiedPush is the push method in use: chosen, or the default without Google Play services. */
+    fun active(type: String?, playServices: Boolean): Boolean = type == "unifiedpush" || (type == null && !playServices)
+
+    fun active(g: Graph): Boolean = active(g.settings.get(Settings.K.PUSH_TYPE), g.push.hasPlayServices)
+
+    /** Checked live on each return to the app: UnifiedPush is in use and no UnifiedPush app is installed. */
+    fun noPushApp(context: Context, type: String?, playServices: Boolean): Boolean =
+        active(type, playServices) && distributors(context).isEmpty()
+
+    /** A UnifiedPush app installed since the last open: register with it, with no user step. */
+    fun registerIfInstalled(g: Graph) {
+        if (active(g) && g.settings.get(Settings.K.UP_ENDPOINT) == null && distributors(g.app).isNotEmpty()) register(g)
+    }
+
+    /** A stale "no UnifiedPush app" flag is dropped once Google is the push method. */
+    fun clearNoDistributor(g: Graph) {
+        if (g.settings.get(Settings.K.BANNER)?.startsWith("no_distributor") == true) g.settings.set(Settings.K.BANNER, null)
+    }
+
+    /** The relay server refused the push address: its host and the UnifiedPush app's name, else null. */
+    fun refused(context: Context, prefs: Preferences?, playServices: Boolean): Pair<String, String>? {
+        if (prefs?.get(Settings.K.PUSH_REFUSED) != true || !active(prefs[Settings.K.PUSH_TYPE], playServices)) return null
+        val host = prefs[Settings.K.UP_ENDPOINT]?.let { android.net.Uri.parse(it).host } ?: return null
+        val pkg = saved(context) ?: return null
+        val pm = context.packageManager
+        val app = try { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() } catch (e: Exception) { pkg }
+        return host to app
+    }
 
     fun pick(g: Graph, distributor: String) {
         UnifiedPush.saveDistributor(g.app, distributor)
@@ -56,7 +92,7 @@ object UnifiedPushSupport {
     fun distributorCheck(g: Graph) {
         if (g.settings.get(Settings.K.PUSH_TYPE) != "unifiedpush") return
         val saved = UnifiedPush.getSavedDistributor(g.app)
-        if (saved == null || saved !in UnifiedPush.getDistributors(g.app)) {
+        if (saved == null || saved !in distributors(g.app)) {
             clearEndpoint(g)
             g.settings.set(Settings.K.BANNER, "no_distributor")
         } else {
@@ -67,6 +103,7 @@ object UnifiedPushSupport {
     fun clearEndpoint(g: Graph) {
         g.settings.set(Settings.K.UP_ENDPOINT, null); g.settings.set(Settings.K.UP_P256DH, null); g.settings.set(Settings.K.UP_AUTH, null)
         g.settings.set(Settings.K.UP_VERIFIED, false)
+        g.settings.set(Settings.K.PUSH_REFUSED, false)
     }
 
     /** Lenient decode of the library's base64 (padding or not), re-encoded as strict b64url. */

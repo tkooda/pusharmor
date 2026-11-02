@@ -14,6 +14,8 @@ import androidx.test.core.app.ApplicationProvider
 import com.pusharmor.app.PaApp
 import com.pusharmor.app.TestApp
 import com.pusharmor.app.UiHostActivity
+import com.pusharmor.app.data.Settings
+import com.pusharmor.app.push.UnifiedPushSupport
 import com.pusharmor.store.SelfEntity
 import com.pusharmor.app.session.Session
 import org.junit.Assert.assertTrue
@@ -57,6 +59,7 @@ class CannotReceiveCardTest {
         val app = ApplicationProvider.getApplicationContext<PaApp>()
         shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
         shadowOf(app.getSystemService(NotificationManager::class.java)).setNotificationsEnabled(notificationsOn)
+        app.graph.settings.set(Settings.K.PUSH_TYPE, "fcm")
         return app
     }
 
@@ -120,6 +123,25 @@ class CannotReceiveCardTest {
         assertTrue(cards(a) == 0)
         val (b, _) = show(app(true), Session.Start.SIGNED_OUT)
         assertTrue(cards(b) == 0)
+    }
+
+    /** Live check: UnifiedPush in use and no UnifiedPush app -> card with both store buttons; one installed -> no card on the next open. */
+    @Test fun noPushAppCardFollowsInstalledApps() {
+        val saved = UnifiedPushSupport.installed
+        try {
+            val app = app(true)
+            app.graph.settings.set(Settings.K.PUSH_TYPE, "unifiedpush")
+            app.graph.settings.set(Settings.K.BANNER, null) // the stored flag is not what decides
+            UnifiedPushSupport.installed = { emptyList() }
+            val (a, _) = show(app, Session.Start.READY)
+            assertTrue(cards(a) == 1)
+            assertTrue(nodes(a).count { text(it) == UiText.noPushApp(app.graph.push.hasPlayServices) } == 1)
+            assertTrue(nodes(a).count { text(it) == "Get ntfy" } == 1 && nodes(a).count { text(it) == "Get Sunup" } == 1)
+            UnifiedPushSupport.installed = { listOf("io.heckel.ntfy") }
+            app.graph.settings.set(Settings.K.BANNER, "no_distributor") // a stale flag does not bring the card back
+            val (b, _) = show(app, Session.Start.READY)
+            assertTrue(cards(b) == 0)
+        } finally { UnifiedPushSupport.installed = saved }
     }
 
     @Test fun firstSignInScreenShowsNoCard() {

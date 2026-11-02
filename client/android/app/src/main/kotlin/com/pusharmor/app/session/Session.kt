@@ -439,10 +439,13 @@ class Session(private val g: Graph) {
         val p = currentPush()
         val r = g.client.patchPush(p?.first ?: "null")
         return when {
-            r is ApiResult.Ok -> { dao.setPushHash(p?.let { x -> Ids.pushSha256(x.second) }); true }
+            r is ApiResult.Ok -> { dao.setPushHash(p?.let { x -> Ids.pushSha256(x.second) }); s.set(Settings.K.PUSH_REFUSED, false); true }
             r.isLoggedOut -> null
             r.isUnknownPeer -> { onRemovedSignal(deleted = false); null }
-            r is ApiResult.Http && r.status in 400..499 && r.status != 429 -> null
+            r is ApiResult.Http && r.status in 400..499 && r.status != 429 -> {
+                if (r.status == 400 && r.error == "push endpoint not allowed" && p?.second?.first() == "unifiedpush") s.set(Settings.K.PUSH_REFUSED, true)
+                null
+            }
             else -> false
         }
     }

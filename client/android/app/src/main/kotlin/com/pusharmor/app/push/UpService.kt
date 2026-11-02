@@ -29,12 +29,13 @@ class UpService : PushService() {
     }
 
     override fun onRegistrationFailed(reason: FailedReason, instance: String) {
-        g.settings.set(Settings.K.BANNER, "no_distributor:${reason.name}")
+        if (UnifiedPushSupport.active(g)) g.settings.set(Settings.K.BANNER, "no_distributor:${reason.name}")
     }
 
     override fun onUnregistered(instance: String) {
         UnifiedPushSupport.clearEndpoint(g)
-        UnifiedPushSupport.register(g)
+        // After a switch to Google the distributor confirms the unregister: do not register again.
+        if (UnifiedPushSupport.active(g)) UnifiedPushSupport.register(g)
     }
 
     companion object {
