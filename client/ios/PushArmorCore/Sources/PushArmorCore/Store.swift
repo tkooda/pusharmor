@@ -142,7 +142,7 @@ public final class Store: @unchecked Sendable {
     // MARK: me
 
     public func me() throws -> Me {
-        let r = try db.one("SELECT * FROM me WHERE k = 1")!
+        guard let r = try db.one("SELECT * FROM me WHERE k = 1") else { throw StoreError.noIdentity }
         return Me(id: r.text("id").flatMap { PeerId(text: $0) }, signPub: r.blob("sign_pub"), encPub: r.blob("enc_pub"),
                   clockOffset: r.int("clock_offset") ?? 0, lastPushSha256: r.text("last_push_sha256"),
                   pushMissing: r.bool("push_missing"), removed: r.bool("removed"), loggedOut: r.bool("logged_out"),
@@ -175,8 +175,10 @@ public final class Store: @unchecked Sendable {
 
     // MARK: peers
 
-    static func peer(_ r: Row) -> Peer {
-        var p = Peer(id: PeerId(text: r.text("id")!)!)
+    /// nil for a row whose id does not parse (skipped, never a trap).
+    static func peer(_ r: Row) -> Peer? {
+        guard let t = r.text("id"), let id = PeerId(text: t) else { return nil }
+        var p = Peer(id: id)
         p.listSignPub = r.blob("list_sign_pub"); p.listEncPub = r.blob("list_enc_pub")
         p.signPub = r.blob("sign_pub"); p.encPub = r.blob("enc_pub")
         p.state = PeerState(rawValue: r.text("state") ?? "unruled") ?? .unruled
@@ -199,11 +201,11 @@ public final class Store: @unchecked Sendable {
     }
 
     public func peer(_ id: PeerId) throws -> Peer? {
-        try db.one("SELECT * FROM peers WHERE id = ?", [.text(id.text)]).map(Store.peer)
+        try db.one("SELECT * FROM peers WHERE id = ?", [.text(id.text)]).flatMap(Store.peer)
     }
 
     public func peers() throws -> [Peer] {
-        try db.query("SELECT * FROM peers ORDER BY created, id").map(Store.peer)
+        try db.query("SELECT * FROM peers ORDER BY created, id").compactMap(Store.peer)
     }
 
     public func savePeer(_ p: Peer) throws {
@@ -315,19 +317,23 @@ public final class Store: @unchecked Sendable {
 
     // MARK: pairing
 
-    static func entry(_ r: Row) -> PairingEntry {
-        PairingEntry(peerId: PeerId(text: r.text("peer_id")!)!, role: PairDecide.Role(rawValue: r.text("role")!)!,
-                     state: PairDecide.State(rawValue: r.text("state")!)!, r: r.blob("r"), cN: r.blob("c_n"),
+    /// nil for a row with an unknown id, role or state (skipped, never a trap).
+    static func entry(_ r: Row) -> PairingEntry? {
+        guard let id = r.text("peer_id").flatMap({ PeerId(text: $0) }),
+              let role = r.text("role").flatMap({ PairDecide.Role(rawValue: $0) }),
+              let state = r.text("state").flatMap({ PairDecide.State(rawValue: $0) }) else { return nil }
+        return PairingEntry(peerId: id, role: role,
+                     state: state, r: r.blob("r"), cN: r.blob("c_n"),
                      authorized: r.bool("authorized"), unsent: r.bool("unsent"), startedAt: r.int("started_at") ?? 0,
                      notBefore: r.int("not_before") ?? 0, lastSendAt: r.int("last_send_at") ?? 0)
     }
 
     public func pairing(_ id: PeerId) throws -> PairingEntry? {
-        try db.one("SELECT * FROM pairing WHERE peer_id = ?", [.text(id.text)]).map(Store.entry)
+        try db.one("SELECT * FROM pairing WHERE peer_id = ?", [.text(id.text)]).flatMap(Store.entry)
     }
 
     public func pairings() throws -> [PairingEntry] {
-        try db.query("SELECT * FROM pairing ORDER BY started_at").map(Store.entry)
+        try db.query("SELECT * FROM pairing ORDER BY started_at").compactMap(Store.entry)
     }
 
     public func savePairing(_ e: PairingEntry) throws {
@@ -383,24 +389,27 @@ public final class Store: @unchecked Sendable {
 
     // MARK: history
 
-    static func history(_ r: Row) -> HistoryRow {
-        HistoryRow(rowid: r.int("rowid")!, dir: HistoryDir(rawValue: r.text("dir")!)!, peerId: r.text("peer_id"),
-                   type: r.text("type")!, content: r.text("content")!, n: r.int("n"), pairingId: r.blob("pairing_id"),
+    /// nil for a row with an unknown direction or a missing column (skipped, never a trap).
+    static func history(_ r: Row) -> HistoryRow? {
+        guard let rowid = r.int("rowid"), let dir = r.text("dir").flatMap({ HistoryDir(rawValue: $0) }),
+              let type = r.text("type"), let content = r.text("content"), let created = r.int("created_local") else { return nil }
+        return HistoryRow(rowid: rowid, dir: dir, peerId: r.text("peer_id"),
+                   type: type, content: content, n: r.int("n"), pairingId: r.blob("pairing_id"),
                    read: r.bool("read"), results: r.text("results"), event: r.text("event").flatMap(HistoryEvent.init(rawValue:)),
-                   count: r.int("count") ?? 1, createdLocal: r.int("created_local")!)
+                   count: r.int("count") ?? 1, createdLocal: created)
     }
 
     public func history() throws -> [HistoryRow] {
-        try db.query("SELECT * FROM history ORDER BY rowid DESC").map(Store.history)
+        try db.query("SELECT * FROM history ORDER BY rowid DESC").compactMap(Store.history)
     }
 
     public func historyRow(_ rowid: Int64) throws -> HistoryRow? {
-        try db.one("SELECT * FROM history WHERE rowid = ?", [.int(rowid)]).map(Store.history)
+        try db.one("SELECT * FROM history WHERE rowid = ?", [.int(rowid)]).flatMap(Store.history)
     }
 
     public func historyRow(peer: PeerId, pairingId: Data, n: UInt64) throws -> HistoryRow? {
         try db.one("SELECT * FROM history WHERE dir = 'in' AND peer_id = ? AND pairing_id = ? AND n = ?",
-                   [.text(peer.text), .blob(pairingId), .int(Int64(n))]).map(Store.history)
+                   [.text(peer.text), .blob(pairingId), .int(Int64(n))]).flatMap(Store.history)
     }
 
     @discardableResult
