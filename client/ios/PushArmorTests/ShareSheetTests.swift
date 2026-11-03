@@ -17,4 +17,14 @@ final class ShareSheetTests: XCTestCase {
         XCTAssertTrue(src.contains("guard me.id != nil, !me.loggedOut, !me.removed else {\n            step = .failed(S.shareLoggedOut)"))
         XCTAssertEqual(src.components(separatedBy: "S.shareLoggedOut").count - 1, 1)
     }
+
+    /// The too-long view keeps its original look at the default text size: padding only
+    /// when it scrolls (large text).
+    func testTooLongViewHasPaddingOnlyWhenItScrolls() throws {
+        let src = try source()
+        let view = src.components(separatedBy: "private var offerTruncate: some View {")[1]
+            .components(separatedBy: "var body: some View")[0]
+        XCTAssertFalse(view.contains(".padding("))
+        XCTAssertTrue(src.contains("ScrollView { offerTruncate.padding() }"))
+    }
 }

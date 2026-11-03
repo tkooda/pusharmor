@@ -131,7 +131,6 @@ struct ShareView: View {
             Text(SizeCap.label(model.text))
             Button(S.tooLongShare) { Task { await model.truncate() } }
         }
-        .padding()
     }
 
     var body: some View {
@@ -144,7 +143,7 @@ struct ShareView: View {
                     // Scrolls only when it does not fit (large text).
                     ViewThatFits(in: .vertical) {
                         offerTruncate
-                        ScrollView { offerTruncate }
+                        ScrollView { offerTruncate.padding() }
                     }
                 case .pick:
                     List {
