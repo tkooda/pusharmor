@@ -129,9 +129,10 @@ class Settings(private val context: Context, private val dao: PaDao) {
         m[key] = decode(r.k, r.v)
     }
 
+    /** A key in [IN_DB] with no database row reads the copy a deferred move left in the file, as [data] does. */
     @Suppress("UNCHECKED_CAST")
     fun <T> get(key: Preferences.Key<T>): T? =
-        if (key.name in IN_DB) db { dao.state(key.name) }?.let { decode(key.name, it) as T }
+        if (key.name in IN_DB) db { dao.state(key.name) }?.let { decode(key.name, it) as T } ?: runBlocking { context.ds.data.first()[key] }
         else runBlocking { context.ds.data.first()[key] }
 
     fun <T> set(key: Preferences.Key<T>, value: T?) {

@@ -151,3 +151,24 @@ class DeferredOldIdTest {
         assertNull(s.get(Settings.K.THEME))
     }
 }
+
+/** A database whose writes fail while reads work, as a full or read-only disk does. */
+private class NoWriteDao(private val real: PaDao) : PaDao by real {
+    override fun putState(s: StateEntity) = throw android.database.SQLException("disk full")
+}
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [31], application = android.app.Application::class, instrumentedPackages = ["com.pusharmor.sandbox.nowrite"])
+class DeferredMoveReadsFileTest {
+    /** A move that cannot write leaves the state in the file, and reads still see it: a sign-in keeps its keys, a logout stays. */
+    @Test fun deferredMoveKeepsSignInAndLogoutState() {
+        val c = ctx(); val d = NoWriteDao(dao(c))
+        writeOld(c, preferencesOf(Settings.K.SIGN_IN_KEYS to true, Settings.K.SIGNED_OUT to true, Settings.K.REMOVAL_CHECK to "removed"))
+        val s = Settings(c, d)
+        assertNull(io { d.state("sign_in_keys") }) // the move was deferred
+        assertTrue(s.flag(Settings.K.SIGN_IN_KEYS, false))
+        assertTrue(s.flag(Settings.K.SIGNED_OUT, false))
+        assertEquals("removed", s.get(Settings.K.REMOVAL_CHECK))
+        assertEquals(true, runBlocking { s.data.first() }[Settings.K.SIGN_IN_KEYS])
+    }
+}
