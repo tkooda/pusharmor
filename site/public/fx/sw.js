@@ -44,6 +44,22 @@ self.addEventListener("push", function (event) {
   })());
 });
 
+// The push service dropped or replaced the subscription: subscribe again with the same key and
+// forward the new one as "sub:" + JSON, so the add-on stores it and tells the relay server.
+self.addEventListener("pushsubscriptionchange", function (event) {
+  event.waitUntil((async function () {
+    var sub = event.newSubscription || (await self.registration.pushManager.getSubscription());
+    if (!sub) {
+      var key = event.oldSubscription && event.oldSubscription.options.applicationServerKey;
+      if (!key) return;
+      sub = await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+    }
+    var j = sub.toJSON();
+    var body = "sub:" + JSON.stringify({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth });
+    await fetch(FORWARD_URL, { method: "POST", body: body }).catch(function () {});
+  })());
+});
+
 self.addEventListener("notificationclick", function (event) {
   event.notification.close();
   event.waitUntil((async function () {
