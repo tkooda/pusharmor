@@ -449,9 +449,13 @@ test("minimum age 13 on /terms and /privacy", () => {
 test("download: every Android channel, release asset names, certificate fingerprint", () => {
   const t = text("download.html");
   assert.ok(t.includes("Google Play Coming soon"), "download lacks: Google Play");
-  assert.ok(t.includes("APK from GitHub Releases (below): pusharmor-0.0.25-foss.apk"), "download lacks the APK entry");
+  assert.ok(t.includes("pusharmor-0.0.25-foss.apk") && t.includes("Check a downloaded APK"), "download lacks the APK entry");
   assert.ok(!t.includes("APK from GitHub Releases (below) Coming soon"), "APK still coming soon");
-  assert.ok(t.includes("Obtainium, from GitHub Releases: Add to Obtainium"), "download lacks the Obtainium entry");
+  const ids = ["android", "iphone", "chrome", "firefox", "cli"];
+  const raw = read("download.html");
+  for (const id of ids) assert.ok(raw.includes('<li><a href="#' + id + '">') && raw.includes('id="' + id + '"'), "download lacks anchor " + id);
+  assert.deepEqual(ids.map((id) => raw.indexOf('id="' + id + '"')), ids.map((id) => raw.indexOf('id="' + id + '"')).sort((x, y) => x - y), "sections out of order");
+  assert.ok(t.includes("Obtainium: Add to Obtainium (below)"), "download lacks the Obtainium entry");
   assert.ok(read("download.html").includes('href="https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F'), "download lacks the Obtainium link");
   const fp = "262c4f2e9a0220ed48181a5c8650dd742372b220e628fe10e7eea2e9fe6ce4e3";
   assert.ok(t.includes("F-Droid: our F-Droid repository (below)"), "download lacks the F-Droid entry");
