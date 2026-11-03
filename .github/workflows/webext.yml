@@ -62,8 +62,10 @@ jobs:
           google-chrome --version
           node popup-check.mjs
       # Proves the release build compiles and passes check-release.mjs. Built
-      # with CI dummies, so the zips are thrown away (never uploaded).
+      # with CI dummies, so the zips are thrown away (never uploaded). Skipped
+      # on release tags: the webext-release build jobs do the real release build.
       - name: Release build with CI dummies
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         run: |
           node ../../release/ci-dummy.mjs
           PA_CI_DUMMY=1 node build.mjs
