@@ -7,6 +7,8 @@ struct PeersView: View {
     @State private var pulseId: String?
     @State private var pulseOn = false
     @State private var showPairHowTo = false
+    /// A pull-to-refresh is running: the system refresh control is the only spinner.
+    @State private var pulling = false
 
     /// Rejected peers are hidden; removed peers show only while History still holds rows from them.
     private var visible: [Peer] {
@@ -68,12 +70,16 @@ struct PeersView: View {
                 }
                 .sheet(isPresented: $showPairHowTo) { PairHowToView() }
                 .contentMargins(.bottom, 12, for: .scrollContent)
-                .refreshable { await model.refresh() }
+                .refreshable {
+                    pulling = true
+                    await model.refresh()
+                    pulling = false
+                }
                 .navigationTitle("Devices")
                 .safeAreaInset(edge: .bottom, spacing: 0) { ToastBanner() }
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
-                        if model.refreshing {
+                        if model.refreshing && !pulling {
                             ProgressView()
                         } else {
                             TimelineView(.periodic(from: .now, by: 1)) { ctx in
