@@ -221,6 +221,21 @@ describe("request shapes: TTL, priority, sizes, no ids in headers", () => {
     }
   });
 
+  it("Sunup (type 6, Mozilla host): VAPID aud is the Mozilla origin and the JWT verifies", async () => {
+    const e = await testEnv();
+    const k = await vendorKeys();
+    const push = { ...pushFor("android", "unifiedpush"), endpoint: "https://updates.push.services.mozilla.com/wpush/v2/gAAAAABk-x_y=" };
+    const out = await fanout(e, [{ id: "id-sunup", pushType: 6, push: JSON.stringify(push), m: message(512), cls: "send" }], new Log());
+    expect(out.results["id-sunup"]).toBe("sent");
+    const req = mock.requests.filter((r) => r.url.startsWith("https://updates.push.services.mozilla.com/")).pop()!;
+    expect(req.url).toBe(push.endpoint);
+    const mm = /^vapid t=([^,]+), k=(.+)$/.exec(req.headers.authorization)!;
+    expect(mm[2]).toBe(k.vapidPublicRaw);
+    const [h, c, s] = mm[1].split(".");
+    expect(await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, k.vapidPublic, b64urlDecode(s)!, utf8(h + "." + c))).toBe(true);
+    expect(decodeJwt(mm[1]).claims.aud).toBe("https://updates.push.services.mozilla.com");
+  });
+
   it("largest push at M = MAX_MESSAGE fits the 4096-byte vendor limit (FCM data, APNs, Web Push, UnifiedPush)", async () => {
     const e = await testEnv();
     const m = message(MAX_MESSAGE);
