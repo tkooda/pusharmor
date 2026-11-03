@@ -5,6 +5,8 @@ name: cli
 # cryptography and Python 3.14 with the newest, each on Linux and on Windows.
 # Test and build tools are pinned by SHA-256 (test-requirements.txt,
 # build-requirements.txt); cryptography is not, so the newest release is tested.
+# The pinned setuptools needs Python 3.10 or later, so Python 3.9 runs the
+# tests only (the wheel is pure Python and is built on 3.14).
 on:
   workflow_call:
   workflow_dispatch:
@@ -48,11 +50,17 @@ jobs:
       - name: Install
         env:
           CRYPTOGRAPHY: ${{ matrix.cryptography }}
+          PY: ${{ matrix.python }}
         run: |
-          python -m pip install --require-hashes -r test-requirements.txt -r build-requirements.txt
+          if [ "$PY" = "3.9" ]; then
+            python -m pip install --require-hashes -r test-requirements.txt
+          else
+            python -m pip install --require-hashes -r test-requirements.txt -r build-requirements.txt
+          fi
           python -m pip install --upgrade "$CRYPTOGRAPHY"
           python -c "import cryptography; print(cryptography.__version__)"
       - name: Tests
         run: python -m pytest
       - name: Build sdist and wheel
+        if: matrix.python != '3.9'
         run: python -m build --no-isolation
