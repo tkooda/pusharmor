@@ -1446,6 +1446,65 @@ final class StateMachineTests: XCTestCase {
         XCTAssertNil(ErrorCopy.refreshFailText(nil))
     }
 
+    /// my_relay_fault in GET /v1/peers is stored; an absent field (an older relay server) is no fault.
+    func testRelayFaultFromPeerList() async throws {
+        let n = try dev("Ndev")
+        XCTAssertFalse(n.core.relayFault())
+        w.rows[n.id.text]!.relayFault = true
+        await n.core.fetchPeers(force: true)
+        XCTAssertTrue(n.core.relayFault())
+        w.rows[n.id.text]!.relayFault = false
+        await n.core.fetchPeers(force: true)
+        XCTAssertFalse(n.core.relayFault())
+    }
+
+    /// Check again: one signed POST /v1/peers/<id>/check; "sent" clears the relay fault,
+    /// "relay" sets it, "gone" sends the push address again, and anything else is "failed".
+    func testCheckPushResults() async throws {
+        let n = try dev("Ndev")
+        let path = "/v1/peers/" + n.id.text + "/check"
+        let push = PushInfo(type: .apns, tokenBytes: Data([0x01, 0x02]))
+        w.script("POST", path, 200, "{\"result\":\"relay\"}")
+        let relay = await n.core.checkPush(push)
+        XCTAssertEqual(relay, .relay)
+        XCTAssertTrue(n.core.relayFault())
+        w.script("POST", path, 200, "{\"result\":\"sent\"}")
+        let sent = await n.core.checkPush(push)
+        XCTAssertEqual(sent, .sent)
+        XCTAssertFalse(n.core.relayFault())
+        let patches = w.count("PATCH", "/v1/peers/")
+        try n.core.store.setSetting("my_push_sha256", Ids.pushSha256(push))
+        try n.core.store.setMe("last_push_sha256", .text(Ids.pushSha256(push)))
+        w.script("POST", path, 200, "{\"result\":\"gone\"}")
+        let gone = await n.core.checkPush(push)
+        XCTAssertEqual(gone, .gone)
+        XCTAssertEqual(w.count("PATCH", "/v1/peers/"), patches + 1)
+        w.script("POST", path, 200, "{\"result\":\"none\"}")
+        let none = await n.core.checkPush(push)
+        XCTAssertEqual(none, .noAddress)
+        for (status, body) in [(200, "{\"result\":\"failed\"}"), (200, "{\"result\":\"other\"}"), (429, "{\"error\":\"rate limited\"}"),
+                               (503, "{\"error\":\"unavailable\"}")] {
+            w.script("POST", path, status, body)
+            let r = await n.core.checkPush(push)
+            XCTAssertEqual(r, .failed, body)
+        }
+        w.offline = true
+        let offline = await n.core.checkPush(push)
+        XCTAssertEqual(offline, .failed)
+        XCTAssertEqual(w.count("POST", path), 8)
+    }
+
+    /// The relay server's test push is told apart from a message push.
+    func testCheckPushIsRecognized() {
+        XCTAssertTrue(PushCheck.isCheck(["aps": ["content-available": 1], "check": 1]))
+        XCTAssertFalse(PushCheck.isCheck(["aps": ["content-available": 1], "m": "abc"]))
+        XCTAssertFalse(PushCheck.isCheck([:]))
+        XCTAssertEqual(S.relayFaultApple, "The relay server cannot reach Apple's push service right now. "
+                       + "This is not a problem on this device. Try again later.")
+        XCTAssertEqual(S.checkWorking, "Working")
+        XCTAssertEqual(S.checkFailed, "Unable to check right now. Try again later.")
+    }
+
     /// a 401 "bad id" (a failed id check) is not a confirmed delete; only "unknown peer"
     /// (no row for this device) counts as done.
     func testDeleteSelfBadIdIsFailure() async {

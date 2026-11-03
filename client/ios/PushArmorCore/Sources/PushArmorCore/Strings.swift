@@ -77,6 +77,15 @@ public enum S {
     /// The "cannot receive" banner while notifications are off: line 1, then line 2.
     public static let cannotReceive = "This device cannot receive messages."
     public static let allowNotifications = "Allow notifications for PushArmor in Settings."
+    /// Line 2 while the relay server cannot reach the push service (a relay-side fault).
+    public static func relayFault(_ vendor: String) -> String {
+        "The relay server cannot reach \(vendor)'s push service right now. This is not a problem on this device. Try again later."
+    }
+    public static let relayFaultApple = relayFault("Apple")
+    /// Check again on the banner: the test push went through.
+    public static let checkWorking = "Working"
+    /// Check again on the banner: no result.
+    public static let checkFailed = "Unable to check right now. Try again later."
     public static let relayHelp = "To log in on another device, use this address. Find it in iOS Settings > Apple ID > Sign in with Apple, or at appleid.apple.com > Hide My Email."
     public static let unreachable = "Unreachable"
     public static let loggedOutBadge = "Logged out"

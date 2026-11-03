@@ -16,6 +16,7 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
         var pending: [String: String] = [:]
         var loggedOut = false
         var push = true
+        var relayFault = false         // my_relay_fault in this row's GET /v1/peers
         var listening: Bool? = nil     // set only for platform "cli"
     }
 
@@ -106,6 +107,7 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
             }
             var top: [(String, JOut)] = [("my_push_sha256", .null), ("my_allow", .arr(me.allow.keys.sorted().map { .str($0) })),
                                          ("peers", .arr(list))]
+            if me.relayFault { top.append(("my_relay_fault", .bool(true))) }
             if let rm = removed[idT], !rm.isEmpty {
                 top.append(("removed", .obj(rm.keys.sorted().map { ($0, JOut.str(rm[$0]!)) })))
             }

@@ -194,4 +194,50 @@ extension Core {
         await checkTimeouts()
         return out
     }
+
+    // MARK: push check
+
+    /// Store setting: "1" while the relay server's last push to this device failed for a
+    /// relay-side reason (my_relay_fault in GET /v1/peers); no row = no such fault.
+    public static let relayFaultKey = "my_relay_fault"
+
+    /// True while the relay server reports a relay-side fault for its pushes to this device.
+    public func relayFault() -> Bool { (try? store.setting(Core.relayFaultKey)) == "1" }
+
+    /// Check again on the "cannot receive" banner: the relay server sends one test push to
+    /// this device and names the result. "sent" and "relay" update the stored fault; "gone"
+    /// (the push address is gone) sends this device's push address again. A 429, a network
+    /// error, or any other reply is "failed".
+    public func checkPush(_ current: PushInfo?) async -> PushCheckResult {
+        guard let me = try? myId() else { return .failed }
+        let path = "/v1/peers/" + me.text + "/check"
+        let body = JOut.obj([]).data
+        var out = await signed("POST", path, body: body, retry: false)
+        if out.isClockSkew { out = await signed("POST", path, body: body, retry: false) }
+        guard let r = out.reply, r.ok, let word = r.json?["result"]?.stringValue,
+              let result = PushCheckResult(rawValue: word) else { return .failed }
+        switch result {
+        case .sent: try? store.setSetting(Core.relayFaultKey, nil)
+        case .relay: try? store.setSetting(Core.relayFaultKey, "1")
+        case .gone:
+            // the push service answered, so the relay server reaches it
+            try? store.setSetting(Core.relayFaultKey, nil)
+            try? store.setSetting("my_push_sha256", nil)
+            await reconcilePush(current, refresh: true)
+        case .noAddress, .failed: break
+        }
+        return result
+    }
+}
+
+/// The result word of POST /v1/peers/<id>/check.
+public enum PushCheckResult: String, Equatable, Sendable {
+    case sent, relay, gone, noAddress = "none", failed
+}
+
+/// The relay server's test push ({"check":1} beside "aps"): dropped with no notification.
+public enum PushCheck {
+    public static func isCheck(_ userInfo: [AnyHashable: Any]) -> Bool {
+        userInfo["check"] != nil && userInfo["m"] == nil
+    }
 }

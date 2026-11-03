@@ -222,8 +222,8 @@ struct SettingsGear: ViewModifier {
     }
 }
 
-/// Notifications are off: a light red banner at the top that stays until its X is tapped
-/// and comes back on the next app open.
+/// Notifications are off, or the relay server cannot reach Apple's push service: a light red
+/// banner at the top that stays until its X is tapped and comes back on the next app open.
 struct CannotReceiveBanner: View {
     @EnvironmentObject var model: AppModel
 
@@ -233,12 +233,22 @@ struct CannotReceiveBanner: View {
                 Text(S.cannotReceive)
                     .font(.subheadline.weight(.semibold))
                     .fixedSize(horizontal: false, vertical: true)
-                Text(S.allowNotifications)
-                    .font(.subheadline)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button("Open notification settings") { model.openNotificationSettings() }
-                    .font(.subheadline)
-                    .buttonStyle(.borderless)
+                if model.notificationsOff {
+                    Text(S.allowNotifications)
+                        .font(.subheadline)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Open notification settings") { model.openNotificationSettings() }
+                        .font(.subheadline)
+                        .buttonStyle(.borderless)
+                } else {
+                    Text(S.relayFaultApple)
+                        .font(.subheadline)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Check again") { Task { await model.checkAgain() } }
+                        .font(.subheadline)
+                        .buttonStyle(.borderless)
+                        .disabled(model.busy.contains("check"))
+                }
             }
             .foregroundStyle(.primary)
             Spacer(minLength: 0)

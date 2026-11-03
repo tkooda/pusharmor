@@ -109,6 +109,12 @@ extension Core {
         } else if case .null? = j["my_push_sha256"] {
             try store.setSetting("my_push_sha256", nil)
         }
+        // absent (an older relay server) = no relay-side fault
+        if case .bool(true)? = j["my_relay_fault"] {
+            try store.setSetting(Core.relayFaultKey, "1")
+        } else {
+            try store.setSetting(Core.relayFaultKey, nil)
+        }
     }
 
     // MARK: allow reconcile

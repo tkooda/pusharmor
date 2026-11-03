@@ -10,6 +10,11 @@ final class NotificationService: UNNotificationServiceExtension {
     private let started = Date()
 
     override func didReceive(_ request: UNNotificationRequest, withContentHandler contentHandler: @escaping (UNNotificationContent) -> Void) {
+        // the relay server's test push has no alert; if one reaches here, it shows nothing
+        if PushCheck.isCheck(request.content.userInfo) {
+            contentHandler(UNNotificationContent())
+            return
+        }
         let m = request.content.userInfo["m"]
         lock.lock()
         handler = contentHandler

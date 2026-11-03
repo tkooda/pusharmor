@@ -46,6 +46,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         Task { @MainActor in model.didFailToRegister() }
     }
 
+    /// A background push is only ever the relay server's test push: nothing to do, no notification.
+    func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
+        .noData
+    }
+
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let info = response.notification.request.content.userInfo
         let action = response.actionIdentifier

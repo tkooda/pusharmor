@@ -54,6 +54,8 @@ final class AppModel: ObservableObject {
     @Published var repairedNotice = false
     @Published var lockedLine: String?
     @Published var notificationsOff = false
+    /// The relay server cannot reach Apple's push service for this device (my_relay_fault).
+    @Published var relayFault = false
     @Published var pushRegisterFailed = false
     /// The X on the "cannot receive" banner hides it until the next app open.
     @Published var cannotReceiveDismissed = false
@@ -279,6 +281,7 @@ final class AppModel: ObservableObject {
         peers = (try? store.peers()) ?? []
         pairings = Dictionary(uniqueKeysWithValues: ((try? store.pairings()) ?? []).map { ($0.peerId.text, $0) })
         history = (try? store.history()) ?? []
+        relayFault = (try? store.setting(Core.relayFaultKey)) == "1"
     }
 
     /// the main screen must not stay up once this device is removed or logged out
@@ -340,9 +343,29 @@ final class AppModel: ObservableObject {
     }
 
     /// The "cannot receive" banner: on the tabs and the logged-out screen while notifications
-    /// are off, until its X is tapped.
+    /// are off, and on the tabs while the relay server cannot reach Apple's push service,
+    /// until its X is tapped.
     var showsCannotReceive: Bool {
-        notificationsOff && !cannotReceiveDismissed && (phase == .main || phase == .signedOut)
+        (notificationsOff || (relayFault && phase == .main)) && !cannotReceiveDismissed
+            && (phase == .main || phase == .signedOut)
+    }
+
+    /// Check again on the "cannot receive" banner: notifications first; with them on, the
+    /// relay server sends one test push. It went through: "Working" and the banner goes.
+    func checkAgain() async {
+        await once("check") {
+            await checkPermission()
+            guard !notificationsOff, let core = core, phase == .main else { return }
+            let r = await core.checkPush(pushInfo)
+            reload()
+            switch r {
+            case .sent:
+                toast = S.checkWorking
+                toastIsSuccess = true
+            case .relay, .gone: break
+            case .noAddress, .failed: toast = S.checkFailed
+            }
+        }
     }
 
     // MARK: draft
