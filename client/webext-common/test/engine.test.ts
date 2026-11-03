@@ -591,6 +591,26 @@ test("cap: 11th automatic reply in 24 h is prompted; a tapped reply is not count
   assert.equal((x.p.storageLocal.data.pair_auto as number[]).length, 10);
 });
 
+test("a failed reply with no Retry-After keeps Reply; with Retry-After it waits", async () => {
+  const { w, a, b } = await setup();
+  await refresh(a, b);
+  await a.e.pairStart(b.id);
+  w.inject.push({ match: new RegExp("POST /v1/pair/" + a.id + "$"), status: 500, body: { error: "internal" }, times: 1 });
+  await deliver(w, b);
+  const e = (await getEntry(b.p.storageLocal, a.id))!;
+  assert.equal(e.state, "prompted");
+  assert.ok(e.authorized && e.unsent);
+  assert.ok((await b.e.pairRowView(a.id))!.actions.includes("reply"));
+  w.inject.push({ match: new RegExp("POST /v1/pair/" + a.id + "$"), status: 503, body: { error: "busy" }, headers: { "Retry-After": "60" }, times: 1 });
+  await assert.rejects(b.e.pairReplyTap(a.id));
+  assert.ok(!(await b.e.pairRowView(a.id))!.actions.includes("reply"));
+  w.clock.t += 61_000;
+  assert.ok((await b.e.pairRowView(a.id))!.actions.includes("reply"));
+  await b.e.pairReplyTap(a.id);
+  assert.equal((await getEntry(b.p.storageLocal, a.id))!.state, "replied");
+  assert.ok(!(await b.e.pairRowView(a.id))!.actions.includes("reply"));
+});
+
 test("10th open entry is dropped", async () => {
   const clock = new Clock();
   const w = new MockWorker(clock);
@@ -716,7 +736,7 @@ test("a new commit that ends an old open pairing on X is then answered, not drop
   assert.equal((await a.e.pairRowView(b.id))!.fingerprint, (await b.e.pairRowView(a.id))!.fingerprint);
 });
 
-test("an automatic reply that did not go out shows no Reply button", async () => {
+test("an automatic reply that did not go out shows Reply while no send runs", async () => {
   const { w, a, b } = await setup();
   await refresh(a, b);
   await a.e.pairStart(b.id);
@@ -725,8 +745,8 @@ test("an automatic reply that did not go out shows no Reply button", async () =>
   const eb = (await getEntry(b.p.storageLocal, a.id))!;
   assert.equal(eb.state, "prompted");
   assert.equal(eb.authorized, true);
-  assert.equal((await b.e.pairRowView(a.id))!.actions.includes("reply"), false);
-  // a prompted entry that waits for a tap still shows Reply
+  assert.equal((await b.e.pairRowView(a.id))!.actions.includes("reply"), true);
+  // a prompted entry that waits for a tap shows Reply
   await b.p.storageLocal.set({ ["pair:" + a.id]: { ...eb, authorized: false } });
   assert.ok((await b.e.pairRowView(a.id))!.actions.includes("reply"));
 });

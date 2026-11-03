@@ -1682,7 +1682,9 @@ export class Engine {
       actions.push("send_again");
     } else if (e.state === "prompted") {
       lines.push(T.wantsToPair(nm), T.pairing);
-      if (!e.authorized) actions.push("reply");
+      // a failed reply with no wait set can be tapped again while no send runs
+      const retry = e.unsent && !this.replying.has(x) && !(e.not_before && t < e.not_before);
+      if (!e.authorized || retry) actions.push("reply");
     } else if (e.state === "replied") {
       lines.push(T.pairing);
     } else if (e.state === "shown") {
