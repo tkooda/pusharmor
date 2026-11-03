@@ -44,6 +44,26 @@ final class CannotReceiveBannerTests: XCTestCase {
                        + "This is not a problem on this device. Try again later.")
     }
 
+    /// Check again is on every banner: notifications off (tabs and logged-out screen, beside
+    /// Open notification settings on the right) and the relay-side fault.
+    func testCheckAgainIsOnEveryBanner() {
+        XCTAssertEqual(CannotReceiveBanner.actions(notificationsOff: true).map(\.rawValue),
+                       ["Check again", "Open notification settings"])
+        XCTAssertEqual(CannotReceiveBanner.actions(notificationsOff: false).map(\.rawValue), ["Check again"])
+    }
+
+    /// The line after Check again for each outcome.
+    func testCheckAgainOutcomeLines() {
+        XCTAssertEqual(AppModel.checkLine(nil), "Still cannot receive messages.")
+        XCTAssertEqual(AppModel.checkLine(.sent), "Working")
+        XCTAssertEqual(AppModel.checkLine(.relay), "Still cannot receive messages.")
+        XCTAssertEqual(AppModel.checkLine(.gone), "Still cannot receive messages.")
+        XCTAssertEqual(AppModel.checkLine(.failed), "Still cannot receive messages.")
+        XCTAssertEqual(AppModel.checkLine(PushCheckResult(word: "other")), "Still cannot receive messages.")
+        XCTAssertNil(AppModel.checkLine(.noAddress))
+        XCTAssertEqual(AppModel.checkLine(.unavailable), "Unable to check right now. Try again later.")
+    }
+
     func testPushRegistrationFailureAloneDoesNotShowIt() {
         let model = AppModel()
         model.phase = .main

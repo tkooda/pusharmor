@@ -84,8 +84,10 @@ public enum S {
     public static let relayFaultApple = relayFault("Apple")
     /// Check again on the banner: the test push went through.
     public static let checkWorking = "Working"
-    /// Check again on the banner: no result.
+    /// Check again on the banner: no reply, or the relay server is busy.
     public static let checkFailed = "Unable to check right now. Try again later."
+    /// Check again on the banner: the cause is still there.
+    public static let stillCannotReceive = "Still cannot receive messages."
     public static let relayHelp = "To log in on another device, use this address. Find it in iOS Settings > Apple ID > Sign in with Apple, or at appleid.apple.com > Hide My Email."
     public static let unreachable = "Unreachable"
     public static let loggedOutBadge = "Logged out"

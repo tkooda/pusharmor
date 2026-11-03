@@ -1459,7 +1459,8 @@ final class StateMachineTests: XCTestCase {
     }
 
     /// Check again: one signed POST /v1/peers/<id>/check; "sent" clears the relay fault,
-    /// "relay" sets it, "gone" sends the push address again, and anything else is "failed".
+    /// "relay" sets it, "gone" sends the push address again and keeps the fault, a 429 or
+    /// no reply is unavailable, and anything else is "failed".
     func testCheckPushResults() async throws {
         let n = try dev("Ndev")
         let path = "/v1/peers/" + n.id.text + "/check"
@@ -1475,23 +1476,28 @@ final class StateMachineTests: XCTestCase {
         let patches = w.count("PATCH", "/v1/peers/")
         try n.core.store.setSetting("my_push_sha256", Ids.pushSha256(push))
         try n.core.store.setMe("last_push_sha256", .text(Ids.pushSha256(push)))
+        try n.core.store.setSetting(Core.relayFaultKey, "1")
         w.script("POST", path, 200, "{\"result\":\"gone\"}")
         let gone = await n.core.checkPush(push)
         XCTAssertEqual(gone, .gone)
         XCTAssertEqual(w.count("PATCH", "/v1/peers/"), patches + 1)
+        XCTAssertTrue(n.core.relayFault())
         w.script("POST", path, 200, "{\"result\":\"none\"}")
         let none = await n.core.checkPush(push)
         XCTAssertEqual(none, .noAddress)
-        for (status, body) in [(200, "{\"result\":\"failed\"}"), (200, "{\"result\":\"other\"}"), (429, "{\"error\":\"rate limited\"}"),
+        for (status, body) in [(200, "{\"result\":\"failed\"}"), (200, "{\"result\":\"other\"}"), (200, "{\"result\":\"unavailable\"}"),
                                (503, "{\"error\":\"unavailable\"}")] {
             w.script("POST", path, status, body)
             let r = await n.core.checkPush(push)
             XCTAssertEqual(r, .failed, body)
         }
+        w.script("POST", path, 429, "{\"error\":\"rate limited\"}")
+        let limited = await n.core.checkPush(push)
+        XCTAssertEqual(limited, .unavailable)
         w.offline = true
         let offline = await n.core.checkPush(push)
-        XCTAssertEqual(offline, .failed)
-        XCTAssertEqual(w.count("POST", path), 8)
+        XCTAssertEqual(offline, .unavailable)
+        XCTAssertEqual(w.count("POST", path), 9)
     }
 
     /// The relay server's test push is told apart from a message push.
@@ -1503,6 +1509,7 @@ final class StateMachineTests: XCTestCase {
                        + "This is not a problem on this device. Try again later.")
         XCTAssertEqual(S.checkWorking, "Working")
         XCTAssertEqual(S.checkFailed, "Unable to check right now. Try again later.")
+        XCTAssertEqual(S.stillCannotReceive, "Still cannot receive messages.")
     }
 
     /// a 401 "bad id" (a failed id check) is not a confirmed delete; only "unknown peer"

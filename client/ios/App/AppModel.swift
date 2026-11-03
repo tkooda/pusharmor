@@ -352,19 +352,30 @@ final class AppModel: ObservableObject {
 
     /// Check again on the "cannot receive" banner: notifications first; with them on, the
     /// relay server sends one test push. It went through: "Working" and the banner goes.
+    /// "none" keeps the banner with no line; no reply or a 429: "Unable to check right now".
     func checkAgain() async {
         await once("check") {
             await checkPermission()
-            guard !notificationsOff, let core = core, phase == .main else { return }
+            if notificationsOff {
+                toast = AppModel.checkLine(nil)
+                return
+            }
+            guard let core = core, phase == .main else { return }
             let r = await core.checkPush(pushInfo)
             reload()
-            switch r {
-            case .sent:
-                toast = S.checkWorking
-                toastIsSuccess = true
-            case .relay, .gone: break
-            case .noAddress, .failed: toast = S.checkFailed
-            }
+            guard let line = AppModel.checkLine(r) else { return }
+            toast = line
+            toastIsSuccess = r == .sent
+        }
+    }
+
+    /// The line after Check again; nil result: notifications are still off (no test push).
+    static func checkLine(_ r: PushCheckResult?) -> String? {
+        switch r {
+        case nil, .relay, .gone, .failed: return S.stillCannotReceive
+        case .sent: return S.checkWorking
+        case .noAddress: return nil
+        case .unavailable: return S.checkFailed
         }
     }
 

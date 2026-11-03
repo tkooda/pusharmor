@@ -237,17 +237,15 @@ struct CannotReceiveBanner: View {
                     Text(S.allowNotifications)
                         .font(.subheadline)
                         .fixedSize(horizontal: false, vertical: true)
-                    Button("Open notification settings") { model.openNotificationSettings() }
-                        .font(.subheadline)
-                        .buttonStyle(.borderless)
                 } else {
                     Text(S.relayFaultApple)
                         .font(.subheadline)
                         .fixedSize(horizontal: false, vertical: true)
-                    Button("Check again") { Task { await model.checkAgain() } }
-                        .font(.subheadline)
-                        .buttonStyle(.borderless)
-                        .disabled(model.busy.contains("check"))
+                }
+                // the primary action is on the right; stacks at large text sizes
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 16) { buttons }
+                    VStack(alignment: .leading, spacing: 6) { buttons }
                 }
             }
             .foregroundStyle(.primary)
@@ -265,6 +263,30 @@ struct CannotReceiveBanner: View {
         .background(Color.red.opacity(0.15), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    enum Action: String {
+        case checkAgain = "Check again"
+        case openSettings = "Open notification settings"
+    }
+
+    /// The buttons, left to right: Check again on every banner.
+    static func actions(notificationsOff: Bool) -> [Action] {
+        notificationsOff ? [.checkAgain, .openSettings] : [.checkAgain]
+    }
+
+    private var buttons: some View {
+        ForEach(CannotReceiveBanner.actions(notificationsOff: model.notificationsOff), id: \.self) { a in
+            Button(a.rawValue) {
+                switch a {
+                case .checkAgain: Task { await model.checkAgain() }
+                case .openSettings: model.openNotificationSettings()
+                }
+            }
+            .font(.subheadline)
+            .buttonStyle(.borderless)
+            .disabled(a == .checkAgain && model.busy.contains("check"))
+        }
     }
 }
 

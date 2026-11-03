@@ -206,33 +206,43 @@ extension Core {
 
     /// Check again on the "cannot receive" banner: the relay server sends one test push to
     /// this device and names the result. "sent" and "relay" update the stored fault; "gone"
-    /// (the push address is gone) sends this device's push address again. A 429, a network
-    /// error, or any other reply is "failed".
+    /// (the push address is gone) sends this device's push address again. A 429 or a network
+    /// error is unavailable; any other reply or result word is "failed".
     public func checkPush(_ current: PushInfo?) async -> PushCheckResult {
         guard let me = try? myId() else { return .failed }
         let path = "/v1/peers/" + me.text + "/check"
         let body = JOut.obj([]).data
         var out = await signed("POST", path, body: body, retry: false)
         if out.isClockSkew { out = await signed("POST", path, body: body, retry: false) }
-        guard let r = out.reply, r.ok, let word = r.json?["result"]?.stringValue,
-              let result = PushCheckResult(rawValue: word) else { return .failed }
+        guard let r = out.reply, r.status != 429 else { return .unavailable }
+        guard r.ok, let word = r.json?["result"]?.stringValue else { return .failed }
+        let result = PushCheckResult(word: word)
         switch result {
         case .sent: try? store.setSetting(Core.relayFaultKey, nil)
         case .relay: try? store.setSetting(Core.relayFaultKey, "1")
         case .gone:
-            // the push service answered, so the relay server reaches it
-            try? store.setSetting(Core.relayFaultKey, nil)
             try? store.setSetting("my_push_sha256", nil)
             await reconcilePush(current, refresh: true)
-        case .noAddress, .failed: break
+        case .noAddress, .failed, .unavailable: break
         }
         return result
     }
 }
 
-/// The result word of POST /v1/peers/<id>/check.
-public enum PushCheckResult: String, Equatable, Sendable {
-    case sent, relay, gone, noAddress = "none", failed
+/// The result word of POST /v1/peers/<id>/check; unavailable: a 429 or no reply.
+public enum PushCheckResult: Equatable, Sendable {
+    case sent, relay, gone, noAddress, failed, unavailable
+
+    /// Any word other than "sent", "relay", "gone", or "none" is "failed".
+    public init(word: String) {
+        switch word {
+        case "sent": self = .sent
+        case "relay": self = .relay
+        case "gone": self = .gone
+        case "none": self = .noAddress
+        default: self = .failed
+        }
+    }
 }
 
 /// The relay server's test push ({"check":1} beside "aps"): dropped with no notification.
