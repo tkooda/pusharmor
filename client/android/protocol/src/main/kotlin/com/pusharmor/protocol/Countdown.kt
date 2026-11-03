@@ -3,8 +3,6 @@ package com.pusharmor.protocol
 /** Pairing timeout and countdown text (catalog Pairing flow step 8). */
 object Countdown {
     const val PAIRING_TIMEOUT_DAYS = 14L
-    const val NO_REPLY_HINT_MS = 3L * 24 * 3600 * 1000
-    const val SEND_AGAIN_GREY_MS = 60_000L
     private const val HOUR = 3600_000L
     private const val DAY = 24 * HOUR
     private const val MINUTE = 60_000L
