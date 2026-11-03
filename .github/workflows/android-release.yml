@@ -327,7 +327,7 @@ jobs:
             gh release upload "$TAG" --clobber "$DIR"/*
           else
             gh release create "$TAG" --draft --prerelease=false --latest --verify-tag --title "$TAG" \
-              --notes "Test build: Play internal track and this release. Promote by hand (RELEASING.md)." \
+              --notes "PushArmor $VERSION for Android." \
               "$DIR"/*
           fi
           gh release edit "$TAG" --draft=false --prerelease=false --latest

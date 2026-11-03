@@ -121,7 +121,7 @@ jobs:
             gh release upload "$TAG" --clobber release-files/pusharmor.py release-files/pusharmor.py.sha256 release-files/*.whl release-files/*.tar.gz
           else
             gh release create "$TAG" --draft --prerelease=false --latest=false --verify-tag --title "$TAG" \
-              --notes "PushArmor command-line client. Check pusharmor.py against pusharmor.py.sha256." \
+              --notes "PushArmor ${TAG#cli/v} command-line client." \
               release-files/pusharmor.py release-files/pusharmor.py.sha256 release-files/*.whl release-files/*.tar.gz
           fi
           gh release edit "$TAG" --draft=false --prerelease=false --latest=false

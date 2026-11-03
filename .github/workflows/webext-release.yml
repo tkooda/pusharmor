@@ -215,7 +215,7 @@ jobs:
             gh release upload "$TAG" --clobber "$DIR"/*
           else
             gh release create "$TAG" --draft --prerelease=false --latest=false --verify-tag --title "$TAG" \
-              --notes "Test build. pusharmor-chrome-$VERSION.zip is the public zip; the Beta zip went to the private PushArmor Beta item. Promote by hand (RELEASING.md)." \
+              --notes "PushArmor $VERSION for Chrome." \
               "$DIR"/*
           fi
           gh release edit "$TAG" --draft=false --prerelease=false --latest=false
@@ -595,7 +595,7 @@ jobs:
             gh release upload "$TAG" --clobber "$DIR"/*
           else
             gh release create "$TAG" --draft --prerelease=false --latest=false --verify-tag --title "$TAG" \
-              --notes "Test build. pusharmor-firefox-$VERSION.zip and the source archive are for the public AMO listing; pusharmor-firefox-beta-$VERSION.xpi is the signed PushArmor Beta add-on. Promote by hand (RELEASING.md)." \
+              --notes "PushArmor $VERSION for Firefox." \
               "$DIR"/*
           fi
           gh release edit "$TAG" --draft=false --prerelease=false --latest=false
