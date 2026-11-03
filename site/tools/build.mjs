@@ -1,8 +1,11 @@
 // Release build of the site: copies site/public to OUT, fills the build ids from
 // release/public.json into OUT, then rewrites the SRI and CSP hashes in OUT.
-// The tracked site/public keeps its placeholders. "wrangler deploy" runs it as the
+// The APK SHA-256 values of /download come from the hashes file of the GitHub
+// release android/vX.Y.Z (X.Y.Z from the page's APK URLs), so a deploy before
+// that release is published fails; --apk-hashes FILE reads a local copy, and a
+// CI dummy build fills zeros. The tracked site/public keeps its placeholders. "wrangler deploy" runs it as the
 // build command from wrangler.jsonc and serves OUT (see site/README.md).
-//   node site/tools/build.mjs [--out OUT] [--public FILE]
+//   node site/tools/build.mjs [--out OUT] [--public FILE] [--apk-hashes FILE]
 // OUT defaults to site/dist (gitignored) and is replaced. Fails when a value is missing, empty, malformed
 // or a PLACEHOLDER (or a CI dummy without PA_CI_DUMMY=1), or a placeholder is left.
 // A CI dummy skips the format checks.
@@ -56,6 +59,25 @@ fill("turnstile.html", 'data-sitekey="TURNSTILE_SITEKEY_PLACEHOLDER"', 'data-sit
 fill("js/fx-setup.js", '"VAPID_PUBLIC_KEY_PLACEHOLDER"', JSON.stringify(pub.webpush_vapid_public_key));
 fill("_headers", "chrome-extension://CHROME_EXTENSION_ID", "chrome-extension://" + pub.google_chrome_extension_id);
 fill("_headers", "chrome-extension://CHROME_BETA_EXTENSION_ID", "chrome-extension://" + pub.google_chrome_beta_extension_id);
+const page = readFileSync(join(dir, "download.html"), "utf8");
+const apkVersion = /\/releases\/download\/android\/v([0-9]+\.[0-9]+\.[0-9]+)\//.exec(page)?.[1];
+if (!apkVersion) fail(["download.html: no android/vX.Y.Z release URL"]);
+let apkHashes;
+if (arg("--apk-hashes")) apkHashes = readFileSync(arg("--apk-hashes"), "utf8");
+else if (process.env.PA_CI_DUMMY === "1") apkHashes = ["foss", "play"].map((k) => "0".repeat(64) + "  pusharmor-" + apkVersion + "-" + k + ".apk").join("\n");
+else {
+  const url = "https://github.com/tkooda/pusharmor/releases/download/android/v" + apkVersion + "/pusharmor-" + apkVersion + ".hashes.txt";
+  let r;
+  try { r = await fetch(url); } catch (e) { fail([url + ": " + e.message]); }
+  if (!r.ok) fail([url + ": HTTP " + r.status + " (deploy after android-release publishes android/v" + apkVersion + ")"]);
+  apkHashes = await r.text();
+}
+for (const k of ["foss", "play"]) {
+  const name = "pusharmor-" + apkVersion + "-" + k + ".apk";
+  const h = apkHashes.split("\n").map((l) => l.trim().split(/\s+/)).find((x) => x[1] === name)?.[0];
+  if (!/^[0-9a-f]{64}$/.test(h || "")) fail(["APK hashes file: no SHA-256 line for " + name]);
+  fill("download.html", "APK_" + k.toUpperCase() + "_SHA256_PLACEHOLDER", h);
+}
 const alp = join(dir, ".well-known", "assetlinks.json");
 const al = JSON.parse(readFileSync(alp, "utf8"));
 al[0].target.sha256_cert_fingerprints = [].concat(pub.android_release_cert_sha256).map((f) => String(f).toUpperCase());

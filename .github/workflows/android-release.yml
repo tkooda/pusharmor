@@ -8,6 +8,8 @@ name: android-release
 #                        release
 #   android-rel-play     Environment android-release: the Play internal upload,
 #                        in its own job so a failed upload can be rerun alone
+#   android-rel-fdroid   Environment fdroid-release: the F-Droid repo (repo
+#                        signing key, R2 upload); skips while its secrets are missing
 # Test channels only: Play internal track and the GitHub
 # release (a regular release; it keeps the Latest badge). The owner promotes by hand
 # (RELEASING.md): Play promote, F-Droid metadata.
@@ -410,3 +412,85 @@ jobs:
           call -X PUT -H "$auth" -H "Content-Type: application/json" --data "$body" "$api/edits/$edit/tracks/internal"
           # Content-Length: 0: a POST with no body gets HTTP 411 from the Google front end.
           call -X POST -H "$auth" -H "Content-Length: 0" "$api/edits/$edit:commit"
+
+  # F-Droid repo https://fdroid.pusharmor.com/repo (R2 bucket pusharmor-fdroid):
+  # the foss APKs of the newest three Android releases and the index signed
+  # with the repo key (release/fdroid/publish.sh). Its own job and Environment:
+  # the repo key never shares a job with Gradle, and a failed upload is rerun
+  # alone. While a secret is missing it skips with a notice and does not fail.
+  android-rel-fdroid:
+    name: F-Droid repo update
+    needs: [android-rel-build, android-rel-publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: fdroid-release
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.android-rel-build.outputs.version }}
+    steps:
+      - name: Secrets present
+        id: secrets
+        env:
+          KEYSTORE_B64: ${{ secrets.FDROID_REPO_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.FDROID_REPO_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.FDROID_REPO_KEY_PASSWORD }}
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_R2_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          missing=""
+          [ -n "$KEYSTORE_B64" ] || missing="$missing FDROID_REPO_KEYSTORE_B64"
+          [ -n "$STORE_PASSWORD" ] || missing="$missing FDROID_REPO_STORE_PASSWORD"
+          [ -n "$KEY_PASSWORD" ] || missing="$missing FDROID_REPO_KEY_PASSWORD"
+          [ -n "$CF_TOKEN" ] || missing="$missing CLOUDFLARE_R2_API_TOKEN"
+          [ -n "$CF_ACCOUNT" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          if [ -n "$missing" ]; then
+            echo "::notice title=F-Droid repo not updated::Environment fdroid-release lacks the secrets:$missing"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.secrets.outputs.ok == 'true'
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.secrets.outputs.ok == 'true'
+        with:
+          node-version-file: site/.node-version
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        if: steps.secrets.outputs.ok == 'true'
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      # build-tools 34.0.0 apksigner (as in the sign job), fdroidserver pinned,
+      # wrangler pinned by site/package-lock.json.
+      - name: Tools (build-tools 34.0.0, fdroidserver 2.4.5, wrangler)
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "build-tools;34.0.0" < /dev/null
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet fdroidserver==2.4.5
+          (cd site && npm ci --ignore-scripts)
+          {
+            echo "$ANDROID_HOME/build-tools/34.0.0"
+            echo "$RUNNER_TEMP/venv/bin"
+            echo "$PWD/site/node_modules/.bin"
+          } >> "$GITHUB_PATH"
+      - name: Build and sign the repo
+        if: steps.secrets.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          FDROID_REPO_KEYSTORE_B64: ${{ secrets.FDROID_REPO_KEYSTORE_B64 }}
+          FDROID_REPO_STORE_PASSWORD: ${{ secrets.FDROID_REPO_STORE_PASSWORD }}
+          FDROID_REPO_KEY_PASSWORD: ${{ secrets.FDROID_REPO_KEY_PASSWORD }}
+        run: bash release/fdroid/publish.sh build "$RUNNER_TEMP/fdroid"
+      - name: Upload the repo to R2, then delete older APKs
+        if: steps.secrets.outputs.ok == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_R2_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: bash release/fdroid/publish.sh upload "$RUNNER_TEMP/fdroid"

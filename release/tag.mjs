@@ -142,7 +142,8 @@ const FILES = [
   },
   // The APK rows of /download: X.Y.Z in the foss and play release URLs (tag
   // android/vX.Y.Z) and in each APK file name (link text, QR label, command).
-  // The SHA-256 values are known only after CI signs the APKs: not stamped.
+  // The SHA-256 values are known only after CI signs the APKs: not stamped;
+  // the site build fills them from the release hashes file (site/tools/build.mjs).
   {
     path: "site/public/download.html",
     platforms: ["android"],

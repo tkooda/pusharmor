@@ -630,12 +630,30 @@ export function amoToken(issuer, secret, now = Math.floor(Date.now() / 1000)) {
   return data + "." + createHmac("sha256", secret).update(data).digest("base64url");
 }
 
+/** Replace the AMO listing previews with `shots`, in order: upload each one
+ *  (position = its index), then delete every preview that was there before.
+ *  AMO re-encodes previews, so an unchanged set cannot be detected and each
+ *  run replaces them; a failed upload leaves the old previews in place. */
+export async function syncAmoPreviews({ amo, id, shots }) {
+  const old = ((await amo("GET", "/addon/" + id + "/")).json.previews || []).map((p) => p.id);
+  for (const [i, s] of shots.entries()) {
+    const f = new FormData();
+    f.append("image", new Blob([s.data], { type: "image/png" }), s.name);
+    f.append("position", String(i));
+    await amo("POST", "/addon/" + id + "/previews/", f);
+  }
+  for (const p of old) await amo("DELETE", "/addon/" + id + "/previews/" + p + "/");
+  return shots.length + " previews uploaded, " + old.length + " old previews removed";
+}
+
 async function firefox(version) {
   const api = "https://addons.mozilla.org/api/v5/addons";
   const id = encodeURIComponent(loadPublic().mozilla_firefox_addon_id);
   const amo = (method, path, body, ok) =>
     http(method, api + path, { headers: { Authorization: "JWT " + amoToken(process.env.MOZILLA_AMO_JWT_ISSUER, process.env.MOZILLA_AMO_JWT_SECRET) }, body, ok });
 
+  // The listing previews: the plain AMO screenshots (store/screenshots/amo).
+  const previews = () => syncAmoPreviews({ amo, id, shots: screenshotFiles("amo") });
   if ((await amo("GET", "/addon/" + id + "/", undefined, [200, 401, 403, 404])).status !== 200) {
     throw new Error("Firefox: the listed add-on is not on AMO yet; create it by hand once (RELEASING.md, Firefox)");
   }
@@ -649,7 +667,7 @@ async function firefox(version) {
   if (same) {
     const st = same.channel + ", " + (same.file?.status || "unknown");
     // Only a listed version that AMO did not disable counts as promoted.
-    if (same.channel === "listed" && same.file?.status !== "disabled") return done("Firefox " + version + ": already on AMO (" + st + "); nothing to do");
+    if (same.channel === "listed" && same.file?.status !== "disabled") return done("Firefox " + version + ": already on AMO (" + st + "); " + (await previews()));
     return skip("Firefox " + version + ": SKIP, " + version + " is already on AMO (" + st + ")");
   }
   const newer = versions.find((x) => x.channel === "listed" && parseVersion(x.version) && cmpVersion(x.version, version) > 0);
@@ -673,7 +691,7 @@ async function firefox(version) {
   // Notes for the reviewers; the demo account is in the Developer Hub.
   vf.append("approval_notes", readFileSync(AMO_REVIEW_NOTES, "utf8").trim());
   await amo("POST", "/addon/" + id + "/versions/", vf);
-  return done("Firefox " + version + ": public zip and source submitted as a listed version");
+  return done("Firefox " + version + ": public zip and source submitted as a listed version; " + (await previews()));
 }
 
 const COMMANDS = { check, gate, play, appstore, chrome, firefox };

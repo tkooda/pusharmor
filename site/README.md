@@ -18,7 +18,8 @@ Layout:
         .well-known/       security.txt, assetlinks.json
       wrangler.jsonc       assets-only config
       tools/hashes.mjs     rewrites SRI integrity attributes and CSP script hashes
-      tools/build.mjs      copies public/ to dist/ and fills the build ids there (deploy)
+      tools/build.mjs      copies public/ to dist/ and fills the build ids there (deploy),
+                           and the APK SHA-256 values from the android/vX.Y.Z release
       tools/test/          site checks (node --test)
 
 ## Install
@@ -46,7 +47,10 @@ hashes there (see its header comment), so `git status` stays clean. Try it with
 `node site/tools/build.mjs` (`--out DIR` writes elsewhere).
 
 Deploy is manual: `npx wrangler deploy` in `site/` (a push to main does not deploy). It runs
-the build first (`wrangler.jsonc`) and fails while a placeholder is left. Before a release
+the build first (`wrangler.jsonc`) and fails while a placeholder is left. The build also
+downloads `pusharmor-X.Y.Z.hashes.txt` of the GitHub release `android/vX.Y.Z` named in
+`/download` and fills the APK SHA-256 values from it, so deploy after android-release has
+published that release (until then the build fails and nothing deploys). Before a release
 deploy, run the checks with the release gate on, and do not deploy if any check fails or is
 skipped:
 
