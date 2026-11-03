@@ -63,7 +63,13 @@ export async function rpc<T>(env: UiEnv, op: string, args?: Record<string, unkno
   return r.data as T;
 }
 
-/** Greys a button for ms with a countdown in its label (Refresh, Send again: 60 s). */
+/** Greys a button for ms with its label unchanged (Refresh: 60 s). */
+export function disableFor(btn: HTMLButtonElement, ms: number): void {
+  btn.disabled = true;
+  setTimeout(() => (btn.disabled = false), ms);
+}
+
+/** Greys a button for ms with a countdown in its label (Send again: 60 s). */
 export function greyFor(btn: HTMLButtonElement, ms: number): void {
   const el = (btn.querySelector(".lbl") as HTMLElement | null) ?? btn; // keeps a leading icon
   const label = el.textContent ?? "";
