@@ -313,7 +313,32 @@ describe("POST /pair/$X (6.7a)", () => {
     const y = await newPeer(email, "chrome", null);
     expect((await call("POST", "/v1/pair/" + y.id, { k: "commit", c }, { peer: n })).body).toEqual({ r: "gone" });
     await env.DB.prepare("UPDATE peers SET deny = json_set(deny, '$.\"' || ?1 || '\"', 1) WHERE id = ?2").bind(n.id, y.id).run();
-    expect((await call("POST", "/v1/pair/" + y.id, { k: "open", c }, { peer: n })).body).toEqual({ r: "denied" });
+    expect((await call("POST", "/v1/pair/" + y.id, { k: "open", c }, { peer: n })).body).toEqual({ r: "gone" });
+  });
+
+  it("a deny does not block pairing in either direction; ordinary sends stay denied", async () => {
+    const email = randomEmail();
+    const r = await newPeer(email);
+    const d = await newPeer(email);
+    await setAllow(r, [d.id]);
+    await setAllow(d, [r.id]);
+    expect((await call("POST", "/v1/deny/" + d.id, { c: message(512) }, { peer: r })).status).toBe(200);
+    const c = message(364) + "AA";
+    const sends = () => vendorRequests().filter((q) => q.url.includes("/messages:send")).length;
+    // The rejected device starts a pairing: commit and open reach the rejecter.
+    let before = sends();
+    expect((await call("POST", "/v1/pair/" + r.id, { k: "commit", c }, { peer: d })).body).toEqual({ r: "sent" });
+    expect((await call("POST", "/v1/pair/" + r.id, { k: "open", c }, { peer: d })).body).toEqual({ r: "sent" });
+    expect(sends()).toBe(before + 2);
+    // The rejecter starts a pairing: the commit goes out and the reply comes back.
+    expect((await call("POST", "/v1/pair/" + d.id, { k: "commit", c }, { peer: r })).body).toEqual({ r: "sent" });
+    before = sends();
+    expect((await call("POST", "/v1/pair/" + r.id, { k: "reply", c }, { peer: d })).body).toEqual({ r: "sent" });
+    expect(sends()).toBe(before + 1);
+    // An ordinary send from the rejected device is still refused, with no vendor request.
+    before = sends();
+    expect((await call("POST", "/v1/send", { v: 1, m: { [r.id]: message(512) } }, { peer: d })).body.r).toEqual({ [r.id]: "denied" });
+    expect(sends()).toBe(before);
   });
 });
 
