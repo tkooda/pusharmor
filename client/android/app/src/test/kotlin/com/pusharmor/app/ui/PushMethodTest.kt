@@ -21,6 +21,14 @@ class PushMethodTest {
         assertEquals(null, pushCurrent(null, google = false, saved = null))
     }
 
+    /** No push service in use: "None available" (shown in the theme's error color). */
+    @Test fun valueNames() {
+        assertEquals("Google", pushMethodName(PUSH_GOOGLE, apps))
+        assertEquals("ntfy", pushMethodName("io.heckel.ntfy", apps))
+        assertEquals("None available", pushMethodName(null, apps))
+        assertEquals("None available", pushMethodName("gone.app", apps))
+    }
+
     @Test fun getAppTexts() {
         assertEquals("Get a UnifiedPush app", UiText.GET_PUSH_APP)
         assertEquals("ntfy (recommended)", UiText.NTFY_NAME)

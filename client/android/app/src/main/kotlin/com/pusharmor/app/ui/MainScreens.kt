@@ -490,6 +490,10 @@ internal const val PUSH_GOOGLE = "google"
 internal fun pushOptions(google: Boolean, apps: List<Pair<String, String>>): List<String> =
     (if (google) listOf(PUSH_GOOGLE) else emptyList()) + UiText.sortedByName(apps, { it.second }).map { it.first }
 
+/** Push method value: Google, the UnifiedPush app's name, or None available when no push service can be used. */
+internal fun pushMethodName(o: String?, apps: List<Pair<String, String>>): String =
+    if (o == PUSH_GOOGLE) "Google" else apps.firstOrNull { it.first == o }?.second ?: UiText.PUSH_NONE_AVAILABLE
+
 /** The option in use: Google unless UnifiedPush is the push method, then the saved UnifiedPush app (null when none). */
 internal fun pushCurrent(type: String?, google: Boolean, saved: String?): String? =
     if (UnifiedPushSupport.active(type, google)) saved else PUSH_GOOGLE
@@ -1386,7 +1390,7 @@ internal fun MessageAction(text: String, icon: ImageVector, onClick: () -> Unit)
 /** A plain settings row (no icon tile); [onClick] null makes it static text. */
 @Composable
 internal fun SettingRow(title: String, sub: String? = null, modifier: Modifier, color: Color = Color.Unspecified, value: String? = null,
-                       trailing: (@Composable () -> Unit)? = null, onClick: (() -> Unit)?) {
+                       valueColor: Color? = null, trailing: (@Composable () -> Unit)? = null, onClick: (() -> Unit)?) {
     Row(modifier.heightIn(min = 56.dp).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
         .padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
@@ -1394,7 +1398,7 @@ internal fun SettingRow(title: String, sub: String? = null, modifier: Modifier, 
             sub?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
         // The current value sits on the right, like a switch or an icon.
-        value?.let { Spacer(Modifier.width(16.dp)); Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        value?.let { Spacer(Modifier.width(16.dp)); Text(it, style = MaterialTheme.typography.bodyMedium, color = valueColor ?: MaterialTheme.colorScheme.onSurfaceVariant) }
         trailing?.let { Spacer(Modifier.width(16.dp)); it() }
     }
 }
@@ -1418,7 +1422,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     val google = vm.g.push.hasPlayServices
     val apps = remember(tick) { UnifiedPushSupport.distributors(context).map { it to UnifiedPushSupport.appName(context, it) } }
     val pushNow = pushCurrent(prefs?.get(Settings.K.PUSH_TYPE), google, remember(tick, prefs) { UnifiedPushSupport.saved(context) })
-    fun pushName(o: String?): String = if (o == PUSH_GOOGLE) "Google" else apps.firstOrNull { it.first == o }?.second ?: "None"
+    fun pushName(o: String?): String = pushMethodName(o, apps)
     val themePref = ThemePref.parse(prefs?.get(Settings.K.THEME))
     fun b(k: androidx.datastore.preferences.core.Preferences.Key<Boolean>, d: Boolean) = prefs?.get(k) ?: d
     val cs = MaterialTheme.colorScheme
@@ -1475,7 +1479,8 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                     SwitchRow("Allow sending messages to watch", b(Settings.K.WATCH, true), sub = "When off, nothing is sent to your watch.",
                         modifier = m.then(pad)) { vm.setPref(Settings.K.WATCH, it) }
                 }
-                add { m -> SettingRow("Push method", modifier = m, value = pushName(pushNow)) { pickPush = true } }
+                add { m -> SettingRow("Push method", modifier = m, value = pushName(pushNow),
+                    valueColor = if (pushName(pushNow) == UiText.PUSH_NONE_AVAILABLE) cs.error else null) { pickPush = true } }
             })
             SectionHeader("History")
             GroupedList(listOf<@Composable (Modifier) -> Unit>(
