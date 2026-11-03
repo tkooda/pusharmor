@@ -436,13 +436,20 @@ internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, content: @Co
     val top = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
     Column(Modifier.fillMaxSize()) {
         if (shown) {
+            // Check again reads each cause on this device live, at the tap.
+            val check = UiText.CHECK_AGAIN to {
+                val p = vm.prefs.value
+                vm.checkAgain(!n.enabled() || n.mainChannelsBlocked() || (p != null && UnifiedPushSupport.noPushApp(context, p[Settings.K.PUSH_TYPE], google)) ||
+                    UnifiedPushSupport.refused(context, p, google) != null)
+            }
+            // Check again on the left; the card's own fix, the primary action, on the right.
             val (reason, actions) = when {
-                off -> UiText.CANNOT_RECEIVE_NOTIFICATIONS_OFF to listOf<Pair<String, () -> Unit>>("Fix" to {
+                off -> UiText.CANNOT_RECEIVE_NOTIFICATIONS_OFF to listOf<Pair<String, () -> Unit>>(check, "Fix" to {
                     safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
                 })
-                noPushApp -> UiText.noPushApp(google) to listOf(UiText.GET_PUSH_APP to { getApp = true })
-                refused != null -> UiText.pushRefused(refused.first, refused.second, google) to emptyList()
-                else -> UiText.RELAY_FAULT to listOf(UiText.CHECK_AGAIN to { vm.checkAgain() })
+                noPushApp -> UiText.noPushApp(google) to listOf(check, UiText.GET_PUSH_APP to { getApp = true })
+                refused != null -> UiText.pushRefused(refused.first, refused.second, google) to listOf(check)
+                else -> UiText.RELAY_FAULT to listOf(check)
             }
             CannotReceiveBanner(reason, actions,
                 Modifier.then(if (topInset) Modifier.windowInsetsPadding(top) else Modifier).padding(horizontal = 16.dp, vertical = 8.dp),

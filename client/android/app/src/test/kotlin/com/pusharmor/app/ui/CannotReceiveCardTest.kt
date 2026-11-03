@@ -45,7 +45,9 @@ class CannotReceiveCardTest {
     private fun cards(a: android.app.Activity) = nodes(a).count { text(it) == title }
     /** Line 2 says why and the button says what to do (notifications are off in these tests). */
     private fun reasonAndAction(a: android.app.Activity) =
-        nodes(a).count { text(it) == "Allow notifications for PushArmor in Settings." } == 1 && nodes(a).count { text(it) == "Fix" } == 1
+        nodes(a).count { text(it) == "Allow notifications for PushArmor in Settings." } == 1 && nodes(a).count { text(it) == "Fix" } == 1 && checkAgain(a)
+    /** Every card variant has one Check again. */
+    private fun checkAgain(a: android.app.Activity) = nodes(a).count { text(it) == UiText.CHECK_AGAIN } == 1
 
     /** A frame left pending by an earlier test would stop every tap here from recomposing; clear it. */
     private fun unstickFrames() {
@@ -137,6 +139,7 @@ class CannotReceiveCardTest {
             assertTrue(cards(a) == 1)
             assertTrue(nodes(a).count { text(it) == UiText.noPushApp(app.graph.push.hasPlayServices) } == 1)
             assertTrue(nodes(a).count { text(it) == UiText.GET_PUSH_APP } == 1 && nodes(a).none { text(it) == "Get ntfy" || text(it) == "Get Sunup" })
+            assertTrue("check again", checkAgain(a))
             UnifiedPushSupport.installed = { listOf("io.heckel.ntfy") }
             app.graph.settings.set(Settings.K.BANNER, "no_distributor") // a stale flag does not bring the card back
             val (b, _) = show(app, Session.Start.READY)
@@ -173,5 +176,47 @@ class CannotReceiveCardTest {
                 assertTrue(nodes(b).none { text(it) == UiText.RELAY_FAULT })
             } finally { UnifiedPushSupport.installed = saved }
         } finally { app.graph.settings.set(Settings.K.RELAY_FAULT, null) }
+    }
+
+    /** A refused push address: the card with its line and Check again. */
+    @Test fun refusedCardHasCheckAgain() {
+        val savedInstalled = UnifiedPushSupport.installed
+        val savedApp = UnifiedPushSupport.saved
+        try {
+            val app = app(true)
+            UnifiedPushSupport.installed = { listOf("io.heckel.ntfy") }
+            UnifiedPushSupport.saved = { "io.heckel.ntfy" }
+            app.graph.settings.set(Settings.K.PUSH_TYPE, "unifiedpush")
+            app.graph.settings.set(Settings.K.UP_ENDPOINT, "https://push.example.org/up/abc")
+            app.graph.settings.set(Settings.K.PUSH_REFUSED, true)
+            val (a, _) = show(app, Session.Start.READY)
+            assertTrue(cards(a) == 1)
+            assertTrue(nodes(a).any { text(it).startsWith("The relay server cannot send to \"push.example.org\"") })
+            assertTrue("check again", checkAgain(a))
+        } finally {
+            UnifiedPushSupport.installed = savedInstalled
+            UnifiedPushSupport.saved = savedApp
+            val app = ApplicationProvider.getApplicationContext<PaApp>()
+            app.graph.settings.set(Settings.K.PUSH_REFUSED, null)
+            app.graph.settings.set(Settings.K.UP_ENDPOINT, null)
+        }
+    }
+
+    /** Notifications off: Check again sends no test push, keeps the card, and says so; on the logged-out screen too. */
+    @Test fun checkAgainWithALocalCauseKeepsTheCard() {
+        for (start in listOf(Session.Start.READY, Session.Start.SIGNED_OUT)) {
+            val app = app(false)
+            (app as TestApp).fakeHttp = okhttp3.Interceptor { throw AssertionError("no test push with a local cause") }
+            try {
+                val (a, vm) = show(app, start)
+                tap(a, UiText.CHECK_AGAIN)
+                // The snackbar host takes the message off vm.message as soon as the main looper runs, so look for either.
+                fun still() = vm.message.value == UiText.CHECK_STILL || nodes(a).any { text(it) == UiText.CHECK_STILL }
+                val until = System.currentTimeMillis() + 5_000
+                while (!still() && System.currentTimeMillis() < until) { Thread.sleep(20); idle() }
+                assertTrue("still line", still())
+                assertTrue(cards(a) == 1)
+            } finally { app.fakeHttp = null }
+        }
     }
 }

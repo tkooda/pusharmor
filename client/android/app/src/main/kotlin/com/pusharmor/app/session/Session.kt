@@ -472,14 +472,20 @@ class Session(private val g: Graph) {
 
     /**
      * Check again on the cannot-receive card: the relay server sends one test push. "sent" and "relay" set the relay
-     * fault mark, "gone" sends the push address again as a changed hash does; returns the result word, null on any failure.
+     * fault mark, "gone" sends the push address again as a changed hash does and keeps the card; returns the result word,
+     * null on no reply or a 429.
      */
     fun checkPush(): String? {
-        val word = (g.client.check() as? ApiResult.Ok)?.value
+        // null on no reply or a 429; any other error reply counts as "failed".
+        val word = when (val r = g.client.check()) {
+            is ApiResult.Ok -> r.value
+            is ApiResult.Http -> if (r.status == 429) null else "failed"
+            else -> null
+        }
         when (word) {
             "sent" -> s.set(Settings.K.RELAY_FAULT, false)
             "relay" -> s.set(Settings.K.RELAY_FAULT, true)
-            "gone" -> { s.set(Settings.K.RELAY_FAULT, false); Work.patchPush(g.app) }
+            "gone" -> Work.patchPush(g.app)
         }
         return word
     }

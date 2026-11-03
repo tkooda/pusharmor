@@ -103,6 +103,20 @@ object UiText {
     /** Check again: the test push reached this device. */
     const val CHECK_WORKING = "Working"
     const val CHECK_FAILED = "Unable to check right now. Try again later."
+    /** Check again: a cause on this device remains, or the relay server's test push did not reach it. */
+    const val CHECK_STILL = "Still cannot receive messages."
+
+    /**
+     * The line after Check again: [localCause] means no test push was sent; [word] is the relay server's result, null
+     * on a network error or an error reply. "none" adds no line; an unknown word counts as "failed".
+     */
+    fun checkAgainText(localCause: Boolean, word: String?): String? = when {
+        localCause -> CHECK_STILL
+        word == null -> CHECK_FAILED
+        word == "sent" -> CHECK_WORKING
+        word == "none" -> null
+        else -> CHECK_STILL
+    }
 
     /**
      * True while this device cannot show or get messages: notifications off or blocked, no push app, a refused push

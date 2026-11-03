@@ -6,6 +6,7 @@ import com.pusharmor.app.PaApp
 import com.pusharmor.app.TestApp
 import com.pusharmor.app.data.Settings
 import com.pusharmor.app.keys.KeystoreKeyOps
+import com.pusharmor.app.ui.UiText
 import com.pusharmor.app.ui.relayFaultShown
 import com.pusharmor.store.SelfEntity
 import kotlinx.coroutines.Dispatchers
@@ -82,6 +83,32 @@ class RelayFaultTest {
         reply(429, "{\"error\":\"rate limited\"}")
         assertNull(io { g.session.checkPush() })
         assertEquals(true, fault())
+        reply(200, "{\"result\":\"none\"}")
+        assertEquals("none", io { g.session.checkPush() })
+        assertEquals(true, fault())
+        reply(200, "{\"result\":\"later\"}") // an unknown word changes nothing
+        assertEquals("later", io { g.session.checkPush() })
+        assertEquals(true, fault())
+        reply(503, "{\"error\":\"server error\"}") // any error reply but 429 counts as failed
+        assertEquals("failed", io { g.session.checkPush() })
+        assertEquals(true, fault())
+        reply(200, "{\"result\":\"gone\"}") // gone keeps the card while the push address is sent again
+        assertEquals("gone", io { g.session.checkPush() })
+        assertEquals(true, fault())
+        app.fakeHttp = Interceptor { throw java.io.IOException("offline") }
+        assertNull(io { g.session.checkPush() })
+        assertEquals(true, fault())
+    }
+
+    /** The line after Check again, for each outcome; null adds no line. */
+    @Test fun checkAgainLines() {
+        val still = "Still cannot receive messages."
+        val unable = "Unable to check right now. Try again later."
+        assertEquals(still, UiText.checkAgainText(localCause = true, word = null))
+        assertEquals("Working", UiText.checkAgainText(false, "sent"))
+        for (w in listOf("relay", "gone", "failed", "later")) assertEquals(w, still, UiText.checkAgainText(false, w))
+        assertNull(UiText.checkAgainText(false, "none"))
+        assertEquals(unable, UiText.checkAgainText(false, null)) // network error or HTTP 429
     }
 
     @Test fun shownForGooglePushOnly() {
