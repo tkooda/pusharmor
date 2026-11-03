@@ -31,7 +31,7 @@ export async function pair(c: Ctx): Promise<Response> {
   const pm = caller!.push === null;
   if (!xr) return json(200, withPushMissing({ r: "unknown" }, pm));
   await enforce(c.env, "RL_PAIR", "pair:" + kind + ":" + s.me + x, c.log);
-  if (xr.denies_me === 1) return json(200, withPushMissing({ r: "denied" }, pm));
+  // A deny does not block pairing: a rejected device may pair again in either direction.
   let pk: string | undefined;
   if (xr.push_type === 2 || xr.push_type === 5) pk = kind === "reply" ? await pairKey(x, s.me) : await pairKey(s.me, x);
   const r = await relayOne(c, s, xr, msg, "pair", pk);
