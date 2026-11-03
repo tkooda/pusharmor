@@ -43,4 +43,18 @@ def test_broken_cryptography_exits_1_with_one_line(tmp_path):
     assert r.returncode == 1 and r.stdout == ""
     assert r.stderr == "error: " + pa.CRYPTO_MISSING + "\n"
     assert r.stderr == ('error: The Python "cryptography" package is missing. Install it with: '
-                        "python3 -m pip install --user cryptography\n")
+                        + ("py" if os.name == "nt" else "python3") + " -m pip install --user cryptography\n")
+
+
+def test_cryptography_hint_on_windows_uses_py(tmp_path):
+    import subprocess
+    fake = tmp_path / "cryptography"
+    fake.mkdir()
+    (fake / "__init__.py").write_text("raise ImportError('missing')\n")
+    env = dict(os.environ, PYTHONPATH=str(tmp_path))
+    code = "import runpy, sys; sys.platform = 'win32'; runpy.run_path(sys.argv[1], run_name='__main__')"
+    r = subprocess.run([sys.executable, "-c", code, os.path.join(os.path.dirname(HERE), "pusharmor.py")],
+                       env=env, capture_output=True, text=True)
+    assert r.returncode == 1
+    assert r.stderr == ('error: The Python "cryptography" package is missing. Install it with: '
+                        "py -m pip install --user cryptography\n")

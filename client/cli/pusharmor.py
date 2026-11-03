@@ -28,7 +28,7 @@ import unicodedata
 import zlib
 
 CRYPTO_MISSING = ('The Python "cryptography" package is missing. Install it with: '
-                  "python3 -m pip install --user cryptography")
+                  + ("py" if sys.platform == "win32" else "python3") + " -m pip install --user cryptography")
 
 try:
     from cryptography.exceptions import InvalidSignature
