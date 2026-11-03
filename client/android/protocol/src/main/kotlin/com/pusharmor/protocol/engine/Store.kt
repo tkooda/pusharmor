@@ -58,9 +58,7 @@ data class HistoryRow(
     val results: Map<String, String> = emptyMap(),
     /** Merged event count. */
     val count: Int = 1,
-) {
-    val isEvent: Boolean get() = type !in setOf("url", "text", "tel")
-}
+)
 
 /** Storage the engines need (Room in the app, in memory in tests). */
 interface LocalStore {
