@@ -29,7 +29,7 @@ class FlavorPushSwitchTest {
         FlavorPush.fetchToken = { cb -> cb("token-1") }
         UnifiedPushSupport.installed = { emptyList() }
         val s = app.graph.settings
-        // Same token as before the switch to UnifiedPush: no PATCH is queued.
+        // Same token as before the switch to UnifiedPush.
         s.set(Settings.K.PUSH_TOKEN, "token-1")
         s.set(Settings.K.PUSH_TYPE, "unifiedpush")
         s.set(Settings.K.BANNER, "no_distributor")
@@ -43,6 +43,19 @@ class FlavorPushSwitchTest {
         assertNull(s.get(Settings.K.BANNER))
         assertEquals("fcm", s.get(Settings.K.PUSH_TYPE))
         assertFalse(UnifiedPushSupport.noPushApp(app, s.get(Settings.K.PUSH_TYPE), playServices = true))
+    }
+
+    /** The switch to Google sends the token even when it equals the one stored before the switch. */
+    @Test fun switchToGoogleSendsAnEqualToken() {
+        setUp()
+        val wm = androidx.work.WorkManager.getInstance(app)
+        wm.cancelUniqueWork("push-patch").result.get(); wm.pruneWork().result.get()
+        var sentToken: String? = "unset"
+        FlavorPush.fetchToken = { cb -> sentToken = app.graph.settings.get(Settings.K.PUSH_TOKEN); cb("token-1") }
+        FlavorPush(app).switchToGoogle(app.graph)
+        assertNull(sentToken) // cleared before the fetch, so onToken sees a new token and PATCHes
+        assertEquals("token-1", app.graph.settings.get(Settings.K.PUSH_TOKEN))
+        assertFalse(wm.getWorkInfosForUniqueWork("push-patch").get().isEmpty())
     }
 
     @Test fun tokenOnOpenClearsAStaleFlag() {

@@ -48,6 +48,9 @@ class Session(private val g: Graph) {
         const val NO_GOOGLE_PUSH = "This build has no Google push. Install a UnifiedPush app or reinstall from Play."
         const val REFRESH_GREY_MS = 60_000L
 
+        /** App start PATCH rule: the address differs from the last one sent, or a reply said the relay server holds none. */
+        fun needsPatch(current: String?, sent: String?, missing: Boolean): Boolean = current != sent || (current != null && missing)
+
         /** Refresh text for a GET /peers that did not settle: its relay server error, else the connection text. */
         fun refreshError(failure: ApiResult<*>?): String = ErrorText.of(UiText.UNABLE_REFRESH, failure ?: ApiResult.Network)
     }
@@ -412,7 +415,8 @@ class Session(private val g: Graph) {
     fun rename(newName: String): String? {
         if (!NameEntry.isValidName(newName)) return "Use 1 to 32 plain ASCII characters, no double quotes."
         val me = g.identity() ?: return ErrorText.text(UiText.UNABLE_RENAME, ErrorText.LOGGED_OUT)
-        dao.self() ?: return ErrorText.text(UiText.UNABLE_RENAME, ErrorText.LOGGED_OUT)
+        val self = dao.self() ?: return ErrorText.text(UiText.UNABLE_RENAME, ErrorText.LOGGED_OUT)
+        if (self.name == newName) return null // the same name: nothing to send, so no device shows a rename
         dao.setSelfName(newName)
         val outbox = Outbox(g.store, me)
         val r = g.reconcile().withMissingRetry {
@@ -434,21 +438,31 @@ class Session(private val g: Graph) {
 
     private fun currentPushHash(): String? = currentPush()?.let { Ids.pushSha256(it.second) }
 
-    /** Compare the current token with the last PATCHed one; PATCH if changed. */
+    /** PATCH when the current push address differs from the last one sent, or a reply said the relay server holds none. */
     fun pushReconcile() {
-        if (currentPushHash() != dao.self()?.pushHash) Work.patchPush(g.app)
+        if (needsPatch(currentPushHash(), dao.self()?.pushHash, s.flag(Settings.K.PUSH_MISSING, false))) Work.patchPush(g.app)
     }
 
-    /** true = done, false = retry later, null = permanent (401 "logged out"). */
+    /** A push method switch: the last address sent is forgotten, so the new one is sent even when equal, and at app start until accepted. */
+    fun pushSwitched() = dao.setPushHash(null)
+
+    /**
+     * true = done, false = retry later, null = permanent: 401 "logged out", 401 "unknown peer", or 400 "push endpoint not allowed"
+     * (the refused card shows). Any other 4xx is retried later.
+     */
     fun patchPushNow(): Boolean? {
         val p = currentPush()
         val r = g.client.patchPush(p?.first ?: "null")
         return when {
-            r is ApiResult.Ok -> { dao.setPushHash(p?.let { x -> Ids.pushSha256(x.second) }); s.set(Settings.K.PUSH_REFUSED, false); true }
+            r is ApiResult.Ok -> {
+                dao.setPushHash(p?.let { x -> Ids.pushSha256(x.second) }); s.set(Settings.K.PUSH_REFUSED, false)
+                if (p != null) s.set(Settings.K.PUSH_MISSING, false)
+                true
+            }
             r.isLoggedOut -> null
             r.isUnknownPeer -> { onRemovedSignal(deleted = false); null }
-            r is ApiResult.Http && r.status in 400..499 && r.status != 429 -> {
-                if (r.status == 400 && r.error == "push endpoint not allowed" && p?.second?.first() == "unifiedpush") s.set(Settings.K.PUSH_REFUSED, true)
+            r is ApiResult.Http && r.status == 400 && r.error == "push endpoint not allowed" -> {
+                if (p?.second?.first() == "unifiedpush") s.set(Settings.K.PUSH_REFUSED, true)
                 null
             }
             else -> false

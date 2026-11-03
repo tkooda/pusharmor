@@ -78,14 +78,26 @@ object UnifiedPushSupport {
         if (prefs?.get(Settings.K.PUSH_REFUSED) != true || !active(prefs[Settings.K.PUSH_TYPE], playServices)) return null
         val host = prefs[Settings.K.UP_ENDPOINT]?.let { android.net.Uri.parse(it).host } ?: return null
         val pkg = saved(context) ?: return null
-        val pm = context.packageManager
-        val app = try { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() } catch (e: Exception) { pkg }
-        return host to app
+        return host to appName(context, pkg)
     }
 
+    /** The app name of the UnifiedPush app [pkg], else the package name. */
+    fun appName(context: Context, pkg: String): String {
+        val pm = context.packageManager
+        return try { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() } catch (e: Exception) { pkg }
+    }
+
+    /**
+     * Makes [distributor] the UnifiedPush app: the one in use before is unregistered first, so it stops pushing.
+     * Registers at once while UnifiedPush is the push method; else the caller switches to UnifiedPush, which registers.
+     */
     fun pick(g: Graph, distributor: String) {
+        val old = saved(g.app)
+        if (old != null && old != distributor) try { UnifiedPush.unregister(g.app, INSTANCE) } catch (e: Exception) { }
+        // The new app's address is then always stored and sent, even when it equals the old one.
+        clearEndpoint(g)
         UnifiedPush.saveDistributor(g.app, distributor)
-        UnifiedPush.register(g.app, INSTANCE, null, BuildConfig.VAPID_PUBLIC_KEY.ifEmpty { null })
+        if (active(g)) UnifiedPush.register(g.app, INSTANCE, null, BuildConfig.VAPID_PUBLIC_KEY.ifEmpty { null })
     }
 
     /** On app start and daily: saved distributor gone -> clear endpoint + banner; else register again (idempotent). */

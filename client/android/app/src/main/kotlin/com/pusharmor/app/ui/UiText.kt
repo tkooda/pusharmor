@@ -87,6 +87,13 @@ object UiText {
     /** Push method dialog: what the UnifiedPush choice needs. */
     const val UNIFIEDPUSH_NOTE = "Uses the free ntfy or Sunup app. Install one, keep its default server, then return to PushArmor."
 
+    /** One button, in the cannot-receive card and in Push method, opens the choice of UnifiedPush apps. */
+    const val GET_PUSH_APP = "Get a UnifiedPush app"
+    const val NTFY_NAME = "ntfy (recommended)"
+    const val NTFY_ABOUT = "Free and open source. Keeps a light connection to deliver messages right away."
+    const val SUNUP_NAME = "Sunup"
+    const val SUNUP_ABOUT = "Free and open source. Delivers through Mozilla's push service."
+
     /** True while this device cannot show or get messages: notifications off or blocked, no push app, or a refused push address. */
     fun cannotReceive(enabled: Boolean, channelsBlocked: Boolean, noPushApp: Boolean, refused: Boolean): Boolean =
         !enabled || channelsBlocked || noPushApp || refused
@@ -202,6 +209,8 @@ object UiText {
     fun noPairedDevice(others: List<Peer>): Boolean = others.none { it.pinned && !it.removed }
     const val HIBERNATION_BANNER = "Android may pause this app's ability to receive messages unless \"Manage app if unused\" is turned off."
     val PAIR_HOWTO_STEPS = listOf("Install PushArmor on the other device.", "Log in with the same account.", "It appears here. Tap Pair.")
+    /** Pair a new device: the devices this device rejected, each with Pair. */
+    const val REJECTED_DEVICES = "Rejected devices"
     fun numbered(steps: List<String>): List<String> = steps.mapIndexed { i, t -> "${i + 1}. $t" }
     /** Send chips in alphabetical order of the shown name: case-insensitive, locale-aware. */
     fun <T> sortedByName(items: List<T>, nameOf: (T) -> String, locale: java.util.Locale = java.util.Locale.getDefault()): List<T> {

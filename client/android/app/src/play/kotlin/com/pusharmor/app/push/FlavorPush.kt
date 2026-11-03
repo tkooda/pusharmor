@@ -47,6 +47,8 @@ class FlavorPush(private val context: Context) : PushFlavor {
         FirebaseMessaging.getInstance().isAutoInitEnabled = false
         g.settings.set(Settings.K.PUSH_TOKEN, null)
         g.settings.set(Settings.K.PUSH_TYPE, "unifiedpush")
+        // The address is then always stored and sent, even when it equals the one before.
+        UnifiedPushSupport.clearEndpoint(g)
         UnifiedPushSupport.register(g)
     }
 
@@ -55,6 +57,8 @@ class FlavorPush(private val context: Context) : PushFlavor {
         UnifiedPushSupport.clearEndpoint(g)
         g.settings.set(Settings.K.PUSH_TYPE, null)
         UnifiedPushSupport.clearNoDistributor(g)
+        // The token is then always sent, even when it equals the one before the switch to UnifiedPush.
+        g.settings.set(Settings.K.PUSH_TOKEN, null)
         autoInit(true)
         fetchToken { onToken(g, it) }
     }

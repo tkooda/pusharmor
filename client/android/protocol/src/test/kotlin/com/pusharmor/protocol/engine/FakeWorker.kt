@@ -87,7 +87,7 @@ class FakeWorker {
             val o = StrictJson.parse(String(body)) as JValue.JObject
             val c = (o.fields["c"] as JValue.JString).value
             val t = devices[x] ?: return ApiResult.Ok(ApproveReply("unknown"))
-            if (d.id in t.deny) return ApiResult.Ok(ApproveReply("denied"))
+            // A device the other side rejected is stored like any approve; the other side's own approve clears the reject.
             d.allow.add(x); d.deny.remove(x); d.pending[x] = c
             if (d.id !in t.allow) return ApiResult.Ok(ApproveReply("stored"))
             t.inbox.add(c)
@@ -109,7 +109,7 @@ class FakeWorker {
         override fun pair(x: String, kind: String, c: String): ApiResult<String> {
             gate("pair:$kind")?.let { return it }
             val t = devices[x] ?: return ApiResult.Ok("unknown")
-            if (d.id in t.deny) return ApiResult.Ok("denied")
+            // Pairing messages pass a reject, so a rejected device can pair again.
             t.inbox.add(c)
             if (d.relayThenNetworkFail) { d.relayThenNetworkFail = false; return ApiResult.Network }
             return ApiResult.Ok("sent")

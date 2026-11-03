@@ -87,6 +87,8 @@ class Settings(private val context: Context, private val dao: PaDao) {
         val UP_VERIFIED = booleanPreferencesKey("up_verified")
         /** The relay server refused the stored UnifiedPush address; cleared when an address is accepted. */
         val PUSH_REFUSED = booleanPreferencesKey("push_refused")
+        /** A relay server reply said push_missing; the next app start sends the push address again. Cleared by an accepted address. */
+        val PUSH_MISSING = booleanPreferencesKey("push_missing")
         val CH_MESSAGES = stringPreferencesKey("ch_messages")
         val CH_PEERS = stringPreferencesKey("ch_peers")
         val OLD_ID = stringPreferencesKey("old_id")

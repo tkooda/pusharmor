@@ -189,6 +189,16 @@ internal fun label(p: Peer) = p.name ?: "${AppEffects.platformLabel(p.platform)}
 /** Peers other than self; none until self is known, so the own device never shows as a peer. */
 internal fun others(peers: List<Peer>, selfId: String?): List<Peer> = if (selfId == null) emptyList() else peers.filter { it.id != selfId }
 
+/** A not-yet-paired device this device rejected, with no pairing open: gone from the list until a new pairing starts. */
+internal fun rejectedHidden(p: Peer, pairing: Set<String>): Boolean = p.deniedByMe && !p.pinned && !p.removed && p.id !in pairing
+
+/** The Devices list: a removed device only while it is still pinned or pairing, and no rejected device. */
+internal fun devicesShown(others: List<Peer>, pairing: Set<String>): List<Peer> =
+    others.filter { !(it.removed && !it.pinned && it.id !in pairing) && !rejectedHidden(it, pairing) }
+
+/** Rejected devices, offered under Pair a new device so this device can pair with one again. */
+internal fun rejectedDevices(others: List<Peer>, pairing: Set<String>): List<Peer> = others.filter { rejectedHidden(it, pairing) }
+
 internal fun platformIcon(platform: String): ImageVector = when (platform) {
     "chrome" -> PaIcons.Laptop
     "cli" -> PaIcons.Terminal
@@ -211,6 +221,7 @@ fun PeersScreen(vm: AppViewModel) {
     val rows by vm.pairings.collectAsState()
     val highlight by vm.highlight.collectAsState()
     val prefs by vm.prefs.collectAsState()
+    val running by vm.running.collectAsState()
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     // Saved, so both dialogs stay open through a rotation; the device by its id.
     var confirmRemove by rememberSaveable { mutableStateOf<String?>(null) }
@@ -222,7 +233,9 @@ fun PeersScreen(vm: AppViewModel) {
     val me by vm.self.collectAsState()
     // No paired device: the first-pair steps and the Waiting to pair row (was a screen in place of the tabs).
     val firstDevice = me != null && UiText.noPairedDevice(others(peers, me?.id))
-    val list = others(peers, me?.id).filter { !(it.removed && !it.pinned && rows.none { r -> r.peerId == it.id }) }
+    val pairingIds = rows.map { it.peerId }.toSet()
+    val list = devicesShown(others(peers, me?.id), pairingIds)
+    val rejected = UiText.sortedByName(rejectedDevices(others(peers, me?.id), pairingIds), ::label)
     // Each section is in alphabetical order of the shown name.
     val pairing = UiText.sortedByName(list.filter { p -> rows.any { it.peerId == p.id } }, ::label)
     val plain = UiText.sortedByName(list.filter { p -> rows.none { it.peerId == p.id } }, ::label)
@@ -300,6 +313,13 @@ fun PeersScreen(vm: AppViewModel) {
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 UiText.numbered(UiText.PAIR_HOWTO_STEPS).forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
+                if (rejected.isNotEmpty()) {
+                    Text(UiText.REJECTED_DEVICES, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.titleSmall)
+                    for (p in rejected) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(label(p), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                        TextButton(onClick = { pairHowTo = false; vm.pair(p.id) }, enabled = "pair:${p.id}" !in running) { Text("Pair") }
+                    }
+                }
             }
         },
         confirmButton = { TextButton(onClick = { pairHowTo = false }) { Text("OK") } })
@@ -423,21 +443,22 @@ internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, content: @Co
     val cannot = UiText.cannotReceive(n.enabled(), n.mainChannelsBlocked(), noPushApp, refused != null)
     LaunchedEffect(cannot) { if (!cannot) vm.cannotReceiveClosed.value = false }
     val shown = cannot && !closed
+    var getApp by rememberSaveable { mutableStateOf(false) }
     val top = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
     Column(Modifier.fillMaxSize()) {
         if (shown) {
-            fun get(url: String) = startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(url))) { vm.message.value = it }
             val (reason, actions) = when {
                 off -> UiText.CANNOT_RECEIVE_NOTIFICATIONS_OFF to listOf<Pair<String, () -> Unit>>("Fix" to {
                     safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
                 })
-                noPushApp -> UiText.noPushApp(google) to listOf("Get ntfy" to { get(ntfyUrl(BuildConfig.FLAVOR == "play", google)) }, "Get Sunup" to { get(SUNUP_URL) })
+                noPushApp -> UiText.noPushApp(google) to listOf(UiText.GET_PUSH_APP to { getApp = true })
                 else -> UiText.pushRefused(refused!!.first, refused.second, google) to emptyList()
             }
             CannotReceiveBanner(reason, actions,
                 Modifier.then(if (topInset) Modifier.windowInsetsPadding(top) else Modifier).padding(horizontal = 16.dp, vertical = 8.dp),
                 onClose = { vm.cannotReceiveClosed.value = true })
         }
+        if (getApp) GetPushAppDialog(vm) { getApp = false }
         Box(Modifier.weight(1f).then(if (shown && topInset) Modifier.consumeWindowInsets(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)) else Modifier)) { content() }
     }
 }
@@ -449,6 +470,36 @@ internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, content: @Co
 internal fun ntfyUrl(playBuild: Boolean, google: Boolean): String =
     if (playBuild && google) "https://play.google.com/store/apps/details?id=io.heckel.ntfy" else "https://f-droid.org/packages/io.heckel.ntfy/"
 private const val SUNUP_URL = "https://f-droid.org/packages/org.unifiedpush.distributor.sunup/"
+
+/** Get a UnifiedPush app: ntfy (recommended) or Sunup, each with one line on what it is; a tap opens its store listing. */
+@Composable
+internal fun GetPushAppDialog(vm: AppViewModel, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val google = vm.g.push.hasPlayServices
+    fun get(url: String) { onDismiss(); startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(url))) { vm.message.value = it } }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(UiText.GET_PUSH_APP) },
+        text = {
+            Column {
+                for ((name, about, url) in listOf(Triple(UiText.NTFY_NAME, UiText.NTFY_ABOUT, ntfyUrl(BuildConfig.FLAVOR == "play", google)),
+                    Triple(UiText.SUNUP_NAME, UiText.SUNUP_ABOUT, SUNUP_URL))) {
+                    ListItem(modifier = Modifier.clickable(role = Role.Button) { get(url) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        headlineContent = { Text(name) }, supportingContent = { Text(about) })
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+}
+
+/** Push method option for Google push. A package name always holds a dot, so it never matches. */
+internal const val PUSH_GOOGLE = "google"
+
+/** Push method options: Google where Play services run (never on the build without Google), then each installed UnifiedPush app by name. */
+internal fun pushOptions(google: Boolean, apps: List<Pair<String, String>>): List<String> =
+    (if (google) listOf(PUSH_GOOGLE) else emptyList()) + UiText.sortedByName(apps, { it.second }).map { it.first }
+
+/** The option in use: Google unless UnifiedPush is the push method, then the saved UnifiedPush app (null when none). */
+internal fun pushCurrent(type: String?, google: Boolean, saved: String?): String? =
+    if (UnifiedPushSupport.active(type, google)) saved else PUSH_GOOGLE
 
 /** "This device cannot receive messages." with its reason on line 2, its actions, and an X that hides it until the next app open. */
 @Composable
@@ -1368,7 +1419,13 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     var pickDays by rememberSaveable { mutableStateOf(false) }
     var pickTheme by rememberSaveable { mutableStateOf(false) }
     var pickPush by rememberSaveable { mutableStateOf(false) }
-    val up = prefs?.get(Settings.K.PUSH_TYPE) == "unifiedpush"
+    var getApp by rememberSaveable { mutableStateOf(false) }
+    // Read again on each return to the app, so a UnifiedPush app installed meanwhile is offered.
+    val tick = resumeTick()
+    val google = vm.g.push.hasPlayServices
+    val apps = remember(tick) { UnifiedPushSupport.distributors(context).map { it to UnifiedPushSupport.appName(context, it) } }
+    val pushNow = pushCurrent(prefs?.get(Settings.K.PUSH_TYPE), google, remember(tick, prefs) { UnifiedPushSupport.saved(context) })
+    fun pushName(o: String?): String = if (o == PUSH_GOOGLE) "Google" else apps.firstOrNull { it.first == o }?.second ?: "None"
     val themePref = ThemePref.parse(prefs?.get(Settings.K.THEME))
     fun b(k: androidx.datastore.preferences.core.Preferences.Key<Boolean>, d: Boolean) = prefs?.get(k) ?: d
     val cs = MaterialTheme.colorScheme
@@ -1425,14 +1482,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                     SwitchRow("Allow sending messages to watch", b(Settings.K.WATCH, true), sub = "When off, nothing is sent to your watch.",
                         modifier = m.then(pad)) { vm.setPref(Settings.K.WATCH, it) }
                 }
-                if (vm.g.push.hasPlayServices) add { m ->
-                    Column(m) {
-                        SettingRow("Push method", modifier = Modifier, value = pushLabel(up)) { pickPush = true }
-                        if (up && UnifiedPushSupport.distributors(context).size > 1) Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
-                            for (d in UnifiedPushSupport.distributors(context)) TextButton(onClick = { UnifiedPushSupport.pick(vm.g, d) }) { Text(d) }
-                        }
-                    }
-                }
+                add { m -> SettingRow("Push method", modifier = m, value = pushName(pushNow)) { pickPush = true } }
             })
             SectionHeader("History")
             GroupedList(listOf<@Composable (Modifier) -> Unit>(
@@ -1466,15 +1516,15 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     }
     if (pickTheme) ChoiceDialog("Theme", ThemePref.entries, themePref, { it.label }, note = "Dark uses a true black background.",
         onDismiss = { pickTheme = false }) { vm.setTheme(it) }
-    if (pickPush) ChoiceDialog("Push method", listOf(false, true), up, ::pushLabel, note = UiText.UNIFIEDPUSH_NOTE,
-        onDismiss = { pickPush = false }) { if (it != up) vm.switchPush(it) }
+    if (pickPush) ChoiceDialog("Push method", pushOptions(google, apps), pushNow ?: "", ::pushName, note = UiText.UNIFIEDPUSH_NOTE,
+        extra = { TextButton(onClick = { getApp = true }) { Text(UiText.GET_PUSH_APP) } },
+        onDismiss = { pickPush = false }) { if (it != pushNow) vm.choosePush(it) }
+    if (getApp) GetPushAppDialog(vm) { getApp = false }
     if (confirmHistory) AlertDialog(onDismissRequest = { confirmHistory = false }, text = { Text("Delete all history?") },
         confirmButton = { TextButton(onClick = { vm.deleteAllHistory(); confirmHistory = false }) { Text("Delete") } },
         dismissButton = { TextButton(onClick = { confirmHistory = false }) { Text("Cancel") } })
     if (confirmDelete) DeleteAccountDialog(onConfirm = { confirmDelete = false; onDeleteAccount() }) { confirmDelete = false }
 }
-
-private fun pushLabel(up: Boolean) = if (up) "UnifiedPush app" else "Google (default)"
 
 /**
  * Standard single-choice dialog: radio rows, each row the tap target; OK applies the choice, Cancel keeps the old one.
@@ -1482,7 +1532,7 @@ private fun pushLabel(up: Boolean) = if (up) "UnifiedPush app" else "Google (def
  */
 @Composable
 internal fun <T> ChoiceDialog(title: String, options: List<T>, current: T, label: (T) -> String, note: String? = null,
-                              onDismiss: () -> Unit, onChoose: (T) -> Unit) {
+                              extra: (@Composable () -> Unit)? = null, onDismiss: () -> Unit, onChoose: (T) -> Unit) {
     var picked by rememberSaveable { mutableIntStateOf(options.indexOf(current)) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text(title) },
         text = {
@@ -1496,6 +1546,7 @@ internal fun <T> ChoiceDialog(title: String, options: List<T>, current: T, label
                     }
                 }
                 note?.let { Text(it, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                extra?.invoke()
             }
         },
         confirmButton = { TextButton(onClick = { options.getOrNull(picked)?.let(onChoose); onDismiss() }) { Text("OK") } },

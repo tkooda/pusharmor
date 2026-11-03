@@ -72,7 +72,8 @@ class Graph(val app: PaApp) {
     val client = WorkerClient({ keysOrNull ?: error("no keys") }, { dao.self()?.id }, offset, BuildConfig.API_BASE.toHttpUrl(),
         http = if (BuildConfig.SCREENSHOT_MODE) ScreenshotMode.guard(app.httpClient()) else app.httpClient(),
         onAuthState = ::onAuthState, paClient = "android/${BuildConfig.VERSION_NAME}",
-        onUpdateRequired = { settings.markUpdateRequired(BuildConfig.VERSION_NAME) })
+        onUpdateRequired = { settings.markUpdateRequired(BuildConfig.VERSION_NAME) },
+        onPushMissing = { settings.set(Settings.K.PUSH_MISSING, true) })
 
     /**
      * 401 "unknown peer": the removal check runs (false = not confirmed, the call reads as no reply);

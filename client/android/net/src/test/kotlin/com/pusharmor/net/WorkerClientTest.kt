@@ -86,6 +86,17 @@ class WorkerClientTest {
         assertEquals(3, server.requestCount)
     }
 
+    @Test fun pushMissingHookSeesEveryReplyThatSaysIt() {
+        var n = 0
+        val c = WorkerClient({ keys }, { id }, offset, server.url("/"), WorkerClient.defaultHttp(), { clock }, { clock += it }, onPushMissing = { n++ })
+        server.enqueue(ok("{\"r\":\"unapproved\"}"))
+        c.withdraw("x")
+        assertEquals(0, n)
+        server.enqueue(ok("{\"r\":\"unapproved\",\"push_missing\":true}"))
+        c.withdraw("x")
+        assertEquals(1, n)
+    }
+
     @Test fun authStateHookSeesUnknownPeerAndLoggedOutOnSignedCalls() {
         val seen = ArrayList<String>()
         val c = WorkerClient({ keys }, { id }, offset, server.url("/"), WorkerClient.defaultHttp(), { clock }, { clock += it }, { seen.add(it) })
