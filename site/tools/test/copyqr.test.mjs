@@ -17,7 +17,7 @@ const rules = parseHeaders(read("_headers"));
 const HASH = /^[0-9a-f]{64}$/;
 const URL_RE = /^[a-z][a-z0-9+.-]*:\/\//;
 // URLs a phone app scans: these, and every link to an APK file (a link inside a sentence gets no icons).
-const SCAN_TEXT = ["https://fdroid.pusharmor.com/repo", "https://github.com/tkooda/pusharmor"];
+const SCAN_TEXT = ["https://fdroid.pusharmor.com/repo", "fdroidrepos://fdroid.pusharmor.com/repo?fingerprint=262c4f2e9a0220ed48181a5c8650dd742372b220e628fe10e7eea2e9fe6ce4e3", "https://github.com/tkooda/pusharmor"];
 const SCAN_HREF = /\.apk$/;
 
 // The element with id="id": tag name, the text the script uses (href for a link, else the
@@ -101,7 +101,7 @@ test("QR buttons: exactly the phone-scannable URLs, right after their copy butto
     }
     assert.deepEqual([...got].sort(), [...want].sort(), rel + ": QR button set");
   }
-  assert.equal(n, 4, "QR buttons");
+  assert.equal(n, 5, "QR buttons");
 });
 
 const ctx = {};
@@ -178,4 +178,15 @@ test("icons sit only at the end of a data line: a copy-row box or a table cell, 
     }
   }
   assert.ok(n >= 15, "buttons: " + n);
+});
+
+test("the F-Droid add URL line copies and shows a QR of the exact add URL, icons outside any p", () => {
+  const html = read("download.html");
+  const want = "fdroidrepos://fdroid.pusharmor.com/repo?fingerprint=262c4f2e9a0220ed48181a5c8650dd742372b220e628fe10e7eea2e9fe6ce4e3";
+  const t = target(html, "fdroid-add-url");
+  assert.equal(t.text, want);
+  assert.ok(html.includes('data-copy="fdroid-add-url"') && html.includes('data-qr="fdroid-add-url"'));
+  assert.ok(html.indexOf('data-copy="fdroid-add-url"') < html.indexOf('data-qr="fdroid-add-url"'));
+  const row = html.slice(html.lastIndexOf('<div class="copy-row">', html.indexOf('id="fdroid-add-url"')));
+  assert.doesNotMatch(row.slice(0, row.indexOf("</div>")), /<p[ >]/);
 });
