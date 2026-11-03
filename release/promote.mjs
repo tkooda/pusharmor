@@ -173,14 +173,12 @@ export function playGateProblem(env) {
   return bad.join("; ");
 }
 
-/** every tag of X.Y.Z points at one commit (a platform may have none). commits maps each platform
- *  to the commit of its tag, or null when it has no tag. error is "" when the
- *  tags agree; missing lists the platforms without a tag. */
+/** The platforms without a tag of X.Y.Z. commits maps each platform to the
+ *  commit of its tag, or null when it has no tag. Each platform has its own
+ *  stamp commit, so the tags may be on different commits (release/tag.mjs keeps
+ *  them on one line of history). */
 export function commitProblems(version, commits) {
-  const missing = PLATFORMS.filter((p) => !commits[p]);
-  const have = PLATFORMS.filter((p) => commits[p]);
-  const error = new Set(have.map((p) => commits[p])).size > 1 ? "tags of " + version + " are on different commits: " + have.map((p) => p + "/v" + version + " " + commits[p].slice(0, 12)).join(", ") : "";
-  return { error, missing };
+  return { missing: PLATFORMS.filter((p) => !commits[p]) };
 }
 
 /** The platform whose tag of X.Y.Z is ref (refs/tags/<platform>/vX.Y.Z), or "". */
@@ -321,10 +319,8 @@ async function check(version) {
     summary(why ? "- " + p + ": SKIP (" + why + ")" : gate ? "- " + p + ": BLOCKED (" + gate + ")" : off ? "- " + p + ": SKIP (" + off + ")" : "- " + p + ": ready (" + tag + ")");
     any ||= !why && !gate && !off;
   }
-  // one release is one commit on every platform (RELEASING.md, Versions).
   const same = commitProblems(version, commits);
   if (same.missing.length) summary("- NOTE: " + version + " has no tag for " + same.missing.join(", ") + "; fine when that platform did not change (one shared counter, platforms skip numbers)");
-  if (same.error) throw new Error(same.error);
   const bad = [...listingProblems("play"), ...listingProblems("appstore"), ...amoNotesProblems()];
   for (const b of bad) summary("- listing: " + b);
   if (!any) throw new Error("no selected platform is ready to promote " + version);

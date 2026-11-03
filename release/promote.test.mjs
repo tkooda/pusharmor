@@ -145,21 +145,18 @@ test("store commands report clear_prerelease only for this version", () => {
   assert.equal(clearOutput(undefined), "false");
 });
 
-// every tag of X.Y.Z must point at one commit; missing platforms are listed.
-test("promote check: all tags of X.Y.Z on one commit, missing platforms listed", () => {
+// each platform has its own stamp commit: tags of X.Y.Z may differ in commit;
+// missing platforms are listed.
+test("promote check: tags of X.Y.Z may be on different commits, missing platforms listed", () => {
   const a = "a".repeat(40);
   const b = "b".repeat(40);
-  assert.deepEqual(commitProblems("1.2.3", { android: a, ios: a, chrome: a, firefox: a }), { error: "", missing: [] });
-  assert.deepEqual(commitProblems("1.2.3", { android: a, ios: null, chrome: a, firefox: null }), { error: "", missing: ["ios", "firefox"] });
-  const r = commitProblems("1.2.3", { android: a, ios: b, chrome: a, firefox: a });
-  assert.match(r.error, /^tags of 1\.2\.3 are on different commits: /);
-  assert.match(r.error, /android\/v1\.2\.3 aaaaaaaaaaaa/);
-  assert.match(r.error, /ios\/v1\.2\.3 bbbbbbbbbbbb/);
+  assert.deepEqual(commitProblems("1.2.3", { android: a, ios: a, chrome: a, firefox: a }), { missing: [] });
+  assert.deepEqual(commitProblems("1.2.3", { android: a, ios: null, chrome: a, firefox: null }), { missing: ["ios", "firefox"] });
+  assert.deepEqual(commitProblems("1.2.3", { android: a, ios: b, chrome: a, firefox: a }), { missing: [] });
   assert.deepEqual(commitProblems("1.2.3", { android: null, ios: null, chrome: null, firefox: null }).missing, ["android", "ios", "chrome", "firefox"]);
   const src = readFileSync(join(ROOT, "release", "promote.mjs"), "utf8");
   const check = src.slice(src.indexOf("async function check("), src.indexOf("\n}\n", src.indexOf("async function check(")));
   assert.match(check, /commitProblems\(version, /);
-  assert.match(check, /if \(same\.error\) throw new Error\(same\.error\)/);
 });
 
 // the AMO listed version carries reviewer notes from the repo (no

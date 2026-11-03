@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { chmodSync, cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { betaXpiUrl, buildNumber, ciJobs, repoName, ciProblems, ciState, formatProblems, parseTag, stampProblems, tagProblems } from "./tag.mjs";
+import { GATE, SHARED, betaXpiUrl, buildNumber, ciRuns, repoName, ciProblems, gateState, formatProblems, parseTag, stampProblems, tagProblems } from "./tag.mjs";
 
 const REPO = join(import.meta.dirname, "..");
 const CLI = join(import.meta.dirname, "tag.mjs");
@@ -45,8 +45,8 @@ test("one version per commit, one commit per version, new versions greater than 
   assert.deepEqual(tagProblems("0.0.11", "d".repeat(40), tags), []);
   assert.deepEqual(tagProblems("0.0.10", "b".repeat(40), tags), []);
   assert.deepEqual(tagProblems("0.0.10", "d".repeat(40), tags), [
-    "0.0.10 is bound to commit bbbbbbbbbbbb by tag ios/v0.0.10",
-    "0.0.10 is bound to commit bbbbbbbbbbbb by tag chrome/v0.0.10",
+    "0.0.10 is bound to commit bbbbbbbbbbbb by tag ios/v0.0.10, which is not in the history of this commit",
+    "0.0.10 is bound to commit bbbbbbbbbbbb by tag chrome/v0.0.10, which is not in the history of this commit",
   ]);
   assert.deepEqual(tagProblems("0.0.12", "b".repeat(40), tags), [
     "the commit already carries version 0.0.10 (tag ios/v0.0.10)",
@@ -66,13 +66,40 @@ test("another platform may join a version already bound to the commit, also afte
   ];
   assert.deepEqual(tagProblems("1.0.0", "a".repeat(40), tags), []);
   assert.deepEqual(tagProblems("1.0.0", "c".repeat(40), tags), [
-    "1.0.0 is bound to commit aaaaaaaaaaaa by tag android/v1.0.0",
+    "1.0.0 is bound to commit aaaaaaaaaaaa by tag android/v1.0.0, which is not in the history of this commit",
     "1.0.0 is not greater than the existing tag worker/v1.0.1",
   ]);
   assert.deepEqual(tagProblems("0.9.0", "c".repeat(40), tags), [
     "0.9.0 is not greater than the existing tag android/v1.0.0",
     "0.9.0 is not greater than the existing tag worker/v1.0.1",
   ]);
+});
+
+test("one stamp commit per platform: the tags of a version follow one line of history", () => {
+  // history: a (android/v1.0.0) -> b -> c -> d (worker/v1.0.1); x is on a side branch.
+  const order = ["a", "b", "c", "d"].map((c) => c.repeat(40));
+  const anc = (x, y) => order.includes(x) && order.includes(y) && order.indexOf(x) < order.indexOf(y);
+  const tags = [
+    { name: "android/v1.0.0", commit: order[0] },
+    { name: "ios/v1.0.0", commit: order[1] },
+    { name: "worker/v1.0.1", commit: order[3] },
+  ];
+  // chrome joins 1.0.0 on its own stamp commit c, after android and ios, before 1.0.1.
+  assert.deepEqual(tagProblems("1.0.0", order[2], tags, anc), []);
+  // ... but not after a commit that already has a higher version.
+  assert.deepEqual(tagProblems("1.0.0", "e".repeat(40), tags, (x, y) => anc(x, y) || (order.includes(x) && y === "e".repeat(40))), [
+    "1.0.0 is not greater than the existing tag worker/v1.0.1",
+  ]);
+  // nor on a side branch.
+  assert.deepEqual(tagProblems("1.0.0", "x".repeat(40), tags, anc), [
+    "1.0.0 is bound to commit aaaaaaaaaaaa by tag android/v1.0.0, which is not in the history of this commit",
+    "1.0.0 is bound to commit bbbbbbbbbbbb by tag ios/v1.0.0, which is not in the history of this commit",
+    "1.0.0 is not greater than the existing tag worker/v1.0.1",
+  ]);
+  // A version on an earlier commit than a lower version is refused.
+  assert.deepEqual(tagProblems("1.0.2", order[2], tags, anc), ["1.0.2 is not lower than the tag worker/v1.0.1 on a later commit"]);
+  // A commit still carries one version.
+  assert.deepEqual(tagProblems("1.0.1", order[1], tags, anc), ["the commit already carries version 1.0.0 (tag ios/v1.0.0)"]);
 });
 
 test("the committed version files of each platform agree with each other", () => {
@@ -132,31 +159,50 @@ test("a Firefox stamp check fails when fx/beta/updates.json points at another XP
   assert.deepEqual(stampProblems(d, v, ["firefox"]), ["site/public/fx/beta/updates.json holds " + v + " / " + betaXpiUrl(v).replace("/firefox/v" + v + "/", "/firefox/v0.0.1/") + ", want " + v + " / " + betaXpiUrl(v)]);
 });
 
-test("ci-ok: any successful run or attempt counts; running, missing and failed jobs do not", () => {
+// Jobs of one ci run: every gate group succeeded unless overridden.
+const okJobs = () => [...SHARED, "android", "ios", "webext", "site", "worker", "cli"].map((g) => ({ name: g + " / job", status: "completed", conclusion: "success" }));
+const withJob = (jobs, name, status, conclusion) => [...jobs.filter((j) => j.name !== name), { name, status, conclusion }];
+
+test("release gate: each platform needs its own jobs and the shared checks to succeed, not ci-ok", () => {
   const c = "e".repeat(40);
-  const ok = { status: "completed", conclusion: "success" };
-  const bad = { status: "completed", conclusion: "failure" };
-  const run = { status: "in_progress", conclusion: null };
-  assert.equal(ciState(c, [bad, ok, run]), "ok");
-  assert.equal(ciState(c, [bad, run]), "pending");
-  assert.equal(ciState(c, []), "no ci-ok job of the ci workflow ran on commit eeeeeeeeeeee (push it to main and wait for CI)");
-  assert.equal(ciState(c, [bad, { status: "completed", conclusion: "cancelled" }]), "ci-ok of the ci workflow did not succeed on commit eeeeeeeeeeee (failure, cancelled)");
+  assert.deepEqual(GATE, { android: ["android", "site"], ios: ["ios"], chrome: ["webext"], firefox: ["webext", "site"], worker: ["worker"], cli: ["cli", "site"] });
+  assert.deepEqual(SHARED, ["repo", "vectors"]);
+  const ok = okJobs();
+  for (const p of Object.keys(GATE)) assert.equal(gateState(p, c, [{ status: "completed", jobs: ok }]), "ok", p);
+  // A slow or failed iOS job holds up iOS only.
+  const iosRunning = withJob(ok, "ios / job", "in_progress", null);
+  assert.equal(gateState("android", c, [{ status: "in_progress", jobs: iosRunning }]), "ok");
+  assert.equal(gateState("ios", c, [{ status: "in_progress", jobs: iosRunning }]), "pending");
+  const iosFailed = withJob(ok, "ios / job", "completed", "failure");
+  assert.equal(gateState("chrome", c, [{ status: "completed", jobs: iosFailed }]), "ok");
+  assert.equal(gateState("ios", c, [{ status: "completed", jobs: iosFailed }]), "the ios release gate (repo, vectors, ios) did not pass on commit eeeeeeeeeeee: ios / job: failure");
+  // A shared check failing fails every platform; a cancelled job is not a pass.
+  assert.match(gateState("worker", c, [{ status: "completed", jobs: withJob(ok, "repo / job", "completed", "cancelled") }]), /: repo \/ job: cancelled$/);
+  // A whole component skipped (one caller job "<id>", no "<id> / ..." jobs) is not a pass.
+  const skipped = [...ok.filter((j) => !j.name.startsWith("worker / ")), { name: "worker", status: "completed", conclusion: "skipped" }];
+  assert.equal(gateState("worker", c, [{ status: "completed", jobs: skipped }]), "the worker release gate (repo, vectors, worker) did not pass on commit eeeeeeeeeeee: worker did not run (skipped)");
+  // A job the component skips by design is fine while another of its jobs succeeded.
+  assert.equal(gateState("ios", c, [{ status: "completed", jobs: [...ok, { name: "ios / iOS 17", status: "completed", conclusion: "skipped" }] }]), "ok");
+  // Component jobs not created yet in a running run: wait.
+  assert.equal(gateState("cli", c, [{ status: "in_progress", jobs: ok.filter((j) => !j.name.startsWith("cli / ")) }]), "pending");
+  // Any run passing is enough; a failed run and a running one make "pending".
+  assert.equal(gateState("ios", c, [{ status: "completed", jobs: iosFailed }, { status: "completed", jobs: ok }]), "ok");
+  assert.equal(gateState("ios", c, [{ status: "completed", jobs: iosFailed }, { status: "in_progress", jobs: iosRunning }]), "pending");
+  assert.equal(gateState("ios", c, []), "no run of the ci workflow on commit eeeeeeeeeeee (push it to an internal/ branch and wait for CI)");
 });
 
-test("ci-ok: gh api reads the push runs of ci.yml on the commit and the ci-ok jobs of each", () => {
+test("release gate: gh api reads the push runs of ci.yml on the commit and the latest jobs of each", () => {
   const calls = [];
   const gh = (args) => {
     calls.push(args);
-    return args[1].includes("/jobs") ? (args[1].includes("/7/") ? "completed\tfailure\n" : "in_progress\t\ncompleted\tsuccess\n") : "7\n8\n";
+    return args[1].includes("/jobs") ? (args[1].includes("/7/") ? "ios / a\tcompleted\tfailure\n" : "ios / a\tin_progress\t\nrepo / b\tcompleted\tsuccess\n") : "7\tcompleted\n8\tin_progress\n";
   };
-  assert.deepEqual(ciJobs("abc", gh, "o/r"), [
-    { status: "completed", conclusion: "failure" },
-    { status: "in_progress", conclusion: null },
-    { status: "completed", conclusion: "success" },
+  assert.deepEqual(ciRuns("abc", gh, "o/r"), [
+    { status: "completed", jobs: [{ name: "ios / a", status: "completed", conclusion: "failure" }] },
+    { status: "in_progress", jobs: [{ name: "ios / a", status: "in_progress", conclusion: null }, { name: "repo / b", status: "completed", conclusion: "success" }] },
   ]);
   assert.equal(calls[0][0], "repos/o/r/actions/workflows/ci.yml/runs?event=push&per_page=100&head_sha=abc");
-  assert.deepEqual(calls[1].slice(0, 2), ["--paginate", "repos/o/r/actions/runs/7/jobs?filter=all&per_page=100"]);
-  assert.match(calls[1][3], /select\(\.name == "ci-ok"\)/);
+  assert.deepEqual(calls[1].slice(0, 2), ["--paginate", "repos/o/r/actions/runs/7/jobs?filter=latest&per_page=100"]);
   assert.equal(repoName({ GITHUB_REPOSITORY: "a/b", GH_REPO: "c/d" }), "a/b");
   assert.equal(repoName({ GH_REPO: "c/d" }), "c/d");
   for (const u of ["git@github_alias:tkooda/pusharmor.git", "https://github.com/tkooda/pusharmor", "ssh://git@github.com/tkooda/pusharmor.git/"]) {
@@ -165,36 +211,42 @@ test("ci-ok: gh api reads the push runs of ci.yml on the commit and the ci-ok jo
   assert.throws(() => repoName({}, () => "../repo"), /set GH_REPO/);
 });
 
-test("ci-ok wait: polls a running CI and a failing gh api until the deadline, stops on a result", () => {
+test("release gate wait: polls a running CI and a failing gh api until the deadline, stops on a result", () => {
   const c = "f".repeat(40);
   const clock = () => {
     let t = 0;
     return { now: () => t, sleep: (ms) => { t += ms; } };
   };
   const seq = (...states) => { let i = 0; return () => { const s = states[Math.min(i++, states.length - 1)]; if (s instanceof Error) throw s; return s; }; };
-  const running = [{ status: "queued", conclusion: null }];
-  const done = [{ status: "completed", conclusion: "success" }];
+  const running = [{ status: "in_progress", jobs: withJob(okJobs(), "ios / job", "queued", null) }];
+  const done = [{ status: "completed", jobs: okJobs() }];
+  const failed = [{ status: "completed", jobs: withJob(okJobs(), "ios / job", "completed", "failure") }];
   let k = clock();
-  assert.deepEqual(ciProblems(c, { waitMs: 600000, list: seq(running, Object.assign(new Error("x"), { stderr: "HTTP 502" }), done), ...k }), []);
-  assert.equal(k.now(), 120000);
+  assert.deepEqual(ciProblems("ios", c, { waitMs: 600000, list: seq(running, Object.assign(new Error("x"), { stderr: "HTTP 502" }), done), ...k }), []);
+  assert.equal(k.now(), 30000);
   k = clock();
-  assert.deepEqual(ciProblems(c, { waitMs: 300000, list: seq(running), ...k }), ["ci-ok of the ci workflow is still running on commit ffffffffffff after 5 minutes"]);
+  assert.deepEqual(ciProblems("ios", c, { waitMs: 300000, list: seq(running), ...k }), ["the ios jobs of the ci workflow are still running on commit ffffffffffff after 5 minutes"]);
   assert.equal(k.now(), 300000);
   k = clock();
-  assert.deepEqual(ciProblems(c, { waitMs: 300000, list: seq(running, [{ status: "completed", conclusion: "failure" }]), ...k }), ["ci-ok of the ci workflow did not succeed on commit ffffffffffff (failure)"]);
-  assert.equal(k.now(), 60000);
+  assert.deepEqual(ciProblems("ios", c, { waitMs: 300000, list: seq(running, failed), ...k }), ["the ios release gate (repo, vectors, ios) did not pass on commit ffffffffffff: ios / job: failure"]);
+  assert.equal(k.now(), 15000);
+  // The running iOS job does not hold up Android.
+  assert.deepEqual(ciProblems("android", c, { list: seq(running), ...k }), []);
   // No wait (tag mode): one look.
   k = clock();
-  assert.deepEqual(ciProblems(c, { list: seq(running), ...k }), ["ci-ok of the ci workflow is still running on commit ffffffffffff; wait for it and rerun"]);
-  assert.deepEqual(ciProblems(c, { list: seq(new Error("spawnSync gh ENOENT")), ...k }), ["could not read the ci runs with gh api: spawnSync gh ENOENT"]);
+  assert.deepEqual(ciProblems("ios", c, { list: seq(running), ...k }), ["the ios jobs of the ci workflow are still running on commit ffffffffffff; wait for them and rerun"]);
+  assert.deepEqual(ciProblems("ios", c, { list: seq(new Error("spawnSync gh ENOENT")), ...k }), ["could not read the ci runs with gh api: spawnSync gh ENOENT"]);
   assert.equal(k.now(), 0);
 });
 
 // A scratch repo holding copies of the version files, and a fake gh on PATH that
-// answers one ci run whose ci-ok jobs are ci.jobs (status TAB conclusion lines).
+// answers one completed ci run whose jobs are ci.jobs (name TAB status TAB
+// conclusion lines).
+const tsv = (jobs) => jobs.map((j) => [j.name, j.status, j.conclusion || ""].join("\t") + "\n").join("");
+
 function scratch() {
   const d = mkdtempSync(join(tmpdir(), "pa-tag-"));
-  for (const f of ["release/version.properties", "client/chrome/manifest.json", "client/firefox/manifest.json", "client/ios/project.yml", "client/cli/pusharmor.py", "site/public/download.html", "site/public/fdroid/android.txt", "site/public/fx/beta/updates.json"]) {
+  for (const f of ["release/version.properties", "client/chrome/manifest.json", "client/firefox/manifest.json", "client/ios/project.yml", "client/cli/pusharmor.py", "site/public/download.html", "site/public/fdroid/android.txt", "site/public/fx/beta/updates.json", "server/worker/package.json", "server/worker/package-lock.json"]) {
     mkdirSync(join(d, dirname(f)), { recursive: true });
     cpSync(join(REPO, f), join(d, f));
   }
@@ -207,21 +259,21 @@ function scratch() {
   git("add", "-A");
   git("commit", "-q", "-m", "init");
   const bin = mkdtempSync(join(tmpdir(), "pa-tag-bin-"));
-  writeFileSync(join(bin, "gh"), '#!/bin/sh\ncase "$*" in\n  */jobs*) printf "%s" "$FAKE_GH_JOBS" ;;\n  *) echo 101 ;;\nesac\n');
+  writeFileSync(join(bin, "gh"), '#!/bin/sh\ncase "$*" in\n  */jobs*) printf "%s" "$FAKE_GH_JOBS" ;;\n  *) printf "101\\tcompleted\\n" ;;\nesac\n');
   chmodSync(join(bin, "gh"), 0o755);
-  const ci = { jobs: "completed\tsuccess\n" };
+  const ci = { jobs: tsv(okJobs()) };
   const run = (...a) => spawnSync("node", [CLI, ...a], { cwd: d, encoding: "utf8", env: { ...process.env, PATH: bin + ":" + process.env.PATH, GH_REPO: "o/r", GITHUB_REPOSITORY: "", FAKE_GH_JOBS: ci.jobs, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" } });
   return { d, git, run, ci, bin };
 }
 
-test("CLI: stamp, commit, tag; second platform at the same commit; check mode", (t) => {
+test("CLI: stamp, commit, tag; second platform at the same commit or a later one; check mode", (t) => {
   const { d, git, run, bin } = scratch();
   t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
   assert.equal(run().status, 2);
   let r = run("1.2.3", "all", "cli");
   assert.equal(r.status, 1, r.stderr);
   assert.match(r.stdout, /stamped 1\.2\.3/);
-  assert.deepEqual(stampProblems(d, "1.2.3"), []);
+  assert.deepEqual(stampProblems(d, "1.2.3", ["android", "ios", "chrome", "firefox", "cli"]), []);
   assert.match(readFileSync(join(d, "release/version.properties"), "utf8"), /^versionCode=1002003$/m);
   assert.match(readFileSync(join(d, "client/ios/project.yml"), "utf8"), /CURRENT_PROJECT_VERSION: "1002003"/);
   assert.equal(readFileSync(join(d, "site/public/fdroid/android.txt"), "utf8"), "1.2.3\n1002003\n");
@@ -253,11 +305,12 @@ test("CLI: stamp, commit, tag; second platform at the same commit; check mode", 
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout.trim(), "1.2.3");
 
-  // A later commit cannot take 1.2.3, and an older version is refused before stamping.
+  // A later commit may take 1.2.3 for another platform (one stamp commit per
+  // platform), and an older version is refused before stamping.
   git("commit", "-q", "--allow-empty", "-m", "next");
   r = run("chrome", "1.2.3");
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /1\.2\.3 is bound to commit/);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /tagged: chrome\/v1\.2\.3/);
   r = run("chrome", "1.2.2");
   assert.equal(r.status, 1);
   assert.match(r.stderr, /1\.2\.2 is not greater than the existing tag android\/v1\.2\.3/);
@@ -298,7 +351,7 @@ test("CLI check: /download holds the SHA-256 of pusharmor.py at the commit", (t)
 test("CLI check: a rerun of an older tag ignores tags created after it", (t) => {
   const { d, git, run, bin } = scratch();
   t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
-  run("0.1.0", "chrome");
+  run("0.1.0", "chrome", "worker");
   git("commit", "-q", "-am", "release 0.1.0");
   const env = (date) => ({ ...process.env, GIT_COMMITTER_DATE: date, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" });
   execFileSync("git", ["tag", "-a", "chrome/v0.1.0", "-m", "w"], { cwd: d, env: env("2026-01-01T00:00:00Z") });
@@ -319,7 +372,7 @@ test("CLI check: a rerun of an older tag ignores tags created after it", (t) => 
   assert.equal(r.stdout.trim(), "0.1.0");
 });
 
-test("CLI: no tag unless ci-ok succeeded on HEAD; --ci checks the commit of the tag", (t) => {
+test("CLI: no tag unless the platform's release gate passed on HEAD; --ci checks the commit of the tag", (t) => {
   const { d, git, run, ci, bin } = scratch();
   t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
   // A version far above the repo version files, so the stamp always changes them.
@@ -327,26 +380,29 @@ test("CLI: no tag unless ci-ok succeeded on HEAD; --ci checks the commit of the 
   git("commit", "-q", "-am", "release 90.0.7");
   const head = git("rev-parse", "HEAD").slice(0, 12);
   for (const [jobs, want] of [
-    ["completed\tfailure\n", "ci-ok of the ci workflow did not succeed on commit " + head + " (failure)"],
-    ["", "no ci-ok job of the ci workflow ran on commit " + head],
-    ["in_progress\t\n", "ci-ok of the ci workflow is still running on commit " + head + "; wait for it and rerun"],
+    [withJob(okJobs(), "ios / job", "completed", "failure"), "the ios release gate (repo, vectors, ios) did not pass on commit " + head + ": ios / job: failure"],
+    [withJob(okJobs(), "vectors / job", "completed", "cancelled"), "the ios release gate (repo, vectors, ios) did not pass on commit " + head + ": vectors / job: cancelled"],
+    [[...okJobs().filter((j) => !j.name.startsWith("ios / ")), { name: "ios", status: "completed", conclusion: "skipped" }], "ios did not run (skipped)"],
+    [withJob(okJobs(), "ios / job", "in_progress", null), "the ios jobs of the ci workflow are still running on commit " + head + "; wait for them and rerun"],
   ]) {
-    ci.jobs = jobs;
+    ci.jobs = tsv(jobs);
     const r = run("ios", "90.0.7");
-    assert.equal(r.status, 1, jobs);
+    assert.equal(r.status, 1, ci.jobs);
     assert.ok(r.stderr.includes(want), r.stderr);
     assert.equal(git("tag", "-l"), "");
   }
-  ci.jobs = "completed\tfailure\ncompleted\tsuccess\n";
+  // ci-ok failing for another platform's job does not hold up iOS.
+  ci.jobs = tsv(withJob(okJobs(), "android / job", "completed", "failure"));
   let r = run("ios", "90.0.7");
   assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /git push origin ios\/v90\.0\.7/);
   r = run("--ci", "ios/v90.0.7");
   assert.equal(r.status, 0, r.stderr);
-  assert.equal(r.stdout.trim(), "ci-ok succeeded on " + head);
-  ci.jobs = "completed\tcancelled\n";
+  assert.equal(r.stdout.trim(), "the ios release gate (repo, vectors, ios) passed on " + head);
+  ci.jobs = tsv(withJob(okJobs(), "ios / job", "completed", "cancelled"));
   r = run("--ci", "ios/v90.0.7");
   assert.equal(r.status, 1);
-  assert.match(r.stderr, /ci-ok of the ci workflow did not succeed on commit [0-9a-f]{12} \(cancelled\)/);
+  assert.match(r.stderr, /the ios release gate \(repo, vectors, ios\) did not pass on commit [0-9a-f]{12}: ios \/ job: cancelled/);
   r = run("--ci", "ios/v90.0.8");
   assert.equal(r.status, 1);
   assert.match(r.stderr, /tag ios\/v90\.0\.8 does not exist/);
@@ -381,17 +437,27 @@ test("platform subset: only those version files change; numbers are shared and n
   // Without a platform, or with an unknown one, nothing is tagged.
   assert.equal(run("1.2.3").status, 2);
   assert.equal(run("1.2.3", "nope").status, 1);
-  // Next release: the number must exceed the highest tag of any platform, android alone.
+  // A lower number than the highest tag is refused.
   git("commit", "-q", "--allow-empty", "-m", "next");
   r = run("1.2.2", "android");
   assert.equal(r.status, 1);
   assert.match(r.stderr, /1\.2\.2 is not greater than the existing tag/);
+  // One stamp commit per platform: android joins 1.2.3 on its own later commit.
   r = run("1.2.3", "android");
   assert.equal(r.status, 1);
-  assert.match(r.stderr, /1\.2\.3 is bound to commit/);
-  assert.equal(run("1.2.4", "android").status, 1);
-  git("commit", "-q", "-am", "release 1.2.4");
-  assert.equal(run("android", "1.2.4").status, 0);
-  assert.equal(run("--check", "android/v1.2.4").status, 0);
+  assert.match(r.stdout, /stamped 1\.2\.3 into the version files of android/);
+  git("commit", "-q", "-am", "release 1.2.3 android");
+  assert.equal(run("android", "1.2.3").status, 0);
+  assert.equal(run("--check", "android/v1.2.3").status, 0);
+  // Next release, worker alone; after it, nothing joins 1.2.3 any more.
+  assert.equal(run("1.2.4", "worker").status, 1);
+  assert.match(read("server/worker/package.json"), /"version": "1\.2\.4"/);
+  assert.equal(JSON.parse(read("server/worker/package-lock.json")).packages[""].version, "1.2.4");
+  git("commit", "-q", "-am", "release 1.2.4 worker");
+  assert.equal(run("worker", "1.2.4").status, 0);
+  assert.equal(run("--check", "worker/v1.2.4").status, 0);
+  r = run("1.2.3", "ios");
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /1\.2\.3 is not greater than the existing tag worker\/v1\.2\.4/);
   assert.equal(git("tag", "-l", "ios/*"), "");
 });

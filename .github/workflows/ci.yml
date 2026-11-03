@@ -1,9 +1,11 @@
 name: ci
 
 # The one entry workflow for pushes to main, agent/** and internal/**. It decides which
-# component files to call; ci-ok is the only required check. Release tags run
-# the tag-only *-release.yml files, which call the same component files; every
-# call from here grants contents: read and nothing more.
+# component files to call; ci-ok is the per-change check that main fast-forwards
+# on. A release tag needs only its platform's jobs here plus repo and vectors to
+# succeed on its stamp commit (release/tag.mjs GATE), so the tag-only
+# *-release.yml files do not run these tests again; every call from here grants
+# contents: read and nothing more.
 on:
   push:
     branches:
@@ -69,20 +71,23 @@ jobs:
           hit() { [ "$all" = 1 ] || printf '%s\n' "$files" | grep -Eq "$1"; }
           # Strict shared paths (workflows, release values, vectors, node pins) count as
           # every component. The npm lockfile and .npmrc reach only the npm-based
-          # components, not the Android or iOS builds.
-          if hit '^(\.github/|release/|tests/vectors/|\.node-version$|site/\.node-version$)'; then all=1; fi
+          # components, not the Android or iOS builds. release/version.properties is
+          # the Android version file (an Android stamp commit): Android, site, vectors.
+          if [ "$all" = 1 ] || printf '%s\n' "$files" | grep -vx 'release/version\.properties' \
+            | grep -Eq '^(\.github/|release/|tests/vectors/|\.node-version$|site/\.node-version$)'; then all=1; fi
           npmall=0
           if [ "$all" = 0 ] && printf '%s\n' "$files" | grep -Eq '^(package-lock\.json|\.npmrc)$'; then npmall=1; fi
           out() { if [ "$npmall" = 1 ] || hit "$2"; then echo "$1=true"; else echo "$1=false"; fi >> "$GITHUB_OUTPUT"; }
           outn() { if hit "$2"; then echo "$1=true"; else echo "$1=false"; fi >> "$GITHUB_OUTPUT"; }
           out worker '^server/(worker|tools|deploy)/'
           # the site checks also read the Firefox manifest and the Worker wrangler pin
-          out site '^(site/|client/firefox/|server/worker/package\.json$)'
+          out site '^(site/|client/firefox/|server/worker/package\.json$|release/version\.properties$)'
           out webext '^client/(webext-common|chrome|firefox)/'
-          outn android '^client/android/'
+          outn android '^(client/android/|release/version\.properties$)'
           outn ios '^client/ios/'
           out cli '^client/cli/'
-          out vectors '^(server/worker|client/(webext-common|chrome|firefox|android|ios))/'
+          # every release gate needs the vectors (release/tag.mjs), so every component triggers them
+          out vectors '^(server/worker/|client/(webext-common|chrome|firefox|android|ios|cli)/|release/version\.properties$)'
           cat "$GITHUB_OUTPUT"
 
   repo:

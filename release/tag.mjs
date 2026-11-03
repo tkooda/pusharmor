@@ -5,11 +5,13 @@
 //                                          ios chrome firefox; platforms are required)
 //   node release/tag.mjs --check TAG       release jobs: the checked-out tag obeys
 //                                          the rules; prints X.Y.Z
-//   node release/tag.mjs --ci TAG          first release job: ci-ok is green on the
-//                                          commit of TAG (waits for a running CI)
-// Rules: a version is bound to one commit (every tag of X.Y.Z points at the same
-// commit, and a commit carries one version); a new version (no tag of it yet) is
-// greater than every existing tag; the version files at the commit hold X.Y.Z
+//   node release/tag.mjs --ci TAG          first release job: the release gate of the
+//                                          tag's platform passed on the commit of TAG
+//                                          (waits for a running CI)
+// Rules: a commit carries one version; the tags of X.Y.Z (one stamp commit per
+// platform) are on commits of one line of history, and versions grow along it; a
+// new version (no tag of it yet) is greater than every existing tag; the version
+// files at the commit hold X.Y.Z
 // (stampProblems), /download holds the SHA-256 of pusharmor.py at the commit, and
 // /fdroid/android.txt holds the Android versionName and versionCode, and
 // /fx/beta/updates.json points at the Firefox Beta XPI of X.Y.Z.
@@ -22,8 +24,11 @@
 // rerun. Otherwise it creates the annotated tag at HEAD; the owner pushes it.
 // --check compares only with tags created no later than TAG (a rerun after newer
 // tags still passes) and wants an annotated tag (tag mode makes one).
-// CI gate: tag mode and --ci need a successful ci-ok job of
-// the ci workflow (ci.yml, push event) on the commit; any run or attempt counts.
+// Release gate (per platform): tag mode and --ci need one push run of the ci
+// workflow (ci.yml) on the commit whose jobs of the platform (GATE) and of the
+// shared checks (repo: ASCII, no-ids and the other whole-repo checks; vectors) all
+// ran and succeeded; a component that was skipped is not a pass. Another
+// platform's jobs do not count, so a slow platform never holds up the others.
 // They read it with gh api (GH_TOKEN with actions: read; --check needs no token).
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -72,19 +77,29 @@ export function formatProblems(platform, version) {
 /**
  * Problems with giving `commit` the version `version`. tags: [{ name, commit }] of
  * the existing tags to compare with (names that are not <platform>/vX.Y.Z are ignored).
+ * isAncestor(a, b): commit a is an earlier commit in the history of commit b.
+ * Each platform has its own stamp commit, so the tags of X.Y.Z may be on several
+ * commits, as long as they are on one line of history: a tag of X.Y.Z on a
+ * commit that is neither before nor after this one is a problem. Other versions:
+ * a tag on an earlier commit must be lower, a tag on a later commit higher.
  */
-export function tagProblems(version, commit, tags) {
+export function tagProblems(version, commit, tags, isAncestor = () => false) {
   const bad = [];
   // A version already bound to this commit is not new: another platform may join it.
   const bound = tags.some((t) => parseTag(t.name)?.version === version && t.commit === commit);
   for (const t of tags) {
     const p = parseTag(t.name);
-    if (!p) continue;
+    if (!p || t.commit === commit) {
+      if (p && p.version !== version) bad.push("the commit already carries version " + p.version + " (tag " + t.name + ")");
+      continue;
+    }
+    const before = isAncestor(t.commit, commit);
+    const after = !before && isAncestor(commit, t.commit);
     if (p.version === version) {
-      if (t.commit !== commit) bad.push(version + " is bound to commit " + t.commit.slice(0, 12) + " by tag " + t.name);
-    } else if (t.commit === commit) {
-      bad.push("the commit already carries version " + p.version + " (tag " + t.name + ")");
-    } else if (!bound && cmp(version, p.version) <= 0) {
+      if (!before && !after) bad.push(version + " is bound to commit " + t.commit.slice(0, 12) + " by tag " + t.name + ", which is not in the history of this commit");
+    } else if (after) {
+      if (cmp(version, p.version) >= 0) bad.push(version + " is not lower than the tag " + t.name + " on a later commit");
+    } else if ((before || !bound) && cmp(version, p.version) <= 0) {
       bad.push(version + " is not greater than the existing tag " + t.name);
     }
   }
@@ -122,6 +137,25 @@ const FILES = [
     get: (s) => [/^ *MARKETING_VERSION: "(.*)"$/m.exec(s)?.[1], /^ *CURRENT_PROJECT_VERSION: "(.*)"$/m.exec(s)?.[1]],
     want: (v) => [v, String(buildNumber(v))],
     set: (s, v) => s.replace(/^( *MARKETING_VERSION: ).*$/m, '$1"' + v + '"').replace(/^( *CURRENT_PROJECT_VERSION: ).*$/m, '$1"' + buildNumber(v) + '"'),
+  },
+  // The Worker: the version of its npm package and of the lockfile root (both
+  // lockfile entries), so a worker release has a stamp commit like the clients.
+  {
+    path: "server/worker/package.json",
+    platforms: ["worker"],
+    get: (s) => [JSON.parse(s).version],
+    want: (v) => [v],
+    set: (s, v) => s.replace(/("version": )"[^"]*"/, "$1" + JSON.stringify(v)),
+  },
+  {
+    path: "server/worker/package-lock.json",
+    platforms: ["worker"],
+    get: (s) => [JSON.parse(s).version, JSON.parse(s).packages[""].version],
+    want: (v) => [v, v],
+    set: (s, v) => {
+      let n = 0;
+      return s.replace(/("version": )"[^"]*"/g, (m, k) => (n++ < 2 ? k + JSON.stringify(v) : m));
+    },
   },
   // The F-Droid update check (UpdateCheckMode HTTP): versionName, then versionCode.
   {
@@ -201,6 +235,17 @@ export function stamp(root, version, platforms = PLATFORMS) {
 
 const git = (args) => execFileSync("git", args, { encoding: "utf8" }).trim();
 
+/** a is an earlier commit in the history of b (git merge-base --is-ancestor). */
+function isAncestor(a, b) {
+  if (a === b) return false;
+  try {
+    execFileSync("git", ["merge-base", "--is-ancestor", a, b], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Every tag of the repo: { name, commit, date (unix seconds), annotated }. */
 function allTags() {
   const out = git(["for-each-ref", "--format=%(refname:strip=2)%09%(objecttype)%09%(objectname)%09%(*objectname)%09%(creatordate:unix)", "refs/tags"]);
@@ -210,7 +255,20 @@ function allTags() {
   });
 }
 
-export const CI_JOB = "ci-ok";
+// The ci.yml jobs a release of each platform needs on its commit, by the job id of
+// the called workflow in ci.yml (job names "<id> / <name>"): the platform's own
+// jobs, plus the site checks where the stamp writes files under site/.
+export const GATE = {
+  android: ["android", "site"],
+  ios: ["ios"],
+  chrome: ["webext"],
+  firefox: ["webext", "site"],
+  worker: ["worker"],
+  cli: ["cli", "site"],
+};
+// The shared checks every release needs: repo.yml (ASCII, no-ids, ...) and the vectors.
+export const SHARED = ["repo", "vectors"];
+export const gateGroups = (platform) => [...SHARED, ...GATE[platform]];
 
 const ghApi = (args) => execFileSync("gh", ["api", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 
@@ -221,51 +279,73 @@ export function repoName(env = process.env, origin = () => git(["remote", "get-u
   return r;
 }
 
-/** { status, conclusion } of every ci-ok job of the ci workflow's push runs on commit. */
-export function ciJobs(commit, gh = ghApi, repo = repoName()) {
-  const runs = gh(["repos/" + repo + "/actions/workflows/ci.yml/runs?event=push&per_page=100&head_sha=" + commit, "--jq", ".workflow_runs[].id"]);
-  const jobs = [];
-  for (const id of runs.split("\n").filter(Boolean)) {
-    const out = gh(["--paginate", "repos/" + repo + "/actions/runs/" + id + "/jobs?filter=all&per_page=100", "--jq", '.jobs[] | select(.name == "' + CI_JOB + '") | [.status, .conclusion // ""] | @tsv']);
-    for (const l of out.split("\n").filter(Boolean)) {
-      const [status, conclusion] = l.split("\t");
-      jobs.push({ status, conclusion: conclusion || null });
-    }
-  }
-  return jobs;
+/** The ci workflow's push runs on commit: [{ status, jobs: [{ name, status, conclusion }] }],
+ *  the jobs of the latest attempt of each run. */
+export function ciRuns(commit, gh = ghApi, repo = repoName()) {
+  const runs = gh(["repos/" + repo + "/actions/workflows/ci.yml/runs?event=push&per_page=100&head_sha=" + commit, "--jq", ".workflow_runs[] | [.id, .status] | @tsv"]);
+  return runs.split("\n").filter(Boolean).map((l) => {
+    const [id, status] = l.split("\t");
+    const out = gh(["--paginate", "repos/" + repo + "/actions/runs/" + id + "/jobs?filter=latest&per_page=100", "--jq", '.jobs[] | [.name, .status, .conclusion // ""] | @tsv']);
+    const jobs = out.split("\n").filter(Boolean).map((j) => {
+      const [name, st, conclusion] = j.split("\t");
+      return { name, status: st, conclusion: conclusion || null };
+    });
+    return { status, jobs };
+  });
 }
 
-/** "ok", "pending" (a ci-ok job still runs), or the problem with the ci-ok jobs of commit. */
-export function ciState(commit, jobs) {
-  if (jobs.some((j) => j.status === "completed" && j.conclusion === "success")) return "ok";
-  if (jobs.some((j) => j.status !== "completed")) return "pending";
+/** "ok", "pending" (a needed job still runs), or the problem with the release gate
+ *  of platform on commit. A run passes when every group of gateGroups(platform)
+ *  has a job that succeeded and none that ended otherwise (a job a component
+ *  skips by design, such as the iOS 17 job on a push, is fine; a whole skipped
+ *  component is not). Any run passing is enough. */
+export function gateState(platform, commit, runs) {
+  const groups = gateGroups(platform);
+  const why = [];
+  let pending = false;
+  for (const r of runs) {
+    const bad = [];
+    let wait = false;
+    for (const g of groups) {
+      const js = r.jobs.filter((j) => j.name.startsWith(g + " / "));
+      const failed = js.filter((j) => j.status === "completed" && j.conclusion !== "success" && j.conclusion !== "skipped");
+      if (failed.length) bad.push(failed.map((j) => j.name + ": " + j.conclusion).join(", "));
+      else if (js.some((j) => j.status !== "completed") || (r.status !== "completed" && !js.length)) wait = true;
+      else if (!js.some((j) => j.conclusion === "success")) bad.push(g + " did not run (skipped)");
+    }
+    if (!bad.length && !wait) return "ok";
+    if (bad.length) why.push(bad.join("; "));
+    else pending = true;
+  }
+  if (pending) return "pending";
   const at = " on commit " + commit.slice(0, 12);
-  if (!jobs.length) return "no " + CI_JOB + " job of the ci workflow ran" + at + " (push it to main and wait for CI)";
-  return CI_JOB + " of the ci workflow did not succeed" + at + " (" + jobs.map((j) => j.conclusion).join(", ") + ")";
+  if (!runs.length) return "no run of the ci workflow on commit " + commit.slice(0, 12) + " (push it to an internal/ branch and wait for CI)";
+  return "the " + platform + " release gate (" + groups.join(", ") + ") did not pass" + at + ": " + why.join(" | ");
 }
 
 const sleepMs = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
 /**
- * [] when ci-ok succeeded on commit, else one problem. Polls every intervalMs while
- * a ci-ok job runs or gh api fails, until waitMs has passed (0: one look).
+ * [] when the release gate of platform passed on commit, else one problem. Polls
+ * every intervalMs while a needed job runs or gh api fails, until waitMs has
+ * passed (0: one look).
  */
-export function ciProblems(commit, { waitMs = 0, intervalMs = 60000, list = ciJobs, sleep = sleepMs, now = Date.now, log = () => {} } = {}) {
+export function ciProblems(platform, commit, { waitMs = 0, intervalMs = 15000, list = ciRuns, sleep = sleepMs, now = Date.now, log = () => {} } = {}) {
   const end = now() + waitMs;
   for (;;) {
     let state;
     try {
-      state = ciState(commit, list(commit));
+      state = gateState(platform, commit, list(commit));
     } catch (e) {
       state = "could not read the ci runs with gh api: " + String(e.stderr || e.message).trim();
     }
     if (state === "ok") return [];
     const retry = state === "pending" || state.startsWith("could not read");
     if (!retry || now() + intervalMs > end) {
-      if (state === "pending") return [CI_JOB + " of the ci workflow is still running on commit " + commit.slice(0, 12) + (waitMs ? " after " + Math.round(waitMs / 60000) + " minutes" : "; wait for it and rerun")];
+      if (state === "pending") return ["the " + platform + " jobs of the ci workflow are still running on commit " + commit.slice(0, 12) + (waitMs ? " after " + Math.round(waitMs / 60000) + " minutes" : "; wait for them and rerun")];
       return [state];
     }
-    log("waiting for " + CI_JOB + " on " + commit.slice(0, 12) + ": " + state);
+    log("waiting for the " + platform + " release gate on " + commit.slice(0, 12) + ": " + state);
     sleep(intervalMs);
   }
 }
@@ -284,23 +364,25 @@ function check(tag) {
   if (!self) fail(["tag " + tag + " does not exist"]);
   if (!self.annotated) bad.push(tag + " is a lightweight tag; create release tags with node release/tag.mjs");
   if (self.commit !== git(["rev-parse", "HEAD"])) bad.push("HEAD is not the commit of " + tag);
-  bad.push(...tagProblems(p.version, self.commit, tags.filter((t) => t.name !== tag && t.date <= self.date)));
+  bad.push(...tagProblems(p.version, self.commit, tags.filter((t) => t.name !== tag && t.date <= self.date), isAncestor));
   bad.push(...stampProblems(git(["rev-parse", "--show-toplevel"]), p.version, [p.platform]));
   if (bad.length) fail(bad);
   console.log(p.version);
 }
 
-// The ci-ok gate of the first release job: waits up to 40 minutes for a running CI.
+// The release gate of the first release job: waits up to 40 minutes for a running CI.
 function checkCi(tag) {
+  const p = parseTag(tag);
+  if (!p) fail([JSON.stringify(tag) + " is not <platform>/vX.Y.Z (" + PLATFORMS.join(", ") + ")"]);
   let commit;
   try {
     commit = git(["rev-parse", "--verify", "-q", "refs/tags/" + tag + "^{commit}"]);
   } catch {
     fail(["tag " + tag + " does not exist"]);
   }
-  const bad = ciProblems(commit, { waitMs: 40 * 60000, log: (m) => console.error(m) });
+  const bad = ciProblems(p.platform, commit, { waitMs: 40 * 60000, log: (m) => console.error(m) });
   if (bad.length) fail(bad);
-  console.log(CI_JOB + " succeeded on " + commit.slice(0, 12));
+  console.log("the " + p.platform + " release gate (" + gateGroups(p.platform).join(", ") + ") passed on " + commit.slice(0, 12));
 }
 
 function tagHead(platforms, version) {
@@ -319,29 +401,33 @@ function tagHead(platforms, version) {
   const names = platforms.map((p) => p + "/v" + version);
   const head = git(["rev-parse", "HEAD"]);
   if (stampProblems(root, version, platforms).length) {
-    // A new release commit: X.Y.Z must be new and greater than every tag of any platform.
-    const bad = tagProblems(version, "(new commit)", tags);
+    // A new stamp commit, a child of HEAD: X.Y.Z must be new and greater than every
+    // tag of any platform, or a version whose tags are in the history of HEAD.
+    const NEW = "(new commit)";
+    const bad = tagProblems(version, NEW, tags, (a, b) => (b === NEW ? a === head || isAncestor(a, head) : isAncestor(a, b)));
     if (bad.length) fail(bad);
     stamp(root, version, platforms);
     console.log("stamped " + version + " into the version files of " + platforms.join(", ") + "; nothing tagged.");
-    console.log("review and commit them (git commit -am \"release " + version + "\"), then rerun:");
+    console.log("review and commit them (git commit -am \"release " + version + " " + platforms.join(" ") + "\"), then rerun:");
     console.log("  node release/tag.mjs " + version + " " + platforms.join(" "));
     process.exit(1);
   }
-  const bad2 = tagProblems(version, head, tags.filter((t) => !names.includes(t.name)));
+  const bad2 = tagProblems(version, head, tags.filter((t) => !names.includes(t.name)), isAncestor);
   for (const n of names) {
     const own = tags.find((t) => t.name === n);
     if (own && own.commit !== head) bad2.push("tag " + n + " already exists at another commit");
   }
   if (bad2.length) fail(bad2);
-  const ci = ciProblems(head);
+  const ci = platforms.flatMap((p) => ciProblems(p, head));
   if (ci.length) fail(ci);
   for (const n of names) {
     const own = tags.some((t) => t.name === n);
     if (!own) git(["tag", "-a", n, "-m", n.replace("/v", " "), head]);
     console.log((own ? "tag exists: " : "tagged: ") + n + " at " + head.slice(0, 12));
   }
-  console.log("push them to start the releases: git push origin " + names.join(" "));
+  // GitHub starts no workflow for a push of more than three tags at once.
+  console.log("push each tag on its own to start its release:");
+  for (const n of names) console.log("  git push origin " + n);
 }
 
 /** { version, platforms } from "X.Y.Z PLATFORM..." or "PLATFORM X.Y.Z", or null. */

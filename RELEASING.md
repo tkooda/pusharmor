@@ -24,18 +24,22 @@ three stores; it is not a manual release.
 
 All platforms share ONE version counter X.Y.Z. A release tags only the platforms
 that changed (for example `chrome/v0.0.22` alone); the others skip that number.
-A given X.Y.Z always means the same commit on every platform that has it. Rules (`release/tag.mjs`, checked again by every release
+Each platform of a release has its own stamp commit, so one slow platform never
+holds up the others. Rules (`release/tag.mjs`, checked again by every release
 workflow in its first job):
 
-- A version is bound to one commit: every `<platform>/vX.Y.Z` tag of X.Y.Z points
-  at the same commit, and a commit carries one version.
+- A commit carries one version. The tags of X.Y.Z (one stamp commit per
+  platform) are on one line of history: a tag of X.Y.Z on a side branch is
+  refused. Versions grow along the history: a tag on an earlier commit has a
+  lower version, a tag on a later commit a higher one.
 - A new version (no tag of it yet) is greater than every existing tag of any
   platform. A version that already has a tag stays open to other platforms at
-  its commit, also after newer versions are tagged.
-- A release names its platforms (`node release/tag.mjs X.Y.Z chrome firefox`;
+  its commit, also after newer versions are tagged, and at a later commit until
+  a higher version is tagged.
+- A release names its platforms (`node release/tag.mjs X.Y.Z chrome`;
   `all` = android, ios, chrome, firefox; `cli` and `worker` are named
-  explicitly). Platforms are required, so nothing is tagged by default. Tag all
-  platforms that changed on ONE commit; the rest keep their last version.
+  explicitly). Platforms are required, so nothing is tagged by default. Stamp
+  and tag one platform per commit; the rest keep their last version.
 - X.Y.Z has no leading zeros; Y and Z are at most 999; X is at most 2099.
 - The version files OF THE TAGGED PLATFORM at the tag commit hold X.Y.Z (files of
   other platforms keep their own version): `release/version.properties`
@@ -45,10 +49,19 @@ workflow in its first job):
   URL and the SHA-256 of `client/cli/pusharmor.py` at the tag commit; for
   Android, the foss and play APK URLs and file names; the APK and certificate
   SHA-256 values are not stamped), `site/public/fdroid/android.txt`
-  (Android versionName, then versionCode), and `site/public/fx/beta/updates.json` (Firefox: the version and the URL of
-  the Beta XPI of the tag).
-- `ci-ok` of the ci workflow succeeded on the tag commit (a push run; `gh api`
-  with actions: read). The release workflow waits up to 40 minutes for it.
+  (Android versionName, then versionCode), `site/public/fx/beta/updates.json` (Firefox: the version and the URL of
+  the Beta XPI of the tag), and `server/worker/package.json` with
+  `server/worker/package-lock.json` (Worker).
+- The release gate of the platform passed on the tag commit: in one push run
+  of the ci workflow, every job of the platform and of the shared checks ran
+  and succeeded (`GATE` in `release/tag.mjs`; `gh api` with actions: read).
+  Shared: `repo` (ASCII, no internal ids, actionlint, gitleaks, release
+  scripts, dependency review) and `vectors`. Platform jobs: android `android`
+  and `site`; ios `ios`; chrome `webext`; firefox `webext` and `site`; cli
+  `cli` and `site`; worker `worker`. A skipped component is not a pass, and
+  the jobs of other platforms do not count (ci-ok may still be running). The
+  release workflow waits up to 40 minutes for it and then does not run those
+  tests again.
 
 Build numbers: Android versionCode and the iOS build number grow with the
 version (0.0.1 -> 1; `buildNumber` in `release/tag.mjs`).
@@ -58,15 +71,23 @@ version (0.0.1 -> 1; `buildNumber` in `release/tag.mjs`).
 Order: deploy the Worker first when the clients need it. Every test channel
 talks to the production Worker, and the public clients must keep working with it.
 
-1. On an up-to-date main with a clean tree:
-   `node release/tag.mjs X.Y.Z <platform>...`. When the version files do not hold
-   X.Y.Z yet, it writes them and stops (nothing tagged).
-2. Commit the version files ("release X.Y.Z") and push to main; wait for ci-ok.
-3. Check out that commit and run `node release/tag.mjs X.Y.Z <platform>...` again:
-   it fetches the tags of origin, checks the rules (ci-ok too, with your `gh`
-   login) and creates one annotated tag per platform.
-4. `git push origin <platform>/vX.Y.Z ...`. A platform added later to the same
-   version: run step 3 for it at the SAME commit.
+1. On an up-to-date main with a clean tree, one platform at a time, fastest
+   first (worker, cli, chrome, firefox, android, ios):
+   `node release/tag.mjs X.Y.Z <platform>`. It writes the version files of that
+   platform and stops (nothing tagged). Commit them ("release X.Y.Z
+   <platform>"), then do the next platform on top. Each stamp commit changes
+   only its platform's files, so CI runs only that platform's jobs (and the
+   shared checks) for it.
+2. Push each stamp commit to its own `internal/<12-char sha>` branch, one push
+   per branch (GitHub starts no workflow for a push of more than three refs).
+3. As soon as a platform's gate passes on its stamp commit, fast-forward main
+   to that commit (the stamp commits before it must have landed), check it out
+   and run `node release/tag.mjs X.Y.Z <platform>` again: it fetches the tags of
+   origin, checks the rules (the platform's gate too, with your `gh` login) and
+   creates the annotated tag.
+4. `git push origin <platform>/vX.Y.Z`, one tag per push. A platform that
+   failed: fix it on top of main and stamp it again on a new commit (same
+   X.Y.Z while no higher version is tagged).
 
 `PA_MIN_CLIENT` (Worker) takes a per-platform list (`android=0.0.22,ios=0.0.20`)
 because platform versions differ; set a floor only for platforms that have it.
@@ -84,9 +105,8 @@ with the version X.Y.Z and `platforms`, a comma list of `android`, `ios`,
 only the Firefox add-on). A platform not in the list is skipped (a SKIP line)
 and its job does not run. The first job checks, per platform, the tag
 `<platform>/vX.Y.Z` and its published GitHub release with the needed assets; a
-platform without them is skipped (a SKIP line in the summary). It refuses to
-run when the tags of X.Y.Z point at different commits, and it lists the client
-platforms that have no tag of X.Y.Z as a WARNING line. A selected platform
+platform without them is skipped (a SKIP line in the summary). It lists the
+client platforms that have no tag of X.Y.Z as a NOTE line. A selected platform
 whose tag commit has no `.github/workflows/store.yml` is skipped too (tags
 made before store.yml existed cannot be promoted by the workflow). It also checks the
 listing files. Then the run waits for the owner's approval (Environment
@@ -144,8 +164,9 @@ as latest).
 
 ## Worker (`worker/vX.Y.Z`)
 
-1. Tag and push; wait for the green worker-release run (tag rule, vectors,
-   Worker tests, bundle check, migrations with the previous Worker tag).
+1. Tag and push; wait for the green worker-release run (tag rule and the
+   worker gate: the Worker tests, bundle check and migrations with the
+   previous Worker tag passed in ci on the stamp commit).
 2. From a clean checkout of the tag on main:
    `CLOUDFLARE_ACCOUNT_ID=... server/deploy/deploy.sh worker/vX.Y.Z`
    (`server/deploy/README.md`: preflight, restore bookmark, migrations, deploy, smoke test).
@@ -287,9 +308,10 @@ tag commit, so only reviewed commits may be tagged:
 
 1. Branch ruleset on `main`: block force pushes, restrict deletions. No pull
    request and no required status check, so the owner can push to `main`
-   directly. `ci-ok` still runs on every push; wait for it to be green before
-   you tag a commit. `release/tag.mjs` and the first job of every release
-   workflow refuse a commit without a successful ci-ok.
+   directly. `ci-ok` still runs on every push; a change lands on main when it
+   is green, a stamp commit when its platform's gate is green.
+   `release/tag.mjs` and the first job of every release workflow refuse a
+   commit whose platform gate did not pass (Versions).
 2. Tag ruleset, target pattern `*/v*` (all release tags): restrict creation,
    update and deletion to the owner (bypass list: repository admin and the
    push deploy key); block force pushes. A release tag can then not be
