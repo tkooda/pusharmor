@@ -117,12 +117,16 @@ jobs:
         run: node --test release/*.test.mjs
 
   # Needs GitHub Advanced Security on a private repo; skipped if the repo is private.
+  # A push to main compares with the main commit before it; any other branch with main.
   dependency-review:
     name: dependency review
-    if: github.event_name == 'pull_request' && !github.event.repository.private
+    if: "!github.event.repository.private"
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
     steps:
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          base-ref: ${{ github.ref == 'refs/heads/main' && github.event.before || 'main' }}
+          head-ref: ${{ github.sha }}

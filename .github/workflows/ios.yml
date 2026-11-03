@@ -1,10 +1,10 @@
 name: ios
 
-# iOS tests and builds. Called by ci.yml (pull requests, main pushes: newest
+# iOS tests and builds. Called by ci.yml (pushes: newest
 # simulator runtime only) and by ios-release.yml (with oldest: true, so the
 # iOS 17 job runs before the release job). The iOS 17 job also runs weekly
 # (nothing else) and on manual dispatch; a manual dispatch
-# runs every job. The Debug simulator app is uploaded (not for fork PRs or tags).
+# runs every job. The Debug simulator app is uploaded (not for tags).
 on:
   workflow_call:
     inputs:
@@ -114,10 +114,7 @@ jobs:
       - name: Zip the Debug simulator app
         run: ditto -c -k --keepParent "$RUNNER_TEMP/dd/Build/Products/Debug-iphonesimulator/PushArmor.app" "$RUNNER_TEMP/PushArmor-simulator.zip"
       - name: Upload the Debug simulator app
-        if: >-
-          !startsWith(github.ref, 'refs/tags/') &&
-          (github.event_name == 'push' || github.event_name == 'workflow_dispatch' ||
-          github.event.pull_request.head.repo.full_name == github.repository)
+        if: "!startsWith(github.ref, 'refs/tags/')"
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-debug-simulator-app

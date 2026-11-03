@@ -1,4 +1,4 @@
-// CI only (pull requests from forks): rewrites release/public.json in place,
+// CI and tests only (the site and webext dummy builds): rewrites a public.json in place,
 // replacing every PLACEHOLDER value with a labeled dummy "ci-fork-dummy-<key>",
 // so a run with PA_CI_DUMMY=1 proves the release builds compile. Release jobs
 // never run this or set PA_CI_DUMMY. The Firefox add-on id dummies are the
