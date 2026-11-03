@@ -173,8 +173,9 @@ Promote:
 1. The promote workflow (job `play`), or by hand: Play Console > Test and
    release > Internal testing > Promote release > Production (a personal developer account created after 2023-11-13 must run
    a closed test with 12 testers for 14 days first: promote to a closed track).
-2. Optional: run the rebuild workflow (Actions > rebuild, tag
-   `android/vX.Y.Z`) to prove the APKs are reproducible.
+2. Optional: run the rebuild workflow (Actions > rebuild, "Use workflow
+   from" and the tag input both `android/vX.Y.Z`, so the toolchain pins are
+   those of the release) to prove the APKs are reproducible.
 3. F-Droid: `release/tag.mjs` stamps `site/public/fdroid/android.txt`
    (versionName, then versionCode) with the other Android version files. The
    first time, add the app metadata to fdroiddata by hand (UpdateCheckMode HTTP on that file,
