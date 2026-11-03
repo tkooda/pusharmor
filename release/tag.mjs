@@ -259,7 +259,7 @@ function allTags() {
 // the called workflow in ci.yml (job names "<id> / <name>"): the platform's own
 // jobs, plus the site checks where the stamp writes files under site/.
 export const GATE = {
-  android: ["android", "site"],
+  android: ["android", "android-emulator", "site"],
   ios: ["ios"],
   chrome: ["webext"],
   firefox: ["webext", "site"],

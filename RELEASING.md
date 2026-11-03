@@ -56,8 +56,8 @@ workflow in its first job):
   of the ci workflow, every job of the platform and of the shared checks ran
   and succeeded (`GATE` in `release/tag.mjs`; `gh api` with actions: read).
   Shared: `repo` (ASCII, no internal ids, actionlint, gitleaks, release
-  scripts, dependency review) and `vectors`. Platform jobs: android `android`
-  and `site`; ios `ios`; chrome `webext`; firefox `webext` and `site`; cli
+  scripts, dependency review) and `vectors`. Platform jobs: android `android`,
+  `android-emulator` and `site`; ios `ios`; chrome `webext`; firefox `webext` and `site`; cli
   `cli` and `site`; worker `worker`. A skipped component is not a pass, and
   the jobs of other platforms do not count (ci-ok may still be running). The
   release workflow waits up to 40 minutes for it and then does not run those

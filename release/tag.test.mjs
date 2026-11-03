@@ -160,12 +160,12 @@ test("a Firefox stamp check fails when fx/beta/updates.json points at another XP
 });
 
 // Jobs of one ci run: every gate group succeeded unless overridden.
-const okJobs = () => [...SHARED, "android", "ios", "webext", "site", "worker", "cli"].map((g) => ({ name: g + " / job", status: "completed", conclusion: "success" }));
+const okJobs = () => [...SHARED, "android", "android-emulator", "ios", "webext", "site", "worker", "cli"].map((g) => ({ name: g + " / job", status: "completed", conclusion: "success" }));
 const withJob = (jobs, name, status, conclusion) => [...jobs.filter((j) => j.name !== name), { name, status, conclusion }];
 
 test("release gate: each platform needs its own jobs and the shared checks to succeed, not ci-ok", () => {
   const c = "e".repeat(40);
-  assert.deepEqual(GATE, { android: ["android", "site"], ios: ["ios"], chrome: ["webext"], firefox: ["webext", "site"], worker: ["worker"], cli: ["cli", "site"] });
+  assert.deepEqual(GATE, { android: ["android", "android-emulator", "site"], ios: ["ios"], chrome: ["webext"], firefox: ["webext", "site"], worker: ["worker"], cli: ["cli", "site"] });
   assert.deepEqual(SHARED, ["repo", "vectors"]);
   const ok = okJobs();
   for (const p of Object.keys(GATE)) assert.equal(gateState(p, c, [{ status: "completed", jobs: ok }]), "ok", p);

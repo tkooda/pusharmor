@@ -1,7 +1,7 @@
 name: android-emulator
 
-# Android instrumented tests on emulators. Called by ci.yml only, as a job that
-# ci-ok does not wait for (see the flip note there).
+# Android instrumented tests on emulators. Called by ci.yml only; ci-ok and the
+# Android release gate need them.
 on:
   workflow_call:
 
@@ -11,15 +11,11 @@ env:
   JAVA_VERSION: "17.0.20+8"
 
 jobs:
-  # Instrumented tests on emulators. These have not run yet: continue-on-error
-  # until the first green run on main; then flip to
-  # required by removing continue-on-error. ci.yml does not run this file for
-  # release tags.
+  # Instrumented tests on emulators. Release tags do not run this file again.
   android-emulator:
     name: emulator API ${{ matrix.api }} ${{ matrix.flavor }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    continue-on-error: true
     permissions:
       contents: read
     strategy:

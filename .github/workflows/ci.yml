@@ -130,11 +130,6 @@ jobs:
       contents: read
     uses: ./.github/workflows/android.yml
 
-  # Not in ci-ok needs on purpose: the emulator tests have not run yet, and it is
-  # not documented whether a failed continue-on-error job inside a called workflow
-  # fails the caller job. The flip after the first green run
-  # on main: remove continue-on-error in android-emulator.yml and add
-  # android-emulator to the ci-ok needs below.
   android-emulator:
     needs: changes
     if: needs.changes.outputs.android == 'true'
@@ -159,7 +154,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [changes, repo, vectors, worker, site, webext, android, ios, cli]
+    needs: [changes, repo, vectors, worker, site, webext, android, android-emulator, ios, cli]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
