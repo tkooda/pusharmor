@@ -172,3 +172,32 @@ class DeferredMoveReadsFileTest {
         assertEquals(true, runBlocking { s.data.first() }[Settings.K.SIGN_IN_KEYS])
     }
 }
+
+/** A database that, once [during] is set, runs it in the middle of the move's first check. */
+private class HookDao(private val real: PaDao) : PaDao by real {
+    @Volatile var failing = true
+    @Volatile var during: (() -> Unit)? = null
+    override fun state(k: String): String? {
+        if (failing) throw android.database.SQLException("io")
+        during?.let { during = null; it() }
+        return real.state(k)
+    }
+}
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [31], application = android.app.Application::class, instrumentedPackages = ["com.pusharmor.sandbox.race"])
+class DeferredMoveRaceTest {
+    /** A new push token set while a deferred move runs is kept; the old token in the file does not come back. */
+    @Test fun setDuringTheMoveWins() {
+        val c = ctx(); val d = HookDao(dao(c))
+        writeOld(c, preferencesOf(Settings.K.PUSH_TOKEN to "old"))
+        val s = Settings(c, d) // the move is deferred
+        d.failing = false
+        val t = Thread { s.set(Settings.K.PUSH_TOKEN, "new") }
+        d.during = { t.start(); t.join(300) } // the set gets its turn here unless the move holds it off
+        s.moveToDb()
+        t.join()
+        assertEquals("new", s.get(Settings.K.PUSH_TOKEN))
+        assertEquals("new", io { d.state("push_token") })
+    }
+}

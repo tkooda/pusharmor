@@ -54,6 +54,9 @@ class Settings(private val context: Context, private val dao: PaDao) {
         private val BOOLS = setOf(K.SIGNED_OUT, K.LOGOUT_PENDING, K.SIGN_IN_KEYS, K.UP_VERIFIED, K.PUSH_REFUSED).map { it.name }
         private val LONGS = setOf(K.UP_REGISTERED_AT.name)
 
+        /** One lock in the process: a deferred move never interleaves with a [set] of the keys it moves. */
+        private val dbLock = Any()
+
         private fun encode(v: Any): String = if (v is Boolean) (if (v) "1" else "0") else v.toString()
         private fun decode(name: String, v: String): Any = when (name) { in BOOLS -> v == "1"; in LONGS -> v.toLong(); else -> v }
     }
@@ -136,7 +139,7 @@ class Settings(private val context: Context, private val dao: PaDao) {
         else runBlocking { context.ds.data.first()[key] }
 
     fun <T> set(key: Preferences.Key<T>, value: T?) {
-        if (key.name in IN_DB) {
+        if (key.name in IN_DB) synchronized(dbLock) {
             db { if (value == null) dao.deleteState(key.name) else dao.putState(StateEntity(key.name, encode(value))) }
             // A copy an older version left in the file (its move deferred) must not come back on the next move.
             runBlocking { if (context.ds.data.first().contains(key)) context.ds.edit { it.remove(key) } }
@@ -149,7 +152,9 @@ class Settings(private val context: Context, private val dao: PaDao) {
      * The file keys are dropped only after the database write; a damaged database keeps them for the next try
      * (each startup check runs it again).
      */
-    fun moveToDb() {
+    fun moveToDb() = synchronized(dbLock) { moveLocked() }
+
+    private fun moveLocked() {
         val p = runBlocking { context.ds.data.first() }
         val old = IN_DB.values.filter { p.contains(it) }
         if (old.isEmpty()) return
