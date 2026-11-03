@@ -73,16 +73,12 @@ if ! (cd "$WORKER_DIR" && "$WRANGLER" d1 migrations apply pusharmor --remote); t
   exit 1
 fi
 
-# 5. bundle hash and deploy
+# 5. deploy
 rollback_hint() {
   echo "rollback: (cd server/worker && npx wrangler rollback)" >&2
   exit 1
 }
-# The hash is of the bundle this deploy uploads (--outdir), not of a separate build.
-(cd "$WORKER_DIR" && "$WRANGLER" deploy --outdir "$TMP/bundle") || rollback_hint
-BUNDLE_HASH="$(cd "$TMP/bundle" && find . -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -d' ' -f1)" || rollback_hint
-[ -n "$BUNDLE_HASH" ] || rollback_hint
-echo "bundle sha256: $BUNDLE_HASH"
+(cd "$WORKER_DIR" && "$WRANGLER" deploy) || rollback_hint
 
 # 6. smoke test
 smoke() {
@@ -97,4 +93,4 @@ smoke || rollback_hint
 echo "smoke test passed."
 
 # 8. done
-echo "released $TAG (bundle sha256 $BUNDLE_HASH)"
+echo "released $TAG"

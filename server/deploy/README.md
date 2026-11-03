@@ -63,7 +63,7 @@ table to that file, so a new route needs a reviewed edit to `routes.json`.
 3. Print the D1 time-travel bookmark (the restore path).
 4. Apply D1 migrations. On failure the script prints the restore command
    `wrangler d1 time-travel restore pusharmor --bookmark=<bookmark>` and stops.
-5. Deploy with --outdir and print the sha256 of that uploaded bundle.
+5. Deploy.
 6. Smoke test: an unsigned GET /v1/peers must return 400 with body
    {"error":"bad request"}, a 10-digit PA-Epoch header (unix seconds), and
    Access-Control-Expose-Headers containing PA-Epoch.
@@ -74,5 +74,5 @@ table to that file, so a new route needs a reviewed edit to `routes.json`.
    0.0.19 cannot read it (and below 0.0.17 cannot read the 0004 pending
    format). Below that floor, roll forward only: fix and release a new Worker
    tag.
-8. Done: the script prints the tag and the uploaded bundle sha256. It creates
-   no tag (the worker/v tag came first).
+8. Done: the script prints the tag. It creates no tag (the worker/v tag came
+   first).
