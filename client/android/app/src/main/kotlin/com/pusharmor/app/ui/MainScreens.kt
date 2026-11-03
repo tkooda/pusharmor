@@ -431,7 +431,7 @@ internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, content: @Co
                 off -> UiText.CANNOT_RECEIVE_NOTIFICATIONS_OFF to listOf<Pair<String, () -> Unit>>("Fix" to {
                     safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
                 })
-                noPushApp -> UiText.noPushApp(google) to listOf("Get ntfy" to { get(NTFY_URL) }, "Get Sunup" to { get(SUNUP_URL) })
+                noPushApp -> UiText.noPushApp(google) to listOf("Get ntfy" to { get(ntfyUrl(BuildConfig.FLAVOR == "play", google)) }, "Get Sunup" to { get(SUNUP_URL) })
                 else -> UiText.pushRefused(refused!!.first, refused.second, google) to emptyList()
             }
             CannotReceiveBanner(reason, actions,
@@ -442,8 +442,12 @@ internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, content: @Co
     }
 }
 
-/** Store listings of the UnifiedPush apps: Google Play for the play build, F-Droid for foss. Sunup is on F-Droid only. */
-private val NTFY_URL = if (BuildConfig.FLAVOR == "play") "https://play.google.com/store/apps/details?id=io.heckel.ntfy" else "https://f-droid.org/packages/io.heckel.ntfy/"
+/**
+ * Store listings of the UnifiedPush apps: Google Play for the play build on a device with Play services, else F-Droid
+ * (a device without them cannot install from Play). Sunup is on F-Droid only.
+ */
+internal fun ntfyUrl(playBuild: Boolean, google: Boolean): String =
+    if (playBuild && google) "https://play.google.com/store/apps/details?id=io.heckel.ntfy" else "https://f-droid.org/packages/io.heckel.ntfy/"
 private const val SUNUP_URL = "https://f-droid.org/packages/org.unifiedpush.distributor.sunup/"
 
 /** "This device cannot receive messages." with its reason on line 2, its actions, and an X that hides it until the next app open. */
