@@ -1,6 +1,6 @@
 name: site
 
-# Site checks only (also workflow_dispatch by hand). Cloudflare Workers Builds deploys site/ from main.
+# Site checks only (also workflow_dispatch by hand). A push does not deploy (site/README.md).
 on:
   workflow_call:
   workflow_dispatch:
