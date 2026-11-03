@@ -51,34 +51,7 @@ deflate stream is correct) unless the change is intended.
 
 ## Sections
 
-| Section | Content | Each leg asserts |
-|---|---|---|
-| `keys` | test `id_secret`; peers N, X, O (account A), Z (account B), S (sign_pub = enc_pub); raw private scalars, 65-byte SEC1 publics, account, keyhash, id | publics from scalars; account, keyhash, id byte for byte |
-| `email_hash` | normalization cases (trim ASCII whitespace, reject non-ASCII, ASCII lowercase); `normalized` null = 400 "bad email" | normalized, email_hash, account |
-| `mailbox` | account identity: +tag cut at listed providers, Gmail dots dropped, googlemail.com -> gmail.com; email_hash and account are of the mailbox | normalized, mailbox, email_hash, account (Worker and ban tool only) |
-| `id_order` | id pairs and the lower side (unsigned byte compare) | `lower` |
-| `oauth_nonce` | k and nonce per purpose | k, nonce |
-| `cli_code` | command line login link and 34-char code per purpose (test token_secret) | k16, link, code (Worker and command line client only) |
-| `my_push_sha256` | push objects of every type | my_push_sha256 |
-| `b64url` | strict accept/reject strings | decoded hex, or reject |
-| `pairing` | r_N, r_X, c_N, fingerprint hash and chars, pairing_id, pk, the three pair messages, `fingerprint_cases` (every Crockford symbol) | deterministic values byte for byte; open each pair message, compare plaintext, check the open against c_N |
-| `pair_decide` | pure decision on a commit push (rules 3a-3e) | all four output fields |
-| `pair_timeout` | timeout decision for a pairing row (step 8) | output |
-| `pair_hint` | N-side hint line in state committed | output |
-| `request_sig` | PA-Sig cases with the exact signed bytes | signed_bytes from the fields; sig verifies |
-| `name_entries` | PA-NAME1 entries with signed string, entry JSON and ciphertext | signed string; open; verify; name rules |
-| `messages` | one full inner message per type (X -> N) with every intermediate | open, compare plaintext, verify before inflate, inflate, run the receive pipeline, compare `expect` |
-| `padded_messages` | one text message per padding bucket (512, 1024, 2048, 3800) | as messages; length equals the bucket |
-| `padding` | bucket math | unpadded_chars, bucket (null = refuse), padded length |
-| `content_cap` | 2048-byte UTF-8 cap and the cut on a code point boundary | utf8_bytes, ok, truncated |
-| `inflate` | deflate-raw streams with the 16384-byte cap | ok, length and sha256 of the output |
-| `replay_window` | window state, n, type, History row | outcome, state_after |
-| `url_parse` | received url cases: shape rules, encode sets, IDN hosts | url, href, host, auto_open |
-| `phone` | phone detection cases | phone |
-| `must_decode` | inputs with unknown extra keys (inner messages, name entries) that must decode; type is the first known key in order | receive pipeline outcome, name entry result |
-| `must_fail` | inputs every client must reject (kinds message, pair, name_entry, request, peer_entry) | rejected, with the given `outcome` |
-| `rfc9180` | HPKE suite vector (P-256, HKDF-SHA256, AES-256-GCM, base mode) | DeriveKeyPair, key schedule, seal and open |
-| `rfc8291` | RFC 8291 section 5 example with Appendix A values | every intermediate, body, and decrypt |
+Each section's `"description"` says what it holds and what each leg asserts.
 
 ### Receiver state in message cases
 
