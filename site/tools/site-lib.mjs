@@ -188,45 +188,6 @@ export function computeHashUpdates(pub) {
   return updates;
 }
 
-// site/wrangler.jsonc may hold exactly these keys (component-website-r1 section 2).
-export function checkWranglerConfig(cfg, siteName) {
-  const errs = [];
-  const allowed = ["name", "build", "compatibility_date", "assets", "workers_dev", "preview_urls", "routes"];
-  for (const k of Object.keys(cfg)) if (!allowed.includes(k)) errs.push("key not allowed: " + k);
-  for (const k of allowed) if (!(k in cfg)) errs.push("key missing: " + k);
-  if (cfg.name !== siteName) errs.push("name must be " + siteName);
-  if (typeof cfg.compatibility_date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(cfg.compatibility_date)) errs.push("bad compatibility_date");
-  const a = cfg.assets || {};
-  const wantAssets = { directory: "./dist", not_found_handling: "404-page", html_handling: "auto-trailing-slash" };
-  if (JSON.stringify(Object.keys(a).sort()) !== JSON.stringify(Object.keys(wantAssets).sort())) errs.push("assets keys must be directory, not_found_handling, html_handling");
-  for (const [k, v] of Object.entries(wantAssets)) if (a[k] !== v) errs.push("assets." + k + " must be " + v);
-  if (JSON.stringify(cfg.build) !== JSON.stringify({ command: "node tools/build.mjs" })) errs.push("build must be exactly the command node tools/build.mjs");
-  if (cfg.workers_dev !== false) errs.push("workers_dev must be false");
-  if (cfg.preview_urls !== false) errs.push("preview_urls must be false");
-  if (JSON.stringify(cfg.routes) !== JSON.stringify([{ pattern: "pusharmor.com", custom_domain: true }])) errs.push("routes must be exactly the pusharmor.com custom domain");
-  return errs;
-}
-
-// JSONC: strips // and /* */ comments outside strings, then JSON.parse.
-export function parseJsonc(text) {
-  let out = "";
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (c === '"') {
-      let j = i + 1;
-      while (j < text.length && text[j] !== '"') j += text[j] === "\\" ? 2 : 1;
-      out += text.slice(i, j + 1);
-      i = j;
-    } else if (c === "/" && text[i + 1] === "/") {
-      while (i < text.length && text[i] !== "\n") i++;
-      out += "\n";
-    } else if (c === "/" && text[i + 1] === "*") {
-      i = text.indexOf("*/", i + 2) + 1;
-    } else out += c;
-  }
-  return JSON.parse(out);
-}
-
 // Loaded resources with an external host (script, link, img, iframe, frame, source, audio,
 // video, embed, object, track). Plain <a href> links are not loads and are ignored.
 export function externalLoads(html) {

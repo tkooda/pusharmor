@@ -7,8 +7,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  attrs, checkWranglerConfig, computeHashUpdates, cspDirectives, externalLoads, headersFor,
-  inlineScripts, listFiles, pageText, parseHeaders, parseJsonc, placeholderFiles, resolvePath, sha256b64, tags,
+  attrs, computeHashUpdates, cspDirectives, externalLoads, headersFor,
+  inlineScripts, listFiles, pageText, parseHeaders, placeholderFiles, resolvePath, sha256b64, tags,
   unescapeAttr, urlPath
 } from "../site-lib.mjs";
 import { PUBLIC_PATH, loadPublic } from "../../../release/public.mjs";
@@ -17,8 +17,6 @@ import { spawnSync } from "node:child_process";
 const SITE = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const PUB = join(SITE, "public");
 const REPO = join(SITE, "..");
-const FIX = join(SITE, "tools", "test", "fixtures");
-const SITE_NAME = "pusharmor-site";
 const TURNSTILE_HOST = "https://challenges.cloudflare.com";
 // Cloudflare documented Turnstile test sitekey: always passes, visible widget.
 const TURNSTILE_TEST_SITEKEY = "1x00000000000000000000AA";
@@ -221,22 +219,11 @@ test("robots.txt disallows /turnstile, /auth/, /fx/", () => {
   for (const p of ["/turnstile", "/auth/", "/fx/"]) assert.ok(lines.includes("Disallow: " + p), p);
 });
 
-test("site/wrangler.jsonc has only the allowed keys", () => {
-  assert.deepEqual(checkWranglerConfig(parseJsonc(readFileSync(join(SITE, "wrangler.jsonc"), "utf8")), SITE_NAME), []);
-});
-
-test("wrangler fixture with d1_databases fails", () => {
-  const errs = checkWranglerConfig(parseJsonc(readFileSync(join(FIX, "wrangler-d1.jsonc"), "utf8")), SITE_NAME);
-  assert.ok(errs.includes("key not allowed: d1_databases"), errs.join("; "));
-});
-
-test("wrangler fixture with the allowed routes entry passes", () => {
-  assert.deepEqual(checkWranglerConfig(parseJsonc(readFileSync(join(FIX, "wrangler-routes-ok.jsonc"), "utf8")), SITE_NAME), []);
-});
-
-test("wrangler fixture with another route fails", () => {
-  const errs = checkWranglerConfig(parseJsonc(readFileSync(join(FIX, "wrangler-extra-route.jsonc"), "utf8")), SITE_NAME);
-  assert.ok(errs.length > 0);
+test("site/wrangler.jsonc: no workers.dev or preview URLs, only the pusharmor.com custom domain", () => {
+  const cfg = JSON.parse(readFileSync(join(SITE, "wrangler.jsonc"), "utf8"));
+  assert.equal(cfg.workers_dev, false);
+  assert.equal(cfg.preview_urls, false);
+  assert.deepEqual(cfg.routes, [{ pattern: "pusharmor.com", custom_domain: true }]);
 });
 
 test("site/package.json: private, no scripts, wrangler only at an exact version; node pin", () => {
@@ -337,7 +324,7 @@ test("site build writes a gitignored output dir and leaves the git tree clean", 
   if (!existsSync(join(REPO, ".git"))) { t.skip("not a git checkout"); return; }
   const git = (...a) => spawnSync("git", ["-C", REPO, ...a], { encoding: "utf8" });
   assert.equal(git("check-ignore", "-q", "site/dist/index.html").status, 0, "site/dist must be gitignored");
-  assert.equal(parseJsonc(readFileSync(join(SITE, "wrangler.jsonc"), "utf8")).assets.directory, "./dist");
+  assert.equal(JSON.parse(readFileSync(join(SITE, "wrangler.jsonc"), "utf8")).assets.directory, "./dist");
   const before = git("status", "--porcelain").stdout;
   const tmp = mkdtempSync(join(tmpdir(), "pa-public-"));
   const out = join(tmp, "out");
