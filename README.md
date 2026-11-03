@@ -32,8 +32,7 @@ See the README in each directory for details.
 ## Support and security
 
 - Questions, bugs, and ideas: open a GitHub issue. There is no email support.
-- Security reports: open a public GitHub issue or use GitHub private
-  vulnerability reporting, see [SECURITY.md](SECURITY.md).
+- Security reports: see [SECURITY.md](SECURITY.md).
 - Contributing: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
