@@ -35,7 +35,7 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
       # Validates the wrapper jar checksum (on by default). Only a push to main
       # writes the cache; other branches read it.
-      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
         with:
           cache-read-only: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
       - name: Unit tests
@@ -71,7 +71,7 @@ jobs:
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
-      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
         with:
           cache-read-only: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
       - name: Android SDK packages (exact)
@@ -101,7 +101,7 @@ jobs:
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
-      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
         with:
           cache-read-only: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
       - name: Android SDK packages (exact)
@@ -138,7 +138,7 @@ jobs:
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
-      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
         with:
           cache-read-only: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
       - name: Android SDK packages (exact)
@@ -180,7 +180,7 @@ jobs:
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
-      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
         with:
           cache-read-only: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
       - name: Android SDK packages (exact)
