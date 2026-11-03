@@ -42,9 +42,9 @@ export function dismissToast(): void {
 /**
  * Shows msg at the bottom, above a view's footer. ok and info go after about 2 s; an
  * error stays until its Close button, the next click, or the next message. A sticky
- * message stays until its Close button or the next message.
+ * message stays until its Close button or the next message. action: a button before Close.
  */
-export function toast(msg: string, kind: ToastKind = "info", sticky = false): void {
+export function toast(msg: string, kind: ToastKind = "info", sticky = false, action?: { label: string; run: (b: HTMLButtonElement) => void }): void {
   dismissToast();
   const text = h("span", { class: "toast-msg" });
   const el = h("div", { class: "toast " + kind, role: kind === "err" ? "alert" : "status" }, text);
@@ -57,6 +57,11 @@ export function toast(msg: string, kind: ToastKind = "info", sticky = false): vo
     document.removeEventListener("click", onClick, true);
     el.remove();
   };
+  if (action) {
+    const b = h("button", { type: "button", class: "quiet act" }, action.label) as HTMLButtonElement;
+    b.addEventListener("click", () => action.run(b));
+    el.append(b);
+  }
   if (kind === "err" || sticky) el.append(h("button", { type: "button", class: "quiet ib", "aria-label": "Close", title: "Close", onclick: dismissToast }, icon("close", 18)));
   // popup: keep clear of the footer pinned to its bottom (the Send button, the Devices tools)
   const foot = document.body.classList.contains("page") ? null : document.querySelector<HTMLElement>(".foot");

@@ -251,6 +251,7 @@ export class Engine {
 
   /** engine.receive(M): the common receive pipeline (section 5). */
   async receive(m: string, src: Src = "push"): Promise<void> {
+    if (isCheckPush(m)) return; // the relay server's test push: dropped silently
     const self = await this.self();
     if (!self) return;
     if (isPairWire(m)) {
@@ -1222,6 +1223,7 @@ export class Engine {
     }
     await this.db.setMeta("listed", [...seen]);
     await this.db.setMeta("my_push_sha256", typeof json.my_push_sha256 === "string" ? json.my_push_sha256 : null);
+    await this.db.setMeta("my_relay_fault", json.my_relay_fault === true);
     await this.rebuildMenus();
   }
 
@@ -1282,6 +1284,28 @@ export class Engine {
     const wait = PUSH_RETRY_MS[n];
     if (wait !== undefined) this.p.alarmAt("pushretry", now(this.p) + wait);
     else await this.db.setMeta("push_issue", "relay");
+  }
+
+  /**
+   * Check again on the cannot-receive message: local causes first (subscribe and PATCH again),
+   * then one test push from the relay server. "local": a local cause remains (push_issue).
+   */
+  async checkPush(): Promise<"sent" | "relay" | "gone" | "none" | "failed" | "local"> {
+    const self = await this.self();
+    if (!self || (await this.regState()) !== "registered") return "failed";
+    await this.pushReconcile(false, true).catch(() => undefined); // no setup tab from the popup
+    if (await this.db.meta("push_issue")) return "local";
+    let word: unknown;
+    try {
+      word = (await this.api.call("POST", "/peers/" + self.id + "/check", { signer: this.signerOf(self), body: {}, noRetry: true })).json.result;
+    } catch {
+      return "failed"; // 429 and network errors too
+    }
+    if (word === "relay") await this.db.setMeta("my_relay_fault", true);
+    if (word === "sent" || word === "gone") await this.db.setMeta("my_relay_fault", false);
+    // gone: the relay server cleared the push address; subscribe again and PATCH, as for push_missing
+    if (word === "gone") await this.pushReconcile(true, false, true).catch(() => undefined);
+    return word === "sent" || word === "relay" || word === "gone" || word === "none" ? word : "failed";
   }
 
   private async pushWorked(): Promise<void> {
@@ -1650,7 +1674,7 @@ export class Engine {
   async wipe(): Promise<void> {
     await this.p.storageLocal.remove([REG_MARKER]);
     await this.db.clear(["keys", "peers", "replay"]);
-    for (const k of ["reg", LOGOUT_PENDING, "push_hash", "listed", "my_push_sha256", "fetch_pending", "last_fetch", "push_issue", "push_fail", KEYS_BROKEN, WIPE_CHECK]) await this.db.del("meta", k);
+    for (const k of ["reg", LOGOUT_PENDING, "push_hash", "listed", "my_push_sha256", "my_relay_fault", "fetch_pending", "last_fetch", "push_issue", "push_fail", KEYS_BROKEN, WIPE_CHECK]) await this.db.del("meta", k);
     const all = await this.p.storageLocal.get(null);
     const drop = Object.keys(all).filter((k) => k.startsWith(PAIR_PREFIX) || k.startsWith(PAIR_MSG_PREFIX) || k === PAIR_AUTO || k === ALLOW_SET || k === NET_NOT_BEFORE);
     await this.p.storageLocal.remove(drop);
@@ -1853,5 +1877,16 @@ export class Engine {
     await this.timeoutCheck();
     await this.reconcileAllow();
     await this.pushReconcile(false, true).catch(() => undefined); // no setup tab from the popup
+  }
+}
+
+/** The relay server's test push (POST /peers/:id/check): the body {"check":1}, never a message. */
+export function isCheckPush(m: string): boolean {
+  if (!m.startsWith("{")) return false;
+  try {
+    const v = JSON.parse(m) as unknown;
+    return typeof v === "object" && v !== null && (v as Record<string, unknown>).check === 1;
+  } catch {
+    return false;
   }
 }

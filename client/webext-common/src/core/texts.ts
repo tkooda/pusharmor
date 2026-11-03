@@ -65,10 +65,28 @@ export const T = {
   signedInAs: (e: string) => "Logged in as " + e,
   notificationsOff: "Notifications are off. This device cannot receive messages.",
   ffFinishSetup: "Finish setup in the Firefox setup tab.",
+  pushWorking: "Working.",
+  pushCheckFailed: "Unable to check right now. Try again later.",
 } as const;
 
-/** The sticky message while this browser cannot receive (the push service or the relay server refused). */
-export function pushIssueText(issue: "refused" | "relay", brave: boolean): string {
+/** Whose push service a push endpoint belongs to; by browser when the host is not known. */
+export function pushVendor(endpoint: string | null, platform: "chrome" | "firefox"): string {
+  let host = "";
+  try {
+    host = endpoint ? new URL(endpoint).hostname : "";
+  } catch {
+    host = "";
+  }
+  if (host === "googleapis.com" || host.endsWith(".googleapis.com")) return "Google";
+  if (host.endsWith(".mozilla.com")) return "Mozilla";
+  if (host.endsWith(".notify.windows.com")) return "Microsoft";
+  return platform === "firefox" ? "Mozilla" : "Google";
+}
+
+/** The sticky message while this browser cannot receive (the push service or the relay server refused, or a relay-side fault). */
+export function pushIssueText(issue: "refused" | "relay" | "fault", brave: boolean, vendor = "Google"): string {
+  if (issue === "fault")
+    return "This device cannot receive messages.\nThe relay server cannot reach " + vendor + "'s push service right now. This is not a problem on this device. Try again later.";
   const head = "Unable to turn on notifications.\n";
   if (issue === "relay") return head + "The relay server did not accept its push service. Try again later.";
   if (brave) return head + 'Turn on "Use Google services for push messaging" in Brave\'s privacy settings.';

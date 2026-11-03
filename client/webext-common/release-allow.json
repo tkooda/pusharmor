@@ -6,7 +6,7 @@
   "ops": [
     "approve", "authDone", "cancel", "deny", "detect", "emailStart", "emailVerify", "evict", "fingerprintShown",
     "allowContent", "fx-close", "fx-msg", "fx-open-setup", "fx-sub", "greyedTap", "hide", "history", "historyDelete", "historyDeleteAll", "historyOpened", "historyRead", "keysDelete", "keysRetry",
-    "localDelete", "loginPurpose", "oauth", "pair", "pairAgain", "peers", "popupOpen", "popupSettled", "recheck", "refresh", "remove", "rename", "reply",
+    "localDelete", "loginPurpose", "oauth", "pair", "pairAgain", "peers", "popupOpen", "popupSettled", "pushCheck", "recheck", "refresh", "remove", "rename", "reply",
     "send", "sendAgain", "sendSel", "sendSelSet", "settings", "signinClear", "signinDraft", "signinProgress", "signout",
     "state"
   ]

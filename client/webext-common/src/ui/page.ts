@@ -51,7 +51,7 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
   const view = h("div", {});
   root.append(h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), view);
   const nav: Nav = { toDevices: () => (location.hash = "#pair"), toSend: () => (location.hash = "#send") };
-  void showPushIssue(st);
+  void showPushIssue(env, st);
   // a plain open (no hash): Send once a pairing is complete, else Devices
   if (route === "") {
     if (launchTab((await rpc<{ peers: PeerView[] }>(env, "peers")).peers) === "send") return sendView(env, view, st, "", true, nav);

@@ -378,5 +378,6 @@ dialog.dlg::backdrop { background: rgba(0, 0, 0, 0.45); }
 .toast.err { background: var(--errc); color: var(--onerrc); border: 1px solid var(--err); padding-right: 6px; }
 .toast-msg { white-space: pre-line; overflow-wrap: anywhere; }
 .toast button.ib { flex: none; width: 32px; height: 32px; color: inherit; }
+.toast button.act { flex: none; height: 32px; color: inherit; font-weight: 600; }
 .toast button.ib:hover { background: rgba(127, 127, 127, 0.16); }
 .fail p { margin: 0 0 12px; }

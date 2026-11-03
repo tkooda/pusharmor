@@ -8,7 +8,7 @@ import { type Engine, type Settings, UserError } from "./engine.ts";
 import { ActionError, RestartError, reasonOf, failText } from "./failtext.ts";
 import { Login, type Purpose } from "./login.ts";
 import { PAIR_MSG_PREFIX, allEntries } from "./state.ts";
-import { type ActionId, T, peerLabel, rowLabel } from "./texts.ts";
+import { type ActionId, T, peerLabel, pushVendor, rowLabel } from "./texts.ts";
 
 export interface Req {
   op: string;
@@ -60,8 +60,13 @@ export interface StateView {
   updateRequired: boolean;
   /** "Check again" on the update screen was used less than an hour ago. */
   recheckLocked: boolean;
-  /** This browser cannot receive: its push service refused, or the relay server refused the push. */
-  pushIssue: "refused" | "relay" | null;
+  /**
+   * This browser cannot receive: its push service refused, the relay server refused the push,
+   * or (fault) the relay server cannot reach the push service.
+   */
+  pushIssue: "refused" | "relay" | "fault" | null;
+  /** Whose push service this browser uses (Google, Mozilla, ...), for the fault message. */
+  pushVendor?: string;
   /** The saved keys failed the local check: every view shows the keys screen. */
   keysBroken: boolean;
 }
@@ -142,6 +147,10 @@ export class Rpc {
         // draw from the local state at once; the network work runs behind it
         this.opening = e.onPopupOpen().catch(() => undefined);
         return this.state();
+      case "pushCheck": {
+        const result = await e.checkPush();
+        return { result, state: await this.state() };
+      }
       case "popupSettled":
         // the state after that work, so the popup can update what it drew from the local state
         await this.opening;
@@ -254,6 +263,8 @@ export class Rpc {
       e.p.platformName === "firefox" &&
       (e.p.isAndroid || ((await e.db.meta<string>("receive_mode")) ?? "direct") !== "direct") &&
       !(await e.db.meta("fallback_push"));
+    // the Firefox setup note covers a missing push; local causes come before a relay-side fault
+    const pushIssue = setupNeeded ? null : ((await e.db.meta<"refused" | "relay">("push_issue")) ?? ((await e.db.meta<boolean>("my_relay_fault")) ? "fault" : null));
     return {
       reg: await e.regState(),
       banner: (await e.db.meta<string | null>("banner")) ?? null,
@@ -268,8 +279,8 @@ export class Rpc {
       recheckLocked: await e.recheckLocked(),
       keysBroken: await e.keysBroken(),
       setupNeeded,
-      // the Firefox setup note covers a missing push
-      pushIssue: setupNeeded ? null : ((await e.db.meta<"refused" | "relay">("push_issue")) ?? null),
+      pushIssue,
+      ...(pushIssue === "fault" ? { pushVendor: pushVendor((await e.currentPush().catch(() => null))?.endpoint ?? null, e.p.platformName) } : {}),
     };
   }
 

@@ -149,6 +149,8 @@ export class MockWorker {
   skewMs = 0;
   /** Lowest accepted client version "x.y.z"; an older PA-Client gets 426 on every route. */
   floor: string | null = null;
+  /** my_relay_fault in GET /v1/peers (undefined: the field is left out, as an older relay server does). */
+  relayFault: boolean | undefined;
   readonly clock: Clock;
   constructor(clock: Clock) {
     this.clock = clock;
@@ -318,6 +320,7 @@ export class MockWorker {
     const meRow = this.rows.get(me)!;
     return {
       my_push_sha256: null,
+      ...(this.relayFault === undefined ? {} : { my_relay_fault: this.relayFault }),
       my_allow: [...meRow.allow],
       peers: [...this.rows.values()].map((r) => ({
         id: r.id,

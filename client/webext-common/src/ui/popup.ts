@@ -127,7 +127,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   root.append(top, body);
   // after the first view is drawn, so the message keeps clear of its footer
   void show(first)
-    .then(() => showPushIssue(st, () => my === mounts))
+    .then(() => showPushIssue(env, st, () => my === mounts))
     .then(() => settlePushIssue(env, st, () => my === mounts));
 }
 
@@ -136,11 +136,14 @@ export async function settlePushIssue(env: UiEnv, st: StateView, live: () => boo
   const after = await rpc<StateView | null>(env, "popupSettled").catch(() => null);
   if (!after || !live() || after.pushIssue === st.pushIssue) return;
   if (!after.pushIssue) dismissToast();
-  else await showPushIssue(after, live);
+  else await showPushIssue(env, after, live);
 }
 
-/** While this browser cannot receive, an error that stays until its Close button; it comes back on the next open. */
-export async function showPushIssue(st: StateView, live: () => boolean = () => true): Promise<void> {
+/**
+ * While this browser cannot receive, an error that stays until its Close button; it comes back on the next open.
+ * Check again: local causes, then one test push from the relay server. note: a line added below.
+ */
+export async function showPushIssue(env: UiEnv, st: StateView, live: () => boolean = () => true, note = ""): Promise<void> {
   if (!st.pushIssue) return;
   let brave = false;
   try {
@@ -149,7 +152,18 @@ export async function showPushIssue(st: StateView, live: () => boolean = () => t
   } catch {
     brave = false;
   }
-  if (live()) toast(pushIssueText(st.pushIssue, brave), "err", true);
+  const msg = pushIssueText(st.pushIssue, brave, st.pushVendor) + (note ? "\n" + note : "");
+  if (live()) toast(msg, "err", true, { label: "Check again", run: (b) => void checkPushAgain(env, st, b) });
+}
+
+async function checkPushAgain(env: UiEnv, st: StateView, b: HTMLButtonElement): Promise<void> {
+  b.disabled = true;
+  const r = await rpc<{ result: string; state: StateView }>(env, "pushCheck").catch(() => null);
+  if (r?.result === "sent") return toast(T.pushWorking, "ok");
+  const now = r?.state ?? st;
+  if (!now.pushIssue) return dismissToast();
+  const failed = !r || r.result === "none" || r.result === "failed";
+  await showPushIssue(env, now, () => true, failed ? T.pushCheckFailed : "");
 }
 
 /** Firefox setup is not finished; the setup tab opens only from this button, never on popup open. */
