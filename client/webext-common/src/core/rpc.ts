@@ -69,6 +69,8 @@ export interface StateView {
   pushVendor?: string;
   /** The saved keys failed the local check: every view shows the keys screen. */
   keysBroken: boolean;
+  /** This build's version (manifest version), shown at the bottom of Settings. */
+  version: string;
 }
 
 /** The action line of each request that can fail where the user clicked. */
@@ -281,6 +283,7 @@ export class Rpc {
       keysBroken: await e.keysBroken(),
       setupNeeded,
       pushIssue,
+      version: e.p.appVersion,
       ...(pushIssue === "fault" ? { pushVendor: pushVendor((await e.currentPush().catch(() => null))?.endpoint ?? null, e.p.platformName) } : {}),
     };
   }

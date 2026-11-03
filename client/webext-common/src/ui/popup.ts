@@ -755,5 +755,11 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     ),
     ...(loggedIn ? [sh("Account"), group(acctRow, h("div", { class: "srow acct-acts" }, btns))] : []),
     h("div", { class: "grow" }),
+    versionButton(env, st.version),
   );
+}
+
+/** The bottom line of Settings: "Version X.Y.Z"; a click copies X.Y.Z. */
+export function versionButton(env: UiEnv, version: string): HTMLElement {
+  return h("button", { type: "button", class: "quiet t2 version", "aria-label": "Copy version", onclick: () => void env.copy(version) }, "Version " + version);
 }

@@ -66,6 +66,7 @@ button.approve { background: var(--okc); color: var(--onokc); border-color: var(
 button.reject { background: var(--card); color: var(--rej); border-color: var(--rej); font-weight: 600; }
 button.danger { border-color: var(--err); color: var(--err); }
 button.errtext { color: var(--err); padding: 0; height: 28px; }
+button.version { flex: none; align-self: center; height: 28px; margin: 8px auto; font-weight: 400; }
 button.ib { width: 32px; height: 32px; padding: 0; color: var(--ink2); border-radius: var(--rf); }
 :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
