@@ -31,7 +31,7 @@ export async function relayOne(c: Ctx, s: Signed, xr: CtxRow, msg: string, cls: 
   if (!isListening(xr.platform, xr.push_failed)) return "not listening";
   if (xr.push === null || xr.push_type === null) return "gone";
   if (isUnconfirmedUp(xr.push_type, xr.push_verified_at)) return "failed";
-  const out = await fanout(c.env, [{ id: xr.id, pushType: xr.push_type, push: xr.push, m: msg, cls, pk }], c.log);
+  const out = await fanout(c.env, [{ id: xr.id, pushType: xr.push_type, push: xr.push, m: msg, cls, pk, pf: xr.push_failed }], c.log);
   await writeBack(c.env, s.acct, out, [], c.log);
   return out.results[xr.id];
 }

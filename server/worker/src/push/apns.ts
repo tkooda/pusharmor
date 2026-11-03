@@ -1,4 +1,5 @@
-// APNs sender (push_type 2 production, 5 sandbox). Fixed loc-key alert + "m".
+// APNs sender (push_type 2 production, 5 sandbox). Fixed loc-key alert + "m"; a check push is a
+// background push the app drops.
 import type { Env } from "../env";
 import { deps, ttlFor, type Cls, type VendorRequest } from "./deps";
 import { importEs256Private, signJwt } from "./jwt";
@@ -32,6 +33,8 @@ export function apnsPayload(m: string): string {
   return JSON.stringify({ aps: { alert: { "title-loc-key": "PA_TITLE", "loc-key": "PA_FALLBACK" }, "mutable-content": 1 }, m });
 }
 
+export const APNS_CHECK_PAYLOAD = JSON.stringify({ aps: { "content-available": 1 }, check: 1 });
+
 export async function buildApns(
   env: Env,
   pushType: number,
@@ -45,11 +48,11 @@ export async function buildApns(
   const host = pushType === 5 ? "api.sandbox.push.apple.com" : "api.push.apple.com";
   const headers: Record<string, string> = {
     authorization: "bearer " + jwt,
-    "apns-push-type": "alert",
+    "apns-push-type": cls === "check" ? "background" : "alert",
     "apns-topic": env.APPLE_APNS_TOPIC,
-    "apns-priority": "10",
+    "apns-priority": cls === "check" ? "5" : "10",
     "apns-expiration": String(Math.floor(deps.now() / 1000) + ttlFor(env)),
   };
   if (cls === "pair" && pk) headers["apns-collapse-id"] = pk;
-  return { url: `https://${host}/3/device/${push.token}`, method: "POST", headers, body: apnsPayload(m) };
+  return { url: `https://${host}/3/device/${push.token}`, method: "POST", headers, body: cls === "check" ? APNS_CHECK_PAYLOAD : apnsPayload(m) };
 }

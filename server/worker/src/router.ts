@@ -36,6 +36,7 @@ export const ROUTES: Route[] = [
   { method: "POST", path: "/v1/peers/:id/logout", handler: peers.logout },
   { method: "POST", path: "/v1/peers/:id/login", handler: peers.login },
   { method: "POST", path: "/v1/peers/:id/confirm", handler: peers.confirm },
+  { method: "POST", path: "/v1/peers/:id/check", handler: peers.check },
   { method: "DELETE", path: "/v1/account", handler: deleteAccount },
   { method: "POST", path: "/v1/approve/:id", handler: approve },
   { method: "POST", path: "/v1/deny/:id", handler: deny },

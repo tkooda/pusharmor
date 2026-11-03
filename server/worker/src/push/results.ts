@@ -7,6 +7,8 @@ export interface Outcome {
   next: "none" | "retry" | "auth";
   retryAfterMs?: number;
   log?: VendorDetail; // log-only detail; never part of a reply
+  // Relay-side fault: the vendor refused our credentials or config (not the device's address).
+  relay?: true;
 }
 
 // Vendor error detail for the log line only.
@@ -168,10 +170,11 @@ function classifyStatus(v: VendorName, status: number, body: string, retryAfter:
     if (status === 400 && reason === "INVALID_ARGUMENT" && !fcmRequestFault(body)) {
       return { kind: "gone", code: code(v, status, reason), next: "none" };
     }
-    if (status === 401) return { kind: "failed", code: code(v, status, reason), next: "auth" };
+    if (status === 401) return { kind: "failed", code: code(v, status, reason), next: "auth", relay: true };
     if (status === 429 || status >= 500) return { kind: "failed", code: code(v, status, reason), next: "retry", retryAfterMs: ra };
     if (status === 400 && reason === "INVALID_ARGUMENT") return { kind: "failed", code: code(v, status, reason), next: "none" };
     if (status === 403 && reason === "SENDER_ID_MISMATCH") return { kind: "failed", code: code(v, status, reason), next: "none" };
+    if (status === 403) return { kind: "failed", code: code(v, status), next: "none", relay: true };
     return { kind: "failed", code: code(v, status), next: "none" };
   }
   if (v === "apns") {
@@ -181,8 +184,9 @@ function classifyStatus(v: VendorName, status: number, body: string, retryAfter:
       return { kind: "gone", code: code(v, status, reason), next: "none" };
     }
     if (status === 403 && (reason === "ExpiredProviderToken" || reason === "InvalidProviderToken")) {
-      return { kind: "failed", code: code(v, status, reason), next: "auth" };
+      return { kind: "failed", code: code(v, status, reason), next: "auth", relay: true };
     }
+    if (status === 403 && reason === "MissingProviderToken") return { kind: "failed", code: code(v, status, reason), next: "none", relay: true };
     if (status === 429 && reason === "TooManyProviderTokenUpdates") return { kind: "failed", code: code(v, status, reason), next: "none" };
     if (status === 429 || status === 500 || status === 503) {
       return { kind: "failed", code: code(v, status, reason), next: "retry", retryAfterMs: ra };
@@ -196,7 +200,9 @@ function classifyStatus(v: VendorName, status: number, body: string, retryAfter:
   // A 400 means the vendor rejects the endpoint (e.g. an ntfy topic it no longer accepts), except
   // an autopush 400, which names a request header fault. The up body is not read, so up is gone.
   if (status === 400 && !(v === "wp" && autopushRequestFault(body))) return { kind: "gone", code: code(v, status), next: "none" };
-  if (status === 401 || status === 403) return { kind: "failed", code: code(v, status), next: "auth" };
+  // Google and Mozilla push services refuse our VAPID key with 401/403; a UnifiedPush server's
+  // 401/403 is about its own topic, not our credentials.
+  if (status === 401 || status === 403) return v === "wp" ? { kind: "failed", code: code(v, status), next: "auth", relay: true } : { kind: "failed", code: code(v, status), next: "auth" };
   if (status === 429 || status >= 500) return { kind: "failed", code: code(v, status), next: "retry", retryAfterMs: ra };
   return { kind: "failed", code: code(v, status), next: "none" };
 }

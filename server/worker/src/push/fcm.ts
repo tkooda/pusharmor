@@ -1,4 +1,4 @@
-// FCM HTTP v1 sender (push_type 1). Data-only message {"m": M}.
+// FCM HTTP v1 sender (push_type 1). Data-only message {"m": M}, or {"check": "1"} for a check push.
 import type { Env } from "../env";
 import { deps, isNormal, ttlFor, type Cls, type VendorRequest } from "./deps";
 import { importRs256Private, signJwt } from "./jwt";
@@ -48,7 +48,7 @@ export async function buildFcm(env: Env, push: { token: string }, m: string, cls
   const body = {
     message: {
       token: push.token,
-      data: { m },
+      data: cls === "check" ? { check: "1" } : { m },
       android: { priority: isNormal(cls) ? "NORMAL" : "HIGH", ttl: `${ttlFor(env)}s` },
     },
   };

@@ -1,4 +1,4 @@
-// POST /peers, GET /peers, PATCH/DELETE /peers/$id, POST logout, login, confirm.
+// POST /peers, GET /peers, PATCH/DELETE /peers/$id, POST logout, login, confirm, check.
 import type { Ctx } from "../context";
 import { dayStart, monthStart, nowS } from "../context";
 import {
@@ -20,10 +20,11 @@ import { ctEqualStr } from "../crypto/hash";
 import { makeTicket, TICKET_LIFE_PEER_LIMIT_S, TICKET_LIFE_S, TICKET_RENEW_MAX_S } from "../crypto/tokens";
 import { ApiError } from "../errors";
 import { checkSig, checkTime } from "../pipeline/signed";
-import { enforceAccount } from "../pipeline/limits";
+import { enforce, enforceAccount } from "../pipeline/limits";
 import * as SQL from "../db/sql";
 import { all, batch } from "../db/d1";
-import { ctxRelayRow, limitPeers, listBody, myAllowKeys, type CtxRow, type ListRow } from "../db/rows";
+import { ctxRelayRow, isUnconfirmedUp, limitPeers, listBody, myAllowKeys, type CtxRow, type ListRow } from "../db/rows";
+import { fanout, writeBack } from "../push/fanout";
 import { callerCheck, checkTicket, probeCode, relayMap, scheduleProbe, signedStart, withPushMissing } from "./common";
 import { json } from "../http";
 
@@ -288,3 +289,26 @@ export async function confirm(c: Ctx): Promise<Response> {
   return json(200, {});
 }
 
+
+// ---------- POST /peers/$id/check ----------
+// The test push body; every client drops it silently. FCM and APNs build their own (fcm.ts, apns.ts).
+export const CHECK_BODY = JSON.stringify({ check: 1 });
+
+// One test push to the caller's stored push address. result: sent | relay | gone | none | failed.
+// Applies W_GONE on gone and the relay fault mark transitions, like a send.
+export async function check(c: Ctx): Promise<Response> {
+  if (c.body.length !== 0) keysExactly(parseJsonObject(c.body), []);
+  const s = await signedStart(c);
+  selfPath(c, s);
+  const self = await readSelf(c, s.me, s.acct);
+  await callerCheck(c, s, self);
+  if (self!.platform === "cli") throw bad();
+  await enforce(c.env, "RL_PROBE", "check:" + s.me, c.log);
+  if (self!.push === null || self!.push_type === null) return json(200, { result: "none" });
+  if (isUnconfirmedUp(self!.push_type, self!.push_verified_at)) return json(200, { result: "failed" });
+  const out = await fanout(c.env, [{ id: s.me, pushType: self!.push_type, push: self!.push, m: CHECK_BODY, cls: "check", pf: self!.push_failed }], c.log);
+  await writeBack(c.env, s.acct, out, [], c.log);
+  const r = out.results[s.me];
+  const result = r === "sent" || r === "gone" ? r : out.relay.includes(s.me) ? "relay" : "failed";
+  return json(200, { result });
+}

@@ -4,6 +4,9 @@ const P = (n: number) => `'$."' || ?${n} || '"'`;
 
 // cli peers: unix s of the first ntfy 507 on the push endpoint (migrations/0007); rows carry it
 // as push_failed. While set, the Worker sends the peer nothing ("not listening").
+// Other peers: unix s of the first relay-side fault (our vendor credentials or config) on a push
+// to the peer, cleared by the next push the vendor accepts. Pushes still go out; GET /peers
+// reports it to the peer itself as my_relay_fault.
 export const PUSH_FAILED_COL = "push_failed_since";
 const PF = `${PUSH_FAILED_COL} AS push_failed`;
 
@@ -191,6 +194,14 @@ WHERE account = ?2 AND id = ?1 AND ${PUSH_FAILED_COL} IS NOT NULL`;
 // ntfy 507 on a cli peer: sets push_failed once. ?1 id, ?2 acct, ?3 now
 export const W_PUSH_FAILED = `UPDATE peers SET ${PUSH_FAILED_COL} = ?3
 WHERE account = ?2 AND id = ?1 AND platform = 'cli' AND ${PUSH_FAILED_COL} IS NULL`;
+
+// Relay-side fault on a push to a non-cli peer: sets push_failed once. ?1 id, ?2 acct, ?3 now
+export const W_RELAY_FAULT = `UPDATE peers SET ${PUSH_FAILED_COL} = ?3
+WHERE account = ?2 AND id = ?1 AND platform <> 'cli' AND ${PUSH_FAILED_COL} IS NULL`;
+
+// Push accepted by the vendor for a non-cli peer whose push_failed is set: clears it. ?1 id, ?2 acct
+export const W_RELAY_OK = `UPDATE peers SET ${PUSH_FAILED_COL} = NULL
+WHERE account = ?2 AND id = ?1 AND platform <> 'cli' AND ${PUSH_FAILED_COL} IS NOT NULL`;
 
 // ?1 me, ?2 acct, ?3 logged_out (1 or 0)
 export const W_LOGOUT = `UPDATE peers SET logged_out = ?3 WHERE account = ?2 AND id = ?1`;

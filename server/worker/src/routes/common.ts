@@ -85,7 +85,7 @@ export async function relayMap(
     const row = rowOf(id);
     const f = relayFilter(row);
     if (f !== null) results[id] = f;
-    else targets.push({ id, pushType: row!.push_type!, push: row!.push!, m: msg, cls });
+    else targets.push({ id, pushType: row!.push_type!, push: row!.push!, m: msg, cls, pf: row!.push_failed });
   }
   const out = await fanout(c.env, targets, c.log);
   Object.assign(results, out.results);

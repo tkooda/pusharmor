@@ -30,6 +30,7 @@ export interface Target {
   m: string;
   cls: Cls;
   pk?: string;
+  pf?: number | null; // push_failed as read; undefined: no relay fault mark write-back
 }
 
 export function vendorOf(pushType: number): VendorName {
@@ -122,6 +123,7 @@ interface Delivery {
   result: string; // sent | gone | not listening | failed:$code
   code?: string;
   log?: VendorDetail;
+  relay: boolean; // relay-side fault (results.ts Outcome.relay, or a token mint failure)
   retried: boolean;
 }
 
@@ -147,6 +149,7 @@ async function deliver(env: Env, t: Target, slots: Slots): Promise<Delivery> {
         req = await build(env, t, force);
       } catch (e) {
         last = { kind: "failed", code: e instanceof MintError ? `${v}-auth` : `${v}-build`, next: "none" };
+        if (e instanceof MintError) last.relay = true;
         if (e instanceof MintError && e.code) last.log = e.msg ? { vendor: `${v}-auth-${e.code}`, msg: e.msg } : { vendor: `${v}-auth-${e.code}` };
         break;
       }
@@ -169,27 +172,35 @@ async function deliver(env: Env, t: Target, slots: Slots): Promise<Delivery> {
     await deps.sleep(wait);
   }
   const retried = retries > 0 || authUsed;
-  if (last.kind === "sent") return { result: "sent", retried };
-  if (last.kind === "gone") return { result: "gone", code: last.code, log: last.log, retried };
-  if (last.kind === "not listening") return { result: "not listening", code: last.code, retried };
-  return { result: "failed:" + (last.code ?? "net"), code: last.code, log: last.log, retried };
+  if (last.kind === "sent") return { result: "sent", relay: false, retried };
+  if (last.kind === "gone") return { result: "gone", code: last.code, log: last.log, relay: false, retried };
+  if (last.kind === "not listening") return { result: "not listening", code: last.code, relay: false, retried };
+  return { result: "failed:" + (last.code ?? "net"), code: last.code, log: last.log, relay: last.relay === true, retried };
 }
 
 export interface FanoutOut {
   results: Record<string, string>;
   gone: { id: string; push: string }[];
   notListening: string[]; // ntfy 507
+  relay: string[]; // relay-side fault
+  // Relay fault mark transitions (non-cli rows): set when unset and the push hit a relay-side
+  // fault, clear when set and the push was sent. Nothing when unchanged.
+  markSet: string[];
+  markClear: string[];
 }
 
 export async function fanout(env: Env, targets: Target[], log: Log): Promise<FanoutOut> {
   const slots = new Slots();
-  const out: FanoutOut = { results: {}, gone: [], notListening: [] };
+  const out: FanoutOut = { results: {}, gone: [], notListening: [], relay: [], markSet: [], markClear: [] };
   const done = await Promise.all(targets.map((t) => deliver(env, t, slots)));
   targets.forEach((t, i) => {
     const d = done[i];
     out.results[t.id] = d.result;
     if (d.result === "gone") out.gone.push({ id: t.id, push: t.push });
     if (d.result === "not listening") out.notListening.push(t.id);
+    if (d.relay) out.relay.push(t.id);
+    if (d.relay && t.pf === null) out.markSet.push(t.id);
+    if (d.result === "sent" && t.pf !== null && t.pf !== undefined) out.markClear.push(t.id);
     const r: RecipientLog = { id: t.id, class: t.cls, bytes: t.m.length, result: d.result, vendor: d.log?.vendor ?? d.code, retry: d.retried };
     if (d.log?.status) r.vendor_status = d.log.status;
     if (d.log?.msg) r.vendor_msg = d.log.msg;
@@ -199,12 +210,15 @@ export async function fanout(env: Env, targets: Target[], log: Log): Promise<Fan
 }
 
 // Best-effort post-fan-out writes (W_GONE per gone recipient, W_PUSH_FAILED per ntfy 507 (cli
-// rows only), plus extras such as W_SEEN).
+// rows only), W_RELAY_FAULT / W_RELAY_OK per relay fault mark transition (non-cli rows only),
+// plus extras such as W_SEEN).
 export async function writeBack(env: Env, acct: string, out: FanoutOut, extra: D1PreparedStatement[], log: Log): Promise<void> {
   const now = nowS();
   const stmts = [
     ...out.gone.map((g) => env.DB.prepare(SQL.W_GONE).bind(g.id, acct, g.push)),
     ...out.notListening.map((id) => env.DB.prepare(SQL.W_PUSH_FAILED).bind(id, acct, now)),
+    ...out.markSet.map((id) => env.DB.prepare(SQL.W_RELAY_FAULT).bind(id, acct, now)),
+    ...out.markClear.map((id) => env.DB.prepare(SQL.W_RELAY_OK).bind(id, acct)),
     ...extra,
   ];
   if (!stmts.length) return;

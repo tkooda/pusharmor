@@ -15,6 +15,7 @@
     "POST /v1/peers/:id/logout",
     "POST /v1/peers/:id/login",
     "POST /v1/peers/:id/confirm",
+    "POST /v1/peers/:id/check",
     "DELETE /v1/account",
     "POST /v1/approve/:id",
     "POST /v1/deny/:id",

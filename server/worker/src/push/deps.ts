@@ -20,7 +20,7 @@ export function transportScoped<T>(name: string, make: () => T): () => T {
   };
 }
 
-export type Cls = "send" | "approve" | "deny" | "peerchg" | "logout" | "pair";
+export type Cls = "send" | "approve" | "deny" | "peerchg" | "logout" | "pair" | "check";
 
 export interface VendorRequest {
   url: string;
@@ -29,9 +29,9 @@ export interface VendorRequest {
   body: Uint8Array | string;
 }
 
-// Normal urgency for deny and logout, high for the rest.
+// Normal urgency for deny, logout, and check, high for the rest.
 export function isNormal(cls: Cls): boolean {
-  return cls === "deny" || cls === "logout";
+  return cls === "deny" || cls === "logout" || cls === "check";
 }
 
 export function ttlFor(env: { PA_PUSH_TTL_SECONDS: string }): number {

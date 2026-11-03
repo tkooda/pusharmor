@@ -79,7 +79,9 @@ export async function listBody(rows: ListRow[], me: string): Promise<Record<stri
       ...(r.platform === "cli" ? { listening: isListening(r.platform, r.push_failed) } : {}),
     };
   });
-  return { my_push_sha256: myPush, my_allow: self ? allowKeys(self.allow) : [], peers };
+  // my_relay_fault: the last push to the caller hit a relay-side fault (sql.ts PUSH_FAILED_COL).
+  const myRelayFault = !!self && self.platform !== "cli" && self.push_failed !== null;
+  return { my_push_sha256: myPush, my_allow: self ? allowKeys(self.allow) : [], my_relay_fault: myRelayFault, peers };
 }
 
 // 409 "peer limit" list entries.
@@ -114,6 +116,7 @@ export interface RelayRow {
   push_type: number | null;
   push: string | null;
   push_verified_at: number | null;
+  push_failed?: number | null; // as read, for the relay fault mark; absent: no mark write
 }
 
 // Relay filter, /send order: unknown, denied, unapproved, logged out, not listening, gone,
@@ -140,6 +143,7 @@ export function ctxRelayRow(r: CtxRow | undefined): RelayRow | undefined {
       push_type: r.push_type,
       push: r.push,
       push_verified_at: r.push_verified_at,
+      push_failed: r.push_failed,
     }
   );
 }
