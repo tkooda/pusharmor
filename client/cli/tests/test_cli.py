@@ -1886,6 +1886,28 @@ def test_listen_error_is_one_line_and_listening_continues(net, tmp_path, monkeyp
     assert "warning: " + pa.UNREACHABLE + " Listening continues." in err and not any("Unable" in x for x in err)
 
 
+def test_listen_ignores_a_check_push_silently(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = pair_two(monkeypatch, net, a, b)
+    net.deliver(idb, '{"check":1}')
+    net.stop.set()
+    capsys.readouterr()
+    assert run(b, "listen") == 130
+    cap = capsys.readouterr()
+    assert cap.out == "" and cap.err.splitlines() == ["info: Listening. Press Ctrl+C to stop.", "info: Stopped."]
+
+
+def test_peers_list_with_my_relay_fault_is_accepted(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = pair_two(monkeypatch, net, a, b)
+    real = net.list_body
+    monkeypatch.setattr(net, "list_body", lambda me: dict(real(me), my_relay_fault=True))
+    capsys.readouterr()
+    assert run(a, "pair") == 0
+    cap = capsys.readouterr()
+    assert pa.id_hex(idb)[:6] in cap.out and cap.err == ""
+
+
 def test_command_texts_are_the_approved_sentences(net, tmp_path, monkeypatch, capsys):
     def err_of(code, *argv):
         capsys.readouterr()
