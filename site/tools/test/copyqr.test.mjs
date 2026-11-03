@@ -59,7 +59,8 @@ test("every copy button sits right after its text, copies that text, and is name
       assert.ok("hidden" in b.attrs, rel + ": " + id + " button must be hidden until the script runs");
       if (t.name === "code") assert.doesNotMatch(t.inner, /[<>]/, rel + ": " + id + " holds markup");
       else assert.equal(t.name, "a", rel + ": " + id);
-      const kind = HASH.test(t.text) ? "SHA-256" : URL_RE.test(t.text) ? "URL" : "command";
+      // The APK SHA-256 values are build placeholders (site/tools/build.mjs).
+      const kind = HASH.test(t.text) || /^APK_[A-Z]+_SHA256_PLACEHOLDER$/.test(t.text) ? "SHA-256" : URL_RE.test(t.text) ? "URL" : "command";
       if (kind === "command") assert.ok(t.inPre, rel + ": command " + id + " is not in a pre block");
       assert.equal(b.attrs["aria-label"], "Copy " + kind, rel + ": " + id);
     }
