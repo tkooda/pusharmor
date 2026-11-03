@@ -495,6 +495,65 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(Core.failText(o, .reject("Xdev")), "Unable to reject \"Xdev\".\nThis device is logged out. Log in to resume.")
     }
 
+    /// Reject hides the row from the Devices list; "Pair a new device" lists it, and [Pair]
+    /// there shows it again.
+    func testRejectHidesRowUntilPair() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        await n.core.fetchPeers(force: true)
+        XCTAssertEqual(DeviceList.visible(try n.core.store.peers(), withHistory: []).map { $0.id.text }, [x.id.text])
+        _ = await n.core.deny(x.id)
+        XCTAssertTrue(DeviceList.visible(try n.core.store.peers(), withHistory: []).isEmpty)
+        XCTAssertEqual(DeviceList.rejected(try n.core.store.peers()).map { $0.id.text }, [x.id.text])
+        _ = try await n.core.startPair(x.id)
+        XCTAssertEqual(try n.core.store.peer(x.id)!.state, .unruled)
+        XCTAssertNotNil(try n.core.store.pairing(x.id))
+        XCTAssertEqual(DeviceList.visible(try n.core.store.peers(), withHistory: []).map { $0.id.text }, [x.id.text])
+        XCTAssertTrue(DeviceList.rejected(try n.core.store.peers()).isEmpty)
+    }
+
+    /// A new pairing request from a rejected device shows its row again.
+    func testNewRequestFromRejectedDeviceShowsItAgain() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        await n.core.fetchPeers(force: true)
+        await x.core.fetchPeers(force: true)
+        try x.core.store.db.write {
+            var p = try x.core.store.peer(n.id)!
+            p.state = .denied
+            try x.core.store.savePeer(p)
+        }
+        XCTAssertTrue(DeviceList.visible(try x.core.store.peers(), withHistory: []).isEmpty)
+        _ = try await n.core.startPair(x.id)
+        await x.drainInbox(w)
+        XCTAssertEqual(try x.core.store.peer(n.id)!.state, .unruled)
+        XCTAssertNotNil(try x.core.store.pairing(n.id))
+        XCTAssertEqual(DeviceList.visible(try x.core.store.peers(), withHistory: []).map { $0.id.text }, [n.id.text])
+    }
+
+    /// Codes differ on a pinned row ends the pairing and drops the pin, so a later request or
+    /// [Pair] is not refused as a pinned device.
+    func testRejectOfPinnedRowDropsThePin() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairToShown(n, x)
+        _ = await x.core.deny(n.id)
+        let p = try x.core.store.peer(n.id)!
+        XCTAssertEqual(p.state, .denied)
+        XCTAssertFalse(p.pinned)
+        XCTAssertNil(try x.core.store.pairing(n.id))
+        XCTAssertEqual(DeviceList.rejected(try x.core.store.peers()).map { $0.id.text }, [n.id.text])
+    }
+
+    /// A removed device shows only while History holds rows from it; a rejected one never shows.
+    func testDeviceListVisibleRules() throws {
+        let a = try dev("Adev"), b = try dev("Bdev")
+        var removed = Peer(id: a.id), rejected = Peer(id: b.id)
+        removed.state = .removed
+        rejected.state = .denied
+        XCTAssertTrue(DeviceList.visible([removed, rejected], withHistory: []).isEmpty)
+        XCTAssertEqual(DeviceList.visible([removed, rejected], withHistory: [a.id.text, b.id.text]).map { $0.id.text },
+                       [a.id.text])
+        XCTAssertTrue(DeviceList.rejected([rejected]).isEmpty)   // not listed by the relay server
+    }
+
     func testMessagesMissingWithdrawsThenRetriesOnce() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev"), o = try dev("Odev")
         try await pairFully(n, x)

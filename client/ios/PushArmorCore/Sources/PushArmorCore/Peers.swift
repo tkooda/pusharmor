@@ -249,7 +249,7 @@ extension Core {
         }
     }
 
-    /// Deny. A pinned peer gets a signed deny message; the entry ends. An unpinned row has no
+    /// Deny. A pinned peer gets a signed deny message; the entry and the pin end. An unpinned row has no
     /// pairing id: its deny is sealed to the listed key under an all-zero pairing id (as webext
     /// and Android); X drops it, but the Worker still records the deny.
     public func deny(_ x: PeerId) async -> ApproveOutcome {
@@ -267,11 +267,10 @@ extension Core {
         } catch {
             return .error(0)
         }
+        // The row leaves the Devices list; a new pairing request from X, or [Pair] here, shows it again.
         try? store.db.write {
-            guard var q = try store.peer(x) else { return }
-            q.state = .denied
-            try store.savePeer(q)
-            try store.deletePairing(x)
+            guard try store.peer(x) != nil else { return }
+            try store.dropPin(x, state: .denied)
             try store.allowRemove(x.text)
         }
         return outcome
@@ -348,4 +347,19 @@ extension Core {
 
     /// The "All" set (catalog Pairing flow, the one definition).
     public func allSet() throws -> [Peer] { try store.peers().filter { $0.inAll } }
+}
+
+/// Which devices the Devices list and "Pair a new device" show.
+public enum DeviceList {
+    /// The Devices list: a rejected device is hidden; a removed one shows only while History
+    /// still holds rows from it (`withHistory`: peer ids with History rows).
+    public static func visible(_ peers: [Peer], withHistory: Set<String>) -> [Peer] {
+        peers.filter { $0.state != .denied && ($0.state != .removed || withHistory.contains($0.id.text)) }
+    }
+
+    /// "Pair a new device": rejected devices the relay server still lists, so [Pair] can start
+    /// a new pairing with them.
+    public static func rejected(_ peers: [Peer]) -> [Peer] {
+        PeerLabel.sorted(peers.filter { $0.state == .denied && $0.listed && $0.listEncPub != nil })
+    }
 }

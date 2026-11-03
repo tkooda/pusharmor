@@ -8,10 +8,9 @@ struct PeersView: View {
     @State private var pulseOn = false
     @State private var showPairHowTo = false
 
-    /// Removed peers show only while History still holds rows from them.
+    /// Rejected peers are hidden; removed peers show only while History still holds rows from them.
     private var visible: [Peer] {
-        let withHistory = Set(model.history.compactMap { $0.peerId })
-        return model.peers.filter { $0.state != .removed || withHistory.contains($0.id.text) }
+        DeviceList.visible(model.peers, withHistory: Set(model.history.compactMap { $0.peerId }))
     }
 
     /// Peers in a pairing state: an open pairing, or a new peer to pair or deny.
@@ -141,7 +140,9 @@ struct PeersView: View {
 }
 
 /// The "Pair a new device" how-to (F30): pairing starts from the new device's row here.
+/// Rejected devices are hidden from the Devices list, so they are listed here with [Pair].
 struct PairHowToView: View {
+    @EnvironmentObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var typeSize
 
@@ -152,6 +153,30 @@ struct PairHowToView: View {
                     Label(S.pairHowTo1, systemImage: "1.circle.fill")
                     Label(S.pairHowTo2, systemImage: "2.circle.fill")
                     Label(S.pairHowTo3, systemImage: "3.circle.fill")
+                }
+                let rejected = DeviceList.rejected(model.peers)
+                if !rejected.isEmpty {
+                    Section("Rejected devices") {
+                        ForEach(rejected, id: \.id.text) { p in
+                            HStack(spacing: 14) {
+                                IconTile(platformSymbol(p.platform), size: 40)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(model.label(p)).font(.headline)
+                                    Text(PeerLabel.platformName(p.platform))
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondaryText)
+                                }
+                                .accessibilityElement(children: .combine)
+                                Spacer(minLength: 0)
+                                Button("Pair") {
+                                    instantly { dismiss() }
+                                    Task { await model.pair(p) }
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(model.busy.contains("pair:" + p.id.text))
+                            }
+                        }
+                    }
                 }
             }
             .navigationTitle("Pair a new device")
