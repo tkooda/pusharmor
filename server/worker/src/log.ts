@@ -19,6 +19,10 @@ export function sampleRate(v: string | undefined): number {
   return Number.isFinite(n) && n >= 0 && n <= 1 ? n : 1;
 }
 
+// Relay-side fault kinds for the "alert" field. Never set for client errors (4xx) or
+// device-side push failures.
+export type Alert = "cron" | "mail" | "db" | "push-auth" | "ratelimit";
+
 export class Log {
   route = "";
   status = 0;
@@ -34,6 +38,7 @@ export class Log {
   gone_write?: "failed";
   endpoint_reject?: { host?: string; prefix_len?: number; reason?: string };
   exception?: string;
+  pushAuth = false; // a push hit a relay-side fault (results.ts Outcome.relay, or a token mint failure)
   extra: Record<string, string | number> = {};
   private readonly t0 = Date.now();
 
@@ -45,6 +50,19 @@ export class Log {
     } else {
       this.exception = typeof e;
     }
+  }
+
+  // One kind per line, in this priority order: cron (a scheduled job failed), mail (SES did not
+  // send a login code: 502 "email send failed"), db (D1 error, uncaught exception, any 5xx, or a
+  // failed write-back), push-auth (a vendor refused our credentials or a token mint failed),
+  // ratelimit (a rate-limit binding threw).
+  alert(): Alert | undefined {
+    if (this.route.startsWith("cron")) return this.exception || this.error ? "cron" : undefined;
+    if (this.error === "email send failed") return "mail";
+    if (this.exception || this.status >= 500 || this.gone_write) return "db";
+    if (this.pushAuth) return "push-auth";
+    if (this.rl_error.length) return "ratelimit";
+    return undefined;
   }
 
   line(): string {
@@ -66,15 +84,18 @@ export class Log {
     if (this.gone_write) o.gone_write = this.gone_write;
     if (this.endpoint_reject) o.endpoint_reject = this.endpoint_reject;
     if (this.exception) o.exception = this.exception;
+    const alert = this.alert();
+    if (alert) o.alert = alert;
     for (const [k, v] of Object.entries(this.extra)) o[k] = v;
     return JSON.stringify(o);
   }
 
-  // A line worth keeping whatever the sample rate: server errors, rate-limit binding errors,
-  // failed write-backs, endpoint rejects, and any recipient that was not delivered on the
+  // A line worth keeping whatever the sample rate: any alert, server errors, rate-limit binding
+  // errors, failed write-backs, endpoint rejects, and any recipient that was not delivered on the
   // first attempt. Client errors (4xx) are sampled, so a flood of refused requests is not
   // logged line by line.
   notable(): boolean {
+    if (this.alert()) return true;
     if (this.exception || this.rl_error.length || this.gone_write || this.endpoint_reject) return true;
     if (this.status >= 500) return true;
     return this.recipients.some((r) => r.result !== "sent" || r.retry);

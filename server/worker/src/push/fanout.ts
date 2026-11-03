@@ -198,7 +198,10 @@ export async function fanout(env: Env, targets: Target[], log: Log): Promise<Fan
     out.results[t.id] = d.result;
     if (d.result === "gone") out.gone.push({ id: t.id, push: t.push });
     if (d.result === "not listening") out.notListening.push(t.id);
-    if (d.relay) out.relay.push(t.id);
+    if (d.relay) {
+      out.relay.push(t.id);
+      log.pushAuth = true;
+    }
     if (d.relay && t.pf === null) out.markSet.push(t.id);
     if (d.result === "sent" && t.pf !== null && t.pf !== undefined) out.markClear.push(t.id);
     const r: RecipientLog = { id: t.id, class: t.cls, bytes: t.m.length, result: d.result, vendor: d.log?.vendor ?? d.code, retry: d.retried };
