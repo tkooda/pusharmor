@@ -153,8 +153,10 @@ test("no third-party loaded resource except Turnstile on /turnstile", () => {
     }
   }
   // JS files fetch only same-origin or the API (delete-account path via pa-web.js).
+  // Comment lines and the SVG namespace name (not a load) are skipped.
   for (const rel of files.filter((f) => f.endsWith(".js"))) {
-    for (const m of read(rel).matchAll(/https?:\/\/[a-z0-9.-]+/gi)) {
+    const js = read(rel).replace(/^\s*\/\/.*$/gm, "").split("http://www.w3.org/2000/svg").join("");
+    for (const m of js.matchAll(/https?:\/\/[a-z0-9.-]+/gi)) {
       assert.ok(["https://pusharmor.com", "https://api.pusharmor.com"].includes(m[0]), rel + ": " + m[0]);
     }
   }

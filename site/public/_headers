@@ -53,6 +53,10 @@
   ! Content-Security-Policy
   Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-BF6Zwa/ZMsGN4ht5Cz6zK3LIAIpTPThzFRLr8uHoUJs='; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
 
+/download
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-eHxqMX1Q69X1qS4sLRhFGhpUjAf1oDeYaoslxRdKZhI=' 'sha256-idHoWTN3NFmi2+WNKNsYuSvKCqnXHnfCEvKf6jEq9Oc='; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+
 /.well-known/security.txt
   ! Content-Type
   Content-Type: text/plain; charset=utf-8
