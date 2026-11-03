@@ -5,7 +5,8 @@ name: store
 # workflow_dispatch on that platform's tag <platform>/vX.Y.Z, so each job runs
 # on the tag ref that its release Environment allows (tags only). The gate job
 # (no Environment, no secret) checks the tag and that an approved promote.yml
-# run on main for this version and platform started this run, then gives the
+# run on main for this version and platform started this run (that run is
+# still running or succeeded, and is at most 30 days old), then gives the
 # commit of that run: the store job checks it out, so it sends the listing
 # files the promote check job checked. Only the job of the tag's platform
 # runs. To retry a failed store, rerun this run ("Re-run failed jobs").

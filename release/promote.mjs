@@ -188,15 +188,23 @@ export function tagPlatform(ref, version) {
   return PLATFORMS.find((p) => ref === "refs/tags/" + p + "/v" + version) || "";
 }
 
+/** A promote run older than this many days cannot start a store job. */
+export const PROMOTE_RUN_MAX_DAYS = 30;
+
 /** Why store.yml must not run for platform and version (a string), or "".
  *  run is the GitHub run that started it (or null), approvals its review
  *  history: a promote.yml run on main, dispatched by hand, approved in the
- *  Environment promote, with this version and platform in its run name. */
-export function promoteRunProblem(run, approvals, version, platform) {
+ *  Environment promote, with this version and platform in its run name,
+ *  still running (its dispatch job starts store.yml) or succeeded (a store
+ *  rerun), and created at most PROMOTE_RUN_MAX_DAYS days before now. */
+export function promoteRunProblem(run, approvals, version, platform, now = Date.now()) {
   if (!run) return "no promote run";
   if (String(run.path).split("@")[0] !== ".github/workflows/promote.yml") return "run is " + run.path + ", not promote.yml";
   if (run.head_branch !== "main") return "promote run is on " + run.head_branch + ", not main";
   if (run.event !== "workflow_dispatch") return "promote run event is " + run.event + ", not workflow_dispatch";
+  if (run.status === "completed" && run.conclusion !== "success") return "promote run concluded " + run.conclusion + ", not success";
+  const age = now - Date.parse(run.created_at);
+  if (!(age >= 0 && age <= PROMOTE_RUN_MAX_DAYS * 86400000)) return "promote run was created " + run.created_at + ", not in the last " + PROMOTE_RUN_MAX_DAYS + " days";
   const head = "promote " + version + " ";
   const title = String(run.display_title || "");
   if (!title.startsWith(head)) return "promote run is not for " + version + " (" + title + ")";

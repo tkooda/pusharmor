@@ -239,7 +239,7 @@ test("store.yml runs only for the tag of its platform and an approved promote ru
   assert.equal(tagPlatform("refs/tags/firefox/v1.2.4", "1.2.3"), "");
   assert.equal(tagPlatform("refs/heads/main", "1.2.3"), "");
   assert.equal(tagPlatform("refs/tags/cli/v1.2.3", "1.2.3"), "");
-  const run = { path: ".github/workflows/promote.yml", head_branch: "main", event: "workflow_dispatch", display_title: "promote 1.2.3 chrome, firefox", head_sha: "a".repeat(40) };
+  const run = { path: ".github/workflows/promote.yml", head_branch: "main", event: "workflow_dispatch", display_title: "promote 1.2.3 chrome, firefox", head_sha: "a".repeat(40), status: "in_progress", created_at: new Date().toISOString() };
   const ok = [{ state: "approved", environments: [{ name: "promote" }] }];
   assert.equal(promoteRunProblem(run, ok, "1.2.3", "firefox"), "");
   assert.match(promoteRunProblem(run, ok, "1.2.3", "android"), /android/);
@@ -252,4 +252,14 @@ test("store.yml runs only for the tag of its platform and an approved promote ru
   assert.match(promoteRunProblem(run, [{ state: "rejected", environments: [{ name: "promote" }] }], "1.2.3", "firefox"), /approv/);
   assert.match(promoteRunProblem(run, [{ state: "approved", environments: [{ name: "other" }] }], "1.2.3", "firefox"), /approv/);
   assert.match(promoteRunProblem(null, ok, "1.2.3", "firefox"), /no promote run/);
+  assert.equal(promoteRunProblem({ ...run, status: "completed", conclusion: "success" }, ok, "1.2.3", "firefox"), "");
+  assert.match(promoteRunProblem({ ...run, status: "completed", conclusion: "failure" }, ok, "1.2.3", "firefox"), /failure/);
+  assert.match(promoteRunProblem({ ...run, status: "completed", conclusion: "cancelled" }, ok, "1.2.3", "firefox"), /cancelled/);
+  const day = 86400000;
+  const at = (d) => new Date(Date.parse("2026-01-31T00:00:00Z") - d * day).toISOString();
+  const now = Date.parse("2026-01-31T00:00:00Z");
+  assert.equal(promoteRunProblem({ ...run, created_at: at(30) }, ok, "1.2.3", "firefox", now), "");
+  assert.match(promoteRunProblem({ ...run, created_at: at(31) }, ok, "1.2.3", "firefox", now), /30 days/);
+  assert.match(promoteRunProblem({ ...run, created_at: at(-1) }, ok, "1.2.3", "firefox", now), /30 days/);
+  assert.match(promoteRunProblem({ ...run, created_at: undefined }, ok, "1.2.3", "firefox", now), /30 days/);
 });
