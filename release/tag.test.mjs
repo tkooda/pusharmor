@@ -211,7 +211,7 @@ test("release gate: gh api reads the push runs of ci.yml on the commit and the l
     { status: "in_progress", jobs: [{ name: "ios / a", status: "in_progress", conclusion: null }, { name: "repo / b", status: "completed", conclusion: "success" }] },
   ]);
   assert.equal(calls[0][0], "repos/o/r/actions/workflows/ci.yml/runs?event=push&per_page=100&head_sha=abc");
-  assert.deepEqual(calls[1].slice(0, 2), ["--paginate", "repos/o/r/actions/runs/7/jobs?filter=latest&per_page=100"]);
+  assert.deepEqual(calls[1].slice(0, 2), ["--paginate", "repos/o/r/actions/runs/7/jobs?filter=latest&per_page=50"]);
   assert.equal(repoName({ GITHUB_REPOSITORY: "a/b", GH_REPO: "c/d" }), "a/b");
   assert.equal(repoName({ GH_REPO: "c/d" }), "c/d");
   for (const u of ["git@github_alias:tkooda/pusharmor.git", "https://github.com/tkooda/pusharmor", "ssh://git@github.com/tkooda/pusharmor.git/"]) {

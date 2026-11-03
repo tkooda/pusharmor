@@ -291,7 +291,8 @@ export function ciRuns(commit, gh = ghApi, repo = repoName()) {
   const runs = gh(["repos/" + repo + "/actions/workflows/ci.yml/runs?event=push&per_page=100&head_sha=" + commit, "--jq", ".workflow_runs[] | [.id, .status] | @tsv"]);
   return runs.split("\n").filter(Boolean).map((l) => {
     const [id, status] = l.split("\t");
-    const out = gh(["--paginate", "repos/" + repo + "/actions/runs/" + id + "/jobs?filter=latest&per_page=100", "--jq", '.jobs[] | [.name, .status, .conclusion // ""] | @tsv']);
+    // 50 per page: GitHub answers HTTP 502 to per_page=100 on runs with many jobs; --paginate reads every page.
+    const out = gh(["--paginate", "repos/" + repo + "/actions/runs/" + id + "/jobs?filter=latest&per_page=50", "--jq", '.jobs[] | [.name, .status, .conclusion // ""] | @tsv']);
     const jobs = out.split("\n").filter(Boolean).map((j) => {
       const [name, st, conclusion] = j.split("\t");
       return { name, status: st, conclusion: conclusion || null };
