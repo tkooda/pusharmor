@@ -49,6 +49,7 @@ import {
   Lock,
   NET_NOT_BEFORE,
   PAIR_AUTO,
+  PAIR_HELD,
   PAIR_MSG_PREFIX,
   PAIR_PREFIX,
   type PairEntry,
@@ -64,6 +65,12 @@ import { R, T, peerLabel, rowLabel, sendResultText } from "./texts.ts";
 import { AUTH_CHANGED } from "../model/signin.ts";
 
 type Src = "push" | "bridge" | "returned" | "fetched";
+
+interface HeldCommit {
+  from: string;
+  c_N: string;
+  src: Src;
+}
 
 /** The outcome of one POST /pair: the relay word, or why the call failed (err). */
 interface PairPost {
@@ -138,7 +145,7 @@ export class Engine {
   readonly vapid: Uint8Array;
   readonly lock = new Lock();
   private readonly pairingAgain = new Set<string>();
-  private fetching: Promise<void> | null = null;
+  private fetching: Promise<boolean> | null = null;
   private loggingOut: Promise<void> | null = null;
   /** The one removal check in flight; every caller shares it. */
   private checking: Promise<boolean> | null = null;
@@ -550,7 +557,8 @@ export class Engine {
     const name = await this.halfName(from);
     switch (d.action) {
       case "fetch":
-        await this.fetchPeersNow().catch(() => undefined);
+        // no GET /peers ran (a server wait or a failure): keep the commit for the next fetch, never drop it
+        if (!(await this.fetchPeersNow().catch(() => false))) return this.holdCommit(from, cN, src);
         return this.onCommit(from, cN, self, src, true);
       case "drop":
         return this.dropEvent("unreadable", null, src);
@@ -570,7 +578,9 @@ export class Engine {
         }
         if (d.notice === "crossing") {
           const pkN = await pairingKey(b64urlDecode(self.id), b64urlDecode(from));
-          return this.pairNotice(pkN, T.pairCrossing(name));
+          await this.pairNotice(pkN, T.pairCrossing(name));
+          // the higher id may never have got our commit: send it again so it replies
+          return this.resendCommit(from, self);
         }
         const e = await getEntry(this.p.storageLocal, from);
         if (e && e.state === "shown" && e.fingerprint) return this.pairNotice(e.pk, T.pairOpen(e.fingerprint));
@@ -607,6 +617,36 @@ export class Engine {
         return;
       }
     }
+  }
+
+  /** Crossing: the same stored commit once more; no 60 s Send again wait, a server wait is kept. */
+  private async resendCommit(x: string, self: SelfKeys): Promise<void> {
+    const e = await getEntry(this.p.storageLocal, x);
+    if (!e || e.role !== "N" || e.state !== "committed") return;
+    const t = now(this.p);
+    if (e.not_before && t < e.not_before) {
+      this.p.alarmAt("pair:" + x, Math.max(e.not_before, t + 30_000));
+      return;
+    }
+    await this.sendStored(x, "commit", self);
+  }
+
+  private async holdCommit(from: string, cN: Uint8Array, src: Src): Promise<void> {
+    const held = ((await this.p.storageLocal.get([PAIR_HELD]))[PAIR_HELD] as HeldCommit[] | undefined) ?? [];
+    const next = [...held.filter((h) => h.from !== from), { from, c_N: b64urlEncode(cN), src }].slice(-10);
+    await this.p.storageLocal.set({ [PAIR_HELD]: next });
+    await this.db.setMeta("fetch_pending", true);
+    this.p.alarmAt("fetch", Math.max(await this.netNotBefore(), now(this.p) + 30_000));
+  }
+
+  /** Held commits, decided again after a GET /peers that ran (an unlisted sender is dropped then). */
+  private async replayHeld(): Promise<void> {
+    const held = ((await this.p.storageLocal.get([PAIR_HELD]))[PAIR_HELD] as HeldCommit[] | undefined) ?? [];
+    if (!held.length) return;
+    await this.p.storageLocal.remove([PAIR_HELD]);
+    const self = await this.self();
+    if (!self) return;
+    for (const h of held) await this.onCommit(h.from, b64urlDecode(h.c_N), self, h.src, true).catch(() => undefined);
   }
 
   private async halfName(id: string): Promise<string> {
@@ -817,6 +857,23 @@ export class Engine {
     }
     if (e.state === "committed") this.pairSent(await this.sendStored(x, "commit", self));
     else if (e.state === "shown" && !(await this.db.peer(x))?.approve_verified) this.pairSent(await this.sendStored(x, "open", self));
+  }
+
+  /**
+   * Popup open, Refresh: each pairing that waits on the other device sends its own last message
+   * again (N committed: commit; N shown: open; X replied: reply), 60 s after the last send and
+   * never inside a server wait, so a lost push is answered again (rule a).
+   */
+  async resendWaiting(): Promise<void> {
+    const self = await this.self();
+    if (!self) return;
+    const t = now(this.p);
+    for (const [x, e] of await allEntries(this.p.storageLocal)) {
+      if ((e.last_send && t - e.last_send < SEND_AGAIN_MS) || (e.not_before && t < e.not_before)) continue;
+      if (e.role === "N" && e.state === "committed") await this.sendStored(x, "commit", self);
+      else if (e.role === "N" && e.state === "shown" && !(await this.db.peer(x))?.approve_verified) await this.sendStored(x, "open", self);
+      else if (e.role === "X" && e.state === "replied") await this.sendReply(x);
+    }
   }
 
   /** [Reply] tap on a prompted X entry (not counted in the cap). */
@@ -1070,6 +1127,7 @@ export class Engine {
   async timeoutCheck(): Promise<void> {
     await this.refetchWaiting();
     await this.sweep();
+    await this.resendWaiting();
   }
 
   // ---------------------------------------------------------------- fetch
@@ -1093,10 +1151,12 @@ export class Engine {
       await this.db.setMeta("fetch_pending", false);
       await this.fetchPeersNow().catch(() => undefined);
     }
+    await this.lock.run(async () => undefined); // held commits re-decided by that fetch finish first
     await this.sweep();
   }
 
-  async fetchPeersNow(): Promise<void> {
+  /** true when GET /peers ran and its list was merged. */
+  async fetchPeersNow(): Promise<boolean> {
     if (this.fetching) return this.fetching;
     this.fetching = this.doFetch().finally(() => {
       this.fetching = null;
@@ -1119,14 +1179,14 @@ export class Engine {
     return (await this.self()) !== null && now(this.p) >= (await this.netNotBefore());
   }
 
-  private async doFetch(): Promise<void> {
+  private async doFetch(): Promise<boolean> {
     const self = await this.self();
-    if (!self) return;
+    if (!self) return false;
     const nb = await this.netNotBefore();
     if (now(this.p) < nb) {
       await this.db.setMeta("fetch_pending", true);
       this.p.alarmAt("fetch", Math.max(nb, now(this.p) + 30_000));
-      return;
+      return false;
     }
     await this.db.setMeta("last_fetch", now(this.p));
     let r: ApiReply;
@@ -1140,6 +1200,10 @@ export class Engine {
     await this.mergePeers(r.json, self);
     await this.afterSignedReply(r);
     await this.reconcileAllow();
+    // queued, not awaited: this fetch may run inside the lock (a commit's own fetch)
+    const held = (await this.p.storageLocal.get([PAIR_HELD]))[PAIR_HELD] as HeldCommit[] | undefined;
+    if (held?.length) void this.lock.run(() => this.replayHeld()).catch(() => undefined);
+    return true;
   }
 
   /** GET /peers merge (section 4.2, catalog Removal rules). */
@@ -1677,7 +1741,7 @@ export class Engine {
     await this.db.clear(["keys", "peers", "replay"]);
     for (const k of ["reg", LOGOUT_PENDING, "push_hash", "listed", "my_push_sha256", "my_relay_fault", "fetch_pending", "last_fetch", "push_issue", "push_fail", KEYS_BROKEN, WIPE_CHECK]) await this.db.del("meta", k);
     const all = await this.p.storageLocal.get(null);
-    const drop = Object.keys(all).filter((k) => k.startsWith(PAIR_PREFIX) || k.startsWith(PAIR_MSG_PREFIX) || k === PAIR_AUTO || k === ALLOW_SET || k === NET_NOT_BEFORE);
+    const drop = Object.keys(all).filter((k) => k.startsWith(PAIR_PREFIX) || k.startsWith(PAIR_MSG_PREFIX) || k === PAIR_AUTO || k === PAIR_HELD || k === ALLOW_SET || k === NET_NOT_BEFORE);
     await this.p.storageLocal.remove(drop);
     await this.p.pushUnsubscribe().catch(() => undefined);
     await this.p.clearAllNotifications().catch(() => undefined);

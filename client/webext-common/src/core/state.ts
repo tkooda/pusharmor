@@ -6,6 +6,8 @@ import type { PairState, Role } from "../model/pairdecide.ts";
 export const PAIR_PREFIX = "pair:";
 export const PAIR_AUTO = "pair_auto";
 export const PAIR_MSG_PREFIX = "pairmsg:";
+/** Commits from an unlisted sender kept while GET /peers could not run; decided again after the next fetch. */
+export const PAIR_HELD = "pair_held";
 export const ALLOW_SET = "allow";
 export const NET_NOT_BEFORE = "net_not_before";
 /** storage.local: the extension version that got HTTP 426. It stops counting once the version changes. */

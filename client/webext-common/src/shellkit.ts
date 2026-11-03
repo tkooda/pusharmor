@@ -242,6 +242,11 @@ export function uiEnv(b: Browser): UiEnv {
     openPage(hash) {
       const url = b.runtime.getURL("page.html" + hash);
       return (async () => {
+        // Firefox for Android shows the popup full screen and a new tab opens behind it: open the page right here.
+        if (/Android/i.test(navigator.userAgent) && globalThis.location?.pathname.endsWith("/popup.html")) {
+          location.assign(url);
+          return;
+        }
         // An open tab on the same page comes to the front instead of a second copy.
         try {
           const open = (await b.runtime.getContexts?.({ contextTypes: ["TAB"] }))?.find((c) => c.documentUrl === url && c.tabId >= 0);

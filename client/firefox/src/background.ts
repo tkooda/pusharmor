@@ -11,13 +11,14 @@ import type { WebPushKeys } from "../../webext-common/src/crypto/rfc8291.ts";
 import { Autopush, type ApState } from "./autopush/client.ts";
 import { fxSubFields, senderAllowed } from "./gate.ts";
 import { FWD_URL, endpointAllowed, firefoxPlatform, openSetup } from "./platform-firefox.ts";
-import { fwdAllowed, onForward } from "./sitefwd/fwd.ts";
+import { fwdAllowed, onForward, readSub } from "./sitefwd/fwd.ts";
 import { browser } from "./shim.ts";
 
 declare const VAPID_PUBLIC_KEY: string;
 const vapid = b64urlTryDecode(VAPID_PUBLIC_KEY) ?? new Uint8Array(0);
 
-let isAndroid = false;
+// known at once from the user agent: a message that boots the engine before init() runs gets the right platform
+let isAndroid = /Android/i.test(navigator.userAgent);
 let autopush: Autopush | null = null;
 let dbp: Promise<Db> | null = null;
 const db = () =>
@@ -92,6 +93,22 @@ setInterval(() => {
 }, 30_000);
 addEventListener("online", () => autopush?.reconnectNow());
 
+/** A site push subscription (from /fx/setup, or the site SW after a subscription change): stored, then PATCHed in fallback mode. */
+async function storeFallback(a: unknown): Promise<boolean> {
+  const { engine } = await boot();
+  const f = fxSubFields(a);
+  if (!f) return false;
+  const p: PushFields = { type: "webpush", ...f };
+  const k = b64urlTryDecode(p.p256dh);
+  const au = b64urlTryDecode(p.auth);
+  if (!endpointAllowed(p.endpoint) || !k || k.length !== 65 || !au || au.length !== 16) return false;
+  const d = await db();
+  await d.setMeta("fallback_push", p);
+  const mode = isAndroid ? "fallback" : ((await d.meta<string>("receive_mode")) ?? "direct");
+  if (mode === "fallback" && (await engine.regState()) === "registered") await engine.pushReconcile(true).catch(() => undefined);
+  return true;
+}
+
 async function extra(msg: Req, sender: MessageSender): Promise<unknown> {
   if (msg.op === "fx-open-setup") {
     await openSetup();
@@ -106,19 +123,7 @@ async function extra(msg: Req, sender: MessageSender): Promise<unknown> {
   await whenReady();
   const { engine } = await boot();
   const a = msg.args ?? {};
-  if (msg.op === "fx-sub") {
-    const f = fxSubFields(a);
-    if (!f) return { ok: false };
-    const p: PushFields = { type: "webpush", ...f };
-    const k = b64urlTryDecode(p.p256dh);
-    const au = b64urlTryDecode(p.auth);
-    if (!endpointAllowed(p.endpoint) || !k || k.length !== 65 || !au || au.length !== 16) return { ok: false };
-    const d = await db();
-    await d.setMeta("fallback_push", p);
-    const mode = isAndroid ? "fallback" : ((await d.meta<string>("receive_mode")) ?? "direct");
-    if (mode === "fallback" && (await engine.regState()) === "registered") await engine.pushReconcile(true).catch(() => undefined);
-    return { ok: true };
-  }
+  if (msg.op === "fx-sub") return { ok: await storeFallback(a) };
   if (msg.op === "fx-msg") {
     if (!fwdAllowed(a.m)) return { ok: false };
     await engine.receive(a.m, "bridge");
@@ -152,7 +157,14 @@ browser.runtime.onInstalled.addListener((d) => {
   if (d.reason === "install") void openSetup();
 });
 browser.webRequest?.onBeforeRequest.addListener(
-  (d) => onForward(d, (m) => whenReady().then(boot).then(({ engine }) => engine.receive(m, "push"))),
+  (d) =>
+    onForward(d, async (m) => {
+      await whenReady();
+      const sub = readSub(m);
+      if (sub !== undefined) return void (await storeFallback(sub));
+      const { engine } = await boot();
+      await engine.receive(m, "push");
+    }),
   { urls: [FWD_URL] },
   ["blocking", "requestBody"],
 );

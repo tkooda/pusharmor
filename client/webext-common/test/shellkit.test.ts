@@ -22,6 +22,27 @@ test("openPage: an open tab on the same page is focused and reloaded", async () 
   assert.deepEqual(log, ["update 7", "window 3", "reload 7"]);
 });
 
+test("openPage on Firefox for Android: the full screen popup goes to the page itself, no tab opens behind it", async () => {
+  const log: string[] = [];
+  const g = globalThis as { location?: unknown; navigator?: unknown };
+  const savedLoc = Object.getOwnPropertyDescriptor(globalThis, "location");
+  const savedNav = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  Object.defineProperty(globalThis, "navigator", { value: { userAgent: "Mozilla/5.0 (Android 15; Mobile; rv:144.0) Gecko/144.0 Firefox/144.0" }, configurable: true });
+  Object.defineProperty(globalThis, "location", { value: { pathname: "/popup.html", assign: (u: string) => void log.push("assign " + u) }, configurable: true });
+  try {
+    const b = {
+      runtime: { getURL: (p: string) => "moz-extension://x/" + p, getContexts: async () => [], getManifest: () => ({ name: "PushArmor", version: "0.0.19" }) },
+      tabs: { create: async () => void log.push("create") },
+    };
+    await uiEnv(b as never).openPage("#peers");
+    assert.deepEqual(log, ["assign moz-extension://x/page.html#peers"]);
+  } finally {
+    if (savedLoc) Object.defineProperty(globalThis, "location", savedLoc);
+    else delete g.location;
+    if (savedNav) Object.defineProperty(globalThis, "navigator", savedNav);
+  }
+});
+
 test("a failed database open does not stick: the next call tries again, the caller gets an error reply", async () => {
   assert.equal(typeof (globalThis as { indexedDB?: unknown }).indexedDB, "undefined"); // node: the open fails
   const boot = lazyBoot(() => ({}) as never, new Uint8Array(0));
