@@ -2904,6 +2904,10 @@ def cmd_rename(cx, args):
     if not NAME_RE.fullmatch(args.name):
         raise Fail("The name must be 1 to 32 plain ASCII characters, with no double quote.", EXIT_USAGE)
     cx.need()
+    with cx.store.state(write=False) as d:
+        if d.get("name") == args.name:
+            print('This device is already named "%s".' % args.name)
+            return EXIT_OK
     k = cx.keys
 
     def content(pid, p, n, names):

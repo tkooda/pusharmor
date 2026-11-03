@@ -1957,3 +1957,14 @@ def test_login_link_too_old_says_the_code_expired(net, tmp_path, monkeypatch, ca
     assert run(tmp_path, "login") == 1
     out = capsys.readouterr().out
     assert "The code expired. Open the link to get a new code:\n\n  %s/auth/cli#" % pa.SITE in out
+
+
+def test_rename_to_the_same_name_makes_no_network_call(net, tmp_path, monkeypatch, capsys):
+    a = tmp_path / "a"
+    login(monkeypatch, a)
+    name = state(a)["name"]
+    capsys.readouterr()
+    before = len(net.log)
+    assert run(a, "rename", name) == 0
+    assert capsys.readouterr().out == 'This device is already named "%s".\n' % name
+    assert len(net.log) == before and state(a)["name"] == name
