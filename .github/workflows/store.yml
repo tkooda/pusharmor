@@ -69,6 +69,10 @@ jobs:
     name: Google Play production
     needs: gate
     if: needs.gate.outputs.platform == 'android' && startsWith(github.ref, 'refs/tags/android/v')
+    # One Play edit at a time: an android/v* upload (android-release.yml) waits.
+    concurrency:
+      group: play-edit
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: android-release

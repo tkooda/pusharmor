@@ -336,6 +336,10 @@ jobs:
   android-rel-play:
     name: Play internal track upload
     needs: [android-rel-build, android-rel-publish]
+    # One Play edit at a time: a promote (store.yml play) or another tag waits.
+    concurrency:
+      group: play-edit
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: android-release
