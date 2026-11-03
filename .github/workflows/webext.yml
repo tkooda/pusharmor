@@ -27,6 +27,8 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: site/.node-version
+          cache: npm
+          cache-dependency-path: client/webext-common/package-lock.json
       - name: Install
         run: npm ci --ignore-scripts
       - name: No storage.sync under client/
