@@ -201,3 +201,21 @@ class DeferredMoveRaceTest {
         assertEquals("new", io { d.state("push_token") })
     }
 }
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [31], application = android.app.Application::class, instrumentedPackages = ["com.pusharmor.sandbox.readonly"])
+class MoveReadOnlyFileTest {
+    /** A settings file that cannot be written after the move does not crash the start; the moved values read. */
+    @Test fun unwritableFileDoesNotCrashTheMove() {
+        val c = ctx(); val d = dao(c)
+        writeOld(c, preferencesOf(Settings.K.SIGNED_OUT to true, Settings.K.PUSH_TOKEN to "tok"))
+        val dir = settingsFile(c).parentFile!!
+        dir.setWritable(false)
+        try {
+            val s = Settings(c, d)
+            assertEquals("1", io { d.state("signed_out") })
+            assertTrue(s.flag(Settings.K.SIGNED_OUT, false))
+            assertEquals("tok", s.get(Settings.K.PUSH_TOKEN))
+        } finally { dir.setWritable(true) }
+    }
+}

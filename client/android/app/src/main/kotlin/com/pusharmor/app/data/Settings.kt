@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.runBlocking
+import java.io.IOException
 
 /**
  * A corrupt file (flash error, truncated restore) resets to defaults instead of failing every read, and the reset
@@ -163,7 +164,8 @@ class Settings(private val context: Context, private val dao: PaDao) {
         } catch (e: SQLException) {
             Log.w("PushArmor", "settings move deferred", e); return
         }
-        runBlocking { context.ds.edit { e -> old.forEach { e.remove(it) } } }
+        // A file that cannot be written keeps the copies; the database values win over them, and the next start tries again.
+        try { runBlocking { context.ds.edit { e -> old.forEach { e.remove(it) } } } } catch (e: IOException) { Log.w("PushArmor", "settings copies kept", e) }
     }
 
     /** True once after the settings file was damaged and reset; the mark is then cleared. */
