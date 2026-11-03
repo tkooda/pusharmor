@@ -40,9 +40,8 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
   clear(root);
   // focusId: the list was rebuilt after an action, so put focus back on that row (or the first heading if it is gone).
   const redraw: Redraw = (focusId) => renderPeers(env, root, full, undefined, focusId);
-  // rejected devices stay out of the list; Pair a new device offers them
+  // rejected devices stay out of the list until they send a new pairing request
   const listed = data.peers.filter((p) => !p.rejected);
-  const rejected = () => sortByLabel(data.peers.filter((p) => p.rejected)).map((p) => peerRow(env, p, redraw));
   const pairing = sortByLabel(listed.filter((p) => p.fingerprint));
   const rows = sortByLabel(listed.filter((p) => !p.fingerprint));
   if (fpTimer) clearInterval(fpTimer);
@@ -67,7 +66,6 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
           ? []
           : [group(h("div", { class: "fp-wait", role: "status" }, h("span", { class: "fp-spin", "aria-hidden": "true" }), "Waiting for another device to log in."))]),
     );
-    if (data.peers.some((p) => p.rejected)) root.append(pairNew(openPair, rejected()));
     // new devices arrive by push into the local list: read it again every few seconds, redraw on a change
     const key = JSON.stringify(data.peers);
     const timer = setInterval(async () => {
@@ -97,7 +95,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
         ),
       );
     }
-    root.append(pairNew(openPair, rejected()));
+    root.append(pairNew(openPair));
   }
   if (highlight) {
     const row = document.getElementById("peer-" + highlight);
@@ -120,8 +118,8 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
   root.append(h("div", { class: "grow" }), add(h("div", { class: "foot bar" }, refresh), !full && h("button", { onclick: () => env.openPage("#peers") }, "Open full view")));
 }
 
-/** "Pair a new device": pairing starts from Pair on a listed device, so the button shows how to get it listed, and the rejected devices with Pair. */
-function pairNew(open = false, rejected: HTMLElement[] = []): HTMLElement {
+/** "Pair a new device": pairing starts from Pair on a listed device, so the button shows how to get it listed. */
+function pairNew(open = false): HTMLElement {
   const steps = h(
     "ol",
     { class: "howto", id: "pair-howto", hidden: !open },
@@ -129,16 +127,12 @@ function pairNew(open = false, rejected: HTMLElement[] = []): HTMLElement {
     h("li", {}, "Log in with the same account."),
     h("li", {}, "It appears here. Click Pair."),
   );
-  const rej = rejected.length
-    ? h("div", { class: "rejected", id: "pair-rejected", hidden: !open }, h("p", { class: "t2" }, "Devices you rejected. Click Pair to pair with one again."), group(...rejected))
-    : null;
-  const btn = h("button", { class: "tonal", "aria-expanded": String(open), "aria-controls": rej ? "pair-howto pair-rejected" : "pair-howto" }, icon("add", 18), "Pair a new device");
+  const btn = h("button", { class: "tonal", "aria-expanded": String(open), "aria-controls": "pair-howto" }, icon("add", 18), "Pair a new device");
   btn.addEventListener("click", () => {
     steps.hidden = !steps.hidden;
-    if (rej) rej.hidden = steps.hidden;
     btn.setAttribute("aria-expanded", String(!steps.hidden));
   });
-  return h("div", { class: "pairnew" }, btn, steps, rej);
+  return h("div", { class: "pairnew" }, btn, steps);
 }
 
 /** This device (Settings): a plain group row with Rename. */

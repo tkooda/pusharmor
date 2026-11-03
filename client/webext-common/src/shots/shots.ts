@@ -82,12 +82,10 @@ if (q.has("wait")) {
 
 // ?only=new: just the pairing-code device (first-pair screen with the fingerprint)
 if (q.get("only") === "new") peers.splice(0, peers.length, { ...peers.find((p) => p.id === NEW_LAPTOP)!, countdown: "4:12" });
-// ?long: long device names with no spaces (narrow screen check), and a rejected device
+// ?long: long device names with no spaces (narrow screen check)
 if (q.has("long")) {
   const long = "KitchenTabletOnTheCounterNextToTheWindow";
   for (const p of peers) if (p.id === TABLET || p.id === NEW_LAPTOP) p.label = long;
-  peers.push({ id: id("R"), label: long + "Rejected", platform: "android", lines: [], actions: ["pair"], countdown: null,
-    fingerprint: null, pk: null, greyed: null, hidden: false, sendable: false, approvesMe: false, paired: false, rejected: true });
 }
 // ?senderr: Phone is selected and Send fails (the relay server cannot be reached)
 if (q.has("senderr")) sendSel = [PHONE];

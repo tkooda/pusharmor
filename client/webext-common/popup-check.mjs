@@ -64,7 +64,6 @@ const NARROW = `(async () => {
   const tag = (e) => e.tagName.toLowerCase() + "." + [...e.classList].join(".");
   const over = [];
   const cut = [];
-  const rejected = !!document.querySelector(".rejected:not([hidden]) .prow");
   for (const t of ["peers", "send", "history", "settings"]) {
     if (t !== "peers") { document.querySelector('[data-tab="' + t + '"]').click(); await sleep(400); }
     for (const e of document.querySelectorAll("#app *")) {
@@ -74,7 +73,7 @@ const NARROW = `(async () => {
       if (e.clientWidth > 0 && e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).textOverflow !== "ellipsis" && !e.classList.contains("mid")) cut.push(t + " " + tag(e) + ":" + e.scrollWidth + "/" + e.clientWidth);
     }
   }
-  const out = JSON.stringify({ w: Math.round(W), rejected, over: over.slice(0, 6), cut: cut.slice(0, 6) });
+  const out = JSON.stringify({ w: Math.round(W), over: over.slice(0, 6), cut: cut.slice(0, 6) });
   const pre = document.createElement("pre"); pre.id = "popcheck"; pre.hidden = true; pre.textContent = out; document.body.append(pre);
 })();`;
 const NARROW_W = 360;
@@ -233,7 +232,6 @@ async function chromiumCheck() {
     if (!n) fail("chromium narrow: no result");
     else {
       if (n.w !== NARROW_W || n.over.length || n.cut.length) fail("chromium narrow: wider than the " + NARROW_W + "px screen: " + JSON.stringify(n));
-      if (!n.rejected) fail("chromium narrow: Pair a new device does not list the rejected device");
     }
   } finally {
     server.close();

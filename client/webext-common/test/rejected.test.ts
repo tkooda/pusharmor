@@ -52,15 +52,6 @@ test("a new pairing request from a rejected device shows it in the list again", 
   assert.ok(!row.rejected);
 });
 
-test("Pair on a rejected device starts a new pairing and shows it in the list again", async () => {
-  const { a, b } = await setup();
-  await b.e.deny(a.id);
-  await b.e.pairStart(a.id);
-  assert.equal((await b.db.peer(a.id))!.ruling, "none");
-  assert.equal((await getEntry(b.p.storageLocal, a.id))!.role, "N");
-  assert.ok(!(await rowOf(b, a.id)).rejected);
-});
-
 const view = (id: string, label: string, extra: Partial<PeerView>): PeerView => ({
   id, label, platform: "android", lines: [], actions: ["remove"], countdown: null, fingerprint: null, pk: null,
   greyed: null, hidden: false, sendable: true, approvesMe: true, paired: true, ...extra,
@@ -68,27 +59,22 @@ const view = (id: string, label: string, extra: Partial<PeerView>): PeerView => 
 
 const all = (n: N): N[] => [n, ...n.kids.flatMap(all)];
 
-test("Devices: a rejected device is only under Pair a new device, with Pair and no Reject", async () => {
+test("Devices: a rejected device shows nowhere, not even under Pair a new device", async () => {
   const peers = [view("p1", "Phone", {}), view("r1", "Old tablet", { rejected: true, actions: ["pair", "remove"], approvesMe: false, sendable: false, paired: false })];
   const env = { call: async () => ({ ok: true, data: { peers } }) } as unknown as UiEnv;
   const root = new N("div");
   await renderPeers(env, root as unknown as HTMLElement, false);
   const nodes = all(root);
-  const rej = nodes.find((n) => n.attrs.class === "rejected")!;
-  assert.ok(rej, "Pair a new device lists the rejected device");
-  assert.ok(nodes.find((n) => n.attrs.class === "pairnew")!.contains(rej));
-  const rows = nodes.filter((n) => n.attrs.id?.startsWith("peer-"));
-  assert.deepEqual(rows.map((n) => n.attrs.id), ["peer-p1", "peer-r1"]);
-  assert.ok(rej.contains(rows[1]!) && !rej.contains(rows[0]!));
-  assert.ok(all(rows[1]!).some((n) => n.tag === "button" && n.textContent === "Pair"));
-  assert.ok(!nodes.some((n) => n.tag === "button" && n.textContent === "Reject"));
+  assert.ok(nodes.some((n) => n.attrs.class === "pairnew"));
+  assert.deepEqual(nodes.filter((n) => n.attrs.id?.startsWith("peer-")).map((n) => n.attrs.id), ["peer-p1"]);
+  assert.ok(!nodes.some((n) => n.textContent.includes("Old tablet")));
 });
 
-test("after a Reject both sides can pair again: either side starts, both approve, then send works", async () => {
-  for (const starter of ["rejected", "rejecter"] as const) {
+test("after a Reject the rejected device can pair again: it starts, both approve, then send works", async () => {
+  for (const starter of ["rejected"] as const) {
     const { w, a, b } = await setup();
     await b.e.deny(a.id); // b rejected a
-    const [n, x] = starter === "rejected" ? [a, b] : [b, a];
+    const [n, x] = [a, b];
     await n.e.pairStart(x.id);
     await deliver(w, x); // commit -> automatic reply
     await deliver(w, n); // reply -> open
