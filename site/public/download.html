@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Download - PushArmor</title>
-<meta name="description" content="Get PushArmor for Firefox and the command line now. Android, iPhone, and Chrome are coming soon.">
+<meta name="description" content="Get PushArmor for Android, Firefox, and the command line now. iPhone, Chrome, and Google Play are coming soon.">
 <meta name="theme-color" content="#1F3A5F">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="PushArmor">
 <meta property="og:title" content="Download - PushArmor">
-<meta property="og:description" content="Get PushArmor for Firefox and the command line now. Android, iPhone, and Chrome are coming soon.">
+<meta property="og:description" content="Get PushArmor for Android, Firefox, and the command line now. iPhone, Chrome, and Google Play are coming soon.">
 <meta property="og:url" content="https://pusharmor.com/download">
 <meta property="og:image" content="https://pusharmor.com/apple-touch-icon.png">
 <link rel="icon" href="/favicon.ico" sizes="any" integrity="sha256-WBRVm+oTUTpG8HdmRjQYXSzTkCjwYCVj5PZdJQP73qM=">
@@ -25,14 +25,14 @@
 <main id="main">
 <h1>Download</h1>
 
-<p>The Firefox add-on and the command-line client are available now. The Android app, the iPhone app, and the Chrome extension are coming soon. <a href="/about">See screenshots of each app</a>.</p>
+<p>The Android app (through our F-Droid repository, Obtainium, and the APK), the Firefox add-on, and the command-line client are available now. The iPhone app, the Chrome extension, and Google Play are coming soon. <a href="/about">See screenshots of each app</a>.</p>
 
 <h2 id="android">Android</h2>
 <ul>
 <li>Google Play <span class="soon">Coming soon</span></li>
 <li>F-Droid: <a href="#fdroid">our F-Droid repository</a> (below)</li>
 <li>Obtainium, from GitHub Releases: <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522com.pusharmor%2522%252C%2522url%2522%253A%2522https%253A%252F%252Fgithub.com%252Ftkooda%252Fpusharmor%2522%252C%2522author%2522%253A%2522tkooda%2522%252C%2522name%2522%253A%2522PushArmor%2522%252C%2522additionalSettings%2522%253A%2522%257B%255C%2522includePrereleases%255C%2522%253Atrue%252C%255C%2522filterReleaseTitlesByRegEx%255C%2522%253A%255C%2522%255Eandroid%252Fv%255C%2522%252C%255C%2522apkFilterRegEx%255C%2522%253A%255C%2522foss%255C%255C%255C%255C.apk%2524%255C%2522%257D%2522%257D">Add to Obtainium</a><br>Or add https://github.com/tkooda/pusharmor in Obtainium, turn on "Include prereleases", and set "Filter links by regex" to foss.apk.</li>
-<li>APK from GitHub Releases (below) <span class="soon">Coming soon</span></li>
+<li>APK from GitHub Releases (below): <a href="https://github.com/tkooda/pusharmor/releases/download/android/v0.0.25/pusharmor-0.0.25-foss.apk">pusharmor-0.0.25-foss.apk</a></li>
 </ul>
 
 <h2 id="fdroid">F-Droid repository</h2>
@@ -53,28 +53,28 @@ in the F-Droid app. Works in F-Droid, Droid-ify, and Neo Store.</p>
 </ul>
 
 <h2>Android APKs from GitHub</h2>
-<p>Each release on <a href="https://github.com/tkooda/pusharmor/releases">GitHub Releases</a> will
-have two Android APKs. Obtainium can install and update them from this address.</p>
+<p>Each release on <a href="https://github.com/tkooda/pusharmor/releases">GitHub Releases</a> has
+two Android APKs. Obtainium can install and update them from this address.</p>
 <pre><code>https://github.com/tkooda/pusharmor</code></pre>
 <ul>
 <li><strong>play</strong>: for Google push (FCM) or UnifiedPush.</li>
 <li><strong>foss</strong>: for UnifiedPush only, no Google code.</li>
 </ul>
-<p>In the file names, <code>&lt;version&gt;</code> stands for the release number. Check a downloaded APK against these SHA-256 values and the signing certificate
+<p>Check a downloaded APK against these SHA-256 values and the signing certificate
 fingerprint.</p>
 <div class="table-wrap">
 <table>
 <thead><tr><th scope="col">File</th><th scope="col">SHA-256</th></tr></thead>
 <tbody>
-<tr><td>pusharmor-&lt;version&gt;-play.apk</td><td>Coming soon</td></tr>
-<tr><td>pusharmor-&lt;version&gt;-foss.apk</td><td>Coming soon</td></tr>
-<tr><td>Signing certificate (SHA-256 fingerprint)</td><td>Coming soon</td></tr>
+<tr><td><a href="https://github.com/tkooda/pusharmor/releases/download/android/v0.0.25/pusharmor-0.0.25-play.apk">pusharmor-0.0.25-play.apk</a></td><td><code id="apk-play-sha256">c40386bcd1c44ee97763ea61d003b180f051a3f26ce0cd1a1e093cdafe6aacc1</code></td></tr>
+<tr><td><a href="https://github.com/tkooda/pusharmor/releases/download/android/v0.0.25/pusharmor-0.0.25-foss.apk">pusharmor-0.0.25-foss.apk</a></td><td><code id="apk-foss-sha256">903eb1ac03e8bcbdb7c68802307d1be6604a3ae2dce68f72cc8860288064e24b</code></td></tr>
+<tr><td>Signing certificate (SHA-256 fingerprint)</td><td><code id="apk-cert-sha256">20f6eeb8530fe0e92097de5ce5facf27a22b37d4c581bc15103adff8dac31f5b</code></td></tr>
 </tbody>
 </table>
 </div>
 <p class="note">To check the certificate of a downloaded APK, run this command and compare the
 SHA-256 digest. Replace the file name with the name of your file:</p>
-<pre><code>apksigner verify --print-certs pusharmor-&lt;version&gt;-play.apk</code></pre>
+<pre><code>apksigner verify --print-certs pusharmor-0.0.25-foss.apk</code></pre>
 
 <h2 id="cli">Command line</h2>
 <p>The command-line client runs on Linux and macOS. It needs Python 3.9 or later.

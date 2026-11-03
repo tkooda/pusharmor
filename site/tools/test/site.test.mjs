@@ -448,9 +448,9 @@ test("minimum age 13 on /terms and /privacy", () => {
 
 test("download: every Android channel, release asset names, certificate fingerprint", () => {
   const t = text("download.html");
-  for (const c of ["Google Play", "APK from GitHub Releases (below)"]) {
-    assert.ok(t.includes(c + " Coming soon"), "download lacks: " + c);
-  }
+  assert.ok(t.includes("Google Play Coming soon"), "download lacks: Google Play");
+  assert.ok(t.includes("APK from GitHub Releases (below): pusharmor-0.0.25-foss.apk"), "download lacks the APK entry");
+  assert.ok(!t.includes("APK from GitHub Releases (below) Coming soon"), "APK still coming soon");
   assert.ok(t.includes("Obtainium, from GitHub Releases: Add to Obtainium"), "download lacks the Obtainium entry");
   assert.ok(read("download.html").includes('href="https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F'), "download lacks the Obtainium link");
   const fp = "262c4f2e9a0220ed48181a5c8650dd742372b220e628fe10e7eea2e9fe6ce4e3";
@@ -458,7 +458,7 @@ test("download: every Android channel, release asset names, certificate fingerpr
   assert.ok(!t.includes("F-Droid Coming soon"), "F-Droid still coming soon");
   assert.ok(read("download.html").includes('href="fdroidrepos://fdroid.pusharmor.com/repo?fingerprint=' + fp + '"'), "F-Droid add URL");
   assert.ok(t.includes("https://fdroid.pusharmor.com/repo") && t.includes(fp), "F-Droid repo address and fingerprint");
-  for (const s of ["pusharmor-<version>-play.apk", "pusharmor-<version>-foss.apk", "Signing certificate (SHA-256 fingerprint)"]) {
+  for (const s of ["pusharmor-0.0.25-play.apk", "pusharmor-0.0.25-foss.apk", "Signing certificate (SHA-256 fingerprint)"]) {
     assert.ok(t.includes(s), "download lacks: " + s);
   }
 });
