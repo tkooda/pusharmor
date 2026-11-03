@@ -130,14 +130,13 @@ struct SettingsView: View {
                     }
                 }
 
-                Section("About") {
+                Section {
                     HStack(spacing: 8) {
                         BrandTileView(size: 30)
                         Wordmark(size: 22)
                         Spacer(minLength: 0)
                     }
                     .accessibilityElement(children: .combine)
-                    LabeledContent("Version", value: version)
                     Text("License: MIT")
                     if let u = URL(string: "https://github.com/pusharmor/pusharmor") {
                         Link("Source", destination: u)
@@ -145,6 +144,10 @@ struct SettingsView: View {
                     if let u = URL(string: "https://pusharmor.com/privacy") {
                         Link("Privacy policy", destination: u)
                     }
+                } header: {
+                    Text("About")
+                } footer: {
+                    Text(VersionText.make(version))
                 }
             }
             // Like the other tabs: the last About row ends clear of the floating tab bar.

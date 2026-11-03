@@ -93,3 +93,11 @@ public enum APNsEnvironment {
         return nil
     }
 }
+
+/// The line at the bottom of Settings: "Version X.Y.Z" from the build's short version string.
+public enum VersionText {
+    public static func make(_ version: String) -> String {
+        let v = version.trimmingCharacters(in: .whitespacesAndNewlines)
+        return v.isEmpty ? "" : "Version " + v
+    }
+}
