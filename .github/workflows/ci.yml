@@ -15,9 +15,12 @@ on:
 
 permissions: {}
 
+# main: one group per commit, never cancelled (change detection and the release
+# gate read main's runs). internal/** and agent/**: a newer push to the same
+# branch cancels the older run, which frees the macOS runners.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.sha }}
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   changes:
