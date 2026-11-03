@@ -2947,8 +2947,16 @@ COMMANDS = {
 }
 
 
+class Parser(argparse.ArgumentParser):
+    """A usage error is one "error: " line on stderr and exit code 2, like every other error."""
+
+    def error(self, message):
+        log("error", message)
+        sys.exit(EXIT_USAGE)
+
+
 def build_parser():
-    p = argparse.ArgumentParser(prog="pusharmor", description="PushArmor: send links and text to your own "
+    p = Parser(prog="pusharmor", description="PushArmor: send links and text to your own "
                                 "devices, end-to-end encrypted. See https://pusharmor.com",
                                 epilog="exit codes:\n" + "\n".join("  %-3d %s" % c for c in EXIT_CODES),
                                 formatter_class=argparse.RawDescriptionHelpFormatter)

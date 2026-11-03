@@ -109,6 +109,8 @@ def test_bad_usage_exits_2(argv, capsys):
     with pytest.raises(SystemExit) as e:
         pa.main(argv)
     assert e.value.code == 2
+    err = capsys.readouterr().err
+    assert err.startswith("error: ") and err.count("\n") == 1
 
 
 @pytest.mark.parametrize("name", list(pa.COMMANDS))
