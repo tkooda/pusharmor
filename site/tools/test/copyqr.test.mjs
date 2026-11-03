@@ -101,7 +101,7 @@ test("QR buttons: exactly the phone-scannable URLs, right after their copy butto
     }
     assert.deepEqual([...got].sort(), [...want].sort(), rel + ": QR button set");
   }
-  assert.equal(n, 5, "QR buttons");
+  assert.equal(n, 4, "QR buttons");
 });
 
 const ctx = {};

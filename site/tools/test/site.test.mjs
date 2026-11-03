@@ -433,14 +433,22 @@ test("minimum age 13 on /terms and /privacy", () => {
 test("download: every Android channel, release asset names, certificate fingerprint", () => {
   const t = text("download.html");
   assert.ok(t.includes("Google Play Coming soon"), "download lacks: Google Play");
-  assert.ok(t.includes("pusharmor-" + APK_VERSION + "-foss.apk") && t.includes("Check a downloaded APK"), "download lacks the APK entry");
+  assert.ok(t.includes("pusharmor-" + APK_VERSION + "-foss.apk"), "download lacks the APK entry");
   assert.ok(!t.includes("APK from GitHub Releases (below) Coming soon"), "APK still coming soon");
-  const ids = ["android", "iphone", "chrome", "firefox", "cli"];
   const raw = read("download.html");
+  const ids = ["android", "cli"];
   for (const id of ids) assert.ok(raw.includes('<li><a href="#' + id + '">') && raw.includes('id="' + id + '"'), "download lacks anchor " + id);
   assert.deepEqual(ids.map((id) => raw.indexOf('id="' + id + '"')), ids.map((id) => raw.indexOf('id="' + id + '"')).sort((x, y) => x - y), "sections out of order");
+  for (const id of ["iphone", "chrome", "firefox"]) assert.ok(!raw.includes('id="' + id + '"') && !raw.includes('href="#' + id + '"'), "download still has a section for " + id);
+  const top = raw.slice(raw.indexOf("<ul>"), raw.indexOf("</ul>"));
+  assert.ok(top.indexOf("Android") < top.indexOf("iPhone") && top.indexOf("iPhone") < top.indexOf("Chrome") && top.indexOf("Chrome") < top.indexOf("Firefox") && top.indexOf("Firefox") < top.indexOf("Command line"), "top list out of order");
+  assert.ok(top.includes("<li>iPhone <span class=\"soon\">Coming soon</span></li>") && top.includes("<li>Chrome <span class=\"soon\">Coming soon</span></li>"), "iPhone and Chrome are not plain Coming soon");
+  assert.ok(top.includes('<li><a href="https://addons.mozilla.org/en-US/firefox/addon/pusharmor/">Firefox</a></li>'), "Firefox does not link to the add-on");
   assert.ok(t.includes("Obtainium: Add to Obtainium (below)"), "download lacks the Obtainium entry");
   assert.ok(read("download.html").includes('href="https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F'), "download lacks the Obtainium link");
+  const obt = decodeURIComponent(decodeURIComponent(raw.match(/id="obtainium-add" href="([^"]+)"/)[1]));
+  assert.ok(obt.includes('includePrereleases\\":false') && obt.includes('filterReleaseTitlesByRegEx\\":\\"^android/v') && obt.includes('apkFilterRegEx\\":\\"foss'), "Obtainium preset filters wrong");
+  assert.ok(!/Include prereleases|Filter links by regex|obtainium-repo/.test(raw), "download still has the manual Obtainium steps");
   const fp = "262c4f2e9a0220ed48181a5c8650dd742372b220e628fe10e7eea2e9fe6ce4e3";
   assert.ok(t.includes("F-Droid: our F-Droid repository (below)"), "download lacks the F-Droid entry");
   assert.ok(!t.includes("F-Droid Coming soon"), "F-Droid still coming soon");

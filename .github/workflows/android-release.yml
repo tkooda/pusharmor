@@ -335,11 +335,11 @@ jobs:
             fi
             gh release upload "$TAG" --clobber "$DIR"/*
           else
-            gh release create "$TAG" --draft --prerelease --verify-tag --title "$TAG" \
+            gh release create "$TAG" --draft --prerelease=false --latest=false --verify-tag --title "$TAG" \
               --notes "Test build: Play internal track and this prerelease. Promote by hand (RELEASING.md)." \
               "$DIR"/*
           fi
-          gh release edit "$TAG" --draft=false --prerelease
+          gh release edit "$TAG" --draft=false --prerelease=false --latest=false
 
   # Its own job: "Re-run failed jobs" repeats only the Play upload (the GitHub
   # prerelease above is published and immutable). The bundles check below makes
