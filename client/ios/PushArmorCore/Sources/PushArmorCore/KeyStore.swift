@@ -10,10 +10,6 @@ public final class KeychainKeyStore {
     static let service = "com.pusharmor.keys"
     enum Item: String { case sign = "sign", encSE = "enc.se", encSoftware = "enc.sw", peerId = "peer-id" }
 
-    /// Fallback if the Secure Enclave cannot act as an HPKE recipient (device test 1): a
-    /// software P-256 enc key in the Keychain. The sign key stays in the SE.
-    static let secureEnclaveEncKey = true
-
     public init(accessGroup: String) { self.accessGroup = accessGroup }
 
     func query(_ item: Item) -> [String: Any] {
@@ -85,14 +81,9 @@ public final class KeychainKeyStore {
         }
         let sk = try SecureEnclave.P256.Signing.PrivateKey(accessControl: ac)
         try write(.sign, sk.dataRepresentation)
-        if KeychainKeyStore.secureEnclaveEncKey {
-            let ek = try SecureEnclave.P256.KeyAgreement.PrivateKey(accessControl: ac)
-            try write(.encSE, ek.dataRepresentation)
-            return DeviceKeys(signer: SecureEnclaveSigner(key: sk), decryptor: SecureEnclaveDecryptor(key: ek))
-        }
-        let ek = P256.KeyAgreement.PrivateKey()
-        try write(.encSoftware, ek.rawRepresentation)
-        return DeviceKeys(signer: SecureEnclaveSigner(key: sk), decryptor: SoftwareDecryptor(key: ek))
+        let ek = try SecureEnclave.P256.KeyAgreement.PrivateKey(accessControl: ac)
+        try write(.encSE, ek.dataRepresentation)
+        return DeviceKeys(signer: SecureEnclaveSigner(key: sk), decryptor: SecureEnclaveDecryptor(key: ek))
     }
 
     public func peerId() throws -> String? {
