@@ -41,7 +41,6 @@ def test_broken_cryptography_exits_1_with_one_line(tmp_path):
     r = subprocess.run([sys.executable, os.path.join(os.path.dirname(HERE), "pusharmor.py"), "--help"],
                        env=env, capture_output=True, text=True)
     assert r.returncode == 1 and r.stdout == ""
-    assert r.stderr == "error: " + pa.CRYPTO_MISSING + "\n"
     assert r.stderr == ('error: The Python "cryptography" package is missing. Install it with: '
                         + ("py" if os.name == "nt" else "python3") + " -m pip install --user cryptography\n")
 
