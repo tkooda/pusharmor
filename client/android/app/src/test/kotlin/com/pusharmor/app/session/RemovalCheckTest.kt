@@ -8,6 +8,7 @@ import com.pusharmor.app.data.Settings
 import com.pusharmor.app.keys.KeystoreKeyOps
 import com.pusharmor.net.ErrorText
 import com.pusharmor.protocol.engine.ApiResult
+import com.pusharmor.store.HistoryEntity
 import com.pusharmor.store.SelfEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -157,12 +158,13 @@ class RemovalCheckTest {
                 .body("{}".toResponseBody("application/json".toMediaType())).build()
         }
         g.settings.set(Settings.K.REMOVAL_CHECK, "removed")
-        g.settings.set(Settings.K.DIRECT_SHARE, false)
+        val old = g.dao.insertHistory(HistoryEntity(direction = "in", peerId = null, type = "text", content = "x", n = null,
+            pairingId = null, at = 1, read = true, results = "", count = 1))
         val other = Thread { g.session.confirmRemoval() }
         other.start()
         assertTrue(entered.await(10, TimeUnit.SECONDS))
         g.session.onAppOpen(System.currentTimeMillis())
-        assertEquals(false, g.settings.get(Settings.K.DIRECT_SHARE)) // the open work (share sheet migration first) did not run
+        assertNotNull(g.dao.history(old)) // the open work (history purge) did not run
         assertEquals(listOf("GET /v1/peers"), calls)
         release.countDown()
         other.join(10_000)

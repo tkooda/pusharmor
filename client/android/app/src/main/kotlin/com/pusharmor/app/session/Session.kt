@@ -92,7 +92,6 @@ class Session(private val g: Graph) {
         // Another thread's removal check may wipe: its reply decides, and this open waits for the next one.
         if (confirmRemoval() || confirming.get()) return
         if (g.identity() == null || s.flag(Settings.K.SIGNED_OUT, false)) return
-        s.migrateDirectShare(g.store.peers().map { it.id }) // before the device menus show their share sheet ticks
         flavorRule()
         g.push.start(g)
         g.push.distributorCheck(g)
@@ -473,7 +472,6 @@ class Session(private val g: Graph) {
     fun updateShortcuts() {
         val ctx = g.app
         val peers = g.store.peers()
-        s.migrateDirectShare(peers.map { it.id })
         val all = shareTargets(peers, s.shareOff)
         val ids = all.map { it.id }.toSet()
         val stale = ShortcutManagerCompat.getDynamicShortcuts(ctx).map { it.id }.filter { it !in ids }

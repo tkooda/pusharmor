@@ -209,46 +209,6 @@ abstract class PaDatabase : RoomDatabase() {
     companion object {
         const val NAME = "pusharmor.db"
 
-        /** 1 -> 2: peers.pair_again (row marker for [Pair again]). */
-        val MIGRATION_1_2 = object : Migration(1, 2) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE peers ADD COLUMN pair_again INTEGER NOT NULL DEFAULT 0")
-            }
-        }
-
-        /** 2 -> 3: peers.paused / pause_n -> logged_out / logout_n; history event types follow. */
-        val MIGRATION_2_3 = object : Migration(2, 3) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE peers RENAME COLUMN paused TO logged_out")
-                db.execSQL("ALTER TABLE peers RENAME COLUMN pause_n TO logout_n")
-                db.execSQL("UPDATE history SET type = 'logged_out' WHERE type = 'paused'")
-                db.execSQL("UPDATE history SET type = 'logged_in' WHERE type = 'resumed'")
-            }
-        }
-
-        /** 3 -> 4: peers.listening ("cli" peers that do not listen are send only). */
-        val MIGRATION_3_4 = object : Migration(3, 4) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE peers ADD COLUMN listening INTEGER NOT NULL DEFAULT 1")
-            }
-        }
-
-        /** 4 -> 5: peers.show_content = NOT hide_content ("Always hide content" became "Allow message content in notifications"). */
-        val MIGRATION_4_5 = object : Migration(4, 5) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE peers ADD COLUMN show_content INTEGER NOT NULL DEFAULT 1")
-                db.execSQL("UPDATE peers SET show_content = CASE WHEN hide_content = 0 THEN 1 ELSE 0 END")
-            }
-        }
-
-        /** 5 -> 6: history indexes for the id lookup and the received-time order. */
-        val MIGRATION_5_6 = object : Migration(5, 6) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_history_received_at` ON `history` (`received_at`)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_history_peer_id_pairing_id_n` ON `history` (`peer_id`, `pairing_id`, `n`)")
-            }
-        }
-
         /** 6 -> 7: app_state, the security state that moved out of the settings file. */
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -263,7 +223,7 @@ abstract class PaDatabase : RoomDatabase() {
         fun open(context: Context, name: String? = NAME, multiInstance: Boolean = true, onCorrupt: (SupportSQLiteDatabase) -> Unit = {}, onCreate: () -> Unit = {}): PaDatabase {
             val b = if (name == null) Room.inMemoryDatabaseBuilder(context, PaDatabase::class.java)
             else Room.databaseBuilder(context, PaDatabase::class.java, name).let { if (multiInstance) it.enableMultiInstanceInvalidation() else it }
-            return b.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+            return b.addMigrations(MIGRATION_6_7)
                 .openHelperFactory(KeepCorruptFactory(onCorrupt))
                 .addCallback(object : RoomDatabase.Callback() { override fun onCreate(db: SupportSQLiteDatabase) = onCreate() }).build()
         }

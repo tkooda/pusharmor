@@ -44,7 +44,7 @@ private val Context.ds by preferencesDataStore("settings", corruptionHandler = R
  * database instead, which shows the data screen on damage: a damaged settings file never resets it.
  */
 class Settings(private val context: Context, private val dao: PaDao) {
-    init { migrateShowContent(); moveToDb() }
+    init { moveToDb() }
 
     companion object {
         /** A flag from an already loaded snapshot; [default] until it loads or while unset. */
@@ -69,16 +69,12 @@ class Settings(private val context: Context, private val dao: PaDao) {
         val SHOW_ALL = booleanPreferencesKey("show_all")
         val TAP_OPENS_LINK = booleanPreferencesKey("tap_opens_link")
         val HISTORY_DAYS = intPreferencesKey("history_days")
-        /** Old global "Direct share targets" switch; read once by [Settings.migrateDirectShare], then dropped. */
-        val DIRECT_SHARE = booleanPreferencesKey("direct_share")
         /** Device ids left out of the share sheet; absent = every device shows. */
         val SHARE_OFF = stringSetPreferencesKey("share_off")
         val LOCK_SCREEN = booleanPreferencesKey("lock_screen")
         val WATCH = booleanPreferencesKey("watch")
         /** "system" | "light" | "dark"; absent = system. */
         val THEME = stringPreferencesKey("theme")
-        /** Old "Always hide content" switch; read once by [Settings.migrateShowContent], then dropped. */
-        val HIDE_CONTENT = booleanPreferencesKey("hide_content")
         /** "Show message content in notifications"; absent = on. */
         val SHOW_CONTENT = booleanPreferencesKey("show_content")
         /** "fcm" | "unifiedpush" | absent */
@@ -204,27 +200,9 @@ class Settings(private val context: Context, private val dao: PaDao) {
     val watch get() = flag(K.WATCH, true)
     val showContent get() = flag(K.SHOW_CONTENT, true)
 
-    /** The old hide_content value becomes show_content, inverted; the old key is dropped. */
-    fun migrateShowContent() = runBlocking {
-        context.ds.edit {
-            val old = it[K.HIDE_CONTENT] ?: return@edit
-            if (it[K.SHOW_CONTENT] == null) it[K.SHOW_CONTENT] = !old
-            it.remove(K.HIDE_CONTENT)
-        }
-    }
-
     /** Per-device "Show shortcut when sharing". */
     fun setShareShown(id: String, shown: Boolean) = runBlocking {
         context.ds.edit { val off = it[K.SHARE_OFF] ?: emptySet(); it[K.SHARE_OFF] = if (shown) off - id else off + id }
-    }
-
-    /** The old global switch, when off, turns every one of [ids] off; the old key is dropped. */
-    fun migrateDirectShare(ids: Collection<String>) = runBlocking {
-        context.ds.edit {
-            val old = it[K.DIRECT_SHARE] ?: return@edit
-            if (!old) it[K.SHARE_OFF] = (it[K.SHARE_OFF] ?: emptySet()) + ids
-            it.remove(K.DIRECT_SHARE)
-        }
     }
 
     fun markUpdateRequired(version: String) { if (get(K.UPDATE_REQUIRED) != version) set(K.UPDATE_REQUIRED, version) }
