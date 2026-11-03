@@ -70,15 +70,11 @@
     return prune(now);
   }
 
-  function list(now) {
-    return prune(now);
-  }
-
   function del(id) {
     return withStore("readwrite", function (st) {
       return req(st.delete(id));
     });
   }
 
-  g.PAQ = { CAP: CAP, MAX_AGE_MS: MAX_AGE_MS, select: select, add: add, list: list, del: del };
+  g.PAQ = { select: select, add: add, list: prune, del: del };
 })(this);
