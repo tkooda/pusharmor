@@ -630,13 +630,14 @@ export function amoToken(issuer, secret, now = Math.floor(Date.now() / 1000)) {
   return data + "." + createHmac("sha256", secret).update(data).digest("base64url");
 }
 
-async function firefox(version) {
+export async function firefox(version) {
   const api = "https://addons.mozilla.org/api/v5/addons";
   const id = encodeURIComponent(loadPublic().mozilla_firefox_addon_id);
   const amo = (method, path, body, ok) =>
     http(method, api + path, { headers: { Authorization: "JWT " + amoToken(process.env.MOZILLA_AMO_JWT_ISSUER, process.env.MOZILLA_AMO_JWT_SECRET) }, body, ok });
 
-  if ((await amo("GET", "/addon/" + id + "/", undefined, [200, 401, 403, 404])).status !== 200) {
+  // 401 and 403 (a wrong or expired AMO credential) throw with their status.
+  if ((await amo("GET", "/addon/" + id + "/", undefined, [200, 404])).status !== 200) {
     throw new Error("Firefox: the listed add-on is not on AMO yet; create it by hand once (RELEASING.md, Firefox)");
   }
   const versions = [];

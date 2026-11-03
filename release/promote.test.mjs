@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, verify } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { AMO_REVIEW_NOTES, amoNotesProblems, amoToken, ascToken, clearOutput, cmpVersion, commitProblems, contactProblems, listingProblems, playGateProblem, readListing, releaseAssets, promoteRunProblem, releaseProblem, selectedPlatforms, syncScreenshots, tagPlatform } from "./promote.mjs";
+import { AMO_REVIEW_NOTES, amoNotesProblems, amoToken, ascToken, clearOutput, cmpVersion, commitProblems, contactProblems, listingProblems, playGateProblem, readListing, releaseAssets, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncScreenshots, tagPlatform } from "./promote.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -178,6 +178,23 @@ test("AMO listed version: approval notes from store/listing/amo/review_notes.txt
   assert.match(ff, /vf\.append\("approval_notes", readFileSync\(AMO_REVIEW_NOTES, "utf8"\)\.trim\(\)\);\n {2}await amo\("POST", "\/addon\/" \+ id \+ "\/versions\/", vf\)/);
   const check = src.slice(src.indexOf("async function check("), src.indexOf("\n}\n", src.indexOf("async function check(")));
   assert.match(check, /\.\.\.amoNotesProblems\(\)/);
+});
+
+test("AMO: a refused credential fails with its HTTP status, not as a missing add-on", async (t) => {
+  const real = globalThis.fetch;
+  const env = { ...process.env };
+  t.after(() => {
+    globalThis.fetch = real;
+    process.env = env;
+  });
+  process.env.MOZILLA_AMO_JWT_ISSUER = "user:1:2";
+  process.env.MOZILLA_AMO_JWT_SECRET = "s";
+  for (const status of [401, 403]) {
+    globalThis.fetch = async () => new Response('{"detail":"Unauthorized"}', { status });
+    await assert.rejects(firefox("0.0.1"), new RegExp("HTTP " + status));
+  }
+  globalThis.fetch = async () => new Response("{}", { status: 404 });
+  await assert.rejects(firefox("0.0.1"), /not on AMO yet/);
 });
 
 test("promote runs only the platforms named in the platforms input", () => {
