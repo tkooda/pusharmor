@@ -710,7 +710,8 @@ test("abort in state shown drops the pin, keeps the ruling, and the next pairing
   assert.equal(pb.pinned, false);
   assert.equal(pb.pairing_id, null);
   assert.equal(await b.db.replay(a.id), undefined);
-  assert.equal(pb.ruling, "denied");
+  // the abort keeps the ruling, then the new pairing request ends the rejection
+  assert.equal(pb.ruling, "none");
   // b takes the new commit instead of dropping it
   const nb = (await getEntry(b.p.storageLocal, a.id))!;
   assert.equal(nb.role, "X");
@@ -1513,4 +1514,18 @@ test("the History purge also keeps only the newest 500 rows", async () => {
   const rows = await db.history();
   assert.equal(rows.length, 500);
   assert.equal(rows[499]!.content, "m10");
+});
+
+test("renaming this device to its current name does nothing: no relay call, no notice on the other device", async () => {
+  const { w, a, b } = await setup();
+  await refresh(a, b);
+  await pairAndApprove(w, a, b);
+  await a.e.rename("Desk");
+  await deliver(w, b);
+  const calls = w.calls.length;
+  const notes = b.p.notes.size;
+  await a.e.rename("Desk");
+  assert.equal(w.calls.length, calls);
+  assert.equal(await deliver(w, b), 0);
+  assert.equal(b.p.notes.size, notes);
 });

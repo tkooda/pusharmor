@@ -18,6 +18,9 @@
   html.bare body { color-scheme: inherit; }
   html.bare .side { display: none; }
   html.bare .frame { zoom: 1; border-radius: 0; box-shadow: none; }
+  /* ?full: the popup shown full screen on a 360px wide phone (Firefox for Android) */
+  html.full, html.full body { width: auto; height: 100vh; }
+  html.full .frame { width: 360px; height: 100vh; }
 </style>
 </head>
 <body>

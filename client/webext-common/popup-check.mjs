@@ -51,6 +51,34 @@ const CYCLE = `(async () => {
   const pre = document.createElement("pre"); pre.id = "popcheck"; pre.hidden = true; pre.textContent = out; document.body.append(pre);
 })();`;
 
+// Runs in the page: the popup shown full screen on a 360px wide phone (Firefox for Android; the
+// frame is 360px wide, as headless Chrome windows are at least 500px), on the Devices tab with
+// long device names and Pair a new device open, then on every other tab. Reports every element
+// whose right edge is past the frame, and content cut off at the right of its box.
+const NARROW = `(async () => {
+  const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
+  for (let i = 0; i < 200 && !document.querySelector(".pairnew button"); i++) await sleep(25);
+  document.querySelector(".pairnew button")?.click();
+  await sleep(300);
+  const W = document.querySelector(".frame").getBoundingClientRect().right;
+  const tag = (e) => e.tagName.toLowerCase() + "." + [...e.classList].join(".");
+  const over = [];
+  const cut = [];
+  const rejected = !!document.querySelector(".rejected:not([hidden]) .prow");
+  for (const t of ["peers", "send", "history", "settings"]) {
+    if (t !== "peers") { document.querySelector('[data-tab="' + t + '"]').click(); await sleep(400); }
+    for (const e of document.querySelectorAll("#app *")) {
+      const b = e.getBoundingClientRect();
+      if (b.width > 0 && b.right > W + 0.5) over.push(t + " " + tag(e) + "@" + Math.round(b.right));
+      // content wider than its box, except text ended with an ellipsis on purpose (.mid: fitted in an animation frame)
+      if (e.clientWidth > 0 && e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).textOverflow !== "ellipsis" && !e.classList.contains("mid")) cut.push(t + " " + tag(e) + ":" + e.scrollWidth + "/" + e.clientWidth);
+    }
+  }
+  const out = JSON.stringify({ w: Math.round(W), rejected, over: over.slice(0, 6), cut: cut.slice(0, 6) });
+  const pre = document.createElement("pre"); pre.id = "popcheck"; pre.hidden = true; pre.textContent = out; document.body.append(pre);
+})();`;
+const NARROW_W = 360;
+
 // ------------------------------------------------------------------ Firefox
 
 async function firefoxCheck() {
@@ -165,10 +193,11 @@ async function chromiumCheck() {
   const server = createServer((req, res) => {
     const path = decodeURIComponent(new URL(req.url ?? "/", "http://x").pathname);
     if (path === "/popcheck.js") return res.writeHead(200, { "content-type": "text/javascript" }).end(CYCLE);
+    if (path === "/narrow.js") return res.writeHead(200, { "content-type": "text/javascript" }).end(NARROW);
     const file = resolve(join(crDist, path));
     if (!file.startsWith(crDist + "/") || !existsSync(file)) return res.writeHead(404).end();
     let body = readFileSync(file);
-    if (path === "/shots.html") body = body.toString().replace("</body>", '<script src="popcheck.js"></script></body>');
+    if (path === "/shots.html") body = body.toString().replace("</body>", '<script src="' + (/[?&]full/.test(req.url ?? "") ? "narrow.js" : "popcheck.js") + '"></script></body>');
     // popup.html as a plain page: its size comes from static CSS only (no extension API here)
     if (path === "/popup.html") body = body.toString().replace("</body>", "<script>addEventListener('load',()=>{const b=document.body.getBoundingClientRect();const p=document.createElement('pre');p.id='popcheck';p.textContent=JSON.stringify({size:Math.round(b.width)+'x'+Math.round(b.height)});document.documentElement.append(p)})</script></body>");
     res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" }).end(body);
@@ -176,11 +205,11 @@ async function chromiumCheck() {
   await new Promise((ok) => server.listen(0, "127.0.0.1", ok));
   const port = server.address().port;
   const run = promisify(execFile);
-  const dump = async (page) => {
+  const dump = async (page, w = W, h = H) => {
     const profile = mkdtempSync(join(tmpdir(), "pa-popcheck-cr-"));
     try {
       const { stdout } = await run(bin, ["--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check", "--hide-scrollbars",
-        "--window-size=" + W + "," + H, "--virtual-time-budget=6000", "--user-data-dir=" + profile, "--dump-dom", `http://127.0.0.1:${port}/${page}`], { timeout: 60_000, maxBuffer: 1 << 24 });
+        "--window-size=" + w + "," + h, "--virtual-time-budget=6000", "--user-data-dir=" + profile, "--dump-dom", `http://127.0.0.1:${port}/${page}`], { timeout: 60_000, maxBuffer: 1 << 24 });
       const m = /<pre id="popcheck"[^>]*>([^<]*)<\/pre>/.exec(stdout);
       return m ? JSON.parse(m[1].replace(/&quot;/g, '"').replace(/&amp;/g, "&")) : null;
     } finally {
@@ -198,6 +227,13 @@ async function chromiumCheck() {
       if (c.bad.length) fail("chromium tab cycle: moved from " + c.base + ": " + c.bad.join("; "));
       if (c.cls > 0) fail("chromium tab cycle: layout shift " + c.cls);
       if (!c.base.includes('"panel":"0,92,400,468"')) fail("chromium: content area " + c.base + ", want 0,92,400,468");
+    }
+    const n = await dump("shots.html?bare&full&long#peers");
+    console.log("chromium narrow full screen: " + JSON.stringify(n));
+    if (!n) fail("chromium narrow: no result");
+    else {
+      if (n.w !== NARROW_W || n.over.length || n.cut.length) fail("chromium narrow: wider than the " + NARROW_W + "px screen: " + JSON.stringify(n));
+      if (!n.rejected) fail("chromium narrow: Pair a new device does not list the rejected device");
     }
   } finally {
     server.close();

@@ -600,6 +600,7 @@ export class Engine {
         }
         await this.p.storageLocal.remove([PAIR_MSG_PREFIX + from]);
         await this.p.storageLocal.set(items);
+        await this.clearDenied(from);
         await this.pairNotice(pkX, T.pairCommit);
         if (d.action === "reply") await this.sendReply(from);
         return;
@@ -746,6 +747,11 @@ export class Engine {
     await this.pairNotice(e.pk, T.pairOpen(fp));
   }
 
+  /** A new pairing with a rejected device ends the rejection: the device shows in the list again. */
+  private async clearDenied(x: string): Promise<void> {
+    await this.db.updatePeer(x, (p) => (p && p.ruling === "denied" ? { ...p, ruling: "none" } : null));
+  }
+
   /** Ends a pairing entry (r wiped). dropPin: also drop any pin made by this pairing. */
   private async endEntry(id: string, message: string | null, dropPin: boolean): Promise<void> {
     await this.p.storageLocal.remove([pairKeyOf(id)]);
@@ -780,6 +786,7 @@ export class Engine {
       };
       await this.p.storageLocal.remove([PAIR_MSG_PREFIX + x]);
       await this.p.storageLocal.set({ [pairKeyOf(x)]: e });
+      await this.clearDenied(x);
       this.pairSent(await this.sendStored(x, "commit", self));
     });
   }
@@ -1516,6 +1523,8 @@ export class Engine {
     const self = await this.self();
     if (!self) return;
     if (!isPrintableName(name)) throw new ReasonError(R.badName);
+    // the same name: nothing to tell the other devices
+    if (name === (await this.myName())) return;
     let names: Record<string, string> = {};
     await this.allowListCall(
       "PATCH",

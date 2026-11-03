@@ -371,7 +371,7 @@ test("Settings and Devices errors show in the error toast, with no scroll workar
 test("Devices Refresh stays grey for its 60 s across a redraw", async () => {
   const { readFileSync } = await import("node:fs");
   const pv = readFileSync(new URL("../src/ui/peersview.ts", import.meta.url), "utf8");
-  assert.match(pv, /if \(refreshUntil > Date\.now\(\)\) greyFor\(refresh, refreshUntil - Date\.now\(\)\);/);
+  assert.match(pv, /if \(refreshUntil > Date\.now\(\)\) disableFor\(refresh, refreshUntil - Date\.now\(\)\);/);
 });
 
 test("Send result names the one device; counts read singular for one", async () => {

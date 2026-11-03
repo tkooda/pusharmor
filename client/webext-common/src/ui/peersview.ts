@@ -2,7 +2,7 @@
 import type { PeerView } from "../core/rpc.ts";
 import { sortByLabel } from "../model/sendsel.ts";
 import { T, confirmResultText } from "../core/texts.ts";
-import { type UiEnv, add, clear, greyFor, group, h, overflowMenu, peerStatus, platformLabel, rpc, sh, statusLine } from "./dom.ts";
+import { type UiEnv, add, clear, disableFor, greyFor, group, h, overflowMenu, peerStatus, platformLabel, rpc, sh, statusLine } from "./dom.ts";
 import { confirmDialog, toast } from "./dialog.ts";
 import { devicesArt, icon, platformIcon, shield } from "./icons.ts";
 
@@ -40,13 +40,16 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
   clear(root);
   // focusId: the list was rebuilt after an action, so put focus back on that row (or the first heading if it is gone).
   const redraw: Redraw = (focusId) => renderPeers(env, root, full, undefined, focusId);
-  const pairing = sortByLabel(data.peers.filter((p) => p.fingerprint));
-  const rows = sortByLabel(data.peers.filter((p) => !p.fingerprint));
+  // rejected devices stay out of the list; Pair a new device offers them
+  const listed = data.peers.filter((p) => !p.rejected);
+  const rejected = () => sortByLabel(data.peers.filter((p) => p.rejected)).map((p) => peerRow(env, p, redraw));
+  const pairing = sortByLabel(listed.filter((p) => p.fingerprint));
+  const rows = sortByLabel(listed.filter((p) => !p.fingerprint));
   if (fpTimer) clearInterval(fpTimer);
   fpTimer = null;
   if (!data.peers.some((p) => p.paired)) {
     // no paired device yet: the first-pair steps and the devices waiting to pair (live)
-    const waiting = sortByLabel(data.peers.filter((p) => !p.hidden));
+    const waiting = sortByLabel(listed.filter((p) => !p.hidden));
     root.append(
       h("h1", { class: "fp-title", tabindex: "-1" }, "Pair your first device"),
       h(
@@ -64,6 +67,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
           ? []
           : [group(h("div", { class: "fp-wait", role: "status" }, h("span", { class: "fp-spin", "aria-hidden": "true" }), "Waiting for another device to log in."))]),
     );
+    if (data.peers.some((p) => p.rejected)) root.append(pairNew(openPair, rejected()));
     // new devices arrive by push into the local list: read it again every few seconds, redraw on a change
     const key = JSON.stringify(data.peers);
     const timer = setInterval(async () => {
@@ -93,7 +97,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
         ),
       );
     }
-    root.append(pairNew(openPair));
+    root.append(pairNew(openPair, rejected()));
   }
   if (highlight) {
     const row = document.getElementById("peer-" + highlight);
@@ -102,10 +106,10 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
   }
   if (focusId !== undefined) (document.getElementById("peer-" + focusId) ?? root.querySelector<HTMLElement>(".sh"))?.focus();
   const refresh = h("button", {}, icon("refresh", 18), h("span", { class: "lbl" }, "Refresh")) as HTMLButtonElement;
-  if (refreshUntil > Date.now()) greyFor(refresh, refreshUntil - Date.now());
+  if (refreshUntil > Date.now()) disableFor(refresh, refreshUntil - Date.now());
   refresh.addEventListener("click", async () => {
     refreshUntil = Date.now() + 60_000;
-    greyFor(refresh, 60_000);
+    disableFor(refresh, 60_000);
     try {
       await rpc(env, "refresh");
       await renderPeers(env, root, full);
@@ -116,8 +120,8 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
   root.append(h("div", { class: "grow" }), add(h("div", { class: "foot bar" }, refresh), !full && h("button", { onclick: () => env.openPage("#peers") }, "Open full view")));
 }
 
-/** "Pair a new device": pairing starts from Pair on a listed device, so the button shows how to get it listed. */
-function pairNew(open = false): HTMLElement {
+/** "Pair a new device": pairing starts from Pair on a listed device, so the button shows how to get it listed, and the rejected devices with Pair. */
+function pairNew(open = false, rejected: HTMLElement[] = []): HTMLElement {
   const steps = h(
     "ol",
     { class: "howto", id: "pair-howto", hidden: !open },
@@ -125,12 +129,16 @@ function pairNew(open = false): HTMLElement {
     h("li", {}, "Log in with the same account."),
     h("li", {}, "It appears here. Click Pair."),
   );
-  const btn = h("button", { class: "tonal", "aria-expanded": String(open), "aria-controls": "pair-howto" }, icon("add", 18), "Pair a new device");
+  const rej = rejected.length
+    ? h("div", { class: "rejected", id: "pair-rejected", hidden: !open }, h("p", { class: "t2" }, "Devices you rejected. Click Pair to pair with one again."), group(...rejected))
+    : null;
+  const btn = h("button", { class: "tonal", "aria-expanded": String(open), "aria-controls": rej ? "pair-howto pair-rejected" : "pair-howto" }, icon("add", 18), "Pair a new device");
   btn.addEventListener("click", () => {
     steps.hidden = !steps.hidden;
+    if (rej) rej.hidden = steps.hidden;
     btn.setAttribute("aria-expanded", String(!steps.hidden));
   });
-  return h("div", { class: "pairnew" }, btn, steps);
+  return h("div", { class: "pairnew" }, btn, steps, rej);
 }
 
 /** This device (Settings): a plain group row with Rename. */
