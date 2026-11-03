@@ -68,7 +68,12 @@ class Session(private val g: Graph) {
             return Start.KEYS_UNAVAILABLE
         }
         // A corrupt database file changes nothing: the data screen offers Retry, and only the user resets.
-        val self = try { dao.self() } catch (e: SQLiteDatabaseCorruptException) { return Start.DATA_UNAVAILABLE }
+        return try { startupDb(present, any) } catch (e: SQLiteDatabaseCorruptException) { Start.DATA_UNAVAILABLE }
+    }
+
+    /** The database part of [startup]; every read here may meet a corrupt file. */
+    private fun startupDb(present: Boolean, any: Boolean): Start {
+        val self = dao.self()
         if (self == null) {
             // Leftover keys go only on a sure "no self row": not mid sign-in, and not from a database file made new
             // in this process (a reset corrupt file reads as empty). A read error throws and deletes nothing.

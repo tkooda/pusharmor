@@ -107,6 +107,24 @@ class StartupKeysTest {
         assertTrue(KeystoreKeyOps.present())
     }
 
+    /** A file whose app_state pages are corrupt while the self row reads: startup shows the data screen, never a spinner. */
+    @Test fun corruptStateTableShowsDataScreen() = io {
+        val app = ApplicationProvider.getApplicationContext<PaApp>()
+        signedIn()
+        g.settings.set(Settings.K.SIGNED_OUT, true)
+        val sql = g.db.openHelper.writableDatabase
+        val pageSize = sql.query("PRAGMA page_size").use { it.moveToFirst(); it.getInt(0) }
+        val pages = sql.query("SELECT rootpage FROM sqlite_master WHERE tbl_name = 'app_state'").use { c -> generateSequence { if (c.moveToNext()) c.getInt(0) else null }.toList() }
+        sql.query("PRAGMA wal_checkpoint(TRUNCATE)").use { it.moveToFirst() }
+        g.db.close()
+        val file = java.io.RandomAccessFile(app.getDatabasePath(PaDatabase.NAME), "rw")
+        file.use { f -> for (p in pages) { f.seek((p - 1).toLong() * pageSize); f.write(ByteArray(pageSize) { 0x5a }) } }
+        val g2 = Graph(app)
+        assertEquals("A".repeat(40), g2.dao.self()?.id)
+        assertEquals(Session.Start.DATA_UNAVAILABLE, g2.session.startup())
+        assertTrue(KeystoreKeyOps.present())
+    }
+
     private fun signedIn() {
         g.keysOrNull = KeystoreKeyOps.createFresh()
         g.dao.putSelf(SelfEntity(id = "A".repeat(40), accountPrefix = ByteArray(9), name = "t"))
