@@ -1787,7 +1787,7 @@ def test_notify_program_that_fails_is_one_line(tmp_path, capsys):
     pa.run_exec(str(prog), REC)
     pa.run_exec(str(tmp_path / "gone"), REC)
     assert capsys.readouterr().err.splitlines() == [
-        'warning: The notify program "%s" stopped with status 3. Listening continues.' % prog,
+        'warning: The notify program "%s" exited with status 3. Listening continues.' % prog,
         'warning: The notify program "%s" could not be run: No such file or directory. Listening continues.'
         % (tmp_path / "gone")]
 

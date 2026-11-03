@@ -2435,7 +2435,7 @@ def run_exec(prog, rec):
     if failed:
         raise failed[0]  # stdout or stderr is closed: as for any other write of this run
     if r.returncode:
-        log("warning", 'The notify program "%s" stopped with status %d. Listening continues.'
+        log("warning", 'The notify program "%s" exited with status %d. Listening continues.'
             % (prog, r.returncode))
 
 
