@@ -38,7 +38,7 @@ F-Droid: the foss build needs nothing outside the repo; its values come from
 
 ## Build and test
 
-Requires JDK 17 and an Android SDK (platform 35, build-tools 34.0.0).
+Requires JDK 17 and an Android SDK (platform 36, build-tools 35.0.0 and 34.0.0).
 
     export ANDROID_HOME=/path/to/android-sdk
     ./gradlew :crypto:test :protocol:test :net:test        # pure JVM tests
