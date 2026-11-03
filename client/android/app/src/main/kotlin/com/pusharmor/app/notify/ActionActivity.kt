@@ -5,6 +5,7 @@ import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Intent
+import android.database.SQLException
 import android.net.Uri
 import android.os.Bundle
 import android.os.PersistableBundle
@@ -25,8 +26,11 @@ class ActionActivity : Activity() {
         val id = intent.getLongExtra("history", -1)
         val act = intent.getStringExtra("act") ?: "item"
         Thread {
-            val h = g.dao.history(id)
-            g.dao.markRead(id)
+            val h = try { g.dao.history(id).also { g.dao.markRead(id) } } catch (e: SQLException) {
+                // A damaged database: the app opens on its data screen instead of crashing.
+                runOnUiThread { startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); finish() }
+                return@Thread
+            }
             runOnUiThread {
                 g.notifier.cancel(Notifier.TAG_MSG, id.toInt())
                 val c = h?.content

@@ -38,6 +38,14 @@ class ActionActivityTest {
         assertEquals(1L, com.pusharmor.app.ui.MainActivity.flashExtra(next))
     }
 
+    /** A tap on a damaged database opens the app, which shows the data screen, instead of crashing. */
+    @Test fun tapOnCorruptDatabaseOpensTheApp() {
+        val app = ApplicationProvider.getApplicationContext<PaApp>()
+        com.pusharmor.app.corruptDatabase(app)
+        assertTrue(tap("open").isFinishing)
+        assertEquals(com.pusharmor.app.ui.MainActivity::class.java.name, shadowOf(app).nextStartedActivity.component?.className)
+    }
+
     @Test fun dialWithNoDialerShowsMessage() {
         val app = ApplicationProvider.getApplicationContext<PaApp>()
         var id = 0L

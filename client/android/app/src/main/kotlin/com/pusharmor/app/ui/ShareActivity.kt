@@ -59,10 +59,13 @@ class ShareActivity : ComponentActivity() {
             // this version got HTTP 426, so the share sheet shows the update screen, never a send that fails.
             if (update) { showUpdate(); return@launch }
             val all = withContext(Dispatchers.IO) {
-                if (!canShare(vm.g.identity() != null, vm.g.settings.flag(com.pusharmor.app.data.Settings.K.SIGNED_OUT, false))) null
-                else vm.g.store.peers().filter { it.inAll }
+                try {
+                    if (!canShare(vm.g.identity() != null, vm.g.settings.flag(com.pusharmor.app.data.Settings.K.SIGNED_OUT, false))) null
+                    else vm.g.store.peers().filter { it.inAll }
+                } catch (e: android.database.SQLException) { null }
             }
-            // Logged out or not set up: the app opens at log in, never a Send screen that cannot send.
+            // Logged out or not set up: the app opens at log in, never a Send screen that cannot send. A damaged
+            // database opens the app on its data screen.
             if (all == null) { startActivity(Intent(this@ShareActivity, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); finish() }
             else show(text, all)
         }
