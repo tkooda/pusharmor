@@ -175,6 +175,8 @@ struct DataBrokenView: View {
                     VStack(spacing: 12) { buttons }
                 }
                 .padding(.top, 8)
+                // the reset deletes this device on the relay server first, which can take a while
+                if model.busy.contains("reset") { ProgressView() }
             }
             .padding(24)
         }
@@ -190,6 +192,7 @@ struct DataBrokenView: View {
     @ViewBuilder private var buttons: some View {
         Button("Reset this device", role: .destructive) { confirmReset = true }
             .buttonStyle(.bordered)
+            .disabled(model.busy.contains("open"))
         Button("Retry") { Task { await model.retryKeys() } }
             .buttonStyle(.borderedProminent)
             .disabled(model.busy.contains("open"))

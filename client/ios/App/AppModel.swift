@@ -171,6 +171,8 @@ final class AppModel: ObservableObject {
     /// delete of this device on the relay server, then an empty store; the user then signs in again.
     func resetDevice() async {
         await once("open") {
+            busy.insert("reset")
+            defer { busy.remove("reset") }
             do {
                 store = try await env.resetStore()
                 repairedNotice = true
