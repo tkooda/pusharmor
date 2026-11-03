@@ -4,7 +4,6 @@
   "use strict";
 
   var API = "https://api.pusharmor.com";
-  var VERSION = "0.0.20";
   var KEY_ITEM = "pa-del-key";
   var enc = new TextEncoder();
 
@@ -72,7 +71,7 @@
     this.fetch = opts.fetch || g.fetch.bind(g);
     this.sleep = opts.sleep || function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
     this.now = opts.now || Date.now;
-    this.client = opts.client || "web/" + VERSION;
+    this.client = opts.client;
     this.offset = 0;
   }
 

@@ -80,7 +80,7 @@ function fakeApi(replies, start = 1761300000000) {
     const h = new Map(Object.entries(r.headers || {}).map(([k, v]) => [k.toLowerCase(), String(v)]));
     return { status: r.status, headers: { get: (k) => h.get(k.toLowerCase()) ?? null }, json: async () => r.body };
   };
-  const client = new PA.Client({ fetch, now: () => now, sleep: async (ms) => { now += ms; } });
+  const client = new PA.Client({ fetch, client: "delete-account", now: () => now, sleep: async (ms) => { now += ms; } });
   return { client, calls, advance: (ms) => { now += ms; }, now: () => now };
 }
 
@@ -112,7 +112,7 @@ test("DELETE /v1/account: headers, body, signature; deleted 0", async () => {
   assert.equal(c.init.method, "DELETE");
   assert.deepEqual(JSON.parse(c.init.body), { ticket: "TICKET", sign_pub: key.pub, m: {} });
   assert.equal(c.init.headers["PA-ID"], undefined);
-  assert.match(c.init.headers["PA-Client"], /^web\/\d+\.\d+\.\d+$/);
+  assert.equal(c.init.headers["PA-Client"], "delete-account");
   assert.equal(c.init.headers["PA-Time"], "1761300000000");
   assert.match(c.init.headers["PA-Time"], /^\d{13}$/);
   const signed = PA.reqSigBytes("DELETE", "/v1/account", c.init.headers["PA-Time"], enc.encode(c.init.body));
