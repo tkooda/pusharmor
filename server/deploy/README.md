@@ -37,12 +37,9 @@ each change:
 3. The D1 binding has no database_id; wrangler finds the database by its
    name `pusharmor`.
 
-Preflight (step 0 of a release): `preflight.mjs` fails when the repo config
-holds one of these ids, a database_id or a PLACEHOLDER, or lacks keep_vars;
-`preflight.mjs --dashboard` then reads the deployed version with the
-read-only `wrangler deployments status` and `wrangler versions view` and
-fails when one of those variables is missing, empty or a PLACEHOLDER.
-`check-bundle.mjs` then builds the bundle with `wrangler deploy --dry-run
+Preflight: `preflight.mjs` fails when the repo config holds one of these ids,
+a database_id or a PLACEHOLDER, or lacks keep_vars. `check-bundle.mjs` builds
+the bundle with `wrangler deploy --dry-run
 --outdir <tmp>` (no upload) and fails when it holds test code or a test route:
 resetHealth, clearTokens, clearJwks, TEST_MIGRATIONS, TEST_SECRETS, cloudflare:test,
 vitest, miniflare, "/test", "/debug" or "/__". No test hooks ship in a release.
@@ -50,16 +47,20 @@ It also fails on any "/v1/..." string literal whose path is not in the pinned
 allow-list `server/worker/routes.json`, and on any "x-pa-..." name (any case) not
 in its `x_pa_headers` list. The Worker test `test/routes.test.ts` pins the router
 table to that file, so a new route needs a reviewed edit to `routes.json`.
+CI runs both on every Worker change and on the worker/v tag commit (worker
+workflow). Step 0 of a release, `preflight.mjs --dashboard`, reads the
+deployed version with the read-only `wrangler deployments status` and
+`wrangler versions view` and fails when one of those variables is missing,
+empty or a PLACEHOLDER.
 
 ## Release steps
 
-0. Preflight (above). Nothing is deployed when it fails.
+0. Dashboard preflight (above). Nothing is deployed when it fails.
 1. Refuse to run on a dirty tree (uncommitted or untracked files).
-2. Check HEAD is an ancestor of origin/main, `node release/tag.mjs --check
-   worker/vX.Y.Z` passes (annotated tag at HEAD, version rules, version files),
-   and the tag is on origin at HEAD. Make the tag first with
-   `node release/tag.mjs worker X.Y.Z` and push it (RELEASING.md); its
-   worker-release run must be green.
+2. Check HEAD is an ancestor of origin/main and the tag is on origin at HEAD.
+   Make the tag first with `node release/tag.mjs worker X.Y.Z` and push it
+   (RELEASING.md); its worker-release run (tag check, Worker tests, file
+   preflight, bundle check) must be green.
 3. Print the D1 time-travel bookmark (the restore path).
 4. Apply D1 migrations. On failure the script prints the restore command
    `wrangler d1 time-travel restore pusharmor --bookmark=<bookmark>` and stops.

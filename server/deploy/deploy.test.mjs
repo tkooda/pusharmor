@@ -97,7 +97,7 @@ test("file preflight aborts on an id in the repo config or a missing keep_vars, 
     j.env = { staging: { d1_databases: [{ binding: "DB", database_name: "x" }], vars: { X: "PLACEHOLDER_X" } } };
     writeFileSync(wp, JSON.stringify(j));
     const w = stub(d, all());
-    const r = run(d, w);
+    const r = spawnSync("node", [join(d, "server", "deploy", "preflight.mjs"), d], { encoding: "utf8", env: { ...process.env, WRANGLER: w } });
     assert.notEqual(r.status, 0);
     assert.throws(() => calls(d), "wrangler was called");
     assert.match(r.stderr, /vars\.AWS_SES_MAIL_FROM must not be in the repo/);

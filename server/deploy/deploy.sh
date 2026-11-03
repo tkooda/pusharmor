@@ -35,22 +35,18 @@ cd "$SERVER_DIR/.."
 WRANGLER="${WRANGLER:-$WORKER_DIR/node_modules/.bin/wrangler}"
 API_BASE="${API_BASE:-https://api.pusharmor.com/v1}"
 
-# 0. release values: the repo config holds no ids and keeps the dashboard vars;
-#    the deployed Worker has every dashboard var (read-only wrangler calls);
-#    the bundle (wrangler deploy --dry-run) holds no test code or test route
-node "$HERE/preflight.mjs" "$SERVER_DIR/.." || die "release preflight failed; nothing was deployed"
+# 0. the deployed Worker has every dashboard var (read-only wrangler calls). CI runs the
+#    file preflight, the bundle check and the tag check on the tag commit.
 WRANGLER="$WRANGLER" node "$HERE/preflight.mjs" --dashboard "$SERVER_DIR/.." || die "dashboard preflight failed; nothing was deployed"
-WRANGLER="$WRANGLER" node "$HERE/check-bundle.mjs" "$SERVER_DIR/.." || die "bundle check failed; nothing was deployed"
 
 # 1. clean tree
 [ -z "$(git status --porcelain)" ] || die "working tree is dirty (uncommitted or untracked files)"
 
-# 2. commit on main; the worker/v tag is HEAD, pushed, and obeys release/tag.mjs
+# 2. commit on main; the worker/v tag is HEAD and pushed
 printf '%s' "$TAG" | grep -Eq '^worker/v[0-9]+\.[0-9]+\.[0-9]+$' || die "the argument must be a worker/vX.Y.Z tag"
 SHA="$(git rev-parse HEAD)"
 git fetch origin main
 git merge-base --is-ancestor "$SHA" origin/main || die "HEAD is not on origin/main; only a commit on main can be deployed"
-node release/tag.mjs --check "$TAG" >/dev/null || die "release tag check failed for $TAG"
 REMOTE="$(git ls-remote --tags origin "refs/tags/$TAG^{}" | cut -f1)"
 [ "$REMOTE" = "$SHA" ] || die "tag $TAG is not on origin at HEAD; push it first: git push origin $TAG"
 
