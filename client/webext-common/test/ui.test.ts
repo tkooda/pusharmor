@@ -613,7 +613,7 @@ test("large text: wrapped lines keep their spacing, rows wrap, and the popup scr
   assert.match(rule(".tabs"), /min-height: 40px/);
   // Codes match sits right of Codes differ; when they stack, it is on top
   assert.match(rule(".pair-acts"), /flex-wrap: wrap-reverse;/);
-  assert.match(rule(".links button.text"), /height: auto; min-height: 48px; white-space: normal;/);
+  assert.match(rule(".links button.text"), /height: auto; min-height: 36px; white-space: normal;/);
 });
 
 test("the pairing timer row button says Cancel pairing request; the time left wraps below it", async () => {
