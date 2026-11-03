@@ -11,8 +11,6 @@ Usage:
 
 Environment:
   CLOUDFLARE_ACCOUNT_ID  required
-  DB_EXPORT_MAX_BYTES    abort before the export if the remote DB is larger
-                         (default 209715200 = 200 MB)
   WRANGLER               path to wrangler (default: worker/node_modules/.bin/wrangler)
   API_BASE               API base URL for the smoke test (default https://api.pusharmor.com/v1)
 USAGE
@@ -36,9 +34,6 @@ WORKER_DIR="$SERVER_DIR/worker"
 cd "$SERVER_DIR/.."
 WRANGLER="${WRANGLER:-$WORKER_DIR/node_modules/.bin/wrangler}"
 API_BASE="${API_BASE:-https://api.pusharmor.com/v1}"
-# The owner sets this from the measured export time. The export blocks the
-# DB while it runs, so a larger DB means a longer outage.
-DB_EXPORT_MAX_BYTES="${DB_EXPORT_MAX_BYTES:-209715200}"
 
 # 0. release values: the repo config holds no ids and keeps the dashboard vars;
 #    the deployed Worker has every dashboard var (read-only wrangler calls);
@@ -62,20 +57,7 @@ REMOTE="$(git ls-remote --tags origin "refs/tags/$TAG^{}" | cut -f1)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# DB size guard
-INFO_JSON="$(cd "$WORKER_DIR" && "$WRANGLER" d1 info pusharmor --json)"
-DB_SIZE="$(printf '%s' "$INFO_JSON" | node -e '
-let s = "";
-process.stdin.on("data", (d) => (s += d)).on("end", () => {
-  const j = JSON.parse(s);
-  const v = j.file_size ?? j.database_size ?? j.size;
-  if (!Number.isFinite(Number(v))) { process.exit(1); }
-  console.log(String(Math.trunc(Number(v))));
-});')" || die "cannot read DB size from d1 info"
-echo "remote DB size: $DB_SIZE bytes (limit $DB_EXPORT_MAX_BYTES)"
-[ "$DB_SIZE" -le "$DB_EXPORT_MAX_BYTES" ] || die "DB is larger than DB_EXPORT_MAX_BYTES; export aborted"
-
-# 3. restore point: time-travel bookmark and export
+# 3. restore point: time-travel bookmark
 TT_OUT="$(cd "$WORKER_DIR" && "$WRANGLER" d1 time-travel info pusharmor)"
 printf '%s\n' "$TT_OUT"
 BOOKMARK="$(printf '%s\n' "$TT_OUT" | grep -Eo '[0-9a-f]{8}-[0-9a-f]{8}-[0-9a-f]{8}-[0-9a-f]{32}' | head -n 1 || true)"
@@ -83,8 +65,6 @@ BOOKMARK="$(printf '%s\n' "$TT_OUT" | grep -Eo '[0-9a-f]{8}-[0-9a-f]{8}-[0-9a-f]
 echo "=============================================="
 echo "RESTORE BOOKMARK: $BOOKMARK"
 echo "=============================================="
-echo "Exporting the DB (it is blocked while the export runs)..."
-(cd "$WORKER_DIR" && "$WRANGLER" d1 export pusharmor --remote --output "$TMP/pre-migration.sql")
 
 # 4. migrations
 if ! (cd "$WORKER_DIR" && "$WRANGLER" d1 migrations apply pusharmor --remote); then

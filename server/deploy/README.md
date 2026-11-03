@@ -5,11 +5,11 @@ Operator scripts for the `pusharmor-api` Worker (api.pusharmor.com).
 ## Usage
 
 `deploy.sh` is the only supported release path for the Worker. Do not run
-`wrangler deploy` directly for a release: it skips the preflight, the backup
-and the migration steps. `wrangler dev` stays fine for local work.
+`wrangler deploy` directly for a release: it skips the preflight, the restore
+bookmark and the migration steps. `wrangler dev` stays fine for local work.
 
 Never connect Workers Builds (Git integration) to the `pusharmor-api` Worker: it would skip
-the preflight, check-bundle, the backup and the migrations. Deploy only with `deploy.sh`.
+the preflight, check-bundle, the restore bookmark and the migrations. Deploy only with `deploy.sh`.
 
     CLOUDFLARE_ACCOUNT_ID=... server/deploy/deploy.sh worker/vX.Y.Z
     server/deploy/deploy.sh --help
@@ -17,9 +17,6 @@ the preflight, check-bundle, the backup and the migrations. Deploy only with `de
 ## Environment
 
 - CLOUDFLARE_ACCOUNT_ID: required.
-- DB_EXPORT_MAX_BYTES: abort before the export if the remote DB is larger.
-  Default 209715200 (200 MB). Set it from the measured export time; the DB
-  is blocked while the export runs.
 - WRANGLER: wrangler path. Default server/worker/node_modules/.bin/wrangler.
 - API_BASE: smoke test base URL. Default https://api.pusharmor.com/v1.
 
@@ -63,8 +60,7 @@ table to that file, so a new route needs a reviewed edit to `routes.json`.
    and the tag is on origin at HEAD. Make the tag first with
    `node release/tag.mjs worker X.Y.Z` and push it (RELEASING.md); its
    worker-release run must be green.
-3. Check the DB size, print the D1 time-travel bookmark (the restore path),
-   export the DB to a temp dir (deleted on exit).
+3. Print the D1 time-travel bookmark (the restore path).
 4. Apply D1 migrations. On failure the script prints the restore command
    `wrangler d1 time-travel restore pusharmor --bookmark=<bookmark>` and stops.
 5. Deploy with --outdir and print the sha256 of that uploaded bundle.
