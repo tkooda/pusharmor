@@ -2128,6 +2128,8 @@ def on_commit(cx, frm, c_n, listed):
             # the old entry is gone: decide the new commit on its own
         if dec["entry"].startswith("created") or dec["entry"] == "n_wiped_x_replied":
             e = d["pairs"][frm] = new_entry("X", "prompted", secrets.token_bytes(32), c_n)
+            if p.get("ruling") == "denied":  # a new request shows a rejected device again
+                p["ruling"] = "none"
             e["authorized"] = dec["action"] == "reply"
             if dec["cap_counted"]:
                 d["pair_auto"] = [t for t in d["pair_auto"] if 0 <= now - t < PAIR_CAP_WINDOW_S] + [now]
@@ -2193,6 +2195,15 @@ def post_pair(cx, x, kind, c):
             raise
         return ("%d %s" % (e.status, e.error)).strip()
     return j["r"] if isinstance(j.get("r"), str) else "failed"
+
+
+def could_not(err, verb, name):
+    """The Fail for a confirm or reject that the relay server did not take (a 401 goes on to log in again)."""
+    if isinstance(err, ApiError):
+        if err.status == 401:
+            return err
+        return Fail('Could not %s "%s". %s' % (verb, name, err.reason()))
+    return Fail('Could not %s "%s". %s' % (verb, name, err), err.code)
 
 
 def pair_reason(r, name):
@@ -2648,7 +2659,7 @@ def peer_status(p, e):
         return "waiting for it to confirm"
     if e:
         return "wants to pair" if e["role"] == "X" and e["state"] == "prompted" else "pairing"
-    return "rejected" if p["ruling"] == "denied" else "not paired"
+    return "not paired"
 
 
 def pair_list(cx):
@@ -2657,6 +2668,8 @@ def pair_list(cx):
         ids = list(d["peers"]) + [cx.me]
         rows = [("ID", "NAME", "DEVICE", "STATUS"), (short_id(cx.me, ids), d["name"], "Command line", "this device")]
         for pid, p in sorted(d["peers"].items(), key=lambda kv: kv[1]["created"]):
+            if p["ruling"] == "denied" and pid not in d["pairs"]:
+                continue  # rejected: hidden until it asks again or pair ID is run
             rows.append((short_id(pid, ids), peer_label(p), platform_label(p["platform"]),
                          peer_status(p, d["pairs"].get(pid))))
     w = [max(len(r[i]) for r in rows) for i in range(3)]
@@ -2679,6 +2692,9 @@ def cmd_pair(cx, args):
     x = cx.target = resolve_peer(cx, args.id, with_self=True)
     if x == cx.me:
         raise Fail("This is the device you are using. Choose another device.")
+    with cx.store.state() as d:
+        if d["peers"][x]["ruling"] == "denied":
+            d["peers"][x]["ruling"] = "none"
     with cx.store.state(write=False) as d:
         drain = Stream(d["ntfy"], d["topic"], cx.keys, d.get("since", ""), WAIT_TIMEOUT_S, poll=True)
     while True:  # pairing messages the relay server sent while nothing listened
@@ -2712,12 +2728,18 @@ def cmd_pair(cx, args):
                 print()  # Ctrl-D leaves the cursor after the prompt
                 raise Fail("No answer was given. Run pusharmor pair %s again." % sid)
             if not yes:
-                deny(cx, x)
+                try:
+                    deny(cx, x)
+                except (ApiError, TempFail) as err:
+                    raise could_not(err, "reject", name)
                 print('Did not pair with "%s".' % name)
                 return EXIT_OK
-            r = approve(cx, x)
+            try:
+                r = approve(cx, x)
+            except (ApiError, TempFail) as err:
+                raise could_not(err, "confirm", name)
             if r not in ("sent", "stored"):
-                raise Fail(pair_reason(r, name))
+                raise Fail('Could not confirm "%s". %s' % (name, pair_reason(r, name)))
             continue
         if p["pinned"] and p["ruling"] == "approved":
             wait = 'Waiting for "%s" to confirm this device.' % name
@@ -2882,6 +2904,10 @@ def cmd_rename(cx, args):
     if not NAME_RE.fullmatch(args.name):
         raise Fail("The name must be 1 to 32 plain ASCII characters, with no double quote.", EXIT_USAGE)
     cx.need()
+    with cx.store.state(write=False) as d:
+        if d.get("name") == args.name:
+            print('This device is already named "%s".' % args.name)
+            return EXIT_OK
     k = cx.keys
 
     def content(pid, p, n, names):

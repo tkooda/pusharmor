@@ -1,22 +1,9 @@
 # Contributing
 
-Issues and pull requests are welcome.
+Issues are welcome. This project does not take pull requests.
 
 - Bugs and feature ideas: open a GitHub issue and fill in the template.
 - Security problems: see [SECURITY.md](SECURITY.md).
-
-## Pull requests
-
-- Keep each pull request small and about one topic.
-- Describe what changed and why.
-- Match the style of the code around your change.
-- Run the tests of the part you changed before you push (see "Build from
-  source" in [README.md](README.md)). CI must pass.
-- Never add personal data or test-only hooks to release builds. CI rejects
-  non-ASCII text and secrets.
-
-By contributing you agree that your work is released under the MIT license
-in [LICENSE](LICENSE).
 
 ## Landing changes on main
 

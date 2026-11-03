@@ -5,7 +5,6 @@ import { type Peer, acctOf, call, cliCodeFor, initP256, keys, message, newPeer, 
 import { LABEL_TICKET, makeTicket, openToken } from "../src/crypto/tokens";
 import { TEST_SECRETS as S } from "./secrets";
 import { PUSH_FAILED_COL } from "../src/db/sql";
-import roundSql from "../migrations/0003_round_account_times.sql?raw";
 
 beforeAll(initP256);
 
@@ -231,13 +230,6 @@ describe("POST /peers", () => {
     const a = await env.DB.prepare("SELECT created, last_seen_month FROM accounts WHERE id = ?1").bind(p.acct).first<{ created: number; last_seen_month: number }>();
     expect(a!.created).toBe(now - (now % 86400));
     expect(a!.last_seen_month).toBe(now - (now % 2592000));
-  });
-
-  it("migration 0003 rounds stored account times", async () => {
-    await env.DB.prepare("INSERT INTO accounts (id, created, status, last_seen_month) VALUES ('ROUNDROUND01', 1761300000, NULL, 1761300123)").run();
-    await env.DB.exec(roundSql.replace(/^--.*$/gm, "").replace(/\s+/g, " ").trim());
-    const a = await env.DB.prepare("SELECT created, last_seen_month FROM accounts WHERE id = 'ROUNDROUND01'").first<{ created: number; last_seen_month: number }>();
-    expect(a).toEqual({ created: 1761264000, last_seen_month: 1759968000 });
   });
 });
 

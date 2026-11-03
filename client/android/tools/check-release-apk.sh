@@ -126,8 +126,12 @@ fi
 if dexdump="$(tool dexdump)"; then
   mkdir "$tmp/dex"
   unzip -q -o "$apk" 'classes*.dex' -d "$tmp/dex" || { echo "error: no classes*.dex in $apk" >&2; exit 2; }
-  for f in "$tmp"/dex/classes*.dex; do "$dexdump" "$f"; done \
-    | sed -n "s/^ *Class descriptor *: 'L\(.*\);'$/\1/p" | tr '/' '.' > "$tmp/classes.txt"
+  # pipefail here only: a dex file dexdump cannot read fails the check (no partial class list).
+  set -o pipefail
+  for f in "$tmp"/dex/classes*.dex; do "$dexdump" "$f" || exit 2; done \
+    | sed -n "s/^ *Class descriptor *: 'L\(.*\);'$/\1/p" | tr '/' '.' > "$tmp/classes.txt" \
+    || { echo "error: dexdump failed on a dex file of $apk" >&2; exit 2; }
+  set +o pipefail
 elif apkanalyzer="$(tool apkanalyzer)"; then
   "$apkanalyzer" dex packages --defined-only "$apk" | awk '$1 == "C" { print $NF }' > "$tmp/classes.txt"
 else

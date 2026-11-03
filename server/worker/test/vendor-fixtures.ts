@@ -20,12 +20,30 @@ const fcmErr = (code: number, status: string, errorCode?: string) =>
     },
   });
 
+// An FCM 400 with a google.rpc.BadRequest detail (field omitted when there is none).
+const fcmBad = (message: string, field?: string) =>
+  JSON.stringify({
+    error: {
+      code: 400,
+      message,
+      status: "INVALID_ARGUMENT",
+      details: [
+        { "@type": "type.googleapis.com/google.firebase.fcm.v1.FcmError", errorCode: "INVALID_ARGUMENT" },
+        ...(field ? [{ "@type": "type.googleapis.com/google.rpc.BadRequest", fieldViolations: [{ field, description: message }] }] : []),
+      ],
+    },
+  });
+
 export const VENDOR_ROWS: VendorRow[] = [
   { name: "fcm 200", vendor: "fcm", status: 200, body: '{"name":"projects/p/messages/1"}', result: "sent", attempts: 1 },
   { name: "fcm 404 UNREGISTERED", vendor: "fcm", status: 404, body: fcmErr(404, "NOT_FOUND", "UNREGISTERED"), result: "gone", attempts: 1 },
-  { name: "fcm 400 INVALID_ARGUMENT", vendor: "fcm", status: 400, body: fcmErr(400, "INVALID_ARGUMENT", "INVALID_ARGUMENT"), result: "failed:fcm-400-INVALID_ARGUMENT", attempts: 1 },
-  { name: "fcm 404 empty body", vendor: "fcm", status: 404, body: "", result: "failed:fcm-404", attempts: 1 },
-  { name: "fcm 404 other reason", vendor: "fcm", status: 404, body: fcmErr(404, "NOT_FOUND"), result: "failed:fcm-404", attempts: 1 },
+  { name: "fcm 400 INVALID_ARGUMENT", vendor: "fcm", status: 400, body: fcmErr(400, "INVALID_ARGUMENT", "INVALID_ARGUMENT"), result: "gone", attempts: 1 },
+  { name: "fcm 400 INVALID_ARGUMENT on message.token", vendor: "fcm", status: 400, body: fcmBad("The registration token is not a valid FCM registration token", "message.token"), result: "gone", attempts: 1 },
+  { name: "fcm 400 INVALID_ARGUMENT on a payload field", vendor: "fcm", status: 400, body: fcmBad("Invalid value at 'message.data[0].value'", "message.data[0].value"), result: "failed:fcm-400-INVALID_ARGUMENT", attempts: 1 },
+  { name: "fcm 400 INVALID_ARGUMENT message too big", vendor: "fcm", status: 400, body: fcmBad("Android message is too big"), result: "failed:fcm-400-INVALID_ARGUMENT", attempts: 1 },
+  { name: "fcm 400 other reason", vendor: "fcm", status: 400, body: fcmErr(400, "FAILED_PRECONDITION"), result: "failed:fcm-400", attempts: 1 },
+  { name: "fcm 404 empty body", vendor: "fcm", status: 404, body: "", result: "gone", attempts: 1 },
+  { name: "fcm 404 other reason", vendor: "fcm", status: 404, body: fcmErr(404, "NOT_FOUND"), result: "gone", attempts: 1 },
   { name: "fcm 403 SENDER_ID_MISMATCH", vendor: "fcm", status: 403, body: fcmErr(403, "PERMISSION_DENIED", "SENDER_ID_MISMATCH"), result: "failed:fcm-403-SENDER_ID_MISMATCH", attempts: 1 },
   { name: "fcm 403 PERMISSION_DENIED", vendor: "fcm", status: 403, body: fcmErr(403, "PERMISSION_DENIED"), result: "failed:fcm-403", attempts: 1 },
   { name: "fcm 401 then 401", vendor: "fcm", status: 401, body: fcmErr(401, "UNAUTHENTICATED", "THIRD_PARTY_AUTH_ERROR"), result: "failed:fcm-401-THIRD_PARTY_AUTH_ERROR", attempts: 2 },
@@ -52,7 +70,8 @@ export const VENDOR_ROWS: VendorRow[] = [
   { name: "wp 201", vendor: "wp", status: 201, result: "sent", attempts: 1 },
   { name: "wp 404", vendor: "wp", status: 404, result: "gone", attempts: 1 },
   { name: "wp 410", vendor: "wp", status: 410, body: '{"code":410,"errno":106}', result: "gone", attempts: 1 },
-  { name: "wp 400", vendor: "wp", status: 400, result: "failed:wp-400", attempts: 1 },
+  { name: "wp 400", vendor: "wp", status: 400, result: "gone", attempts: 1 },
+  { name: "wp 400 autopush header fault", vendor: "wp", status: 400, body: '{"code":400,"errno":110,"error":"Bad Request"}', result: "failed:wp-400", attempts: 1 },
   { name: "wp 413", vendor: "wp", status: 413, result: "failed:wp-413", attempts: 1 },
   { name: "wp 401 then 401", vendor: "wp", status: 401, result: "failed:wp-401", attempts: 2 },
   { name: "wp 403 then 403", vendor: "wp", status: 403, result: "failed:wp-403", attempts: 2 },
@@ -65,6 +84,7 @@ export const VENDOR_ROWS: VendorRow[] = [
   { name: "up 201", vendor: "up", status: 201, result: "sent", attempts: 1 },
   { name: "up 404", vendor: "up", status: 404, result: "gone", attempts: 1 },
   { name: "up 410", vendor: "up", status: 410, result: "gone", attempts: 1 },
+  { name: "up 400", vendor: "up", status: 400, body: '{"code":40010}', result: "gone", attempts: 1 },
   { name: "up 413", vendor: "up", status: 413, result: "failed:up-413", attempts: 1 },
   { name: "up 503", vendor: "up", status: 503, result: "failed:up-503", attempts: 4 },
   { name: "up 507 (ntfy: no subscriber)", vendor: "up", status: 507, body: "{\"code\":50701}", result: "not listening", attempts: 1 },

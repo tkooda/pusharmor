@@ -33,6 +33,8 @@ let watching = false;
 
 export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   dismissToast(); // a message that stays belongs to the view drawn before
+  // not a real popup (Firefox for Android shows it full screen): the screen sets the size
+  document.body.classList.toggle("full", env.inPopup?.() === false);
   const my = ++mounts;
   if (!watching) {
     // a login state change (here, in a tab, or from the relay server) shows the matching view

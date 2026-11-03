@@ -3,7 +3,9 @@ name: rebuild
 # Reproducibility check (component-ci-r1 section 5): rebuilds the play and foss
 # APKs of an android/v* tag on a fresh runner with the release pins and compares
 # each to the signed GitHub Release asset with apksigcopier compare (equal apart
-# from the signature). Read-only. Runs on a prerelease or a promoted release.
+# from the signature). Read-only. Runs on any published android/v* release.
+# JAVA_VERSION and SDK_PACKAGES come from the workflow file the run uses: run
+# it from the tag ("Use workflow from" = the tag), so the pins match that release.
 on:
   workflow_dispatch:
     inputs:
@@ -53,6 +55,7 @@ jobs:
           ' "$TAG")"
           git rev-parse -q --verify "refs/tags/$TAG^{commit}" > /dev/null || { echo "tag $TAG does not exist"; exit 1; }
           git checkout -q --detach "refs/tags/$TAG"
+          [ "$GITHUB_REF" = "refs/tags/$TAG" ] || echo "::warning::workflow file from $GITHUB_REF, not from $TAG: its toolchain pins may differ from the release"
           echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct HEAD)" >> "$GITHUB_ENV"
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0

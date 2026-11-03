@@ -55,7 +55,8 @@ export async function approve(c: Ctx): Promise<Response> {
   const pm = caller!.push === null;
   if (!xr) return json(200, withPushMissing({ r: "unknown" }, pm));
   await enforce(c.env, "RL_PAIR", "id:" + s.me + x, c.log);
-  if (xr.denies_me === 1) return json(200, withPushMissing({ r: "denied" }, pm));
+  // A deny by X does not block approve: X does not allow me, so W_APPROVE stores the approve on
+  // my own row and relays nothing; X's own later approve returns it and clears X's deny.
   const rs = await batch(c.env.DB, [c.env.DB.prepare(SQL.W_APPROVE).bind(s.me, s.acct, x, name, msg, nowS())]);
   const ret = rs[0].results[0] as { stored: number; c_x: string | null } | undefined;
   if (!ret) return emptyReturning(c, s);

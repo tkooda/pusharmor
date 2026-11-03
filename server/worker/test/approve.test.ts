@@ -37,13 +37,30 @@ describe("POST /approve/$X", () => {
     expect(rl.seen).toEqual(Array(2).fill("id:" + b.id + a.id));
   });
 
-  it("approve after X denied -> denied, nothing stored", async () => {
-    const [a, b] = await pairOf();
-    await env.DB.prepare("UPDATE peers SET deny = json_set(deny, '$.\"' || ?1 || '\"', 1) WHERE id = ?2").bind(a.id, b.id).run();
-    const r = await call("POST", "/v1/approve/" + b.id, { c: message(1024), name: message(200) }, { peer: a });
-    expect(r.body).toEqual({ r: "denied" });
-    expect(j((await row(a.id))!.allow)).toEqual({});
-  });
+  for (const deniedFirst of [true, false]) {
+    it(`after a deny, re-pairing ends mutual (${deniedFirst ? "rejected device" : "rejecter"} approves first)`, async () => {
+      const [r, d] = await pairOf();
+      expect((await call("POST", "/v1/deny/" + d.id, { c: message(512) }, { peer: r })).status).toBe(200);
+      expect(j((await row(r.id))!.deny)).toEqual({ [d.id]: 1 });
+      const [first, second] = deniedFirst ? [d, r] : [r, d];
+      const cFirst = message(1024);
+      const cSecond = message(1024);
+      const sends = () => vendorRequests().filter((q) => q.url.includes("/messages:send")).length;
+      const before = sends();
+      let res = await call("POST", "/v1/approve/" + second.id, { c: cFirst, name: message(200) }, { peer: first });
+      expect(res.body).toEqual({ r: "stored" });
+      expect(sends()).toBe(before);
+      res = await call("POST", "/v1/approve/" + first.id, { c: cSecond, name: message(200) }, { peer: second });
+      expect(res.body).toEqual({ r: "sent", c: cFirst });
+      expect(sends()).toBe(before + 1);
+      const rr = (await row(r.id))!;
+      const dr = (await row(d.id))!;
+      expect(j(rr.allow)).toEqual({ [d.id]: 1 });
+      expect(j(dr.allow)).toEqual({ [r.id]: 1 });
+      expect(j(rr.deny)).toEqual({});
+      expect(j(dr.deny)).toEqual({});
+    });
+  }
 
   it("X unknown, self and foreign prefix", async () => {
     const [a] = await pairOf();

@@ -48,16 +48,7 @@ On Windows they live in `%APPDATA%\PushArmor` (or `%PUSHARMOR_CONFIG%`, or `--co
 
 ## Exit codes
 
-| Code | Meaning |
-| ---- | ------- |
-| 0 | success |
-| 1 | error: a failed request, a damaged or unreadable file, or a failed write on this device |
-| 2 | wrong command line, or the command needs a terminal |
-| 3 | not logged in, logged out, or this device was removed |
-| 4 | send failed for at least one device, or there is no device to send to |
-| 70 | an unexpected error in PushArmor; please report it |
-| 75 | the relay server is busy or unreachable; try again later |
-| 130 | stopped with Ctrl-C |
+`pusharmor --help` lists the exit codes and their meaning.
 
 ## Needs
 

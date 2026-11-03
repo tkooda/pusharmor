@@ -558,7 +558,7 @@ def test_ctrl_d_at_the_fingerprint_prompt_keeps_the_pairing(net, tmp_path, monke
 
 
 def test_abort_in_shown_drops_the_pin_and_keeps_the_ruling(net, tmp_path, monkeypatch, capsys):
-    """a different c_N while X shows the fingerprint drops the pin X made; the ruling stays."""
+    """a different c_N while X shows the fingerprint drops the pin X made."""
     a, b = tmp_path / "a", tmp_path / "b"
     ida, _ = login(monkeypatch, a), login(monkeypatch, b)
     cx = pa.Ctx(b)
@@ -572,8 +572,87 @@ def test_abort_in_shown_drops_the_pin_and_keeps_the_ruling(net, tmp_path, monkey
     pa.on_commit(cx, ida, b"d" * 32, "yes")
     p = state(b)["peers"][ida]
     assert state(b)["pairs"][ida]["c_N"] == pa.b64e(b"d" * 32)
-    assert not p["pinned"] and p["pairing_id"] == "" and p["ruling"] == "denied"
+    assert not p["pinned"] and p["pairing_id"] == "" and p["ruling"] == "none"  # the new request clears "denied"
     assert 'failed. Run: pusharmor pair %s to start again.' % pa.id_hex(ida)[:6] in capsys.readouterr().err
+
+
+def pair_with_b_answer(monkeypatch, net, a, b, ida, idb, answer):
+    """a confirms; b gets the fingerprint prompt and gives `answer`. Returns b's exit code."""
+    monkeypatch.setattr(pa, "PAIR_WAIT_S", 8)
+
+    def inp(prompt=""):
+        return answer if threading.current_thread().name == "b" else "y"
+
+    monkeypatch.setattr(pa, "input", inp, raising=False)
+    codes = {}
+    before = net.count(idb)
+    ta = threading.Thread(target=lambda: codes.__setitem__("a", run(a, "pair", pa.id_hex(idb)[:6])), name="a")
+    ta.start()
+    end = time.time() + 10
+    while net.count(idb) == before and time.time() < end:
+        time.sleep(0.02)
+    tb = threading.Thread(target=lambda: codes.__setitem__("b", run(b, "pair", pa.id_hex(ida)[:8])), name="b")
+    tb.start()
+    tb.join(30)
+    ta.join(30)
+    return codes["b"]
+
+
+def test_failed_reject_says_could_not_reject(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = login(monkeypatch, a), login(monkeypatch, b)
+    net.hooks[("POST", "deny")] = lambda *x: net.reply(500, {})
+    capsys.readouterr()
+    assert pair_with_b_answer(monkeypatch, net, a, b, ida, idb, "n") == pa.EXIT_TEMP
+    name = pa.peer_label(state(b)["peers"][ida])
+    assert 'error: Could not reject "%s". %s' % (name, pa.SERVER_DOWN) in capsys.readouterr().err.splitlines()
+
+
+def test_failed_confirm_says_could_not_confirm(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = login(monkeypatch, a), login(monkeypatch, b)
+    net.hooks[("POST", "approve")] = lambda *x: net.reply(200, {"r": "denied"})
+    capsys.readouterr()
+    assert pair_with_b_answer(monkeypatch, net, a, b, ida, idb, "y") == 1
+    name = pa.peer_label(state(b)["peers"][ida])
+    assert 'error: Could not confirm "%s". "%s" is not paired with this device.' % (name, name) \
+        in capsys.readouterr().err.splitlines()
+
+
+def test_rejected_device_is_hidden_until_it_asks_again_or_pair_id_runs(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = login(monkeypatch, a), login(monkeypatch, b)
+    assert pair_with_b_answer(monkeypatch, net, a, b, ida, idb, "n") == 0
+    assert state(b)["peers"][ida]["ruling"] == "denied"
+    capsys.readouterr()
+    assert run(b, "pair") == 0
+    out = capsys.readouterr().out
+    assert pa.id_hex(ida)[:6] not in out and "rejected" not in out and "this device" in out
+    # pair ID still finds the hidden device and clears the denied state
+    monkeypatch.setattr(pa, "PAIR_WAIT_S", 1)
+    assert run(b, "pair", pa.id_hex(ida)[:8]) == 1
+    assert state(b)["peers"][ida]["ruling"] == "none"
+    capsys.readouterr()
+    assert run(b, "pair") == 0
+    assert pa.id_hex(ida)[:6] in capsys.readouterr().out
+
+
+def test_incoming_request_shows_a_rejected_device_again(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = login(monkeypatch, a), login(monkeypatch, b)
+    cx = pa.Ctx(b)
+    cx.setup()
+    cx.refresh()
+    with cx.store.state() as d:
+        d["peers"][ida]["ruling"] = "denied"
+    capsys.readouterr()
+    assert run(b, "pair") == 0
+    assert pa.id_hex(ida)[:6] not in capsys.readouterr().out
+    pa.on_commit(cx, ida, b"d" * 32, "yes")
+    assert state(b)["peers"][ida]["ruling"] == "none"
+    capsys.readouterr()
+    assert run(b, "pair") == 0
+    assert pa.id_hex(ida)[:6] in capsys.readouterr().out
 
 
 def test_abort_then_decides_the_new_commit(net, tmp_path, monkeypatch, capsys):
@@ -1196,16 +1275,14 @@ def test_unusable_keys_are_one_line_and_kept(change, monkeypatch, tmp_path, net,
     assert state(cfg)["name"] != "stale" and state(cfg)["reg"] == "registered"
 
 
-def test_help_and_readme_list_every_exit_code(capsys):
+def test_help_lists_every_exit_code(capsys):
     with pytest.raises(SystemExit) as e:
         pa.main(["--help"])
     assert e.value.code == 0
     out = capsys.readouterr().out
-    readme = open(os.path.join(os.path.dirname(HERE), "README.md"), encoding="utf-8").read()
     assert len(pa.EXIT_CODES) == 8
     for code, text in pa.EXIT_CODES:
         assert "  %-3d %s" % (code, text) in out
-        assert "| %d | %s |" % (code, text) in readme
 
 
 # ---- crashes: every error is one line on stderr and a listed exit code ----
@@ -1878,3 +1955,14 @@ def test_login_link_too_old_says_the_code_expired(net, tmp_path, monkeypatch, ca
     assert run(tmp_path, "login") == 1
     out = capsys.readouterr().out
     assert "The code expired. Open the link to get a new code:\n\n  %s/auth/cli#" % pa.SITE in out
+
+
+def test_rename_to_the_same_name_makes_no_network_call(net, tmp_path, monkeypatch, capsys):
+    a = tmp_path / "a"
+    login(monkeypatch, a)
+    name = state(a)["name"]
+    capsys.readouterr()
+    before = len(net.log)
+    assert run(a, "rename", name) == 0
+    assert capsys.readouterr().out == 'This device is already named "%s".\n' % name
+    assert len(net.log) == before and state(a)["name"] == name

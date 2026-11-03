@@ -180,6 +180,7 @@ jobs:
     permissions:
       contents: write
       id-token: write
+      attestations: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -205,6 +206,7 @@ jobs:
         name: Upload and publish the public zip
         env:
           TOKEN: ${{ steps.auth.outputs.access_token }}
+          GH_TOKEN: ${{ github.token }}
         run: node release/promote.mjs chrome "$VERSION"
       # after the store accepted the build, the release
       # is no longer a test build. Runs only when the step above promoted X.Y.Z
@@ -225,6 +227,7 @@ jobs:
     environment: firefox-release
     permissions:
       contents: write
+      attestations: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -243,6 +246,7 @@ jobs:
         env:
           MOZILLA_AMO_JWT_ISSUER: ${{ secrets.MOZILLA_AMO_JWT_ISSUER }}
           MOZILLA_AMO_JWT_SECRET: ${{ secrets.MOZILLA_AMO_JWT_SECRET }}
+          GH_TOKEN: ${{ github.token }}
         run: node release/promote.mjs firefox "$VERSION"
       # after the store accepted the build, the release
       # is no longer a test build. Runs only when the step above promoted X.Y.Z

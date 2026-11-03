@@ -251,9 +251,9 @@ test("assetlinks.json is valid and names com.pusharmor", () => {
 });
 
 // Builds site/public into a temp dir with the given public file; returns {dir, r}.
-function buildCopy(publicPath, env = {}) {
+function buildCopy(publicPath, env = {}, args = []) {
   const dir = mkdtempSync(join(tmpdir(), "pa-site-build-"));
-  const r = spawnSync("node", [join(SITE, "tools", "build.mjs"), "--out", dir, "--public", publicPath],
+  const r = spawnSync("node", [join(SITE, "tools", "build.mjs"), "--out", dir, "--public", publicPath, ...args],
     { encoding: "utf8", env: { ...process.env, PA_CI_DUMMY: "", ...env } });
   return { dir, r };
 }
@@ -274,7 +274,7 @@ test("wrangler.jsonc runs tools/build.mjs on deploy, and the build skips for wra
   const { dir, r } = buildCopy(PUBLIC_PATH, { WRANGLER_COMMAND: "dev" });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /ids not filled for wrangler dev/);
-  assert.deepEqual(placeholderFiles(dir).length, 4);
+  assert.deepEqual(placeholderFiles(dir).length, 5);
   const tmp = mkdtempSync(join(tmpdir(), "pa-public-"));
   const d = buildCopy(placeholderPublic(tmp), { WRANGLER_COMMAND: "deploy" });
   assert.notEqual(d.r.status, 0);
@@ -288,6 +288,7 @@ test("committed site files hold the placeholders, not ids (release/public.json f
   assert.deepEqual(placeholderFiles(PUB).sort(), [
     "site/public/_headers: CHROME_BETA_EXTENSION_ID",
     "site/public/_headers: CHROME_EXTENSION_ID",
+    "site/public/download.html: PLACEHOLDER",
     "site/public/js/fx-setup.js: PLACEHOLDER",
     "site/public/turnstile.html: PLACEHOLDER"
   ]);
@@ -303,7 +304,11 @@ test("site build fills every id from a public file and leaves current hashes", (
     google_chrome_beta_extension_id: "ponmlkjihgfedcbaponmlkjihgfedcba",
     android_release_cert_sha256: [fp.toLowerCase()]
   }));
-  const { dir, r } = buildCopy(lp);
+  const hashes = join(tmp, "hashes.txt");
+  const foss = "a".repeat(64);
+  const play = "b".repeat(64);
+  writeFileSync(hashes, foss + "  pusharmor-" + APK_VERSION + "-foss.apk\n" + play + "  pusharmor-" + APK_VERSION + "-play.apk\n" + "c".repeat(64) + "  release certificate SHA-256\n");
+  const { dir, r } = buildCopy(lp, {}, ["--apk-hashes", hashes]);
   try {
     assert.equal(r.status, 0, r.stderr);
     assert.deepEqual(placeholderFiles(dir), []);
@@ -312,6 +317,8 @@ test("site build fills every id from a public file and leaves current hashes", (
     assert.ok(readFileSync(join(dir, "js", "fx-setup.js"), "utf8").includes('VAPID_PUBLIC_KEY = "BTestVapidKey"'));
     assert.ok(readFileSync(join(dir, "_headers"), "utf8").includes("chrome-extension://abcdefghijklmnopabcdefghijklmnop chrome-extension://ponmlkjihgfedcbaponmlkjihgfedcba"));
     assert.deepEqual(JSON.parse(readFileSync(join(dir, ".well-known", "assetlinks.json"), "utf8"))[0].target.sha256_cert_fingerprints, [fp]);
+    const page = readFileSync(join(dir, "download.html"), "utf8");
+    assert.ok(page.includes('<code id="apk-foss-sha256">' + foss + "</code>") && page.includes('<code id="apk-play-sha256">' + play + "</code>"));
   } finally { rmSync(dir, { recursive: true, force: true }); rmSync(tmp, { recursive: true, force: true }); }
 });
 
@@ -331,7 +338,7 @@ test("site build writes a gitignored output dir and leaves the git tree clean", 
     assert.equal(git("status", "--porcelain").stdout, before, "the build changed tracked files");
     assert.equal(r.status, 0, r.stderr);
     assert.deepEqual(placeholderFiles(out), []);
-    assert.equal(placeholderFiles(PUB).length, 4);
+    assert.equal(placeholderFiles(PUB).length, 5);
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
@@ -678,4 +685,18 @@ test("fx/setup: a refusal says what to do, and success offers Close this tab", (
   assert.ok(html.includes('<button id="close" type="button" hidden>Close this tab</button>'));
   assert.ok(js.includes('window.postMessage({ pa: "fx-close" }, location.origin);'));
   assert.ok(js.includes("window.close();"));
+});
+
+test("site build fails when the APK hashes file lacks the page's APK version", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "pa-public-"));
+  const lp = placeholderPublic(tmp);
+  assert.equal(spawnSync("node", [join(REPO, "release", "ci-dummy.mjs"), lp]).status, 0);
+  const hashes = join(tmp, "hashes.txt");
+  writeFileSync(hashes, "a".repeat(64) + "  pusharmor-0.0.0-foss.apk\n" + "b".repeat(64) + "  pusharmor-0.0.0-play.apk\n");
+  try {
+    const { dir, r } = buildCopy(lp, { PA_CI_DUMMY: "1" }, ["--apk-hashes", hashes]);
+    rmSync(dir, { recursive: true, force: true });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, new RegExp("no SHA-256 line for pusharmor-" + APK_VERSION.replaceAll(".", "\\.") + "-foss\\.apk"));
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
 });

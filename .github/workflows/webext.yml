@@ -57,6 +57,8 @@ jobs:
       # Real-browser popup check: headless Firefox opens the real toolbar popup,
       # Chrome loads the popup pages. Fails unless the popup is 400x560 on every open and no
       # tab switch moves the header, tab bar, or content area.
+      - name: Pinned Firefox and Chrome (SHA-256 checked)
+        run: bash ci-browsers.sh firefox chrome
       - name: Popup size and layout (headless Firefox and Chrome)
         run: |
           node build.mjs --dev --shots

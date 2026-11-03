@@ -2,17 +2,19 @@
 // already tested build of version X.Y.Z to the public channel of one store.
 // Nothing is rebuilt: Play promotes the internal-track versionCode, App Store
 // submits the TestFlight build, Chrome and Firefox upload the public zip of the
-// GitHub prerelease. Every command is safe to rerun: it skips a version that is
+// GitHub release. Every command is safe to rerun: it skips a version that is
 // already live or in review.
-//   node release/promote.mjs check X.Y.Z      tags, prereleases, listings
+//   node release/promote.mjs check X.Y.Z      tags, releases, listings
 //   node release/promote.mjs gate X.Y.Z       store.yml: tag ref, approved promote run
 //   node release/promote.mjs play X.Y.Z       env TOKEN (androidpublisher)
 //   node release/promote.mjs appstore X.Y.Z   env ASC_API_KEY_P8, ASC_API_KEY_ID, ASC_API_ISSUER_ID
 //   node release/promote.mjs chrome X.Y.Z     env TOKEN (chromewebstore)
 //   node release/promote.mjs firefox X.Y.Z    env MOZILLA_AMO_JWT_ISSUER, MOZILLA_AMO_JWT_SECRET
 // Each command writes short result lines to the job summary.
+import { execFileSync } from "node:child_process";
 import { createHash, createHmac, randomUUID, sign } from "node:crypto";
-import { appendFileSync, readdirSync, readFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkDir } from "./check-screenshots.mjs";
@@ -150,7 +152,7 @@ export function releaseAssets(platform, version) {
   }[platform];
 }
 
-/** Why a platform is skipped (a string), or "" when its tag and prerelease are
+/** Why a platform is skipped (a string), or "" when its tag and release are
  *  ready. release is the GitHub release object or null. */
 export function releaseProblem(platform, version, tagExists, release) {
   const tag = platform + "/v" + version;
@@ -222,7 +224,8 @@ function output(k, v) {
 }
 // Store commands end with done() when X.Y.Z was promoted now or is already live
 // or in review at X.Y.Z, and with skip() when it was not promoted. Only
-// done() lets the workflow clear the GitHub prerelease flag.
+// done() lets the workflow clear the prerelease flag that older GitHub
+// releases carry (new releases are full releases).
 const done = (line) => (summary(line), true);
 const skip = (line) => (summary(line), false);
 /** Step output clear_prerelease for the result of a store command. */
@@ -249,7 +252,29 @@ async function http(method, url, { headers = {}, body, ok = [200, 201, 202, 204]
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const sha256 = (b) => createHash("sha256").update(b).digest("hex");
 
-/** Bytes of a GitHub release asset, checked against the release hashes file. */
+/** gh arguments that verify the build provenance attestation of file: made by
+ *  webext-release.yml of repository on a GitHub-hosted runner for the tag
+ *  platform/vX.Y.Z. */
+export function attestationArgs(file, platform, version, repository = repo()) {
+  return ["attestation", "verify", file, "--repo", repository, "--signer-workflow", repository + "/.github/workflows/webext-release.yml", "--source-ref", "refs/tags/" + platform + "/v" + version, "--deny-self-hosted-runners"];
+}
+
+/** Throws unless gh finds a valid build attestation for the bytes data (env GH_TOKEN). */
+function verifyAttestation(data, platform, version, name) {
+  const dir = mkdtempSync(join(tmpdir(), "pa-attest-"));
+  try {
+    const file = join(dir, name);
+    writeFileSync(file, data);
+    execFileSync("gh", attestationArgs(file, platform, version), { stdio: ["ignore", "pipe", "pipe"] });
+  } catch (e) {
+    throw new Error(name + ": no valid build attestation of the " + platform + "/v" + version + " release workflow: " + String(e.stderr || e.message).trim().slice(0, 1000));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** Bytes of a GitHub release asset, checked against the release hashes file
+ *  and the build attestation of the release workflow. */
 async function releaseFile(platform, version, name) {
   const base = "https://github.com/" + repo() + "/releases/download/" + platform + "/v" + version + "/";
   const get = async (n) => {
@@ -261,6 +286,7 @@ async function releaseFile(platform, version, name) {
   const hashes = (await get("pusharmor-" + platform + "-" + version + ".hashes.txt")).toString("utf8");
   const want = hashes.split("\n").map((l) => l.trim().split(/\s+/)).find((p) => p[1] === name);
   if (!want || want[0] !== sha256(data)) throw new Error(name + ": sha256 does not match the release hashes file");
+  verifyAttestation(data, platform, version, name);
   return data;
 }
 
@@ -626,13 +652,32 @@ export function amoToken(issuer, secret, now = Math.floor(Date.now() / 1000)) {
   return data + "." + createHmac("sha256", secret).update(data).digest("base64url");
 }
 
-async function firefox(version) {
+/** Replace the AMO listing previews with `shots`, in order: upload each one
+ *  (position = its index), then delete every preview that was there before.
+ *  AMO re-encodes previews, so an unchanged set cannot be detected and each
+ *  run replaces them; a failed upload leaves the old previews in place. */
+export async function syncAmoPreviews({ amo, id, shots }) {
+  const old = ((await amo("GET", "/addon/" + id + "/")).json.previews || []).map((p) => p.id);
+  for (const [i, s] of shots.entries()) {
+    const f = new FormData();
+    f.append("image", new Blob([s.data], { type: "image/png" }), s.name);
+    f.append("position", String(i));
+    await amo("POST", "/addon/" + id + "/previews/", f);
+  }
+  for (const p of old) await amo("DELETE", "/addon/" + id + "/previews/" + p + "/");
+  return shots.length + " previews uploaded, " + old.length + " old previews removed";
+}
+
+export async function firefox(version) {
   const api = "https://addons.mozilla.org/api/v5/addons";
   const id = encodeURIComponent(loadPublic().mozilla_firefox_addon_id);
   const amo = (method, path, body, ok) =>
     http(method, api + path, { headers: { Authorization: "JWT " + amoToken(process.env.MOZILLA_AMO_JWT_ISSUER, process.env.MOZILLA_AMO_JWT_SECRET) }, body, ok });
 
-  if ((await amo("GET", "/addon/" + id + "/", undefined, [200, 401, 403, 404])).status !== 200) {
+  // The listing previews: the plain AMO screenshots (store/screenshots/amo).
+  const previews = () => syncAmoPreviews({ amo, id, shots: screenshotFiles("amo") });
+  // 401 and 403 (a wrong or expired AMO credential) throw with their status.
+  if ((await amo("GET", "/addon/" + id + "/", undefined, [200, 404])).status !== 200) {
     throw new Error("Firefox: the listed add-on is not on AMO yet; create it by hand once (RELEASING.md, Firefox)");
   }
   const versions = [];
@@ -645,7 +690,7 @@ async function firefox(version) {
   if (same) {
     const st = same.channel + ", " + (same.file?.status || "unknown");
     // Only a listed version that AMO did not disable counts as promoted.
-    if (same.channel === "listed" && same.file?.status !== "disabled") return done("Firefox " + version + ": already on AMO (" + st + "); nothing to do");
+    if (same.channel === "listed" && same.file?.status !== "disabled") return done("Firefox " + version + ": already on AMO (" + st + "); " + (await previews()));
     return skip("Firefox " + version + ": SKIP, " + version + " is already on AMO (" + st + ")");
   }
   const newer = versions.find((x) => x.channel === "listed" && parseVersion(x.version) && cmpVersion(x.version, version) > 0);
@@ -669,7 +714,7 @@ async function firefox(version) {
   // Notes for the reviewers; the demo account is in the Developer Hub.
   vf.append("approval_notes", readFileSync(AMO_REVIEW_NOTES, "utf8").trim());
   await amo("POST", "/addon/" + id + "/versions/", vf);
-  return done("Firefox " + version + ": public zip and source submitted as a listed version");
+  return done("Firefox " + version + ": public zip and source submitted as a listed version; " + (await previews()));
 }
 
 const COMMANDS = { check, gate, play, appstore, chrome, firefox };
