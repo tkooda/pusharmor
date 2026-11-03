@@ -21,8 +21,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.runBlocking
 import java.io.IOException
@@ -116,10 +119,17 @@ class Settings(private val context: Context, private val dao: PaDao) {
     /** Room refuses main-thread calls: a main-thread call waits on an IO thread, as the DataStore reads here do. */
     private fun <T> db(block: () -> T): T = if (Looper.myLooper() == Looper.getMainLooper()) runBlocking(Dispatchers.IO) { block() } else block()
 
-    /** A damaged database reads as no state here (the data screen shows), checked again until it opens. */
-    private val dbState: Flow<List<StateEntity>> = dao.stateFlow().retryWhen { e, _ ->
-        if (e !is SQLException) return@retryWhen false
-        emit(emptyList()); delay(2000); true
+    /**
+     * A database that never read reads as no state here (the data screen shows); one that read keeps its last
+     * state through a later error. Either is checked again until it opens.
+     */
+    private val dbState: Flow<List<StateEntity>> = flow {
+        var read = false
+        emitAll(dao.stateFlow().onEach { read = true }.retryWhen { e, _ ->
+            if (e !is SQLException) return@retryWhen false
+            if (!read) emit(emptyList())
+            delay(2000); true
+        })
     }
 
     /** The preferences with the database state laid over them, so screens read both from one snapshot. */

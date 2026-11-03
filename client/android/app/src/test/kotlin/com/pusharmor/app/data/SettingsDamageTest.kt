@@ -10,6 +10,8 @@ import com.pusharmor.store.PaDatabase
 import com.pusharmor.store.StateEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -217,5 +219,26 @@ class MoveReadOnlyFileTest {
             assertTrue(s.flag(Settings.K.SIGNED_OUT, false))
             assertEquals("tok", s.get(Settings.K.PUSH_TOKEN))
         } finally { dir.setWritable(true) }
+    }
+}
+
+/** A state list that fails once after its first read, as a brief database error does. */
+private class BlipDao(private val real: PaDao) : PaDao by real {
+    private var calls = 0
+    override fun stateFlow(): kotlinx.coroutines.flow.Flow<List<StateEntity>> =
+        if (calls++ == 0) kotlinx.coroutines.flow.flow { emit(listOf(StateEntity("push_refused", "1"))); throw android.database.SQLException("busy") }
+        else real.stateFlow()
+}
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [31], application = android.app.Application::class, instrumentedPackages = ["com.pusharmor.sandbox.blip"])
+class StateBlipTest {
+    /** A brief database error keeps the last state on screen instead of an empty one (no card or banner flash). */
+    @Test fun briefErrorKeepsTheLastState() {
+        val c = ctx(); val real = dao(c)
+        io { real.putState(StateEntity("push_refused", "1")) }
+        val s = Settings(c, BlipDao(real))
+        val seen = runBlocking { kotlinx.coroutines.withTimeout(10_000) { s.data.take(2).toList() } }
+        assertEquals(listOf(true, true), seen.map { it[Settings.K.PUSH_REFUSED] })
     }
 }
