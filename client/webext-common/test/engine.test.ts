@@ -186,7 +186,7 @@ test("approve from an unpinned id is dropped", async () => {
   await refresh(a, b);
   // fake a pin on a only, b never pinned a
   await a.db.pin(b.id, (await b.e.self())!.sign_pub, (await b.e.self())!.enc_pub, new Uint8Array(8), (await a.db.peer(b.id))!);
-  await a.db.putPeer({ ...(await a.db.peer(b.id))!, ruling: "approved" });
+  await a.db.put("peers", { ...(await a.db.peer(b.id))!, ruling: "approved" });
   await a.e.approve(b.id).catch(() => undefined);
   const pushed = w.calls.filter((c) => c.path.startsWith("/v1/approve/"));
   assert.equal(pushed.length, 1);
@@ -828,14 +828,14 @@ test("N-side hint: approves_me true while committed reads still holds an earlier
   await refresh(a, b);
   await a.e.pairStart(b.id);
   w.take(b.id);
-  await a.db.putPeer({ ...(await a.db.peer(b.id))!, approves_me: true });
+  await a.db.put("peers", { ...(await a.db.peer(b.id))!, approves_me: true });
   clock.t += 3 * DAY;
   const v = (await a.e.pairRowView(b.id))!;
   // the row text names the device as the row title does
   const label = (await new Rpc(a.e).peers()).peers.find((p) => p.id === b.id)!.label;
   assert.match(label, /^Chrome, added \d{4}-\d{2}-\d{2}$/);
   assert.ok(v.lines.includes(T.stillHolds(label)));
-  await a.db.putPeer({ ...(await a.db.peer(b.id))!, approves_me: false });
+  await a.db.put("peers", { ...(await a.db.peer(b.id))!, approves_me: false });
   assert.ok((await a.e.pairRowView(b.id))!.lines.includes(T.noReplyYet(label)));
   assert.equal((await a.e.pairRowView(b.id))!.lines[0], 'Pairing with "' + label + '". Waiting for its reply.');
   assert.ok(!(await a.e.pairRowView(b.id))!.lines.some((l) => /compare|Pairing\.\.\./.test(l))); // no code check before the codes show
@@ -1383,7 +1383,7 @@ test("a peer list with an impossible created time still shows the device list", 
   assert.match(row.label, /^Chrome, added /);
   const stored = (await a.db.peer(b.id))!;
   assert.equal(stored.created, 0);
-  await a.db.putPeer({ ...stored, created: 1e20 });
+  await a.db.put("peers", { ...stored, created: 1e20 });
   assert.ok((await new Rpc(a.e).peers()).peers.some((v) => v.id === b.id));
 });
 

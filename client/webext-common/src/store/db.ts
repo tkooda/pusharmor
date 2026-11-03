@@ -238,9 +238,6 @@ export class Db {
   async peers(): Promise<PeerRow[]> {
     return this.all<PeerRow>("peers");
   }
-  async putPeer(p: PeerRow): Promise<void> {
-    return this.put("peers", p);
-  }
 
   /**
    * Read-modify-write of one peer row in ONE readwrite transaction, so a
