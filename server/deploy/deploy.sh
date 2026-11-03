@@ -7,7 +7,6 @@ usage() {
 Usage:
   deploy.sh worker/vX.Y.Z  release deploy of the tagged commit: HEAD must be
                          that tag (pushed, made by release/tag.mjs) on origin/main
-  deploy.sh maintenance    deploy the static 503 Worker
   deploy.sh --help
 
 Environment:
@@ -26,7 +25,7 @@ case "${1:-}" in
   "") usage >&2; exit 2 ;;
 esac
 [ "$#" -eq 1 ] || { usage >&2; exit 2; }
-MODE="$1"
+TAG="$1"
 
 [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] || die "CLOUDFLARE_ACCOUNT_ID is not set"
 
@@ -40,16 +39,6 @@ API_BASE="${API_BASE:-https://api.pusharmor.com/v1}"
 # The owner sets this from the measured export time. The export blocks the
 # DB while it runs, so a larger DB means a longer outage.
 DB_EXPORT_MAX_BYTES="${DB_EXPORT_MAX_BYTES:-209715200}"
-
-if [ "$MODE" = "maintenance" ]; then
-  "$WRANGLER" deploy --config "$HERE/maintenance/wrangler.jsonc"
-  echo "Maintenance mode is live (503 on every request)."
-  echo "To return to service: (cd server/worker && npx wrangler rollback)"
-  echo "  or run a normal release deploy: server/deploy/deploy.sh worker/vX.Y.Z"
-  exit 0
-fi
-
-TAG="$MODE"
 
 # 0. release values: the repo config holds no ids and keeps the dashboard vars;
 #    the deployed Worker has every dashboard var (read-only wrangler calls);

@@ -67,8 +67,6 @@ function fileChecks() {
     checkBlock(w, "");
     for (const [name, e] of Object.entries(w.env || {})) checkBlock(e || {}, "env." + name + ".");
   }
-  const m = jsonc("server/deploy/maintenance/wrangler.jsonc");
-  if (m && m.keep_vars !== true) problems.push("server/deploy/maintenance/wrangler.jsonc: keep_vars must be true (a deploy would delete the dashboard vars)");
 }
 
 // Read-only: "deployments status" and "versions view" never change the Worker.

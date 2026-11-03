@@ -89,7 +89,6 @@ test("file preflight aborts on an id in the repo config or a missing keep_vars, 
   const d = tree();
   try {
     const wp = join(d, "server", "worker", "wrangler.jsonc");
-    const mp = join(d, "server", "deploy", "maintenance", "wrangler.jsonc");
     const parse = (p) => JSON.parse(readFileSync(p, "utf8").split("\n").filter((l) => !l.trim().startsWith("//")).join("\n"));
     const j = parse(wp);
     j.vars.AWS_SES_MAIL_FROM = "codes@example.com";
@@ -97,9 +96,6 @@ test("file preflight aborts on an id in the repo config or a missing keep_vars, 
     delete j.keep_vars;
     j.env = { staging: { d1_databases: [{ binding: "DB", database_name: "x" }], vars: { X: "PLACEHOLDER_X" } } };
     writeFileSync(wp, JSON.stringify(j));
-    const m = parse(mp);
-    delete m.keep_vars;
-    writeFileSync(mp, JSON.stringify(m));
     const w = stub(d, all());
     const r = run(d, w);
     assert.notEqual(r.status, 0);
@@ -107,7 +103,6 @@ test("file preflight aborts on an id in the repo config or a missing keep_vars, 
     assert.match(r.stderr, /vars\.AWS_SES_MAIL_FROM must not be in the repo/);
     assert.match(r.stderr, /DB has a database_id/);
     assert.match(r.stderr, /wrangler\.jsonc: keep_vars must be true/);
-    assert.match(r.stderr, /maintenance\/wrangler\.jsonc: keep_vars must be true/);
     assert.match(r.stderr, /env\.staging\.vars\.X is a PLACEHOLDER/);
     delete j.d1_databases;
     writeFileSync(wp, JSON.stringify(j));

@@ -12,7 +12,6 @@ Never connect Workers Builds (Git integration) to the `pusharmor-api` Worker: it
 the preflight, check-bundle, the backup and the migrations. Deploy only with `deploy.sh`.
 
     CLOUDFLARE_ACCOUNT_ID=... server/deploy/deploy.sh worker/vX.Y.Z
-    CLOUDFLARE_ACCOUNT_ID=... server/deploy/deploy.sh maintenance
     server/deploy/deploy.sh --help
 
 ## Environment
@@ -28,7 +27,7 @@ the preflight, check-bundle, the backup and the migrations. Deploy only with `de
 
 Deployment ids are not in the repo. `server/worker/wrangler.jsonc` holds only
 fixed values and sets `keep_vars: true`, so a deploy keeps the dashboard
-variables (the maintenance config sets it too). Owner steps, once and after
+variables. Owner steps, once and after
 each change:
 
 1. Create the Worker first: `wrangler secret put` for each secret (see the
@@ -82,10 +81,3 @@ table to that file, so a new route needs a reviewed edit to `routes.json`.
    tag.
 8. Done: the script prints the tag and the uploaded bundle sha256. It creates
    no tag (the worker/v tag came first).
-
-## Maintenance mode
-
-`deploy.sh maintenance` deploys `maintenance/`: the same Worker name with a
-static 503 response `{"error":"unavailable"}` and the same cron triggers.
-Return to service with `(cd server/worker && npx wrangler rollback)` or a
-normal release deploy.
