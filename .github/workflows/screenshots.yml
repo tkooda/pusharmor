@@ -180,6 +180,9 @@ jobs:
       - name: Dev build with the screenshot page
         working-directory: client/webext-common
         run: node build.mjs --dev --shots
+      - name: Pinned Chrome (SHA-256 checked)
+        working-directory: client/webext-common
+        run: bash ci-browsers.sh chrome
       - name: Screenshots in headless Chrome
         working-directory: client/webext-common
         run: |
@@ -224,6 +227,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends fonts-noto-core fonts-dejavu-core
+      - name: Pinned Firefox (SHA-256 checked)
+        working-directory: client/webext-common
+        run: bash ci-browsers.sh firefox
       - name: Screenshots in headless Firefox
         working-directory: client/webext-common
         run: |

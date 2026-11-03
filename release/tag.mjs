@@ -17,7 +17,8 @@
 // platforms skip numbers, so each platform's version files are stamped and checked
 // for that platform alone. Android versionCode and the iOS build number are
 // buildNumber(X.Y.Z) = X * 1000000 + Y * 1000 + Z, so they grow with the version.
-// Tag mode fetches the tags of origin first (when a remote origin exists). When
+// Tag mode fetches the tags and main of origin first (when a remote origin
+// exists); HEAD must be on origin/main (--check too, when origin/main exists). When
 // the version files do not hold X.Y.Z it writes them and stops: commit, then
 // rerun. Otherwise it creates the annotated tag at HEAD; the owner pushes it.
 // --check compares only with tags created no later than TAG (a rerun after newer
@@ -72,8 +73,9 @@ export function formatProblems(platform, version) {
 /**
  * Problems with giving `commit` the version `version`. tags: [{ name, commit }] of
  * the existing tags to compare with (names that are not <platform>/vX.Y.Z are ignored).
+ * platforms: the platforms being tagged; none of them may have a newer tag.
  */
-export function tagProblems(version, commit, tags) {
+export function tagProblems(version, commit, tags, platforms = []) {
   const bad = [];
   // A version already bound to this commit is not new: another platform may join it.
   const bound = tags.some((t) => parseTag(t.name)?.version === version && t.commit === commit);
@@ -86,6 +88,9 @@ export function tagProblems(version, commit, tags) {
       bad.push("the commit already carries version " + p.version + " (tag " + t.name + ")");
     } else if (!bound && cmp(version, p.version) <= 0) {
       bad.push(version + " is not greater than the existing tag " + t.name);
+    } else if (bound && platforms.includes(p.platform) && cmp(version, p.version) < 0) {
+      // Joining a bound version never lowers a platform's build number.
+      bad.push(p.platform + " already has the newer tag " + t.name);
     }
   }
   return bad;
@@ -276,6 +281,21 @@ function fail(bad) {
   process.exit(1);
 }
 
+/** [] when HEAD is on origin/main (or there is no origin/main to compare with), else one problem. */
+function mainProblems() {
+  try {
+    git(["rev-parse", "--verify", "-q", "refs/remotes/origin/main"]);
+  } catch {
+    return [];
+  }
+  try {
+    git(["merge-base", "--is-ancestor", "HEAD", "refs/remotes/origin/main"]);
+    return [];
+  } catch {
+    return ["HEAD is not on origin/main (fast-forward main to it first)"];
+  }
+}
+
 function check(tag) {
   const p = parseTag(tag);
   if (!p) fail([JSON.stringify(tag) + " is not <platform>/vX.Y.Z (" + PLATFORMS.join(", ") + ")"]);
@@ -285,7 +305,8 @@ function check(tag) {
   if (!self) fail(["tag " + tag + " does not exist"]);
   if (!self.annotated) bad.push(tag + " is a lightweight tag; create release tags with node release/tag.mjs");
   if (self.commit !== git(["rev-parse", "HEAD"])) bad.push("HEAD is not the commit of " + tag);
-  bad.push(...tagProblems(p.version, self.commit, tags.filter((t) => t.name !== tag && t.date <= self.date)));
+  bad.push(...mainProblems());
+  bad.push(...tagProblems(p.version, self.commit, tags.filter((t) => t.name !== tag && t.date <= self.date), [p.platform]));
   bad.push(...stampProblems(git(["rev-parse", "--show-toplevel"]), p.version, [p.platform]));
   if (bad.length) fail(bad);
   console.log(p.version);
@@ -311,10 +332,12 @@ function tagHead(platforms, version) {
   if (git(["status", "--porcelain"]) !== "") fail(["the working tree is not clean"]);
   if (git(["remote"]).split("\n").includes("origin")) {
     try {
-      execFileSync("git", ["fetch", "--quiet", "--tags", "origin"], { stdio: "inherit" });
+      execFileSync("git", ["fetch", "--quiet", "--tags", "origin", "+refs/heads/main:refs/remotes/origin/main"], { stdio: "inherit" });
     } catch {
-      fail(["could not fetch the tags of origin"]);
+      fail(["could not fetch the tags and main of origin"]);
     }
+    const bad = mainProblems();
+    if (bad.length) fail(bad);
   }
   const tags = allTags();
   const names = platforms.map((p) => p + "/v" + version);
@@ -329,7 +352,7 @@ function tagHead(platforms, version) {
     console.log("  node release/tag.mjs " + version + " " + platforms.join(" "));
     process.exit(1);
   }
-  const bad2 = tagProblems(version, head, tags.filter((t) => !names.includes(t.name)));
+  const bad2 = tagProblems(version, head, tags.filter((t) => !names.includes(t.name)), platforms);
   for (const n of names) {
     const own = tags.find((t) => t.name === n);
     if (own && own.commit !== head) bad2.push("tag " + n + " already exists at another commit");

@@ -1,7 +1,8 @@
 # Releasing
 
 A tag builds ONE platform and uploads it to that platform's test channel and to
-a GitHub release. A tag never publishes to a public channel. After testing
+a GitHub release. A tag never publishes to a public channel, except `cli/vX.Y.Z`:
+it publishes to PyPI at once (a PyPI version can never be uploaded again). After testing
 on devices, the owner promotes the same build with the promote workflow (below)
 or by hand in each store console. Nothing is rebuilt for the promotion. The
 site has no tag and a push to main does NOT deploy it: deploy it by hand with
@@ -15,6 +16,7 @@ gitignored `site/dist` first, so the tree stays clean; `site/README.md`).
 | `chrome/vX.Y.Z`  | private "PushArmor Beta" item, GitHub release         | public zip to the public item, GitHub release   |
 | `firefox/vX.Y.Z` | unlisted "PushArmor Beta" add-on, GitHub release      | public zip to the listed add-on, GitHub release |
 | `worker/vX.Y.Z`  | nothing (build and tests only)                        | `server/deploy/deploy.sh worker/vX.Y.Z`         |
+| `cli/vX.Y.Z`     | PyPI (public at once), GitHub release                 | nothing (already public)                        |
 
 NOTE: the App Store version is released automatically after approval
 (`IOS_RELEASE_TYPE` = `AFTER_APPROVAL` in `release/promote.mjs`), like the other
@@ -24,31 +26,12 @@ three stores; it is not a manual release.
 
 All platforms share ONE version counter X.Y.Z. A release tags only the platforms
 that changed (for example `chrome/v0.0.22` alone); the others skip that number.
-A given X.Y.Z always means the same commit on every platform that has it. Rules (`release/tag.mjs`, checked again by every release
-workflow in its first job):
-
-- A version is bound to one commit: every `<platform>/vX.Y.Z` tag of X.Y.Z points
-  at the same commit, and a commit carries one version.
-- A new version (no tag of it yet) is greater than every existing tag of any
-  platform. A version that already has a tag stays open to other platforms at
-  its commit, also after newer versions are tagged.
-- A release names its platforms (`node release/tag.mjs X.Y.Z chrome firefox`;
-  `all` = android, ios, chrome, firefox; `cli` and `worker` are named
-  explicitly). Platforms are required, so nothing is tagged by default. Tag all
-  platforms that changed on ONE commit; the rest keep their last version.
-- X.Y.Z has no leading zeros; Y and Z are at most 999; X is at most 2099.
-- The version files OF THE TAGGED PLATFORM at the tag commit hold X.Y.Z (files of
-  other platforms keep their own version): `release/version.properties`
-  (Android), `client/chrome/manifest.json`, `client/firefox/manifest.json`,
-  `client/ios/project.yml`, `client/cli/pusharmor.py` (VERSION and the version
-  comment on line 2), `site/public/download.html` (the pusharmor.py release
-  URL and the SHA-256 of `client/cli/pusharmor.py` at the tag commit; for
-  Android, the foss and play APK URLs and file names; the APK and certificate
-  SHA-256 values are not stamped), `site/public/fdroid/android.txt`
-  (Android versionName, then versionCode), and `site/public/fx/beta/updates.json` (Firefox: the version and the URL of
-  the Beta XPI of the tag).
-- `ci-ok` of the ci workflow succeeded on the tag commit (a push run; `gh api`
-  with actions: read). The release workflow waits up to 40 minutes for it.
+A given X.Y.Z always means the same commit on every platform that has it, and a
+new version is greater than every existing tag. `release/tag.mjs` stamps the
+version files of the named platforms and enforces the rules (header comment and
+`FILES` list there; tests in `release/tag.test.mjs`); every release workflow
+checks them again in its first job, including a successful `ci-ok` on the tag
+commit (it waits up to 40 minutes for a running CI).
 
 Build numbers: Android versionCode and the iOS build number grow with the
 version (0.0.1 -> 1; `buildNumber` in `release/tag.mjs`).
@@ -63,8 +46,9 @@ talks to the production Worker, and the public clients must keep working with it
    X.Y.Z yet, it writes them and stops (nothing tagged).
 2. Commit the version files ("release X.Y.Z") and push to main; wait for ci-ok.
 3. Check out that commit and run `node release/tag.mjs X.Y.Z <platform>...` again:
-   it fetches the tags of origin, checks the rules (ci-ok too, with your `gh`
-   login) and creates one annotated tag per platform.
+   it fetches the tags and main of origin, checks the rules (the commit is on
+   origin/main, and ci-ok, with your `gh` login) and creates one annotated tag
+   per platform.
 4. `git push origin <platform>/vX.Y.Z ...`. A platform added later to the same
    version: run step 3 for it at the SAME commit.
 
@@ -86,7 +70,7 @@ and its job does not run. The first job checks, per platform, the tag
 `<platform>/vX.Y.Z` and its published GitHub release with the needed assets; a
 platform without them is skipped (a SKIP line in the summary). It refuses to
 run when the tags of X.Y.Z point at different commits, and it lists the client
-platforms that have no tag of X.Y.Z as a WARNING line. A selected platform
+platforms that have no tag of X.Y.Z as a NOTE line. A selected platform
 whose tag commit has no `.github/workflows/store.yml` is skipped too (tags
 made before store.yml existed cannot be promoted by the workflow). It also checks the
 listing files. Then the run waits for the owner's approval (Environment
@@ -104,8 +88,8 @@ and runs with the store's release Environment:
 |------------|-----------------------------------------------------------------------------|
 | `play`     | Play versionCode of X.Y.Z (already on the internal track) to production, status completed; listing text and phone screenshots |
 | `appstore` | TestFlight build of X.Y.Z on the version page X.Y.Z, version page text, app name, subtitle, privacy URL, review notes, 6.9-inch screenshots; submits for App Review, release after approval |
-| `chrome`   | `pusharmor-chrome-X.Y.Z.zip` of the release (hash checked) to the public item, then publish (live after review) |
-| `firefox`  | `pusharmor-firefox-X.Y.Z.zip` and the source archive of the release to the listed add-on as a new listed version, with the reviewer notes of `store/listing/amo/review_notes.txt`; then replaces the listing previews with `store/screenshots/amo/en-US/` (uploads them, then deletes the old ones) |
+| `chrome`   | `pusharmor-chrome-X.Y.Z.zip` of the release (hash and build attestation checked) to the public item, then publish (live after review) |
+| `firefox`  | `pusharmor-firefox-X.Y.Z.zip` and the source archive of the release (hash and build attestation checked) to the listed add-on as a new listed version, with the reviewer notes of `store/listing/amo/review_notes.txt`; then replaces the listing previews with `store/screenshots/amo/en-US/` (uploads them, then deletes the old ones) |
 
 Hard gate: Play stays on internal testing until BOTH repository variables
 `PLAY_CONTACT_OK` and `PLAY_PUBLIC_OK` are `yes` (Settings > Secrets and
@@ -137,11 +121,10 @@ dashboards. The AMO reviewer notes (`store/listing/amo/review_notes.txt`)
 name no credentials; enter the demo account for the AMO reviewers in the
 Developer Hub.
 
-Each store job clears "Set as a pre-release" on its own GitHub release once
-its store accepts the build, or when X.Y.Z is already live or in review there.
-After a SKIP (the store has a newer version) the flag stays set. After a
-promotion by hand, clear the flag yourself (on an Android release, also set it
-as latest).
+Tag workflows publish full GitHub releases (not pre-releases); only Android
+takes the Latest badge. Older releases were made as pre-releases: each store
+job clears "Set as a pre-release" on its own GitHub release once its store
+accepts the build, or when X.Y.Z is already live or in review there.
 
 ## Worker (`worker/vX.Y.Z`)
 
@@ -184,8 +167,9 @@ Promote:
 1. The promote workflow (job `play`), or by hand: Play Console > Test and
    release > Internal testing > Promote release > Production (a personal developer account created after 2023-11-13 must run
    a closed test with 12 testers for 14 days first: promote to a closed track).
-2. Optional: run the rebuild workflow (Actions > rebuild, tag
-   `android/vX.Y.Z`) to prove the APKs are reproducible.
+2. Optional: run the rebuild workflow (Actions > rebuild, "Use workflow
+   from" and the tag input both `android/vX.Y.Z`, so the toolchain pins are
+   those of the release) to prove the APKs are reproducible.
 3. F-Droid: `release/tag.mjs` stamps `site/public/fdroid/android.txt`
    (versionName, then versionCode) with the other Android version files. The
    first time, add the app metadata to fdroiddata by hand (UpdateCheckMode HTTP on that file,
@@ -296,19 +280,19 @@ Store items and ids:
 The release workflows trust the workflow file and `release/public.json` of the
 tag commit, so only reviewed commits may be tagged:
 
-1. Branch ruleset on `main`: block force pushes, restrict deletions. No pull
-   request and no required status check, so the owner can push to `main`
-   directly. `ci-ok` still runs on every push; wait for it to be green before
-   you tag a commit. `release/tag.mjs` and the first job of every release
-   workflow refuse a commit without a successful ci-ok.
+1. Branch ruleset on `main`: block force pushes, restrict deletions, and
+   require the status check `ci-ok`. No pull request: a commit reaches `main`
+   by a fast-forward push once `ci-ok` passed on it (CONTRIBUTING.md).
+   `release/tag.mjs` and the first job of every release workflow refuse a
+   commit without a successful ci-ok.
 2. Tag ruleset, target pattern `*/v*` (all release tags): restrict creation,
    update and deletion to the owner (bypass list: repository admin and the
    push deploy key); block force pushes. A release tag can then not be
    created by anyone else, moved or deleted.
 3. Environments `android-sign`, `android-release`, `ios-release`,
-   `chrome-release`, `firefox-release`: "Deployment branches and tags" =
-   selected tags only, `android/v*` for both Android environments, `ios/v*`,
-   `chrome/v*`, `firefox/v*`. Required reviewers are optional
+   `chrome-release`, `firefox-release`, `pypi`: "Deployment branches and tags"
+   = selected tags only, `android/v*` for both Android environments, `ios/v*`,
+   `chrome/v*`, `firefox/v*`, `cli/v*`. Required reviewers are optional
    because the store promotion is the human gate.
 4. Secrets only as environment secrets, never repository or organization
    secrets (names and environments: `release/names.json` "github_secrets"):

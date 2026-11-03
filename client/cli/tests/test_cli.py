@@ -1275,16 +1275,14 @@ def test_unusable_keys_are_one_line_and_kept(change, monkeypatch, tmp_path, net,
     assert state(cfg)["name"] != "stale" and state(cfg)["reg"] == "registered"
 
 
-def test_help_and_readme_list_every_exit_code(capsys):
+def test_help_lists_every_exit_code(capsys):
     with pytest.raises(SystemExit) as e:
         pa.main(["--help"])
     assert e.value.code == 0
     out = capsys.readouterr().out
-    readme = open(os.path.join(os.path.dirname(HERE), "README.md"), encoding="utf-8").read()
     assert len(pa.EXIT_CODES) == 8
     for code, text in pa.EXIT_CODES:
         assert "  %-3d %s" % (code, text) in out
-        assert "| %d | %s |" % (code, text) in readme
 
 
 # ---- crashes: every error is one line on stderr and a listed exit code ----

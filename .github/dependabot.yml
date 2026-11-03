@@ -18,3 +18,12 @@ updates:
     directory: /client/android
     schedule:
       interval: weekly
+  - package-ecosystem: swift
+    directory: /client/ios/PushArmorCore
+    schedule:
+      interval: weekly
+  # Hash-pinned test and build tools of the command-line client.
+  - package-ecosystem: pip
+    directory: /client/cli
+    schedule:
+      interval: weekly
