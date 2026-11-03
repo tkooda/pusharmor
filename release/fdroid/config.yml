@@ -1,0 +1,19 @@
+---
+# fdroidserver 2.4.5 config of the F-Droid repo https://fdroid.pusharmor.com/repo
+# (release/fdroid/publish.sh). No secret here: the passwords come from the
+# environment, the keystore is decoded next to this file at run time.
+sdk_path: $ANDROID_HOME
+repo_keyalias: pusharmor-fdroid-repo
+keystore: keystore.p12
+keystorepass: {env: FDROID_REPO_STORE_PASSWORD}
+keypass: {env: FDROID_REPO_KEY_PASSWORD}
+keydname: CN=pusharmor-fdroid-repo, OU=F-Droid
+repo_url: https://fdroid.pusharmor.com/repo
+repo_name: PushArmor
+repo_description: >-
+  The official F-Droid repository for PushArmor. PushArmor sends URLs and
+  short notes between your own devices, end-to-end encrypted. See
+  https://pusharmor.com for more.
+repo_icon: pusharmor.png
+archive_older: 3
+archive_icon: pusharmor.png

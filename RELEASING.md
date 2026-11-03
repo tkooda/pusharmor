@@ -163,6 +163,16 @@ CI: signed play and foss APKs, mapping files and hashes in the GitHub
 release. The AAB is not attached there: it goes to the Play internal track
 and stays in the `android-signed` run artifact.
 
+CI also updates the F-Droid repo https://fdroid.pusharmor.com/repo (job
+`android-rel-fdroid`, `release/fdroid/publish.sh`, fdroidserver 2.4.5): the
+foss APKs of the newest three Android releases and an index signed with the
+repo key, uploaded to the R2 bucket `pusharmor-fdroid` (never `repo/status/`);
+older APKs are deleted from the bucket. It reads the secrets
+`FDROID_REPO_KEYSTORE_B64`, `FDROID_REPO_STORE_PASSWORD`,
+`FDROID_REPO_KEY_PASSWORD`, `CLOUDFLARE_R2_API_TOKEN` (R2 edit) and
+`CLOUDFLARE_ACCOUNT_ID` of the Environment `fdroid-release`; while one is
+missing the job skips with a notice. Rerun only that job after a failure.
+
 Test: internal testers install from Play; Obtainium testers install from the
 GitHub release. `PLAY_INTERNAL_STATUS` in
 `.github/workflows/android-release.yml` is `completed`: each tag rolls out to
