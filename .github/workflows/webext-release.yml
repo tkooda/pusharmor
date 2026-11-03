@@ -575,8 +575,8 @@ jobs:
       # Self-hosted update manifest of the Beta add-on (update_url
       # https://pusharmor.com/fx/beta/updates.json, release/constants.json). It
       # points at the signed XPI of this prerelease and goes into the draft with
-      # the other assets; the owner copies it to site/public/fx/beta/updates.json
-      # in a site commit (RELEASING.md).
+      # the other assets. The site copy, site/public/fx/beta/updates.json, is
+      # stamped by release/tag.mjs (RELEASING.md).
       - name: Beta update manifest (prerelease asset)
         env:
           DIR: ${{ steps.files.outputs.dir }}

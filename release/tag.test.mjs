@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { chmodSync, cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { buildNumber, ciJobs, repoName, ciProblems, ciState, formatProblems, parseTag, stampProblems, tagProblems } from "./tag.mjs";
+import { betaXpiUrl, buildNumber, ciJobs, repoName, ciProblems, ciState, formatProblems, parseTag, stampProblems, tagProblems } from "./tag.mjs";
 
 const REPO = join(import.meta.dirname, "..");
 const CLI = join(import.meta.dirname, "tag.mjs");
@@ -109,6 +109,16 @@ test("an Android stamp check fails when fdroid/android.txt holds another version
   assert.deepEqual(stampProblems(d, v, ["android"]), ["site/public/fdroid/android.txt holds 0.0.0 / 0, want " + v + " / " + buildNumber(v)]);
 });
 
+test("a Firefox stamp check fails when fx/beta/updates.json points at another XPI", (t) => {
+  const { d, bin } = scratch();
+  t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
+  const f = join(d, "site/public/fx/beta/updates.json");
+  const v = Object.values(JSON.parse(readFileSync(f, "utf8")).addons)[0].updates[0].version;
+  assert.deepEqual(stampProblems(d, v, ["firefox"]), []);
+  writeFileSync(f, readFileSync(f, "utf8").replace("/firefox/v" + v + "/", "/firefox/v0.0.1/"));
+  assert.deepEqual(stampProblems(d, v, ["firefox"]), ["site/public/fx/beta/updates.json holds " + v + " / " + betaXpiUrl(v).replace("/firefox/v" + v + "/", "/firefox/v0.0.1/") + ", want " + v + " / " + betaXpiUrl(v)]);
+});
+
 test("ci-ok: any successful run or attempt counts; running, missing and failed jobs do not", () => {
   const c = "e".repeat(40);
   const ok = { status: "completed", conclusion: "success" };
@@ -171,7 +181,7 @@ test("ci-ok wait: polls a running CI and a failing gh api until the deadline, st
 // answers one ci run whose ci-ok jobs are ci.jobs (status TAB conclusion lines).
 function scratch() {
   const d = mkdtempSync(join(tmpdir(), "pa-tag-"));
-  for (const f of ["release/version.properties", "client/chrome/manifest.json", "client/firefox/manifest.json", "client/ios/project.yml", "client/cli/pusharmor.py", "site/public/download.html", "site/public/fdroid/android.txt"]) {
+  for (const f of ["release/version.properties", "client/chrome/manifest.json", "client/firefox/manifest.json", "client/ios/project.yml", "client/cli/pusharmor.py", "site/public/download.html", "site/public/fdroid/android.txt", "site/public/fx/beta/updates.json"]) {
     mkdirSync(join(d, dirname(f)), { recursive: true });
     cpSync(join(REPO, f), join(d, f));
   }
@@ -202,6 +212,8 @@ test("CLI: stamp, commit, tag; second platform at the same commit; check mode", 
   assert.match(readFileSync(join(d, "release/version.properties"), "utf8"), /^versionCode=1002003$/m);
   assert.match(readFileSync(join(d, "client/ios/project.yml"), "utf8"), /CURRENT_PROJECT_VERSION: "1002003"/);
   assert.equal(readFileSync(join(d, "site/public/fdroid/android.txt"), "utf8"), "1.2.3\n1002003\n");
+  const beta = Object.values(JSON.parse(readFileSync(join(d, "site/public/fx/beta/updates.json"), "utf8")).addons)[0].updates;
+  assert.deepEqual(beta, [{ version: "1.2.3", update_link: "https://github.com/tkooda/pusharmor/releases/download/firefox/v1.2.3/pusharmor-firefox-beta-1.2.3.xpi" }]);
   assert.match(readFileSync(join(d, "client/cli/pusharmor.py"), "utf8"), /^VERSION = "1\.2\.3"$/m);
   assert.match(readFileSync(join(d, "client/cli/pusharmor.py"), "utf8"), /^# PushArmor command-line client, version 1\.2\.3$/m);
   const page = readFileSync(join(d, "site/public/download.html"), "utf8");
@@ -327,6 +339,7 @@ test("platform subset: only those version files change; numbers are shared and n
   const page = read("site/public/download.html");
   const fdroid = read("site/public/fdroid/android.txt");
   let r = run("1.2.3", "chrome", "firefox");
+  assert.match(read("site/public/fx/beta/updates.json"), /"version": "1\.2\.3"/);
   assert.equal(r.status, 1, r.stderr);
   assert.match(r.stdout, /stamped 1\.2\.3 into the version files of chrome, firefox/);
   assert.match(read("client/chrome/manifest.json"), /"version": "1\.2\.3"/);

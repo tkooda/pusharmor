@@ -11,7 +11,8 @@
 // commit, and a commit carries one version); a new version (no tag of it yet) is
 // greater than every existing tag; the version files at the commit hold X.Y.Z
 // (stampProblems), /download holds the SHA-256 of pusharmor.py at the commit, and
-// /fdroid/android.txt holds the Android versionName and versionCode.
+// /fdroid/android.txt holds the Android versionName and versionCode, and
+// /fx/beta/updates.json points at the Firefox Beta XPI of X.Y.Z.
 // One shared counter, but a release tags only the platforms that changed:
 // platforms skip numbers, so each platform's version files are stamped and checked
 // for that platform alone. Android versionCode and the iOS build number are
@@ -139,9 +140,32 @@ const FILES = [
     want: (v, root) => [v, cliSha256(root)],
     set: (s, v, root) => s.replaceAll(/(\/releases\/download\/cli\/v)[^/"<]*(\/pusharmor\.py)/g, "$1" + v + "$2").replace(/(<code id="cli-sha256">)[^<]*/, "$1" + cliSha256(root)),
   },
+  // The self-hosted update manifest of the Firefox Beta add-on: X.Y.Z and the
+  // URL of the signed Beta XPI of the tag firefox/vX.Y.Z.
+  {
+    path: "site/public/fx/beta/updates.json",
+    platforms: ["firefox"],
+    get: (s) => {
+      const u = Object.values(JSON.parse(s).addons)[0].updates[0];
+      return [u.version, u.update_link];
+    },
+    want: (v) => [v, betaXpiUrl(v)],
+    set: (s, v) => {
+      const j = JSON.parse(s);
+      const u = Object.values(j.addons)[0].updates[0];
+      u.version = v;
+      u.update_link = betaXpiUrl(v);
+      return JSON.stringify(j, null, 2) + "\n";
+    },
+  },
 ];
 
 const filesOf = (platforms) => FILES.filter((f) => f.platforms.some((p) => platforms.includes(p)));
+
+/** The URL of the signed Firefox Beta XPI of X.Y.Z in GitHub Releases. */
+export function betaXpiUrl(v) {
+  return "https://github.com/tkooda/pusharmor/releases/download/firefox/v" + v + "/pusharmor-firefox-beta-" + v + ".xpi";
+}
 
 /** One line per version file of platforms under root that does not hold X.Y.Z. */
 export function stampProblems(root, version, platforms = PLATFORMS) {

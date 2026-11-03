@@ -43,7 +43,9 @@ workflow in its first job):
   `client/ios/project.yml`, `client/cli/pusharmor.py` (VERSION and the version
   comment on line 2), `site/public/download.html` (the pusharmor.py release
   URL and the SHA-256 of `client/cli/pusharmor.py` at the tag commit), and
-  `site/public/fdroid/android.txt` (Android versionName, then versionCode).
+  `site/public/fdroid/android.txt` (Android versionName, then versionCode),
+  and `site/public/fx/beta/updates.json` (Firefox: the version and the URL of
+  the Beta XPI of the tag).
 - `ci-ok` of the ci workflow succeeded on the tag commit (a push run; `gh api`
   with actions: read). The release workflow waits up to 40 minutes for it.
 
@@ -242,10 +244,11 @@ Rerun: AMO accepts each version once. When `submit-firefox` passed and
 rerun signs the same version again and fails; fix a failure in
 `submit-firefox` or before it with a new patch version.
 
-Test: install the Beta XPI from the prerelease link once. Auto-update: copy the
-updates.json asset to `site/public/fx/beta/updates.json` in a site commit (the
-Beta manifest's update_url is `https://pusharmor.com/fx/beta/updates.json`,
-`release/constants.json`). Do not install the public add-on and the Beta add-on
+Test: install the Beta XPI from the prerelease link once. Auto-update:
+`release/tag.mjs` stamps `site/public/fx/beta/updates.json` (version and XPI
+URL) with the other Firefox version files; deploy the site after the
+prerelease is published (the Beta manifest's update_url is
+`https://pusharmor.com/fx/beta/updates.json`, `release/constants.json`). Do not install the public add-on and the Beta add-on
 in the same Firefox profile: both handle the login page.
 
 Promote:
