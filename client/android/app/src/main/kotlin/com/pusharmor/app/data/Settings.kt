@@ -101,7 +101,6 @@ class Settings(private val context: Context, private val dao: PaDao) {
         val FLAVOR_NOTICE_SHOWN = booleanPreferencesKey("flavor_notice_shown")
         /** Device ids ticked on the last send, comma-separated. */
         val LAST_SEND_TO = stringPreferencesKey("last_send_to")
-        val PENDING_EVICT = stringPreferencesKey("pending_evict")
         /** Purpose of an OAuth flow in a Custom Tab ("register" | "login" | "delete-account"). */
         val PENDING_PURPOSE = stringPreferencesKey("pending_purpose")
         /** Keys were made or loaded for a sign-in that has not registered yet; startup keeps them. */
