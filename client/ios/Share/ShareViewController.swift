@@ -37,10 +37,23 @@ final class ShareModel: ObservableObject {
         let env = AppEnvironment.shared
         // This version got HTTP 426: the update message, never a send that fails.
         if env.updateRequired { step = .update; return }
+        // Data that does not open is not a log out: it says why the data failed.
+        let store: Store, me: Me
+        do {
+            store = try env.openStore()
+            me = try store.me()
+        } catch {
+            step = .failed(S.shareDataFailed(error))
+            return
+        }
         // Logged out keeps the id and keys: it must not offer a send that cannot go through.
-        guard let store = try? env.openStore(), let keys = try? env.keychain.load(), let me = try? store.me(),
-              me.id != nil, !me.loggedOut, !me.removed else {
+        guard me.id != nil, !me.loggedOut, !me.removed else {
             step = .failed(S.shareLoggedOut)
+            return
+        }
+        // Keys that do not load (for example before the first unlock) are not a log out either.
+        guard let keys = try? env.keychain.load() else {
+            step = .failed(S.shareKeysUnusable)
             return
         }
         core = env.makeCore(store: store, keys: keys)

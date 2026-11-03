@@ -69,6 +69,13 @@ final class LoginErrorTests: XCTestCase {
         XCTAssertEqual(S.shareLoggedOut, "Unable to send.\nThis device is logged out. Open PushArmor and log in.")
         XCTAssertEqual(S.shareNothing, "Unable to send.\nThere is no text or URL to send.")
         XCTAssertEqual(S.shareNoPeers, "Unable to send.\nThis device is not paired with any devices yet. Open PushArmor to pair.")
+        // the data or keys failing to open is not a log out
+        XCTAssertEqual(S.shareDataFailed(DBError.sql(11, "database disk image is malformed")),
+                       "Unable to send.\nPushArmor could not save its data on this device. Restart PushArmor and try again.")
+        XCTAssertEqual(S.shareDataFailed(DBError.sql(13, "database or disk is full")),
+                       "Unable to send.\nStorage is full. Free some space and try again.")
+        XCTAssertEqual(S.shareKeysUnusable,
+                       "Unable to send.\nThis device's security keys cannot be used right now. Restart the device and try again.")
     }
 
     func testWaitTextBoundaries() {
