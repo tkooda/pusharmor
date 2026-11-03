@@ -105,8 +105,8 @@ and runs with the store's release Environment:
 |------------|-----------------------------------------------------------------------------|
 | `play`     | Play versionCode of X.Y.Z (already on the internal track) to production, status completed; listing text and phone screenshots |
 | `appstore` | TestFlight build of X.Y.Z on the version page X.Y.Z, version page text, app name, subtitle, privacy URL, review notes, 6.9-inch screenshots; submits for App Review, release after approval |
-| `chrome`   | `pusharmor-chrome-X.Y.Z.zip` of the release (hash checked) to the public item, then publish (live after review) |
-| `firefox`  | `pusharmor-firefox-X.Y.Z.zip` and the source archive of the release to the listed add-on as a new listed version, with the reviewer notes of `store/listing/amo/review_notes.txt` |
+| `chrome`   | `pusharmor-chrome-X.Y.Z.zip` of the release (hash and build attestation checked) to the public item, then publish (live after review) |
+| `firefox`  | `pusharmor-firefox-X.Y.Z.zip` and the source archive of the release (hash and build attestation checked) to the listed add-on as a new listed version, with the reviewer notes of `store/listing/amo/review_notes.txt` |
 
 Hard gate: Play stays on internal testing until BOTH repository variables
 `PLAY_CONTACT_OK` and `PLAY_PUBLIC_OK` are `yes` (Settings > Secrets and

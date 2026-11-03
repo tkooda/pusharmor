@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, verify } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { AMO_REVIEW_NOTES, amoNotesProblems, amoToken, ascToken, clearOutput, cmpVersion, commitProblems, contactProblems, listingProblems, playGateProblem, readListing, releaseAssets, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncScreenshots, tagPlatform } from "./promote.mjs";
+import { AMO_REVIEW_NOTES, amoNotesProblems, amoToken, ascToken, attestationArgs, clearOutput, cmpVersion, commitProblems, contactProblems, listingProblems, playGateProblem, readListing, releaseAssets, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncScreenshots, tagPlatform } from "./promote.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -248,6 +248,28 @@ test("promote starts store.yml on the platform tags and holds no store secret", 
   }
   assert.match(store, /\n  gate:\n(?: {4}.*\n|\n)*? {4}permissions:\n {6}actions: read\n {6}contents: read\n/);
   assert.match(store, /run: node release\/promote\.mjs gate "\$VERSION"/);
+});
+
+test("public zips and the Firefox source zip need the build attestation of their release workflow", () => {
+  assert.deepEqual(attestationArgs("/t/a.zip", "firefox", "1.2.3", "o/r"), [
+    "attestation", "verify", "/t/a.zip", "--repo", "o/r", "--signer-workflow", "o/r/.github/workflows/webext-release.yml", "--source-ref", "refs/tags/firefox/v1.2.3", "--deny-self-hosted-runners",
+  ]);
+  const src = readFileSync(join(ROOT, "release", "promote.mjs"), "utf8");
+  const rf = src.slice(src.indexOf("async function releaseFile("), src.indexOf("\n}\n", src.indexOf("async function releaseFile(")));
+  assert.match(rf, /verifyAttestation\(data, platform, version, name\);\n {2}return data;/);
+  const ff = src.slice(src.indexOf("async function firefox("), src.indexOf("\n}\n", src.indexOf("async function firefox(")));
+  assert.match(ff, /const src = await releaseFile\("firefox", version, "pusharmor-firefox-" \+ version \+ "-source\.zip"\)/);
+  // The release workflow attests every file that promote sends.
+  const rel = readFileSync(join(ROOT, ".github", "workflows", "webext-release.yml"), "utf8");
+  const subjects = [...rel.matchAll(/attest-build-provenance@[0-9a-f]{40}.*\n(?: {8}.*\n)*? {10}subject-path: \|\n((?: {12}.*\n)+)/g)].map((m) => m[1]).join("");
+  for (const out of ["steps.files.outputs.zip", "steps.files.outputs.src"]) assert.ok(subjects.includes(out), out);
+  const store = readFileSync(join(ROOT, ".github", "workflows", "store.yml"), "utf8");
+  for (const job of ["chrome", "firefox"]) {
+    const i = store.indexOf("\n  " + job + ":\n");
+    const body = store.slice(i, store.indexOf("\n\n  ", i + 1) > 0 ? store.indexOf("\n\n  ", i + 1) : undefined);
+    assert.match(body, /\n {6}attestations: read\n/, job);
+    assert.match(body, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n {8}run: node release\/promote\.mjs /, job);
+  }
 });
 
 test("store.yml runs only for the tag of its platform and an approved promote run", () => {
