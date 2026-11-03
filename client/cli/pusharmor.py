@@ -2448,7 +2448,7 @@ def cmd_login(cx, args):
                 print("The code is not correct. Copy the whole code from the page and paste it again.")
                 continue
         if time.time() - shown > LINK_LIFE_S:
-            print("The link expired. Open it again to get a new code:\n\n  %s\n" % link)
+            print("The code expired. Open the link to get a new code:\n\n  %s\n" % link)
             shown, code = time.time(), None
             continue
         try:

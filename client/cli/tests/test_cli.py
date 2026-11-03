@@ -1766,3 +1766,18 @@ def test_every_stderr_line_has_a_severity_prefix(net, tmp_path, monkeypatch, cap
     assert "Sent to 1 of 1 device." in cap.out.splitlines() and not any("Sent to" in x for x in lines)
     assert any(x.startswith('info: Waiting for "') for x in lines)
     assert not any(x.startswith(("error: ", "warning: ", "info: ")) for x in cap.out.splitlines())
+
+
+def test_login_link_too_old_says_the_code_expired(net, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(pa, "LINK_LIFE_S", -1)
+    it = iter([CODE])
+
+    def code_then_eof(prompt=""):
+        for x in it:
+            return x
+        raise EOFError
+
+    monkeypatch.setattr(pa, "input", code_then_eof, raising=False)
+    assert run(tmp_path, "login") == 1
+    out = capsys.readouterr().out
+    assert "The code expired. Open the link to get a new code:\n\n  %s/auth/cli#" % pa.SITE in out
