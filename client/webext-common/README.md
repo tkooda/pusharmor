@@ -11,14 +11,10 @@ namespace object in (`src/shellkit.ts`, `src/platform.ts`).
 
 ## Commands
 
-Node 24 runs the TypeScript tests directly (type stripping).
-
-    npm ci
-    npm run typecheck      # tsc --noEmit (shared code and both shells)
-    npm test               # unit, state machine, manifest and golden vector tests
-    npm run build          # release zips and Beta zips in client/chrome/dist and client/firefox/dist
-    npm run build -- --dev # dev build: Chrome manifest gets "key"
-    npm run lint:firefox   # web-ext lint on the Firefox build
+Node 24 runs the TypeScript tests directly (type stripping). The scripts are
+in `package.json` (`npm run check` runs them all, after `npm ci`).
+`npm run build -- --dev` is the dev build: the Chrome manifest gets "key" when
+`release/public.json` sets one.
 
 The build is reproducible: unminified ES modules, zip entries sorted, fixed
 timestamps. Build ids (VAPID public key, Firefox add-on id, Chrome dev key)
