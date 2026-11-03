@@ -94,6 +94,8 @@ object UnifiedPushSupport {
     fun pick(g: Graph, distributor: String) {
         val old = saved(g.app)
         if (old != null && old != distributor) try { UnifiedPush.unregister(g.app, INSTANCE) } catch (e: Exception) { }
+        // The new app's address is then always stored and sent, even when it equals the old one.
+        clearEndpoint(g)
         UnifiedPush.saveDistributor(g.app, distributor)
         if (active(g)) UnifiedPush.register(g.app, INSTANCE, null, BuildConfig.VAPID_PUBLIC_KEY.ifEmpty { null })
     }

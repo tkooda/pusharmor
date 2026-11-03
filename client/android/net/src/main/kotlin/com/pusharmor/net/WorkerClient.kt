@@ -60,6 +60,8 @@ class WorkerClient(
     private val paClient: String = "android/0.0.0",
     /** Called for any call that gets HTTP 426: this app version is too old for the relay server. */
     private val onUpdateRequired: () -> Unit = {},
+    /** Called for any reply that says push_missing: the relay server holds no push address for this device. */
+    private val onPushMissing: () -> Unit = {},
 ) : Api {
     companion object {
         const val BUDGET_MS = 8_000L
@@ -151,7 +153,9 @@ class WorkerClient(
         val j = reply.json
         if (reply.status in 200..299) {
             return try {
-                ApiResult.Ok(parse(j ?: JsonObject(emptyMap())), pushMissing = j?.get("push_missing")?.jsonPrimitive?.booleanOrNull == true)
+                val missing = j?.get("push_missing")?.jsonPrimitive?.booleanOrNull == true
+                if (missing) onPushMissing()
+                ApiResult.Ok(parse(j ?: JsonObject(emptyMap())), pushMissing = missing)
             } catch (e: Exception) {
                 ApiResult.Http(reply.status, "bad reply")
             }

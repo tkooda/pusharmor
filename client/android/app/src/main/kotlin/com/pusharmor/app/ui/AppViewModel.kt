@@ -373,9 +373,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         setStart(Session.Start.SIGNED_OUT)
         withContext(Dispatchers.Main) { onDone() }
     }
-    fun switchPush(toUp: Boolean) = io(UiText.UNABLE_CHANGE_SETTING) { if (toUp) g.push.switchToUnifiedPush(g) else g.push.switchToGoogle(g) }
+    fun switchPush(toUp: Boolean) = io(UiText.UNABLE_CHANGE_SETTING) { g.session.pushSwitched(); if (toUp) g.push.switchToUnifiedPush(g) else g.push.switchToGoogle(g) }
     /** Push method choice: [PUSH_GOOGLE] or the package of an installed UnifiedPush app. */
     fun choosePush(choice: String) = io(UiText.UNABLE_CHANGE_SETTING) {
+        g.session.pushSwitched()
         if (choice == PUSH_GOOGLE) { g.push.switchToGoogle(g); return@io }
         com.pusharmor.app.push.UnifiedPushSupport.pick(g, choice)
         if (!com.pusharmor.app.push.UnifiedPushSupport.active(g)) g.push.switchToUnifiedPush(g)

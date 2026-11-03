@@ -87,4 +87,40 @@ class PushRefusedTest {
         assertEquals(false, g.settings.get(Settings.K.PUSH_REFUSED))
         assertNull(UnifiedPushSupport.refused(app, prefs(), playServices = true))
     }
+
+    /** Any 4xx but 400 "push endpoint not allowed" is retried later, and shows no refused card. */
+    @Test fun otherClientErrorsAreRetried() {
+        reply(400, "{\"error\":\"bad request\"}")
+        assertEquals(false, io { g.session.patchPushNow() })
+        reply(403, "{\"error\":\"forbidden\"}")
+        assertEquals(false, io { g.session.patchPushNow() })
+        assertEquals(null, g.settings.get(Settings.K.PUSH_REFUSED))
+    }
+
+    /** A reply that says push_missing is kept until an address is accepted; app start then PATCHes even with an equal hash. */
+    @Test fun pushMissingIsKeptUntilAnAddressIsAccepted() {
+        g.settings.set(Settings.K.PUSH_TYPE, null)
+        reply(200, "{\"push_missing\":true}")
+        assertEquals(true, io { g.session.patchPushNow() })
+        assertEquals(true, g.settings.get(Settings.K.PUSH_MISSING)) // no address to send: still missing
+        g.settings.set(Settings.K.PUSH_TYPE, "unifiedpush")
+        assertEquals(true, io { g.session.patchPushNow() })
+        assertEquals(false, g.settings.get(Settings.K.PUSH_MISSING))
+    }
+
+    @Test fun appStartPatchRule() {
+        assertEquals(false, Session.needsPatch("h", "h", missing = false))
+        assertEquals(true, Session.needsPatch("h", "h", missing = true))
+        assertEquals(true, Session.needsPatch("h", null, missing = false)) // after a switch the last address is forgotten
+        assertEquals(false, Session.needsPatch(null, null, missing = true)) // nothing to send
+    }
+
+    /** A push method switch forgets the last address sent, so app start sends the address again until accepted. */
+    @Test fun switchForgetsTheLastAddressSent() {
+        reply(200, "{}")
+        assertEquals(true, io { g.session.patchPushNow() })
+        assertEquals(false, io { g.dao.self()!!.pushHash } == null)
+        io { g.session.pushSwitched() }
+        assertNull(io { g.dao.self()!!.pushHash })
+    }
 }
