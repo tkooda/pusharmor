@@ -75,6 +75,15 @@ test("another platform may join a version already bound to the commit, also afte
   ]);
 });
 
+test("a platform joining a bound version must not have a newer tag of its own", () => {
+  const tags = [
+    { name: "android/v1.0.0", commit: "a".repeat(40) },
+    { name: "ios/v1.0.1", commit: "b".repeat(40) },
+  ];
+  assert.deepEqual(tagProblems("1.0.0", "a".repeat(40), tags, ["ios"]), ["ios already has the newer tag ios/v1.0.1"]);
+  assert.deepEqual(tagProblems("1.0.0", "a".repeat(40), tags, ["chrome"]), []);
+});
+
 test("the committed version files of each platform agree with each other", () => {
   // a release stamps only the platforms it tags, so platforms may hold different versions.
   const read = (f) => readFileSync(join(REPO, f), "utf8");

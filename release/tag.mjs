@@ -72,8 +72,9 @@ export function formatProblems(platform, version) {
 /**
  * Problems with giving `commit` the version `version`. tags: [{ name, commit }] of
  * the existing tags to compare with (names that are not <platform>/vX.Y.Z are ignored).
+ * platforms: the platforms being tagged; none of them may have a newer tag.
  */
-export function tagProblems(version, commit, tags) {
+export function tagProblems(version, commit, tags, platforms = []) {
   const bad = [];
   // A version already bound to this commit is not new: another platform may join it.
   const bound = tags.some((t) => parseTag(t.name)?.version === version && t.commit === commit);
@@ -86,6 +87,9 @@ export function tagProblems(version, commit, tags) {
       bad.push("the commit already carries version " + p.version + " (tag " + t.name + ")");
     } else if (!bound && cmp(version, p.version) <= 0) {
       bad.push(version + " is not greater than the existing tag " + t.name);
+    } else if (bound && platforms.includes(p.platform) && cmp(version, p.version) < 0) {
+      // Joining a bound version never lowers a platform's build number.
+      bad.push(p.platform + " already has the newer tag " + t.name);
     }
   }
   return bad;
@@ -284,7 +288,7 @@ function check(tag) {
   if (!self) fail(["tag " + tag + " does not exist"]);
   if (!self.annotated) bad.push(tag + " is a lightweight tag; create release tags with node release/tag.mjs");
   if (self.commit !== git(["rev-parse", "HEAD"])) bad.push("HEAD is not the commit of " + tag);
-  bad.push(...tagProblems(p.version, self.commit, tags.filter((t) => t.name !== tag && t.date <= self.date)));
+  bad.push(...tagProblems(p.version, self.commit, tags.filter((t) => t.name !== tag && t.date <= self.date), [p.platform]));
   bad.push(...stampProblems(git(["rev-parse", "--show-toplevel"]), p.version, [p.platform]));
   if (bad.length) fail(bad);
   console.log(p.version);
@@ -328,7 +332,7 @@ function tagHead(platforms, version) {
     console.log("  node release/tag.mjs " + version + " " + platforms.join(" "));
     process.exit(1);
   }
-  const bad2 = tagProblems(version, head, tags.filter((t) => !names.includes(t.name)));
+  const bad2 = tagProblems(version, head, tags.filter((t) => !names.includes(t.name)), platforms);
   for (const n of names) {
     const own = tags.find((t) => t.name === n);
     if (own && own.commit !== head) bad2.push("tag " + n + " already exists at another commit");
