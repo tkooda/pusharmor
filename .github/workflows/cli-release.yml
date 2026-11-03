@@ -1,7 +1,7 @@
 name: cli-release
 
-# cli/vX.Y.Z tags (release/tag.mjs): the tag rule and ci-ok first, then cli.yml,
-# then jobs for the command-line client:
+# cli/vX.Y.Z tags (release/tag.mjs): the tag rule and the release gate (cli.yml
+# passed in ci) first, then jobs for the command-line client:
 #   build           no secrets: sdist, wheel, pusharmor.py and SHA-256 lines
 #   github-release  contents: write: GitHub release with pusharmor.py, its
 #                   SHA-256 line, the sdist and the wheel
@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Fails early: the tag rule, version files and ci-ok before any test.
+  # Fails early: the tag rule, version files and the release gate before any build.
   tag:
     name: release tag rule and version files
     runs-on: ubuntu-24.04
@@ -42,22 +42,17 @@ jobs:
           node-version-file: site/.node-version
       - name: Release tag rule
         run: node release/tag.mjs --check "$TAG"
-      # ci-ok green on the tag commit; waits up to 40 minutes
-      # for a running ci workflow.
-      - name: ci-ok green on the tag commit
+      # The release gate: the platform's ci jobs and the shared checks
+      # succeeded on the tag commit (waits up to 40 minutes for a running ci
+      # workflow), so this workflow does not run those tests again.
+      - name: release gate on the tag commit
         env:
           GH_TOKEN: ${{ github.token }}
         run: node release/tag.mjs --ci "$TAG"
 
-  test:
-    needs: tag
-    permissions:
-      contents: read
-    uses: ./.github/workflows/cli.yml
-
   build:
     name: build sdist, wheel and pusharmor.py
-    needs: test
+    needs: tag
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

@@ -1,7 +1,8 @@
 name: ios-release
 
-# ios/vX.Y.Z tags only (release/tag.mjs). The golden vectors and ios.yml (including the iOS 17 job)
-# run first. Then three jobs; third-party code (SwiftPM packages, setup-node)
+# ios/vX.Y.Z tags only (release/tag.mjs). The release gate (ios.yml passed in
+# ci), then the UI tests and the iOS 17 job of ios.yml, which a push does not
+# run. Then three jobs; third-party code (SwiftPM packages, setup-node)
 # runs only in build-ios, which holds no Environment, secret or id-token:
 #   build-ios    resolve packages, archive (ad-hoc signed), upload the archive
 #                and its SHA-256
@@ -41,7 +42,7 @@ env:
   APP_BUNDLE_ID: com.pusharmor.app
 
 jobs:
-  # Fails early: the tag rule, version files and ci-ok before any test or build.
+  # Fails early: the tag rule, version files and the release gate before any build.
   tag:
     name: release tag rule and version files
     runs-on: ubuntu-24.04
@@ -62,18 +63,13 @@ jobs:
           node-version-file: site/.node-version
       - name: Release tag rule
         run: node release/tag.mjs --check "$TAG"
-      # ci-ok green on the tag commit; waits up to 40 minutes
-      # for a running ci workflow.
-      - name: ci-ok green on the tag commit
+      # The release gate: the platform's ci jobs and the shared checks
+      # succeeded on the tag commit (waits up to 40 minutes for a running ci
+      # workflow), so this workflow does not run those tests again.
+      - name: release gate on the tag commit
         env:
           GH_TOKEN: ${{ github.token }}
         run: node release/tag.mjs --ci "$TAG"
-
-  vectors:
-    needs: tag
-    permissions:
-      contents: read
-    uses: ./.github/workflows/vectors.yml
 
   test:
     needs: tag
@@ -81,11 +77,11 @@ jobs:
       contents: read
     uses: ./.github/workflows/ios.yml
     with:
-      oldest: true
+      release: true
 
   build-ios:
     name: build iOS (resolve packages, archive; no secrets)
-    needs: [vectors, test]
+    needs: test
     runs-on: macos-26
     timeout-minutes: 60
     permissions:

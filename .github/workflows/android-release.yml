@@ -1,6 +1,6 @@
 name: android-release
 
-# android/vX.Y.Z tags only (release/tag.mjs). The golden vectors and android.yml run first; then three
+# android/vX.Y.Z tags only (release/tag.mjs). The release gate first (android.yml passed in ci); then three
 # jobs, so the signing keys never share a job with Gradle or a third-party action:
 #   android-rel-build    no Environment, no secrets: unsigned AAB and APKs
 #   android-rel-sign     Environment android-sign: keystores, no checkout
@@ -32,7 +32,7 @@ env:
   PLAY_INTERNAL_STATUS: completed
 
 jobs:
-  # Fails early: the tag rule, version files and ci-ok before any test or build.
+  # Fails early: the tag rule, version files and the release gate before any build.
   tag:
     name: release tag rule and version files
     runs-on: ubuntu-24.04
@@ -53,28 +53,17 @@ jobs:
           node-version-file: site/.node-version
       - name: Release tag rule
         run: node release/tag.mjs --check "$TAG"
-      # ci-ok green on the tag commit; waits up to 40 minutes
-      # for a running ci workflow.
-      - name: ci-ok green on the tag commit
+      # The release gate: the platform's ci jobs and the shared checks
+      # succeeded on the tag commit (waits up to 40 minutes for a running ci
+      # workflow), so this workflow does not run those tests again.
+      - name: release gate on the tag commit
         env:
           GH_TOKEN: ${{ github.token }}
         run: node release/tag.mjs --ci "$TAG"
 
-  vectors:
-    needs: tag
-    permissions:
-      contents: read
-    uses: ./.github/workflows/vectors.yml
-
-  test:
-    needs: tag
-    permissions:
-      contents: read
-    uses: ./.github/workflows/android.yml
-
   android-rel-build:
     name: release build (unsigned)
-    needs: [vectors, test]
+    needs: tag
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     permissions:

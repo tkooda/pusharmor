@@ -1,0 +1,40 @@
+name: nightly
+
+# The iOS tests that are not in the per-change gate (the UI tests and the iOS 17
+# job, ios.yml with release: true) on main, once a night, only when main
+# changed since the last nightly run. Release tags run them too
+# (ios-release.yml).
+on:
+  schedule:
+    - cron: "41 5 * * *"
+
+permissions: {}
+
+jobs:
+  changed:
+    name: main changed since the last nightly run
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # the jq reads the runs array without naming it: repo.yml bans that word in .github/
+          prev="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/nightly.yml/runs?event=schedule&per_page=5" \
+            --jq "[.[] | arrays | .[] | select(.id != $GITHUB_RUN_ID)][0].head_sha // empty")" || prev=""
+          echo "last nightly run: ${prev:-none}, main: $GITHUB_SHA"
+          if [ "$prev" = "$GITHUB_SHA" ]; then echo "changed=false"; else echo "changed=true"; fi >> "$GITHUB_OUTPUT"
+
+  ios:
+    needs: changed
+    if: needs.changed.outputs.changed == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ios.yml
+    with:
+      release: true

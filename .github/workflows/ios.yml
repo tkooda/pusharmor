@@ -1,20 +1,21 @@
 name: ios
 
-# iOS tests and builds. Called by ci.yml (pushes: newest
-# simulator runtime only) and by ios-release.yml (with oldest: true, so the
-# iOS 17 job runs before the release job). The iOS 17 job also runs weekly
-# (nothing else) and on manual dispatch; a manual dispatch
-# runs every job. The Debug simulator app is uploaded (not for tags).
+# iOS tests and builds. Called by ci.yml on a push (the per-change gate: Core
+# tests, builds and the app unit tests, newest simulator runtime only) and by
+# ios-release.yml with release: true (only what a push does not run: the UI
+# tests and the iOS 17 job; the gate jobs already passed in ci on the tag
+# commit). The UI tests build once (build-for-testing) and run in three shards.
+# nightly.yml calls it with release: true on main when main changed since the
+# last nightly run; a manual dispatch runs every job. The Debug simulator app
+# is uploaded (not for tags).
 on:
   workflow_call:
     inputs:
-      oldest:
-        description: also run the iOS 17 simulator job
+      release:
+        description: run only the UI tests and the iOS 17 job (the release run)
         type: boolean
         default: false
   workflow_dispatch:
-  schedule:
-    - cron: "41 5 * * 1"
 
 permissions: {}
 
@@ -31,7 +32,7 @@ env:
 jobs:
   ios-core-test:
     name: PushArmorCore tests (macOS and simulator)
-    if: github.event_name != 'schedule'
+    if: ${{ !inputs.release }}
     runs-on: macos-26
     timeout-minutes: 20
     permissions:
@@ -61,7 +62,7 @@ jobs:
 
   ios-build:
     name: Debug simulator and Release device builds (unsigned)
-    if: github.event_name != 'schedule'
+    if: ${{ !inputs.release }}
     runs-on: macos-26
     timeout-minutes: 30
     permissions:
@@ -140,23 +141,12 @@ jobs:
           bash tools/release-archive.sh "$RUNNER_TEMP/PushArmor.xcarchive" "$TEAM" 0.0.0 1
           bash tools/check-release-bundle.sh "$RUNNER_TEMP/PushArmor.xcarchive"
 
-  # Shards by test class. Unit covers the whole PushArmorTests target, and the
-  # last shard skips what the others name, so a new test class is never missed.
+  # The per-change app tests: the whole PushArmorTests target.
   ios-sim-test:
-    name: app tests (newest simulator, ${{ matrix.shard }})
-    if: github.event_name != 'schedule'
+    name: app unit tests (newest simulator)
+    if: ${{ !inputs.release }}
     runs-on: macos-26
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - shard: unit
-            filter: -only-testing:PushArmorTests
-          - shard: ui-brand
-            filter: -only-testing:PushArmorUITests/BrandScreensTests
-          - shard: ui-rest
-            filter: -only-testing:PushArmorUITests -skip-testing:PushArmorUITests/BrandScreensTests
     permissions:
       contents: read
     steps:
@@ -197,22 +187,159 @@ jobs:
         run: |
           xcrun simctl list runtimes | grep -q '^iOS 26\.' || { echo "no iOS 26 simulator runtime"; exit 1; }
           xcrun simctl list devices available | grep -qF "    $SIM_NAME (" || { echo "no $SIM_NAME simulator"; exit 1; }
-      # Scheme test action: PushArmorTests + PushArmorUITests.
-      - name: xcodebuild test (PushArmor scheme, ${{ matrix.shard }})
+      # Scheme test action: PushArmorTests + PushArmorUITests; this job runs the unit tests.
+      - name: xcodebuild test (PushArmor scheme, PushArmorTests)
         working-directory: client/ios
-        env:
-          FILTER: ${{ matrix.filter }}
         run: |
-          # shellcheck disable=SC2086
           xcodebuild test -project PushArmor.xcodeproj -scheme PushArmor \
             -destination "platform=iOS Simulator,name=$SIM_NAME,OS=latest" \
-            -disableAutomaticPackageResolution $FILTER \
+            -disableAutomaticPackageResolution -only-testing:PushArmorTests \
             -resultBundlePath "$RUNNER_TEMP/PushArmor.xcresult"
       - name: Upload the result bundle
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ios-sim-test-xcresult-${{ matrix.shard }}
+          name: ios-sim-test-xcresult-unit
+          path: ${{ runner.temp }}/PushArmor.xcresult
+          retention-days: 7
+
+  # Release, nightly and manual runs: build the app and its tests once for the
+  # UI shards below.
+  ios-build-for-testing:
+    name: build for testing (newest simulator)
+    if: inputs.release || github.event_name == 'workflow_dispatch'
+    runs-on: macos-26
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Select and assert Xcode
+        run: |
+          echo "runner image: $ImageOS $ImageVersion"
+          sudo xcode-select -s "$XCODE_APP"
+          v="$(xcodebuild -version)"
+          echo "$v"
+          printf '%s\n' "$v" | grep -qx "$XCODE_VERSION"
+          printf '%s\n' "$v" | grep -qx "$XCODE_BUILD"
+      - name: XcodeGen (pinned, SHA-256 checked) and generate the project
+        run: |
+          d="$RUNNER_TEMP/xcodegen"
+          mkdir -p "$d"
+          curl -fsSL -o "$d/xcodegen.zip" "https://github.com/yonaskolb/XcodeGen/releases/download/$XCODEGEN_VERSION/xcodegen.zip"
+          echo "$XCODEGEN_SHA256  $d/xcodegen.zip" | shasum -a 256 -c -
+          unzip -q "$d/xcodegen.zip" -d "$d"
+          "$d/xcodegen/bin/xcodegen" --version | grep -qF "$XCODEGEN_VERSION"
+          cd client/ios && "$d/xcodegen/bin/xcodegen" generate
+      - name: Resolve packages to the committed pins
+        working-directory: client/ios
+        run: |
+          s=PushArmor.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+          mkdir -p "$s"
+          cp PushArmorCore/Package.resolved "$s/Package.resolved"
+          xcodebuild -resolvePackageDependencies -project PushArmor.xcodeproj -scheme PushArmor
+          python3 -I -c '
+          import json, sys
+          pins = lambda p: sorted((x["identity"], x["state"].get("revision")) for x in json.load(open(p))["pins"])
+          if pins(sys.argv[1]) != pins(sys.argv[2]):
+              sys.exit("resolved packages differ from PushArmorCore/Package.resolved")
+          ' PushArmorCore/Package.resolved "$s/Package.resolved"
+      - name: Simulator present
+        run: |
+          xcrun simctl list runtimes | grep -q '^iOS 26\.' || { echo "no iOS 26 simulator runtime"; exit 1; }
+          xcrun simctl list devices available | grep -qF "    $SIM_NAME (" || { echo "no $SIM_NAME simulator"; exit 1; }
+      - name: xcodebuild build-for-testing (PushArmor scheme)
+        working-directory: client/ios
+        run: |
+          xcodebuild build-for-testing -project PushArmor.xcodeproj -scheme PushArmor \
+            -destination "platform=iOS Simulator,name=$SIM_NAME,OS=latest" \
+            -disableAutomaticPackageResolution -derivedDataPath "$RUNNER_TEMP/dd"
+      # tar keeps the file modes and symlinks of the app bundles.
+      - name: Pack the test products
+        run: tar -C "$RUNNER_TEMP/dd/Build" -czf "$RUNNER_TEMP/ios-test-products.tar.gz" Products
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-test-products
+          path: ${{ runner.temp }}/ios-test-products.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
+  # The UI tests in three shards of about equal time, with the products of
+  # ios-build-for-testing. The last two shards skip what the others name, so a
+  # new test class or BrandScreensTests method is never missed.
+  ios-ui-test:
+    name: UI tests (newest simulator, ${{ matrix.shard }})
+    needs: ios-build-for-testing
+    runs-on: macos-26
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: brand-1
+            filter: >-
+              -only-testing:PushArmorUITests/BrandScreensTests/testSendButtonNamesTheSelectedPeer
+              -only-testing:PushArmorUITests/BrandScreensTests/testSendAsTextSharesTheHintRow
+              -only-testing:PushArmorUITests/BrandScreensTests/testSendBannerSitsAboveTheTabBar
+              -only-testing:PushArmorUITests/BrandScreensTests/testHistoryIsItsOwnTab
+              -only-testing:PushArmorUITests/BrandScreensTests/testPairingCardShowsTheFingerprintCells
+              -only-testing:PushArmorUITests/BrandScreensTests/testUnpairedPeerActionsHaveAVisibleButton
+              -only-testing:PushArmorUITests/BrandScreensTests/testPairHowToAndRenameInSettings
+              -only-testing:PushArmorUITests/BrandScreensTests/testRenameIsInline
+              -only-testing:PushArmorUITests/BrandScreensTests/testContentSwitchAndAccountRow
+          - shard: brand-2
+            filter: >-
+              -only-testing:PushArmorUITests/BrandScreensTests
+              -skip-testing:PushArmorUITests/BrandScreensTests/testSendButtonNamesTheSelectedPeer
+              -skip-testing:PushArmorUITests/BrandScreensTests/testSendAsTextSharesTheHintRow
+              -skip-testing:PushArmorUITests/BrandScreensTests/testSendBannerSitsAboveTheTabBar
+              -skip-testing:PushArmorUITests/BrandScreensTests/testHistoryIsItsOwnTab
+              -skip-testing:PushArmorUITests/BrandScreensTests/testPairingCardShowsTheFingerprintCells
+              -skip-testing:PushArmorUITests/BrandScreensTests/testUnpairedPeerActionsHaveAVisibleButton
+              -skip-testing:PushArmorUITests/BrandScreensTests/testPairHowToAndRenameInSettings
+              -skip-testing:PushArmorUITests/BrandScreensTests/testRenameIsInline
+              -skip-testing:PushArmorUITests/BrandScreensTests/testContentSwitchAndAccountRow
+          - shard: rest
+            filter: -only-testing:PushArmorUITests -skip-testing:PushArmorUITests/BrandScreensTests
+    permissions: {}
+    steps:
+      - name: Select and assert Xcode
+        run: |
+          echo "runner image: $ImageOS $ImageVersion"
+          sudo xcode-select -s "$XCODE_APP"
+          v="$(xcodebuild -version)"
+          echo "$v"
+          printf '%s\n' "$v" | grep -qx "$XCODE_VERSION"
+          printf '%s\n' "$v" | grep -qx "$XCODE_BUILD"
+      - name: Simulator present
+        run: |
+          xcrun simctl list runtimes | grep -q '^iOS 26\.' || { echo "no iOS 26 simulator runtime"; exit 1; }
+          xcrun simctl list devices available | grep -qF "    $SIM_NAME (" || { echo "no $SIM_NAME simulator"; exit 1; }
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ios-test-products
+          path: ${{ runner.temp }}
+      - name: Unpack the test products
+        run: |
+          mkdir -p "$RUNNER_TEMP/dd"
+          tar -C "$RUNNER_TEMP/dd" -xzf "$RUNNER_TEMP/ios-test-products.tar.gz"
+      - name: xcodebuild test-without-building (${{ matrix.shard }})
+        env:
+          FILTER: ${{ matrix.filter }}
+        run: |
+          set -- "$RUNNER_TEMP"/dd/Products/*.xctestrun
+          [ "$#" = 1 ] && [ -f "$1" ] || { echo "want one .xctestrun file, found: $*"; exit 1; }
+          # shellcheck disable=SC2086
+          xcodebuild test-without-building -xctestrun "$1" \
+            -destination "platform=iOS Simulator,name=$SIM_NAME,OS=latest" \
+            $FILTER -resultBundlePath "$RUNNER_TEMP/PushArmor.xcresult"
+      - name: Upload the result bundle
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-ui-test-xcresult-${{ matrix.shard }}
           path: ${{ runner.temp }}/PushArmor.xcresult
           retention-days: 7
 
@@ -220,7 +347,7 @@ jobs:
   # the job downloads it first (several GB).
   ios-sim-test-oldest:
     name: core and app tests (iOS 17 simulator)
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || inputs.oldest
+    if: inputs.release || github.event_name == 'workflow_dispatch'
     runs-on: macos-26
     timeout-minutes: 60
     permissions:

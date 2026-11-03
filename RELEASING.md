@@ -207,7 +207,9 @@ Promote:
 ## iOS (`ios/vX.Y.Z`)
 
 CI: the IPA (cloud-managed signing) in the GitHub release; the build uploaded
-to App Store Connect. No review submission.
+to App Store Connect. No review submission. Before the archive, ios-release
+runs the iOS UI tests and the iOS 17 job: they are not in the per-change gate
+(the nightly workflow runs them on main when main changed).
 
 Test: internal TestFlight testers (no Beta App Review).
 

@@ -1,7 +1,7 @@
 name: webext-release
 
 # chrome/vX.Y.Z and firefox/vX.Y.Z tags (release/tag.mjs):
-# the tag rule, the golden vectors and the webext tests run first, then the jobs
+# the tag rule and the release gate (webext.yml passed in ci) first, then the jobs
 # for the browser of the tag, so npm packages and repo scripts never share a job
 # with id-token or write permissions:
 #   build-<browser>    no Environment, no secrets: npm ci, release build and
@@ -32,7 +32,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Fails early: the tag rule, version files and ci-ok before any test or build.
+  # Fails early: the tag rule, version files and the release gate before any build.
   tag:
     name: release tag rule and version files
     runs-on: ubuntu-24.04
@@ -53,29 +53,18 @@ jobs:
           node-version-file: site/.node-version
       - name: Release tag rule
         run: node release/tag.mjs --check "$TAG"
-      # ci-ok green on the tag commit; waits up to 40 minutes
-      # for a running ci workflow.
-      - name: ci-ok green on the tag commit
+      # The release gate: the platform's ci jobs and the shared checks
+      # succeeded on the tag commit (waits up to 40 minutes for a running ci
+      # workflow), so this workflow does not run those tests again.
+      - name: release gate on the tag commit
         env:
           GH_TOKEN: ${{ github.token }}
         run: node release/tag.mjs --ci "$TAG"
 
-  vectors:
-    needs: tag
-    permissions:
-      contents: read
-    uses: ./.github/workflows/vectors.yml
-
-  test:
-    needs: tag
-    permissions:
-      contents: read
-    uses: ./.github/workflows/webext.yml
-
   build-chrome:
     name: build Chrome (release and Beta zips, checks)
     if: startsWith(github.ref, 'refs/tags/chrome/v')
-    needs: [test, vectors]
+    needs: tag
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -343,7 +332,7 @@ jobs:
   build-firefox:
     name: build Firefox (release and Beta zips, source archive, checks)
     if: startsWith(github.ref, 'refs/tags/firefox/v')
-    needs: [test, vectors]
+    needs: tag
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:

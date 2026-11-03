@@ -1,7 +1,8 @@
 name: worker-release
 
-# worker/vX.Y.Z tags only (release/tag.mjs): the tag rule, the golden vectors
-# and worker.yml. Build and test only; CI never deploys the Worker. The owner
+# worker/vX.Y.Z tags only (release/tag.mjs): the tag rule and the release gate
+# (worker.yml and the vectors passed in ci on the tag commit). Checks only; CI
+# never deploys the Worker. The owner
 # then runs server/deploy/deploy.sh worker/vX.Y.Z from a clean checkout of the
 # tag (RELEASING.md).
 on:
@@ -16,7 +17,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Fails early: the tag rule, version files and ci-ok before any test.
+  # The tag rule, version files and the release gate.
   tag:
     name: release tag rule and version files
     runs-on: ubuntu-24.04
@@ -37,21 +38,10 @@ jobs:
           node-version-file: site/.node-version
       - name: Release tag rule
         run: node release/tag.mjs --check "$TAG"
-      # ci-ok green on the tag commit; waits up to 40 minutes
-      # for a running ci workflow.
-      - name: ci-ok green on the tag commit
+      # The release gate: the platform's ci jobs and the shared checks
+      # succeeded on the tag commit (waits up to 40 minutes for a running ci
+      # workflow), so this workflow does not run those tests again.
+      - name: release gate on the tag commit
         env:
           GH_TOKEN: ${{ github.token }}
         run: node release/tag.mjs --ci "$TAG"
-
-  vectors:
-    needs: tag
-    permissions:
-      contents: read
-    uses: ./.github/workflows/vectors.yml
-
-  test:
-    needs: tag
-    permissions:
-      contents: read
-    uses: ./.github/workflows/worker.yml
