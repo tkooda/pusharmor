@@ -76,7 +76,11 @@ extension Core {
                     try store.savePairing(PairingEntry(peerId: from, role: .x, state: .prompted, r: PairingCrypto.randomR(), cN: cN,
                                                        authorized: authorized, unsent: authorized, startedAt: now, notBefore: 0,
                                                        lastSendAt: 0))
-                    if var q = try store.peer(from) { q.note = nil; try store.savePeer(q) }
+                    if var q = try store.peer(from) {
+                        q.note = nil
+                        if q.state == .denied { q.state = .unruled }   // a new request shows a rejected device again
+                        try store.savePeer(q)
+                    }
                 }
                 switch out.entry {
                 case .createdReplied:
@@ -268,6 +272,7 @@ extension Core {
                                  authorized: false, unsent: false, startedAt: now, notBefore: 0, lastSendAt: 0)
             try store.savePairing(e)
             p.note = nil
+            if p.state == .denied { p.state = .unruled }   // [Pair] shows a rejected device again
             try store.savePeer(p)
             return e
         }
