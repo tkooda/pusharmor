@@ -196,9 +196,6 @@ internal fun rejectedHidden(p: Peer, pairing: Set<String>): Boolean = p.deniedBy
 internal fun devicesShown(others: List<Peer>, pairing: Set<String>): List<Peer> =
     others.filter { !(it.removed && !it.pinned && it.id !in pairing) && !rejectedHidden(it, pairing) }
 
-/** Rejected devices, offered under Pair a new device so this device can pair with one again. */
-internal fun rejectedDevices(others: List<Peer>, pairing: Set<String>): List<Peer> = others.filter { rejectedHidden(it, pairing) }
-
 internal fun platformIcon(platform: String): ImageVector = when (platform) {
     "chrome" -> PaIcons.Laptop
     "cli" -> PaIcons.Terminal
@@ -221,7 +218,6 @@ fun PeersScreen(vm: AppViewModel) {
     val rows by vm.pairings.collectAsState()
     val highlight by vm.highlight.collectAsState()
     val prefs by vm.prefs.collectAsState()
-    val running by vm.running.collectAsState()
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     // Saved, so both dialogs stay open through a rotation; the device by its id.
     var confirmRemove by rememberSaveable { mutableStateOf<String?>(null) }
@@ -235,7 +231,6 @@ fun PeersScreen(vm: AppViewModel) {
     val firstDevice = me != null && UiText.noPairedDevice(others(peers, me?.id))
     val pairingIds = rows.map { it.peerId }.toSet()
     val list = devicesShown(others(peers, me?.id), pairingIds)
-    val rejected = UiText.sortedByName(rejectedDevices(others(peers, me?.id), pairingIds), ::label)
     // Each section is in alphabetical order of the shown name.
     val pairing = UiText.sortedByName(list.filter { p -> rows.any { it.peerId == p.id } }, ::label)
     val plain = UiText.sortedByName(list.filter { p -> rows.none { it.peerId == p.id } }, ::label)
@@ -313,13 +308,6 @@ fun PeersScreen(vm: AppViewModel) {
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 UiText.numbered(UiText.PAIR_HOWTO_STEPS).forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
-                if (rejected.isNotEmpty()) {
-                    Text(UiText.REJECTED_DEVICES, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.titleSmall)
-                    for (p in rejected) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(label(p), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                        TextButton(onClick = { pairHowTo = false; vm.pair(p.id) }, enabled = "pair:${p.id}" !in running) { Text("Pair") }
-                    }
-                }
             }
         },
         confirmButton = { TextButton(onClick = { pairHowTo = false }) { Text("OK") } })
