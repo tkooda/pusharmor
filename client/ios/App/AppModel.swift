@@ -175,6 +175,7 @@ final class AppModel: ObservableObject {
             defer { busy.remove("reset") }
             do {
                 store = try await env.resetStore()
+                AppModel.clearAfterReset(hooks: env)
                 repairedNotice = true
             } catch {
                 toast = ErrorCopy.text(.prepareLogin, ErrorCopy.reason(local: error))
@@ -182,6 +183,13 @@ final class AppModel: ObservableObject {
             await open()
             await route()
         }
+    }
+
+    /// After a reset, as after Delete broken keys: the locked inbox and the delivered
+    /// notifications belong to the old store, so they go too.
+    static func clearAfterReset(hooks: PlatformHooks) {
+        hooks.removeLockedInbox()
+        hooks.removeDeliveredNotifications()
     }
 
     /// Delete broken keys, after the confirmation: the user then signs in again.
