@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, verify } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { AMO_REVIEW_NOTES, amoNotesProblems, amoToken, ascToken, clearOutput, cmpVersion, commitProblems, contactProblems, listingProblems, playGateProblem, readListing, releaseAssets, promoteRunProblem, releaseProblem, selectedPlatforms, syncScreenshots, tagPlatform } from "./promote.mjs";
+import { AMO_REVIEW_NOTES, amoNotesProblems, amoToken, ascToken, clearOutput, cmpVersion, commitProblems, contactProblems, listingProblems, playGateProblem, readListing, releaseAssets, promoteRunProblem, releaseProblem, selectedPlatforms, syncAmoPreviews, syncScreenshots, tagPlatform } from "./promote.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -342,4 +342,34 @@ test("App Store screenshots: waits for processing, fails on FAILED, reuses earli
   f = fakeAsc(files.map((s, i) => ({ id: "c" + i, name: s.name, sum: md5(s.data), state: "COMPLETE" })), {});
   assert.equal(await syncScreenshots({ ...f, ...opts }), "screenshots unchanged");
   assert.deepEqual(f.calls.filter((c) => !c.startsWith("GET")), []);
+});
+
+test("AMO previews: every screenshot is uploaded in order before the old previews are deleted", async () => {
+  const calls = [];
+  const amo = async (method, path, body) => {
+    calls.push([method, path, body instanceof FormData ? [body.get("image").name, body.get("position")] : undefined]);
+    if (method === "GET") return { json: { previews: [{ id: 7 }, { id: 9 }] } };
+    if (method === "POST" && path.endsWith("/previews/") && body.get("image").name === "fail.png") throw new Error("HTTP 400");
+    return { json: {} };
+  };
+  const shots = [{ name: "01-a.png", data: Buffer.from("a") }, { name: "02-b.png", data: Buffer.from("b") }];
+  assert.equal(await syncAmoPreviews({ amo, id: "x", shots }), "2 previews uploaded, 2 old previews removed");
+  assert.deepEqual(calls, [
+    ["GET", "/addon/x/", undefined],
+    ["POST", "/addon/x/previews/", ["01-a.png", "0"]],
+    ["POST", "/addon/x/previews/", ["02-b.png", "1"]],
+    ["DELETE", "/addon/x/previews/7/", undefined],
+    ["DELETE", "/addon/x/previews/9/", undefined],
+  ]);
+  calls.length = 0;
+  await assert.rejects(syncAmoPreviews({ amo, id: "x", shots: [shots[0], { name: "fail.png", data: Buffer.from("c") }] }), /HTTP 400/);
+  assert.ok(!calls.some((c) => c[0] === "DELETE"), "old previews deleted after a failed upload");
+});
+
+test("the Firefox store job sends store/screenshots/amo as the AMO previews", () => {
+  const src = readFileSync(join(ROOT, "release", "promote.mjs"), "utf8");
+  const ff = src.slice(src.indexOf("async function firefox("), src.indexOf("\n}\n", src.indexOf("async function firefox(")));
+  assert.match(ff, /syncAmoPreviews\(\{ amo, id, shots: screenshotFiles\("amo"\) \}\)/);
+  assert.equal((ff.match(/await previews\(\)/g) || []).length, 2);
+  assert.ok(readdirSync(join(ROOT, "store", "screenshots", "amo", "en-US")).filter((f) => f.endsWith(".png")).length > 0);
 });

@@ -105,7 +105,7 @@ and runs with the store's release Environment:
 | `play`     | Play versionCode of X.Y.Z (already on the internal track) to production, status completed; listing text and phone screenshots |
 | `appstore` | TestFlight build of X.Y.Z on the version page X.Y.Z, version page text, app name, subtitle, privacy URL, review notes, 6.9-inch screenshots; submits for App Review, release after approval |
 | `chrome`   | `pusharmor-chrome-X.Y.Z.zip` of the release (hash checked) to the public item, then publish (live after review) |
-| `firefox`  | `pusharmor-firefox-X.Y.Z.zip` and the source archive of the release to the listed add-on as a new listed version, with the reviewer notes of `store/listing/amo/review_notes.txt` |
+| `firefox`  | `pusharmor-firefox-X.Y.Z.zip` and the source archive of the release to the listed add-on as a new listed version, with the reviewer notes of `store/listing/amo/review_notes.txt`; then replaces the listing previews with `store/screenshots/amo/en-US/` (uploads them, then deletes the old ones) |
 
 Hard gate: Play stays on internal testing until BOTH repository variables
 `PLAY_CONTACT_OK` and `PLAY_PUBLIC_OK` are `yes` (Settings > Secrets and
@@ -123,9 +123,10 @@ Each job ends with one summary line per store.
 Listings: `store/listing/play/en-US/*.txt`,
 `store/listing/appstore/en-US/*.txt` and the screenshots in
 `store/screenshots/{play,appstore}/en-US/` are the source for those stores;
-promote sends them (Play: only when they differ). The Chrome Web Store and
-AMO screenshots in `store/screenshots/{cws,amo}/en-US/` (1280x800, at most 5)
-are uploaded by hand. Change them in a normal commit. `release/promote.test.mjs` checks the store limits, plain ASCII, and
+promote sends them (Play: only when they differ). The AMO screenshots in
+`store/screenshots/amo/en-US/` (1280x800) are sent by the `firefox` job on each
+run. The Chrome Web Store screenshots in `store/screenshots/cws/en-US/`
+(1280x800, at most 5) are uploaded by hand. Change them in a normal commit. `release/promote.test.mjs` checks the store limits, plain ASCII, and
 that no listing or release file holds a phone number or an address at the
 project or company domains. Promote never sets or overwrites a contact field
 (email, phone, website, support or marketing URL, address) through any store
