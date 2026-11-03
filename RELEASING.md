@@ -1,7 +1,8 @@
 # Releasing
 
 A tag builds ONE platform and uploads it to that platform's test channel and to
-a GitHub release. A tag never publishes to a public channel. After testing
+a GitHub release. A tag never publishes to a public channel, except `cli/vX.Y.Z`:
+it publishes to PyPI at once (a PyPI version can never be uploaded again). After testing
 on devices, the owner promotes the same build with the promote workflow (below)
 or by hand in each store console. Nothing is rebuilt for the promotion. The
 site has no tag and a push to main does NOT deploy it: deploy it by hand with
@@ -15,6 +16,7 @@ gitignored `site/dist` first, so the tree stays clean; `site/README.md`).
 | `chrome/vX.Y.Z`  | private "PushArmor Beta" item, GitHub release         | public zip to the public item, GitHub release   |
 | `firefox/vX.Y.Z` | unlisted "PushArmor Beta" add-on, GitHub release      | public zip to the listed add-on, GitHub release |
 | `worker/vX.Y.Z`  | nothing (build and tests only)                        | `server/deploy/deploy.sh worker/vX.Y.Z`         |
+| `cli/vX.Y.Z`     | PyPI (public at once), GitHub release                 | nothing (already public)                        |
 
 NOTE: the App Store version is released automatically after approval
 (`IOS_RELEASE_TYPE` = `AFTER_APPROVAL` in `release/promote.mjs`), like the other
@@ -87,7 +89,7 @@ and its job does not run. The first job checks, per platform, the tag
 `<platform>/vX.Y.Z` and its published GitHub release with the needed assets; a
 platform without them is skipped (a SKIP line in the summary). It refuses to
 run when the tags of X.Y.Z point at different commits, and it lists the client
-platforms that have no tag of X.Y.Z as a WARNING line. A selected platform
+platforms that have no tag of X.Y.Z as a NOTE line. A selected platform
 whose tag commit has no `.github/workflows/store.yml` is skipped too (tags
 made before store.yml existed cannot be promoted by the workflow). It also checks the
 listing files. Then the run waits for the owner's approval (Environment
@@ -125,7 +127,8 @@ Listings: `store/listing/play/en-US/*.txt`,
 `store/listing/appstore/en-US/*.txt` and the screenshots in
 `store/screenshots/{play,appstore}/en-US/` are the source for those stores;
 promote sends them (Play: only when they differ). The Chrome Web Store and
-AMO screenshots in `store/screenshots/{cws,amo}/en-US/` (1280x800, at most 5)
+AMO screenshots in `store/screenshots/{cws,amo}/en-US/` (1280x800, at most 5
+for Chrome and 10 for AMO)
 are uploaded by hand. Change them in a normal commit. `release/promote.test.mjs` checks the store limits, plain ASCII, and
 that no listing or release file holds a phone number or an address at the
 project or company domains. Promote never sets or overwrites a contact field
@@ -286,19 +289,19 @@ Store items and ids:
 The release workflows trust the workflow file and `release/public.json` of the
 tag commit, so only reviewed commits may be tagged:
 
-1. Branch ruleset on `main`: block force pushes, restrict deletions. No pull
-   request and no required status check, so the owner can push to `main`
-   directly. `ci-ok` still runs on every push; wait for it to be green before
-   you tag a commit. `release/tag.mjs` and the first job of every release
-   workflow refuse a commit without a successful ci-ok.
+1. Branch ruleset on `main`: block force pushes, restrict deletions, and
+   require the status check `ci-ok`. No pull request: a commit reaches `main`
+   by a fast-forward push once `ci-ok` passed on it (CONTRIBUTING.md).
+   `release/tag.mjs` and the first job of every release workflow refuse a
+   commit without a successful ci-ok.
 2. Tag ruleset, target pattern `*/v*` (all release tags): restrict creation,
    update and deletion to the owner (bypass list: repository admin and the
    push deploy key); block force pushes. A release tag can then not be
    created by anyone else, moved or deleted.
 3. Environments `android-sign`, `android-release`, `ios-release`,
-   `chrome-release`, `firefox-release`: "Deployment branches and tags" =
-   selected tags only, `android/v*` for both Android environments, `ios/v*`,
-   `chrome/v*`, `firefox/v*`. Required reviewers are optional
+   `chrome-release`, `firefox-release`, `pypi`: "Deployment branches and tags"
+   = selected tags only, `android/v*` for both Android environments, `ios/v*`,
+   `chrome/v*`, `firefox/v*`, `cli/v*`. Required reviewers are optional
    because the store promotion is the human gate.
 4. Secrets only as environment secrets, never repository or organization
    secrets (names and environments: `release/names.json` "github_secrets"):
