@@ -9,7 +9,7 @@ import type { MessageSender } from "../../webext-common/src/shim-types.ts";
 import { Db, openDb } from "../../webext-common/src/store/db.ts";
 import type { WebPushKeys } from "../../webext-common/src/crypto/rfc8291.ts";
 import { Autopush, type ApState } from "./autopush/client.ts";
-import { fxSubFields, senderAllowed } from "./gate.ts";
+import { fromPrivate, fxSubFields, senderAllowed } from "./gate.ts";
 import { FWD_URL, endpointAllowed, firefoxPlatform, openSetup } from "./platform-firefox.ts";
 import { fwdAllowed, onForward, readSub } from "./sitefwd/fwd.ts";
 import { browser } from "./shim.ts";
@@ -123,7 +123,8 @@ async function extra(msg: Req, sender: MessageSender): Promise<unknown> {
   await whenReady();
   const { engine } = await boot();
   const a = msg.args ?? {};
-  if (msg.op === "fx-sub") return { ok: await storeFallback(a) };
+  // a private tab's subscription gets no pushes: refused, the page asks for a normal tab
+  if (msg.op === "fx-sub") return fromPrivate(sender) ? { ok: false, private: true } : { ok: await storeFallback(a) };
   if (msg.op === "fx-msg") {
     if (!fwdAllowed(a.m)) return { ok: false };
     await engine.receive(a.m, "bridge");
@@ -161,7 +162,8 @@ browser.webRequest?.onBeforeRequest.addListener(
     onForward(d, async (m) => {
       await whenReady();
       const sub = readSub(m);
-      if (sub !== undefined) return void (await storeFallback(sub));
+      // a renewed subscription from a private browsing site SW gets no pushes: not stored
+      if (sub !== undefined) return void (fromPrivate(d) ? undefined : await storeFallback(sub));
       const { engine } = await boot();
       await engine.receive(m, "push");
     }),

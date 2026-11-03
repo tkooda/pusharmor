@@ -1,7 +1,7 @@
 // Sender gate for runtime messages on Firefox. A content script on the site
 // may only use the four site ops, each from its own page; every other op
 // needs an extension page sender.
-import type { MessageSender } from "../../webext-common/src/shim-types.ts";
+import type { MessageSender, WebRequestDetails } from "../../webext-common/src/shim-types.ts";
 
 const SITE_PAGE: Record<string, string> = { "fx-sub": "/fx/setup", "fx-close": "/fx/setup", "fx-msg": "/fx/open", authDone: "/auth/done" };
 
@@ -22,6 +22,14 @@ export function fxSubFields(d: unknown): { endpoint: string; p256dh: string; aut
   const ok = (v: unknown, max: number): v is string => typeof v === "string" && v.length > 0 && v.length <= max;
   if (!ok(endpoint, 2048) || !ok(p256dh, 128) || !ok(auth, 64)) return null;
   return { endpoint, p256dh, auth };
+}
+
+/**
+ * True for a message sender tab or a web request in private browsing: Firefox delivers
+ * no web push to a push subscription created there, so none is stored from it.
+ */
+export function fromPrivate(x: MessageSender | WebRequestDetails): boolean {
+  return "tab" in x ? x.tab?.incognito === true : "incognito" in x && x.incognito === true;
 }
 
 /** True if op from sender may proceed (extBase is runtime.getURL("")). */

@@ -12,6 +12,8 @@ export interface Tab {
   id?: number;
   url?: string;
   windowId?: number;
+  /** Firefox: the tab is in private browsing. */
+  incognito?: boolean;
 }
 
 export interface MessageSender {
@@ -66,7 +68,7 @@ export interface Browser {
     reload(id: number): Promise<void>;
     update(id: number, p: { active?: boolean; url?: string }): Promise<Tab>;
   };
-  extension?: { getViews?(f: { type: string }): unknown[] };
+  extension?: { getViews?(f: { type: string }): unknown[]; inIncognitoContext?: boolean };
   windows?: {
     getLastFocused(q: { windowTypes: string[] }): Promise<{ id?: number }>;
     update(id: number, p: { focused?: boolean }): Promise<unknown>;
@@ -117,5 +119,7 @@ export interface WebRequestDetails {
   tabId: number;
   type: string;
   originUrl?: string;
+  /** Firefox: the request comes from private browsing. */
+  incognito?: boolean;
   requestBody?: { raw?: { bytes?: ArrayBuffer }[] };
 }

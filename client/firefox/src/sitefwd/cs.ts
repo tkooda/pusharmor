@@ -23,11 +23,18 @@ if (location.origin === SITE) {
       void relay("authDone", { hash: hash.slice(1) });
     }
   } else if (path === "/fx/setup") {
+    // a private tab: the page asks for a normal tab and makes no push subscription (none would get pushes)
+    const priv = browser.extension?.inIncognitoContext === true;
+    if (priv) {
+      const mark = () => document.documentElement.setAttribute("data-pa-private", "");
+      if (document.documentElement) mark();
+      else document.addEventListener("readystatechange", mark, { once: true });
+    }
     window.addEventListener("message", (ev: MessageEvent) => {
       if (ev.source !== window || ev.origin !== SITE) return;
       const d = ev.data as { pa?: string } | null;
       if (d && d.pa === "fx-close") return void relay("fx-close", {});
-      const f = d && d.pa === "fx-sub" ? fxSubFields(d) : null;
+      const f = d && d.pa === "fx-sub" && !priv ? fxSubFields(d) : null;
       if (f) void relayWake("fx-sub", f);
     });
   } else if (path === "/fx/open") {

@@ -26,7 +26,17 @@
     });
   }
 
+  // The add-on content script marks a private tab: Firefox delivers no pushes to a
+  // subscription made in private browsing, so none is made there.
+  function privateTab() {
+    if (!document.documentElement.hasAttribute("data-pa-private")) return false;
+    start.hidden = true;
+    say("Open this page in a normal tab to turn on notifications.", false);
+    return true;
+  }
+
   async function run() {
+    if (privateTab()) return;
     say("", false);
     var perm = await Notification.requestPermission();
     if (perm !== "granted") {
@@ -77,6 +87,7 @@
     setTimeout(function () { window.close(); }, 500);
   }
 
+  privateTab();
   start.addEventListener("click", run);
   retry.addEventListener("click", run);
   close.addEventListener("click", closeTab);

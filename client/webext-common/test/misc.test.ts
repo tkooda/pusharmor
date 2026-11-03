@@ -7,7 +7,7 @@ import { MENU_PARENTS, selectionTitle } from "../src/core/actions.ts";
 import { T } from "../src/core/texts.ts";
 import { readForward } from "../../firefox/src/sitefwd/fwd.ts";
 import { endpointAllowed } from "../../firefox/src/platform-firefox.ts";
-import { fxSubFields, senderAllowed } from "../../firefox/src/gate.ts";
+import { fromPrivate, fxSubFields, senderAllowed } from "../../firefox/src/gate.ts";
 
 test("History filter: chips All / peer names / Unknown, peer chips hidden with one peer", () => {
   const one = [
@@ -95,6 +95,18 @@ test("Firefox sender gate: a site content script gets only its own site op", () 
   assert.equal(senderAllowed("fx-open-setup", { id, url: base + "popup.html" }, id, base), true);
   assert.equal(senderAllowed("approve", { id: "other", url: base + "popup.html" }, id, base), false);
   assert.equal(senderAllowed("approve", { id }, id, base), false);
+});
+
+test("Firefox private browsing: a setup tab or site SW forward there is marked private, a normal one is not", () => {
+  const site = "https://pusharmor.com/fx/setup";
+  assert.equal(fromPrivate({ id: "x", url: site, tab: { id: 7, incognito: true } }), true);
+  assert.equal(fromPrivate({ id: "x", url: site, tab: { id: 7, incognito: false } }), false);
+  assert.equal(fromPrivate({ id: "x", url: site, tab: { id: 7 } }), false);
+  assert.equal(fromPrivate({ id: "x", url: site }), false);
+  const fwd = { url: "https://pusharmor.com/fx/fwd", method: "POST", tabId: -1, type: "xmlhttprequest" };
+  assert.equal(fromPrivate({ ...fwd, incognito: true }), true);
+  assert.equal(fromPrivate({ ...fwd, incognito: false }), false);
+  assert.equal(fromPrivate(fwd), false);
 });
 
 test("fx-sub: the sender page is matched exactly and the message shape is validated", () => {

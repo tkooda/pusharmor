@@ -13,6 +13,7 @@ import {
 } from "../site-lib.mjs";
 import { PUBLIC_PATH, loadPublic } from "../../../release/public.mjs";
 import { spawnSync } from "node:child_process";
+import vm from "node:vm";
 
 const SITE = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const PUB = join(SITE, "public");
@@ -711,6 +712,40 @@ test("fx/setup: a refusal says what to do, and success offers Close this tab", (
   assert.ok(html.includes('<button id="close" type="button" hidden>Close this tab</button>'));
   assert.ok(js.includes('window.postMessage({ pa: "fx-close" }, location.origin);'));
   assert.ok(js.includes("window.close();"));
+});
+
+/** Runs fx-setup.js on stub elements; marked: the add-on content script flagged a private tab. */
+function fxSetup(marked) {
+  const el = () => {
+    const ls = {};
+    return { hidden: false, textContent: "", ls, addEventListener: (t, f) => void (ls[t] = f) };
+  };
+  const els = { status: el(), start: el(), retry: el(), close: el() };
+  const calls = [];
+  const ctx = {
+    navigator: { userAgent: "Mozilla/5.0 (Android 14; Mobile) Firefox/140.0", serviceWorker: { register: async () => void calls.push("register") } },
+    document: { getElementById: (id) => els[id], documentElement: { hasAttribute: (a) => marked && a === "data-pa-private" } },
+    Notification: { requestPermission: async () => (calls.push("permission"), "granted") },
+    window: { postMessage: (m) => void calls.push("post:" + m.pa) },
+    setTimeout, clearTimeout, Promise, Error,
+  };
+  vm.createContext(ctx);
+  vm.runInContext(readFileSync(join(PUB, "js", "fx-setup.js"), "utf8"), ctx, { filename: "fx-setup.js" });
+  return { els, calls };
+}
+
+test("fx/setup in a private tab asks for a normal tab and makes no push subscription", async () => {
+  const { els, calls } = fxSetup(true);
+  assert.equal(els.status.textContent, "Open this page in a normal tab to turn on notifications.");
+  assert.equal(els.start.hidden, true);
+  assert.equal(els.retry.hidden, true);
+  await els.start.ls.click();
+  assert.deepEqual(calls, []); // no permission prompt, no service worker, no fx-sub
+  const normal = fxSetup(false);
+  assert.equal(normal.els.status.textContent, "");
+  assert.equal(normal.els.start.hidden, false);
+  await normal.els.start.ls.click().catch(() => undefined); // stops at the stub service worker
+  assert.deepEqual(normal.calls.slice(0, 2), ["permission", "register"]);
 });
 
 test("site build fails when the APK hashes file lacks the page's APK version", () => {
