@@ -1988,3 +1988,267 @@ def test_rename_to_the_same_name_makes_no_network_call(net, tmp_path, monkeypatc
     assert run(a, "rename", name) == 0
     assert capsys.readouterr().out == 'This device is already named "%s".\n' % name
     assert len(net.log) == before and state(a)["name"] == name
+
+
+# ---- crossing pair commits ----
+
+class Dev:
+    """One logged-in device driven at the engine level: tap = pair, pump = receive what the push service holds."""
+
+    def __init__(self, monkeypatch, net, cfg):
+        self.net, self.cfg = net, cfg
+        self.id = login(monkeypatch, cfg)
+        self.cx = pa.Ctx(str(cfg))
+        self.cx.need()
+        self.cx.mode = "pair"
+        self.since = "0"
+
+    def x_of(self, other):
+        return other.id
+
+    def tap(self, other):
+        """What one run of pair OTHER does at its start, without the prompts."""
+        cx, x = self.cx, other.id
+        cx.refresh()
+        with cx.store.state(write=False) as d:
+            e = d["pairs"].get(x)
+        if not e:
+            return pa.pair_start(cx, x)
+        if e["role"] == "X" and e["state"] == "prompted":
+            with cx.store.state() as d:
+                d["pairs"][x]["authorized"] = True
+            return pa.send_reply(cx, x)
+        if e["role"] == "N" and e["state"] == "committed":
+            return pa.post_pair(cx, x, "commit", e["msg"])
+
+    def entry(self, other):
+        with self.cx.store.state(write=False) as d:
+            return d["pairs"].get(other.id)
+
+    def take(self):
+        """The pushes waiting for this device, oldest first, and move the position on."""
+        with self.cx.store.state(write=False) as d:
+            s = pa.Stream(d["ntfy"], d["topic"], self.cx.keys, self.since, 0.3, poll=True)
+        out = []
+        while True:
+            pt = s.next(time.time() + 0.3)
+            if pt is None:
+                break
+            out.append(pt)
+        self.since = s.since
+        return out
+
+    def pump(self):
+        pts = self.take()
+        for pt in pts:
+            pa.receive(self.cx, pt)
+        return len(pts)
+
+
+def settle(*devs):
+    for _ in range(20):
+        if not sum(d.pump() for d in devs):
+            return
+    raise AssertionError("pairing messages never settled")
+
+
+def two_devs(monkeypatch, net, tmp_path):
+    a, b = Dev(monkeypatch, net, tmp_path / "a"), Dev(monkeypatch, net, tmp_path / "b")
+    for d in (a, b):
+        d.take()  # the login probe
+    lo, hi = (a, b) if pa.compare_ids(a.id, b.id) < 0 else (b, a)
+    return lo, hi
+
+
+def at_compare_codes(lo, hi):
+    el, eh = lo.entry(hi), hi.entry(lo)
+    assert el and eh and el["state"] == "shown" and eh["state"] == "shown"
+    assert el["fingerprint"] and el["fingerprint"] == eh["fingerprint"]
+    assert {el["role"], eh["role"]} == {"N", "X"}
+
+
+def test_crossing_simultaneous_taps(net, tmp_path, monkeypatch):
+    lo, hi = two_devs(monkeypatch, net, tmp_path)
+    lo.tap(hi)
+    hi.tap(lo)
+    settle(lo, hi)
+    at_compare_codes(lo, hi)
+    assert lo.entry(hi)["role"] == "N" and hi.entry(lo)["role"] == "X"
+
+
+def test_crossing_lower_taps_then_higher_taps_before_processing(net, tmp_path, monkeypatch):
+    lo, hi = two_devs(monkeypatch, net, tmp_path)
+    lo.tap(hi)
+    hi.tap(lo)  # hi has not processed lo's commit yet
+    hi.pump()
+    lo.pump()
+    settle(hi, lo)
+    at_compare_codes(lo, hi)
+
+
+def test_crossing_higher_taps_then_lower_taps(net, tmp_path, monkeypatch):
+    lo, hi = two_devs(monkeypatch, net, tmp_path)
+    hi.tap(lo)
+    lo.tap(hi)
+    settle(lo, hi)
+    at_compare_codes(lo, hi)
+
+
+def test_crossing_stale_request_on_lower_side(net, tmp_path, monkeypatch):
+    lo, hi = two_devs(monkeypatch, net, tmp_path)
+    lo.tap(hi)
+    hi.take()  # the old commit never reached hi
+    with lo.cx.store.state() as d:
+        d["pairs"][hi.id]["started"] -= 3 * 3600
+    hi.tap(lo)
+    settle(lo, hi)
+    at_compare_codes(lo, hi)
+
+
+def test_crossing_stale_request_on_higher_side(net, tmp_path, monkeypatch):
+    lo, hi = two_devs(monkeypatch, net, tmp_path)
+    hi.tap(lo)
+    lo.take()  # the old commit never reached lo
+    with hi.cx.store.state() as d:
+        d["pairs"][lo.id]["started"] -= 3 * 3600
+    lo.tap(hi)
+    settle(lo, hi)
+    at_compare_codes(lo, hi)
+
+
+def test_crossing_send_again_on_either_side(net, tmp_path, monkeypatch):
+    lo, hi = two_devs(monkeypatch, net, tmp_path)
+    lo.tap(hi)
+    hi.tap(lo)
+    lo.tap(hi)  # send again during the crossing
+    hi.tap(lo)
+    settle(lo, hi)
+    at_compare_codes(lo, hi)
+    assert lo.tap(hi) is None and hi.tap(lo) is None  # nothing more to send once the codes show
+    settle(lo, hi)
+    at_compare_codes(lo, hi)
+
+
+def test_crossing_lost_first_commit_is_recovered(net, tmp_path, monkeypatch):
+    lo, hi = two_devs(monkeypatch, net, tmp_path)
+    lo.tap(hi)
+    hi.take()  # lo's commit is lost
+    hi.tap(lo)
+    settle(lo, hi)
+    at_compare_codes(lo, hi)
+    # and the other way: hi's commit is lost, lo's send again recovers
+    net.topics.clear()
+    for d in (lo, hi):
+        with d.cx.store.state() as s:
+            s["pairs"].clear()
+            for p in s["peers"].values():
+                pa.unpin(p)
+        d.since = "0"
+    lo.tap(hi)
+    hi.tap(lo)
+    lo.take()  # hi's commit is lost
+    settle(hi, lo)
+    lo.tap(hi)
+    settle(lo, hi)
+    at_compare_codes(lo, hi)
+
+
+def test_crossing_resend_posts_one_stored_commit_ignoring_any_gap(net, tmp_path, monkeypatch):
+    lo, hi = two_devs(monkeypatch, net, tmp_path)
+    lo.tap(hi)
+    stored = lo.entry(hi)["msg"]
+    posts = []
+    net.hooks[("POST", "pair")] = lambda m, path, h, body: posts.append((path, json.loads(body)["c"]))
+    hi.tap(lo)
+    del posts[:]
+    lo.pump()  # hi's commit arrives while lo's own was sent a moment ago
+    assert posts == [("/v1/pair/" + hi.id, stored)]
+    assert lo.entry(hi)["msg"] == stored and lo.entry(hi)["state"] == "committed"
+
+
+def test_crossing_resend_that_gets_429_changes_nothing_and_later_send_again_works(net, tmp_path, monkeypatch):
+    lo, hi = two_devs(monkeypatch, net, tmp_path)
+    lo.tap(hi)
+    hi.take()
+    hi.tap(lo)
+    busy = {"on": True}
+
+    def hook(m, path, h, body):
+        if busy["on"] and path == "/v1/pair/" + hi.id:
+            return net.reply(429, {"error": "slow down"})
+
+    net.hooks[("POST", "pair")] = hook
+    lo.pump()  # the re-send is refused
+    assert lo.entry(hi)["state"] == "committed" and hi.pump() == 0
+    busy["on"] = False
+    assert lo.tap(hi) == "sent"
+    settle(lo, hi)
+    at_compare_codes(lo, hi)
+
+
+def test_duplicate_reply_on_a_shown_entry_is_harmless(net, tmp_path, monkeypatch, capsys):
+    lo, hi = two_devs(monkeypatch, net, tmp_path)
+    lo.tap(hi)
+    hi.tap(lo)
+    hi.pump()
+    replies = lo.take()
+    for pt in replies + replies:  # the reply twice
+        pa.receive(lo.cx, pt)
+    settle(lo, hi)
+    at_compare_codes(lo, hi)
+    assert "failed" not in capsys.readouterr().err
+
+
+# ---- waiting pairings are sent again once per run ----
+
+def pair_posts(net):
+    posts = []
+    net.hooks[("POST", "pair")] = lambda m, path, h, body: posts.append((path, json.loads(body)["c"]))
+    return posts
+
+
+def test_pair_list_sends_waiting_commit_once_per_run(net, tmp_path, monkeypatch, capsys):
+    lo, hi = two_devs(monkeypatch, net, tmp_path)
+    lo.tap(hi)
+    stored = lo.entry(hi)["msg"]
+    posts = pair_posts(net)
+    lo.cx.last_fetch = 0
+    assert pa.pair_list(lo.cx) == 0
+    assert pa.pair_list(lo.cx) == 0  # same run: no second send
+    assert posts == [("/v1/pair/" + hi.id, stored)]
+    settle(lo, hi)
+    assert hi.entry(lo)["role"] == "X"
+
+
+def test_pair_list_sends_open_and_reply_and_skips_unauthorized(net, tmp_path, monkeypatch):
+    lo, hi = two_devs(monkeypatch, net, tmp_path)
+    lo.tap(hi)
+    hi.pump()  # hi: X prompted, not authorized unless it was a reply case
+    lo.pump()
+    settle(lo, hi)
+    el, eh = lo.entry(hi), hi.entry(lo)
+    posts = pair_posts(net)
+    if el["role"] == "N":
+        n, x = lo, hi
+    else:
+        n, x = hi, lo
+    assert n.entry(x)["state"] == "shown" and x.entry(n)["state"] in ("replied", "shown")
+    pa.pair_list(n.cx)
+    assert [(p, c) for p, c in posts] == [("/v1/pair/" + x.id, n.entry(x)["msg"])]
+    del posts[:]
+    if x.entry(n)["state"] == "replied":
+        pa.pair_list(x.cx)
+        assert posts == [("/v1/pair/" + n.id, x.entry(n)["msg"])]
+    settle(lo, hi)
+    at_compare_codes(lo, hi)  # the repeated open on a shown X entry changed nothing
+
+
+def test_pair_list_skips_x_entry_waiting_for_the_user(net, tmp_path, monkeypatch):
+    lo, hi = two_devs(monkeypatch, net, tmp_path)
+    lo.tap(hi)
+    hi.pump()
+    with hi.cx.store.state() as d:
+        d["pairs"][lo.id].update(state="prompted", authorized=False, msg="")
+    posts = pair_posts(net)
+    pa.pair_list(hi.cx)
+    assert posts == []

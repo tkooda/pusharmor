@@ -2104,7 +2104,7 @@ def pair_note(cx, d, x, text):
 
 
 def on_commit(cx, frm, c_n, listed):
-    k, notes, now = cx.keys, [], int(time.time())
+    k, notes, now, again = cx.keys, [], int(time.time()), None
     with cx.store.state() as d:
         p = d["peers"].get(frm) or {}
         while True:
@@ -2138,6 +2138,7 @@ def on_commit(cx, frm, c_n, listed):
             notes.append(pair_note(cx, d, frm, '"%s" wants to pair. Run: pusharmor pair %s'))
         elif notice == "crossing":
             notes.append(pair_note(cx, d, frm, 'Pairing with "%s" is in progress. (%s)'))
+            again = e["msg"]  # X may never have got this device's commit: send the stored one again
         elif notice == "half_state":
             notes.append(pair_note(cx, d, frm, '"%s" wants to pair again. Run: pusharmor pair %s'))
         else:
@@ -2145,6 +2146,8 @@ def on_commit(cx, frm, c_n, listed):
     for n in notes:
         if n:
             log(*n)
+    if again:
+        post_pair(cx, frm, "commit", again)
     if dec["action"] == "reply":
         send_reply(cx, frm)
 
@@ -2662,8 +2665,33 @@ def peer_status(p, e):
     return "not paired"
 
 
+def resend_waiting(cx, skip=None):
+    """Once per run: send the current pair message of each waiting pairing again (commit, open, or reply)."""
+    if getattr(cx, "resent", False):
+        return
+    cx.resent = True
+    with cx.store.state(write=False) as d:
+        todo = []
+        for x, e in d["pairs"].items():
+            p = d["peers"].get(x)
+            if x == skip or not p or not e["msg"]:
+                continue
+            kind = None
+            if e["role"] == "N" and e["state"] == "committed":
+                kind = "commit"
+            elif e["role"] == "N" and e["state"] == "shown" and not p["approve_verified"]:
+                kind = "open"
+            elif e["role"] == "X" and e["state"] == "replied" and e["authorized"]:
+                kind = "reply"
+            if kind:
+                todo.append((x, kind, e["msg"]))
+    for x, kind, msg in todo:
+        post_pair(cx, x, kind, msg)
+
+
 def pair_list(cx):
     cx.refresh()
+    resend_waiting(cx)
     with cx.store.state(write=False) as d:
         ids = list(d["peers"]) + [cx.me]
         rows = [("ID", "NAME", "DEVICE", "STATUS"), (short_id(cx.me, ids), d["name"], "Command line", "this device")]
@@ -2692,6 +2720,7 @@ def cmd_pair(cx, args):
     x = cx.target = resolve_peer(cx, args.id, with_self=True)
     if x == cx.me:
         raise Fail("This is the device you are using. Choose another device.")
+    resend_waiting(cx, x)
     with cx.store.state() as d:
         if d["peers"][x]["ruling"] == "denied":
             d["peers"][x]["ruling"] = "none"
