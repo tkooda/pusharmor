@@ -26,31 +26,12 @@ three stores; it is not a manual release.
 
 All platforms share ONE version counter X.Y.Z. A release tags only the platforms
 that changed (for example `chrome/v0.0.22` alone); the others skip that number.
-A given X.Y.Z always means the same commit on every platform that has it. Rules (`release/tag.mjs`, checked again by every release
-workflow in its first job):
-
-- A version is bound to one commit: every `<platform>/vX.Y.Z` tag of X.Y.Z points
-  at the same commit, and a commit carries one version.
-- A new version (no tag of it yet) is greater than every existing tag of any
-  platform. A version that already has a tag stays open to other platforms at
-  its commit, also after newer versions are tagged.
-- A release names its platforms (`node release/tag.mjs X.Y.Z chrome firefox`;
-  `all` = android, ios, chrome, firefox; `cli` and `worker` are named
-  explicitly). Platforms are required, so nothing is tagged by default. Tag all
-  platforms that changed on ONE commit; the rest keep their last version.
-- X.Y.Z has no leading zeros; Y and Z are at most 999; X is at most 2099.
-- The version files OF THE TAGGED PLATFORM at the tag commit hold X.Y.Z (files of
-  other platforms keep their own version): `release/version.properties`
-  (Android), `client/chrome/manifest.json`, `client/firefox/manifest.json`,
-  `client/ios/project.yml`, `client/cli/pusharmor.py` (VERSION and the version
-  comment on line 2), `site/public/download.html` (the pusharmor.py release
-  URL and the SHA-256 of `client/cli/pusharmor.py` at the tag commit; for
-  Android, the foss and play APK URLs and file names; the APK and certificate
-  SHA-256 values are not stamped), `site/public/fdroid/android.txt`
-  (Android versionName, then versionCode), and `site/public/fx/beta/updates.json` (Firefox: the version and the URL of
-  the Beta XPI of the tag).
-- `ci-ok` of the ci workflow succeeded on the tag commit (a push run; `gh api`
-  with actions: read). The release workflow waits up to 40 minutes for it.
+A given X.Y.Z always means the same commit on every platform that has it, and a
+new version is greater than every existing tag. `release/tag.mjs` stamps the
+version files of the named platforms and enforces the rules (header comment and
+`FILES` list there; tests in `release/tag.test.mjs`); every release workflow
+checks them again in its first job, including a successful `ci-ok` on the tag
+commit (it waits up to 40 minutes for a running CI).
 
 Build numbers: Android versionCode and the iOS build number grow with the
 version (0.0.1 -> 1; `buildNumber` in `release/tag.mjs`).
