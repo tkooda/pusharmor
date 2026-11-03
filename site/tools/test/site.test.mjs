@@ -454,7 +454,10 @@ test("download: every Android channel, release asset names, certificate fingerpr
   assert.ok(t.includes("Obtainium: Add to Obtainium (below)"), "download lacks the Obtainium entry");
   assert.ok(read("download.html").includes('href="https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F'), "download lacks the Obtainium link");
   const obt = decodeURIComponent(decodeURIComponent(raw.match(/id="obtainium-add" href="([^"]+)"/)[1]));
-  assert.ok(obt.includes('includePrereleases\\":false') && obt.includes('filterReleaseTitlesByRegEx\\":\\"^android/v') && obt.includes('apkFilterRegEx\\":\\"foss'), "Obtainium preset filters wrong");
+  assert.ok(obt.includes('includePrereleases\\":false') && obt.includes('filterReleaseTitlesByRegEx\\":\\"^android/v') && obt.includes('apkFilterRegEx\\":\\"play'), "Obtainium play preset filters wrong");
+  assert.ok(obt.includes('PushArmor (Google/UnifiedPush)'), "Obtainium play preset lacks its name");
+  const obtF = decodeURIComponent(decodeURIComponent(raw.match(/id="obtainium-add-foss" href="([^"]+)"/)[1]));
+  assert.ok(obtF.includes('includePrereleases\\":false') && obtF.includes('filterReleaseTitlesByRegEx\\":\\"^android/v') && obtF.includes('apkFilterRegEx\\":\\"foss') && obtF.includes('PushArmor (UnifiedPush only)'), "Obtainium foss preset wrong");
   assert.ok(!/Include prereleases|Filter links by regex|obtainium-repo/.test(raw), "download still has the manual Obtainium steps");
   const fp = "262c4f2e9a0220ed48181a5c8650dd742372b220e628fe10e7eea2e9fe6ce4e3";
   assert.ok(t.includes("F-Droid: our F-Droid repository (below)"), "download lacks the F-Droid entry");
