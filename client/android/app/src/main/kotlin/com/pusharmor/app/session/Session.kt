@@ -415,7 +415,8 @@ class Session(private val g: Graph) {
     fun rename(newName: String): String? {
         if (!NameEntry.isValidName(newName)) return "Use 1 to 32 plain ASCII characters, no double quotes."
         val me = g.identity() ?: return ErrorText.text(UiText.UNABLE_RENAME, ErrorText.LOGGED_OUT)
-        dao.self() ?: return ErrorText.text(UiText.UNABLE_RENAME, ErrorText.LOGGED_OUT)
+        val self = dao.self() ?: return ErrorText.text(UiText.UNABLE_RENAME, ErrorText.LOGGED_OUT)
+        if (self.name == newName) return null // the same name: nothing to send, so no device shows a rename
         dao.setSelfName(newName)
         val outbox = Outbox(g.store, me)
         val r = g.reconcile().withMissingRetry {
