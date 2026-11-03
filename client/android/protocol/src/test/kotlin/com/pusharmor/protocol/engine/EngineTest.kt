@@ -420,12 +420,14 @@ class EngineTest {
         assertFalse(n.store.peer(x.id)!!.pairAgain) // cleared by starting a pair
     }
 
-    /** A rejected device shows again once it sends a new pairing request. */
+    /** A rejected device shows again once it sends a new pairing request, and the pairing completes on both sides. */
     @Test fun newPairingRequestClearsReject() {
-        x.store.putPeer(x.store.peer(n.id)!!.copy(deniedByMe = true))
-        n.pairing.tapPair(x.id, t0); n.runPairSends(t0); x.deliver(t0)
-        assertNotNull(x.store.pairing(n.id))
+        assertTrue(x.approve.deny(n.id) is ApiResult.Ok)
+        assertTrue(x.store.peer(n.id)!!.deniedByMe)
+        pairShown()
         assertFalse(x.store.peer(n.id)!!.deniedByMe)
+        approveBoth()
+        assertTrue(n.store.peer(x.id)!!.approvesMe && x.store.peer(n.id)!!.approvesMe)
     }
 
     /** Pair on a rejected device clears the reject, so its row shows again. */
