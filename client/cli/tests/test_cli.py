@@ -656,6 +656,53 @@ def test_listen_exec_replaces_nul_and_lone_surrogates(net, tmp_path, monkeypatch
     assert out.read_bytes().decode() == "a\ufffdb\ufffd"
 
 
+@pytest.mark.skipif(os.name == "nt", reason="the notify program is a shell script")
+def test_listen_exec_program_output_is_prefixed_line_by_line(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    pair_two(monkeypatch, net, a, b)
+    assert run(a, "send", "one") == 0
+    assert run(a, "send", "two") == 0
+    prog, gate = tmp_path / "prog", tmp_path / "gate"
+    # the first line must reach stdout before the program goes on: it waits for the test to see it
+    prog.write_text('#!/bin/sh\necho "out $5"\ni=0\nwhile [ "$5" = one ] && [ ! -e "%s" ] && [ $i -lt 500 ]; do\n'
+                    '  sleep 0.01; i=$((i + 1))\ndone\n[ -e "%s" ] || echo late\nprintf "err\\r\\nlast" >&2\n'
+                    % (gate, gate))
+    prog.chmod(0o755)
+    seen = []
+
+    class Out(io.StringIO):
+        def write(self, s):
+            if s.startswith("cmd: out one"):
+                seen.append(s)
+                gate.touch()
+            return super().write(s)
+
+    net.stop.set()
+    capsys.readouterr()
+    out = Out()
+    monkeypatch.setattr(sys, "stdout", out)
+    assert run(b, "listen", "--exec", str(prog)) == 130
+    assert seen and out.getvalue() == "cmd: out one\ncmd: out two\n"
+    err = capsys.readouterr().err.splitlines()
+    assert [x for x in err if x.startswith("cmd: ")] == ["cmd: err", "cmd: last"] * 2
+    assert all(x.startswith(("cmd: ", "info: ")) for x in err)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="the notify program is a shell script")
+def test_listen_exec_silent_program_prints_nothing(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    pair_two(monkeypatch, net, a, b)
+    assert run(a, "send", "one") == 0
+    prog = tmp_path / "prog"
+    prog.write_text("#!/bin/sh\nexit 0\n")
+    prog.chmod(0o755)
+    net.stop.set()
+    capsys.readouterr()
+    assert run(b, "listen", "--exec", str(prog)) == 130
+    cap = capsys.readouterr()
+    assert cap.out == "" and not any(x.startswith("cmd:") for x in cap.err.splitlines())
+
+
 def test_send_reads_a_bounded_amount_of_stdin(net, tmp_path, monkeypatch, capsys):
     login(monkeypatch, tmp_path)
     big = Stdin(tty=False, data=b"x" * (3 << 20))
@@ -1037,8 +1084,13 @@ def test_tsv_escapes_controls_and_json_is_ascii():
     assert "\\u00e9" in line and all(ord(c) < 128 for c in line)
     assert json.loads(line)["body"] == "\u00e9\u202e"
     seen = []
+
+    def popen(argv, **kw):
+        seen.append(argv)
+        raise OSError(2, "No such file or directory")
+
     with pytest.MonkeyPatch.context() as m:
-        m.setattr(pa.subprocess, "run", lambda argv: seen.append(argv) or pa.subprocess.CompletedProcess(argv, 0))
+        m.setattr(pa.subprocess, "Popen", popen)
         pa.run_exec("prog", dict(REC, body="\u00e9\u202e\x1b"))
     assert seen[0][-1] == "\u00e9\u202e\x1b"
 

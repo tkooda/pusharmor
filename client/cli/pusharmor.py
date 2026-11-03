@@ -934,6 +934,7 @@ import stat
 import string
 import subprocess
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -2398,16 +2399,44 @@ def format_record(rec, fmt):
         email.utils.format_datetime(t.astimezone()), body)
 
 
+def _relay_lines(pipe, out, failed):
+    """Each line the notify program writes, as it comes, with "cmd: " in front. A failed write is kept
+    for the caller, and the rest is read and dropped so the program never blocks on a full pipe."""
+    for raw in iter(pipe.readline, b""):
+        if failed:
+            continue
+        line = raw.decode("utf-8", "replace")
+        line = line[:-1] if line.endswith("\n") else line
+        try:
+            print("cmd: " + (line[:-1] if line.endswith("\r") else line), file=out, flush=True)
+        except (OSError, ValueError) as e:
+            failed.append(e)
+    pipe.close()
+
+
 def run_exec(prog, rec):
     try:
-        r = subprocess.run([prog] + [re.sub("[\x00\ud800-\udfff]", "\ufffd", rec[k])
-                                     for k in ("from", "name", "platform", "type", "body")])
-        if r.returncode:
-            log("warning", 'The notify program "%s" stopped with status %d. Listening continues.'
-                % (prog, r.returncode))
+        r = subprocess.Popen([prog] + [re.sub("[\x00\ud800-\udfff]", "\ufffd", rec[k])
+                                       for k in ("from", "name", "platform", "type", "body")],
+                             stdout=subprocess.PIPE if sys.stdout else subprocess.DEVNULL,
+                             stderr=subprocess.PIPE if sys.stderr else subprocess.DEVNULL)
     except (OSError, ValueError) as e:
         why = (getattr(e, "strerror", None) or str(e)).rstrip(".")
         log("warning", 'The notify program "%s" could not be run: %s. Listening continues.' % (prog, why))
+        return
+    failed = []
+    relays = [threading.Thread(target=_relay_lines, args=(pipe, out, failed), daemon=True)
+              for pipe, out in ((r.stdout, sys.stdout), (r.stderr, sys.stderr)) if pipe]
+    for t in relays:
+        t.start()
+    for t in relays:
+        t.join()
+    r.wait()
+    if failed:
+        raise failed[0]  # stdout or stderr is closed: as for any other write of this run
+    if r.returncode:
+        log("warning", 'The notify program "%s" stopped with status %d. Listening continues.'
+            % (prog, r.returncode))
 
 
 # ---- command functions ----
