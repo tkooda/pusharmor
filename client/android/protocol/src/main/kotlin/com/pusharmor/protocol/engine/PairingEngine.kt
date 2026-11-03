@@ -284,8 +284,6 @@ class PairingEngine(
         return ok
     }
 
-    fun canSendAgain(row: PairingRow, now: Long) = row.role == PairRole.N && now - row.lastSendAt >= SEND_AGAIN_MS
-
     enum class SendStep { DONE, RETRY, WAIT_UNTIL, STOP }
 
     /**
