@@ -855,6 +855,262 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(try high.core.store.capTimestamps().count, 0)    // tapped reply, not counted
     }
 
+    // MARK: crossing commits: any timing of Pair taps ends at the compare-codes state
+
+    /// Two listed devices, (lower id, higher id).
+    private func crossingPair() async throws -> (low: Device, high: Device) {
+        let a = try dev("Adev"), b = try dev("Bdev")
+        await a.core.fetchPeers(force: true)
+        await b.core.fetchPeers(force: true)
+        if a.id < b.id { return (a, b) }
+        return (b, a)
+    }
+
+    /// Deliver pushes both ways, `first` drains first, until both inboxes are empty.
+    @discardableResult
+    private func settle(_ first: Device, _ second: Device) async -> [ReceiveResult] {
+        var out: [ReceiveResult] = []
+        for _ in 0 ..< 20 {
+            if (w.inbox[first.id.text] ?? []).isEmpty && (w.inbox[second.id.text] ?? []).isEmpty { break }
+            let r1 = await first.drainInbox(w)
+            out += r1
+            let r2 = await second.drainInbox(w)
+            out += r2
+        }
+        return out
+    }
+
+    /// Both sides at the compare-codes state: one N and one X, both shown, the same
+    /// fingerprint, and no push dropped on the way.
+    private func assertCompareCodes(_ a: Device, _ b: Device, _ results: [ReceiveResult]) throws {
+        XCTAssertEqual(try a.core.store.pairing(b.id)?.state, .shown)
+        XCTAssertEqual(try b.core.store.pairing(a.id)?.state, .shown)
+        XCTAssertNotEqual(try a.core.store.pairing(b.id)?.role, try b.core.store.pairing(a.id)?.role)
+        let fp = try a.core.store.peer(b.id)?.fingerprint
+        XCTAssertNotNil(fp)
+        XCTAssertEqual(fp, try b.core.store.peer(a.id)?.fingerprint)
+        XCTAssertEqual(try a.core.store.peer(b.id)?.pairingId, try b.core.store.peer(a.id)?.pairingId)
+        XCTAssertFalse(results.contains { $0.banner == Banner.dropped })
+    }
+
+    func testCrossingSimultaneousTapsBothDelivered() async throws {
+        let (low, high) = try await crossingPair()
+        _ = try await low.core.startPair(high.id)
+        _ = try await high.core.startPair(low.id)
+        // both commits delivered at once
+        let toLow = w.take(low.id), toHigh = w.take(high.id)
+        var rs: [ReceiveResult] = []
+        for m in toLow {
+            let r = await low.core.receive(m, mode: .nse)
+            rs.append(r)
+        }
+        for m in toHigh {
+            let r = await high.core.receive(m, mode: .nse)
+            rs.append(r)
+        }
+        XCTAssertEqual(rs.first?.banner?.body, S.pairCrossing(PeerLabel.label(try low.core.store.peer(high.id))))
+        XCTAssertEqual(w.inbox[high.id.text]?.count, 1)                 // the lower side's commit, re-sent
+        XCTAssertEqual(try high.core.store.pairing(low.id)?.role, .x)
+        let more = await settle(low, high)
+        rs += more
+        try assertCompareCodes(low, high, rs)
+        // the re-sent commit got a second, identical reply: it re-presents the notice only
+        XCTAssertEqual(more.filter { $0.banner?.body == S.pairReply }.count, 2)
+        XCTAssertEqual(try low.core.store.pairing(high.id)?.role, .n)
+    }
+
+    func testCrossingLowerTapsThenHigherTapsBeforeTheCommitIsRead() async throws {
+        let (low, high) = try await crossingPair()
+        _ = try await low.core.startPair(high.id)
+        _ = try await high.core.startPair(low.id)
+        let rs = await settle(high, low)
+        try assertCompareCodes(low, high, rs)
+    }
+
+    func testCrossingHigherTapsThenLowerTaps() async throws {
+        let (low, high) = try await crossingPair()
+        _ = try await high.core.startPair(low.id)
+        _ = try await low.core.startPair(high.id)
+        let rs = await settle(low, high)
+        try assertCompareCodes(low, high, rs)
+    }
+
+    func testCrossingStaleRequestOnTheLowerSide() async throws {
+        let (low, high) = try await crossingPair()
+        _ = try await low.core.startPair(high.id)
+        _ = w.take(high.id)                                             // the higher side never got it
+        let old = try low.core.store.pairing(high.id)!
+        clock.now += 5 * 3600
+        _ = try await high.core.startPair(low.id)
+        let rs = await settle(low, high)
+        try assertCompareCodes(low, high, rs)
+        // the old request was answered as it was: same r_N and c_N
+        XCTAssertEqual(try low.core.store.pairing(high.id)?.r, old.r)
+        XCTAssertEqual(try low.core.store.pairing(high.id)?.cN, old.cN)
+        XCTAssertEqual(try high.core.store.pairing(low.id)?.cN, old.cN)
+    }
+
+    func testCrossingStaleRequestOnTheHigherSide() async throws {
+        let (low, high) = try await crossingPair()
+        _ = try await high.core.startPair(low.id)
+        _ = w.take(low.id)                                              // the lower side never got it
+        clock.now += 5 * 3600
+        _ = try await low.core.startPair(high.id)
+        let rs = await settle(high, low)
+        try assertCompareCodes(low, high, rs)
+        XCTAssertEqual(try low.core.store.pairing(high.id)?.role, .n)
+    }
+
+    func testCrossingSendAgainOnBothSides() async throws {
+        let (low, high) = try await crossingPair()
+        _ = try await low.core.startPair(high.id)
+        _ = try await high.core.startPair(low.id)
+        clock.now += 61
+        let v1 = await low.core.sendAgain(high.id)
+        XCTAssertEqual(v1, .sent)
+        let v2 = await high.core.sendAgain(low.id)
+        XCTAssertEqual(v2, .sent)
+        let rs = await settle(low, high)
+        try assertCompareCodes(low, high, rs)
+        // Send again during the compare step re-sends the open on N; X re-presents it
+        clock.now += 61
+        let n = try low.core.store.pairing(high.id)?.role == .n ? low : high
+        let x = n === low ? high : low
+        let v3 = await n.core.sendAgain(x.id)
+        XCTAssertEqual(v3, .sent)
+        let rs2 = await settle(x, n)
+        try assertCompareCodes(low, high, rs2)
+    }
+
+    func testCrossingLostCommitRecoveredByTheResend() async throws {
+        let (low, high) = try await crossingPair()
+        _ = try await low.core.startPair(high.id)
+        _ = w.take(high.id)                                             // lost push
+        _ = try await high.core.startPair(low.id)
+        let rs = await settle(low, high)
+        try assertCompareCodes(low, high, rs)
+    }
+
+    func testCrossingLostResendRecoveredBySendAgain() async throws {
+        let (low, high) = try await crossingPair()
+        _ = try await low.core.startPair(high.id)
+        _ = w.take(high.id)                                             // lost push
+        _ = try await high.core.startPair(low.id)
+        await low.drainInbox(w)                                         // crossing: re-sends its commit
+        XCTAssertEqual(w.take(high.id).count, 1)                        // lost too
+        XCTAssertEqual(try high.core.store.pairing(low.id)?.state, .committed)
+        clock.now += 61
+        let v = await low.core.sendAgain(high.id)
+        XCTAssertEqual(v, .sent)
+        let rs = await settle(high, low)
+        try assertCompareCodes(low, high, rs)
+    }
+
+    func testCrossingResendIsOneCommitWithStoredCNUnthrottledAndWaitsForNotBefore() async throws {
+        let (low, high) = try await crossingPair()
+        _ = try await low.core.startPair(high.id)
+        _ = w.take(high.id)
+        _ = try await high.core.startPair(low.id)
+        let commit = w.take(low.id)
+        XCTAssertEqual(commit.count, 1)
+        let cN = try low.core.store.pairing(high.id)!.cN
+        clock.now += 5
+        let greyed = await low.core.sendAgain(high.id)                  // a tap is still throttled
+        XCTAssertNil(greyed)
+        let posts = w.count("POST", "/v1/pair/")
+        let r = await low.core.receive(commit[0], mode: .nse)
+        XCTAssertEqual(r.banner?.body, S.pairCrossing(PeerLabel.label(try low.core.store.peer(high.id))))
+        XCTAssertEqual(w.count("POST", "/v1/pair/") - posts, 1)
+        let resent = w.take(high.id)
+        XCTAssertEqual(resent.count, 1)
+        let parsed = try PairMessage.open(resent[0], me: high.id, key: high.keys.decryptor)
+        guard case .commit(let c) = parsed.body else { return XCTFail() }
+        XCTAssertEqual(c, cN)
+        XCTAssertEqual(try low.core.store.pairing(high.id)?.lastSendAt, clock.now)
+        // a server wait holds: nothing is posted before not_before
+        try low.core.store.db.exec("UPDATE pairing SET not_before = ?", [.int(clock.now + 30)])
+        let waitFrom = clock.now
+        let posts2 = w.count("POST", "/v1/pair/")
+        let r2 = await low.core.receive(commit[0], mode: .nse)
+        XCTAssertEqual(r2.banner?.body, S.pairCrossing(PeerLabel.label(try low.core.store.peer(high.id))))
+        XCTAssertEqual(w.count("POST", "/v1/pair/"), posts2)
+        XCTAssertEqual(w.take(high.id).count, 0)
+        XCTAssertEqual(try low.core.store.pairing(high.id)?.lastSendAt, waitFrom)
+        clock.now += 30
+        _ = await low.core.receive(commit[0], mode: .nse)
+        XCTAssertEqual(w.count("POST", "/v1/pair/") - posts2, 1)
+        XCTAssertEqual(w.take(high.id).count, 1)
+    }
+
+    func testRefreshAndAppOpenResendTheWaitingPairMessage() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        await n.core.fetchPeers(force: true)
+        await x.core.fetchPeers(force: true)
+        _ = try await n.core.startPair(x.id)
+        let cN = try n.core.store.pairing(x.id)!.cN
+        _ = w.take(x.id)                                                // lost commit
+        await n.core.refresh(push: nil)                                 // within 60 s of the last send: nothing
+        XCTAssertEqual(w.inbox[x.id.text]?.count ?? 0, 0)
+        clock.now += 61
+        try n.core.store.db.exec("UPDATE pairing SET not_before = ?", [.int(clock.now + 30)])
+        await n.core.refresh(push: nil)                                 // a server wait holds
+        XCTAssertEqual(w.inbox[x.id.text]?.count ?? 0, 0)
+        clock.now += 30
+        await n.core.refresh(push: nil)                                 // N committed: the same commit
+        let commits = w.take(x.id)
+        XCTAssertEqual(commits.count, 1)
+        let parsed = try PairMessage.open(commits[0], me: x.id, key: x.keys.decryptor)
+        guard case .commit(let c) = parsed.body else { return XCTFail() }
+        XCTAssertEqual(c, cN)
+        _ = await x.core.receive(commits[0], mode: .nse)                // X replies
+        _ = w.take(n.id)                                                // lost reply
+        XCTAssertEqual(try x.core.store.pairing(n.id)?.state, .replied)
+        clock.now += 61
+        await x.core.appOpen(push: nil)                                 // X replied: the same reply
+        let replies = w.take(n.id)
+        XCTAssertEqual(replies.count, 1)
+        _ = await n.core.receive(replies[0], mode: .nse)                // N shown, sends the open
+        _ = w.take(x.id)                                                // lost open
+        clock.now += 61
+        await n.core.appOpen(push: nil)                                 // N shown: the same open
+        let opened = await x.drainInbox(w)
+        XCTAssertEqual(try x.core.store.pairing(n.id)?.state, .shown)
+        let fp = try x.core.store.peer(n.id)!.fingerprint
+        XCTAssertNotNil(fp)
+        XCTAssertEqual(fp, try n.core.store.peer(x.id)!.fingerprint)
+        XCTAssertEqual(opened.first?.banner?.body, S.pairOpen(fp!))
+        // a repeated open on X at compare codes re-presents the notice: no "could not read"
+        clock.now += 61
+        await n.core.refresh(push: nil)
+        let again = await x.drainInbox(w)
+        XCTAssertEqual(again.count, 1)
+        XCTAssertEqual(again.first?.banner?.body, S.pairOpen(fp!))
+        XCTAssertFalse(try x.core.store.history().contains { $0.event == .couldNotRead })
+        XCTAssertEqual(try x.core.store.pairing(n.id)?.state, .shown)
+        // X's approve verified on N: the open is not sent again
+        var p = try n.core.store.peer(x.id)!
+        p.approveVerified = true
+        try n.core.store.savePeer(p)
+        clock.now += 61
+        await n.core.refresh(push: nil)
+        XCTAssertEqual(w.inbox[x.id.text]?.count ?? 0, 0)
+    }
+
+    func testAppOpenDoesNotSendForAPromptedReply() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        await n.core.fetchPeers(force: true)
+        await x.core.fetchPeers(force: true)
+        // cap used up on X: the commit is prompted and waits for the [Reply] tap
+        try x.core.store.setSetting("pair_cap", (0 ..< 10).map { String(clock.now - Int64($0) * 60) }.joined(separator: ","))
+        _ = try await n.core.startPair(x.id)
+        await x.drainInbox(w)
+        XCTAssertEqual(try x.core.store.pairing(n.id)?.state, .prompted)
+        clock.now += 61
+        await x.core.appOpen(push: nil)
+        XCTAssertEqual(w.inbox[n.id.text]?.count ?? 0, 0)
+        XCTAssertEqual(try x.core.store.pairing(n.id)?.state, .prompted)
+    }
+
     func testRule3dHalfStateNoticeAndCancelPairing() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try await pairFully(n, x)

@@ -68,16 +68,21 @@ struct PeersView: View {
                 }
                 .sheet(isPresented: $showPairHowTo) { PairHowToView() }
                 .contentMargins(.bottom, 12, for: .scrollContent)
+                .refreshable { await model.refresh() }
                 .navigationTitle("Devices")
                 .safeAreaInset(edge: .bottom, spacing: 0) { ToastBanner() }
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
-                        TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                            Button { Task { await model.refresh() } } label: {
-                                Image(systemName: "arrow.clockwise")
+                        if model.refreshing {
+                            ProgressView()
+                        } else {
+                            TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                                Button { Task { await model.refresh() } } label: {
+                                    Image(systemName: "arrow.clockwise")
+                                }
+                                .accessibilityLabel("Refresh")
+                                .disabled(ctx.date < model.refreshGreyUntil)
                             }
-                            .accessibilityLabel("Refresh")
-                            .disabled(ctx.date < model.refreshGreyUntil)
                         }
                     }
                 }

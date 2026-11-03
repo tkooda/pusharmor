@@ -126,6 +126,11 @@ extension Core {
         if out.action == .reply, let e = entry {
             _ = await sendReply(e, nse: mode == .nse)
         }
+        if out.notice == .crossing, let e = entry, e.role == .n, e.state == .committed {
+            // the peer may never have got our commit: re-send it once per commit received, so
+            // the higher id can answer it. Not throttled like [Send again]; not_before holds.
+            _ = await sendCommit(e, nse: mode == .nse)
+        }
         return .plain(mode == .nse ? banner : nil)
     }
 
@@ -134,6 +139,13 @@ extension Core {
     func onReply(from: PeerId, signPub: Data, encPub: Data, rX: Data, me: PeerId, mode: ReceiveMode) async -> ReceiveResult {
         let now = clock()
         let my = myKeys
+        // a duplicate of the reply already accepted (X re-sends it on a re-sent commit):
+        // re-present the notice, change nothing
+        if let cur = try? store.pairing(from), cur.role == .n, cur.state == .shown, let rN = cur.r,
+           let p = try? store.peer(from), p.signPub == signPub, p.encPub == encPub,
+           p.pairingId == PairingCrypto.pairingId(rN: rN, rX: rX) {
+            return .plain(mode == .nse ? pairBanner(S.pairReply, n: me, x: from, peer: from) : nil)
+        }
         let e: PairingEntry?
         do {
             e = try store.db.write {
@@ -239,13 +251,13 @@ extension Core {
         return res
     }
 
-    func sendCommit(_ e: PairingEntry) async -> PairSendResult {
+    func sendCommit(_ e: PairingEntry, nse: Bool = false) async -> PairSendResult {
         let now = clock()
         guard now >= e.notBefore else { return .waiting(e.notBefore) }
         guard let me = try? myId(), let p = try? store.peer(e.peerId), let enc = p.listEncPub, let rN = e.r else { return .error(0) }
         let cN = PairingCrypto.commit(signPubN: myKeys.sign, encPubN: myKeys.enc, rN: rN)
         guard let c = try? PairMessage.seal(from: me, to: e.peerId, recipientEncPub: enc, body: .commit(cN: cN)) else { return .error(0) }
-        let res = await postPair(e.peerId, kind: "commit", c: c, nse: false)
+        let res = await postPair(e.peerId, kind: "commit", c: c, nse: nse)
         try? store.db.write {
             if var cur = try store.pairing(e.peerId) { cur.lastSendAt = now; try store.savePairing(cur) }
         }
@@ -311,6 +323,25 @@ extension Core {
     public func retryUnsentReplies() async {
         for e in (try? store.pairings()) ?? [] where e.role == .x && e.authorized && e.unsent {
             _ = await sendReply(e)
+        }
+    }
+
+    /// App open and Refresh: each waiting entry sends its current message again (same c_N,
+    /// open or r_X), so a lost push is answered by the peer's rule a. Not within 60 s of the
+    /// entry's last send; not_before still holds. A prompted X entry waits for [Reply].
+    func resendWaitingPairs() async {
+        let now = clock()
+        for e in (try? store.pairings()) ?? [] where now >= e.lastSendAt + 60 {
+            switch (e.role, e.state) {
+            case (.n, .committed):
+                _ = await sendCommit(e)
+            case (.n, .shown):
+                if (try? store.peer(e.peerId))?.approveVerified != true { _ = await sendOpen(e) }
+            case (.x, .replied):
+                _ = await sendReply(e)
+            default:
+                break
+            }
         }
     }
 

@@ -62,6 +62,8 @@ final class AppModel: ObservableObject {
     @Published var limitEntries: [LimitEntry] = []
     @Published var limitTicked: Set<String> = []
     @Published var refreshGreyUntil: Date = .distantPast
+    /// A Refresh (button or pull) is running: the toolbar shows a spinner in its place.
+    @Published var refreshing = false
     @Published var highlightPeer: String?
     @Published var showHistory = false
     /// Peer ids with a Pair again call running; their Pair again buttons are disabled.
@@ -720,6 +722,8 @@ final class AppModel: ObservableObject {
     func refresh() async {
         guard Date() >= refreshGreyUntil, let core = core else { return }
         refreshGreyUntil = Date().addingTimeInterval(60)
+        refreshing = true
+        defer { refreshing = false }
         let out = await core.refresh(push: pushInfo)
         if let t = ErrorCopy.refreshFailText(out) { toast = t }
         reload()

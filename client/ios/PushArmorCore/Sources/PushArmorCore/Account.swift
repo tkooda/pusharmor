@@ -181,6 +181,7 @@ extension Core {
         await retryUnsentReplies()
         await resendWaitingApproves()
         await checkTimeouts()
+        await resendWaitingPairs()
         await deleteOldId()
     }
 
@@ -192,6 +193,7 @@ extension Core {
         await reconcilePush(push, refresh: true)
         await resendWaitingApproves()
         await checkTimeouts()
+        await resendWaitingPairs()
         return out
     }
 
