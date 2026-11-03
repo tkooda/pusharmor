@@ -16,9 +16,9 @@ const rules = parseHeaders(read("_headers"));
 
 const HASH = /^[0-9a-f]{64}$/;
 const URL_RE = /^[a-z][a-z0-9+.-]*:\/\//;
-// URLs a phone app scans: these, and every link to an APK file.
+// URLs a phone app scans: these, and every link to an APK file (a link inside a sentence gets no icons).
 const SCAN_TEXT = ["https://fdroid.pusharmor.com/repo", "https://github.com/tkooda/pusharmor"];
-const SCAN_HREF = /^fdroidrepos:\/\/|^https:\/\/apps\.obtainium\.imranr\.dev\/redirect\?|\.apk$/;
+const SCAN_HREF = /\.apk$/;
 
 // The element with id="id": tag name, the text the script uses (href for a link, else the
 // text), and the index just after it (after the closing </pre> when it sits in a pre).
@@ -64,21 +64,19 @@ test("every copy button sits right after its text, copies that text, and is name
       assert.equal(b.attrs["aria-label"], "Copy " + kind, rel + ": " + id);
     }
   }
-  assert.ok(n >= 15, "copy buttons: " + n);
+  assert.ok(n >= 11, "copy buttons: " + n);
 });
 
-test("every code element and every phone-scannable link has a copy button", () => {
+test("every code element has a copy button and no link has one", () => {
   for (const rel of htmlFiles) {
     const html = read(rel);
     const copied = new Set(buttons(html).map((b) => b.attrs["data-copy"]).filter(Boolean));
     for (const c of tags(html, "code")) assert.ok(copied.has(c.attrs.id), rel + ": no copy button for " + c.raw);
-    for (const a of tags(html, "a")) {
-      if (SCAN_HREF.test(unescapeAttr(a.attrs.href || ""))) assert.ok(copied.has(a.attrs.id), rel + ": no copy button for " + a.attrs.href);
-    }
+    for (const a of tags(html, "a")) assert.ok(!copied.has(a.attrs.id), rel + ": a link has a copy button: " + a.attrs.href);
   }
 });
 
-test("QR buttons: exactly the phone-scannable URLs, right after their copy button, never a hash", () => {
+test("QR buttons: exactly the phone-scannable URLs, right after their copy button or link, never a hash", () => {
   let n = 0;
   for (const rel of htmlFiles) {
     const html = read(rel);
@@ -94,8 +92,8 @@ test("QR buttons: exactly the phone-scannable URLs, right after their copy butto
       assert.ok(t, rel + ": no element " + id);
       assert.doesNotMatch(t.text, HASH, rel + ": QR button for a hash " + id);
       const copy = bs.find((x) => x.attrs["data-copy"] === id);
-      assert.ok(copy, rel + ": QR without copy for " + id);
-      assert.equal(html.slice(buttonEnd(html, copy), b.index).trim(), "", rel + ": QR button is not right after the copy button for " + id);
+      const from = copy ? buttonEnd(html, copy) : t.end;
+      assert.equal(html.slice(from, b.index).trim(), "", rel + ": QR button is not right after " + (copy ? "the copy button for " : "") + id);
       assert.match(b.attrs["aria-label"], /^Show QR code for \S/, rel + ": " + id);
       assert.equal(b.attrs.type, "button", rel + ": " + id);
       assert.ok("hidden" in b.attrs, rel + ": " + id);
@@ -103,7 +101,7 @@ test("QR buttons: exactly the phone-scannable URLs, right after their copy butto
     }
     assert.deepEqual([...got].sort(), [...want].sort(), rel + ": QR button set");
   }
-  assert.equal(n, 6, "QR buttons");
+  assert.equal(n, 4, "QR buttons");
 });
 
 const ctx = {};
@@ -148,4 +146,36 @@ test("pages with the buttons load qrcode.js then copyqr.js, deferred, and their 
 test("the old F-Droid QR image and its toggle are gone", () => {
   assert.ok(!listFiles(PUB).includes("img/fdroid-qr.png"));
   assert.doesNotMatch(read("download.html"), /fdroid-qr|<details/);
+});
+
+// The element that holds a button: walk the tags before it and keep a stack of open elements.
+function parentOf(html, index) {
+  const VOID = new Set(["meta", "link", "br", "img", "input", "hr", "path", "rect", "circle", "line", "polyline"]);
+  const stack = [];
+  const re = /<(\/?)([a-z][a-z0-9]*)([^>]*)>/g;
+  let m;
+  while ((m = re.exec(html.slice(0, index)))) {
+    const [, close, name, rest] = m;
+    if (close) {
+      const k = stack.map((e) => e.name).lastIndexOf(name);
+      if (k >= 0) stack.length = k;
+    } else if (!VOID.has(name) && !rest.endsWith("/")) {
+      stack.push({ name, cls: (/class="([^"]*)"/.exec(rest) || [])[1] || "" });
+    }
+  }
+  return stack[stack.length - 1];
+}
+
+test("icons sit only at the end of a data line: a copy-row box or a table cell, never in a paragraph", () => {
+  let n = 0;
+  for (const rel of htmlFiles) {
+    const html = read(rel);
+    for (const b of buttons(html)) {
+      n++;
+      const p = parentOf(html, b.index);
+      const ok = p && ((p.name === "div" && p.cls.split(" ").includes("copy-row")) || p.name === "td");
+      assert.ok(ok, rel + ": icon button " + (b.attrs["data-copy"] || b.attrs["data-qr"]) + " is inside <" + (p && p.name) + ">");
+    }
+  }
+  assert.ok(n >= 15, "buttons: " + n);
 });
