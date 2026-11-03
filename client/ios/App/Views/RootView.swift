@@ -57,7 +57,7 @@ struct RootView: View {
             Group {
                 if model.repairedNotice {
                     VStack(spacing: 0) {
-                        Text(S.storeRepaired)
+                        Text(S.deviceReset)
                             .font(.headline)
                             .multilineTextAlignment(.center)
                             .padding(.top, 24)

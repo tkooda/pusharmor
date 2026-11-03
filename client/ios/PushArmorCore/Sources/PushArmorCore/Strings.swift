@@ -58,7 +58,7 @@ public enum S {
     public static let firstPairStep2 = "Log in with the same account."
     public static let firstPairStep3 = "When it shows below, tap Pair, then tap Codes match when the fingerprints match."
     public static let firstPairWaiting = "Waiting for another device to log in."
-    public static let storeRepaired = "Local data was found corrupted and repaired. Please log in again."
+    public static let deviceReset = "This device was reset. Log in to start again."
     public static let launchFailedTitle = "Unable to open PushArmor data"
     public static let launchFailed = "PushArmor could not open its data on this device. Free some storage space, then leave PushArmor and open it again."
     public static let keysBrokenTitle = "This device's keys have become unusable."
