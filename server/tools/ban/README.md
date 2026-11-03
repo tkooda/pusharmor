@@ -13,9 +13,10 @@ prints only the account id and the SQL. It never prints the secret, the email
 hash or the email. You must type the account id to confirm. It then runs
 `wrangler d1 execute pusharmor --remote --command "<sql>"` from server/worker.
 
-A ban is per address: the account id comes from the exact normalized address, so
-"a+x@gmail.com" or "a.b@gmail.com" is a different account from "ab@gmail.com". Ban each
-address separately.
+A ban is per mailbox, the same account identity as the Worker: at the providers
+in `PLUS_TAG` (`lib.mjs`) a "+tag" is dropped, and at Gmail dots are dropped
+too, so "a+x@gmail.com", "a.b@gmail.com", and "ab@gmail.com" are one account, and
+one ban covers them. At other domains each address is its own account.
 
 The SQL is idempotent: it upserts the account with status 'banned', then
 deletes its peers. Rerun after a failure to repair a half run.
