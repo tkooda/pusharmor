@@ -77,7 +77,6 @@ release APK, without Gradle:
 
     bash tools/check-release-apk.sh app/build/outputs/apk/foss/release/app-foss-release-unsigned.apk
     bash tools/check-release-apk.sh app/build/outputs/apk/play/release/app-play-release-unsigned.apk
-    bash tools/check-release-apk.test.sh                    # the check's own test (fake SDK tools)
 
 It fails on android:debuggable, android:testOnly or cleartext traffic; on exported
 components beyond the allow-list (MainActivity, ShareActivity, AuthLinkActivity, plus the
