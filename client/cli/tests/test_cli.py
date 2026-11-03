@@ -171,6 +171,50 @@ def test_windows_runs_with_msvcrt_locks_and_no_posix_checks(as_windows, net, mon
     assert capsys.readouterr().err.startswith("error: ")
 
 
+def test_windows_config_dir_without_appdata_is_under_home(as_windows, monkeypatch, tmp_path):
+    monkeypatch.delenv("APPDATA", raising=False)
+    monkeypatch.delenv("PUSHARMOR_CONFIG", raising=False)
+    monkeypatch.setattr(pa.Path, "home", lambda: tmp_path)
+    assert pa.config_dir() == os.path.join(str(tmp_path), "AppData", "Roaming", "PushArmor")
+
+
+def fake_locking(monkeypatch, fails):
+    """msvcrt.locking that raises the OSErrors in fails (one per LK_LOCK call) before it locks."""
+    from types import SimpleNamespace
+    calls, fails = [], list(fails)
+
+    def locking(fd, mode, n):
+        calls.append(mode)
+        if mode == 1 and fails:
+            raise fails.pop(0)
+
+    monkeypatch.setitem(sys.modules, "msvcrt", SimpleNamespace(LK_LOCK=1, LK_UNLCK=0, locking=locking))
+    return calls
+
+
+def test_windows_lock_waits_on_after_the_10_second_lock_timeout(as_windows, monkeypatch, tmp_path):
+    calls = fake_locking(monkeypatch, [OSError(pa.errno.EDEADLOCK, "Resource deadlock avoided")] * 2)
+    with pa.Store(str(tmp_path)).locked():
+        assert calls == [1, 1, 1]
+    assert calls == [1, 1, 1, 0]
+
+
+def test_windows_lock_is_released_when_the_body_raises(as_windows, monkeypatch, tmp_path):
+    calls = fake_locking(monkeypatch, [])
+    with pytest.raises(pa.Fail):
+        with pa.Store(str(tmp_path)).locked():
+            raise pa.Fail("x")
+    assert calls == [1, 0]
+
+
+def test_windows_lock_other_os_error_is_raised(as_windows, monkeypatch, tmp_path):
+    calls = fake_locking(monkeypatch, [OSError(pa.errno.EACCES, "Permission denied")])
+    with pytest.raises(OSError) as e:
+        with pa.Store(str(tmp_path)).locked():
+            pytest.fail("locked after an error that is not the lock timeout")
+    assert e.value.errno == pa.errno.EACCES and calls == [1]
+
+
 def test_windows_closed_pipe_exits_quietly(as_windows, tmp_path, monkeypatch, capsys):
     class ClosedPipe(io.StringIO):
         def flush(self):  # a write into a closed pipe on Windows fails with EINVAL, not EPIPE
