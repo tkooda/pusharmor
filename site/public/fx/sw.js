@@ -12,8 +12,19 @@ function sleep(ms) {
   return new Promise(function (r) { setTimeout(r, ms); });
 }
 
+// The relay server's test push ({"check":1}) is not a message: no notification, nothing to forward.
+function isCheck(M) {
+  try {
+    var v = JSON.parse(M);
+    return typeof v === "object" && v !== null && v.check === 1;
+  } catch (e) {
+    return false;
+  }
+}
+
 self.addEventListener("push", function (event) {
   var M = event.data ? event.data.text() : "";
+  if (isCheck(M)) return;
   var tag = "m-" + self.crypto.randomUUID();
   event.waitUntil((async function () {
     await self.registration.showNotification("PushArmor", { body: "New message", tag: tag });

@@ -565,6 +565,29 @@ test("Turnstile page returns tokens only to allowed origins", () => {
   assert.ok(js.includes('action: "email"'));
 });
 
+test("Firefox: the SW drops the relay server's test push silently and shows a notification for a message", async () => {
+  const { runInNewContext } = await import("node:vm");
+  let push = null;
+  const shown = [];
+  const posted = [];
+  const self = {
+    addEventListener: (t, f) => { if (t === "push") push = f; },
+    registration: { showNotification: async (t, o) => shown.push(o.body), getNotifications: async () => [] },
+    crypto: { randomUUID: () => "u" },
+    PAQ: { add: async () => {} },
+  };
+  runInNewContext(read("fx/sw.js"), { self, importScripts: () => {}, setTimeout, fetch: async (u, o) => { posted.push(o.body); throw new TypeError("caught"); } });
+  const fire = async (text) => {
+    let wait = Promise.resolve();
+    push({ data: { text: () => text }, waitUntil: (p) => { wait = p; } });
+    await wait;
+  };
+  await fire('{"check":1}');
+  assert.deepEqual([shown, posted], [[], []]);
+  await fire("AAAA");
+  assert.deepEqual([shown, posted], [["New message"], ["AAAA"]]);
+});
+
 test("Firefox: SW forward URL; manifest lists equal FIREFOX-MATCH-LIST and release constants", (t) => {
   const sw = read("fx/sw.js");
   const fwd = /FORWARD_URL = "([^"]+)"/.exec(sw)[1];
