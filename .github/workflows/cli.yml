@@ -1,21 +1,11 @@
 name: cli
 
-# Command-line client tests and build. Called by ci.yml (pull requests, main
-# pushes) and by cli-release.yml before the release jobs; workflow_dispatch runs
-# it on any branch by hand. ci.yml only runs on pull requests and on main, so
-# this file also runs on a push to any other branch that touches the client or
-# this file; that way a branch run shows up in gh run list before a pull
-# request exists. Python 3.9 runs with the oldest supported cryptography and
-# Python 3.14 with the newest, each on Linux and on Windows.
+# Command-line client tests and build. Called by ci.yml; workflow_dispatch runs
+# it on any branch by hand. Python 3.9 runs with the oldest supported
+# cryptography and Python 3.14 with the newest, each on Linux and on Windows.
 on:
   workflow_call:
   workflow_dispatch:
-  push:
-    branches-ignore:
-      - main
-    paths:
-      - "client/cli/**"
-      - ".github/workflows/cli.yml"
 
 permissions: {}
 
