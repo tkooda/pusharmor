@@ -16,12 +16,6 @@ export interface SelfKeys {
   id: string;
 }
 
-export interface WpKeys {
-  ecdh: CryptoKeyPair;
-  p256dh: Uint8Array;
-  auth: Uint8Array;
-}
-
 export type Ruling = "approved" | "denied" | "none";
 export type Platform4 = "android" | "ios" | "chrome" | "firefox" | "cli";
 
