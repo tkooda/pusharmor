@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import PushArmorCore
 
 struct SettingsView: View {
@@ -147,7 +148,12 @@ struct SettingsView: View {
                 } header: {
                     Text("About")
                 } footer: {
-                    Text(VersionText.make(version))
+                    Button { UIPasteboard.general.string = VersionText.copyValue(version) } label: {
+                        Text(VersionText.make(version))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Copy version")
+                    .foregroundStyle(.secondary)
                 }
             }
             // Like the other tabs: the last About row ends clear of the floating tab bar.

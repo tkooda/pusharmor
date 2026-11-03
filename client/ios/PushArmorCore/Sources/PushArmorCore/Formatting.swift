@@ -100,4 +100,9 @@ public enum VersionText {
         let v = version.trimmingCharacters(in: .whitespacesAndNewlines)
         return v.isEmpty ? "" : "Version " + v
     }
+
+    /// The text a tap on the version line copies: just the number.
+    public static func copyValue(_ version: String) -> String {
+        version.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
