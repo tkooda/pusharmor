@@ -304,7 +304,7 @@ object UiText {
     fun waitingReply(x: String): String = "Waiting for \"$x\" to reply."
     // Screen reader labels that carry a device name in a sentence quote it too.
     fun moreOptionsFor(x: String): String = "More options for \"$x\""
-    fun chipLabel(name: String, status: String): String = "\"$name\", $status"
+    fun chipLabel(name: String, status: String): String = "\"$name\": $status"
     fun noReplyYet(x: String): String = "No reply yet. Open PushArmor on \"$x\", or tap Send again."
     private fun quoted(name: String?, none: String): String = if (name == null) none else "\"$name\""
 

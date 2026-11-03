@@ -230,7 +230,8 @@ class UiTextTest {
 
     @Test fun screenReaderLabelsQuoteDeviceNames() {
         assertEquals("More options for \"Pixel 8\"", UiText.moreOptionsFor("Pixel 8"))
-        assertEquals("\"Pixel 8\", Not paired yet", UiText.chipLabel("Pixel 8", "Not paired yet"))
+        assertEquals("\"Pixel 8\": Not paired yet", UiText.chipLabel("Pixel 8", "Not paired yet"))
+        assertEquals(UiText.greyedChip("Pixel 8", "Not paired yet"), UiText.chipLabel("Pixel 8", "Not paired yet")) // the same text the tap shows
     }
 
     @Test fun fingerprintIsReadPerCharacter() {
