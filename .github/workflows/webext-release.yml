@@ -74,7 +74,7 @@ jobs:
 
   build-chrome:
     name: build Chrome (release and Beta zips, checks)
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/chrome/v')
+    if: startsWith(github.ref, 'refs/tags/chrome/v')
     needs: [test, vectors]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -168,7 +168,7 @@ jobs:
 
   publish-chrome:
     name: publish Chrome (GitHub prerelease, private Beta item)
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/chrome/v')
+    if: startsWith(github.ref, 'refs/tags/chrome/v')
     needs: build-chrome
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -236,7 +236,7 @@ jobs:
   # the PRIVATE Beta item (trusted testers) is touched; never the public item.
   cws-upload-chrome:
     name: CWS upload (private Beta item)
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/chrome/v')
+    if: startsWith(github.ref, 'refs/tags/chrome/v')
     needs: [build-chrome, publish-chrome]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -302,7 +302,7 @@ jobs:
   # Publish to the Beta item's testers (its dashboard visibility is Private).
   cws-publish-chrome:
     name: CWS publish (private Beta item testers)
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/chrome/v')
+    if: startsWith(github.ref, 'refs/tags/chrome/v')
     needs: [build-chrome, cws-upload-chrome]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -342,7 +342,7 @@ jobs:
 
   build-firefox:
     name: build Firefox (release and Beta zips, source archive, checks)
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/firefox/v')
+    if: startsWith(github.ref, 'refs/tags/firefox/v')
     needs: [test, vectors]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -420,7 +420,7 @@ jobs:
 
   submit-firefox:
     name: sign the Firefox Beta add-on on AMO (web-ext sign, unlisted)
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/firefox/v')
+    if: startsWith(github.ref, 'refs/tags/firefox/v')
     needs: build-firefox
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -517,7 +517,7 @@ jobs:
 
   publish-firefox:
     name: publish Firefox (GitHub prerelease, Beta update manifest)
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/firefox/v')
+    if: startsWith(github.ref, 'refs/tags/firefox/v')
     needs: [build-firefox, submit-firefox]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
