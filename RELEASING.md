@@ -151,9 +151,7 @@ After a SKIP (the store has a newer version) the flag stays set.
    `CLOUDFLARE_ACCOUNT_ID=... server/deploy/deploy.sh worker/vX.Y.Z`
    (`server/deploy/README.md`: preflight, restore bookmark, migrations, deploy, smoke test).
 
-Rollback: never roll the Worker back below 0.0.17 (migration 0004 stores pending entries as
-`[time, "c"]`, which an older Worker returns as a bad c). Roll forward only
-(`server/deploy/README.md`, step 7).
+Rollback: `server/deploy/README.md`, step 7.
 
 Log volume: `PA_LOG_SAMPLE` is a Cloudflare dashboard variable (`1` logs every request). When
 log volume grows, set it in the Cloudflare dashboard (for example `0.1`); no release is needed.
