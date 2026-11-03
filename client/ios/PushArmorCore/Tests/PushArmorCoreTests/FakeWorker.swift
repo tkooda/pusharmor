@@ -112,14 +112,15 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
             return reply(200, JOut.obj(top).text)
         case ("POST", "pair"):
             let x = parts[2]
-            guard let xr = rows[x] else { return reply(200, "{\"r\":\"unknown\"}") }
-            if xr.deny[idT] != nil { return reply(200, "{\"r\":\"denied\"}") }
+            // a deny does not block pairing: a rejected device may pair again
+            guard rows[x] != nil else { return reply(200, "{\"r\":\"unknown\"}") }
             relay(x, j["c"]!.stringValue!)
             return reply(200, "{\"r\":\"sent\"}")
         case ("POST", "approve"):
             let x = parts[2]
+            // denied by X: kept on this row only ("stored"); X's own approve later completes
+            // the pairing and clears its deny (a deny always removes the allow)
             guard var xr = rows[x] else { return reply(200, "{\"r\":\"unknown\"}") }
-            if xr.deny[idT] != nil { return reply(200, "{\"r\":\"denied\"}") }
             let c = j["c"]!.stringValue!
             me.allow[x] = true; me.deny[x] = nil; me.name[x] = j["name"]?.stringValue; me.pending[x] = c
             rows[idT] = me
