@@ -160,11 +160,6 @@ def keyhash(sign_pub, enc_pub):
     return sha256("PA-ID1\n", sign_pub, enc_pub)[:12]
 
 
-def peer_id(id_secret, account, kh):
-    """Server-side construction; the client only parses and checks ids."""
-    return account + kh + _hmac(id_secret, account, kh)[:9]
-
-
 def id_matches(id_raw, account, sign_pub=None, enc_pub=None):
     """Same account prefix and, when keys are given, the keys hash to the keyhash part."""
     return (len(id_raw) == 30 and id_raw[:9] == account
@@ -214,12 +209,6 @@ def sign_request(priv, method, path, pa_time, body):
     return b64e(sign(priv, request_bytes(method, path, pa_time, body)))
 
 
-def verify_request(pub, method, path, pa_time, body, sig):
-    if not re.fullmatch(r"[1-9][0-9]{12}", pa_time):
-        return False
-    return verify(pub, request_bytes(method, path, pa_time, body), sig)
-
-
 # ---- HPKE (RFC 9180 base, DHKEM(P-256, HKDF-SHA256), HKDF-SHA256, AES-256-GCM) ----
 
 _KEM_SUITE = b"KEM\x00\x10"
@@ -245,15 +234,6 @@ def _lextract(suite, salt, label, ikm):
 
 def _lexpand(suite, prk, label, info, length):
     return _expand(prk, length.to_bytes(2, "big") + b"HPKE-v1" + suite + label + info, length)
-
-
-def hpke_derive_key_pair(ikm):
-    prk = _lextract(_KEM_SUITE, b"", b"dkp_prk", ikm)
-    for counter in range(256):
-        sk = _lexpand(_KEM_SUITE, prk, b"candidate", bytes([counter]), 32)
-        if 0 < int.from_bytes(sk, "big") < _N:
-            return sk, pub_from_priv(sk)
-    raise ValueError("hpke: DeriveKeyPairError")
 
 
 def hpke_schedule(dh, enc, pk_r, info):
@@ -361,11 +341,6 @@ def bucket_for(chars, approve=False):
 def plaintext_len_for(bucket):
     """HPKE plaintext length (sig included) that fills the bucket exactly."""
     return bucket * 3 // 4 - HPKE_OVERHEAD
-
-
-def truncate_utf8(s, cap=CONTENT_CAP):
-    """The first cap UTF-8 bytes of s, cut on a code point boundary."""
-    return s.encode("utf-8")[:cap].decode("utf-8", "ignore")
 
 
 def deflate(data):

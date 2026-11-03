@@ -9,6 +9,8 @@ import pytest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 import pusharmor as pa  # noqa: E402
+sys.path.insert(0, HERE)
+import helpers  # noqa: E402
 
 with open(os.path.join(HERE, "..", "..", "..", "tests", "vectors", "golden-v1.json"), "rb") as f:
     G = json.load(f)
@@ -55,7 +57,7 @@ def test_keys():
         assert pa.pub_from_priv(p["enc_priv"]) == p["enc_pub"]
         kh = pa.keyhash(p["sign_pub"], p["enc_pub"])
         assert kh == p["keyhash"]
-        assert b64e(pa.peer_id(secret, p["account"], kh)) == p["id"]
+        assert b64e(helpers.peer_id(secret, p["account"], kh)) == p["id"]
         assert pa.id_matches(b64d(p["id"]), p["account"], p["sign_pub"], p["enc_pub"])
         assert pa.peer_keys_ok(p["id"], p["account"], p["sign_pub"], p["enc_pub"]) == (p["sign_pub"] != p["enc_pub"])
         ids = [peer(n)["id"] for n in G["keys"]["peers"]]
@@ -81,19 +83,19 @@ def test_request_sig():
         body = b64d(c["body"])
         assert b64e(pa.request_bytes(c["method"], c["path"], c["pa_time"], body)) == c["signed_bytes"], c["name"]
         assert body.decode() == c["body_text"]
-        assert pa.verify_request(b64d(c["sign_pub"]), c["method"], c["path"], c["pa_time"], body, b64d(c["sig"]))
+        assert helpers.verify_request(b64d(c["sign_pub"]), c["method"], c["path"], c["pa_time"], body, b64d(c["sig"]))
     x = peer("X")
     sig = pa.sign_request(x["sign_priv"], "POST", "/v1/send", "1761300000123", b"{}")
-    assert pa.verify_request(x["sign_pub"], "POST", "/v1/send", "1761300000123", b"{}", b64d(sig))
+    assert helpers.verify_request(x["sign_pub"], "POST", "/v1/send", "1761300000123", b"{}", b64d(sig))
 
 
 def test_rfc9180():
     v = G["rfc9180"]
     h = bytes.fromhex
     assert [v["mode"], v["kem_id"], v["kdf_id"], v["aead_id"]] == [0, 16, 1, 2]
-    sk_r, pk_r = pa.hpke_derive_key_pair(h(v["ikmR"]))
+    sk_r, pk_r = helpers.hpke_derive_key_pair(h(v["ikmR"]))
     assert (sk_r.hex(), pk_r.hex()) == (v["skRm"], v["pkRm"])
-    sk_e, pk_e = pa.hpke_derive_key_pair(h(v["ikmE"]))
+    sk_e, pk_e = helpers.hpke_derive_key_pair(h(v["ikmE"]))
     assert (sk_e.hex(), pk_e.hex()) == (v["skEm"], v["enc"])
     ks = pa.hpke_schedule(pa.ecdh(sk_e, pk_r), pk_e, pk_r, h(v["info"]))
     for k in ("shared_secret", "key_schedule_context", "secret", "key", "base_nonce", "exporter_secret"):
@@ -180,7 +182,7 @@ def test_content_cap():
     for c in G["content_cap"]["cases"]:
         n = len(c["input"].encode())
         assert n == c["utf8_bytes"] and (n <= pa.CONTENT_CAP) == c["ok"]
-        assert pa.truncate_utf8(c["input"]) == c["truncated"]
+        assert helpers.truncate_utf8(c["input"]) == c["truncated"]
 
 
 def test_inflate():
@@ -293,7 +295,7 @@ def must_fail_outcome(c):
     if kind == "message":
         return receive(c)["outcome"]
     if kind == "request":
-        ok = pa.verify_request(b64d(c["sign_pub"]), c["method"], c["path"], c["pa_time"], b64d(c["body"]),
+        ok = helpers.verify_request(b64d(c["sign_pub"]), c["method"], c["path"], c["pa_time"], b64d(c["body"]),
                                b64d(c["sig"]))
         return "accept" if ok else "unreadable"
     r = peer(c["receiver"])

@@ -9,6 +9,7 @@ import urllib.parse
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
+import helpers
 import pusharmor as pa
 
 ACCOUNT = bytes(range(1, 10))
@@ -115,7 +116,7 @@ class Net:
         caller = self.peers.get(me)
         if not caller:
             return self.reply(401, {"error": "unknown peer"})
-        assert pa.verify_request(pa.b64d(caller["sign_pub"]), method, path, headers["PA-Time"], body,
+        assert helpers.verify_request(pa.b64d(caller["sign_pub"]), method, path, headers["PA-Time"], body,
                                  pa.b64d(headers["PA-Sig"]))
         if parts == ["peers"]:
             return self.reply(200, self.list_body(me))
@@ -185,7 +186,7 @@ class Net:
     def register(self, b, headers, method, path, body):
         assert "PA-ID" not in headers
         assert len(b["ticket"]) == 34 or b["ticket"].startswith("renewed")
-        assert pa.verify_request(pa.b64d(b["sign_pub"]), method, path, headers["PA-Time"], body,
+        assert helpers.verify_request(pa.b64d(b["sign_pub"]), method, path, headers["PA-Time"], body,
                                  pa.b64d(headers["PA-Sig"]))
         assert b["platform"] == "cli" and pa.re.fullmatch(r"https://[a-z0-9.-]+/up[A-Za-z0-9_-]{12}\?up=1",
                                                           b["push"]["endpoint"])
@@ -196,7 +197,7 @@ class Net:
                                     "peers": [{"id": i, "platform": p["platform"], "created": p["created"]}
                                               for i, p in self.peers.items()]})
         kh = pa.keyhash(pa.b64d(b["sign_pub"]), pa.b64d(b["enc_pub"]))
-        pid = pa.b64e(pa.peer_id(ID_SECRET, ACCOUNT, kh))
+        pid = pa.b64e(helpers.peer_id(ID_SECRET, ACCOUNT, kh))
         self.peers[pid] = {"sign_pub": b["sign_pub"], "enc_pub": b["enc_pub"], "platform": "cli",
                            "created": int(time.time()), "push": b["push"], "push_ok": False, "probe": "",
                            "allow": set(), "names": {}, "pending": {}, "logged_out": False, "rm": {}}

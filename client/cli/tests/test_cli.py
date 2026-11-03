@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(HERE))
 sys.path.insert(0, HERE)
 import pusharmor as pa  # noqa: E402
 import fake_relay  # noqa: E402
+import helpers  # noqa: E402
 from fake_relay import Net  # noqa: E402
 
 CODE = "A" * 22 + "bcd_-0123456"
@@ -1475,7 +1476,7 @@ def test_too_deep_nesting(monkeypatch, tmp_path, capsys):
 def test_odd_peer_list_from_the_relay_server(allow, net, tmp_path, monkeypatch, capsys):
     login(monkeypatch, tmp_path)
     s, e = pa.new_key()[1], pa.new_key()[1]
-    pid = pa.b64e(pa.peer_id(fake_relay.ID_SECRET, fake_relay.ACCOUNT, pa.keyhash(s, e)))
+    pid = pa.b64e(helpers.peer_id(fake_relay.ID_SECRET, fake_relay.ACCOUNT, pa.keyhash(s, e)))
     peers = [{"id": pid, "sign_pub": pa.b64e(s), "enc_pub": pa.b64e(e), "platform": "ios", "created": 10 ** 18}]
     body = json.dumps({"my_allow": allow, "peers": peers}).encode()
     net.hooks[("GET", "peers")] = lambda *a: (200, {}, body)
@@ -1511,7 +1512,7 @@ def test_non_string_peer_id_from_the_relay_server(net, tmp_path, monkeypatch, ca
 def test_odd_strings_from_the_relay_server_are_dropped(net, tmp_path, monkeypatch, capsys):
     login(monkeypatch, tmp_path)
     s, e = pa.new_key()[1], pa.new_key()[1]
-    pid = pa.b64e(pa.peer_id(fake_relay.ID_SECRET, fake_relay.ACCOUNT, pa.keyhash(s, e)))
+    pid = pa.b64e(helpers.peer_id(fake_relay.ID_SECRET, fake_relay.ACCOUNT, pa.keyhash(s, e)))
     peers = [{"id": pid, "sign_pub": pa.b64e(s), "enc_pub": pa.b64e(e), "platform": "\ud800", "created": 10}]
     body = json.dumps({"my_allow": ["a b", "\ud800", 5, "/../x", pid, pid], "peers": peers}).encode()
     net.hooks[("GET", "peers")] = lambda *a: (200, {}, body)
