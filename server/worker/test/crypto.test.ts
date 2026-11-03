@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { b64urlDecode, b64urlEncode, isB64urlBytes } from "../src/codec/b64url";
+import { b64urlDecode, b64urlEncode } from "../src/codec/b64url";
 import { accountId, checkPeerIdMac, emailHash, keyhash, peerId } from "../src/crypto/ids";
 import { importVerifyKey, rawPoint, verifyRaw } from "../src/crypto/ecdsa";
 import { deriveCode, normalizeCode, checkCode, CROCKFORD } from "../src/crypto/code";
@@ -29,8 +29,6 @@ describe("b64url strict", () => {
     expect(hex(b64urlDecode("AA")!)).toBe("00");
     expect(b64urlDecode("A A=")).toBeNull();
     expect(b64urlDecode("\u00e9AAA")).toBeNull();
-    expect(isB64urlBytes("AAAA", 3)).toBe(true);
-    expect(isB64urlBytes("AAAA", 2)).toBe(false);
   });
 });
 

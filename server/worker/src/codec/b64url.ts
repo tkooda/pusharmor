@@ -56,11 +56,6 @@ export function b64urlDecode(s: string): Uint8Array | null {
   return out;
 }
 
-// True if s is canonical b64url of exactly nbytes bytes.
-export function isB64urlBytes(s: unknown, nbytes: number): s is string {
-  return typeof s === "string" && s.length === Math.ceil((nbytes * 4) / 3) && b64urlDecode(s) !== null;
-}
-
 export function isB64url(s: unknown): s is string {
   return typeof s === "string" && b64urlDecode(s) !== null;
 }
