@@ -5,18 +5,8 @@ sees plaintext, stores no messages, and keeps its state in one D1 database.
 
 ## Layout
 
-    wrangler.jsonc            bindings, vars, cron triggers (no secrets)
-    migrations/0001_init.sql  D1 schema
-    src/index.ts              fetch() pipeline and scheduled() entry
-    src/router.ts             route table
-    src/pipeline/             rate limits, capped body read, PA-ID / PA-Time / PA-Sig
-    src/codec/                strict b64url, request validators
-    src/crypto/               ids, ECDSA, tokens, email code
-    src/auth/                 email code, Turnstile, SES (SigV4), Google and Apple sign-in
-    src/db/                   SQL statements and row mapping
-    src/routes/               peers, account, approve/deny, pair, send, health
-    src/push/                 fan-out, FCM, APNs, Web Push (RFC 8291 + VAPID)
-    test/                     vitest suite (workerd + local D1)
+Code in `src/` (entry `src/index.ts`, route table `src/router.ts`), the vitest suite in
+`test/`, the D1 schema in `migrations/`, and bindings in `wrangler.jsonc` (no secrets).
 
 No runtime npm dependencies: everything uses WebCrypto.
 
