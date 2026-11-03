@@ -40,6 +40,8 @@ export interface PeerView {
   approvesMe: boolean;
   /** paired both ways and no pairing in progress (none paired shows the first-device screen) */
   paired: boolean;
+  /** rejected on this device: left out of the list, offered under Pair a new device */
+  rejected?: boolean;
 }
 
 export interface StateView {
@@ -294,11 +296,14 @@ export class Rpc {
       } else if (p.missing) {
         v.greyed = "(missing)";
         v.actions = ["localDelete"];
+      } else if (!p.pinned && p.ruling === "denied") {
+        // rejected: no Reject again; Pair (under Pair a new device) starts a new pairing
+        v.rejected = true;
+        v.actions = ["pair"];
       } else if (!p.pinned) {
         v.actions = ["pair", "deny"];
         const msg = local[PAIR_MSG_PREFIX + p.id];
         if (typeof msg === "string") v.lines.push(...msg.split("\n"));
-        if (p.ruling === "denied") v.lines.push("Denied");
       } else if (p.denies_me) {
         v.greyed = T.declinedBy(label);
         v.actions = ["cancel"];

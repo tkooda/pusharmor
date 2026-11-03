@@ -710,7 +710,8 @@ test("abort in state shown drops the pin, keeps the ruling, and the next pairing
   assert.equal(pb.pinned, false);
   assert.equal(pb.pairing_id, null);
   assert.equal(await b.db.replay(a.id), undefined);
-  assert.equal(pb.ruling, "denied");
+  // the abort keeps the ruling, then the new pairing request ends the rejection
+  assert.equal(pb.ruling, "none");
   // b takes the new commit instead of dropping it
   const nb = (await getEntry(b.p.storageLocal, a.id))!;
   assert.equal(nb.role, "X");

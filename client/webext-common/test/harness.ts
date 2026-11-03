@@ -272,7 +272,7 @@ export class MockWorker {
       const x = this.rows.get(mm[1]!);
       if ((body.c as string).length !== 366) return this.reply(400, { error: "bad request" });
       if (!x) return this.reply(200, { r: "unknown" });
-      if (x.deny.has(me.id)) return this.reply(200, { r: "denied" });
+      // a deny does not stop pair messages: a rejected device can pair again
       if (x.logged_out) return this.reply(200, { r: "logged out" });
       this.queue.push({ to: x.id, m: body.c as string });
       return this.reply(200, { r: "sent" });
@@ -280,7 +280,7 @@ export class MockWorker {
     if ((mm = /^\/v1\/approve\/([^/]+)$/.exec(path))) {
       const x = this.rows.get(mm[1]!);
       if (!x) return this.reply(200, { r: "unknown" });
-      if (x.deny.has(me.id)) return this.reply(200, { r: "denied" });
+      // denied by x: stored, and x's own approve later completes the pairing (and clears its deny)
       me.allow.add(x.id);
       me.deny.delete(x.id);
       me.name[x.id] = body.name as string;
