@@ -2,9 +2,9 @@
 // already tested build of version X.Y.Z to the public channel of one store.
 // Nothing is rebuilt: Play promotes the internal-track versionCode, App Store
 // submits the TestFlight build, Chrome and Firefox upload the public zip of the
-// GitHub prerelease. Every command is safe to rerun: it skips a version that is
+// GitHub release. Every command is safe to rerun: it skips a version that is
 // already live or in review.
-//   node release/promote.mjs check X.Y.Z      tags, prereleases, listings
+//   node release/promote.mjs check X.Y.Z      tags, releases, listings
 //   node release/promote.mjs gate X.Y.Z       store.yml: tag ref, approved promote run
 //   node release/promote.mjs play X.Y.Z       env TOKEN (androidpublisher)
 //   node release/promote.mjs appstore X.Y.Z   env ASC_API_KEY_P8, ASC_API_KEY_ID, ASC_API_ISSUER_ID
@@ -152,7 +152,7 @@ export function releaseAssets(platform, version) {
   }[platform];
 }
 
-/** Why a platform is skipped (a string), or "" when its tag and prerelease are
+/** Why a platform is skipped (a string), or "" when its tag and release are
  *  ready. release is the GitHub release object or null. */
 export function releaseProblem(platform, version, tagExists, release) {
   const tag = platform + "/v" + version;
@@ -226,7 +226,8 @@ function output(k, v) {
 }
 // Store commands end with done() when X.Y.Z was promoted now or is already live
 // or in review at X.Y.Z, and with skip() when it was not promoted. Only
-// done() lets the workflow clear the GitHub prerelease flag.
+// done() lets the workflow clear the prerelease flag that older GitHub
+// releases carry (new releases are full releases).
 const done = (line) => (summary(line), true);
 const skip = (line) => (summary(line), false);
 /** Step output clear_prerelease for the result of a store command. */

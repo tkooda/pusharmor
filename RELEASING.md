@@ -137,11 +137,10 @@ dashboards. The AMO reviewer notes (`store/listing/amo/review_notes.txt`)
 name no credentials; enter the demo account for the AMO reviewers in the
 Developer Hub.
 
-Each store job clears "Set as a pre-release" on its own GitHub release once
-its store accepts the build, or when X.Y.Z is already live or in review there.
-After a SKIP (the store has a newer version) the flag stays set. After a
-promotion by hand, clear the flag yourself (on an Android release, also set it
-as latest).
+Tag workflows publish full GitHub releases (not pre-releases); only Android
+takes the Latest badge. Older releases were made as pre-releases: each store
+job clears "Set as a pre-release" on its own GitHub release once its store
+accepts the build, or when X.Y.Z is already live or in review there.
 
 ## Worker (`worker/vX.Y.Z`)
 

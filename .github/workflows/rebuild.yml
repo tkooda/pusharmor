@@ -3,7 +3,7 @@ name: rebuild
 # Reproducibility check (component-ci-r1 section 5): rebuilds the play and foss
 # APKs of an android/v* tag on a fresh runner with the release pins and compares
 # each to the signed GitHub Release asset with apksigcopier compare (equal apart
-# from the signature). Read-only. Runs on a prerelease or a promoted release.
+# from the signature). Read-only. Runs on any published android/v* release.
 on:
   workflow_dispatch:
     inputs:
