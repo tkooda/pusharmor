@@ -2,10 +2,10 @@
 // Run: node --test release/promote.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { generateKeyPairSync, verify } from "node:crypto";
+import { createHash, generateKeyPairSync, verify } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { AMO_REVIEW_NOTES, amoNotesProblems, amoToken, ascToken, clearOutput, cmpVersion, commitProblems, contactProblems, listingProblems, playGateProblem, readListing, releaseAssets, promoteRunProblem, releaseProblem, selectedPlatforms, tagPlatform } from "./promote.mjs";
+import { AMO_REVIEW_NOTES, amoNotesProblems, amoToken, ascToken, clearOutput, cmpVersion, commitProblems, contactProblems, listingProblems, playGateProblem, readListing, releaseAssets, promoteRunProblem, releaseProblem, selectedPlatforms, syncScreenshots, tagPlatform } from "./promote.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -262,4 +262,84 @@ test("store.yml runs only for the tag of its platform and an approved promote ru
   assert.match(promoteRunProblem({ ...run, created_at: at(31) }, ok, "1.2.3", "firefox", now), /30 days/);
   assert.match(promoteRunProblem({ ...run, created_at: at(-1) }, ok, "1.2.3", "firefox", now), /30 days/);
   assert.match(promoteRunProblem({ ...run, created_at: undefined }, ok, "1.2.3", "firefox", now), /30 days/);
+});
+
+// Fake App Store Connect screenshot API. `states` gives, per file name, the
+// assetDeliveryState values that successive GETs of that screenshot return
+// (the last one repeats).
+function fakeAsc(have, states) {
+  const shots = new Map(have.map((h) => [h.id, { ...h, polls: 0 }]));
+  const calls = [];
+  let next = 1;
+  const asc = async (method, path, body) => {
+    calls.push(method + " " + path);
+    let m;
+    if (method === "GET" && /\/appScreenshotSets\/set1\/appScreenshots$/.test(path)) {
+      return { json: { data: [...shots.values()].map((s) => ({ id: s.id, attributes: { fileName: s.name, sourceFileChecksum: s.sum, assetDeliveryState: { state: s.state } } })) } };
+    }
+    if (method === "DELETE" && (m = path.match(/^\/v1\/appScreenshots\/(.+)$/))) return shots.delete(m[1]), { json: null };
+    if (method === "POST" && path === "/v1/appScreenshots") {
+      const id = "new" + next++;
+      shots.set(id, { id, name: body.data.attributes.fileName, state: "AWAITING_UPLOAD", polls: 0 });
+      return { json: { data: { id, attributes: { uploadOperations: [{ method: "PUT", url: "https://upload.example/" + id, offset: 0, length: body.data.attributes.fileSize }] } } } };
+    }
+    if (method === "PATCH" && (m = path.match(/^\/v1\/appScreenshots\/(.+)$/))) {
+      const s = shots.get(m[1]);
+      s.sum = body.data.attributes.sourceFileChecksum;
+      s.state = "UPLOAD_COMPLETE";
+      return { json: null };
+    }
+    if (method === "GET" && (m = path.match(/^\/v1\/appScreenshots\/(.+)$/))) {
+      const s = shots.get(m[1]);
+      const seq = states[s.name] || ["COMPLETE"];
+      const state = s.state === "COMPLETE" ? "COMPLETE" : seq[Math.min(s.polls++, seq.length - 1)];
+      return { json: { data: { attributes: { assetDeliveryState: { state, errors: state === "FAILED" ? [{ code: "IMAGE_BAD" }] : [] } } } } };
+    }
+    if (method === "PATCH" && path === "/v1/appScreenshotSets/set1/relationships/appScreenshots") return { json: null };
+    throw new Error("unexpected " + method + " " + path);
+  };
+  const http = async (method, url) => (calls.push(method + " upload"), { json: null });
+  return { asc, http, calls, shots };
+}
+
+test("App Store screenshots: waits for processing, fails on FAILED, reuses earlier uploads", async () => {
+  const md5 = (d) => createHash("md5").update(d).digest("hex");
+  const files = ["01-a.png", "02-b.png", "03-c.png"].map((name) => ({ name, data: Buffer.from(name) }));
+  let clock = 0;
+  const opts = { setId: "set1", shots: files, sleep: async (ms) => void (clock += ms), now: () => clock };
+
+  // UPLOAD_COMPLETE for a while, then COMPLETE: passes.
+  let f = fakeAsc([], { "02-b.png": ["UPLOAD_COMPLETE", "UPLOAD_COMPLETE", "UPLOAD_COMPLETE", "COMPLETE"] });
+  assert.equal(await syncScreenshots({ ...f, ...opts }), "3 screenshots uploaded, 0 reused");
+  assert.equal(f.calls.filter((c) => c === "POST /v1/appScreenshots").length, 3);
+  assert.ok(f.calls.includes("PATCH /v1/appScreenshotSets/set1/relationships/appScreenshots"));
+
+  // FAILED: fails with the errors.
+  clock = 0;
+  f = fakeAsc([], { "02-b.png": ["UPLOAD_COMPLETE", "FAILED"] });
+  await assert.rejects(syncScreenshots({ ...f, ...opts }), /02-b\.png: screenshot processing FAILED .*IMAGE_BAD/);
+
+  // Never done: fails after the timeout.
+  clock = 0;
+  f = fakeAsc([], { "02-b.png": ["UPLOAD_COMPLETE"] });
+  await assert.rejects(syncScreenshots({ ...f, ...opts }), /02-b\.png: screenshot still UPLOAD_COMPLETE after 10 minutes/);
+  assert.ok(clock >= 10 * 60 * 1000 && clock < 11 * 60 * 1000);
+
+  // Rerun after a failed attempt: matching uploads are kept, a stale or failed
+  // one and a duplicate are deleted, only the missing file is uploaded.
+  clock = 0;
+  f = fakeAsc([
+    { id: "old1", name: "01-a.png", sum: md5(files[0].data), state: "COMPLETE" },
+    { id: "old2", name: "02-b.png", sum: md5(files[1].data), state: "UPLOAD_COMPLETE" },
+    { id: "old3", name: "02-b.png", sum: md5(files[1].data), state: "UPLOAD_COMPLETE" },
+    { id: "old4", name: "03-c.png", sum: md5(files[2].data), state: "FAILED" },
+  ], { "02-b.png": ["UPLOAD_COMPLETE", "COMPLETE"] });
+  assert.equal(await syncScreenshots({ ...f, ...opts }), "1 screenshots uploaded, 2 reused");
+  assert.deepEqual([...f.shots.keys()].sort(), ["new1", "old1", "old2"]);
+  assert.ok(f.calls.includes("DELETE /v1/appScreenshots/old3") && f.calls.includes("DELETE /v1/appScreenshots/old4"));
+
+  // Nothing to do: no write.
+  f = fakeAsc(files.map((s, i) => ({ id: "c" + i, name: s.name, sum: md5(s.data), state: "COMPLETE" })), {});
+  assert.equal(await syncScreenshots({ ...f, ...opts }), "screenshots unchanged");
+  assert.deepEqual(f.calls.filter((c) => !c.startsWith("GET")), []);
 });

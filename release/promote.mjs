@@ -500,35 +500,14 @@ async function appstore(version) {
   if (!il) throw new Error("App Store Connect: app info has no " + LOCALE + " localization");
   await asc("PATCH", "/v1/appInfoLocalizations/" + il.id, { data: { type: "appInfoLocalizations", id: il.id, attributes: { name: want.name, subtitle: want.subtitle, privacyPolicyUrl: want.privacy_url } } });
 
-  // Screenshots: replaced only when the file names or checksums differ.
+  // Screenshots: one with the same file name and checksum is kept.
   const shots = screenshotFiles("appstore");
   const sets = (await asc("GET", "/v1/appStoreVersionLocalizations/" + loc.id + "/appScreenshotSets")).json.data;
   let set = sets.find((s) => s.attributes.screenshotDisplayType === IOS_SCREENSHOT_TYPE);
   if (!set) {
     set = (await asc("POST", "/v1/appScreenshotSets", { data: { type: "appScreenshotSets", attributes: { screenshotDisplayType: IOS_SCREENSHOT_TYPE }, relationships: { appStoreVersionLocalization: { data: { type: "appStoreVersionLocalizations", id: loc.id } } } } })).json.data;
   }
-  const md5 = (d) => createHash("md5").update(d).digest("hex");
-  const have = (await asc("GET", "/v1/appScreenshotSets/" + set.id + "/appScreenshots")).json.data;
-  const sig = (list) => list.map((x) => x.join(":")).join(",");
-  let images = "screenshots unchanged";
-  if (sig(have.map((s) => [s.attributes.fileName, s.attributes.sourceFileChecksum])) !== sig(shots.map((s) => [s.name, md5(s.data)]))) {
-    for (const s of have) await asc("DELETE", "/v1/appScreenshots/" + s.id);
-    for (const s of shots) {
-      const r = (await asc("POST", "/v1/appScreenshots", { data: { type: "appScreenshots", attributes: { fileName: s.name, fileSize: s.data.length }, relationships: { appScreenshotSet: { data: { type: "appScreenshotSets", id: set.id } } } } })).json.data;
-      for (const op of r.attributes.uploadOperations) {
-        const headers = Object.fromEntries((op.requestHeaders || []).map((h) => [h.name, h.value]));
-        await http(op.method, op.url, { headers, body: s.data.subarray(op.offset, op.offset + op.length) });
-      }
-      await asc("PATCH", "/v1/appScreenshots/" + r.id, { data: { type: "appScreenshots", id: r.id, attributes: { uploaded: true, sourceFileChecksum: md5(s.data) } } });
-      for (let i = 0; ; i++) {
-        const st = (await asc("GET", "/v1/appScreenshots/" + r.id)).json.data.attributes.assetDeliveryState || {};
-        if (st.state === "COMPLETE") break;
-        if (st.state === "FAILED" || i >= 36) throw new Error(s.name + ": screenshot " + (st.state || "not processed") + " " + JSON.stringify(st.errors || []));
-        await sleep(5000);
-      }
-    }
-    images = shots.length + " screenshots uploaded";
-  }
+  const images = await syncScreenshots({ asc, http, setId: set.id, shots, sleep });
 
   // App Review notes only. Contact details and the demo account stay as
   // entered in App Store Connect (owner rule: never in the repo or the API).
@@ -551,6 +530,60 @@ async function appstore(version) {
   }
   await asc("PATCH", "/v1/reviewSubmissions/" + sub.id, { data: { type: "reviewSubmissions", id: sub.id, attributes: { submitted: true } } });
   return done("App Store " + version + ": build " + build + " submitted for review; release " + IOS_RELEASE_TYPE + "; " + images);
+}
+
+/** Screenshot max wait for App Store Connect processing, all files together. */
+export const ASC_SHOT_TIMEOUT_MS = 10 * 60 * 1000;
+
+/** Make the App Store screenshot set hold exactly `shots`, in order.
+ *  A screenshot already there with the same file name and checksum that is
+ *  processed or still processing is kept (so a rerun reuses the uploads of an
+ *  earlier attempt); every other one is deleted. Missing files are uploaded.
+ *  Then it waits until App Store Connect has processed each one (COMPLETE),
+ *  and fails on FAILED or after the timeout. */
+export async function syncScreenshots({ asc, http, setId, shots, sleep, now = Date.now, timeoutMs = ASC_SHOT_TIMEOUT_MS, intervalMs = 5000 }) {
+  const md5 = (d) => createHash("md5").update(d).digest("hex");
+  const have = (await asc("GET", "/v1/appScreenshotSets/" + setId + "/appScreenshots")).json.data;
+  const ids = new Map();
+  let changed = false;
+  for (const h of have) {
+    const a = h.attributes || {};
+    const s = shots.find((x) => x.name === a.fileName && md5(x.data) === a.sourceFileChecksum);
+    const state = (a.assetDeliveryState || {}).state;
+    if (s && !ids.has(s.name) && (state === "COMPLETE" || state === "UPLOAD_COMPLETE")) {
+      ids.set(s.name, h.id);
+    } else {
+      await asc("DELETE", "/v1/appScreenshots/" + h.id);
+      changed = true;
+    }
+  }
+  let uploaded = 0;
+  for (const s of shots) {
+    if (ids.has(s.name)) continue;
+    const r = (await asc("POST", "/v1/appScreenshots", { data: { type: "appScreenshots", attributes: { fileName: s.name, fileSize: s.data.length }, relationships: { appScreenshotSet: { data: { type: "appScreenshotSets", id: setId } } } } })).json.data;
+    for (const op of r.attributes.uploadOperations) {
+      const headers = Object.fromEntries((op.requestHeaders || []).map((h) => [h.name, h.value]));
+      await http(op.method, op.url, { headers, body: s.data.subarray(op.offset, op.offset + op.length) });
+    }
+    await asc("PATCH", "/v1/appScreenshots/" + r.id, { data: { type: "appScreenshots", id: r.id, attributes: { uploaded: true, sourceFileChecksum: md5(s.data) } } });
+    ids.set(s.name, r.id);
+    uploaded++;
+    changed = true;
+  }
+  const deadline = now() + timeoutMs;
+  for (const s of shots) {
+    for (;;) {
+      const st = (await asc("GET", "/v1/appScreenshots/" + ids.get(s.name))).json.data.attributes.assetDeliveryState || {};
+      if (st.state === "COMPLETE") break;
+      if (st.state === "FAILED") throw new Error(s.name + ": screenshot processing FAILED " + JSON.stringify(st.errors || []));
+      if (now() >= deadline) throw new Error(s.name + ": screenshot still " + (st.state || "not processed") + " after " + Math.round(timeoutMs / 60000) + " minutes " + JSON.stringify(st.errors || []));
+      await sleep(intervalMs);
+    }
+  }
+  const order = shots.map((s) => ids.get(s.name));
+  if (!changed && have.map((h) => h.id).join() === order.join()) return "screenshots unchanged";
+  await asc("PATCH", "/v1/appScreenshotSets/" + setId + "/relationships/appScreenshots", { data: order.map((id) => ({ type: "appScreenshots", id })) });
+  return uploaded + " screenshots uploaded, " + (shots.length - uploaded) + " reused";
 }
 
 // ---- Chrome Web Store (public item) ----
