@@ -409,7 +409,7 @@ test("PA_RELEASE=1: release/public.json builds the site with no placeholder; fdr
   assert.deepEqual(bad, []);
 });
 
-test("security.txt: Contact, Expires (> 30 days, <= 1 year), Canonical", () => {
+test("security.txt: Contact, Expires (> 60 days, <= 1 year), Canonical", () => {
   const s = read(".well-known/security.txt");
   assert.match(s, /^Contact: https:\/\/github\.com\/tkooda\/pusharmor\/security\/advisories\/new$/m);
   assert.ok(!/@|mailto:/i.test(s), "no email address in security.txt");
@@ -418,7 +418,7 @@ test("security.txt: Contact, Expires (> 30 days, <= 1 year), Canonical", () => {
   assert.ok(m, "Expires");
   const exp = Date.parse(m[1]);
   const day = 86400000;
-  assert.ok(exp - Date.now() > 30 * day, "Expires is within 30 days: renew security.txt");
+  assert.ok(exp - Date.now() > 60 * day, "Expires is within 60 days: renew security.txt (up to one year ahead), then deploy the site");
   assert.ok(exp - Date.now() <= 366 * day, "Expires is more than 1 year ahead");
 });
 
