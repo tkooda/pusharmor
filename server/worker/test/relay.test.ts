@@ -104,6 +104,19 @@ describe("POST /send", () => {
     expect((await row(y.id))!.push).not.toBeNull();
   });
 
+  it("FCM 400 INVALID_ARGUMENT clears the push (W_GONE) and the device sees push_missing", async () => {
+    const email = randomEmail();
+    const me = await newPeer(email);
+    const x = await newPeer(email, "android");
+    await setAllow(x, [me.id]);
+    const body = JSON.stringify({ error: { code: 400, message: "bad token", status: "INVALID_ARGUMENT", details: [{ errorCode: "INVALID_ARGUMENT" }] } });
+    onVendor((r) => r.url.includes("/messages:send"), () => new Response(body, { status: 400 }));
+    const r = await call("POST", "/v1/send", { v: 1, m: { [x.id]: message(512) } }, { peer: me });
+    expect(r.body.r).toEqual({ [x.id]: "gone" });
+    expect((await row(x.id))!.push).toBeNull();
+    expect((await call("GET", "/v1/peers", undefined, { peer: x })).body.push_missing).toBe(true);
+  });
+
   it("W_GONE guard keeps a push PATCHed during the send", async () => {
     const email = randomEmail();
     const me = await newPeer(email);
