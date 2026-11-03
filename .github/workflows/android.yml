@@ -2,9 +2,8 @@ name: android
 
 # Android tests and builds. Called by ci.yml (pull requests, main pushes) and by
 # android-release.yml before the release jobs; workflow_dispatch runs it on any
-# branch by hand. Debug APKs are uploaded (not for fork PRs or tags). Release variants built here use
-# CI dummies when release/public.json still holds PLACEHOLDER values; those
-# outputs are never uploaded.
+# branch by hand. Debug APKs are uploaded (not for fork PRs or tags). Release
+# variants built here are never uploaded.
 on:
   workflow_call:
   workflow_dispatch:
@@ -79,15 +78,6 @@ jobs:
         run: |
           # shellcheck disable=SC2086
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install $SDK_PACKAGES < /dev/null
-      # The release values gate rejects PLACEHOLDER values; CI dummies let the
-      # release variants compile (R8 included). Outputs are never uploaded.
-      - name: CI dummies when release/public.json has PLACEHOLDER values
-        working-directory: .
-        run: |
-          if grep -qi placeholder release/public.json; then
-            node release/ci-dummy.mjs
-            echo "PA_CI_DUMMY=1" >> "$GITHUB_ENV"
-          fi
       - name: Lint
         run: ./gradlew --no-daemon --stacktrace :app:lintPlayDebug :app:lintFossDebug
 
@@ -118,15 +108,6 @@ jobs:
         run: |
           # shellcheck disable=SC2086
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install $SDK_PACKAGES < /dev/null
-      # The release values gate rejects PLACEHOLDER values; CI dummies let the
-      # release variants compile (R8 included). Outputs are never uploaded.
-      - name: CI dummies when release/public.json has PLACEHOLDER values
-        working-directory: .
-        run: |
-          if grep -qi placeholder release/public.json; then
-            node release/ci-dummy.mjs
-            echo "PA_CI_DUMMY=1" >> "$GITHUB_ENV"
-          fi
       - name: Debug builds
         run: ./gradlew --no-daemon --stacktrace :app:assemblePlayDebug :app:assembleFossDebug
       - name: Upload debug APKs
@@ -167,15 +148,6 @@ jobs:
         run: |
           # shellcheck disable=SC2086
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install $SDK_PACKAGES < /dev/null
-      # The release values gate rejects PLACEHOLDER values; CI dummies let the
-      # release variants compile (R8 included). Outputs are never uploaded.
-      - name: CI dummies when release/public.json has PLACEHOLDER values
-        working-directory: .
-        run: |
-          if grep -qi placeholder release/public.json; then
-            node release/ci-dummy.mjs
-            echo "PA_CI_DUMMY=1" >> "$GITHUB_ENV"
-          fi
       - name: Release builds (unsigned, R8)
         run: ./gradlew --no-daemon --stacktrace :app:assemblePlayRelease :app:assembleFossRelease
       # No test hooks in a release build.
@@ -218,14 +190,5 @@ jobs:
         run: |
           # shellcheck disable=SC2086
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install $SDK_PACKAGES < /dev/null
-      # The release values gate rejects PLACEHOLDER values; CI dummies let the
-      # release variants compile (R8 included). Outputs are never uploaded.
-      - name: CI dummies when release/public.json has PLACEHOLDER values
-        working-directory: .
-        run: |
-          if grep -qi placeholder release/public.json; then
-            node release/ci-dummy.mjs
-            echo "PA_CI_DUMMY=1" >> "$GITHUB_ENV"
-          fi
       - name: Release bundle (play)
         run: ./gradlew --no-daemon --stacktrace :app:bundlePlayRelease

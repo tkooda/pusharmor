@@ -81,14 +81,6 @@ jobs:
           echo "$v"
           printf '%s\n' "$v" | grep -qx "$XCODE_VERSION"
           printf '%s\n' "$v" | grep -qx "$XCODE_BUILD"
-      # The Release gate rejects PLACEHOLDER values; CI dummies let the Release
-      # configuration compile. Outputs are never uploaded.
-      - name: CI dummies when release/public.json has PLACEHOLDER values
-        run: |
-          if grep -qi placeholder release/public.json; then
-            node release/ci-dummy.mjs
-            echo "PA_CI_DUMMY=1" >> "$GITHUB_ENV"
-          fi
       - name: Config/Public.xcconfig from release/public.json
         run: sh client/ios/tools/public-xcconfig.sh
       - name: XcodeGen (pinned, SHA-256 checked) and generate the project
