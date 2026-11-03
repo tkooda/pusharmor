@@ -85,9 +85,12 @@ export function cliTopicOk(endpoint: string): boolean {
 // Sunup (android only): a Mozilla autopush v2 endpoint, bound to our VAPID key, so only the Worker can push to it.
 export const SUNUP_PREFIX = "https://updates.push.services.mozilla.com/wpush/v2/";
 
+const MOZILLA_HOST = "updates.push.services.mozilla.com";
+
 // UnifiedPush endpoint shape per host and platform (checked after checkUnifiedPushEndpoint).
+// The Mozilla host is decided on the parsed host with a trailing dot stripped, so "host." is refused too.
 export function upShapeOk(platform: string, endpoint: string): boolean {
-  if (endpoint.startsWith("https://updates.push.services.mozilla.com/")) {
+  if (parse(endpoint)?.hostname.replace(/\.$/, "") === MOZILLA_HOST) {
     return endpoint.startsWith(SUNUP_PREFIX) && platform === "android" && /^[A-Za-z0-9_=-]+$/.test(endpoint.slice(SUNUP_PREFIX.length));
   }
   return cliTopicOk(endpoint);

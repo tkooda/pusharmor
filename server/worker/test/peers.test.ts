@@ -375,6 +375,7 @@ describe("cli push endpoint", () => {
       `https://ntfy.sh/a/up${t}?up=1`,
       `https://up.example.org/up${t}?up=1`,
       "https://updates.push.services.mozilla.com/wpush/v2/gAAAAABk-x_y=",
+      `https://updates.push.services.mozilla.com./up${t}?up=1`,
     ]) {
       const r = await call("PATCH", "/v1/peers/" + p.id, { push: { ...up, endpoint } }, { peer: p });
       expect(r.status, endpoint).toBe(400);
@@ -415,6 +416,8 @@ describe("android Sunup endpoint", () => {
       "https://updates.push.services.mozilla.com/wpush/v2/a/b",
       "https://updates.push.services.mozilla.com/upAbC-_123xyz9?up=1",
       "https://updates.push.services.mozilla.com:8443/wpush/v2/gAAAAABk-x_y",
+      "https://updates.push.services.mozilla.com./wpush/v2/gAAAAABk-x_y",
+      "https://updates.push.services.mozilla.com./upAbC-_123xyz9?up=1",
     ]) {
       const r = await call("PATCH", "/v1/peers/" + p.id, { push: { ...up, endpoint } }, { peer: p });
       expect(r.status, endpoint).toBe(400);
