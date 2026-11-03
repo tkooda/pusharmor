@@ -41,8 +41,9 @@ workflow in its first job):
   other platforms keep their own version): `release/version.properties`
   (Android), `client/chrome/manifest.json`, `client/firefox/manifest.json`,
   `client/ios/project.yml`, `client/cli/pusharmor.py` (VERSION and the version
-  comment on line 2), and `site/public/download.html` (the pusharmor.py release
-  URL and the SHA-256 of `client/cli/pusharmor.py` at the tag commit).
+  comment on line 2), `site/public/download.html` (the pusharmor.py release
+  URL and the SHA-256 of `client/cli/pusharmor.py` at the tag commit), and
+  `site/public/fdroid/android.txt` (Android versionName, then versionCode).
 - `ci-ok` of the ci workflow succeeded on the tag commit (a push run; `gh api`
   with actions: read). The release workflow waits up to 40 minutes for it.
 
@@ -137,8 +138,7 @@ Developer Hub.
 
 Each store job clears "Set as a pre-release" on its own GitHub release once
 its store accepts the build, or when X.Y.Z is already live or in review there.
-After a SKIP (the store has a newer version) the flag stays set. Do the
-F-Droid step for Android by hand, as below.
+After a SKIP (the store has a newer version) the flag stays set.
 
 ## Worker (`worker/vX.Y.Z`)
 
@@ -176,9 +176,9 @@ Promote:
 2. GitHub: the promote job clears "Set as a pre-release"; by hand, edit the release, clear it, set it as latest.
 3. Optional: run the rebuild workflow (Actions > rebuild, tag
    `android/vX.Y.Z`) to prove the APKs are reproducible.
-4. F-Droid, by hand after step 2: edit `site/public/fdroid/android.txt`
-   (versionName, then versionCode) in a site commit. The first time, add the
-   app metadata to fdroiddata by hand (UpdateCheckMode HTTP on that file,
+4. F-Droid: `release/tag.mjs` stamps `site/public/fdroid/android.txt`
+   (versionName, then versionCode) with the other Android version files. The
+   first time, add the app metadata to fdroiddata by hand (UpdateCheckMode HTTP on that file,
    tag pattern `android/v%v`, Binaries
    `https://github.com/tkooda/pusharmor/releases/download/android/v%v/pusharmor-%v-foss.apk`,
    AllowedAPKSigningKeys the release certificate). F-Droid builds only after

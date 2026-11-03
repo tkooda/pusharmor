@@ -54,8 +54,8 @@ tracked files keep their placeholders, so a build or deploy leaves `git status` 
 
 It fails when a value is missing, empty, malformed or a PLACEHOLDER, or a CI dummy
 (`release/ci-dummy.mjs`) without `PA_CI_DUMMY=1`. Store
-links and APK hashes (`public/download.html`) and the F-Droid version
-(`public/fdroid/android.txt`) are edited by hand in the release PR.
+links and APK hashes (`public/download.html`) are edited by hand in the release PR;
+`release/tag.mjs` stamps the F-Droid version (`public/fdroid/android.txt`).
 
 Try a build (the tree stays clean; `--out DIR` writes elsewhere):
 

@@ -10,7 +10,8 @@
 // Rules: a version is bound to one commit (every tag of X.Y.Z points at the same
 // commit, and a commit carries one version); a new version (no tag of it yet) is
 // greater than every existing tag; the version files at the commit hold X.Y.Z
-// (stampProblems), and /download holds the SHA-256 of pusharmor.py at the commit.
+// (stampProblems), /download holds the SHA-256 of pusharmor.py at the commit, and
+// /fdroid/android.txt holds the Android versionName and versionCode.
 // One shared counter, but a release tags only the platforms that changed:
 // platforms skip numbers, so each platform's version files are stamped and checked
 // for that platform alone. Android versionCode and the iOS build number are
@@ -120,6 +121,14 @@ const FILES = [
     get: (s) => [/^ *MARKETING_VERSION: "(.*)"$/m.exec(s)?.[1], /^ *CURRENT_PROJECT_VERSION: "(.*)"$/m.exec(s)?.[1]],
     want: (v) => [v, String(buildNumber(v))],
     set: (s, v) => s.replace(/^( *MARKETING_VERSION: ).*$/m, '$1"' + v + '"').replace(/^( *CURRENT_PROJECT_VERSION: ).*$/m, '$1"' + buildNumber(v) + '"'),
+  },
+  // The F-Droid update check (UpdateCheckMode HTTP): versionName, then versionCode.
+  {
+    path: "site/public/fdroid/android.txt",
+    platforms: ["android"],
+    get: (s) => s.split("\n").slice(0, 2),
+    want: (v) => [v, String(buildNumber(v))],
+    set: (s, v) => v + "\n" + buildNumber(v) + "\n",
   },
   // The command-line row of /download: X.Y.Z in each release asset URL and the
   // SHA-256 of pusharmor.py (stamp writes pusharmor.py first).

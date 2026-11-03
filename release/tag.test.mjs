@@ -101,6 +101,14 @@ test("the version comment on line 2 of pusharmor.py must match VERSION", (t) => 
   assert.deepEqual(stampProblems(d, v).filter((l) => l.startsWith("client/cli/")), ["client/cli/pusharmor.py holds " + v + " / 9.9.9, want " + v + " / " + v]);
 });
 
+test("an Android stamp check fails when fdroid/android.txt holds another version", (t) => {
+  const { d, bin } = scratch();
+  t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
+  const v = /^versionName=(.*)$/m.exec(readFileSync(join(d, "release/version.properties"), "utf8"))[1];
+  writeFileSync(join(d, "site/public/fdroid/android.txt"), "0.0.0\n0\n");
+  assert.deepEqual(stampProblems(d, v, ["android"]), ["site/public/fdroid/android.txt holds 0.0.0 / 0, want " + v + " / " + buildNumber(v)]);
+});
+
 test("ci-ok: any successful run or attempt counts; running, missing and failed jobs do not", () => {
   const c = "e".repeat(40);
   const ok = { status: "completed", conclusion: "success" };
@@ -163,7 +171,7 @@ test("ci-ok wait: polls a running CI and a failing gh api until the deadline, st
 // answers one ci run whose ci-ok jobs are ci.jobs (status TAB conclusion lines).
 function scratch() {
   const d = mkdtempSync(join(tmpdir(), "pa-tag-"));
-  for (const f of ["release/version.properties", "client/chrome/manifest.json", "client/firefox/manifest.json", "client/ios/project.yml", "client/cli/pusharmor.py", "site/public/download.html"]) {
+  for (const f of ["release/version.properties", "client/chrome/manifest.json", "client/firefox/manifest.json", "client/ios/project.yml", "client/cli/pusharmor.py", "site/public/download.html", "site/public/fdroid/android.txt"]) {
     mkdirSync(join(d, dirname(f)), { recursive: true });
     cpSync(join(REPO, f), join(d, f));
   }
@@ -193,6 +201,7 @@ test("CLI: stamp, commit, tag; second platform at the same commit; check mode", 
   assert.deepEqual(stampProblems(d, "1.2.3"), []);
   assert.match(readFileSync(join(d, "release/version.properties"), "utf8"), /^versionCode=1002003$/m);
   assert.match(readFileSync(join(d, "client/ios/project.yml"), "utf8"), /CURRENT_PROJECT_VERSION: "1002003"/);
+  assert.equal(readFileSync(join(d, "site/public/fdroid/android.txt"), "utf8"), "1.2.3\n1002003\n");
   assert.match(readFileSync(join(d, "client/cli/pusharmor.py"), "utf8"), /^VERSION = "1\.2\.3"$/m);
   assert.match(readFileSync(join(d, "client/cli/pusharmor.py"), "utf8"), /^# PushArmor command-line client, version 1\.2\.3$/m);
   const page = readFileSync(join(d, "site/public/download.html"), "utf8");
@@ -316,6 +325,7 @@ test("platform subset: only those version files change; numbers are shared and n
   t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
   const read = (f) => readFileSync(join(d, f), "utf8");
   const page = read("site/public/download.html");
+  const fdroid = read("site/public/fdroid/android.txt");
   let r = run("1.2.3", "chrome", "firefox");
   assert.equal(r.status, 1, r.stderr);
   assert.match(r.stdout, /stamped 1\.2\.3 into the version files of chrome, firefox/);
@@ -325,6 +335,7 @@ test("platform subset: only those version files change; numbers are shared and n
   assert.ok(!/MARKETING_VERSION: "1\.2\.3"/.test(read("client/ios/project.yml")));
   assert.ok(!/VERSION = "1\.2\.3"/.test(read("client/cli/pusharmor.py")));
   assert.equal(read("site/public/download.html"), page);
+  assert.equal(read("site/public/fdroid/android.txt"), fdroid);
   git("commit", "-q", "-am", "release 1.2.3");
   r = run("1.2.3", "chrome", "firefox");
   assert.equal(r.status, 0, r.stderr);
