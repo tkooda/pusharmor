@@ -1,7 +1,7 @@
 // Real-browser popup size and layout check, run by webext.yml:
 //   node build.mjs --dev --shots && node popup-check.mjs
 // Firefox: headless Firefox driven by geckodriver opens the real toolbar popup (popup.html,
-// logged out) on cold starts and fails unless the popup is 400x560 from the first sample.
+// logged out) on cold starts and fails unless the popup is 400x560 from the first laid-out sample.
 // It then opens a copy whose popup is shots.html (canned replies, all four tabs), clicks
 // every tab, and fails if the popup size or the header, tab bar, or content area moves.
 // Chromium (branded Chrome ignores --load-extension, so pages load over http): popup.html
@@ -177,7 +177,8 @@ async function openPopup(wd, widget, ms = 1500) {
     while (Date.now() - t < ms) {
       const s = await wd.exec(`const p=[...document.querySelectorAll('panel')].find(p=>p.state==='open');
         const b=p&&p.querySelector('browser'); if(!b) return null; const r=b.getBoundingClientRect(); return Math.round(r.width)+'x'+Math.round(r.height);`);
-      if (s) sizes.push(s);
+      // a 0x0 sample before the first laid-out one is the panel before layout, not a wrong size
+      if (s && (s !== "0x0" || sizes.length)) sizes.push(s);
       await sleep(50);
     }
   }
