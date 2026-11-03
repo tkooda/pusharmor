@@ -311,12 +311,15 @@ jobs:
           (cd "$out" && shasum -a 256 "pusharmor-$VERSION.ipa") > "$out/pusharmor-ios-$VERSION.hashes.txt"
           cat "$out/pusharmor-ios-$VERSION.hashes.txt"
           echo "ipa_sha256=$(shasum -a 256 "$out/pusharmor-$VERSION.ipa" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      # overwrite: a rerun after a failed App Store Connect upload replaces the
+      # IPA of the failed attempt (publish-ios checks ipa_sha256 of this attempt).
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-ipa
           path: ${{ runner.temp }}/release/
           retention-days: 30
           if-no-files-found: error
+          overwrite: true
       # Last step of this job: upload to App Store Connect (TestFlight) by a
       # second export with destination upload; publish-ios runs after it.
       # Fallback if that fails on a future Xcode:
