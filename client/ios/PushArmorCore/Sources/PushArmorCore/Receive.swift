@@ -199,7 +199,11 @@ extension Core {
         let nm = p?.noticeName ?? S.aPeer
         switch c {
         case .approve: return noticeBanner(S.approved(p?.state == .approved ? nm : S.aPeer), peer: id, category: .event, tap: .peers(id?.text))
-        case .rename: return noticeBanner(S.renamed(nm, name ?? nm), peer: id, category: .event, tap: .peers(id?.text))
+        case .rename:
+            // a rename with no name was never shown; a duplicate of an applied rename no
+            // longer knows the old name, so it says "A device" rather than "X" renamed to "X"
+            guard let name = name else { return nil }
+            return noticeBanner(S.renamed(nm == name ? S.aPeer : nm, name), peer: id, category: .event, tap: .peers(id?.text))
         case .remove(let t): return noticeBanner(t == me.text ? S.thisDeviceRemoved : S.peerListChanged, peer: id, category: .event, tap: .peers(nil))
         case .delete: return noticeBanner(S.accountDeleted, peer: id, category: .event, tap: .peers(nil))
         case .deny: return noticeBanner(S.denied(nm), peer: id, category: .notice, tap: .history)

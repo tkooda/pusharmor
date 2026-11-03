@@ -625,6 +625,22 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(try x.core.store.peer(n.id)!.name, "Renamed")
     }
 
+    /// A re-presented rename never reads as a rename to the same name.
+    func testRenameBannerIsNeverANoOp() throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        let rename = MessageContent.rename(NameField(name: "UmVuYW1lZA", n: 2, s: "abc"))
+        XCTAssertNil(x.core.controlBanner(rename, peer: nil, name: nil, me: x.id))
+        var p = Peer(id: n.id)
+        p.name = "Renamed"
+        XCTAssertEqual(x.core.controlBanner(rename, peer: p, name: "Renamed", me: x.id)?.body,
+                       "A device renamed to \"Renamed\"")
+        XCTAssertEqual(x.core.controlBanner(rename, peer: nil, name: "Renamed", me: x.id)?.body,
+                       "A device renamed to \"Renamed\"")
+        p.name = "Old"
+        XCTAssertEqual(x.core.controlBanner(rename, peer: p, name: "Renamed", me: x.id)?.body,
+                       "\"Old\" renamed to \"Renamed\"")
+    }
+
     func testPairingStatePersistsAcrossRestartAndTwoOpenAtOnce() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev"), o = try dev("Odev")
         await n.core.fetchPeers(force: true)
