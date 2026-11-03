@@ -14,7 +14,6 @@ export const IDLE_PING_MS = 10 * 60_000;
 export const PING_DEAD_MS = 10_000;
 export const FALLBACK_AFTER_MS = 30 * 60_000;
 export const PROBE_EVERY_MS = 60 * 60_000;
-export const DRIFT_MS = 60_000;
 export const CLOSE_NO_RECONNECT = 4774;
 
 export interface SocketLike {
