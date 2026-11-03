@@ -37,7 +37,6 @@ public enum S {
     public static func stillHolds(_ x: String) -> String { "\"\(x)\" still holds an earlier pairing. On \"\(x)\", tap Cancel pairing request, then tap Send again." }
     public static func notPairedOn(_ x: String) -> String { "Not paired on \"\(x)\"" }
     public static func declinedBy(_ x: String) -> String { "Rejected by \"\(x)\"" }
-    public static func pairingFingerprint(_ fp: String) -> String { "Pairing fingerprint \(fp)" }
     public static func removeConfirm(_ x: String) -> String {
         "Remove \"\(x)\" from this account? \"\(x)\" must log in again and pair with every device again."
     }
