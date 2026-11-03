@@ -1,18 +1,13 @@
 name: vectors
 
-# Golden cross-platform vectors (tests/vectors/golden-v1.json): every leg runs the
-# file through its own production code. Called by ci.yml and by the release
-# workflows.
+# Golden cross-platform vectors (tests/vectors/golden-v1.json): the Node
+# reference code checks the file itself. Each component suite (worker.yml,
+# webext.yml, android.yml, ios.yml, cli.yml) runs the same file through its own
+# production code. Called by ci.yml.
 on:
   workflow_call:
 
 permissions: {}
-
-env:
-  XCODE_APP: /Applications/Xcode_26.6.app
-  XCODE_VERSION: "Xcode 26.6"
-  XCODE_BUILD: "Build version 17F113"
-  JAVA_VERSION: "17.0.20+8"
 
 jobs:
   reference:
@@ -32,84 +27,3 @@ jobs:
         working-directory: tests/vectors
         run: node --test ref/check.mjs
 
-  worker:
-    name: Worker (vitest in workerd)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: site/.node-version
-      - name: Install
-        working-directory: server/worker
-        run: npm ci --ignore-scripts
-      - name: Golden vectors
-        working-directory: server/worker
-        run: npx --no-install vitest run test/golden.test.ts
-
-  webext:
-    name: webext shared (Node)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: site/.node-version
-      - name: Install
-        working-directory: client/webext-common
-        run: npm ci --ignore-scripts
-      - name: Golden vectors
-        working-directory: client/webext-common
-        run: node --test --test-reporter=spec test/golden.test.ts
-
-  android:
-    name: Android (JVM)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
-        with:
-          distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
-      - name: Golden vectors (:crypto, :protocol)
-        working-directory: client/android
-        run: >-
-          ./gradlew --no-daemon --stacktrace
-          :crypto:test --tests '*Golden*'
-          :protocol:test --tests '*Golden*' --tests '*PairDecide*'
-
-  ios:
-    name: iOS (swift test)
-    runs-on: macos-26
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Select and assert Xcode
-        run: |
-          echo "runner image: $ImageOS $ImageVersion"
-          sudo xcode-select -s "$XCODE_APP"
-          v="$(xcodebuild -version)"
-          echo "$v"
-          printf '%s\n' "$v" | grep -qx "$XCODE_VERSION"
-          printf '%s\n' "$v" | grep -qx "$XCODE_BUILD"
-      - name: Golden vectors (PushArmorCore)
-        run: swift test --package-path client/ios/PushArmorCore --filter 'GoldenTests|PairDecideTests'
