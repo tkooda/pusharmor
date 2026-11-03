@@ -141,7 +141,9 @@ Developer Hub.
 
 Each store job clears "Set as a pre-release" on its own GitHub release once
 its store accepts the build, or when X.Y.Z is already live or in review there.
-After a SKIP (the store has a newer version) the flag stays set.
+After a SKIP (the store has a newer version) the flag stays set. After a
+promotion by hand, clear the flag yourself (on an Android release, also set it
+as latest).
 
 ## Worker (`worker/vX.Y.Z`)
 
@@ -174,10 +176,9 @@ Promote:
 1. The promote workflow (job `play`), or by hand: Play Console > Test and
    release > Internal testing > Promote release > Production (a personal developer account created after 2023-11-13 must run
    a closed test with 12 testers for 14 days first: promote to a closed track).
-2. GitHub: the promote job clears "Set as a pre-release"; by hand, edit the release, clear it, set it as latest.
-3. Optional: run the rebuild workflow (Actions > rebuild, tag
+2. Optional: run the rebuild workflow (Actions > rebuild, tag
    `android/vX.Y.Z`) to prove the APKs are reproducible.
-4. F-Droid: `release/tag.mjs` stamps `site/public/fdroid/android.txt`
+3. F-Droid: `release/tag.mjs` stamps `site/public/fdroid/android.txt`
    (versionName, then versionCode) with the other Android version files. The
    first time, add the app metadata to fdroiddata by hand (UpdateCheckMode HTTP on that file,
    tag pattern `android/v%v`, Binaries
@@ -208,7 +209,6 @@ Promote:
    build, select the release option, submit for review.
 2. By hand with "Manually release this version" only: after approval,
    Release this version.
-3. GitHub: the promote job clears "Set as a pre-release"; by hand, clear it on the release.
 
 ## Chrome (`chrome/vX.Y.Z`)
 
@@ -223,8 +223,7 @@ Promote:
 1. The promote workflow (job `chrome`), or by hand: Chrome Web Store
    dashboard, the public item: upload `pusharmor-chrome-X.Y.Z.zip` from the
    prerelease, submit for review, publish.
-2. GitHub: the promote job clears "Set as a pre-release"; by hand, clear it.
-3. The collect workflow (on each chrome/v or firefox/v tag push, or run by hand
+2. The collect workflow (on each chrome/v or firefox/v tag push, or run by hand
    once the store serves the new version) publishes the store CRX as the release
    `store/chrome/vX.Y.Z` after it checks it against the release file hashes. It
    takes the tag of the version the public item serves, so promoting an older
@@ -257,8 +256,7 @@ Promote:
    the source archive; it goes public after review. The listed add-on is
    created by hand once (the first listed version, with the public gecko id
    of `release/public.json`); the workflow fails until it exists.
-2. GitHub: the promote job clears "Set as a pre-release"; by hand, clear it.
-3. The collect workflow publishes the AMO XPI of the current public version
+2. The collect workflow publishes the AMO XPI of the current public version
    as the release `store/firefox/vX.Y.Z` after it checks it.
 
 ## One-time owner setup
