@@ -13,7 +13,7 @@ let package = Package(
         .library(name: "PushArmorCore", targets: ["PushArmorCore"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-crypto.git", "3.8.0"..<"4.0.0"),
+        .package(url: "https://github.com/apple/swift-crypto.git", "3.8.0"..<"6.0.0"),
     ],
     targets: [
         .systemLibrary(name: "CZlib", path: "Sources/CZlib"),
