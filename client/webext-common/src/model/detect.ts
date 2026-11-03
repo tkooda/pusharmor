@@ -6,7 +6,7 @@ const IPV4 = /^[0-9]{1,3}(\.[0-9]{1,3}){3}$/;
 const DATE = /^([0-9]{4}([-. ])[0-9]{2}\2[0-9]{2}|[0-9]{2}([-. ])[0-9]{2}\3[0-9]{4})$/;
 
 /** Trim ASCII whitespace and NBSP. */
-export function trimPhoneInput(s: string): string {
+function trimPhoneInput(s: string): string {
   return s.replace(/^[\t\n\f\r \u00a0]+|[\t\n\f\r \u00a0]+$/g, "");
 }
 

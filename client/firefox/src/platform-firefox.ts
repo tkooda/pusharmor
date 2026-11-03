@@ -32,7 +32,7 @@ export async function openSetup(): Promise<void> {
   await browser.tabs.create({ url: SETUP_URL, active: true });
 }
 
-export interface FxCtx {
+interface FxCtx {
   isAndroid: boolean;
   autopush: () => Autopush | null;
   db: () => Promise<Db>;

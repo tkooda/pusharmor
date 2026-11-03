@@ -3,10 +3,10 @@
 import { b64urlEncode } from "../crypto/b64url.ts";
 import type { ReplayState } from "../model/replay.ts";
 
-export const DB_NAME = "pusharmor";
-export const DB_VERSION = 1;
-export const STORES = ["keys", "meta", "peers", "replay", "history"] as const;
-export type StoreName = (typeof STORES)[number];
+const DB_NAME = "pusharmor";
+const DB_VERSION = 1;
+const STORES = ["keys", "meta", "peers", "replay", "history"] as const;
+type StoreName = (typeof STORES)[number];
 
 export interface SelfKeys {
   sign: CryptoKeyPair;
@@ -71,7 +71,7 @@ function req<T>(r: IDBRequest<T>): Promise<T> {
 }
 
 /** History keeps at most this many rows (the same value on every client). */
-export const HISTORY_MAX = 500;
+const HISTORY_MAX = 500;
 
 /**
  * Inside a history transaction: only the newest HISTORY_MAX rows stay (by
@@ -114,7 +114,7 @@ function trimHistory(h: IDBObjectStore, t: number): void {
   };
 }
 
-export function txDone(tx: IDBTransaction): Promise<void> {
+function txDone(tx: IDBTransaction): Promise<void> {
   return new Promise((res, rej) => {
     tx.oncomplete = () => res();
     tx.onerror = () => rej(tx.error);

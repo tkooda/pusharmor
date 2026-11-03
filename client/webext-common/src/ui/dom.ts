@@ -25,7 +25,7 @@ export interface UiEnv {
   session?: SessionStore;
 }
 
-export interface SessionStore {
+interface SessionStore {
   get(key: string): Promise<unknown>;
   remove(key: string): Promise<void>;
   /** Calls cb with each new value of key; returns the function that stops it. */

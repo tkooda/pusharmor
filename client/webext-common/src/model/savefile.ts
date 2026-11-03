@@ -1,5 +1,5 @@
 /** save text through downloads.download with the Save-as dialog (Chrome and Firefox). */
-export interface DownloadsApi {
+interface DownloadsApi {
   download(o: { url: string; filename?: string; saveAs?: boolean }): Promise<number>;
   search(q: { id: number }): Promise<{ filename?: string }[]>;
 }

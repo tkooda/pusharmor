@@ -63,7 +63,7 @@ import {
 import { R, T, peerLabel, rowLabel, sendResultText } from "./texts.ts";
 import { AUTH_CHANGED } from "../model/signin.ts";
 
-export type Src = "push" | "bridge" | "returned" | "fetched";
+type Src = "push" | "bridge" | "returned" | "fetched";
 
 /** The outcome of one POST /pair: the relay word, or why the call failed (err). */
 interface PairPost {
@@ -73,8 +73,8 @@ interface PairPost {
 }
 export const FETCH_WINDOW_MS = 60_000;
 export const SEND_AGAIN_MS = 60_000;
-export const AUTO_OPEN_MAX = 3;
-export const AUTO_OPEN_WINDOW_MS = 60_000;
+const AUTO_OPEN_MAX = 3;
+const AUTO_OPEN_WINDOW_MS = 60_000;
 
 export interface Settings {
   showAll: boolean;
@@ -85,7 +85,7 @@ export interface Settings {
 }
 export const DEFAULT_SETTINGS: Settings = { showAll: true, autoOpen: false, historyDays: 30, allowContent: true };
 
-export interface EngineDeps {
+interface EngineDeps {
   platform: Platform;
   db: Db;
   api: Api;

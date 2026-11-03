@@ -7,14 +7,14 @@ import { generateWebPushKeys, rfc8291Decrypt, type WebPushKeys } from "../../../
 import type { PushFields } from "../../../webext-common/src/crypto/labels.ts";
 import { endpointAllowed } from "../endpoint.ts";
 
-export const AUTOPUSH_URL = "wss://push.services.mozilla.com/";
-export const BACKOFF_BASE_MS = 5_000;
-export const BACKOFF_CAP_MS = 30 * 60_000;
-export const IDLE_PING_MS = 10 * 60_000;
+const AUTOPUSH_URL = "wss://push.services.mozilla.com/";
+const BACKOFF_BASE_MS = 5_000;
+const BACKOFF_CAP_MS = 30 * 60_000;
+const IDLE_PING_MS = 10 * 60_000;
 export const PING_DEAD_MS = 10_000;
-export const FALLBACK_AFTER_MS = 30 * 60_000;
-export const PROBE_EVERY_MS = 60 * 60_000;
-export const CLOSE_NO_RECONNECT = 4774;
+const FALLBACK_AFTER_MS = 30 * 60_000;
+const PROBE_EVERY_MS = 60 * 60_000;
+const CLOSE_NO_RECONNECT = 4774;
 
 export interface SocketLike {
   send(data: string): void;
@@ -31,7 +31,7 @@ export interface ApState {
   endpoint: string | null;
 }
 
-export interface AutopushDeps {
+interface AutopushDeps {
   socket(url: string): SocketLike;
   vapidPub: Uint8Array;
   loadState(): Promise<ApState>;

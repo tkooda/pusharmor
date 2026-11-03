@@ -29,7 +29,7 @@ export function confirmDialog(title: string, message: string, ok: string): Promi
   });
 }
 
-export type ToastKind = "ok" | "info" | "err";
+type ToastKind = "ok" | "info" | "err";
 
 let current: { el: HTMLElement; stop: () => void } | null = null;
 

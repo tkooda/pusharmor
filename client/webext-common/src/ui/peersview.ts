@@ -33,7 +33,7 @@ let refreshUntil = 0;
 let fpTimer: ReturnType<typeof setInterval> | null = null;
 
 /** Draws the list again, with focus on that row after an action. */
-export type Redraw = (focusId?: string) => Promise<void>;
+type Redraw = (focusId?: string) => Promise<void>;
 
 export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, highlight?: string, focusId?: string, openPair = false): Promise<void> {
   const data = await rpc<{ peers: PeerView[]; allowContent?: boolean }>(env, "peers");
@@ -213,7 +213,7 @@ function statusIcons(p: PeerView, globalAllow: boolean): HTMLElement {
   return h("span", { class: "stat", role: "img", "aria-label": statusLabel(send, notif) }, one("send", send), one("bell", notif));
 }
 
-export function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = true): HTMLElement {
+function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = true): HTMLElement {
   const dim = p.greyed !== null && p.greyed !== "logged out" && p.greyed !== "send only";
   const row = h("div", { class: "prow peer" + (dim ? " off" : ""), id: "peer-" + p.id, tabindex: "-1" });
   const col = h("div", { class: "txt" });
@@ -240,7 +240,7 @@ export function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = t
 }
 
 /** Pairing card with the fingerprint plate (rendered before This device). */
-export function pairCard(env: UiEnv, p: PeerView, redraw: Redraw): HTMLElement {
+function pairCard(env: UiEnv, p: PeerView, redraw: Redraw): HTMLElement {
   const card = h("div", { class: "pair", id: "peer-" + p.id, tabindex: "-1" });
   const chars = Array.from(p.fingerprint ?? "");
   const head = h(

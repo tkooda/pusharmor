@@ -1,6 +1,6 @@
 // Byte helpers.
 
-export const te = new TextEncoder();
+const te = new TextEncoder();
 const tdFatal = new TextDecoder("utf-8", { fatal: true });
 
 export function utf8(s: string): Uint8Array {

@@ -6,7 +6,7 @@
 
 import { sortByLabel } from "../model/sendsel.ts";
 
-export interface FilterRow {
+interface FilterRow {
   dir: "in" | "out";
   peer: string | null;
   sender: string;

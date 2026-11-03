@@ -6,10 +6,10 @@ export const SIGNIN_PROGRESS = "signin_progress";
 export const RESTORE_MS = 14 * 60_000;
 /** "Get a new code" waits this long after a send. */
 export const RESEND_MS = 60_000;
-export const FRAME_MIN = 65;
-export const FRAME_MAX = 600;
+const FRAME_MIN = 65;
+const FRAME_MAX = 600;
 
-export interface Progress {
+interface Progress {
   v: 1;
   step: "email" | "code";
   email: string;

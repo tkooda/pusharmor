@@ -3,7 +3,7 @@
 // k >> 3 at bit position k & 7 (LSB first).
 
 export const WINDOW = 100;
-export const BITMAP_BYTES = 13;
+const BITMAP_BYTES = 13;
 
 export interface ReplayState {
   pairing_id: Uint8Array;
@@ -11,7 +11,7 @@ export interface ReplayState {
   bitmap: Uint8Array;
 }
 
-export type ReplayVerdict = "accept" | "seen" | "old";
+type ReplayVerdict = "accept" | "seen" | "old";
 
 export function freshReplay(pairingId: Uint8Array): ReplayState {
   return { pairing_id: pairingId, h: 0, bitmap: new Uint8Array(BITMAP_BYTES) };

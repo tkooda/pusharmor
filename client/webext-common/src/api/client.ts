@@ -4,8 +4,8 @@ import { utf8 } from "../crypto/bytes.ts";
 import { paSig } from "../crypto/pasig.ts";
 
 export const API_BASE = "https://api.pusharmor.com";
-export const RETRY_DELAYS_MS = [500, 1500, 3000];
-export const RETRY_BUDGET_MS = 8000;
+const RETRY_DELAYS_MS = [500, 1500, 3000];
+const RETRY_BUDGET_MS = 8000;
 /** One request (headers and body) may take this long before it is aborted. */
 export const FETCH_TIMEOUT_MS = 15000;
 
@@ -31,7 +31,7 @@ export interface Signer {
   key: CryptoKey;
 }
 
-export interface ApiDeps {
+interface ApiDeps {
   /** PA-Client header value, e.g. "chrome/0.0.19". */
   client: string;
   fetch(input: string, init: RequestInit): Promise<Response>;
@@ -169,7 +169,7 @@ function noReply(aborted: boolean): ApiError {
 }
 
 /** Retry-After seconds clamped to 0..1 hour, so a bad value cannot hold calls back for ever. */
-export function clampRetry(s: number): number {
+function clampRetry(s: number): number {
   return Math.min(Math.max(s, 0), 3600);
 }
 

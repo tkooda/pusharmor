@@ -5,7 +5,7 @@ import type { MessageSender } from "../../webext-common/src/shim-types.ts";
 
 const SITE_PAGE: Record<string, string> = { "fx-sub": "/fx/setup", "fx-close": "/fx/setup", "fx-msg": "/fx/open", authDone: "/auth/done" };
 
-export function fromSite(sender: MessageSender, path: string, runtimeId: string): boolean {
+function fromSite(sender: MessageSender, path: string, runtimeId: string): boolean {
   if (typeof sender.url !== "string" || sender.id !== runtimeId) return false;
   try {
     const u = new URL(sender.url);

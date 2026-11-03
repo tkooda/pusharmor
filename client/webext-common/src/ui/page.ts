@@ -474,7 +474,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   }
 }
 
-export interface LimitPeer {
+interface LimitPeer {
   id: string;
   platform: string;
   created: number;

@@ -13,9 +13,9 @@ import { Db, openDb } from "./store/db.ts";
 import type { UiEnv } from "./ui/dom.ts";
 import { THEME_KEY } from "./ui/theme.ts";
 
-export const ICON = "icons/icon-128.png";
+const ICON = "icons/icon-128.png";
 
-export interface PushHooks {
+interface PushHooks {
   pushSubscribe(vapid: Uint8Array, quiet?: boolean, fresh?: boolean): Promise<PushFields>;
   pushCurrent(): Promise<PushFields | null>;
   pushUnsubscribe(): Promise<void>;
@@ -104,13 +104,13 @@ export function basePlatform(b: Browser, name: "chrome" | "firefox", isAndroid: 
   };
 }
 
-export interface Booted {
+interface Booted {
   engine: Engine;
   rpc: Rpc;
 }
 
 /** Shown by the UI (with Retry) when the local database cannot be opened. */
-export const BOOT_ERROR = "PushArmor could not open its local database. Close this window and try again, or restart the browser.";
+const BOOT_ERROR = "PushArmor could not open its local database. Close this window and try again, or restart the browser.";
 
 /** Lazy init inside handlers (no top-level await in the entry files). */
 export function lazyBoot(make: () => Platform, vapid: Uint8Array): () => Promise<Booted> {

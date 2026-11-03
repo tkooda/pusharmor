@@ -3,7 +3,7 @@
 import { b64urlEncode } from "./b64url.ts";
 import { buf, equal } from "./bytes.ts";
 
-export interface KeySet {
+interface KeySet {
   sign: CryptoKeyPair;
   enc: CryptoKeyPair;
   sign_pub: Uint8Array;

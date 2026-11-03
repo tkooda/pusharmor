@@ -2,7 +2,7 @@
 // use (Chrome MV3 and Firefox both return promises). Types only: shared code
 // never touches the globals; each shell resolves them in its shim.ts.
 
-export interface StorageArea {
+interface StorageArea {
   get(keys: string[] | null): Promise<Record<string, unknown>>;
   set(items: Record<string, unknown>): Promise<void>;
   remove(keys: string[]): Promise<void>;
@@ -104,7 +104,7 @@ export interface Browser {
   };
 }
 
-export interface MenusApi {
+interface MenusApi {
   create(p: { id: string; parentId?: string; title: string; contexts?: string[] }): void;
   update(id: string, p: { title: string }): Promise<void>;
   removeAll(): Promise<void>;

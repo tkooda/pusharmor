@@ -17,7 +17,7 @@ export interface Pin {
   removed?: boolean;
 }
 
-export interface ReceiveInput {
+interface ReceiveInput {
   enc: CryptoKeyPair; // receiver ECDH key pair
   id: string; // receiver id (40 chars)
   m: string;

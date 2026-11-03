@@ -7,7 +7,7 @@ import type { Engine } from "./engine.ts";
 import { allEntries } from "./state.ts";
 import { R, actionLine } from "./texts.ts";
 
-export type ClickTarget = { url: string } | { page: string } | null;
+type ClickTarget = { url: string } | { page: string } | null;
 
 /**
  * Notification id -> what a click opens: "h:" row -> url opens the tab,
@@ -50,7 +50,7 @@ export function selectionTitle(text: string): string {
   return t === "url" ? "PushArmor URL to" : t === "tel" ? "PushArmor phone to" : "PushArmor text to";
 }
 
-export interface MenuSendResult {
+interface MenuSendResult {
   badge: string | null;
   notice: string | null;
   overCap: string | null; // text to open in the send window

@@ -76,7 +76,7 @@ export function buildJson(n: number, c: Content): string {
   }
 }
 
-export function nameEntryJson(e: NameEntry): string {
+function nameEntryJson(e: NameEntry): string {
   return '{"name":' + JSON.stringify(e.name) + ',"n":' + nStr(e.n) + ',"s":' + JSON.stringify(e.s) + "}";
 }
 
@@ -85,7 +85,7 @@ export function msgSignedBytes(recipientId: string, body: Uint8Array): Uint8Arra
   return concat(ascii("PA-MSG1\n" + recipientId + "\n"), body);
 }
 
-export interface EncodeArgs {
+interface EncodeArgs {
   signKey: CryptoKey;
   fromId: Uint8Array; // 30 raw bytes
   pairingId: Uint8Array; // 8 bytes
@@ -125,7 +125,7 @@ export async function encodeInner(a: EncodeArgs): Promise<string> {
   return m;
 }
 
-export interface InnerPlain {
+interface InnerPlain {
   sig: Uint8Array;
   body: Uint8Array; // every byte after sig (signed)
   fromId: Uint8Array;
@@ -167,7 +167,7 @@ export async function verifyInner(signPub: Uint8Array, myId: string, p: InnerPla
   return verify(signPub, p.sig, msgSignedBytes(myId, p.body));
 }
 
-export interface ParsedJson {
+interface ParsedJson {
   n: number;
   content: Content;
 }
@@ -296,7 +296,7 @@ export async function openNameEntry(myEnc: CryptoKeyPair, myId: string, ct: stri
 export type PairKind = "commit" | "reply" | "open";
 const KIND_BYTE: Record<PairKind, number> = { commit: 1, reply: 2, open: 3 };
 
-export type PairBody =
+type PairBody =
   | { kind: "commit"; c_N: Uint8Array }
   | { kind: "reply" | "open"; sign_pub: Uint8Array; enc_pub: Uint8Array; r: Uint8Array };
 
@@ -327,12 +327,12 @@ export async function encodePair(
   return m;
 }
 
-export interface PairMsg {
+interface PairMsg {
   fromId: Uint8Array;
   body: PairBody;
 }
 
-export function parsePairPlain(pt: Uint8Array): PairMsg | null {
+function parsePairPlain(pt: Uint8Array): PairMsg | null {
   if (pt.length !== 193) return null;
   const k = pt[0];
   const fromId = pt.slice(1, 31);

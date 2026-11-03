@@ -2,14 +2,14 @@
 // a to e). No I/O.
 import { compareBytes, equal } from "../crypto/bytes.ts";
 
-export const AUTO_REPLY_CAP = 10;
+const AUTO_REPLY_CAP = 10;
 export const AUTO_REPLY_WINDOW_MS = 24 * 3600 * 1000;
 export const MAX_OPEN_ENTRIES = 9;
 
 export type Role = "N" | "X";
 export type PairState = "committed" | "prompted" | "replied" | "shown";
 
-export interface DecideEntry {
+interface DecideEntry {
   role: Role;
   state: PairState;
   c_N?: Uint8Array; // X role
@@ -107,7 +107,7 @@ export function pairTimeout(approveVerified: boolean, approved: boolean, resend:
   return "keep_waiting";
 }
 
-export const NO_REPLY_MS = 3 * 24 * 3600 * 1000;
+const NO_REPLY_MS = 3 * 24 * 3600 * 1000;
 
 /** N-side hint on a row in state committed. */
 export function pairHint(approvesMe: boolean | null, committedMs: number): "still_holds" | "no_reply_yet" | null {

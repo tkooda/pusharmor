@@ -8,7 +8,7 @@ function hkdfExpand1(prk: Uint8Array, info: Uint8Array, len: number): Promise<Ui
   return hmacSha256(prk, concat(info, new Uint8Array([1]))).then((t) => t.subarray(0, len));
 }
 
-export interface Rfc8291Keys {
+interface Rfc8291Keys {
   prk_key: Uint8Array;
   key_info: Uint8Array;
   ikm: Uint8Array;

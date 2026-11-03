@@ -6,7 +6,7 @@ const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789
 const LOOKUP = new Int16Array(128).fill(-1);
 for (let i = 0; i < ALPHABET.length; i++) LOOKUP[ALPHABET.charCodeAt(i)] = i;
 
-export class B64Error extends Error {}
+class B64Error extends Error {}
 
 export function b64urlEncode(bytes: Uint8Array): string {
   let out = "";

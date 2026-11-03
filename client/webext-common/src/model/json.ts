@@ -14,7 +14,7 @@ export interface JObject {
   [k: string]: JValue;
 }
 
-export class JsonError extends Error {}
+class JsonError extends Error {}
 
 export function parseStrictJson(text: string): JValue {
   let i = 0;
