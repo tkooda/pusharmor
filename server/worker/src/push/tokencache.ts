@@ -61,7 +61,3 @@ export async function getToken(key: string, mint: () => Promise<Cached>, nowMs: 
 export function peekToken(key: string): Cached | undefined {
   return state().cache.get(key);
 }
-
-export function dropToken(key: string): void {
-  state().cache.delete(key);
-}
