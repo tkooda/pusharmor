@@ -14,6 +14,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+private class MemoryClockOffset(override var offsetS: Long = 0) : ClockOffset
+
 class WorkerClientTest {
     private val server = MockWebServer().apply { start() }
     private val keys = SoftwareKeyOps.generate()

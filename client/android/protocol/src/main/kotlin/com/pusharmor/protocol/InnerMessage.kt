@@ -81,8 +81,6 @@ object InnerMessage {
     /** Max raw bytes that encode to at most [chars] b64url chars. */
     fun bytesForChars(chars: Int): Int = chars * 3 / 4
 
-    fun encodedChars(bytes: Int): Int = (bytes * 4 + 2) / 3
-
     fun jsonOf(n: Long, body: MessageBody): String {
         require(n in 1..MAX_COUNTER)
         return "{\"n\":$n,\"${body.key}\":${body.valueJson()}}"

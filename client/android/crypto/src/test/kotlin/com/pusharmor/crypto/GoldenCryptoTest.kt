@@ -17,6 +17,18 @@ class GoldenCryptoTest {
     private fun hmac(key: ByteArray, data: ByteArray): ByteArray =
         Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(key, "HmacSHA256")) }.doFinal(data)
 
+    /** RFC 9180 DeriveKeyPair for DHKEM(P-256) on the production [Hkdf]: returns the 32-byte private scalar. */
+    private fun deriveSecretKey(ikm: ByteArray): ByteArray {
+        val suite = ascii("KEM") + Hpke.i2osp(0x0010, 2)
+        val dkpPrk = Hkdf.extract(ByteArray(0), ascii("HPKE-v1") + suite + ascii("dkp_prk") + ikm)
+        for (counter in 0..255) {
+            val bytes = Hkdf.expand(dkpPrk, Hpke.i2osp(32, 2) + ascii("HPKE-v1") + suite + ascii("candidate") + byteArrayOf(counter.toByte()), 32)
+            val sk = java.math.BigInteger(1, bytes)
+            if (sk.signum() != 0 && sk < P256.N) return bytes
+        }
+        throw CryptoException("derive key pair")
+    }
+
     private val idSecret by lazy { Golden.section("keys").str("id_secret").let { B64url.decode(it) } }
 
     @Test fun keys() {
@@ -131,8 +143,8 @@ class GoldenCryptoTest {
         val v = Golden.section("rfc9180")
         assertEquals(16L, v.long("kem_id")); assertEquals(1L, v.long("kdf_id")); assertEquals(2L, v.long("aead_id")); assertEquals(0L, v.long("mode"))
         val h = Hpke()
-        assertEquals(v.str("skEm"), h.deriveSecretKey(hexToBytes(v.str("ikmE"))).toHex())
-        assertEquals(v.str("skRm"), h.deriveSecretKey(hexToBytes(v.str("ikmR"))).toHex())
+        assertEquals(v.str("skEm"), deriveSecretKey(hexToBytes(v.str("ikmE"))).toHex())
+        assertEquals(v.str("skRm"), deriveSecretKey(hexToBytes(v.str("ikmR"))).toHex())
         val eph = SoftwareKeyOps.keyPairFromScalar(hexToBytes(v.str("skEm")))
         val info = hexToBytes(v.str("info"))
         val (enc, ctx) = h.setupBaseS(hexToBytes(v.str("pkRm")), info, eph)

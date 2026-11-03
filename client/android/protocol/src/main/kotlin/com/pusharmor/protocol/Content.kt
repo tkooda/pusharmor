@@ -10,9 +10,6 @@ object SizeCap {
 
     fun utf8Size(s: String): Int = s.toByteArray(Charsets.UTF_8).size
 
-    /** Counter is red at 90 pc of the cap. */
-    fun isNearCap(s: String): Boolean = utf8Size(s) * 10 >= MAX_CONTENT_BYTES * 9
-
     /** First at most [max] bytes of [s], cut at a UTF-8 code point boundary. */
     fun truncateUtf8(s: String, max: Int = MAX_CONTENT_BYTES): String {
         var bytes = 0

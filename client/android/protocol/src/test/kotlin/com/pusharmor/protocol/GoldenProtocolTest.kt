@@ -31,6 +31,9 @@ import org.junit.Test
 
 /** tests/vectors/golden-v1.json sections owned by :protocol, run through the production code. */
 class GoldenProtocolTest {
+    /** Unpadded base64url length of [bytes] raw bytes. */
+    private fun encodedChars(bytes: Int): Int = (bytes * 4 + 2) / 3
+
     private fun account(name: String) = Golden.peer(name)["account"]!!.b64()
     private fun id(name: String) = Golden.peer(name).str("id")
 
@@ -99,7 +102,7 @@ class GoldenProtocolTest {
         val deflated = c["deflated"]!!.b64()
         val built = InnerMessage.buildBodyFromDeflated(from["id"]!!.b64(), c.obj("pin")!!["pairing_id"]!!.b64(), deflated, keys, if (type == "approve") 1024 else 512)
         assertArrayEquals(name, body, built)
-        assertEquals(name, InnerMessage.encodedChars(64 + body.size + 81), wire.length)
+        assertEquals(name, encodedChars(64 + body.size + 81), wire.length)
         if (padded) assertEquals(name, c.long("bucket").toInt(), wire.length) else assertEquals(name, c.long("wire_chars").toInt(), wire.length)
         // inflate and compare json; our JSON writer gives the same text
         assertEquals(name, c.str("json"), String(DeflateRaw.inflate(deflated)!!, Charsets.UTF_8))
@@ -159,7 +162,7 @@ class GoldenProtocolTest {
     @Test fun padding() {
         for (c in Golden.cases("padding")) {
             val ptLen = c.long("plaintext_len").toInt()
-            assertEquals(c.long("unpadded_chars").toInt(), InnerMessage.encodedChars(ptLen + 81))
+            assertEquals(c.long("unpadded_chars").toInt(), encodedChars(ptLen + 81))
             val bucket = InnerMessage.bucketFor(ptLen - 64)
             assertEquals(c.toString(), (c["bucket"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content?.toInt(), bucket)
             val padded = InnerMessage.paddedBodySize(ptLen - 64)?.plus(64)

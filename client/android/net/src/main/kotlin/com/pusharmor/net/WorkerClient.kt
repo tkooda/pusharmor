@@ -35,8 +35,6 @@ interface ClockOffset {
     var offsetS: Long
 }
 
-class MemoryClockOffset(override var offsetS: Long = 0) : ClockOffset
-
 /** Raw reply after retries. */
 class Reply(val status: Int, val json: JsonObject?, val retryAfter: Long?, val tooLarge: Boolean = false)
 

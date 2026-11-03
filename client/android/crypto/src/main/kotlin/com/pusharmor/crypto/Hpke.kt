@@ -99,17 +99,6 @@ class Hpke(private val aeadKeySize: Int = 32) {
         return labeledExpand(kemSuiteId, eaePrk, "shared_secret", kemContext, 32)
     }
 
-    /** RFC 9180 DeriveKeyPair for DHKEM(P-256): returns the 32-byte private scalar. */
-    fun deriveSecretKey(ikm: ByteArray): ByteArray {
-        val dkpPrk = labeledExtract(kemSuiteId, ByteArray(0), "dkp_prk", ikm)
-        for (counter in 0..255) {
-            val bytes = labeledExpand(kemSuiteId, dkpPrk, "candidate", byteArrayOf(counter.toByte()), 32)
-            val sk = java.math.BigInteger(1, bytes)
-            if (sk.signum() != 0 && sk < P256.N) return bytes
-        }
-        throw CryptoException("derive key pair")
-    }
-
     fun keySchedule(sharedSecret: ByteArray, info: ByteArray): Context {
         val pskIdHash = labeledExtract(hpkeSuiteId, ByteArray(0), "psk_id_hash", ByteArray(0))
         val infoHash = labeledExtract(hpkeSuiteId, ByteArray(0), "info_hash", info)

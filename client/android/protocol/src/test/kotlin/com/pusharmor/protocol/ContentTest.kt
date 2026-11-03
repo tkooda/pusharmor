@@ -7,6 +7,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ContentTest {
+    /** 90 pc of the content cap. */
+    private fun isNearCap(s: String): Boolean = SizeCap.utf8Size(s) * 10 >= SizeCap.MAX_CONTENT_BYTES * 9
+
     @Test fun catalogPhoneVectors() {
         assertTrue(Phone.isPhone("+1 555-123-4567"))
         assertTrue(Phone.isPhone("(555) 123.4567"))
@@ -73,7 +76,7 @@ class ContentTest {
         val e = "\ud83d\ude00".repeat(600) // 4 bytes each
         assertEquals(2048, SizeCap.utf8Size(SizeCap.truncateUtf8(e)))
         assertEquals(2045, SizeCap.utf8Size(SizeCap.truncateUtf8("a" + e)))
-        assertTrue(SizeCap.isNearCap("a".repeat(1844)))
-        assertFalse(SizeCap.isNearCap("a".repeat(1843)))
+        assertTrue(isNearCap("a".repeat(1844)))
+        assertFalse(isNearCap("a".repeat(1843)))
     }
 }
