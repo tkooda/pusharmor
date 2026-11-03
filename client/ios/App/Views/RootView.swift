@@ -22,7 +22,7 @@ struct RootView: View {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if !model.updateRequired && !model.showsTabs { ToastBanner() }
             }
-            .animation(.default, value: model.toast)
+            .animation(.easeOut(duration: 0.1), value: model.toast)
             .task(id: model.toast) {
                 guard let t = model.toast else { return }
                 #if DEBUG

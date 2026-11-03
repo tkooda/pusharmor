@@ -122,7 +122,7 @@ struct PeersView: View {
         guard let id = model.highlightPeer else { return }
         model.highlightPeer = nil
         pulseId = id
-        withAnimation { proxy.scrollTo(id, anchor: .center) }
+        withAnimation(.easeOut(duration: 0.1)) { proxy.scrollTo(id, anchor: .center) }
         Task {
             try? await Task.sleep(nanoseconds: 300_000_000)
             if reduceMotion {
