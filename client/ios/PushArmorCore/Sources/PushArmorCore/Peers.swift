@@ -349,17 +349,11 @@ extension Core {
     public func allSet() throws -> [Peer] { try store.peers().filter { $0.inAll } }
 }
 
-/// Which devices the Devices list and "Pair a new device" show.
+/// Which devices the Devices list shows.
 public enum DeviceList {
     /// The Devices list: a rejected device is hidden; a removed one shows only while History
     /// still holds rows from it (`withHistory`: peer ids with History rows).
     public static func visible(_ peers: [Peer], withHistory: Set<String>) -> [Peer] {
         peers.filter { $0.state != .denied && ($0.state != .removed || withHistory.contains($0.id.text)) }
-    }
-
-    /// "Pair a new device": rejected devices the relay server still lists, so [Pair] can start
-    /// a new pairing with them.
-    public static func rejected(_ peers: [Peer]) -> [Peer] {
-        PeerLabel.sorted(peers.filter { $0.state == .denied && $0.listed && $0.listEncPub != nil })
     }
 }

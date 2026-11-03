@@ -272,7 +272,6 @@ extension Core {
                                  authorized: false, unsent: false, startedAt: now, notBefore: 0, lastSendAt: 0)
             try store.savePairing(e)
             p.note = nil
-            if p.state == .denied { p.state = .unruled }   // [Pair] shows a rejected device again
             try store.savePeer(p)
             return e
         }
