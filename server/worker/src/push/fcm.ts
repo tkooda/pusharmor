@@ -2,7 +2,8 @@
 import type { Env } from "../env";
 import { deps, isNormal, ttlFor, type Cls, type VendorRequest } from "./deps";
 import { importRs256Private, signJwt } from "./jwt";
-import { getToken } from "./tokencache";
+import { oauthDetail } from "./results";
+import { getToken, MintError } from "./tokencache";
 
 const SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -28,11 +29,11 @@ export async function mintFcmToken(env: Env, force = false): Promise<string> {
         signal: AbortSignal.timeout(5000),
       });
       if (res.status !== 200) {
-        await res.body?.cancel();
-        throw new Error("fcm token");
+        const d = oauthDetail(res.status, await res.text().catch(() => ""));
+        throw new MintError("fcm token", d.code, d.msg);
       }
       const j = (await res.json()) as { access_token?: unknown; expires_in?: unknown };
-      if (typeof j.access_token !== "string" || typeof j.expires_in !== "number") throw new Error("fcm token");
+      if (typeof j.access_token !== "string" || typeof j.expires_in !== "number") throw new MintError("fcm token", "200-bad-body");
       const t = deps.now();
       return { value: j.access_token, mintedAt: t, useUntil: t + (j.expires_in - 300) * 1000 };
     },

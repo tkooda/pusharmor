@@ -6,6 +6,14 @@ export interface Outcome {
   code?: string; // vendor code, e.g. "fcm-404-UNREGISTERED"
   next: "none" | "retry" | "auth";
   retryAfterMs?: number;
+  log?: VendorDetail; // log-only detail; never part of a reply
+}
+
+// Vendor error detail for the log line only.
+export interface VendorDetail {
+  vendor: string; // e.g. "fcm-403-SENDER_ID_MISMATCH"
+  status?: string; // e.g. "PERMISSION_DENIED"
+  msg?: string; // vendor message, cleaned and cut to MSG_MAX characters
 }
 
 // Reason words that may appear in a result code. Anything else is dropped from the code.
@@ -67,6 +75,63 @@ function autopushRequestFault(body: string): boolean {
   }
 }
 
+export const MSG_MAX = 120;
+const WORD = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
+
+// Vendor message text safe to log: printable ASCII only, URLs and token-like runs (16+ chars
+// of letters, digits, and token punctuation that include a digit) replaced, cut to MSG_MAX.
+export function cleanMsg(m: unknown): string | undefined {
+  if (typeof m !== "string") return undefined;
+  let t = m.replace(/[^\x20-\x7e]/g, " ");
+  t = t.replace(/[a-z][a-z0-9+.-]*:\/\/\S*/gi, "[url]");
+  t = t.replace(/[A-Za-z0-9_\-:.\/=+%~]{16,}/g, (w) => (/[0-9]/.test(w) || w.length >= 32 ? "[redacted]" : w));
+  t = t.replace(/\s+/g, " ").trim().slice(0, MSG_MAX);
+  return t || undefined;
+}
+
+// FCM v1 error detail: error.status, details[].errorCode, and the message.
+export function fcmDetail(status: number, body: string): VendorDetail {
+  let st: string | undefined;
+  let ec: string | undefined;
+  let msg: string | undefined;
+  try {
+    const e = JSON.parse(body)?.error;
+    if (e && typeof e === "object") {
+      if (typeof e.status === "string" && WORD.test(e.status)) st = e.status;
+      if (Array.isArray(e.details)) {
+        for (const d of e.details) {
+          if (d && typeof d.errorCode === "string" && WORD.test(d.errorCode)) {
+            ec = d.errorCode;
+            break;
+          }
+        }
+      }
+      msg = cleanMsg(e.message);
+    }
+  } catch {
+    // no detail
+  }
+  const r = ec ?? st;
+  const out: VendorDetail = { vendor: r ? `fcm-${status}-${r}` : `fcm-${status}` };
+  if (st) out.status = st;
+  if (msg) out.msg = msg;
+  return out;
+}
+
+// OAuth token endpoint error detail: {"error": "...", "error_description": "..."}.
+export function oauthDetail(status: number, body: string): { code: string; msg?: string } {
+  let err: string | undefined;
+  let msg: string | undefined;
+  try {
+    const j = JSON.parse(body);
+    if (j && typeof j.error === "string" && WORD.test(j.error)) err = j.error;
+    msg = cleanMsg(j?.error_description);
+  } catch {
+    // no detail
+  }
+  return msg ? { code: err ? `${status}-${err}` : `${status}`, msg } : { code: err ? `${status}-${err}` : `${status}` };
+}
+
 export function apnsReason(body: string): string | undefined {
   try {
     const r = JSON.parse(body)?.reason;
@@ -86,6 +151,12 @@ function code(v: VendorName, status: number, reason?: string): string {
 }
 
 export function classify(v: VendorName, status: number, body: string, retryAfter: string | null): Outcome {
+  const o = classifyStatus(v, status, body, retryAfter);
+  if (v === "fcm" && o.kind !== "sent" && status >= 400) o.log = fcmDetail(status, body);
+  return o;
+}
+
+function classifyStatus(v: VendorName, status: number, body: string, retryAfter: string | null): Outcome {
   if (status >= 300 && status < 400) return { kind: "failed", code: `${v}-3xx`, next: "none" };
   const ra = parseRetryAfter(retryAfter);
   if (v === "fcm") {

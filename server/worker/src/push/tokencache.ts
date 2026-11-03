@@ -15,7 +15,12 @@ export const MAX_TOKENS = 256;
 export const MIN_FORCE_MS = 60 * 1000;
 
 // Thrown when mint() fails, so callers can tell a mint failure from other build errors.
-export class MintError extends Error {}
+// `code` and `msg` are log-only vendor detail (e.g. "400-invalid_grant"), never in a reply.
+export class MintError extends Error {
+  constructor(m: string, readonly code?: string, readonly msg?: string) {
+    super(m);
+  }
+}
 
 // Only "vapid:" keys are bounded and evicted. Fixed vendor tokens ("apns", "fcm") never are.
 const VAPID_PREFIX = "vapid:";

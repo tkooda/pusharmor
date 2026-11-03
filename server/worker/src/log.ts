@@ -7,6 +7,8 @@ export interface RecipientLog {
   bytes: number;
   result: string;
   vendor?: string;
+  vendor_status?: string; // FCM error.status, e.g. "PERMISSION_DENIED"
+  vendor_msg?: string; // vendor error message, cleaned of URLs and token-like strings
   retry: boolean;
 }
 

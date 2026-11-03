@@ -79,6 +79,54 @@ describe("result mapping, row by row (vendor-wrap 6)", () => {
     expect((await fanout(e, [f], new Log())).results[f.id]).toBe("failed:fcm-auth");
   });
 
+  it("fcm failures log error.status, details[].errorCode, and a cleaned message; replies unchanged", async () => {
+    const e = await testEnv();
+    const t = await target("fcm");
+    const tok = JSON.parse(t.push).token as string;
+    const fcmBody = (status: string, msg: string, errorCode?: string) =>
+      JSON.stringify({ error: { code: 403, message: msg, status, details: errorCode ? [{ errorCode }] : [] } });
+    const longMsg = "SenderId mismatch for " + tok + " at https://fcm.googleapis.com/v1/projects/p/messages:send key ya29.a0AfB_byC1234567890abcdef \u00e9 " + "word ".repeat(40);
+    onVendor(isSend("fcm"), () => new Response(fcmBody("PERMISSION_DENIED", longMsg, "SENDER_ID_MISMATCH"), { status: 403 }), 1);
+    let log = new Log();
+    let out = await fanout(e, [t], log);
+    expect(out.results[t.id]).toBe("failed:fcm-403-SENDER_ID_MISMATCH");
+    const r = log.recipients[0];
+    expect(r.vendor).toBe("fcm-403-SENDER_ID_MISMATCH");
+    expect(r.vendor_status).toBe("PERMISSION_DENIED");
+    expect(r.vendor_msg!.startsWith("SenderId mismatch for [redacted] at [url] key [redacted]")).toBe(true);
+    expect(r.vendor_msg!.length).toBe(120);
+    expect(/^[\x20-\x7e]*$/.test(r.vendor_msg!)).toBe(true);
+    const line = log.line();
+    expect(line).not.toContain(tok);
+    expect(line).not.toContain("ya29");
+    expect(line).not.toContain("googleapis");
+
+    onVendor(isSend("fcm"), () => new Response(fcmBody("PERMISSION_DENIED", "The caller does not have permission"), { status: 403 }), 1);
+    log = new Log();
+    out = await fanout(e, [t], log);
+    expect(out.results[t.id]).toBe("failed:fcm-403");
+    expect(log.recipients[0]).toMatchObject({ vendor: "fcm-403-PERMISSION_DENIED", vendor_status: "PERMISSION_DENIED", vendor_msg: "The caller does not have permission" });
+
+    onVendor(isSend("fcm"), () => new Response("not json", { status: 403 }), 1);
+    log = new Log();
+    out = await fanout(e, [t], log);
+    expect(out.results[t.id]).toBe("failed:fcm-403");
+    expect(log.recipients[0].vendor).toBe("fcm-403");
+    expect(log.recipients[0].vendor_status).toBeUndefined();
+    expect(log.recipients[0].vendor_msg).toBeUndefined();
+  });
+
+  it("fcm OAuth token failure logs the token endpoint error; reply stays failed:fcm-auth", async () => {
+    const e = await testEnv();
+    const f = await target("fcm");
+    const body = JSON.stringify({ error: "invalid_grant", error_description: "Invalid JWT Signature for eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJ4In0.c2ln" });
+    onVendor((r) => r.url === "https://oauth2.googleapis.com/token", () => new Response(body, { status: 400 }), 1);
+    const log = new Log();
+    expect((await fanout(e, [f], log)).results[f.id]).toBe("failed:fcm-auth");
+    expect(log.recipients[0]).toMatchObject({ result: "failed:fcm-auth", vendor: "fcm-auth-400-invalid_grant", vendor_msg: "Invalid JWT Signature for [redacted]" });
+    expect(log.line()).not.toContain("eyJ");
+  });
+
   it("network error -> failed:net after 3 retries; backoff 0.5, 1.5, 3 s", async () => {
     const e = await testEnv();
     onVendor(isSend("fcm"), () => {

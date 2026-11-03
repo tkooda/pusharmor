@@ -2,12 +2,12 @@
 // and the best-effort gone write-back.
 import type { Env } from "../env";
 import { nowS } from "../context";
-import type { Log } from "../log";
+import type { Log, RecipientLog } from "../log";
 import * as SQL from "../db/sql";
 import { buildApns, apnsMayRemint } from "./apns";
 import { deps, type Cls, type VendorRequest } from "./deps";
 import { buildFcm } from "./fcm";
-import { classify, type Outcome, type VendorName } from "./results";
+import { classify, type Outcome, type VendorDetail, type VendorName } from "./results";
 import { MintError } from "./tokencache";
 import { buildWebPush } from "./webpush";
 
@@ -121,6 +121,7 @@ async function attempt(v: VendorName, req: VendorRequest, timeoutMs: number): Pr
 interface Delivery {
   result: string; // sent | gone | not listening | failed:$code
   code?: string;
+  log?: VendorDetail;
   retried: boolean;
 }
 
@@ -146,6 +147,7 @@ async function deliver(env: Env, t: Target, slots: Slots): Promise<Delivery> {
         req = await build(env, t, force);
       } catch (e) {
         last = { kind: "failed", code: e instanceof MintError ? `${v}-auth` : `${v}-build`, next: "none" };
+        if (e instanceof MintError && e.code) last.log = e.msg ? { vendor: `${v}-auth-${e.code}`, msg: e.msg } : { vendor: `${v}-auth-${e.code}` };
         break;
       }
       a = await attempt(v, req, Math.min(ATTEMPT_MS, remaining));
@@ -168,9 +170,9 @@ async function deliver(env: Env, t: Target, slots: Slots): Promise<Delivery> {
   }
   const retried = retries > 0 || authUsed;
   if (last.kind === "sent") return { result: "sent", retried };
-  if (last.kind === "gone") return { result: "gone", code: last.code, retried };
+  if (last.kind === "gone") return { result: "gone", code: last.code, log: last.log, retried };
   if (last.kind === "not listening") return { result: "not listening", code: last.code, retried };
-  return { result: "failed:" + (last.code ?? "net"), code: last.code, retried };
+  return { result: "failed:" + (last.code ?? "net"), code: last.code, log: last.log, retried };
 }
 
 export interface FanoutOut {
@@ -188,7 +190,10 @@ export async function fanout(env: Env, targets: Target[], log: Log): Promise<Fan
     out.results[t.id] = d.result;
     if (d.result === "gone") out.gone.push({ id: t.id, push: t.push });
     if (d.result === "not listening") out.notListening.push(t.id);
-    log.recipients.push({ id: t.id, class: t.cls, bytes: t.m.length, result: d.result, vendor: d.code, retry: d.retried });
+    const r: RecipientLog = { id: t.id, class: t.cls, bytes: t.m.length, result: d.result, vendor: d.log?.vendor ?? d.code, retry: d.retried };
+    if (d.log?.status) r.vendor_status = d.log.status;
+    if (d.log?.msg) r.vendor_msg = d.log.msg;
+    log.recipients.push(r);
   });
   return out;
 }
