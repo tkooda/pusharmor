@@ -99,6 +99,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        plainLaunch = false // a tap that arrives before the tabs are up opens its own route, not Send
         handle(intent)
     }
 
