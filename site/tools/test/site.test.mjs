@@ -28,6 +28,7 @@ const files = listFiles(PUB);
 const htmlFiles = files.filter((f) => f.endsWith(".html"));
 const read = (rel) => readFileSync(join(PUB, rel), "utf8");
 const text = (rel) => pageText(read(rel));
+const APK_VERSION = /^versionName=(.+)$/m.exec(readFileSync(join(SITE, "..", "release", "version.properties"), "utf8"))[1];
 const rules = parseHeaders(read("_headers"));
 
 function siteFiles() {
@@ -432,7 +433,7 @@ test("minimum age 13 on /terms and /privacy", () => {
 test("download: every Android channel, release asset names, certificate fingerprint", () => {
   const t = text("download.html");
   assert.ok(t.includes("Google Play Coming soon"), "download lacks: Google Play");
-  assert.ok(t.includes("pusharmor-0.0.25-foss.apk") && t.includes("Check a downloaded APK"), "download lacks the APK entry");
+  assert.ok(t.includes("pusharmor-" + APK_VERSION + "-foss.apk") && t.includes("Check a downloaded APK"), "download lacks the APK entry");
   assert.ok(!t.includes("APK from GitHub Releases (below) Coming soon"), "APK still coming soon");
   const ids = ["android", "iphone", "chrome", "firefox", "cli"];
   const raw = read("download.html");
@@ -445,7 +446,7 @@ test("download: every Android channel, release asset names, certificate fingerpr
   assert.ok(!t.includes("F-Droid Coming soon"), "F-Droid still coming soon");
   assert.ok(read("download.html").includes('href="fdroidrepos://fdroid.pusharmor.com/repo?fingerprint=' + fp + '"'), "F-Droid add URL");
   assert.ok(t.includes("https://fdroid.pusharmor.com/repo") && t.includes(fp), "F-Droid repo address and fingerprint");
-  for (const s of ["pusharmor-0.0.25-play.apk", "pusharmor-0.0.25-foss.apk", "Signing certificate (SHA-256 fingerprint)"]) {
+  for (const s of ["pusharmor-" + APK_VERSION + "-play.apk", "pusharmor-" + APK_VERSION + "-foss.apk", "Signing certificate (SHA-256 fingerprint)"]) {
     assert.ok(t.includes(s), "download lacks: " + s);
   }
 });
