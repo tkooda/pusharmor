@@ -74,11 +74,13 @@ test("Check again: one signed POST /v1/peers/:id/check; sent clears the fault, r
   assert.equal((await check(r)).state.pushIssue, "fault");
 });
 
-test("Check again: 429, network errors, none, and unknown words read as failed; the message stays", async () => {
+test("Check again: 429 and network errors read as unable; unknown words and other HTTP errors as failed; none stays none; the message stays", async () => {
   const { w, a, r } = await setup();
   w.relayFault = true;
   await refresh(a);
   w.inject.push({ match: /POST \/v1\/peers\/[^/]+\/check$/, status: 429, body: { error: "rate limited" }, times: 1 });
+  assert.equal((await check(r)).result, "unable");
+  w.inject.push({ match: /POST \/v1\/peers\/[^/]+\/check$/, status: 400, body: { error: "bad request" }, times: 1 });
   assert.equal((await check(r)).result, "failed");
   for (const res of ["none", "later"]) {
     w.inject.push({ match: /POST \/v1\/peers\/[^/]+\/check$/, status: 200, body: { result: res }, times: 1 });
@@ -88,7 +90,7 @@ test("Check again: 429, network errors, none, and unknown words read as failed; 
   }
   const real = a.p.fetch;
   a.p.fetch = (u: string, init: RequestInit) => (u.endsWith("/check") ? Promise.reject(new TypeError("offline")) : real(u, init));
-  assert.equal((await check(r)).result, "failed");
+  assert.equal((await check(r)).result, "unable");
 });
 
 test("Check again: gone subscribes again and sends the new push address; a local cause skips the check", async () => {
@@ -129,23 +131,56 @@ async function clickCheck(): Promise<void> {
   await tick();
 }
 
-test("the message has Check again: sent shows Working. and hides it; failed keeps it with the failure line", async () => {
+const STILL = "\nStill cannot receive messages.";
+const UNABLE = "\nUnable to check right now. Try again later.";
+const VARIANTS: StateView[] = [
+  { pushIssue: "fault", pushVendor: "Mozilla" } as StateView,
+  { pushIssue: "refused" } as StateView,
+  { pushIssue: "relay" } as StateView,
+];
+
+test("every cannot-receive message has Check again: the relay-side fault, a refused push, and a push address the relay server did not accept", async () => {
+  for (const st of VARIANTS) {
+    await showPushIssue(env({ result: "local", state: st }), st);
+    await tick();
+    assert.equal(msg(), pushIssueText(st.pushIssue!, false, st.pushVendor));
+    await clickCheck();
+  }
+  body.kids = [];
+});
+
+test("Check again outcomes: sent shows Working. and hides the message; every other result keeps it with its line", async () => {
   const st = { pushIssue: "fault", pushVendor: "Mozilla" } as StateView;
+  const base = FAULT_LINE.replace("Google", "Mozilla");
   await showPushIssue(env({ result: "sent", state: { pushIssue: null } }), st);
   await tick();
-  assert.equal(msg(), FAULT_LINE.replace("Google", "Mozilla"));
+  assert.equal(msg(), base);
   await clickCheck();
   assert.equal(msg(), "Working.");
   assert.equal(toastEl()!.attrs.class, "toast ok");
 
-  await showPushIssue(env({ result: "failed", state: st }), st);
-  await tick();
-  await clickCheck();
-  assert.equal(msg(), FAULT_LINE.replace("Google", "Mozilla") + "\nUnable to check right now. Try again later.");
+  const cases: [unknown, string][] = [
+    [{ result: "relay", state: st }, base + STILL],
+    [{ result: "failed", state: st }, base + STILL],
+    [{ result: "later", state: st }, base + STILL], // an unknown word reads as failed
+    [{ result: "gone", state: { pushIssue: null } }, base + STILL], // the push address is new; the message stays
+    [{ result: "none", state: st }, base],
+    [{ result: "unable", state: st }, base + UNABLE],
+    [null, base + UNABLE], // no reply from the background
+  ];
+  for (const [reply, want] of cases) {
+    await showPushIssue(reply === null ? ({ call: async () => ({ ok: false, error: "no" }) } as unknown as UiEnv) : env(reply), st);
+    await tick();
+    await clickCheck();
+    assert.equal(msg(), want, JSON.stringify(reply));
+    assert.equal(toastEl()!.attrs.class.includes("ok"), false);
+  }
 
-  await showPushIssue(env({ result: "relay", state: st }), st);
+  // a local cause remains: the message for that cause, and the still line
+  const refused = { pushIssue: "refused" } as StateView;
+  await showPushIssue(env({ result: "local", state: refused }), st);
   await tick();
   await clickCheck();
-  assert.equal(msg(), FAULT_LINE.replace("Google", "Mozilla"));
+  assert.equal(msg(), pushIssueText("refused", false) + STILL);
   body.kids = [];
 });

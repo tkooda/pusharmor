@@ -160,10 +160,10 @@ async function checkPushAgain(env: UiEnv, st: StateView, b: HTMLButtonElement): 
   b.disabled = true;
   const r = await rpc<{ result: string; state: StateView }>(env, "pushCheck").catch(() => null);
   if (r?.result === "sent") return toast(T.pushWorking, "ok");
-  const now = r?.state ?? st;
-  if (!now.pushIssue) return dismissToast();
-  const failed = !r || r.result === "none" || r.result === "failed";
-  await showPushIssue(env, now, () => true, failed ? T.pushCheckFailed : "");
+  // every other result keeps the message (gone: the push address is new, but no test push arrived yet)
+  const now = r?.state.pushIssue ? r.state : st;
+  const note = !r || r.result === "unable" ? T.pushCheckFailed : r.result === "none" ? "" : T.pushStillCannot;
+  await showPushIssue(env, now, () => true, note);
 }
 
 /** Firefox setup is not finished; the setup tab opens only from this button, never on popup open. */

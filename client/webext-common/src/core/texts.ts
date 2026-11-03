@@ -67,6 +67,7 @@ export const T = {
   ffFinishSetup: "Finish setup in the Firefox setup tab.",
   pushWorking: "Working.",
   pushCheckFailed: "Unable to check right now. Try again later.",
+  pushStillCannot: "Still cannot receive messages.",
 } as const;
 
 /** Whose push service a push endpoint belongs to; by browser when the host is not known. */

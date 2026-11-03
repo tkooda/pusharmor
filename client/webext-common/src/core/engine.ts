@@ -1289,8 +1289,9 @@ export class Engine {
   /**
    * Check again on the cannot-receive message: local causes first (subscribe and PATCH again),
    * then one test push from the relay server. "local": a local cause remains (push_issue).
+   * "unable": no reply (network error) or HTTP 429.
    */
-  async checkPush(): Promise<"sent" | "relay" | "gone" | "none" | "failed" | "local"> {
+  async checkPush(): Promise<"sent" | "relay" | "gone" | "none" | "failed" | "local" | "unable"> {
     const self = await this.self();
     if (!self || (await this.regState()) !== "registered") return "failed";
     await this.pushReconcile(false, true).catch(() => undefined); // no setup tab from the popup
@@ -1298,8 +1299,8 @@ export class Engine {
     let word: unknown;
     try {
       word = (await this.api.call("POST", "/peers/" + self.id + "/check", { signer: this.signerOf(self), body: {}, noRetry: true })).json.result;
-    } catch {
-      return "failed"; // 429 and network errors too
+    } catch (e) {
+      return e instanceof ApiError && (e.status === 0 || e.status === 429) ? "unable" : "failed";
     }
     if (word === "relay") await this.db.setMeta("my_relay_fault", true);
     if (word === "sent" || word === "gone") await this.db.setMeta("my_relay_fault", false);
