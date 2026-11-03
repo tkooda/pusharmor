@@ -114,6 +114,9 @@ public enum S {
     public static let shareLoggedOut = ErrorCopy.Action.send.line + "\nThis device is logged out. Open PushArmor and log in."
     public static let shareNothing = ErrorCopy.Action.send.line + "\nThere is no text or URL to send."
     public static let shareNoPeers = ErrorCopy.Action.send.line + "\nThis device is not paired with any devices yet. Open PushArmor to pair."
+    /// The data or the keys did not open: the same reasons the app gives.
+    public static func shareDataFailed(_ e: Error) -> String { ErrorCopy.text(.send, ErrorCopy.reason(local: e)) }
+    public static let shareKeysUnusable = ErrorCopy.text(.send, .keysUnusable)
     public static let showContentSwitch = "Allow message content in notifications"
     public static let lockScreenSwitch = "Allow message content on lock screen"
     public static let peerShowContentSwitch = "Show message content in notifications"
