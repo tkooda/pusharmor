@@ -49,7 +49,7 @@ test("a start that fails after the database opened closes the connection", async
     return orig.call(this);
   };
   try {
-    const boot = lazyBoot(() => ({ storageLocal: { get: () => Promise.reject(new Error("boom")), set: async () => undefined } }) as never, new Uint8Array(0));
+    const boot = lazyBoot(() => ({ get platformName(): string { throw new Error("boom"); } }) as never, new Uint8Array(0));
     await assert.rejects(boot(), /boom/);
     await assert.rejects(boot(), /boom/);
     assert.equal(closed, 2); // one per failed try

@@ -13,29 +13,6 @@ export const UPDATE_NEEDED = "update_needed";
 /** storage.local: when "Check again" on the update screen last asked the relay server (ms). */
 export const RECHECK_AT = "recheck_at";
 export const REG_MARKER = "registered";
-export const SCHEMA_KEY = "schema";
-/** Layout version of the storage.local keys. Unversioned installs (no key) are v1. */
-export const SCHEMA_VERSION = 1;
-
-/** MIGRATIONS[n] upgrades the data from version n+1 to n+2. None yet. */
-const MIGRATIONS: ((kv: KV) => Promise<void>)[] = [];
-
-/**
- * Brings storage.local to SCHEMA_VERSION at boot. A missing version is v1 (the
- * layout before versioning), so existing data is only stamped, never changed.
- * A newer version (a downgrade) is left alone: nothing is rewritten or stamped.
- */
-export async function migrateStorage(kv: KV): Promise<void> {
-  const raw = (await kv.get([SCHEMA_KEY]))[SCHEMA_KEY];
-  let v = typeof raw === "number" && Number.isInteger(raw) && raw >= 1 ? raw : 1;
-  if (v > SCHEMA_VERSION) {
-    console.warn("storage schema v" + v + " is newer than this version (v" + SCHEMA_VERSION + "); data left untouched");
-    return;
-  }
-  for (; v < SCHEMA_VERSION; v++) await MIGRATIONS[v - 1]!(kv);
-  if (raw !== SCHEMA_VERSION) await kv.set({ [SCHEMA_KEY]: SCHEMA_VERSION });
-}
-
 export interface PairEntry {
   role: Role;
   state: PairState;

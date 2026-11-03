@@ -119,33 +119,6 @@ test("fx-sub: the sender page is matched exactly and the message shape is valida
   assert.equal(fxSubFields({ ...ok, p256dh: "" }), null);
 });
 
-test("storage.local schema version: unversioned data is stamped v1 untouched, newer is left alone", async () => {
-  const { MemKV } = await import("./harness.ts");
-  const { migrateStorage, SCHEMA_KEY, SCHEMA_VERSION } = await import("../src/core/state.ts");
-  const kv = new MemKV();
-  const before = { "pair:a": { role: "N", r: "secret" }, allow: ["a"], registered: true, net_not_before: 5 };
-  kv.data = structuredClone(before);
-  await migrateStorage(kv);
-  assert.equal(kv.data[SCHEMA_KEY], SCHEMA_VERSION);
-  const { [SCHEMA_KEY]: _s, ...rest } = kv.data;
-  assert.deepEqual(rest, before); // nothing reshaped
-  await migrateStorage(kv); // idempotent
-  assert.equal(kv.data[SCHEMA_KEY], SCHEMA_VERSION);
-  const fresh = new MemKV();
-  await migrateStorage(fresh);
-  assert.deepEqual(fresh.data, { [SCHEMA_KEY]: SCHEMA_VERSION });
-  const newer = new MemKV();
-  newer.data = { [SCHEMA_KEY]: SCHEMA_VERSION + 1, x: 1 };
-  await migrateStorage(newer);
-  assert.deepEqual(newer.data, { [SCHEMA_KEY]: SCHEMA_VERSION + 1, x: 1 });
-});
-
-test("boot runs the storage migration before the engine", async () => {
-  const { readFileSync } = await import("node:fs");
-  const src = readFileSync(new URL("../src/shellkit.ts", import.meta.url), "utf8");
-  assert.match(src, /await migrateStorage\(platform\.storageLocal\);\s+const engine = new Engine/);
-});
-
 test("push issue texts: two lines, Brave names its setting, the relay text says to try later", () => {
   assert.equal(pushIssueText("refused", true), 'Unable to turn on notifications.\nTurn on "Use Google services for push messaging" in Brave\'s privacy settings.');
   assert.equal(pushIssueText("refused", false), "Unable to turn on notifications.\nNotifications are not available on this device.");
