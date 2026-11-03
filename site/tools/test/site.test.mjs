@@ -448,9 +448,11 @@ test("minimum age 13 on /terms and /privacy", () => {
 
 test("download: every Android channel, release asset names, certificate fingerprint", () => {
   const t = text("download.html");
-  for (const c of ["Google Play", "F-Droid", "Obtainium, from GitHub Releases", "APK from GitHub Releases (below)"]) {
+  for (const c of ["Google Play", "F-Droid", "APK from GitHub Releases (below)"]) {
     assert.ok(t.includes(c + " Coming soon"), "download lacks: " + c);
   }
+  assert.ok(t.includes("Obtainium, from GitHub Releases: Add to Obtainium"), "download lacks the Obtainium entry");
+  assert.ok(read("download.html").includes('href="obtainium://app/'), "download lacks the Obtainium link");
   for (const s of ["pusharmor-<version>-play.apk", "pusharmor-<version>-foss.apk", "Signing certificate (SHA-256 fingerprint)"]) {
     assert.ok(t.includes(s), "download lacks: " + s);
   }
