@@ -87,7 +87,7 @@ test("the committed version files of each platform agree with each other", () =>
   };
   for (const [p, v] of Object.entries(held)) {
     // Between releases /download keeps the SHA-256 of the released pusharmor.py.
-    assert.deepEqual(stampProblems(REPO, v, [p]).filter((l) => !l.startsWith("site/public/download.html holds " + v + " / ")), [], p);
+    assert.deepEqual(stampProblems(REPO, v, [p]).filter((l) => p !== "cli" || !l.startsWith("site/public/download.html holds " + v + " / ")), [], p);
   }
 });
 
@@ -107,6 +107,19 @@ test("an Android stamp check fails when fdroid/android.txt holds another version
   const v = /^versionName=(.*)$/m.exec(readFileSync(join(d, "release/version.properties"), "utf8"))[1];
   writeFileSync(join(d, "site/public/fdroid/android.txt"), "0.0.0\n0\n");
   assert.deepEqual(stampProblems(d, v, ["android"]), ["site/public/fdroid/android.txt holds 0.0.0 / 0, want " + v + " / " + buildNumber(v)]);
+});
+
+test("an Android stamp check fails when an APK URL or file name on /download holds another version", (t) => {
+  const { d, bin } = scratch();
+  t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
+  const v = /^versionName=(.*)$/m.exec(readFileSync(join(d, "release/version.properties"), "utf8"))[1];
+  const f = join(d, "site/public/download.html");
+  const page = readFileSync(f, "utf8");
+  assert.deepEqual(stampProblems(d, v, ["android"]), []);
+  writeFileSync(f, page.replace("pusharmor-" + v + "-play.apk</a>", "pusharmor-0.0.1-play.apk</a>"));
+  assert.deepEqual(stampProblems(d, v, ["android"]), ["site/public/download.html holds " + v + " / " + v + ", 0.0.1, want " + v + " / " + v]);
+  writeFileSync(f, page.replace("/android/v" + v + "/pusharmor-" + v + "-foss.apk", "/android/v0.0.1/pusharmor-" + v + "-foss.apk"));
+  assert.deepEqual(stampProblems(d, v, ["android"]), ["site/public/download.html holds 0.0.1, " + v + " / " + v + ", want " + v + " / " + v]);
 });
 
 test("a Firefox stamp check fails when fx/beta/updates.json points at another XPI", (t) => {
@@ -220,6 +233,16 @@ test("CLI: stamp, commit, tag; second platform at the same commit; check mode", 
   assert.ok(page.includes('href="https://github.com/tkooda/pusharmor/releases/download/cli/v1.2.3/pusharmor.py"'));
   assert.ok(!/releases\/download\/cli\/v(?!1\.2\.3\/)/.test(page));
   assert.ok(page.includes('<code id="cli-sha256">' + createHash("sha256").update(readFileSync(join(d, "client/cli/pusharmor.py"))).digest("hex") + "</code>"));
+  for (const k of ["foss", "play"]) {
+    assert.ok(page.includes('href="https://github.com/tkooda/pusharmor/releases/download/android/v1.2.3/pusharmor-1.2.3-' + k + '.apk">pusharmor-1.2.3-' + k + ".apk</a>"), k);
+    assert.ok(page.includes('aria-label="Show QR code for pusharmor-1.2.3-' + k + '.apk"'), k);
+  }
+  assert.ok(page.includes("apksigner verify --print-certs pusharmor-1.2.3-foss.apk"));
+  assert.ok(!/releases\/download\/android\/v(?!1\.2\.3\/)/.test(page));
+  assert.ok(!/pusharmor-(?!1\.2\.3-)[0-9][^"<\s/]*-(foss|play)\.apk/.test(page));
+  // The APK and certificate SHA-256 values are not stamped (CI signs the APKs later).
+  const hashes = (h) => ["apk-foss-sha256", "apk-play-sha256", "apk-cert-sha256"].map((id) => new RegExp('<code id="' + id + '">([^<]*)<').exec(h)[1]);
+  assert.deepEqual(hashes(page), hashes(readFileSync(join(REPO, "site/public/download.html"), "utf8")));
   git("commit", "-q", "-am", "release 1.2.3");
   r = run("android", "1.2.3");
   assert.equal(r.status, 0, r.stderr);

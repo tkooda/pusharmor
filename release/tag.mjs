@@ -140,6 +140,19 @@ const FILES = [
     want: (v, root) => [v, cliSha256(root)],
     set: (s, v, root) => s.replaceAll(/(\/releases\/download\/cli\/v)[^/"<]*(\/pusharmor\.py)/g, "$1" + v + "$2").replace(/(<code id="cli-sha256">)[^<]*/, "$1" + cliSha256(root)),
   },
+  // The APK rows of /download: X.Y.Z in the foss and play release URLs (tag
+  // android/vX.Y.Z) and in each APK file name (link text, QR label, command).
+  // The SHA-256 values are known only after CI signs the APKs: not stamped.
+  {
+    path: "site/public/download.html",
+    platforms: ["android"],
+    get: (s) => [
+      [...new Set([...s.matchAll(/\/releases\/download\/android\/v([^/"<]*)\//g)].map((m) => m[1]))].join(", "),
+      [...new Set([...s.matchAll(/pusharmor-([0-9][^"<\s/]*)-(?:foss|play)\.apk/g)].map((m) => m[1]))].join(", "),
+    ],
+    want: (v) => [v, v],
+    set: (s, v) => s.replaceAll(/(\/releases\/download\/android\/v)[^/"<]*\//g, "$1" + v + "/").replaceAll(/pusharmor-[0-9][^"<\s/]*-(foss|play)\.apk/g, "pusharmor-" + v + "-$1.apk"),
+  },
   // The self-hosted update manifest of the Firefox Beta add-on: X.Y.Z and the
   // URL of the signed Beta XPI of the tag firefox/vX.Y.Z.
   {

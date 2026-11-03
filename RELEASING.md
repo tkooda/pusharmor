@@ -42,9 +42,10 @@ workflow in its first job):
   (Android), `client/chrome/manifest.json`, `client/firefox/manifest.json`,
   `client/ios/project.yml`, `client/cli/pusharmor.py` (VERSION and the version
   comment on line 2), `site/public/download.html` (the pusharmor.py release
-  URL and the SHA-256 of `client/cli/pusharmor.py` at the tag commit), and
-  `site/public/fdroid/android.txt` (Android versionName, then versionCode),
-  and `site/public/fx/beta/updates.json` (Firefox: the version and the URL of
+  URL and the SHA-256 of `client/cli/pusharmor.py` at the tag commit; for
+  Android, the foss and play APK URLs and file names; the APK and certificate
+  SHA-256 values are not stamped), `site/public/fdroid/android.txt`
+  (Android versionName, then versionCode), and `site/public/fx/beta/updates.json` (Firefox: the version and the URL of
   the Beta XPI of the tag).
 - `ci-ok` of the ci workflow succeeded on the tag commit (a push run; `gh api`
   with actions: read). The release workflow waits up to 40 minutes for it.
