@@ -195,7 +195,6 @@
     TEXT: TEXT,
     b64url: b64url,
     reqSigBytes: reqSigBytes,
-    sha256: sha256,
     sign: sign,
     newKey: newKey,
     saveKey: saveKey,

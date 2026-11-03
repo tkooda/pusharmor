@@ -17,7 +17,7 @@
   ! Content-Security-Policy
   ! Cache-Control
   X-Robots-Tag: noindex
-  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-3HWDzyMxFwlbKtmmE2R94eV2Mh6a4ejnKj6XEt3kdlg=' 'sha256-eUW3Gr/VOXdvt+0oFKvnJIEYjHOp+qcAusiTVtZwdpc=' 'sha256-3OHFl6JFDzP3wmR/qCqoK5sKxa3HjzVg7whO2BMjvWQ=' 'sha256-sjpYSdT8FYXquL47H4zNI/fHKpmFxxTkwmMCPqBpz+4=' 'sha256-jcgIjBklzaXdYB2k/WwQSiLyhQivr3dUUq/xVjWeA2U='; connect-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-3HWDzyMxFwlbKtmmE2R94eV2Mh6a4ejnKj6XEt3kdlg=' 'sha256-eUW3Gr/VOXdvt+0oFKvnJIEYjHOp+qcAusiTVtZwdpc=' 'sha256-bk0cTThpi9UuPYMBHbHt6niH/k5AXiPS/RzXIERbfK4=' 'sha256-sjpYSdT8FYXquL47H4zNI/fHKpmFxxTkwmMCPqBpz+4=' 'sha256-jcgIjBklzaXdYB2k/WwQSiLyhQivr3dUUq/xVjWeA2U='; connect-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   Cache-Control: no-cache
 
 /fx/sw.js
@@ -41,13 +41,13 @@
 /auth/cli
   ! Content-Security-Policy
   ! Cache-Control
-  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-3OHFl6JFDzP3wmR/qCqoK5sKxa3HjzVg7whO2BMjvWQ=' 'sha256-Q/GXshAWrekXiGroTWwdGhrx13DZk3cCfPjQTsxbV0I='; connect-src https://api.pusharmor.com; frame-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-bk0cTThpi9UuPYMBHbHt6niH/k5AXiPS/RzXIERbfK4=' 'sha256-Q/GXshAWrekXiGroTWwdGhrx13DZk3cCfPjQTsxbV0I='; connect-src https://api.pusharmor.com; frame-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   Cache-Control: no-store
   X-Robots-Tag: noindex
 
 /delete-account
   ! Content-Security-Policy
-  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-3OHFl6JFDzP3wmR/qCqoK5sKxa3HjzVg7whO2BMjvWQ=' 'sha256-jae6Ksb4O6DJYfILgvPD3bT4QzVwTQLXggLzXjBRlV4='; connect-src https://api.pusharmor.com; frame-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-bk0cTThpi9UuPYMBHbHt6niH/k5AXiPS/RzXIERbfK4=' 'sha256-jae6Ksb4O6DJYfILgvPD3bT4QzVwTQLXggLzXjBRlV4='; connect-src https://api.pusharmor.com; frame-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
 
 /about
   ! Content-Security-Policy
