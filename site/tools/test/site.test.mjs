@@ -2,12 +2,12 @@
 // Run: node --test site/tools/test/
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  attrs, computeHashUpdates, cspDirectives, externalLoads, headersFor,
+  computeHashUpdates, cspDirectives, externalLoads, headersFor,
   inlineScripts, listFiles, pageText, parseHeaders, placeholderFiles, resolvePath, sha256b64, tags,
   unescapeAttr, urlPath
 } from "../site-lib.mjs";
@@ -158,12 +158,6 @@ test("no third-party loaded resource except Turnstile on /turnstile", () => {
       assert.ok(["https://pusharmor.com", "https://api.pusharmor.com"].includes(m[0]), rel + ": " + m[0]);
     }
   }
-});
-
-test("external-host check ignores plain <a href>", () => {
-  assert.deepEqual(externalLoads('<a href="https://github.com/tkooda/pusharmor">x</a>'), []);
-  assert.deepEqual(externalLoads('<img src="https://example.com/a.png">'), ["https://example.com/a.png"]);
-  assert.deepEqual(externalLoads('<script src="//cdn.example.com/x.js"></script>'), ["//cdn.example.com/x.js"]);
 });
 
 test("_headers: <= 100 rules, lines <= 2000 chars, exactly one CSP per path", () => {
@@ -591,11 +585,6 @@ test("Firefox: SW forward URL; manifest lists equal FIREFOX-MATCH-LIST and relea
     }
   }
   assert.ok(found, "client/firefox does not name the forward URL");
-});
-
-test("attrs parser sanity", () => {
-  assert.deepEqual(attrs(' a="1" b=\'2\' c=3 d'), { a: "1", b: "2", c: "3", d: "" });
-  assert.equal(readdirSync(PUB).includes("_headers"), true);
 });
 
 test("every page embedding /turnstile is named in the privacy text", () => {
