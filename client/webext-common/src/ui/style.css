@@ -16,6 +16,8 @@ body { margin: 0; width: 400px; height: 560px; overflow: hidden; background: var
 .loading { padding: 48px 16px; text-align: center; color: var(--ink2); }
 /* Fills the space above a view's footer; at the end of a view it is the bottom padding. */
 .grow { flex: 1; min-height: 16px; }
+/* popup.html shown full screen (Firefox for Android): as wide and tall as the screen */
+body.full { width: auto; height: 100vh; height: 100dvh; }
 body.page { width: auto; height: auto; overflow: visible; }
 body.page #app { display: block; height: auto; }
 body.page #app { max-width: 640px; margin: 0 auto; padding: 24px 0 40px; }
@@ -23,7 +25,7 @@ p { margin: 0; }
 h1 { margin: 0 0 8px; font-size: 22px; line-height: 28px; font-weight: 600; color: var(--ink); }
 .dim, .t2 { font-size: 12px; line-height: 1.33334; color: var(--ink2); }
 .t1 { font-size: 14px; line-height: 1.42858; }
-.name { font-weight: 500; }
+.name { font-weight: 500; overflow-wrap: anywhere; }
 .txt { min-width: 0; }
 
 /* Header and tabs (sticky while the content scrolls). */
@@ -84,7 +86,7 @@ input[type=checkbox]:focus-visible { outline: 2px solid var(--primary); outline-
 /* Rows: icon tile, text, one trailing control. */
 .av { width: 32px; height: 32px; border-radius: var(--ra); background: var(--avbg); color: var(--avfg); display: grid; place-items: center; flex: none; }
 .av.bare { background: transparent; color: var(--ink2); }
-.prow { display: grid; grid-template-columns: 32px 1fr auto; gap: 12px; align-items: center; padding: 8px 8px 8px 16px; min-height: 52px; position: relative; }
+.prow { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 8px 8px 16px; min-height: 52px; position: relative; }
 .prow.target { padding-right: 16px; cursor: pointer; }
 .prow.off .t1, .prow.off .av { opacity: 0.5; }
 .line { overflow-wrap: anywhere; }
@@ -136,13 +138,13 @@ label.srow { cursor: pointer; }
 .pair { margin: 12px 16px 4px; background: var(--card); border: 1px solid var(--line); border-radius: var(--rc); padding: 14px 14px 4px; }
 .pair-head { display: flex; align-items: center; gap: 12px; }
 .pair-head .txt { flex: 1; }
-.pair-title { font-size: 15px; line-height: 20px; font-weight: 500; }
+.pair-title { font-size: 15px; line-height: 20px; font-weight: 500; overflow-wrap: anywhere; }
 .plate { margin-top: 12px; background: var(--plate); border-radius: var(--rp); padding: 12px 10px; text-align: center; }
 .plate-label { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; line-height: 1.45455; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: var(--ink2); }
 .plate-label svg { color: var(--primary); }
 .cells { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 12px auto 0; max-width: 232px; }
 .cell { width: 52px; height: 62px; display: grid; place-items: center; font: 600 32px ui-monospace, "Source Code Pro", monospace; color: var(--ink); background: var(--fpcell); border: 1px solid var(--ctl); border-radius: var(--rcell); }
-.plate p { margin-top: 12px; font-size: 13px; line-height: 1.38462; color: var(--ink2); }
+.plate p { margin-top: 12px; font-size: 13px; line-height: 1.38462; color: var(--ink2); overflow-wrap: anywhere; }
 .pair > .line { margin-top: 8px; }
 /* stacked by large text, the main action (on the right) goes on top */
 .pair-acts { display: flex; flex-wrap: wrap-reverse; gap: 8px; margin-top: 12px; }

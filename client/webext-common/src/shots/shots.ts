@@ -82,6 +82,13 @@ if (q.has("wait")) {
 
 // ?only=new: just the pairing-code device (first-pair screen with the fingerprint)
 if (q.get("only") === "new") peers.splice(0, peers.length, { ...peers.find((p) => p.id === NEW_LAPTOP)!, countdown: "4:12" });
+// ?long: long device names with no spaces (narrow screen check), and a rejected device
+if (q.has("long")) {
+  const long = "KitchenTabletOnTheCounterNextToTheWindow";
+  for (const p of peers) if (p.id === TABLET || p.id === NEW_LAPTOP) p.label = long;
+  peers.push({ id: id("R"), label: long + "Rejected", platform: "android", lines: [], actions: ["pair"], countdown: null,
+    fingerprint: null, pk: null, greyed: null, hidden: false, sendable: false, approvesMe: false, paired: false, rejected: true });
+}
 // ?senderr: Phone is selected and Send fails (the relay server cannot be reached)
 if (q.has("senderr")) sendSel = [PHONE];
 
@@ -124,6 +131,8 @@ const env: UiEnv = {
   saveFile: async () => null,
   copy: async () => undefined,
   beta: false,
+  // ?full: popup.html shown full screen (Firefox for Android)
+  inPopup: () => !q.has("full"),
   theme: memoryThemeStore(new URLSearchParams(location.search).get("theme")),
 };
 
@@ -137,6 +146,7 @@ async function main(): Promise<void> {
   document.documentElement.dataset.mode = MARKER;
   // ?bare: the popup alone at its real size (no store frame)
   if (q.has("bare")) document.documentElement.classList.add("bare");
+  if (q.has("full")) document.documentElement.classList.add("full");
   // ?zoom=2: lay the popup out at twice the size (headless Firefox screenshots ignore the pixel ratio)
   if (q.has("zoom")) document.documentElement.style.zoom = q.get("zoom")!;
   const tab = location.hash.slice(1) || "send";
