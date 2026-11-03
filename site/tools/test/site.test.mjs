@@ -452,7 +452,7 @@ test("download: every Android channel, release asset names, certificate fingerpr
     assert.ok(t.includes(c + " Coming soon"), "download lacks: " + c);
   }
   assert.ok(t.includes("Obtainium, from GitHub Releases: Add to Obtainium"), "download lacks the Obtainium entry");
-  assert.ok(read("download.html").includes('href="obtainium://app/'), "download lacks the Obtainium link");
+  assert.ok(read("download.html").includes('href="https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F'), "download lacks the Obtainium link");
   const fp = "262c4f2e9a0220ed48181a5c8650dd742372b220e628fe10e7eea2e9fe6ce4e3";
   assert.ok(t.includes("F-Droid: our F-Droid repository (below)"), "download lacks the F-Droid entry");
   assert.ok(!t.includes("F-Droid Coming soon"), "F-Droid still coming soon");
