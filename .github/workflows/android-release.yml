@@ -377,6 +377,8 @@ jobs:
       # Play internal track (edits.insert, bundles.upload, tracks.update,
       # edits.commit). Rerun this job after a failure; a committed upload is skipped.
       - name: Upload the AAB to the Play internal track
+        # bash -eo pipefail: a failed API call inside a pipe into jq fails the step.
+        shell: bash
         env:
           TOKEN: ${{ steps.auth.outputs.access_token }}
           AAB: ${{ steps.files.outputs.aab }}
