@@ -364,6 +364,32 @@ test("CLI: no tag unless ci-ok succeeded on HEAD; --ci checks the commit of the 
   assert.equal(run("--check", "ios/v90.0.7").status, 0);
 });
 
+test("CLI: no tag and no check pass for a commit that is not on origin/main", (t) => {
+  const { d, git, run, bin } = scratch();
+  const origin = mkdtempSync(join(tmpdir(), "pa-tag-origin-"));
+  t.after(() => [d, bin, origin].forEach((p) => rmSync(p, { recursive: true, force: true })));
+  git("init", "-q", "--bare", origin);
+  git("remote", "add", "origin", origin);
+  git("push", "-q", "origin", "main");
+  git("checkout", "-q", "-b", "x");
+  run("1.4.0", "chrome");
+  git("commit", "-q", "-am", "release 1.4.0");
+  git("push", "-q", "origin", "x");
+  let r = run("1.4.0", "chrome");
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /HEAD is not on origin\/main/);
+  assert.equal(git("tag", "-l"), "");
+  git("tag", "-a", "chrome/v1.4.0", "-m", "chrome 1.4.0");
+  r = run("--check", "chrome/v1.4.0");
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /HEAD is not on origin\/main/);
+  git("tag", "-d", "chrome/v1.4.0");
+  git("push", "-q", "origin", "x:main");
+  r = run("1.4.0", "chrome");
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(run("--check", "chrome/v1.4.0").status, 0);
+});
+
 test("platform subset: only those version files change; numbers are shared and never reused", (t) => {
   const { d, git, run, bin } = scratch();
   t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));

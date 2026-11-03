@@ -63,8 +63,9 @@ talks to the production Worker, and the public clients must keep working with it
    X.Y.Z yet, it writes them and stops (nothing tagged).
 2. Commit the version files ("release X.Y.Z") and push to main; wait for ci-ok.
 3. Check out that commit and run `node release/tag.mjs X.Y.Z <platform>...` again:
-   it fetches the tags of origin, checks the rules (ci-ok too, with your `gh`
-   login) and creates one annotated tag per platform.
+   it fetches the tags and main of origin, checks the rules (the commit is on
+   origin/main, and ci-ok, with your `gh` login) and creates one annotated tag
+   per platform.
 4. `git push origin <platform>/vX.Y.Z ...`. A platform added later to the same
    version: run step 3 for it at the SAME commit.
 
