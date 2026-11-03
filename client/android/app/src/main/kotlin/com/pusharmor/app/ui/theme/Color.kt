@@ -12,8 +12,6 @@ val BrandGreen = Color(0xFF34C77B) // "Push" is always this colour
 val OnBrandGreen = Color(0xFF0E2238)
 val CtaEdge = Color(0xFF157A4A) // light themes only
 val ArmorDark = Color(0xFFF3F6FA)
-val BetaFill = Color(0xFFF5B83D)
-val OnBeta = Color(0xFF3A2A00)
 
 val LightColors = lightColorScheme(
     primary = Color(0xFF1F3A5F), onPrimary = Color(0xFFFFFFFF),
