@@ -3,8 +3,8 @@
     "{549aa960-212f-41ba-b28c-7d7d1662bb57}": {
       "updates": [
         {
-          "version": "0.0.26",
-          "update_link": "https://github.com/tkooda/pusharmor/releases/download/firefox/v0.0.26/pusharmor-firefox-beta-0.0.26.xpi"
+          "version": "0.0.28",
+          "update_link": "https://github.com/tkooda/pusharmor/releases/download/firefox/v0.0.28/pusharmor-firefox-beta-0.0.28.xpi"
         }
       ]
     }
