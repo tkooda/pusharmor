@@ -367,7 +367,18 @@ jobs:
       - name: iOS 17 runtime and simulator device
         id: sim
         run: |
-          xcodebuild -downloadPlatform iOS -buildVersion "$OLDEST_IOS"
+          # A fresh runner may not have CoreSimulatorService up yet; the download
+          # then fails with "Unable to connect to simulator" (exit 70). Start the
+          # service first and retry the download.
+          xcrun simctl list runtimes > /dev/null
+          for i in 1 2 3; do
+            xcodebuild -downloadPlatform iOS -buildVersion "$OLDEST_IOS" && break
+            [ "$i" = 3 ] && exit 1
+            echo "download failed (attempt $i); restarting the simulator service"
+            sudo killall -9 com.apple.CoreSimulator.CoreSimulatorService 2>/dev/null || true
+            sleep 20
+            xcrun simctl list runtimes > /dev/null
+          done
           rt="$(xcrun simctl list runtimes -j | python3 -I -c '
           import json, sys
           want = sys.argv[1]
