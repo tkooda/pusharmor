@@ -1306,116 +1306,9 @@ final class StateMachineTests: XCTestCase {
         let path = NSTemporaryDirectory() + "pa-mig-\(UUID().uuidString).sqlite"
         _ = try Store(path: path)
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 1)
         XCTAssertEqual(try s.db.one("PRAGMA journal_mode")?.text("journal_mode"), "wal")
         XCTAssertNil(try s.me().id)
-    }
-
-    func testDBMigrationRenamesPauseColumns() throws {
-        let path = NSTemporaryDirectory() + "pa-mig2-\(UUID().uuidString).sqlite"
-        // Rebuild a version 1 file: the old column names, old event words, no listening column
-        // (migration 3) and user_version 1.
-        do {
-            let s = try Store(path: path)
-            try s.db.exec("ALTER TABLE peers DROP COLUMN listening")
-            try s.db.exec("ALTER TABLE me RENAME COLUMN logged_out TO paused")
-            try s.db.exec("ALTER TABLE peers RENAME COLUMN logged_out TO paused")
-            try s.db.exec("ALTER TABLE peers RENAME COLUMN logout_n TO pause_n")
-            try s.db.exec("UPDATE me SET paused = 1")
-            try s.db.exec("INSERT INTO peers (id, paused, pause_n) VALUES ('p1', 1, 7)")
-            try s.db.exec("""
-                INSERT INTO history (dir, type, content, event, created_local)
-                VALUES ('in', 'event', 'a', 'paused', 1), ('in', 'event', 'b', 'resumed', 2)
-                """)
-            try Self.undoPeerShowContent(s)
-            try s.db.exec("PRAGMA user_version = 1")
-        }
-        let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
-        XCTAssertTrue(try s.me().loggedOut)
-        let p = try s.db.one("SELECT logged_out, logout_n FROM peers WHERE id = 'p1'")
-        XCTAssertEqual(p?.int("logged_out"), 1)
-        XCTAssertEqual(p?.int("logout_n"), 7)
-        let ev = try s.db.query("SELECT event FROM history ORDER BY created_local").map { $0.text("event") }
-        XCTAssertEqual(ev, ["logged_out", "logged_in"])
-    }
-
-    func testDBMigrationAddsListeningDefaultTrue() throws {
-        let path = NSTemporaryDirectory() + "pa-mig3-\(UUID().uuidString).sqlite"
-        // Rebuild a version 2 file: no listening column, user_version 2.
-        do {
-            let s = try Store(path: path)
-            try s.db.exec("ALTER TABLE peers DROP COLUMN listening")
-            try s.db.exec("INSERT INTO peers (id, platform) VALUES ('p1', 'android')")
-            try Self.undoPeerShowContent(s)
-            try s.db.exec("PRAGMA user_version = 2")
-        }
-        let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
-        XCTAssertEqual(try s.db.one("SELECT listening FROM peers WHERE id = 'p1'")?.int("listening"), 1)
-        let a = TestPeer()
-        var p = Peer(id: a.id); p.listening = false; try s.savePeer(p)
-        XCTAssertEqual(try s.peer(a.id)?.listening, false)
-    }
-
-    func testDBMigrationClockOffsetToSeconds() throws {
-        let path = NSTemporaryDirectory() + "pa-mig4-\(UUID().uuidString).sqlite"
-        // Rebuild a version 3 file holding a ms offset.
-        do {
-            let s = try Store(path: path)
-            try s.db.exec("UPDATE me SET clock_offset = -7500")
-            try Self.undoPeerShowContent(s)
-            try s.db.exec("PRAGMA user_version = 3")
-        }
-        let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
-        XCTAssertEqual(try s.me().clockOffset, -7)
-    }
-
-    func testDBMigrationShowContentInvertsAlwaysHide() throws {
-        // Rebuild version 4 files: always_hide on, off, and absent.
-        for (old, want) in [("1", "0"), ("0", "1"), (nil, nil)] as [(String?, String?)] {
-            let path = NSTemporaryDirectory() + "pa-mig5-\(UUID().uuidString).sqlite"
-            do {
-                let s = try Store(path: path)
-                try s.setSetting("always_hide", old)
-                try Self.undoPeerShowContent(s)
-                try s.db.exec("PRAGMA user_version = 4")
-            }
-            let s = try Store(path: path)
-            XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
-            XCTAssertNil(try s.setting("always_hide"))
-            XCTAssertEqual(try s.setting(SettingKey.showContent), want)
-            XCTAssertEqual(try s.boolSetting(SettingKey.showContent, default: true), want != "0")
-        }
-    }
-
-    /// Rebuild the peers table as it was before migration 6: always_hide, no show_content.
-    static func undoPeerShowContent(_ s: Store) throws {
-        try s.db.exec("ALTER TABLE peers ADD COLUMN always_hide INTEGER NOT NULL DEFAULT 0")
-        try s.db.exec("ALTER TABLE peers DROP COLUMN show_content")
-    }
-
-    func testDBMigrationPeerShowContentInvertsAlwaysHide() throws {
-        // Rebuild a version 5 file: one peer with always_hide on, one off.
-        let path = NSTemporaryDirectory() + "pa-mig6-\(UUID().uuidString).sqlite"
-        do {
-            let s = try Store(path: path)
-            try Self.undoPeerShowContent(s)
-            try s.db.exec("INSERT INTO peers (id, always_hide) VALUES ('p1', 1), ('p2', 0)")
-            try s.db.exec("PRAGMA user_version = 5")
-        }
-        let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
-        XCTAssertEqual(try s.db.one("SELECT show_content FROM peers WHERE id = 'p1'")?.int("show_content"), 0)
-        XCTAssertEqual(try s.db.one("SELECT show_content FROM peers WHERE id = 'p2'")?.int("show_content"), 1)
-        let cols = try s.db.query("PRAGMA table_info(peers)").compactMap { $0.text("name") }
-        XCTAssertFalse(cols.contains("always_hide"))
-        let a = TestPeer()
-        try s.savePeer(Peer(id: a.id))
-        XCTAssertEqual(try s.peer(a.id)?.showContent, true)                 // new peers default to on
-        var p = try s.peer(a.id)!; p.showContent = false; try s.savePeer(p)
-        XCTAssertEqual(try s.peer(a.id)?.showContent, false)
     }
 
     /// a corrupt pa.sqlite is only reported: the file stays as it was and nothing runs. Only
@@ -1432,7 +1325,7 @@ final class StateMachineTests: XCTestCase {
         let s = try await StoreRepair.reset(path: path) { called += 1 }
         XCTAssertEqual(called, 1)
         XCTAssertNil(try s.me().id)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 1)
         try s.setMe("name", .text("kept"))
         let s2 = try XCTUnwrap(try StoreRepair.open(path: path))
         XCTAssertEqual(called, 1)

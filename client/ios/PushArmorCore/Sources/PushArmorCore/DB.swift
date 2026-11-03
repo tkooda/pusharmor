@@ -182,7 +182,7 @@ enum Schema {
           last_push_sha256 TEXT,
           push_missing INTEGER NOT NULL DEFAULT 0,
           removed INTEGER NOT NULL DEFAULT 0,
-          paused INTEGER NOT NULL DEFAULT 0,
+          logged_out INTEGER NOT NULL DEFAULT 0,
           last_fetch_at INTEGER NOT NULL DEFAULT 0,
           fetch_due INTEGER NOT NULL DEFAULT 0,
           signed_in_email TEXT,
@@ -203,14 +203,15 @@ enum Schema {
           get_approves_me INTEGER, get_denies_me INTEGER, get_at INTEGER,
           denied_me_msg INTEGER NOT NULL DEFAULT 0,
           reachable INTEGER NOT NULL DEFAULT 0,
-          paused INTEGER NOT NULL DEFAULT 0,
-          pause_n INTEGER NOT NULL DEFAULT 0,
+          logged_out INTEGER NOT NULL DEFAULT 0,
+          logout_n INTEGER NOT NULL DEFAULT 0,
           platform TEXT, created INTEGER,
           name TEXT, name_n INTEGER NOT NULL DEFAULT 0,
           pending_name TEXT, pending_n INTEGER NOT NULL DEFAULT 0,
           hidden INTEGER NOT NULL DEFAULT 0,
           lock_show INTEGER NOT NULL DEFAULT 1,
-          always_hide INTEGER NOT NULL DEFAULT 0,
+          show_content INTEGER NOT NULL DEFAULT 1,
+          listening INTEGER NOT NULL DEFAULT 1,
           last_n INTEGER NOT NULL DEFAULT 0,
           pairing_id BLOB,
           fingerprint TEXT,
@@ -252,39 +253,10 @@ enum Schema {
           created_local INTEGER NOT NULL
         );
         CREATE INDEX history_msg ON history(peer_id, pairing_id, n);
+        CREATE INDEX history_created ON history(created_local);
         CREATE TABLE allow_set (id TEXT PRIMARY KEY);
         CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
         INSERT INTO me (k) VALUES (1);
-        """,
-        """
-        ALTER TABLE me RENAME COLUMN paused TO logged_out;
-        ALTER TABLE peers RENAME COLUMN paused TO logged_out;
-        ALTER TABLE peers RENAME COLUMN pause_n TO logout_n;
-        UPDATE history SET event = 'logged_out' WHERE event = 'paused';
-        UPDATE history SET event = 'logged_in' WHERE event = 'resumed';
-        """,
-        """
-        ALTER TABLE peers ADD COLUMN listening INTEGER NOT NULL DEFAULT 1;
-        """,
-        // clock_offset is now unix seconds (was ms).
-        """
-        UPDATE me SET clock_offset = clock_offset / 1000;
-        """,
-        // Always hide content became Show message content in notifications, inverted.
-        """
-        INSERT OR IGNORE INTO settings (key, value)
-          SELECT 'show_content', CASE value WHEN '1' THEN '0' ELSE '1' END FROM settings WHERE key = 'always_hide';
-        DELETE FROM settings WHERE key = 'always_hide';
-        """,
-        // Per-device Always hide content became Allow message content in notifications, inverted.
-        """
-        ALTER TABLE peers ADD COLUMN show_content INTEGER NOT NULL DEFAULT 1;
-        UPDATE peers SET show_content = CASE always_hide WHEN 0 THEN 1 ELSE 0 END;
-        ALTER TABLE peers DROP COLUMN always_hide;
-        """,
-        // History retention deletes by age.
-        """
-        CREATE INDEX IF NOT EXISTS history_created ON history(created_local);
         """,
     ]
 
