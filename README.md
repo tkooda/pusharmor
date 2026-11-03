@@ -24,7 +24,8 @@ exact commands.
   `swift test --package-path client/ios/PushArmorCore`, then
   `xcodebuild build -project PushArmor.xcodeproj -scheme PushArmor -configuration Debug -destination "generic/platform=iOS Simulator" CODE_SIGNING_ALLOWED=NO`
 - Worker (`server/worker`): `npm ci --ignore-scripts && npm run typecheck && npm test`
-- Site (`site`): `npm ci --ignore-scripts && node --test 'site/tools/test/*.test.mjs'`
+- Site (`site`): `(cd site && npm ci --ignore-scripts)`, then from the repo root
+  `node --test 'site/tools/test/*.test.mjs'`
 
 See the README in each directory for details.
 
