@@ -41,7 +41,7 @@ export const T = {
   pairFailed: (x: string) => "Unable to pair with " + quoted(x) + ".\nClick Pair to start again.",
   pairTimedOut: (x: string) => "Unable to pair with " + quoted(x) + ".\nIt did not answer in time. Click Pair to start again.",
   pairing: "Pairing...",
-  pairingWith: (x: string) => "Pairing with " + quoted(x) + ": compare the codes on both devices, then click Codes match only if they are the same.",
+  pairingWith: (x: string) => "Pairing with " + quoted(x) + ". Waiting for its reply.",
   wantsToPair: (x: string) => quoted(x) + " wants to pair.",
   waiting: (x: string) => "Waiting for " + quoted(x) + ": open PushArmor there, compare the codes on both devices, and click Codes match only if they are the same.",
   noReplyYet: (x: string) => "No reply yet. Open PushArmor on " + quoted(x) + ", or click Send again.",

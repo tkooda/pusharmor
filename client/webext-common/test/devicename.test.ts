@@ -28,7 +28,7 @@ test("device name texts keep their words, with the name quoted", () => {
   assert.equal(T.notPairedOn("X"), 'Not paired on "X".');
   assert.equal(T.wantsToPair("X"), '"X" wants to pair.');
   assert.equal(T.pairCrossing("X"), 'Pairing with "X" is in progress. Open PushArmor.');
-  assert.equal(T.pairingWith("X"), 'Pairing with "X": compare the codes on both devices, then click Codes match only if they are the same.');
+  assert.equal(T.pairingWith("X"), 'Pairing with "X". Waiting for its reply.');
   assert.equal(T.waiting("X"), 'Waiting for "X": open PushArmor there, compare the codes on both devices, and click Codes match only if they are the same.');
   assert.equal(T.noReplyYet("X"), 'No reply yet. Open PushArmor on "X", or click Send again.');;
   assert.equal(T.removeConfirm("X"), 'Remove "X" from this account? It must log in again and pair with every device again.');

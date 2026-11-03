@@ -1675,7 +1675,7 @@ export class Engine {
       lines.push(T.waiting(nm));
       if (e.approve_result && e.approve_result !== "sent" && e.approve_result !== "stored" && e.approve_result !== "denied") actions.push("approve_again");
     } else if (e.state === "committed") {
-      lines.push(T.pairingWith(nm), T.pairing);
+      lines.push(T.pairingWith(nm)); // the codes and how to compare them come in state shown
       const hint = pairHint((await this.db.meta<string[]>("listed"))?.includes(x) ? peer.approves_me : null, t - e.started);
       if (hint === "still_holds") lines.push(T.stillHolds(nm));
       else if (hint === "no_reply_yet") lines.push(T.noReplyYet(nm));

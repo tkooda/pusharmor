@@ -837,7 +837,8 @@ test("N-side hint: approves_me true while committed reads still holds an earlier
   assert.ok(v.lines.includes(T.stillHolds(label)));
   await a.db.putPeer({ ...(await a.db.peer(b.id))!, approves_me: false });
   assert.ok((await a.e.pairRowView(b.id))!.lines.includes(T.noReplyYet(label)));
-  assert.equal((await a.e.pairRowView(b.id))!.lines[0], 'Pairing with "' + label + '": compare the codes on both devices, then click Codes match only if they are the same.');
+  assert.equal((await a.e.pairRowView(b.id))!.lines[0], 'Pairing with "' + label + '". Waiting for its reply.');
+  assert.ok(!(await a.e.pairRowView(b.id))!.lines.some((l) => /compare|Pairing\.\.\./.test(l))); // no code check before the codes show
 });
 
 test("clock skew on POST /approve: a new n and new bytes in the retry", async () => {
