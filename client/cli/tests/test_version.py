@@ -57,3 +57,11 @@ def test_cryptography_hint_on_windows_uses_py(tmp_path):
     assert r.returncode == 1
     assert r.stderr == ('error: The Python "cryptography" package is missing. Install it with: '
                         "py -m pip install --user cryptography\n")
+
+
+def test_version_flag_prints_version(capsys):
+    import pytest
+    with pytest.raises(SystemExit) as e:
+        pa.main(["--version"])
+    assert e.value.code == 0
+    assert capsys.readouterr().out == "pusharmor " + pa.VERSION + "\n"
