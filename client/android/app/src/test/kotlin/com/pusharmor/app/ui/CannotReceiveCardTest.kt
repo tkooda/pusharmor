@@ -125,7 +125,7 @@ class CannotReceiveCardTest {
         assertTrue(cards(b) == 0)
     }
 
-    /** Live check: UnifiedPush in use and no UnifiedPush app -> card with both store buttons; one installed -> no card on the next open. */
+    /** Live check: UnifiedPush in use and no UnifiedPush app -> card with the one Get a UnifiedPush app button; one installed -> no card on the next open. */
     @Test fun noPushAppCardFollowsInstalledApps() {
         val saved = UnifiedPushSupport.installed
         try {
@@ -136,7 +136,7 @@ class CannotReceiveCardTest {
             val (a, _) = show(app, Session.Start.READY)
             assertTrue(cards(a) == 1)
             assertTrue(nodes(a).count { text(it) == UiText.noPushApp(app.graph.push.hasPlayServices) } == 1)
-            assertTrue(nodes(a).count { text(it) == "Get ntfy" } == 1 && nodes(a).count { text(it) == "Get Sunup" } == 1)
+            assertTrue(nodes(a).count { text(it) == UiText.GET_PUSH_APP } == 1 && nodes(a).none { text(it) == "Get ntfy" || text(it) == "Get Sunup" })
             UnifiedPushSupport.installed = { listOf("io.heckel.ntfy") }
             app.graph.settings.set(Settings.K.BANNER, "no_distributor") // a stale flag does not bring the card back
             val (b, _) = show(app, Session.Start.READY)

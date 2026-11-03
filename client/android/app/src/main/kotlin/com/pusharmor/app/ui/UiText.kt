@@ -87,6 +87,13 @@ object UiText {
     /** Push method dialog: what the UnifiedPush choice needs. */
     const val UNIFIEDPUSH_NOTE = "Uses the free ntfy or Sunup app. Install one, keep its default server, then return to PushArmor."
 
+    /** One button, in the cannot-receive card and in Push method, opens the choice of UnifiedPush apps. */
+    const val GET_PUSH_APP = "Get a UnifiedPush app"
+    const val NTFY_NAME = "ntfy (recommended)"
+    const val NTFY_ABOUT = "Free and open source. Keeps a light connection to deliver messages right away."
+    const val SUNUP_NAME = "Sunup"
+    const val SUNUP_ABOUT = "Free and open source. Delivers through Mozilla's push service."
+
     /** True while this device cannot show or get messages: notifications off or blocked, no push app, or a refused push address. */
     fun cannotReceive(enabled: Boolean, channelsBlocked: Boolean, noPushApp: Boolean, refused: Boolean): Boolean =
         !enabled || channelsBlocked || noPushApp || refused

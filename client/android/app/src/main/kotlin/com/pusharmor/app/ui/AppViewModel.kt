@@ -374,6 +374,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         withContext(Dispatchers.Main) { onDone() }
     }
     fun switchPush(toUp: Boolean) = io(UiText.UNABLE_CHANGE_SETTING) { if (toUp) g.push.switchToUnifiedPush(g) else g.push.switchToGoogle(g) }
+    /** Push method choice: [PUSH_GOOGLE] or the package of an installed UnifiedPush app. */
+    fun choosePush(choice: String) = io(UiText.UNABLE_CHANGE_SETTING) {
+        if (choice == PUSH_GOOGLE) { g.push.switchToGoogle(g); return@io }
+        com.pusharmor.app.push.UnifiedPushSupport.pick(g, choice)
+        if (!com.pusharmor.app.push.UnifiedPushSupport.active(g)) g.push.switchToUnifiedPush(g)
+    }
     fun retryPush() = io(UiText.UNABLE_TURN_ON_NOTIFICATIONS) { com.pusharmor.app.work.Work.patchPush(g.app) }
 
     /** On each return to the app when signed in: register with a UnifiedPush app installed meanwhile. */

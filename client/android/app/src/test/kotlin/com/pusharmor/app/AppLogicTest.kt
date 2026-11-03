@@ -301,7 +301,7 @@ class AppLogicTest {
         assertTrue(settings.contains("sub = \"When off, tapping opens the message in PushArmor, so you can check the URL first.\""))
         assertTrue(settings.contains("SettingRow(\"Delete messages older than\", modifier = m, value = UiText.days(days))"))
         assertTrue(settings.contains("SettingRow(\"Theme\", modifier = m, value = themePref.label)"))
-        assertTrue(settings.contains("SettingRow(\"Push method\", modifier = Modifier, value = pushLabel(up))"))
+        assertTrue(settings.contains("SettingRow(\"Push method\", modifier = m, value = pushName(pushNow))"))
         assertFalse(settings.contains("Keep messages for"))
     }
 
