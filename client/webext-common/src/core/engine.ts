@@ -1523,6 +1523,8 @@ export class Engine {
     const self = await this.self();
     if (!self) return;
     if (!isPrintableName(name)) throw new ReasonError(R.badName);
+    // the same name: nothing to tell the other devices
+    if (name === (await this.myName())) return;
     let names: Record<string, string> = {};
     await this.allowListCall(
       "PATCH",

@@ -1515,3 +1515,17 @@ test("the History purge also keeps only the newest 500 rows", async () => {
   assert.equal(rows.length, 500);
   assert.equal(rows[499]!.content, "m10");
 });
+
+test("renaming this device to its current name does nothing: no relay call, no notice on the other device", async () => {
+  const { w, a, b } = await setup();
+  await refresh(a, b);
+  await pairAndApprove(w, a, b);
+  await a.e.rename("Desk");
+  await deliver(w, b);
+  const calls = w.calls.length;
+  const notes = b.p.notes.size;
+  await a.e.rename("Desk");
+  assert.equal(w.calls.length, calls);
+  assert.equal(await deliver(w, b), 0);
+  assert.equal(b.p.notes.size, notes);
+});
