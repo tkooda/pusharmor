@@ -250,6 +250,23 @@ async function http(method, url, { headers = {}, body, ok = [200, 201, 202, 204]
   return { status: r.status, json };
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Wrap an AMO request function: when AMO answers HTTP 429, wait the time its
+ *  message names ("Expected available in N seconds", else 60 s) plus 2 s and
+ *  send the request again, up to 5 times. */
+export function amoRetry(amo, wait = sleep) {
+  return async (...args) => {
+    for (let n = 0; ; n++) {
+      try {
+        return await amo(...args);
+      } catch (e) {
+        const m = String(e?.message || "");
+        if (n >= 5 || !/HTTP 429/.test(m)) throw e;
+        await wait(Number(/Expected available in (\d+) second/.exec(m)?.[1] ?? 60) * 1000 + 2000);
+      }
+    }
+  };
+}
 const sha256 = (b) => createHash("sha256").update(b).digest("hex");
 
 /** gh arguments that verify the build provenance attestation of file: made by
@@ -671,8 +688,8 @@ export async function syncAmoPreviews({ amo, id, shots }) {
 export async function firefox(version) {
   const api = "https://addons.mozilla.org/api/v5/addons";
   const id = encodeURIComponent(loadPublic().mozilla_firefox_addon_id);
-  const amo = (method, path, body, ok) =>
-    http(method, api + path, { headers: { Authorization: "JWT " + amoToken(process.env.MOZILLA_AMO_JWT_ISSUER, process.env.MOZILLA_AMO_JWT_SECRET) }, body, ok });
+  const amo = amoRetry((method, path, body, ok) =>
+    http(method, api + path, { headers: { Authorization: "JWT " + amoToken(process.env.MOZILLA_AMO_JWT_ISSUER, process.env.MOZILLA_AMO_JWT_SECRET) }, body, ok }));
 
   // The listing previews: the plain AMO screenshots (store/screenshots/amo).
   const previews = () => syncAmoPreviews({ amo, id, shots: screenshotFiles("amo") });

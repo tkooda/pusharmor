@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, verify } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { AMO_REVIEW_NOTES, amoNotesProblems, amoToken, ascToken, attestationArgs, clearOutput, cmpVersion, commitProblems, contactProblems, listingProblems, playGateProblem, readListing, releaseAssets, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncAmoPreviews, syncScreenshots, tagPlatform } from "./promote.mjs";
+import { AMO_REVIEW_NOTES, amoNotesProblems, amoRetry, amoToken, ascToken, attestationArgs, clearOutput, cmpVersion, commitProblems, contactProblems, listingProblems, playGateProblem, readListing, releaseAssets, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncAmoPreviews, syncScreenshots, tagPlatform } from "./promote.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -408,4 +408,23 @@ test("the Firefox store job sends store/screenshots/amo as the AMO previews", ()
   assert.match(ff, /syncAmoPreviews\(\{ amo, id, shots: screenshotFiles\("amo"\) \}\)/);
   assert.equal((ff.match(/await previews\(\)/g) || []).length, 2);
   assert.ok(readdirSync(join(ROOT, "store", "screenshots", "amo", "en-US")).filter((f) => f.endsWith(".png")).length > 0);
+});
+
+test("AMO calls wait the named time plus 2 s and retry on HTTP 429, at most 5 times", async () => {
+  const waits = [];
+  let n = 0;
+  const amo = amoRetry(async () => {
+    if (n++ < 1) throw new Error('POST /x: HTTP 429: {"detail":"Request was throttled. Expected available in 56 seconds."}');
+    return { status: 201 };
+  }, async (ms) => void waits.push(ms));
+  assert.equal((await amo("POST", "/x")).status, 201);
+  assert.deepEqual(waits, [58000]);
+  waits.length = 0;
+  n = 0;
+  const always = amoRetry(async () => (n++, Promise.reject(new Error("GET /x: HTTP 429: {}"))), async (ms) => void waits.push(ms));
+  await assert.rejects(always("GET", "/x"), /HTTP 429/);
+  assert.equal(n, 6);
+  assert.deepEqual(waits, [62000, 62000, 62000, 62000, 62000]);
+  const other = amoRetry(async () => { throw new Error("HTTP 400"); }, async () => assert.fail("slept"));
+  await assert.rejects(other("GET", "/x"), /HTTP 400/);
 });
