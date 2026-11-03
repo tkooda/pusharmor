@@ -1,7 +1,7 @@
 # Releasing
 
 A tag builds ONE platform and uploads it to that platform's test channel and to
-a GitHub prerelease. A tag never publishes to a public channel. After testing
+a GitHub release. A tag never publishes to a public channel. After testing
 on devices, the owner promotes the same build with the promote workflow (below)
 or by hand in each store console. Nothing is rebuilt for the promotion. The
 site has no tag and a push to main does NOT deploy it: deploy it by hand with
@@ -10,10 +10,10 @@ gitignored `site/dist` first, so the tree stays clean; `site/README.md`).
 
 | Tag              | CI uploads to (test channel)                          | Owner promotes (promote workflow or by hand)    |
 |------------------|-------------------------------------------------------|-------------------------------------------------|
-| `android/vX.Y.Z` | Play internal track, GitHub prerelease (Obtainium)    | Play production, GitHub release, F-Droid        |
-| `ios/vX.Y.Z`     | TestFlight (no review submission), GitHub prerelease  | App Store (see NOTE), GitHub release            |
-| `chrome/vX.Y.Z`  | private "PushArmor Beta" item, GitHub prerelease      | public zip to the public item, GitHub release   |
-| `firefox/vX.Y.Z` | unlisted "PushArmor Beta" add-on, GitHub prerelease   | public zip to the listed add-on, GitHub release |
+| `android/vX.Y.Z` | Play internal track, GitHub release (Obtainium)       | Play production, GitHub release, F-Droid        |
+| `ios/vX.Y.Z`     | TestFlight (no review submission), GitHub release     | App Store (see NOTE), GitHub release            |
+| `chrome/vX.Y.Z`  | private "PushArmor Beta" item, GitHub release         | public zip to the public item, GitHub release   |
+| `firefox/vX.Y.Z` | unlisted "PushArmor Beta" add-on, GitHub release      | public zip to the listed add-on, GitHub release |
 | `worker/vX.Y.Z`  | nothing (build and tests only)                        | `server/deploy/deploy.sh worker/vX.Y.Z`         |
 
 NOTE: the App Store version is released automatically after approval
@@ -73,7 +73,7 @@ because platform versions differ; set a floor only for platforms that have it.
 
 A failed upload after the store accepted the file is fixed with a new patch
 version. Each tag workflow creates the GitHub release as a draft, uploads every
-asset, then publishes it as a prerelease. A rerun replaces the assets of a
+asset, then publishes it as a release. A rerun replaces the assets of a
 draft; it never changes a published release.
 
 ## Promote workflow (all stores)
@@ -104,8 +104,8 @@ and runs with the store's release Environment:
 |------------|-----------------------------------------------------------------------------|
 | `play`     | Play versionCode of X.Y.Z (already on the internal track) to production, status completed; listing text and phone screenshots |
 | `appstore` | TestFlight build of X.Y.Z on the version page X.Y.Z, version page text, app name, subtitle, privacy URL, review notes, 6.9-inch screenshots; submits for App Review, release after approval |
-| `chrome`   | `pusharmor-chrome-X.Y.Z.zip` of the prerelease (hash checked) to the public item, then publish (live after review) |
-| `firefox`  | `pusharmor-firefox-X.Y.Z.zip` and the source archive of the prerelease to the listed add-on as a new listed version, with the reviewer notes of `store/listing/amo/review_notes.txt` |
+| `chrome`   | `pusharmor-chrome-X.Y.Z.zip` of the release (hash checked) to the public item, then publish (live after review) |
+| `firefox`  | `pusharmor-firefox-X.Y.Z.zip` and the source archive of the release to the listed add-on as a new listed version, with the reviewer notes of `store/listing/amo/review_notes.txt` |
 
 Hard gate: Play stays on internal testing until BOTH repository variables
 `PLAY_CONTACT_OK` and `PLAY_PUBLIC_OK` are `yes` (Settings > Secrets and
@@ -159,11 +159,11 @@ Errors are always logged (`server/worker/README.md`, Logs).
 ## Android (`android/vX.Y.Z`)
 
 CI: signed play and foss APKs, mapping files and hashes in the GitHub
-prerelease. The AAB is not attached there: it goes to the Play internal track
+release. The AAB is not attached there: it goes to the Play internal track
 and stays in the `android-signed` run artifact.
 
-Test: internal testers install from Play; Obtainium testers turn on "Include
-prereleases" for the app. `PLAY_INTERNAL_STATUS` in
+Test: internal testers install from Play; Obtainium testers install from the
+GitHub release. `PLAY_INTERNAL_STATUS` in
 `.github/workflows/android-release.yml` is `completed`: each tag rolls out to
 internal testers on its own. (Play accepts only `draft` until an app's first
 release is published by hand in Play Console; that step is done.)
@@ -185,7 +185,7 @@ Promote:
 
 ## iOS (`ios/vX.Y.Z`)
 
-CI: the IPA (cloud-managed signing) in the GitHub prerelease; the build uploaded
+CI: the IPA (cloud-managed signing) in the GitHub release; the build uploaded
 to App Store Connect. No review submission.
 
 Test: internal TestFlight testers (no Beta App Review).
@@ -210,7 +210,7 @@ Promote:
 ## Chrome (`chrome/vX.Y.Z`)
 
 CI: the public zip `pusharmor-chrome-X.Y.Z.zip` (no dev key) and the Beta zip in
-the GitHub prerelease; the Beta zip ("PushArmor Beta") uploaded to the PRIVATE
+the GitHub release; the Beta zip ("PushArmor Beta") uploaded to the PRIVATE
 Beta item and published there to trusted testers after store review.
 
 Test: testers install "PushArmor Beta" from the store; it auto-updates.
@@ -219,7 +219,7 @@ Promote:
 
 1. The promote workflow (job `chrome`), or by hand: Chrome Web Store
    dashboard, the public item: upload `pusharmor-chrome-X.Y.Z.zip` from the
-   prerelease, submit for review, publish.
+   release, submit for review, publish.
 2. The collect workflow (on each chrome/v or firefox/v tag push, or run by hand
    once the store serves the new version) publishes the store CRX as the release
    `store/chrome/vX.Y.Z` after it checks it against the release file hashes. It
@@ -230,7 +230,7 @@ Promote:
 
 CI: the public zip `pusharmor-firefox-X.Y.Z.zip`, the source archive, the
 signed Beta XPI `pusharmor-firefox-beta-X.Y.Z.xpi` and its update manifest
-`pusharmor-firefox-beta-X.Y.Z-updates.json` in the GitHub prerelease. The Beta
+`pusharmor-firefox-beta-X.Y.Z-updates.json` in the GitHub release. The Beta
 add-on ("PushArmor Beta", own gecko id) is signed UNLISTED on AMO; AMO never
 lists it.
 
@@ -239,10 +239,10 @@ Rerun: AMO accepts each version once. When `submit-firefox` passed and
 rerun signs the same version again and fails; fix a failure in
 `submit-firefox` or before it with a new patch version.
 
-Test: install the Beta XPI from the prerelease link once. Auto-update:
+Test: install the Beta XPI from the release link once. Auto-update:
 `release/tag.mjs` stamps `site/public/fx/beta/updates.json` (version and XPI
 URL) with the other Firefox version files; deploy the site after the
-prerelease is published (the Beta manifest's update_url is
+release is published (the Beta manifest's update_url is
 `https://pusharmor.com/fx/beta/updates.json`, `release/constants.json`). Do not install the public add-on and the Beta add-on
 in the same Firefox profile: both handle the login page.
 

@@ -5,12 +5,12 @@ name: android-release
 #   android-rel-build    no Environment, no secrets: unsigned AAB and APKs
 #   android-rel-sign     Environment android-sign: keystores, no checkout
 #   android-rel-publish  Environment android-release: provenance, GitHub
-#                        prerelease
+#                        release
 #   android-rel-play     Environment android-release: the Play internal upload,
 #                        in its own job so a failed upload can be rerun alone
 # Test channels only: Play internal track and the GitHub
-# prerelease (Obtainium testers include prereleases). The owner promotes by hand
-# (RELEASING.md): Play promote, clear the prerelease flag, F-Droid metadata.
+# release (a regular release; it keeps the Latest badge). The owner promotes by hand
+# (RELEASING.md): Play promote, F-Droid metadata.
 on:
   push:
     tags:
@@ -274,7 +274,7 @@ jobs:
           if-no-files-found: error
 
   android-rel-publish:
-    name: publish (GitHub prerelease, Play internal track)
+    name: publish (GitHub release, Play internal track)
     needs: [android-rel-build, android-rel-sign]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -321,7 +321,7 @@ jobs:
       # Immutable releases: the release is created as a draft, gets every asset,
       # then is published. A rerun replaces the assets of a draft; a published
       # release is never touched.
-      - name: GitHub prerelease
+      - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -335,14 +335,14 @@ jobs:
             fi
             gh release upload "$TAG" --clobber "$DIR"/*
           else
-            gh release create "$TAG" --draft --prerelease=false --latest=false --verify-tag --title "$TAG" \
-              --notes "Test build: Play internal track and this prerelease. Promote by hand (RELEASING.md)." \
+            gh release create "$TAG" --draft --prerelease=false --latest --verify-tag --title "$TAG" \
+              --notes "Test build: Play internal track and this release. Promote by hand (RELEASING.md)." \
               "$DIR"/*
           fi
-          gh release edit "$TAG" --draft=false --prerelease=false --latest=false
+          gh release edit "$TAG" --draft=false --prerelease=false --latest
 
   # Its own job: "Re-run failed jobs" repeats only the Play upload (the GitHub
-  # prerelease above is published and immutable). The bundles check below makes
+  # release above is published and immutable). The bundles check below makes
   # a rerun skip an upload that already happened.
   android-rel-play:
     name: Play internal track upload

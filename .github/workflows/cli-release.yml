@@ -3,7 +3,7 @@ name: cli-release
 # cli/vX.Y.Z tags (release/tag.mjs): the tag rule and ci-ok first, then cli.yml,
 # then jobs for the command-line client:
 #   build           no secrets: sdist, wheel, pusharmor.py and SHA-256 lines
-#   github-release  contents: write: GitHub prerelease with pusharmor.py, its
+#   github-release  contents: write: GitHub release with pusharmor.py, its
 #                   SHA-256 line, the sdist and the wheel
 #   publish         Environment pypi, id-token: write: PyPI Trusted Publishing
 # The version in pusharmor.py is stamped in the repo by release/tag.mjs and
@@ -97,7 +97,7 @@ jobs:
           if-no-files-found: error
 
   github-release:
-    name: GitHub prerelease
+    name: GitHub release
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -115,7 +115,7 @@ jobs:
       - name: Check the SHA-256 lines
         working-directory: release-files
         run: sha256sum -c SHA256SUMS
-      - name: GitHub prerelease
+      - name: GitHub release
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
             draft="$(gh release view "$TAG" --json isDraft --jq '.isDraft')"
@@ -125,11 +125,11 @@ jobs:
             fi
             gh release upload "$TAG" --clobber release-files/pusharmor.py release-files/pusharmor.py.sha256 release-files/*.whl release-files/*.tar.gz
           else
-            gh release create "$TAG" --draft --prerelease --verify-tag --title "$TAG" \
+            gh release create "$TAG" --draft --prerelease=false --latest=false --verify-tag --title "$TAG" \
               --notes "PushArmor command-line client. Check pusharmor.py against pusharmor.py.sha256." \
               release-files/pusharmor.py release-files/pusharmor.py.sha256 release-files/*.whl release-files/*.tar.gz
           fi
-          gh release edit "$TAG" --draft=false --prerelease
+          gh release edit "$TAG" --draft=false --prerelease=false --latest=false
 
   publish:
     name: publish to PyPI

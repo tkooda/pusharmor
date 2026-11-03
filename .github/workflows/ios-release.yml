@@ -10,10 +10,10 @@ name: ios-release
 #                then the App Store Connect upload. No package resolution, no
 #                npm, no node.
 #   publish-ios  Environment ios-release, id-token: verify the IPA SHA-256,
-#                provenance, GitHub prerelease. No third-party code.
+#                provenance, GitHub release. No third-party code.
 # Test channels only: TestFlight (no review submission)
-# and the GitHub prerelease. The owner submits the build for App Store review
-# with manual release and clears the prerelease flag by hand (RELEASING.md).
+# and the GitHub release. The owner submits the build for App Store review
+# with manual release (RELEASING.md).
 #
 # Signing: no certificate, profile or keychain is stored.
 # xcodebuild -exportArchive re-signs the ad-hoc signed archive through App Store
@@ -338,7 +338,7 @@ jobs:
         run: rm -rf "$RUNNER_TEMP/asc" "$RUNNER_TEMP"/ExportOptions-*.plist
 
   publish-ios:
-    name: publish iOS (provenance, GitHub prerelease)
+    name: publish iOS (provenance, GitHub release)
     needs: [build-ios, sign-ios]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -376,7 +376,7 @@ jobs:
       # Immutable releases: the release is created as a draft, gets every asset,
       # then is published. A rerun replaces the assets of a draft; a published
       # release is never touched.
-      - name: GitHub prerelease
+      - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -390,8 +390,8 @@ jobs:
             fi
             gh release upload "$TAG" --clobber "$DIR"/*
           else
-            gh release create "$TAG" --draft --prerelease --verify-tag --title "$TAG" \
-              --notes "Test build: TestFlight and this prerelease. Promote by hand (RELEASING.md)." \
+            gh release create "$TAG" --draft --prerelease=false --latest=false --verify-tag --title "$TAG" \
+              --notes "Test build: TestFlight and this release. Promote by hand (RELEASING.md)." \
               "$DIR"/*
           fi
-          gh release edit "$TAG" --draft=false --prerelease
+          gh release edit "$TAG" --draft=false --prerelease=false --latest=false

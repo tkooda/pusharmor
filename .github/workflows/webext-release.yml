@@ -8,16 +8,16 @@ name: webext-release
 #                      checks; the release zip, the Beta zip ("PushArmor Beta")
 #                      and (Firefox) the source archive, with their SHA-256
 #   publish-chrome     Environment chrome-release: verifies the SHA-256,
-#                      provenance, GitHub prerelease with the public and Beta
+#                      provenance, GitHub release with the public and Beta
 #                      zips, then the Beta zip to the PRIVATE Beta item
 #   submit-firefox     Environment firefox-release, contents: read, no id-token:
 #                      verifies the SHA-256, npm ci web-ext, signs the Beta zip
 #                      as the UNLISTED Beta add-on on AMO, hands on the XPI
 #   publish-firefox    Environment firefox-release: verifies every SHA-256,
-#                      provenance, GitHub prerelease (public zip, source, signed
+#                      provenance, GitHub release (public zip, source, signed
 #                      Beta XPI, Beta update manifest) as a draft, then publish
 # CI never uploads to the public Chrome item or the listed AMO add-on: the owner
-# uploads the public zip from the prerelease (RELEASING.md). Only this file holds
+# uploads the public zip from the release (RELEASING.md). Only this file holds
 # write permissions; ci.yml never calls it.
 on:
   push:
@@ -108,7 +108,7 @@ jobs:
             google_cws_wif_provider google_cws_wif_service_account
           echo "version=$version" >> "$GITHUB_OUTPUT"
       # The store upload goes to the private Beta item only; the public item is
-      # updated by hand from the prerelease (RELEASING.md). The Beta id must be
+      # updated by hand from the release (RELEASING.md). The Beta id must be
       # a Chrome id and never the public id.
       - name: Chrome Web Store ids for the publish job
         id: cws
@@ -167,7 +167,7 @@ jobs:
           if-no-files-found: error
 
   publish-chrome:
-    name: publish Chrome (GitHub prerelease, private Beta item)
+    name: publish Chrome (GitHub release, private Beta item)
     if: startsWith(github.ref, 'refs/tags/chrome/v')
     needs: build-chrome
     runs-on: ubuntu-24.04
@@ -211,7 +211,7 @@ jobs:
       # Immutable releases: the release is created as a draft, gets every asset,
       # then is published. A rerun replaces the assets of a draft; a published
       # release is never touched.
-      - name: GitHub prerelease
+      - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -225,13 +225,13 @@ jobs:
             fi
             gh release upload "$TAG" --clobber "$DIR"/*
           else
-            gh release create "$TAG" --draft --prerelease --verify-tag --title "$TAG" \
+            gh release create "$TAG" --draft --prerelease=false --latest=false --verify-tag --title "$TAG" \
               --notes "Test build. pusharmor-chrome-$VERSION.zip is the public zip; the Beta zip went to the private PushArmor Beta item. Promote by hand (RELEASING.md)." \
               "$DIR"/*
           fi
-          gh release edit "$TAG" --draft=false --prerelease
+          gh release edit "$TAG" --draft=false --prerelease=false --latest=false
 
-  # The CWS calls run in their own jobs after the GitHub prerelease (published,
+  # The CWS calls run in their own jobs after the GitHub release (published,
   # immutable): "Re-run failed jobs" repeats only the CWS step that failed. Only
   # the PRIVATE Beta item (trusted testers) is touched; never the public item.
   cws-upload-chrome:
@@ -471,7 +471,7 @@ jobs:
         run: npm ci --ignore-scripts
       # The UNLISTED Beta add-on (its own gecko id): AMO signs it automatically
       # and never lists it; the public listed add-on is uploaded by hand from the
-      # prerelease (RELEASING.md). Waits for the signed XPI.
+      # release (RELEASING.md). Waits for the signed XPI.
       - name: Sign the Beta add-on on AMO (web-ext sign, unlisted)
         working-directory: client/webext-common/amo-sign
         env:
@@ -516,7 +516,7 @@ jobs:
           if-no-files-found: error
 
   publish-firefox:
-    name: publish Firefox (GitHub prerelease, Beta update manifest)
+    name: publish Firefox (GitHub release, Beta update manifest)
     if: startsWith(github.ref, 'refs/tags/firefox/v')
     needs: [build-firefox, submit-firefox]
     runs-on: ubuntu-24.04
@@ -554,7 +554,7 @@ jobs:
           printf '%s  %s\n%s  %s\n%s  %s\n%s  %s\n' "$ZIP_SHA256" "$zip" "$BETA_SHA256" "pusharmor-firefox-beta-$VERSION.zip" \
             "$SRC_SHA256" "$src" "$XPI_SHA256" "$xpi" > "$RUNNER_TEMP/expect.sha256"
           (cd "$out" && sha256sum -c --strict "$RUNNER_TEMP/expect.sha256")
-          # The unsigned Beta zip stays out of the prerelease; the signed XPI is the Beta file.
+          # The unsigned Beta zip stays out of the release; the signed XPI is the Beta file.
           rm "$out/pusharmor-firefox-beta-$VERSION.zip"
           (cd "$out" && sha256sum "$zip" "$src" "$xpi") > "$out/pusharmor-firefox-$VERSION.hashes.txt"
           cat "$out/pusharmor-firefox-$VERSION.hashes.txt"
@@ -574,10 +574,10 @@ jobs:
             ${{ steps.files.outputs.xpi }}
       # Self-hosted update manifest of the Beta add-on (update_url
       # https://pusharmor.com/fx/beta/updates.json, release/constants.json). It
-      # points at the signed XPI of this prerelease and goes into the draft with
+      # points at the signed XPI of this release and goes into the draft with
       # the other assets. The site copy, site/public/fx/beta/updates.json, is
       # stamped by release/tag.mjs (RELEASING.md).
-      - name: Beta update manifest (prerelease asset)
+      - name: Beta update manifest (release asset)
         env:
           DIR: ${{ steps.files.outputs.dir }}
           XPI: ${{ steps.files.outputs.xpi }}
@@ -591,7 +591,7 @@ jobs:
       # Immutable releases: the release is created as a draft, gets every asset,
       # then is published. A rerun replaces the assets of a draft; a published
       # release is never touched.
-      - name: GitHub prerelease
+      - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -605,11 +605,11 @@ jobs:
             fi
             gh release upload "$TAG" --clobber "$DIR"/*
           else
-            gh release create "$TAG" --draft --prerelease --verify-tag --title "$TAG" \
+            gh release create "$TAG" --draft --prerelease=false --latest=false --verify-tag --title "$TAG" \
               --notes "Test build. pusharmor-firefox-$VERSION.zip and the source archive are for the public AMO listing; pusharmor-firefox-beta-$VERSION.xpi is the signed PushArmor Beta add-on. Promote by hand (RELEASING.md)." \
               "$DIR"/*
           fi
-          gh release edit "$TAG" --draft=false --prerelease
+          gh release edit "$TAG" --draft=false --prerelease=false --latest=false
       - name: Check the published release and the Beta update link
         env:
           GH_TOKEN: ${{ github.token }}
@@ -617,7 +617,7 @@ jobs:
           DIR: ${{ steps.files.outputs.dir }}
         run: |
           name="pusharmor-firefox-beta-$VERSION.xpi"
-          gh release view "$TAG" --json isDraft,isPrerelease --jq '"draft=\(.isDraft) prerelease=\(.isPrerelease)"' | grep -qx 'draft=false prerelease=true'
+          gh release view "$TAG" --json isDraft,isPrerelease --jq '"draft=\(.isDraft) prerelease=\(.isPrerelease)"' | grep -qx 'draft=false prerelease=false'
           link="$(gh release view "$TAG" --json assets --jq ".assets[] | select(.name == \"$name\") | .url")"
           want="$(jq -r '.addons[].updates[0].update_link' "$DIR/pusharmor-firefox-beta-$VERSION-updates.json")"
           if [ "$link" != "$want" ]; then echo "::error::update_link $want is not the published asset URL $link"; exit 1; fi

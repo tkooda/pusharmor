@@ -7,19 +7,17 @@ name: promote
 # is rebuilt (release/promote.mjs; the store jobs are in store.yml):
 #   play      Play internal versionCode to production, listing text, screenshots
 #   appstore  TestFlight build to App Review, version page text, screenshots
-#   chrome    public zip of the chrome/vX.Y.Z prerelease to the public item
-#   firefox   public zip and source of the firefox/vX.Y.Z prerelease to the
+#   chrome    public zip of the chrome/vX.Y.Z release to the public item
+#   firefox   public zip and source of the firefox/vX.Y.Z release to the
 #             listed add-on
 # Only the platforms named in the platforms input run (a comma list, required,
-# no default). A platform without tag and prerelease X.Y.Z is skipped. The
+# no default). A platform without tag and release X.Y.Z is skipped. The
 # release Environments allow only their own release tags, so this workflow
 # holds no store secret: after the approval the dispatch job starts store.yml
 # once per ready platform on the tag <platform>/vX.Y.Z (workflow_dispatch),
 # and that run uses the store's release Environment for its secrets (WIF for
 # Play and Chrome Web Store). Each store is its own run: rerun only the failed
 # one. Every store job skips a version that is already live or in review.
-# After its store accepts the build, each job clears the prerelease flag of
-# its own GitHub release (not after a SKIP).
 on:
   workflow_dispatch:
     inputs:
@@ -46,7 +44,7 @@ env:
 
 jobs:
   check:
-    name: tags, prereleases and listings
+    name: tags, releases and listings
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
