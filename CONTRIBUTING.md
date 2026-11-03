@@ -20,7 +20,8 @@ in [LICENSE](LICENSE).
 
 ## Landing changes on main
 
-Main accepts only commits that already passed the `ci-ok` check.
+Main accepts only commits that already passed the `ci-ok` check. A release
+stamp commit lands once its platform's release gate passed (RELEASING.md).
 
 1. Branch from main as `internal/<topic>` and push it. CI runs on the push.
 2. When `ci-ok` is green on that commit, run
