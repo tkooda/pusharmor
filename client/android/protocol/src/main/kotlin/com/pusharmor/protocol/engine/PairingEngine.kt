@@ -142,6 +142,10 @@ class PairingEngine(
     private fun applyCommit(from: String, cN: ByteArray, now: Long, d: com.pusharmor.protocol.PairDecision) {
         // The row marker for [Pair again], in the same transaction as the decision that fires the notice.
         if (d.notice == PairNotice.HALF_STATE) store.peer(from)?.let { store.putPeer(it.copy(pairAgain = true)) }
+        // A new pairing request from a device this device rejected shows it again.
+        if (d.entry == EntryChange.CREATED_REPLIED || d.entry == EntryChange.N_WIPED_X_REPLIED || d.entry == EntryChange.CREATED_PROMPTED) {
+            store.peer(from)?.takeIf { it.deniedByMe }?.let { store.putPeer(it.copy(deniedByMe = false)) }
+        }
         when (d.entry) {
             EntryChange.CREATED_REPLIED, EntryChange.N_WIPED_X_REPLIED -> {
                 store.pairing(from)?.let { it.r.fill(0); store.deletePairing(from) }

@@ -202,6 +202,8 @@ object UiText {
     fun noPairedDevice(others: List<Peer>): Boolean = others.none { it.pinned && !it.removed }
     const val HIBERNATION_BANNER = "Android may pause this app's ability to receive messages unless \"Manage app if unused\" is turned off."
     val PAIR_HOWTO_STEPS = listOf("Install PushArmor on the other device.", "Log in with the same account.", "It appears here. Tap Pair.")
+    /** Pair a new device: the devices this device rejected, each with Pair. */
+    const val REJECTED_DEVICES = "Rejected devices"
     fun numbered(steps: List<String>): List<String> = steps.mapIndexed { i, t -> "${i + 1}. $t" }
     /** Send chips in alphabetical order of the shown name: case-insensitive, locale-aware. */
     fun <T> sortedByName(items: List<T>, nameOf: (T) -> String, locale: java.util.Locale = java.util.Locale.getDefault()): List<T> {

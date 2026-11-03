@@ -420,6 +420,21 @@ class EngineTest {
         assertFalse(n.store.peer(x.id)!!.pairAgain) // cleared by starting a pair
     }
 
+    /** A rejected device shows again once it sends a new pairing request. */
+    @Test fun newPairingRequestClearsReject() {
+        x.store.putPeer(x.store.peer(n.id)!!.copy(deniedByMe = true))
+        n.pairing.tapPair(x.id, t0); n.runPairSends(t0); x.deliver(t0)
+        assertNotNull(x.store.pairing(n.id))
+        assertFalse(x.store.peer(n.id)!!.deniedByMe)
+    }
+
+    /** Pair on a rejected device clears the reject, so its row shows again. */
+    @Test fun ownPairClearsReject() {
+        n.store.putPeer(n.store.peer(x.id)!!.copy(deniedByMe = true))
+        assertEquals(PairStart.STARTED, n.pairing.tapPair(x.id, t0))
+        assertFalse(n.store.peer(x.id)!!.deniedByMe)
+    }
+
     @Test fun pairTapSaysWhyItCannotStart() {
         // each refusal carries its reason, so the app can say what to do.
         assertEquals(PairStart.NO_DEVICE, n.pairing.tapPair("not-on-this-account", t0))
