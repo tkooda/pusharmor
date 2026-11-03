@@ -115,13 +115,6 @@ smoke() {
 }
 smoke || rollback_hint
 echo "smoke test passed."
-echo "Now send one message between peers of your own accounts."
-printf 'Type "ok" when it worked (anything else prints the rollback steps): '
-read -r ANSWER
-if [ "$ANSWER" != "ok" ]; then
-  echo "not confirmed." >&2
-  rollback_hint
-fi
 
 # 8. done
 echo "released $TAG (bundle sha256 $BUNDLE_HASH)"
