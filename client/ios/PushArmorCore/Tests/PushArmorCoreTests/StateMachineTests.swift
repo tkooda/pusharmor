@@ -1205,8 +1205,8 @@ final class StateMachineTests: XCTestCase {
         XCTAssertNil(try x.core.store.peer(n.id)!.note)
     }
 
-    /// an abort while X shows the fingerprint drops the pin X made, keeps the ruling,
-    /// and N's next pairing reaches X.
+    /// an abort while X shows the fingerprint drops the pin X made, and N's next pairing
+    /// reaches X and ends X's earlier Reject.
     func testAbortInShownDropsPinKeepsRulingAndNextPairingWorks() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try await Scenario.pairToShown(w, n, x)
@@ -1222,7 +1222,7 @@ final class StateMachineTests: XCTestCase {
         XCTAssertFalse(p.pinned)
         XCTAssertNil(p.fingerprint)
         XCTAssertNil(try x.core.store.replay(n.id))
-        XCTAssertEqual(p.state, .denied)
+        XCTAssertEqual(p.state, .unruled)
         XCTAssertEqual(r.first?.banner?.body, S.pairCommit)
         XCTAssertEqual(try x.core.store.pairing(n.id)?.role, .x)
     }

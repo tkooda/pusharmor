@@ -343,7 +343,7 @@ jobs:
           FILTER: ${{ matrix.filter }}
         run: |
           set -- "$RUNNER_TEMP"/dd/Products/*.xctestrun
-          [ "$#" = 1 ] && [ -f "$1" ] || { echo "want one .xctestrun file, found: $*"; exit 1; }
+          if [ "$#" != 1 ] || [ ! -f "$1" ]; then echo "want one .xctestrun file, found: $*"; exit 1; fi
           # shellcheck disable=SC2086
           xcodebuild test-without-building -xctestrun "$1" \
             -destination "platform=iOS Simulator,name=$SIM_NAME,OS=latest" \

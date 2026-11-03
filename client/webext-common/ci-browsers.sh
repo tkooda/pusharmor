@@ -32,6 +32,12 @@ for b in "$@"; do
       echo "$CHROME_SHA256  $f" | sha256sum -c -
       unzip -q "$f" -d "$d"
       ln -sf "$d/chrome-linux64/chrome" "$d/bin/google-chrome"
+      # Ubuntu 24.04 runners allow user namespaces only to programs with an
+      # AppArmor profile (the runner's own Chrome has one); this download gets
+      # Chrome's setuid sandbox helper instead, so it still runs sandboxed.
+      sudo chown root:root "$d/chrome-linux64/chrome_sandbox"
+      sudo chmod 4755 "$d/chrome-linux64/chrome_sandbox"
+      echo "CHROME_DEVEL_SANDBOX=$d/chrome-linux64/chrome_sandbox" >> "$GITHUB_ENV"
       ;;
     *)
       echo "usage: ci-browsers.sh firefox|chrome..." >&2
