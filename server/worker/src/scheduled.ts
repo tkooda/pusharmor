@@ -43,7 +43,7 @@ export async function expirePending(env: Env, nowS: number, log: Log, chunk = PE
   while (chunks < PENDING_MAX_CHUNKS) {
     const rs = await env.DB.batch([
       env.DB.prepare(SQL.Q_PENDING_CHUNK).bind(last, chunk),
-      env.DB.prepare(SQL.W_PENDING_EXPIRE).bind(last, chunk, cutoff, nowS),
+      env.DB.prepare(SQL.W_PENDING_EXPIRE).bind(last, chunk, cutoff),
     ]);
     chunks++;
     changed += rs[1].meta.changes;

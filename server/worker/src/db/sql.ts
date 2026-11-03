@@ -140,16 +140,13 @@ export const NAME_JSON_MAX = 6000;
 export const PENDING_JSON_MAX = 16000;
 export const JSON_CAP_ERROR = "pa-json-cap";
 
-// Lazy cleanup of pending entries whose peer row is gone. ?2 acct. json() keeps an array
-// entry an array (legacy entries are plain strings).
-const PRUNED = `(SELECT COALESCE(json_group_object(j.key, CASE WHEN j.type = 'array' THEN json(j.value) ELSE j.value END), '{}')
+// Lazy cleanup of pending entries whose peer row is gone. ?2 acct. json() keeps an entry an array.
+const PRUNED = `(SELECT COALESCE(json_group_object(j.key, json(j.value)), '{}')
   FROM json_each(peers.pending) j
   WHERE EXISTS (SELECT 1 FROM peers o WHERE o.account = ?2 AND o.id = j.key))`;
 
-// c of one pending entry: [time, c], or a legacy string. ?n id
-const PENDING_C = (col: string, n: number) =>
-  `CASE json_type(${col}, ${P(n)}) WHEN 'array' THEN json_extract(${col}, '$."' || ?${n} || '"[1]')
-   ELSE json_extract(${col}, ${P(n)}) END`;
+// c of one pending entry [time, c]. ?n id
+const PENDING_C = (col: string, n: number) => `json_extract(${col}, '$."' || ?${n} || '"[1]')`;
 
 // ?1 me, ?2 acct, ?3 X, ?4 name entry, ?5 c, ?6 now
 export const W_APPROVE = `UPDATE peers
@@ -212,21 +209,21 @@ export const W_PURGE_PEERS = `DELETE FROM peers WHERE account IN (${PURGE_IDS})`
 export const W_PURGE_ACCOUNTS = `DELETE FROM accounts WHERE id IN (${PURGE_IDS}) RETURNING id`;
 
 // Pending expiry (monthly), one keyset chunk of rows with pending entries. ?1 last id done
-// ('' to start), ?2 chunk size, ?3 cutoff (now - PENDING_TTL_S), ?4 now. Ids start with the
+// ('' to start), ?2 chunk size, ?3 cutoff (now - PENDING_TTL_S). Ids start with the
 // account, so id order is (account, id) order and the row value walks the primary key.
 const PENDING_CHUNK_ROWS = `SELECT account, id FROM peers
   WHERE (account, id) > (substr(?1, 1, 12), ?1) AND (pending <> '{}' OR rm <> '{}') ORDER BY account, id LIMIT ?2`;
 export const Q_PENDING_CHUNK = `SELECT count(*) AS n, max(id) AS last FROM (${PENDING_CHUNK_ROWS})`;
-// Drops pending and rm entries stored before ?3 and stamps legacy string pending entries with ?4.
+// Drops pending and rm entries stored before ?3.
 export const W_PENDING_EXPIRE = `UPDATE peers SET pending = (
-  SELECT COALESCE(json_group_object(j.key, CASE WHEN j.type = 'array' THEN json(j.value) ELSE json_array(?4, j.value) END), '{}')
+  SELECT COALESCE(json_group_object(j.key, json(j.value)), '{}')
   FROM json_each(peers.pending) j
-  WHERE j.type <> 'array' OR json_extract(j.value, '$[0]') >= ?3),
+  WHERE json_extract(j.value, '$[0]') >= ?3),
   rm = (SELECT COALESCE(json_group_object(j.key, json(j.value)), '{}')
   FROM json_each(peers.rm) j
   WHERE json_extract(j.value, '$[0]') >= ?3)
 WHERE (account, id) IN (${PENDING_CHUNK_ROWS})
-  AND (EXISTS (SELECT 1 FROM json_each(peers.pending) j WHERE j.type <> 'array' OR json_extract(j.value, '$[0]') < ?3)
+  AND (EXISTS (SELECT 1 FROM json_each(peers.pending) j WHERE json_extract(j.value, '$[0]') < ?3)
     OR EXISTS (SELECT 1 FROM json_each(peers.rm) j WHERE json_extract(j.value, '$[0]') < ?3))`;
 
 // Compare-and-clear of the delivered rm. ?1 id, ?2 acct, ?3 rm as read

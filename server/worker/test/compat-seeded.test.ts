@@ -17,33 +17,26 @@ const j = (s: unknown) => JSON.parse(s as string);
 const DAY = 86400;
 
 describe("seeded production rows", () => {
-  it("approve reads [t, c] and legacy string pending entries; the monthly cron expires and stamps them", async () => {
+  it("approve reads [t, c] pending entries; the monthly cron expires old ones", async () => {
     const email = randomEmail();
     const a = await newPeer(email);
     const b = await newPeer(email);
-    const c = await newPeer(email);
     const d = await newPeer(email);
     const now = Math.floor(Date.now() / 1000);
     const cb = message(1024);
-    const cc = message(1024);
-    // a approved b (entry since 0004: [time, c]), c (legacy string entry) and d (expired entry).
-    const ids = [b.id, c.id, d.id];
+    // a approved b (entry [time, c]) and d (expired entry).
+    const ids = [b.id, d.id];
     const allow = Object.fromEntries(ids.map((x) => [x, 1]));
     const name = Object.fromEntries(ids.map((x) => [x, message(200)]));
-    const pending = { [b.id]: [now - 60, cb], [c.id]: cc, [d.id]: [now - 40 * DAY, message(1024)] };
+    const pending = { [b.id]: [now - 60, cb], [d.id]: [now - 40 * DAY, message(1024)] };
     await env.DB.prepare("UPDATE peers SET allow = ?1, name = ?2, pending = ?3 WHERE id = ?4")
       .bind(JSON.stringify(allow), JSON.stringify(name), JSON.stringify(pending), a.id).run();
 
-    let r = await call("POST", "/v1/approve/" + a.id, { c: message(1024), name: message(200) }, { peer: b });
+    const r = await call("POST", "/v1/approve/" + a.id, { c: message(1024), name: message(200) }, { peer: b });
     expect(r.body).toEqual({ r: "sent", c: cb });
-    r = await call("POST", "/v1/approve/" + a.id, { c: message(1024), name: message(200) }, { peer: c });
-    expect(r.body).toEqual({ r: "sent", c: cc });
 
     await scheduled(createScheduledController({ cron: "0 3 1 * *" }), await testEnv());
     const p = j((await row(a.id))!.pending);
-    expect(Object.keys(p).sort()).toEqual([b.id, c.id].sort());
-    expect(p[b.id]).toEqual([now - 60, cb]);
-    expect(p[c.id][1]).toBe(cc);
-    expect(p[c.id][0]).toBeGreaterThanOrEqual(now);
+    expect(p).toEqual({ [b.id]: [now - 60, cb] });
   });
 });

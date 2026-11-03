@@ -87,30 +87,21 @@ describe("pending entries carry their time and expire", () => {
     expect((await call("POST", "/v1/approve/" + a.id, { c: cb, name: message(200) }, { peer: b })).body).toEqual({ r: "sent", c: ca });
   });
 
-  it("a legacy string entry (written by the previous Worker) is still returned as c", async () => {
-    const [a, b] = await family(2);
-    const ca = message(1024);
-    await env.DB.prepare("UPDATE peers SET allow = ?1, pending = ?2 WHERE id = ?3")
-      .bind(JSON.stringify({ [b.id]: 1 }), JSON.stringify({ [b.id]: ca }), a.id)
-      .run();
-    expect((await call("POST", "/v1/approve/" + a.id, { c: message(1024), name: message(200) }, { peer: b })).body).toEqual({ r: "sent", c: ca });
-  });
-
-  it("monthly sweep: drops entries older than the TTL, stamps legacy ones, keeps fresh ones; keyset chunks", async () => {
+  it("monthly sweep: drops entries older than the TTL, keeps fresh ones; keyset chunks", async () => {
     const peers = await family(5);
     const [a, b, c, d, e] = peers;
     const old = NOW - PENDING_TTL_S - 10;
     const set = (p: Peer, v: unknown) => env.DB.prepare("UPDATE peers SET pending = ?1 WHERE id = ?2").bind(JSON.stringify(v), p.id).run();
     await set(a, { [b.id]: [old, "AAAA"], [c.id]: [NOW, "BBBB"] });
-    await set(b, { [a.id]: "CCCC" });
+    await set(b, { [a.id]: [NOW - 5, "CCCC"] });
     await set(c, { [a.id]: [old, "DDDD"] });
     await set(d, { [a.id]: [NOW - 5, "EEEE"] });
     const log = new Log();
     const n = await expirePending(await testEnv(), NOW, log, 2);
-    expect(n).toBe(3);
+    expect(n).toBe(2);
     expect(log.extra.pending_chunks).toBe(3);
     expect(j((await row(a.id))!.pending)).toEqual({ [c.id]: [NOW, "BBBB"] });
-    expect(j((await row(b.id))!.pending)).toEqual({ [a.id]: [NOW, "CCCC"] });
+    expect(j((await row(b.id))!.pending)).toEqual({ [a.id]: [NOW - 5, "CCCC"] });
     expect(j((await row(c.id))!.pending)).toEqual({});
     expect(j((await row(d.id))!.pending)).toEqual({ [a.id]: [NOW - 5, "EEEE"] });
     expect(j((await row(e.id))!.pending)).toEqual({});

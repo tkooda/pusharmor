@@ -34,8 +34,9 @@ async function allApproved(ps: Peer[]): Promise<void> {
 
 // q pending entries in me's row (approves stored for q other peers).
 async function pending(me: Peer, others: Peer[], q: number): Promise<void> {
-  const o: Record<string, string> = {};
-  for (const x of others.slice(0, q)) o[x.id] = message(1024);
+  const o: Record<string, [number, string]> = {};
+  const now = Math.floor(Date.now() / 1000);
+  for (const x of others.slice(0, q)) o[x.id] = [now, message(1024)];
   await env.DB.prepare("UPDATE peers SET pending = ?1 WHERE id = ?2").bind(JSON.stringify(o), me.id).run();
 }
 
