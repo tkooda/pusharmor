@@ -50,11 +50,8 @@ workflow in its first job):
 - `ci-ok` of the ci workflow succeeded on the tag commit (a push run; `gh api`
   with actions: read). The release workflow waits up to 40 minutes for it.
 
-Build numbers: Android versionCode and the iOS build number
-(CURRENT_PROJECT_VERSION, CFBundleVersion) are both
-`X * 1000000 + Y * 1000 + Z` (0.0.1 -> 1, 1.2.3 -> 1002003, at most
-2099999999 under Play's 2100000000 cap). They grow with the version, so
-they always increase.
+Build numbers: Android versionCode and the iOS build number grow with the
+version (0.0.1 -> 1; `buildNumber` in `release/tag.mjs`).
 
 ## Making a tag
 
