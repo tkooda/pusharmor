@@ -26,6 +26,7 @@ class UpService : PushService() {
     override fun onMessage(message: PushMessage, instance: String) {
         if (!message.decrypted) return // drop silently
         val text = text(message.content) ?: return
+        if (PushDispatcher.isCheck(text)) return // the relay server's test push: drop silently
         // The probe: {"probe":"$code"}; answered at once, never shown.
         val probe = (StrictJson.parseOrNull(text) as? JValue.JObject)?.fields?.get("probe") as? JValue.JString
         // The connector calls onMessage on the main thread, and the process may die once it returns:

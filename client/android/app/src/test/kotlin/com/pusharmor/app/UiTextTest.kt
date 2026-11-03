@@ -69,6 +69,7 @@ class UiTextTest {
         assertEquals(true, UiText.cannotReceive(true, true, false, false))
         assertEquals(true, UiText.cannotReceive(true, false, true, false))
         assertEquals(true, UiText.cannotReceive(true, false, false, true))
+        assertEquals(true, UiText.cannotReceive(true, false, false, false, relayFault = true))
     }
 
     @Test fun cannotReceiveReasons() {

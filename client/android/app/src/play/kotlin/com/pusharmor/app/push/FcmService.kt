@@ -7,13 +7,14 @@ import com.pusharmor.app.notify.Notifier
 import com.pusharmor.app.work.Work
 
 /**
- * FCM data-only messages. Every push ends with a visible notification. Decrypt, verify and
+ * FCM data-only messages. Every push ends with a visible notification, but for the relay server's silent test push. Decrypt, verify and
  * inflate run inline (milliseconds; handler limit 10 s); network work goes to WorkManager.
  */
 class FcmService : FirebaseMessagingService() {
     private val g get() = (application as PaApp).graph
 
     override fun onMessageReceived(message: RemoteMessage) {
+        if (PushDispatcher.isCheck(message.data)) return
         PushDispatcher.onPush(g, message.data["m"], fcm = true)
     }
 

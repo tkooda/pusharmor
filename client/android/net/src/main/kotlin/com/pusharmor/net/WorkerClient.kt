@@ -205,6 +205,9 @@ class WorkerClient(
 
     fun confirm(code: String) = result(call("POST", "/v1/peers/${me()}/confirm", obj("code" to str(code)).toByteArray(), true)) { }
 
+    /** One test push to this device's stored push address: "sent" | "relay" | "gone" | "none" | "failed". */
+    fun check() = result(call("POST", "/v1/peers/${me()}/check", obj().toByteArray(), true)) { it["result"]!!.jsonPrimitive.content }
+
     class Registered(val id: String, val peers: PeersReply)
 
     /** 409 "peer limit": a fresh 10-min ticket and the account's peers for the picker. */
@@ -261,6 +264,7 @@ class WorkerClient(
         myAllow = (j["my_allow"] as? JsonArray)?.map { it.jsonPrimitive.content } ?: emptyList(),
         peers = (j["peers"] as? JsonArray)?.mapNotNull { e -> listed(e) } ?: emptyList(),
         removed = (j["removed"] as? JsonObject)?.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.takeIf { it.isString }?.content?.let { k to it } }?.toMap() ?: emptyMap(),
+        myRelayFault = (j["my_relay_fault"] as? JsonPrimitive)?.booleanOrNull == true,
     )
 
     private fun listed(e: JsonElement): ListedPeer? = try {

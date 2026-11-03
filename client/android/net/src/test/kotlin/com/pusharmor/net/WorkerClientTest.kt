@@ -235,4 +235,25 @@ class WorkerClientTest {
         assertEquals(1, server.requestCount)
         assertTrue(slept.isEmpty())
     }
+
+    /** my_relay_fault reads true only when the relay server sends true; an older relay server leaves it out. */
+    @Test fun peersReplyReadsRelayFault() {
+        server.enqueue(ok("{\"peers\":[],\"my_relay_fault\":true}"))
+        assertTrue((client.peers() as ApiResult.Ok).value.myRelayFault)
+        server.enqueue(ok("{\"peers\":[]}"))
+        assertTrue(!(client.peers() as ApiResult.Ok).value.myRelayFault)
+    }
+
+    /** Check again: a signed POST for this device, the result word back. */
+    @Test fun checkIsSignedAndReadsTheResult() {
+        server.enqueue(ok("{\"result\":\"relay\"}"))
+        assertEquals("relay", (client.check() as ApiResult.Ok).value)
+        val req = server.takeRequest()
+        assertEquals("POST", req.method)
+        assertEquals("/v1/peers/$id/check", req.path)
+        val body = req.body.readByteArray()
+        assertEquals("{}", String(body))
+        val sig = B64url.decode(req.getHeader("PA-Sig")!!)
+        assertTrue(P256.verify(keys.signPub, Ids.requestSigningBytes("POST", "/v1/peers/$id/check", req.getHeader("PA-Time")!!, body), sig))
+    }
 }

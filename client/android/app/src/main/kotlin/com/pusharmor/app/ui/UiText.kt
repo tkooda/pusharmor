@@ -94,9 +94,19 @@ object UiText {
     const val SUNUP_NAME = "Sunup"
     const val SUNUP_ABOUT = "Free and open source. Delivers through Mozilla's push service."
 
-    /** True while this device cannot show or get messages: notifications off or blocked, no push app, or a refused push address. */
-    fun cannotReceive(enabled: Boolean, channelsBlocked: Boolean, noPushApp: Boolean, refused: Boolean): Boolean =
-        !enabled || channelsBlocked || noPushApp || refused
+    /** Line 2 when the relay server's push to this device failed on its side (Google push only; UnifiedPush never is). */
+    const val RELAY_FAULT = "The relay server cannot reach Google's push service right now. This is not a problem on this device. Try again later."
+    const val CHECK_AGAIN = "Check again"
+    /** Check again: the test push reached this device. */
+    const val CHECK_WORKING = "Working"
+    const val CHECK_FAILED = "Unable to check right now. Try again later."
+
+    /**
+     * True while this device cannot show or get messages: notifications off or blocked, no push app, a refused push
+     * address, or a relay-side fault.
+     */
+    fun cannotReceive(enabled: Boolean, channelsBlocked: Boolean, noPushApp: Boolean, refused: Boolean, relayFault: Boolean = false): Boolean =
+        !enabled || channelsBlocked || noPushApp || refused || relayFault
 
     /** Settings note under an Apple private relay address. */
     const val APPLE_RELAY_HINT = "To log in on another device, use this address. Find it on an iPhone in Settings, under your name, in Sign in with Apple. " +

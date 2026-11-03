@@ -156,4 +156,22 @@ class CannotReceiveCardTest {
         val (b, _) = show(app, Session.Start.READY)
         assertTrue(cards(b) == 1)
     }
+
+    /** A relay-side fault on Google push: the card with the relay server line and Check again; UnifiedPush never shows it. */
+    @Test fun relayFaultCardOnGooglePushOnly() {
+        val app = app(true)
+        app.graph.settings.set(Settings.K.RELAY_FAULT, true)
+        try {
+            val (a, _) = show(app, Session.Start.READY)
+            assertTrue(cards(a) == 1)
+            assertTrue(nodes(a).count { text(it) == UiText.RELAY_FAULT } == 1 && nodes(a).count { text(it) == UiText.CHECK_AGAIN } == 1)
+            val saved = UnifiedPushSupport.installed
+            try {
+                UnifiedPushSupport.installed = { listOf("io.heckel.ntfy") }
+                app.graph.settings.set(Settings.K.PUSH_TYPE, "unifiedpush")
+                val (b, _) = show(app, Session.Start.READY)
+                assertTrue(nodes(b).none { text(it) == UiText.RELAY_FAULT })
+            } finally { UnifiedPushSupport.installed = saved }
+        } finally { app.graph.settings.set(Settings.K.RELAY_FAULT, null) }
+    }
 }

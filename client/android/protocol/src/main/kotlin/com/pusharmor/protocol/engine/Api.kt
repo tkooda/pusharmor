@@ -40,8 +40,12 @@ data class ListedPeer(
     val listening: Boolean = true,
 )
 
-/** [removed]: optional GET /peers field, B id -> the sealed remove(B) message the remover sent for this device. */
-data class PeersReply(val myPushSha256: String?, val myAllow: List<String>, val peers: List<ListedPeer>, val removed: Map<String, String> = emptyMap())
+/**
+ * [removed]: optional GET /peers field, B id -> the sealed remove(B) message the remover sent for this device.
+ * [myRelayFault]: the relay server's last push to this device failed on the relay server's side; absent = false.
+ */
+data class PeersReply(val myPushSha256: String?, val myAllow: List<String>, val peers: List<ListedPeer>, val removed: Map<String, String> = emptyMap(),
+    val myRelayFault: Boolean = false)
 
 /** The Worker calls the engines make (signed, PA-Time from the synced offset). */
 interface Api {

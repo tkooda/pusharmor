@@ -333,6 +333,7 @@ class Session(private val g: Graph) {
         val ok = when (r) {
             is ApiResult.Ok -> {
                 g.sync().merge(r.value)
+                s.set(Settings.K.RELAY_FAULT, r.value.myRelayFault)
                 if (r.pushMissing || (r.value.myPushSha256 != currentPushHash() && currentPushHash() != null)) Work.patchPush(g.app)
                 if (inPush) Work.reconcile(g.app) else g.reconcile().run()
                 updateShortcuts()
@@ -467,6 +468,20 @@ class Session(private val g: Graph) {
             }
             else -> false
         }
+    }
+
+    /**
+     * Check again on the cannot-receive card: the relay server sends one test push. "sent" and "relay" set the relay
+     * fault mark, "gone" sends the push address again as a changed hash does; returns the result word, null on any failure.
+     */
+    fun checkPush(): String? {
+        val word = (g.client.check() as? ApiResult.Ok)?.value
+        when (word) {
+            "sent" -> s.set(Settings.K.RELAY_FAULT, false)
+            "relay" -> s.set(Settings.K.RELAY_FAULT, true)
+            "gone" -> { s.set(Settings.K.RELAY_FAULT, false); Work.patchPush(g.app) }
+        }
+        return word
     }
 
     /** UnifiedPush probe: confirm at once with no user input. */

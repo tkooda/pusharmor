@@ -428,7 +428,8 @@ internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, content: @Co
     LaunchedEffect(tick) { vm.registerIfInstalled() }
     val off = !n.enabled() || n.mainChannelsBlocked()
     val closed by vm.cannotReceiveClosed.collectAsState()
-    val cannot = UiText.cannotReceive(n.enabled(), n.mainChannelsBlocked(), noPushApp, refused != null)
+    val relay = relayFaultShown(Settings.flagOf(prefs, Settings.K.RELAY_FAULT, false), type, google)
+    val cannot = UiText.cannotReceive(n.enabled(), n.mainChannelsBlocked(), noPushApp, refused != null, relay)
     LaunchedEffect(cannot) { if (!cannot) vm.cannotReceiveClosed.value = false }
     val shown = cannot && !closed
     var getApp by rememberSaveable { mutableStateOf(false) }
@@ -440,7 +441,8 @@ internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, content: @Co
                     safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
                 })
                 noPushApp -> UiText.noPushApp(google) to listOf(UiText.GET_PUSH_APP to { getApp = true })
-                else -> UiText.pushRefused(refused!!.first, refused.second, google) to emptyList()
+                refused != null -> UiText.pushRefused(refused.first, refused.second, google) to emptyList()
+                else -> UiText.RELAY_FAULT to listOf(UiText.CHECK_AGAIN to { vm.checkAgain() })
             }
             CannotReceiveBanner(reason, actions,
                 Modifier.then(if (topInset) Modifier.windowInsetsPadding(top) else Modifier).padding(horizontal = 16.dp, vertical = 8.dp),
@@ -477,6 +479,9 @@ internal fun GetPushAppDialog(vm: AppViewModel, onDismiss: () -> Unit) {
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
 }
+
+/** The relay-side card: the stored mark, for Google push only (UnifiedPush faults are never on the relay server's side). */
+internal fun relayFaultShown(fault: Boolean, type: String?, google: Boolean): Boolean = fault && !UnifiedPushSupport.active(type, google)
 
 /** Push method option for Google push. A package name always holds a dot, so it never matches. */
 internal const val PUSH_GOOGLE = "google"

@@ -381,6 +381,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         com.pusharmor.app.push.UnifiedPushSupport.pick(g, choice)
         if (!com.pusharmor.app.push.UnifiedPushSupport.active(g)) g.push.switchToUnifiedPush(g)
     }
+    /**
+     * Check again on the relay-side card: notifications off or blocked show their own card instead; else one test push.
+     * "sent" says Working and the card goes; "relay" and "gone" update the card; anything else keeps it and says so.
+     */
+    fun checkAgain() = once("check", UiText.CHECK_FAILED) {
+        if (!g.notifier.enabled() || g.notifier.mainChannelsBlocked()) return@once
+        when (try { g.session.checkPush() } catch (e: Exception) { null }) {
+            "sent" -> message.value = UiText.CHECK_WORKING
+            "relay", "gone" -> {}
+            else -> message.value = UiText.CHECK_FAILED
+        }
+    }
     fun retryPush() = io(UiText.UNABLE_TURN_ON_NOTIFICATIONS) { com.pusharmor.app.work.Work.patchPush(g.app) }
 
     /** On each return to the app when signed in: register with a UnifiedPush app installed meanwhile. */
