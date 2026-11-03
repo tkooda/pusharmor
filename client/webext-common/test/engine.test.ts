@@ -1309,7 +1309,7 @@ test("push_missing in a signed reply subscribes fresh and PATCHes the new endpoi
   assert.deepEqual(a.p.subscribeFresh, [true]);
   const patch = w.calls.filter((x) => x.method === "PATCH" && x.path === "/v1/peers/" + a.id).at(-1)!;
   assert.equal((patch.body as { push: { endpoint: string } }).push.endpoint, a.p.sub!.endpoint);
-  await a.e.pushReconcile(true); // what a refresh does
+  await a.e.pushReconcile(true); // a forced reconcile without push_missing
   assert.notEqual(a.p.subscribeFresh[1], true);
 });
 

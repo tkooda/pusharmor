@@ -217,7 +217,8 @@ export class Rpc {
         return e.rename(s("name"));
       case "refresh": {
         await e.fetchPeersNow();
-        await e.pushReconcile(true).catch(() => undefined);
+        // PATCH only a changed push; a push the relay server lost comes back as push_missing
+        await e.pushReconcile().catch(() => undefined);
         await e.timeoutCheck();
         return this.peers();
       }
