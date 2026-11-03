@@ -39,8 +39,8 @@ struct MainView: View {
                 .tag(2)
         }
         .onAppear {
-            // no paired device yet: open on the first-pair steps in Devices
-            if model.highlightPeer != nil || model.needsFirstPair { tab = 1 }
+            // no pairing complete on both sides yet: open on Devices
+            if model.highlightPeer != nil || !model.launchesOnSend { tab = 1 }
             if model.showHistory { tab = 3; model.showHistory = false }
         }
         .onChange(of: model.highlightPeer) { _, v in

@@ -723,6 +723,10 @@ final class AppModel: ObservableObject {
     /// completes and comes back when the last paired device is removed.
     var needsFirstPair: Bool { !peers.contains { $0.pinned && $0.state == .approved } }
 
+    /// A plain launch opens Send only when a pairing is complete on both sides (this device
+    /// approved the other and the other approves this one), else Devices.
+    var launchesOnSend: Bool { peers.contains { $0.pinned && $0.state == .approved && $0.approvesMe } }
+
     /// Devices of this account waiting to pair: the Devices tab Pairing section.
     var waitingToPair: [Peer] {
         peers.filter { pairings[$0.id.text] != nil || (!$0.pinned && $0.state != .removed) }
