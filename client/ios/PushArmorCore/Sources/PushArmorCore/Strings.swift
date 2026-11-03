@@ -113,8 +113,12 @@ public enum S {
     public static let shareLoggedOut = ErrorCopy.Action.send.line + "\nThis device is logged out. Open PushArmor and log in."
     public static let shareNothing = ErrorCopy.Action.send.line + "\nThere is no text or URL to send."
     public static let shareNoPeers = ErrorCopy.Action.send.line + "\nThis device is not paired with any devices yet. Open PushArmor to pair."
-    /// The data or the keys did not open: the same reasons the app gives.
-    public static func shareDataFailed(_ e: Error) -> String { ErrorCopy.text(.send, ErrorCopy.reason(local: e)) }
+    /// The data or the keys did not open: the same reasons the app gives. Nothing is saved
+    /// there, so a data error is storage full or the app's open-failure text, never could not save.
+    public static func shareDataFailed(_ e: Error) -> String {
+        if case .storageFull = ErrorCopy.reason(local: e) { return ErrorCopy.text(.send, .storageFull) }
+        return ErrorCopy.Action.send.line + "\n" + launchFailed
+    }
     public static let shareKeysUnusable = ErrorCopy.text(.send, .keysUnusable)
     public static let showContentSwitch = "Allow message content in notifications"
     public static let lockScreenSwitch = "Allow message content on lock screen"
