@@ -249,19 +249,19 @@ def test_permissions(tmp_path):
     assert st.load_keys()["id"] == pa.b64e(bytes(30))
     with open(st.key_path) as f:
         assert f.read().startswith("# PushArmor private keys")
-    os.chmod(st.keys_dir, 0o755)
-    with pytest.raises(pa.Fail) as e:
-        st.load_keys()
-    assert str(e.value) == "'%s' can be read by other users. Run: chmod 700 '%s'" % (st.keys_dir, st.keys_dir)
-    os.chmod(st.keys_dir, 0o775)
-    with pytest.raises(pa.Fail) as e:
-        st.load_keys()
-    assert str(e.value) == "'%s' can be changed by other users. Run: chmod go-w '%s'" % (st.keys_dir, st.keys_dir)
+    for mode in (0o755, 0o775, 0o770, 0o701):  # any group or other bit: one hint that fixes all of them
+        os.chmod(st.keys_dir, mode)
+        with pytest.raises(pa.Fail) as e:
+            st.load_keys()
+        assert str(e.value) == "'%s' must not be readable by other users. Run: chmod 700 '%s'" % (
+            st.keys_dir, st.keys_dir)
     os.chmod(st.keys_dir, 0o700)
-    os.chmod(st.key_path, 0o644)
-    with pytest.raises(pa.Fail) as e:
-        st.load_keys()
-    assert str(e.value) == "'%s' can be read by other users. Run: chmod 600 '%s'" % (st.key_path, st.key_path)
+    for mode in (0o644, 0o670, 0o602):
+        os.chmod(st.key_path, mode)
+        with pytest.raises(pa.Fail) as e:
+            st.load_keys()
+        assert str(e.value) == "'%s' must not be readable by other users. Run: chmod 600 '%s'" % (
+            st.key_path, st.key_path)
     os.chmod(st.key_path, 0o600)
     uid = os.getuid()
     with pytest.MonkeyPatch.context() as mp:

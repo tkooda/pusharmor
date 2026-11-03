@@ -1323,9 +1323,7 @@ def check_private(path, want):
     q = quoted_path(path)
     if st.st_uid != os.getuid():
         raise Fail("%s belongs to another user. Run: chown $(id -un) %s" % (q, q))
-    if mode & 0o022:
-        raise Fail("%s can be changed by other users. Run: chmod go-w %s" % (q, q))
-    raise Fail("%s can be read by other users. Run: chmod %o %s" % (q, want, q))
+    raise Fail("%s must not be readable by other users. Run: chmod %o %s" % (q, want, q))
 
 
 def check_unshared(path, folder):
