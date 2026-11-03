@@ -263,7 +263,7 @@ class AppLogicTest {
         assertEquals("Unable to refresh the device list.\nThe relay server could not be reached. Check your internet connection and try again.", Session.refreshError(null))
         assertEquals("Unable to refresh the device list.\nThe relay server is not working right now. Try again later.",
             Session.refreshError(com.pusharmor.protocol.engine.ApiResult.Http(503, null)))
-        assertTrue(source("ui/AppViewModel.kt").contains("fun refresh() = io(UiText.UNABLE_REFRESH) { g.session.refresh()?.let { message.value = it } }"))
+        assertTrue(source("ui/AppViewModel.kt").contains("io(UiText.UNABLE_REFRESH) { try { g.session.refresh()?.let { message.value = it } }"))
     }
 
     @Test fun pairingCardFooterHasRoomBelow() {

@@ -79,12 +79,14 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -212,12 +214,14 @@ internal fun sendScrolls(areaPx: Int, chipsPx: Int, extrasPx: Int, fieldMinPx: I
 internal fun pairingScrollTop(before: Int, after: Int, aiming: Boolean): Boolean = !aiming && after > before
 
 /** Peers screen (section 8): banners, pairing cards, This device, the peer group. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PeersScreen(vm: AppViewModel) {
     val peers by vm.peers.collectAsState()
     val rows by vm.pairings.collectAsState()
     val highlight by vm.highlight.collectAsState()
     val prefs by vm.prefs.collectAsState()
+    val refreshing by vm.refreshing.collectAsState()
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     // Saved, so both dialogs stay open through a rotation; the device by its id.
     var confirmRemove by rememberSaveable { mutableStateOf<String?>(null) }
@@ -259,40 +263,43 @@ fun PeersScreen(vm: AppViewModel) {
     // Pair a new device is a floating button, so it stays in reach however long the list is.
     Scaffold(containerColor = MaterialTheme.colorScheme.background, contentWindowInsets = WindowInsets(0), topBar = {
         PaTopBar("Devices", actions = {
-            IconButton(onClick = { vm.refresh() }, enabled = canRefresh) { Icon(PaIcons.Refresh, "Refresh") }
+            IconButton(onClick = { vm.refresh() }, enabled = canRefresh && !refreshing) { Icon(PaIcons.Refresh, "Refresh") }
         })
     }, floatingActionButton = {
         ExtendedFloatingActionButton(onClick = { pairHowTo = true }, icon = { Icon(PaIcons.Add, null) }, text = { Text("Pair a new device") })
     }) { inner ->
         // The first banner card keeps the same gap under the top bar as the cards on the other tabs.
         // The bottom padding keeps the last row clear of the floating button.
-        LazyColumn(Modifier.padding(inner).fillMaxSize(), state = state, contentPadding = PaddingValues(top = 8.dp, bottom = FAB_SPACE + 16.dp)) {
-            item(key = "banners") {
-                Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Banners(vm, prefs)
+        // Pull down to refresh; the indicator also shows while the Refresh button runs.
+        PullToRefreshBox(refreshing, onRefresh = { vm.refresh() }, modifier = Modifier.padding(inner).fillMaxSize()) {
+            LazyColumn(Modifier.fillMaxSize(), state = state, contentPadding = PaddingValues(top = 8.dp, bottom = FAB_SPACE + 16.dp)) {
+                item(key = "banners") {
+                    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Banners(vm, prefs)
+                    }
                 }
-            }
-            if (firstDevice) item(key = "steps") {
-                Column { SectionHeader(UiText.FIRST_DEVICE_TITLE); FirstDeviceSteps() }
-            }
-            if (pairing.isNotEmpty()) {
-                item(key = "pairing-header") { SectionHeader("Pairing") }
-                itemsIndexed(pairing, key = { _, p -> "pair-" + p.id }) { i, p ->
-                    val row = rows.first { it.peerId == p.id }
-                    PairingCard(vm, p, row, now, Modifier.padding(top = if (i > 0) 12.dp else 0.dp))
+                if (firstDevice) item(key = "steps") {
+                    Column { SectionHeader(UiText.FIRST_DEVICE_TITLE); FirstDeviceSteps() }
                 }
-            }
-            if (plain.isNotEmpty()) {
-                item(key = "peers-header") { SectionHeader(if (firstDevice) "Waiting to pair" else "Other devices") }
-                itemsIndexed(plain, key = { _, p -> p.id }) { i, p ->
-                    PeerRow(vm, p, now, p.id == highlight, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, plain.size)) { confirmRemove = p.id }
+                if (pairing.isNotEmpty()) {
+                    item(key = "pairing-header") { SectionHeader("Pairing") }
+                    itemsIndexed(pairing, key = { _, p -> "pair-" + p.id }) { i, p ->
+                        val row = rows.first { it.peerId == p.id }
+                        PairingCard(vm, p, row, now, Modifier.padding(top = if (i > 0) 12.dp else 0.dp))
+                    }
                 }
-            } else if (pairing.isEmpty() && firstDevice) {
-                item(key = "waiting-header") { SectionHeader("Waiting to pair") }
-                item(key = "waiting") {
-                    ListItem(modifier = Modifier.padding(horizontal = 16.dp), colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        leadingContent = { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 3.dp) },
-                        headlineContent = { Text(UiText.FIRST_DEVICE_WAITING, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) })
+                if (plain.isNotEmpty()) {
+                    item(key = "peers-header") { SectionHeader(if (firstDevice) "Waiting to pair" else "Other devices") }
+                    itemsIndexed(plain, key = { _, p -> p.id }) { i, p ->
+                        PeerRow(vm, p, now, p.id == highlight, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, plain.size)) { confirmRemove = p.id }
+                    }
+                } else if (pairing.isEmpty() && firstDevice) {
+                    item(key = "waiting-header") { SectionHeader("Waiting to pair") }
+                    item(key = "waiting") {
+                        ListItem(modifier = Modifier.padding(horizontal = 16.dp), colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            leadingContent = { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 3.dp) },
+                            headlineContent = { Text(UiText.FIRST_DEVICE_WAITING, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) })
+                    }
                 }
             }
         }

@@ -351,7 +351,7 @@ class Session(private val g: Graph) {
         return ok
     }
 
-    /** Refresh button (greyed 60 s): GET /peers, push hash check, reconcile, approve re-fetch. Returns the error text, or null. */
+    /** Refresh button (greyed 60 s): GET /peers, push hash check, reconcile, approve re-fetch, pair re-sends. Returns the error text, or null. */
     fun refresh(): String? {
         val now = System.currentTimeMillis()
         if (now - (s.get(Settings.K.LAST_REFRESH) ?: 0) < REFRESH_GREY_MS) return null
@@ -359,6 +359,7 @@ class Session(private val g: Graph) {
         lastFetchFailure = null
         val ok = fetchPeers(force = true)
         refetchWaiting()
+        if (g.identity() != null) g.pairing().resendWaiting(now)
         return if (ok) null else refreshError(lastFetchFailure)
     }
 

@@ -258,7 +258,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- peers ----
 
-    fun refresh() = io(UiText.UNABLE_REFRESH) { g.session.refresh()?.let { message.value = it } } // offline says so
+    /** A Devices refresh (pull or button) is running: the pull indicator shows and the button is greyed. */
+    val refreshing = MutableStateFlow(false)
+    fun refresh() {
+        if (refreshing.value) return
+        refreshing.value = true
+        io(UiText.UNABLE_REFRESH) { try { g.session.refresh()?.let { message.value = it } } finally { refreshing.value = false } } // offline says so
+    }
     fun pair(id: String) = once("pair:$id", UiText.unablePair(nameOf(id))) { refused(id, g.pairing().tapPair(id, System.currentTimeMillis())) }
     /** Says why a Pair or Pair again tap did not start. */
     private fun refused(id: String, r: PairStart) {

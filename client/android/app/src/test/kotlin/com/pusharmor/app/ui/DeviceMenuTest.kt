@@ -71,6 +71,8 @@ class DeviceMenuTest {
         }
         t.start(); t.join()
         val vm = AppViewModel(app)
+        // The device is in the view model before the first frame: a later update can miss the stuck frames here.
+        while (vm.peers.value.isEmpty() || vm.self.value == null) { Thread.sleep(20); idle() }
         UiHostActivity.content = { PeersScreen(vm) }
         val a = c.setup().get()
         idle()

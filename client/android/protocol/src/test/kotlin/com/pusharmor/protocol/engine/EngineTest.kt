@@ -294,6 +294,195 @@ class EngineTest {
         assertEquals(low.store.pairing(high.id)!!.fingerprint, high.store.pairing(low.id)!!.fingerprint)
     }
 
+    // Crossing commits: any timing of Pair taps on both sides ends at compare codes on both.
+    private val lowIsN get() = com.pusharmor.crypto.Ids.compareUnsigned(n.me.idRaw, x.me.idRaw) < 0
+    private val low get() = if (lowIsN) n else x
+    private val high get() = if (lowIsN) x else n
+
+    private fun pump(now: Long) = repeat(4) { n.runPairSends(now); x.runPairSends(now); n.deliver(now); x.deliver(now) }
+
+    private fun commits(d: FakeWorker.Device) = d.calls.count { it == "pair:commit" }
+
+    private fun assertCompare() {
+        val a = n.store.pairing(x.id)!!
+        val b = x.store.pairing(n.id)!!
+        assertEquals(PairState.SHOWN, a.state)
+        assertEquals(PairState.SHOWN, b.state)
+        assertNotEquals(a.role, b.role)
+        assertNotNull(a.fingerprint)
+        assertEquals(a.fingerprint, b.fingerprint)
+        for (d in listOf(n, x)) {
+            assertFalse(d.effects.log.contains("couldNotRead"))
+            assertNull(d.store.peer(if (d === n) x.id else n.id)!!.note)
+        }
+    }
+
+    @Test fun crossingSimultaneousTapsBothDelivered() {
+        low.pairing.tapPair(high.id, t0); high.pairing.tapPair(low.id, t0)
+        n.runPairSends(t0); x.runPairSends(t0)
+        n.deliver(t0); x.deliver(t0)
+        assertTrue(low.effects.log.any { it.startsWith("pair:IN_PROGRESS") })
+        pump(t0)
+        assertCompare()
+        // the lower side's re-send reached the higher side as a duplicate; its second reply was dropped quietly
+        assertEquals(2, commits(low))
+        assertEquals(2, high.calls.count { it == "pair:reply" })
+    }
+
+    @Test fun crossingLowerTapsThenHigherTapsBeforeTheCommitIsRead() {
+        low.pairing.tapPair(high.id, t0); low.runPairSends(t0)
+        high.pairing.tapPair(low.id, t0 + 1000); high.runPairSends(t0 + 1000)
+        low.deliver(t0 + 1000); high.deliver(t0 + 1000)
+        pump(t0 + 1000)
+        assertCompare()
+    }
+
+    @Test fun crossingHigherTapsThenLowerTaps() {
+        high.pairing.tapPair(low.id, t0); high.runPairSends(t0)
+        low.pairing.tapPair(high.id, t0 + 1000); low.runPairSends(t0 + 1000)
+        high.deliver(t0 + 1000); low.deliver(t0 + 1000)
+        pump(t0 + 1000)
+        assertCompare()
+    }
+
+    @Test fun crossingStaleRequestOnTheLowerSide() {
+        low.pairing.tapPair(high.id, t0); low.runPairSends(t0)
+        high.deliver(t0, drop = true) // the higher side never got it
+        val t1 = t0 + 5 * 3600_000L
+        high.pairing.tapPair(low.id, t1); high.runPairSends(t1)
+        low.deliver(t1) // crossing: the lower side sends its old commit again
+        assertEquals(PairState.COMMITTED, low.store.pairing(high.id)!!.state)
+        pump(t1)
+        assertCompare()
+        assertEquals(PairRole.N, low.store.pairing(high.id)!!.role)
+    }
+
+    @Test fun crossingStaleRequestOnTheHigherSide() {
+        high.pairing.tapPair(low.id, t0); high.runPairSends(t0)
+        low.deliver(t0, drop = true)
+        val t1 = t0 + 5 * 3600_000L
+        low.pairing.tapPair(high.id, t1); low.runPairSends(t1)
+        pump(t1)
+        assertCompare()
+        assertEquals(PairRole.N, low.store.pairing(high.id)!!.role)
+    }
+
+    @Test fun crossingWithSendAgainOnBothSides() {
+        low.pairing.tapPair(high.id, t0); high.pairing.tapPair(low.id, t0)
+        n.runPairSends(t0); x.runPairSends(t0)
+        n.deliver(t0, drop = true); x.deliver(t0, drop = true)
+        val t1 = t0 + PairingEngine.SEND_AGAIN_MS
+        assertTrue(low.pairing.sendAgain(high.id, t1))
+        assertTrue(high.pairing.sendAgain(low.id, t1))
+        pump(t1)
+        assertCompare()
+    }
+
+    @Test fun crossingLostFirstCommitIsRecoveredByTheResend() {
+        low.pairing.tapPair(high.id, t0); high.pairing.tapPair(low.id, t0)
+        low.runPairSends(t0); high.deliver(t0, drop = true) // the lower side's first commit is lost
+        high.runPairSends(t0); low.deliver(t0)
+        pump(t0)
+        assertCompare()
+    }
+
+    @Test fun crossingLostResendIsRecoveredBySendAgain() {
+        low.pairing.tapPair(high.id, t0); high.pairing.tapPair(low.id, t0)
+        low.runPairSends(t0); high.deliver(t0, drop = true)
+        high.runPairSends(t0); low.deliver(t0)
+        low.runPairSends(t0); high.deliver(t0, drop = true) // the re-send is lost too
+        assertEquals(PairState.COMMITTED, low.store.pairing(high.id)!!.state)
+        val t1 = t0 + PairingEngine.SEND_AGAIN_MS
+        assertTrue(low.pairing.sendAgain(high.id, t1))
+        pump(t1)
+        assertCompare()
+    }
+
+    @Test fun crossingResendIsOneSameCommitWithoutTheSendAgainWait() {
+        low.pairing.tapPair(high.id, t0); low.runPairSends(t0); high.deliver(t0, drop = true)
+        val cN = low.store.pairing(high.id)!!.cN!!
+        val t1 = t0 + 1000
+        assertFalse(low.pairing.sendAgain(high.id, t1)) // inside the 60 s Send again wait
+        high.pairing.tapPair(low.id, t1); high.runPairSends(t1)
+        low.deliver(t1)
+        assertEquals(1, commits(low))
+        low.runPairSends(t1)
+        assertEquals(2, commits(low))
+        low.runPairSends(t1)
+        assertEquals(2, commits(low)) // exactly one re-send
+        val row = low.store.pairing(high.id)!!
+        assertTrue(row.cN!!.contentEquals(cN))
+        assertEquals(t1, row.lastSendAt)
+        assertEquals("sent", row.lastResult)
+        high.deliver(t1)
+        assertTrue(high.store.pairing(low.id)!!.cN!!.contentEquals(cN)) // the higher side replies to the same c_N
+    }
+
+    @Test fun crossingResendHonorsNotBefore() {
+        low.pairing.tapPair(high.id, t0); low.runPairSends(t0); high.deliver(t0, drop = true)
+        val nb = t0 + 30_000
+        low.store.putPairing(low.store.pairing(high.id)!!.copy(notBefore = nb))
+        high.pairing.tapPair(low.id, t0 + 1000); high.runPairSends(t0 + 1000)
+        low.deliver(t0 + 1000)
+        assertEquals(PairingEngine.SendStep.WAIT_UNTIL, low.pairing.sendPending(high.id, t0 + 1000))
+        assertEquals(1, commits(low))
+        assertEquals(PairingEngine.SendStep.DONE, low.pairing.sendPending(high.id, nb))
+        assertEquals(2, commits(low))
+        pump(nb)
+        assertCompare()
+    }
+
+    // Devices refresh: each waiting entry sends its current message again (60 s gap, notBefore).
+    @Test fun refreshResendsALostCommitAfterTheGap() {
+        n.pairing.tapPair(x.id, t0); n.runPairSends(t0); x.deliver(t0, drop = true)
+        n.pairing.resendWaiting(t0 + 1000)
+        n.runPairSends(t0 + 1000)
+        assertEquals(1, commits(n)) // inside 60 s of the last send
+        val t1 = t0 + PairingEngine.SEND_AGAIN_MS
+        n.pairing.resendWaiting(t1)
+        n.runPairSends(t1)
+        assertEquals(2, commits(n))
+        pump(t1)
+        assertCompare()
+    }
+
+    @Test fun refreshResendsALostReply() {
+        n.pairing.tapPair(x.id, t0); n.runPairSends(t0); x.deliver(t0)
+        x.runPairSends(t0); n.deliver(t0, drop = true)
+        val t1 = t0 + PairingEngine.SEND_AGAIN_MS
+        n.pairing.resendWaiting(t1) // N is still committed: its commit again, which X answers by 3a
+        x.pairing.resendWaiting(t1)
+        pump(t1)
+        assertCompare()
+    }
+
+    @Test fun refreshResendsALostOpenUntilApproveVerifies() {
+        n.pairing.tapPair(x.id, t0); n.runPairSends(t0); x.deliver(t0)
+        x.runPairSends(t0); n.deliver(t0)
+        n.runPairSends(t0); x.deliver(t0, drop = true)
+        assertEquals(PairState.REPLIED, x.store.pairing(n.id)!!.state)
+        val t1 = t0 + PairingEngine.SEND_AGAIN_MS
+        n.pairing.resendWaiting(t1)
+        pump(t1)
+        assertCompare()
+        assertEquals(2, n.calls.count { it == "pair:open" })
+        n.store.putPeer(n.store.peer(x.id)!!.copy(approveVerified = true))
+        n.pairing.resendWaiting(t1 + PairingEngine.SEND_AGAIN_MS)
+        n.runPairSends(t1 + PairingEngine.SEND_AGAIN_MS)
+        assertEquals(2, n.calls.count { it == "pair:open" })
+    }
+
+    @Test fun refreshResendHonorsNotBefore() {
+        n.pairing.tapPair(x.id, t0); n.runPairSends(t0); x.deliver(t0, drop = true)
+        val t1 = t0 + PairingEngine.SEND_AGAIN_MS
+        n.store.putPairing(n.store.pairing(x.id)!!.copy(notBefore = t1 + 30_000))
+        n.pairing.resendWaiting(t1)
+        assertEquals(PairingEngine.SendStep.WAIT_UNTIL, n.pairing.sendPending(x.id, t1))
+        assertEquals(1, commits(n))
+        assertEquals(PairingEngine.SendStep.DONE, n.pairing.sendPending(x.id, t1 + 30_000))
+        assertEquals(2, commits(n))
+    }
+
     @Test fun persistedStateValidAtDay13AndTimeoutAtDay14() {
         n.pairing.tapPair(x.id, t0); n.runPairSends(t0)
         val day = 24 * 3600_000L
@@ -477,14 +666,9 @@ class EngineTest {
         assertFalse(row.cN!!.contentEquals(oldCommit))
         assertEquals(PairStart.IN_PROGRESS, n.pairing.pairAgain(x.id, t0 + 1000) {}) // not a half state now
         // it completes as a fresh pairing. The two commits cross; lower id stays N. When X is the
-        // lower id it already sent its commit, so X uses Send again (60 s), as after a two-step cancel.
-        var t1 = t0 + 1000
-        repeat(3) { n.runPairSends(t1); x.runPairSends(t1); x.deliver(t1); n.deliver(t1) }
-        if (x.store.pairing(n.id)!!.let { it.role == PairRole.N && it.state == PairState.COMMITTED }) {
-            t1 += PairingEngine.SEND_AGAIN_MS
-            assertTrue(x.pairing.sendAgain(n.id, t1))
-            repeat(3) { n.runPairSends(t1); x.runPairSends(t1); x.deliver(t1); n.deliver(t1) }
-        }
+        // lower id it already sent its commit, so the crossing sends that commit again.
+        val t1 = t0 + 1000
+        repeat(4) { n.runPairSends(t1); x.runPairSends(t1); x.deliver(t1); n.deliver(t1) }
         assertEquals(PairState.SHOWN, n.store.pairing(x.id)!!.state)
         assertEquals(PairState.SHOWN, x.store.pairing(n.id)!!.state)
         assertEquals(n.store.pairing(x.id)!!.fingerprint, x.store.pairing(n.id)!!.fingerprint)

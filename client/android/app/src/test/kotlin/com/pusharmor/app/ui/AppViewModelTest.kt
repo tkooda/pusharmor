@@ -46,6 +46,15 @@ class AppViewModelTest {
         assertNull(uncaught)
     }
 
+    /** A Devices refresh (pull or button) clears its running flag when done, so the pull indicator goes away. */
+    @Test fun refreshClearsItsIndicatorWhenDone() {
+        val vm = vm()
+        vm.refresh()
+        waitFor { !vm.refreshing.value }
+        assertFalse(vm.refreshing.value)
+        assertNull(uncaught)
+    }
+
     /** A tap that throws shows its action line and "Try again." on the next line. */
     @Test fun ioErrorSetsMessage() {
         val vm = vm()

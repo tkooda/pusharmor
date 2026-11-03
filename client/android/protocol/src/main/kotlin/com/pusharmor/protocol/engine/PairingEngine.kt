@@ -132,7 +132,7 @@ class PairingEngine(
             PairNotice.COMMIT -> effects.pairNotice(from, pk(from, me.id), PairNoticeKind.COMMIT)
             PairNotice.REPRESENT -> row?.let { represent(it) }
             PairNotice.HALF_STATE -> effects.pairNotice(from, pk(from, me.id), PairNoticeKind.PAIR_AGAIN)
-            PairNotice.CROSSING -> effects.pairNotice(from, pk(me.id, from), PairNoticeKind.IN_PROGRESS)
+            PairNotice.CROSSING -> { effects.pairNotice(from, pk(me.id, from), PairNoticeKind.IN_PROGRESS); resendCommit(from) }
             PairNotice.COULD_NOT_READ -> effects.couldNotRead()
             PairNotice.NONE -> Unit
         }
@@ -185,10 +185,12 @@ class PairingEngine(
         effects.pairNotice(row.peerId, pkOf(row), kind, row.fingerprint)
     }
 
-    /** N on reply: only in committed; the keys hash to X's id (checked by the open). */
+    /** N on reply: only in committed; the keys hash to X's id (checked by the open). A repeat of the reply in shown is dropped quietly. */
     fun onReply(from: String, m: PairMessage.Keys, now: Long) {
         val ok = store.tx {
             val row = store.pairing(from) ?: return@tx false
+            if (row.role == PairRole.N && row.state == PairState.SHOWN &&
+                m.signPub.contentEquals(row.peerSignPub) && m.encPub.contentEquals(row.peerEncPub) && m.r.contentEquals(row.peerR)) return@tx null
             if (row.role != PairRole.N || row.state != PairState.COMMITTED) return@tx false
             val fp = Ids.fingerprint(me.keys.signPub, me.keys.encPub, m.signPub, m.encPub, row.r, m.r)
             val pid = Ids.pairingId(row.r, m.r)
@@ -198,6 +200,7 @@ class PairingEngine(
                 fingerprint = fp, pendingKind = PairKind.OPEN, pendingMessage = open, notBefore = 0))
             true
         }
+        if (ok == null) return
         if (!ok) { effects.couldNotRead(); return }
         effects.peerChannelCreate(from)
         effects.pairNotice(from, pk(me.id, from), PairNoticeKind.READY)
@@ -266,6 +269,56 @@ class PairingEngine(
         }
         if (ok) effects.schedulePairSend(peerId, replace = true)
         return ok
+    }
+
+    /**
+     * Crossing on the lower id: the higher id replies to this side's commit, which it may never
+     * have got. Send the same commit (same c_N) again, once per received commit: no 60 s wait
+     * (the peer, not a tap, asked), but a server wait (notBefore) still holds. A commit already
+     * waiting to go is not sealed again.
+     */
+    private fun resendCommit(peerId: String) {
+        val ok = store.tx {
+            val row = store.pairing(peerId) ?: return@tx false
+            if (row.role != PairRole.N || row.state != PairState.COMMITTED) return@tx false
+            if (row.pendingMessage == null) {
+                val (kind, msg) = sameMessage(row) ?: return@tx false
+                store.putPairing(row.copy(pendingKind = kind, pendingMessage = msg))
+            }
+            true
+        }
+        if (ok) effects.schedulePairSend(peerId, replace = false)
+    }
+
+    /** This side's current message again: the commit (same c_N) in N committed, the open in N shown, the reply (same r_X) in X replied or authorized. */
+    private fun sameMessage(row: PairingRow): Pair<PairKind, String>? {
+        val enc = store.peer(row.peerId)?.let { listedEncPub(it) }
+        return when {
+            row.role == PairRole.N && row.state == PairState.COMMITTED -> enc?.let { PairKind.COMMIT to PairMessage.seal(PairMessage.Commit(me.idRaw, row.cN!!), row.peerId, it) }
+            row.role == PairRole.N && row.state == PairState.SHOWN ->
+                PairKind.OPEN to PairMessage.seal(PairMessage.Keys(PairKind.OPEN, me.idRaw, me.keys.signPub, me.keys.encPub, row.r), row.peerId, row.peerEncPub!!)
+            row.role == PairRole.X && (row.state == PairState.REPLIED || (row.state == PairState.PROMPTED && row.authorized)) -> enc?.let { PairKind.REPLY to reply(row.peerId, it, row.r) }
+            else -> null
+        }
+    }
+
+    /**
+     * Devices refresh (pull or button): each waiting entry sends its current message again, so a
+     * lost push is answered by the peer's 3a. Not within 60 s of the entry's last send; a server
+     * wait (notBefore) still holds. An N entry in shown stops once X's approve verified.
+     */
+    fun resendWaiting(now: Long) {
+        val due = store.tx {
+            store.pairings().filter { row ->
+                if (now - row.lastSendAt < SEND_AGAIN_MS) return@filter false
+                if (row.role == PairRole.N && row.state == PairState.SHOWN && store.peer(row.peerId)?.approveVerified == true) return@filter false
+                if (row.pendingMessage != null) return@filter true
+                val (kind, msg) = sameMessage(row) ?: return@filter false
+                store.putPairing(row.copy(pendingKind = kind, pendingMessage = msg))
+                true
+            }.map { it.peerId }
+        }
+        for (id in due) effects.schedulePairSend(id, replace = false)
     }
 
     /** [Send again] on N: same commit (same c_N) in committed, same open in shown; 60 s after the last send. */
