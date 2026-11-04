@@ -3,7 +3,7 @@ import { env } from "cloudflare:test";
 import { b64urlEncode } from "../src/codec/b64url";
 import { probeCode } from "../src/routes/common";
 import { pairKey } from "../src/routes/pair";
-import { call, cliCodeFor, countingLimit, register, initP256, message, newPeer, onVendor, pushFor, randomEmail, row, setAllow, testEnv, ticketFor, vendorRequests, keys, type Peer } from "./helpers";
+import { acctOf, call, cliCodeFor, countingLimit, register, initP256, message, newPeer, onVendor, pushFor, randomEmail, row, setAllow, testEnv, ticketFor, vendorRequests, keys, type Peer } from "./helpers";
 import { TEST_SECRETS as S } from "./secrets";
 import { PUSH_FAILED_COL } from "../src/db/sql";
 
@@ -178,12 +178,27 @@ describe("logout / login (6.10)", () => {
     expect((await row(a.id))!.logged_out).toBe(0);
   });
 
+  it("login with a valid ticket for another account: 401 account mismatch names that account; expired stays ticket expired", async () => {
+    const email = randomEmail();
+    const other = randomEmail();
+    const a = await newPeer(email);
+    await env.DB.prepare("UPDATE peers SET logged_out = 1 WHERE id = ?1").bind(a.id).run();
+    let r = await call("POST", `/v1/peers/${a.id}/login`, { ticket: await ticketFor(other, a.signPub, "login"), m: {} }, { peer: a });
+    expect(r.status).toBe(401);
+    expect(r.body).toEqual({ error: "account mismatch", account: await acctOf(other) });
+    expect((await row(a.id))!.logged_out).toBe(1);
+    r = await call("POST", `/v1/peers/${a.id}/login`, { ticket: await ticketFor(other, a.signPub, "login", -10), m: {} }, { peer: a });
+    expect(r.body.error).toBe("ticket expired");
+  });
+
   it("login accepts a cli code of the right purpose and account; DELETE /account takes no cli code", async () => {
     const email = randomEmail();
     const a = await newPeer(email, "cli", null);
     await env.DB.prepare("UPDATE peers SET logged_out = 1 WHERE id = ?1").bind(a.id).run();
-    let r = await call("POST", `/v1/peers/${a.id}/login`, { ticket: await cliCodeFor(randomEmail(), a.signPub, "login"), m: {} }, { peer: a });
-    expect(r.body.error).toBe("bad ticket");
+    const other = randomEmail();
+    let r = await call("POST", `/v1/peers/${a.id}/login`, { ticket: await cliCodeFor(other, a.signPub, "login"), m: {} }, { peer: a });
+    expect(r.status).toBe(401);
+    expect(r.body).toEqual({ error: "account mismatch", account: await acctOf(other) });
     r = await call("POST", `/v1/peers/${a.id}/login`, { ticket: await cliCodeFor(email, a.signPub, "register"), m: {} }, { peer: a });
     expect(r.body.error).toBe("bad ticket");
     r = await call("POST", `/v1/peers/${a.id}/login`, { ticket: await cliCodeFor(email, a.signPub, "login"), m: {} }, { peer: a });

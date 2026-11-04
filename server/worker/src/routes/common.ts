@@ -48,7 +48,9 @@ export async function callerCheck(c: Ctx, s: Signed, row: CallerRow | undefined 
 }
 
 // Ticket check: MAC, purpose, k, expiry (and account when given). A 34-char ticket is a cli
-// code (401 "ticket expired" for an older window, else "bad ticket").
+// code (401 "ticket expired" for an older window, else "bad ticket"). A valid ticket for
+// another account is 401 "account mismatch" with that account id, so the client can switch to
+// the keys it keeps for that account.
 export async function checkTicket(c: Ctx, ticket: unknown, purpose: Purpose, signPub: string, acct?: string): Promise<Ticket> {
   if (typeof ticket === "string" && ticket.length === 34 && purpose !== "delete-account") {
     const raw = rawPoint(signPub);
@@ -56,7 +58,8 @@ export async function checkTicket(c: Ctx, ticket: unknown, purpose: Purpose, sig
     const w = Math.floor(nowS() / CLI_WINDOW_S);
     const o = await openCliCode(c.env.PA_TOKEN_SECRET, ticket, await keyRef16(raw), purpose, w);
     if (o === "expired") throw new ApiError(401, "ticket expired");
-    if (!o || (acct !== undefined && o.a !== acct)) throw new ApiError(401, "bad ticket");
+    if (!o) throw new ApiError(401, "bad ticket");
+    if (acct !== undefined && o.a !== acct) throw new ApiError(401, "account mismatch", { account: o.a });
     return { a: o.a, k: await keyRef(raw), p: purpose, x: (o.w + 2) * CLI_WINDOW_S };
   }
   const t = await openToken(c.env.PA_TOKEN_SECRET, LABEL_TICKET, ticket);
@@ -65,8 +68,8 @@ export async function checkTicket(c: Ctx, ticket: unknown, purpose: Purpose, sig
   if (t.p !== purpose || t.k !== (await keyRef(raw)) || typeof t.a !== "string" || !/^[A-Za-z0-9_-]{12}$/.test(t.a)) {
     throw new ApiError(401, "invalid ticket");
   }
-  if (acct !== undefined && t.a !== acct) throw new ApiError(401, "invalid ticket");
   if (typeof t.x !== "number" || t.x < nowS()) throw new ApiError(401, "ticket expired");
+  if (acct !== undefined && t.a !== acct) throw new ApiError(401, "account mismatch", { account: t.a });
   return t as unknown as Ticket;
 }
 
