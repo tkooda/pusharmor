@@ -190,6 +190,8 @@ body.page .foot { position: static; }
 
 /* Send view. */
 .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; padding: 6px 18px 4px; min-height: 26px; }
+.meta[hidden] { display: none; }
+.urlrow { display: flex; padding: 6px 18px 4px; min-height: 26px; align-items: center; }
 .asurl { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; font-size: 12px; line-height: 1.33334; color: var(--ink2); cursor: pointer; }
 .asurl:has(input:disabled) { opacity: 0.5; cursor: default; }
 .caption { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; min-height: 16px; font-size: 12px; line-height: 1.33334; color: var(--ink2); }

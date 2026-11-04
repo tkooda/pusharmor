@@ -308,6 +308,8 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   const counter = h("span", { class: "counter" });
   const asText = h("input", { type: "checkbox" }) as HTMLInputElement;
   const asTextRow = h("label", { class: "astext" }, asText, h("span", {}, "Send as text"));
+  // the caption and "Send as text" row: only for a phone number, or while the counter shows
+  const meta = h("div", { class: "meta" }, caption, asTextRow, counter);
   const asUrl = h("input", { type: "checkbox", disabled: true }) as HTMLInputElement;
   const asUrlRow = h("label", { class: "asurl" }, asUrl, h("span", {}, "Send as URL"));
   // the user unticked "Send as URL": it stays unticked for this message (until a send or an empty field)
@@ -398,6 +400,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     caption.hidden = !tel;
     asTextRow.hidden = !tel;
     counter.textContent = !showCounter(d.bytes, CAP) ? "" : d.bytes > CAP ? T.tooLong(d.bytes) : T.counter(d.bytes);
+    meta.hidden = !tel && counter.textContent === "";
     sendBtn.disabled = sendDisabled(d.bytes, CAP, count());
     cut.hidden = !offerCut || d.bytes <= CAP;
   };
@@ -427,7 +430,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     }
     await update();
   });
-  root.append(field, h("div", { class: "meta" }, asUrlRow, caption, asTextRow, counter));
+  root.append(field, h("div", { class: "urlrow" }, asUrlRow), meta);
   if (offerCut) {
     root.append(
       add(cut, h("button", {

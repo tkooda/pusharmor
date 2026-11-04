@@ -84,7 +84,9 @@ async function mount(inPopup: boolean, result: unknown) {
     for (const f of textBox.on.change!) f({});
     await tick();
   };
-  return { box, label, type, untick, send, sent, closed: () => closed, caption, textRow, tickText };
+  const meta = find(root, (x) => x.attrs.class === "meta") as N & { hidden: boolean };
+  const urlRow = find(root, (x) => x.attrs.class === "urlrow")!;
+  return { box, label, type, untick, send, sent, closed: () => closed, caption, textRow, tickText, meta, urlRow };
 }
 
 test("Send as URL: starts unticked and grey, ticks for a likely URL, and a user untick holds until a send or an empty field", async () => {
@@ -135,7 +137,8 @@ test("Send: the toolbar popup closes after a sent message; a full tab or Firefox
 test("Send: a phone number shows its caption and the Send as text box, as before; other text and URLs do not", async () => {
   const v = await mount(false, { sent: 1, total: 1, failures: [] });
   await v.type("+1 555 123 4567");
-  assert.deepEqual([v.caption.hidden, v.textRow.hidden, v.box.disabled], [false, false, true]);
+  assert.deepEqual([v.caption.hidden, v.textRow.hidden, v.box.disabled, v.meta.hidden], [false, false, true, false]);
+  assert.equal(v.urlRow.kids[0]!.attrs.class, "asurl"); // Send as URL on its own line
   assert.equal(v.caption.textContent, "Will open as a phone number");
   await v.send();
   assert.deepEqual([v.sent[0]!.asUrl, !!v.sent[0]!.asText], [false, false]);
@@ -146,6 +149,8 @@ test("Send: a phone number shows its caption and the Send as text box, as before
   await v.tickText(false);
   for (const t of ["hello", "minilock.org", "https://1.2.3.4"]) {
     await v.type(t);
-    assert.deepEqual([v.caption.hidden, v.textRow.hidden], [true, true], t);
+    assert.deepEqual([v.caption.hidden, v.textRow.hidden, v.meta.hidden], [true, true, true], t);
   }
+  await v.type("x".repeat(1900));
+  assert.deepEqual([v.meta.hidden, v.caption.hidden], [false, true]); // the counter shows
 });
