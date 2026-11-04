@@ -16,6 +16,10 @@ test("Send as URL: the likely-URL rule", () => {
   }
   for (const s of ["a-.com", "a.com:", "a.com:8x", "a.c", "a.c0m", "x".repeat(64) + ".com", "https://", "a.com\tb"]) assert.equal(isLikelyUrl(s), false, s);
   assert.equal(isLikelyUrl("x".repeat(63) + ".com?q"), true);
+  // with a scheme there is no host check
+  assert.equal(isLikelyUrl("https://1.2.3.4"), true);
+  assert.equal(isLikelyUrl("http://localhost:8080/x"), true);
+  assert.equal(isLikelyUrl("https://"), false);
 });
 
 test("Send as URL: the URL sent is the trimmed text, with https:// when it has no scheme", () => {

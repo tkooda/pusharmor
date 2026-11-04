@@ -2,12 +2,12 @@
 
 const LABEL = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
 
-/** Likely URL: trimmed, no whitespace, optional http(s)://, then a dotted host, optional :port, then /, ? or #. */
+/** Likely URL: trimmed, no whitespace; http(s):// plus anything, or else a dotted host, optional :port, then /, ? or #. */
 export function isLikelyUrl(text: string): boolean {
   const t = text.trim();
   if (t === "" || /\s/.test(t)) return false;
-  const rest = t.replace(/^https?:\/\//i, "");
-  const m = /^([^/?#:]*)(:[0-9]+)?(?:[/?#]|$)/.exec(rest);
+  if (/^https?:\/\/./i.test(t)) return true;
+  const m = /^([^/?#:]*)(:[0-9]+)?(?:[/?#]|$)/.exec(t);
   if (!m) return false;
   const labels = m[1]!.split(".");
   if (labels.length < 2 || !labels.every((l) => LABEL.test(l))) return false;
