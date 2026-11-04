@@ -34,6 +34,14 @@ export class N {
   get firstChild(): N | null {
     return this.kids[0] ?? null;
   }
+  prepend(x: N) {
+    this.append(x);
+    this.kids.unshift(this.kids.pop()!);
+  }
+  replaceChildren(...xs: (N | string)[]) {
+    this.kids = [];
+    this.append(...xs);
+  }
   removeChild(n: N) {
     n.remove();
   }
@@ -57,7 +65,7 @@ export class N {
     this.text = v;
   }
   get classList() {
-    return { add: (c: string) => void this.cls.add(c), contains: (c: string) => this.cls.has(c), toggle: (c: string, on: boolean) => void (on ? this.cls.add(c) : this.cls.delete(c)) };
+    return { add: (c: string) => void this.cls.add(c), remove: (c: string) => void this.cls.delete(c), contains: (c: string) => this.cls.has(c), toggle: (c: string, on: boolean) => void (on ? this.cls.add(c) : this.cls.delete(c)) };
   }
 }
 

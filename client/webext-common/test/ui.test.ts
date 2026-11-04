@@ -42,16 +42,6 @@ test("short History time: clock today, Yesterday, else month and day", () => {
   assert.equal(shortTime(new Date(2026, 9, 1, 8, 0).getTime(), now), new Date(2026, 9, 1).toLocaleDateString([], { month: "short", day: "numeric" }));
 });
 
-test("History sender link is a keyboard-operable button with a visible focus ring", async () => {
-  const { readFileSync } = await import("node:fs");
-  const src = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
-  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
-  assert.match(src, /h\("button", \{ class: "who peerlink", type: "button" \}/); // native Tab, Enter and Space
-  assert.match(src, /who\.addEventListener\("click"/); // click is what Enter and Space fire on a button
-  assert.match(css, /^:focus-visible \{ outline: 2px solid/m); // global ring
-  assert.doesNotMatch(css, /peerlink[^{]*\{[^}]*outline: ?none/);
-});
-
 test("status and error text is announced: live regions and field errors wired to inputs", async () => {
   const { readFileSync } = await import("node:fs");
   const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
@@ -509,7 +499,7 @@ test("history row: a tap on the selected row collapses it, with aria-expanded an
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
   assert.match(pop, /const markRead = \(\) => \{\s*if \(row\.classList\.contains\("sel"\)\) return collapse\(\);/);
-  assert.match(pop, /closest\("\.acts, \.peerlink"\)\) return;/);
+  assert.match(pop, /closest\("\.acts"\)\) return;/);
   assert.match(pop, /setAttribute\("aria-expanded", String\(row\.classList\.contains\("sel"\)\)\)/);
   assert.match(pop, /ev\.key !== "Enter" && ev\.key !== " "/);
   assert.match(readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8"), /\.hrow\.closed:not\(\.sel\) \.acts \{ display: none; \}/);

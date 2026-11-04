@@ -606,15 +606,13 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, now: number,
   }
   const sent = r.results ? Object.values(r.results).filter((v) => v === "sent").length : (r.targets?.length ?? 0);
   const whoText = r.dir === "out" ? T.sentToNofM(sent, r.targets?.length ?? 0) : r.sender;
-  // A real button when it opens the peer, so Tab focuses it and Enter/Space activate it.
-  const who = r.dir === "in" && r.peer ? h("button", { class: "who peerlink", type: "button" }, whoText) : h("span", { class: "who" }, whoText);
+  const who = h("span", { class: "who" }, whoText);
   // Sent to one device: name it in quotes; the name truncates inside them (F22).
   if (r.dir === "out" && r.targets?.length === 1 && sent === 1 && r.sender) {
     who.classList.add("one");
     who.title = T.sentToOne(r.sender);
     who.replaceChildren('Sent to "', h("span", { class: "nm" }, r.sender), '"');
   }
-  if (r.dir === "in" && r.peer) who.addEventListener("click", () => env.openPage("#peers=" + r.peer));
   const col = h("div", { class: "txt" }, h("div", { class: "hmeta" }, who, time));
   const one = r.type === "url" || r.type === "tel";
   const content = h("div", { class: "content " + (one ? "one" : "clamp"), tabindex: "0" });
@@ -655,7 +653,7 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, now: number,
   });
   row.addEventListener("click", (ev: Event) => {
     const t = ev.target as Element | null;
-    if (t?.closest(".acts, .peerlink")) return;
+    if (t?.closest(".acts")) return;
     if (t?.closest(".content") || row.classList.contains("sel")) markRead();
     else select();
   });
