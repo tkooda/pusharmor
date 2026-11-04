@@ -2252,3 +2252,21 @@ def test_pair_list_skips_x_entry_waiting_for_the_user(net, tmp_path, monkeypatch
     posts = pair_posts(net)
     pa.pair_list(hi.cx)
     assert posts == []
+
+
+def test_listen_idle_makes_no_relay_server_call(net, tmp_path, monkeypatch, capsys):
+    # listen is push-based: an idle stream only reconnects to ntfy; the relay server hears nothing
+    a, b = tmp_path / "a", tmp_path / "b"
+    pair_two(monkeypatch, net, a, b)
+    monkeypatch.setattr(pa, "LISTEN_TIMEOUT_S", 0.05)
+    opens, real = [], net.ntfy_open
+
+    def ntfy_open(url, timeout):
+        opens.append(len(net.log))
+        return real(url, timeout)
+
+    monkeypatch.setattr(pa, "ntfy_open", ntfy_open)
+    threading.Timer(1.5, net.stop.set).start()
+    assert run(b, "listen") == 130
+    assert len(opens) >= 5  # the idle stream timed out and reconnected again and again
+    assert net.log[opens[1]:] == []

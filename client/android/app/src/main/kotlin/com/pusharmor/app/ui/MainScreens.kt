@@ -214,6 +214,12 @@ internal fun sendScrolls(areaPx: Int, chipsPx: Int, extrasPx: Int, fieldMinPx: I
 /** Scroll the Peers list to the top when a pairing card is added, unless a highlight scroll is still due. */
 internal fun pairingScrollTop(before: Int, after: Int, aiming: Boolean): Boolean = !aiming && after > before
 
+/** The Devices screen while open: one relay server check at open, then a 30 s tick for the countdown text only. */
+internal suspend fun devicesScreenOpen(vm: AppViewModel, tick: suspend (Long) -> Unit = { delay(it) }, onTick: () -> Unit) {
+    vm.onPeersOpen()
+    while (true) { tick(30_000); onTick() }
+}
+
 /** Peers screen (section 8): banners, pairing cards, This device, the peer group. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -227,10 +233,7 @@ fun PeersScreen(vm: AppViewModel) {
     // Saved, so both dialogs stay open through a rotation; the device by its id.
     var confirmRemove by rememberSaveable { mutableStateOf<String?>(null) }
     var pairHowTo by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        vm.onPeersOpen()
-        while (true) { delay(30_000); now = System.currentTimeMillis(); vm.onPeersOpen() } // timeout timer while open
-    }
+    LaunchedEffect(Unit) { devicesScreenOpen(vm) { now = System.currentTimeMillis() } }
     val me by vm.self.collectAsState()
     // No paired device: the first-pair steps and the Waiting to pair row (was a screen in place of the tabs).
     val firstDevice = me != null && UiText.noPairedDevice(others(peers, me?.id))
