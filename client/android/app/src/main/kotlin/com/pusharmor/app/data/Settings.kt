@@ -52,11 +52,18 @@ class Settings(private val context: Context, private val dao: PaDao) {
 
         /** Keys kept in the database's app_state table, by name. */
         val IN_DB: Map<String, Preferences.Key<*>> = listOf(
-            K.SIGNED_OUT, K.LOGOUT_PENDING, K.REMOVAL_CHECK, K.OLD_ID, K.SIGN_IN_KEYS, K.PENDING_PURPOSE,
+            K.SIGNED_OUT, K.LOGOUT_PENDING, K.REMOVAL_CHECK, K.OLD_ID, K.SIGN_IN_KEYS, K.PENDING_PURPOSE, K.KEY_ALIAS,
             K.PUSH_TYPE, K.PUSH_TOKEN, K.UP_ENDPOINT, K.UP_P256DH, K.UP_AUTH, K.UP_REGISTERED_AT, K.UP_VERIFIED, K.PUSH_REFUSED,
         ).associateBy { it.name }
         private val BOOLS = setOf(K.SIGNED_OUT, K.LOGOUT_PENDING, K.SIGN_IN_KEYS, K.UP_VERIFIED, K.PUSH_REFUSED).map { it.name }
         private val LONGS = setOf(K.UP_REGISTERED_AT.name)
+
+        /** The database state that belongs to the active account and moves with it when another account is switched in. */
+        val ACCOUNT_STATE = listOf(K.SIGNED_OUT, K.LOGOUT_PENDING, K.REMOVAL_CHECK, K.OLD_ID, K.KEY_ALIAS).map { it.name }
+
+        /** The settings file keys that belong to the active account; push, theme, channels, and notices stay with the device. */
+        val ACCOUNT_PREFS: List<Preferences.Key<*>> = listOf(K.SHOW_ALL, K.TAP_OPENS_LINK, K.HISTORY_DAYS, K.SHARE_OFF, K.LOCK_SCREEN, K.WATCH,
+            K.SHOW_CONTENT, K.PUSH_MISSING, K.PATCH_BAD_ID, K.PUSH_ERROR, K.PAIR_ERROR, K.RELAY_FAULT, K.BANNER, K.LAST_FETCH, K.LAST_REFRESH, K.LAST_SEND_TO)
 
         /** One lock in the process: a deferred move never interleaves with a [set] of the keys it moves. */
         private val dbLock = Any()
@@ -115,6 +122,8 @@ class Settings(private val context: Context, private val dao: PaDao) {
         val PENDING_PURPOSE = stringPreferencesKey("pending_purpose")
         /** Keys were made or loaded for a sign-in that has not registered yet; startup keeps them. */
         val SIGN_IN_KEYS = booleanPreferencesKey("sign_in_keys")
+        /** Keystore alias base of the active account's keys; absent = the first account's ("pa"). Kept by the wipe. */
+        val KEY_ALIAS = stringPreferencesKey("key_alias")
         /** App version that got HTTP 426; the update screen shows while it is the running version. */
         val UPDATE_REQUIRED = stringPreferencesKey("update_required")
         /** The file was damaged and reset to defaults; cleared when the notice shows. */
@@ -224,9 +233,12 @@ class Settings(private val context: Context, private val dao: PaDao) {
         return false
     }
 
-    /** Clears everything except old_id (kept across the wipe for DELETE /peers/$old-id; a copy not yet moved stays in the file). */
+    /**
+     * Clears everything except old_id (kept across the wipe for DELETE /peers/$old-id; a copy not yet moved stays in the file)
+     * and the key alias base (an archived account's keys are never reused).
+     */
     fun clearKeepingOldId() {
-        db { dao.clearStateExcept(K.OLD_ID.name) }
+        db { dao.clearStateExcept(listOf(K.OLD_ID.name, K.KEY_ALIAS.name)) }
         runBlocking {
             context.ds.edit {
                 val old = it[K.OLD_ID]
@@ -234,5 +246,41 @@ class Settings(private val context: Context, private val dao: PaDao) {
                 if (old != null) it[K.OLD_ID] = old
             }
         }
+    }
+
+    /** The active account's settings file values, each as a type letter and the value. */
+    fun accountPrefs(): Map<String, String> {
+        val p = runBlocking { context.ds.data.first() }
+        return ACCOUNT_PREFS.mapNotNull { k ->
+            when (val v = p[k]) {
+                null -> null
+                is Boolean -> k.name to "b" + (if (v) "1" else "0")
+                is Int -> k.name to "i$v"
+                is Long -> k.name to "l$v"
+                is String -> k.name to "s$v"
+                is Set<*> -> k.name to "S" + v.joinToString("\n")
+                else -> null
+            }
+        }.toMap()
+    }
+
+    /** Replaces the active account's settings file values with [m] (from [accountPrefs]) in one write. */
+    @Suppress("UNCHECKED_CAST")
+    fun putAccountPrefs(m: Map<String, String>) = runBlocking {
+        context.ds.edit { e ->
+            for (k in ACCOUNT_PREFS) e.remove(k)
+            for (k in ACCOUNT_PREFS) {
+                val v = m[k.name] ?: continue
+                val x = v.drop(1)
+                when (v.first()) {
+                    'b' -> e[k as Preferences.Key<Boolean>] = x == "1"
+                    'i' -> x.toIntOrNull()?.let { e[k as Preferences.Key<Int>] = it }
+                    'l' -> x.toLongOrNull()?.let { e[k as Preferences.Key<Long>] = it }
+                    's' -> e[k as Preferences.Key<String>] = x
+                    'S' -> e[k as Preferences.Key<Set<String>>] = if (x.isEmpty()) emptySet() else x.split("\n").toSet()
+                }
+            }
+        }
+        Unit
     }
 }

@@ -13,13 +13,21 @@ import java.security.spec.ECGenParameterSpec
 import javax.crypto.KeyAgreement
 
 /**
- * Android Keystore keys (section 2): "pa.sign" (SIGN, SHA-256) and "pa.enc" (AGREE_KEY).
+ * Android Keystore keys (section 2): "<base>.sign" (SIGN, SHA-256) and "<base>.enc" (AGREE_KEY).
  * No user authentication, setUnlockedDeviceRequired(false), no StrongBox. Never exported.
+ * Each account on the device has its own base; an archived account's keys stay under theirs.
  */
-class KeystoreKeyOps private constructor(private val ks: KeyStore) : KeyOps {
+class KeystoreKeyOps private constructor(private val ks: KeyStore, private val signAlias: String = SIGN, private val encAlias: String = ENC) : KeyOps {
     companion object {
-        const val SIGN = "pa.sign"
-        const val ENC = "pa.enc"
+        /** The base of the first account's key set ("pa.sign", "pa.enc"). */
+        const val LEGACY = "pa"
+        /** The base of the active account's key set. */
+        @Volatile var base = LEGACY
+        val SIGN get() = "$base.sign"
+        val ENC get() = "$base.enc"
+
+        /** A base for a new account's key set, never one in use. */
+        fun newBase(): String = LEGACY + "." + ByteArray(8).also { java.security.SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
 
         private fun store() = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
 
@@ -71,13 +79,13 @@ class KeystoreKeyOps private constructor(private val ks: KeyStore) : KeyOps {
         }
     }
 
-    override val signPub: ByteArray = P256.point(ks.getCertificate(SIGN).publicKey)
-    override val encPub: ByteArray = P256.point(ks.getCertificate(ENC).publicKey)
+    override val signPub: ByteArray = P256.point(ks.getCertificate(signAlias).publicKey)
+    override val encPub: ByteArray = P256.point(ks.getCertificate(encAlias).publicKey)
 
     /** Keystore returns DER; converted strictly to raw r||s. Keystore failures surface as CryptoException. */
     override fun sign(data: ByteArray): ByteArray = wrap {
         val s = Signature.getInstance("SHA256withECDSA")
-        s.initSign(ks.getKey(SIGN, null) as PrivateKey)
+        s.initSign(ks.getKey(signAlias, null) as PrivateKey)
         s.update(data)
         P256.derToRaw(s.sign())
     }
@@ -85,7 +93,7 @@ class KeystoreKeyOps private constructor(private val ks: KeyStore) : KeyOps {
     /** Keystore failures surface as CryptoException, so a push that cannot be opened is dropped. */
     override fun ecdh(peerPoint: ByteArray): ByteArray = wrap {
         val ka = KeyAgreement.getInstance("ECDH", "AndroidKeyStore")
-        ka.init(ks.getKey(ENC, null) as PrivateKey)
+        ka.init(ks.getKey(encAlias, null) as PrivateKey)
         ka.doPhase(P256.publicKey(peerPoint), true)
         ka.generateSecret()
     }

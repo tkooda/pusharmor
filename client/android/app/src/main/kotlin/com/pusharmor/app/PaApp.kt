@@ -22,6 +22,7 @@ import com.pusharmor.protocol.engine.ReceiveEngine
 import com.pusharmor.protocol.engine.SendFlow
 import com.pusharmor.store.PaDatabase
 import com.pusharmor.store.RoomLocalStore
+import com.pusharmor.store.Slots
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import java.security.SecureRandom
@@ -55,9 +56,20 @@ class Graph(val app: PaApp) {
     val settings = Settings(app, dao)
     val notifier = Notifier(app, settings, dao)
     val push = PushFlavor.create(app)
+    val slots = Slots(db)
     private val random = SecureRandom()
 
+    init { try { loadKeyAlias() } catch (e: Exception) { } } // a damaged database: startup reads it again
+
     @Volatile var keysOrNull: KeyOps? = try { KeystoreKeyOps.load() } catch (e: Exception) { null }
+
+    /** Points the Keystore at the active account's key set; true when it changed. */
+    fun loadKeyAlias(): Boolean {
+        val b = settings.get(Settings.K.KEY_ALIAS) ?: KeystoreKeyOps.LEGACY
+        if (b == KeystoreKeyOps.base) return false
+        KeystoreKeyOps.base = b
+        return true
+    }
 
     /** Clock offset learned while there is no self row (a registration in progress); dropped by a wipe. */
     @Volatile var bootOffsetS = 0L

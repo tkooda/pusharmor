@@ -50,6 +50,9 @@ class Session(private val g: Graph) {
         /** Tries of the push address PATCH work before the cannot-receive card says why it failed (30 s backoff, doubled). */
         const val PATCH_TRIES = 10
         private val BAD_ID = ApiResult.Http(401, "bad id")
+        /** An account id: the first 12 characters of a device id. */
+        const val ACCOUNT_LEN = 12
+        private val ACCOUNT_ID = Regex("[A-Za-z0-9_-]{12}")
         /** Category of the direct share shortcuts; the same name as the share-target in res/xml/shortcuts.xml. */
         const val SHARE_CATEGORY = "com.pusharmor.category.SHARE_TARGET"
 
@@ -66,6 +69,7 @@ class Session(private val g: Graph) {
     /** Startup invariant, before any network call (section 9). */
     fun startup(): Start {
         s.moveToDb() // a move deferred by a damaged database, or the first try on a database made new by a reset
+        try { if (g.loadKeyAlias()) g.keysOrNull = null } catch (e: SQLiteDatabaseCorruptException) { return Start.DATA_UNAVAILABLE }
         val present: Boolean
         val any: Boolean
         try {
@@ -144,11 +148,72 @@ class Session(private val g: Graph) {
         class Limit(val limit: WorkerClient.PeerLimit) : SignIn()
         object NeedNewTicket : SignIn()
         class Error(val text: String) : SignIn()
+        /** The ticket is for another account: this device switched to it, and the next login uses it; [text] says so. */
+        class Switched(val text: String) : SignIn()
     }
 
-    /** A ticket arrived (email code, Google token, or the App Link). */
+    /**
+     * A ticket arrived (email code, Google token, or the App Link). A register ticket whose email is an archived
+     * account's is not registered: that account is switched in, and the next login uses its keys.
+     */
     fun onTicket(ticket: String, email: String?, evict: List<String>? = null): SignIn {
-        return if (signedOut) login(ticket) else register(ticket, email, evict)
+        if (signedOut) return login(ticket, email)
+        val archived = if (evict == null && dao.self() == null) email?.let { g.slots.accountFor(it.trim().lowercase(), null) } else null
+        if (archived != null) return switchFor(archived, email)
+        return register(ticket, email, evict)
+    }
+
+    /** Switches to the archived [account] (else to a new empty one) and says the next login completes it. */
+    private fun switchFor(account: String?, email: String?): SignIn {
+        val from = dao.self()?.email
+        switchAccount(account?.takeIf { g.slots.has(it) })
+        return SignIn.Switched(UiText.switchAccount(email, from))
+    }
+
+    // ---- accounts -------------------------------------------------------------------------
+
+    /**
+     * An email sign-in names its account before any key is used: an archived account with this address is switched
+     * in; another address on a device whose account is known starts a new empty account. Returns the purpose.
+     */
+    fun prepareEmail(email: String): String {
+        val e = email.trim().lowercase()
+        val self = dao.self()
+        val known = self?.email?.lowercase()
+        if (known == e) return purposeForSignIn()
+        val archived = g.slots.accountFor(e, self?.id?.take(ACCOUNT_LEN))
+        if (archived != null) switchAccount(archived)
+        else if (self != null && known != null) switchAccount(null)
+        return purposeForSignIn()
+    }
+
+    /**
+     * Makes the archived [target] the active account, or a new empty one when null; only while not logged in.
+     * The active account is archived first by its account id; one that never registered is dropped with its keys
+     * (the only key delete here). The archive switched in is dropped only after it is in place.
+     */
+    fun switchAccount(target: String?) {
+        val self = dao.self()
+        check(self == null || s.flag(Settings.K.SIGNED_OUT, false)) { "logged in" }
+        val current = self?.id?.take(ACCOUNT_LEN)
+        if (current != null && current == target) return
+        if (current != null) {
+            try { logoutNow() } catch (e: Exception) { } // a logout not yet sent goes out with its own keys, or waits in the archive
+            g.slots.archive(current, Settings.ACCOUNT_STATE, s.accountPrefs())
+        } else {
+            KeystoreKeyOps.deleteBoth()
+        }
+        g.notifier.cancelAll()
+        ShortcutManagerCompat.removeAllDynamicShortcuts(g.app)
+        WorkManager.getInstance(g.app).cancelAllWork()
+        val prefs = g.slots.load(target, Settings.ACCOUNT_STATE)
+        s.putAccountPrefs(prefs)
+        if (target == null) s.set(Settings.K.KEY_ALIAS, KeystoreKeyOps.newBase())
+        g.loadKeyAlias()
+        g.keysOrNull = if (target == null) null else KeystoreKeyOps.load()
+        g.bootOffsetS = 0
+        if (target != null) g.slots.drop(target)
+        Work.scheduleDaily(g.app)
     }
 
     private fun register(ticket: String, email: String?, evict: List<String>?): SignIn {
@@ -183,8 +248,10 @@ class Session(private val g: Graph) {
         }
     }
 
-    private fun login(ticket: String): SignIn {
+    private fun login(ticket: String, email: String?): SignIn {
         val r = g.logoutFlow().login(ticket)
+        // A ticket for another account: switch to it, and the next login (its keys, or a new registration) completes.
+        if (r is ApiResult.Http && r.status == 401 && r.error == "account mismatch" && r.account?.matches(ACCOUNT_ID) == true) return switchFor(r.account, email)
         if (r !is ApiResult.Ok) return SignIn.Error(ErrorText.of(UiText.UNABLE_LOGIN, r))
         s.set(Settings.K.SIGNED_OUT, false)
         s.set(Settings.K.LOGOUT_PENDING, null)
@@ -236,9 +303,14 @@ class Session(private val g: Graph) {
         if (s.flag(Settings.K.LOGOUT_PENDING, false)) Work.logout(g.app)
     }
 
-    /** DELETE /account with a delete-account ticket; then wipe everything including the keys. */
-    fun deleteAccount(ticket: String): String? {
+    /**
+     * DELETE /account with a delete-account ticket; then wipe everything including the keys. A ticket for another
+     * email than this account's ([email]) sends nothing.
+     */
+    fun deleteAccount(ticket: String, email: String? = null): String? {
         val me = g.identity() ?: return ErrorText.text(UiText.UNABLE_DELETE_ACCOUNT, ErrorText.LOGGED_OUT)
+        val mine = dao.self()?.email
+        if (email != null && mine != null && email.trim().lowercase() != mine.lowercase()) return ErrorText.text(UiText.UNABLE_DELETE_ACCOUNT, UiText.deleteOtherAccount(email, mine))
         val outbox = Outbox(g.store, me)
         val r = ClockSkew.run({
             g.store.allowSet().mapNotNull { g.store.peer(it)?.takeIf { p -> p.pinned } }.associate { it.id to outbox.simple(it, MessageBody.Delete).message }

@@ -161,7 +161,7 @@ class WorkerClient(
             }
         }
         val ids = (j?.get("ids") as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.content } ?: emptyList()
-        return ApiResult.Http(reply.status, (j?.get("error") as? JsonPrimitive)?.content, reply.retryAfter, ids)
+        return ApiResult.Http(reply.status, (j?.get("error") as? JsonPrimitive)?.content, reply.retryAfter, ids, (j?.get("account") as? JsonPrimitive)?.content)
     }
 
     private fun results(j: JsonObject): Map<String, String> =
@@ -299,6 +299,8 @@ object ErrorText {
     const val BAD_EMAIL = "Only email addresses with plain ASCII characters are supported."
     const val EMAIL_NOT_VERIFIED = "This Google account has no verified email address."
     const val GOOGLE_NOT_CONFIRMED = "Google did not confirm the login. Try again."
+    /** A login ticket for another account than this device's. */
+    const val ACCOUNT_MISMATCH = "This login is for another account."
     const val BAD_REPLY = "The relay server sent a reply this device cannot use. Try again."
     const val REFUSED = "The relay server did not accept the request. Update PushArmor and try again."
     const val TOO_LONG = "The message is longer than 2048 characters."
@@ -339,6 +341,7 @@ object ErrorText {
             r.status == 401 && r.error == "code expired" -> CODE_EXPIRED
             r.status == 401 && r.error == "email not verified" -> EMAIL_NOT_VERIFIED
             r.status == 401 && r.error == "invalid id_token" -> GOOGLE_NOT_CONFIRMED
+            r.status == 401 && r.error == "account mismatch" -> ACCOUNT_MISMATCH
             r.status == 403 && r.error == "banned" -> BLOCKED
             r.status == 403 && r.error == "turnstile failed" -> SECURITY_CHECK
             r.status == 400 && r.error == "bad email" -> BAD_EMAIL

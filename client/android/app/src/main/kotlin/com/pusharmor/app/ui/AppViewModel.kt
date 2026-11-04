@@ -176,7 +176,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     suspend fun emailStart(email: String, turnstile: String, purpose: String): String? = withContext(Dispatchers.IO) {
         try {
-            val r = g.client.authEmail(email, signPubB64(), purpose, turnstile)
+            // The address picks the account (an archived one, or a new one) before the keys sign the request.
+            val p = if (purpose == "delete-account") purpose else g.session.prepareEmail(email).also { signInPurpose.value = it }
+            val r = g.client.authEmail(email, signPubB64(), p, turnstile)
             val addr = email.trim().lowercase()
             if (r is ApiResult.Ok) { resend.value = addr to System.currentTimeMillis() + UiText.RESEND_MS; r.value }
             else {
@@ -226,7 +228,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun ticket(ticket: String, email: String?, purpose: String, onDone: () -> Unit) {
         if (purpose == "delete-account") {
-            val err = g.session.deleteAccount(ticket)
+            val err = g.session.deleteAccount(ticket, email)
             if (err != null) message.value = err else { setStart(Session.Start.SIGN_IN); withContext(Dispatchers.Main) { onDone() } }
             return
         }
@@ -240,6 +242,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 setStart(Session.Start.READY)
                 g.session.onAppOpen(System.currentTimeMillis())
                 withContext(Dispatchers.Main) { onDone() }
+            }
+            is Session.SignIn.Switched -> {
+                limit.value = null
+                setStart(if (g.session.signedOut) Session.Start.SIGNED_OUT else Session.Start.SIGN_IN)
+                message.value = ErrorText.text(UiText.UNABLE_LOGIN, r.text)
             }
             is Session.SignIn.Limit -> { limitTicket = r.limit.ticket; message.value = null; limit.value = r.limit }
             Session.SignIn.NeedNewTicket -> message.value = ErrorText.text(if (evict != null) UiText.UNABLE_EVICT else UiText.UNABLE_LOGIN, ErrorText.TRY_AGAIN)

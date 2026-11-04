@@ -195,7 +195,7 @@ interface PaDao {
     @Query("SELECT * FROM app_state") fun stateFlow(): Flow<List<StateEntity>>
     @Upsert fun putState(s: StateEntity)
     @Query("DELETE FROM app_state WHERE k = :k") fun deleteState(k: String)
-    @Query("DELETE FROM app_state WHERE k != :keep") fun clearStateExcept(keep: String)
+    @Query("DELETE FROM app_state WHERE k NOT IN (:keep)") fun clearStateExcept(keep: List<String>)
 }
 
 @Database(

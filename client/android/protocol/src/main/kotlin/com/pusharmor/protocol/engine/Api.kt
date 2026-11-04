@@ -7,8 +7,11 @@ package com.pusharmor.protocol.engine
 sealed class ApiResult<out T> {
     data class Ok<T>(val value: T, val pushMissing: Boolean = false) : ApiResult<T>()
 
-    /** HTTP error with the catalog error word; [retryAfter] seconds on 429; [ids] on 400 "messages missing". */
-    data class Http(val status: Int, val error: String?, val retryAfter: Long? = null, val ids: List<String> = emptyList()) : ApiResult<Nothing>()
+    /**
+     * HTTP error with the catalog error word; [retryAfter] seconds on 429; [ids] on 400 "messages missing";
+     * [account] (the ticket's account id) on 401 "account mismatch".
+     */
+    data class Http(val status: Int, val error: String?, val retryAfter: Long? = null, val ids: List<String> = emptyList(), val account: String? = null) : ApiResult<Nothing>()
 
     /** No reply (offline, timeout, TLS). */
     object Network : ApiResult<Nothing>()
