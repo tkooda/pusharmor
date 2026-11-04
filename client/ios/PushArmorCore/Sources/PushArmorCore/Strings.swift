@@ -265,6 +265,16 @@ public enum TapStamp {
     }
 }
 
+/// Delivered message notifications that History clears once it shows: URL, text, and phone
+/// number banners whose "m" the app does not still have to drain. Pairing and other notices stay.
+public enum MessageNotification {
+    static let categories: Set<String> = [BannerCategory.url.rawValue, BannerCategory.text.rawValue, BannerCategory.tel.rawValue]
+
+    public static func clearedOnHistory(category: String, info: [AnyHashable: Any], key: Data?) -> Bool {
+        categories.contains(category) && TapStamp.drainM(info, key: key) == nil
+    }
+}
+
 /// Lock-screen body choice (section 6.2): effective = main AND peer;
 /// content shows only while message content is allowed in notifications (main and peer).
 public enum LockScreen {

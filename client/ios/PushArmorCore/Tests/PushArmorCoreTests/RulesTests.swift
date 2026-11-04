@@ -172,6 +172,31 @@ final class RulesTests: XCTestCase {
         XCTAssertFalse(TapStamp.verified(b.userInfo(m: "abc"), key: key))
     }
 
+    /// History clears handled message notifications only: not notices, pairing notices, or an "m" still to drain.
+    func testMessageNotificationClearedOnHistory() throws {
+        let key = try TapStamp.key(try Store(path: NSTemporaryDirectory() + "pa-clear-\(UUID().uuidString).sqlite"))
+        func cleared(_ b: Banner, handled: Bool = false, stamp k: Data?) -> Bool {
+            MessageNotification.clearedOnHistory(category: b.category.rawValue, info: b.userInfo(m: "abc", key: k, handled: handled), key: key)
+        }
+        let url = Banner(body: "https://a.com/", locKey: nil, category: .url, threadId: "p.x", rowid: 7, tap: .openURL("https://a.com/"))
+        let text = Banner(body: "hi", locKey: nil, category: .text, threadId: "p.x", rowid: 8, tap: .detail)
+        let tel = Banner(body: "+15551234567", locKey: nil, category: .tel, threadId: "p.x", rowid: 9, tap: .detail)
+        XCTAssertTrue(cleared(url, stamp: key))
+        XCTAssertTrue(cleared(text, stamp: key))
+        XCTAssertTrue(cleared(tel, stamp: key))
+        // without a valid stamp the app still has to drain "m"
+        XCTAssertFalse(cleared(url, stamp: nil))
+        XCTAssertFalse(cleared(text, stamp: Data(count: 32)))
+        // notices, pairing notices, and the locked or fallback "New message" stay
+        let pair = Banner(body: "pair", locKey: nil, category: .event, threadId: "k", rowid: nil, tap: .peers(nil))
+        let pairAgain = Banner(body: "pair", locKey: nil, category: .notice, threadId: "k", rowid: nil, tap: .peers(nil))
+        for b in [pair, pairAgain, Banner.invalid, Banner.dropped, Banner.locked, Banner.fallback] {
+            XCTAssertFalse(cleared(b, handled: true, stamp: key), b.body)
+        }
+        XCTAssertFalse(MessageNotification.clearedOnHistory(category: BannerCategory.text.rawValue,
+                                                             info: Banner.expiryUserInfo(m: "abc"), key: key))
+    }
+
     /// the expiry fallback keeps only "m" of a relay payload, whatever else it carries.
     func testExpiryUserInfo() {
         let relay: [AnyHashable: Any] = ["m": "abc", "aps": ["alert": ["title": "x", "body": "evil", "subtitle": "s"]],

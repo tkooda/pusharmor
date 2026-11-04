@@ -145,6 +145,7 @@ struct HistoryTab: View {
     let onSend: () -> Void
     let onPair: () -> Void
     @EnvironmentObject var model: AppModel
+    @Environment(\.scenePhase) private var scenePhase
     /// Multi-select: long-press a row to start; leaving the tab ends it.
     @State private var selection = HistorySelection()
     @State private var confirmDelete = false
@@ -156,6 +157,11 @@ struct HistoryTab: View {
             }
             .onChange(of: model.history.map(\.rowid)) { _, ids in selection.keep(only: Set(ids)) }
             .onDisappear { selection.exit() }
+            // History on the screen, at open and at each return to the app: message notifications go
+            .onAppear { if scenePhase == .active { Task { await model.clearMessageNotifications() } } }
+            .onChange(of: scenePhase) { _, p in
+                if p == .active { Task { await model.clearMessageNotifications() } }
+            }
             .alert(selection.confirmTitle, isPresented: $confirmDelete) {
                 Button("Cancel", role: .cancel) {}
                 Button("Delete", role: .destructive) {

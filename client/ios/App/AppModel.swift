@@ -330,6 +330,19 @@ final class AppModel: ObservableObject {
         if !done.isEmpty { center.removeDeliveredNotifications(withIdentifiers: done) }
     }
 
+    /// History shows every received message: their delivered notifications go (only those
+    /// whose "m" needs no drain); pairing and other notices stay.
+    func clearMessageNotifications() async {
+        guard let store = store else { return }
+        let key = try? TapStamp.key(store)
+        let center = UNUserNotificationCenter.current()
+        let ids = await center.deliveredNotifications().filter {
+            MessageNotification.clearedOnHistory(category: $0.request.content.categoryIdentifier,
+                                                 info: $0.request.content.userInfo, key: key)
+        }.map { $0.request.identifier }
+        if !ids.isEmpty { center.removeDeliveredNotifications(withIdentifiers: ids) }
+    }
+
     // MARK: notifications and push token
 
     func requestNotifications() async {
