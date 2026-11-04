@@ -580,7 +580,10 @@ function wireSelect(row: HTMLElement, id: number, ctl: SelectCtl): void {
   const stop = () => clearTimeout(timer);
   row.addEventListener("pointerdown", (ev: PointerEvent) => {
     suppress = false;
-    if (ev.button !== 0 || (ev.target as Element).closest("button")) return;
+    const t = ev.target as HTMLElement;
+    if (ev.button !== 0 || t.closest("button")) return;
+    // a press on a scrollbar (past the content box of the element) is a scroll drag, never a long-press
+    if (ev.offsetX >= t.clientWidth || ev.offsetY >= t.clientHeight) return;
     x = ev.clientX;
     y = ev.clientY;
     timer = setTimeout(() => {
@@ -593,6 +596,8 @@ function wireSelect(row: HTMLElement, id: number, ctl: SelectCtl): void {
     if (Math.abs(ev.clientX - x) > 8 || Math.abs(ev.clientY - y) > 8) stop();
   });
   for (const t of ["pointerup", "pointercancel", "pointerleave"]) row.addEventListener(t, stop);
+  // scroll events do not bubble: capture them, so a scroll during the press cancels it
+  row.addEventListener("scroll", stop, true);
   row.addEventListener("contextmenu", (ev: Event) => {
     ev.preventDefault();
     if (ctl.on()) ctl.toggle(id);

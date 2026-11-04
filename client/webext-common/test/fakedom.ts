@@ -99,6 +99,7 @@ const doc = new N("#document");
   createTextNode: (s: string) => Object.assign(new N("#text"), { text: s }),
   createElementNS: (_: string, t: string) => new N(t),
   querySelector: () => null,
+  getElementById: () => null,
   addEventListener: doc.addEventListener.bind(doc),
   removeEventListener: doc.removeEventListener.bind(doc),
 };
