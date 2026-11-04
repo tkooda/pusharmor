@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { deriveSigningKey, signV4 } from "../src/auth/sigv4";
 import { sendEmail, type SesEnv } from "../src/auth/ses";
 import { ApiError } from "../src/errors";
+import { Log } from "../src/log";
 
 const AK = "AKIDEXAMPLE";
 const SK = "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY";
@@ -113,5 +114,25 @@ describe("ses sendEmail", () => {
     const e = await sendEmail(env, "a@b.com", "s", "t", f).catch((x) => x);
     expect(e).toBeInstanceOf(ApiError);
     expect(e.status).toBe(502);
+  });
+  it("logs the SES status, code, and a cleaned message on a 400", async () => {
+    const log = new Log();
+    const f = (async () =>
+      new Response(JSON.stringify({ __type: "com.amazon.coral#MessageRejected", message: "Email address is not verified: user@example.org in region" }), { status: 400 })) as unknown as typeof fetch;
+    const e = await sendEmail(env, "user@example.org", "s", "t", f, log).catch((x) => x);
+    expect(e.status).toBe(502);
+    expect(log.extra.ses_status).toBe(400);
+    expect(log.extra.ses_code).toBe("MessageRejected");
+    expect(log.extra.ses_msg).toBe("Email address is not verified: [email] in region");
+    expect(log.line()).not.toContain("user@example.org");
+  });
+  it("logs the kind of a timeout", async () => {
+    const log = new Log();
+    const f = (async () => {
+      throw new DOMException("timed out", "TimeoutError");
+    }) as unknown as typeof fetch;
+    const e = await sendEmail(env, "a@b.com", "s", "t", f, log).catch((x) => x);
+    expect(e.status).toBe(502);
+    expect(log.extra.ses_exception).toBe("TimeoutError");
   });
 });
