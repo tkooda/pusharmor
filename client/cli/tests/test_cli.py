@@ -1132,7 +1132,7 @@ def test_relay_error_text_is_cleaned_and_short(net, tmp_path, monkeypatch, capsy
         err = capsys.readouterr().err
         assert "\x1b" not in err and "\x07" not in err and "\u202e" not in err
         assert "bad" not in err and "www" not in err
-        assert err.splitlines() == ["error: " + pa.REFUSED]
+        assert err.splitlines() == ["error: " + pa.REFUSED % status]
     net.hooks.clear()
     e = pa.ApiError(400, "\x1b[2Jbad", {})
     assert e.error == "?[2Jbad"
@@ -1798,7 +1798,8 @@ def _offline(*a):
     ((403, {"error": "banned"}), pa.EXIT_ERR, "This account is blocked."),
     ((502, {"error": "email send failed"}), pa.EXIT_TEMP, "The relay server is not working right now. Try again later."),
     ((400, {"error": "bad x"}), pa.EXIT_ERR,
-     "The relay server did not accept the request. Update PushArmor and try again."),
+     "The relay server refused the request (HTTP 400)."),
+    (lambda *a: (403, {}, b"error code: 1010"), pa.EXIT_ERR, "The relay server refused the request (HTTP 403)."),
 ])
 def test_error_is_one_line_reason(reply, code, reason, net, tmp_path, monkeypatch, capsys):
     login(monkeypatch, tmp_path)
@@ -2303,3 +2304,21 @@ def test_listen_idle_makes_no_relay_server_call(net, tmp_path, monkeypatch, caps
 def test_account_mismatch_reason_names_the_problem():
     e = pa.ApiError(401, "account mismatch", {"error": "account mismatch", "account": "AAAAAAAAAAAA"})
     assert e.reason() == "This login is for another account. Log in with the email address of this device's account."
+
+
+def test_requests_send_user_agent():
+    seen = []
+
+    def reply(h):
+        seen.append(h.headers.get("User-Agent"))
+        h.send_response(200)
+        h.send_header("Content-Length", "0")
+        h.end_headers()
+
+    with local_http(reply) as url:
+        pa.http_request("GET", url + "/v1/peers", {}, None)
+    assert seen == ["PushArmor-CLI/" + pa.VERSION]
+
+
+def test_api_error_426_says_update():
+    assert pa.ApiError(426, "", {}).reason() == pa.TOO_OLD

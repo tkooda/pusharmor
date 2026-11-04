@@ -43,6 +43,7 @@ except BaseException:  # missing, or broken: no _cffi_backend is ImportError, a 
     sys.exit(1)
 
 VERSION = "0.0.34"
+USER_AGENT = "PushArmor-CLI/" + VERSION
 
 # ---- encodings ----
 
@@ -958,7 +959,7 @@ UNREACHABLE = "The relay server could not be reached. Check your internet connec
 SERVER_DOWN = "The relay server is not working right now. Try again later."
 TOO_OLD = "This version of PushArmor is too old. " + UPDATE_REQUIRED
 CLOCK_OFF = "This device's clock is off by more than 5 minutes. Fix the clock and try again."
-REFUSED = "The relay server did not accept the request. Update PushArmor and try again."
+REFUSED = "The relay server refused the request (HTTP %d)."
 BAD_LINK = "The login link is not valid. Request a new code and try again."
 TOO_LONG = "The message is longer than 2048 characters."
 STORAGE_FULL = "Storage is full. Free some space and try again."
@@ -1001,7 +1002,9 @@ class ApiError(Exception):
             return "This account is blocked."
         if self.status == 413 and self.error == "too large":
             return TOO_LONG
-        return REFUSED
+        if self.status == 426:
+            return TOO_OLD
+        return REFUSED % self.status
 
 
 def wait_text(s):
@@ -1528,7 +1531,7 @@ _OPENER = urllib.request.build_opener(_NoRedirect)
 def http_request(method, url, headers, body):
     """One HTTP exchange -> (status, lower-case headers, body). Raises OSError when the network fails."""
     try:
-        req = urllib.request.Request(url, data=body, headers=headers, method=method)
+        req = urllib.request.Request(url, data=body, headers=dict(headers, **{"User-Agent": USER_AGENT}), method=method)
         with _OPENER.open(req, timeout=30) as r:
             data = r.read(MAX_REPLY + 1)
             if len(data) > MAX_REPLY:
@@ -1553,7 +1556,7 @@ def http_request(method, url, headers, body):
 def ntfy_open(url, timeout):
     """Opens an ntfy JSON stream (one event per readline()). Raises OSError."""
     try:
-        return urllib.request.urlopen(url, timeout=timeout)
+        return urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": USER_AGENT}), timeout=timeout)
     except (http.client.HTTPException, ValueError) as e:
         raise OSError(str(e)) from e
 
