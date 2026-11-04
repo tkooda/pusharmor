@@ -81,11 +81,18 @@ enum SendScreenRules {
         return "Send to \(count) devices"
     }
 
-    /// "Send as URL" owns URLs; with it off a phone number still goes as a phone number
-    /// (unless "Send as text" is on), and everything else as text.
+    /// What the text is: a likely URL (it wins over a phone number), else a phone number, else text.
+    static func detected(_ text: String) -> SendType {
+        if LikelyURL.isLikely(text) { return .url }
+        return SendDetection.detect(text) == .tel ? .tel : .text
+    }
+
+    /// "Send as text" on sends text; else a URL goes as a URL (asURL, from the detection),
+    /// a phone number as a phone number, and everything else as text.
     static func sendType(_ text: String, asURL: Bool, asText: Bool) -> SendType {
+        if asText { return .text }
         if asURL { return .url }
-        return !asText && SendDetection.detect(text) == .tel ? .tel : .text
+        return SendDetection.detect(text) == .tel ? .tel : .text
     }
 
     /// Quiet line under the message: how it will arrive.
@@ -150,30 +157,34 @@ enum LikelyURL {
     }
 }
 
-/// The "Send as URL" switch: off and disabled until the text is a likely URL, then on and
-/// enabled. Once the user turns it off it never turns itself on again for this message;
-/// it only becomes enabled. An empty field (and a send) starts over.
-struct SendAsURLChoice: Equatable {
+/// The "Send as text" choice for one message. The type comes from the text: a URL (it wins), else a
+/// phone number, else text. "Send as text" is offered only while a URL or phone number is detected;
+/// turning it on sends this message as text. It is never saved, it resets when the detected
+/// type changes, and a send (or an empty field) starts over.
+struct SendAsTextChoice: Equatable {
+    private(set) var detected: SendType = .text
     private(set) var on = false
-    private(set) var enabled = false
-    private var declined = false
 
     init() {}
 
     init(text: String) { textChanged(text) }
 
     mutating func textChanged(_ text: String) {
-        if text.isEmpty { self = SendAsURLChoice(); return }
-        enabled = LikelyURL.isLikely(text)
-        if !enabled { on = false } else if !declined { on = true }
+        let d = SendScreenRules.detected(text)
+        if d != detected { detected = d; on = false }
     }
 
-    /// The user flips the switch (only possible while enabled).
+    /// Offered only while a URL or phone number is detected.
+    var offered: Bool { detected != .text }
+
+    /// The user flips the checkbox (only possible while offered).
     mutating func set(_ value: Bool) {
-        guard enabled else { return }
+        guard offered else { return }
         on = value
-        declined = !value
     }
+
+    /// What this send carries.
+    var type: SendType { on ? .text : detected }
 }
 
 /// Wraps chips onto as many lines as needed, left aligned.
@@ -242,8 +253,7 @@ struct ComposeView: View {
     @EnvironmentObject var model: AppModel
     /// The draft survives process death: it is kept in the store (AppModel.draft).
     @State private var text: String
-    @State private var asText = false
-    @State private var urlChoice: SendAsURLChoice
+    @State private var typeChoice: SendAsTextChoice
     @State private var toAll = false
     @State private var selected: Set<String> = []
     @State private var restored = false
@@ -263,7 +273,7 @@ struct ComposeView: View {
 
     init(draft: String) {
         _text = State(initialValue: draft)
-        _urlChoice = State(initialValue: SendAsURLChoice(text: draft))
+        _typeChoice = State(initialValue: SendAsTextChoice(text: draft))
     }
 
     private var candidates: [Peer] {
@@ -285,9 +295,6 @@ struct ComposeView: View {
             selected = [only]
         }
     }
-
-    /// A phone number keeps its caption and "Send as text"; URLs belong to "Send as URL".
-    private var isPhone: Bool { SendDetection.detect(text) == .tel }
 
     private var hasRecipient: Bool {
         if toAll && showAll { return true }
@@ -321,7 +328,7 @@ struct ComposeView: View {
         .onChange(of: candidates.map { $0.id.text }) { _, _ in restoreSelection() }
         .onChange(of: text) { _, t in
             model.setDraft(t)
-            urlChoice.textChanged(t)
+            typeChoice.textChanged(t)
         }
         #if DEBUG
         .onAppear {
@@ -359,37 +366,29 @@ struct ComposeView: View {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .strokeBorder(editing ? Color.brandGreen : Color(uiColor: .separator), lineWidth: editing ? 1.5 : 1)
                 )
-            if isPhone || SendScreenRules.showsCounter(text) {
-                // large text: the caption, counter, and switch stack
-                let ax = typeSize.isAccessibilitySize
-                let row = ax ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))
-                row {
-                    if isPhone {
-                        let c = SendScreenRules.caption(.tel, asText: asText)
-                        Label(c.title, systemImage: c.symbol)
-                            .font(.footnote)
-                            .foregroundColor(.secondaryText)
-                    }
-                    if !ax { Spacer(minLength: 8) }
-                    if SendScreenRules.showsCounter(text) {
-                        Text(counter)
-                            .font(.footnote)
-                            .foregroundColor(.errorText)
-                    }
-                    // on the hint row, at the far right
-                    if isPhone {
-                        Toggle("Send as text", isOn: $asText)
-                            .font(.footnote)
-                            .foregroundColor(.secondaryText)
-                            .fixedSize(horizontal: !ax, vertical: true)
-                    }
+            // large text: the caption, counter, and checkbox stack
+            let ax = typeSize.isAccessibilitySize
+            let row = ax ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))
+            row {
+                let c = SendScreenRules.caption(typeChoice.detected, asText: typeChoice.on)
+                Label(c.title, systemImage: c.symbol)
+                    .font(.footnote)
+                    .foregroundColor(.secondaryText)
+                if !ax { Spacer(minLength: 8) }
+                if SendScreenRules.showsCounter(text) {
+                    Text(counter)
+                        .font(.footnote)
+                        .foregroundColor(.errorText)
+                }
+                // only while a URL or phone number is detected, at the far right
+                if typeChoice.offered {
+                    Toggle("Send as text", isOn: Binding(get: { typeChoice.on }, set: { typeChoice.set($0) }))
+                        .toggleStyle(.switch)
+                        .font(.footnote)
+                        .foregroundColor(.secondaryText)
+                        .fixedSize(horizontal: !ax, vertical: true)
                 }
             }
-            // its own line: label leading, switch trailing; grey until the text is a likely URL
-            Toggle("Send as URL", isOn: Binding(get: { urlChoice.on }, set: { urlChoice.set($0) }))
-                .font(.footnote)
-                .foregroundColor(.secondaryText)
-                .disabled(!urlChoice.enabled)
         }
         .padding(.vertical, 4)
     }
@@ -416,9 +415,9 @@ struct ComposeView: View {
                 .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.cardEdge, lineWidth: 1))
             }
             Button {
-                let u = urlChoice.on
+                let u = typeChoice.type == .url
                 let t = u ? LikelyURL.payload(text) : text
-                let a = asText
+                let a = typeChoice.on
                 let all = toAll && showAll
                 let ids = all ? [] : candidates.filter { selected.contains($0.id.text) && enabled($0) }.map { $0.id.text }
                 let sel = selected
@@ -426,8 +425,7 @@ struct ComposeView: View {
                     // A failed send keeps the draft, so "Unable to send." can be retried.
                     if await RecipientMemory.send(sel, { await model.send(t, asURL: u, asText: a, toAll: all, peerIds: ids) }) {
                         text = ""
-                        urlChoice = SendAsURLChoice()
-                        asText = false
+                        typeChoice = SendAsTextChoice()
                     }
                 }
             } label: {

@@ -41,7 +41,7 @@ final class SendScreenRulesTests: XCTestCase {
         XCTAssertEqual(SendScreenRules.caption(.tel, asText: true).title, "Will arrive as text")
     }
 
-    func testSendTypeKeepsPhoneNumbersAndLeavesURLsToTheSwitch() {
+    func testSendTypeKeepsPhoneNumbersAndLeavesURLsToTheDetection() {
         XCTAssertEqual(SendScreenRules.sendType("+1 555-123-4567", asURL: false, asText: false), .tel)
         XCTAssertEqual(SendScreenRules.sendType("tel:+1 555-123-4567", asURL: false, asText: false), .tel)
         XCTAssertEqual(SendScreenRules.sendType("+1 555-123-4567", asURL: false, asText: true), .text)
@@ -78,71 +78,65 @@ final class SendScreenRulesTests: XCTestCase {
         XCTAssertEqual(LikelyURL.payload("sub.example.com:8080/path"), "https://sub.example.com:8080/path")
     }
 
-    func testSendAsURLStartsOffAndDisabled() {
-        let c = SendAsURLChoice()
-        XCTAssertFalse(c.on)
-        XCTAssertFalse(c.enabled)
-        XCTAssertEqual(SendAsURLChoice(text: ""), c)
+    func testDetectedTypeUrlWinsThenPhoneThenText() {
+        XCTAssertEqual(SendScreenRules.detected("minilock.org"), .url)
+        XCTAssertEqual(SendScreenRules.detected("https://example.com/x"), .url)
+        XCTAssertEqual(SendScreenRules.detected("+1 555-123-4567"), .tel)
+        XCTAssertEqual(SendScreenRules.detected("tel:+1 555-123-4567"), .tel)
+        XCTAssertEqual(SendScreenRules.detected("hello"), .text)
+        XCTAssertEqual(SendScreenRules.detected(""), .text)
     }
 
-    func testSendAsURLTurnsOnForALikelyURLAndOffForText() {
-        var c = SendAsURLChoice()
-        c.textChanged("minilock.org")
-        XCTAssertTrue(c.on)
-        XCTAssertTrue(c.enabled)
-        c.textChanged("minilock.org and more")
+    func testSendAsTextIsOfferedOnlyForAUrlOrPhoneNumber() {
+        var c = SendAsTextChoice()
+        XCTAssertFalse(c.offered)
         XCTAssertFalse(c.on)
-        XCTAssertFalse(c.enabled)
+        c.set(true)
+        XCTAssertFalse(c.on)
         c.textChanged("minilock.org")
-        XCTAssertTrue(c.on)
-        // a restored draft starts from its text
-        XCTAssertTrue(SendAsURLChoice(text: "minilock.org").on)
-    }
-
-    func testDisabledSendAsURLCannotBeTurnedOn() {
-        var c = SendAsURLChoice()
+        XCTAssertTrue(c.offered)
+        XCTAssertEqual(c.type, .url)
+        c.textChanged("+1 555-123-4567")
+        XCTAssertTrue(c.offered)
+        XCTAssertEqual(c.type, .tel)
         c.textChanged("hello")
-        c.set(true)
-        XCTAssertFalse(c.on)
+        XCTAssertFalse(c.offered)
+        XCTAssertEqual(c.type, .text)
+        // a restored draft starts from its text
+        XCTAssertEqual(SendAsTextChoice(text: "minilock.org").type, .url)
     }
 
-    func testSendAsURLTurnedOffNeverTurnsItselfOnAgain() {
-        var c = SendAsURLChoice()
-        c.textChanged("minilock.org")
-        c.set(false)
-        XCTAssertFalse(c.on)
-        XCTAssertTrue(c.enabled)
-        c.textChanged("minilock.or")
-        XCTAssertFalse(c.on)
-        c.textChanged("minilock.")
-        XCTAssertFalse(c.enabled)
-        c.textChanged("minilock.org")
-        XCTAssertTrue(c.enabled)
-        XCTAssertFalse(c.on)
-        // the user may still turn it back on
+    func testSendAsTextOverridesToTextUntilTheDetectedTypeChanges() {
+        var c = SendAsTextChoice(text: "minilock.org")
         c.set(true)
-        XCTAssertTrue(c.on)
+        XCTAssertEqual(c.type, .text)
+        // same detected type: the override stays
         c.textChanged("minilock.org/x")
         XCTAssertTrue(c.on)
+        // the detected type changes: the override resets
+        c.textChanged("hello")
+        XCTAssertFalse(c.on)
+        c.textChanged("minilock.org")
+        XCTAssertFalse(c.on)
+        XCTAssertEqual(c.type, .url)
+        c.set(true)
+        c.textChanged("+1 555-123-4567")
+        XCTAssertFalse(c.on)
+        XCTAssertEqual(c.type, .tel)
     }
 
-    func testClearedFieldStartsSendAsURLOver() {
-        var c = SendAsURLChoice()
-        c.textChanged("minilock.org")
-        c.set(false)
-        c.textChanged("")
-        XCTAssertEqual(c, SendAsURLChoice())
-        c.textChanged("minilock.org")
-        XCTAssertTrue(c.on)
+    func testSendAsTextWinsInSendType() {
+        XCTAssertEqual(SendScreenRules.sendType("minilock.org", asURL: true, asText: true), .text)
+        XCTAssertEqual(SendScreenRules.sendType("minilock.org", asURL: true, asText: false), .url)
     }
 
-    /// A send starts the switch over: the success branch clears the draft and the choice.
-    func testSendStartsSendAsURLOver() throws {
+    /// A send starts the choice over: the success branch clears the draft and the choice.
+    func testSendStartsSendAsTextOver() throws {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("App/Views/ComposeView.swift")
         let src = try String(contentsOf: url, encoding: .utf8)
-        let reset = try NSRegularExpression(pattern: #"text = \"\"\s*urlChoice = SendAsURLChoice\(\)"#)
+        let reset = try NSRegularExpression(pattern: #"text = \"\"\s*typeChoice = SendAsTextChoice\(\)"#)
         XCTAssertEqual(reset.numberOfMatches(in: src, range: NSRange(src.startIndex..., in: src)), 1)
     }
 
