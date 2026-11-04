@@ -454,6 +454,10 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
   let key = "all";
   // long-press (or right-click, or Shift+Enter) starts multi-select; null means the mode is off.
   let picked: Set<number> | null = null;
+  // the Select button turns the mode on with nothing picked; it stays on (even when empty) until Done or Esc
+  let explicit = false;
+  let anchor: number | null = null; // the last toggled row: Shift+click selects the range from it
+  let visible: number[] = [];
   let focusId: number | null = null;
   const bar = h("div", { class: "hselbar", hidden: true });
   const ctl: SelectCtl = {
@@ -461,18 +465,29 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
     has: (id) => picked?.has(id) ?? false,
     start: (id) => {
       picked = new Set([id]);
-      focusId = id;
+      anchor = focusId = id;
       draw();
     },
     toggle: (id) => {
       if (!picked) return;
       if (!picked.delete(id)) picked.add(id);
-      if (!picked.size) picked = null;
+      if (!picked.size && !explicit) picked = null;
+      anchor = focusId = id;
+      draw();
+    },
+    range: (id) => {
+      const a = anchor === null ? -1 : visible.indexOf(anchor);
+      const b = visible.indexOf(id);
+      if (a < 0 || b < 0) return picked ? ctl.toggle(id) : ctl.start(id);
+      picked ??= new Set();
+      for (const x of visible.slice(Math.min(a, b), Math.max(a, b) + 1)) picked.add(x);
       focusId = id;
       draw();
     },
     exit: () => {
       picked = null;
+      explicit = false;
+      anchor = null;
       draw();
     },
   };
@@ -496,7 +511,13 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
   }
   // The filter is a native select; it shows only when there is more than All to pick.
   const filter = h("select", { "aria-label": "Show messages" }) as HTMLSelectElement;
-  const filterRow = h("div", { class: "hfilter" }, filter);
+  const selBtn = h("button", { type: "button", class: "hselect", onclick: () => {
+    if (picked) return ctl.exit();
+    picked = new Set();
+    explicit = true;
+    draw();
+  } }, "Select") as HTMLButtonElement;
+  const filterRow = h("div", { class: "hfilter" }, filter, selBtn);
   const list = group();
   list.classList.add("hist-list");
   const draw = () => {
@@ -505,8 +526,10 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
     const opts = historyChips(rows);
     filter.replaceChildren(...opts.map((c) => h("option", { value: c.key, selected: c.key === key }, filterLabel(c.key, c.label))));
     filter.value = key;
-    filterRow.hidden = opts.length < 2;
+    filter.hidden = opts.length < 2;
+    selBtn.textContent = picked ? "Done" : "Select";
     clear(list);
+    visible = f.rows.flatMap((r) => (r.id === undefined ? [] : [r.id]));
     const now = Date.now();
     for (const r of f.rows) list.append(historyRow(env, r, now, ctl));
     drawBar();
@@ -514,9 +537,9 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
     focusId = null;
   };
   const drawBar = () => {
-    bar.hidden = !picked;
+    bar.hidden = !picked?.size;
     clear(bar);
-    if (!picked) return;
+    if (!picked?.size) return;
     const n = picked.size;
     bar.append(
       h("button", {
@@ -564,7 +587,7 @@ function eventText(r: HistoryRow & { sender: string }): string {
   }
 }
 
-type SelectCtl = { on: () => boolean; has: (id: number) => boolean; start: (id: number) => void; toggle: (id: number) => void; exit: () => void };
+type SelectCtl = { on: () => boolean; has: (id: number) => boolean; start: (id: number) => void; toggle: (id: number) => void; range: (id: number) => void; exit: () => void };
 const LONG_PRESS_MS = 500;
 
 /** the checkbox, the long-press and right-click starts, and the tap that toggles while the mode is on. */
@@ -610,10 +633,15 @@ function wireSelect(row: HTMLElement, id: number, ctl: SelectCtl): void {
       ev.stopPropagation();
       return;
     }
-    if (!ctl.on()) return;
+    const e = ev as MouseEvent;
+    const mod = e.ctrlKey || e.metaKey;
+    if (!ctl.on() && !mod && !e.shiftKey) return;
+    // Ctrl (Cmd on a Mac) + click toggles a row; Shift + click selects the range from the last toggled row
     ev.preventDefault();
     ev.stopPropagation();
-    ctl.toggle(id);
+    if (e.shiftKey && !mod) ctl.range(id);
+    else if (ctl.on()) ctl.toggle(id);
+    else ctl.start(id);
   }, true);
 }
 
