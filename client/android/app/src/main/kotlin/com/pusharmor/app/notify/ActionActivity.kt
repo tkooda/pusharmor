@@ -52,7 +52,7 @@ class ActionActivity : Activity() {
             "dial" -> startOrToast(this, Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(content))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), NO_APP_DIAL)
             "share" -> startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, content), null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             // No app screen shows here, so a Toast says whether the copy worked.
-            "copy" -> UiText.copyResult(copy(this, content))?.let { toast(applicationContext, it) }
+            "copy" -> toast(applicationContext, UiText.copyResult(copy(this, content)))
             else -> openHistory(id)
         }
     }

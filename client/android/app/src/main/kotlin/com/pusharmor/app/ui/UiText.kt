@@ -24,15 +24,8 @@ object UiText {
     const val UNABLE_COPY = "Unable to copy"
     const val COPY_BY_HAND = "Select the text and copy it by hand"
 
-    /**
-     * Brief text after a copy; null when none is needed: Android 13 (API 33) and later shows its own clipboard
-     * preview, so the app confirms a copy only below it. A failed copy always says so.
-     */
-    fun copyResult(ok: Boolean, sdk: Int = android.os.Build.VERSION.SDK_INT): String? = when {
-        !ok -> com.pusharmor.net.ErrorText.text(UNABLE_COPY, COPY_BY_HAND)
-        sdk < android.os.Build.VERSION_CODES.TIRAMISU -> COPIED
-        else -> null
-    }
+    /** Brief text after a copy, on every Android version (13 and later also show their own clipboard preview). */
+    fun copyResult(ok: Boolean): String = if (ok) COPIED else com.pusharmor.net.ErrorText.text(UNABLE_COPY, COPY_BY_HAND)
 
     /** Toast and snackbar text: no line ends with a period. Inline text, dialogs, and notifications keep theirs; an ellipsis stays. */
     fun brief(text: String): String =

@@ -16,11 +16,9 @@ class UiTextTest {
         approved = true, approveVerified = true)
 
     @Test fun copyTexts() {
-        // Android 13 and later shows its own clipboard preview: the app confirms only below API 33. A failure always shows.
-        assertEquals("Copied", UiText.copyResult(true, 32))
-        assertEquals(null, UiText.copyResult(true, 33))
-        assertEquals("Unable to copy\nSelect the text and copy it by hand", UiText.copyResult(false, 32))
-        assertEquals("Unable to copy\nSelect the text and copy it by hand", UiText.copyResult(false, 34))
+        // Every Android version confirms a copy, 13 and later too. A failure always shows.
+        assertEquals("Copied", UiText.copyResult(true))
+        assertEquals("Unable to copy\nSelect the text and copy it by hand", UiText.copyResult(false))
     }
 
     @Test fun keysBrokenTexts() {

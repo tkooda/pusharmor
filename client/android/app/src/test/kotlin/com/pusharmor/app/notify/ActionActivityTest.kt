@@ -65,11 +65,11 @@ class ActionActivityTest {
         assertEquals("Copied", ShadowToast.getTextOfLatestToast())
     }
 
-    /** Android 13 and later shows its own clipboard preview; the app adds nothing. */
-    @Test fun copyOnApi33AndLaterShowsNoToast() {
+    /** Android 13 and later show their own clipboard preview; the app still says Copied. */
+    @Test fun copyOnApi33AndLaterShowsCopied() {
         assertTrue(tap("copy", textRow()).isFinishing)
         assertEquals("hello", clipText())
-        assertEquals(null, ShadowToast.getLatestToast())
+        assertEquals("Copied", ShadowToast.getTextOfLatestToast())
     }
 
     @Test fun dialWithNoDialerShowsMessage() {
