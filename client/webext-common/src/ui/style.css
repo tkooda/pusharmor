@@ -137,11 +137,12 @@ label.srow { cursor: pointer; }
 .pair-head { display: flex; align-items: center; gap: 12px; }
 .pair-head .txt { flex: 1; }
 .pair-title { font-size: 15px; line-height: 20px; font-weight: 500; overflow-wrap: anywhere; }
-.plate { margin-top: 12px; background: var(--plate); border-radius: var(--rp); padding: 12px 10px; text-align: center; }
+.plate { margin-top: 12px; background: var(--plate); border-radius: var(--rp); padding: 12px 10px; text-align: center; container-type: inline-size; }
 .plate-label { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; line-height: 1.45455; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: var(--ink2); }
 .plate-label svg { color: var(--primary); }
-.cells { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 12px auto 0; max-width: 232px; }
-.cell { width: 52px; height: 62px; display: grid; place-items: center; font: 600 32px ui-monospace, "Source Code Pro", monospace; color: var(--ink); background: var(--fpcell); border: 1px solid var(--ctl); border-radius: var(--rcell); }
+/* the four cells stay on one row: on a narrow screen or at a large zoom, cells and glyphs shrink to fit */
+.cells { display: flex; flex-wrap: nowrap; justify-content: center; gap: 8px; margin: 12px auto 0; max-width: 232px; }
+.cell { flex: 0 1 52px; min-width: 0; aspect-ratio: 52 / 62; display: grid; place-items: center; font: 600 min(32px, calc(15cqi - 4px)) ui-monospace, "Source Code Pro", monospace; color: var(--ink); background: var(--fpcell); border: 1px solid var(--ctl); border-radius: var(--rcell); }
 .plate p { margin-top: 12px; font-size: 13px; line-height: 1.38462; color: var(--ink2); overflow-wrap: anywhere; }
 .pair > .line { margin-top: 8px; }
 /* stacked by large text, the main action (on the right) goes on top */

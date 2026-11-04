@@ -607,6 +607,16 @@ test("large text: wrapped lines keep their spacing, rows wrap, and the popup scr
   assert.match(rule(".links button.text"), /height: auto; min-height: 36px; white-space: normal;/);
 });
 
+test("the fingerprint cells stay on one row and shrink to fit; Pair a new device is in the list, not over it", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  assert.match(css, /\.plate \{[^}]*container-type: inline-size;/);
+  assert.match(css, /\.cells \{[^}]*flex-wrap: nowrap;/);
+  assert.match(css, /\.cell \{ flex: 0 1 52px; min-width: 0; aspect-ratio: 52 \/ 62;[^}]*font: 600 min\(32px, calc\(15cqi - 4px\)\)/);
+  assert.doesNotMatch(css, /\.pairnew[^{]*\{[^}]*position:/);
+  assert.match(readFileSync(new URL("../popup-check.mjs", import.meta.url), "utf8"), /fingerprint rows at 200%/);
+});
+
 test("the pairing timer row button says Cancel pairing request; the time left wraps below it", async () => {
   const { readFileSync } = await import("node:fs");
   const pv = readFileSync(new URL("../src/ui/peersview.ts", import.meta.url), "utf8");

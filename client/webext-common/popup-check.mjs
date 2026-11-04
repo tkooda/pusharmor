@@ -53,7 +53,8 @@ const CYCLE = `(async () => {
 
 // Runs in the page: the popup shown full screen on a 360px wide phone (Firefox for Android; the
 // frame is 360px wide, as headless Chrome windows are at least 500px), on the Devices tab with
-// long device names and Pair a new device open, then on every other tab. Reports every element
+// long device names and Pair a new device open, then on every other tab. Reports fingerprint cells
+// on more than one row (also at 200% zoom), every element
 // whose right edge is past the frame, and content cut off at the right of its box.
 const NARROW = `(async () => {
   const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
@@ -64,6 +65,14 @@ const NARROW = `(async () => {
   const tag = (e) => e.tagName.toLowerCase() + "." + [...e.classList].join(".");
   const over = [];
   const cut = [];
+  // the fingerprint cells stay on one row, also at 200% zoom (a 180px wide screen)
+  const rows = () => new Set([...document.querySelectorAll(".cell")].map((e) => Math.round(e.getBoundingClientRect().top))).size;
+  if (rows() !== 1) cut.push("peers fingerprint rows:" + rows());
+  document.documentElement.style.zoom = "2";
+  await sleep(100);
+  if (rows() !== 1) cut.push("peers fingerprint rows at 200%:" + rows());
+  document.documentElement.style.zoom = "";
+  await sleep(100);
   for (const t of ["peers", "send", "history", "settings"]) {
     if (t !== "peers") { document.querySelector('[data-tab="' + t + '"]').click(); await sleep(400); }
     for (const e of document.querySelectorAll("#app *")) {
