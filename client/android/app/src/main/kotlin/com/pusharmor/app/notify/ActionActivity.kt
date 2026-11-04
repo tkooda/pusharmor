@@ -12,7 +12,9 @@ import android.os.PersistableBundle
 import com.pusharmor.app.PaApp
 import com.pusharmor.app.ui.MainActivity
 import com.pusharmor.app.ui.NO_APP_DIAL
+import com.pusharmor.app.ui.UiText
 import com.pusharmor.app.ui.startOrToast
+import com.pusharmor.app.ui.toast
 import com.pusharmor.protocol.UrlCheck
 
 /**
@@ -49,7 +51,8 @@ class ActionActivity : Activity() {
             }
             "dial" -> startOrToast(this, Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(content))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), NO_APP_DIAL)
             "share" -> startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, content), null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            "copy" -> copy(this, content)
+            // No app screen shows here, so a Toast says whether the copy worked.
+            "copy" -> UiText.copyResult(copy(this, content))?.let { toast(applicationContext, it) }
             else -> openHistory(id)
         }
     }
@@ -59,11 +62,13 @@ class ActionActivity : Activity() {
     }
 
     companion object {
-        /** Clipboard copies are marked sensitive. */
-        fun copy(activity: android.content.Context, text: String) {
+        /** Clipboard copies are marked sensitive. False when the clipboard did not take the text. */
+        fun copy(activity: android.content.Context, text: String): Boolean = try {
             val clip = ClipData.newPlainText("PushArmor", text)
             clip.description.extras = PersistableBundle().apply { putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true) }
-            activity.getSystemService(ClipboardManager::class.java).setPrimaryClip(clip)
-        }
+            val cm = activity.getSystemService(ClipboardManager::class.java)
+            cm?.setPrimaryClip(clip)
+            cm != null
+        } catch (e: RuntimeException) { false }
     }
 }

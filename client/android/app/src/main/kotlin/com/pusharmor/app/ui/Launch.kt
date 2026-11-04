@@ -13,9 +13,12 @@ const val NO_APP_DIAL = "No app can call this number."
  * [show] is a Toast only where the screen closes at once; app screens pass their snackbar.
  */
 fun startOrToast(context: Context, intent: Intent, text: String = NO_APP_LINK,
-                 show: (String) -> Unit = { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }) {
+                 show: (String) -> Unit = { toast(context, it) }) {
     try { context.startActivity(intent) } catch (e: ActivityNotFoundException) { show(text) }
 }
+
+/** A short Toast, for where no app snackbar shows. */
+fun toast(context: Context, text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
 
 /** Starts [intent]; with no app to handle it, does nothing instead of crashing. */
 fun safeStart(context: Context, intent: Intent) {

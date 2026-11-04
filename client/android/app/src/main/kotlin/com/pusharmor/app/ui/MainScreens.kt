@@ -1318,7 +1318,9 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
             MessageActions {
                 for (label in historyActionLabels(kind)) when (label) {
                     "View" -> MessageAction("View", PaIcons.Article) { reading = true }
-                    "Copy" -> MessageAction("Copy", PaIcons.ContentCopy) { com.pusharmor.app.notify.ActionActivity.copy(context, hc) }
+                    "Copy" -> MessageAction("Copy", PaIcons.ContentCopy) {
+                        UiText.copyResult(com.pusharmor.app.notify.ActionActivity.copy(context, hc))?.let { vm.message.value = it }
+                    }
                     "Open" -> if (kind == MessageKind.URL) com.pusharmor.protocol.UrlCheck.parse(hc)?.let { u ->
                         MessageAction("Open", PaIcons.OpenInNew) { startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(u.href)).addCategory(Intent.CATEGORY_BROWSABLE)) { vm.message.value = it } }
                     } else MessageAction("Open", PaIcons.OpenInNew) { startOrToast(context, Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(hc))), NO_APP_DIAL) { vm.message.value = it } }
@@ -1531,7 +1533,9 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                 Modifier.fillMaxWidth().heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically)
                     .semantics { contentDescription = UiText.COPY_VERSION }
                     .clickable(onClickLabel = UiText.COPY_VERSION, role = Role.Button) {
-                        com.pusharmor.app.notify.ActionActivity.copy(context, BuildConfig.VERSION_NAME)
+                        // Logged out, Settings has no snackbar, and the sign-in screens show vm.message as an error: a Toast.
+                        UiText.copyResult(com.pusharmor.app.notify.ActionActivity.copy(context, BuildConfig.VERSION_NAME))
+                            ?.let { if (signedIn) vm.message.value = it else toast(context, it) }
                     }.padding(horizontal = 16.dp, vertical = 12.dp),
                 style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
         }

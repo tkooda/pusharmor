@@ -15,6 +15,14 @@ class UiTextTest {
     private val pinned = Peer(id = "p", platform = "chrome", signPub = "s", encPub = "e", pairingId = ByteArray(16),
         approved = true, approveVerified = true)
 
+    @Test fun copyTexts() {
+        // Android 13 and later shows its own clipboard preview: the app confirms only below API 33. A failure always shows.
+        assertEquals("Copied", UiText.copyResult(true, 32))
+        assertEquals(null, UiText.copyResult(true, 33))
+        assertEquals("Unable to copy\nSelect the text and copy it by hand", UiText.copyResult(false, 32))
+        assertEquals("Unable to copy\nSelect the text and copy it by hand", UiText.copyResult(false, 34))
+    }
+
     @Test fun keysBrokenTexts() {
         assertEquals("This device's keys have become unusable.", UiText.KEYS_BROKEN_TITLE)
         assertEquals("Tap Retry to try again. If this keeps happening, you can delete the broken keys. You will then sign in again and pair all your devices again.", UiText.KEYS_BROKEN_BODY)

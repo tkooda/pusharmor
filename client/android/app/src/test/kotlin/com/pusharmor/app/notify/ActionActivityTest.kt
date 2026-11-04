@@ -46,6 +46,32 @@ class ActionActivityTest {
         assertEquals(com.pusharmor.app.ui.MainActivity::class.java.name, shadowOf(app).nextStartedActivity.component?.className)
     }
 
+    private fun textRow(): Long {
+        val app = ApplicationProvider.getApplicationContext<PaApp>()
+        var id = 0L
+        Thread { id = app.graph.dao.insertHistory(HistoryEntity(direction = "in", peerId = null, type = "text", content = "hello", n = null,
+            pairingId = null, at = 0, read = false, results = "", count = 1)) }.apply { start(); join() }
+        return id
+    }
+
+    private fun clipText(): String? = ApplicationProvider.getApplicationContext<PaApp>().getSystemService(android.content.ClipboardManager::class.java)
+        .primaryClip?.getItemAt(0)?.text?.toString()
+
+    /** Below Android 13 no system preview shows, so a Toast confirms the copy. */
+    @Config(sdk = [32], application = TestApp::class)
+    @Test fun copyBelowApi33ShowsCopied() {
+        assertTrue(tap("copy", textRow()).isFinishing)
+        assertEquals("hello", clipText())
+        assertEquals("Copied", ShadowToast.getTextOfLatestToast())
+    }
+
+    /** Android 13 and later shows its own clipboard preview; the app adds nothing. */
+    @Test fun copyOnApi33AndLaterShowsNoToast() {
+        assertTrue(tap("copy", textRow()).isFinishing)
+        assertEquals("hello", clipText())
+        assertEquals(null, ShadowToast.getLatestToast())
+    }
+
     @Test fun dialWithNoDialerShowsMessage() {
         val app = ApplicationProvider.getApplicationContext<PaApp>()
         var id = 0L

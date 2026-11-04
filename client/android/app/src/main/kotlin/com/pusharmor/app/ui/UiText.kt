@@ -19,6 +19,21 @@ object UiText {
     const val COPY_VERSION = "Copy version"
     fun version(name: String) = "Version $name"
 
+    /** Copy confirmation and failure (two lines), same words as the other clients. */
+    const val COPIED = "Copied"
+    const val UNABLE_COPY = "Unable to copy"
+    const val COPY_BY_HAND = "Select the text and copy it by hand"
+
+    /**
+     * Brief text after a copy; null when none is needed: Android 13 (API 33) and later shows its own clipboard
+     * preview, so the app confirms a copy only below it. A failed copy always says so.
+     */
+    fun copyResult(ok: Boolean, sdk: Int = android.os.Build.VERSION.SDK_INT): String? = when {
+        !ok -> com.pusharmor.net.ErrorText.text(UNABLE_COPY, COPY_BY_HAND)
+        sdk < android.os.Build.VERSION_CODES.TIRAMISU -> COPIED
+        else -> null
+    }
+
     const val DELETE_CONFIRM = "Delete this account? You must log in again to confirm. This cannot be undone."
 
     // Line 1 of an error: what could not be done. Line 2 (ErrorText) says why.

@@ -291,7 +291,7 @@ class AppLogicTest {
         val settings = main.substring(main.indexOf("fun SettingsScreen("))
         assertTrue(settings.contains("Text(UiText.version(BuildConfig.VERSION_NAME)"))
         assertEquals("Copy version", com.pusharmor.app.ui.UiText.COPY_VERSION)
-        assertTrue(settings.contains("role = Role.Button) {\n                        com.pusharmor.app.notify.ActionActivity.copy(context, BuildConfig.VERSION_NAME)"))
+        assertTrue(settings.contains("UiText.copyResult(com.pusharmor.app.notify.ActionActivity.copy(context, BuildConfig.VERSION_NAME))"))
         assertTrue(settings.indexOf("UiText.version(") > settings.indexOf("RowAction(\"Log out\""))
     }
 
