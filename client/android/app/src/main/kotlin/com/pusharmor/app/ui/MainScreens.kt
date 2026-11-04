@@ -1069,7 +1069,7 @@ private fun DeviceChip(icon: ImageVector, name: String, selected: Boolean, enabl
 /** History: filter chips, day groups, newest first, unread rows bold, expanded row actions. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit = {}, onPeer: (String) -> Unit) {
+fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit = {}) {
     val rows by vm.history.collectAsState()
     val peers by vm.peers.collectAsState()
     val me by vm.self.collectAsState()
@@ -1155,7 +1155,7 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
                 }
                 itemsIndexed(group, key = { _, h -> h.id }) { i, h ->
                     val fill = if (open == h.id) ex.expandedRow else ex.tile
-                    HistoryRow(vm, h, open == h.id, picked.isNotEmpty(), h.id in picked, { picked = toggleSelected(picked, h.id) }, ::nameOf, onPeer,
+                    HistoryRow(vm, h, open == h.id, picked.isNotEmpty(), h.id in picked, { picked = toggleSelected(picked, h.id) }, ::nameOf,
                         Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, group.size,
                             if (glowId == h.id) lerp(fill, MaterialTheme.colorScheme.secondaryContainer, glow.value) else fill)) { open = toggleOpenRow(open, h.id) }
                 }
@@ -1237,7 +1237,7 @@ private val CONTENT_TYPES = setOf("url", "text", "tel")
 @OptIn(ExperimentalFoundationApi::class)
 private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, expanded: Boolean, selecting: Boolean, checked: Boolean,
                        onSelect: () -> Unit, nameOf: (String) -> String,
-                       onPeer: (String) -> Unit, modifier: Modifier, onOpen: () -> Unit) {
+                       modifier: Modifier, onOpen: () -> Unit) {
     val context = LocalContext.current
     val cs = MaterialTheme.colorScheme
     val event = h.type !in CONTENT_TYPES
@@ -1279,11 +1279,11 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
                         Text(body, Modifier.weight(1f).padding(top = 10.dp), style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
                         Text(time, Modifier.padding(top = 10.dp), style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
                     }
-                    if (h.peerId != null) Text(who, Modifier.clickable { h.peerId?.let(onPeer) },
+                    if (h.peerId != null) Text(who,
                         style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
                 } else {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(who, Modifier.weight(1f).clickable(enabled = h.peerId != null) { h.peerId?.let(onPeer) },
+                        Text(who, Modifier.weight(1f),
                             style = MaterialTheme.typography.bodyMedium, fontWeight = weight, color = cs.onSurfaceVariant,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(time, Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)

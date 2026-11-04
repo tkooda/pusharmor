@@ -371,7 +371,7 @@ internal fun App(vm: AppViewModel) {
             TabHost(nav) {
                 composable("peers") { PeersScreen(vm) }
                 composable("send") { SendScreen(vm, title = "Send", onPair = pair) }
-                composable("history") { HistoryScreen(vm, onPair = pair, onSend = { tab("send") }) { id -> vm.highlight.value = id; nav.navigate("peers") } }
+                composable("history") { HistoryScreen(vm, onPair = pair, onSend = { tab("send") }) }
                 composable("settings") { SettingsScreen(vm, onDeleteAccount = { vm.message.value = null; deleting = true }, onSignedOut = {}) }
             }
             }

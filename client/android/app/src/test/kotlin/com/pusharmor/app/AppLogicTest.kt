@@ -403,6 +403,15 @@ class AppLogicTest {
         assertTrue(main.contains("FlowRow(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp)"))
     }
 
+    @Test fun historyTileTapDoesNotGoToDevices() {
+        val main = source("ui/MainScreens.kt")
+        val rowAt = main.indexOf("private fun HistoryRow(")
+        val row = main.substring(rowAt, main.indexOf("\n}\n", rowAt))
+        assertFalse(row.contains("onPeer"))
+        assertFalse(row.contains("clickable("))  // only the tile itself reacts, via combinedClickable
+        assertFalse(source("ui/MainActivity.kt").contains("HistoryScreen(vm, onPair = pair, onSend = { tab(\"send\") }) {"))
+    }
+
     @Test fun permissionAndBannersRecheckedOnResume() {
         val act = source("ui/MainActivity.kt")
         assertTrue(act.contains("LaunchedEffect(tick) { ok = granted() }"))
