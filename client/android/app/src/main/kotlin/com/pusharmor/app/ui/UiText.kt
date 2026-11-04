@@ -310,9 +310,9 @@ object UiText {
 
     /** Quiet caption for the detected type, present tense. */
     fun typeCaption(type: ContentType): String = when (type) {
-        ContentType.URL -> "Will open as a URL"
-        ContentType.TEL -> "Will open as a phone number"
-        ContentType.TEXT -> "Will arrive as text"
+        ContentType.URL -> "Will be sent as URL"
+        ContentType.TEL -> "Will be sent as phone number"
+        ContentType.TEXT -> "Will be sent as text"
     }
 
     /** Spoken form of a fingerprint: "Pairing fingerprint K, 7, Q, D". */

@@ -230,9 +230,9 @@ class UiTextTest {
         assertEquals(false, UiText.showCounter(1843))
         assertEquals(true, UiText.showCounter(1844))
         assertEquals(true, UiText.showCounter(2049))
-        assertEquals("Will open as a URL", UiText.typeCaption(ContentType.URL))
-        assertEquals("Will open as a phone number", UiText.typeCaption(ContentType.TEL))
-        assertEquals("Will arrive as text", UiText.typeCaption(ContentType.TEXT))
+        assertEquals("Will be sent as URL", UiText.typeCaption(ContentType.URL))
+        assertEquals("Will be sent as phone number", UiText.typeCaption(ContentType.TEL))
+        assertEquals("Will be sent as text", UiText.typeCaption(ContentType.TEXT))
     }
 
     @Test fun screenReaderLabelsQuoteDeviceNames() {

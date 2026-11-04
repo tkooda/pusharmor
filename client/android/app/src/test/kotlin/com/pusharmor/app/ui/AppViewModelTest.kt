@@ -188,7 +188,7 @@ class AppViewModelTest {
         val vm = vm()
         vm.g.keysOrNull = null
         onIo { vm.g.dao.putSelf(SelfEntity(id = "A".repeat(40), accountPrefix = ByteArray(9), name = "t")) }
-        val r = runBlocking { vm.send(listOf("B".repeat(40)), "hi", asUrl = false, asText = true) }
+        val r = runBlocking { vm.send(listOf("B".repeat(40)), "hi", asText = true) }
         assertEquals("Unable to send.\nTry again.", r.text)
         assertFalse(r.ok)
     }

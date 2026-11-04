@@ -465,7 +465,6 @@ class AppLogicTest {
         val main = source("ui/MainScreens.kt")
         assertTrue(main.contains("var text by rememberSaveable"))
         assertTrue(main.contains("var asText by rememberSaveable"))
-        assertTrue(main.contains("var urlBox by rememberSaveable"))
         val act = source("ui/MainActivity.kt")
         for (v in listOf("deleting", "email", "skipped")) assertTrue(v, act.contains("var $v by rememberSaveable"))
     }

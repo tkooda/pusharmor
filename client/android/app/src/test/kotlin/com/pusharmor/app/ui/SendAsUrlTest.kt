@@ -26,53 +26,39 @@ class SendAsUrlTest {
         assertEquals("HTTPS://a.co", LikelyUrl.asUrl("HTTPS://a.co"))
     }
 
-    @Test fun startsUncheckedAndDisabled() {
-        val s = SendAsUrl.start("")
-        assertFalse(s.checked)
-        assertFalse(SendAsUrl.enabled(""))
-        assertTrue(SendAsUrl.start("minilock.org").checked) // a shared URL starts checked
+    @Test fun detectsTheType() {
+        assertEquals(ContentType.TEXT, SendAsUrl.detected("hello"))
+        assertEquals(ContentType.TEXT, SendAsUrl.detected(""))
+        assertEquals(ContentType.URL, SendAsUrl.detected("minilock.org"))
+        assertEquals(ContentType.TEL, SendAsUrl.detected("+15551234567"))
     }
 
-    @Test fun followsTheTextUntilTheUserUnchecks() {
-        var s = SendAsUrl.start("")
-        s = s.onText("minilock")
-        assertFalse(s.checked)
-        s = s.onText("minilock.org")
-        assertTrue(s.checked)
-        assertTrue(SendAsUrl.enabled("minilock.org"))
-        s = s.onText("minilock.org is")
-        assertFalse(s.checked)
-        assertFalse(SendAsUrl.enabled("minilock.org is"))
-        s = s.onText("minilock.org")
-        assertTrue(s.checked)
-        // The user unchecks: it never checks itself again for this message, it only gets enabled.
-        s = s.onToggle(false)
-        assertFalse(s.checked)
-        s = s.onText("minilock.or").onText("minilock.org")
-        assertFalse(s.checked)
-        s = s.onText("minilock.").onText("minilock.org")
-        assertFalse(s.checked)
-        // A manual check still works.
-        s = s.onToggle(true)
-        assertTrue(s.checked)
+    @Test fun urlWinsOverPhone() {
+        // A URL with a phone-like path is a URL.
+        assertEquals(ContentType.URL, SendAsUrl.detected("https://a.co/+15551234567"))
     }
 
-    @Test fun emptyFieldOrASendStartsOver() {
-        var s = SendAsUrl.start("minilock.org").onToggle(false)
-        s = s.onText("").onText("minilock.org")
-        assertTrue(s.checked)
-        s = s.onToggle(false)
-        assertTrue(SendAsUrl.start("minilock.org").checked) // the state after a send
-        assertFalse(s.onText("minilock.org").checked)
+    @Test fun textBoxOnlyForUrlOrPhone() {
+        assertFalse(SendAsUrl.offersText("hello"))
+        assertTrue(SendAsUrl.offersText("minilock.org"))
+        assertTrue(SendAsUrl.offersText("+15551234567"))
     }
 
-    @Test fun sendCarriesUrlPhoneOrText() {
-        assertEquals(ContentType.URL to "https://minilock.org", SendAsUrl.content(" minilock.org ", asUrl = true, asText = false))
-        assertEquals(ContentType.TEXT to "minilock.org", SendAsUrl.content("minilock.org", asUrl = false, asText = false))
-        assertEquals(ContentType.TEXT to "http://localhost", SendAsUrl.content("http://localhost", asUrl = false, asText = false)) // the user unchecked it
-        assertTrue(SendAsUrl.start("http://localhost:8080/x").checked)
-        assertEquals(ContentType.TEL to "+15551234567", SendAsUrl.content(" +15551234567 ", asUrl = false, asText = false))
-        assertEquals(ContentType.TEXT to " +15551234567 ", SendAsUrl.content(" +15551234567 ", asUrl = false, asText = true))
-        assertFalse(LikelyUrl.check("+15551234567") || LikelyUrl.check("tel:+15551234567"))
+    @Test fun overrideSendsText() {
+        assertEquals(ContentType.TEXT, SendAsUrl.effective("minilock.org", true))
+        assertEquals(ContentType.URL, SendAsUrl.effective("minilock.org", false))
+        assertEquals(ContentType.URL to "https://minilock.org", SendAsUrl.content(" minilock.org ", false))
+        assertEquals(ContentType.TEXT to "minilock.org", SendAsUrl.content("minilock.org", true))
+        assertEquals(ContentType.URL to "http://localhost", SendAsUrl.content("http://localhost", false))
+        assertEquals(ContentType.TEL to "+15551234567", SendAsUrl.content(" +15551234567 ", false))
+        assertEquals(ContentType.TEXT to " +15551234567 ", SendAsUrl.content(" +15551234567 ", true))
+    }
+
+    @Test fun overrideResetsWhenTheDetectedTypeChanges() {
+        assertTrue(SendAsUrl.afterEdit("minilock.org", "minilock.org/x", true))
+        assertFalse(SendAsUrl.afterEdit("minilock.org", "minilock.", true))
+        assertFalse(SendAsUrl.afterEdit("minilock.org", "+15551234567", true))
+        assertFalse(SendAsUrl.afterEdit("hello", "hello there", true))
+        assertFalse(SendAsUrl.afterEdit("minilock.org", "minilock.org/x", false))
     }
 }
