@@ -101,7 +101,7 @@ label.srow { cursor: pointer; }
 .srow > select, .srow > input { margin-left: auto; }
 .srow.acct, .srow.acct-acts { display: block; }
 .acct .email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.acct-acts .btns { padding: 0; flex-wrap: nowrap; justify-content: center; }
+.acct-acts .btns { padding: 0; flex-wrap: wrap-reverse; justify-content: center; }
 .btns[hidden], button.errtext[hidden] { display: none; }
 
 /* Overflow menu. */
@@ -225,7 +225,7 @@ body.page .foot { position: static; }
 .hrow.msel { grid-template-columns: 20px 32px minmax(0, 1fr); }
 .hrow.msel .acts { display: none; }
 input.hsel { margin: 2px 0 0; width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
-.hselbar { display: flex; justify-content: flex-end; padding: 8px 16px 0; }
+.hselbar { display: flex; flex-wrap: wrap-reverse; justify-content: flex-end; gap: 8px; padding: 8px 16px 0; }
 .hselbar[hidden] { display: none; }
 button.dellight { height: 32px; border-color: transparent; color: var(--err); background: color-mix(in srgb, var(--err) 14%, transparent); }
 .hrow.closed:focus-within { background: none; }
@@ -249,8 +249,8 @@ button.dellight { height: 32px; border-color: transparent; color: var(--err); ba
 .hrow.closed:not(.sel) .acts { display: none; }
 button.ac { height: 28px; padding: 0 10px 0 8px; gap: 5px; font-size: 12px; color: var(--ink); background: var(--card); }
 button.ac svg { color: var(--ink); }
-.acts-row { display: flex; gap: 6px; flex: 1 0 100%; }
-.acts-row button.ac { flex: 1 1 0; padding: 0 6px; }
+.acts-row { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 0 100%; }
+.acts-row button.ac { flex: 1 1 auto; padding: 0 6px; white-space: nowrap; }
 @media (max-width: 339px) { .acts-row { flex-wrap: wrap; } .acts-row button.ac { flex-basis: calc(50% - 3px); } }
 
 /* Not-registered popup: welcome card (sizes scoped here, other views keep their density). */
@@ -371,8 +371,9 @@ dialog.dlg { width: min(340px, calc(100vw - 48px)); margin: auto; padding: 24px 
 dialog.dlg::backdrop { background: rgba(0, 0, 0, 0.45); }
 .dlg h2 { margin: 0 0 8px; font-size: 17px; line-height: 24px; font-weight: 600; }
 .dlg p { font-size: 14px; line-height: 1.42858; color: var(--ink2); }
-.dlg-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
-.dlg-acts button { min-width: 88px; font-weight: 600; }
+/* at a large zoom or minimum font size the row wraps as a whole; the action (on the right) goes on top */
+.dlg-acts { display: flex; flex-wrap: wrap-reverse; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+.dlg-acts button { min-width: 88px; font-weight: 600; white-space: nowrap; }
 .dlg-acts button.danger { background: var(--err); border-color: var(--err); color: var(--card); }
 .dlg-acts button.danger:hover { background: var(--err); filter: brightness(1.08); }
 
