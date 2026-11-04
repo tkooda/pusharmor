@@ -24,14 +24,15 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(header.exists)
     }
 
-    /// Send as URL sits at the right end of the hint row and is on for the sample URL draft.
+    /// Send as URL is its own line under the message, label at the leading edge, and is on for the sample URL draft.
     func testSendAsURLIsOnForAURLDraft() {
         let app = launch()
         let toggle = app.switches["Send as URL"]
         XCTAssertTrue(toggle.waitForExistence(timeout: 30))
         XCTAssertTrue(toggle.isEnabled)
         XCTAssertEqual(toggle.value as? String, "1")
-        XCTAssertGreaterThan(toggle.frame.minX, app.frame.midX)
+        XCTAssertLessThan(toggle.frame.minX, app.frame.midX)
+        XCTAssertGreaterThan(toggle.frame.maxX, app.frame.midX)
     }
 
     /// a successful send shows the bottom banner between the Send button and the tab

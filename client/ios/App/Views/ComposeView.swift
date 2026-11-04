@@ -63,8 +63,8 @@ enum SendScreenRules {
     static func chipAreaMaxHeight(keyboardUp: Bool) -> CGFloat { keyboardUp ? 118 : 320 }
 
     /// Space the message list spends on rows and margins besides the message field itself
-    /// (top margin, row padding, the "Send as URL" line, bottom margin).
-    static let messageChrome: CGFloat = 150
+    /// (top margin, row padding, caption line with "Send as text", the "Send as URL" line, bottom margin).
+    static let messageChrome: CGFloat = 186
 
     /// Message field height bounds (F20). It starts 4 text lines tall (plus the editor's
     /// 8 pt insets) and grows with its text until it fills the visible list area above the
@@ -356,35 +356,37 @@ struct ComposeView: View {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .strokeBorder(editing ? Color.brandGreen : Color(uiColor: .separator), lineWidth: editing ? 1.5 : 1)
                 )
-            // large text: the caption, counter, and switches stack
-            let ax = typeSize.isAccessibilitySize
-            let row = ax ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))
-            row {
-                if isPhone {
-                    let c = SendScreenRules.caption(.tel, asText: asText)
-                    Label(c.title, systemImage: c.symbol)
-                        .font(.footnote)
-                        .foregroundColor(.secondaryText)
+            if isPhone || SendScreenRules.showsCounter(text) {
+                // large text: the caption, counter, and switch stack
+                let ax = typeSize.isAccessibilitySize
+                let row = ax ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))
+                row {
+                    if isPhone {
+                        let c = SendScreenRules.caption(.tel, asText: asText)
+                        Label(c.title, systemImage: c.symbol)
+                            .font(.footnote)
+                            .foregroundColor(.secondaryText)
+                    }
+                    if !ax { Spacer(minLength: 8) }
+                    if SendScreenRules.showsCounter(text) {
+                        Text(counter)
+                            .font(.footnote)
+                            .foregroundColor(.errorText)
+                    }
+                    // on the hint row, at the far right
+                    if isPhone {
+                        Toggle("Send as text", isOn: $asText)
+                            .font(.footnote)
+                            .foregroundColor(.secondaryText)
+                            .fixedSize(horizontal: !ax, vertical: true)
+                    }
                 }
-                if !ax { Spacer(minLength: 8) }
-                if SendScreenRules.showsCounter(text) {
-                    Text(counter)
-                        .font(.footnote)
-                        .foregroundColor(.errorText)
-                }
-                if isPhone {
-                    Toggle("Send as text", isOn: $asText)
-                        .font(.footnote)
-                        .foregroundColor(.secondaryText)
-                        .fixedSize(horizontal: !ax, vertical: true)
-                }
-                // on the hint row, at the far right; grey until the text is a likely URL
-                Toggle("Send as URL", isOn: Binding(get: { urlChoice.on }, set: { urlChoice.set($0) }))
-                    .font(.footnote)
-                    .foregroundColor(.secondaryText)
-                    .fixedSize(horizontal: !ax, vertical: true)
-                    .disabled(!urlChoice.enabled)
             }
+            // its own line: label leading, switch trailing; grey until the text is a likely URL
+            Toggle("Send as URL", isOn: Binding(get: { urlChoice.on }, set: { urlChoice.set($0) }))
+                .font(.footnote)
+                .foregroundColor(.secondaryText)
+                .disabled(!urlChoice.enabled)
         }
         .padding(.vertical, 4)
     }
