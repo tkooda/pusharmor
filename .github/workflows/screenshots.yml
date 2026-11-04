@@ -161,7 +161,7 @@ jobs:
           if-no-files-found: error
 
   chrome:
-    name: Chrome (popup, 1280x800)
+    name: Chrome (full tab, 1280x800)
     runs-on: ubuntu-24.04
     if: ${{ !inputs.ios_all_screens }}
     timeout-minutes: 15
@@ -204,7 +204,7 @@ jobs:
           if-no-files-found: error
 
   firefox:
-    name: Firefox (popup, 1280x800)
+    name: Firefox (popup, 800x1120)
     runs-on: ubuntu-24.04
     if: ${{ !inputs.ios_all_screens }}
     timeout-minutes: 15

@@ -1,10 +1,12 @@
-// Store screenshots of the Chrome popup (workflow screenshots.yml):
+// Store screenshots (workflow screenshots.yml), with the store sample data (shots.html?store):
 //   node build.mjs --dev --shots && node shots.mjs <out-dir> [chrome binary]
 //   node build.mjs --dev --shots && node shots.mjs <out-dir> --firefox [firefox binary]
-// --firefox: headless Firefox, page loaded with ?platform=firefox (this device is Firefox).
-// Serves chrome/dist/unpacked on a local port and loads shots.html#<tab> in headless
-// Chrome at 1280x800 (branded Chrome 137+ ignores --load-extension, so the page runs as a
-// plain web page; the popup gets canned replies and makes no Worker call).
+// Chrome Web Store: the full tab view at 640x400, captured at 2x (1280x800 files), 01-05.
+// --firefox (AMO): headless Firefox, page loaded with ?platform=firefox (this device is Firefox):
+// the 400x560 popup alone, captured at 2x (800x1120 files), 01-06.
+// Serves chrome/dist/unpacked on a local port and loads shots.html in the headless browser
+// (branded Chrome 137+ ignores --load-extension, so the page runs as a plain web page; the
+// popup gets canned replies and makes no Worker call).
 import { execFile } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -13,9 +15,12 @@ import { extname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 const SHOTS = [
-  ["01-send", "send"],
-  ["02-peers-fingerprint", "peers"],
-  ["03-history-received-link", "history"],
+  ["01-pair-waiting", "wait#peers"],
+  ["02-pair-fingerprint", "only=new#peers"],
+  ["03-devices", "#peers"],
+  ["04-send", "#send"],
+  ["05-history", "open#history"],
+  ["06-settings", "top#settings"],
 ];
 // --popup=<dir>: the About-page popup shots (plus the send message and the Remove confirm) (400x560 popup alone, captured at 2x: 800x1120 files).
 // --review=<dir>: also write review images (sign-in, Settings, Log out, last device menu) there; not store shots.
@@ -87,11 +92,14 @@ const ffPage = (page, popup) => {
   return `${path}${path.includes("?") ? "&" : "?"}platform=firefox&ff${popup ? "&zoom=2" : ""}#${hash}`;
 };
 let failed = false;
-const jobs = SHOTS.map(([name, tab]) => [name, "shots.html#" + tab, out]);
+// Chrome Web Store: at most 5 (no Settings)
+const jobs = firefox
+  ? SHOTS.map(([name, q]) => [name, "shots.html?bare&store&" + q, out, true])
+  : SHOTS.slice(0, 5).map(([name, q]) => [name, "shots.html?bare&tab&store&" + q, out, "tab"]);
 if (reviewOut) jobs.push(...REVIEW.map(([name, page]) => [name, page, reviewOut]));
 if (popupOut) jobs.push(...POPUP.map(([name, page]) => [name, page, popupOut, true]));
 for (const [name, page, dir, popup] of jobs) {
-  const size = popup && firefox ? "800,1120" : popup ? "400,560" : "1280,800";
+  const size = popup === "tab" ? "640,400" : popup && firefox ? "800,1120" : popup ? "400,560" : "1280,800";
   const scale = popup ? 2 : 1;
   const profile = mkdtempSync(join(tmpdir(), "pa-shots-"));
   const png = resolve(dir, name + ".png");

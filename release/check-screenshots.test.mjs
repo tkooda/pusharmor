@@ -83,6 +83,7 @@ test("valid sets pass for each platform", () => {
   const ios = png(1320, 2868);
   const old = png(1290, 2796);
   assert.deepEqual(withDir({ "01-a.png": ios, "02-b.png": ios, "03-c.png": old }, (d) => checkDir("ios", d)), []);
+  assert.deepEqual(withDir({ "01-send.png": png(800, 1120) }, (d) => checkDir("firefox", d)), []);
 });
 
 test("counts outside the store range fail", () => {
@@ -94,6 +95,7 @@ test("counts outside the store range fail", () => {
 
 test("a wrong size, alpha, a bad name, a non-PNG and a one-color image fail", () => {
   assert.match(withDir({ "01-send.png": png(1280, 801) }, (d) => checkDir("chrome", d)).join(), /1280x801, want 1280x800/);
+  assert.match(withDir({ "01-send.png": chrome }, (d) => checkDir("firefox", d)).join(), /1280x800, want 800x1120/);
   assert.match(withDir({ "01-send.png": png(1280, 800, { alpha: 255 }) }, (d) => checkDir("chrome", d)).join(), /color type 6, want 2/);
   assert.match(withDir({ "01-send.png": chrome, "Send.png": chrome }, (d) => checkDir("chrome", d)).join(), /Send\.png: name is not NN-name\.png/);
   assert.match(withDir({ "01-send.png": chrome, "notes.txt": "x" }, (d) => checkDir("chrome", d)).join(), /notes\.txt: name/);

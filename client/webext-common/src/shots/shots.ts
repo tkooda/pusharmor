@@ -90,6 +90,36 @@ if (q.has("long")) {
 // ?senderr: Phone is selected and Send fails (the relay server cannot be reached)
 if (q.has("senderr")) sendSel = [PHONE];
 
+// ?store: History rows show Share (as in a browser that has it)
+if (q.has("store") && !navigator.share) Object.defineProperty(navigator, "share", { value: async () => undefined, configurable: true });
+// ?store: the store screenshot sample data (the same as the iOS and Android store shots); this device is Work laptop.
+// With ?wait only Galaxy S23 waits to pair; with ?only=new it shows the fingerprint R4NX.
+if (q.has("store")) {
+  const G = id("G"), H = id("H"), I = id("I"), X = id("X");
+  state.name = "Work laptop";
+  const mk = (pid: string, label: string, platform: string): PeerView => paired(pid, label, platform);
+  peers.splice(0, peers.length, mk(G, "Galaxy S23", "android"), mk(H, "Home PC", "firefox"), mk(I, "iPhone 15", "ios"), mk(X, "Pixel 8", "android"));
+  sendSel = [X];
+  if (q.has("wait")) {
+    peers.splice(0, peers.length, { id: G, label: "Galaxy S23", platform: "android", lines: [], actions: ["pair", "deny", "remove"], countdown: null,
+      fingerprint: null, pk: null, greyed: null, hidden: false, sendable: false, approvesMe: false, paired: false } as PeerView);
+  }
+  if (q.get("only") === "new") {
+    peers.splice(0, peers.length, { id: G, label: "Galaxy S23", platform: "android", lines: [T.fingerprint("R4NX")],
+      actions: ["cancel", "approve", "deny", "remove"], countdown: "4:12",
+      fingerprint: "R4NX", pk: null, greyed: null, hidden: false, sendable: false, approvesMe: false, paired: false } as PeerView);
+  }
+  const m = 60_000;
+  history.splice(0, history.length,
+    { id: 6, dir: "in", peer: I, type: "url", content: "https://www.wikipedia.org/wiki/Union_Station_(Chicago)", n: 1, pairing_id: null, received: now - 2 * m, read: true, sender: "iPhone 15" },
+    { id: 5, dir: "in", peer: X, type: "text", content: "Notes from the trip: the cabin key is under the blue flowerpot by the back door, and the spare blankets are in the hall closet. The heater needs a few minutes to warm up.", n: 1, pairing_id: null, received: now - 9 * m, read: true, sender: "Pixel 8" },
+    { id: 4, dir: "in", peer: X, type: "text", content: "Door code is 4821", n: 1, pairing_id: null, received: now - 27 * m, read: true, sender: "Pixel 8" },
+    { id: 3, dir: "out", peer: null, type: "url", content: "https://github.com/tkooda/pusharmor", n: null, pairing_id: null, received: now - 74 * m, read: true, results: { [H]: "sent" }, targets: [H], sender: "Home PC" },
+    { id: 2, dir: "in", peer: H, type: "text", content: "Pick up milk and eggs on the way home", n: 1, pairing_id: null, received: now - 239 * m, read: true, sender: "Home PC" },
+    { id: 1, dir: "in", peer: G, type: "text", content: "Meeting moved to 3:30 pm", n: 1, pairing_id: null, received: now - 30 * 3600_000, read: true, sender: "Galaxy S23" },
+  );
+}
+
 function reply(req: Req): unknown {
   const text = String(req.args?.text ?? "");
   switch (req.op) {
@@ -97,7 +127,7 @@ function reply(req: Req): unknown {
     case "state":
       return state;
     case "peers":
-      return { self: { id: id("C"), name: "Laptop" }, peers };
+      return { self: { id: id("C"), name: state.name }, peers };
     case "history":
       return history;
     case "signout":
@@ -123,14 +153,14 @@ const env: UiEnv = {
       return { ok: false, error: (e as Error).message };
     }
   },
-  activeUrl: async () => "https://example.com/guide/hiking-trails",
+  activeUrl: async () => (q.has("store") ? "https://www.nasa.gov/image-of-the-day/" : "https://example.com/guide/hiking-trails"),
   openPage: () => undefined,
   openUrl: () => undefined,
   saveFile: async () => null,
   copy: async () => undefined,
   beta: false,
-  // ?full: popup.html shown full screen (Firefox for Android)
-  inPopup: () => !q.has("full"),
+  // ?full: popup.html shown full screen (Firefox for Android); ?tab: the full tab view
+  inPopup: () => !q.has("full") && !q.has("tab"),
   theme: memoryThemeStore(new URLSearchParams(location.search).get("theme")),
 };
 
@@ -145,6 +175,7 @@ async function main(): Promise<void> {
   // ?bare: the popup alone at its real size (no store frame)
   if (q.has("bare")) document.documentElement.classList.add("bare");
   if (q.has("full")) document.documentElement.classList.add("full");
+  if (q.has("tab")) document.documentElement.classList.add("tab");
   // ?zoom=2: lay the popup out at twice the size (headless Firefox screenshots ignore the pixel ratio)
   if (q.has("zoom")) document.documentElement.style.zoom = q.get("zoom")!;
   const tab = location.hash.slice(1) || "send";
@@ -188,6 +219,14 @@ async function main(): Promise<void> {
     await new Promise((done) => setTimeout(done, 500));
     document.querySelector<HTMLElement>(".hrow")?.click();
     await new Promise((done) => setTimeout(done, 300));
+  }
+  // ?store&only=new: the pairing card scrolled into view (?tab: from its fingerprint plate down);
+  // ?store&tab&wait: the waiting device scrolled into view
+  if (q.has("store") && (q.get("only") === "new" || (q.has("tab") && q.has("wait")))) {
+    await new Promise((done) => setTimeout(done, 500));
+    const pn = document.getElementById("panel")!;
+    const plate = pn.querySelector(".plate");
+    pn.scrollTop = q.has("tab") && plate ? pn.scrollTop + plate.getBoundingClientRect().top - pn.getBoundingClientRect().top - 12 : pn.scrollHeight;
   }
   if ((tab === "settings" || tab === "signout") && !q.has("top")) {
     await new Promise((done) => setTimeout(done, 500));

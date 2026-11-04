@@ -122,9 +122,9 @@ Listings: `store/listing/play/en-US/*.txt`,
 `store/listing/appstore/en-US/*.txt` and the screenshots in
 `store/screenshots/{play,appstore}/en-US/` are the source for those stores;
 promote sends them (Play: only when they differ). The AMO screenshots in
-`store/screenshots/amo/en-US/` (1280x800) are sent by the `firefox` job on each
+`store/screenshots/amo/en-US/` (800x1120, the popup at 2x) are sent by the `firefox` job on each
 run. The Chrome Web Store screenshots in `store/screenshots/cws/en-US/`
-(1280x800, at most 5) are uploaded by hand. Change them in a normal commit. `release/promote.test.mjs` checks the store limits, plain ASCII, and
+(1280x800, the full tab view at 2x, at most 5) are uploaded by hand. Change them in a normal commit. `release/promote.test.mjs` checks the store limits, plain ASCII, and
 that no listing or release file holds a phone number or an address at the
 project or company domains. Promote never sets or overwrites a contact field
 (email, phone, website, support or marketing URL, address) through any store

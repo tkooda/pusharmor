@@ -6,7 +6,7 @@
 //   android  2-8 at 1080x1920 (Google Play phone)
 //   ios      3-10 at 1320x2868 or 1290x2796 (App Store 6.9" / 6.7" iPhone)
 //   chrome   1-5 at 1280x800 (Chrome Web Store)
-//   firefox  1-10 at 1280x800 (addons.mozilla.org); AMO documents no screenshot cap
+//   firefox  1-10 at 800x1120 (addons.mozilla.org, the popup at 2x); AMO documents no screenshot cap
 // --flatten first rewrites each RGBA PNG as RGB, composited over white.
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -17,7 +17,7 @@ export const RULES = {
   android: { min: 2, max: 8, sizes: [[1080, 1920]] },
   ios: { min: 3, max: 10, sizes: [[1320, 2868], [1290, 2796]] },
   chrome: { min: 1, max: 5, sizes: [[1280, 800]] },
-  firefox: { min: 1, max: 10, sizes: [[1280, 800]] },
+  firefox: { min: 1, max: 10, sizes: [[800, 1120]] },
 };
 const SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const NAME = /^[0-9]{2}-[a-z0-9-]+\.png$/;
