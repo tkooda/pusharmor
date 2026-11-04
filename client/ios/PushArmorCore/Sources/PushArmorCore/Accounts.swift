@@ -13,8 +13,8 @@ public protocol AccountKeyVault: AnyObject {
 
 /// Several accounts on one device, one active at a time. The active account is the usual
 /// store and key items, so an existing install needs no migration. An inactive account is
-/// archived per account id (the first 12 characters of its peer id) with its email kept
-/// readable for matching. Device-level state (the push token, the tap key, the update
+/// archived per account id (the first 12 characters of its peer id) with a hash of its
+/// email kept for matching. Device-level state (the push token, the tap key, the update
 /// notice) stays global.
 public struct Accounts {
     public enum SwitchError: Error, Equatable { case signedIn, noArchive }
@@ -51,12 +51,32 @@ public struct Accounts {
         try store.db.one("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'archive'") != nil
     }
 
+    /// The archive's stand-in for a normalized address: hex of its email hash. The archive holds no plain address.
+    static func emailKey(_ normalized: String) -> String {
+        Ids.emailHash(normalized: normalized).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// Hashes a plain address an earlier version left in the archive, in its column and in its saved rows.
+    private func hashPlain() throws {
+        for r in try store.db.query("SELECT account, email, data FROM archive WHERE email LIKE '%@%'") {
+            guard let a = r.text("account"), let e = r.text("email") else { continue }
+            var data = r.blob("data")
+            if let d = data, var t = try? JSONDecoder().decode([String: [[String: Cell]]].self, from: d) {
+                t["me"] = t["me"]?.map { var m = $0; m["signed_in_email"] = .n; return m }
+                data = try JSONEncoder().encode(t)
+            }
+            try store.db.exec("UPDATE archive SET email = ?, data = ? WHERE account = ?",
+                              [.text(Accounts.emailKey(Ids.normalizeEmail(e) ?? e)), .blob(data ?? Data()), .text(a)])
+        }
+    }
+
     /// The archived account of this address, never the active one; the newest wins.
     public func archived(email: String) throws -> String? {
         guard let n = Ids.normalizeEmail(email), !n.isEmpty, try hasArchive() else { return nil }
+        try hashPlain()
         let active = try store.me().id.map(Accounts.accountId) ?? ""
         return try store.db.one("SELECT account FROM archive WHERE email = ? AND account != ? ORDER BY rowid DESC LIMIT 1",
-                                [.text(n), .text(active)])?.text("account")
+                                [.text(Accounts.emailKey(n)), .text(active)])?.text("account")
     }
 
     public func isArchived(_ account: String) throws -> Bool {
@@ -85,7 +105,7 @@ public struct Accounts {
                 try store.db.exec("CREATE TABLE IF NOT EXISTS archive (account TEXT PRIMARY KEY, email TEXT, data BLOB NOT NULL)")
                 if let f = from {
                     try store.db.exec("INSERT OR REPLACE INTO archive (account, email, data) VALUES (?, ?, ?)",
-                                      [.text(f), .opt(me.signedInEmail.flatMap(Ids.normalizeEmail)), .blob(try dump())])
+                                      [.text(f), .opt(me.signedInEmail.flatMap(Ids.normalizeEmail).map(Accounts.emailKey)), .blob(try dump())])
                 }
                 try clearActive()
                 if let t = account {
@@ -116,7 +136,11 @@ public struct Accounts {
         for name in Accounts.slotTables {
             var rows = try store.db.query("SELECT * FROM \(name)")
             if name == "settings" { rows = rows.filter { !Accounts.deviceSettings.contains($0.text("key") ?? "") } }
-            t[name] = rows.map { $0.values.mapValues(Cell.init) }
+            t[name] = rows.map {
+                var m = $0.values.mapValues(Cell.init)
+                if name == "me" { m["signed_in_email"] = .n } // the archive holds no plain address
+                return m
+            }
         }
         return try JSONEncoder().encode(t)
     }

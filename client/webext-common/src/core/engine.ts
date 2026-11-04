@@ -14,6 +14,7 @@ import {
   KEYHASH_LEN,
   accountOf,
   commitHash,
+  emailHash,
   keyhash,
   normalizeEmail,
   validPeerEntry,
@@ -144,6 +145,11 @@ const PUSH_RETRY_MS = [30_000, 120_000, 600_000];
 const ACCOUNT = "account";
 /** Length of an account id: the first 9 bytes of a peer id, in base64url. */
 const ACCOUNT_CHARS = 12;
+
+/** The archive's stand-in for an address: hex of emailHash of the normalized address. */
+async function acctEmailHash(normalized: string): Promise<string> {
+  return [...(await emailHash(normalized))].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 export class Engine {
   readonly p: Platform;
@@ -1827,9 +1833,18 @@ export class Engine {
 
   // -------------------------------------------------------------- accounts
 
-  /** The archived accounts on this device: account id -> normalized email (null when unknown). */
+  /** The archived accounts on this device: account id -> hash of the normalized email (null when unknown). */
   async accounts(): Promise<Record<string, string | null>> {
-    return (await this.db.meta<Record<string, string | null>>(ACCOUNTS)) ?? {};
+    const m = (await this.db.meta<Record<string, string | null>>(ACCOUNTS)) ?? {};
+    let plain = false;
+    for (const [id, e] of Object.entries(m)) {
+      if (e !== null && e.includes("@")) {
+        m[id] = await acctEmailHash(e); // a plain address from an earlier version becomes its hash
+        plain = true;
+      }
+    }
+    if (plain) await this.db.setMeta(ACCOUNTS, m);
+    return m;
   }
 
   /** The active account's id: from its keys, else from its last registration; null for none. */
@@ -1846,7 +1861,8 @@ export class Engine {
   /** The archived account with this normalized email, or null. */
   async archivedAccount(normalized: string): Promise<string | null> {
     const active = await this.accountId();
-    const hit = Object.entries(await this.accounts()).find(([id, e]) => e === normalized && id !== active);
+    const h = await acctEmailHash(normalized);
+    const hit = Object.entries(await this.accounts()).find(([id, e]) => e === h && id !== active);
     return hit ? hit[0] : null;
   }
 
@@ -1877,9 +1893,12 @@ export class Engine {
     if (from !== null) {
       const all = await this.p.storageLocal.get(null);
       const local = Object.fromEntries(Object.entries(all).filter(([k]) => accountKey(k)));
-      await this.db.saveArchive(from, await this.db.activeRows(), local);
+      const rows = await this.db.activeRows();
+      rows.meta = rows.meta.filter(([k]) => k !== "email"); // the archive holds no plain address
+      await this.db.saveArchive(from, rows, local);
       const e = await this.email();
-      accounts[from] = e === null ? null : normalizeEmail(e);
+      const n = e === null ? null : normalizeEmail(e);
+      accounts[from] = n === null ? null : await acctEmailHash(n);
     }
     const rows = to !== null && to in accounts ? await this.db.readArchive(to) : null;
     if (to !== null) delete accounts[to];

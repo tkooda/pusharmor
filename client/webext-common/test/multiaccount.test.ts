@@ -11,11 +11,14 @@ import { Login, type Purpose, REQUEST_TOKEN } from "../src/core/login.ts";
 import { Rpc } from "../src/core/rpc.ts";
 import { ALLOW_SET, REG_MARKER, UPDATE_NEEDED } from "../src/core/state.ts";
 import { SEND_SEL_KEY } from "../src/model/sendsel.ts";
+import { emailHash } from "../src/crypto/labels.ts";
 import { Db, type HistoryRow, newPeerRow, openDb } from "../src/store/db.ts";
 import { Clock, FakePlatform, MockWorker, makeEngine } from "./harness.ts";
 
 const ACCT: Record<string, Uint8Array<ArrayBuffer>> = { "a@x.com": new Uint8Array(9).fill(0x11), "b@x.com": new Uint8Array(9).fill(0x22) };
 const acctId = (email: string) => b64urlEncode(ACCT[email]!);
+
+const eh = async (email: string) => [...(await emailHash(email))].map((b) => b.toString(16).padStart(2, "0")).join("");
 
 /** The mock Worker plus the login routes: each ticket belongs to the account of its email. */
 function relay(clock: Clock) {
@@ -132,7 +135,7 @@ test("email login: A, then B with new keys, then A again brings back A's keys, d
   assert.deepEqual(await e.settings(), { showAll: true, autoOpen: true, historyDays: 7, allowContent: true });
 
   // B is archived intact; A's archive is gone (A is active)
-  assert.deepEqual(await e.accounts(), { [acctId("b@x.com")]: "b@x.com" });
+  assert.deepEqual(await e.accounts(), { [acctId("b@x.com")]: await eh("b@x.com") });
   assert.equal((await readArchiveSelf(factory, acctId("b@x.com")))!.id, b.id);
 });
 
@@ -155,7 +158,7 @@ test("Google login for another account: the text says so, the device switches, a
     error: 'Unable to log in with Google.\nTo finish logging in as "b@x.com", log in again.',
   });
   assert.equal(await e.self(), null);
-  assert.deepEqual(await e.accounts(), { [acctId("a@x.com")]: "a@x.com" });
+  assert.deepEqual(await e.accounts(), { [acctId("a@x.com")]: await eh("a@x.com") });
   assert.deepEqual(await google("b@x.com", "login"), { ok: true, data: { done: true } });
   const b = (await e.self())!;
   assert.ok(b.id.startsWith(acctId("b@x.com")));
@@ -171,12 +174,12 @@ test("Google login for another account: the text says so, the device switches, a
   assert.deepEqual(await google("a@x.com", "login"), { ok: true, data: { done: true } });
   assert.equal(w.calls.filter((c) => c.path === "/v1/peers/" + a.id + "/login").length, logins + 1);
   assert.equal(await e.regState(), "registered");
-  assert.deepEqual(await e.accounts(), { [acctId("b@x.com")]: "b@x.com" });
+  assert.deepEqual(await e.accounts(), { [acctId("b@x.com")]: await eh("b@x.com") });
 
   // a registration ticket for an archived account brings that account back instead
   await e.logout();
   await e.switchAccount(null);
-  assert.deepEqual(await e.accounts(), { [acctId("a@x.com")]: "a@x.com", [acctId("b@x.com")]: "b@x.com" });
+  assert.deepEqual(await e.accounts(), { [acctId("a@x.com")]: await eh("a@x.com"), [acctId("b@x.com")]: await eh("b@x.com") });
   const posts = w.calls.filter((c) => c.method === "POST" && c.path === "/v1/peers").length;
   assert.deepEqual(await google("b@x.com", "register"), {
     ok: false,
@@ -215,7 +218,7 @@ test("data in the layout before accounts survives a switch out and back", async 
   await e.switchAccount(acctId("a@x.com"));
   assert.equal((await e.self())!.id, a.id);
   assert.equal(await e.regState(), "logged_out");
-  assert.equal(await e.email(), "a@x.com");
+  assert.equal(await e.email(), null); // the archive kept no plain address
   assert.deepEqual((await db.history()).map((r) => r.content), ["hello A"]);
   assert.ok(await db.peer("PEERA"));
   assert.equal((await e.settings()).historyDays, 7);
@@ -255,4 +258,19 @@ test("a key set with no id (register reply lost) is archived on a switch, not dr
   assert.equal(ids.length, 1);
   const rows = await db.readArchive(ids[0]!);
   assert.equal(rows.keys.length, 1);
+});
+
+test("the archive holds no plain address; a plain one from an earlier version becomes its hash", async () => {
+  const { e, db, p, issue, login } = await setup();
+  await login.complete("register", issue("a@x.com"), "a@x.com");
+  const a = (await e.self())!;
+  await e.logout();
+  await e.switchAccount(null);
+  const rows = await db.readArchive(a.id.slice(0, 12));
+  assert.ok(!JSON.stringify(rows).includes("a@x.com"));
+  assert.ok(!JSON.stringify(await e.accounts()).includes("@"));
+  await db.setMeta("accounts", { [a.id.slice(0, 12)]: "a@x.com" });
+  assert.deepEqual(await e.accounts(), { [a.id.slice(0, 12)]: await eh("a@x.com") });
+  assert.equal(await e.archivedAccount("a@x.com"), a.id.slice(0, 12));
+  void p;
 });

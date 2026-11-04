@@ -121,7 +121,7 @@ final class AccountsTests: XCTestCase {
         let me = try store.me()
         XCTAssertEqual(me.id, idA)
         XCTAssertEqual(me.name, "Ndev")
-        XCTAssertEqual(me.signedInEmail, "a@x.com")
+        XCTAssertNil(me.signedInEmail)   // the archive held no plain address
         XCTAssertTrue(me.loggedOut)
         XCTAssertEqual(try vault.load().signer.publicKey, keysA.signer.publicKey)
         XCTAssertEqual(try vault.load().decryptor.publicKey, keysA.decryptor.publicKey)
@@ -177,7 +177,7 @@ final class AccountsTests: XCTestCase {
         XCTAssertEqual(ErrorCopy.text(.loginGoogle, .otherLogin(email: "b@x.com")),
                        "Unable to log in with Google.\nTo finish logging in as \"b@x.com\", log in again.")
         XCTAssertEqual(try store.me().id, idB)
-        XCTAssertEqual(try store.me().signedInEmail, "b@x.com")
+        XCTAssertNil(try store.me().signedInEmail)
         XCTAssertEqual(try vault.load().signer.publicKey, keysB.signer.publicKey)
         XCTAssertTrue(try accounts.isArchived(Accounts.accountId(idA)))
         let second = await accounts.login(core: try core(), ticket: "t", email: "b@x.com", push: nil)
@@ -264,6 +264,20 @@ final class AccountsTests: XCTestCase {
         let ok = await accounts.deleteAccount(core: try core(), ticket: "t", email: "A@x.com")
         XCTAssertNil(ok)
         XCTAssertEqual(w.count("DELETE", "/v1/account"), 1)
+    }
+
+    /// The archive holds a hash of the address, never the address; a plain one from an earlier version is hashed.
+    func testArchiveHoldsNoPlainEmail() async throws {
+        let (idA, _) = try await register("a@x.com", account: acctA, name: "Adev")
+        try await logout()
+        try accounts.switchTo(nil)
+        func archiveText() throws -> String {
+            try store.db.query("SELECT email, data FROM archive").map { ($0.text("email") ?? "") + String(decoding: $0.blob("data") ?? Data(), as: UTF8.self) }.joined()
+        }
+        XCTAssertFalse(try archiveText().contains("a@x.com"))
+        try store.db.exec("UPDATE archive SET email = ?", [.text("a@x.com")])
+        XCTAssertEqual(try accounts.archived(email: "a@x.com"), Accounts.accountId(idA))
+        XCTAssertFalse(try store.db.query("SELECT email FROM archive").contains { ($0.text("email") ?? "").contains("@") })
     }
 
     /// Keys with no id (the register reply was lost) are archived on a switch, not deleted.

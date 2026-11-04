@@ -228,4 +228,17 @@ class AccountSwitchTest {
         KeystoreKeyOps.base = alias
         assertTrue(KeystoreKeyOps.present())
     }
+
+    /** The archive holds a hash of the address, never the address; a plain one from an earlier version is hashed. */
+    @Test fun archiveHoldsNoPlainEmail() = io {
+        val a = register("tA", "a@x.com")
+        g.session.signOut()
+        g.session.onTicket("tB", "b@x.com")
+        val sql = g.db.openHelper.writableDatabase
+        fun emails() = sql.query("SELECT email FROM arch_self").use { c -> buildList { while (c.moveToNext()) add(c.getString(0)) } }
+        assertEquals(listOf(com.pusharmor.store.Slots.emailHash("a@x.com")), emails())
+        sql.execSQL("UPDATE arch_self SET email = 'a@x.com'")
+        assertEquals(a.take(12), g.slots.accountFor("a@x.com", null))
+        assertTrue(emails().none { it!!.contains("@") })
+    }
 }

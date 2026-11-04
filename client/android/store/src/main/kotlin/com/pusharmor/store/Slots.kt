@@ -5,7 +5,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 /**
  * Archived accounts. The live tables hold the active account; an inactive account's rows are copied, by its
  * account id (the 12-char prefix of its peer id), into an arch_ table of the same database, each made from its
- * live table's columns. The archived email stays readable in arch_self for matching. Settings kept outside the
+ * live table's columns. The archive keeps no plain email: arch_self holds a hash of it for matching. Settings kept outside the
  * database ride along as encoded strings in arch_prefs. Device-wide app_state keys never move.
  */
 class Slots(private val db: PaDatabase) {
@@ -14,6 +14,11 @@ class Slots(private val db: PaDatabase) {
         val TABLES = listOf("self", "peers", "pairing", "pairing_cap", "replay", "allow_set", "history")
         private const val STATE = "app_state"
         private const val PREFS = "arch_prefs"
+
+        /** The archive's stand-in for an address: hex of sha256("PA-ACCT1\n" + trimmed lower case address). */
+        fun emailHash(email: String): String =
+            java.security.MessageDigest.getInstance("SHA-256").digest(("PA-ACCT1\n" + email.trim().lowercase()).toByteArray())
+                .joinToString("") { "%02x".format(it) }
     }
 
     private val sql: SupportSQLiteDatabase get() = db.openHelper.writableDatabase
@@ -42,9 +47,18 @@ class Slots(private val db: PaDatabase) {
     /** The archived account whose email is [email] (lower case), other than [except]. */
     fun accountFor(email: String, except: String?): String? {
         if (!exists("arch_self")) return null
-        return sql.query("SELECT account FROM arch_self WHERE lower(email) = ? AND account != ? LIMIT 1", arrayOf(email, except ?: "")).use {
+        hashPlain()
+        return sql.query("SELECT account FROM arch_self WHERE email = ? AND account != ? LIMIT 1", arrayOf(emailHash(email), except ?: "")).use {
             if (it.moveToFirst()) it.getString(0) else null
         }
+    }
+
+    /** Turns a plain address an earlier version left in arch_self into its hash. */
+    private fun hashPlain() {
+        val plain = sql.query("SELECT account, email FROM arch_self WHERE email LIKE '%@%'").use { c ->
+            buildList { while (c.moveToNext()) add(c.getString(0) to c.getString(1)) }
+        }
+        for ((a, e) in plain) sql.execSQL("UPDATE arch_self SET email = ? WHERE account = ?", arrayOf(emailHash(e), a))
     }
 
     fun has(account: String): Boolean =
@@ -58,6 +72,7 @@ class Slots(private val db: PaDatabase) {
             val cols = common(t)
             sql.execSQL("INSERT INTO `arch_$t` (account,$cols) SELECT ?,$cols FROM `$t`", arrayOf(account))
         }
+        hashPlain()
         ensure(STATE)
         sql.execSQL("INSERT INTO `arch_$STATE` (account,k,v) SELECT ?,k,v FROM $STATE WHERE k IN ${marks(stateKeys)}", (listOf(account) + stateKeys).toTypedArray())
         sql.execSQL("CREATE TABLE IF NOT EXISTS $PREFS (account TEXT NOT NULL, k TEXT NOT NULL, v TEXT NOT NULL)")
@@ -75,6 +90,7 @@ class Slots(private val db: PaDatabase) {
             if (account != null && exists("arch_$t")) {
                 val cols = common(t)
                 sql.execSQL("INSERT INTO `$t` ($cols) SELECT $cols FROM `arch_$t` WHERE account = ?", arrayOf(account))
+                if (t == "self") sql.execSQL("UPDATE self SET email = NULL") // the archive held only a hash
             }
         }
         sql.execSQL("DELETE FROM $STATE WHERE k IN ${marks(stateKeys)}", stateKeys.toTypedArray())
