@@ -678,7 +678,7 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, now: number,
   const acts = h("div", { class: "actions acts" });
   const canShare = typeof navigator.share === "function";
   const btn: Record<MsgAction, () => HTMLElement> = {
-    copy: () => h("button", { class: "ac", onclick: () => void env.copy(r.content) }, icon("copy", 15), "Copy"),
+    copy: () => h("button", { class: "ac", onclick: () => void copyText(env, r.content) }, icon("copy", 15), "Copy"),
     open: () => h("button", { class: "ac", onclick: () => env.openUrl(openHref(r.type, r.content)) }, icon("open", 15), "Open"),
     share: () => h("button", { class: "ac", onclick: () => void navigator.share({ [r.type === "url" ? "url" : "text"]: r.content }).catch(() => undefined) }, icon("share", 15), "Share"),
     read: () => h("button", { class: "ac", onclick: () => void env.openPage("#read=" + r.id) }, icon("read", 15), "View"),
@@ -774,7 +774,17 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
   );
 }
 
+/** Copies text, then says Copied, or how to copy by hand when the clipboard write fails. */
+export async function copyText(env: UiEnv, text: string): Promise<void> {
+  try {
+    await env.copy(text);
+  } catch {
+    return toast(T.copyFailed, "err");
+  }
+  toast(T.copied, "ok");
+}
+
 /** The bottom line of Settings: "Version X.Y.Z"; a click copies X.Y.Z. */
 export function versionButton(env: UiEnv, version: string): HTMLElement {
-  return h("button", { type: "button", class: "quiet t2 version", "aria-label": "Copy version", onclick: () => void env.copy(version) }, "Version " + version);
+  return h("button", { type: "button", class: "quiet t2 version", "aria-label": "Copy version", onclick: () => void copyText(env, version) }, "Version " + version);
 }

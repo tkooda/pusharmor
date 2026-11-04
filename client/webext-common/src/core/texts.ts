@@ -68,6 +68,8 @@ export const T = {
   pushWorking: "Working.",
   pushCheckFailed: "Unable to check right now. Try again later.",
   pushStillCannot: "Still cannot receive messages.",
+  copied: "Copied",
+  copyFailed: "Unable to copy\nSelect the text and copy it by hand",
 } as const;
 
 /** Whose push service a push endpoint belongs to; by browser when the host is not known. */
