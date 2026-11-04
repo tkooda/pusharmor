@@ -405,6 +405,8 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
       else if (r.failures.length) toast([T.sentToNofM(r.sent, r.total), ...r.failures.map((f) => f.text)].join("\n"), "err");
       else {
         userOff = false;
+        // the toolbar popup closes; the full tab and Firefox for Android show the toast
+        if (env.inPopup?.() === true) return window.close();
         toast(one ? T.messageSentToOne(one.label) : T.messageSentToN(r.sent), "ok");
       }
     } catch (e) {

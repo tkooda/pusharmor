@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { N } from "./fakedom.ts";
+import { N, body, toastEl } from "./fakedom.ts";
 import { isLikelyUrl, sendAsUrlBox, urlToSend, userOffAfterEdit } from "../src/model/sendurl.ts";
 import { sendView } from "../src/ui/popup.ts";
 import type { StateView } from "../src/core/rpc.ts";
@@ -97,4 +97,27 @@ test("Send as URL: starts unticked and grey, ticks for a likely URL, and a user 
   await v.type("");
   await v.type("a.com");
   assert.equal(v.box.checked, true, "an empty field resets to auto");
+});
+
+test("Send: the toolbar popup closes after a sent message; a full tab or Firefox for Android shows the toast; a failure keeps it open", async () => {
+  const ok = { sent: 1, total: 1, failures: [] };
+  const pop = await mount(true, ok);
+  await pop.type("hi");
+  await pop.send();
+  assert.equal(pop.closed(), 1);
+  const tab = await mount(false, ok);
+  await tab.type("hi");
+  await tab.send();
+  assert.equal(tab.closed(), 0);
+  assert.equal(toastEl()?.textContent, 'Message sent to "Phone"');
+  const fail = await mount(true, { sent: 0, total: 1, failures: [], error: "Unable to send.\nThe relay server could not be reached." });
+  await fail.type("hi");
+  await fail.send();
+  assert.equal(fail.closed(), 0);
+  assert.match(toastEl()!.textContent, /^Unable to send\n/);
+  const thrown = await mount(true, new Error("Unable to send.\nNo"));
+  await thrown.type("hi");
+  await thrown.send();
+  assert.equal(thrown.closed(), 0);
+  for (const k of [...body.kids]) k.remove();
 });
