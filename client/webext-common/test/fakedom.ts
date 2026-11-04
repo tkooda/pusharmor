@@ -54,6 +54,23 @@ export class N {
     return false;
   }
   focus() {}
+  get parentElement(): N | null {
+    return this.parent;
+  }
+  /** class selectors only (".a.b"): descendants that carry every class. */
+  querySelectorAll(sel: string): N[] {
+    const want = sel.split(".").filter(Boolean);
+    const has = (n: N, c: string) => n.cls.has(c) || (n.attrs.class ?? "").split(" ").includes(c);
+    const out: N[] = [];
+    const walk = (n: N) => {
+      for (const k of n.kids) {
+        if (want.every((c) => has(k, c))) out.push(k);
+        walk(k);
+      }
+    };
+    walk(this);
+    return out;
+  }
   querySelector() {
     return null;
   }
