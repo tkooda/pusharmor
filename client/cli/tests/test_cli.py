@@ -2186,6 +2186,34 @@ def test_crossing_resend_that_gets_429_changes_nothing_and_later_send_again_work
     at_compare_codes(lo, hi)
 
 
+def test_pair_open_the_relay_server_does_not_take_is_an_error(net, tmp_path, monkeypatch, capsys):
+    lo, hi = two_devs(monkeypatch, net, tmp_path)
+    lo.tap(hi)
+    hi.pump()
+    hi.tap(lo)
+    lo.cx.target = hi.id
+    net.hooks[("POST", "pair")] = lambda m, path, h, body: (net.reply(503, {"error": "unavailable"})
+                                                           if path == "/v1/pair/" + hi.id else None)
+    with pytest.raises(pa.Fail) as e:
+        lo.pump()
+    assert str(e.value) == pa.SERVER_DOWN
+    assert lo.entry(hi)["state"] == "shown"
+
+
+def test_pair_again_sends_the_open_again_and_says_when_it_fails(net, tmp_path, monkeypatch, capsys):
+    lo, hi = two_devs(monkeypatch, net, tmp_path)
+    lo.tap(hi)
+    hi.pump()
+    hi.tap(lo)
+    net.hooks[("POST", "pair")] = lambda m, path, h, body: (net.reply(503, {"error": "unavailable"})
+                                                           if path == "/v1/pair/" + hi.id else None)
+    lo.pump()  # not in a pair run for hi: no error here
+    assert lo.entry(hi)["state"] == "shown"
+    capsys.readouterr()
+    assert run(lo.cfg, "pair", pa.id_hex(hi.id)[:8]) == 1
+    assert capsys.readouterr().err.splitlines()[-1] == "error: " + pa.SERVER_DOWN
+
+
 def test_duplicate_reply_on_a_shown_entry_is_harmless(net, tmp_path, monkeypatch, capsys):
     lo, hi = two_devs(monkeypatch, net, tmp_path)
     lo.tap(hi)

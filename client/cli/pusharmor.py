@@ -2095,7 +2095,9 @@ def receive_pair(cx, pt):
         if n:
             log(*n)
     if send:
-        post_pair(cx, frm, "open", send)
+        r = post_pair(cx, frm, "open", send)
+        if r not in ("sent", "429") and cx.mode == "pair" and frm == cx.target:
+            raise Fail(pair_reason(r, peer_label(p)))  # its fingerprint would never show; pair again sends it
 
 
 def pair_note(cx, d, x, text):
@@ -2747,7 +2749,9 @@ def cmd_pair(cx, args):
         r, wait = "sent", 'Waiting for "%s". Open PushArmor on it to continue pairing.' % name
         if e and e["state"] == "shown" and not e["approved"]:
             if first and e["role"] == "N":
-                post_pair(cx, x, "open", e["msg"])
+                r = post_pair(cx, x, "open", e["msg"])
+                if r not in ("sent", "429"):
+                    raise Fail(pair_reason(r, name))
             first = False
             print("Pairing fingerprint %s" % e["fingerprint"])
             try:
