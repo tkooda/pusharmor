@@ -71,7 +71,7 @@ test("426 from the relay server: popup and page show the update screen until the
   const rpc = new Rpc(a.e);
   assert.equal((await rpc.state()).updateRequired, false);
   w.inject.push({ match: /POST \/v1\/send/, status: 426, body: { error: "update required" }, times: 1 });
-  await a.e.send("hi", false, "all");
+  await a.e.send("hi", "auto", "all");
   assert.equal((await rpc.state()).updateRequired, true);
 
   const opened: string[] = [];

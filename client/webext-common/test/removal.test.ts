@@ -23,7 +23,7 @@ test("one 401 unknown peer on send keeps the keys when the check GET lists this 
   const id = a.id;
   const g0 = gets();
   unknown(/POST \/v1\/send/);
-  const r = await a.e.send("hi", false, "all");
+  const r = await a.e.send("hi", "auto", "all");
   assert.equal(r.sent, 0);
   assert.equal((await a.db.self())!.id, id);
   assert.equal(gets(), g0 + 1);
@@ -36,7 +36,7 @@ test("a check GET that also answers 401 unknown peer deletes the keys, with one 
   const g0 = gets();
   unknown(/POST \/v1\/send/);
   unknown(/GET \/v1\/peers$/);
-  const r = await a.e.send("hi", false, "all");
+  const r = await a.e.send("hi", "auto", "all");
   assert.equal(r.error, "Unable to send.\nThis device was removed from the account. Log in again.");
   assert.equal(await a.db.self(), undefined);
   assert.equal(await a.db.meta("banner"), T.removed);
@@ -48,7 +48,7 @@ test("no reply to the check keeps the keys and checks again at the next start", 
   const fetch = a.p.fetch.bind(a.p);
   a.p.fetch = (u: string, init: RequestInit) => (init.method === "GET" && u.endsWith("/v1/peers") ? Promise.reject(new TypeError("offline")) : fetch(u, init));
   unknown(/POST \/v1\/send/);
-  await a.e.send("hi", false, "all");
+  await a.e.send("hi", "auto", "all");
   assert.ok(await a.db.self());
   assert.equal(await a.db.meta("wipe_check"), "removed");
   a.p.fetch = fetch;
@@ -64,7 +64,7 @@ test("a 5xx reply to the check keeps the keys; the next popup open checks again 
   const { w, a, gets, unknown } = await setup();
   unknown(/POST \/v1\/send/);
   w.inject.push({ match: /GET \/v1\/peers$/, status: 500, body: { error: "internal" }, times: 1 });
-  await a.e.send("hi", false, "all");
+  await a.e.send("hi", "auto", "all");
   assert.ok(await a.db.self());
   assert.equal(await a.db.meta("wipe_check"), "removed");
   const g0 = gets();
@@ -113,7 +113,7 @@ test("401 bad id starts no check and keeps the keys", async () => {
   const { w, a, gets } = await setup();
   const g0 = gets();
   w.inject.push({ match: /POST \/v1\/send/, status: 401, body: { error: "bad id" }, times: 1 });
-  const r = await a.e.send("hi", false, "all");
+  const r = await a.e.send("hi", "auto", "all");
   assert.equal(r.error, "Unable to send.\nThe relay server did not accept the request. Update PushArmor and try again.");
   assert.equal(gets(), g0);
   assert.ok(await a.db.self());
@@ -132,7 +132,7 @@ test("two signals at once make one GET, and no push update starts while it runs"
   const g0 = gets();
   unknown(/POST \/v1\/send/, 2);
   unknown(/GET \/v1\/peers$/);
-  const both = Promise.all([a.e.send("one", false, "all"), a.e.send("two", false, "all")]);
+  const both = Promise.all([a.e.send("one", "auto", "all"), a.e.send("two", "auto", "all")]);
   await new Promise((r) => setTimeout(r, 50));
   const patches = w.calls.filter((c) => c.method === "PATCH").length;
   await a.e.pushReconcile(true);

@@ -3,13 +3,14 @@ import type { PeerView, StateView } from "../core/rpc.ts";
 import type { SendResult } from "../core/engine.ts";
 import { R, T, greyedText, pushIssueText, quoted, saveFailText } from "../core/texts.ts";
 import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter, sortByLabel } from "../model/sendsel.ts";
+import { sendAsUrlBox, userOffAfterEdit } from "../model/sendurl.ts";
 import { AUTH_CHANGED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
 import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, nextTabIndex, openHref, rpc, sh, shortTime } from "./dom.ts";
 import { confirmDialog, dismissToast, toast } from "./dialog.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
 import { type MsgAction, msgActions, saveFilename } from "../model/msgactions.ts";
-import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
+import { icon, messagesArt, platformIcon } from "./icons.ts";
 import { ownCard, renderPeers } from "./peersview.ts";
 import { THEME_CHOICES, parseTheme, setTheme, startTheme } from "./theme.ts";
 
@@ -287,8 +288,6 @@ export function signinCard(env: UiEnv, st: StateView, going: boolean, inTab: boo
   );
 }
 
-const TYPE_ICON: Record<string, IconName> = { url: "link", tel: "call", text: "notes" };
-
 /** where an empty screen's button leads (the popup switches tab, the full tab sets its hash). */
 export interface Nav {
   toDevices(): void;
@@ -303,10 +302,11 @@ function cta(text: string, label: string, go: () => void): HTMLElement {
 export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, prefill?: string, offerCut = false, nav?: Nav): Promise<void> {
   const field = h("textarea", { rows: "3", "aria-label": "Text to send" }) as HTMLTextAreaElement;
   field.value = prefill ?? (await env.activeUrl().catch(() => ""));
-  const caption = h("span", { class: "caption" });
   const counter = h("span", { class: "counter" });
-  const asText = h("input", { type: "checkbox" }) as HTMLInputElement;
-  const asTextRow = h("label", { class: "astext" }, asText, h("span", {}, "Send as text"));
+  const asUrl = h("input", { type: "checkbox", disabled: true }) as HTMLInputElement;
+  const asUrlRow = h("label", { class: "asurl" }, asUrl, h("span", {}, "Send as URL"));
+  // the user unticked "Send as URL": it stays unticked for this message (until a send or an empty field)
+  let userOff = false;
   const sendLabel = h("span", { class: "lbl" }, "Send");
   const sendBtn = h("button", { class: "primary big" }, icon("send", 18), sendLabel) as HTMLButtonElement;
   const head = sh("");
@@ -381,32 +381,38 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   }
   const update = async () => {
     const d = await rpc<{ type: string; bytes: number }>(env, "detect", { text: field.value });
-    const type = asText.checked ? "text" : d.type;
-    clear(caption);
-    if (field.value !== "") caption.append(icon(TYPE_ICON[type] ?? "notes", 16), T.typeCaption(type));
-    asTextRow.hidden = d.type === "text";
+    userOff = userOffAfterEdit(field.value, userOff);
+    const box = sendAsUrlBox(field.value, userOff);
+    asUrl.disabled = !box.enabled;
+    asUrl.checked = box.checked;
     counter.textContent = !showCounter(d.bytes, CAP) ? "" : d.bytes > CAP ? T.tooLong(d.bytes) : T.counter(d.bytes);
     sendBtn.disabled = sendDisabled(d.bytes, CAP, count());
     cut.hidden = !offerCut || d.bytes <= CAP;
   };
   field.addEventListener("input", () => void update());
-  asText.addEventListener("change", () => void update());
+  asUrl.addEventListener("change", () => {
+    userOff = !asUrl.checked;
+    void update();
+  });
   sendBtn.addEventListener("click", async () => {
     sendBtn.disabled = true;
     const to = allChip && on(allChip) ? "all" : checks.filter((c) => on(c.chip)).map((c) => c.id);
     try {
-      const r = await rpc<SendResult>(env, "send", { text: field.value, asText: asText.checked, targets: to });
+      const r = await rpc<SendResult>(env, "send", { text: field.value, asUrl: asUrl.checked, targets: to });
       // one device sent to is named
       const one = r.total === 1 && r.sent === 1 && count() === 1 ? sendable.find((p) => p.id === checks.find((c) => on(c.chip))?.id) : undefined;
       if (r.error) toast(r.error, "err");
       else if (r.failures.length) toast([T.sentToNofM(r.sent, r.total), ...r.failures.map((f) => f.text)].join("\n"), "err");
-      else toast(one ? T.messageSentToOne(one.label) : T.messageSentToN(r.sent), "ok");
+      else {
+        userOff = false;
+        toast(one ? T.messageSentToOne(one.label) : T.messageSentToN(r.sent), "ok");
+      }
     } catch (e) {
       toast((e as Error).message, "err");
     }
     await update();
   });
-  root.append(field, h("div", { class: "meta" }, caption, asTextRow, counter));
+  root.append(field, h("div", { class: "meta" }, asUrlRow, counter));
   if (offerCut) {
     root.append(
       add(cut, h("button", {
@@ -418,7 +424,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
             out += ch;
           }
           field.value = out;
-          asText.checked = true;
+          userOff = true; // a cut text goes as text
           await update();
         },
       }, "Send the first 2048 characters")),

@@ -66,7 +66,7 @@ export async function menuSend(e: Engine, text: string, child: string, fromSelec
     return { badge: null, notice: null, overCap: text };
   }
   const targets = child === "all" ? "all" : [child];
-  const r = await e.send(text, false, targets);
+  const r = await e.send(text, "auto", targets);
   void fromSelection;
   const total = targets === "all" ? r.total : 1;
   const badge = r.sent + "/" + total;

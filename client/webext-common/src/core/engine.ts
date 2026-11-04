@@ -24,6 +24,7 @@ import {
 import { formatCountdown, PAIRING_TIMEOUT_DAYS } from "../model/countdown.ts";
 import { ellipsize } from "../model/msgactions.ts";
 import { autoOpenAllowed, detectType, isPhone, parseHttpUrl, type SendType } from "../model/detect.ts";
+import { isLikelyUrl, urlToSend } from "../model/sendurl.ts";
 import {
   type Content,
   buildJson,
@@ -1406,8 +1407,8 @@ export class Engine {
     );
   }
 
-  /** engine.send (section 10). */
-  async send(text: string, asText: boolean, targets: string[] | "all"): Promise<SendResult> {
+  /** engine.send (section 10). as: "auto" detects the type (context menus); "url" and "text" come from the Send view's "Send as URL" box. */
+  async send(text: string, as: "auto" | "url" | "text", targets: string[] | "all"): Promise<SendResult> {
     const self = await this.self();
     if (!self) throw new ReasonError(R.loggedOut);
     const all = await this.allSet();
@@ -1415,9 +1416,9 @@ export class Engine {
     const total = all.length;
     const len = utf8Len(text);
     if (len > CONTENT_CAP) throw new ReasonError(R.tooLong);
-    let type: SendType = asText ? "text" : detectType(text);
-    let value = text;
-    if (type === "url") {
+    let type: SendType = as === "auto" ? detectType(text) : as === "url" && isLikelyUrl(text) ? "url" : "text";
+    let value = type === "url" && as === "url" ? urlToSend(text) : text;
+    if (type === "url" && as === "auto") {
       const u = parseHttpUrl(text.replace(/^[\t\n\f\r \u00a0]+|[\t\n\f\r \u00a0]+$/g, ""));
       if (u) value = u.href;
       else type = "text";

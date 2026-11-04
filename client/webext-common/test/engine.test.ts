@@ -62,7 +62,7 @@ test("happy path: commit, automatic reply, open, same fingerprint, approve both,
   assert.equal(await getEntry(a.p.storageLocal, b.id), null); // r wiped
   assert.equal(await getEntry(b.p.storageLocal, a.id), null);
   assert.equal((await a.db.peer(b.id))!.name, "Chrome");
-  const r = await a.e.send("hello there", false, "all");
+  const r = await a.e.send("hello there", "auto", "all");
   assert.equal(r.sent, 1);
   assert.equal(T.sentToNofM(r.sent, r.total), "Sent to 1 of 1 device");
   // History names the one recipient (F22).
@@ -82,7 +82,7 @@ test("notification content: global or per-device off shows the fallback text", a
   const { w, a, b } = await setup();
   await pairAndApprove(w, a, b);
   const body = async (text: string): Promise<string> => {
-    await a.e.send(text, false, "all");
+    await a.e.send(text, "auto", "all");
     await deliver(w, b);
     const h = (await b.db.history()).filter((x) => x.type === "text").sort((x, y) => y.id! - x.id!)[0]!;
     return b.p.notes.get("h:" + h.id)!.body;
@@ -95,10 +95,27 @@ test("notification content: global or per-device off shows the fallback text", a
   assert.match(await body("three"), /^New message from /);
 });
 
+test("send: the Send view's Send as URL box sends a URL (https:// added) or text; a phone number unticked goes as text", async () => {
+  const { w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  const got = async (text: string, as: "url" | "text") => {
+    await a.e.send(text, as, "all");
+    await deliver(w, b);
+    const sent = (await a.db.history()).filter((x) => x.dir === "out").sort((x, y) => y.id! - x.id!)[0]!;
+    const h = (await b.db.history()).sort((x, y) => y.id! - x.id!)[0]!;
+    assert.equal(h.type, sent.type);
+    return [sent.type, sent.content];
+  };
+  assert.deepEqual(await got("  minilock.org  ", "url"), ["url", "https://minilock.org"]);
+  assert.deepEqual(await got("minilock.org", "text"), ["text", "minilock.org"]);
+  assert.deepEqual(await got("+1 555 123 4567", "text"), ["text", "+1 555 123 4567"]);
+  assert.deepEqual(await got("hello world", "url"), ["text", "hello world"]); // not a likely URL
+});
+
 test("replay: duplicate re-presents, seen n without row is Invalid, control seen n silent, old n Invalid", async () => {
   const { w, a, b } = await setup();
   await pairAndApprove(w, a, b);
-  await a.e.send("one", false, "all");
+  await a.e.send("one", "auto", "all");
   const [m1] = w.take(b.id);
   await b.e.receive(m1!, "push");
   const rows1 = (await b.db.history()).length;
@@ -128,7 +145,7 @@ test("replay: duplicate re-presents, seen n without row is Invalid, control seen
   assert.equal((await b.db.history()).length, n2);
   // n <= h - 100 is Invalid
   for (let i = 0; i < 101; i++) await a.db.reserveN(b.id);
-  await a.e.send("two", false, "all");
+  await a.e.send("two", "auto", "all");
   await deliver(w, b);
   const old = await mkMsg(a, b, '{"n":1,"text":"x"}');
   await b.e.receive(old, "push");
@@ -215,7 +232,7 @@ test("clock skew: rebuild with a new n, then a second skew stops", async () => {
   await pairAndApprove(w, a, b);
   const n0 = (await a.db.peer(b.id))!.last_n;
   w.skewMs = 10 * 60_000;
-  const r = await a.e.send("hi", false, "all");
+  const r = await a.e.send("hi", "auto", "all");
   assert.equal(r.sent, 1);
   assert.equal((await a.db.peer(b.id))!.last_n, n0 + 2); // discarded n0+1, sent n0+2
   const sends = w.calls.filter((c) => c.path === "/v1/send");
@@ -224,7 +241,7 @@ test("clock skew: rebuild with a new n, then a second skew stops", async () => {
   assert.equal((await b.db.history()).find((h) => h.type === "text")!.n, n0 + 2);
   // second skew: inject two clock-skew replies
   w.inject.push({ match: /POST \/v1\/send/, status: 401, body: { error: "clock skew" }, times: 2 });
-  const r2 = await a.e.send("again", false, "all");
+  const r2 = await a.e.send("again", "auto", "all");
   assert.equal(r2.error, "Unable to send.\nThis device's clock is off by more than 5 minutes. Fix the clock and try again.");
   void clock;
 });
@@ -232,14 +249,14 @@ test("clock skew: rebuild with a new n, then a second skew stops", async () => {
 test("PA-Client on every relay server call; 426 shows the update text", async () => {
   const { w, a, b } = await setup("firefox");
   await pairAndApprove(w, a, b);
-  await a.e.send("hi", false, "all");
-  await b.e.send("hi", false, "all");
+  await a.e.send("hi", "auto", "all");
+  await b.e.send("hi", "auto", "all");
   assert.ok(w.calls.length > 0);
   for (const c of w.calls) assert.match(c.client ?? "", /^(chrome|firefox)\/0\.0\.19$/, c.method + " " + c.path);
   assert.ok(w.calls.some((c) => c.client === "chrome/0.0.19"));
   assert.ok(w.calls.some((c) => c.client === "firefox/0.0.19"));
   w.inject.push({ match: /POST \/v1\/send/, status: 426, body: { error: "update required" }, times: 1 });
-  const r = await a.e.send("again", false, "all");
+  const r = await a.e.send("again", "auto", "all");
   assert.equal(r.error, "Unable to send.\nThis version of PushArmor is too old. Update PushArmor to continue.");
 });
 
@@ -248,7 +265,7 @@ test("send: a URL whose normalized href exceeds the cap is refused before any co
   await pairAndApprove(w, a, b);
   const n0 = (await a.db.peer(b.id))!.last_n;
   const url = "https://example.com/" + "\u4e2d".repeat(400); // 1220 raw bytes, 3620 as href
-  await assert.rejects(a.e.send(url, false, "all"), (e: unknown) => failText("send", e) === "Unable to send.\nThe message is longer than 2048 characters.");
+  await assert.rejects(a.e.send(url, "auto", "all"), (e: unknown) => failText("send", e) === "Unable to send.\nThe message is longer than 2048 characters.");
   assert.equal((await a.db.peer(b.id))!.last_n, n0);
   assert.equal(w.calls.filter((c) => c.path === "/v1/send").length, 0);
 });
@@ -258,7 +275,7 @@ test("a 401 logged out from any signed call sets reg to logged_out", async () =>
   await pairAndApprove(w, a, b);
   assert.equal(await a.e.regState(), "registered");
   w.rows.get(a.id)!.logged_out = true; // the Worker applied a logout whose reply was lost
-  const r = await a.e.send("hi", false, "all");
+  const r = await a.e.send("hi", "auto", "all");
   assert.equal(r.sent, 0);
   assert.equal(await a.e.regState(), "logged_out");
 });
@@ -1001,7 +1018,7 @@ test("cli peer: platform kept, listening parsed; send only is out of All and not
   const v = (await new Rpc(a.e).peers()).peers.find((x) => x.id === b.id)!;
   assert.equal(v.sendable, false);
   assert.equal(v.greyed, "send only");
-  assert.equal((await a.e.send("hi", false, [b.id])).sent, 0); // not a target
+  assert.equal((await a.e.send("hi", "auto", [b.id])).sent, 0); // not a target
   w.rows.get(b.id)!.listening = true;
   await refresh(a, b);
   assert.equal((await a.e.allSet()).length, 1);
@@ -1011,7 +1028,7 @@ test("send result not listening shows Send only and marks the peer send only", a
   const { w, a, b } = await setup();
   await pairAndApprove(w, a, b);
   w.inject.push({ match: /POST \/v1\/send/, status: 200, body: { r: { [b.id]: "not listening" } }, times: 1 });
-  const r = await a.e.send("hi", false, "all");
+  const r = await a.e.send("hi", "auto", "all");
   assert.equal(r.sent, 0);
   assert.equal(r.failures[0]!.text, 'Unable to send to "Chrome".\nIt is set to send only. It does not receive messages.');
   assert.equal((await a.db.peer(b.id))!.listening, false);
@@ -1032,13 +1049,13 @@ test("send failures read as sentences, never raw result words", async () => {
     const { w, a, b } = await setup();
     await pairAndApprove(w, a, b);
     w.inject.push({ match: /POST \/v1\/send/, status: 200, body: { r: { [b.id]: word } }, times: 1 });
-    const r = await a.e.send("hi", false, [b.id]);
+    const r = await a.e.send("hi", "auto", [b.id]);
     assert.equal(r.failures[0]!.text, text, word);
   }
   const { w, a, b } = await setup();
   await pairAndApprove(w, a, b);
   w.inject.push({ match: /POST \/v1\/send/, status: 500, body: { error: "internal" }, times: 1 });
-  const r = await a.e.send("hi", false, [b.id]);
+  const r = await a.e.send("hi", "auto", [b.id]);
   assert.equal(r.error, "Unable to send.\nThe relay server is not working right now. Try again later.");
   assert.equal(r.failures[0]!.text, r.error);
 });
@@ -1500,7 +1517,7 @@ test("a received message keeps History at 500 rows", async () => {
   const { w, a, b, clock } = await setup();
   await pairAndApprove(w, a, b);
   for (let i = 0; i < 500; i++) await a.db.put("history", histRow(clock.t - DAY + i, "o" + i));
-  await b.e.send("hello", false, "all");
+  await b.e.send("hello", "auto", "all");
   await deliver(w, a);
   const rows = await a.db.history();
   assert.equal(rows.length, 500);
