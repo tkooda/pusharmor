@@ -232,7 +232,7 @@ final class AccountsTests: XCTestCase {
         XCTAssertNil(try old.db.one("SELECT name FROM sqlite_master WHERE name = 'archive'"))
         vault.active = ["sign": Data([1]), "enc": Data([2]), "peer-id": Data(id.text.utf8)]
         func rows() throws -> [String] {
-            try Accounts.slotTables.flatMap { t in try old.db.query("SELECT * FROM \(t)").map { "\(t) \($0.values.sorted { $0.key < $1.key })" } }.sorted()
+            try Accounts.slotTables.flatMap { t in try old.db.query("SELECT * FROM \(t)").map { "\(t) \($0.values.filter { $0.key != "signed_in_email" }.sorted { $0.key < $1.key })" } }.sorted()  // the archive keeps no plain address
         }
         let before = try rows()
 
