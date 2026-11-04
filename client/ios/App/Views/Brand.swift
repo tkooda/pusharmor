@@ -276,9 +276,17 @@ struct FingerprintPlate: View {
     let code: String
     let peer: String
     @ScaledMetric private var scaledCell: CGFloat = 40
-    @Environment(\.dynamicTypeSize) private var typeSize
-    // Two cells must fit side by side on the plate at the largest text sizes.
-    private var cell: CGFloat { min(scaledCell, 64) }
+    @State private var rowWidth: CGFloat = 0
+    // All cells stay on one row: at large text sizes or on a narrow screen they shrink to fit.
+    private var cell: CGFloat { Self.cellSize(scaled: scaledCell, width: rowWidth, count: chars.count) }
+
+    /// The glyph size of a cell (a cell is 66/40 of it wide), so `count` cells 10 pt apart fit in `width`.
+    static func cellSize(scaled: CGFloat, width: CGFloat, count: Int) -> CGFloat {
+        let size = min(scaled, 64)
+        guard width > 0, count > 0 else { return size }
+        let fit = (width - CGFloat(count - 1) * 10) / CGFloat(count) * 40 / 66
+        return max(1, min(size, fit))
+    }
 
     var body: some View {
         VStack(spacing: 12) {
@@ -311,34 +319,23 @@ struct FingerprintPlate: View {
 
     private var chars: [String] { code.map(String.init) }
 
-    @ViewBuilder
     private var cells: some View {
-        if typeSize >= .accessibility1 {
-            grid
-        } else {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 10) {
-                    ForEach(chars.indices, id: \.self) { i in cellView(chars[i]) }
-                }
-                grid
-            }
+        HStack(spacing: 10) {
+            ForEach(chars.indices, id: \.self) { i in cellView(chars[i]) }
         }
-    }
-
-    private var grid: some View {
-        Grid(horizontalSpacing: 10, verticalSpacing: 10) {
-            ForEach(Array(stride(from: 0, to: chars.count, by: 2)), id: \.self) { i in
-                GridRow {
-                    cellView(chars[i])
-                    if i + 1 < chars.count { cellView(chars[i + 1]) }
-                }
-            }
-        }
+        .frame(maxWidth: .infinity)
+        .background(GeometryReader { g in
+            Color.clear
+                .onAppear { rowWidth = g.size.width }
+                .onChange(of: g.size.width) { _, w in rowWidth = w }
+        })
     }
 
     private func cellView(_ ch: String) -> some View {
         Text(ch)
             .font(.system(size: cell, weight: .semibold, design: .monospaced))
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
             .foregroundStyle(Color.primary)
             .frame(width: cell * 66 / 40, height: cell * 78 / 40)
             .background(Color.fpCell, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
