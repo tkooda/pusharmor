@@ -47,6 +47,8 @@ class Session(private val g: Graph) {
         const val DELETED = "Account deleted on another device."
         const val NO_GOOGLE_PUSH = "This build has no Google push. Install a UnifiedPush app or reinstall from Play."
         const val REFRESH_GREY_MS = 60_000L
+        /** Category of the direct share shortcuts; the same name as the share-target in res/xml/shortcuts.xml. */
+        const val SHARE_CATEGORY = "com.pusharmor.category.SHARE_TARGET"
 
         /** App start PATCH rule: the address differs from the last one sent, or a reply said the relay server holds none. */
         fun needsPatch(current: String?, sent: String?, missing: Boolean): Boolean = current != sent || (current != null && missing)
@@ -98,6 +100,7 @@ class Session(private val g: Graph) {
         flavorRule()
         g.push.start(g)
         g.push.distributorCheck(g)
+        updateShortcuts()
         pushReconcile()
         g.reconcile().run()
         refetchWaiting()
@@ -516,7 +519,7 @@ class Session(private val g: Graph) {
             val label = p.name ?: "Device"
             val sc = ShortcutInfoCompat.Builder(ctx, p.id).setShortLabel(label).setLongLived(true)
                 .setIcon(IconCompat.createWithResource(ctx, R.drawable.ic_notify))
-                .setCategories(setOf("com.pusharmor.category.SHARE_TARGET"))
+                .setCategories(setOf(SHARE_CATEGORY))
                 .setPerson(Person.Builder().setName(label).build())
                 .setIntent(Intent(ctx, ShareActivity::class.java).setAction(Intent.ACTION_SEND)).build()
             ShortcutManagerCompat.pushDynamicShortcut(ctx, sc)

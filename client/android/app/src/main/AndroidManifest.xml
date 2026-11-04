@@ -25,6 +25,10 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Share targets for the direct share shortcuts: Android reads this only on the launcher activity. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
 
         <!-- Sign-in ticket hop: only AuthLinkActivity starts it; MainActivity reads ticket extras only from here. -->
@@ -85,8 +89,5 @@
             </intent-filter>
         </service>
 
-        <meta-data
-            android:name="android.app.shortcuts"
-            android:resource="@xml/shortcuts" />
     </application>
 </manifest>

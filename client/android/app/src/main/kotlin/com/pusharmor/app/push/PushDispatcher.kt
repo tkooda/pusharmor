@@ -17,6 +17,7 @@ object PushDispatcher {
             } else {
                 g.receive(fcm).onMessage(m, now)
             }
+            g.session.updateShortcuts() // a pairing that completed here becomes a direct share target at once
             g.session.purgeHistory()
         }
     }
