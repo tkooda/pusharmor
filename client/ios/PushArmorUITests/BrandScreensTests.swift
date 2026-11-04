@@ -24,14 +24,14 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(header.exists)
     }
 
-    /// A URL draft shows "Will open as a URL" and an off "Send as text" switch.
+    /// A URL draft shows "Will be sent as URL" and an off "Send as text" switch.
     func testSendAsTextIsOffForAURLDraft() {
         let app = launch()
         let toggle = app.switches["Send as text"]
         XCTAssertTrue(toggle.waitForExistence(timeout: 30))
         XCTAssertTrue(toggle.isEnabled)
         XCTAssertEqual(toggle.value as? String, "0")
-        XCTAssertTrue(app.staticTexts["Will open as a URL"].exists)
+        XCTAssertTrue(app.staticTexts["Will be sent as URL"].exists)
     }
 
     /// a successful send shows the bottom banner between the Send button and the tab

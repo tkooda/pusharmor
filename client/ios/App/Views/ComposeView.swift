@@ -97,11 +97,11 @@ enum SendScreenRules {
 
     /// Quiet line under the message: how it will arrive.
     static func caption(_ type: SendType, asText: Bool) -> (title: String, symbol: String) {
-        if asText { return ("Will arrive as text", "text.alignleft") }
+        if asText { return ("Will be sent as text", "text.alignleft") }
         switch type {
-        case .url: return ("Will open as a URL", "link")
-        case .tel: return ("Will open as a phone number", "phone")
-        case .text: return ("Will arrive as text", "text.alignleft")
+        case .url: return ("Will be sent as URL", "link")
+        case .tel: return ("Will be sent as phone number", "phone")
+        case .text: return ("Will be sent as text", "text.alignleft")
         }
     }
 }
