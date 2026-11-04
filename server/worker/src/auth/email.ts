@@ -28,6 +28,7 @@ import { enforce, ipKey } from "../pipeline/limits";
 import { deps } from "../push/deps";
 import { mailboxKey, normalizeEmail } from "./normalize";
 import { sendEmail } from "./ses";
+import { checkTotp, totpKeyFor } from "./totp";
 import { verifyTurnstile } from "./turnstile";
 
 const ENDING = "Nothing happens unless this code is entered within 15 minutes. If you did not request it, ignore this email.";
@@ -91,7 +92,10 @@ export async function start(c: Ctx): Promise<Response> {
   // Per mailbox (+tag and Gmail dot variants share it); a limiter key only, never stored.
   await enforce(c.env, "RL_MAIL_EMAIL", "mail:" + eh, c.log);
   await enforce(c.env, "RL_MAIL_GLOBAL", "mail:all", c.log);
-  const token = await makeToken(c.env.PA_TOKEN_SECRET, LABEL_REQUEST_TOKEN, { t: nowS(), e: eh, m: email, k, p: purpose, ...(cli ? { c: 1 } : {}) });
+  // A TOTP address (auth/totp.ts) gets no mail; its token asks verify for the TOTP code.
+  const totp = (await totpKeyFor(c.env, email)) !== null;
+  const token = await makeToken(c.env.PA_TOKEN_SECRET, LABEL_REQUEST_TOKEN, { t: nowS(), e: eh, m: email, k, p: purpose, ...(cli ? { c: 1 } : {}), ...(totp ? { o: 1 } : {}) });
+  if (totp) return json(200, { request_token: token });
   const code = await deriveCode(c.env.PA_CODE_SECRET, token);
   const mail = mailText(purpose, code);
   await sendEmail(c.env, email, mail.subject, mail.text, ((u: string, i: RequestInit) => deps.fetch(u, i)) as unknown as typeof fetch, c.log);
@@ -114,7 +118,10 @@ export async function verify(c: Ctx): Promise<Response> {
   // charges the one correct guess of a register code. Keyed per purpose, so guesses on register
   // tokens cannot lock out a login or delete code for the same email.
   await enforce(c.env, "RL_CODE", "code:" + purpose + ":" + rt.e, c.log);
-  if (!(await checkCode(c.env.PA_CODE_SECRET, b.request_token, b.code))) throw new ApiError(401, "wrong code");
+  if (rt.o === 1) {
+    const key = await totpKeyFor(c.env, rt.m);
+    if (!key || !(await checkTotp(key, b.code, nowS()))) throw new ApiError(401, "wrong code");
+  } else if (!(await checkCode(c.env.PA_CODE_SECRET, b.request_token, b.code))) throw new ApiError(401, "wrong code");
   const eh = b64urlDecode(rt.e);
   if (!eh || eh.length !== 32) throw new ApiError(401, "wrong code");
   const a = await accountId(c.env.PA_ID_SECRET, eh);

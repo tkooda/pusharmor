@@ -43,6 +43,8 @@ export interface Env {
   PA_LOG_SAMPLE: string;
   PA_MIN_CLIENT?: string;
   PA_HEALTHCHECK_URL?: string; // secret; GET after each passing 15-minute self-check
+  PA_TOTP_KEY_REVIEWER?: string; // secret; base32 TOTP key of the store review login (auth/totp.ts)
+  PA_TOTP_KEY_RELEASE_TEST?: string; // secret; base32 TOTP key of the release-gate test login
 
   PA_ID_SECRET: string;
   PA_CODE_SECRET: string;
