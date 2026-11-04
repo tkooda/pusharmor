@@ -15,6 +15,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -37,7 +38,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -826,12 +826,10 @@ internal fun PairingFooter(timeout: String, onCancel: () -> Unit) {
 }
 
 /** Plate with the caps label and four mono cells; read as one element, character by character. */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FingerprintPlate(code: String, x: String) {
+internal fun FingerprintPlate(code: String, x: String) {
     val ex = LocalPaExtra.current
     val cs = MaterialTheme.colorScheme
-    val wrap = LocalDensity.current.fontScale >= 1.5f
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(ex.plate).padding(horizontal = 12.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally) {
         Row(Modifier.clearAndSetSemantics {}, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -840,17 +838,19 @@ private fun FingerprintPlate(code: String, x: String) {
         }
         Spacer(Modifier.height(12.dp))
         val shape = RoundedCornerShape(14.dp)
-        val cell: @Composable (Char, Modifier) -> Unit = { c, m ->
-            Box(m.heightIn(min = 76.dp).clip(shape).background(ex.fpCell).border(1.dp, cs.outline, shape), Alignment.Center) {
-                Text(c.toString(), style = FingerprintText, color = cs.onSurface) // one ink for every cell
-            }
-        }
         val sem = Modifier.clearAndSetSemantics { contentDescription = UiText.fingerprintLabel(code) }
-        if (wrap) FlowRow(sem, horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
-            verticalArrangement = Arrangement.spacedBy(10.dp), maxItemsInEachRow = 2) {
-            for (c in code) cell(c, Modifier.sizeIn(minWidth = 64.dp))
-        } else Row(sem.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally)) {
-            for (c in code) cell(c, Modifier.weight(1f, fill = false).widthIn(max = 64.dp).fillMaxWidth())
+        // The cells always share one row: each cell narrows to fit the width, and the glyph follows the cell,
+        // so a large font size makes it no bigger than the cell holds.
+        BoxWithConstraints(sem.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            val gap = 10.dp
+            val w = ((maxWidth - gap * (code.length - 1).coerceAtLeast(0)) / code.length.coerceAtLeast(1)).coerceIn(0.dp, 64.dp)
+            val glyph = minOf(with(LocalDensity.current) { FingerprintText.fontSize.toDp() }, w * 0.625f)
+            val style = with(LocalDensity.current) { FingerprintText.copy(fontSize = glyph.toSp(), lineHeight = (glyph * 1.2f).toSp()) }
+            Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                for (c in code) Box(Modifier.width(w).heightIn(min = w * 76f / 64f).clip(shape).background(ex.fpCell).border(1.dp, cs.outline, shape), Alignment.Center) {
+                    Text(c.toString(), style = style, color = cs.onSurface, maxLines = 1) // one ink for every cell
+                }
+            }
         }
         Spacer(Modifier.height(12.dp))
         Text("Verify that \"$x\" shows this same code.", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)

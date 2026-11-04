@@ -269,7 +269,7 @@ class AppLogicTest {
     @Test fun pairingCardFooterHasRoomBelow() {
         // the Cancel pairing footer keeps the same 12 dp below it as above it, in every pairing state.
         val main = source("ui/MainScreens.kt")
-        val card = main.substring(main.indexOf("private fun PairingCard("), main.indexOf("private fun FingerprintPlate("))
+        val card = main.substring(main.indexOf("private fun PairingCard("), main.indexOf("internal fun FingerprintPlate("))
         assertTrue(card.contains(".padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 12.dp)"))
         assertTrue(card.contains("Row(Modifier.fillMaxWidth().padding(top = 12.dp)"))
     }
