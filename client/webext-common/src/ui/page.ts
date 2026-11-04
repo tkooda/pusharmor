@@ -1,15 +1,14 @@
-// Full extension tab: login, Peers full view, limit picker, over-cap send
-// (long flows run in a tab because a popup closes on blur).
+// Full extension tab: the popup's tabs in a tab, plus login, the limit picker, and the message
+// view (long flows run in a tab because a popup closes on blur).
 import type { LoginResult, Purpose } from "../core/login.ts";
-import type { PeerView, StateView } from "../core/rpc.ts";
+import type { StateView } from "../core/rpc.ts";
 import { R, T, actionLine } from "../core/texts.ts";
 import { type UiEnv, add, clear, failView, group, h, platformLabel, rpc } from "./dom.ts";
 import { AUTH_CHANGED, AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResult, type Restore, autoVerifyCode, formatWait, resendLeftMs, sendLeftMs } from "../model/signin.ts";
 import { toast } from "./dialog.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
-import { renderPeers } from "./peersview.ts";
 import { startTheme } from "./theme.ts";
-import { keysCard, launchTab, sendView, type Nav, showPushIssue, signinCard, updateCard, wordmark } from "./popup.ts";
+import { keysCard, mountPopup, type PageStart, signinCard, updateCard, wordmark } from "./popup.ts";
 
 export const SITE = "https://pusharmor.com";
 
@@ -38,26 +37,27 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
     return;
   }
   if (route === "login") return loginView(env, root, arg ?? null, selfOrigin);
-  // these views show account data; a login state change loads the tab again
+  if (route !== "read") return mountPopup(env, root, pageStart(route ?? "", arg));
+  // the message view shows account data; a login state change loads the tab again
   stopAuthWatch = env.session?.watch(AUTH_CHANGED, () => location.reload()) ?? null;
   const st = await rpc<StateView>(env, "state");
-  // the account views need a logged-in device; logged out shows the log in prompt
+  // it needs a logged-in device; logged out shows the log in prompt
   if (st.reg !== "registered") {
     const going = (await rpc<Restore | null>(env, "signinProgress").catch(() => null))?.step === "code";
     root.append(signinCard(env, st, going, true));
     return;
   }
-  // the brand on top, as in the popup; the view draws below it
-  const view = h("div", {});
-  root.append(h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), view);
-  const nav: Nav = { toDevices: () => (location.hash = "#pair"), toSend: () => (location.hash = "#send") };
-  void showPushIssue(env, st);
-  // a plain open (no hash): Send once a pairing is complete, else Devices
-  if (route === "") {
-    if (launchTab((await rpc<{ peers: PeerView[] }>(env, "peers")).peers) === "send") return sendView(env, view, st, "", true, nav);
-    return renderPeers(env, view, true);
-  }
-  if (route === "read") return readView(env, root, Number(arg));
+  return readView(env, root, Number(arg));
+}
+
+/**
+ * Every other hash shows the full view with its tabs: #history=<id> (the message), #send=<text>,
+ * #pair (Pair a new device), #peers=<id> (that device); no hash starts as a plain open, and an
+ * unknown hash shows Devices.
+ */
+export function pageStart(route: string, arg?: string): PageStart {
+  if (route === "") return {};
+  if (route === "history") return { tab: "history", arg };
   if (route === "send") {
     let text = "";
     try {
@@ -65,10 +65,10 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
     } catch {
       text = "";
     }
-    return sendView(env, view, st, text, true, nav);
+    return { tab: "send", arg: text };
   }
-  // Devices; also a missing or unknown hash
-  return renderPeers(env, view, true, route === "peers" ? arg : undefined, undefined, route === "pair");
+  if (route === "pair") return { tab: "peers", openPair: true };
+  return { tab: "peers", arg: route === "peers" ? arg : undefined };
 }
 
 const E2E = "All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.";

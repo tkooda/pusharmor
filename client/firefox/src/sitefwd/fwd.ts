@@ -59,5 +59,5 @@ export async function onForward(d: WebRequestDetails, deliver: (m: string) => Pr
   return r.cancel ? { cancel: true } : {};
 }
 
-/** What /fx/open turns into once its waiting messages are passed on: the tabs on History at the newest received message (rows newest first). */
+/** What /fx/open turns into once its waiting messages are passed on: the full view on History at the newest received message (rows newest first). */
 export const fxShowView = (rows: HistoryRow[]): string => historyAt(rows.find((r) => r.dir === "in" && r.type !== "event")?.id);

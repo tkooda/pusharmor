@@ -179,7 +179,6 @@ export function onNotificationClick(b: Browser, boot: () => Promise<Booted>) {
       await b.notifications.clear(id);
       if (!t) return;
       if ("url" in t) await b.tabs.create({ url: t.url, active: true });
-      else if ("tabs" in t) await b.tabs.create({ url: b.runtime.getURL(t.tabs), active: true });
       else await b.tabs.create({ url: b.runtime.getURL("page.html" + t.page), active: true });
     })();
   };

@@ -133,7 +133,7 @@ async function extra(msg: Req, sender: MessageSender): Promise<unknown> {
   if (msg.op === "fx-show") {
     // a site notification click opened /fx/open: that tab shows the add-on's tabs on History
     if (sender.tab?.id === undefined) return { ok: false };
-    await browser.tabs.update(sender.tab.id, { url: browser.runtime.getURL(fxShowView(await engine.db.history())) });
+    await browser.tabs.update(sender.tab.id, { url: browser.runtime.getURL("page.html" + fxShowView(await engine.db.history())) });
     return { ok: true };
   }
   return { ok: false };

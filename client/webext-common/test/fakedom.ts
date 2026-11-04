@@ -8,6 +8,7 @@ export class N {
   text = "";
   cls = new Set<string>();
   style: Record<string, string> = {};
+  dataset: Record<string, string> = {};
   constructor(tag: string) {
     this.tag = tag;
   }
@@ -30,6 +31,9 @@ export class N {
       n.parent = this;
       this.kids.push(n);
     }
+  }
+  get children(): N[] {
+    return this.kids;
   }
   get firstChild(): N | null {
     return this.kids[0] ?? null;

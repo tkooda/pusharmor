@@ -22,13 +22,13 @@ function fakeEngine(rows: HistoryRow[]) {
 
 test("a message notification click opens the tabs on History at that message; a URL opens the URL", async () => {
   const { engine, put } = fakeEngine([row(7), row(8, { type: "tel", content: "+15550100" }), row(9, { type: "event", event: "logged_out" }), row(10, { type: "url", content: "https://example.com/" })]);
-  assert.deepEqual(await clickTarget(engine, "h:7"), { tabs: "popup.html#history=7" });
-  assert.deepEqual(await clickTarget(engine, "h:8"), { tabs: "popup.html#history=8" });
-  assert.deepEqual(await clickTarget(engine, "h:9"), { tabs: "popup.html#history=9" });
+  assert.deepEqual(await clickTarget(engine, "h:7"), { page: "#history=7" });
+  assert.deepEqual(await clickTarget(engine, "h:8"), { page: "#history=8" });
+  assert.deepEqual(await clickTarget(engine, "h:9"), { page: "#history=9" });
   assert.deepEqual(await clickTarget(engine, "h:10"), { url: "https://example.com/" });
   assert.deepEqual(put.map((r) => [r.id, r.read]), [[7, true], [8, true], [10, true]]); // events keep their state
   assert.equal(await clickTarget(engine, "h:99"), null);
-  assert.equal(historyAt(), "popup.html#history");
+  assert.equal(historyAt(), "#history");
 });
 
 test("Chrome and Firefox open the same tab for a message notification click", async () => {
@@ -42,26 +42,28 @@ test("Chrome and Firefox open the same tab for a message notification click", as
   } as unknown as Browser;
   onNotificationClick(b, async () => ({ engine }) as never)("h:7");
   for (let i = 0; i < 20 && !created.length; i++) await new Promise((r) => setTimeout(r, 1));
-  assert.deepEqual(created, ["moz-extension://x/popup.html#history=7"]);
+  assert.deepEqual(created, ["moz-extension://x/page.html#history=7"]);
   assert.deepEqual(cleared, ["h:7"]);
   const rd = (f: string) => readFileSync(new URL(f, import.meta.url), "utf8");
   assert.match(rd("../../chrome/src/sw.ts"), /notifications\.onClicked\.addListener\(onNotificationClick\(browser, boot\)\)/);
   assert.match(rd("../../firefox/src/background.ts"), /notifications\.onClicked\.addListener\(onNotificationClick\(browser, boot\)\)/);
 });
 
-test("the popup opened in a tab as popup.html#history=<id> starts on History at that message", () => {
+test("the full view gives each tab its target: the History message, the Devices row, the Send text", () => {
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
-  assert.match(pop, /const first: Tab = route === "history" \? "history" :/);
-  assert.match(pop, /if \(t === "history"\) ready = historyView\(env, pane, focus, nav\);/);
-  assert.match(pop, /void show\(first, false, route === "history" \? at : undefined\)/);
+  assert.match(pop, /const first: Tab = page\?\.tab \?\? \(peers \? launchTab\(peers\) : "send"\);/);
+  assert.match(pop, /if \(t === "send"\) ready = sendView\(env, pane, st, arg, !!page, nav\);/);
+  assert.match(pop, /if \(t === "history"\) ready = historyView\(env, pane, arg, nav\);/);
+  assert.match(pop, /if \(t === "peers"\) ready = renderPeers\(env, pane, !!page, arg, undefined, openPair\);/);
+  assert.match(pop, /void show\(first, page\?\.openPair, page\?\.arg\)/);
   assert.match(pop, /if \(focus\) document\.getElementById\("h-" \+ focus\)\?\.scrollIntoView/);
 });
 
-test("Firefox for Android: /fx/open from the site notification turns into the tabs on History at the newest received message", () => {
+test("Firefox for Android: /fx/open from the site notification turns into the full view on History at the newest received message", () => {
   const rows = [row(12, { type: "event", event: "logged_in" }), row(11, { dir: "out" }), row(10), row(9)];
-  assert.equal(fxShowView(rows), "popup.html#history=10");
-  assert.equal(fxShowView([row(3, { dir: "out" })]), "popup.html#history");
-  assert.equal(fxShowView([]), "popup.html#history");
+  assert.equal(fxShowView(rows), "#history=10");
+  assert.equal(fxShowView([row(3, { dir: "out" })]), "#history");
+  assert.equal(fxShowView([]), "#history");
   const id = "pusharmor@example";
   const base = "moz-extension://1111-2222/";
   const site = (path: string) => ({ id, url: "https://pusharmor.com" + path, tab: { id: 7 } });
@@ -72,5 +74,5 @@ test("Firefox for Android: /fx/open from the site notification turns into the ta
   assert.match(cs, /window\.postMessage\(\{ pa: "fx-ready" \}, SITE\);\s*showSoon\(\);/); // nothing waiting: shows after the quiet time
   assert.match(cs, /clearTimeout\(idle\);\s*void relayWake\("fx-msg"/); // a message in flight holds it back
   assert.match(cs, /\.finally\(showSoon\)/);
-  assert.match(readFileSync(new URL("../../firefox/src/background.ts", import.meta.url), "utf8"), /tabs\.update\(sender\.tab\.id, \{ url: browser\.runtime\.getURL\(fxShowView\(await engine\.db\.history\(\)\)\) \}\)/);
+  assert.match(readFileSync(new URL("../../firefox/src/background.ts", import.meta.url), "utf8"), /tabs\.update\(sender\.tab\.id, \{ url: browser\.runtime\.getURL\("page\.html" \+ fxShowView\(await engine\.db\.history\(\)\)\) \}\)/);
 });

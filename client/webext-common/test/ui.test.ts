@@ -106,7 +106,7 @@ test("a failed start shows the error with a Retry button in the popup and the ta
   const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
   assert.match(rd("dom.ts"), /export function failView/);
   assert.match(rd("dom.ts"), /"Retry"/);
-  assert.match(rd("popup.ts"), /failView\(root, \(e as Error\)\.message, \(\) => void mountPopup\(env, root\)\)/);
+  assert.match(rd("popup.ts"), /failView\(root, \(e as Error\)\.message, \(\) => void again\(\)\)/);
   assert.match(rd("page.ts"), /failView\(root, \(e as Error\)\.message, \(\) => void mountPage\(/);
 });
 
@@ -196,7 +196,7 @@ test("Log out confirmed: the popup reads the state again and shows the logged-ou
   const call = pop.indexOf('await rpc(env, "signout");');
   assert.ok(call > 0);
   assert.match(pop.slice(call, call + 200), /await reload\(\);/);
-  assert.match(pop, /settingsView\(env, pane, st, \(\) => mountPopup\(env, root\)\)/);
+  assert.match(pop, /settingsView\(env, pane, st, again\)/);
 });
 
 test("Settings polish: dim label and email line, brighter dark headers and error text, native select", async () => {
@@ -287,7 +287,9 @@ test("full tab account views are gated on login; no hash shows Devices", async (
   const route = page.slice(page.indexOf("async function mountRoute"), page.indexOf("const E2E"));
   const gate = route.indexOf('if (st.reg !== "registered")');
   assert.ok(gate > 0);
-  for (const v of ["sendView(", "renderPeers("]) assert.ok(route.indexOf(v) > gate, v);
+  assert.ok(route.indexOf("readView(") > gate);
+  // the tabbed views: the popup's own logged-out view
+  assert.match(route, /if \(route !== "read"\) return mountPopup\(env, root, pageStart\(route \?\? "", arg\)\);/);
   assert.match(route, /signinCard\(env, st, going, true\)/);
   assert.doesNotMatch(route, /h\("div", \{\}, "PushArmor"\)/); // the old blank page
 });
@@ -406,11 +408,10 @@ test("login page at 320px: the 300px security check fits in the card", async () 
   assert.match(css, /@media \(max-width: 360px\) \{\s*body\.page\.signin-bg #app \{ padding-inline: 8px; \}\s*\.ts-frame \{ width: calc\(100% \+ 32px\); margin-inline: -16px; \}/);
 });
 
-test("full tab Devices, History, and Send show the brand on top", async () => {
+test("full tab Devices, History, and Send show the brand and the tabs on top", async () => {
   const { readFileSync } = await import("node:fs");
-  const page = readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8");
-  assert.match(page, /root\.append\(h\("div", \{ class: "head" \}, h\("img", \{ src: "icons\/icon-32\.png"[^)]*\), wordmark\(env, 16\)\), view\);/);
-  assert.match(page, /return renderPeers\(env, view, true/);
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  assert.match(pop, /const top = h\("div", \{ class: "top" \}, h\("div", \{ class: "head" \}, h\("img", \{ src: "icons\/icon-32\.png"[^)]*\), wordmark\(env, 16\)\), setupBar\(env, st\), tabs\);/);
 });
 
 test("Device limit Remove and continue ends on the same done card", async () => {
@@ -484,12 +485,10 @@ test("empty screens have a call to action button", async () => {
   assert.match(pop, /cta\("Pair your first device to start sending\.", "Pair a device", nav\.toDevices\)/);
   assert.match(pop, /cta\("", "Send a message", nav\.toSend\)/);
   assert.match(pop, /"Messages you send or receive show here\."/);
-  // the popup switches tab and opens the pairing steps; the full tab sets its hash
+  // the popup and the full tab switch tab and open the pairing steps; #pair starts there
   assert.match(pop, /toDevices: \(\) => show\("peers", true\), toSend: \(\) => show\("send"\)/);
-  assert.match(pop, /renderPeers\(env, pane, false, undefined, undefined, openPair\)/);
-  const page = rd("page.ts");
-  assert.match(page, /toDevices: \(\) => \(location\.hash = "#pair"\)/);
-  assert.match(page, /route === "pair"/);
+  assert.match(pop, /renderPeers\(env, pane, !!page, arg, undefined, openPair\)/);
+  assert.match(rd("page.ts"), /if \(route === "pair"\) return \{ tab: "peers", openPair: true \};/);
   assert.match(rd("peersview.ts"), /hidden: !open/);
   // the first-device screen still replaces the tabs until the first pairing
   assert.doesNotMatch(pop, /firstPairView/); // the tabs always show when logged in
@@ -653,7 +652,7 @@ test("a plain open of the popup or the full tab shows Send with a completed pair
   assert.equal(launchTab([peer(false)]), "peers");
   assert.equal(launchTab([]), "peers");
   const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
-  assert.match(rd("popup.ts"), /: peers \? launchTab\(peers\) : "send";/);
+  assert.match(rd("popup.ts"), /page\?\.tab \?\? \(peers \? launchTab\(peers\) : "send"\)/);
   // a hash (notification, share, menu, or a link inside the add-on) keeps its view
-  assert.match(rd("page.ts"), /if \(route === ""\) \{[^}]*launchTab\(/);
+  assert.match(rd("page.ts"), /if \(route === ""\) return \{\};/);
 });

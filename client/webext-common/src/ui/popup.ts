@@ -31,7 +31,23 @@ export function launchTab(peers: PeerView[]): "send" | "peers" {
 let mounts = 0;
 let watching = false;
 
-export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
+/**
+ * The full view in page.html: the same tabs as the popup, starting on tab (default: as a plain
+ * open), with arg as the History message, the Devices row, or the Send text, and openPair for
+ * Pair a new device.
+ */
+export interface PageStart {
+  tab?: Tab;
+  arg?: string;
+  openPair?: boolean;
+}
+
+/** The latest start a page asked for: a login change draws the view again with it. */
+let lastPage: PageStart | undefined;
+
+export async function mountPopup(env: UiEnv, root: HTMLElement, page?: PageStart): Promise<void> {
+  lastPage = page;
+  const again = () => mountPopup(env, root, page);
   dismissToast(); // a message that stays belongs to the view drawn before
   // not a real popup (Firefox for Android shows it full screen): the screen sets the size
   document.body.classList.toggle("full", env.inPopup?.() === false);
@@ -39,23 +55,23 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   if (!watching) {
     // a login state change (here, in a tab, or from the relay server) shows the matching view
     watching = true;
-    env.session?.watch(AUTH_CHANGED, () => void mountPopup(env, root));
+    env.session?.watch(AUTH_CHANGED, () => void mountPopup(env, root, lastPage));
   }
   let st: StateView;
   try {
     [st] = await Promise.all([rpc<StateView>(env, "popupOpen"), startTheme(env.theme)]);
   } catch (e) {
-    if (my === mounts) failView(root, (e as Error).message, () => void mountPopup(env, root));
+    if (my === mounts) failView(root, (e as Error).message, () => void again());
     return;
   }
   if (my !== mounts) return;
   if (st.updateRequired) {
-    clear(root).append(updateCard(env, st.recheckLocked, () => void mountPopup(env, root)));
+    clear(root).append(updateCard(env, st.recheckLocked, () => void again()));
     root.querySelector<HTMLElement>("button.primary")?.focus(); // start on the one action
     return;
   }
   if (st.keysBroken) {
-    clear(root).append(keysCard(env, () => void mountPopup(env, root)));
+    clear(root).append(keysCard(env, () => void again()));
     root.querySelector<HTMLElement>("button.primary")?.focus();
     return;
   }
@@ -68,7 +84,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
     gear.addEventListener("click", () => {
       const open = gear.getAttribute("aria-pressed") !== "true";
       gear.setAttribute("aria-pressed", String(open));
-      if (open) void settingsView(env, clear(panel), st, () => mountPopup(env, root));
+      if (open) void settingsView(env, clear(panel), st, again);
       else clear(panel).append(signinCard(env, st, going, false));
     });
     clear(root).append(h("div", { class: "top" }, h("div", { class: "head" }, gear)), panel);
@@ -78,14 +94,13 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   // a failed read keeps Send, the view this open showed before
   const peers = (await rpc<{ peers: PeerView[] }>(env, "peers").catch(() => null))?.peers;
   if (my !== mounts) return;
-  // popup.html#history=<id> in a tab (a message notification click): History, at that message
-  const [route, at] = (globalThis.location?.hash ?? "").replace(/^#/, "").split("=");
-  const first: Tab = route === "history" ? "history" : peers ? launchTab(peers) : "send";
+  const first: Tab = page?.tab ?? (peers ? launchTab(peers) : "send");
   clear(root);
   const body = h("div", { class: "body", id: "panel", role: "tabpanel" });
   const tabs = h("div", { class: "tabs", role: "tablist" });
   const nav: Nav = { toDevices: () => show("peers", true), toSend: () => show("send") };
-  const show = (t: Tab, openPair = false, focus?: string) => {
+  // arg: the History message to show, the Devices row to highlight, or the text to send
+  const show = (t: Tab, openPair = false, arg?: string) => {
     for (const b of Array.from(tabs.children)) {
       const on = (b as HTMLElement).dataset.tab === t;
       b.classList.toggle("on", on);
@@ -102,10 +117,10 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
     const wait = h("div", { class: "loading", role: "status" }, "Loading...");
     const slow = setTimeout(() => pane.isConnected && !pane.firstChild && body.prepend(wait), 150);
     let ready: Promise<unknown> = Promise.resolve();
-    if (t === "send") ready = sendView(env, pane, st, undefined, false, nav);
-    if (t === "history") ready = historyView(env, pane, focus, nav);
-    if (t === "peers") ready = renderPeers(env, pane, false, undefined, undefined, openPair);
-    if (t === "settings") ready = settingsView(env, pane, st, () => mountPopup(env, root));
+    if (t === "send") ready = sendView(env, pane, st, arg, !!page, nav);
+    if (t === "history") ready = historyView(env, pane, arg, nav);
+    if (t === "peers") ready = renderPeers(env, pane, !!page, arg, undefined, openPair);
+    if (t === "settings") ready = settingsView(env, pane, st, again);
     // a view that fails shows the error with Retry in place of an empty pane
     return ready.catch((e) => pane.isConnected && failView(pane, (e as Error).message, () => show(t))).finally(() => {
       clearTimeout(slow);
@@ -128,7 +143,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   const top = h("div", { class: "top" }, h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), setupBar(env, st), tabs);
   root.append(top, body);
   // after the first view is drawn, so the message keeps clear of its footer
-  void show(first, false, route === "history" ? at : undefined)
+  void show(first, page?.openPair, page?.arg)
     .then(() => showPushIssue(env, st, () => my === mounts))
     .then(() => settlePushIssue(env, st, () => my === mounts));
 }
