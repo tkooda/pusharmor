@@ -504,7 +504,7 @@ function doneCard(env: UiEnv, card: HTMLElement, deleted: boolean): void {
       h("div", { class: "ok" }, icon("check", 32)),
       heading,
       h("p", { class: "sub" }, "You can close this tab."),
-      h("button", { type: "button", class: "big", onclick: () => window.close() }, "Close tab"),
+      h("button", { type: "button", class: "big", onclick: () => void (env.closeTab ? env.closeTab() : window.close()) }, "Close tab"),
     ),
   );
   heading.focus();
@@ -536,7 +536,7 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
     h(
       "div",
       { class: "btns" },
-      h("button", { onclick: () => window.close() }, "Cancel"),
+      h("button", { onclick: () => void (env.closeTab ? env.closeTab() : window.close()) }, "Cancel"),
       h("button", {
         class: "primary",
         onclick: async (ev: Event) => {

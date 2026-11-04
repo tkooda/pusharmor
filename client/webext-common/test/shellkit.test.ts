@@ -157,3 +157,42 @@ test("a selection is re-read in the tab even when it is short", async () => {
   assert.equal(await readTabSelection(bad as never, { id: 3 } as never, "short"), "short");
   assert.equal(await readTabSelection({} as never, { id: 3 } as never, "short"), "short");
 });
+
+test("closeTab: the add-on closes its own tab; Firefox for Android goes to the main view when it cannot", async () => {
+  const log: string[] = [];
+  const g = globalThis as { location?: unknown; navigator?: unknown; window?: unknown };
+  const savedLoc = Object.getOwnPropertyDescriptor(globalThis, "location");
+  const savedNav = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const savedWin = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const ua = (s: string) => Object.defineProperty(globalThis, "navigator", { value: { userAgent: s }, configurable: true });
+  Object.defineProperty(globalThis, "location", { value: { assign: (u: string) => void log.push("assign " + u) }, configurable: true });
+  Object.defineProperty(globalThis, "window", { value: { close: () => void log.push("close") }, configurable: true });
+  const b = (remove: (id: number) => Promise<void>) =>
+    ({ runtime: { getURL: (p: string) => "moz-extension://x/" + p, getManifest: () => ({ name: "PushArmor" }) }, tabs: { getCurrent: async () => ({ id: 9 }), remove } }) as never;
+  try {
+    ua("Mozilla/5.0 (X11; Linux x86_64; rv:144.0) Gecko/20100101 Firefox/144.0");
+    await uiEnv(b(async (id) => void log.push("remove " + id))).closeTab!();
+    assert.deepEqual(log.splice(0), ["remove 9"]);
+    const fail = async () => {
+      throw new Error("no");
+    };
+    await uiEnv(b(fail)).closeTab!();
+    assert.deepEqual(log.splice(0), ["close"]);
+    ua("Mozilla/5.0 (Android 15; Mobile; rv:144.0) Gecko/144.0 Firefox/144.0");
+    await uiEnv(b(fail)).closeTab!();
+    assert.deepEqual(log.splice(0), ["assign moz-extension://x/popup.html"]);
+  } finally {
+    if (savedLoc) Object.defineProperty(globalThis, "location", savedLoc);
+    else delete g.location;
+    if (savedNav) Object.defineProperty(globalThis, "navigator", savedNav);
+    if (savedWin) Object.defineProperty(globalThis, "window", savedWin);
+    else delete g.window;
+  }
+});
+
+test("login page: Close tab and Cancel close the tab through the add-on, not window.close() alone", async () => {
+  const { readFileSync } = await import("node:fs");
+  const page = readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8");
+  assert.match(page, /onclick: \(\) => void \(env\.closeTab \? env\.closeTab\(\) : window\.close\(\)\) \}, "Close tab"\)/);
+  assert.match(page, /onclick: \(\) => void \(env\.closeTab \? env\.closeTab\(\) : window\.close\(\)\) \}, "Cancel"\)/);
+});

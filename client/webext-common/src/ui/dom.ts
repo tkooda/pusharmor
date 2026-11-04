@@ -14,6 +14,8 @@ export interface UiEnv {
   openUrl(url: string): void;
   /** false when popup.html is not a real toolbar popup (Firefox for Android shows it full screen); absent means a popup. */
   inPopup?(): boolean;
+  /** Closes the tab this page is in; absent means window.close(). */
+  closeTab?(): Promise<void>;
   /** Save-as dialog for a text file; resolves to the saved path, or null when the user cancels. */
   saveFile(text: string, filename: string): Promise<string | null>;
   copy(text: string): Promise<void>;

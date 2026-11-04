@@ -272,6 +272,19 @@ export function uiEnv(b: Browser): UiEnv {
       const views = b.extension?.getViews?.({ type: "popup" });
       return !views || views.includes(globalThis);
     },
+    async closeTab() {
+      // window.close() does nothing in a tab that script did not open (a tab the add-on opened, or one that went
+      // through the Google login), so the add-on closes its own tab
+      try {
+        const t = await b.tabs.getCurrent();
+        if (t?.id !== undefined) return await b.tabs.remove(t.id);
+      } catch {
+        // fall through
+      }
+      // Firefox for Android: a tab that cannot close goes to the add-on's main view
+      if (/Android/i.test(navigator.userAgent)) location.assign(b.runtime.getURL("popup.html"));
+      else window.close();
+    },
     saveFile: (text, filename) => saveTextFile(b.downloads, text, filename),
     async copy(text) {
       await navigator.clipboard.writeText(text);
