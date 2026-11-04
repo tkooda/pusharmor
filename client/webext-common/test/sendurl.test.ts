@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { N, body, toastEl } from "./fakedom.ts";
 import { isLikelyUrl, sendAsUrlBox, urlToSend, userOffAfterEdit } from "../src/model/sendurl.ts";
 import { sendView } from "../src/ui/popup.ts";
+import { detectType } from "../src/model/detect.ts";
 import type { StateView } from "../src/core/rpc.ts";
 import type { UiEnv } from "../src/ui/dom.ts";
 
@@ -48,7 +49,8 @@ async function mount(inPopup: boolean, result: unknown) {
     activeUrl: async () => "",
     call: async (m: { op: string; args?: Record<string, unknown> }) => {
       if (m.op === "send") sent.push(m.args!);
-      const data: Record<string, unknown> = { peers: { peers: [PEER] }, sendSel: [], sendSelSet: null, detect: { type: "text", bytes: 1 }, send: result };
+      const text = String(m.args?.text ?? "");
+      const data: Record<string, unknown> = { peers: { peers: [PEER] }, sendSel: [], sendSelSet: null, detect: { type: detectType(text), bytes: text.length }, send: result };
       if (m.op === "send" && result instanceof Error) return { ok: false, error: result.message };
       return { ok: true, data: data[m.op] };
     },
@@ -74,7 +76,15 @@ async function mount(inPopup: boolean, result: unknown) {
     await tick();
     await new Promise((r) => setTimeout(r, 60)); // the toast text goes in after 50 ms
   };
-  return { box, label, type, untick, send, sent, closed: () => closed };
+  const caption = find(root, (x) => x.attrs.class === "caption") as N & { hidden: boolean };
+  const textRow = find(root, (x) => x.attrs.class === "astext") as N & { hidden: boolean };
+  const textBox = find(textRow, (x) => x.tag === "input") as N & { checked: boolean };
+  const tickText = async (v: boolean) => {
+    textBox.checked = v;
+    for (const f of textBox.on.change!) f({});
+    await tick();
+  };
+  return { box, label, type, untick, send, sent, closed: () => closed, caption, textRow, tickText };
 }
 
 test("Send as URL: starts unticked and grey, ticks for a likely URL, and a user untick holds until a send or an empty field", async () => {
@@ -120,4 +130,22 @@ test("Send: the toolbar popup closes after a sent message; a full tab or Firefox
   await thrown.send();
   assert.equal(thrown.closed(), 0);
   for (const k of [...body.kids]) k.remove();
+});
+
+test("Send: a phone number shows its caption and the Send as text box, as before; other text and URLs do not", async () => {
+  const v = await mount(false, { sent: 1, total: 1, failures: [] });
+  await v.type("+1 555 123 4567");
+  assert.deepEqual([v.caption.hidden, v.textRow.hidden, v.box.disabled], [false, false, true]);
+  assert.equal(v.caption.textContent, "Will open as a phone number");
+  await v.send();
+  assert.deepEqual([v.sent[0]!.asUrl, !!v.sent[0]!.asText], [false, false]);
+  await v.tickText(true);
+  assert.equal(v.caption.textContent, "Will arrive as text");
+  await v.send();
+  assert.equal(v.sent[1]!.asText, true);
+  await v.tickText(false);
+  for (const t of ["hello", "minilock.org", "https://1.2.3.4"]) {
+    await v.type(t);
+    assert.deepEqual([v.caption.hidden, v.textRow.hidden], [true, true], t);
+  }
 });

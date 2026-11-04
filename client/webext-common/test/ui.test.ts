@@ -596,7 +596,7 @@ test("large text: wrapped lines keep their spacing, rows wrap, and the popup scr
     return m[2];
   };
   assert.match(css, /html \{ overflow: auto; \}/);
-  for (const sel of [".dim, .t2", ".t1", ".sh", ".plate-label", ".plate p", ".hint", ".cta p", ".fp-steps", ".fp-wait", ".empty p", ".asurl", ".hmeta", ".content", ".content.ev", ".e2e", ".login .sub", ".help", ".dlg p", ".toast"]) {
+  for (const sel of [".dim, .t2", ".t1", ".sh", ".plate-label", ".plate p", ".hint", ".cta p", ".fp-steps", ".fp-wait", ".empty p", ".asurl", ".caption", ".astext", ".hmeta", ".content", ".content.ev", ".e2e", ".login .sub", ".help", ".dlg p", ".toast"]) {
     assert.match(rule(sel), /line-height: \d*\.?\d+;/, sel);
   }
   for (const sel of [".tabs", ".pair-foot", ".foot.bar"]) assert.match(rule(sel), /flex-wrap: wrap;/, sel);

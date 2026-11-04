@@ -10,7 +10,7 @@ import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, n
 import { confirmDialog, dismissToast, toast } from "./dialog.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
 import { type MsgAction, msgActions, saveFilename } from "../model/msgactions.ts";
-import { icon, messagesArt, platformIcon } from "./icons.ts";
+import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
 import { ownCard, renderPeers } from "./peersview.ts";
 import { THEME_CHOICES, parseTheme, setTheme, startTheme } from "./theme.ts";
 
@@ -288,6 +288,8 @@ export function signinCard(env: UiEnv, st: StateView, going: boolean, inTab: boo
   );
 }
 
+const TYPE_ICON: Record<string, IconName> = { url: "link", tel: "call", text: "notes" };
+
 /** where an empty screen's button leads (the popup switches tab, the full tab sets its hash). */
 export interface Nav {
   toDevices(): void;
@@ -302,7 +304,10 @@ function cta(text: string, label: string, go: () => void): HTMLElement {
 export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, prefill?: string, offerCut = false, nav?: Nav): Promise<void> {
   const field = h("textarea", { rows: "3", "aria-label": "Text to send" }) as HTMLTextAreaElement;
   field.value = prefill ?? (await env.activeUrl().catch(() => ""));
+  const caption = h("span", { class: "caption" });
   const counter = h("span", { class: "counter" });
+  const asText = h("input", { type: "checkbox" }) as HTMLInputElement;
+  const asTextRow = h("label", { class: "astext" }, asText, h("span", {}, "Send as text"));
   const asUrl = h("input", { type: "checkbox", disabled: true }) as HTMLInputElement;
   const asUrlRow = h("label", { class: "asurl" }, asUrl, h("span", {}, "Send as URL"));
   // the user unticked "Send as URL": it stays unticked for this message (until a send or an empty field)
@@ -385,6 +390,13 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     const box = sendAsUrlBox(field.value, userOff);
     asUrl.disabled = !box.enabled;
     asUrl.checked = box.checked;
+    // a phone number (box unticked): the caption and "Send as text" box
+    const tel = !asUrl.checked && d.type === "tel";
+    const type = asText.checked ? "text" : d.type;
+    clear(caption);
+    if (tel) caption.append(icon(TYPE_ICON[type] ?? "notes", 16), T.typeCaption(type));
+    caption.hidden = !tel;
+    asTextRow.hidden = !tel;
     counter.textContent = !showCounter(d.bytes, CAP) ? "" : d.bytes > CAP ? T.tooLong(d.bytes) : T.counter(d.bytes);
     sendBtn.disabled = sendDisabled(d.bytes, CAP, count());
     cut.hidden = !offerCut || d.bytes <= CAP;
@@ -394,11 +406,12 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     userOff = !asUrl.checked;
     void update();
   });
+  asText.addEventListener("change", () => void update());
   sendBtn.addEventListener("click", async () => {
     sendBtn.disabled = true;
     const to = allChip && on(allChip) ? "all" : checks.filter((c) => on(c.chip)).map((c) => c.id);
     try {
-      const r = await rpc<SendResult>(env, "send", { text: field.value, asUrl: asUrl.checked, targets: to });
+      const r = await rpc<SendResult>(env, "send", { text: field.value, asUrl: asUrl.checked, asText: asText.checked, targets: to });
       // one device sent to is named
       const one = r.total === 1 && r.sent === 1 && count() === 1 ? sendable.find((p) => p.id === checks.find((c) => on(c.chip))?.id) : undefined;
       if (r.error) toast(r.error, "err");
@@ -414,7 +427,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     }
     await update();
   });
-  root.append(field, h("div", { class: "meta" }, asUrlRow, counter));
+  root.append(field, h("div", { class: "meta" }, asUrlRow, caption, asTextRow, counter));
   if (offerCut) {
     root.append(
       add(cut, h("button", {
@@ -427,6 +440,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
           }
           field.value = out;
           userOff = true; // a cut text goes as text
+          asText.checked = true;
           await update();
         },
       }, "Send the first 2048 characters")),

@@ -95,10 +95,10 @@ test("notification content: global or per-device off shows the fallback text", a
   assert.match(await body("three"), /^New message from /);
 });
 
-test("send: the Send view's Send as URL box sends a URL (https:// added) or text; a phone number unticked goes as text", async () => {
+test("send: the Send view's Send as URL box sends a URL (https:// added); unticked, a phone number goes as one unless Send as text is ticked", async () => {
   const { w, a, b } = await setup();
   await pairAndApprove(w, a, b);
-  const got = async (text: string, as: "url" | "text") => {
+  const got = async (text: string, as: "url" | "text" | "telOrText") => {
     await a.e.send(text, as, "all");
     await deliver(w, b);
     const sent = (await a.db.history()).filter((x) => x.dir === "out").sort((x, y) => y.id! - x.id!)[0]!;
@@ -108,7 +108,9 @@ test("send: the Send view's Send as URL box sends a URL (https:// added) or text
   };
   assert.deepEqual(await got("  minilock.org  ", "url"), ["url", "https://minilock.org"]);
   assert.deepEqual(await got("minilock.org", "text"), ["text", "minilock.org"]);
+  assert.deepEqual(await got("+1 555 123 4567", "telOrText"), ["tel", "+1 555 123 4567"]);
   assert.deepEqual(await got("+1 555 123 4567", "text"), ["text", "+1 555 123 4567"]);
+  assert.deepEqual(await got("https://minilock.org", "telOrText"), ["text", "https://minilock.org"]); // the box owns URLs
   assert.deepEqual(await got("hello world", "url"), ["text", "hello world"]); // not a likely URL
 });
 

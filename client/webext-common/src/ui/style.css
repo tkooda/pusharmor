@@ -192,6 +192,11 @@ body.page .foot { position: static; }
 .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; padding: 6px 18px 4px; min-height: 26px; }
 .asurl { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; font-size: 12px; line-height: 1.33334; color: var(--ink2); cursor: pointer; }
 .asurl:has(input:disabled) { opacity: 0.5; cursor: default; }
+.caption { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; min-height: 16px; font-size: 12px; line-height: 1.33334; color: var(--ink2); }
+.caption[hidden] { display: none; }
+.caption svg { flex: none; }
+.astext { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1.33334; color: var(--ink2); cursor: pointer; }
+.astext[hidden] { display: none; }
 .dchips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 12px; }
 .nosend { margin: 8px 16px 0; white-space: pre-line; }
 .chip.dchip { height: 30px; padding: 0 12px 0 8px; gap: 6px; background: var(--card); border-color: var(--ctl); color: var(--ink); font-size: 13px; font-weight: 500; }
