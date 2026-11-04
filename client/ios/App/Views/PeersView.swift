@@ -154,6 +154,7 @@ struct PeersView: View {
 struct PairHowToView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var typeSize
+    @EnvironmentObject var model: AppModel
 
     var body: some View {
         NavigationStack {
@@ -162,6 +163,9 @@ struct PairHowToView: View {
                     Label(S.pairHowTo1, systemImage: "1.circle.fill")
                     Label(S.pairHowTo2, systemImage: "2.circle.fill")
                     Label(S.pairHowTo3, systemImage: "3.circle.fill")
+                    if let id = model.me?.id {
+                        Text(S.thisDeviceId(id)).font(.footnote).foregroundColor(.secondaryText)
+                    }
                 }
             }
             .navigationTitle("Pair a new device")

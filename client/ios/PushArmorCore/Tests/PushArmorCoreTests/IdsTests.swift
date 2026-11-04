@@ -24,6 +24,12 @@ final class IdsTests: XCTestCase {
         XCTAssertEqual(idN.keyhash, Data((9 ..< 21).map { UInt8($0) }))
     }
 
+    func testShortDeviceId() {
+        let id = PeerId(raw: Data((0 ..< 9).map { UInt8($0) } + [0x38, 0x58, 0x05, 0xaa] + Array(repeating: 0, count: 17)))!
+        XCTAssertEqual(id.shortHex, "385805")
+        XCTAssertEqual(S.thisDeviceId(id), "This device's ID: 385805")
+    }
+
     func testIdMatchesKeys() {
         let id = testId(account: Data(count: 9), signPub: sp, encPub: ep)
         XCTAssertTrue(id.matches(signPub: sp, encPub: ep))

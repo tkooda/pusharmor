@@ -2,7 +2,7 @@
 import type { PeerView } from "../core/rpc.ts";
 import { sortByLabel } from "../model/sendsel.ts";
 import { T, confirmResultText } from "../core/texts.ts";
-import { type UiEnv, add, clear, disableFor, greyFor, group, h, overflowMenu, peerStatus, platformLabel, rpc, sh, statusLine } from "./dom.ts";
+import { type UiEnv, add, deviceIdLine, clear, disableFor, greyFor, group, h, overflowMenu, peerStatus, platformLabel, rpc, sh, statusLine } from "./dom.ts";
 import { confirmDialog, toast } from "./dialog.ts";
 import { devicesArt, icon, platformIcon, shield } from "./icons.ts";
 
@@ -36,7 +36,7 @@ let fpTimer: ReturnType<typeof setInterval> | null = null;
 type Redraw = (focusId?: string) => Promise<void>;
 
 export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, highlight?: string, focusId?: string, openPair = false): Promise<void> {
-  const data = await rpc<{ peers: PeerView[]; allowContent?: boolean }>(env, "peers");
+  const data = await rpc<{ self?: { id: string } | null; peers: PeerView[]; allowContent?: boolean }>(env, "peers");
   clear(root);
   // focusId: the list was rebuilt after an action, so put focus back on that row (or the first heading if it is gone).
   const redraw: Redraw = (focusId) => renderPeers(env, root, full, undefined, focusId);
@@ -58,6 +58,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
           h("li", {}, h("span", { class: "fp-num", "aria-hidden": "true" }, String(i + 1)), h("span", {}, t)),
         ),
       ),
+      ...(data.self ? [deviceIdLine(data.self.id)] : []),
       sh("Waiting to pair"),
       ...waiting.filter((p) => p.fingerprint).map((p) => pairCard(env, p, redraw)),
       ...(waiting.some((p) => !p.fingerprint)
@@ -81,6 +82,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
       );
     }
     root.append(pairNew(openPair));
+    if (data.self) root.append(deviceIdLine(data.self.id));
   }
   // new devices and pairing steps arrive by push into the local list: read it again every few seconds, redraw on a change
   const key = JSON.stringify(data.peers);

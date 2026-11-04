@@ -2,6 +2,7 @@
 import type { PeerView, Reply, Req } from "../core/rpc.ts";
 import { T } from "../core/texts.ts";
 import type { ThemeStore } from "./theme.ts";
+import { b64urlDecode } from "../crypto/b64url.ts";
 
 export type Call = (req: Req) => Promise<Reply>;
 
@@ -285,4 +286,14 @@ export function overflowMenu(label: string, items: { label: string; run: (b: HTM
 /** Settings account line: only while logged in (a logged-out profile keeps its email). */
 export function accountLine(st: { email: string | null; reg: string | null }): string | null {
   return st.email && st.reg !== "logged_out" ? T.signedInAs(st.email) : null;
+}
+
+/** The short device ID the command line prints: the first 6 hex chars of the id without its 9 account bytes. */
+export function shortDeviceId(id: string): string {
+  return Array.from(b64urlDecode(id).slice(9), (b) => b.toString(16).padStart(2, "0")).join("").slice(0, 6);
+}
+
+/** "This device's ID: 385805", shown on the pairing screen and in Settings. */
+export function deviceIdLine(id: string): HTMLElement {
+  return h("div", { class: "t2 devid" }, "This device's ID: " + shortDeviceId(id));
 }

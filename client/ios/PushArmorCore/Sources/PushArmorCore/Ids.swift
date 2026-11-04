@@ -23,6 +23,8 @@ public struct PeerId: Hashable, Comparable, CustomStringConvertible, Sendable {
 
     public var account: Data { raw.subdata(in: raw.startIndex ..< raw.startIndex + 9) }
     public var keyhash: Data { raw.subdata(in: raw.startIndex + 9 ..< raw.startIndex + 21) }
+    /// The short device ID the command line prints: first 6 hex chars after the 9 account bytes.
+    public var shortHex: String { String(Bytes.hex(raw.subdata(in: raw.startIndex + 9 ..< raw.startIndex + 12)).prefix(6)) }
     public var description: String { text }
 
     /// Same account(9) prefix (catalog IDs: mismatch = drop).

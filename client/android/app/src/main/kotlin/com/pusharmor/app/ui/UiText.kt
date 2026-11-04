@@ -269,6 +269,9 @@ object UiText {
     const val FIRST_DEVICE_TITLE = "Pair your first device"
     /** Same steps as the iOS first-pair screen; each shows with a numbered circle. */
     val FIRST_DEVICE_STEPS = listOf("Install PushArmor on another device.", "Log in with the same account.", "When it shows below, tap Pair, then tap Codes match when the fingerprints match.")
+    /** "This device's ID: 385805": the short ID the command line prints (first 6 hex chars after the 9 account bytes). */
+    fun thisDeviceId(id: String): String =
+        "This device's ID: " + java.util.Base64.getUrlDecoder().decode(id).drop(9).joinToString("") { "%02x".format(it) }.take(6)
     const val FIRST_DEVICE_WAITING = "Waiting for another device to log in."
 
     /** Send with no paired device: pairing guidance replaces the empty "Send to" block once this device is loaded. */

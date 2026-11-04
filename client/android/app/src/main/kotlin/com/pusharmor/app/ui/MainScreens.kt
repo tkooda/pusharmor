@@ -293,7 +293,10 @@ fun PeersScreen(vm: AppViewModel) {
                     }
                 }
                 if (firstDevice) item(key = "steps") {
-                    Column { SectionHeader(UiText.FIRST_DEVICE_TITLE); FirstDeviceSteps() }
+                    Column {
+                        SectionHeader(UiText.FIRST_DEVICE_TITLE); FirstDeviceSteps()
+                        me?.let { Text(UiText.thisDeviceId(it.id), Modifier.padding(horizontal = 32.dp, vertical = 8.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    }
                 }
                 if (pairing.isNotEmpty()) {
                     item(key = "pairing-header") { SectionHeader("Pairing") }
@@ -329,6 +332,7 @@ fun PeersScreen(vm: AppViewModel) {
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 UiText.numbered(UiText.PAIR_HOWTO_STEPS).forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
+                me?.let { Text(UiText.thisDeviceId(it.id), style = MaterialTheme.typography.bodyMedium) }
             }
         },
         confirmButton = { TextButton(onClick = { pairHowTo = false }) { Text("OK") } })
@@ -1494,6 +1498,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                 GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
                     NameEditRow(me?.name ?: "", m) { vm.rename(it) }
                 })
+                me?.let { Text(UiText.thisDeviceId(it.id), Modifier.padding(horizontal = 32.dp, vertical = 8.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
             SectionHeader("Appearance")
             GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
