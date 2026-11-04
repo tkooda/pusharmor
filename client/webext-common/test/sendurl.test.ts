@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { N, body, toastEl } from "./fakedom.ts";
-import { isLikelyUrl, sendAsUrlBox, urlToSend, userOffAfterEdit } from "../src/model/sendurl.ts";
+import { isLikelyUrl, urlToSend } from "../src/model/sendurl.ts";
 import { sendView } from "../src/ui/popup.ts";
 import { detectType } from "../src/model/detect.ts";
 import type { StateView } from "../src/core/rpc.ts";
@@ -28,17 +28,8 @@ test("Send as URL: the URL sent is the trimmed text, with https:// when it has n
   assert.equal(urlToSend("http://a.com"), "http://a.com");
 });
 
-test("Send as URL: the box state", () => {
-  assert.deepEqual(sendAsUrlBox("", false), { enabled: false, checked: false });
-  assert.deepEqual(sendAsUrlBox("hello", false), { enabled: false, checked: false });
-  assert.deepEqual(sendAsUrlBox("a.com", false), { enabled: true, checked: true });
-  assert.deepEqual(sendAsUrlBox("a.com", true), { enabled: true, checked: false });
-  assert.deepEqual(sendAsUrlBox("a.com x", true), { enabled: false, checked: false });
-  assert.equal(userOffAfterEdit("", true), false);
-  assert.equal(userOffAfterEdit("a", true), true);
-});
-
 const PEER = { id: "p1", label: "Phone", platform: "android", lines: [], actions: [], countdown: null, fingerprint: null, pk: null, greyed: null, hidden: false, sendable: true, approvesMe: true, paired: true };
+const textBoxOf = (v: { textRow: N }) => find(v.textRow, (x) => x.tag === "input") as N & { checked: boolean };
 const find = (n: N, f: (x: N) => boolean): N | undefined => (f(n) ? n : n.kids.map((k) => find(k, f)).find(Boolean));
 const tick = async () => {
   for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
@@ -62,17 +53,10 @@ async function mount(inPopup: boolean, result: unknown) {
   const root = new N("div");
   await sendView(env, root as unknown as HTMLElement, { settings: { showAll: false } } as unknown as StateView, "", false);
   const field = find(root, (x) => x.tag === "textarea") as N & { value: string };
-  const box = find(root, (x) => x.tag === "input" && x.attrs.type === "checkbox") as N & { checked: boolean; disabled: boolean };
-  const label = find(root, (x) => x.attrs.class === "asurl")!;
   const sendBtn = find(root, (x) => x.tag === "button" && (x.attrs.class ?? "").includes("primary"))!;
   const type = async (v: string) => {
     field.value = v;
     for (const f of field.on.input!) f({});
-    await tick();
-  };
-  const untick = async (v: boolean) => {
-    box.checked = v;
-    for (const f of box.on.change!) f({});
     await tick();
   };
   const send = async () => {
@@ -89,30 +73,30 @@ async function mount(inPopup: boolean, result: unknown) {
     await tick();
   };
   const meta = find(root, (x) => x.attrs.class === "meta") as N & { hidden: boolean };
-  const urlRow = find(root, (x) => x.attrs.class === "urlrow")!;
-  return { box, label, type, untick, send, sent, closed: () => closed, caption, textRow, tickText, meta, urlRow };
+  return { type, send, sent, closed: () => closed, caption, textRow, tickText, meta };
 }
 
-test("Send as URL: starts unticked and grey, ticks for a likely URL, and a user untick holds until a send or an empty field", async () => {
+test("Send: the type line always shows; a URL is sent as URL unless Send as text is ticked, and the override is for one send", async () => {
   const v = await mount(false, { sent: 1, total: 1, failures: [] });
-  assert.equal(v.label.textContent, "Send as URL");
-  assert.deepEqual([v.box.disabled, v.box.checked], [true, false]);
+  assert.deepEqual([!!v.caption.hidden, !!v.textRow.hidden, v.caption.textContent], [false, true, "Will arrive as text"]);
   await v.type("minilock.org");
-  assert.deepEqual([v.box.disabled, v.box.checked], [false, true]);
-  await v.untick(false);
-  await v.type("minilock.");
-  assert.deepEqual([v.box.disabled, v.box.checked], [true, false]);
-  await v.type("minilock.org");
-  assert.deepEqual([v.box.disabled, v.box.checked], [false, false], "enabled again, stays unticked");
+  assert.deepEqual([!!v.textRow.hidden, v.caption.textContent], [false, "Will open as a URL"]);
   await v.send();
-  assert.equal(v.sent[0]!.asUrl, false);
-  assert.deepEqual([v.box.disabled, v.box.checked], [false, true], "a send resets to auto");
+  assert.deepEqual([v.sent[0]!.asUrl, v.sent[0]!.asText], [true, false]);
+  await v.tickText(true);
+  assert.equal(v.caption.textContent, "Will arrive as text");
   await v.send();
-  assert.equal(v.sent[1]!.asUrl, true);
-  await v.untick(false);
+  assert.deepEqual([v.sent[1]!.asUrl, v.sent[1]!.asText], [false, true]);
+  assert.equal(textBoxOf(v).checked, false, "a send clears the override");
+  await v.tickText(true);
+  await v.type("minilock.org/x"); // still a URL: the override stays
+  assert.equal(v.caption.textContent, "Will arrive as text");
+  await v.type("+1 555 123 4567"); // the type changed: the override is cleared
+  assert.deepEqual([textBoxOf(v).checked, v.caption.textContent], [false, "Will open as a phone number"]);
+  await v.type("hello");
+  assert.deepEqual([!!v.textRow.hidden, v.caption.textContent], [true, "Will arrive as text"]);
   await v.type("");
-  await v.type("a.com");
-  assert.equal(v.box.checked, true, "an empty field resets to auto");
+  assert.equal(!!v.caption.hidden, false);
 });
 
 test("Send: the toolbar popup closes after a sent message; a full tab or Firefox for Android shows the toast; a failure keeps it open", async () => {
@@ -138,11 +122,10 @@ test("Send: the toolbar popup closes after a sent message; a full tab or Firefox
   for (const k of [...body.kids]) k.remove();
 });
 
-test("Send: a phone number shows its caption and the Send as text box, as before; other text and URLs do not", async () => {
+test("Send: a phone number shows its caption and the Send as text box; other text shows only the caption", async () => {
   const v = await mount(false, { sent: 1, total: 1, failures: [] });
   await v.type("+1 555 123 4567");
-  assert.deepEqual([v.caption.hidden, v.textRow.hidden, v.box.disabled, v.meta.hidden], [false, false, true, false]);
-  assert.equal(v.urlRow.kids[0]!.attrs.class, "asurl"); // Send as URL on its own line
+  assert.deepEqual([!!v.caption.hidden, !!v.textRow.hidden, !!v.meta.hidden], [false, false, false]);
   assert.equal(v.caption.textContent, "Will open as a phone number");
   await v.send();
   assert.deepEqual([v.sent[0]!.asUrl, !!v.sent[0]!.asText], [false, false]);
@@ -150,11 +133,8 @@ test("Send: a phone number shows its caption and the Send as text box, as before
   assert.equal(v.caption.textContent, "Will arrive as text");
   await v.send();
   assert.equal(v.sent[1]!.asText, true);
-  await v.tickText(false);
-  for (const t of ["hello", "minilock.org", "https://1.2.3.4"]) {
-    await v.type(t);
-    assert.deepEqual([v.caption.hidden, v.textRow.hidden, v.meta.hidden], [true, true, true], t);
-  }
+  await v.type("hello");
+  assert.deepEqual([!!v.caption.hidden, !!v.textRow.hidden, !!v.meta.hidden], [false, true, false]);
   await v.type("x".repeat(1900));
-  assert.deepEqual([v.meta.hidden, v.caption.hidden], [false, true]); // the counter shows
+  assert.deepEqual([!!v.meta.hidden, !!v.caption.hidden], [false, false]); // the counter shows too
 });

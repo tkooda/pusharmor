@@ -3,7 +3,7 @@ import type { PeerView, StateView } from "../core/rpc.ts";
 import type { SendResult } from "../core/engine.ts";
 import { R, T, greyedText, pushIssueText, quoted, saveFailText } from "../core/texts.ts";
 import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter, sortByLabel } from "../model/sendsel.ts";
-import { sendAsUrlBox, userOffAfterEdit } from "../model/sendurl.ts";
+import { isLikelyUrl } from "../model/sendurl.ts";
 import { AUTH_CHANGED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
 import { type UiEnv, accountLine, add, clear, deviceIdLine, failView, group, h, midEllipsis, nextTabIndex, openHref, rpc, sh, shortTime } from "./dom.ts";
@@ -308,12 +308,10 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   const counter = h("span", { class: "counter" });
   const asText = h("input", { type: "checkbox" }) as HTMLInputElement;
   const asTextRow = h("label", { class: "astext" }, asText, h("span", {}, "Send as text"));
-  // the caption and "Send as text" row: only for a phone number, or while the counter shows
+  // the caption always shows; the "Send as text" row only when a URL or a phone number is detected
   const meta = h("div", { class: "meta" }, caption, asTextRow, counter);
-  const asUrl = h("input", { type: "checkbox", disabled: true }) as HTMLInputElement;
-  const asUrlRow = h("label", { class: "asurl" }, asUrl, h("span", {}, "Send as URL"));
-  // the user unticked "Send as URL": it stays unticked for this message (until a send or an empty field)
-  let userOff = false;
+  // the detected type the "Send as text" override belongs to: a change of type clears the override
+  let lastType = "text";
   const sendLabel = h("span", { class: "lbl" }, "Send");
   const sendBtn = h("button", { class: "primary big" }, icon("send", 18), sendLabel) as HTMLButtonElement;
   const head = sh("");
@@ -388,39 +386,32 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   }
   const update = async () => {
     const d = await rpc<{ type: string; bytes: number }>(env, "detect", { text: field.value });
-    userOff = userOffAfterEdit(field.value, userOff);
-    const box = sendAsUrlBox(field.value, userOff);
-    asUrl.disabled = !box.enabled;
-    asUrl.checked = box.checked;
-    // a phone number (box unticked): the caption and "Send as text" box
-    const tel = !asUrl.checked && d.type === "tel";
-    const type = asText.checked ? "text" : d.type;
+    // a URL wins over a phone number
+    const found = isLikelyUrl(field.value) ? "url" : d.type === "tel" ? "tel" : "text";
+    if (found !== lastType) asText.checked = false;
+    lastType = found;
+    const over = found !== "text" && asText.checked;
+    const type = over ? "text" : found;
     clear(caption);
-    if (tel) caption.append(icon(TYPE_ICON[type] ?? "notes", 16), T.typeCaption(type));
-    caption.hidden = !tel;
-    asTextRow.hidden = !tel;
+    caption.append(icon(TYPE_ICON[type] ?? "notes", 16), T.typeCaption(type));
+    asTextRow.hidden = found === "text";
     counter.textContent = !showCounter(d.bytes, CAP) ? "" : d.bytes > CAP ? T.tooLong(d.bytes) : T.counter(d.bytes);
-    meta.hidden = !tel && counter.textContent === "";
     sendBtn.disabled = sendDisabled(d.bytes, CAP, count());
     cut.hidden = !offerCut || d.bytes <= CAP;
   };
   field.addEventListener("input", () => void update());
-  asUrl.addEventListener("change", () => {
-    userOff = !asUrl.checked;
-    void update();
-  });
   asText.addEventListener("change", () => void update());
   sendBtn.addEventListener("click", async () => {
     sendBtn.disabled = true;
     const to = allChip && on(allChip) ? "all" : checks.filter((c) => on(c.chip)).map((c) => c.id);
     try {
-      const r = await rpc<SendResult>(env, "send", { text: field.value, asUrl: asUrl.checked, asText: asText.checked, targets: to });
+      const r = await rpc<SendResult>(env, "send", { text: field.value, asUrl: lastType === "url" && !asText.checked, asText: lastType !== "text" && asText.checked, targets: to });
       // one device sent to is named
       const one = r.total === 1 && r.sent === 1 && count() === 1 ? sendable.find((p) => p.id === checks.find((c) => on(c.chip))?.id) : undefined;
       if (r.error) toast(r.error, "err");
       else if (r.failures.length) toast([T.sentToNofM(r.sent, r.total), ...r.failures.map((f) => f.text)].join("\n"), "err");
       else {
-        userOff = false;
+        asText.checked = false; // the override is for this send only
         // the toolbar popup closes; the full tab and Firefox for Android show the toast
         if (env.inPopup?.() === true) return window.close();
         toast(one ? T.messageSentToOne(one.label) : T.messageSentToN(r.sent), "ok");
@@ -430,7 +421,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     }
     await update();
   });
-  root.append(field, h("div", { class: "urlrow" }, asUrlRow), meta);
+  root.append(field, meta);
   if (offerCut) {
     root.append(
       add(cut, h("button", {
@@ -442,8 +433,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
             out += ch;
           }
           field.value = out;
-          userOff = true; // a cut text goes as text
-          asText.checked = true;
+          asText.checked = true; // a cut text goes as text
           await update();
         },
       }, "Send the first 2048 characters")),

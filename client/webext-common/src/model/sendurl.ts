@@ -1,4 +1,4 @@
-// Send view: the "Send as URL" checkbox (same likely-URL rule on all four clients).
+// Send view: URL detection (same likely-URL rule on all four clients).
 
 const LABEL = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
 
@@ -19,15 +19,4 @@ export function isLikelyUrl(text: string): boolean {
 export function urlToSend(text: string): string {
   const t = text.trim();
   return /^https?:\/\//i.test(t) ? t : "https://" + t;
-}
-
-/** Checkbox state: enabled for a likely URL, ticked unless the user unticked it for this message. */
-export function sendAsUrlBox(text: string, userOff: boolean): { enabled: boolean; checked: boolean } {
-  const enabled = isLikelyUrl(text);
-  return { enabled, checked: enabled && !userOff };
-}
-
-/** userOff after an edit: an empty field goes back to auto. */
-export function userOffAfterEdit(text: string, userOff: boolean): boolean {
-  return text === "" ? false : userOff;
 }
