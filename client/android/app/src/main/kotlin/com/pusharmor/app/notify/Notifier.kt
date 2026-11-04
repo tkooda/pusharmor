@@ -140,8 +140,15 @@ class Notifier(private val context: Context, private val settings: Settings, pri
     fun cancelPair(pk: String) = nm.cancel(TAG_PAIR, pairId(pk))
 
     fun cancel(tag: String, id: Int) {
-        if (tag == TAG_MSG) synchronized(posted) { posted.remove(id) }
-        nm.cancel(tag, id)
+        if (tag != TAG_MSG) return nm.cancel(tag, id)
+        synchronized(posted) {
+            posted.remove(id)
+            nm.cancel(tag, id)
+            // a summary left without messages shows as a blank notification; a tap may have removed the message already
+            val active = nm.activeNotifications.filter { it.tag == TAG_MSG }
+            val groups = active.filter { it.id >= 0 }.map { it.notification.group }.toSet()
+            active.filter { it.id < 0 && it.notification.group !in groups }.forEach { nm.cancel(TAG_MSG, it.id) }
+        }
     }
 
     private fun action(historyId: Long, act: String): PendingIntent {
