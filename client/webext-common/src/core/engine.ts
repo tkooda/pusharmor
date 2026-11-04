@@ -61,7 +61,7 @@ import {
   getEntry,
   pairKeyOf,
 } from "./state.ts";
-import { R, T, peerLabel, rowLabel, sendResultText } from "./texts.ts";
+import { R, T, peerLabel, quoted, rowLabel, sendResultText } from "./texts.ts";
 import { AUTH_CHANGED } from "../model/signin.ts";
 
 type Src = "push" | "bridge" | "returned" | "fetched";
@@ -466,10 +466,12 @@ export class Engine {
   }
 
   private async notifyRow(row: HistoryRow): Promise<void> {
-    const title = row.type === "url" ? T.titleUrl : row.type === "tel" ? T.titleTel : T.titleText;
     const peer = row.peer ? await this.db.peer(row.peer) : undefined;
     const show = (await this.settings()).allowContent && peer?.allow_content !== false;
-    this.p.notify("h:" + row.id, title, show ? ellipsize(row.content, 120) : T.newMessageFrom(peerLabel(peer?.name ?? null)));
+    // Title: the sender's device name in quotes; body: the message. Hidden content keeps the app name over "New message from".
+    const from = peerLabel(peer?.name ?? null);
+    if (show) this.p.notify("h:" + row.id, quoted(from), ellipsize(row.content, 120));
+    else this.p.notify("h:" + row.id, T.appName, T.newMessageFrom(from));
   }
 
   /** Auto-open rules (section 9). Returns true when the tab was opened. */

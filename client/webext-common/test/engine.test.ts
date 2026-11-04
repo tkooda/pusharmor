@@ -72,7 +72,9 @@ test("happy path: commit, automatic reply, open, same fingerprint, approve both,
   await deliver(w, b);
   const h = (await b.db.history()).find((x) => x.type === "text")!;
   assert.equal(h.content, "hello there");
-  assert.equal(b.p.notes.get("h:" + h.id)!.title, "Message");
+  // The sender's device name in quotes over the message text.
+  assert.equal(b.p.notes.get("h:" + h.id)!.title, '"' + (await b.db.peer(a.id))!.name + '"');
+  assert.equal(b.p.notes.get("h:" + h.id)!.body, "hello there");
   assert.equal(b.p.badge, "1");
 });
 

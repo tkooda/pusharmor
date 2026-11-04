@@ -635,8 +635,7 @@ test("Settings: retention says Delete messages older than, and every value or co
 
 test("user text says URL for a web address; the sign-in email's login link stays", async () => {
   const { readFileSync } = await import("node:fs");
-  const { T, R } = await import("../src/core/texts.ts");
-  assert.equal(T.titleUrl, "URL");
+  const { R } = await import("../src/core/texts.ts");
   assert.match(R.badLink, /login link/);
   for (const f of ["../../chrome/manifest.json", "../../firefox/manifest.json"]) {
     assert.match(JSON.parse(readFileSync(new URL(f, import.meta.url), "utf8")).description, /^Send URLs and text /);
