@@ -34,6 +34,8 @@ export interface Platform {
   showPage(tabId: number, hash: string): void;
   /** Chrome: false in a copy whose extension id is not a store id (its Google login redirect is not allowed). */
   chromeIdKnown?: boolean;
+  /** Chrome: the login redirect URL of this browser (identity.getRedirectURL); null elsewhere. */
+  authRedirect?(): string | null;
   /** Chrome: identity.launchWebAuthFlow; resolves to the final redirect URL. Firefox: null (tab flow). */
   authFlow(url: string): Promise<string | null>;
   /** Auto-open in the last focused normal window; false when no window exists. */

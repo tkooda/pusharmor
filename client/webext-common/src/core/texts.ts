@@ -51,6 +51,8 @@ export const T = {
   sentToNofM: (n: number, m: number) => "Sent to " + n + " of " + m + (m === 1 ? " device" : " devices"),
   sentToOne: (x: string) => 'Sent to "' + x + '"',
   messageSentToOne: (x: string) => 'Message sent to "' + x + '"',
+  googleNotInBrowser: "Google login is not available in this browser\nUse email login",
+  appleNotInBrowser: "Apple login is not available in this browser\nUse email login",
   googleNotInCopy: "Google login is not available in this copy of PushArmor\nUse email login, or install PushArmor from the Chrome Web Store or GitHub",
   messageSentToN: (n: number) => "Message sent to " + n + (n === 1 ? " device" : " devices"),
   tooLong: (n: number) => "Too long (" + n + " / 2048)",

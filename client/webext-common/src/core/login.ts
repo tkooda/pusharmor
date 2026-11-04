@@ -3,7 +3,7 @@
 import { API_BASE } from "../api/client.ts";
 import { b64urlEncode } from "../crypto/b64url.ts";
 import { normalizeEmail, oauthK } from "../crypto/labels.ts";
-import { AUTH_RESULT, type AuthResult, type Restore, SIGNIN_PROGRESS, restoreStep } from "../model/signin.ts";
+import { AUTH_RESULT, type AuthResult, type Restore, SIGNIN_PROGRESS, chromiumRedirectOk, restoreStep } from "../model/signin.ts";
 import { type Engine, UserError } from "./engine.ts";
 import { ActionError, ReasonError, failText } from "./failtext.ts";
 import { type ActionId, R, T } from "./texts.ts";
@@ -103,6 +103,9 @@ export class Login {
    * back through authDone; a call without a tab opens a new one.
    */
   async oauthStart(provider: "google" | "apple", purpose: Purpose, tabId?: number): Promise<LoginResult> {
+    // a Chromium build that rewrote the redirect host: the provider can never return, so the flow never starts
+    const back = this.e.p.authRedirect?.() ?? null;
+    if (back !== null && !chromiumRedirectOk(back)) throw new UserError(provider === "google" ? T.googleNotInBrowser : T.appleNotInBrowser);
     // a Chrome copy with another extension id: Google would refuse its redirect, so the flow never starts
     if (provider === "google" && this.e.p.chromeIdKnown === false) throw new UserError(T.googleNotInCopy);
     const url = await this.oauthUrl(provider, purpose);

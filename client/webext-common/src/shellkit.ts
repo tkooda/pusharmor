@@ -53,6 +53,9 @@ export function basePlatform(b: Browser, name: "chrome" | "firefox", isAndroid: 
     showPage(id, hash) {
       void b.tabs.update(id, { url: b.runtime.getURL("page.html" + hash) }).catch(() => undefined);
     },
+    authRedirect() {
+      return name === "chrome" && b.identity ? b.identity.getRedirectURL() : null;
+    },
     async authFlow(url) {
       if (!b.identity) return null;
       // u names this extension's own redirect (public or Beta id); the Worker

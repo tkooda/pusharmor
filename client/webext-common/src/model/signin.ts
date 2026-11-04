@@ -84,6 +84,14 @@ export function knownChromeId(id: string, known: readonly string[]): boolean {
   return known.includes(id);
 }
 
+/**
+ * Chrome's login redirect has the form https://<32 letters a-p>.chromiumapp.org/. Some Chromium
+ * builds rewrite that host (ungoogled-chromium: ch40m1umapp.qjz9zk), so the provider can never return.
+ */
+export function chromiumRedirectOk(url: string): boolean {
+  return /^https:\/\/[a-p]{32}\.chromiumapp\.org\/$/.test(url);
+}
+
 /** Firefox Google or Apple login: the background writes the result here (storage.session) for the login tab. */
 export const AUTH_RESULT = "auth_result";
 /** A result older than this is from an earlier login and is ignored. */
