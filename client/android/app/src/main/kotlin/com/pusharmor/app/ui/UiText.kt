@@ -352,6 +352,8 @@ object UiText {
     fun stillHolds(x: String): String = "\"$x\" still holds an earlier pairing. On \"$x\", tap Cancel pairing request, then tap Send again."
     fun pairingInProgress(name: String?): String = "Pairing with ${quoted(name, "a device")} in progress. Open PushArmor."
     fun newMessageFrom(name: String?): String = "New message from ${quoted(name, "a device")}"
+    /** A message notification title: the sending device's name in quotes. */
+    fun messageTitle(name: String?): String = quoted(name, "Unknown sender")
     fun removeDeviceBody(x: String): String = "Remove \"$x\" from this account? \"$x\" must log in again and pair with every device again."
     fun rejectedBy(x: String): String = "Rejected by \"$x\""
     fun notPairedOn(x: String): String = "Not paired on \"$x\""

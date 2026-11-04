@@ -297,7 +297,6 @@ class AppLogicTest {
     }
 
     @Test fun aWebAddressIsCalledAUrl() {
-        assertTrue(source("notify/Notifier.kt").contains("\"URL\" to (c.href ?: c.value)"))
         assertEquals("No app can open this URL.", com.pusharmor.app.ui.NO_APP_LINK)
         assertTrue(source("ui/SignInScreens.kt").contains("\"Send URLs or text to your devices."))
         assertTrue(source("ui/MainScreens.kt").contains("Share a URL from any app"))

@@ -17,6 +17,7 @@ import com.pusharmor.protocol.ContentType
 import com.pusharmor.protocol.ShownContent
 import com.pusharmor.store.PaDao
 import com.pusharmor.store.PeerEntity
+import com.pusharmor.store.toPeer
 import java.security.SecureRandom
 
 /** Notification channels, ids and builders (section 6). */
@@ -167,7 +168,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         return PendingIntent.getActivity(context, (historyId.toInt() shl 3) xor act.hashCode(), i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
 
-    /** url / text / tel (no sender name; except "New message from $peer" when hidden). */
+    /** url / text / tel: the sender's device name in quotes over the message ("New message from $peer" when hidden). */
     fun content(historyId: Long, peerId: String, c: ShownContent) {
         val peer = dao.peer(peerId)
         val policy = Policy.of(settings.lockScreen, peer?.lockScreen ?: true, settings.watch, peer?.watch ?: true, !settings.showContent, !(peer?.showContent ?: true))
@@ -178,12 +179,8 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         if (policy.hideAll) {
             b.setContentTitle(UiText.newMessageFrom(peer?.name)).setContentIntent(open)
         } else {
-            val (title, body) = when {
-                c.type == ContentType.URL && !c.showAsText -> "URL" to (c.href ?: c.value)
-                c.type == ContentType.TEL && c.canDial -> "Phone number" to c.value
-                else -> "Text" to c.value
-            }
-            b.setContentTitle(title).setContentText(body).setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            val body = if (c.type == ContentType.URL && !c.showAsText) c.href ?: c.value else c.value
+            b.setContentTitle(UiText.messageTitle(peer?.let { com.pusharmor.app.ui.label(it.toPeer()) })).setContentText(body).setStyle(NotificationCompat.BigTextStyle().bigText(body))
             when {
                 c.type == ContentType.URL && !c.showAsText -> {
                     b.setContentIntent(if (settings.tapOpensLink) action(historyId, "open") else open)

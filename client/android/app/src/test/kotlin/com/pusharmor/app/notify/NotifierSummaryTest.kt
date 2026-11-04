@@ -6,8 +6,10 @@ import com.pusharmor.app.PaApp
 import com.pusharmor.app.TestApp
 import com.pusharmor.protocol.ContentType
 import com.pusharmor.protocol.ShownContent
+import com.pusharmor.store.PeerEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import android.app.Notification
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -64,5 +66,29 @@ class NotifierSummaryTest {
         notifier.cancelMessages()
         assertTrue(messages().isEmpty())
         assertEquals(setOf(Notifier.TAG_NOTICE, Notifier.TAG_PAIR), nm.activeNotifications.map { it.tag }.toSet())
+    }
+
+    // The title is the sender's device name in quotes; the body is the message text or URL.
+    @Test fun aMessageShowsTheSenderNameOverTheText() {
+        val notifier = app.graph.notifier
+        notifier.ensureChannels()
+        onThread {
+            app.graph.dao.putPeer(PeerEntity(
+                id = "a".repeat(40), platform = "firefox", created = 1, listSignPub = null, listEncPub = null,
+                signPub = "B".repeat(87), encPub = "C".repeat(87), pairingId = ByteArray(16), approved = true, deniedByMe = false,
+                approveVerified = true, listApprovesMe = true, listDeniesMe = false, listAfterVerify = true, declined = false,
+                reachable = true, loggedOut = false, logoutN = 0, hidden = false, name = "Firefox mobile", nameN = 1, removed = false, missing = false,
+                lastN = 0, channelId = null, storedApprove = null, storedApproveName = null, lastApproveResult = null, lastSendAt = 0, note = null,
+            ))
+            notifier.content(1L, "a".repeat(40), ShownContent(ContentType.URL, "https://pusharmor.com/", "https://pusharmor.com/", "pusharmor.com"))
+            notifier.content(2L, "a".repeat(40), ShownContent(ContentType.TEXT, "hello there", null, null))
+            notifier.content(3L, "unknown", ShownContent(ContentType.TEXT, "who sent this", null, null))
+        }
+        fun shown(id: Int) = messages().first { it.id == id }.notification.extras.let {
+            it.getCharSequence(Notification.EXTRA_TITLE).toString() to it.getCharSequence(Notification.EXTRA_TEXT).toString()
+        }
+        assertEquals("\"Firefox mobile\"" to "https://pusharmor.com/", shown(1))
+        assertEquals("\"Firefox mobile\"" to "hello there", shown(2))
+        assertEquals("Unknown sender" to "who sent this", shown(3))
     }
 }
