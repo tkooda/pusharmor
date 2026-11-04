@@ -2,7 +2,7 @@ import XCTest
 import PushArmorCore
 @testable import PushArmor
 
-/// Send screen rules: chip header, "All" chip, counter threshold, sole device, "Send as URL" (F12, F13).
+/// Send screen rules: chip header, "All" chip, counter threshold, sole device, caption, "Send as URL" (F12, F13).
 final class SendScreenRulesTests: XCTestCase {
     func testHeaderCountsSelectedOfTotal() {
         XCTAssertEqual(SendScreenRules.header(selected: 6, total: 9), "Send to (6 of 9)")
@@ -31,6 +31,29 @@ final class SendScreenRulesTests: XCTestCase {
         XCTAssertNil(SendScreenRules.soleDevice([(id: "a", canReceive: false)]))
         XCTAssertNil(SendScreenRules.soleDevice([(id: "a", canReceive: true), (id: "b", canReceive: true)]))
         XCTAssertNil(SendScreenRules.soleDevice([]))
+    }
+
+    func testCaptionIsPresentTenseAndFollowsSendAsText() {
+        XCTAssertEqual(SendScreenRules.caption(.url, asText: false).title, "Will open as a URL")
+        XCTAssertEqual(SendScreenRules.caption(.tel, asText: false).title, "Will open as a phone number")
+        XCTAssertEqual(SendScreenRules.caption(.text, asText: false).title, "Will arrive as text")
+        XCTAssertEqual(SendScreenRules.caption(.url, asText: true).title, "Will arrive as text")
+        XCTAssertEqual(SendScreenRules.caption(.tel, asText: true).title, "Will arrive as text")
+    }
+
+    func testSendTypeKeepsPhoneNumbersAndLeavesURLsToTheSwitch() {
+        XCTAssertEqual(SendScreenRules.sendType("+1 555-123-4567", asURL: false, asText: false), .tel)
+        XCTAssertEqual(SendScreenRules.sendType("tel:+1 555-123-4567", asURL: false, asText: false), .tel)
+        XCTAssertEqual(SendScreenRules.sendType("+1 555-123-4567", asURL: false, asText: true), .text)
+        XCTAssertEqual(SendScreenRules.sendType("https://example.com/x", asURL: false, asText: false), .text)
+        XCTAssertEqual(SendScreenRules.sendType("hello", asURL: false, asText: false), .text)
+        XCTAssertEqual(SendScreenRules.sendType("https://example.com/x", asURL: true, asText: false), .url)
+    }
+
+    func testPhoneNumbersAreNeverLikelyURLs() {
+        for s in ["+1 555-123-4567", "tel:+1 555-123-4567", "555.123.4567", "(555) 123-4567"] {
+            XCTAssertFalse(LikelyURL.isLikely(s), s)
+        }
     }
 
     func testLikelyURLAcceptsHostShapes() {

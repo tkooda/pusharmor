@@ -45,7 +45,7 @@ final class RecipientMemoryTests: XCTestCase {
     func testModelSendWithoutCoreReportsNotSent() async {
         let model = AppModel()
         XCTAssertNil(model.core)
-        let sent = await model.send("hi", asURL: false, toAll: false, peerIds: ["a"])
+        let sent = await model.send("hi", asText: true, toAll: false, peerIds: ["a"])
         XCTAssertFalse(sent)
     }
 }

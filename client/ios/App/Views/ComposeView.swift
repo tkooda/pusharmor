@@ -80,6 +80,23 @@ enum SendScreenRules {
         if count == 1 { return soleName.map { "Send to \"\($0)\"" } ?? "Send to 1 device" }
         return "Send to \(count) devices"
     }
+
+    /// "Send as URL" owns URLs; with it off a phone number still goes as a phone number
+    /// (unless "Send as text" is on), and everything else as text.
+    static func sendType(_ text: String, asURL: Bool, asText: Bool) -> SendType {
+        if asURL { return .url }
+        return !asText && SendDetection.detect(text) == .tel ? .tel : .text
+    }
+
+    /// Quiet line under the message: how it will arrive.
+    static func caption(_ type: SendType, asText: Bool) -> (title: String, symbol: String) {
+        if asText { return ("Will arrive as text", "text.alignleft") }
+        switch type {
+        case .url: return ("Will open as a URL", "link")
+        case .tel: return ("Will open as a phone number", "phone")
+        case .text: return ("Will arrive as text", "text.alignleft")
+        }
+    }
 }
 
 /// The likely URL rule for "Send as URL" (the same rule on every client). Tested in SendScreenRulesTests.
@@ -222,6 +239,7 @@ struct ComposeView: View {
     @EnvironmentObject var model: AppModel
     /// The draft survives process death: it is kept in the store (AppModel.draft).
     @State private var text: String
+    @State private var asText = false
     @State private var urlChoice: SendAsURLChoice
     @State private var toAll = false
     @State private var selected: Set<String> = []
@@ -264,6 +282,9 @@ struct ComposeView: View {
             selected = [only]
         }
     }
+
+    /// A phone number keeps its caption and "Send as text"; URLs belong to "Send as URL".
+    private var isPhone: Bool { SendDetection.detect(text) == .tel }
 
     private var hasRecipient: Bool {
         if toAll && showAll { return true }
@@ -335,16 +356,28 @@ struct ComposeView: View {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .strokeBorder(editing ? Color.brandGreen : Color(uiColor: .separator), lineWidth: editing ? 1.5 : 1)
                 )
-            // large text: the counter and switch stack
+            // large text: the caption, counter, and switches stack
             let ax = typeSize.isAccessibilitySize
             let row = ax ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))
             row {
+                if isPhone {
+                    let c = SendScreenRules.caption(.tel, asText: asText)
+                    Label(c.title, systemImage: c.symbol)
+                        .font(.footnote)
+                        .foregroundColor(.secondaryText)
+                }
+                if !ax { Spacer(minLength: 8) }
                 if SendScreenRules.showsCounter(text) {
                     Text(counter)
                         .font(.footnote)
                         .foregroundColor(.errorText)
                 }
-                if !ax { Spacer(minLength: 8) }
+                if isPhone {
+                    Toggle("Send as text", isOn: $asText)
+                        .font(.footnote)
+                        .foregroundColor(.secondaryText)
+                        .fixedSize(horizontal: !ax, vertical: true)
+                }
                 // on the hint row, at the far right; grey until the text is a likely URL
                 Toggle("Send as URL", isOn: Binding(get: { urlChoice.on }, set: { urlChoice.set($0) }))
                     .font(.footnote)
@@ -380,14 +413,16 @@ struct ComposeView: View {
             Button {
                 let u = urlChoice.on
                 let t = u ? LikelyURL.payload(text) : text
+                let a = asText
                 let all = toAll && showAll
                 let ids = all ? [] : candidates.filter { selected.contains($0.id.text) && enabled($0) }.map { $0.id.text }
                 let sel = selected
                 Task {
                     // A failed send keeps the draft, so "Unable to send." can be retried.
-                    if await RecipientMemory.send(sel, { await model.send(t, asURL: u, toAll: all, peerIds: ids) }) {
+                    if await RecipientMemory.send(sel, { await model.send(t, asURL: u, asText: a, toAll: all, peerIds: ids) }) {
                         text = ""
                         urlChoice = SendAsURLChoice()
+                        asText = false
                     }
                 }
             } label: {
