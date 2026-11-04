@@ -62,9 +62,9 @@ export interface StateView {
   recheckLocked: boolean;
   /**
    * This browser cannot receive: its push service refused, it has no push service (noservice),
-   * the relay server refused the push, or (fault) the relay server cannot reach the push service.
+   * the relay server does not take its push service (unsupported), the relay server refused the push, or (fault) the relay server cannot reach the push service.
    */
-  pushIssue: "refused" | "noservice" | "relay" | "fault" | null;
+  pushIssue: "refused" | "noservice" | "unsupported" | "relay" | "fault" | null;
   /** Whose push service this browser uses (Google, Mozilla, ...), for the fault message. */
   pushVendor?: string;
   /** The saved keys failed the local check: every view shows the keys screen. */
@@ -270,7 +270,7 @@ export class Rpc {
       (e.p.isAndroid || ((await e.db.meta<string>("receive_mode")) ?? "direct") !== "direct") &&
       !(await e.db.meta("fallback_push"));
     // the Firefox setup note covers a missing push; local causes come before a relay-side fault
-    const pushIssue = setupNeeded ? null : ((await e.db.meta<"refused" | "noservice" | "relay">("push_issue")) ?? ((await e.db.meta<boolean>("my_relay_fault")) ? "fault" : null));
+    const pushIssue = setupNeeded ? null : ((await e.db.meta<"refused" | "noservice" | "unsupported" | "relay">("push_issue")) ?? ((await e.db.meta<boolean>("my_relay_fault")) ? "fault" : null));
     return {
       reg: await e.regState(),
       banner: (await e.db.meta<string | null>("banner")) ?? null,

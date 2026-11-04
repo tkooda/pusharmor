@@ -7,7 +7,7 @@ test("refused push updates from popup opens do not count toward the relay notice
   const clock = new Clock();
   const w = new MockWorker(clock);
   const a = await device(w, clock);
-  w.inject.push({ match: /PATCH \/v1\/peers\//, status: 400, body: { error: "push endpoint not allowed" }, times: 99 });
+  w.inject.push({ match: /PATCH \/v1\/peers\//, status: 400, body: { error: "bad request" }, times: 99 });
   a.p.sub = null;
   const first = clock.t + 30_000;
   for (let i = 0; i < 4; i++) {

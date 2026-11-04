@@ -1367,6 +1367,23 @@ test("push issue: a browser with no push service shows noservice, and a send doe
   assert.equal((await new Rpc(a.e).state()).pushIssue, null);
 });
 
+test("push issue: a PATCH answered 400 push endpoint not allowed shows unsupported at once, a send does not PATCH again, and a later PATCH that works clears it", async () => {
+  const { w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  w.inject.push({ match: /PATCH \/v1\/peers\//, status: 400, body: { error: "push endpoint not allowed" }, times: 1 });
+  await assert.rejects(a.e.pushReconcile(true));
+  assert.equal((await new Rpc(a.e).state()).pushIssue, "unsupported");
+  assert.equal(a.p.alarms.has("pushretry"), false);
+  const patches = () => w.calls.filter((x) => x.method === "PATCH").length;
+  const before = patches();
+  w.inject.push({ match: /POST \/v1\/send/, status: 200, body: { r: { [b.id]: "sent" }, push_missing: true }, times: 1 });
+  await a.e.send("hi", "auto", "all");
+  assert.equal(patches(), before);
+  await a.e.onPopupOpen(); // the next open PATCHes again, and it works now
+  assert.equal(patches(), before + 1);
+  assert.equal((await new Rpc(a.e).state()).pushIssue, null);
+});
+
 test("push issue: an offline PATCH sets nothing and arms no retry", async () => {
   const { w, a } = await setup();
   a.p.fetch = async (i: string, init: RequestInit) => {
@@ -1382,7 +1399,7 @@ test("push issue: an offline PATCH sets nothing and arms no retry", async () => 
 
 test("push issue: a PATCH the relay server refuses is tried again at 30 s, 2 min, 10 min, then shows relay; success and wipe clear it", async () => {
   const { w, a, clock } = await setup();
-  w.inject.push({ match: /PATCH \/v1\/peers\//, status: 400, body: { error: "push endpoint not allowed" }, times: 4 });
+  w.inject.push({ match: /PATCH \/v1\/peers\//, status: 400, body: { error: "bad request" }, times: 4 });
   a.p.sub = null;
   await a.e.pushReconcile().catch(() => undefined);
   for (const wait of [30_000, 120_000, 600_000]) {

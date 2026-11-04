@@ -71,5 +71,7 @@ test("chrome push: no push service shows its own two lines; Brave and a refused 
   const { pushIssueText } = await import("../src/core/texts.ts");
   assert.equal(pushIssueText("noservice", false), "This browser cannot receive messages.\nIt has no push service. Sending still works.");
   assert.equal(pushIssueText("noservice", true), 'Unable to turn on notifications.\nTurn on "Use Google services for push messaging" in Brave\'s privacy settings.');
+  assert.equal(pushIssueText("unsupported", false), "This browser cannot receive messages.\nIts push service is not supported.");
+  assert.equal(pushIssueText("unsupported", true), "This browser cannot receive messages.\nIts push service is not supported.");
   assert.equal(pushIssueText("refused", false), "Unable to turn on notifications.\nNotifications are not available on this device.");
 });

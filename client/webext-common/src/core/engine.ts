@@ -1295,7 +1295,8 @@ export class Engine {
   private async afterSignedReply(r: ApiReply): Promise<void> {
     if (r.json.push_missing !== true) return;
     if ((await this.db.meta<number>("push_fail")) !== undefined) return; // the "pushretry" alarm tries again
-    if ((await this.db.meta<string>("push_issue")) === "noservice") return; // no push service: the next open or Check again tries once
+    const issue = await this.db.meta<string>("push_issue");
+    if (issue === "noservice" || issue === "unsupported") return; // the next open or Check again tries once
     await this.pushReconcile(true, false, true).catch(() => undefined);
   }
 
@@ -1315,6 +1316,12 @@ export class Engine {
     try {
       await this.api.call("PATCH", "/peers/" + self.id, { signer: this.signerOf(self), body: { push: cur } });
     } catch (e) {
+      if (e instanceof ApiError && e.status === 400 && e.error === "push endpoint not allowed") {
+        // the relay server does not take this push service: say so now; a later PATCH that works clears it
+        await this.db.del("meta", "push_hash");
+        await this.db.setMeta("push_issue", "unsupported");
+        throw e;
+      }
       if (e instanceof ApiError && e.status !== 0 && ((e.status >= 400 && e.status < 500 && ![401, 426, 429].includes(e.status)) || e.status >= 500)) {
         await this.pushRefusedByRelay(retry);
       }
