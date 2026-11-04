@@ -26,7 +26,7 @@ class NotifierChannelNamesTest {
     private fun <T> io(block: () -> T): T = runBlocking(Dispatchers.IO) { block() }
 
     private fun paired(id: String, name: String?) = Peer(id = id, platform = "android", signPub = "s", encPub = "e", pairingId = ByteArray(16),
-        approved = true, approveVerified = true, name = name, created = 1_762_300_800L)
+        approved = true, approveVerified = true, name = name, created = 1_762_257_600L) // 2025-11-04 12:00 UTC: Nov 4 in nearly every time zone
 
     @After fun done() = io { g.store.wipeRegistration(); g.settings.clearKeepingOldId() }
 
