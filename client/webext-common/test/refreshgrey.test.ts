@@ -31,3 +31,25 @@ test("Refresh: after a click it keeps its label and is greyed for 60 s, with no 
     mock.timers.reset();
   }
 });
+
+test("Devices: a pairing that completes by push shows at once in a list with paired devices; Refresh stays clickable", async () => {
+  mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"], now: 5_000_000 });
+  try {
+    const row = (id: string, label: string, paired: boolean) => ({ id, label, platform: "android", lines: paired ? [] : ["Waiting for " + label], actions: ["remove"], countdown: null, fingerprint: null, pk: null, greyed: null, hidden: false, sendable: paired, approvesMe: paired, paired });
+    let peers = [row("a", "Laptop", true), row("b", "Phone", false)];
+    const env = { call: async (req: { op: string }) => ({ ok: true, data: req.op === "peers" ? { peers } : null }) } as unknown as UiEnv;
+    const root = Object.assign(new N("div"), { isConnected: true });
+    await renderPeers(env, root as unknown as HTMLElement, false);
+    assert.match(root.textContent, /Waiting for Phone/);
+    peers = [row("a", "Laptop", true), row("b", "Phone", true)]; // the other device approved: the push updated the local list
+    mock.timers.tick(3000);
+    for (let i = 0; i < 10 && /Waiting for Phone/.test(root.textContent); i++) await new Promise((r) => setImmediate(r));
+    assert.doesNotMatch(root.textContent, /Waiting for Phone/);
+    const btn = all(root).find((n) => n.tag === "button" && n.textContent === "Refresh") as unknown as HTMLButtonElement;
+    assert.equal(btn.disabled, undefined); // never set: not greyed
+    root.isConnected = false;
+    mock.timers.tick(3000);
+  } finally {
+    mock.timers.reset();
+  }
+});

@@ -29,7 +29,7 @@ const rank = (a: string): number => (ACTION_ORDER.indexOf(a) + 1 || ACTION_ORDER
 
 /** Refresh stays grey until then, across redraws of the list. */
 let refreshUntil = 0;
-/** the live read of the first-pair content. */
+/** the live read of the device list. */
 let fpTimer: ReturnType<typeof setInterval> | null = null;
 
 /** Draws the list again, with focus on that row after an action. */
@@ -66,21 +66,6 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
           ? []
           : [group(h("div", { class: "fp-wait", role: "status" }, h("span", { class: "fp-spin", "aria-hidden": "true" }), "Waiting for another device to log in."))]),
     );
-    // new devices arrive by push into the local list: read it again every few seconds, redraw on a change
-    const key = JSON.stringify(data.peers);
-    const timer = setInterval(async () => {
-      if (!root.isConnected) return void clearInterval(timer);
-      try {
-        const now = await rpc<{ peers: PeerView[] }>(env, "peers");
-        if (JSON.stringify(now.peers) === key || !root.isConnected) return;
-        const refocus = !document.activeElement || document.activeElement === document.body;
-        await renderPeers(env, root, full);
-        if (refocus) root.querySelector<HTMLElement>(".fp-title, .sh")?.focus();
-      } catch {
-        // the next read tries again
-      }
-    }, 3000);
-    fpTimer = timer;
   } else {
     for (const p of pairing) root.append(pairCard(env, p, redraw));
     if (rows.length) root.append(sh("Other devices"), group(...rows.map((p) => peerRow(env, p, redraw, data.allowContent !== false))));
@@ -97,6 +82,21 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
     }
     root.append(pairNew(openPair));
   }
+  // new devices and pairing steps arrive by push into the local list: read it again every few seconds, redraw on a change
+  const key = JSON.stringify(data.peers);
+  const timer = setInterval(async () => {
+    if (!root.isConnected) return void clearInterval(timer);
+    try {
+      const now = await rpc<{ peers: PeerView[] }>(env, "peers");
+      if (JSON.stringify(now.peers) === key || !root.isConnected) return;
+      const refocus = !document.activeElement || document.activeElement === document.body;
+      await renderPeers(env, root, full);
+      if (refocus) root.querySelector<HTMLElement>(".fp-title, .sh")?.focus();
+    } catch {
+      // the next read tries again
+    }
+  }, 3000);
+  fpTimer = timer;
   if (highlight) {
     const row = document.getElementById("peer-" + highlight);
     row?.scrollIntoView({ block: "center" });
