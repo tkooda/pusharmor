@@ -655,3 +655,8 @@ test("a plain open of the popup or the full tab shows Send with a completed pair
   // a hash (notification, share, menu, or a link inside the add-on) keeps its view
   assert.match(rd("page.ts"), /if \(route === ""\) return \{\};/);
 });
+
+test("login code help is one short sentence", async () => {
+  const { readFileSync } = await import("node:fs");
+  assert.match(readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8"), /const CODE_HELP = "Paste or type the code\.";/);
+});

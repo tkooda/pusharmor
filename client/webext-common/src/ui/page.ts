@@ -72,7 +72,7 @@ export function pageStart(route: string, arg?: string): PageStart {
 }
 
 const E2E = "All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.";
-const CODE_HELP = "Paste or type the code. Spaces and dashes are fine.";
+const CODE_HELP = "Paste or type the code.";
 /** A code check that failed for one of these reasons starts again at the email step. */
 const ENDS_FLOW = [R.loginExpired, R.codeExpired];
 const endsFlow = (e: unknown) => (e as { restart?: unknown }).restart === true || ENDS_FLOW.some((r) => (e as Error).message.endsWith("\n" + r));
