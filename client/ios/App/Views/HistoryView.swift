@@ -270,6 +270,6 @@ struct HistoryRowView: View {
     private func tap() {
         if isEvent { return }
         model.markRead(row)
-        model.detailRow = expanded ? nil : row
+        model.detailRow = HistoryExpand.tap(open: model.detailRow?.rowid, tapped: row.rowid) == nil ? nil : row
     }
 }
