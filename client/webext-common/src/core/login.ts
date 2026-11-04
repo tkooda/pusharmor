@@ -4,9 +4,9 @@ import { API_BASE } from "../api/client.ts";
 import { b64urlEncode } from "../crypto/b64url.ts";
 import { normalizeEmail, oauthK } from "../crypto/labels.ts";
 import { AUTH_RESULT, type AuthResult, type Restore, SIGNIN_PROGRESS, restoreStep } from "../model/signin.ts";
-import type { Engine } from "./engine.ts";
+import { type Engine, UserError } from "./engine.ts";
 import { ActionError, ReasonError, failText } from "./failtext.ts";
-import { type ActionId, R } from "./texts.ts";
+import { type ActionId, R, T } from "./texts.ts";
 
 export type Purpose = "register" | "login" | "delete-account";
 export const AUTH_PENDING = "auth_pending";
@@ -103,6 +103,8 @@ export class Login {
    * back through authDone; a call without a tab opens a new one.
    */
   async oauthStart(provider: "google" | "apple", purpose: Purpose, tabId?: number): Promise<LoginResult> {
+    // a Chrome copy with another extension id: Google would refuse its redirect, so the flow never starts
+    if (provider === "google" && this.e.p.chromeIdKnown === false) throw new UserError(T.googleNotInCopy);
     const url = await this.oauthUrl(provider, purpose);
     const redirect = await this.e.p.authFlow(url).catch((e: unknown) => {
       // Chrome rejects with "The user did not approve access." when the window is closed

@@ -124,7 +124,11 @@ async function shell(name, entries, iife, target, manifestFix) {
     legalComments: "inline",
     charset: "ascii",
     target,
-    define: { VAPID_PUBLIC_KEY: JSON.stringify(value("webpush_vapid_public_key") ?? "") },
+    define: {
+      VAPID_PUBLIC_KEY: JSON.stringify(value("webpush_vapid_public_key") ?? ""),
+      // the Chrome store ids (public, Beta); a Chrome copy with another id has no Google login
+      CHROME_EXTENSION_IDS: JSON.stringify(["google_chrome_extension_id", "google_chrome_beta_extension_id"].map(value).filter(Boolean)),
+    },
     logLevel: "warning",
   };
   await build({ ...common, entryPoints: entries.map((e) => join(root, "src", e + ".ts")), outdir: out, format: "esm" });

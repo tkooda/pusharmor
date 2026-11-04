@@ -38,6 +38,7 @@ export class FakePlatform implements Platform {
   platformName: "chrome" | "firefox";
   appVersion = "0.0.19";
   isAndroid = false;
+  chromeIdKnown?: boolean;
   notes = new Map<string, { title: string; body: string }>();
   noteLog: { id: string; body: string }[] = [];
   alarms = new Map<string, number>();

@@ -3,8 +3,11 @@ import { b64urlEncode } from "../../webext-common/src/crypto/b64url.ts";
 import { buf } from "../../webext-common/src/crypto/bytes.ts";
 import type { PushFields } from "../../webext-common/src/crypto/labels.ts";
 import { type Platform, PushRefused } from "../../webext-common/src/platform.ts";
+import { knownChromeId } from "../../webext-common/src/model/signin.ts";
 import { basePlatform } from "../../webext-common/src/shellkit.ts";
 import { browser } from "./shim.ts";
+
+declare const CHROME_EXTENSION_IDS: string[];
 
 interface PushSub {
   endpoint: string;
@@ -50,7 +53,7 @@ export async function subscribeRecovering(m: PushManagerLike, vapid: Uint8Array,
 }
 
 export function chromePlatform(): Platform {
-  return basePlatform(browser, "chrome", false, {
+  const p = basePlatform(browser, "chrome", false, {
     async pushSubscribe(vapid, _quiet, fresh) {
       return fields(await subscribeRecovering(pm(), vapid, fresh === true));
     },
@@ -63,4 +66,6 @@ export function chromePlatform(): Platform {
       if (s) await s.unsubscribe();
     },
   });
+  p.chromeIdKnown = knownChromeId(browser.runtime.id, CHROME_EXTENSION_IDS);
+  return p;
 }

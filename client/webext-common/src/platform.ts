@@ -32,6 +32,8 @@ export interface Platform {
   openTab(url: string, active: boolean): Promise<number | null>;
   /** Loads the extension page page.html + hash in tab tabId (Firefox sign-in returns to its tab). */
   showPage(tabId: number, hash: string): void;
+  /** Chrome: false in a copy whose extension id is not a store id (its Google login redirect is not allowed). */
+  chromeIdKnown?: boolean;
   /** Chrome: identity.launchWebAuthFlow; resolves to the final redirect URL. Firefox: null (tab flow). */
   authFlow(url: string): Promise<string | null>;
   /** Auto-open in the last focused normal window; false when no window exists. */

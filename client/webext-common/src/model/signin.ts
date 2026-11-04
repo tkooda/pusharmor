@@ -79,6 +79,11 @@ export function clampFrameHeight(h: unknown): number | null {
 /** storage.session key the background changes on every login state change; open views mount again. */
 export const AUTH_CHANGED = "auth_changed";
 
+/** A Chrome extension id is known when it is one of the store ids the build put in (public, Beta). */
+export function knownChromeId(id: string, known: readonly string[]): boolean {
+  return known.includes(id);
+}
+
 /** Firefox Google or Apple login: the background writes the result here (storage.session) for the login tab. */
 export const AUTH_RESULT = "auth_result";
 /** A result older than this is from an earlier login and is ignored. */
