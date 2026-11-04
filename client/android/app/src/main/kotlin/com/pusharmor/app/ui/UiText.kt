@@ -16,6 +16,9 @@ object UiText {
     enum class Mark { OK, WAIT, OFF }
 
     /** Same words as iOS: Delete account asks first and says what follows. */
+    const val COPY_VERSION = "Copy version"
+    fun version(name: String) = "Version $name"
+
     const val DELETE_CONFIRM = "Delete this account? You must log in again to confirm. This cannot be undone."
 
     // Line 1 of an error: what could not be done. Line 2 (ErrorText) says why.

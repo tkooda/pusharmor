@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -1521,6 +1522,14 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                 // Log out on a slow or missing connection: visible progress beside the buttons.
                 if ("logout" in running) androidx.compose.material3.CircularProgressIndicator(Modifier.size(24.dp).align(Alignment.CenterVertically).semantics { contentDescription = "Logging out" })
             }
+            // Tap copies just the number; the button role and label name the action for TalkBack.
+            Text(UiText.version(BuildConfig.VERSION_NAME),
+                Modifier.fillMaxWidth().heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically)
+                    .semantics { contentDescription = UiText.COPY_VERSION }
+                    .clickable(onClickLabel = UiText.COPY_VERSION, role = Role.Button) {
+                        com.pusharmor.app.notify.ActionActivity.copy(context, BuildConfig.VERSION_NAME)
+                    }.padding(horizontal = 16.dp, vertical = 12.dp),
+                style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
         }
     }
     if (pickDays) ChoiceDialog("Delete messages older than", listOf(1, 7, 30, 90, 365), days, { UiText.days(it) }, onDismiss = { pickDays = false }) {

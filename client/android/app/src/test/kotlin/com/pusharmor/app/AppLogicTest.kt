@@ -285,6 +285,16 @@ class AppLogicTest {
         assertTrue(main.contains("MessageAction(\"Copy\", PaIcons.ContentCopy)"))
     }
 
+    @Test fun settingsEndsWithTheBuildVersion() {
+        assertEquals("Version 1.2.3", com.pusharmor.app.ui.UiText.version("1.2.3"))
+        val main = source("ui/MainScreens.kt")
+        val settings = main.substring(main.indexOf("fun SettingsScreen("))
+        assertTrue(settings.contains("Text(UiText.version(BuildConfig.VERSION_NAME)"))
+        assertEquals("Copy version", com.pusharmor.app.ui.UiText.COPY_VERSION)
+        assertTrue(settings.contains("role = Role.Button) {\n                        com.pusharmor.app.notify.ActionActivity.copy(context, BuildConfig.VERSION_NAME)"))
+        assertTrue(settings.indexOf("UiText.version(") > settings.indexOf("RowAction(\"Log out\""))
+    }
+
     @Test fun aWebAddressIsCalledAUrl() {
         assertTrue(source("notify/Notifier.kt").contains("\"URL\" to (c.href ?: c.value)"))
         assertEquals("No app can open this URL.", com.pusharmor.app.ui.NO_APP_LINK)
