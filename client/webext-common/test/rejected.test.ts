@@ -41,6 +41,15 @@ test("Codes differ on a pairing also takes the device out of the list", async ()
   assert.ok(!row.actions.includes("deny"));
 });
 
+test("a Reject the relay server does not take shows why, and the device stays rejected here", async () => {
+  const { w, a, b } = await setup();
+  w.inject.push({ match: /POST \/v1\/deny\//, status: 503, body: { error: "unavailable" }, times: 9 });
+  const r = await new Rpc(b.e).handle({ op: "deny", args: { id: a.id } });
+  assert.equal(r.ok, false);
+  assert.match((r as { error: string }).error, /^Unable to reject ".+"\.\n/);
+  assert.equal((await b.db.peer(a.id))!.ruling, "denied");
+});
+
 test("a new pairing request from a rejected device shows it in the list again", async () => {
   const { w, a, b } = await setup();
   await b.e.deny(a.id);

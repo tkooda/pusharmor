@@ -1024,13 +1024,16 @@ export class Engine {
     if (peer.pinned) await this.db.unpin(x);
     await this.db.updatePeer(x, (p) => (p ? { ...p, ruling: "denied" } : null));
     let result: string;
+    let failure: unknown = null;
     try {
       const r = await this.api.call("POST", "/deny/" + x, { signer: this.signerOf(self), body: { c } });
       result = typeof r.json.r === "string" ? r.json.r : "failed";
     } catch (e) {
       result = (await this.callFailure(e)).result;
+      failure = e;
     }
     await this.rebuildMenus();
+    if (failure !== null) throw failure; // the click shows why; the row stays rejected here
     return result;
   }
 
