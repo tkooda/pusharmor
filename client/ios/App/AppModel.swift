@@ -837,6 +837,15 @@ final class AppModel: ObservableObject {
         reload()
     }
 
+    /// Copy from a screen: the value goes on the pasteboard and the banner says "Copied", or
+    /// says to copy by hand when there was nothing to copy or the pasteboard took no text.
+    func copy(_ value: String) {
+        if !value.isEmpty { UIPasteboard.general.string = value }
+        let r = ToastText.copyResult(value, pasteboardHasText: UIPasteboard.general.hasStrings)
+        toast = r.text
+        toastIsSuccess = r.ok
+    }
+
     func deleteAllHistory() {
         do { try core?.deleteAllHistory() } catch { toast = ErrorCopy.text(.deleteHistory, ErrorCopy.reason(local: error)) }
         UNUserNotificationCenter.current().removeAllDeliveredNotifications()

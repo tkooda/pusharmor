@@ -143,7 +143,7 @@ struct MessageDetailView: View {
             Button { instantly { reading = true } } label: { ActionLabel(title: "View", icon: "text.alignleft") }
                 .buttonStyle(ActionButtonStyle())
         case .copy:
-            Button { UIPasteboard.general.string = row.content } label: { ActionLabel(title: "Copy", icon: "doc.on.doc") }
+            Button { model.copy(row.content) } label: { ActionLabel(title: "Copy", icon: "doc.on.doc") }
                 .buttonStyle(ActionButtonStyle())
         case .open:
             Button { openIt() } label: {

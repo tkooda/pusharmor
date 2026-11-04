@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 import PushArmorCore
 
 struct SettingsView: View {
@@ -148,7 +147,7 @@ struct SettingsView: View {
                 } header: {
                     Text("About")
                 } footer: {
-                    Button { UIPasteboard.general.string = VersionText.copyValue(version) } label: {
+                    Button { model.copy(VersionText.copyValue(version)) } label: {
                         Text(VersionText.make(version))
                     }
                     .buttonStyle(.plain)
