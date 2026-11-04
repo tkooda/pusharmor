@@ -995,6 +995,8 @@ class ApiError(Exception):
             return CLOCK_OFF
         if self.status == 401 and self.error in ("bad ticket", "invalid ticket"):
             return BAD_LINK
+        if self.status == 401 and self.error == "account mismatch":
+            return "This login is for another account. Log in with the email address of this device's account."
         if self.status == 403 and self.error == "banned":
             return "This account is blocked."
         if self.status == 413 and self.error == "too large":

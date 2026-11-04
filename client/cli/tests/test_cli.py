@@ -2298,3 +2298,8 @@ def test_listen_idle_makes_no_relay_server_call(net, tmp_path, monkeypatch, caps
     assert run(b, "listen") == 130
     assert len(opens) >= 5  # the idle stream timed out and reconnected again and again
     assert net.log[opens[1]:] == []
+
+
+def test_account_mismatch_reason_names_the_problem():
+    e = pa.ApiError(401, "account mismatch", {"error": "account mismatch", "account": "AAAAAAAAAAAA"})
+    assert e.reason() == "This login is for another account. Log in with the email address of this device's account."
