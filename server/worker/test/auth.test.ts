@@ -319,6 +319,7 @@ describe("Google", () => {
     expect(loc.searchParams.get("code_challenge_method")).toBe("S256");
     expect(loc.searchParams.get("nonce")).toBe(await oauthNonce("register", kr));
     expect(loc.searchParams.get("redirect_uri")).toBe("https://api.pusharmor.com/v1/auth/google/callback");
+    expect(loc.searchParams.get("prompt")).toBe("select_account");
     const state = secretString(loc.searchParams.get("state")!);
     const email = randomEmail();
     onVendor((r) => r.url === "https://oauth2.googleapis.com/token" && new TextDecoder().decode(r.body).includes("authorization_code"), async () =>

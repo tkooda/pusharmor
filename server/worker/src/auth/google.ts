@@ -10,7 +10,7 @@ export const google: ProviderCfg = {
   clientIdWeb: (env: Env) => jsonList(env.GOOGLE_AUD_WEB)[0] ?? "",
   webAuds: (env: Env) => jsonList(env.GOOGLE_AUD_WEB),
   nativeAuds: (env: Env) => jsonList(env.GOOGLE_AUD_NATIVE),
-  authParams: { scope: "openid email" },
+  authParams: { scope: "openid email", prompt: "select_account" },
   async exchange(env, code, clientId, redirectUri, verifier) {
     const form: Record<string, string> = {
       code,
