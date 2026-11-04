@@ -175,13 +175,13 @@ export class Login {
     const n = email === null ? null : normalizeEmail(email);
     const an = active === null ? null : normalizeEmail(active);
     // a deletion is only for the account on this device: no call
-    if (purpose === "delete-account" && n !== null && an !== null && n !== an) throw new ReasonError(R.deleteOther(email!, active!));
+    if (purpose === "delete-account" && n !== null && an !== null && n !== an) throw new ReasonError(R.deleteOther(email!));
     // a registration for an archived account: that account comes back instead
     if (purpose === "register" && n !== null && n !== an && (await this.e.canSwitch())) {
       const x = await this.e.archivedAccount(n);
       if (x !== null) {
         await this.e.switchAccount(x);
-        throw new ReasonError(R.otherLogin(email!, active));
+        throw new ReasonError(R.otherLogin(email!));
       }
     }
     if (purpose === "register") {
@@ -190,7 +190,7 @@ export class Login {
         if (email !== null) await this.e.db.setMeta("email", email);
         return { done: false, limit, ticket: typeof limit.ticket === "string" ? limit.ticket : ticket };
       }
-    } else if (purpose === "login") await this.e.login(ticket).catch((err: unknown) => this.otherAccount(err, email, active));
+    } else if (purpose === "login") await this.e.login(ticket).catch((err: unknown) => this.otherAccount(err, email));
     else await this.e.deleteAccount(ticket);
     if (email !== null && purpose !== "delete-account") await this.e.db.setMeta("email", email);
     await this.clearProgress();
@@ -202,14 +202,13 @@ export class Login {
    * out, it switches to that account (archived, or new), and the user logs in again with keys
    * of that account. Always throws.
    */
-  private async otherAccount(err: unknown, email: string | null, active: string | null): Promise<never> {
+  private async otherAccount(err: unknown, email: string | null): Promise<never> {
     if (!(err instanceof ApiError && err.status === 401 && err.error === "account mismatch")) throw err;
     const x = typeof err.body.account === "string" ? err.body.account : "";
     if (!ACCOUNT_RE.test(x) || !(await this.e.canSwitch())) throw err;
     const known = await this.e.accounts();
-    const name = email ?? known[x] ?? null;
     await this.e.switchAccount(x in known ? x : null);
-    throw new ReasonError(name === null ? R.otherAccount : R.otherLogin(name, active));
+    throw new ReasonError(email === null ? R.otherAccount : R.otherLogin(email));
   }
 }
 

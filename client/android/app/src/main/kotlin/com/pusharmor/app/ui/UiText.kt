@@ -53,14 +53,13 @@ object UiText {
     const val UNABLE_DELETE_HISTORY = "Unable to delete the history."
 
     /** Line 2 for a login ticket of another account [to]; this device switched to that account and the next login uses it. */
-    fun switchAccount(to: String?, from: String?): String = when {
+    fun switchAccount(to: String?): String = when {
         to == null -> com.pusharmor.net.ErrorText.ACCOUNT_MISMATCH
-        from == null -> "This login is for \"$to\". Log in again to switch to \"$to\"."
-        else -> "This login is for \"$to\", not \"$from\". Log in again to switch to \"$to\"."
+        else -> "To finish logging in as \"$to\", log in again."
     }
 
-    /** Line 2 for a delete-account login of another account [to] than this device's [from]. */
-    fun deleteOtherAccount(to: String, from: String): String = "This login is for \"$to\". Log in as \"$from\" to delete its account."
+    /** Line 2 for a delete-account login of another account [to] than this device's. */
+    fun deleteOtherAccount(to: String): String = "This login is for \"$to\", not the account on this device. Log in with the account you want to delete."
     const val UNABLE_SAVE_MESSAGE = "Unable to save the message."
     const val UNABLE_CHANGE_SETTING = "Unable to change this setting."
     const val UNABLE_TURN_ON_NOTIFICATIONS = "Unable to turn on notifications."

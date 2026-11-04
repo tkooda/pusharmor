@@ -173,9 +173,9 @@ final class AccountsTests: XCTestCase {
         w.script("POST", "/v1/peers/\(idA.text)/login", 401,
                  "{\"error\":\"account mismatch\",\"account\":\"\(Accounts.accountId(idB))\"}")
         let first = await accounts.login(core: try core(), ticket: "t", email: "b@x.com", push: nil)
-        XCTAssertEqual(first, .switched(.otherLogin(email: "b@x.com", active: "a@x.com")))
-        XCTAssertEqual(ErrorCopy.text(.loginGoogle, .otherLogin(email: "b@x.com", active: "a@x.com")),
-                       "Unable to log in with Google.\nThis login is for \"b@x.com\", not \"a@x.com\". Log in again to switch to \"b@x.com\".")
+        XCTAssertEqual(first, .switched(.otherLogin(email: "b@x.com")))
+        XCTAssertEqual(ErrorCopy.text(.loginGoogle, .otherLogin(email: "b@x.com")),
+                       "Unable to log in with Google.\nTo finish logging in as \"b@x.com\", log in again.")
         XCTAssertEqual(try store.me().id, idB)
         XCTAssertEqual(try store.me().signedInEmail, "b@x.com")
         XCTAssertEqual(try vault.load().signer.publicKey, keysB.signer.publicKey)
@@ -190,7 +190,7 @@ final class AccountsTests: XCTestCase {
         let acctC = String(repeating: "C", count: 12)
         w.script("POST", "/v1/peers/\(idB.text)/login", 401, "{\"error\":\"account mismatch\",\"account\":\"\(acctC)\"}")
         let third = await accounts.login(core: try core(), ticket: "t", email: "c@x.com", push: nil)
-        XCTAssertEqual(third, .switched(.otherLogin(email: "c@x.com", active: "b@x.com")))
+        XCTAssertEqual(third, .switched(.otherLogin(email: "c@x.com")))
         XCTAssertNil(try store.me().id)
         XCTAssertTrue(vault.active.isEmpty)
         XCTAssertTrue(try accounts.isArchived(Accounts.accountId(idA)))
@@ -199,9 +199,9 @@ final class AccountsTests: XCTestCase {
         XCTAssertEqual(try store.me().id, idC)
         XCTAssertFalse(try store.me().loggedOut)
 
-        // no account known before: T1 without the active address; any other mismatch: T3
-        XCTAssertEqual(ErrorCopy.Reason.otherLogin(email: "b@x.com", active: nil).line,
-                       "This login is for \"b@x.com\". Log in again to switch to \"b@x.com\".")
+        // no account known before: T1; any other mismatch: T3
+        XCTAssertEqual(ErrorCopy.Reason.otherLogin(email: "b@x.com").line,
+                       "To finish logging in as \"b@x.com\", log in again.")
         XCTAssertEqual(ErrorCopy.reason(status: 401, error: "account mismatch"), .otherAccount)
         XCTAssertEqual(ErrorCopy.Reason.otherAccount.line, "This login is for another account.")
     }
@@ -252,9 +252,9 @@ final class AccountsTests: XCTestCase {
         let (idA, _) = try await register("a@x.com", account: acctA, name: "Adev")
         let calls = w.calls.count
         let r = await accounts.deleteAccount(core: try core(), ticket: "t", email: "b@x.com")
-        XCTAssertEqual(r, .deleteOtherAccount(email: "b@x.com", active: "a@x.com"))
+        XCTAssertEqual(r, .deleteOtherAccount(email: "b@x.com"))
         XCTAssertEqual(ErrorCopy.text(.deleteAccount, r!),
-                       "Unable to delete the account.\nThis login is for \"b@x.com\". Log in as \"a@x.com\" to delete its account.")
+                       "Unable to delete the account.\nThis login is for \"b@x.com\", not the account on this device. Log in with the account you want to delete.")
         XCTAssertEqual(w.calls.count, calls)
         XCTAssertEqual(try store.me().id, idA)
         XCTAssertFalse(try store.me().removed)
@@ -264,6 +264,16 @@ final class AccountsTests: XCTestCase {
         let ok = await accounts.deleteAccount(core: try core(), ticket: "t", email: "A@x.com")
         XCTAssertNil(ok)
         XCTAssertEqual(w.count("DELETE", "/v1/account"), 1)
+    }
+
+    /// Keys with no id (the register reply was lost) are archived on a switch, not deleted.
+    func testKeysWithoutIdSurviveSwitch() throws {
+        _ = vault.create()
+        let keys = vault.active
+        XCTAssertFalse(keys.isEmpty)
+        try accounts.switchTo(nil)
+        XCTAssertTrue(vault.active.isEmpty)
+        XCTAssertTrue(vault.archive.values.contains(keys))
     }
 
     /// Never a switch while logged in; a failed switch keeps every copy and the active keys.

@@ -235,10 +235,9 @@ export const R = {
   alreadyPaired: "It is already paired with this device.",
   pairingOpen: "A pairing with it is already open. Cancel it first.",
   notAtCodeCheck: "The pairing with it has not reached the code check. Pair with it again.",
-  /** A login for another account; this device switched to it (`active`: the email of the account it left). */
-  otherLogin: (email: string, active: string | null) =>
-    'This login is for "' + email + '"' + (active === null ? "" : ', not "' + active + '"') + '. Log in again to switch to "' + email + '".',
-  deleteOther: (email: string, active: string) => 'This login is for "' + email + '". Log in as "' + active + '" to delete its account.',
+  /** A login for another account; this device switched to it. */
+  otherLogin: (email: string) => 'To finish logging in as "' + email + '", log in again.',
+  deleteOther: (email: string) => 'This login is for "' + email + '", not the account on this device. Log in with the account you want to delete.',
   otherAccount: "This login is for another account.",
 } as const;
 

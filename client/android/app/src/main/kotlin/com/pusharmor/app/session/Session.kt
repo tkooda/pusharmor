@@ -165,9 +165,8 @@ class Session(private val g: Graph) {
 
     /** Switches to the archived [account] (else to a new empty one) and says the next login completes it. */
     private fun switchFor(account: String?, email: String?): SignIn {
-        val from = dao.self()?.email
         switchAccount(account?.takeIf { g.slots.has(it) })
-        return SignIn.Switched(UiText.switchAccount(email, from))
+        return SignIn.Switched(UiText.switchAccount(email))
     }
 
     // ---- accounts -------------------------------------------------------------------------
@@ -189,8 +188,8 @@ class Session(private val g: Graph) {
 
     /**
      * Makes the archived [target] the active account, or a new empty one when null; only while not logged in.
-     * The active account is archived first by its account id; one that never registered is dropped with its keys
-     * (the only key delete here). The archive switched in is dropped only after it is in place.
+     * The active account is archived first by its account id; keys that never got an id are kept
+     * under a key-derived name. No key is deleted here. The archive switched in is dropped only after it is in place.
      */
     fun switchAccount(target: String?) {
         val self = dao.self()
@@ -200,8 +199,9 @@ class Session(private val g: Graph) {
         if (current != null) {
             try { logoutNow() } catch (e: Exception) { } // a logout not yet sent goes out with its own keys, or waits in the archive
             g.slots.archive(current, Settings.ACCOUNT_STATE, s.accountPrefs())
-        } else {
-            KeystoreKeyOps.deleteBoth()
+        } else if (KeystoreKeyOps.anyPresent()) {
+            // keys with no id: the register reply may have been lost, so the relay server may know them; they are kept
+            g.slots.archive("unreg-" + KeystoreKeyOps.base, Settings.ACCOUNT_STATE, s.accountPrefs())
         }
         g.notifier.cancelAll()
         ShortcutManagerCompat.removeAllDynamicShortcuts(g.app)
@@ -310,7 +310,7 @@ class Session(private val g: Graph) {
     fun deleteAccount(ticket: String, email: String? = null): String? {
         val me = g.identity() ?: return ErrorText.text(UiText.UNABLE_DELETE_ACCOUNT, ErrorText.LOGGED_OUT)
         val mine = dao.self()?.email
-        if (email != null && mine != null && email.trim().lowercase() != mine.lowercase()) return ErrorText.text(UiText.UNABLE_DELETE_ACCOUNT, UiText.deleteOtherAccount(email, mine))
+        if (email != null && mine != null && email.trim().lowercase() != mine.lowercase()) return ErrorText.text(UiText.UNABLE_DELETE_ACCOUNT, UiText.deleteOtherAccount(email))
         val outbox = Outbox(g.store, me)
         val r = ClockSkew.run({
             g.store.allowSet().mapNotNull { g.store.peer(it)?.takeIf { p -> p.pinned } }.associate { it.id to outbox.simple(it, MessageBody.Delete).message }

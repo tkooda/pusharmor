@@ -152,7 +152,7 @@ test("Google login for another account: the text says so, the device switches, a
   // a new account: switch to an empty account, then register with new keys
   assert.deepEqual(await google("b@x.com", "login"), {
     ok: false,
-    error: 'Unable to log in with Google.\nThis login is for "b@x.com", not "a@x.com". Log in again to switch to "b@x.com".',
+    error: 'Unable to log in with Google.\nTo finish logging in as "b@x.com", log in again.',
   });
   assert.equal(await e.self(), null);
   assert.deepEqual(await e.accounts(), { [acctId("a@x.com")]: "a@x.com" });
@@ -164,7 +164,7 @@ test("Google login for another account: the text says so, the device switches, a
   // an archived account: switch to it, then log in with its own keys
   assert.deepEqual(await google("a@x.com", "login"), {
     ok: false,
-    error: 'Unable to log in with Google.\nThis login is for "a@x.com", not "b@x.com". Log in again to switch to "a@x.com".',
+    error: 'Unable to log in with Google.\nTo finish logging in as "a@x.com", log in again.',
   });
   assert.equal((await e.self())!.id, a.id);
   const logins = w.calls.filter((c) => c.path === "/v1/peers/" + a.id + "/login").length;
@@ -180,7 +180,7 @@ test("Google login for another account: the text says so, the device switches, a
   const posts = w.calls.filter((c) => c.method === "POST" && c.path === "/v1/peers").length;
   assert.deepEqual(await google("b@x.com", "register"), {
     ok: false,
-    error: 'Unable to log in with Google.\nThis login is for "b@x.com". Log in again to switch to "b@x.com".',
+    error: 'Unable to log in with Google.\nTo finish logging in as "b@x.com", log in again.',
   });
   assert.equal(w.calls.filter((c) => c.method === "POST" && c.path === "/v1/peers").length, posts);
   assert.equal((await e.self())!.id, b.id);
@@ -232,7 +232,7 @@ test("data in the layout before accounts survives a switch out and back", async 
 test("delete account with a login for another account: the text says so and nothing is sent", async () => {
   const { e, w, issue, p, rpc } = await setup();
   await new Login(e).complete("register", issue("a@x.com"), "a@x.com");
-  const T2 = 'Unable to delete the account.\nThis login is for "b@x.com". Log in as "a@x.com" to delete its account.';
+  const T2 = 'Unable to delete the account.\nThis login is for "b@x.com", not the account on this device. Log in with the account you want to delete.';
   await p.storageSession.set({ [REQUEST_TOKEN]: { token: "rt:b@x.com", purpose: "delete-account" } });
   assert.deepEqual(await rpc.handle({ op: "emailVerify", args: { code: "ABCDEF" } }), { ok: false, error: T2 });
   setAuthFlow(p, async () => "https://pusharmor.com/v1/auth/done#ticket=" + issue("b@x.com") + "&email=b@x.com");
@@ -243,4 +243,16 @@ test("delete account with a login for another account: the text says so and noth
 
 test("any other 401 account mismatch says the login is for another account", () => {
   assert.equal(failText("login", new ApiError(401, "account mismatch", {}, null)), "Unable to log in.\nThis login is for another account.");
+});
+
+test("a key set with no id (register reply lost) is archived on a switch, not dropped", async () => {
+  const { e, db } = await setup();
+  const k = await e.signInKeys();
+  assert.equal(k.id, "");
+  await e.switchAccount(null);
+  assert.equal(await db.self(), undefined);
+  const ids = Object.keys(await e.accounts());
+  assert.equal(ids.length, 1);
+  const rows = await db.readArchive(ids[0]!);
+  assert.equal(rows.keys.length, 1);
 });

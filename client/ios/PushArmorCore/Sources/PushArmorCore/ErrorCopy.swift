@@ -85,8 +85,8 @@ public enum ErrorCopy {
         case pushNotSupported
         case notReady
         /// The login is for the account of `email`; `active` is this device's account.
-        case otherLogin(email: String, active: String?)
-        case deleteOtherAccount(email: String, active: String)
+        case otherLogin(email: String)
+        case deleteOtherAccount(email: String)
         case otherAccount
         case unknown
 
@@ -124,9 +124,8 @@ public enum ErrorCopy {
             case .pushRejected: return "Its push service did not accept the message. Try again later."
             case .pushNotSupported: return "This device's push service is not supported yet."
             case .notReady: return "It has not finished turning on notifications. Open PushArmor on it."
-            case .otherLogin(let b, let a?): return "This login is for \"\(b)\", not \"\(a)\". Log in again to switch to \"\(b)\"."
-            case .otherLogin(let b, nil): return "This login is for \"\(b)\". Log in again to switch to \"\(b)\"."
-            case .deleteOtherAccount(let b, let a): return "This login is for \"\(b)\". Log in as \"\(a)\" to delete its account."
+            case .otherLogin(let b): return "To finish logging in as \"\(b)\", log in again."
+            case .deleteOtherAccount(let b): return "This login is for \"\(b)\", not the account on this device. Log in with the account you want to delete."
             case .otherAccount: return "This login is for another account."
             case .unknown: return "Try again."
             }

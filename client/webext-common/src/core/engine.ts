@@ -1857,7 +1857,7 @@ export class Engine {
 
   /**
    * Switches the account on this device (only while not logged in). The active account is
-   * archived under its account id (one with no id has no state: its keys never registered),
+   * archived under its account id (keys with no id are archived under a key-derived name),
    * then the archive of account `to` becomes active, or an empty account (to null) whose next
    * sign-in makes new keys. An archive is dropped only after the load committed, so a failed
    * write keeps both copies.
@@ -1866,9 +1866,14 @@ export class Engine {
     if (!(await this.canSwitch())) throw new ReasonError(R.tryAgain);
     await this.retryPendingLogout().catch(() => undefined); // the old account's logout goes out first
     await this.applySlotLocal();
-    const from = await this.accountId();
+    let from = await this.accountId();
     if (to !== null && to === from) return;
     const accounts = await this.accounts();
+    if (from === null) {
+      // keys with no id: the register reply may have been lost, so the relay server may know them; they are kept
+      const k = await this.db.self();
+      if (k) from = "unreg-" + b64urlEncode((await keyhash(k.sign_pub, k.enc_pub)).subarray(0, 8));
+    }
     if (from !== null) {
       const all = await this.p.storageLocal.get(null);
       const local = Object.fromEntries(Object.entries(all).filter(([k]) => accountKey(k)));

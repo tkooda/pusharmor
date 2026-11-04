@@ -153,7 +153,7 @@ class AccountSwitchTest {
 
         // B is not on this device: a new empty account
         val r = g.session.onTicket("tB", "b@x.com")
-        assertEquals("This login is for \"b@x.com\", not \"a@x.com\". Log in again to switch to \"b@x.com\".", (r as Session.SignIn.Switched).text)
+        assertEquals("To finish logging in as \"b@x.com\", log in again.", (r as Session.SignIn.Switched).text)
         assertNull(g.dao.self())
         assertEquals("register", g.session.purposeForSignIn())
         assertTrue(g.slots.has(a.take(12)))
@@ -163,7 +163,7 @@ class AccountSwitchTest {
 
         // A is archived: switched in with its keys, and its login works
         val r2 = g.session.onTicket("tA", "a@x.com")
-        assertEquals("This login is for \"a@x.com\", not \"b@x.com\". Log in again to switch to \"a@x.com\".", (r2 as Session.SignIn.Switched).text)
+        assertEquals("To finish logging in as \"a@x.com\", log in again.", (r2 as Session.SignIn.Switched).text)
         assertEquals(a, g.dao.self()?.id)
         assertEquals("login", g.session.purposeForSignIn())
         assertTrue(g.session.onTicket("tA", "a@x.com") is Session.SignIn.Done)
@@ -174,7 +174,7 @@ class AccountSwitchTest {
         g.session.signOut()
         g.session.switchAccount(null)
         val r3 = g.session.onTicket("tB", "b@x.com")
-        assertEquals("This login is for \"b@x.com\". Log in again to switch to \"b@x.com\".", (r3 as Session.SignIn.Switched).text)
+        assertEquals("To finish logging in as \"b@x.com\", log in again.", (r3 as Session.SignIn.Switched).text)
         assertEquals(b, g.dao.self()?.id)
         // any other "account mismatch" reply
         assertEquals("This login is for another account.", ErrorText.reason(ApiResult.Http(401, "account mismatch")))
@@ -213,9 +213,19 @@ class AccountSwitchTest {
     @Test fun deleteAccountOtherEmailSendsNothing() = io {
         register("tA", "a@x.com")
         calls.clear()
-        assertEquals("Unable to delete the account.\nThis login is for \"b@x.com\". Log in as \"a@x.com\" to delete its account.",
+        assertEquals("Unable to delete the account.\nThis login is for \"b@x.com\", not the account on this device. Log in with the account you want to delete.",
             g.session.deleteAccount("tB", "b@x.com"))
         assertEquals(emptyList<String>(), calls)
         assertTrue(g.dao.self() != null)
+    }
+
+    /** Keys with no id (the register reply was lost) are kept on a switch, not deleted. */
+    @Test fun keysWithoutIdSurviveSwitch() = io {
+        g.session.keysForSignIn()
+        val alias = KeystoreKeyOps.base
+        assertTrue(KeystoreKeyOps.present())
+        g.session.switchAccount(null)
+        KeystoreKeyOps.base = alias
+        assertTrue(KeystoreKeyOps.present())
     }
 }

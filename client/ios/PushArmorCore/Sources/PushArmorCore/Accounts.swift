@@ -67,7 +67,7 @@ public struct Accounts {
     }
 
     /// Switch while the active account is logged out, removed, or has none: the active one
-    /// is archived (a key set that never registered is dropped), then `account` is loaded
+    /// is archived (keys that never got an id are kept under a made-up name), then `account` is loaded
     /// from the archive, or nil starts a new empty account. One store transaction; a
     /// failure keeps every copy and restores the active key items.
     public func switchTo(_ account: String?) throws {
@@ -77,6 +77,8 @@ public struct Accounts {
         // a removed account has no keys left
         let keepKeys = from != nil && !me.removed
         if keepKeys, let f = from { try vault.archiveKeys(account: f) }
+        // keys with no id: the register reply may have been lost, so the relay server may know them; they are kept
+        else if from == nil && !me.removed { try vault.archiveKeys(account: "unreg-" + UUID().uuidString) }
         var activated = false
         do {
             try store.db.write {
@@ -170,14 +172,7 @@ public struct Accounts {
         let me = try store.me()
         if me.id.map(Accounts.accountId) == x { return nil }
         try switchTo(try isArchived(x) ? x : nil)
-        return Accounts.otherLogin(ticketEmail, active: me.signedInEmail)
-    }
-
-    static func otherLogin(_ email: String, active: String?) -> ErrorCopy.Reason {
-        guard let a = active, !a.isEmpty, Ids.normalizeEmail(a) != Ids.normalizeEmail(email) else {
-            return .otherLogin(email: email, active: nil)
-        }
-        return .otherLogin(email: email, active: a)
+        return .otherLogin(email: ticketEmail)
     }
 
     /// Log in again on a logged-out account. The ticket email is kept on success; a ticket
@@ -208,9 +203,8 @@ public struct Accounts {
     /// device switches to that account and the reason to show is returned. nil: register.
     public func beforeRegister(ticketEmail: String) throws -> ErrorCopy.Reason? {
         guard let x = try archived(email: ticketEmail) else { return nil }
-        let active = try store.me().signedInEmail
         try switchTo(x)
-        return Accounts.otherLogin(ticketEmail, active: active)
+        return .otherLogin(email: ticketEmail)
     }
 
     /// Delete account: a ticket for another address than this device's account makes no
@@ -218,7 +212,7 @@ public struct Accounts {
     public func deleteAccount(core: Core, ticket: String, email: String) async -> ErrorCopy.Reason? {
         if let a = try? store.me().signedInEmail, let n = Ids.normalizeEmail(a), !n.isEmpty,
            let t = Ids.normalizeEmail(email), !t.isEmpty, n != t {
-            return .deleteOtherAccount(email: email, active: a)
+            return .deleteOtherAccount(email: email)
         }
         if !email.isEmpty { try? store.setMe("signed_in_email", .text(email)) }
         do {
