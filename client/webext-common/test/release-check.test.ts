@@ -84,7 +84,7 @@ test("Chrome manifest key fails; Firefox has no such rule", () => {
   assert.deepEqual(check(m, false), []);
 });
 
-test("Chrome -unpacked.zip: the manifest key must be the given public key; nothing else may differ from the store zip", () => {
+test("Chrome plain-named zip: the manifest key must be the given public key; nothing else may differ from the store zip", () => {
   const keyed = (m: object, extra: Record<string, string> = {}) => ({ ...GOOD, ...extra, "manifest.json": JSON.stringify(m) });
   const k = (files: Record<string, string>) => checkZip(zip(files), { chrome: true, key: "MIIB", dummyOk: false });
   assert.deepEqual(k(keyed({ manifest_version: 3, name: "PushArmor", key: "MIIB" })), []);
@@ -97,12 +97,12 @@ test("Chrome -unpacked.zip: the manifest key must be the given public key; nothi
   assert.match(keyedDiff(store, zip(keyed({ manifest_version: 3, name: "PushArmor", key: "MIIB" }, { "style.css": "" }))).join(), /style\.css: only in the -unpacked\.zip/);
   const tmp = mkdtempSync(join(tmpdir(), "pa-keyed-"));
   try {
-    const kz = join(tmp, "pusharmor-chrome-1.2.3-unpacked.zip");
+    const kz = join(tmp, "pusharmor-chrome-1.2.3.zip");
     writeFileSync(kz, zip(keyed({ manifest_version: 3, name: "PushArmor", key: "MIIB" })));
-    assert.match(checkZips([kz], "MIIB").join(), /no store zip pusharmor-chrome-1\.2\.3\.zip beside it/);
-    writeFileSync(join(tmp, "pusharmor-chrome-1.2.3.zip"), store);
-    assert.deepEqual(checkZips([join(tmp, "pusharmor-chrome-1.2.3.zip"), kz], "MIIB"), []);
-    assert.match(checkZips([kz], "MIIC").join(), /pusharmor-chrome-1\.2\.3-unpacked\.zip: manifest\.json: "key" is not/);
+    assert.match(checkZips([kz], "MIIB").join(), /no store zip pusharmor-chrome-1\.2\.3-store\.zip beside it/);
+    writeFileSync(join(tmp, "pusharmor-chrome-1.2.3-store.zip"), store);
+    assert.deepEqual(checkZips([join(tmp, "pusharmor-chrome-1.2.3-store.zip"), kz], "MIIB"), []);
+    assert.match(checkZips([kz], "MIIC").join(), /pusharmor-chrome-1\.2\.3\.zip: manifest\.json: "key" is not/);
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
