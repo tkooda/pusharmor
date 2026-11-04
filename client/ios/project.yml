@@ -13,8 +13,8 @@ configFiles:
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    MARKETING_VERSION: "0.0.31"
-    CURRENT_PROJECT_VERSION: "31"
+    MARKETING_VERSION: "0.0.34"
+    CURRENT_PROJECT_VERSION: "34"
     APP_BUNDLE_ID: com.pusharmor.app            # repo constant after the store bootstrap
     CODE_SIGN_STYLE: Automatic
   configs:
