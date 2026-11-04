@@ -234,10 +234,17 @@ export const clearOutput = (promoted) => (promoted === true ? "true" : "false");
 // ---- HTTP ----
 
 /** fetch that throws on an unexpected status with the API error body. The
- *  query string is left out of the message (upload URLs carry tokens). */
-async function http(method, url, { headers = {}, body, ok = [200, 201, 202, 204] } = {}) {
-  const r = await fetch(url, { method, headers, body });
-  const text = await r.text();
+ *  query string is left out of the message (upload URLs carry tokens). With
+ *  `timeout` (ms), a request that has no full answer by then throws. */
+export async function http(method, url, { headers = {}, body, ok = [200, 201, 202, 204], timeout } = {}) {
+  let r, text;
+  try {
+    r = await fetch(url, { method, headers, body, signal: timeout ? AbortSignal.timeout(timeout) : undefined });
+    text = await r.text();
+  } catch (e) {
+    if (e?.name !== "TimeoutError") throw e;
+    throw new Error(method + " " + url.split("?")[0] + ": no answer in " + timeout / 1000 + " s");
+  }
   if (!ok.includes(r.status)) {
     throw new Error(method + " " + url.split("?")[0] + ": HTTP " + r.status + ": " + text.slice(0, 3000));
   }
@@ -251,10 +258,10 @@ async function http(method, url, { headers = {}, body, ok = [200, 201, 202, 204]
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** Wrap an AMO request function: when AMO answers HTTP 429, wait the time its
- *  message names ("Expected available in N seconds", else 60 s) plus 2 s and
- *  send the request again, up to 5 times. */
-export function amoRetry(amo, wait = sleep) {
+/** Wrap an AMO request function: when AMO answers HTTP 429, log and wait the
+ *  time its message names ("Expected available in N seconds", else 60 s) plus
+ *  2 s and send the request again, up to 5 times. */
+export function amoRetry(amo, wait = sleep, log = console.log) {
   return async (...args) => {
     for (let n = 0; ; n++) {
       try {
@@ -262,7 +269,9 @@ export function amoRetry(amo, wait = sleep) {
       } catch (e) {
         const m = String(e?.message || "");
         if (n >= 5 || !/HTTP 429/.test(m)) throw e;
-        await wait(Number(/Expected available in (\d+) second/.exec(m)?.[1] ?? 60) * 1000 + 2000);
+        const s = Number(/Expected available in (\d+) second/.exec(m)?.[1] ?? 60) + 2;
+        log("AMO throttled " + args[0] + " " + args[1] + ", waiting " + s + " s (retry " + (n + 1) + " of 5)");
+        await wait(s * 1000);
       }
     }
   };
@@ -677,19 +686,30 @@ export function amoToken(issuer, secret, now = Math.floor(Date.now() / 1000)) {
  *  shots.length previews and the newest shots.length ids (the last upload)
  *  carry the positions 0..N-1 in id order, those are kept, the rest deleted,
  *  and nothing is uploaded. A failed upload leaves the old previews in place. */
-export async function syncAmoPreviews({ amo, id, shots, wait = sleep, gap = 15000 }) {
+export async function syncAmoPreviews({ amo, id, shots, wait = sleep, gap = 15000, log = console.log }) {
   const old = ((await amo("GET", "/addon/" + id + "/")).json.previews || []).slice().sort((a, b) => a.id - b.id);
   const n = shots.length;
-  const del = async (list) => { for (const p of list) await amo("DELETE", "/addon/" + id + "/previews/" + p.id + "/"); };
+  log("AMO previews: " + old.length + " on the listing, " + n + " screenshots");
+  const del = async (list) => {
+    for (const p of list) {
+      log("AMO previews: deleting preview " + p.id);
+      await amo("DELETE", "/addon/" + id + "/previews/" + p.id + "/");
+    }
+  };
   if (old.length > n) {
     const newest = old.slice(old.length - n);
     if (newest.every((p, i) => Number(p.position) === i)) {
+      log("AMO previews: the newest " + n + " are the screenshots, nothing to upload");
       await del(old.slice(0, old.length - n));
       return "previews already uploaded, " + (old.length - n) + " old previews removed";
     }
   }
   for (const [i, s] of shots.entries()) {
-    if (i > 0) await wait(gap);
+    if (i > 0) {
+      log("AMO previews: waiting " + gap / 1000 + " s before the next upload");
+      await wait(gap);
+    }
+    log("AMO previews: uploading " + s.name + " at position " + i);
     const f = new FormData();
     f.append("image", new Blob([s.data], { type: "image/png" }), s.name);
     f.append("position", String(i));
@@ -699,11 +719,13 @@ export async function syncAmoPreviews({ amo, id, shots, wait = sleep, gap = 1500
   return n + " previews uploaded, " + old.length + " old previews removed";
 }
 
+const AMO_TIMEOUT_MS = 60000;
+
 export async function firefox(version) {
   const api = "https://addons.mozilla.org/api/v5/addons";
   const id = encodeURIComponent(loadPublic().mozilla_firefox_addon_id);
   const amo = amoRetry((method, path, body, ok) =>
-    http(method, api + path, { headers: { Authorization: "JWT " + amoToken(process.env.MOZILLA_AMO_JWT_ISSUER, process.env.MOZILLA_AMO_JWT_SECRET) }, body, ok }));
+    http(method, api + path, { headers: { Authorization: "JWT " + amoToken(process.env.MOZILLA_AMO_JWT_ISSUER, process.env.MOZILLA_AMO_JWT_SECRET) }, body, ok, timeout: AMO_TIMEOUT_MS }));
 
   // The listing previews: the plain AMO screenshots (store/screenshots/amo).
   const previews = () => syncAmoPreviews({ amo, id, shots: screenshotFiles("amo") });
@@ -713,6 +735,7 @@ export async function firefox(version) {
   }
   const versions = [];
   for (let url = "/addon/" + id + "/versions/?filter=all_with_unlisted&page_size=50"; url; ) {
+    console.log("AMO: reading the versions list (" + versions.length + " so far)");
     const j = (await amo("GET", url)).json;
     versions.push(...j.results);
     url = j.next ? j.next.slice(api.length) : "";

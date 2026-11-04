@@ -223,6 +223,8 @@ jobs:
     needs: gate
     if: needs.gate.outputs.platform == 'firefox' && startsWith(github.ref, 'refs/tags/firefox/v')
     runs-on: ubuntu-24.04
+    # This file is read from the tag commit, so a tag made before a change
+    # here runs with the old limit (firefox/v0.0.28 has 20 minutes).
     timeout-minutes: 60
     environment: firefox-release
     permissions:

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, verify } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { AMO_REVIEW_NOTES, amoNotesProblems, amoRetry, amoToken, ascToken, attestationArgs, clearOutput, cmpVersion, commitProblems, contactProblems, listingProblems, playGateProblem, readListing, releaseAssets, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncAmoPreviews, syncScreenshots, tagPlatform } from "./promote.mjs";
+import { AMO_REVIEW_NOTES, amoNotesProblems, amoRetry, amoToken, ascToken, attestationArgs, clearOutput, cmpVersion, commitProblems, contactProblems, http, listingProblems, playGateProblem, readListing, releaseAssets, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncAmoPreviews, syncScreenshots, tagPlatform } from "./promote.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -474,4 +474,32 @@ test("AMO calls wait the named time plus 2 s and retry on HTTP 429, at most 5 ti
   assert.deepEqual(waits, [62000, 62000, 62000, 62000, 62000]);
   const other = amoRetry(async () => { throw new Error("HTTP 400"); }, async () => assert.fail("slept"));
   await assert.rejects(other("GET", "/x"), /HTTP 400/);
+});
+
+test("AMO: a throttled call and every preview action log a progress line", async () => {
+  const lines = [];
+  let n = 0;
+  const amo = amoRetry(async () => {
+    if (n++ < 1) throw new Error("DELETE /x: HTTP 429: Expected available in 56 seconds");
+    return { json: {} };
+  }, async () => {}, (l) => lines.push(l));
+  await amo("DELETE", "/addon/x/previews/5/");
+  assert.deepEqual(lines, ["AMO throttled DELETE /addon/x/previews/5/, waiting 58 s (retry 1 of 5)"]);
+  lines.length = 0;
+  const f = fakeAmoListing([{ id: 5, position: 0 }, { id: 20, position: 0 }, { id: 21, position: 1 }]);
+  await syncAmoPreviews({ amo: f.amo, id: "x", shots: twoShots, wait: async () => {}, log: (l) => lines.push(l) });
+  assert.deepEqual(lines, ["AMO previews: 3 on the listing, 2 screenshots", "AMO previews: the newest 2 are the screenshots, nothing to upload", "AMO previews: deleting preview 5"]);
+  lines.length = 0;
+  await syncAmoPreviews({ amo: fakeAmoListing([]).amo, id: "x", shots: twoShots, wait: async () => {}, log: (l) => lines.push(l) });
+  assert.deepEqual(lines, ["AMO previews: 0 on the listing, 2 screenshots", "AMO previews: uploading 01-a.png at position 0", "AMO previews: waiting 15 s before the next upload", "AMO previews: uploading 02-b.png at position 1"]);
+});
+
+test("AMO: a request with no answer in the timeout fails instead of hanging", async (t) => {
+  const real = globalThis.fetch;
+  t.after(() => (globalThis.fetch = real));
+  globalThis.fetch = (url, { signal }) => new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason)));
+  await assert.rejects(http("GET", "https://amo.test/addon/x/?t=secret", { timeout: 50 }), /^Error: GET https:\/\/amo\.test\/addon\/x\/: no answer in 0\.05 s$/);
+  const src = readFileSync(join(ROOT, "release", "promote.mjs"), "utf8");
+  assert.match(src, /const AMO_TIMEOUT_MS = 60000;/);
+  assert.match(src, /body, ok, timeout: AMO_TIMEOUT_MS \}\)\)/);
 });
