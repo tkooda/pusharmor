@@ -25,8 +25,8 @@ struct SettingsView: View {
                 if model.phase == .main {
                     Section("Device name") {
                         // Inline rename: Rename turns the name into a field, with Cancel and Save.
-                        // Large text: Cancel and Save go below the field.
-                        let stack = renaming && typeSize.isAccessibilitySize
+                        // Large text: Cancel and Save go below the field, so neither label wraps.
+                        let stack = renaming && typeSize >= .xxLarge
                         let row = stack ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12)) : AnyLayout(HStackLayout(spacing: 16))
                         row {
                             if renaming {
@@ -41,6 +41,8 @@ struct SettingsView: View {
                                     Button("Save", action: saveName)
                                         .disabled(!NameEntry.isValidName(name))
                                 }
+                                .lineLimit(1)
+                                .fixedSize()
                             } else {
                                 Text(model.me?.name ?? "This device")
                                 Spacer(minLength: 8)
