@@ -487,8 +487,20 @@ final class AppModel: ObservableObject {
         Ids.oauthNonce(purpose: purpose.rawValue, signPub: try keysForSignIn(purpose).signer.publicKey)
     }
 
-    func emailStart(_ email: String, purpose: AuthPurpose, turnstile: String) async {
+    func emailStart(_ email: String, purpose asked: AuthPurpose, turnstile: String) async {
         guard Ids.normalizeEmail(email) != nil else { toast = ErrorCopy.text(.sendCode, .badEmail); return }
+        // an address of another account switches to that account first
+        var purpose = asked
+        if let a = accounts {
+            do {
+                let next = try a.beforeEmail(email, purpose: asked)
+                purpose = next.purpose
+                if next.switched { await afterSwitch() }
+            } catch {
+                toast = ErrorCopy.text(.sendCode, ErrorCopy.reason(local: error))
+                return
+            }
+        }
         guard let k = try? keysForSignIn(purpose) else { toast = ErrorCopy.text(.prepareLogin, .keysUnusable); return }
         let r = await auth.emailStart(email: email, signPub: k.signer.publicKey, purpose: purpose, turnstile: turnstile)
         let nowMs = Int(Date().timeIntervalSince1970 * 1000)
@@ -546,13 +558,43 @@ final class AppModel: ObservableObject {
             toast = S.loginError(r, action)
             return
         }
-        try? store?.setMe("signed_in_email", .text(email))
         clearCodeStep()
+        // the email code was right; what follows is the login itself
+        let act: ErrorCopy.Action = action == .checkCode ? .login : action
         switch purpose {
-        case .register: await register(ticket: ticket, evict: [])
-        case .login: await login(ticket: ticket)
-        case .deleteAccount: await deleteAccount(ticket: ticket)
+        case .register:
+            if let a = accounts {
+                do {
+                    if let r = try a.beforeRegister(ticketEmail: email) {
+                        await afterSwitch()
+                        toast = ErrorCopy.text(act, r)
+                        return
+                    }
+                } catch {
+                    toast = ErrorCopy.text(act, ErrorCopy.reason(local: error))
+                    return
+                }
+            }
+            try? store?.setMe("signed_in_email", .text(email))
+            await register(ticket: ticket, evict: [])
+        case .login: await login(ticket: ticket, email: email, action: act)
+        case .deleteAccount: await deleteAccount(ticket: ticket, email: email)
         }
+    }
+
+    /// Accounts of this device: the active one and the archived ones.
+    private var accounts: Accounts? { store.map { Accounts(store: $0, vault: env.keychain) } }
+
+    /// After a switch of the active account: its keys, its screen. Notifications of the
+    /// account before go.
+    private func afterSwitch() async {
+        pendingKeys = nil
+        requestToken = nil
+        limitTicket = nil
+        core = nil
+        env.removeDeliveredNotifications()
+        await open()
+        await route()
     }
 
     func register(ticket: String, evict: [String]) async {
@@ -650,12 +692,17 @@ final class AppModel: ObservableObject {
         await route()
     }
 
-    func login(ticket: String) async {
-        guard let core = core else { return }
-        let r: Result<APIOutcome, Error>
-        do { r = .success(try await core.login(ticket: ticket, push: pushInfo)) } catch { r = .failure(error) }
-        if let t = Core.failText(r, .login) { toast = t }
-        await route()
+    func login(ticket: String, email: String, action: ErrorCopy.Action) async {
+        guard let core = core, let a = accounts else { return }
+        switch await a.login(core: core, ticket: ticket, email: email, push: pushInfo) {
+        case .loggedIn: await route()
+        case .switched(let r):
+            await afterSwitch()
+            toast = ErrorCopy.text(action, r)
+        case .failed(let r):
+            toast = ErrorCopy.text(action, r)
+            await route()
+        }
     }
 
     /// logged out here at once; the relay server call runs after and is retried on
@@ -667,13 +714,12 @@ final class AppModel: ObservableObject {
         Task { await core.retryPendingLogout() }
     }
 
-    func deleteAccount(ticket: String) async {
-        guard let core = core else { return }
-        do {
-            let out = try await core.deleteAccount(ticket: ticket)
-            if out.reply?.ok == true { phase = .removed } else { toast = ErrorCopy.text(.deleteAccount, ErrorCopy.reason(from: out)) }
-        } catch {
-            toast = ErrorCopy.text(.deleteAccount, ErrorCopy.reason(local: error))
+    func deleteAccount(ticket: String, email: String) async {
+        guard let core = core, let a = accounts else { return }
+        if let r = await a.deleteAccount(core: core, ticket: ticket, email: email) {
+            toast = ErrorCopy.text(.deleteAccount, r)
+        } else {
+            phase = .removed
         }
     }
 

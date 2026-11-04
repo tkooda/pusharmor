@@ -17,8 +17,10 @@ public final class KeychainKeyStore {
          kSecAttrAccount as String: item.rawValue, kSecAttrAccessGroup as String: accessGroup]
     }
 
-    func read(_ item: Item) throws -> Data? {
-        var q = query(item)
+    func read(_ item: Item) throws -> Data? { try read(query: query(item)) }
+
+    func read(query base: [String: Any]) throws -> Data? {
+        var q = base
         q[kSecReturnData as String] = true
         q[kSecMatchLimit as String] = kSecMatchLimitOne
         var out: CFTypeRef?
@@ -31,9 +33,11 @@ public final class KeychainKeyStore {
         }
     }
 
-    func write(_ item: Item, _ data: Data) throws {
-        SecItemDelete(query(item) as CFDictionary)
-        var q = query(item)
+    func write(_ item: Item, _ data: Data) throws { try write(query: query(item), data) }
+
+    func write(query base: [String: Any], _ data: Data) throws {
+        SecItemDelete(base as CFDictionary)
+        var q = base
         q[kSecValueData as String] = data
         q[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         let st = SecItemAdd(q as CFDictionary, nil)
@@ -159,6 +163,41 @@ public final class KeychainKeyStore {
         if let old = oldId { try store.setMe("old_id", .text(old)) }
         deleteAll()
         return try create()
+    }
+}
+
+/// Archived accounts: a copy of each key item under a separate service, so deleteAll never
+/// touches them; the account item name is "<account id>.<item>".
+extension KeychainKeyStore: AccountKeyVault {
+    static let archiveService = "com.pusharmor.keys.archive"
+    static let slotItems: [Item] = [.sign, .encSE, .encSoftware, .peerId]
+
+    func archiveQuery(_ account: String, _ item: Item) -> [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: KeychainKeyStore.archiveService,
+         kSecAttrAccount as String: account + "." + item.rawValue, kSecAttrAccessGroup as String: accessGroup]
+    }
+
+    public func archiveKeys(account: String) throws {
+        for item in KeychainKeyStore.slotItems {
+            SecItemDelete(archiveQuery(account, item) as CFDictionary)
+            if let d = try read(item) { try write(query: archiveQuery(account, item), d) }
+        }
+    }
+
+    /// Every archived item is read before an active one is replaced.
+    public func activateKeys(account: String?) throws {
+        var copy: [(Item, Data)] = []
+        if let a = account {
+            for item in KeychainKeyStore.slotItems {
+                if let d = try read(query: archiveQuery(a, item)) { copy.append((item, d)) }
+            }
+        }
+        deleteAll()
+        for (item, d) in copy { try write(item, d) }
+    }
+
+    public func dropArchivedKeys(account: String) {
+        for item in KeychainKeyStore.slotItems { SecItemDelete(archiveQuery(account, item) as CFDictionary) }
     }
 }
 #endif

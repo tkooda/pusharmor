@@ -84,6 +84,10 @@ public enum ErrorCopy {
         case pushRejected
         case pushNotSupported
         case notReady
+        /// The login is for the account of `email`; `active` is this device's account.
+        case otherLogin(email: String, active: String?)
+        case deleteOtherAccount(email: String, active: String)
+        case otherAccount
         case unknown
 
         public var line: String {
@@ -120,6 +124,10 @@ public enum ErrorCopy {
             case .pushRejected: return "Its push service did not accept the message. Try again later."
             case .pushNotSupported: return "This device's push service is not supported yet."
             case .notReady: return "It has not finished turning on notifications. Open PushArmor on it."
+            case .otherLogin(let b, let a?): return "This login is for \"\(b)\", not \"\(a)\". Log in again to switch to \"\(b)\"."
+            case .otherLogin(let b, nil): return "This login is for \"\(b)\". Log in again to switch to \"\(b)\"."
+            case .deleteOtherAccount(let b, let a): return "This login is for \"\(b)\". Log in as \"\(a)\" to delete its account."
+            case .otherAccount: return "This login is for another account."
             case .unknown: return "Try again."
             }
         }
@@ -152,6 +160,7 @@ public enum ErrorCopy {
         case (401, "invalid client signature"?): return .refused
         case (401, "ticket expired"?): return .loginExpired
         case (401, "invalid ticket"?), (401, "bad ticket"?): return .badLink
+        case (401, "account mismatch"?): return .otherAccount
         case (401, "wrong code"?): return .wrongCode
         case (401, "code expired"?): return .codeExpired
         case (401, "email not verified"?): return .emailNotVerified
