@@ -40,8 +40,10 @@ const P = {
 
 export type IconName = keyof typeof P;
 
-// Brand shield with the up-arrow cutout (brand/pusharmor-icon-*.svg geometry).
-const SHIELD = "M256 108 L376 150 V250 C376 330 322 382 256 406 C190 382 136 330 136 250 V150 Z M256 168 L318 236 H280 V334 H232 V236 H194 Z";
+// Brand shield and up-arrow (brand/pusharmor-mark.svg geometry); SHIELD has the arrow cut out.
+const OUTLINE = "M256 108 L376 150 V250 C376 330 322 382 256 406 C190 382 136 330 136 250 V150 Z";
+const ARROW = "M256 164 L336 248 H288 V346 H224 V248 H176 Z";
+const SHIELD = OUTLINE + " " + ARROW;
 
 function el(tag: string, attrs: Record<string, string | number> = {}, ...kids: SVGElement[]): SVGElement {
   const e = document.createElementNS(NS, tag) as SVGElement;
@@ -71,14 +73,18 @@ export function shield(size: number): SVGElement {
 }
 
 function tileKids(large: boolean): SVGElement[] {
-  const mark = el("path", { d: SHIELD, fill: "#34C77B", "fill-rule": "evenodd" });
+  const ink = "#06351F";
+  const mark = [
+    el("path", { d: OUTLINE, fill: "#15A86B", stroke: ink, "stroke-width": 10, "stroke-linejoin": "round" }),
+    el("path", { d: ARROW, fill: "#FFFFFF", stroke: ink, "stroke-width": 12 }),
+  ];
   return [
-    el("rect", { width: 512, height: 512, rx: 112, fill: "#1F3A5F" }),
-    large ? el("g", { transform: "translate(256 257) scale(1.22) translate(-256 -257)" }, mark) : mark,
+    el("rect", { width: 512, height: 512, rx: 112, fill: ink }),
+    el("g", { transform: `translate(256 257) scale(${large ? 1.18 : 1}) translate(-256 -257)` }, ...mark),
   ];
 }
 
-/** The app tile (navy rounded square, green shield); large geometry at 40 px and up. */
+/** The app tile (ink rounded square, green shield); large geometry at 40 px and up. */
 export function tile(size: number): SVGElement {
   return svg("0 0 512 512", size, "tile", ...tileKids(size >= 40));
 }

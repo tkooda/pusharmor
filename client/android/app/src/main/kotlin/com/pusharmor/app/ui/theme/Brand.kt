@@ -67,21 +67,21 @@ import androidx.compose.ui.unit.sp
 import com.pusharmor.app.R
 import com.pusharmor.app.ui.UiText
 
-/** App icon tile: the launcher foreground on a navy rounded square. Decorative. */
+/** App icon tile: the launcher foreground on an ink rounded square. Decorative. */
 @Composable
 fun BrandTile(size: Dp, modifier: Modifier = Modifier) {
-    Box(modifier.size(size).clip(RoundedCornerShape(size * 0.22f)).background(BrandNavy)) {
+    Box(modifier.size(size).clip(RoundedCornerShape(size * 0.22f)).background(BrandInk)) {
         Image(painterResource(R.drawable.ic_launcher_foreground), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
     }
 }
 
-/** "Push" in brand green, "Armor" in the theme armor colour; read as "PushArmor". */
+/** "Push" in the wordmark green, "Armor" in the theme armor colour; read as "PushArmor". */
 @Composable
 fun Wordmark(fontSize: TextUnit, modifier: Modifier = Modifier) {
     val armor = LocalPaExtra.current.armor
     Text(
         buildAnnotatedString {
-            withStyle(SpanStyle(color = BrandGreen)) { append("Push") }
+            withStyle(SpanStyle(color = PushGreen)) { append("Push") }
             withStyle(SpanStyle(color = armor)) { append("Armor") }
         },
         modifier.semantics { contentDescription = "PushArmor" },

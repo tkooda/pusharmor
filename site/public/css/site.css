@@ -7,6 +7,8 @@
   --line: #d9dee7;
   --navy: #1f3a5f;
   --green: #34c77b;
+  --brand: #15a86b;
+  --brand-ink: #06351f;
   --link: #1a5fa8;
   --btn-bg: #1f3a5f;
   --btn-fg: #ffffff;
@@ -72,8 +74,9 @@ header {
   text-decoration: none;
 }
 .brand .mark { width: 1.6rem; height: 1.6rem; flex: none; }
-.mark path { fill: var(--green); }
-.push { color: var(--green); }
+.mark .ms { fill: var(--brand); stroke: var(--brand-ink); stroke-width: 10; stroke-linejoin: round; }
+.mark .ma { fill: #fff; stroke: var(--brand-ink); stroke-width: 12; }
+.push { color: var(--brand); }
 .armor { color: var(--armor); }
 nav { display: flex; flex-wrap: wrap; margin: 0 -0.6rem; }
 nav a {
@@ -255,7 +258,7 @@ button.danger { color: #ffffff; background: #b3261e; border-color: #b3261e; }
 .sec-callout p { margin: 0 0 0.5rem; }
 .sec-callout .button { margin-bottom: 0; }
 .sec-icon { flex: none; width: 2.5rem; height: 2.75rem; }
-.sec-icon path { fill: var(--green); }
+.sec-icon path { fill: var(--brand); }
 .shot-tabs {
   display: flex;
   gap: 0.25rem;

@@ -50,8 +50,10 @@ extension Color {
     static let tileEdge = Color("TileEdge")
     /// 1 pt edge on custom cards: visible on the light page and on true black.
     static let cardEdge = Color("CardEdge")
-    /// The app icon tile; the same in light and dark.
-    static let brandNavy = Color(red: 0x1F / 255, green: 0x3A / 255, blue: 0x5F / 255)
+    /// The app icon tile and the mark edge; the same in light and dark.
+    static let brandInk = Color(red: 0x06 / 255, green: 0x35 / 255, blue: 0x1F / 255)
+    /// The mark shield and "Push" in the wordmark; the same in light and dark.
+    static let pushGreen = Color(red: 0x15 / 255, green: 0xA8 / 255, blue: 0x6B / 255)
 }
 
 /// SF Symbol for a peer platform.
@@ -66,9 +68,13 @@ func platformSymbol(_ platform: String?) -> String {
     }
 }
 
-/// The shield with the arrow cut out (brand/pusharmor-icon-large.svg geometry), fitted to the
-/// rect. Fill it with an even-odd FillStyle so the arrow stays open.
+/// The shield with the arrow cut out (brand/pusharmor-mark.svg geometry), fitted to the
+/// rect. Fill it with an even-odd FillStyle so the arrow stays open. `part` draws only the
+/// shield outline or only the arrow, in the same frame.
 struct ShieldShape: Shape {
+    enum Part { case cutout, outline, arrow }
+    var part: Part = .cutout
+
     func path(in rect: CGRect) -> Path {
         let w: CGFloat = 240, h: CGFloat = 298   // shield bounds in icon units: x 136-376, y 108-406
         let s = min(rect.width / w, rect.height / h)
@@ -76,21 +82,25 @@ struct ShieldShape: Shape {
         let oy = rect.midY - (108 + h / 2) * s
         func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: ox + x * s, y: oy + y * s) }
         var path = Path()
-        path.move(to: p(256, 108))
-        path.addLine(to: p(376, 150))
-        path.addLine(to: p(376, 250))
-        path.addCurve(to: p(256, 406), control1: p(376, 330), control2: p(322, 382))
-        path.addCurve(to: p(136, 250), control1: p(190, 382), control2: p(136, 330))
-        path.addLine(to: p(136, 150))
-        path.closeSubpath()
-        path.move(to: p(256, 168))
-        path.addLine(to: p(318, 236))
-        path.addLine(to: p(280, 236))
-        path.addLine(to: p(280, 334))
-        path.addLine(to: p(232, 334))
-        path.addLine(to: p(232, 236))
-        path.addLine(to: p(194, 236))
-        path.closeSubpath()
+        if part != .arrow {
+            path.move(to: p(256, 108))
+            path.addLine(to: p(376, 150))
+            path.addLine(to: p(376, 250))
+            path.addCurve(to: p(256, 406), control1: p(376, 330), control2: p(322, 382))
+            path.addCurve(to: p(136, 250), control1: p(190, 382), control2: p(136, 330))
+            path.addLine(to: p(136, 150))
+            path.closeSubpath()
+        }
+        if part != .outline {
+            path.move(to: p(256, 164))
+            path.addLine(to: p(336, 248))
+            path.addLine(to: p(288, 248))
+            path.addLine(to: p(288, 346))
+            path.addLine(to: p(224, 346))
+            path.addLine(to: p(224, 248))
+            path.addLine(to: p(176, 248))
+            path.closeSubpath()
+        }
         return path
     }
 }
@@ -100,19 +110,24 @@ struct BrandTileView: View {
     let size: CGFloat
 
     var body: some View {
+        let k = size * 1.18 / 512   // points per icon unit
         RoundedRectangle(cornerRadius: size * 112 / 512, style: .continuous)
-            .fill(Color.brandNavy)
+            .fill(Color.brandInk)
             .overlay(
-                ShieldShape()
-                    .fill(Color.brandGreen, style: FillStyle(eoFill: true))
-                    .frame(width: size * 240 * 1.22 / 512, height: size * 298 * 1.22 / 512)
+                ZStack {
+                    ShieldShape(part: .outline).fill(Color.pushGreen)
+                    ShieldShape(part: .outline).stroke(Color.brandInk, style: StrokeStyle(lineWidth: 10 * k, lineJoin: .round))
+                    ShieldShape(part: .arrow).fill(Color.white)
+                    ShieldShape(part: .arrow).stroke(Color.brandInk, lineWidth: 12 * k)
+                }
+                .frame(width: 240 * k, height: 298 * k)
             )
             .frame(width: size, height: size)
             .accessibilityHidden(true)
     }
 }
 
-/// "Push" in brand green, "Armor" in the armor ink.
+/// "Push" in the wordmark green, "Armor" in the armor ink.
 struct Wordmark: View {
     @ScaledMetric private var size: CGFloat
 
@@ -121,7 +136,7 @@ struct Wordmark: View {
     }
 
     var body: some View {
-        (Text("Push").foregroundColor(.brandGreen) + Text("Armor").foregroundColor(.armorText))
+        (Text("Push").foregroundColor(.pushGreen) + Text("Armor").foregroundColor(.armorText))
             .font(.system(size: size, weight: .bold))
             .tracking(-0.4)
             .accessibilityLabel("PushArmor")
