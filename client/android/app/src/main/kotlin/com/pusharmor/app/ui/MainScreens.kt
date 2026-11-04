@@ -262,18 +262,22 @@ fun PeersScreen(vm: AppViewModel) {
         shownPairing = pairing.size
     }
     // Pair a new device is a floating button, so it stays in reach however long the list is.
+    // Its measured height, as it grows with the font size; the list keeps its last row clear of it.
+    val density = LocalDensity.current
+    var fabH by remember { mutableStateOf(FAB_SPACE - 16.dp) }
     Scaffold(containerColor = MaterialTheme.colorScheme.background, contentWindowInsets = WindowInsets(0), topBar = {
         PaTopBar("Devices", actions = {
             IconButton(onClick = { vm.refresh() }, enabled = canRefresh && !refreshing) { Icon(PaIcons.Refresh, "Refresh") }
         })
     }, floatingActionButton = {
-        ExtendedFloatingActionButton(onClick = { pairHowTo = true }, icon = { Icon(PaIcons.Add, null) }, text = { Text("Pair a new device") })
+        ExtendedFloatingActionButton(onClick = { pairHowTo = true }, modifier = Modifier.onSizeChanged { fabH = with(density) { it.height.toDp() } },
+            icon = { Icon(PaIcons.Add, null) }, text = { Text("Pair a new device") })
     }) { inner ->
         // The first banner card keeps the same gap under the top bar as the cards on the other tabs.
         // The bottom padding keeps the last row clear of the floating button.
         // Pull down to refresh; the indicator also shows while the Refresh button runs.
         PullToRefreshBox(refreshing, onRefresh = { vm.refresh() }, modifier = Modifier.padding(inner).fillMaxSize()) {
-            LazyColumn(Modifier.fillMaxSize(), state = state, contentPadding = PaddingValues(top = 8.dp, bottom = FAB_SPACE + 16.dp)) {
+            LazyColumn(Modifier.fillMaxSize(), state = state, contentPadding = PaddingValues(top = 8.dp, bottom = fabH + 16.dp + 16.dp)) {
                 item(key = "banners") {
                     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Banners(vm, prefs)
