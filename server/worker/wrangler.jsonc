@@ -42,7 +42,7 @@
     { "name": "RL_ACCT", "namespace_id": "1009", "simple": { "limit": 120, "period": 60 } }
   ],
   "vars": {
-    "PA_ALLOWED_PUSH_ENDPOINT_PREFIXES": "[\"https://fcm.googleapis.com/fcm/send/\",\"https://fcm.googleapis.com/wp/\",\"https://updates.push.services.mozilla.com/wpush/v1/\",\"https://updates.push.services.mozilla.com/wpush/v2/\"]",
+    "PA_ALLOWED_PUSH_ENDPOINTS": "[{\"host\":\"google.com\",\"paths\":[\"/fcm/send/\",\"/wp/\"]},{\"suffix\":\".google.com\",\"paths\":[\"/fcm/send/\",\"/wp/\"]},{\"host\":\"googleapis.com\",\"paths\":[\"/fcm/send/\",\"/wp/\"]},{\"suffix\":\".googleapis.com\",\"paths\":[\"/fcm/send/\",\"/wp/\"]},{\"suffix\":\".push.services.mozilla.com\",\"paths\":[\"/wpush/\"]},{\"suffix\":\".notify.windows.com\",\"paths\":[\"/w/\"]},{\"suffix\":\".push.apple.com\",\"paths\":[\"/\"]}]",
     "PA_ALLOWED_UP_HOSTS": "[\"ntfy.sh\",\"updates.push.services.mozilla.com\"]",
     "PA_PUSH_TTL_SECONDS": "604800",
     "CLOUDFLARE_TURNSTILE_HOSTNAME": "pusharmor.com",

@@ -5,6 +5,7 @@ import { type Peer, acctOf, call, cliCodeFor, initP256, keys, message, newPeer, 
 import { LABEL_TICKET, makeTicket, openToken } from "../src/crypto/tokens";
 import { TEST_SECRETS as S } from "./secrets";
 import { PUSH_FAILED_COL } from "../src/db/sql";
+import { checkWebpushEndpoint, endpointRules } from "../src/push/allowlist";
 
 beforeAll(initP256);
 
@@ -315,6 +316,59 @@ describe("PATCH /peers/$id push", () => {
       expect(rr.status).toBe(400);
       expect(rr.body.error).toBe("push endpoint not allowed");
     }
+  });
+
+  it("Web push endpoint rules: host suffix on a label boundary plus a path prefix", async () => {
+    const rules = endpointRules(env.PA_ALLOWED_PUSH_ENDPOINTS);
+    const ok = (e: string) => "rule" in checkWebpushEndpoint(e, rules);
+    for (const e of [
+      "https://jmt17.google.com/fcm/send/x",
+      "https://anything.google.com/wp/x",
+      "https://google.com/fcm/send/x",
+      "https://JMT17.Google.COM/fcm/send/x",
+      "https://fcm.googleapis.com/fcm/send/x",
+      "https://googleapis.com/wp/x",
+      "https://updates.push.services.mozilla.com/wpush/v2/x",
+      "https://updates.push.services.mozilla.com/wpush/v1/x",
+      "https://wns2-bl2p.notify.windows.com/w/?token=x",
+      "https://web.push.apple.com/QOx",
+    ]) expect(ok(e), e).toBe(true);
+    for (const e of [
+      "https://script.google.com/macros/x",
+      "https://evilgoogle.com/fcm/send/x",
+      "https://evilgoogleapis.com/fcm/send/x",
+      "https://google.com.evil.com/fcm/send/x",
+      "https://jmt17.google.com./fcm/send/x",
+      "https://.google.com/fcm/send/x",
+      "http://jmt17.google.com/fcm/send/x",
+      "https://jmt17.google.com:8443/fcm/send/x",
+      "https://jmt17.google.com:443/fcm/send/x",
+      "https://142.250.1.1/fcm/send/x",
+      "https://[2607:f8b0::1]/fcm/send/x",
+      "https://u:p@jmt17.google.com/fcm/send/x",
+      "https://u@fcm.googleapis.com/fcm/send/x",
+      "https://updates.push.services.mozilla.com/other",
+      "https://push.services.mozilla.com/wpush/v2/x",
+      "https://evil.push.services.mozilla.com.example/wpush/v2/x",
+      "https://wns2-bl2p.notify.windows.com/x",
+      "https://evilnotify.windows.com/w/x",
+      "https://evilpush.apple.com/x",
+      "https://push.apple.com.evil.com/x",
+      "not a url",
+    ]) expect(ok(e), e).toBe(false);
+  });
+
+  it("a chrome peer may set a jmt17.google.com endpoint; a firefox peer a Mozilla one", async () => {
+    const c = await newPeer(randomEmail(), "chrome");
+    let r = await call("PATCH", "/v1/peers/" + c.id, { push: { ...pushFor("chrome"), endpoint: "https://jmt17.google.com/fcm/send/abc" } }, { peer: c });
+    expect(r.status).toBe(200);
+    expect((await row(c.id))!.push_type).toBe(3);
+    r = await call("PATCH", "/v1/peers/" + c.id, { push: { ...pushFor("chrome"), endpoint: "https://updates.push.services.mozilla.com/wpush/v2/abc" } }, { peer: c });
+    expect(r.status).toBe(400);
+    const f = await newPeer(randomEmail(), "firefox");
+    r = await call("PATCH", "/v1/peers/" + f.id, { push: { ...pushFor("firefox"), endpoint: "https://updates.push.services.mozilla.com/wpush/v2/abc" } }, { peer: f });
+    expect(r.status).toBe(200);
+    expect((await row(f.id))!.push_type).toBe(4);
   });
 
   it("UnifiedPush host rules", async () => {

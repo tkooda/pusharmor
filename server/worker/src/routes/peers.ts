@@ -43,7 +43,7 @@ interface SelfRow {
 
 function pushOrNull(c: Ctx, v: unknown): Promise<PushValue | null> {
   if (v === null) return Promise.resolve(null);
-  return checkPush(v, c.env.PA_ALLOWED_PUSH_ENDPOINT_PREFIXES, c.env.PA_ALLOWED_UP_HOSTS, (r) => (c.log.endpoint_reject = r));
+  return checkPush(v, c.env.PA_ALLOWED_PUSH_ENDPOINTS, c.env.PA_ALLOWED_UP_HOSTS, (r) => (c.log.endpoint_reject = r));
 }
 
 // PATCH skip rule: stored push confirmed (push_verified_at set) and equal to the incoming push.

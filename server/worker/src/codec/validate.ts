@@ -1,7 +1,7 @@
 // Request validators: ids, keys, messages, name entries, "m" maps, push objects.
 import { ApiError } from "../errors";
 import { b64urlDecode, isB64url } from "./b64url";
-import { checkUnifiedPushEndpoint, checkWebpushEndpoint, prefixes, upShapeOk, type EndpointReject } from "../push/allowlist";
+import { checkUnifiedPushEndpoint, checkWebpushEndpoint, endpointRules, prefixes, upShapeOk, type EndpointReject } from "../push/allowlist";
 import { importEcdhPub, rawPoint } from "../crypto/ecdsa";
 import { sha256, utf8 } from "../crypto/hash";
 import { b64urlEncode } from "./b64url";
@@ -98,7 +98,7 @@ function str(o: Record<string, unknown>, k: string): string {
 }
 
 // Validates a push object (section 7.4) and returns its stored form and type.
-export async function checkPush(v: unknown, allowedPrefixes: string, upHosts: string, onReject: (r: EndpointReject) => void): Promise<PushValue> {
+export async function checkPush(v: unknown, allowedEndpoints: string, upHosts: string, onReject: (r: EndpointReject) => void): Promise<PushValue> {
   if (!v || typeof v !== "object" || Array.isArray(v)) throw bad();
   const o = v as Record<string, unknown>;
   const type = str(o, "type");
@@ -118,18 +118,13 @@ export async function checkPush(v: unknown, allowedPrefixes: string, upHosts: st
   if (auth.length !== 22 || !authRaw || authRaw.length !== 16) throw bad();
   let pushType: number;
   if (type === "webpush") {
-    const r = checkWebpushEndpoint(endpoint, prefixes(allowedPrefixes));
+    const r = checkWebpushEndpoint(endpoint, endpointRules(allowedEndpoints));
     if ("reject" in r) {
       onReject(r.reject);
       throw new ApiError(400, "push endpoint not allowed");
     }
-    const host = new URL(endpoint).hostname;
-    if (host === "fcm.googleapis.com") pushType = 3;
-    else if (host === "updates.push.services.mozilla.com") pushType = 4;
-    else {
-      onReject({ host, prefix_len: r.prefix.length });
-      throw new ApiError(400, "push endpoint not allowed");
-    }
+    // Mozilla push service: firefox (4); every other allowed push service: chrome-family browsers (3).
+    pushType = new URL(endpoint).hostname.toLowerCase().endsWith(".push.services.mozilla.com") ? 4 : 3;
   } else {
     const reason = checkUnifiedPushEndpoint(endpoint, prefixes(upHosts));
     if (reason) {

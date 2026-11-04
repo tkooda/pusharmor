@@ -1,4 +1,4 @@
-// Web push endpoint allow-list (PA_ALLOWED_PUSH_ENDPOINT_PREFIXES) and the UnifiedPush
+// Web push endpoint allow-list (PA_ALLOWED_PUSH_ENDPOINTS) and the UnifiedPush
 // (type 6) endpoint rules (PA_ALLOWED_UP_HOSTS). No regex on URLs; parse with URL().
 export type EndpointReject = { host?: string; prefix_len?: number; reason?: string };
 
@@ -27,21 +27,53 @@ export function prefixes(raw: string): string[] {
   }
 }
 
-// Returns the matched prefix, or a reject record (host + longest matched prefix length).
-export function checkWebpushEndpoint(endpoint: string, prefixList: string[]): { prefix: string } | { reject: EndpointReject } {
+// One Web push rule: an exact "host" or a "suffix" that starts with a dot (matched on a label
+// boundary), and the path prefixes accepted on that host.
+export type EndpointRule = { host?: string; suffix?: string; paths: string[] };
+
+export function endpointRules(raw: string): EndpointRule[] {
+  try {
+    const v = JSON.parse(raw);
+    if (!Array.isArray(v)) return [];
+    return v.filter(
+      (r): r is EndpointRule =>
+        !!r &&
+        typeof r === "object" &&
+        (typeof r.host === "string" ? r.suffix === undefined : typeof r.suffix === "string" && r.suffix.startsWith(".") && r.suffix.length > 1) &&
+        Array.isArray(r.paths) &&
+        r.paths.every((x: unknown) => typeof x === "string" && x.startsWith("/")),
+    );
+  } catch {
+    return [];
+  }
+}
+
+function ruleHost(r: EndpointRule, host: string): boolean {
+  if (r.host !== undefined) return host === r.host.toLowerCase();
+  return host.endsWith(r.suffix!.toLowerCase());
+}
+
+// Returns the matched rule, or a reject record (host + longest matched path prefix length on a matched host).
+// https only, no userinfo, no explicit port, a DNS name (not an IP literal, no empty label, no trailing dot).
+export function checkWebpushEndpoint(endpoint: string, rules: EndpointRule[]): { rule: EndpointRule } | { reject: EndpointReject } {
   const u = parse(endpoint);
   const auth = rawAuthority(endpoint);
-  if (!u || u.protocol !== "https:" || auth === null || auth.includes("@") || auth.includes(":") || u.username || u.password) {
+  if (!u || u.protocol !== "https:" || auth === null || auth.includes("@") || auth.includes(":") || u.username || u.password || u.port !== "") {
     return { reject: { host: u && u.protocol === "https:" ? u.hostname : undefined, prefix_len: 0 } };
   }
-  let best = 0;
-  for (const p of prefixList) {
-    const pu = parse(p);
-    if (!pu) continue;
-    if (u.host === pu.host && u.pathname.startsWith(pu.pathname)) return { prefix: p };
-    if (u.host === pu.host) best = Math.max(best, commonPrefix(endpoint, p));
+  const host = u.hostname.toLowerCase();
+  if (host.startsWith("[") || IPV4.test(host) || IPV4.test(auth.toLowerCase().replace(/\.$/, "")) || host.split(".").some((l) => l === "")) {
+    return { reject: { host, prefix_len: 0, reason: "host" } };
   }
-  return { reject: { host: u.hostname, prefix_len: best } };
+  let best = 0;
+  for (const r of rules) {
+    if (!ruleHost(r, host)) continue;
+    for (const p of r.paths) {
+      if (u.pathname.startsWith(p)) return { rule: r };
+      best = Math.max(best, commonPrefix(u.pathname, p));
+    }
+  }
+  return { reject: { host, prefix_len: best } };
 }
 
 function commonPrefix(a: string, b: string): number {
