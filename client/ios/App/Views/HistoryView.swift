@@ -217,8 +217,7 @@ struct HistoryRowView: View {
             }
             .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
         }
-        // The whole row is one tap target and one VoiceOver button; the sender link is
-        // a named action.
+        // The whole row is one tap target and one VoiceOver button.
         .contentShape(Rectangle())
         .onTapGesture { selecting ? onToggle() : tap() }
         .onLongPressGesture { if selecting { onToggle() } else { onLongPress() } }
@@ -228,11 +227,6 @@ struct HistoryRowView: View {
         .accessibilityAddTraits(selecting && selected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { selecting ? onToggle() : tap() }
         .accessibilityAction(named: "Select") { if selecting { onToggle() } else { onLongPress() } }
-        .accessibilityActions {
-            if !unknown && !outgoing, let id = row.peerId {
-                Button("Show \(senderName)") { model.highlightPeer = id }
-            }
-        }
     }
 
     private var a11yLabel: String {
@@ -248,19 +242,8 @@ struct HistoryRowView: View {
         return d.formatted(.dateTime.month().day())
     }
 
-    private var senderText: Text {
-        Text(senderName).font(unread ? .headline : .body)
-    }
-
-    @ViewBuilder
     private var sender: some View {
-        if !unknown && !outgoing, let id = row.peerId {
-            Button { model.highlightPeer = id } label: { senderText.foregroundColor(.primary) }
-                .buttonStyle(.plain)
-                .accessibilityLabel(senderName)
-        } else {
-            senderText.accessibilityLabel(senderName)
-        }
+        Text(senderName).font(unread ? .headline : .body)
     }
 
     @ViewBuilder
@@ -285,10 +268,7 @@ struct HistoryRowView: View {
     }
 
     private func tap() {
-        if isEvent {
-            if let id = row.peerId { model.highlightPeer = id }
-            return
-        }
+        if isEvent { return }
         model.markRead(row)
         model.detailRow = expanded ? nil : row
     }

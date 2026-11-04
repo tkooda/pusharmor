@@ -36,4 +36,12 @@ final class LaunchTabTests: XCTestCase {
         let src = try String(contentsOf: url, encoding: .utf8)
         XCTAssertTrue(src.contains("if model.highlightPeer != nil || !model.launchesOnSend { tab = 1 }"))
     }
+
+    func testHistoryTilesDoNotOpenDevices() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("App/Views/HistoryView.swift")
+        let src = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertFalse(src.contains("highlightPeer"))
+    }
 }
