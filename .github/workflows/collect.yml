@@ -99,6 +99,8 @@ jobs:
             gh release delete "$store_tag" --yes
           fi
           name="pusharmor-$BROWSER-$VERSION"
+          # Chrome releases from 0.0.32 name the key-free store zip -store.zip; older ones use the plain name.
+          if [ "$BROWSER" = chrome ] && grep -qx "$name-store.zip.files.sha256" "$RUNNER_TEMP/assets.txt"; then name="$name-store"; fi
           grep -qx "$name.zip.files.sha256" "$RUNNER_TEMP/assets.txt" || skip "$tag has no $name.zip.files.sha256"
           mkdir -p "$RUNNER_TEMP/rel"
           gh release download "$tag" --dir "$RUNNER_TEMP/rel" --pattern "$name.zip" --pattern "$name.zip.files.sha256"

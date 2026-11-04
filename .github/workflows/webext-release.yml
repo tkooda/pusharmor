@@ -6,11 +6,12 @@ name: webext-release
 # with id-token or write permissions:
 #   build-<browser>    no Environment, no secrets: npm ci, release build and
 #                      checks; the release zip, the Beta zip ("PushArmor Beta"),
-#                      (Chrome) the -unpacked.zip (the release zip with the
-#                      public item's key, for "Load unpacked") and (Firefox)
+#                      (Chrome) the plain-named zip (the store zip with the
+#                      public item's key, for "Load unpacked"; the key-free
+#                      store zip is the -store.zip) and (Firefox)
 #                      the source archive, with their SHA-256
 #   publish-chrome     Environment chrome-release: verifies the SHA-256,
-#                      provenance, GitHub release with the public, -unpacked
+#                      provenance, GitHub release with the -store, plain-named
 #                      and Beta zips, then the Beta zip to the PRIVATE Beta item
 #   submit-firefox     Environment firefox-release, contents: read, no id-token:
 #                      verifies the SHA-256, npm ci web-ext, signs the Beta zip
@@ -139,8 +140,8 @@ jobs:
         run: |
           out="$RUNNER_TEMP/release"
           mkdir -p "$out" "$RUNNER_TEMP/unzip"
-          zip="pusharmor-chrome-$VERSION.zip"
-          unpacked="pusharmor-chrome-$VERSION-unpacked.zip"
+          zip="pusharmor-chrome-$VERSION-store.zip"
+          unpacked="pusharmor-chrome-$VERSION.zip"
           beta="pusharmor-chrome-beta-$VERSION.zip"
           cp client/chrome/dist/pusharmor-chrome.zip "$out/$zip"
           cp client/chrome/dist/pusharmor-chrome-unpacked.zip "$out/$unpacked"
@@ -189,8 +190,8 @@ jobs:
           BETA_SHA256: ${{ needs.build-chrome.outputs.beta_sha256 }}
         run: |
           out="$RUNNER_TEMP/release"
-          zip="pusharmor-chrome-$VERSION.zip"
-          unpacked="pusharmor-chrome-$VERSION-unpacked.zip"
+          zip="pusharmor-chrome-$VERSION-store.zip"
+          unpacked="pusharmor-chrome-$VERSION.zip"
           beta="pusharmor-chrome-beta-$VERSION.zip"
           printf '%s  %s\n%s  %s\n%s  %s\n' "$ZIP_SHA256" "$zip" "$UNPACKED_SHA256" "$unpacked" "$BETA_SHA256" "$beta" > "$RUNNER_TEMP/expect.sha256"
           (cd "$out" && sha256sum -c --strict "$RUNNER_TEMP/expect.sha256")

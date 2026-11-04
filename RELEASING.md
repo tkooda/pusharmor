@@ -102,7 +102,7 @@ and runs with the store's release Environment:
 |------------|-----------------------------------------------------------------------------|
 | `play`     | Play versionCode of X.Y.Z (already on the internal track) to production, status completed; listing text and phone screenshots |
 | `appstore` | TestFlight build of X.Y.Z on the version page X.Y.Z (an unsubmitted version page of an older version is renamed to X.Y.Z, not duplicated), version page text, app name, subtitle, privacy URL, review notes, 6.9-inch screenshots; submits for App Review, release after approval |
-| `chrome`   | `pusharmor-chrome-X.Y.Z.zip` of the release (hash and build attestation checked) to the public item, then publish (live after review) |
+| `chrome`   | `pusharmor-chrome-X.Y.Z-store.zip` of the release (hash and build attestation checked) to the public item, then publish (live after review) |
 | `firefox`  | `pusharmor-firefox-X.Y.Z.zip` and the source archive of the release (hash and build attestation checked) to the listed add-on as a new listed version, with the reviewer notes of `store/listing/amo/review_notes.txt`; then replaces the listing previews with `store/screenshots/amo/en-US/` (uploads them, then deletes the old ones) |
 
 Hard gate: Play stays on internal testing until BOTH repository variables
@@ -221,8 +221,8 @@ Promote:
 
 ## Chrome (`chrome/vX.Y.Z`)
 
-CI: the public zip `pusharmor-chrome-X.Y.Z.zip` (no "key": the store zip), the
-same zip with the public item's "key" `pusharmor-chrome-X.Y.Z-unpacked.zip` (for
+CI: the store zip `pusharmor-chrome-X.Y.Z-store.zip` (no "key"), the
+same zip with the public item's "key" `pusharmor-chrome-X.Y.Z.zip` (for
 "Load unpacked": it gets the store id, so Google login works; never uploaded to
 the store) and the Beta zip in the GitHub release; the Beta zip ("PushArmor Beta") uploaded to the PRIVATE
 Beta item and published there to trusted testers after store review.
@@ -232,7 +232,7 @@ Test: testers install "PushArmor Beta" from the store; it auto-updates.
 Promote:
 
 1. The promote workflow (job `chrome`), or by hand: Chrome Web Store
-   dashboard, the public item: upload `pusharmor-chrome-X.Y.Z.zip` from the
+   dashboard, the public item: upload `pusharmor-chrome-X.Y.Z-store.zip` from the
    release, submit for review, publish.
 2. The collect workflow (on each chrome/v or firefox/v tag push, or run by hand
    once the store serves the new version) publishes the store CRX as the release

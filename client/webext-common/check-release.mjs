@@ -126,16 +126,16 @@ export function keyedDiff(storeBuf, keyedBuf) {
 }
 
 /** Checks each zip; returns every problem prefixed with the zip name. A Chrome
- *  *-unpacked.zip is also compared with the store zip beside it (name without -unpacked). */
+ *  keyed zip (pusharmor-chrome-X.Y.Z.zip, or the build's -unpacked.zip) is also compared with the store zip beside it (X.Y.Z-store.zip, or the build's name without -unpacked). */
 export function checkZips(paths, key = loadPublic().google_chrome_dev_key) {
   const bad = [];
   for (const p of paths) {
     const n = basename(p);
     const chrome = n.includes("chrome");
-    const keyed = chrome && n.endsWith("-unpacked.zip");
+    const keyed = chrome && (n.endsWith("-unpacked.zip") || /-\d+\.\d+\.\d+\.zip$/.test(n)) && !n.includes("-beta");
     for (const b of checkZip(readFileSync(p), { chrome, beta: n.includes("-beta"), key: keyed ? key ?? "" : undefined })) bad.push(n + ": " + b);
     if (!keyed) continue;
-    const store = p.slice(0, -"-unpacked.zip".length) + ".zip";
+    const store = n.endsWith("-unpacked.zip") ? p.slice(0, -"-unpacked.zip".length) + ".zip" : p.slice(0, -".zip".length) + "-store.zip";
     if (!existsSync(store)) bad.push(n + ": no store zip " + basename(store) + " beside it");
     else for (const b of keyedDiff(readFileSync(store), readFileSync(p))) bad.push(n + ": " + b);
   }

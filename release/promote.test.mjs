@@ -68,7 +68,9 @@ test("release checks: tag, published release and the needed assets", () => {
   assert.equal(releaseProblem("chrome", "1.2.3", false, null), "no tag chrome/v1.2.3");
   assert.equal(releaseProblem("chrome", "1.2.3", true, null), "no GitHub release chrome/v1.2.3");
   assert.equal(releaseProblem("ios", "1.2.3", true, rel([], true)), "release ios/v1.2.3 is still a draft");
-  assert.match(releaseProblem("chrome", "1.2.3", true, rel(["pusharmor-chrome-1.2.3.zip"])), /lacks pusharmor-chrome-1\.2\.3\.hashes\.txt/);
+  assert.match(releaseProblem("chrome", "1.2.3", true, rel(["pusharmor-chrome-1.2.3-store.zip"])), /lacks pusharmor-chrome-1\.2\.3\.hashes\.txt/);
+  assert.match(releaseProblem("chrome", "1.2.3", true, rel(["pusharmor-chrome-1.2.3.zip"])), /lacks pusharmor-chrome-1\.2\.3-store\.zip/);
+  assert.equal(releaseProblem("chrome", "1.2.3", true, rel(["pusharmor-chrome-1.2.3.zip", "pusharmor-chrome-1.2.3-unpacked.zip", "pusharmor-chrome-1.2.3.hashes.txt"])), "");
   assert.equal(releaseProblem("firefox", "1.2.3", true, rel(releaseAssets("firefox", "1.2.3"))), "");
   assert.equal(releaseProblem("android", "1.2.3", true, rel([])), "");
   assert.equal(cmpVersion("0.0.10", "0.0.9"), 1);

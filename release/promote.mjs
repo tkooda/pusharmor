@@ -143,11 +143,13 @@ export function cmpVersion(x, y) {
 }
 
 /** Tag and asset names Promote needs for each platform. */
-export function releaseAssets(platform, version) {
+export function releaseAssets(platform, version, have = new Set()) {
+  // Chrome releases before the -store.zip naming have the store zip as the plain name and a -unpacked.zip.
+  const oldChrome = have.has("pusharmor-chrome-" + version + "-unpacked.zip");
   return {
     android: [],
     ios: [],
-    chrome: ["pusharmor-chrome-" + version + ".zip", "pusharmor-chrome-" + version + ".hashes.txt"],
+    chrome: ["pusharmor-chrome-" + version + (oldChrome ? ".zip" : "-store.zip"), "pusharmor-chrome-" + version + ".hashes.txt"],
     firefox: ["pusharmor-firefox-" + version + ".zip", "pusharmor-firefox-" + version + "-source.zip", "pusharmor-firefox-" + version + ".hashes.txt"],
   }[platform];
 }
@@ -160,7 +162,7 @@ export function releaseProblem(platform, version, tagExists, release) {
   if (!release) return "no GitHub release " + tag;
   if (release.draft) return "release " + tag + " is still a draft";
   const have = new Set((release.assets || []).map((a) => a.name));
-  const missing = releaseAssets(platform, version).filter((n) => !have.has(n));
+  const missing = releaseAssets(platform, version, have).filter((n) => !have.has(n));
   return missing.length ? "release " + tag + " lacks " + missing.join(", ") : "";
 }
 
@@ -656,7 +658,7 @@ async function chrome(version) {
   if (newer.length) return skip("Chrome " + version + ": SKIP, store already has " + newer[0]);
   if (sub && sub.state === "PENDING_REVIEW") throw new Error("Chrome: version " + crx(sub).join(",") + " is in review; cancel it in the dashboard first");
 
-  const zip = await releaseFile("chrome", version, "pusharmor-chrome-" + version + ".zip");
+  const zip = await releaseFile("chrome", version, "pusharmor-chrome-" + version + "-store.zip").catch(() => releaseFile("chrome", version, "pusharmor-chrome-" + version + ".zip"));
   let r = (await http("POST", api + "/upload/v2/" + item + ":upload", { headers: { ...auth, "Content-Type": "application/zip" }, body: zip })).json;
   let state = r.uploadState;
   for (let i = 0; state === "IN_PROGRESS" && i < 30; i++) {
