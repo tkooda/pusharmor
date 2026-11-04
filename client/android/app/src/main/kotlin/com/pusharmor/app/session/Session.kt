@@ -452,10 +452,13 @@ class Session(private val g: Graph) {
     fun pushSwitched() = dao.setPushHash(null)
 
     /**
-     * true = done, false = retry later, null = permanent: 401 "logged out", 401 "unknown peer", or 400 "push endpoint not allowed"
-     * (the refused card shows). Any other 4xx is retried later.
+     * true = done, false = retry later, null = permanent: not registered, 401 "logged out", 401 "unknown peer", 401 "bad id"
+     * (kept for this id, so it is never sent again; no keys are deleted), or 400 "push endpoint not allowed" (the refused card
+     * shows). Any other 4xx is retried later.
      */
     fun patchPushNow(): Boolean? {
+        val me = g.identity()?.id ?: return null
+        if (s.get(Settings.K.PATCH_BAD_ID) == me) return null
         val p = currentPush()
         val r = g.client.patchPush(p?.first ?: "null")
         return when {
@@ -466,6 +469,7 @@ class Session(private val g: Graph) {
             }
             r.isLoggedOut -> null
             r.isUnknownPeer -> { onRemovedSignal(deleted = false); null }
+            r is ApiResult.Http && r.status == 401 && r.error == "bad id" -> { s.set(Settings.K.PATCH_BAD_ID, me); null }
             r is ApiResult.Http && r.status == 400 && r.error == "push endpoint not allowed" -> {
                 if (p?.second?.first() == "unifiedpush") s.set(Settings.K.PUSH_REFUSED, true)
                 null

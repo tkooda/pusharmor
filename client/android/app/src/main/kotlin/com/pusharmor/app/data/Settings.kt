@@ -89,6 +89,8 @@ class Settings(private val context: Context, private val dao: PaDao) {
         val PUSH_REFUSED = booleanPreferencesKey("push_refused")
         /** A relay server reply said push_missing; the next app start sends the push address again. Cleared by an accepted address. */
         val PUSH_MISSING = booleanPreferencesKey("push_missing")
+        /** This device id got 401 "bad id" on PATCH push: the relay server does not take it, so it is not sent again. */
+        val PATCH_BAD_ID = stringPreferencesKey("patch_bad_id")
         /** The last GET /peers or Check again said the relay server's push to this device failed on its side. */
         val RELAY_FAULT = booleanPreferencesKey("relay_fault")
         val CH_MESSAGES = stringPreferencesKey("ch_messages")

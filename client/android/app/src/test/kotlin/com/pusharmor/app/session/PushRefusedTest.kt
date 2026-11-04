@@ -108,6 +108,32 @@ class PushRefusedTest {
         assertEquals(false, g.settings.get(Settings.K.PUSH_MISSING))
     }
 
+    /** 401 "bad id": not retried and not sent again for this id; the keys stay. A new id sends again. */
+    @Test fun badIdIsNotSentAgain() {
+        var calls = 0
+        app.fakeHttp = Interceptor { chain ->
+            calls++
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(401).message("x")
+                .body("{\"error\":\"bad id\"}".toResponseBody("application/json".toMediaType())).build()
+        }
+        assertNull(io { g.session.patchPushNow() })
+        assertNull(io { g.session.patchPushNow() })
+        assertEquals(1, calls)
+        assertEquals(true, io { KeystoreKeyOps.present() })
+        io { g.dao.putSelf(SelfEntity(id = "C".repeat(40), accountPrefix = ByteArray(9), name = "t")) }
+        assertNull(io { g.session.patchPushNow() })
+        assertEquals(2, calls)
+    }
+
+    /** No registration (no self row): no PATCH at all. */
+    @Test fun noPatchBeforeRegistration() {
+        var calls = 0
+        app.fakeHttp = Interceptor { chain -> calls++; chain.proceed(chain.request()) }
+        io { g.store.wipeRegistration() }
+        assertNull(io { g.session.patchPushNow() })
+        assertEquals(0, calls)
+    }
+
     @Test fun appStartPatchRule() {
         assertEquals(false, Session.needsPatch("h", "h", missing = false))
         assertEquals(true, Session.needsPatch("h", "h", missing = true))
