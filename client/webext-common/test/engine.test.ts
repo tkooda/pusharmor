@@ -1347,6 +1347,26 @@ test("push issue: a refused subscribe shows refused until a subscribe and PATCH 
   assert.equal((await new Rpc(a.e).state()).pushIssue, null);
 });
 
+test("push issue: a browser with no push service shows noservice, and a send does not try again", async () => {
+  const { w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  const orig = a.p.pushSubscribe;
+  let tries = 0;
+  a.p.pushSubscribe = async () => {
+    tries++;
+    throw new PushRefused("AbortError", true);
+  };
+  await a.e.pushReconcile(true);
+  assert.equal((await new Rpc(a.e).state()).pushIssue, "noservice");
+  // the relay server keeps saying the push is missing: sending works and starts no new subscribe
+  w.inject.push({ match: /POST \/v1\/send/, status: 200, body: { r: { [b.id]: "sent" }, push_missing: true }, times: 1 });
+  await a.e.send("hi", "auto", "all").catch(() => undefined);
+  assert.equal(tries, 1);
+  a.p.pushSubscribe = orig;
+  await a.e.pushReconcile(true);
+  assert.equal((await new Rpc(a.e).state()).pushIssue, null);
+});
+
 test("push issue: an offline PATCH sets nothing and arms no retry", async () => {
   const { w, a } = await setup();
   a.p.fetch = async (i: string, init: RequestInit) => {

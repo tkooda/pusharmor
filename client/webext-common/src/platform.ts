@@ -51,5 +51,11 @@ export interface Platform {
   now(): number;
 }
 
-/** The browser refused a push subscription (push service off or not available). */
-export class PushRefused extends Error {}
+/** The browser refused a push subscription (push service off or not available). noService: it has no working push service. */
+export class PushRefused extends Error {
+  readonly noService: boolean;
+  constructor(message: string, noService = false) {
+    super(message);
+    this.noService = noService;
+  }
+}

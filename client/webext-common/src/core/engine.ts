@@ -1295,6 +1295,7 @@ export class Engine {
   private async afterSignedReply(r: ApiReply): Promise<void> {
     if (r.json.push_missing !== true) return;
     if ((await this.db.meta<number>("push_fail")) !== undefined) return; // the "pushretry" alarm tries again
+    if ((await this.db.meta<string>("push_issue")) === "noservice") return; // no push service: the next open or Check again tries once
     await this.pushReconcile(true, false, true).catch(() => undefined);
   }
 
@@ -1387,10 +1388,10 @@ export class Engine {
   async subscribePush(quiet = false, fresh = false): Promise<PushFields | null> {
     try {
       const sub = await this.p.pushSubscribe(this.vapid, quiet, fresh);
-      await this.db.updateMeta<string>("push_issue", (v) => (v === "refused" ? undefined : v));
+      await this.db.updateMeta<string>("push_issue", (v) => (v === "refused" || v === "noservice" ? undefined : v));
       return sub;
     } catch (e) {
-      if (e instanceof PushRefused) await this.db.setMeta("push_issue", "refused");
+      if (e instanceof PushRefused) await this.db.setMeta("push_issue", e.noService ? "noservice" : "refused");
       return null;
     }
   }

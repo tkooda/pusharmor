@@ -52,3 +52,24 @@ test("chrome push: a subscribe the browser refuses is a PushRefused", async () =
   };
   await assert.rejects(subscribeRecovering(pm, new Uint8Array([1]), false), PushRefused);
 });
+
+test("chrome push: a browser with no push service (subscribe fails or never answers) is noService; a refused permission is not", async () => {
+  const pm = new FakePM();
+  pm.subscribe = async () => {
+    throw new DOMException("Registration failed - push service not available", "AbortError");
+  };
+  await assert.rejects(subscribeRecovering(pm, new Uint8Array([1]), false), (e: PushRefused) => e instanceof PushRefused && e.noService);
+  pm.subscribe = () => new Promise(() => undefined); // ungoogled-chromium: no answer at all
+  await assert.rejects(subscribeRecovering(pm, new Uint8Array([1]), false, 50), (e: PushRefused) => e instanceof PushRefused && e.noService);
+  pm.subscribe = async () => {
+    throw new DOMException("Registration failed - permission denied", "NotAllowedError");
+  };
+  await assert.rejects(subscribeRecovering(pm, new Uint8Array([1]), false), (e: PushRefused) => e instanceof PushRefused && !e.noService);
+});
+
+test("chrome push: no push service shows its own two lines; Brave and a refused permission keep theirs", async () => {
+  const { pushIssueText } = await import("../src/core/texts.ts");
+  assert.equal(pushIssueText("noservice", false), "This browser cannot receive messages.\nIt has no push service. Sending still works.");
+  assert.equal(pushIssueText("noservice", true), 'Unable to turn on notifications.\nTurn on "Use Google services for push messaging" in Brave\'s privacy settings.');
+  assert.equal(pushIssueText("refused", false), "Unable to turn on notifications.\nNotifications are not available on this device.");
+});
