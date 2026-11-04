@@ -331,7 +331,7 @@ test("History filter is a native select that shows only with more than All", asy
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
   assert.match(pop, /h\("select", \{ "aria-label": "Show messages" \}\)/);
-  assert.match(pop, /filterRow\.hidden = opts\.length < 2;/);
+  assert.match(pop, /filter\.hidden = opts\.length < 2;/);
   assert.doesNotMatch(pop, /chipsBox/);
 });
 
@@ -529,7 +529,7 @@ test("history multi-select: long-press, right-click, Shift+Enter, checkboxes, De
   assert.match(pop, /addEventListener\("contextmenu"/);
   assert.match(pop, /ev\.shiftKey && ev\.key === "Enter"/);
   assert.match(pop, /type: "checkbox", class: "hsel"/);
-  assert.match(pop, /if \(!picked\.size\) picked = null;/); // unchecking every row leaves the mode
+  assert.match(pop, /if \(!picked\.size && !explicit\) picked = null;/); // unchecking every row leaves the mode, unless Select turned it on
   assert.match(pop, /"Delete " \+ n \+ " selected"/);
   assert.match(pop, /confirmDialog\(title,/);
   assert.match(pop, /ids\.length === 1 \? "Delete 1 message\?" : "Delete " \+ ids\.length \+ " messages\?"/);
