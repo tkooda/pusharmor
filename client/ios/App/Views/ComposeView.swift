@@ -63,7 +63,7 @@ enum SendScreenRules {
     static func chipAreaMaxHeight(keyboardUp: Bool) -> CGFloat { keyboardUp ? 118 : 320 }
 
     /// Space the message list spends on rows and margins besides the message field itself
-    /// (top margin, row padding, caption line with "Send as text", the "Send as URL" line, bottom margin).
+    /// (top margin, row padding, caption line with "Send as text", bottom margin).
     static let messageChrome: CGFloat = 186
 
     /// Message field height bounds (F20). It starts 4 text lines tall (plus the editor's
