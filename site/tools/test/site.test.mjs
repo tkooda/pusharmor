@@ -438,6 +438,16 @@ test("minimum age 13 on /terms and /privacy", () => {
   assert.ok(text("privacy.html").includes("PushArmor is for people aged 13 and over."));
 });
 
+test("download: copy and QR icons stay on the last line of their text (structural)", () => {
+  const raw = read("download.html");
+  const css = read("css/site.css");
+  assert.match(css, /\.copy-row \{[^}]*flex-wrap: nowrap/, "copy-row may wrap its icon onto its own line");
+  assert.match(css, /\.cell-row > \.icon-btn \{ flex: none; \}/, "cell-row icons can shrink or wrap");
+  assert.match(css, /\.cell-row > :first-child \{[^}]*overflow-wrap: anywhere/, "cell-row text cannot break inside a long URL or fingerprint");
+  assert.equal(raw.match(/<td>[^<]*(<a |<code )[^\n]*?<button type="button" class="icon-btn"/g)?.length ?? 0, 0, "a table cell has an icon outside a cell-row");
+  assert.ok((raw.match(/<div class="cell-row">/g) || []).length >= 4, "table cells lack cell-row");
+});
+
 test("download: every Android channel, release asset names, certificate fingerprint", () => {
   const t = text("download.html");
   assert.ok(t.includes("Google Play Coming soon"), "download lacks: Google Play");

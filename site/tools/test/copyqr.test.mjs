@@ -174,7 +174,7 @@ test("icons sit only at the end of a data line: a copy-row box or a table cell, 
     for (const b of buttons(html)) {
       n++;
       const p = parentOf(html, b.index);
-      const ok = p && ((p.name === "div" && p.cls.split(" ").includes("copy-row")) || p.name === "td");
+      const ok = p && ((p.name === "div" && ["copy-row", "cell-row"].some((c) => p.cls.split(" ").includes(c))));
       assert.ok(ok, rel + ": icon button " + (b.attrs["data-copy"] || b.attrs["data-qr"]) + " is inside <" + (p && p.name) + ">");
     }
   }

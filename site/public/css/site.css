@@ -484,8 +484,12 @@ button.danger { color: #ffffff; background: #b3261e; border-color: #b3261e; }
 }
 
 /* Copy and QR code buttons (/js/copyqr.js) and the QR code dialog. */
-.copy-row { display: flex; align-items: center; flex-wrap: wrap; max-width: 44rem; margin: 0.75rem 0 1rem; }
+.copy-row { display: flex; align-items: center; flex-wrap: nowrap; max-width: 44rem; margin: 0.75rem 0 1rem; }
 .copy-row pre { flex: 0 1 auto; min-width: 0; margin: 0 0.25rem 0 0; }
+/* Table cells: the text wraps (even inside a long URL or fingerprint) and the icons stay beside its last line. */
+.cell-row { display: flex; align-items: flex-end; }
+.cell-row > :first-child { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.cell-row > .icon-btn { flex: none; }
 .icon-btn {
   min-width: 44px;
   margin: 0 0 0 0.25rem;
