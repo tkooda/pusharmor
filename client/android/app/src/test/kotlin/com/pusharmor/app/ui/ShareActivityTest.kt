@@ -49,4 +49,17 @@ class ShareActivityTest {
     @Test fun shareWithoutTextCloses() {
         assertTrue(launch { }.isFinishing)
     }
+
+    @Test fun directShareRoutesOnlyAShortcutInTheAllSet() {
+        val ids = listOf("a", "b")
+        assertEquals("b", ShareActivity.directShortcut("b", ids, "hi"))
+        // The app icon has no shortcut id: the Send screen opens, even with one device.
+        assertEquals(null, ShareActivity.directShortcut(null, listOf("a"), "hi"))
+        assertEquals(null, ShareActivity.directShortcut("zz", ids, "hi"))
+        assertEquals(null, ShareActivity.directShortcut("a", ids, "  "))
+    }
+
+    @Test fun directShareToastNamesTheDevice() {
+        assertEquals("Sent to \"Laptop\"", UiText.directShareSent("Laptop"))
+    }
 }

@@ -72,8 +72,10 @@ class ShareActivity : ComponentActivity() {
     }
 
     private fun show(text: String, all: List<Peer>) {
-        // Another app can start this activity, so it never sends on its own: the target is only preselected
-        // and the user must tap Send.
+        // A Direct Share target (a device's shortcut) sends at once; the app icon opens the Send screen.
+        val shortcut = directShortcut(intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID), all.map { it.id }, text)
+        if (shortcut != null) { sendDirect(all.first { it.id == shortcut }, text); return }
+        // The app icon (no shortcut id) only preselects the target; the user must tap Send.
         val direct = directTarget(intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID), all.map { it.id })
         val tooLong = SizeCap.utf8Size(text) > SizeCap.MAX_CONTENT_BYTES
         val type = Detect.type(text)
@@ -118,6 +120,10 @@ class ShareActivity : ComponentActivity() {
         fun directTarget(shortcutId: String?, allIds: List<String>): String? =
             if (shortcutId != null && shortcutId in allIds) shortcutId else allIds.singleOrNull()
 
+        /** A shortcut id in the All set with a message to send: that device gets the message with no Send screen. Else null. */
+        fun directShortcut(shortcutId: String?, allIds: List<String>, text: String): String? =
+            if (shortcutId != null && shortcutId in allIds && text.isNotBlank()) shortcutId else null
+
         /** Dialog width and largest height, as parts of the screen. */
         const val DIALOG_WIDTH = 0.94f
         const val DIALOG_MAX_HEIGHT = 0.9f
@@ -125,6 +131,20 @@ class ShareActivity : ComponentActivity() {
 
     private fun showUpdate() {
         setContent { Frame { UpdateScreen(Modifier.padding(vertical = 24.dp)) } }
+    }
+
+    /** The type is detected as on the Send screen. A send that reached the device shows a toast; a failure posts an error notification. */
+    private fun sendDirect(peer: Peer, text: String) {
+        lifecycleScope.launch {
+            val r = if (SizeCap.utf8Size(text) > SizeCap.MAX_CONTENT_BYTES) AppViewModel.SendResult(UiText.SHARE_TOO_LONG) else vm.send(listOf(peer.id), text)
+            if (r.ok) toastAndFinish(UiText.directShareSent(label(peer)))
+            else {
+                val n = vm.g.notifier
+                // With notifications off the notification cannot show, so the error is a toast: a failure is never silent.
+                if (n.enabled()) n.notice(r.text) else Toast.makeText(this@ShareActivity, UiText.brief(r.text), Toast.LENGTH_LONG).show()
+                finish()
+            }
+        }
     }
 
     /** A send that reached a device returns the user to the sharing app; this activity is gone, so a Toast says so. */

@@ -354,10 +354,12 @@ class AppLogicTest {
     }
 
     @Test fun shareNeverSendsOnItsOwn() {
-        // Another app can start ShareActivity: it only hands the text to SendScreen, which sends on the Send tap alone.
+        // The app icon hands the text to SendScreen, which sends on the Send tap alone; only a Direct Share shortcut sends at once.
         val share = source("ui/ShareActivity.kt")
         assertTrue(share.contains("SendScreen("))
-        assertFalse(Regex("""\bsend\(""").containsMatchIn(share))
+        assertEquals(1, Regex("""\bvm\.send\(""").findAll(share).count())
+        assertTrue(share.substringAfter("private fun sendDirect(").contains("vm.send("))
+        assertTrue(share.contains("directShortcut(intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID)"))
         val main = source("ui/MainScreens.kt")
         val sends = Regex("""vm\.send\(""").findAll(main).map { it.range.first }.toList()
         assertEquals(1, sends.size)

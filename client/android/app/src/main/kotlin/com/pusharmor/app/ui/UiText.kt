@@ -205,6 +205,9 @@ object UiText {
         else -> "Sent to $sent of $total ${if (total == 1) "device" else "devices"}"
     }
 
+    /** Toast after a Direct Share send to one device. */
+    fun directShareSent(name: String): String = "Sent to \"${cutName(name)}\""
+
     /** The two lines for the one picked device that did not get a send; null when it did. An unknown or missing word reads as not ready yet. */
     fun sendResultText(word: String, x: String): String? {
         val to = "Unable to send to \"$x\".\n"
