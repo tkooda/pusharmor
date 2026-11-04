@@ -282,14 +282,14 @@ class AppViewModelTest {
         val day = 86_400_000L
         val rows = listOf(row(4, "a", "RECEIVED", 3 * day + 5), row(3, "b", "SENT", 3 * day + 4), row(2, "a", "SENT", 2 * day + 5), row(1, null, "RECEIVED", day + 5))
         var named = 0
-        val v = historyView(rows, com.pusharmor.app.notify.HistoryFilter.Chip.PeerChip("a", "A"), null) { named++; it.uppercase() }
+        val v = historyView(rows, com.pusharmor.app.notify.HistoryFilter.Chip.PeerChip("a", "A"), emptyList()) { named++; it.uppercase() }
         assertEquals(listOf(4L), v.shown.map { it.id })
         assertEquals(setOf(4L), v.shownIds)
         assertEquals(listOf(listOf(4L)), v.days.values.map { g -> g.map { it.id } })
-        assertEquals(listOf(3L, 2L), historyView(rows, com.pusharmor.app.notify.HistoryFilter.Chip.All, "SENT") { it }.days.values.map { g -> g.single().id })
+        assertEquals(listOf(3L, 2L), historyView(rows, com.pusharmor.app.notify.HistoryFilter.Chip.All, listOf("SENT")) { it }.days.values.map { g -> g.single().id })
         assertEquals(4, v.chips.size) // All, A, B, Unknown
         assertEquals(2, named)
         // A chip with no rows falls back to All.
-        assertEquals(com.pusharmor.app.notify.HistoryFilter.Chip.All, historyView(rows, com.pusharmor.app.notify.HistoryFilter.Chip.PeerChip("z", "Z"), null) { it }.eff)
+        assertEquals(com.pusharmor.app.notify.HistoryFilter.Chip.All, historyView(rows, com.pusharmor.app.notify.HistoryFilter.Chip.PeerChip("z", "Z"), emptyList()) { it }.eff)
     }
 }

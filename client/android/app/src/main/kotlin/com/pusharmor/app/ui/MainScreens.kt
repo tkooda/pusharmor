@@ -172,7 +172,6 @@ import com.pusharmor.app.ui.theme.StatusLine
 import com.pusharmor.app.ui.theme.groupItem
 import com.pusharmor.protocol.ContentType
 import com.pusharmor.protocol.Countdown
-import com.pusharmor.protocol.Detect
 import com.pusharmor.protocol.PairDecide
 import com.pusharmor.protocol.PairRole
 import com.pusharmor.protocol.PairState
@@ -1093,7 +1092,7 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
     val peers by vm.peers.collectAsState()
     val me by vm.self.collectAsState()
     var chip by rememberSaveable(stateSaver = chipSaver) { mutableStateOf<HistoryFilter.Chip>(HistoryFilter.Chip.All) }
-    var dir by rememberSaveable { mutableStateOf<String?>(null) }
+    var dirs by rememberSaveable { mutableStateOf(listOf<String>()) }
     var open by rememberSaveable { mutableStateOf<Long?>(null) }
     // the ids checked in multi-select; empty means the mode is off. Leaving the screen ends it.
     var picked by rememberSaveable { mutableStateOf(listOf<Long>()) }
@@ -1101,7 +1100,7 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
     androidx.activity.compose.BackHandler(enabled = picked.isNotEmpty()) { picked = emptyList() }
     DisposableEffect(Unit) { onDispose { picked = emptyList() } }
     fun nameOf(id: String) = peers.firstOrNull { it.id == id }?.let { (it.name ?: label(it)) + if (it.removed) " (removed)" else "" } ?: "(removed)"
-    val view = remember(rows, peers, chip, dir) { historyView(rows, chip, dir, ::nameOf) }
+    val view = remember(rows, peers, chip, dirs) { historyView(rows, chip, dirs, ::nameOf) }
     val eff = view.eff
     val ex = LocalPaExtra.current
     val now = System.currentTimeMillis()
@@ -1134,10 +1133,11 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
         ChipRow(Modifier.padding(top = 4.dp, bottom = 8.dp)) {
             for (c in view.chips) {
                 val t = when (c) { HistoryFilter.Chip.All -> "All"; HistoryFilter.Chip.Unknown -> "Unknown"; is HistoryFilter.Chip.PeerChip -> c.name }
-                PaChip(eff == c, t) { chip = c }
+                val on = if (c == HistoryFilter.Chip.All) allChipOn(eff, dirs) else eff == c
+                PaChip(on, t) { chip = c; if (c == HistoryFilter.Chip.All) dirs = emptyList() }
             }
-            PaChip(dir == "SENT", "Sent") { dir = if (dir == "SENT") null else "SENT" }
-            PaChip(dir == "RECEIVED", "Received") { dir = if (dir == "RECEIVED") null else "RECEIVED" }
+            PaChip("SENT" in dirs, "Sent") { dirs = toggleDirection(dirs, "SENT") }
+            PaChip("RECEIVED" in dirs, "Received") { dirs = toggleDirection(dirs, "RECEIVED") }
         }
         val shown = view.shown
         // Rows that were deleted or filtered away leave the selection; none left ends the mode.
@@ -1157,7 +1157,7 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
         LaunchedEffect(flashId, shown) {
             val id = flashId ?: return@LaunchedEffect
             if (rows.none { it.id == id }) return@LaunchedEffect // not loaded yet; runs again when it is
-            if (shown.none { it.id == id }) { chip = HistoryFilter.Chip.All; dir = null; return@LaunchedEffect }
+            if (shown.none { it.id == id }) { chip = HistoryFilter.Chip.All; dirs = emptyList(); return@LaunchedEffect }
             vm.flashRow.value = null
             val idx = historyItemIndex(days.values.map { g -> g.map { it.id } }, id)
             scope.launch {
@@ -1192,11 +1192,17 @@ internal class HistoryView(
     val days: Map<java.time.LocalDate, List<com.pusharmor.store.HistoryEntity>>,
 )
 
+/** The Sent and Received chips are independent toggles; with neither on, every direction shows. */
+internal fun toggleDirection(dirs: List<String>, d: String): List<String> = if (d in dirs) dirs - d else dirs + d
+
+/** The All chip is on when no device chip and neither direction is chosen; so choosing Sent or Received turns it off and clearing both turns it on. */
+internal fun allChipOn(eff: HistoryFilter.Chip, dirs: List<String>): Boolean = eff == HistoryFilter.Chip.All && dirs.isEmpty()
+
 /** Computes [HistoryView] once per change of rows, devices, or filters (the screen remembers it). */
-internal fun historyView(rows: List<com.pusharmor.store.HistoryEntity>, chip: HistoryFilter.Chip, dir: String?, nameOf: (String) -> String): HistoryView {
+internal fun historyView(rows: List<com.pusharmor.store.HistoryEntity>, chip: HistoryFilter.Chip, dirs: List<String>, nameOf: (String) -> String): HistoryView {
     val frows = rows.map { HistoryFilter.Row(it.peerId, it.direction == "RECEIVED") }
     val eff = HistoryFilter.effective(frows, chip)
-    val shown = rows.filter { HistoryFilter.matches(HistoryFilter.Row(it.peerId, it.direction == "RECEIVED"), eff) && (dir == null || it.direction == dir) }
+    val shown = rows.filter { HistoryFilter.matches(HistoryFilter.Row(it.peerId, it.direction == "RECEIVED"), eff) && (dirs.isEmpty() || it.direction in dirs) }
     return HistoryView(eff, HistoryFilter.chips(frows, nameOf), shown, shown.map { it.id }.toSet(), shown.groupBy { UiText.day(it.at) })
 }
 
