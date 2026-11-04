@@ -1,6 +1,8 @@
 // Add-on catch of the site SW forward (section 5.3): webRequest on
 // https://pusharmor.com/fx/fwd, blocking, requestBody.
+import { historyAt } from "../../../webext-common/src/core/actions.ts";
 import type { WebRequestDetails } from "../../../webext-common/src/shim-types.ts";
+import type { HistoryRow } from "../../../webext-common/src/store/db.ts";
 
 export const FWD_MAX = 3800;
 
@@ -56,3 +58,6 @@ export async function onForward(d: WebRequestDetails, deliver: (m: string) => Pr
   }
   return r.cancel ? { cancel: true } : {};
 }
+
+/** What /fx/open turns into once its waiting messages are passed on: the tabs on History at the newest received message (rows newest first). */
+export const fxShowView = (rows: HistoryRow[]): string => historyAt(rows.find((r) => r.dir === "in" && r.type !== "event")?.id);

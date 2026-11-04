@@ -7,11 +7,14 @@ import type { Engine } from "./engine.ts";
 import { allEntries } from "./state.ts";
 import { R, actionLine } from "./texts.ts";
 
-type ClickTarget = { url: string } | { page: string } | null;
+type ClickTarget = { url: string } | { page: string } | { tabs: string } | null;
+
+/** The popup's tabs in a full tab, on History, scrolled to that message when an id is given. */
+export const historyAt = (id?: number): string => "popup.html#history" + (id === undefined ? "" : "=" + id);
 
 /**
  * Notification id -> what a click opens: "h:" row -> url opens the tab,
- * text/tel and event rows open History at that row; "a:" approve -> Peers;
+ * text/tel and event rows open the tabs on History at that row; "a:" approve -> Peers;
  * "p:" pairing -> Peers (row highlighted); "peerchg" -> Peers; "drop" and
  * anything else only dismiss.
  */
@@ -22,7 +25,7 @@ export async function clickTarget(e: Engine, id: string): Promise<ClickTarget> {
     if (row.type !== "event") await e.db.put("history", { ...row, read: true });
     await e.updateBadge();
     if (row.type === "url") return { url: row.content };
-    return { page: "#history=" + row.id };
+    return { tabs: historyAt(row.id) };
   }
   if (id.startsWith("a:")) return { page: "#peers=" + id.slice(2) };
   if (id.startsWith("p:")) {

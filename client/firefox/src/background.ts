@@ -11,7 +11,7 @@ import type { WebPushKeys } from "../../webext-common/src/crypto/rfc8291.ts";
 import { Autopush, type ApState } from "./autopush/client.ts";
 import { fromPrivate, fxSubFields, senderAllowed } from "./gate.ts";
 import { FWD_URL, endpointAllowed, firefoxPlatform, openSetup } from "./platform-firefox.ts";
-import { fwdAllowed, onForward, readSub } from "./sitefwd/fwd.ts";
+import { fwdAllowed, fxShowView, onForward, readSub } from "./sitefwd/fwd.ts";
 import { browser } from "./shim.ts";
 
 declare const VAPID_PUBLIC_KEY: string;
@@ -130,13 +130,19 @@ async function extra(msg: Req, sender: MessageSender): Promise<unknown> {
     await engine.receive(a.m, "bridge");
     return { ok: true };
   }
+  if (msg.op === "fx-show") {
+    // a site notification click opened /fx/open: that tab shows the add-on's tabs on History
+    if (sender.tab?.id === undefined) return { ok: false };
+    await browser.tabs.update(sender.tab.id, { url: browser.runtime.getURL(fxShowView(await engine.db.history())) });
+    return { ok: true };
+  }
   return { ok: false };
 }
 
 browser.runtime.onMessage.addListener(
   onRuntimeMessage(boot, (msg, sender) => {
     if (!senderAllowed(msg.op, sender, browser.runtime.id, browser.runtime.getURL(""))) return Promise.resolve({ ok: false });
-    if (msg.op === "fx-sub" || msg.op === "fx-msg" || msg.op === "fx-close" || msg.op === "fx-open-setup") return extra(msg, sender);
+    if (msg.op === "fx-sub" || msg.op === "fx-msg" || msg.op === "fx-show" || msg.op === "fx-close" || msg.op === "fx-open-setup") return extra(msg, sender);
     return null;
   }),
 );

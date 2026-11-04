@@ -14,6 +14,9 @@ function relay(op: string, args: Record<string, unknown>): Promise<unknown> {
 const relayWake = (op: string, args: Record<string, unknown>) =>
   relayRetry(() => relay(op, args), (ms) => new Promise((r) => setTimeout(r, ms)));
 
+/** /fx/open: quiet time after the last waiting message before the tab turns into the add-on's History. */
+const SHOW_AFTER_MS = 1000;
+
 if (location.origin === SITE) {
   const path = location.pathname;
   if (path === "/auth/done") {
@@ -38,15 +41,27 @@ if (location.origin === SITE) {
       if (f) void relayWake("fx-sub", f);
     });
   } else if (path === "/fx/open") {
+    // once no waiting message has come for a moment, the add-on shows its tabs on History here
+    let idle: ReturnType<typeof setTimeout> | undefined;
+    const showSoon = () => {
+      clearTimeout(idle);
+      idle = setTimeout(() => void relayWake("fx-show", {}), SHOW_AFTER_MS);
+    };
     window.addEventListener("message", (ev: MessageEvent) => {
       if (ev.source !== window || ev.origin !== SITE) return;
       const d = ev.data as { pa?: string; id?: unknown; M?: unknown };
       if (d && d.pa === "fx-msg" && fwdAllowed(d.M)) {
-        void relayWake("fx-msg", { m: d.M }).then((r) => {
-          if ((r as { ok?: boolean } | undefined)?.ok) window.postMessage({ pa: "fx-ack", id: d.id }, SITE);
-        });
+        clearTimeout(idle);
+        void relayWake("fx-msg", { m: d.M })
+          .then((r) => {
+            if ((r as { ok?: boolean } | undefined)?.ok) window.postMessage({ pa: "fx-ack", id: d.id }, SITE);
+          })
+          .finally(showSoon);
       }
     });
-    document.addEventListener("DOMContentLoaded", () => window.postMessage({ pa: "fx-ready" }, SITE));
+    document.addEventListener("DOMContentLoaded", () => {
+      window.postMessage({ pa: "fx-ready" }, SITE);
+      showSoon();
+    });
   }
 }

@@ -287,7 +287,7 @@ test("full tab account views are gated on login; no hash shows Devices", async (
   const route = page.slice(page.indexOf("async function mountRoute"), page.indexOf("const E2E"));
   const gate = route.indexOf('if (st.reg !== "registered")');
   assert.ok(gate > 0);
-  for (const v of ["historyView(", "sendView(", "renderPeers("]) assert.ok(route.indexOf(v) > gate, v);
+  for (const v of ["sendView(", "renderPeers("]) assert.ok(route.indexOf(v) > gate, v);
   assert.match(route, /signinCard\(env, st, going, true\)/);
   assert.doesNotMatch(route, /h\("div", \{\}, "PushArmor"\)/); // the old blank page
 });
@@ -643,7 +643,7 @@ test("a plain open of the popup or the full tab shows Send with a completed pair
   assert.equal(launchTab([peer(false)]), "peers");
   assert.equal(launchTab([]), "peers");
   const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
-  assert.match(rd("popup.ts"), /void show\(first\)/);
+  assert.match(rd("popup.ts"), /: peers \? launchTab\(peers\) : "send";/);
   // a hash (notification, share, menu, or a link inside the add-on) keeps its view
   assert.match(rd("page.ts"), /if \(route === ""\) \{[^}]*launchTab\(/);
 });

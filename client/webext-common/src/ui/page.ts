@@ -9,7 +9,7 @@ import { toast } from "./dialog.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { renderPeers } from "./peersview.ts";
 import { startTheme } from "./theme.ts";
-import { historyView, keysCard, launchTab, sendView, type Nav, showPushIssue, signinCard, updateCard, wordmark } from "./popup.ts";
+import { keysCard, launchTab, sendView, type Nav, showPushIssue, signinCard, updateCard, wordmark } from "./popup.ts";
 
 export const SITE = "https://pusharmor.com";
 
@@ -58,7 +58,6 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
     return renderPeers(env, view, true);
   }
   if (route === "read") return readView(env, root, Number(arg));
-  if (route === "history") return historyView(env, view, arg, nav);
   if (route === "send") {
     let text = "";
     try {

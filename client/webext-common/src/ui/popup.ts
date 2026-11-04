@@ -78,12 +78,14 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   // a failed read keeps Send, the view this open showed before
   const peers = (await rpc<{ peers: PeerView[] }>(env, "peers").catch(() => null))?.peers;
   if (my !== mounts) return;
-  const first: Tab = peers ? launchTab(peers) : "send";
+  // popup.html#history=<id> in a tab (a message notification click): History, at that message
+  const [route, at] = (globalThis.location?.hash ?? "").replace(/^#/, "").split("=");
+  const first: Tab = route === "history" ? "history" : peers ? launchTab(peers) : "send";
   clear(root);
   const body = h("div", { class: "body", id: "panel", role: "tabpanel" });
   const tabs = h("div", { class: "tabs", role: "tablist" });
   const nav: Nav = { toDevices: () => show("peers", true), toSend: () => show("send") };
-  const show = (t: Tab, openPair = false) => {
+  const show = (t: Tab, openPair = false, focus?: string) => {
     for (const b of Array.from(tabs.children)) {
       const on = (b as HTMLElement).dataset.tab === t;
       b.classList.toggle("on", on);
@@ -101,7 +103,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
     const slow = setTimeout(() => pane.isConnected && !pane.firstChild && body.prepend(wait), 150);
     let ready: Promise<unknown> = Promise.resolve();
     if (t === "send") ready = sendView(env, pane, st, undefined, false, nav);
-    if (t === "history") ready = historyView(env, pane, undefined, nav);
+    if (t === "history") ready = historyView(env, pane, focus, nav);
     if (t === "peers") ready = renderPeers(env, pane, false, undefined, undefined, openPair);
     if (t === "settings") ready = settingsView(env, pane, st, () => mountPopup(env, root));
     // a view that fails shows the error with Retry in place of an empty pane
@@ -126,7 +128,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement): Promise<void> {
   const top = h("div", { class: "top" }, h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), setupBar(env, st), tabs);
   root.append(top, body);
   // after the first view is drawn, so the message keeps clear of its footer
-  void show(first)
+  void show(first, false, route === "history" ? at : undefined)
     .then(() => showPushIssue(env, st, () => my === mounts))
     .then(() => settlePushIssue(env, st, () => my === mounts));
 }
