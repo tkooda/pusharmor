@@ -2,6 +2,7 @@ package com.pusharmor.app.notify
 
 import android.app.Notification
 import android.app.NotificationChannel
+import android.app.NotificationChannelGroup
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -39,6 +40,12 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         const val COULD_NOT_READ = "PushArmor received a message it could not read"
         const val INVALID = "Invalid message received"
 
+        /** Group of the per-device message channels, as the system settings list it. */
+        const val PEER_GROUP = "device_messages"
+
+        /** A device's name as the app shows it: its name, else "Android device added Nov 4". */
+        fun deviceName(p: PeerEntity): String = p.name ?: "${AppEffects.platformLabel(p.platform)} device added ${AppEffects.dateLabel(p.created)}"
+
         fun randomChannelId(): String = B64url.encode(ByteArray(16).also { SecureRandom().nextBytes(it) })
 
         /** Notification id derived from the pairing key pk (first 4 bytes, positive). */
@@ -55,11 +62,12 @@ class Notifier(private val context: Context, private val settings: Settings, pri
 
     /** Created on first start; "messages" and "peers" ids are random per install, kept in DataStore. */
     fun ensureChannels() {
-        nm.createNotificationChannel(NotificationChannel(DEFAULT_CHANNEL, "Other", NotificationManager.IMPORTANCE_NONE))
+        nm.createNotificationChannel(NotificationChannel(DEFAULT_CHANNEL, "Not used", NotificationManager.IMPORTANCE_NONE))
         val msg = settings.get(Settings.K.CH_MESSAGES) ?: randomChannelId().also { settings.set(Settings.K.CH_MESSAGES, it) }
         val peers = settings.get(Settings.K.CH_PEERS) ?: randomChannelId().also { settings.set(Settings.K.CH_PEERS, it) }
         nm.createNotificationChannel(NotificationChannel(msg, "Messages", NotificationManager.IMPORTANCE_HIGH))
-        nm.createNotificationChannel(NotificationChannel(peers, "Devices", NotificationManager.IMPORTANCE_DEFAULT))
+        nm.createNotificationChannel(NotificationChannel(peers, "Pairing and device changes", NotificationManager.IMPORTANCE_DEFAULT))
+        nm.createNotificationChannelGroup(NotificationChannelGroup(PEER_GROUP, "Messages from devices"))
     }
 
     val messagesChannel: String get() = settings.get(Settings.K.CH_MESSAGES)!!
@@ -69,13 +77,22 @@ class Notifier(private val context: Context, private val settings: Settings, pri
     fun createPeerChannel(peerId: String) {
         val p = dao.peer(peerId) ?: return
         val id = p.channelId ?: randomChannelId().also { dao.setChannelId(peerId, it) }
-        nm.createNotificationChannel(NotificationChannel(id, p.name ?: "Device", NotificationManager.IMPORTANCE_HIGH))
+        nm.createNotificationChannel(peerChannel(id, p))
+    }
+
+    private fun peerChannel(id: String, p: PeerEntity) =
+        NotificationChannel(id, deviceName(p), NotificationManager.IMPORTANCE_HIGH).also { it.group = PEER_GROUP }
+
+    /** Brings every existing per-device channel to its device's current name; on app start and when the device list changes, never on a timer. */
+    fun syncPeerChannels() {
+        nm.createNotificationChannelGroup(NotificationChannelGroup(PEER_GROUP, "Messages from devices"))
+        for (p in dao.peers()) p.channelId?.let { nm.createNotificationChannel(peerChannel(it, p)) }
     }
 
     fun renamePeerChannel(peerId: String) {
         val p = dao.peer(peerId) ?: return
         val id = p.channelId ?: return
-        nm.createNotificationChannel(NotificationChannel(id, p.name ?: "Device", NotificationManager.IMPORTANCE_HIGH))
+        nm.createNotificationChannel(peerChannel(id, p))
     }
 
     fun deletePeerChannel(peerId: String) {

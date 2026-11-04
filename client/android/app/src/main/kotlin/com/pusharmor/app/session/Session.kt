@@ -602,6 +602,8 @@ class Session(private val g: Graph) {
 
     /** Direct share targets: one long-lived dynamic shortcut per member of the All set shown in the share sheet. */
     fun updateShortcuts() {
+        // Every change of the device list passes here: the per-device notification channels follow the names.
+        g.notifier.syncPeerChannels()
         val ctx = g.app
         val peers = g.store.peers()
         val all = shareTargets(peers, s.shareOff)
