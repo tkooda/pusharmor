@@ -927,7 +927,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     // The app's one snackbar; the share sheet has none, so it keeps its own.
     val shared = LocalSnackbar.current
     val snack = shared ?: remember { SnackbarHostState() }
-    LaunchedEffect(result) { result?.let { snack.showSnackbar(it.second) } }
+    LaunchedEffect(result) { result?.let { snack.showSnackbar(UiText.brief(it.second)) } }
     // A result about the last send goes away once the message or the chosen devices change.
     DismissSnackbarOnChange(snack, text to picked.toList())
     val detected = Detect.type(text)
@@ -1007,7 +1007,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                             val ok = p.inAll
                             if (!UiText.chipVisible(ok && p.id in picked, keyboardUp)) continue
                             DeviceChip(platformIcon(p.platform), label(p), p.id in sendTo, ok, if (ok) null else UiText.status(p).second) {
-                                if (!ok) { vm.tapGreyed(); scope.launch { snack.showSnackbar(UiText.greyedChip(label(p), UiText.status(p).second)) } }
+                                if (!ok) { vm.tapGreyed(); scope.launch { snack.showSnackbar(UiText.brief(UiText.greyedChip(label(p), UiText.status(p).second))) } }
                                 else if (p.id in picked) picked.remove(p.id) else picked.add(p.id)
                             }
                         }

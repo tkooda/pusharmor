@@ -10,6 +10,7 @@ import com.pusharmor.app.ui.AppViewModel
 import com.pusharmor.app.ui.AuthLinkActivity
 import com.pusharmor.app.ui.CodeInput
 import com.pusharmor.app.ui.ShareActivity
+import com.pusharmor.app.ui.UiText
 import com.pusharmor.app.ui.pairingScrollTop
 import com.pusharmor.app.ui.platformIcon
 import com.pusharmor.app.ui.theme.PaIcons
@@ -330,6 +331,27 @@ class AppLogicTest {
         assertEquals(listOf("if (shared == null) SnackbarHost("), Regex(".{0,20}SnackbarHost\\(").findAll(main).map { it.value.trim() }.toList())
         assertFalse(main.contains("vm.message.collectAsState()"))
         for (f in listOf("ui/MainScreens.kt", "ui/MainActivity.kt", "ui/SignInScreens.kt")) assertFalse(f, source(f).contains("Toast.makeText"))
+    }
+
+    @Test fun toastsAndSnackbarsEndWithoutPeriod() {
+        // Every Toast and snackbar in the app takes its text through UiText.brief, which drops each line's final period.
+        val calls = java.io.File("src/main/kotlin").walk().filter { it.extension == "kt" }.flatMap { f ->
+            Regex("""showSnackbar\(|Toast\.makeText\(\w+, """).findAll(f.readText()).map { f.name to f.readText().substring(it.range.last + 1).take(15) }
+        }.toList()
+        assertTrue(calls.size >= 8)
+        for ((f, arg) in calls) assertTrue("$f: $arg", arg.startsWith("UiText.brief("))
+        assertEquals("Unable to send to \"A.\"\nIt is no longer on this account", UiText.brief(UiText.sendResultText("unknown", "A.")!!))
+        assertEquals("Unable to save the message\nTry again", UiText.brief(com.pusharmor.net.ErrorText.text(UiText.UNABLE_SAVE_MESSAGE, com.pusharmor.net.ErrorText.TRY_AGAIN)))
+        assertEquals("Message sent to \"Laptop...\"", UiText.brief("Message sent to \"Laptop...\""))
+        assertEquals("Wait...", UiText.brief("Wait..."))
+        // Every text constant that can reach one, and the built texts, end without a period once shown there.
+        val consts = listOf(UiText::class.java, com.pusharmor.net.ErrorText::class.java, Class.forName("com.pusharmor.app.ui.LaunchKt"))
+            .flatMap { c -> c.declaredFields.filter { it.type == String::class.java && java.lang.reflect.Modifier.isStatic(it.modifiers) }.map { it.isAccessible = true; it.get(null) as String } }
+        val built = listOf("sent", "gone", "logged out", "not listening", "unapproved", "denied", "unknown", "failed:x", "")
+            .mapNotNull { UiText.sendResultText(it, "A") } + com.pusharmor.protocol.engine.PairStart.entries.mapNotNull { UiText.pairRefused(it, "A") } +
+            listOf(UiText.checkAgainText(true, null), UiText.checkAgainText(false, null), com.pusharmor.net.ErrorText.tooMany(30),
+                UiText.noPushApp(true), UiText.pushRefused("h", "ntfy", false), "Saved.", UiText.SETTINGS_RESET).filterNotNull()
+        for (t in consts + built) for (line in UiText.brief(t).split('\n')) assertFalse(line, line.endsWith(".") && !line.endsWith(".."))
     }
 
     @Test fun shareNeverSendsOnItsOwn() {

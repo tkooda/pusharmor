@@ -163,7 +163,7 @@ class UiFitTest {
         n!!.config[SemanticsActions.OnClick].action!!.invoke()
         shadowOf(Looper.getMainLooper()).idle()
         // The app's snackbar, not a Toast.
-        assertTrue(nodes(c.get()).any { it.config.getOrNull(SemanticsProperties.Text)?.any { t -> t.text == com.pusharmor.app.ui.NO_APP_LINK } == true })
+        assertTrue(nodes(c.get()).any { it.config.getOrNull(SemanticsProperties.Text)?.any { t -> t.text == com.pusharmor.app.ui.UiText.brief(com.pusharmor.app.ui.NO_APP_LINK) } == true })
         assertNull(org.robolectric.shadows.ShadowToast.getLatestToast())
     }
 

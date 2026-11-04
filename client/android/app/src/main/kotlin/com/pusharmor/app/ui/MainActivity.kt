@@ -194,7 +194,7 @@ internal fun UpdateScreen(modifier: Modifier = Modifier) {
             androidx.compose.foundation.layout.Spacer(Modifier.padding(top = 24.dp))
             GreenButton(onClick = {
                 startOrToast(ctx, Intent(Intent.ACTION_VIEW, android.net.Uri.parse(UPDATE_URL)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) {
-                    scope.launch { snack.showSnackbar(it) }
+                    scope.launch { snack.showSnackbar(UiText.brief(it)) }
                 }
             }, text = "Update", icon = null, modifier = Modifier.fillMaxWidth())
         }
@@ -270,7 +270,7 @@ internal fun App(vm: AppViewModel) {
         Session.Start.KEYS_UNAVAILABLE, Session.Start.DATA_UNAVAILABLE -> {
             // A failed Delete broken keys or Reset this device says why in a snackbar, as on the other screens.
             val snack = remember { SnackbarHostState() }
-            androidx.compose.runtime.LaunchedEffect(Unit) { vm.message.collect { m -> if (m != null) { vm.message.value = null; snack.showSnackbar(m) } } }
+            androidx.compose.runtime.LaunchedEffect(Unit) { vm.message.collect { m -> if (m != null) { vm.message.value = null; snack.showSnackbar(UiText.brief(m)) } } }
             Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                 if (start == Session.Start.KEYS_UNAVAILABLE) KeysBrokenScreen(onRetry = { vm.boot() }, onDelete = { vm.deleteBrokenKeys() })
                 else DataBrokenScreen(onRetry = { vm.boot() }, onReset = { vm.resetData() })
@@ -331,7 +331,7 @@ internal fun App(vm: AppViewModel) {
             var shown: kotlinx.coroutines.Job? = null
             launch {
                 vm.message.collect { m ->
-                    if (m != null) { vm.message.value = null; shown?.cancel(); shown = launch { snack.showSnackbar(m, duration = SnackbarDuration.Short) } }
+                    if (m != null) { vm.message.value = null; shown?.cancel(); shown = launch { snack.showSnackbar(UiText.brief(m), duration = SnackbarDuration.Short) } }
                 }
             }
             // A send that reached a device: History, scrolled to the new row, and a 2 s note.
@@ -340,7 +340,7 @@ internal fun App(vm: AppViewModel) {
                     vm.sent.value = null
                     vm.flashRow.value = r.historyId
                     tab("history")
-                    shown?.cancel(); shown = launch { kotlinx.coroutines.withTimeoutOrNull(SENT_SNACK_MS) { snack.showSnackbar(r.text) } }
+                    shown?.cancel(); shown = launch { kotlinx.coroutines.withTimeoutOrNull(SENT_SNACK_MS) { snack.showSnackbar(UiText.brief(r.text)) } }
                 }
             }
         }

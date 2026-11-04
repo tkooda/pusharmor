@@ -211,7 +211,7 @@ class CannotReceiveCardTest {
                 val (a, vm) = show(app, start)
                 tap(a, UiText.CHECK_AGAIN)
                 // The snackbar host takes the message off vm.message as soon as the main looper runs, so look for either.
-                fun still() = vm.message.value == UiText.CHECK_STILL || nodes(a).any { text(it) == UiText.CHECK_STILL }
+                fun still() = vm.message.value == UiText.CHECK_STILL || nodes(a).any { text(it) == UiText.brief(UiText.CHECK_STILL) }
                 val until = System.currentTimeMillis() + 5_000
                 while (!still() && System.currentTimeMillis() < until) { Thread.sleep(20); idle() }
                 assertTrue("still line", still())

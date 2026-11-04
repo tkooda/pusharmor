@@ -129,7 +129,7 @@ class ShareActivity : ComponentActivity() {
 
     /** A send that reached a device returns the user to the sharing app; this activity is gone, so a Toast says so. */
     private fun toastAndFinish(text: String) {
-        Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, UiText.brief(text), Toast.LENGTH_SHORT).show()
         finish()
     }
 

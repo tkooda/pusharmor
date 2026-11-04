@@ -18,7 +18,7 @@ fun startOrToast(context: Context, intent: Intent, text: String = NO_APP_LINK,
 }
 
 /** A short Toast, for where no app snackbar shows. */
-fun toast(context: Context, text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+fun toast(context: Context, text: String) = Toast.makeText(context, UiText.brief(text), Toast.LENGTH_SHORT).show()
 
 /** Starts [intent]; with no app to handle it, does nothing instead of crashing. */
 fun safeStart(context: Context, intent: Intent) {

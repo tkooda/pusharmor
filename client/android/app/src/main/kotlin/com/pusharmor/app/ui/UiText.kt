@@ -34,6 +34,10 @@ object UiText {
         else -> null
     }
 
+    /** Toast and snackbar text: no line ends with a period. Inline text, dialogs, and notifications keep theirs; an ellipsis stays. */
+    fun brief(text: String): String =
+        text.split('\n').joinToString("\n") { if (it.endsWith('.') && !it.endsWith("..")) it.dropLast(1) else it }
+
     const val DELETE_CONFIRM = "Delete this account? You must log in again to confirm. This cannot be undone."
 
     // Line 1 of an error: what could not be done. Line 2 (ErrorText) says why.
