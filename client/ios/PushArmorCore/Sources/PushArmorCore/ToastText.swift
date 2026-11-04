@@ -11,4 +11,12 @@ public enum ToastText {
         let ok = !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && pasteboardHasText
         return ok ? (copied, true) : (copyFailed, false)
     }
+
+    /// The banner as shown and spoken: no line ends with a period. Text inside a line keeps
+    /// its periods, and the same texts keep them where they show as inline text or alerts.
+    public static func shown(_ t: String) -> String {
+        t.split(separator: "\n", omittingEmptySubsequences: false)
+            .map { $0.hasSuffix(".") && !$0.hasSuffix("..") ? String($0.dropLast()) : String($0) }
+            .joined(separator: "\n")
+    }
 }

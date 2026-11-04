@@ -29,7 +29,7 @@ struct RootView: View {
                 if ScreenshotSample.staysOnScreen { return } // screen review: the results stay on screen
                 #endif
                 // VoiceOver reads the banner; slow readers get it on screen for longer.
-                UIAccessibility.post(notification: .announcement, argument: t)
+                UIAccessibility.post(notification: .announcement, argument: ToastText.shown(t))
                 let slow = UIAccessibility.isVoiceOverRunning || typeSize.isAccessibilitySize
                 let seconds: UInt64 = model.toastIsSuccess ? (slow ? 6 : 2) : (slow ? 8 : 4)
                 try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
@@ -302,7 +302,7 @@ struct ToastBanner: View {
                 Image(systemName: ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                     .foregroundStyle(ok ? Color.green : Color.orange)
                     .accessibilityHidden(true)
-                Text(t)
+                Text(ToastText.shown(t))
                     .font(.subheadline)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
