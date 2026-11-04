@@ -450,7 +450,9 @@ internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, content: @Co
     val off = !n.enabled() || n.mainChannelsBlocked()
     val closed by vm.cannotReceiveClosed.collectAsState()
     val relay = relayFaultShown(Settings.flagOf(prefs, Settings.K.RELAY_FAULT, false), type, google)
-    val cannot = UiText.cannotReceive(n.enabled(), n.mainChannelsBlocked(), noPushApp, refused != null, relay)
+    // The push address could not be sent: line 2 says why.
+    val pushError = prefs?.get(Settings.K.PUSH_ERROR)
+    val cannot = UiText.cannotReceive(n.enabled(), n.mainChannelsBlocked(), noPushApp, refused != null || pushError != null, relay)
     LaunchedEffect(cannot) { if (!cannot) vm.cannotReceiveClosed.value = false }
     val shown = cannot && !closed
     var getApp by rememberSaveable { mutableStateOf(false) }
@@ -470,6 +472,7 @@ internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, content: @Co
                 })
                 noPushApp -> UiText.noPushApp(google) to listOf(check, UiText.GET_PUSH_APP to { getApp = true })
                 refused != null -> UiText.pushRefused(refused.first, refused.second, google) to listOf(check)
+                pushError != null -> pushError to listOf(check)
                 else -> UiText.RELAY_FAULT to listOf(check)
             }
             CannotReceiveBanner(reason, actions,

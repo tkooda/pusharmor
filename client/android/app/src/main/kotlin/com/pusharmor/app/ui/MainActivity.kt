@@ -329,6 +329,7 @@ internal fun App(vm: AppViewModel) {
         fun tab(r: String) = nav.navigate(r) { popUpTo("peers") { saveState = true }; launchSingleTop = true; restoreState = true }
         androidx.compose.runtime.LaunchedEffect(Unit) {
             var shown: kotlinx.coroutines.Job? = null
+            launch { vm.showPairErrors() }
             launch {
                 vm.message.collect { m ->
                     if (m != null) { vm.message.value = null; shown?.cancel(); shown = launch { snack.showSnackbar(UiText.brief(m), duration = SnackbarDuration.Short) } }

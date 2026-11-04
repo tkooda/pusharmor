@@ -98,7 +98,7 @@ class PairSendWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
             PairingEngine.SendStep.DONE -> Result.success()
             PairingEngine.SendStep.RETRY -> {
                 val row = g.store.pairing(peer)
-                if (row == null || Countdown.expired(row.startedAt, now) || runAttemptCount > 20) { engine.onSendExhausted(peer); Result.success() } else Result.retry()
+                if (row == null || Countdown.expired(row.startedAt, now) || runAttemptCount > 20) { engine.onSendExhausted(peer); g.session.pairSendFailed(peer, engine.lastError); Result.success() } else Result.retry()
             }
             PairingEngine.SendStep.WAIT_UNTIL -> {
                 // never sooner than retry_after: the floor is the stored not-before
@@ -106,7 +106,7 @@ class PairSendWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
                 Work.pairSend(applicationContext, peer, replace = true, delayMs = (nb - now).coerceAtLeast(1000))
                 Result.success()
             }
-            PairingEngine.SendStep.STOP -> { engine.onSendExhausted(peer); Result.success() }
+            PairingEngine.SendStep.STOP -> { engine.onSendExhausted(peer); g.session.pairSendFailed(peer, engine.lastError); Result.success() }
         }
     }
 }
@@ -140,10 +140,10 @@ class PushPatchWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(
     override suspend fun doWork(): Result {
         val g = (applicationContext as PaApp).graph
         if (g.identity() == null) return Result.success()
-        return when (g.session.patchPushNow()) {
+        return when (g.session.patchPushNow(last = runAttemptCount >= com.pusharmor.app.session.Session.PATCH_TRIES - 1)) {
             true -> Result.success()
             false -> Result.retry()
-            null -> Result.success() // permanent (see patchPushNow): never retried
+            null -> Result.success() // permanent or the last try (see patchPushNow): never retried
         }
     }
 }

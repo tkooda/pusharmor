@@ -47,6 +47,9 @@ class Session(private val g: Graph) {
         const val DELETED = "Account deleted on another device."
         const val NO_GOOGLE_PUSH = "This build has no Google push. Install a UnifiedPush app or reinstall from Play."
         const val REFRESH_GREY_MS = 10_000L
+        /** Tries of the push address PATCH work before the cannot-receive card says why it failed (30 s backoff, doubled). */
+        const val PATCH_TRIES = 10
+        private val BAD_ID = ApiResult.Http(401, "bad id")
         /** Category of the direct share shortcuts; the same name as the share-target in res/xml/shortcuts.xml. */
         const val SHARE_CATEGORY = "com.pusharmor.category.SHARE_TARGET"
 
@@ -433,6 +436,15 @@ class Session(private val g: Graph) {
         return if (r is ApiResult.Ok) null else ErrorText.of(UiText.UNABLE_RENAME, r)
     }
 
+    /**
+     * A pairing message the relay server did not take, after the last try: the next app screen says "Unable to pair with" the
+     * device and why ([Settings.K.PAIR_ERROR]). No reply ([r] null, a timed-out pairing) shows nothing here.
+     */
+    fun pairSendFailed(peerId: String, r: ApiResult<*>?) {
+        if (r == null) return
+        s.set(Settings.K.PAIR_ERROR, ErrorText.of(UiText.unablePair(g.store.peer(peerId)?.let(::label) ?: ""), r))
+    }
+
     // ---- push -----------------------------------------------------------------------------
 
     private fun currentPush(): Pair<String, List<String>>? = when (s.get(Settings.K.PUSH_TYPE)) {
@@ -454,26 +466,31 @@ class Session(private val g: Graph) {
     /**
      * true = done, false = retry later, null = permanent: not registered, 401 "logged out", 401 "unknown peer", 401 "bad id"
      * (kept for this id, so it is never sent again; no keys are deleted), or 400 "push endpoint not allowed" (the refused card
-     * shows). Any other 4xx is retried later.
+     * shows). Any other 4xx is retried later. A [last] try that fails, a 401 "bad id", or a refused Google push address
+     * shows the cannot-receive card with the reason ([Settings.K.PUSH_ERROR]); an accepted address clears it.
+     * [onError] gets each failed reply.
      */
-    fun patchPushNow(): Boolean? {
+    fun patchPushNow(last: Boolean = false, onError: (ApiResult<*>) -> Unit = {}): Boolean? {
         val me = g.identity()?.id ?: return null
-        if (s.get(Settings.K.PATCH_BAD_ID) == me) return null
+        if (s.get(Settings.K.PATCH_BAD_ID) == me) { s.set(Settings.K.PUSH_ERROR, ErrorText.reason(BAD_ID)); onError(BAD_ID); return null }
         val p = currentPush()
         val r = g.client.patchPush(p?.first ?: "null")
+        if (r !is ApiResult.Ok) onError(r)
         return when {
             r is ApiResult.Ok -> {
                 dao.setPushHash(p?.let { x -> Ids.pushSha256(x.second) }); s.set(Settings.K.PUSH_REFUSED, false)
+                s.set(Settings.K.PUSH_ERROR, null)
                 if (p != null) s.set(Settings.K.PUSH_MISSING, false)
                 true
             }
             r.isLoggedOut -> null
             r.isUnknownPeer -> { onRemovedSignal(deleted = false); null }
-            r is ApiResult.Http && r.status == 401 && r.error == "bad id" -> { s.set(Settings.K.PATCH_BAD_ID, me); null }
+            r is ApiResult.Http && r.status == 401 && r.error == "bad id" -> { s.set(Settings.K.PATCH_BAD_ID, me); s.set(Settings.K.PUSH_ERROR, ErrorText.reason(r)); null }
             r is ApiResult.Http && r.status == 400 && r.error == "push endpoint not allowed" -> {
-                if (p?.second?.first() == "unifiedpush") s.set(Settings.K.PUSH_REFUSED, true)
+                if (p?.second?.first() == "unifiedpush") s.set(Settings.K.PUSH_REFUSED, true) else s.set(Settings.K.PUSH_ERROR, ErrorText.PUSH_NOT_SUPPORTED)
                 null
             }
+            last -> { s.set(Settings.K.PUSH_ERROR, ErrorText.reason(r)); null }
             else -> false
         }
     }

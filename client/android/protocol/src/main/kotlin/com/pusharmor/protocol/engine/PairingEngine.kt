@@ -343,6 +343,10 @@ class PairingEngine(
 
     enum class SendStep { DONE, RETRY, WAIT_UNTIL, STOP }
 
+    /** The failed reply of the last [sendPending] call (null after a success); the worker shows it when it gives up. */
+    var lastError: ApiResult<*>? = null
+        private set
+
     /**
      * The "pair-send-$peer" work: POST /pair/$peer with the pending message. Returns what the
      * worker should do next; [WAIT_UNTIL] uses the row's notBefore.
@@ -354,6 +358,7 @@ class PairingEngine(
         val kind = row.pendingKind ?: return SendStep.DONE
         if (now < row.notBefore) return SendStep.WAIT_UNTIL
         val r = api.pair(peerId, kind.wire, msg)
+        lastError = if (r is ApiResult.Ok) null else r
         return store.tx {
             val cur = store.pairing(peerId) ?: return@tx SendStep.DONE
             when (r) {

@@ -3,11 +3,14 @@ package com.pusharmor.app.push
 import android.content.Context
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
+import com.google.android.gms.tasks.Task
+import com.google.android.gms.tasks.Tasks
 import com.google.firebase.messaging.FirebaseMessaging
 import com.pusharmor.app.Graph
 import com.pusharmor.app.data.Settings
 import com.pusharmor.app.work.Work
 import org.unifiedpush.android.connector.UnifiedPush
+import java.util.concurrent.TimeUnit
 
 /** play flavor: FCM when Google Play services are present, else UnifiedPush. */
 class FlavorPush(private val context: Context) : PushFlavor {
@@ -17,8 +20,11 @@ class FlavorPush(private val context: Context) : PushFlavor {
         /** Turns FCM's own token fetch on or off; a test replaces it (no Firebase app runs in unit tests). */
         internal var autoInit: (Boolean) -> Unit = { FirebaseMessaging.getInstance().isAutoInitEnabled = it }
 
-        /** Fetches the FCM token; a test replaces it. */
-        internal var fetchToken: ((String) -> Unit) -> Unit = { cb -> FirebaseMessaging.getInstance().token.addOnSuccessListener { cb(it) } }
+        /** The FCM token request; a test replaces it. */
+        internal var tokenTask: () -> Task<String> = { FirebaseMessaging.getInstance().token }
+
+        /** Fetches the FCM token and waits for it (off the main thread): a failure throws, so the tap that asked says so; a test replaces it. */
+        internal var fetchToken: ((String) -> Unit) -> Unit = { cb -> cb(Tasks.await(tokenTask(), 30, TimeUnit.SECONDS)) }
     }
 
     override val hasPlayServices: Boolean

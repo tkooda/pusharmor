@@ -157,8 +157,10 @@ class EngineTest {
         assertEquals(PairStart.STARTED, n.pairing.tapPair(x.id, t0))
         n.skewNext = 1
         assertEquals(PairingEngine.SendStep.RETRY, n.pairing.sendPending(x.id, t0))
+        assertTrue(n.pairing.lastError!!.isClockSkew) // kept for the worker to show when it gives up
         assertEquals(PairingEngine.SendStep.DONE, n.pairing.sendPending(x.id, t0))
         assertEquals("sent", n.store.pairing(x.id)!!.lastResult)
+        assertEquals(null, n.pairing.lastError)
     }
 
     @Test fun allowReconcile() {

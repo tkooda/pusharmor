@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -95,6 +96,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             combine(g.dao.selfFlow().waitOutCorrupt(), g.settings.data) { s, p -> (s != null) to (p[Settings.K.SIGNED_OUT] == true) }
                 .collect { (present, out) -> if (needsReboot(start.value, present, out)) boot() }
+        }
+    }
+
+    /** A pairing message that failed in the background says so once, on the signed-in main screen (the one that collects it). */
+    suspend fun showPairErrors() = withContext(Dispatchers.IO) {
+        g.settings.data.map { it[Settings.K.PAIR_ERROR] }.distinctUntilChanged().collect { e ->
+            if (e != null) { message.value = e; g.settings.set(Settings.K.PAIR_ERROR, null) }
         }
     }
 
@@ -389,10 +397,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * push. "sent" says Working and the card goes; the line for each result is [UiText.checkAgainText].
      */
     fun checkAgain(local: Boolean) = once("check", UiText.CHECK_FAILED) {
+        // The push address could not be sent: send it again first; the card goes when it is accepted.
+        if (g.settings.get(Settings.K.PUSH_ERROR) != null) when (g.session.patchPushNow()) {
+            true -> Unit
+            false -> { message.value = UiText.CHECK_FAILED; return@once }
+            null -> { message.value = UiText.CHECK_STILL; return@once }
+        }
         val word = if (local) null else try { g.session.checkPush() } catch (e: Exception) { null }
         UiText.checkAgainText(local, word)?.let { message.value = it }
     }
-    fun retryPush() = io(UiText.UNABLE_TURN_ON_NOTIFICATIONS) { com.pusharmor.app.work.Work.patchPush(g.app) }
+    /** Retry on the "did not deliver" banner: the push address is sent now, and a failure says why. */
+    fun retryPush() = once("retry-push", UiText.UNABLE_TURN_ON_NOTIFICATIONS) {
+        g.session.patchPushNow { r -> message.value = ErrorText.of(UiText.UNABLE_TURN_ON_NOTIFICATIONS, r, UiText.pushHost(g.settings.get(Settings.K.UP_ENDPOINT))) }
+    }
 
     /** On each return to the app when signed in: register with a UnifiedPush app installed meanwhile. */
     fun registerIfInstalled() {

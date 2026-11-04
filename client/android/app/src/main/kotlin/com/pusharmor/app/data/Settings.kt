@@ -91,6 +91,10 @@ class Settings(private val context: Context, private val dao: PaDao) {
         val PUSH_MISSING = booleanPreferencesKey("push_missing")
         /** This device id got 401 "bad id" on PATCH push: the relay server does not take it, so it is not sent again. */
         val PATCH_BAD_ID = stringPreferencesKey("patch_bad_id")
+        /** Why the push address could not be sent (line 2 of the cannot-receive card); cleared when an address is accepted. */
+        val PUSH_ERROR = stringPreferencesKey("push_error")
+        /** A pairing message that failed in the background: the error text, shown once on the next app screen. */
+        val PAIR_ERROR = stringPreferencesKey("pair_error")
         /** The last GET /peers or Check again said the relay server's push to this device failed on its side. */
         val RELAY_FAULT = booleanPreferencesKey("relay_fault")
         val CH_MESSAGES = stringPreferencesKey("ch_messages")

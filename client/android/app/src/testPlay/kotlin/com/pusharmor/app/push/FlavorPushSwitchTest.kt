@@ -58,6 +58,21 @@ class FlavorPushSwitchTest {
         assertFalse(wm.getWorkInfosForUniqueWork("push-patch").get().isEmpty())
     }
 
+    /** A Google token that cannot be fetched on the switch to Google says the setting could not be changed. */
+    @Test fun failedTokenFetchOnSwitchSaysSo() {
+        setUp()
+        FlavorPush.fetchToken = savedFetch
+        val savedTask = FlavorPush.tokenTask
+        FlavorPush.tokenTask = { com.google.android.gms.tasks.Tasks.forException(java.io.IOException("SERVICE_NOT_AVAILABLE")) }
+        try {
+            val vm = com.pusharmor.app.ui.AppViewModel(app)
+            vm.choosePush(com.pusharmor.app.ui.PUSH_GOOGLE)
+            val end = System.currentTimeMillis() + 5000
+            while (vm.message.value == null && System.currentTimeMillis() < end) { Thread.sleep(20); org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle() }
+            assertEquals(com.pusharmor.net.ErrorText.text(com.pusharmor.app.ui.UiText.UNABLE_CHANGE_SETTING, com.pusharmor.net.ErrorText.TRY_AGAIN), vm.message.value)
+        } finally { FlavorPush.tokenTask = savedTask }
+    }
+
     @Test fun tokenOnOpenClearsAStaleFlag() {
         setUp()
         val s = app.graph.settings

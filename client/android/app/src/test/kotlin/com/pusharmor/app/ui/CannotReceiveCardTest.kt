@@ -178,6 +178,18 @@ class CannotReceiveCardTest {
         } finally { app.graph.settings.set(Settings.K.RELAY_FAULT, null) }
     }
 
+    /** A push address the relay server did not take: the card says why, with Check again. */
+    @Test fun pushErrorCardSaysWhy() {
+        val app = app(true)
+        app.graph.settings.set(Settings.K.PUSH_ERROR, com.pusharmor.net.ErrorText.PUSH_NOT_SUPPORTED)
+        try {
+            val (a, _) = show(app, Session.Start.READY)
+            assertTrue(cards(a) == 1)
+            assertTrue(nodes(a).count { text(it) == com.pusharmor.net.ErrorText.PUSH_NOT_SUPPORTED } == 1)
+            assertTrue("check again", checkAgain(a))
+        } finally { app.graph.settings.set(Settings.K.PUSH_ERROR, null) }
+    }
+
     /** A refused push address: the card with its line and Check again. */
     @Test fun refusedCardHasCheckAgain() {
         val savedInstalled = UnifiedPushSupport.installed
