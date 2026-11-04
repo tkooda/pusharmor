@@ -384,12 +384,12 @@ test("AMO previews: every screenshot is uploaded in order before the old preview
   const calls = [];
   const amo = async (method, path, body) => {
     calls.push([method, path, body instanceof FormData ? [body.get("image").name, body.get("position")] : undefined]);
-    if (method === "GET") return { json: { previews: [{ id: 7 }, { id: 9 }] } };
+    if (method === "GET") return { json: { previews: [{ id: 7, position: 0 }, { id: 9, position: 1 }] } };
     if (method === "POST" && path.endsWith("/previews/") && body.get("image").name === "fail.png") throw new Error("HTTP 400");
     return { json: {} };
   };
   const shots = [{ name: "01-a.png", data: Buffer.from("a") }, { name: "02-b.png", data: Buffer.from("b") }];
-  assert.equal(await syncAmoPreviews({ amo, id: "x", shots }), "2 previews uploaded, 2 old previews removed");
+  assert.equal(await syncAmoPreviews({ amo, id: "x", shots, wait: async () => {} }), "2 previews uploaded, 2 old previews removed");
   assert.deepEqual(calls, [
     ["GET", "/addon/x/", undefined],
     ["POST", "/addon/x/previews/", ["01-a.png", "0"]],
@@ -398,8 +398,55 @@ test("AMO previews: every screenshot is uploaded in order before the old preview
     ["DELETE", "/addon/x/previews/9/", undefined],
   ]);
   calls.length = 0;
-  await assert.rejects(syncAmoPreviews({ amo, id: "x", shots: [shots[0], { name: "fail.png", data: Buffer.from("c") }] }), /HTTP 400/);
+  await assert.rejects(syncAmoPreviews({ amo, id: "x", shots: [shots[0], { name: "fail.png", data: Buffer.from("c") }], wait: async () => {} }), /HTTP 400/);
   assert.ok(!calls.some((c) => c[0] === "DELETE"), "old previews deleted after a failed upload");
+});
+
+function fakeAmoListing(previews) {
+  const calls = [];
+  const amo = async (method, path, body) => {
+    calls.push(method + " " + path.replace("/addon/x/previews/", "").replace("/addon/x/", "") + (body instanceof FormData ? " " + body.get("position") : ""));
+    return { json: method === "GET" ? { previews } : {} };
+  };
+  return { amo, calls };
+}
+const twoShots = [{ name: "01-a.png", data: Buffer.from("a") }, { name: "02-b.png", data: Buffer.from("b") }];
+
+test("AMO previews: a listing already holding the new set only deletes the old previews", async () => {
+  const f = fakeAmoListing([{ id: 5, position: 0 }, { id: 6, position: 1 }, { id: 20, position: 0 }, { id: 21, position: 1 }]);
+  assert.match(await syncAmoPreviews({ amo: f.amo, id: "x", shots: twoShots, wait: async () => assert.fail("slept") }), /2 old previews removed/);
+  assert.deepEqual(f.calls, ["GET ", "DELETE 5/", "DELETE 6/"]);
+  // exactly the set: nothing newer or older, so it is replaced as usual
+  const g = fakeAmoListing([{ id: 20, position: 0 }, { id: 21, position: 1 }]);
+  await syncAmoPreviews({ amo: g.amo, id: "x", shots: twoShots, wait: async () => {} });
+  assert.equal(g.calls.filter((c) => c.startsWith("POST")).length, 2);
+});
+
+test("AMO previews: a clean listing uploads the set 15 s apart", async () => {
+  const f = fakeAmoListing([]);
+  const waits = [];
+  assert.equal(await syncAmoPreviews({ amo: f.amo, id: "x", shots: twoShots, wait: async (ms) => void waits.push(ms) }), "2 previews uploaded, 0 old previews removed");
+  assert.deepEqual(f.calls, ["GET ", "POST  0", "POST  1"]);
+  assert.deepEqual(waits, [15000]);
+});
+
+test("AMO previews: a partial newest set is not trusted and the full set is uploaded", async () => {
+  const f = fakeAmoListing([{ id: 5, position: 0 }, { id: 6, position: 1 }, { id: 20, position: 0 }]);
+  await syncAmoPreviews({ amo: f.amo, id: "x", shots: twoShots, wait: async () => {} });
+  assert.deepEqual(f.calls, ["GET ", "POST  0", "POST  1", "DELETE 5/", "DELETE 6/", "DELETE 20/"]);
+});
+
+test("AMO previews: HTTP 429 waits through the injected sleep and the sync completes", async () => {
+  const waits = [];
+  let throttled = 1;
+  const f = fakeAmoListing([]);
+  const amo = amoRetry(async (m, p, b) => {
+    if (m === "POST" && throttled-- > 0) throw new Error("POST: HTTP 429: Expected available in 3 seconds");
+    return f.amo(m, p, b);
+  }, async (ms) => void waits.push(ms));
+  await syncAmoPreviews({ amo, id: "x", shots: twoShots, wait: async (ms) => void waits.push(ms) });
+  assert.deepEqual(waits, [5000, 15000]);
+  assert.deepEqual(f.calls, ["GET ", "POST  0", "POST  1"]);
 });
 
 test("the Firefox store job sends store/screenshots/amo as the AMO previews", () => {

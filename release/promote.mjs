@@ -670,19 +670,33 @@ export function amoToken(issuer, secret, now = Math.floor(Date.now() / 1000)) {
 }
 
 /** Replace the AMO listing previews with `shots`, in order: upload each one
- *  (position = its index), then delete every preview that was there before.
- *  AMO re-encodes previews, so an unchanged set cannot be detected and each
- *  run replaces them; a failed upload leaves the old previews in place. */
-export async function syncAmoPreviews({ amo, id, shots }) {
-  const old = ((await amo("GET", "/addon/" + id + "/")).json.previews || []).map((p) => p.id);
+ *  (position = its index, `gap` ms apart to stay under the AMO throttle),
+ *  then delete every preview that was there before. AMO re-encodes previews,
+ *  so an unchanged set cannot be detected by content. A run that already
+ *  uploaded the set is recognised by ids: when the listing holds more than
+ *  shots.length previews and the newest shots.length ids (the last upload)
+ *  carry the positions 0..N-1 in id order, those are kept, the rest deleted,
+ *  and nothing is uploaded. A failed upload leaves the old previews in place. */
+export async function syncAmoPreviews({ amo, id, shots, wait = sleep, gap = 15000 }) {
+  const old = ((await amo("GET", "/addon/" + id + "/")).json.previews || []).slice().sort((a, b) => a.id - b.id);
+  const n = shots.length;
+  const del = async (list) => { for (const p of list) await amo("DELETE", "/addon/" + id + "/previews/" + p.id + "/"); };
+  if (old.length > n) {
+    const newest = old.slice(old.length - n);
+    if (newest.every((p, i) => Number(p.position) === i)) {
+      await del(old.slice(0, old.length - n));
+      return "previews already uploaded, " + (old.length - n) + " old previews removed";
+    }
+  }
   for (const [i, s] of shots.entries()) {
+    if (i > 0) await wait(gap);
     const f = new FormData();
     f.append("image", new Blob([s.data], { type: "image/png" }), s.name);
     f.append("position", String(i));
     await amo("POST", "/addon/" + id + "/previews/", f);
   }
-  for (const p of old) await amo("DELETE", "/addon/" + id + "/previews/" + p + "/");
-  return shots.length + " previews uploaded, " + old.length + " old previews removed";
+  await del(old);
+  return n + " previews uploaded, " + old.length + " old previews removed";
 }
 
 export async function firefox(version) {
