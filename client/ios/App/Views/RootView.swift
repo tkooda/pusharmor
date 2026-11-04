@@ -222,7 +222,8 @@ struct SettingsGear: ViewModifier {
     }
 }
 
-/// Notifications are off, or the relay server cannot reach Apple's push service: a light red
+/// Notifications are off, the relay server does not take this device's push service, or the
+/// relay server cannot reach Apple's push service: a light red
 /// banner at the top that stays until its X is tapped and comes back on the next app open.
 struct CannotReceiveBanner: View {
     @EnvironmentObject var model: AppModel
@@ -235,6 +236,10 @@ struct CannotReceiveBanner: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if model.notificationsOff {
                     Text(S.allowNotifications)
+                        .font(.subheadline)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if model.pushUnsupported {
+                    Text(ErrorCopy.Reason.pushNotSupported.line)
                         .font(.subheadline)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {

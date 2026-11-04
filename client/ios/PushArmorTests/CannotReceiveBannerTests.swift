@@ -44,6 +44,17 @@ final class CannotReceiveBannerTests: XCTestCase {
                        + "This is not a problem on this device. Try again later.")
     }
 
+    /// The relay server does not take this device's push service: shown on the tabs.
+    func testPushNotSupportedShowsItOnTheTabs() {
+        let model = AppModel()
+        model.phase = .main
+        model.pushUnsupported = true
+        XCTAssertTrue(model.showsCannotReceive)
+        model.phase = .signedOut
+        XCTAssertFalse(model.showsCannotReceive)
+        XCTAssertEqual(ErrorCopy.Reason.pushNotSupported.line, "This device's push service is not supported yet.")
+    }
+
     /// Check again is on every banner: notifications off (tabs and logged-out screen, beside
     /// Open notification settings on the right) and the relay-side fault.
     func testCheckAgainIsOnEveryBanner() {

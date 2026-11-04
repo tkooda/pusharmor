@@ -51,7 +51,10 @@ extension Core {
                 try store.setMe("removed", .int(0))
                 try store.setMe("logged_out", .int(0))
                 try store.setMe("request_token", .null)
-                if let p = push { try store.setMe("last_push_sha256", .text(Ids.pushSha256(p))) }
+                if let p = push {
+                    try store.setMe("last_push_sha256", .text(Ids.pushSha256(p)))
+                    try store.setSetting(Core.pushUnsupportedKey, nil)
+                }
                 try store.setMe("last_fetch_at", .int(now))
                 try mergePeerList(j, now: now)
             }
@@ -70,29 +73,46 @@ extension Core {
         if let r = out.reply, r.ok || r.status == 400 { try? store.setMe("old_id", .null) }
     }
 
-    /// PATCH push (null = no push).
-    public func patchPush(_ push: PushInfo?) async -> Bool {
-        guard let me = try? myId() else { return false }
+    /// PATCH push (null = no push). Returns the outcome; nil when no call was made. A 400
+    /// "push endpoint not allowed" marks this device's push service as not supported until a
+    /// later PATCH goes through.
+    @discardableResult
+    public func patchPush(_ push: PushInfo?) async -> APIOutcome? {
+        guard let me = try? myId() else { return nil }
         let p: JOut = push.map { JOut.obj([("type", .str($0.type.rawValue)), ("token", .str($0.token))]) } ?? .null
         let out = await signed("PATCH", "/v1/peers/" + me.text, body: JOut.obj([("push", p)]).data)
-        guard out.reply?.ok == true else { return false }
+        if let r = out.reply, r.status == 400, r.error == "push endpoint not allowed" {
+            try? store.setSetting(Core.pushUnsupportedKey, "1")
+        }
+        guard out.reply?.ok == true else { return out }
         try? store.db.write {
             try store.setMe("last_push_sha256", push.map { .text(Ids.pushSha256($0)) } ?? .null)
             try store.setMe("push_missing", .int(0))
+            try store.setSetting(Core.pushUnsupportedKey, nil)
         }
-        return true
+        return out
     }
+
+    /// Store setting: "1" while the relay server does not take this device's push service
+    /// (400 "push endpoint not allowed"); no row = no such refusal.
+    public static let pushUnsupportedKey = "push_unsupported"
+
+    /// True while the relay server does not take this device's push service.
+    public func pushUnsupported() -> Bool { (try? store.setting(Core.pushUnsupportedKey)) == "1" }
 
     /// Reconcile (catalog Gone handling): on launch and foreground compare with the last
     /// PATCHed hash; also PATCH when push_missing is set, and on Refresh when my_push_sha256
-    /// differs.
-    public func reconcilePush(_ current: PushInfo?, refresh: Bool = false) async {
-        guard let cur = current, let me = try? store.me(), me.id != nil, !me.removed, !me.loggedOut else { return }
+    /// differs. Returns the PATCH outcome; nil when none was made. A failed PATCH is tried
+    /// again on the next app open, as the last PATCHed hash is unchanged.
+    @discardableResult
+    public func reconcilePush(_ current: PushInfo?, refresh: Bool = false) async -> APIOutcome? {
+        guard let cur = current, let me = try? store.me(), me.id != nil, !me.removed, !me.loggedOut else { return nil }
         let h = Ids.pushSha256(cur)
         var need = me.lastPushSha256 != h || me.pushMissing
         if refresh, let server = try? store.setting("my_push_sha256"), server != h { need = true }
         if refresh, (try? store.setting("my_push_sha256")) == nil { need = true }
-        if need { _ = await patchPush(cur) }
+        guard need else { return nil }
+        return await patchPush(cur)
     }
 
     /// Log out = mark this peer logged out, with a logout message for every allowed peer.
@@ -186,15 +206,15 @@ extension Core {
     }
 
     /// Refresh button and pull-to-refresh (greyed 10 s after use): one GET /peers, push reconcile, re-sends.
-    /// Returns the outcome of the GET; nil when none was made.
+    /// Returns the outcomes of the GET and the push PATCH; each nil when none was made.
     @discardableResult
-    public func refresh(push: PushInfo?) async -> APIOutcome? {
+    public func refresh(push: PushInfo?) async -> (fetch: APIOutcome?, push: APIOutcome?) {
         let out = await fetchPeersOutcome(force: true)
-        await reconcilePush(push, refresh: true)
+        let patched = await reconcilePush(push, refresh: true)
         await resendWaitingApproves()
         await checkTimeouts()
         await resendWaitingPairs()
-        return out
+        return (out, patched)
     }
 
     // MARK: push check

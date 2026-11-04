@@ -36,7 +36,7 @@ final class ToastTextTests: XCTestCase {
                                            .codeExpired, .securityCheck, .emailSendFailed, .badEmail, .emailNotVerified,
                                            .notConfirmed(provider: "Google"), .windowClosed, .badReply, .refused, .tooLong,
                                            .notificationsUnavailable, .appleUnreachable, .googleUnavailable, .keysUnusable,
-                                           .storageFull, .saveFailed, .pushRejected, .notReady, .unknown]
+                                           .storageFull, .saveFailed, .pushRejected, .pushNotSupported, .notReady, .unknown]
         var texts = actions.flatMap { a in reasons.map { ErrorCopy.text(a, $0) } }
         texts += ["sent", "gone", "logged out", "not listening", "unapproved", "denied", "unknown", "failed:x", "other"]
             .compactMap { ErrorCopy.sendResultText($0, "X") }

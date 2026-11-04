@@ -1689,16 +1689,16 @@ final class StateMachineTests: XCTestCase {
     func testRefreshReportsFailure() async throws {
         let n = try dev("Ndev")
         for _ in 0 ..< 4 { w.script("GET", "/v1/peers", 503, "{\"error\":\"unavailable\"}") }
-        let out = await n.core.refresh(push: nil)
+        let out = await n.core.refresh(push: nil).fetch
         XCTAssertEqual(out?.reply?.status, 503)
         XCTAssertEqual(ErrorCopy.refreshFailText(out),
                        "Unable to refresh the device list.\nThe relay server is not working right now. Try again later.")
         w.script("GET", "/v1/peers", 401, "{\"error\":\"bad id\"}")
-        let bad = await n.core.refresh(push: nil)
+        let bad = await n.core.refresh(push: nil).fetch
         XCTAssertEqual(ErrorCopy.refreshFailText(bad),
                        "Unable to refresh the device list.\nThe relay server did not accept the request. Update PushArmor and try again.")
         XCTAssertEqual(try n.core.store.me().id, n.id)
-        let good = await n.core.refresh(push: nil)
+        let good = await n.core.refresh(push: nil).fetch
         XCTAssertEqual(good?.reply?.status, 200)
         XCTAssertNil(ErrorCopy.refreshFailText(good))
         XCTAssertNil(ErrorCopy.refreshFailText(nil))
@@ -1756,6 +1756,36 @@ final class StateMachineTests: XCTestCase {
         let offline = await n.core.checkPush(push)
         XCTAssertEqual(offline, .unavailable)
         XCTAssertEqual(w.count("POST", path), 9)
+    }
+
+    /// A 400 "push endpoint not allowed" to the push PATCH marks this device's push service
+    /// as not supported; each app open tries the PATCH again, and one that works clears it.
+    /// On Refresh a failed PATCH gives a toast.
+    func testPushNotSupportedShowsUntilAPatchWorks() async throws {
+        let n = try dev("Ndev")
+        let push = PushInfo(type: .apns, tokenBytes: Data([0x01, 0x02]))
+        let refused = "{\"error\":\"push endpoint not allowed\"}"
+        w.script("PATCH", "/v1/peers/", 400, refused)
+        let out = await n.core.reconcilePush(push)
+        XCTAssertEqual(out?.reply?.status, 400)
+        XCTAssertTrue(n.core.pushUnsupported())
+        let patches = w.count("PATCH", "/v1/peers/")
+        w.script("PATCH", "/v1/peers/", 400, refused)
+        await n.core.appOpen(push: push)
+        XCTAssertEqual(w.count("PATCH", "/v1/peers/"), patches + 1)
+        XCTAssertTrue(n.core.pushUnsupported())
+        w.script("PATCH", "/v1/peers/", 400, refused)
+        let r = await n.core.refresh(push: push)
+        XCTAssertNil(ErrorCopy.refreshFailText(r.fetch))
+        XCTAssertEqual(ErrorCopy.refreshFailText(r.fetch, push: r.push),
+                       "Unable to turn on notifications.\nThis device's push service is not supported yet.")
+        for _ in 0 ..< 4 { w.script("PATCH", "/v1/peers/", 503, "{\"error\":\"unavailable\"}") }
+        await n.core.appOpen(push: push)
+        XCTAssertTrue(n.core.pushUnsupported())                           // another failure keeps it
+        await n.core.appOpen(push: push)
+        XCTAssertFalse(n.core.pushUnsupported())                          // a PATCH that works clears it
+        let ok = await n.core.refresh(push: push)
+        XCTAssertNil(ErrorCopy.refreshFailText(ok.fetch, push: ok.push))
     }
 
     /// The relay server's test push is told apart from a message push.

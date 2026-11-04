@@ -56,6 +56,8 @@ final class AppModel: ObservableObject {
     @Published var notificationsOff = false
     /// The relay server cannot reach Apple's push service for this device (my_relay_fault).
     @Published var relayFault = false
+    /// The relay server does not take this device's push service (push_unsupported).
+    @Published var pushUnsupported = false
     @Published var pushRegisterFailed = false
     /// The X on the "cannot receive" banner hides it until the next app open.
     @Published var cannotReceiveDismissed = false
@@ -286,6 +288,7 @@ final class AppModel: ObservableObject {
         pairings = Dictionary(uniqueKeysWithValues: ((try? store.pairings()) ?? []).map { ($0.peerId.text, $0) })
         history = HistoryFilter.listed((try? store.history()) ?? [])
         relayFault = (try? store.setting(Core.relayFaultKey)) == "1"
+        pushUnsupported = (try? store.setting(Core.pushUnsupportedKey)) == "1"
     }
 
     /// the main screen must not stay up once this device is removed or logged out
@@ -360,10 +363,10 @@ final class AppModel: ObservableObject {
     }
 
     /// The "cannot receive" banner: on the tabs and the logged-out screen while notifications
-    /// are off, and on the tabs while the relay server cannot reach Apple's push service,
-    /// until its X is tapped.
+    /// are off, and on the tabs while the relay server cannot reach Apple's push service or
+    /// does not take this device's push service, until its X is tapped.
     var showsCannotReceive: Bool {
-        (notificationsOff || (relayFault && phase == .main)) && !cannotReceiveDismissed
+        (notificationsOff || ((relayFault || pushUnsupported) && phase == .main)) && !cannotReceiveDismissed
             && (phase == .main || phase == .signedOut)
     }
 
@@ -446,7 +449,10 @@ final class AppModel: ObservableObject {
     func didRegister(token: Data) async {
         pushRegisterFailed = false
         pushInfo = PushInfo(type: AppModel.pushType(), tokenBytes: token)
-        if let core = core, phase == .main { await core.reconcilePush(pushInfo) }
+        if let core = core, phase == .main {
+            await core.reconcilePush(pushInfo)
+            pushUnsupported = core.pushUnsupported()
+        }
     }
 
     func didFailToRegister() { pushRegisterFailed = true }
@@ -740,7 +746,7 @@ final class AppModel: ObservableObject {
         refreshing = true
         defer { refreshing = false }
         let out = await core.refresh(push: pushInfo)
-        if let t = ErrorCopy.refreshFailText(out) { toast = t }
+        if let t = ErrorCopy.refreshFailText(out.fetch, push: out.push) { toast = t }
         reload()
     }
 

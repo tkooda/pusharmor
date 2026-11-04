@@ -64,6 +64,7 @@ final class ErrorCopyTests: XCTestCase {
             (.storageFull, "Storage is full. Free some space and try again."),
             (.saveFailed, "PushArmor could not save its data on this device. Restart PushArmor and try again."),
             (.pushRejected, "Its push service did not accept the message. Try again later."),
+            (.pushNotSupported, "This device's push service is not supported yet."),
             (.notReady, "It has not finished turning on notifications. Open PushArmor on it."),
             (.unknown, "Try again."),
         ]
@@ -92,6 +93,7 @@ final class ErrorCopyTests: XCTestCase {
         XCTAssertEqual(ErrorCopy.reason(from: reply(400, "{\"error\":\"bad request\"}")), .refused)
         XCTAssertEqual(ErrorCopy.reason(from: reply(404)), .refused)
         XCTAssertEqual(ErrorCopy.reason(from: reply(405)), .refused)
+        XCTAssertEqual(ErrorCopy.reason(from: reply(400, "{\"error\":\"push endpoint not allowed\"}")), .pushNotSupported)
         XCTAssertEqual(ErrorCopy.reason(from: reply(200, "x")), .badReply)
         XCTAssertEqual(ErrorCopy.reason(from: reply(401, "{\"error\":\"ticket expired\"}")), .loginExpired)
         XCTAssertEqual(ErrorCopy.reason(from: reply(401, "{\"error\":\"invalid ticket\"}")), .badLink)

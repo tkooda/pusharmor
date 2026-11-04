@@ -82,6 +82,7 @@ public enum ErrorCopy {
         case storageFull
         case saveFailed
         case pushRejected
+        case pushNotSupported
         case notReady
         case unknown
 
@@ -117,6 +118,7 @@ public enum ErrorCopy {
             case .storageFull: return "Storage is full. Free some space and try again."
             case .saveFailed: return "PushArmor could not save its data on this device. Restart PushArmor and try again."
             case .pushRejected: return "Its push service did not accept the message. Try again later."
+            case .pushNotSupported: return "This device's push service is not supported yet."
             case .notReady: return "It has not finished turning on notifications. Open PushArmor on it."
             case .unknown: return "Try again."
             }
@@ -157,6 +159,7 @@ public enum ErrorCopy {
         case (403, "banned"?): return .blocked
         case (403, "turnstile failed"?): return .securityCheck
         case (400, "bad email"?): return .badEmail
+        case (400, "push endpoint not allowed"?): return .pushNotSupported
         case (400, "bad request"?), (404, _), (405, _): return .refused
         case (502, "email send failed"?): return .emailSendFailed
         case (500 ..< 600, _): return .serverDown
@@ -191,10 +194,12 @@ public enum ErrorCopy {
         }
     }
 
-    /// The toast after Refresh, nil when the device list came back (or no call was made).
-    public static func refreshFailText(_ out: APIOutcome?) -> String? {
-        guard let out = out, !Core.fetchOk(out) else { return nil }
-        return text(.refresh, reason(from: out))
+    /// The toast after Refresh, nil when the device list came back (or no call was made) and
+    /// the push update `push` went through (or none was needed).
+    public static func refreshFailText(_ out: APIOutcome?, push: APIOutcome? = nil) -> String? {
+        if let out = out, !Core.fetchOk(out) { return text(.refresh, reason(from: out)) }
+        guard let push = push, push.reply?.ok != true else { return nil }
+        return text(.turnOnNotifications, reason(from: push))
     }
 
     /// The two lines for one chosen device that did not get a send; nil when it did. A
