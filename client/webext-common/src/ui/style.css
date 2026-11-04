@@ -33,7 +33,7 @@ h1 { margin: 0 0 8px; font-size: 22px; line-height: 28px; font-weight: 600; colo
 .head { height: 52px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 16px; }
 .brand { display: inline-flex; align-items: center; gap: 8px; }
 .wm { font-weight: 700; font-size: 16px; letter-spacing: -0.3px; white-space: nowrap; }
-.wm .p { color: #15A86B; }
+.wm .p { color: var(--push); }
 .wm .a { color: var(--armor); }
 .beta { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 5px; background: var(--beta); color: var(--on-beta); font-size: 11px; font-weight: 700; letter-spacing: 0.3px; }
 .setup-bar { display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: var(--pc); color: var(--onpc); font-size: 13px; line-height: 18px; }

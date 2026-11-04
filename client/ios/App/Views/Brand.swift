@@ -41,6 +41,8 @@ extension Color {
     static let errorText = Color("ErrorText")
     static let warningText = Color("WarningText")
     static let armorText = Color("ArmorText")
+    /// "Push" in the wordmark: #0E7A4E on light, #15A86B on dark.
+    static let pushText = Color("PushText")
     static let iconTileBg = Color("IconTileBg")
     static let iconTileFg = Color("IconTileFg")
     static let plate = Color("Plate")
@@ -52,7 +54,7 @@ extension Color {
     static let cardEdge = Color("CardEdge")
     /// The app icon tile and the mark edge; the same in light and dark.
     static let brandInk = Color(red: 0x06 / 255, green: 0x35 / 255, blue: 0x1F / 255)
-    /// The mark shield and "Push" in the wordmark; the same in light and dark.
+    /// The mark shield; the same in light and dark.
     static let pushGreen = Color(red: 0x15 / 255, green: 0xA8 / 255, blue: 0x6B / 255)
 }
 
@@ -127,7 +129,7 @@ struct BrandTileView: View {
     }
 }
 
-/// "Push" in the wordmark green, "Armor" in the armor ink.
+/// "Push" in the wordmark green (pushText), "Armor" in the armor ink.
 struct Wordmark: View {
     @ScaledMetric private var size: CGFloat
 
@@ -136,7 +138,7 @@ struct Wordmark: View {
     }
 
     var body: some View {
-        (Text("Push").foregroundColor(.pushGreen) + Text("Armor").foregroundColor(.armorText))
+        (Text("Push").foregroundColor(.pushText) + Text("Armor").foregroundColor(.armorText))
             .font(.system(size: size, weight: .bold))
             .tracking(-0.4)
             .accessibilityLabel("PushArmor")

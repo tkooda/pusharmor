@@ -9,7 +9,8 @@ import androidx.compose.ui.graphics.Color
 // Brand constants (both themes).
 val BrandNavy = Color(0xFF1F3A5F)
 val BrandGreen = Color(0xFF34C77B)
-val PushGreen = Color(0xFF15A86B) // "Push" in the wordmark is always this colour
+val PushGreen = Color(0xFF15A86B) // "Push" in the wordmark on dark backgrounds
+val PushGreenLight = Color(0xFF0E7A4E) // "Push" in the wordmark on light backgrounds
 val BrandInk = Color(0xFF06351F) // app icon tile and mark edge
 val OnBrandGreen = Color(0xFF0E2238)
 val CtaEdge = Color(0xFF157A4A) // light themes only

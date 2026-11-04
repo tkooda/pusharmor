@@ -81,7 +81,7 @@ fun Wordmark(fontSize: TextUnit, modifier: Modifier = Modifier) {
     val armor = LocalPaExtra.current.armor
     Text(
         buildAnnotatedString {
-            withStyle(SpanStyle(color = PushGreen)) { append("Push") }
+            withStyle(SpanStyle(color = if (LocalPaExtra.current.dark) PushGreen else PushGreenLight)) { append("Push") }
             withStyle(SpanStyle(color = armor)) { append("Armor") }
         },
         modifier.semantics { contentDescription = "PushArmor" },
