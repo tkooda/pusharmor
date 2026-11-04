@@ -44,9 +44,9 @@ test("context menu parent titles per context", () => {
 });
 
 test("type captions and the pairing countdown text", () => {
-  assert.equal(T.typeCaption("url"), "Will open as a URL");
-  assert.equal(T.typeCaption("text"), "Will arrive as text");
-  assert.equal(T.typeCaption("tel"), "Will open as a phone number");
+  assert.equal(T.typeCaption("url"), "Will be sent as URL");
+  assert.equal(T.typeCaption("text"), "Will be sent as text");
+  assert.equal(T.typeCaption("tel"), "Will be sent as phone number");
   assert.equal(T.countdownLeft("13 days"), "Times out in 13 days");
   assert.equal(T.countdownLeft("1 hour"), "Times out in 1 hour");
   assert.equal(T.counter(39), "39 / 2048");

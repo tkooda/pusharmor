@@ -78,23 +78,23 @@ async function mount(inPopup: boolean, result: unknown) {
 
 test("Send: the type line always shows; a URL is sent as URL unless Send as text is ticked, and the override is for one send", async () => {
   const v = await mount(false, { sent: 1, total: 1, failures: [] });
-  assert.deepEqual([!!v.caption.hidden, !!v.textRow.hidden, v.caption.textContent], [false, true, "Will arrive as text"]);
+  assert.deepEqual([!!v.caption.hidden, !!v.textRow.hidden, v.caption.textContent], [false, true, "Will be sent as text"]);
   await v.type("minilock.org");
-  assert.deepEqual([!!v.textRow.hidden, v.caption.textContent], [false, "Will open as a URL"]);
+  assert.deepEqual([!!v.textRow.hidden, v.caption.textContent], [false, "Will be sent as URL"]);
   await v.send();
   assert.deepEqual([v.sent[0]!.asUrl, v.sent[0]!.asText], [true, false]);
   await v.tickText(true);
-  assert.equal(v.caption.textContent, "Will arrive as text");
+  assert.equal(v.caption.textContent, "Will be sent as text");
   await v.send();
   assert.deepEqual([v.sent[1]!.asUrl, v.sent[1]!.asText], [false, true]);
   assert.equal(textBoxOf(v).checked, false, "a send clears the override");
   await v.tickText(true);
   await v.type("minilock.org/x"); // still a URL: the override stays
-  assert.equal(v.caption.textContent, "Will arrive as text");
+  assert.equal(v.caption.textContent, "Will be sent as text");
   await v.type("+1 555 123 4567"); // the type changed: the override is cleared
-  assert.deepEqual([textBoxOf(v).checked, v.caption.textContent], [false, "Will open as a phone number"]);
+  assert.deepEqual([textBoxOf(v).checked, v.caption.textContent], [false, "Will be sent as phone number"]);
   await v.type("hello");
-  assert.deepEqual([!!v.textRow.hidden, v.caption.textContent], [true, "Will arrive as text"]);
+  assert.deepEqual([!!v.textRow.hidden, v.caption.textContent], [true, "Will be sent as text"]);
   await v.type("");
   assert.equal(!!v.caption.hidden, false);
 });
@@ -126,11 +126,11 @@ test("Send: a phone number shows its caption and the Send as text box; other tex
   const v = await mount(false, { sent: 1, total: 1, failures: [] });
   await v.type("+1 555 123 4567");
   assert.deepEqual([!!v.caption.hidden, !!v.textRow.hidden, !!v.meta.hidden], [false, false, false]);
-  assert.equal(v.caption.textContent, "Will open as a phone number");
+  assert.equal(v.caption.textContent, "Will be sent as phone number");
   await v.send();
   assert.deepEqual([v.sent[0]!.asUrl, !!v.sent[0]!.asText], [false, false]);
   await v.tickText(true);
-  assert.equal(v.caption.textContent, "Will arrive as text");
+  assert.equal(v.caption.textContent, "Will be sent as text");
   await v.send();
   assert.equal(v.sent[1]!.asText, true);
   await v.type("hello");

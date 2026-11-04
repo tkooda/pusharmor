@@ -58,7 +58,7 @@ export const T = {
   tooLong: (n: number) => "Too long (" + n + " / 2048)",
   counter: (n: number) => n + " / 2048",
   countdownLeft: (c: string) => "Times out in " + c,
-  typeCaption: (t: string) => (t === "url" ? "Will open as a URL" : t === "tel" ? "Will open as a phone number" : "Will arrive as text"),
+  typeCaption: (t: string) => (t === "url" ? "Will be sent as URL" : t === "tel" ? "Will be sent as phone number" : "Will be sent as text"),
   clockOff: "This device's clock is off by more than 5 minutes.",
   badEmail: "Only email addresses with plain ASCII characters are supported.",
   unknownSender: "Unknown sender",
