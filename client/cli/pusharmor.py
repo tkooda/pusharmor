@@ -1789,6 +1789,7 @@ class Ctx:
         self.store = Store(root)
         self.settings, self.keys, self.api = {}, None, None
         self.mode, self.target, self.emit, self.last_fetch, self.skipped = "", None, None, 0, False
+        self.also = set()  # pair: the other devices already shown as also wanting to pair
 
     @property
     def me(self):
@@ -2106,8 +2107,16 @@ def receive_pair(cx, pt):
 
 
 def pair_note(cx, d, x, text):
-    """A pairing line for stderr, unless `pair` already runs for this device."""
-    return None if cx.target == x else ("info", text % (peer_label(d["peers"].get(x)), short_id(x, d["peers"])))
+    """A pairing line for stderr, unless `pair` already runs for this device. While `pair` runs for another
+    device, a request from this one shows once, as "also wants to pair"."""
+    if cx.target == x:
+        return None
+    if cx.target and "wants to pair" in text:
+        if x in cx.also:
+            return None
+        cx.also.add(x)
+        text = '"%s" also wants to pair. Run: pusharmor pair %s'
+    return ("info", text % (peer_label(d["peers"].get(x)), short_id(x, d["peers"])))
 
 
 def on_commit(cx, frm, c_n, listed):
@@ -2668,7 +2677,7 @@ def peer_status(p, e):
     if p["pinned"] and p["ruling"] == "approved":
         return "waiting for it to confirm"
     if e:
-        return "wants to pair" if e["role"] == "X" and e["state"] == "prompted" else "pairing"
+        return "wants to pair" if e["role"] == "X" else "pairing"  # X: the other device started it
     return "not paired"
 
 
@@ -2696,9 +2705,21 @@ def resend_waiting(cx, skip=None):
         post_pair(cx, x, kind, msg)
 
 
+def drain_cache(cx):
+    """One read of the ntfy cache: the pairing messages the relay server sent while nothing listened."""
+    with cx.store.state(write=False) as d:
+        drain = Stream(d["ntfy"], d["topic"], cx.keys, d.get("since", ""), WAIT_TIMEOUT_S, poll=True)
+    while True:
+        pt = drain.next(time.time() + WAIT_TIMEOUT_S)
+        if pt is None:
+            return drain
+        pair_receive(cx, pt, drain)
+
+
 def pair_list(cx):
     cx.refresh()
     resend_waiting(cx)
+    drain_cache(cx)
     with cx.store.state(write=False) as d:
         ids = list(d["peers"]) + [cx.me]
         rows = [("ID", "NAME", "DEVICE", "STATUS"), (short_id(cx.me, ids), d["name"], "Command line", "this device")]
@@ -2713,6 +2734,11 @@ def pair_list(cx):
     if len(rows) > 2:
         print("\nTo pair with a device: pusharmor pair ID")
     return EXIT_OK
+
+
+def cmd_devices(cx, args):
+    cx.need()
+    return pair_list(cx)
 
 
 def cmd_pair(cx, args):
@@ -2731,16 +2757,9 @@ def cmd_pair(cx, args):
     with cx.store.state() as d:
         if d["peers"][x]["ruling"] == "denied":
             d["peers"][x]["ruling"] = "none"
-    with cx.store.state(write=False) as d:
-        drain = Stream(d["ntfy"], d["topic"], cx.keys, d.get("since", ""), WAIT_TIMEOUT_S, poll=True)
-    while True:  # pairing messages the relay server sent while nothing listened
-        pt = drain.next(time.time() + WAIT_TIMEOUT_S)
-        if pt is None:
-            break
-        pair_receive(cx, pt, drain)
-    stream = start_receive(cx, drain.since, WAIT_TIMEOUT_S)
+    stream = start_receive(cx, drain_cache(cx).since, WAIT_TIMEOUT_S)
     sweep(cx)
-    deadline, told, first = time.time() + PAIR_WAIT_S, None, True
+    deadline, told, first = None, None, True
     while True:
         with cx.store.state(write=False) as d:
             p, e = d["peers"].get(x), d["pairs"].get(x)
@@ -2751,14 +2770,14 @@ def cmd_pair(cx, args):
         if p["pinned"] and p["ruling"] == "approved" and p["approves_me"]:
             print('Paired with "%s".' % name)
             return EXIT_OK
-        r, wait = "sent", 'Waiting for "%s". Open PushArmor on it to continue pairing.' % name
+        r, wait = "sent", 'Waiting for "%s". Open PushArmor on it to continue pairing. Press Ctrl+C to stop.' % name
         if e and e["state"] == "shown" and not e["approved"]:
             if first and e["role"] == "N":
                 r = post_pair(cx, x, "open", e["msg"])
                 if r not in ("sent", "429"):
                     raise Fail(pair_reason(r, name))
             first = False
-            print("Pairing fingerprint %s" % e["fingerprint"])
+            print("\nCompare Pairing Fingerprint: %s\n" % e["fingerprint"])
             try:
                 yes = ask_yes('Check that "%s" shows the same fingerprint. Confirmed (y) or Reject (n)? [y/N] ' % name,
                               strict=True)
@@ -2780,7 +2799,7 @@ def cmd_pair(cx, args):
                 raise Fail('Could not confirm "%s". %s' % (name, pair_reason(r, name)))
             continue
         if p["pinned"] and p["ruling"] == "approved":
-            wait = 'Waiting for "%s" to confirm this device.' % name
+            wait = 'Waiting for "%s" to confirm this device. Press Ctrl+C to stop.' % name
             if first and e and e["approve_body"]:
                 r = post_approve(cx, x, json.loads(e["approve_body"]))
                 r = "sent" if r == "stored" else r
@@ -2797,10 +2816,10 @@ def cmd_pair(cx, args):
             raise Fail(pair_reason(r, name))
         if wait != told:
             log("info", wait)
-            told = wait
+            told, deadline = wait, time.time() + PAIR_WAIT_S  # each wait ends after PAIR_WAIT_S
         pt = stream.next(deadline)
         if pt is None:
-            raise Fail('"%s" has not answered yet. Run pusharmor pair %s again to continue.' % (name, sid))
+            raise Fail('Pairing with "%s" timed out. Run: pusharmor pair %s to try again.' % (name, sid))
         pair_receive(cx, pt, stream)
 
 
@@ -2997,6 +3016,7 @@ COMMANDS = {
     "logout": (cmd_logout, "Log out this device. Keys and paired devices stay on it.", []),
     "pair": (cmd_pair, "List your devices, or pair with one (compare the fingerprint, then confirm or reject).",
              [(("id",), {"nargs": "?", "metavar": "ID", "help": "device ID from the list (6 or more hex characters)"})]),
+    "devices": (cmd_devices, "List your devices and their pairing status.", []),
     "listen": (cmd_listen, "Receive messages and print them as they arrive.",
                [(("--json",), {"action": "store_true", "help": "one JSON object per line"}),
                 (("--tsv",), {"action": "store_true", "help": "tab-separated lines"}),

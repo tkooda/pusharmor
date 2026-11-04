@@ -30,6 +30,7 @@ distribution:
 - `pusharmor login` - log in this device (open the link it shows, then paste the code).
 - `pusharmor pair` - list your devices; `pusharmor pair ID` pairs with one: compare the
   fingerprint on both devices, then confirm or reject.
+- `pusharmor devices` - list your devices and their pairing status (as `pusharmor pair` does).
 - `pusharmor send TEXT` - send a link or text to all paired devices; `--to ID` for one,
   `--text` to send a link as plain text. With `-` or piped input it reads stdin.
 - `pusharmor listen` - print messages as they arrive; `--json`, `--tsv`, or

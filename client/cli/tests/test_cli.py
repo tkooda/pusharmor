@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import shutil
 import stat
 import sys
@@ -101,7 +102,7 @@ def pair_two(monkeypatch, net, a, b, ids=None):
 # ---- parsing ----
 
 def test_command_table_is_frozen():
-    assert list(pa.COMMANDS) == ["login", "logout", "pair", "listen", "send", "rename", "delete"]
+    assert list(pa.COMMANDS) == ["login", "logout", "pair", "devices", "listen", "send", "rename", "delete"]
 
 
 @pytest.mark.parametrize("argv", [[], ["frob"], ["rename"], ["delete"], ["send", "--bogus"], ["pair", "a", "b"],
@@ -462,7 +463,8 @@ def test_pair_send_listen(net, tmp_path, monkeypatch, capsys):
     assert da["peers"][idb]["pairing_id"] == db["peers"][ida]["pairing_id"]
     assert da["pairs"] == {} and db["pairs"] == {}
     out = capsys.readouterr().out
-    assert out.count("Pairing fingerprint ") == 2 and out.count("Paired with ") == 2
+    assert len(re.findall(r"(?:^|(?<=\n))\nCompare Pairing Fingerprint: [0-9A-Z]{4}\n(?=\n)", out)) == 2
+    assert out.count("Paired with ") == 2
 
     assert run(a, "pair") == 0
     listing = capsys.readouterr().out
@@ -683,6 +685,7 @@ def test_peer_list_opens_stored_remove_messages(net, tmp_path, monkeypatch, caps
     answers(monkeypatch, "y")
     assert run(a, "delete", pa.id_hex(idc)[:6]) == 0
     m = net.peers[idb]["rm"].pop(idc)
+    net.topics[state(b)["topic"]].pop()  # b missed the push of the remove
     capsys.readouterr()
     # quiet drops: unreadable, and a remove that names another device; c stays, marked missing
     net.peers[idb]["rm"] = {idc: "x" * 50, ida: m}
@@ -809,7 +812,34 @@ def test_pair_timeouts_quote_the_device_name(net, tmp_path, monkeypatch, capsys)
     assert run(a, "pair", pa.id_hex(idb)[:6]) == 1
     err = capsys.readouterr().err
     assert 'Pairing with "bee" timed out. Run: pusharmor pair %s to start again.\n' % pa.id_hex(idb)[:6] in err
-    assert '"bee" has not answered yet. Run pusharmor pair %s again to continue.\n' % pa.id_hex(idb)[:6] in err
+    assert 'error: Pairing with "bee" timed out. Run: pusharmor pair %s to try again.\n' % pa.id_hex(idb)[:6] in err
+    assert 'info: Waiting for "bee". Open PushArmor on it to continue pairing. Press Ctrl+C to stop.\n' in err
+
+
+def test_device_list_shows_a_device_that_wants_to_pair(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = login(monkeypatch, a), login(monkeypatch, b)
+    monkeypatch.setattr(pa, "PAIR_WAIT_S", 0.5)
+    assert run(a, "pair", pa.id_hex(idb)[:6]) == 1  # a's commit waits in b's push cache
+    capsys.readouterr()
+    for cmd in ("devices", "pair"):
+        assert run(b, cmd) == 0
+        row = [x for x in capsys.readouterr().out.splitlines() if x.startswith(pa.id_hex(ida)[:6])]
+        assert len(row) == 1 and row[0].endswith("  wants to pair"), row
+
+
+def test_another_device_that_wants_to_pair_is_shown_once(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = login(monkeypatch, a), login(monkeypatch, b)
+    cx = pa.Ctx(b)
+    cx.setup()
+    cx.refresh()
+    cx.target = "x" * 40
+    with cx.store.state(write=False) as d:
+        notes = [pa.pair_note(cx, d, ida, '"%s" wants to pair. Compare the fingerprint: pusharmor pair %s'),
+                 pa.pair_note(cx, d, ida, '"%s" wants to pair. Run: pusharmor pair %s')]
+        name = pa.peer_label(d["peers"][ida])
+    assert notes == [("info", '"%s" also wants to pair. Run: pusharmor pair %s' % (name, pa.id_hex(ida)[:6])), None]
 
 
 @pytest.mark.skipif(os.name == "nt", reason="no POSIX modes on Windows")
@@ -1961,7 +1991,7 @@ def test_every_stderr_line_has_a_severity_prefix(net, tmp_path, monkeypatch, cap
     assert lines and all(x.startswith(("error: ", "warning: ", "info: ")) for x in lines)
     assert "info: Listening. Press Ctrl+C to stop." in lines and "info: Stopped." in lines
     assert "Sent to 1 of 1 device." in cap.out.splitlines() and not any("Sent to" in x for x in lines)
-    assert any(x.startswith('info: Waiting for "') for x in lines)
+    assert any(x.startswith('info: Waiting for "') and x.endswith(" Press Ctrl+C to stop.") for x in lines)
     assert not any(x.startswith(("error: ", "warning: ", "info: ")) for x in cap.out.splitlines())
 
 
