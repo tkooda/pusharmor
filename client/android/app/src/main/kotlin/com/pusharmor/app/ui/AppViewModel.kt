@@ -10,8 +10,6 @@ import com.pusharmor.app.data.Settings
 import com.pusharmor.app.session.Session
 import com.pusharmor.net.ErrorText
 import com.pusharmor.net.WorkerClient
-import com.pusharmor.protocol.ContentType
-import com.pusharmor.protocol.Detect
 import com.pusharmor.protocol.Peer
 import com.pusharmor.protocol.allSet
 import com.pusharmor.protocol.engine.ApiResult
@@ -331,11 +329,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val flashRow = MutableStateFlow<Long?>(null)
 
     /** An unexpected error (no keys, a Keystore failure) gives "Unable to send." and why instead of crashing the app. */
-    suspend fun send(recipients: List<String>, text: String, asText: Boolean): SendResult = withContext(Dispatchers.IO) {
+    suspend fun send(recipients: List<String>, text: String, asUrl: Boolean, asText: Boolean = false): SendResult = withContext(Dispatchers.IO) {
         if (com.pusharmor.app.BuildConfig.SCREENSHOT_MODE && com.pusharmor.app.ScreenshotMode.on) com.pusharmor.app.ScreenshotMode.sendResult?.let { return@withContext SendResult(it) }
         try {
-            val type = if (asText) ContentType.TEXT else Detect.type(text)
-            val value = if (type == ContentType.TEXT) text else text.trim()
+            val (type, value) = SendAsUrl.content(text, asUrl, asText)
             val out = g.sender().send(recipients, type, value, System.currentTimeMillis())
             if (out.error != null) return@withContext SendResult(ErrorText.of(UiText.UNABLE_SEND, out.error!!, UiText.pushHost(g.settings.get(Settings.K.UP_ENDPOINT))))
             sendResult(recipients.size, out, recipients.singleOrNull()) { id -> g.store.peer(id)?.let(::label) }

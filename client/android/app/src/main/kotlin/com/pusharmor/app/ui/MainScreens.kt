@@ -885,12 +885,15 @@ fun SwitchRow(text: String, checked: Boolean, enabled: Boolean = true, sub: Stri
 
 private val Modifier.rowPad get() = this.padding(horizontal = 16.dp)
 
-/** Send: field, type caption and counter, "Send as text", then the device chips just above the green Send pinned at the bottom (above the keyboard). */
+/** Send: field, counter and "Send as URL" (a phone number: its caption and "Send as text" above it), then the device chips just above the green Send pinned at the bottom (above the keyboard). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null, title: String? = null, inDialog: Boolean = false, onPair: () -> Unit = {}, onSent: (AppViewModel.SendResult) -> Unit = {}) {
     val shots = BuildConfig.SCREENSHOT_MODE && ScreenshotMode.on && title != null
     var text by rememberSaveable { mutableStateOf(if (shots) ScreenshotMode.sendText else initial) }
+    var urlBox by rememberSaveable(stateSaver = listSaver<SendAsUrl, Boolean>({ listOf(it.checked, it.optedOut) }, { SendAsUrl(it[0], it[1]) })) {
+        mutableStateOf(SendAsUrl.start(if (shots) ScreenshotMode.sendText else initial))
+    }
     var asText by rememberSaveable { mutableStateOf(false) }
     // Count with the text, so a repeat of the same result still shows a snackbar.
     var result by remember { mutableStateOf<Pair<Int, String>?>(null) }
@@ -930,10 +933,11 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     LaunchedEffect(result) { result?.let { snack.showSnackbar(UiText.brief(it.second)) } }
     // A result about the last send goes away once the message or the chosen devices change.
     DismissSnackbarOnChange(snack, text to picked.toList())
-    val detected = Detect.type(text)
-    val type = if (asText) ContentType.TEXT else detected
+    val urlEnabled = SendAsUrl.enabled(text)
+    // A phone number keeps its own caption and "Send as text" (it is never a likely URL, so the URL box is unchecked).
+    val tel = Detect.type(text) == ContentType.TEL
     val keyboardUp = WindowInsets.isImeVisible
-    // With the keyboard up the field keeps at least 2 lines: the caption and "Send as text" rows give way,
+    // With the keyboard up the field keeps at least 2 lines: the counter and "Send as URL" row gives way,
     // the device chips and Send do not.
     var areaPx by remember { mutableIntStateOf(0) }
     var chipsPx by remember { mutableIntStateOf(0) }
@@ -959,29 +963,39 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                 Column(if (scrolls) Modifier else Modifier.weight(1f, fill = !inDialog)) {
                     // The field starts at 4 lines and grows with its text up to the free space, then scrolls inside;
                     // with the keyboard up it shrinks first, to 2 lines while the chips still fit.
-                    OutlinedTextField(text, { text = it }, modifier = Modifier.rowPad.fillMaxWidth().then(if (scrolls) Modifier else Modifier.weight(1f, fill = false))
+                    OutlinedTextField(text, { text = it; urlBox = urlBox.onText(it) }, modifier = Modifier.rowPad.fillMaxWidth().then(if (scrolls) Modifier else Modifier.weight(1f, fill = false))
                         .padding(top = if (title == null) 16.dp else 0.dp), minLines = 4, label = { Text("Message") },
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = ex.tile, unfocusedContainerColor = ex.tile,
                             focusedBorderColor = cs.primary, unfocusedBorderColor = cs.outline))
                     val counter = UiText.showCounter(bytes)
                     if (extras) Column(Modifier.onSizeChanged { extrasPx = it.height }) {
-                        val box = detected != ContentType.TEXT
-                        if (text.isNotEmpty() || counter || box) {
-                            // One row: the caption and counter at the left, "Send as text" at the far right.
-                            Row(Modifier.padding(start = 32.dp, end = if (box) 16.dp else 32.dp, top = if (box) 0.dp else 6.dp).fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                // Wraps the counter under the caption instead of squeezing it.
-                                FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    if (text.isNotEmpty()) Box(Modifier.align(Alignment.CenterVertically)) { TypeCaption(type) }
-                                    if (counter) Text(UiText.counter(bytes), Modifier.align(Alignment.CenterVertically), style = MaterialTheme.typography.bodySmall, color = cs.error)
-                                }
-                                if (box) Row(Modifier.heightIn(min = 40.dp).toggleable(asText, role = Role.Checkbox) { asText = it },
-                                    verticalAlignment = Alignment.CenterVertically) {
-                                    Checkbox(asText, null)
-                                    Spacer(Modifier.width(12.dp))
-                                    Text("Send as text", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
-                                }
+                        // A phone number: its caption and the counter at the left, "Send as text" at the far right.
+                        if (tel) Row(Modifier.padding(start = 32.dp, end = 16.dp).fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Box(Modifier.align(Alignment.CenterVertically)) { TypeCaption(if (asText) ContentType.TEXT else ContentType.TEL) }
+                                if (counter) Text(UiText.counter(bytes), Modifier.align(Alignment.CenterVertically), style = MaterialTheme.typography.bodySmall, color = cs.error)
+                            }
+                            Row(Modifier.heightIn(min = 40.dp).toggleable(asText, role = Role.Checkbox) { asText = it },
+                                verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(asText, null)
+                                Spacer(Modifier.width(12.dp))
+                                Text("Send as text", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                            }
+                        }
+                        // One row: the counter at the left (unless the phone row shows it), "Send as URL" at the far right.
+                        Row(Modifier.padding(start = 32.dp, end = 16.dp).fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.weight(1f)) {
+                                if (counter && !tel) Text(UiText.counter(bytes), style = MaterialTheme.typography.bodySmall, color = cs.error)
+                            }
+                            Row(Modifier.heightIn(min = 40.dp).toggleable(urlBox.checked, enabled = urlEnabled, role = Role.Checkbox) { urlBox = urlBox.onToggle(it) },
+                                verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(urlBox.checked, null, enabled = urlEnabled)
+                                Spacer(Modifier.width(12.dp))
+                                Text("Send as URL", style = MaterialTheme.typography.bodyMedium,
+                                    color = if (urlEnabled) cs.onSurfaceVariant else cs.onSurface.copy(alpha = 0.38f))
                             }
                         }
                     } else if (counter) {
@@ -1021,7 +1035,11 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                     scope.launch { vm.g.settings.saveSendTo(sendTo) }
                     scope.launch {
                         // A send that reached a device leaves this screen, so only a failure shows here.
-                        try { val r = vm.send(sendTo, text, asText); if (!r.ok) result = ((result?.first ?: 0) + 1) to r.text; onSent(r) }
+                        try {
+                            val r = vm.send(sendTo, text, urlBox.checked && urlEnabled, asText)
+                            if (r.ok) urlBox = SendAsUrl.start(text) else result = ((result?.first ?: 0) + 1) to r.text
+                            onSent(r)
+                        }
                         finally { vm.running.update { it - "send" } }
                     }
                 }

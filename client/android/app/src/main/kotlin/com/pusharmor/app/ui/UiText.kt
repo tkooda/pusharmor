@@ -287,7 +287,7 @@ object UiText {
     fun chipVisible(selected: Boolean, keyboardUp: Boolean): Boolean = selected || !keyboardUp
 
     /**
-     * With the keyboard up the caption and "Send as text" rows ([extrasPx]) hide when they would leave the message
+     * With the keyboard up the caption, "Send as text", and "Send as URL" rows ([extrasPx]) hide when they would leave the message
      * field less than [fieldMinPx] (2 lines) of the [areaPx] above Send; the device chips ([chipsPx]) always keep their space.
      */
     fun sendExtrasShown(keyboardUp: Boolean, areaPx: Int, chipsPx: Int, extrasPx: Int, fieldMinPx: Int): Boolean =
