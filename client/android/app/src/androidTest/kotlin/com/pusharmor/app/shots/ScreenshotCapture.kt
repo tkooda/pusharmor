@@ -247,7 +247,7 @@ class ScreenshotCapture {
         main("send", await = "Tablet")
         ScreenshotMode.sendResult = ErrorText.of("Unable to send.", ApiResult.Network)
         tap("Send to 3 devices")
-        awaitText("Unable to send.")
+        awaitText("Unable to send")
         settle(500)
         shot("96-send-error")
         ScreenshotMode.sendResult = null

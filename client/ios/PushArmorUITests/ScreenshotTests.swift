@@ -177,7 +177,7 @@ final class ScreenshotTests: XCTestCase {
             app.terminate()
 
             app = launch(["-PAScreenshotsSendError", "-appearance", theme])
-            XCTAssertTrue(labelled(app, "Unable to send.").waitForExistence(timeout: 30))
+            XCTAssertTrue(labelled(app, "Unable to send").waitForExistence(timeout: 30))
             sleep(1)
             shot("97-send-error-\(theme)")
             app.terminate()
