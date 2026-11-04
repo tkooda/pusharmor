@@ -52,8 +52,9 @@ extension Core {
         case "tel": cat = .tel; tap = .detail
         default: cat = .text; tap = .detail
         }
+        let title = body == row.content ? peer.map { S.quoted($0.noticeName) } ?? S.unknownSender : S.title
         return Banner(body: body, locKey: nil, category: cat, threadId: pid.map(Banner.peerThread) ?? Banner.dropThread,
-                      rowid: row.rowid, tap: tap)
+                      rowid: row.rowid, tap: tap, title: title)
     }
 
     func noticeBanner(_ body: String, peer: PeerId?, category: BannerCategory, thread: String? = nil, tap: Banner.Tap) -> Banner {

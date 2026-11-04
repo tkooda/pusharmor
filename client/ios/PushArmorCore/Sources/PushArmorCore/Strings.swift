@@ -165,6 +165,8 @@ public struct Banner: Equatable, Sendable {
     public var threadId: String
     public var rowid: Int64?
     public var tap: Tap
+    /// The notification title: the sender's device name in quotes over a shown message, else the app name.
+    public var title: String = S.title
 
     public static let dropThread = "pa.notice"
 

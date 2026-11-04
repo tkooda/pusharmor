@@ -114,7 +114,7 @@ enum BannerContent {
     /// is copied into userInfo (spec 6.2).
     static func content(_ b: Banner, m: Any?, key: Data?, handled: Bool = false) -> UNMutableNotificationContent {
         let c = UNMutableNotificationContent()
-        c.title = S.title
+        c.title = b.title
         c.body = b.body
         c.sound = .default
         c.categoryIdentifier = b.category.rawValue

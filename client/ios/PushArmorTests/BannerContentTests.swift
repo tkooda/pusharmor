@@ -36,6 +36,12 @@ final class BannerContentTests: XCTestCase {
         XCTAssertEqual(c.subtitle, "")
     }
 
+    func testAMessageTitleIsTheSenderName() {
+        var b = Banner.fallback
+        b.title = "\"Firefox mobile\""
+        XCTAssertEqual(BannerContent.content(b, m: nil, key: nil).title, "\"Firefox mobile\"")
+    }
+
     func testExpiryIsTheFallbackWithOnlyM() {
         let c = BannerContent.expiry(m: "relay-m")
         XCTAssertEqual(c.title, S.title)

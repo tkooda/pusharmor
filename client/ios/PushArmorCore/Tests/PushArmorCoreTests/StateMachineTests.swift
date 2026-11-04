@@ -33,6 +33,7 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(pushed.count, 1)
         let r = await x.core.receive(pushed[0], mode: .nse)
         XCTAssertEqual(r.banner?.body, "https://example.com/a")
+        XCTAssertEqual(r.banner?.title, "\"Ndev\"")   // the sender's device name in quotes
         XCTAssertEqual(r.banner?.category, .url)
         XCTAssertTrue(r.newMessage)
         // a Worker retry duplicate re-presents the same row, no new row
