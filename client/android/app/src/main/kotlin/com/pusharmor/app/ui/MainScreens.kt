@@ -1413,13 +1413,16 @@ private fun RowAction(text: String, icon: ImageVector, enabled: Boolean = true, 
         border = AssistChipDefaults.assistChipBorder(enabled = enabled, borderColor = cs.outline))
 }
 
+/** Buttons per row when [n] buttons wrap and [fit] fit a row: the same number of rows, filled evenly (4 at 3 per row gives 2 and 2, not 3 and 1). */
+internal fun balancedPerRow(n: Int, fit: Int): Int = if (n <= 0 || fit <= 0) 1 else (n + (n + fit - 1) / fit - 1) / ((n + fit - 1) / fit)
+
 /** The actions of an opened History message: equal-width buttons in one row, or in equal-width rows when the widest does not fit. */
 @Composable
 internal fun MessageActions(content: @Composable () -> Unit) {
     Layout(content, Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) { ms, c ->
         val gap = 8.dp.roundToPx()
         val need = ms.maxOfOrNull { it.maxIntrinsicWidth(c.maxHeight) } ?: 0
-        val perRow = ((c.maxWidth + gap) / (need + gap)).coerceIn(1, ms.size.coerceAtLeast(1))
+        val perRow = balancedPerRow(ms.size, ((c.maxWidth + gap) / (need + gap)).coerceIn(1, ms.size.coerceAtLeast(1)))
         val w = ((c.maxWidth - (perRow - 1) * gap) / perRow).coerceAtLeast(0)
         val ps = ms.map { it.measure(Constraints(minWidth = w, maxWidth = w, maxHeight = c.maxHeight)) }
         val rows = ps.chunked(perRow)
