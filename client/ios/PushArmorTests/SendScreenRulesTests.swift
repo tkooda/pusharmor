@@ -58,14 +58,15 @@ final class SendScreenRulesTests: XCTestCase {
 
     func testLikelyURLAcceptsHostShapes() {
         for s in ["minilock.org", "  minilock.org  ", "https://minilock.org", "HTTP://a.b.co/x?y#z",
-                  "sub.example.com:8080/path", "example.com/", "xn--bcher-kva.xn--p1ai"] {
+                  "sub.example.com:8080/path", "example.com/", "xn--bcher-kva.xn--p1ai",
+                  "https://1.2.3.4", "http://localhost:8080/x"] {
             XCTAssertTrue(LikelyURL.isLikely(s), s)
         }
     }
 
     func testLikelyURLRejectsOtherText() {
         for s in ["minilock.", "minilockorg", "minilock.;org", "minilock .org", "", "   ", "a..com", "-a.com",
-                  "1.2.3.4", "hello world.com", "localhost", "ftp://x.com"] {
+                  "1.2.3.4", "hello world.com", "localhost", "ftp://x.com", "https://"] {
             XCTAssertFalse(LikelyURL.isLikely(s), s)
         }
     }

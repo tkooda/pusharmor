@@ -118,13 +118,16 @@ enum LikelyURL {
         ("a"..."z").contains(c) || ("A"..."Z").contains(c)
     }
 
-    /// No whitespace; an optional http(s) scheme; a host of 2 or more dot separated labels
+    /// No whitespace; then either an http(s) scheme with anything after it (no host check), or a
+    /// host of 2 or more dot separated labels
     /// (1 to 63 of A-Z, a-z, 0-9, and "-", no "-" at either end) ending in 2 or more letters or
     /// an "xn--" label; an optional ":" port of 1 or more digits; then anything after "/", "?", or "#".
     static func isLikely(_ s: String) -> Bool {
         let t = trimmed(s)
         if t.isEmpty || t.unicodeScalars.contains(where: { CharacterSet.whitespacesAndNewlines.contains($0) }) { return false }
-        let rest = Array(t.dropFirst(schemeLength(t)).unicodeScalars)
+        let n = schemeLength(t)
+        if n > 0 { return t.count > n }
+        let rest = Array(t.unicodeScalars)
         let hostEnd = rest.firstIndex(where: { $0 == "/" || $0 == "?" || $0 == "#" || $0 == ":" }) ?? rest.count
         if hostEnd < rest.count && rest[hostEnd] == ":" {
             let after = rest[(hostEnd + 1)...]
