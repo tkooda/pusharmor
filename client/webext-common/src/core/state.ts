@@ -2,6 +2,7 @@
 // reply cap ("pair_auto"), the persisted allow set, Retry-After gates.
 import type { KV } from "../platform.ts";
 import type { PairState, Role } from "../model/pairdecide.ts";
+import { SEND_SEL_KEY } from "../model/sendsel.ts";
 
 export const PAIR_PREFIX = "pair:";
 export const PAIR_AUTO = "pair_auto";
@@ -15,6 +16,11 @@ export const UPDATE_NEEDED = "update_needed";
 /** storage.local: when "Check again" on the update screen last asked the relay server (ms). */
 export const RECHECK_AT = "recheck_at";
 export const REG_MARKER = "registered";
+
+/** A storage.local key of the active account (it moves on an account switch); the rest belong to the device. */
+export function accountKey(k: string): boolean {
+  return k.startsWith(PAIR_PREFIX) || k.startsWith(PAIR_MSG_PREFIX) || [PAIR_AUTO, PAIR_HELD, ALLOW_SET, NET_NOT_BEFORE, REG_MARKER, SEND_SEL_KEY].includes(k);
+}
 export interface PairEntry {
   role: Role;
   state: PairState;

@@ -42,6 +42,7 @@ export function reasonOf(err: unknown, provider?: string): string {
     if (s === 401 && w === "bad id") return R.refused; // not a removal
     if (s === 401 && w === "ticket expired") return R.loginExpired;
     if (s === 401 && (w === "invalid ticket" || w === "bad ticket")) return R.badLink;
+    if (s === 401 && w === "account mismatch") return R.otherAccount;
     if (s === 401 && w === "wrong code") return R.wrongCode;
     if (s === 401 && w === "code expired") return R.codeExpired;
     if (s === 401 && w === "email not verified") return R.emailNotVerified;

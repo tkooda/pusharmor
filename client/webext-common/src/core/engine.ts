@@ -15,6 +15,7 @@ import {
   accountOf,
   commitHash,
   keyhash,
+  normalizeEmail,
   validPeerEntry,
   pairingFingerprint,
   pairingId,
@@ -44,7 +45,7 @@ import { AUTO_REPLY_WINDOW_MS, pairDecide, type PairDecision, pairHint, pairTime
 import { replayCheck, replayRecord } from "../model/replay.ts";
 import { receiveDecide } from "../model/receive.ts";
 import { type Platform, PushRefused } from "../platform.ts";
-import { type HistoryRow, type PeerRow, type Platform4, type SelfKeys, Db, newPeerRow } from "../store/db.ts";
+import { type HistoryRow, type PeerRow, type Platform4, type SelfKeys, ACCOUNTS, Db, SLOT_LOCAL, newPeerRow } from "../store/db.ts";
 import {
   ALLOW_SET,
   Lock,
@@ -57,6 +58,7 @@ import {
   RECHECK_AT,
   REG_MARKER,
   UPDATE_NEEDED,
+  accountKey,
   allEntries,
   getAllowSet,
   getEntry,
@@ -138,6 +140,10 @@ const KEYS_BROKEN = "keys_broken";
 const WIPE_CHECK = "wipe_check";
 /** Waits before the retries of a push PATCH the relay server refused. */
 const PUSH_RETRY_MS = [30_000, 120_000, 600_000];
+/** meta key: the account id of the last registration (kept by a wipe, so the history can be archived). */
+const ACCOUNT = "account";
+/** Length of an account id: the first 9 bytes of a peer id, in base64url. */
+const ACCOUNT_CHARS = 12;
 
 export class Engine {
   readonly p: Platform;
@@ -1819,6 +1825,80 @@ export class Engine {
     return s;
   }
 
+  // -------------------------------------------------------------- accounts
+
+  /** The archived accounts on this device: account id -> normalized email (null when unknown). */
+  async accounts(): Promise<Record<string, string | null>> {
+    return (await this.db.meta<Record<string, string | null>>(ACCOUNTS)) ?? {};
+  }
+
+  /** The active account's id: from its keys, else from its last registration; null for none. */
+  async accountId(): Promise<string | null> {
+    const s = await this.self();
+    return s ? s.id.slice(0, ACCOUNT_CHARS) : ((await this.db.meta<string>(ACCOUNT)) ?? null);
+  }
+
+  /** The active account's email as the relay server sent it, or null. */
+  async email(): Promise<string | null> {
+    return (await this.db.meta<string>("email")) ?? null;
+  }
+
+  /** The archived account with this normalized email, or null. */
+  async archivedAccount(normalized: string): Promise<string | null> {
+    const active = await this.accountId();
+    const hit = Object.entries(await this.accounts()).find(([id, e]) => e === normalized && id !== active);
+    return hit ? hit[0] : null;
+  }
+
+  /** An account switch is allowed only while this device is not logged in. */
+  async canSwitch(): Promise<boolean> {
+    return (await this.regState()) !== "registered";
+  }
+
+  /**
+   * Switches the account on this device (only while not logged in). The active account is
+   * archived under its account id (one with no id has no state: its keys never registered),
+   * then the archive of account `to` becomes active, or an empty account (to null) whose next
+   * sign-in makes new keys. An archive is dropped only after the load committed, so a failed
+   * write keeps both copies.
+   */
+  async switchAccount(to: string | null): Promise<void> {
+    if (!(await this.canSwitch())) throw new ReasonError(R.tryAgain);
+    await this.retryPendingLogout().catch(() => undefined); // the old account's logout goes out first
+    await this.applySlotLocal();
+    const from = await this.accountId();
+    if (to !== null && to === from) return;
+    const accounts = await this.accounts();
+    if (from !== null) {
+      const all = await this.p.storageLocal.get(null);
+      const local = Object.fromEntries(Object.entries(all).filter(([k]) => accountKey(k)));
+      await this.db.saveArchive(from, await this.db.activeRows(), local);
+      const e = await this.email();
+      accounts[from] = e === null ? null : normalizeEmail(e);
+    }
+    const rows = to !== null && to in accounts ? await this.db.readArchive(to) : null;
+    if (to !== null) delete accounts[to];
+    await this.db.loadRows(rows, accounts);
+    if (to !== null) await this.db.dropArchive(to).catch(() => undefined); // a stale one is never read: it is not listed
+    this.pairingAgain.clear();
+    this.replying.clear();
+    await this.applySlotLocal();
+    await this.p.clearAllNotifications().catch(() => undefined);
+    await this.rebuildMenus();
+    await this.updateBadge();
+    await this.authChanged();
+  }
+
+  /** The storage.local keys of a loaded account go there (again after a stop in between). */
+  private async applySlotLocal(): Promise<void> {
+    const local = await this.db.meta<Record<string, unknown>>(SLOT_LOCAL);
+    if (!local) return;
+    const all = await this.p.storageLocal.get(null);
+    await this.p.storageLocal.remove(Object.keys(all).filter((k) => accountKey(k)));
+    await this.p.storageLocal.set(local);
+    await this.db.del("meta", SLOT_LOCAL);
+  }
+
   /** Key-loss check at start: marker present and the IDB keys store empty. */
   async keysLost(): Promise<boolean> {
     const m = (await this.p.storageLocal.get([REG_MARKER]))[REG_MARKER] as { id: string; registered: boolean } | undefined;
@@ -1907,6 +1987,7 @@ export class Engine {
     if (!idb || idb.length !== ID_LEN || !equal(idb.subarray(ACCOUNT_LEN, ACCOUNT_LEN + KEYHASH_LEN), await keyhash(keys.sign_pub, keys.enc_pub)))
       throw new ReasonError(R.badReply);
     await this.db.put("keys", { ...keys, id }, "self");
+    await this.db.setMeta(ACCOUNT, id.slice(0, ACCOUNT_CHARS));
     await this.p.storageLocal.set({ [REG_MARKER]: { id, registered: true } });
     await this.db.setMeta("reg", "registered");
     await this.db.setMeta("banner", null);
@@ -1926,6 +2007,7 @@ export class Engine {
   }
 
   async start(): Promise<void> {
+    await this.applySlotLocal();
     if (await this.keysLost()) {
       await this.db.setMeta("banner", T.keysLost);
       return;

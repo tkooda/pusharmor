@@ -1,6 +1,6 @@
 // Sign-in flows (catalog Auth; component-webext section 7 Login): email code,
 // Google and Apple. The ticket then registers, logs in or deletes.
-import { API_BASE } from "../api/client.ts";
+import { API_BASE, ApiError } from "../api/client.ts";
 import { b64urlEncode } from "../crypto/b64url.ts";
 import { normalizeEmail, oauthK } from "../crypto/labels.ts";
 import { AUTH_RESULT, type AuthResult, type Restore, SIGNIN_PROGRESS, chromiumRedirectOk, restoreStep } from "../model/signin.ts";
@@ -13,6 +13,7 @@ export const AUTH_PENDING = "auth_pending";
 export const REQUEST_TOKEN = "request_token";
 const AUTH_PENDING_MS = 10 * 60_000;
 const TICKET_RE = /^[A-Za-z0-9_.-]{16,4096}$/;
+const ACCOUNT_RE = /^[A-Za-z0-9_-]{12}$/;
 
 export interface LoginResult {
   done: boolean;
@@ -47,6 +48,7 @@ export class Login {
   async emailStart(email: string, turnstile: string, purpose: Purpose): Promise<void> {
     const n = normalizeEmail(email);
     if (n === null) throw new ReasonError(R.badEmail);
+    if (purpose !== "delete-account") purpose = await this.accountFor(n);
     const keys = await this.e.signInKeys();
     const r = await this.e.api.call("POST", "/auth/email", {
       body: { email: n, sign_pub: b64urlEncode(keys.sign_pub), purpose, turnstile },
@@ -56,6 +58,24 @@ export class Login {
       [REQUEST_TOKEN]: { token: r.json.request_token, purpose },
       [SIGNIN_PROGRESS]: { v: 1, step: "code", email: email.trim(), purpose, sentAt: this.e.p.now() },
     });
+  }
+
+  /**
+   * Email login: the typed address picks the account. Its own address: as before. An archived
+   * account's address: that account. Another address while this device has a registered account:
+   * a new account. Returns the sign-in purpose for the account now active.
+   */
+  private async accountFor(n: string): Promise<Purpose> {
+    if (await this.e.canSwitch()) {
+      const cur = await this.e.email();
+      const active = cur === null ? null : normalizeEmail(cur);
+      if (active !== n) {
+        const x = await this.e.archivedAccount(n);
+        if (x !== null) await this.e.switchAccount(x);
+        else if (active !== null && (await this.e.self())) await this.e.switchAccount(null);
+      }
+    }
+    return this.purpose();
   }
 
   /** Saved sign-in progress for this purpose (storage.session; see model/signin.ts). */
@@ -108,6 +128,8 @@ export class Login {
     if (back !== null && !chromiumRedirectOk(back)) throw new UserError(provider === "google" ? T.googleNotInBrowser : T.appleNotInBrowser);
     // a Chrome copy with another extension id: Google would refuse its redirect, so the flow never starts
     if (provider === "google" && this.e.p.chromeIdKnown === false) throw new UserError(T.googleNotInCopy);
+    // the account may have changed since the page asked (a login for another account switched it)
+    if (purpose !== "delete-account") purpose = await this.purpose();
     const url = await this.oauthUrl(provider, purpose);
     const redirect = await this.e.p.authFlow(url).catch((e: unknown) => {
       // Chrome rejects with "The user did not approve access." when the window is closed
@@ -149,17 +171,45 @@ export class Login {
 
   async complete(purpose: Purpose, ticket: string, email: string | null, evict?: string[]): Promise<LoginResult> {
     if (!TICKET_RE.test(ticket)) throw new ReasonError(R.badLink);
+    const active = await this.e.email();
+    const n = email === null ? null : normalizeEmail(email);
+    const an = active === null ? null : normalizeEmail(active);
+    // a deletion is only for the account on this device: no call
+    if (purpose === "delete-account" && n !== null && an !== null && n !== an) throw new ReasonError(R.deleteOther(email!, active!));
+    // a registration for an archived account: that account comes back instead
+    if (purpose === "register" && n !== null && n !== an && (await this.e.canSwitch())) {
+      const x = await this.e.archivedAccount(n);
+      if (x !== null) {
+        await this.e.switchAccount(x);
+        throw new ReasonError(R.otherLogin(email!, active));
+      }
+    }
     if (purpose === "register") {
       const limit = await this.e.register(ticket, email, evict);
       if (limit) {
         if (email !== null) await this.e.db.setMeta("email", email);
         return { done: false, limit, ticket: typeof limit.ticket === "string" ? limit.ticket : ticket };
       }
-    } else if (purpose === "login") await this.e.login(ticket);
+    } else if (purpose === "login") await this.e.login(ticket).catch((err: unknown) => this.otherAccount(err, email, active));
     else await this.e.deleteAccount(ticket);
     if (email !== null && purpose !== "delete-account") await this.e.db.setMeta("email", email);
     await this.clearProgress();
     return { done: true };
+  }
+
+  /**
+   * A login ticket for another account (401 "account mismatch"): while this device is logged
+   * out, it switches to that account (archived, or new), and the user logs in again with keys
+   * of that account. Always throws.
+   */
+  private async otherAccount(err: unknown, email: string | null, active: string | null): Promise<never> {
+    if (!(err instanceof ApiError && err.status === 401 && err.error === "account mismatch")) throw err;
+    const x = typeof err.body.account === "string" ? err.body.account : "";
+    if (!ACCOUNT_RE.test(x) || !(await this.e.canSwitch())) throw err;
+    const known = await this.e.accounts();
+    const name = email ?? known[x] ?? null;
+    await this.e.switchAccount(x in known ? x : null);
+    throw new ReasonError(name === null ? R.otherAccount : R.otherLogin(name, active));
   }
 }
 

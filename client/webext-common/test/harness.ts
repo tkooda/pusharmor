@@ -152,6 +152,8 @@ export class MockWorker {
   floor: string | null = null;
   /** my_relay_fault in GET /v1/peers (undefined: the field is left out, as an older relay server does). */
   relayFault: boolean | undefined;
+  /** The account a POST /v1/peers registers into. */
+  account = ACCOUNT;
   readonly clock: Clock;
   constructor(clock: Clock) {
     this.clock = clock;
@@ -159,8 +161,8 @@ export class MockWorker {
 
   peerId(sp: Uint8Array, ep: Uint8Array): string {
     const kh = sha(ascii("PA-ID1\n"), sp, ep).subarray(0, 12);
-    const mac = new Uint8Array(createHmac("sha256", ID_SECRET).update(concat(ACCOUNT, kh)).digest()).subarray(0, 9);
-    return b64urlEncode(concat(ACCOUNT, kh, mac));
+    const mac = new Uint8Array(createHmac("sha256", ID_SECRET).update(concat(this.account, kh)).digest()).subarray(0, 9);
+    return b64urlEncode(concat(this.account, kh, mac));
   }
 
   /** Remove queued pushes for a recipient and return them. */
@@ -351,7 +353,7 @@ export interface Device {
 }
 
 export async function makeEngine(p: FakePlatform, factory: IDBFactory, clock: Clock): Promise<{ e: Engine; db: Db }> {
-  const db = new Db(await openDb(factory));
+  const db = new Db(await openDb(factory), factory);
   let offset = 0;
   const api = new Api({
     client: p.platformName + "/" + p.appVersion,

@@ -122,9 +122,9 @@ function txDone(tx: IDBTransaction): Promise<void> {
   });
 }
 
-export function openDb(factory: IDBFactory = indexedDB): Promise<IDBDatabase> {
+export function openDb(factory: IDBFactory = indexedDB, name = DB_NAME): Promise<IDBDatabase> {
   return new Promise((res, rej) => {
-    const r = factory.open(DB_NAME, DB_VERSION);
+    const r = factory.open(name, DB_VERSION);
     r.onupgradeneeded = (ev) => {
       const db = r.result;
       // version 1
@@ -143,10 +143,116 @@ export function openDb(factory: IDBFactory = indexedDB): Promise<IDBDatabase> {
   });
 }
 
+// Accounts: one account is active at a time and its rows are the stores above, as before.
+// The others are archived, each in its own database ("pusharmor-acct-" + account id) with
+// the same stores. Rows of the device itself stay in the active database on a switch.
+
+/** meta key: the archived accounts, account id -> normalized email (null when unknown). */
+export const ACCOUNTS = "accounts";
+/** meta key: the storage.local keys of a loaded account, until they are written there. */
+export const SLOT_LOCAL = "slot_local";
+const ARCHIVE_PREFIX = "pusharmor-acct-";
+/** meta keys of the device (clock offset, Firefox push setup), not of an account. */
+const DEVICE_META = new Set([ACCOUNTS, SLOT_LOCAL, "offset_s", "fallback_push", "receive_mode", "setup_opened", "autopush"]);
+
+/** One account's rows of each store as [key, value] pairs. */
+export type SlotRows = Record<StoreName, [IDBValidKey, unknown][]>;
+
+/** true for a row that belongs to the active account (keys: only "self"; Firefox's web push keys stay). */
+function accountRow(store: StoreName, key: IDBValidKey): boolean {
+  if (store === "keys") return key === "self";
+  if (store === "meta") return !DEVICE_META.has(String(key));
+  return true;
+}
+
+/** All rows (an archive), or only the account's rows (the active database), in one transaction. */
+async function readRows(db: IDBDatabase, all: boolean): Promise<SlotRows> {
+  const tx = db.transaction([...STORES], "readonly");
+  const out = {} as SlotRows;
+  await Promise.all(
+    STORES.map(async (s) => {
+      const st = tx.objectStore(s);
+      const [ks, vs] = await Promise.all([req(st.getAllKeys()), req(st.getAll())]);
+      out[s] = ks.map((k, i): [IDBValidKey, unknown] => [k, vs[i]]).filter(([k]) => all || accountRow(s, k));
+    }),
+  );
+  return out;
+}
+
+function writeRows(tx: IDBTransaction, rows: SlotRows): void {
+  for (const s of STORES) {
+    const st = tx.objectStore(s);
+    for (const [k, v] of rows[s]) {
+      if (s === "peers" || s === "history") st.put(v); // in-line keys
+      else st.put(v, k);
+    }
+  }
+}
+
 export class Db {
   readonly db: IDBDatabase;
-  constructor(db: IDBDatabase) {
+  readonly factory: IDBFactory;
+  constructor(db: IDBDatabase, factory: IDBFactory = globalThis.indexedDB) {
     this.db = db;
+    this.factory = factory;
+  }
+
+  // ---- accounts ----
+  /** The active account's rows. */
+  async activeRows(): Promise<SlotRows> {
+    return readRows(this.db, false);
+  }
+
+  /** Writes the archive of an account, replacing an older one; local: its storage.local keys. */
+  async saveArchive(account: string, rows: SlotRows, local: Record<string, unknown>): Promise<void> {
+    const a = await openDb(this.factory, ARCHIVE_PREFIX + account);
+    try {
+      const tx = a.transaction([...STORES], "readwrite");
+      const done = txDone(tx);
+      for (const s of STORES) tx.objectStore(s).clear();
+      writeRows(tx, rows);
+      tx.objectStore("meta").put(local, SLOT_LOCAL);
+      await done;
+    } finally {
+      a.close();
+    }
+  }
+
+  async readArchive(account: string): Promise<SlotRows> {
+    const a = await openDb(this.factory, ARCHIVE_PREFIX + account);
+    try {
+      return await readRows(a, true);
+    } finally {
+      a.close();
+    }
+  }
+
+  async dropArchive(account: string): Promise<void> {
+    await req(this.factory.deleteDatabase(ARCHIVE_PREFIX + account));
+  }
+
+  /**
+   * One transaction: the active account's rows are replaced by rows (an archive, with its
+   * storage.local keys as SLOT_LOCAL), or emptied for a new account (null), and the list of
+   * archived accounts is set. Device rows stay.
+   */
+  async loadRows(rows: SlotRows | null, accounts: Record<string, string | null>): Promise<void> {
+    await this.tx([...STORES], (tx) =>
+      new Promise<void>((res, rej) => {
+        const meta = tx.objectStore("meta");
+        const g = meta.getAllKeys();
+        g.onerror = () => rej(g.error);
+        g.onsuccess = () => {
+          for (const k of g.result) if (accountRow("meta", k)) meta.delete(k);
+          tx.objectStore("keys").delete("self");
+          for (const s of ["peers", "replay", "history"] as const) tx.objectStore(s).clear();
+          meta.put({}, SLOT_LOCAL);
+          if (rows) writeRows(tx, rows);
+          meta.put(accounts, ACCOUNTS);
+          res();
+        };
+      }),
+    );
   }
 
   async get<T>(store: StoreName, key: IDBValidKey): Promise<T | undefined> {

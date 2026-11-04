@@ -87,7 +87,7 @@ test("every action line, with the device name in straight double quotes", () => 
   ];
   for (const [a, line] of lines) assert.equal(failText(a, e, { name: "Lap top" }), line + "\nTry again.");
   for (const v of Object.values(R)) {
-    const s = typeof v === "function" ? v("X") : v;
+    const s = typeof v === "function" ? (v as (...a: string[]) => string)("X", "Y") : v;
     assert.doesNotMatch(s, /bytes|Worker|peer|ticket/, s);
     assert.match(s, /^[\x20-\x7e]+$/, s);
   }
