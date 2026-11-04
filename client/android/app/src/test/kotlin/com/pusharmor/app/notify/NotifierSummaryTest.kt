@@ -54,4 +54,15 @@ class NotifierSummaryTest {
         assertTrue(messages().any { it.id == 2 })
         assertTrue(messages().any { it.id < 0 })
     }
+
+    @Test fun historyClearsEveryMessageAndKeepsOtherNotices() {
+        val notifier = app.graph.notifier
+        notifier.ensureChannels()
+        onThread { url(1L); url(2L) }
+        notifier.notice(Notifier.INVALID)
+        notifier.pairNotice("AAAAAAAAAAAAAAAAAAAAAA", "pairing", null)
+        notifier.cancelMessages()
+        assertTrue(messages().isEmpty())
+        assertEquals(setOf(Notifier.TAG_NOTICE, Notifier.TAG_PAIR), nm.activeNotifications.map { it.tag }.toSet())
+    }
 }

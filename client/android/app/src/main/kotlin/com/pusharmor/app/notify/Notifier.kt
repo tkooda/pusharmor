@@ -151,6 +151,16 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         }
     }
 
+    /** Every message notification and its group summary; notices, pairing notices, and status cards stay. */
+    fun cancelMessages() {
+        synchronized(posted) {
+            // a post the system list does not show yet is cancelled too
+            val ids = nm.activeNotifications.filter { it.tag == TAG_MSG }.map { it.id }.toSet() + posted.keys
+            posted.clear()
+            ids.forEach { nm.cancel(TAG_MSG, it) }
+        }
+    }
+
     private fun action(historyId: Long, act: String): PendingIntent {
         val i = Intent(context, ActionActivity::class.java).setAction("$act:$historyId").putExtra("history", historyId).putExtra("act", act)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

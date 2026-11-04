@@ -315,6 +315,8 @@ internal fun App(vm: AppViewModel) {
         // Only a resumed activity takes the route: a relaunch (CLEAR_TASK or CLEAR_TOP) sets it while
         // the old, paused instance is still composing, and that one must not use it up.
         val resumed = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value.isAtLeast(Lifecycle.State.RESUMED)
+        // History on the screen shows every received message: their notifications go, at open and at each return.
+        androidx.compose.runtime.LaunchedEffect(route, resumed) { if (clearsMessages(route, resumed)) vm.g.notifier.cancelMessages() }
         // After NavHost has set the graph: navigating during the first composition throws.
         androidx.compose.runtime.LaunchedEffect(back, pending, resumed) {
             if (resumed && back != null && pending != null) { MainActivity.pendingRoute = null; nav.navigate(pending) { launchSingleTop = true } }
@@ -425,6 +427,9 @@ internal fun resumeTick(): Int {
     }
     return n
 }
+
+/** Message notifications go while History is the resumed screen. */
+internal fun clearsMessages(route: String?, resumed: Boolean): Boolean = resumed && route == "history"
 
 /** POST_NOTIFICATIONS on first open; explainer with retry; permanently denied -> app notification settings. */
 @Composable
