@@ -2,7 +2,7 @@ import XCTest
 import PushArmorCore
 @testable import PushArmor
 
-/// Send screen rules: chip header, "All" chip, counter threshold, sole device, caption (F12, F13).
+/// Send screen rules: chip header, "All" chip, counter threshold, sole device, "Send as URL" (F12, F13).
 final class SendScreenRulesTests: XCTestCase {
     func testHeaderCountsSelectedOfTotal() {
         XCTAssertEqual(SendScreenRules.header(selected: 6, total: 9), "Send to (6 of 9)")
@@ -33,12 +33,93 @@ final class SendScreenRulesTests: XCTestCase {
         XCTAssertNil(SendScreenRules.soleDevice([]))
     }
 
-    func testCaptionIsPresentTenseAndFollowsSendAsText() {
-        XCTAssertEqual(SendScreenRules.caption(.url, asText: false).title, "Will open as a URL")
-        XCTAssertEqual(SendScreenRules.caption(.tel, asText: false).title, "Will open as a phone number")
-        XCTAssertEqual(SendScreenRules.caption(.text, asText: false).title, "Will arrive as text")
-        XCTAssertEqual(SendScreenRules.caption(.url, asText: true).title, "Will arrive as text")
-        XCTAssertEqual(SendScreenRules.caption(.tel, asText: true).title, "Will arrive as text")
+    func testLikelyURLAcceptsHostShapes() {
+        for s in ["minilock.org", "  minilock.org  ", "https://minilock.org", "HTTP://a.b.co/x?y#z",
+                  "sub.example.com:8080/path", "example.com/", "xn--bcher-kva.xn--p1ai"] {
+            XCTAssertTrue(LikelyURL.isLikely(s), s)
+        }
+    }
+
+    func testLikelyURLRejectsOtherText() {
+        for s in ["minilock.", "minilockorg", "minilock.;org", "minilock .org", "", "   ", "a..com", "-a.com",
+                  "1.2.3.4", "hello world.com", "localhost", "ftp://x.com"] {
+            XCTAssertFalse(LikelyURL.isLikely(s), s)
+        }
+    }
+
+    func testSendAsURLPayloadIsTrimmedWithAScheme() {
+        XCTAssertEqual(LikelyURL.payload("  minilock.org  "), "https://minilock.org")
+        XCTAssertEqual(LikelyURL.payload("https://minilock.org"), "https://minilock.org")
+        XCTAssertEqual(LikelyURL.payload(" HTTP://a.b.co/x?y#z"), "HTTP://a.b.co/x?y#z")
+        XCTAssertEqual(LikelyURL.payload("sub.example.com:8080/path"), "https://sub.example.com:8080/path")
+    }
+
+    func testSendAsURLStartsOffAndDisabled() {
+        let c = SendAsURLChoice()
+        XCTAssertFalse(c.on)
+        XCTAssertFalse(c.enabled)
+        XCTAssertEqual(SendAsURLChoice(text: ""), c)
+    }
+
+    func testSendAsURLTurnsOnForALikelyURLAndOffForText() {
+        var c = SendAsURLChoice()
+        c.textChanged("minilock.org")
+        XCTAssertTrue(c.on)
+        XCTAssertTrue(c.enabled)
+        c.textChanged("minilock.org and more")
+        XCTAssertFalse(c.on)
+        XCTAssertFalse(c.enabled)
+        c.textChanged("minilock.org")
+        XCTAssertTrue(c.on)
+        // a restored draft starts from its text
+        XCTAssertTrue(SendAsURLChoice(text: "minilock.org").on)
+    }
+
+    func testDisabledSendAsURLCannotBeTurnedOn() {
+        var c = SendAsURLChoice()
+        c.textChanged("hello")
+        c.set(true)
+        XCTAssertFalse(c.on)
+    }
+
+    func testSendAsURLTurnedOffNeverTurnsItselfOnAgain() {
+        var c = SendAsURLChoice()
+        c.textChanged("minilock.org")
+        c.set(false)
+        XCTAssertFalse(c.on)
+        XCTAssertTrue(c.enabled)
+        c.textChanged("minilock.or")
+        XCTAssertFalse(c.on)
+        c.textChanged("minilock.")
+        XCTAssertFalse(c.enabled)
+        c.textChanged("minilock.org")
+        XCTAssertTrue(c.enabled)
+        XCTAssertFalse(c.on)
+        // the user may still turn it back on
+        c.set(true)
+        XCTAssertTrue(c.on)
+        c.textChanged("minilock.org/x")
+        XCTAssertTrue(c.on)
+    }
+
+    func testClearedFieldStartsSendAsURLOver() {
+        var c = SendAsURLChoice()
+        c.textChanged("minilock.org")
+        c.set(false)
+        c.textChanged("")
+        XCTAssertEqual(c, SendAsURLChoice())
+        c.textChanged("minilock.org")
+        XCTAssertTrue(c.on)
+    }
+
+    /// A send starts the switch over: the success branch clears the draft and the choice.
+    func testSendStartsSendAsURLOver() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("App/Views/ComposeView.swift")
+        let src = try String(contentsOf: url, encoding: .utf8)
+        let reset = try NSRegularExpression(pattern: #"text = \"\"\s*urlChoice = SendAsURLChoice\(\)"#)
+        XCTAssertEqual(reset.numberOfMatches(in: src, range: NSRange(src.startIndex..., in: src)), 1)
     }
 
     func testKeyboardUpShowsOnlyChosenDevicesInListOrder() {

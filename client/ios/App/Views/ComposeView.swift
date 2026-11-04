@@ -63,7 +63,7 @@ enum SendScreenRules {
     static func chipAreaMaxHeight(keyboardUp: Bool) -> CGFloat { keyboardUp ? 118 : 320 }
 
     /// Space the message list spends on rows and margins besides the message field itself
-    /// (top margin, row padding, caption line with "Send as text", bottom margin).
+    /// (top margin, row padding, the "Send as URL" line, bottom margin).
     static let messageChrome: CGFloat = 150
 
     /// Message field height bounds (F20). It starts 4 text lines tall (plus the editor's
@@ -80,15 +80,79 @@ enum SendScreenRules {
         if count == 1 { return soleName.map { "Send to \"\($0)\"" } ?? "Send to 1 device" }
         return "Send to \(count) devices"
     }
+}
 
-    /// Quiet line under the message: how it will arrive.
-    static func caption(_ type: SendType, asText: Bool) -> (title: String, symbol: String) {
-        if asText { return ("Will arrive as text", "text.alignleft") }
-        switch type {
-        case .url: return ("Will open as a URL", "link")
-        case .tel: return ("Will open as a phone number", "phone")
-        case .text: return ("Will arrive as text", "text.alignleft")
+/// The likely URL rule for "Send as URL" (the same rule on every client). Tested in SendScreenRulesTests.
+enum LikelyURL {
+    static func trimmed(_ s: String) -> String { s.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    /// Length of a leading "http://" or "https://" (any case), else 0.
+    private static func schemeLength(_ t: String) -> Int {
+        if t.prefix(8).lowercased() == "https://" { return 8 }
+        if t.prefix(7).lowercased() == "http://" { return 7 }
+        return 0
+    }
+
+    private static func isLDH(_ c: Unicode.Scalar) -> Bool {
+        ("a"..."z").contains(c) || ("A"..."Z").contains(c) || ("0"..."9").contains(c) || c == "-"
+    }
+
+    private static func isLetter(_ c: Unicode.Scalar) -> Bool {
+        ("a"..."z").contains(c) || ("A"..."Z").contains(c)
+    }
+
+    /// No whitespace; an optional http(s) scheme; a host of 2 or more dot separated labels
+    /// (1 to 63 of A-Z, a-z, 0-9, and "-", no "-" at either end) ending in 2 or more letters or
+    /// an "xn--" label; an optional ":" port of 1 or more digits; then anything after "/", "?", or "#".
+    static func isLikely(_ s: String) -> Bool {
+        let t = trimmed(s)
+        if t.isEmpty || t.unicodeScalars.contains(where: { CharacterSet.whitespacesAndNewlines.contains($0) }) { return false }
+        let rest = Array(t.dropFirst(schemeLength(t)).unicodeScalars)
+        let hostEnd = rest.firstIndex(where: { $0 == "/" || $0 == "?" || $0 == "#" || $0 == ":" }) ?? rest.count
+        if hostEnd < rest.count && rest[hostEnd] == ":" {
+            let after = rest[(hostEnd + 1)...]
+            let port = after.prefix(while: { $0 != "/" && $0 != "?" && $0 != "#" })
+            if port.isEmpty || !port.allSatisfy({ ("0"..."9").contains($0) }) { return false }
         }
+        let labels = rest[..<hostEnd].split(separator: ".", omittingEmptySubsequences: false)
+        guard labels.count >= 2 else { return false }
+        for l in labels {
+            guard (1...63).contains(l.count), l.allSatisfy(isLDH), l.first != "-", l.last != "-" else { return false }
+        }
+        let last = labels[labels.count - 1]
+        return (last.count >= 2 && last.allSatisfy(isLetter)) || last.starts(with: "xn--".unicodeScalars)
+    }
+
+    /// What "Send as URL" sends: the trimmed text, with "https://" in front when it has no scheme.
+    static func payload(_ s: String) -> String {
+        let t = trimmed(s)
+        return schemeLength(t) > 0 ? t : "https://" + t
+    }
+}
+
+/// The "Send as URL" switch: off and disabled until the text is a likely URL, then on and
+/// enabled. Once the user turns it off it never turns itself on again for this message;
+/// it only becomes enabled. An empty field (and a send) starts over.
+struct SendAsURLChoice: Equatable {
+    private(set) var on = false
+    private(set) var enabled = false
+    private var declined = false
+
+    init() {}
+
+    init(text: String) { textChanged(text) }
+
+    mutating func textChanged(_ text: String) {
+        if text.isEmpty { self = SendAsURLChoice(); return }
+        enabled = LikelyURL.isLikely(text)
+        if !enabled { on = false } else if !declined { on = true }
+    }
+
+    /// The user flips the switch (only possible while enabled).
+    mutating func set(_ value: Bool) {
+        guard enabled else { return }
+        on = value
+        declined = !value
     }
 }
 
@@ -158,7 +222,7 @@ struct ComposeView: View {
     @EnvironmentObject var model: AppModel
     /// The draft survives process death: it is kept in the store (AppModel.draft).
     @State private var text: String
-    @State private var asText = false
+    @State private var urlChoice: SendAsURLChoice
     @State private var toAll = false
     @State private var selected: Set<String> = []
     @State private var restored = false
@@ -176,7 +240,10 @@ struct ComposeView: View {
     /// Chip name width: 150 pt at the default text size, wider at large Dynamic Type (L8).
     @ScaledMetric(relativeTo: .subheadline) private var chipNameWidth: CGFloat = 150
 
-    init(draft: String) { _text = State(initialValue: draft) }
+    init(draft: String) {
+        _text = State(initialValue: draft)
+        _urlChoice = State(initialValue: SendAsURLChoice(text: draft))
+    }
 
     private var candidates: [Peer] {
         model.peers.filter { $0.state == .approved && $0.pinned && !$0.hidden }
@@ -197,8 +264,6 @@ struct ComposeView: View {
             selected = [only]
         }
     }
-
-    private var detected: SendType { SendDetection.detect(text) }
 
     private var hasRecipient: Bool {
         if toAll && showAll { return true }
@@ -230,7 +295,10 @@ struct ComposeView: View {
         }
         .onAppear { restoreSelection() }
         .onChange(of: candidates.map { $0.id.text }) { _, _ in restoreSelection() }
-        .onChange(of: text) { _, t in model.setDraft(t) }
+        .onChange(of: text) { _, t in
+            model.setDraft(t)
+            urlChoice.textChanged(t)
+        }
         #if DEBUG
         .onAppear {
             if ScreenshotSample.isOn && !sampled {
@@ -267,29 +335,22 @@ struct ComposeView: View {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .strokeBorder(editing ? Color.brandGreen : Color(uiColor: .separator), lineWidth: editing ? 1.5 : 1)
                 )
-            if !text.isEmpty {
-                // large text: the caption, counter, and switch stack
-                let ax = typeSize.isAccessibilitySize
-                let row = ax ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))
-                row {
-                    let c = SendScreenRules.caption(detected, asText: asText)
-                    Label(c.title, systemImage: c.symbol)
+            // large text: the counter and switch stack
+            let ax = typeSize.isAccessibilitySize
+            let row = ax ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))
+            row {
+                if SendScreenRules.showsCounter(text) {
+                    Text(counter)
                         .font(.footnote)
-                        .foregroundColor(.secondaryText)
-                    if !ax { Spacer(minLength: 8) }
-                    if SendScreenRules.showsCounter(text) {
-                        Text(counter)
-                            .font(.footnote)
-                            .foregroundColor(.errorText)
-                    }
-                    // on the hint row, at the far right
-                    if detected != .text {
-                        Toggle("Send as text", isOn: $asText)
-                            .font(.footnote)
-                            .foregroundColor(.secondaryText)
-                            .fixedSize(horizontal: !ax, vertical: true)
-                    }
+                        .foregroundColor(.errorText)
                 }
+                if !ax { Spacer(minLength: 8) }
+                // on the hint row, at the far right; grey until the text is a likely URL
+                Toggle("Send as URL", isOn: Binding(get: { urlChoice.on }, set: { urlChoice.set($0) }))
+                    .font(.footnote)
+                    .foregroundColor(.secondaryText)
+                    .fixedSize(horizontal: !ax, vertical: true)
+                    .disabled(!urlChoice.enabled)
             }
         }
         .padding(.vertical, 4)
@@ -317,16 +378,16 @@ struct ComposeView: View {
                 .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.cardEdge, lineWidth: 1))
             }
             Button {
-                let t = text
-                let a = asText
+                let u = urlChoice.on
+                let t = u ? LikelyURL.payload(text) : text
                 let all = toAll && showAll
                 let ids = all ? [] : candidates.filter { selected.contains($0.id.text) && enabled($0) }.map { $0.id.text }
                 let sel = selected
                 Task {
                     // A failed send keeps the draft, so "Unable to send." can be retried.
-                    if await RecipientMemory.send(sel, { await model.send(t, asText: a, toAll: all, peerIds: ids) }) {
+                    if await RecipientMemory.send(sel, { await model.send(t, asURL: u, toAll: all, peerIds: ids) }) {
                         text = ""
-                        asText = false
+                        urlChoice = SendAsURLChoice()
                     }
                 }
             } label: {

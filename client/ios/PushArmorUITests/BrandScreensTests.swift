@@ -20,20 +20,18 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.buttons["Send to \"Laptop\""].waitForExistence(timeout: 30))
         XCTAssertTrue(app.tabBars.buttons["Send"].exists)
         XCTAssertTrue(app.navigationBars["Send"].exists)
-        XCTAssertTrue(app.staticTexts["Will open as a URL"].exists)
         let header = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Send to (1 of ")).firstMatch
         XCTAssertTrue(header.exists)
     }
 
-    /// Send as text sits on the hint row, at its right end.
-    func testSendAsTextSharesTheHintRow() {
+    /// Send as URL sits at the right end of the hint row and is on for the sample URL draft.
+    func testSendAsURLIsOnForAURLDraft() {
         let app = launch()
-        let hint = app.staticTexts["Will open as a URL"]
-        XCTAssertTrue(hint.waitForExistence(timeout: 30))
-        let toggle = app.switches["Send as text"]
-        XCTAssertTrue(toggle.exists)
-        XCTAssertLessThan(abs(toggle.frame.midY - hint.frame.midY), 12)
-        XCTAssertGreaterThan(toggle.frame.minX, hint.frame.maxX)
+        let toggle = app.switches["Send as URL"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 30))
+        XCTAssertTrue(toggle.isEnabled)
+        XCTAssertEqual(toggle.value as? String, "1")
+        XCTAssertGreaterThan(toggle.frame.minX, app.frame.midX)
     }
 
     /// a successful send shows the bottom banner between the Send button and the tab

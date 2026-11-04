@@ -799,12 +799,12 @@ final class AppModel: ObservableObject {
 
     /// True when sent; false (draft kept) when not.
     @discardableResult
-    func send(_ text: String, asText: Bool, toAll: Bool, peerIds: [String]) async -> Bool {
+    func send(_ text: String, asURL: Bool, toAll: Bool, peerIds: [String]) async -> Bool {
         // One send per tap: a second tap while the first is on its way keeps the draft and does nothing.
         guard let core = core, !busy.contains("send") else { return false }
         busy.insert("send")
         defer { busy.remove("send") }
-        let type: SendType = asText ? .text : SendDetection.detect(text)
+        let type: SendType = asURL ? .url : .text
         let all = allSet
         let ids = toAll ? all.map { $0.id } : peerIds.compactMap { PeerId(text: $0) }
         var sent = false
