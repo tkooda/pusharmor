@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, verify } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { AMO_REVIEW_NOTES, amoNotesProblems, amoRetry, amoToken, ascToken, attestationArgs, clearOutput, cmpVersion, commitProblems, contactProblems, http, listingProblems, playGateProblem, readListing, releaseAssets, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncAmoPreviews, syncScreenshots, tagPlatform } from "./promote.mjs";
+import { AMO_REVIEW_NOTES, IOS_SCREENSHOT_TYPE, amoNotesProblems, amoRetry, amoToken, appstore, ascToken, attestationArgs, clearOutput, cmpVersion, commitProblems, contactProblems, http, listingProblems, playGateProblem, readListing, releaseAssets, screenshotFiles, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncAmoPreviews, syncScreenshots, tagPlatform } from "./promote.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -502,4 +502,83 @@ test("AMO: a request with no answer in the timeout fails instead of hanging", as
   const src = readFileSync(join(ROOT, "release", "promote.mjs"), "utf8");
   assert.match(src, /const AMO_TIMEOUT_MS = 60000;/);
   assert.match(src, /body, ok, timeout: AMO_TIMEOUT_MS \}\)\)/);
+});
+
+/** Fake App Store Connect for appstore(): app, a valid build of the version,
+ *  the given IOS appStoreVersions, and listing, screenshots, review detail and
+ *  review submission as already in place. Returns the recorded calls. */
+function fakeAscApi(t, versions) {
+  const real = globalThis.fetch;
+  const env = { ...process.env };
+  t.after(() => {
+    globalThis.fetch = real;
+    process.env = env;
+  });
+  delete process.env.GITHUB_STEP_SUMMARY;
+  process.env.ASC_API_KEY_P8 = generateKeyPairSync("ec", { namedCurve: "prime256v1" }).privateKey.export({ type: "pkcs8", format: "pem" });
+  process.env.ASC_API_KEY_ID = "KEY";
+  process.env.ASC_API_ISSUER_ID = "ISSUER";
+  const md5 = (d) => createHash("md5").update(d).digest("hex");
+  const shots = screenshotFiles("appstore").map((f) => ({ id: "shot-" + f.name, attributes: { fileName: f.name, sourceFileChecksum: md5(f.data), assetDeliveryState: { state: "COMPLETE" } } }));
+  const routes = [
+    ["GET", /^\/v1\/apps\?/, { data: [{ id: "app1", attributes: { bundleId: "com.pusharmor.app" } }] }],
+    ["GET", /^\/v1\/builds\?/, { data: [{ id: "build-new", attributes: { processingState: "VALID", expired: false, usesNonExemptEncryption: false } }] }],
+    ["GET", /^\/v1\/apps\/app1\/appStoreVersions\?/, { data: versions }],
+    ["POST", /^\/v1\/appStoreVersions$/, { data: { id: "v-created" } }],
+    ["GET", /^\/v1\/appStoreVersions\/[^/]+\/appStoreVersionLocalizations$/, { data: [{ id: "loc1", attributes: { locale: "en-US" } }] }],
+    ["GET", /^\/v1\/apps\/app1\/appInfos$/, { data: [{ id: "info1", attributes: { state: "PREPARE_FOR_SUBMISSION" } }] }],
+    ["GET", /^\/v1\/appInfos\/info1\/appInfoLocalizations$/, { data: [{ id: "il1", attributes: { locale: "en-US" } }] }],
+    ["GET", /^\/v1\/appStoreVersionLocalizations\/loc1\/appScreenshotSets$/, { data: [{ id: "set1", attributes: { screenshotDisplayType: IOS_SCREENSHOT_TYPE } }] }],
+    ["GET", /^\/v1\/appScreenshotSets\/set1\/appScreenshots$/, { data: shots }],
+    ["GET", /^\/v1\/appScreenshots\//, { data: { attributes: { assetDeliveryState: { state: "COMPLETE" } } } }],
+    ["GET", /^\/v1\/appStoreVersions\/[^/]+\/appStoreReviewDetail$/, { data: { id: "rd1" } }],
+    ["GET", /^\/v1\/reviewSubmissions\?/, { data: [] }],
+    ["POST", /^\/v1\/reviewSubmissions$/, { data: { id: "sub1" } }],
+    ["GET", /^\/v1\/reviewSubmissions\/sub1\/items/, { data: [] }],
+    ["PATCH", /./, {}],
+    ["POST", /^\/v1\/reviewSubmissionItems$/, {}],
+  ];
+  const calls = [];
+  globalThis.fetch = async (url, { method, body }) => {
+    const path = url.replace("https://api.appstoreconnect.apple.com", "");
+    calls.push({ method, path, body: body === undefined ? undefined : JSON.parse(body) });
+    const r = routes.find(([m, re]) => m === method && re.test(path));
+    if (!r) throw new Error("fake ASC: unexpected " + method + " " + path);
+    return new Response(JSON.stringify(r[2]), { status: 200 });
+  };
+  return calls;
+}
+const ascVersion = (id, versionString, state) => ({ id, attributes: { versionString, appVersionState: state, platform: "IOS" } });
+
+test("App Store: an unsubmitted editable version takes the new version string and build; no second version is created", async (t) => {
+  for (const state of ["PREPARE_FOR_SUBMISSION", "READY_FOR_REVIEW", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED", "INVALID_BINARY"]) {
+    const calls = fakeAscApi(t, [ascVersion("v-live", "0.0.20", "READY_FOR_DISTRIBUTION"), ascVersion("v-old", "0.0.26", state)]);
+    assert.equal(await appstore("0.0.29"), true, state);
+    assert.equal(calls.filter((c) => c.method === "POST" && c.path === "/v1/appStoreVersions").length, 0, state);
+    const patch = calls.find((c) => c.method === "PATCH" && c.path === "/v1/appStoreVersions/v-old");
+    assert.equal(patch?.body.data.attributes.versionString, "0.0.29", state);
+    const build = calls.find((c) => c.path === "/v1/appStoreVersions/v-old/relationships/build");
+    assert.deepEqual(build?.body, { data: { type: "builds", id: "build-new" } }, state);
+    assert.ok(calls.findIndex((c) => c === patch) < calls.findIndex((c) => c === build), state);
+    assert.ok(!calls.some((c) => c.method === "PATCH" && c.path === "/v1/appStoreVersions/v-live"), state);
+  }
+});
+
+test("App Store: a new version is created when none is editable; a version with the right string is kept", async (t) => {
+  let calls = fakeAscApi(t, [ascVersion("v-live", "0.0.20", "READY_FOR_DISTRIBUTION")]);
+  assert.equal(await appstore("0.0.29"), true);
+  const post = calls.filter((c) => c.method === "POST" && c.path === "/v1/appStoreVersions");
+  assert.equal(post.length, 1);
+  assert.equal(post[0].body.data.attributes.versionString, "0.0.29");
+  assert.ok(calls.some((c) => c.path === "/v1/appStoreVersions/v-created/relationships/build"));
+
+  calls = fakeAscApi(t, [ascVersion("v-same", "0.0.29", "PREPARE_FOR_SUBMISSION")]);
+  assert.equal(await appstore("0.0.29"), true);
+  assert.ok(!calls.some((c) => c.method === "POST" && c.path === "/v1/appStoreVersions"));
+  assert.equal(calls.find((c) => c.method === "PATCH" && c.path === "/v1/appStoreVersions/v-same")?.body.data.attributes.versionString, "0.0.29");
+  assert.ok(calls.some((c) => c.path === "/v1/appStoreVersions/v-same/relationships/build"));
+
+  calls = fakeAscApi(t, [ascVersion("v-review", "0.0.29", "WAITING_FOR_REVIEW")]);
+  assert.equal(await appstore("0.0.29"), true);
+  assert.ok(!calls.some((c) => c.method !== "GET"));
 });

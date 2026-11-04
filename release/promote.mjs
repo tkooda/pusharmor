@@ -482,11 +482,13 @@ export function ascToken(keyP8, keyId, issuer, now = Math.floor(Date.now() / 100
 }
 
 // appStoreVersion states: in review or live (skip), editable (fill and submit).
+// READY_FOR_REVIEW is a version that was filled in but never submitted: a newer
+// promote takes it over (new version string and build) instead of adding a second one.
 export const ASC_DONE = ["WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE", "PENDING_APPLE_RELEASE", "PROCESSING_FOR_APP_STORE", "READY_FOR_SALE", "READY_FOR_DISTRIBUTION", "ACCEPTED", "PREORDER_READY_FOR_SALE", "WAITING_FOR_EXPORT_COMPLIANCE"];
-export const ASC_EDITABLE = ["PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED", "INVALID_BINARY"];
+export const ASC_EDITABLE = ["PREPARE_FOR_SUBMISSION", "READY_FOR_REVIEW", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED", "INVALID_BINARY"];
 const ascState = (v) => v.attributes.appVersionState || v.attributes.appStoreState;
 
-async function appstore(version) {
+export async function appstore(version) {
   const base = "https://api.appstoreconnect.apple.com";
   const key = process.env.ASC_API_KEY_P8;
   const asc = (method, path, body, ok) =>
