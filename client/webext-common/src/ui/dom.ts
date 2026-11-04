@@ -65,7 +65,7 @@ export async function rpc<T>(env: UiEnv, op: string, args?: Record<string, unkno
   return r.data as T;
 }
 
-/** Greys a button for ms with its label unchanged (Refresh: 60 s). */
+/** Greys a button for ms with its label unchanged (Refresh: 10 s). */
 export function disableFor(btn: HTMLButtonElement, ms: number): void {
   btn.disabled = true;
   setTimeout(() => (btn.disabled = false), ms);

@@ -185,7 +185,7 @@ extension Core {
         await deleteOldId()
     }
 
-    /// Refresh button (greyed 60 s after use): one GET /peers, push reconcile, re-sends.
+    /// Refresh button and pull-to-refresh (greyed 10 s after use): one GET /peers, push reconcile, re-sends.
     /// Returns the outcome of the GET; nil when none was made.
     @discardableResult
     public func refresh(push: PushInfo?) async -> APIOutcome? {

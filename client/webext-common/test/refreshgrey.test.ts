@@ -6,7 +6,7 @@ import type { UiEnv } from "../src/ui/dom.ts";
 
 const all = (n: N): N[] => [n, ...n.kids.flatMap(all)];
 
-test("Refresh: after a click it keeps its label and is greyed for 60 s, with no countdown", async () => {
+test("Refresh: after a click it keeps its label and is greyed for 10 s, with no countdown", async () => {
   mock.timers.enable({ apis: ["setTimeout", "Date"], now: 1_000_000 });
   try {
     const ops: string[] = [];
@@ -21,10 +21,10 @@ test("Refresh: after a click it keeps its label and is greyed for 60 s, with no 
     // the list was drawn again: the new button is greyed with the plain label
     assert.ok(btn(), "label stays Refresh");
     assert.equal(btn().disabled, true);
-    mock.timers.tick(30_000);
+    mock.timers.tick(5_000);
     assert.equal(btn().textContent, "Refresh");
     assert.equal(btn().disabled, true);
-    mock.timers.tick(30_000);
+    mock.timers.tick(5_000);
     assert.equal(btn().disabled, false);
     assert.equal(btn().textContent, "Refresh");
   } finally {

@@ -152,6 +152,7 @@ import com.pusharmor.app.notify.PeerStatus
 import com.pusharmor.app.notify.Policy
 import com.pusharmor.app.notify.peerStatusLabel
 import com.pusharmor.app.push.UnifiedPushSupport
+import com.pusharmor.app.session.Session
 import com.pusharmor.app.ui.theme.EmptyState
 import com.pusharmor.app.ui.theme.FingerprintText
 import com.pusharmor.app.ui.theme.GreenButton
@@ -243,7 +244,12 @@ fun PeersScreen(vm: AppViewModel) {
     val pairing = UiText.sortedByName(list.filter { p -> rows.any { it.peerId == p.id } }, ::label)
     val plain = UiText.sortedByName(list.filter { p -> rows.none { it.peerId == p.id } }, ::label)
     val lastRefresh = prefs?.get(Settings.K.LAST_REFRESH) ?: 0
-    val canRefresh = now - lastRefresh >= 60_000
+    val canRefresh = now - lastRefresh >= Session.REFRESH_GREY_MS
+    // Refresh turns on again when its grey time ends.
+    LaunchedEffect(lastRefresh) {
+        val left = lastRefresh + Session.REFRESH_GREY_MS - System.currentTimeMillis()
+        if (left > 0) { delay(left); now = System.currentTimeMillis() }
+    }
     val state = rememberLazyListState()
     // The highlight scrolls once per visit; leaving the screen clears it.
     var aimed by remember { mutableStateOf<String?>(null) }

@@ -62,6 +62,8 @@ final class AppModel: ObservableObject {
     @Published var limitEntries: [LimitEntry] = []
     @Published var limitTicked: Set<String> = []
     @Published var refreshGreyUntil: Date = .distantPast
+    /// Refresh and pull-to-refresh stay greyed this long after use.
+    static let refreshGreySeconds: TimeInterval = 10
     /// A Refresh (button or pull) is running: the toolbar shows a spinner in its place.
     @Published var refreshing = false
     @Published var highlightPeer: String?
@@ -734,7 +736,7 @@ final class AppModel: ObservableObject {
 
     func refresh() async {
         guard Date() >= refreshGreyUntil, let core = core else { return }
-        refreshGreyUntil = Date().addingTimeInterval(60)
+        refreshGreyUntil = Date().addingTimeInterval(AppModel.refreshGreySeconds)
         refreshing = true
         defer { refreshing = false }
         let out = await core.refresh(push: pushInfo)

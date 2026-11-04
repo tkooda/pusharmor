@@ -106,8 +106,8 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
   const refresh = h("button", {}, icon("refresh", 18), h("span", { class: "lbl" }, "Refresh")) as HTMLButtonElement;
   if (refreshUntil > Date.now()) disableFor(refresh, refreshUntil - Date.now());
   refresh.addEventListener("click", async () => {
-    refreshUntil = Date.now() + 60_000;
-    disableFor(refresh, 60_000);
+    refreshUntil = Date.now() + 10_000;
+    disableFor(refresh, 10_000);
     try {
       await rpc(env, "refresh");
       await renderPeers(env, root, full);

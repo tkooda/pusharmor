@@ -46,7 +46,7 @@ class Session(private val g: Graph) {
         const val LOST_KEYS = "This device lost its keys. Log in again."
         const val DELETED = "Account deleted on another device."
         const val NO_GOOGLE_PUSH = "This build has no Google push. Install a UnifiedPush app or reinstall from Play."
-        const val REFRESH_GREY_MS = 60_000L
+        const val REFRESH_GREY_MS = 10_000L
         /** Category of the direct share shortcuts; the same name as the share-target in res/xml/shortcuts.xml. */
         const val SHARE_CATEGORY = "com.pusharmor.category.SHARE_TARGET"
 
@@ -354,7 +354,7 @@ class Session(private val g: Graph) {
         return ok
     }
 
-    /** Refresh button (greyed 60 s): GET /peers, push hash check, reconcile, approve re-fetch, pair re-sends. Returns the error text, or null. */
+    /** Refresh button and pull-to-refresh (greyed 10 s): GET /peers, push hash check, reconcile, approve re-fetch, pair re-sends. Returns the error text, or null. */
     fun refresh(): String? {
         val now = System.currentTimeMillis()
         if (now - (s.get(Settings.K.LAST_REFRESH) ?: 0) < REFRESH_GREY_MS) return null
