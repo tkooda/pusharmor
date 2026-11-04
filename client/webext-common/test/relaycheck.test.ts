@@ -6,6 +6,7 @@ import { isCheckPush } from "../src/core/engine.ts";
 import { Rpc, type StateView } from "../src/core/rpc.ts";
 import { pushIssueText, pushVendor } from "../src/core/texts.ts";
 import { showPushIssue } from "../src/ui/popup.ts";
+import { toastText } from "../src/ui/dialog.ts";
 import type { UiEnv } from "../src/ui/dom.ts";
 import { Clock, MockWorker, device, refresh } from "./harness.ts";
 
@@ -143,20 +144,20 @@ test("every cannot-receive message has Check again: the relay-side fault, a refu
   for (const st of VARIANTS) {
     await showPushIssue(env({ result: "local", state: st }), st);
     await tick();
-    assert.equal(msg(), pushIssueText(st.pushIssue!, false, st.pushVendor));
+    assert.equal(msg(), toastText(pushIssueText(st.pushIssue!, false, st.pushVendor)));
     await clickCheck();
   }
   body.kids = [];
 });
 
-test("Check again outcomes: sent shows Working. and hides the message; every other result keeps it with its line", async () => {
+test("Check again outcomes: sent shows Working and hides the message; every other result keeps it with its line", async () => {
   const st = { pushIssue: "fault", pushVendor: "Mozilla" } as StateView;
   const base = FAULT_LINE.replace("Google", "Mozilla");
   await showPushIssue(env({ result: "sent", state: { pushIssue: null } }), st);
   await tick();
-  assert.equal(msg(), base);
+  assert.equal(msg(), toastText(base));
   await clickCheck();
-  assert.equal(msg(), "Working.");
+  assert.equal(msg(), "Working");
   assert.equal(toastEl()!.attrs.class, "toast ok");
 
   const cases: [unknown, string][] = [
@@ -172,7 +173,7 @@ test("Check again outcomes: sent shows Working. and hides the message; every oth
     await showPushIssue(reply === null ? ({ call: async () => ({ ok: false, error: "no" }) } as unknown as UiEnv) : env(reply), st);
     await tick();
     await clickCheck();
-    assert.equal(msg(), want, JSON.stringify(reply));
+    assert.equal(msg(), toastText(want), JSON.stringify(reply));
     assert.equal(toastEl()!.attrs.class.includes("ok"), false);
   }
 
@@ -181,6 +182,6 @@ test("Check again outcomes: sent shows Working. and hides the message; every oth
   await showPushIssue(env({ result: "local", state: refused }), st);
   await tick();
   await clickCheck();
-  assert.equal(msg(), pushIssueText("refused", false) + STILL);
+  assert.equal(msg(), toastText(pushIssueText("refused", false) + STILL));
   body.kids = [];
 });

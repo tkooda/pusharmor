@@ -2,7 +2,7 @@
 // restore, toast roles, auto-dismiss, and errors that stay.
 import assert from "node:assert/strict";
 import { mock, test } from "node:test";
-import { confirmDialog, dismissToast, toast } from "../src/ui/dialog.ts";
+import { confirmDialog, dismissToast, toast, toastText } from "../src/ui/dialog.ts";
 
 class N {
   tag: string;
@@ -165,7 +165,7 @@ test("toast: an error is an alert that stays until Close or the next click; a ne
     assert.equal(toastEl(), undefined);
 
     toast("First error.", "err");
-    toast("Renamed.", "ok");
+    toast("Renamed", "ok");
     assert.equal(body.kids.filter((k) => k.attrs.class?.startsWith("toast")).length, 1, "one message at a time");
     dismissToast();
     assert.equal(toastEl(), undefined);
@@ -205,5 +205,28 @@ test("toast: a sticky error stays on a click elsewhere and goes only with its Cl
     assert.equal(toastEl(), undefined);
   } finally {
     mock.timers.reset();
+  }
+});
+
+test("toast: no line ends with a period, success and error alike; an ellipsis and inner periods stay", () => {
+  assert.equal(toastText("Renamed."), "Renamed");
+  assert.equal(toastText("Unable to send.\nThe relay server could not be reached. Check your internet connection and try again."), "Unable to send\nThe relay server could not be reached. Check your internet connection and try again");
+  assert.equal(toastText("Pairing..."), "Pairing...");
+  assert.equal(toastText('Message saved to "a.txt"'), 'Message saved to "a.txt"');
+});
+
+test("toast: every literal toast text and every T text a toast shows ends without a period", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { T } = await import("../src/core/texts.ts");
+  const rd = (f: string) => readFileSync(new URL("../src/ui/" + f, import.meta.url), "utf8");
+  for (const f of ["popup.ts", "page.ts", "peersview.ts"]) {
+    const src = rd(f);
+    for (const m of src.matchAll(/toast\((["'])((?:(?!\1).)*)\1/g)) assert.ok(!/\.$/.test(m[2]!), f + ": " + m[2]);
+    for (const m of src.matchAll(/toast\(T\.(\w+)/g)) {
+      const v = (T as Record<string, unknown>)[m[1]!];
+      assert.equal(typeof v, "string", f + ": T." + m[1]);
+      for (const line of (v as string).split("\n")) assert.ok(!/\.$/.test(line), f + ": T." + m[1] + ": " + line);
+    }
+    assert.ok(!/toast\(\[[^\]]*\+ "\."/.test(src), f + ": a joined toast line adds a period");
   }
 });

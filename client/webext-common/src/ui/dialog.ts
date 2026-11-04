@@ -33,6 +33,11 @@ type ToastKind = "ok" | "info" | "err";
 
 let current: { el: HTMLElement; stop: () => void } | null = null;
 
+/** A message as the toast shows it: no line ends with a period (an ellipsis stays). */
+export function toastText(msg: string): string {
+  return msg.replace(/(?<!\.)\.(?=\n|$)/g, "");
+}
+
 /** Removes the message shown at the bottom, if any. */
 export function dismissToast(): void {
   current?.stop();
@@ -43,6 +48,7 @@ export function dismissToast(): void {
  * Shows msg at the bottom, above a view's footer. ok and info go after about 2 s; an
  * error stays until its Close button, the next click, or the next message. A sticky
  * message stays until its Close button or the next message. action: a button before Close.
+ * No line of the message ends with a period, also when msg is a text shared with a card.
  */
 export function toast(msg: string, kind: ToastKind = "info", sticky = false, action?: { label: string; run: (b: HTMLButtonElement) => void }): void {
   dismissToast();
@@ -70,7 +76,7 @@ export function toast(msg: string, kind: ToastKind = "info", sticky = false, act
   current = { el, stop };
   // text put in a live region after it is in the page is announced; text present at insert is not
   timer = setTimeout(() => {
-    text.textContent = msg;
+    text.textContent = toastText(msg);
     el.classList.add("on");
     if (kind === "err" && !sticky) document.addEventListener("click", onClick, true);
     else if (!sticky) timer = setTimeout(() => current?.el === el && dismissToast(), 2000);

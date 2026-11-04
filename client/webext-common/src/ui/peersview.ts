@@ -162,7 +162,7 @@ export function ownCard(env: UiEnv, name: string, platform: string): HTMLElement
         onclick: async () => {
           try {
             await rpc(env, "rename", { name: input.value });
-            toast("Renamed.", "ok");
+            toast("Renamed", "ok");
             show(input.value, true);
           } catch (e) {
             toast((e as Error).message, "err");

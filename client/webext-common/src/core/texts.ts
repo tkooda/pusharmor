@@ -65,7 +65,7 @@ export const T = {
   signedInAs: (e: string) => "Logged in as " + e,
   notificationsOff: "Notifications are off. This device cannot receive messages.",
   ffFinishSetup: "Finish setup in the Firefox setup tab.",
-  pushWorking: "Working.",
+  pushWorking: "Working",
   pushCheckFailed: "Unable to check right now. Try again later.",
   pushStillCannot: "Still cannot receive messages.",
   copied: "Copied",
