@@ -99,6 +99,9 @@ const ACTION: Record<string, ActionId> = {
   authDone: "login",
 };
 
+/** A logged in, logged out, or rejected row: History lists messages, not device status. */
+export const isStatusRow = (r: HistoryRow): boolean => r.type === "event" && (r.event === "logged_in" || r.event === "logged_out" || r.event === "denied");
+
 export class Rpc {
   readonly e: Engine;
   readonly login: Login;
@@ -341,7 +344,8 @@ export class Rpc {
   async history(): Promise<(HistoryRow & { sender: string })[]> {
     const e = this.e;
     const peers = new Map((await e.db.peers()).map((p) => [p.id, p]));
-    return (await e.db.history()).map((r) => {
+    // no device status rows: those an older version stored stay in the database, unlisted
+    return (await e.db.history()).filter((r) => !isStatusRow(r)).map((r) => {
       const p = r.peer ? peers.get(r.peer) : undefined;
       let sender: string = T.unknownSender;
       if (r.peer) {

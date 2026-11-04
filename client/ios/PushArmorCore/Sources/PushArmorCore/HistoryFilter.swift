@@ -29,6 +29,12 @@ public enum HistoryFilter: Hashable, Sendable {
         return out
     }
 
+    /// History lists no device status rows (logged in, logged out, rejected); those an older
+    /// version stored stay in the database.
+    public static func listed(_ rows: [HistoryRow]) -> [HistoryRow] {
+        rows.filter { $0.event != .loggedIn && $0.event != .loggedOut && $0.event != .denied }
+    }
+
     public static func apply(_ f: HistoryFilter, _ rows: [HistoryRow]) -> [HistoryRow] {
         switch f {
         case .all: return rows

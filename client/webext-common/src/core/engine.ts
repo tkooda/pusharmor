@@ -275,7 +275,8 @@ export class Engine {
     if (this.penalized && src === "push") this.p.notify("drop", T.appName, T.unreadable);
   }
 
-  private async addEvent(kind: NonNullable<HistoryRow["event"]>, peer: string | null): Promise<number> {
+  /** A message that could not be read; device status (logged in, logged out, rejected) is never a History row. */
+  private async addEvent(kind: "unreadable" | "invalid", peer: string | null): Promise<number> {
     const t = now(this.p);
     if (kind === "unreadable" || kind === "invalid") {
       const top = (await this.db.history())[0];
@@ -430,10 +431,9 @@ export class Engine {
       case "logout":
       case "login": {
         await this.db.updatePeer(peer.id, (p) => (p && n > p.logout_n ? { ...p, logged_out: c.type === "logout", logout_n: n } : null));
-        const id = await this.addEvent(c.type === "logout" ? "logged_out" : "logged_in", peer.id);
         if (this.penalized && src === "push") {
           const nm = peerLabel(peer.name);
-          this.p.notify("h:" + id, T.appName, c.type === "logout" ? T.loggedOutRecv(nm) : T.loggedInRecv(nm));
+          this.p.notify("d:" + peer.id, T.appName, c.type === "logout" ? T.loggedOutRecv(nm) : T.loggedInRecv(nm));
         }
         await this.rebuildMenus();
         return;
@@ -441,8 +441,7 @@ export class Engine {
       case "deny": {
         await this.db.updatePeer(peer.id, (p) => (p ? { ...p, denies_me: true, approves_me: false } : null));
         await this.p.storageLocal.remove([pairKeyOf(peer.id)]);
-        const id = await this.addEvent("denied", peer.id);
-        if (this.penalized && src === "push") this.p.notify("h:" + id, T.appName, T.denied(peerLabel(peer.name)));
+        if (this.penalized && src === "push") this.p.notify("d:" + peer.id, T.appName, T.denied(peerLabel(peer.name)));
         await this.rebuildMenus();
         return;
       }
@@ -454,10 +453,8 @@ export class Engine {
     if (c.type === "approve") this.p.notify("a:" + from, T.appName, T.approved(nm));
     else if (c.type === "rename" || c.type === "remove") this.p.notify("peerchg", T.appName, T.peerChanged);
     else if (c.type === "logout" || c.type === "login" || c.type === "deny") {
-      const ev = c.type === "logout" ? "logged_out" : c.type === "login" ? "logged_in" : "denied";
-      const top = (await this.db.history()).find((h) => h.type === "event" && h.event === ev && h.peer === from);
       const text = c.type === "logout" ? T.loggedOutRecv(nm) : c.type === "login" ? T.loggedInRecv(nm) : T.denied(nm);
-      this.p.notify(top?.id !== undefined ? "h:" + top.id : "drop", T.appName, text);
+      this.p.notify("d:" + from, T.appName, text);
     }
   }
 

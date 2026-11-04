@@ -14,7 +14,8 @@ export const historyAt = (id?: number): string => "#history" + (id === undefined
 
 /**
  * Notification id -> what a click opens: "h:" row -> url opens the tab,
- * text/tel and event rows open the full view on History at that row; "a:" approve -> Peers;
+ * text/tel and event rows open the full view on History at that row; "a:" approve and
+ * "d:" device status (logged in, logged out, rejected) -> Peers;
  * "p:" pairing -> Peers (row highlighted); "peerchg" -> Peers; "drop" and
  * anything else only dismiss.
  */
@@ -27,7 +28,7 @@ export async function clickTarget(e: Engine, id: string): Promise<ClickTarget> {
     if (row.type === "url") return { url: row.content };
     return { page: historyAt(row.id) };
   }
-  if (id.startsWith("a:")) return { page: "#peers=" + id.slice(2) };
+  if (id.startsWith("a:") || id.startsWith("d:")) return { page: "#peers=" + id.slice(2) };
   if (id.startsWith("p:")) {
     const pk = id.slice(2);
     for (const [peer, ent] of await allEntries(e.p.storageLocal)) if (ent.pk === pk) return { page: "#peers=" + peer };

@@ -335,13 +335,11 @@ class ReceiveEngine(
                 is Effect.Logout -> {
                     if (e.applied) {
                         store.putPeer(peer.copy(loggedOut = e.loggedOut, logoutN = a.n))
-                        store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = a.peerId, type = if (e.loggedOut) "logged_out" else "logged_in", at = now, read = true))
                     }
                     after = { effects.logoutNotice(a.peerId, e.loggedOut) }
                 }
                 Effect.Deny -> {
                     store.putPeer(peer.copy(declined = true))
-                    store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = a.peerId, type = "denied", at = now, read = true))
                     after = { effects.deniedNotice(a.peerId) }
                 }
             }

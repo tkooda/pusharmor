@@ -269,6 +269,13 @@ class AppViewModelTest {
         assertEquals(300L, onIo { vm.g.dao.counter(id) })
     }
 
+    /** History lists no device status rows; those an older version stored stay unlisted. */
+    @Test fun historyListsNoDeviceStatus() {
+        fun row(id: Long, type: String) = com.pusharmor.store.HistoryEntity(id, "RECEIVED", "a", type, "m$id", null, null, id, true, "", 1)
+        val rows = listOf("text", "url", "tel", "denied", "logged_out", "logged_in", "unreadable", "invalid").mapIndexed { i, t -> row(i + 1L, t) }
+        assertEquals(listOf("text", "url", "tel", "unreadable", "invalid"), withoutStatus(rows).map { it.type })
+    }
+
     @Test fun historyViewFiltersAndGroupsInOnePass() {
         fun row(id: Long, peer: String?, dir: String, at: Long) =
             com.pusharmor.store.HistoryEntity(id, dir, peer, "text", "m$id", null, null, at, true, "", 1)

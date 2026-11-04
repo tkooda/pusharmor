@@ -1602,7 +1602,8 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(r.first?.banner?.body, S.loggedOutNotice("Ndev"))
         XCTAssertEqual(r.first?.banner?.category, .notice)
         XCTAssertTrue(try x.core.store.peer(n.id)!.loggedOut)
-        XCTAssertEqual(try x.core.store.history().first?.event, .loggedOut)
+        XCTAssertNil(try x.core.store.history().first)                     // device status is a notice, never a History row
+        XCTAssertEqual(r.first?.banner?.tap, .peers(n.id.text))
         XCTAssertFalse(try x.core.store.peer(n.id)!.inAll)
     }
 
@@ -1925,6 +1926,27 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(HistoryFilter.apply(.peer(a.id.text, "A"), try s.history()).map { $0.content }, ["1"])  // received only
         XCTAssertEqual(HistoryFilter.apply(.unknown, try s.history()).count, 1)
         XCTAssertEqual(HistoryFilter.apply(.all, try s.history()).count, 4)
+    }
+
+    func testHistoryListsNoDeviceStatus() throws {
+        let path = NSTemporaryDirectory() + "pa-hs-\(UUID().uuidString).sqlite"
+        let s = try Store(path: path)
+        let a = TestPeer()
+        try s.addMessage(dir: .incoming, peer: a.id, type: "text", content: "1", n: 1, pairingId: nil, read: false, results: nil, now: 1)
+        try s.addEvent(.loggedOut, peer: a.id, content: "e", now: 2)          // stored by an older version
+        try s.addEvent(.loggedIn, peer: a.id, content: "e", now: 3)
+        try s.addEvent(.denied, peer: a.id, content: "e", now: 4)
+        try s.addEvent(.couldNotRead, peer: nil, content: S.dropped, now: 5)
+        XCTAssertEqual(HistoryFilter.listed(try s.history()).map { $0.event }, [.couldNotRead, nil])
+        XCTAssertEqual(try s.history().count, 5)                           // kept in the database
+    }
+
+    func testRejectStoresNoHistoryRow() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        _ = await n.core.deny(x.id)
+        _ = await x.drainInbox(w)
+        XCTAssertTrue(try x.core.store.history().allSatisfy { $0.event != .denied })
     }
 
     func testSortedByNameIgnoresCase() {

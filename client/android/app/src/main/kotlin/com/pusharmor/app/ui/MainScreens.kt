@@ -1101,7 +1101,8 @@ private fun DeviceChip(icon: ImageVector, name: String, selected: Boolean, enabl
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit = {}) {
-    val rows by vm.history.collectAsState()
+    val stored by vm.history.collectAsState()
+    val rows = remember(stored) { withoutStatus(stored) }
     val peers by vm.peers.collectAsState()
     val me by vm.self.collectAsState()
     var chip by rememberSaveable(stateSaver = chipSaver) { mutableStateOf<HistoryFilter.Chip>(HistoryFilter.Chip.All) }
@@ -1263,6 +1264,11 @@ internal fun PaChip(selected: Boolean, text: String, onClick: () -> Unit) {
 }
 
 private val CONTENT_TYPES = setOf("url", "text", "tel")
+
+/** Device status rows (logged in, logged out, rejected): History lists none; those an older version stored stay in the database. */
+private val STATUS_TYPES = setOf("logged_in", "logged_out", "denied")
+
+internal fun withoutStatus(rows: List<com.pusharmor.store.HistoryEntity>) = rows.filter { it.type !in STATUS_TYPES }
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)

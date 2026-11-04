@@ -284,7 +284,7 @@ final class AppModel: ObservableObject {
         if let m = me, let next = AppModel.phaseAfterReload(phase, me: m) { phase = next }
         peers = (try? store.peers()) ?? []
         pairings = Dictionary(uniqueKeysWithValues: ((try? store.pairings()) ?? []).map { ($0.peerId.text, $0) })
-        history = (try? store.history()) ?? []
+        history = HistoryFilter.listed((try? store.history()) ?? [])
         relayFault = (try? store.setting(Core.relayFaultKey)) == "1"
     }
 

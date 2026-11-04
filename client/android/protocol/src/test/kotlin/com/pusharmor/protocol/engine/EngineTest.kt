@@ -619,6 +619,15 @@ class EngineTest {
         assertTrue(n.store.peer(x.id)!!.approvesMe && x.store.peer(n.id)!!.approvesMe)
     }
 
+    /** History holds no device status: a reject shows its notice and stores no row. */
+    @Test fun rejectStoresNoHistoryRow() {
+        pairShown(); approveBoth(); n.fetch()
+        assertTrue(x.approve.deny(n.id) is ApiResult.Ok)
+        n.deliver(t0)
+        assertTrue(n.effects.log.contains("denied"))
+        assertTrue(n.store.history.toString(), n.store.history.none { it.type == "denied" })
+    }
+
     /** Pair on a rejected device clears the reject, so its row shows again. */
     @Test fun ownPairClearsReject() {
         n.store.putPeer(n.store.peer(x.id)!!.copy(deniedByMe = true))
