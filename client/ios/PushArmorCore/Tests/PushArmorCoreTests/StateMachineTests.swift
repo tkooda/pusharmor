@@ -1250,7 +1250,8 @@ final class StateMachineTests: XCTestCase {
     func testPairAgainToastText() {
         func t(_ r: Result<PairSendResult, Error>) -> String? { Core.pairAgainToast(r, name: "Laptop") }
         XCTAssertNil(t(.success(.sent)))
-        XCTAssertNil(t(.success(.rateLimited(5))))
+        XCTAssertEqual(Core.pairAgainToast(.success(.rateLimited(1_000_090)), name: "Laptop", now: 1_000_000),
+                       "Unable to pair with \"Laptop\".\nToo many tries. Try again in 2 minutes.")
         XCTAssertEqual(t(.success(.network)),
                        "Unable to pair with \"Laptop\".\nThe relay server could not be reached. Check your internet connection and try again.")
         XCTAssertEqual(t(.success(.error(500))), "Unable to pair with \"Laptop\".\nThe relay server is not working right now. Try again later.")
@@ -1786,6 +1787,17 @@ final class StateMachineTests: XCTestCase {
         XCTAssertFalse(n.core.pushUnsupported())                          // a PATCH that works clears it
         let ok = await n.core.refresh(push: push)
         XCTAssertNil(ErrorCopy.refreshFailText(ok.fetch, push: ok.push))
+    }
+
+    /// Log in after a logout: a failed call or a throw shows "Unable to log in." and why.
+    func testLoginFailText() {
+        func reply(_ status: Int, _ body: String) -> APIOutcome { .reply(APIReply(status: status, body: Data(body.utf8))) }
+        XCTAssertNil(Core.failText(.success(reply(200, "{}")), .login))
+        XCTAssertEqual(Core.failText(.success(reply(401, "{\"error\":\"ticket expired\"}")), .login),
+                       "Unable to log in.\nThe login expired. Log in again.")
+        XCTAssertEqual(Core.failText(.success(APIOutcome.network), .login),
+                       "Unable to log in.\nThe relay server could not be reached. Check your internet connection and try again.")
+        XCTAssertEqual(Core.failText(Result<APIOutcome, Error>.failure(Core.CoreError.noIdentity), .login), "Unable to log in.\nTry again.")
     }
 
     /// The relay server's test push is told apart from a message push.

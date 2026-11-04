@@ -383,11 +383,15 @@ extension Core {
         return try await startPair(x)
     }
 
-    /// The toast after [Pair] or [Pair again]: nil when the commit went out, is queued, or the
-    /// tap was a repeat of one still running. A refusal says why, with `name` the device's label.
-    public static func pairAgainToast(_ r: Result<PairSendResult, Error>, name: String) -> String? {
+    /// The toast after [Pair], [Pair again], [Send again], or [Reply]: nil when the message went
+    /// out, is queued, or the tap was a repeat of one still running. A refusal says why, with
+    /// `name` the device's label; too many tries shows the wait left at `now` (unix s).
+    public static func pairAgainToast(_ r: Result<PairSendResult, Error>, name: String,
+                                      now: Int64 = Int64(Date().timeIntervalSince1970)) -> String? {
         switch r {
-        case .success(.sent), .success(.waiting), .success(.rateLimited): return nil
+        case .success(.sent), .success(.waiting): return nil
+        case .success(.rateLimited(let until)):
+            return ErrorCopy.text(.pair(name), .rateLimited(waitMs: Int(max(0, until - now)) * 1000))
         case .success(.network): return ErrorCopy.text(.pair(name), .unreachable)
         case .success(.error(let s, let w)): return ErrorCopy.text(.pair(name), ErrorCopy.reason(status: s, error: w))
         case .success(.result(let w)):
@@ -411,6 +415,14 @@ extension Core {
         guard let out = out else { return ErrorCopy.text(a, .unknown) }
         if out.reply?.ok == true { return nil }
         return ErrorCopy.text(a, ErrorCopy.reason(from: out))
+    }
+
+    /// Same for a call that may throw first (Log in): a throw gives the local reason.
+    public static func failText(_ r: Result<APIOutcome, Error>, _ a: ErrorCopy.Action) -> String? {
+        switch r {
+        case .success(let out): return failText(out, a)
+        case .failure(let e): return ErrorCopy.text(a, ErrorCopy.reason(local: e))
+        }
     }
 
     /// Same for an ApproveOutcome (Approve, Deny): the relay server's answers are not failures.

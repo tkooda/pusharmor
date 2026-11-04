@@ -652,7 +652,9 @@ final class AppModel: ObservableObject {
 
     func login(ticket: String) async {
         guard let core = core else { return }
-        _ = try? await core.login(ticket: ticket, push: pushInfo)
+        let r: Result<APIOutcome, Error>
+        do { r = .success(try await core.login(ticket: ticket, push: pushInfo)) } catch { r = .failure(error) }
+        if let t = Core.failText(r, .login) { toast = t }
         await route()
     }
 
@@ -688,8 +690,14 @@ final class AppModel: ObservableObject {
             reload()
         }
     }
-    func sendAgain(_ p: Peer) async { _ = await core?.sendAgain(p.id); reload() }
-    func reply(_ p: Peer) async { _ = await core?.tapReply(p.id); reload() }
+    func sendAgain(_ p: Peer) async {
+        if let r = await core?.sendAgain(p.id), let t = Core.pairAgainToast(.success(r), name: label(p)) { toast = t }
+        reload()
+    }
+    func reply(_ p: Peer) async {
+        if let r = await core?.tapReply(p.id), let t = Core.pairAgainToast(.success(r), name: label(p)) { toast = t }
+        reload()
+    }
     func cancelPairing(_ p: Peer) async { await core?.cancelPairing(p.id); reload() }
     /// Pair again: one run per peer at a time; a failure shows a toast.
     func pairAgain(_ p: Peer) async {
@@ -730,7 +738,12 @@ final class AppModel: ObservableObject {
         return r
     }
 
-    func approveSendAgain(_ p: Peer) async { _ = await core?.postApprove(p.id, fresh: false); reload() }
+    func approveSendAgain(_ p: Peer) async {
+        guard let core = core else { return }
+        let r = await core.postApprove(p.id, fresh: false)
+        reload()
+        if phase == .main, let t = Core.failText(r, .confirm(label(p))) { toast = t }
+    }
 
     func deny(_ p: Peer) async {
         await once("deny:" + p.id.text) {
