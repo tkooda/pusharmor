@@ -26,10 +26,15 @@ A release build also writes the Beta zips `pusharmor-<browser>-beta.zip`
 (a separate Beta listing): the same files with the name "PushArmor Beta"; the
 Firefox one has the Beta gecko id `mozilla_firefox_beta_addon_id` and the
 update_url `firefox_beta_update_url` of `release/constants.json`. Release tags
-upload them to the test channels (`RELEASING.md`).
+upload them to the test channels (`RELEASING.md`). It also writes
+`pusharmor-chrome-unpacked.zip` for the GitHub release: the Chrome release
+files with the public item's "key" (`google_chrome_dev_key`), so a copy loaded
+with "Load unpacked" gets the store id. The store gets only the key-free zip.
 
-A release build then checks all four zips with `check-release.mjs` (also runnable
-on its own: `node check-release.mjs <zip>...`): no Chrome "key", no source map
+A release build then checks all five zips with `check-release.mjs` (also runnable
+on its own: `node check-release.mjs <zip>...`): no Chrome "key" (the
+`-unpacked.zip`: exactly `google_chrome_dev_key`, and no other difference from
+the store zip beside it), no source map
 or test entry, no public.json placeholder, no CI dummy without `PA_CI_DUMMY=1`,
 no `://localhost` or `127.0.0.1`, no `globalThis.__*` in shipped JS, the
 name "PushArmor" ("PushArmor Beta" in a Beta zip), and a Firefox update_url

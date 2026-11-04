@@ -221,8 +221,10 @@ Promote:
 
 ## Chrome (`chrome/vX.Y.Z`)
 
-CI: the public zip `pusharmor-chrome-X.Y.Z.zip` (no dev key) and the Beta zip in
-the GitHub release; the Beta zip ("PushArmor Beta") uploaded to the PRIVATE
+CI: the public zip `pusharmor-chrome-X.Y.Z.zip` (no "key": the store zip), the
+same zip with the public item's "key" `pusharmor-chrome-X.Y.Z-unpacked.zip` (for
+"Load unpacked": it gets the store id, so Google login works; never uploaded to
+the store) and the Beta zip in the GitHub release; the Beta zip ("PushArmor Beta") uploaded to the PRIVATE
 Beta item and published there to trusted testers after store review.
 
 Test: testers install "PushArmor Beta" from the store; it auto-updates.

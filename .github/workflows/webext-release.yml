@@ -5,11 +5,13 @@ name: webext-release
 # for the browser of the tag, so npm packages and repo scripts never share a job
 # with id-token or write permissions:
 #   build-<browser>    no Environment, no secrets: npm ci, release build and
-#                      checks; the release zip, the Beta zip ("PushArmor Beta")
-#                      and (Firefox) the source archive, with their SHA-256
+#                      checks; the release zip, the Beta zip ("PushArmor Beta"),
+#                      (Chrome) the -unpacked.zip (the release zip with the
+#                      public item's key, for "Load unpacked") and (Firefox)
+#                      the source archive, with their SHA-256
 #   publish-chrome     Environment chrome-release: verifies the SHA-256,
-#                      provenance, GitHub release with the public and Beta
-#                      zips, then the Beta zip to the PRIVATE Beta item
+#                      provenance, GitHub release with the public, -unpacked
+#                      and Beta zips, then the Beta zip to the PRIVATE Beta item
 #   submit-firefox     Environment firefox-release, contents: read, no id-token:
 #                      verifies the SHA-256, npm ci web-ext, signs the Beta zip
 #                      as the UNLISTED Beta add-on on AMO, hands on the XPI
@@ -74,6 +76,7 @@ jobs:
     outputs:
       version: ${{ steps.tag.outputs.version }}
       zip_sha256: ${{ steps.files.outputs.zip_sha256 }}
+      unpacked_sha256: ${{ steps.files.outputs.unpacked_sha256 }}
       beta_sha256: ${{ steps.files.outputs.beta_sha256 }}
       google_cws_wif_provider: ${{ steps.cws.outputs.google_cws_wif_provider }}
       google_cws_wif_service_account: ${{ steps.cws.outputs.google_cws_wif_service_account }}
@@ -93,7 +96,7 @@ jobs:
         run: |
           version="$(node release/tag.mjs --check "$TAG")"
           node release/public.mjs --check webpush_vapid_public_key mozilla_firefox_addon_id mozilla_firefox_beta_addon_id \
-            google_chrome_extension_id google_chrome_beta_extension_id google_cws_publisher_id \
+            google_chrome_extension_id google_chrome_beta_extension_id google_chrome_dev_key google_cws_publisher_id \
             google_cws_wif_provider google_cws_wif_service_account
           echo "version=$version" >> "$GITHUB_OUTPUT"
       # The store upload goes to the private Beta item only; the public item is
@@ -113,7 +116,7 @@ jobs:
       - name: Install
         working-directory: client/webext-common
         run: npm ci --ignore-scripts
-      - name: Release build (runs check-release.mjs on the release and Beta zips)
+      - name: Release build (runs check-release.mjs on the release, -unpacked and Beta zips)
         working-directory: client/webext-common
         run: node build.mjs
       - name: Check the zips, their versions and names
@@ -121,7 +124,7 @@ jobs:
           VERSION: ${{ steps.tag.outputs.version }}
         run: |
           d=client/chrome/dist
-          node client/webext-common/check-release.mjs "$d/pusharmor-chrome.zip" "$d/pusharmor-chrome-beta.zip"
+          node client/webext-common/check-release.mjs "$d/pusharmor-chrome.zip" "$d/pusharmor-chrome-unpacked.zip" "$d/pusharmor-chrome-beta.zip"
           for m in "$d/unpacked/manifest.json:PushArmor" "$d/beta/unpacked/manifest.json:PushArmor Beta"; do
             got="$(node -p 'const m = require(process.argv[1]); m.version + " " + m.name' "$PWD/${m%%:*}")"
             if [ "$got" != "$VERSION ${m#*:}" ]; then
@@ -137,15 +140,19 @@ jobs:
           out="$RUNNER_TEMP/release"
           mkdir -p "$out" "$RUNNER_TEMP/unzip"
           zip="pusharmor-chrome-$VERSION.zip"
+          unpacked="pusharmor-chrome-$VERSION-unpacked.zip"
           beta="pusharmor-chrome-beta-$VERSION.zip"
           cp client/chrome/dist/pusharmor-chrome.zip "$out/$zip"
+          cp client/chrome/dist/pusharmor-chrome-unpacked.zip "$out/$unpacked"
           cp client/chrome/dist/pusharmor-chrome-beta.zip "$out/$beta"
+          node client/webext-common/check-release.mjs "$out/$zip" "$out/$unpacked"
           unzip -q "$out/$zip" -d "$RUNNER_TEMP/unzip"
           (cd "$RUNNER_TEMP/unzip" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum) > "$out/$zip.files.sha256"
-          (cd "$out" && sha256sum "$zip" "$beta") > "$out/pusharmor-chrome-$VERSION.hashes.txt"
+          (cd "$out" && sha256sum "$zip" "$unpacked" "$beta") > "$out/pusharmor-chrome-$VERSION.hashes.txt"
           cat "$out/pusharmor-chrome-$VERSION.hashes.txt"
           {
             echo "zip_sha256=$(sha256sum "$out/$zip" | cut -d' ' -f1)"
+            echo "unpacked_sha256=$(sha256sum "$out/$unpacked" | cut -d' ' -f1)"
             echo "beta_sha256=$(sha256sum "$out/$beta" | cut -d' ' -f1)"
           } >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -178,16 +185,19 @@ jobs:
         id: files
         env:
           ZIP_SHA256: ${{ needs.build-chrome.outputs.zip_sha256 }}
+          UNPACKED_SHA256: ${{ needs.build-chrome.outputs.unpacked_sha256 }}
           BETA_SHA256: ${{ needs.build-chrome.outputs.beta_sha256 }}
         run: |
           out="$RUNNER_TEMP/release"
           zip="pusharmor-chrome-$VERSION.zip"
+          unpacked="pusharmor-chrome-$VERSION-unpacked.zip"
           beta="pusharmor-chrome-beta-$VERSION.zip"
-          printf '%s  %s\n%s  %s\n' "$ZIP_SHA256" "$zip" "$BETA_SHA256" "$beta" > "$RUNNER_TEMP/expect.sha256"
+          printf '%s  %s\n%s  %s\n%s  %s\n' "$ZIP_SHA256" "$zip" "$UNPACKED_SHA256" "$unpacked" "$BETA_SHA256" "$beta" > "$RUNNER_TEMP/expect.sha256"
           (cd "$out" && sha256sum -c --strict "$RUNNER_TEMP/expect.sha256")
           {
             echo "dir=$out"
             echo "zip=$out/$zip"
+            echo "unpacked=$out/$unpacked"
             echo "beta=$out/$beta"
           } >> "$GITHUB_OUTPUT"
       # Build provenance attestation (needs a public repo or an org plan; skipped if the repo is private).
@@ -196,6 +206,7 @@ jobs:
         with:
           subject-path: |
             ${{ steps.files.outputs.zip }}
+            ${{ steps.files.outputs.unpacked }}
             ${{ steps.files.outputs.beta }}
       # Immutable releases: the release is created as a draft, gets every asset,
       # then is published. A rerun replaces the assets of a draft; a published

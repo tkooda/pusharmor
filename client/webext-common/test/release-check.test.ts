@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { crc32, deflateRawSync } from "node:zlib";
 // @ts-expect-error plain .mjs module without types
-import { checkZip, ops, readZip } from "../check-release.mjs";
+import { checkZip, checkZips, keyedDiff, ops, readZip } from "../check-release.mjs";
 // @ts-expect-error plain .mjs module without types
 import { GECKO_DUMMY_IDS, GECKO_PLACEHOLDER_ID } from "../../../release/public.mjs";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** Minimal zip writer: even entries deflate, odd entries stored. */
@@ -80,6 +82,28 @@ test("Chrome manifest key fails; Firefox has no such rule", () => {
   const m = { ...GOOD, "manifest.json": JSON.stringify({ name: "PushArmor", key: "MIIB" }) };
   assert.match(check(m).join(), /has a "key"/);
   assert.deepEqual(check(m, false), []);
+});
+
+test("Chrome -unpacked.zip: the manifest key must be the given public key; nothing else may differ from the store zip", () => {
+  const keyed = (m: object, extra: Record<string, string> = {}) => ({ ...GOOD, ...extra, "manifest.json": JSON.stringify(m) });
+  const k = (files: Record<string, string>) => checkZip(zip(files), { chrome: true, key: "MIIB", dummyOk: false });
+  assert.deepEqual(k(keyed({ manifest_version: 3, name: "PushArmor", key: "MIIB" })), []);
+  assert.match(k(GOOD).join(), /"key" is not google_chrome_dev_key/);
+  assert.match(k(keyed({ manifest_version: 3, name: "PushArmor", key: "MIIC" })).join(), /"key" is not google_chrome_dev_key/);
+  const store = zip(GOOD);
+  assert.deepEqual(keyedDiff(store, zip(keyed({ manifest_version: 3, name: "PushArmor", key: "MIIB" }))), []);
+  assert.match(keyedDiff(store, zip(keyed({ manifest_version: 3, name: "PushArmor Beta", key: "MIIB" }))).join(), /differs from the store zip by more than "key"/);
+  assert.match(keyedDiff(store, zip(keyed({ manifest_version: 3, name: "PushArmor", key: "MIIB" }, { "page.js": "x" }))).join(), /page\.js: differs from the store zip/);
+  assert.match(keyedDiff(store, zip(keyed({ manifest_version: 3, name: "PushArmor", key: "MIIB" }, { "style.css": "" }))).join(), /style\.css: only in the -unpacked\.zip/);
+  const tmp = mkdtempSync(join(tmpdir(), "pa-keyed-"));
+  try {
+    const kz = join(tmp, "pusharmor-chrome-1.2.3-unpacked.zip");
+    writeFileSync(kz, zip(keyed({ manifest_version: 3, name: "PushArmor", key: "MIIB" })));
+    assert.match(checkZips([kz], "MIIB").join(), /no store zip pusharmor-chrome-1\.2\.3\.zip beside it/);
+    writeFileSync(join(tmp, "pusharmor-chrome-1.2.3.zip"), store);
+    assert.deepEqual(checkZips([join(tmp, "pusharmor-chrome-1.2.3.zip"), kz], "MIIB"), []);
+    assert.match(checkZips([kz], "MIIC").join(), /pusharmor-chrome-1\.2\.3-unpacked\.zip: manifest\.json: "key" is not/);
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
 test("manifest name: PushArmor, or PushArmor Beta in a Beta zip; Firefox update_url only the Beta one", () => {

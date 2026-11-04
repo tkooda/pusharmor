@@ -6,7 +6,9 @@ extension service worker (`src/sw.ts`). All shared code lives in
 
     cd ../webext-common && npm ci && npm test && npm run build
 
-The zip is `dist/pusharmor-chrome.zip`. Load `dist/unpacked` with
+The zip is `dist/pusharmor-chrome.zip` (the store zip, no "key"); a release
+build also writes `dist/pusharmor-chrome-unpacked.zip`, the same files with the
+public item's "key", for the GitHub release. Load `dist/unpacked` with
 "Load unpacked" on chrome://extensions for a local test (use
 `npm run build -- --dev` so the unpacked id matches the store id).
 

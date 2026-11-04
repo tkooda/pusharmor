@@ -2,7 +2,9 @@
 // build.mjs runs it on both zips after a release build; CI may run it on its own:
 //   node check-release.mjs <pusharmor-chrome.zip|pusharmor-firefox.zip>...
 // Fails when a zip holds a source map or a test/ entry, when the Chrome manifest has a
-// "key", when the manifest name is not "PushArmor" ("PushArmor Beta" for a *-beta.zip),
+// "key" (a Chrome *-unpacked.zip, the GitHub release copy for "Load unpacked", must
+// instead have the key google_chrome_dev_key of release/public.json, and differ from
+// the store zip beside it only by that key), when the manifest name is not "PushArmor" ("PushArmor Beta" for a *-beta.zip),
 // when a Firefox manifest has a gecko update_url other than the Beta one
 // (release/constants.json; only *-beta.zip has it) or a gecko id that is not a
 // lowercase GUID in braces, or when the manifest, a .js or a .html holds a public.json placeholder
@@ -14,11 +16,12 @@
 // be in its browser's "entries" list, every runtime message op the shipped JS dispatches on
 // (case labels of a switch on X.op, and X.op compared to a literal) must be in "ops" (a test
 // pins "ops" to the handlers in the source), and no shipped JS may touch globalThis.__*.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 import { inflateRawSync } from "node:zlib";
-import { GECKO_ID_RE, GECKO_PLACEHOLDER_ID, isDummy } from "../../release/public.mjs";
+import { GECKO_ID_RE, GECKO_PLACEHOLDER_ID, isDummy, loadPublic } from "../../release/public.mjs";
 
 export const ALLOW = JSON.parse(readFileSync(new URL("./release-allow.json", import.meta.url), "utf8"));
 const BETA_UPDATE_URL = JSON.parse(readFileSync(new URL("../../release/constants.json", import.meta.url), "utf8")).firefox_beta_update_url;
@@ -66,8 +69,9 @@ export function readZip(buf) {
   return out;
 }
 
-/** Problems found in one release zip; chrome selects the Chrome manifest rule, beta the Beta name. */
-export function checkZip(buf, { chrome, beta = false, dummyOk = process.env.PA_CI_DUMMY === "1", allow = ALLOW }) {
+/** Problems found in one release zip; chrome selects the Chrome manifest rule, beta the Beta name,
+ *  key the manifest "key" a Chrome *-unpacked.zip must have (undefined: no key allowed). */
+export function checkZip(buf, { chrome, beta = false, key, dummyOk = process.env.PA_CI_DUMMY === "1", allow = ALLOW }) {
   const bad = [];
   const files = readZip(buf);
   const entries = new Set(allow.entries[chrome ? "chrome" : "firefox"]);
@@ -81,7 +85,8 @@ export function checkZip(buf, { chrome, beta = false, dummyOk = process.env.PA_C
   if (!manifest) bad.push("manifest.json missing");
   else {
     const m = JSON.parse(manifest.toString("utf8"));
-    if (chrome && "key" in m) bad.push("manifest.json: has a \"key\" (dev builds only)");
+    if (chrome && key === undefined && "key" in m) bad.push("manifest.json: has a \"key\" (dev builds and the -unpacked.zip only)");
+    if (chrome && key !== undefined && m.key !== key) bad.push("manifest.json: \"key\" is not google_chrome_dev_key of release/public.json");
     const name = beta ? "PushArmor Beta" : "PushArmor";
     if (m.name !== name) bad.push("manifest.json: name is " + JSON.stringify(m.name) + ", want " + JSON.stringify(name));
     const update = m.browser_specific_settings?.gecko?.update_url;
@@ -103,12 +108,36 @@ export function checkZip(buf, { chrome, beta = false, dummyOk = process.env.PA_C
   return bad;
 }
 
-/** Checks each zip; returns every problem prefixed with the zip name. */
-export function checkZips(paths) {
+/** Problems of a keyed zip against its store zip: the same entries and bytes, except a
+ *  manifest.json that is the store manifest plus "key". */
+export function keyedDiff(storeBuf, keyedBuf) {
+  const bad = [];
+  const a = readZip(storeBuf);
+  const b = readZip(keyedBuf);
+  for (const n of new Set([...a.keys(), ...b.keys()])) {
+    if (!a.has(n) || !b.has(n)) bad.push(n + ": only in " + (a.has(n) ? "the store zip" : "the -unpacked.zip"));
+    else if (n !== "manifest.json" && !a.get(n).equals(b.get(n))) bad.push(n + ": differs from the store zip");
+  }
+  if (a.has("manifest.json") && b.has("manifest.json")) {
+    const { key, ...rest } = JSON.parse(b.get("manifest.json").toString("utf8"));
+    if (!isDeepStrictEqual(rest, JSON.parse(a.get("manifest.json").toString("utf8")))) bad.push("manifest.json: differs from the store zip by more than \"key\"");
+  }
+  return bad;
+}
+
+/** Checks each zip; returns every problem prefixed with the zip name. A Chrome
+ *  *-unpacked.zip is also compared with the store zip beside it (name without -unpacked). */
+export function checkZips(paths, key = loadPublic().google_chrome_dev_key) {
   const bad = [];
   for (const p of paths) {
     const n = basename(p);
-    for (const b of checkZip(readFileSync(p), { chrome: n.includes("chrome"), beta: n.includes("-beta") })) bad.push(n + ": " + b);
+    const chrome = n.includes("chrome");
+    const keyed = chrome && n.endsWith("-unpacked.zip");
+    for (const b of checkZip(readFileSync(p), { chrome, beta: n.includes("-beta"), key: keyed ? key ?? "" : undefined })) bad.push(n + ": " + b);
+    if (!keyed) continue;
+    const store = p.slice(0, -"-unpacked.zip".length) + ".zip";
+    if (!existsSync(store)) bad.push(n + ": no store zip " + basename(store) + " beside it");
+    else for (const b of keyedDiff(readFileSync(store), readFileSync(p))) bad.push(n + ": " + b);
   }
   return bad;
 }
