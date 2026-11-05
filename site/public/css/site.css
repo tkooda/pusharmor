@@ -469,6 +469,10 @@ button.danger { color: #ffffff; background: #b3261e; border-color: #b3261e; }
 .da-danger { padding-top: 1rem; border-top: 3px solid var(--danger); }
 .da-who { margin: 1rem 0 0; }
 .da-who span { display: inline-block; max-width: 100%; padding: 0.3rem 0.9rem; overflow-wrap: anywhere; vertical-align: top; border: 1px solid var(--line); border-radius: 999px; font-weight: 600; }
+.da-who:has(#cli-code) { container-type: inline-size; }
+#cli-code { --n: 20; max-width: 100%; overflow-wrap: normal; white-space: nowrap; font-size: min(1.1rem, calc((100cqw - 3rem) / (var(--n) * 0.62))); }
+.da-toast { min-height: 1.5rem; margin: 0.5rem 0 0; font-weight: 600; }
+#close-area { margin-top: 0.5rem; }
 .da-who span:empty { display: none; }
 .da-info { margin: 1rem 0 0; padding: 0.75rem 1rem; background: var(--info-bg); border-radius: 8px; font-size: 0.9rem; line-height: 1.5; text-align: left; }
 .da-card button.danger { margin-top: 1.25rem; color: #ffffff; background: var(--danger); border-color: var(--danger); }

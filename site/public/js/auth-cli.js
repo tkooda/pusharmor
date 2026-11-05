@@ -105,19 +105,44 @@
 
   function finished(code, email) {
     $("cli-code").textContent = code;
+    $("cli-code").style.setProperty("--n", String(code.length));
     $("who").textContent = typeof email === "string" && email ? "Logged in as " + email + "." : "";
     show("done");
     say("");
     $("done-h").focus();
   }
 
+  var toastTimer = null;
+  function toast(text) {
+    var t = $("copy-toast");
+    t.textContent = "";
+    clearTimeout(toastTimer);
+    // Clear first so a repeated message is announced and shown again.
+    setTimeout(function () {
+      t.textContent = text;
+      toastTimer = setTimeout(function () { t.textContent = ""; }, 2000);
+    }, 30);
+  }
+
   $("copy").addEventListener("click", async function () {
     try {
       await navigator.clipboard.writeText($("cli-code").textContent);
-      say("Copied");
     } catch (e) {
-      say("Could not copy. Select the code and copy it by hand.");
+      toast("Unable to copy");
+      say("Select the code and copy it by hand");
+      return;
     }
+    say("");
+    toast("Copied");
+    $("close-area").hidden = false;
+  });
+
+  $("close-tab").addEventListener("click", function () {
+    window.close();
+    setTimeout(function () {
+      $("close-area").hidden = true;
+      $("close-note").hidden = false;
+    }, 300);
   });
 
   function init() {

@@ -14,7 +14,9 @@
 <meta property="og:image" content="https://pusharmor.com/apple-touch-icon.png">
 <link rel="icon" href="/favicon.ico" sizes="any" integrity="sha256-rgTOahEMLuK7ctT3MAqJGJ2XwC790auUhwZnIxP4mFM=">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" integrity="sha256-s7S0G3qHSQUyznoBd6Seg2VUid7YrpcyYBFdDHDg0EY=">
-<link rel="stylesheet" href="/css/site.css" integrity="sha256-OnMd3El0ua6NPLeWjdOFQKg5c41FmXybf9Od0+9g04w=">
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-aaWM0qtQvDAi7chKbU+FYy0WpO92wz/ne8zG5C8kuTw=">
+<script src="/js/qrcode.js" integrity="sha256-eHxqMX1Q69X1qS4sLRhFGhpUjAf1oDeYaoslxRdKZhI=" defer></script>
+<script src="/js/copyqr.js" integrity="sha256-idHoWTN3NFmi2+WNKNsYuSvKCqnXHnfCEvKf6jEq9Oc=" defer></script>
 <script src="/js/about.js" integrity="sha256-BF6Zwa/ZMsGN4ht5Cz6zK3LIAIpTPThzFRLr8uHoUJs=" defer></script>
 </head>
 <body>
@@ -96,11 +98,15 @@ can open them. The security page shows who sees what.</p>
 </section>
 </div>
 
+<h2 id="cli">Command line</h2>
+<p>PushArmor also has a command line client. Log in once, then send a URL or text to your paired devices from the terminal.</p>
+<div class="copy-row"><pre><code id="cli-example">pusharmor send https://example.com</code></pre><button type="button" class="icon-btn" data-copy="cli-example" aria-label="Copy command" title="Copy command" hidden><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M15 9V4a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h5"/></svg></button></div>
+
 <h2>The project</h2>
 <ul class="facts">
 <li><strong>Free.</strong> PushArmor is free to use.</li>
 <li><strong>Open source.</strong> The code is public on <a href="https://github.com/tkooda/pusharmor">GitHub</a>.</li>
-<li><strong>Everywhere you are.</strong> PushArmor runs on Android, iPhone, Chrome, and Firefox. <a href="/download">Get PushArmor</a>.</li>
+<li><strong>Everywhere you are.</strong> PushArmor runs on Android, iPhone, Chrome, Firefox, and the command line. <a href="/download">Get PushArmor</a>.</li>
 <li><strong>Made by Ion Echo, LLC.</strong></li>
 </ul>
 </main>

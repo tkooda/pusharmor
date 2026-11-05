@@ -15,9 +15,9 @@
 <meta property="og:image" content="https://pusharmor.com/apple-touch-icon.png">
 <link rel="icon" href="/favicon.ico" sizes="any" integrity="sha256-rgTOahEMLuK7ctT3MAqJGJ2XwC790auUhwZnIxP4mFM=">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" integrity="sha256-s7S0G3qHSQUyznoBd6Seg2VUid7YrpcyYBFdDHDg0EY=">
-<link rel="stylesheet" href="/css/site.css" integrity="sha256-OnMd3El0ua6NPLeWjdOFQKg5c41FmXybf9Od0+9g04w=">
+<link rel="stylesheet" href="/css/site.css" integrity="sha256-aaWM0qtQvDAi7chKbU+FYy0WpO92wz/ne8zG5C8kuTw=">
 <script src="/js/pa-web.js" integrity="sha256-bk0cTThpi9UuPYMBHbHt6niH/k5AXiPS/RzXIERbfK4=" defer></script>
-<script src="/js/auth-cli.js" integrity="sha256-Q/GXshAWrekXiGroTWwdGhrx13DZk3cCfPjQTsxbV0I=" defer></script>
+<script src="/js/auth-cli.js" integrity="sha256-qF5Jz8UVwCEtVp0jS2jwYljviR99U48Bp0Ncre6mCkI=" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -67,6 +67,9 @@
 <p class="da-who"><span id="cli-code" class="mono"></span></p>
 <p class="sub">Never give this code to anyone. Anyone who has it can log in to your account.</p>
 <button id="copy" type="button" class="primary">Copy</button>
+<p id="copy-toast" class="da-toast" role="status" aria-live="polite"></p>
+<div id="close-area" hidden><button id="close-tab" type="button">Close tab</button></div>
+<p id="close-note" class="sub" hidden>You can close this tab now.</p>
 <p class="sub">Paste this code into your terminal.</p>
 </section>
 

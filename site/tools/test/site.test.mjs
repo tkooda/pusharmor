@@ -699,6 +699,16 @@ test("/auth/cli script: /v1/ paths, fragment cleared, cli_code used", () => {
   assert.ok(js.includes("r.data.cli_code"));
   assert.ok(js.indexOf("history.replaceState") < js.indexOf("PA.parseCliResult(h)"));
   assert.ok(js.includes("navigator.clipboard.writeText"));
+  for (const m of ['toast("Copied")', 'toast("Unable to copy")', "Select the code and copy it by hand", "window.close()", "300);"]) assert.ok(js.includes(m), m);
+  const html = read("auth/cli.html");
+  assert.match(html, /id="copy-toast"[^>]*role="status"/);
+  assert.ok(html.includes("Close tab") && html.includes("You can close this tab now."));
+  assert.match(read("css/site.css"), /#cli-code \{[^}]*white-space: nowrap/);
+});
+
+test("about page mentions the command line client", () => {
+  const html = read("about.html");
+  assert.ok(html.includes("<h2 id=\"cli\">Command line</h2>") && html.includes("pusharmor send https://example.com"));
 });
 
 test("Turnstile frame has no src until the email field is used", () => {
