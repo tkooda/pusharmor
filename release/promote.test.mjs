@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, verify } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { AMO_REVIEW_NOTES, IOS_SCREENSHOT_TYPE, amoNotesProblems, amoRetry, amoToken, appstore, ascToken, attestationArgs, clearOutput, cmpVersion, commitProblems, contactProblems, http, listingProblems, playGateProblem, readListing, releaseAssets, screenshotFiles, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncAmoPreviews, syncScreenshots, tagPlatform } from "./promote.mjs";
+import { AMO_REVIEW_NOTES, PLAY_ICON, IOS_SCREENSHOT_TYPE, amoNotesProblems, amoRetry, amoToken, appstore, ascToken, attestationArgs, clearOutput, cmpVersion, commitProblems, contactProblems, http, listingProblems, playGateProblem, readListing, releaseAssets, screenshotFiles, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncAmoPreviews, syncScreenshots, tagPlatform } from "./promote.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -590,4 +590,13 @@ test("App Store submit never writes the App Review notes", () => {
   assert.doesNotMatch(src, /appStoreReviewDetails/);
   assert.doesNotMatch(src, /want\.review_notes/);
   assert.ok(!readdirSync(join(ROOT, "store", "listing", "appstore", "en-US")).includes("review_notes.txt"));
+});
+
+test("Play sync replaces the 512 icon from the F-Droid metadata file", () => {
+  const src = readFileSync(join(ROOT, "release", "promote.mjs"), "utf8");
+  assert.equal(relative(ROOT, PLAY_ICON), join("release", "fdroid", "metadata", "com.pusharmor", "en-US", "icon.png"));
+  assert.match(src, /"\/icon\?uploadType=media"/);
+  const png = readFileSync(PLAY_ICON);
+  assert.equal(png.readUInt32BE(16), 512);
+  assert.equal(png.readUInt32BE(20), 512);
 });

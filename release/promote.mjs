@@ -52,6 +52,8 @@ export const LISTING = {
     copyright: { max: 200 },
   },
 };
+// Play 512x512 listing icon (shared with the F-Droid metadata).
+export const PLAY_ICON = join(ROOT, "release", "fdroid", "metadata", PACKAGE_NAME, LOCALE, "icon.png");
 export const SCREENSHOTS = { play: "android", appstore: "ios" };
 // Notes for the AMO reviewers, sent with each listed version. No
 // credentials: the demo account stays in the AMO Developer Hub.
@@ -459,6 +461,16 @@ async function play(version) {
       });
     }
     images = shots.length + " screenshots uploaded";
+    changed = true;
+  }
+
+  const icon = readFileSync(PLAY_ICON);
+  const iconUrl = e + "/listings/" + LOCALE + "/icon";
+  const haveIcon = ((await http("GET", iconUrl, { headers: auth })).json.images || []).map((i) => i.sha256);
+  if (haveIcon.join() !== sha256(icon)) {
+    await http("DELETE", iconUrl, { headers: auth });
+    await http("POST", up + "/edits/" + edit + "/listings/" + LOCALE + "/icon?uploadType=media", { headers: { ...auth, "Content-Type": "image/png" }, body: icon });
+    images += "; icon uploaded";
     changed = true;
   }
 
