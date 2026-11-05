@@ -63,6 +63,9 @@ class WorkerClient(
     /** Called for any reply that says push_missing: the relay server holds no push address for this device. */
     private val onPushMissing: () -> Unit = {},
 ) : Api {
+    /** Set while a screen shows send progress: gets 50 (connected), 75 (request sent), 100 (reply in) as each call proceeds. */
+    @Volatile var onProgress: ((Int) -> Unit)? = null
+
     companion object {
         const val BUDGET_MS = 8_000L
         /** Whole-call timeout of a single attempt inside the 10 s push handler. */
@@ -84,6 +87,16 @@ class WorkerClient(
     }
 
     private val onceHttp by lazy { http.newBuilder().callTimeout(ONCE_TIMEOUT_MS, TimeUnit.MILLISECONDS).build() }
+
+    private fun stepped(c: OkHttpClient): OkHttpClient {
+        val p = onProgress ?: return c
+        return c.newBuilder().eventListener(object : okhttp3.EventListener() {
+            // Fires for a new connection once it is ready and at once for a pooled one.
+            override fun connectionAcquired(call: okhttp3.Call, connection: okhttp3.Connection) = p(50)
+            override fun requestBodyEnd(call: okhttp3.Call, byteCount: Long) = p(75)
+            override fun responseBodyEnd(call: okhttp3.Call, byteCount: Long) = p(100)
+        }).build()
+    }
 
     /** PA-Time as 13 decimal digits. */
     fun paTime(): String = (now() + offset.offsetS * 1000).toString().padStart(13, '0')
@@ -111,7 +124,7 @@ class WorkerClient(
             var retryAfter: Long? = null
             var code = 0
             val reply: Reply? = try {
-                (if (once) onceHttp else http).newCall(req).execute().use { r ->
+                stepped(if (once) onceHttp else http).newCall(req).execute().use { r ->
                     r.header("PA-Epoch")?.toLongOrNull()?.let { offset.offsetS = it - now() / 1000 }
                     code = r.code
                     val text = r.body?.let { readCapped(it) }.orEmpty()

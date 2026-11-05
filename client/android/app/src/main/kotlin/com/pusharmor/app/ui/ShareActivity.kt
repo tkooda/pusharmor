@@ -9,6 +9,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.Alignment
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.foundation.layout.width
+import com.pusharmor.app.ui.theme.BrandGreen
+import com.pusharmor.app.ui.theme.BrandTile
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -16,7 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -48,7 +54,7 @@ class ShareActivity : ComponentActivity() {
         val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString() ?: intent.getCharSequenceExtra(Intent.EXTRA_SUBJECT)?.toString()
         if (text == null) { finish(); return }
         // The dialog shows at once: a placeholder until the peer read returns, never a blank box.
-        setContent { Frame { CircularProgressIndicator(Modifier.padding(24.dp)) } }
+        setContent { Frame { LinearProgressIndicator(Modifier.fillMaxWidth().padding(24.dp), color = BrandGreen) } }
         // A floating dialog nearly as wide as the screen, as tall as its content; a tap outside cancels.
         // After setContent: installing the window's views resets a floating window to wrap its content.
         window.setLayout((resources.displayMetrics.widthPixels * DIALOG_WIDTH).toInt(), WindowManager.LayoutParams.WRAP_CONTENT)
@@ -135,8 +141,22 @@ class ShareActivity : ComponentActivity() {
 
     /** The type is detected as on the Send screen. A send that reached the device shows a toast; a failure posts an error notification. */
     private fun sendDirect(peer: Peer, text: String) {
+        val step = mutableIntStateOf(0)
+        val caption = UiText.directSending(Detect.type(text), label(peer))
+        setContent {
+            Frame {
+                Column(Modifier.padding(24.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        BrandTile(40.dp)
+                        Text(caption, Modifier.padding(start = 16.dp), style = MaterialTheme.typography.bodyLarge)
+                    }
+                    LinearProgressIndicator({ step.intValue / 100f }, Modifier.fillMaxWidth().padding(top = 16.dp), color = BrandGreen)
+                }
+            }
+        }
         lifecycleScope.launch {
-            val r = if (SizeCap.utf8Size(text) > SizeCap.MAX_CONTENT_BYTES) AppViewModel.SendResult(UiText.SHARE_TOO_LONG) else vm.send(listOf(peer.id), text)
+            val r = if (SizeCap.utf8Size(text) > SizeCap.MAX_CONTENT_BYTES) AppViewModel.SendResult(UiText.SHARE_TOO_LONG)
+            else vm.send(listOf(peer.id), text) { s -> if (s > step.intValue) step.intValue = s }
             if (r.ok) toastAndFinish(UiText.directShareSent(label(peer)))
             else {
                 val n = vm.g.notifier

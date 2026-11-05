@@ -206,6 +206,10 @@ object UiText {
     }
 
     /** Toast after a Direct Share send to one device. */
+    /** Direct Share progress line: the type as named on the Send screen caption. */
+    fun directSending(type: ContentType, name: String): String =
+        "Sending ${when (type) { ContentType.URL -> "URL"; ContentType.TEL -> "phone number"; ContentType.TEXT -> "text" }} to \"${cutName(name)}\"..."
+
     fun directShareSent(name: String): String = "Sent to \"${cutName(name)}\""
 
     /** The two lines for the one picked device that did not get a send; null when it did. An unknown or missing word reads as not ready yet. */

@@ -61,11 +61,14 @@ class SendFlow(private val store: LocalStore, me: Identity, private val api: Api
         val sent: Int get() = results.values.count { it == "sent" }
     }
 
-    fun send(recipientIds: List<String>, type: ContentType, value: String, now: Long): Outcome {
+    /** Send progress steps, in percent: the message is encrypted, the relay server is connected, the request is sent, the reply is in. */
+    object Step { const val ENCRYPTED = 25; const val CONNECTED = 50; const val SENT = 75; const val DONE = 100 }
+
+    fun send(recipientIds: List<String>, type: ContentType, value: String, now: Long, onStep: (Int) -> Unit = {}): Outcome {
         val total = allSet(store.peers()).size
         val peers = recipientIds.mapNotNull { store.peer(it) }.filter { it.pinned }
         val body = MessageBody.content(type, value)
-        val r = ClockSkew.run({ peers.associate { it.id to outbox.simple(it, body).message } }) { api.send(it) }
+        val r = ClockSkew.run({ peers.associate { it.id to outbox.simple(it, body).message }.also { onStep(Step.ENCRYPTED) } }) { api.send(it) }
         return when (r) {
             is ApiResult.Ok -> {
                 val id = store.insertHistory(HistoryRow(direction = Direction.SENT, peerId = null, type = type.key, content = value, at = now, read = true, results = r.value))

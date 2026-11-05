@@ -61,5 +61,8 @@ class ShareActivityTest {
 
     @Test fun directShareToastNamesTheDevice() {
         assertEquals("Sent to \"Laptop\"", UiText.directShareSent("Laptop"))
+        assertEquals("Sending URL to \"Laptop\"...", UiText.directSending(com.pusharmor.protocol.ContentType.URL, "Laptop"))
+        assertEquals("Sending text to \"Laptop\"...", UiText.directSending(com.pusharmor.protocol.ContentType.TEXT, "Laptop"))
+        assertEquals("Sending phone number to \"Laptop\"...", UiText.directSending(com.pusharmor.protocol.ContentType.TEL, "Laptop"))
     }
 }
