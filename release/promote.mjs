@@ -50,7 +50,6 @@ export const LISTING = {
     promotional_text: { max: 170 },
     privacy_url: { max: 255, url: true },
     copyright: { max: 200 },
-    review_notes: { max: 4000 },
   },
 };
 export const SCREENSHOTS = { play: "android", appstore: "ios" };
@@ -561,14 +560,8 @@ export async function appstore(version) {
   }
   const images = await syncScreenshots({ asc, http, setId: set.id, shots, sleep });
 
-  // App Review notes only. Contact details and the demo account stay as
-  // entered in App Store Connect (owner rule: never in the repo or the API).
-  const rd = (await asc("GET", "/v1/appStoreVersions/" + v.id + "/appStoreReviewDetail", undefined, [200, 404])).json;
-  if (rd && rd.data) {
-    await asc("PATCH", "/v1/appStoreReviewDetails/" + rd.data.id, { data: { type: "appStoreReviewDetails", id: rd.data.id, attributes: { notes: want.review_notes } } });
-  } else {
-    await asc("POST", "/v1/appStoreReviewDetails", { data: { type: "appStoreReviewDetails", attributes: { notes: want.review_notes }, relationships: { appStoreVersion: { data: { type: "appStoreVersions", id: v.id } } } } });
-  }
+  // App Review notes, contact details, and the demo account stay as
+  // entered in App Store Connect; this script never writes them.
 
   // Review submission: reuse an open draft, add this version, submit.
   const open = (await asc("GET", "/v1/reviewSubmissions?filter[app]=" + app + "&filter[platform]=IOS&filter[state]=READY_FOR_REVIEW,UNRESOLVED_ISSUES,WAITING_FOR_REVIEW,IN_REVIEW")).json.data;

@@ -584,3 +584,10 @@ test("App Store: a new version is created when none is editable; a version with 
   assert.equal(await appstore("0.0.29"), true);
   assert.ok(!calls.some((c) => c.method !== "GET"));
 });
+
+test("App Store submit never writes the App Review notes", () => {
+  const src = readFileSync(join(ROOT, "release", "promote.mjs"), "utf8");
+  assert.doesNotMatch(src, /appStoreReviewDetails/);
+  assert.doesNotMatch(src, /want\.review_notes/);
+  assert.ok(!readdirSync(join(ROOT, "store", "listing", "appstore", "en-US")).includes("review_notes.txt"));
+});
