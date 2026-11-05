@@ -460,7 +460,8 @@ test("download: every Android channel, release asset names, certificate fingerpr
   for (const id of ["iphone", "chrome", "firefox"]) assert.ok(!raw.includes('id="' + id + '"') && !raw.includes('href="#' + id + '"'), "download still has a section for " + id);
   const top = raw.slice(raw.indexOf("<ul>"), raw.indexOf("</ul>"));
   assert.ok(top.indexOf("Android") < top.indexOf("iPhone") && top.indexOf("iPhone") < top.indexOf("Chrome") && top.indexOf("Chrome") < top.indexOf("Firefox") && top.indexOf("Firefox") < top.indexOf("Command line"), "top list out of order");
-  assert.ok(top.includes("<li>iPhone <span class=\"soon\">Coming soon</span></li>") && top.includes("<li>Chrome <span class=\"soon\">Coming soon</span></li>"), "iPhone and Chrome are not plain Coming soon");
+  assert.ok(top.includes("<li>iPhone <span class=\"soon\">Coming soon</span></li>"), "iPhone is not plain Coming soon");
+  assert.ok(top.includes('<li><a href="https://chromewebstore.google.com/detail/pusharmor/eglfppbcdpmgpnckkgcjcmmbknjgeihd">Chrome</a></li>'), "Chrome does not link to the Chrome Web Store");
   assert.ok(top.includes('<li><a href="https://addons.mozilla.org/en-US/firefox/addon/pusharmor/">Firefox</a></li>'), "Firefox does not link to the add-on");
   assert.ok(t.includes("Obtainium: Add to Obtainium (below)"), "download lacks the Obtainium entry");
   assert.ok(read("download.html").includes('href="https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F'), "download lacks the Obtainium link");
