@@ -318,15 +318,15 @@ internal fun App(vm: AppViewModel) {
         // History on the screen shows every received message: their notifications go, at open and at each return.
         androidx.compose.runtime.LaunchedEffect(route, resumed) { if (clearsMessages(route, resumed)) vm.g.notifier.cancelMessages() }
         // After NavHost has set the graph: navigating during the first composition throws.
+        // As a tab tap: a route stacked on a tab is saved with it and comes back for the next tab, Devices included.
         androidx.compose.runtime.LaunchedEffect(back, pending, resumed) {
-            if (resumed && back != null && pending != null) { MainActivity.pendingRoute = null; nav.navigate(pending) { launchSingleTop = true } }
+            if (resumed && back != null && pending != null) { MainActivity.pendingRoute = null; nav.tab(pending) }
         }
         val x = LocalPaExtra.current
         // The app's one place for transient messages: above the bottom bar, and above the keyboard when it is up.
         // Taken as soon as it is set, so no screen finds an old one later; a new message replaces the one shown.
         val snack = remember { SnackbarHostState() }
-        // One back step to Devices, then out: Back does not walk every visited tab.
-        fun tab(r: String) = nav.navigate(r) { popUpTo("peers") { saveState = true }; launchSingleTop = true; restoreState = true }
+        fun tab(r: String) = nav.tab(r)
         androidx.compose.runtime.LaunchedEffect(Unit) {
             var shown: kotlinx.coroutines.Job? = null
             launch { vm.showPairErrors() }
@@ -386,6 +386,10 @@ internal fun App(vm: AppViewModel) {
         }
     }
 }
+
+/** Opens tab [r]. One back step to Devices, then out: Back does not walk every visited tab. */
+internal fun NavHostController.tab(r: String) =
+    navigate(r) { popUpTo("peers") { saveState = true }; launchSingleTop = true; restoreState = true }
 
 /** The tab screens, from Devices. A tab switch shows the new tab at once, with no animation. */
 @Composable

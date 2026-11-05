@@ -69,4 +69,35 @@ class TabSwitchTest {
         shadowOf(Looper.getMainLooper()).idle()
         unstickFrames()
     }
+
+    /**
+     * Every tab opens from every other tab, after any tabs before it. A notification tap on Devices that opens
+     * History, then Settings, then Devices once showed History again at each Devices tap.
+     */
+    @Test fun everyTabOpensFromEveryTab() {
+        unstickFrames()
+        var nav: NavHostController? = null
+        UiHostActivity.content = {
+            val n = rememberNavController().also { nav = it }
+            TabHost(n) { for ((r, _, _) in NAV_TABS) composable(r) { Text("$r tab") } }
+        }
+        val c = Robolectric.buildActivity(UiHostActivity::class.java).setup()
+        val a = c.get()
+        shadowOf(Looper.getMainLooper()).idle()
+        val routes = NAV_TABS.map { it.first }
+        val paths = listOf(listOf("history", "settings", "peers", "peers"), listOf("send", "settings", "peers")) +
+            routes.flatMap { x -> routes.flatMap { y -> routes.map { z -> listOf(x, y, z, "settings", "peers") } } }
+        for (path in paths) {
+            for (r in path) {
+                nav!!.tab(r)
+                shadowOf(Looper.getMainLooper()).idle()
+                assertEquals("after $path", listOf("$r tab"), texts(a.window.decorView))
+            }
+            nav!!.tab("peers")
+            shadowOf(Looper.getMainLooper()).idle()
+        }
+        c.pause().stop().destroy()
+        shadowOf(Looper.getMainLooper()).idle()
+        unstickFrames()
+    }
 }
