@@ -15,6 +15,13 @@ final class BrandScreensTests: XCTestCase {
         return app
     }
 
+    /// Scroll up about a quarter of the window, with no fling.
+    private func nudgeUp(_ app: XCUIApplication) {
+        let win = app.windows.firstMatch
+        win.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+            .press(forDuration: 0.05, thenDragTo: win.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)))
+    }
+
     func testSendButtonNamesTheSelectedPeer() {
         let app = launch()
         XCTAssertTrue(app.buttons["Send to \"Laptop\""].waitForExistence(timeout: 30))
@@ -142,7 +149,9 @@ final class BrandScreensTests: XCTestCase {
         tab.tap()
         let show = app.switches["Allow message content in notifications"]
         let lock = app.switches["Allow message content on lock screen"]
-        for _ in 0..<10 where !(show.exists && show.isHittable && lock.exists && lock.isHittable) { app.swipeUp() }
+        // short drags, not swipeUp: a full swipe can carry the first switch under the navigation
+        // bar before the second clears the tab bar, and the lazy list then drops it
+        for _ in 0..<15 where !(show.exists && show.isHittable && lock.exists && lock.isHittable) { nudgeUp(app) }
         XCTAssertFalse(app.switches["Always hide content"].exists)
         XCTAssertLessThan(show.frame.minY, lock.frame.minY)
         XCTAssertEqual(show.value as? String, "1")
