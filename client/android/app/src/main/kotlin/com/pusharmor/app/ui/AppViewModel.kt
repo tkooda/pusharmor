@@ -351,6 +351,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             g.client.onProgress = onStep
             val out = try { g.sender().send(recipients, type, value, System.currentTimeMillis(), onStep) } finally { g.client.onProgress = null }
             if (out.error != null) return@withContext SendResult(ErrorText.of(UiText.UNABLE_SEND, out.error!!, UiText.pushHost(g.settings.get(Settings.K.UP_ENDPOINT))))
+            // The share sheet shows only a few direct targets per app (a platform cap); use ranks the shown ones.
+            for (id in recipients) try { androidx.core.content.pm.ShortcutManagerCompat.reportShortcutUsed(g.app, id) } catch (_: Exception) {}
             sendResult(recipients.size, out, recipients.singleOrNull()) { id -> g.store.peer(id)?.let(::label) }
         } catch (e: CancellationException) { throw e } catch (e: Exception) {
             Log.w("PushArmor", "send failed", e)
