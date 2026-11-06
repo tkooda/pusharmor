@@ -27,6 +27,7 @@ import com.pusharmor.net.WorkerClient
 import com.pusharmor.protocol.MessageBody
 import com.pusharmor.protocol.NameEntry
 import com.pusharmor.protocol.Peer
+import com.pusharmor.app.notify.AppEffects
 import com.pusharmor.protocol.allSet
 import com.pusharmor.protocol.engine.ApiResult
 import com.pusharmor.protocol.engine.ClockSkew
@@ -42,6 +43,8 @@ class Session(private val g: Graph) {
     companion object {
         /** Share sheet targets: the All set less the devices turned off in their menu. */
         fun shareTargets(peers: List<Peer>, off: Set<String>): List<Peer> = allSet(peers).filter { it.id !in off }
+        /** A device's name as the app shows it; the share sheet needs it distinct per device. */
+        fun shortcutLabel(p: Peer): String = p.name ?: "${AppEffects.platformLabel(p.platform)} device added ${AppEffects.dateLabel(p.created)}"
         const val REMOVED = "This device was removed. Log in again."
         const val LOST_KEYS = "This device lost its keys. Log in again."
         const val DELETED = "Account deleted on another device."
@@ -611,11 +614,11 @@ class Session(private val g: Graph) {
         val stale = ShortcutManagerCompat.getDynamicShortcuts(ctx).map { it.id }.filter { it !in ids }
         if (stale.isNotEmpty()) ShortcutManagerCompat.removeDynamicShortcuts(ctx, stale)
         for (p in all) {
-            val label = p.name ?: "Device"
+            val label = shortcutLabel(p)
             val sc = ShortcutInfoCompat.Builder(ctx, p.id).setShortLabel(label).setLongLived(true)
                 .setIcon(IconCompat.createWithResource(ctx, R.drawable.ic_notify))
                 .setCategories(setOf(SHARE_CATEGORY))
-                .setPerson(Person.Builder().setName(label).build())
+                .setPerson(Person.Builder().setName(label).setKey(p.id).build())
                 .setIntent(Intent(ctx, ShareActivity::class.java).setAction(Intent.ACTION_SEND)).build()
             ShortcutManagerCompat.pushDynamicShortcut(ctx, sc)
         }
