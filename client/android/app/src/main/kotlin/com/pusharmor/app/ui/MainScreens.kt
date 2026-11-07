@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
@@ -1375,8 +1376,10 @@ private fun TextBox(text: String, style: androidx.compose.ui.text.TextStyle) {
 /** Near-full-screen reader with only a close button; the text is selectable so part of it can be copied. */
 @Composable
 private fun ReadDialog(text: String, onClose: () -> Unit) {
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize().padding(12.dp), shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface) {
+    // The dialog sizes itself from the screen size, which on Android 15 includes the system bars, so a window
+    // that fits them is clipped at the bottom. A window under the bars with the insets as padding is not.
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Surface(Modifier.fillMaxSize().safeDrawingPadding().padding(12.dp), shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface) {
             Column {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     IconButton(onClick = onClose) { Icon(PaIcons.Close, "Close") }
