@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.Preferences
 import com.pusharmor.app.Graph
 import com.pusharmor.app.data.Settings
+import com.pusharmor.app.ui.UiText
 import com.pusharmor.app.work.Work
 import com.pusharmor.app.BuildConfig
 import com.pusharmor.crypto.B64url
@@ -73,6 +74,20 @@ object UnifiedPushSupport {
         if (g.settings.get(Settings.K.BANNER)?.startsWith("no_distributor") == true) g.settings.set(Settings.K.BANNER, null)
     }
 
+    /** Push could not be set up for the method in use: line 2 of the cannot-receive card, else null. */
+    fun setupError(context: Context, prefs: Preferences?, playServices: Boolean): String? {
+        val code = prefs?.get(Settings.K.PUSH_SETUP) ?: return null
+        val up = active(prefs[Settings.K.PUSH_TYPE], playServices)
+        if (up == (code == "fcm_token")) return null
+        return UiText.pushSetup(code, if (up) saved(context)?.let { appName(context, it) } else null)
+    }
+
+    /** Records a push setup failure ([Settings.K.PUSH_SETUP]); the cannot-receive card says it. */
+    fun setupFailed(g: Graph, code: String) { if (g.settings.get(Settings.K.PUSH_SETUP) != code) g.settings.set(Settings.K.PUSH_SETUP, code) }
+
+    /** A token or address arrived: a setup failure no longer holds. */
+    fun setupOk(g: Graph) { if (g.settings.get(Settings.K.PUSH_SETUP) != null) g.settings.set(Settings.K.PUSH_SETUP, null) }
+
     /** The relay server refused the push address: its host and the UnifiedPush app's name, else null. */
     fun refused(context: Context, prefs: Preferences?, playServices: Boolean): Pair<String, String>? {
         if (prefs?.get(Settings.K.PUSH_REFUSED) != true || !active(prefs[Settings.K.PUSH_TYPE], playServices)) return null
@@ -126,8 +141,9 @@ object UnifiedPushSupport {
 
     /** New endpoint: PATCH only when endpoint or keys differ from the stored ones. */
     fun onNewEndpoint(g: Graph, url: String, pubKey: String?, auth: String?) {
-        val p = pubKey?.let { strict(it) } ?: return
-        val a = auth?.let { strict(it) } ?: return
+        val p = pubKey?.let { strict(it) } ?: return setupFailed(g, "up_keys")
+        val a = auth?.let { strict(it) } ?: return setupFailed(g, "up_keys")
+        setupOk(g)
         val s = g.settings
         if (s.get(Settings.K.UP_ENDPOINT) == url && s.get(Settings.K.UP_P256DH) == p && s.get(Settings.K.UP_AUTH) == a) return
         s.set(Settings.K.UP_ENDPOINT, url); s.set(Settings.K.UP_P256DH, p); s.set(Settings.K.UP_AUTH, a)

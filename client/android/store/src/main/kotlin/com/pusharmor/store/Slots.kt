@@ -1,6 +1,7 @@
 package com.pusharmor.store
 
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.pusharmor.crypto.Ids
 
 /**
  * Archived accounts. The live tables hold the active account; an inactive account's rows are copied, by its
@@ -15,10 +16,17 @@ class Slots(private val db: PaDatabase) {
         private const val STATE = "app_state"
         private const val PREFS = "arch_prefs"
 
-        /** The archive's stand-in for an address: hex of sha256("PA-ACCT1\n" + trimmed lower case address). */
-        fun emailHash(email: String): String =
-            java.security.MessageDigest.getInstance("SHA-256").digest(("PA-ACCT1\n" + email.trim().lowercase()).toByteArray())
-                .joinToString("") { "%02x".format(it) }
+        /** The account an address names, as the relay server sees it: the mailbox key of the normalized address. */
+        fun mailbox(email: String): String = Ids.normalizeEmail(email)?.let(Ids::mailboxKey) ?: email.trim().lowercase()
+
+        /** The archive's stand-in for an address: hex of sha256("PA-ACCT1\n" + [mailbox] of the address). */
+        fun emailHash(email: String): String = hash(mailbox(email))
+
+        /** The stand-in an earlier version stored: the hash of the trimmed lower case address itself. */
+        fun legacyEmailHash(email: String): String = hash(email.trim().lowercase())
+
+        private fun hash(s: String): String =
+            java.security.MessageDigest.getInstance("SHA-256").digest(("PA-ACCT1\n" + s).toByteArray()).joinToString("") { "%02x".format(it) }
     }
 
     private val sql: SupportSQLiteDatabase get() = db.openHelper.writableDatabase
@@ -44,11 +52,12 @@ class Slots(private val db: PaDatabase) {
 
     private fun marks(keys: List<String>) = keys.joinToString(",", "(", ")") { "?" }
 
-    /** The archived account whose email is [email] (lower case), other than [except]. */
+    /** The archived account whose email names the same mailbox as [email], other than [except]; an earlier version's hash also matches. */
     fun accountFor(email: String, except: String?): String? {
         if (!exists("arch_self")) return null
         hashPlain()
-        return sql.query("SELECT account FROM arch_self WHERE email = ? AND account != ? LIMIT 1", arrayOf(emailHash(email), except ?: "")).use {
+        return sql.query("SELECT account FROM arch_self WHERE email IN (?, ?) AND account != ? ORDER BY email = ? DESC LIMIT 1",
+            arrayOf(emailHash(email), legacyEmailHash(email), except ?: "", emailHash(email))).use {
             if (it.moveToFirst()) it.getString(0) else null
         }
     }
@@ -61,8 +70,10 @@ class Slots(private val db: PaDatabase) {
         for ((a, e) in plain) sql.execSQL("UPDATE arch_self SET email = ? WHERE account = ?", arrayOf(emailHash(e), a))
     }
 
-    fun has(account: String): Boolean =
-        exists("arch_self") && sql.query("SELECT 1 FROM arch_self WHERE account = ?", arrayOf(account)).use { it.moveToFirst() }
+    /** An archive of [account] exists; a removed device's has no self row, only its state and history. */
+    fun has(account: String): Boolean = listOf("arch_self", "arch_$STATE").any { t ->
+        exists(t) && sql.query("SELECT 1 FROM `$t` WHERE account = ?", arrayOf(account)).use { it.moveToFirst() }
+    }
 
     /** Copies the active account out to the archive of [account] (replacing any older copy), in one transaction. */
     fun archive(account: String, stateKeys: List<String>, prefs: Map<String, String>) = db.runInTransaction<Unit> {

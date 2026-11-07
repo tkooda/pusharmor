@@ -190,6 +190,18 @@ class CannotReceiveCardTest {
         } finally { app.graph.settings.set(Settings.K.PUSH_ERROR, null) }
     }
 
+    /** Push could not be set up on this device: the card with its line and Check again. */
+    @Test fun pushSetupCardSaysWhy() {
+        val app = app(true)
+        app.graph.settings.set(Settings.K.PUSH_SETUP, "fcm_token")
+        try {
+            val (a, _) = show(app, Session.Start.READY)
+            assertTrue(cards(a) == 1)
+            assertTrue(nodes(a).count { text(it) == "Google's push service did not answer. Check your internet connection, then tap Check again." } == 1)
+            assertTrue("check again", checkAgain(a))
+        } finally { app.graph.settings.set(Settings.K.PUSH_SETUP, null) }
+    }
+
     /** A refused push address: the card with its line and Check again. */
     @Test fun refusedCardHasCheckAgain() {
         val savedInstalled = UnifiedPushSupport.installed

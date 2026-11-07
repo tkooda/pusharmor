@@ -9,7 +9,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -58,5 +62,34 @@ class NotifierChannelNamesTest {
         assertEquals("Desk", channelName("a"))
         assertEquals(id, io { g.dao.peer("a")!!.channelId })
         assertNotNull(nm.getNotificationChannel(id))
+    }
+
+    /** A device channel an earlier version made outside the group moves into it under a new id, with the user's importance, sound, vibration, and lights. */
+    @Test fun ungroupedChannelMovesIntoTheGroup() {
+        val pattern = longArrayOf(0, 100, 50, 100)
+        io {
+            g.notifier.ensureChannels()
+            g.store.putPeer(paired("a", "Laptop"))
+            nm.createNotificationChannel(android.app.NotificationChannel("old", "Laptop", NotificationManager.IMPORTANCE_LOW).also {
+                it.setSound(null, null); it.vibrationPattern = pattern; it.enableLights(true); it.lightColor = 0xFF00FF00.toInt()
+            })
+            g.dao.setChannelId("a", "old")
+            g.notifier.syncPeerChannels()
+        }
+        val id = io { g.dao.peer("a")!!.channelId!! }
+        assertNotEquals("old", id)
+        assertNull(nm.getNotificationChannel("old"))
+        val ch = nm.getNotificationChannel(id)
+        assertEquals(Notifier.PEER_GROUP, ch.group)
+        assertEquals("Laptop", ch.name.toString())
+        assertEquals(NotificationManager.IMPORTANCE_LOW, ch.importance)
+        assertNull(ch.sound)
+        assertTrue(ch.shouldVibrate())
+        assertArrayEquals(pattern, ch.vibrationPattern)
+        assertTrue(ch.shouldShowLights())
+        assertEquals(0xFF00FF00.toInt(), ch.lightColor)
+        // a second sync keeps the grouped channel
+        io { g.notifier.syncPeerChannels() }
+        assertEquals(id, io { g.dao.peer("a")!!.channelId })
     }
 }

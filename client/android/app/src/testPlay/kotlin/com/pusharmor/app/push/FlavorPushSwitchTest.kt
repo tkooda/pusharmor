@@ -50,10 +50,7 @@ class FlavorPushSwitchTest {
         setUp()
         val wm = androidx.work.WorkManager.getInstance(app)
         wm.cancelUniqueWork("push-patch").result.get(); wm.pruneWork().result.get()
-        var sentToken: String? = "unset"
-        FlavorPush.fetchToken = { cb -> sentToken = app.graph.settings.get(Settings.K.PUSH_TOKEN); cb("token-1") }
         FlavorPush(app).switchToGoogle(app.graph)
-        assertNull(sentToken) // cleared before the fetch, so onToken sees a new token and PATCHes
         assertEquals("token-1", app.graph.settings.get(Settings.K.PUSH_TOKEN))
         assertFalse(wm.getWorkInfosForUniqueWork("push-patch").get().isEmpty())
     }
@@ -73,6 +70,23 @@ class FlavorPushSwitchTest {
         } finally { FlavorPush.tokenTask = savedTask }
     }
 
+    /** A failed switch to Google keeps UnifiedPush as the method shown, so picking Google again tries again. */
+    @Test fun failedSwitchKeepsUnifiedPushShown() {
+        setUp()
+        val s = app.graph.settings
+        s.set(Settings.K.UP_ENDPOINT, "https://up.example/x")
+        var tries = 0
+        FlavorPush.fetchToken = { cb -> tries++; if (tries == 1) throw java.io.IOException("SERVICE_NOT_AVAILABLE") else cb("token-2") }
+        try { FlavorPush(app).switchToGoogle(app.graph); org.junit.Assert.fail("no error") } catch (e: java.io.IOException) { }
+        assertEquals("unifiedpush", s.get(Settings.K.PUSH_TYPE))
+        assertEquals("https://up.example/x", s.get(Settings.K.UP_ENDPOINT))
+        assertEquals("up.app", com.pusharmor.app.ui.pushCurrent(s.get(Settings.K.PUSH_TYPE), true, "up.app"))
+        FlavorPush(app).switchToGoogle(app.graph)
+        assertEquals(2, tries)
+        assertEquals("fcm", s.get(Settings.K.PUSH_TYPE))
+        assertEquals("token-2", s.get(Settings.K.PUSH_TOKEN))
+    }
+
     @Test fun tokenOnOpenClearsAStaleFlag() {
         setUp()
         val s = app.graph.settings
@@ -80,5 +94,23 @@ class FlavorPushSwitchTest {
         FlavorPush(app).onToken(app.graph, "token-1")
         assertNull(s.get(Settings.K.BANNER))
         assertEquals("fcm", s.get(Settings.K.PUSH_TYPE))
+    }
+
+    /** No Google token at app start: the cannot-receive card says so; a token later clears it. */
+    @Test fun failedTokenAtStartSaysSo() {
+        setUp()
+        val s = app.graph.settings
+        s.set(Settings.K.PUSH_TYPE, "fcm")
+        val savedTask = FlavorPush.tokenTask
+        try {
+            FlavorPush.tokenTask = { com.google.android.gms.tasks.Tasks.forException(java.io.IOException("SERVICE_NOT_AVAILABLE")) }
+            FlavorPush(app).start(app.graph)
+            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+            assertEquals("fcm_token", s.get(Settings.K.PUSH_SETUP))
+            FlavorPush.tokenTask = { com.google.android.gms.tasks.Tasks.forResult("token-2") }
+            FlavorPush(app).start(app.graph)
+            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+            assertNull(s.get(Settings.K.PUSH_SETUP))
+        } finally { FlavorPush.tokenTask = savedTask; s.set(Settings.K.PUSH_SETUP, null) }
     }
 }

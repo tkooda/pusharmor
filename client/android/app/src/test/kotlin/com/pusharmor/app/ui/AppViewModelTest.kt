@@ -292,4 +292,18 @@ class AppViewModelTest {
         // A chip with no rows falls back to All.
         assertEquals(com.pusharmor.app.notify.HistoryFilter.Chip.All, historyView(rows, com.pusharmor.app.notify.HistoryFilter.Chip.PeerChip("z", "Z"), emptyList()) { it }.eff)
     }
+
+    /** A switch to another account drops what the screens held for the old one: a highlighted device, a History row, the limit picker. */
+    @Test fun accountSwitchDropsOldAccountState() {
+        val vm = vm()
+        vm.highlight.value = "P".repeat(40)
+        vm.flashRow.value = 7L
+        vm.sent.value = AppViewModel.SendResult("Sent", 7L)
+        vm.limit.value = com.pusharmor.net.WorkerClient.PeerLimit("t", emptyList())
+        vm.accountSwitched()
+        assertNull(vm.highlight.value)
+        assertNull(vm.flashRow.value)
+        assertNull(vm.sent.value)
+        assertNull(vm.limit.value)
+    }
 }

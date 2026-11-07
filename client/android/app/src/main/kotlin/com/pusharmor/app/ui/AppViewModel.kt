@@ -177,7 +177,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun emailStart(email: String, turnstile: String, purpose: String): String? = withContext(Dispatchers.IO) {
         try {
             // The address picks the account (an archived one, or a new one) before the keys sign the request.
+            val before = g.dao.self()?.id
             val p = if (purpose == "delete-account") purpose else g.session.prepareEmail(email).also { signInPurpose.value = it }
+            if (g.dao.self()?.id != before) accountSwitched()
             val r = g.client.authEmail(email, signPubB64(), p, turnstile)
             val addr = email.trim().lowercase()
             if (r is ApiResult.Ok) { resend.value = addr to System.currentTimeMillis() + UiText.RESEND_MS; r.value }
@@ -244,7 +246,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.Main) { onDone() }
             }
             is Session.SignIn.Switched -> {
-                limit.value = null
+                accountSwitched()
                 setStart(if (g.session.signedOut) Session.Start.SIGNED_OUT else Session.Start.SIGN_IN)
                 message.value = ErrorText.text(UiText.UNABLE_LOGIN, r.text)
             }
@@ -255,6 +257,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 message.value = r.text
             }
         }
+    }
+
+    /** Another account is active: state held here for the old one (a picked device, a History row, the limit picker) goes. */
+    internal fun accountSwitched() {
+        limit.value = null
+        limitTicket = null
+        pendingEvict = null
+        highlight.value = null
+        sent.value = null
+        flashRow.value = null
+        launchToSend = false
     }
 
     private var limitTicket: String? = null
@@ -407,6 +420,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * push. "sent" says Working and the card goes; the line for each result is [UiText.checkAgainText].
      */
     fun checkAgain(local: Boolean) = once("check", UiText.CHECK_FAILED) {
+        // Push could not be set up here: set it up again; the card goes when a token or address arrives.
+        if (g.settings.get(Settings.K.PUSH_SETUP) != null) g.push.start(g)
         // The push address could not be sent: send it again first; the card goes when it is accepted.
         if (g.settings.get(Settings.K.PUSH_ERROR) != null) when (g.session.patchPushNow()) {
             true -> Unit
@@ -425,7 +440,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun registerIfInstalled() {
         if (start.value != Session.Start.READY) return
         viewModelScope.launch(Dispatchers.IO) {
-            try { com.pusharmor.app.push.UnifiedPushSupport.registerIfInstalled(g) } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w("PushArmor", "push register failed", e) }
+            try { com.pusharmor.app.push.UnifiedPushSupport.registerIfInstalled(g) } catch (e: CancellationException) { throw e } catch (e: Exception) {
+                Log.w("PushArmor", "push register failed", e)
+                try { com.pusharmor.app.push.UnifiedPushSupport.setupFailed(g, "up_register") } catch (e2: Exception) { }
+            }
         }
     }
 }

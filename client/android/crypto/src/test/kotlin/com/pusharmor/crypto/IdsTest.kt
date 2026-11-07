@@ -81,4 +81,15 @@ class IdsTest {
         const val KAT_NONCE = "9kMhB7ALbe2Leg39kkwF-6qUJGku2DLgVqf8WqzXfQc"
         const val KAT_PUSH = "3m1xv9wF3cuN_UY_vDzVpQ"
     }
+
+    /** One mailbox per address, as the Worker's mailboxKey: Gmail dots and googlemail, +tags at listed providers only. */
+    @Test fun mailboxKeyMatchesTheWorker() {
+        assertEquals("ab@gmail.com", Ids.mailboxKey("a.b+x@googlemail.com"))
+        assertEquals("ab@gmail.com", Ids.mailboxKey(Ids.normalizeEmail(" AB@gmail.com ")!!))
+        assertEquals("a.b@outlook.com", Ids.mailboxKey("a.b+news@outlook.com"))
+        assertEquals("a.b+x@example.com", Ids.mailboxKey("a.b+x@example.com"))
+        assertEquals("+x@gmail.com", Ids.mailboxKey("+x@gmail.com")) // a leading + is not a tag
+        assertEquals("...@gmail.com", Ids.mailboxKey("...@gmail.com")) // only dots: kept
+        assertEquals("ab@pm.me", Ids.mailboxKey("ab+1@pm.me"))
+    }
 }

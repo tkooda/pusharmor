@@ -91,6 +91,27 @@ object Ids {
         return sb.toString()
     }
 
+    /** Providers that deliver "local+tag" to "local"; Gmail also ignores dots in the local part. */
+    private val PLUS_TAG = setOf("gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "msn.com", "icloud.com", "me.com", "mac.com",
+        "fastmail.com", "proton.me", "protonmail.com", "protonmail.ch", "pm.me")
+    private val GMAIL = setOf("gmail.com", "googlemail.com")
+
+    /** The relay server's account identity for a [normalized] address (as the Worker's mailboxKey does): one mailbox per address. */
+    fun mailboxKey(normalized: String): String {
+        val at = normalized.lastIndexOf('@')
+        if (at < 0) return normalized
+        var local = normalized.substring(0, at)
+        var domain = normalized.substring(at + 1)
+        if (domain !in PLUS_TAG) return normalized
+        val plus = local.indexOf('+')
+        if (plus > 0) local = local.substring(0, plus)
+        if (domain in GMAIL) {
+            domain = "gmail.com"
+            local = local.replace(".", "").ifEmpty { local }
+        }
+        return "$local@$domain"
+    }
+
     /** email_hash = sha256("PA-ACCT1\n" || normalized email) */
     fun emailHash(normalized: String): ByteArray = sha256(ascii("PA-ACCT1\n"), ascii(normalized))
 

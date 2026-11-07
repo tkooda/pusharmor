@@ -34,6 +34,7 @@ import com.pusharmor.protocol.engine.ClockSkew
 import com.pusharmor.protocol.engine.Outbox
 import com.pusharmor.store.PaDatabase
 import com.pusharmor.store.SelfEntity
+import com.pusharmor.store.Slots
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** Sign-in, registration, sign out, removal, refresh and the startup invariant (sections 5, 8, 9). */
@@ -161,7 +162,7 @@ class Session(private val g: Graph) {
      */
     fun onTicket(ticket: String, email: String?, evict: List<String>? = null): SignIn {
         if (signedOut) return login(ticket, email)
-        val archived = if (evict == null && dao.self() == null) email?.let { g.slots.accountFor(it.trim().lowercase(), null) } else null
+        val archived = if (evict == null && dao.self() == null) email?.let { g.slots.accountFor(it, null) } else null
         if (archived != null) return switchFor(archived, email)
         return register(ticket, email, evict)
     }
@@ -179,11 +180,11 @@ class Session(private val g: Graph) {
      * in; another address on a device whose account is known starts a new empty account. Returns the purpose.
      */
     fun prepareEmail(email: String): String {
-        val e = email.trim().lowercase()
+        val e = Slots.mailbox(email)
         val self = dao.self()
-        val known = self?.email?.lowercase()
+        val known = self?.email?.let(Slots::mailbox)
         if (known == e) return purposeForSignIn()
-        val archived = g.slots.accountFor(e, self?.id?.take(ACCOUNT_LEN))
+        val archived = g.slots.accountFor(email, self?.id?.take(ACCOUNT_LEN))
         if (archived != null) switchAccount(archived)
         else if (self != null && known != null) switchAccount(null)
         return purposeForSignIn()
@@ -205,6 +206,9 @@ class Session(private val g: Graph) {
         } else if (KeystoreKeyOps.anyPresent()) {
             // keys with no id: the register reply may have been lost, so the relay server may know them; they are kept
             g.slots.archive("unreg-" + KeystoreKeyOps.base, Settings.ACCOUNT_STATE, s.accountPrefs())
+        } else {
+            // a removed device: no keys and no id, but the history the wipe kept is archived under its last account id
+            s.get(Settings.K.ACCOUNT)?.let { g.slots.archive(it, Settings.ACCOUNT_STATE, s.accountPrefs()) }
         }
         g.notifier.cancelAll()
         ShortcutManagerCompat.removeAllDynamicShortcuts(g.app)
@@ -313,7 +317,7 @@ class Session(private val g: Graph) {
     fun deleteAccount(ticket: String, email: String? = null): String? {
         val me = g.identity() ?: return ErrorText.text(UiText.UNABLE_DELETE_ACCOUNT, ErrorText.LOGGED_OUT)
         val mine = dao.self()?.email
-        if (email != null && mine != null && email.trim().lowercase() != mine.lowercase()) return ErrorText.text(UiText.UNABLE_DELETE_ACCOUNT, UiText.deleteOtherAccount(email))
+        if (email != null && mine != null && Slots.mailbox(email) != Slots.mailbox(mine)) return ErrorText.text(UiText.UNABLE_DELETE_ACCOUNT, UiText.deleteOtherAccount(email))
         val outbox = Outbox(g.store, me)
         val r = ClockSkew.run({
             g.store.allowSet().mapNotNull { g.store.peer(it)?.takeIf { p -> p.pinned } }.associate { it.id to outbox.simple(it, MessageBody.Delete).message }
@@ -379,11 +383,13 @@ class Session(private val g: Graph) {
 
     /** The one wipe routine, in order (section 9); history is kept. Returns the key delete error, if any. */
     private fun wipe(keepOldId: Boolean): Exception? {
+        val account = dao.self()?.id?.take(ACCOUNT_LEN) ?: s.get(Settings.K.ACCOUNT)
         g.notifier.cancelAll()
         g.notifier.deleteAllPeerChannels()
         ShortcutManagerCompat.removeAllDynamicShortcuts(g.app)
         WorkManager.getInstance(g.app).cancelAllWork()
         if (keepOldId) s.clearKeepingOldId() else s.clearKeepingOldId().also { s.set(Settings.K.OLD_ID, null) }
+        if (account != null) s.set(Settings.K.ACCOUNT, account)
         g.notifier.ensureChannels()
         try { g.push.stop(g) } catch (e: Exception) { }
         val keyError = try { KeystoreKeyOps.deleteBoth(); null } catch (e: Exception) { e }

@@ -11,6 +11,7 @@ paths = [
   '''^server/worker/test/secrets\.ts$''',
   '''^server/tools/ban/lib\.test\.mjs$''',
   '''^client/android/crypto/src/test/kotlin/com/pusharmor/crypto/IdsTest\.kt$''',
+  '''^client/android/app/src/test/kotlin/com/pusharmor/app/push/PushSetupTest\.kt$''',
   '''^server/worker/\.dev\.vars\.example$''',
 ]
 

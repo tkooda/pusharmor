@@ -35,7 +35,10 @@ class UpService : PushService() {
     }
 
     override fun onRegistrationFailed(reason: FailedReason, instance: String) = stored {
-        if (UnifiedPushSupport.active(g)) g.settings.set(Settings.K.BANNER, "no_distributor:${reason.name}")
+        if (UnifiedPushSupport.active(g)) {
+            g.settings.set(Settings.K.BANNER, "no_distributor:${reason.name}")
+            UnifiedPushSupport.setupFailed(g, "up_register")
+        }
     }
 
     override fun onUnregistered(instance: String) = stored {

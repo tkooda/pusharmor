@@ -104,6 +104,15 @@ object UiText {
     /** Line 2 when no UnifiedPush app is installed; Google is offered only where the Push method setting exists. */
     fun noPushApp(google: Boolean): String = if (google) "Install ntfy or Sunup, or set Push method to Google." else "Install ntfy or Sunup."
 
+    /** Line 2 when push could not be set up on this device ([Settings.K.PUSH_SETUP] [code]), with the UnifiedPush [app] name; else null. */
+    fun pushSetup(code: String?, app: String?): String? = when {
+        code == "fcm_token" -> "Google's push service did not answer. Check your internet connection, then tap Check again."
+        app == null -> null
+        code == "up_register" -> "\"$app\" could not turn on messages for PushArmor. Open \"$app\", then tap Check again."
+        code == "up_keys" -> "\"$app\" gave an address PushArmor cannot use. Update \"$app\", or choose another UnifiedPush app."
+        else -> null
+    }
+
     /** Line 2 when the relay server refused the push address of [app] at [host]. */
     fun pushRefused(host: String, app: String, google: Boolean): String =
         "The relay server cannot send to \"$host\". In $app, use its default server" + if (google) ", or set Push method to Google." else "."

@@ -52,14 +52,14 @@ class Settings(private val context: Context, private val dao: PaDao) {
 
         /** Keys kept in the database's app_state table, by name. */
         val IN_DB: Map<String, Preferences.Key<*>> = listOf(
-            K.SIGNED_OUT, K.LOGOUT_PENDING, K.REMOVAL_CHECK, K.OLD_ID, K.SIGN_IN_KEYS, K.PENDING_PURPOSE, K.KEY_ALIAS,
+            K.SIGNED_OUT, K.LOGOUT_PENDING, K.REMOVAL_CHECK, K.OLD_ID, K.SIGN_IN_KEYS, K.PENDING_PURPOSE, K.KEY_ALIAS, K.ACCOUNT,
             K.PUSH_TYPE, K.PUSH_TOKEN, K.UP_ENDPOINT, K.UP_P256DH, K.UP_AUTH, K.UP_REGISTERED_AT, K.UP_VERIFIED, K.PUSH_REFUSED,
         ).associateBy { it.name }
         private val BOOLS = setOf(K.SIGNED_OUT, K.LOGOUT_PENDING, K.SIGN_IN_KEYS, K.UP_VERIFIED, K.PUSH_REFUSED).map { it.name }
         private val LONGS = setOf(K.UP_REGISTERED_AT.name)
 
         /** The database state that belongs to the active account and moves with it when another account is switched in. */
-        val ACCOUNT_STATE = listOf(K.SIGNED_OUT, K.LOGOUT_PENDING, K.REMOVAL_CHECK, K.OLD_ID, K.KEY_ALIAS).map { it.name }
+        val ACCOUNT_STATE = listOf(K.SIGNED_OUT, K.LOGOUT_PENDING, K.REMOVAL_CHECK, K.OLD_ID, K.KEY_ALIAS, K.ACCOUNT).map { it.name }
 
         /** The settings file keys that belong to the active account; push, theme, channels, and notices stay with the device. */
         val ACCOUNT_PREFS: List<Preferences.Key<*>> = listOf(K.SHOW_ALL, K.TAP_OPENS_LINK, K.HISTORY_DAYS, K.SHARE_OFF, K.LOCK_SCREEN, K.WATCH,
@@ -100,6 +100,11 @@ class Settings(private val context: Context, private val dao: PaDao) {
         val PATCH_BAD_ID = stringPreferencesKey("patch_bad_id")
         /** Why the push address could not be sent (line 2 of the cannot-receive card); cleared when an address is accepted. */
         val PUSH_ERROR = stringPreferencesKey("push_error")
+        /**
+         * Push could not be set up on this device: "fcm_token" (no Google token), "up_register" (the UnifiedPush app did not
+         * register), or "up_keys" (its address had no usable keys); cleared when a token or address arrives.
+         */
+        val PUSH_SETUP = stringPreferencesKey("push_setup")
         /** A pairing message that failed in the background: the error text, shown once on the next app screen. */
         val PAIR_ERROR = stringPreferencesKey("pair_error")
         /** The last GET /peers or Check again said the relay server's push to this device failed on its side. */
@@ -124,6 +129,8 @@ class Settings(private val context: Context, private val dao: PaDao) {
         val SIGN_IN_KEYS = booleanPreferencesKey("sign_in_keys")
         /** Keystore alias base of the active account's keys; absent = the first account's ("pa"). Kept by the wipe. */
         val KEY_ALIAS = stringPreferencesKey("key_alias")
+        /** Account id of the registration a wipe removed, so a switch can still archive the history it kept. */
+        val ACCOUNT = stringPreferencesKey("account")
         /** App version that got HTTP 426; the update screen shows while it is the running version. */
         val UPDATE_REQUIRED = stringPreferencesKey("update_required")
         /** The file was damaged and reset to defaults; cleared when the notice shows. */

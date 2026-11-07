@@ -36,8 +36,9 @@ class FlavorPush(private val context: Context) : PushFlavor {
         // A stored UnifiedPush registration is honoured; never auto-switch to FCM.
         val type = g.settings.get(Settings.K.PUSH_TYPE)
         if (type == "unifiedpush" || (type == null && !hasPlayServices)) { UnifiedPushSupport.register(g); return }
-        FirebaseMessaging.getInstance().isAutoInitEnabled = true
-        FirebaseMessaging.getInstance().token.addOnSuccessListener { token -> onToken(g, token) }
+        autoInit(true)
+        // No token: the cannot-receive card says so, and the next app start or Check again asks again.
+        tokenTask().addOnSuccessListener { token -> onToken(g, token) }.addOnFailureListener { UnifiedPushSupport.setupFailed(g, "fcm_token") }
     }
 
     fun onToken(g: Graph, token: String) {
@@ -45,6 +46,7 @@ class FlavorPush(private val context: Context) : PushFlavor {
         if (s.get(Settings.K.PUSH_TYPE) == "unifiedpush") return
         s.set(Settings.K.PUSH_TYPE, "fcm")
         UnifiedPushSupport.clearNoDistributor(g)
+        UnifiedPushSupport.setupOk(g)
         if (s.get(Settings.K.PUSH_TOKEN) != token) { s.set(Settings.K.PUSH_TOKEN, token); Work.patchPush(g.app) }
     }
 
@@ -59,14 +61,17 @@ class FlavorPush(private val context: Context) : PushFlavor {
     }
 
     override fun switchToGoogle(g: Graph) {
+        // The token comes first: a failed fetch throws with UnifiedPush still in place, so Push method still shows it and picking Google tries again.
+        autoInit(true)
+        var token: String? = null
+        try { fetchToken { token = it } } catch (e: Exception) { if (UnifiedPushSupport.active(g)) autoInit(false); throw e }
         UnifiedPush.unregister(context, UnifiedPushSupport.INSTANCE)
         UnifiedPushSupport.clearEndpoint(g)
         g.settings.set(Settings.K.PUSH_TYPE, null)
         UnifiedPushSupport.clearNoDistributor(g)
         // The token is then always sent, even when it equals the one before the switch to UnifiedPush.
         g.settings.set(Settings.K.PUSH_TOKEN, null)
-        autoInit(true)
-        fetchToken { onToken(g, it) }
+        token?.let { onToken(g, it) }
     }
 
     /** Wipe: called after the DataStore clear, so both methods are stopped. */

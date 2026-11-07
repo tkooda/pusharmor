@@ -14,6 +14,10 @@ import com.pusharmor.protocol.engine.ApiResult
 import com.pusharmor.store.HistoryEntity
 import com.pusharmor.store.SelfEntity
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
@@ -240,5 +244,65 @@ class AccountSwitchTest {
         sql.execSQL("UPDATE arch_self SET email = 'a@x.com'")
         assertEquals(a.take(12), g.slots.accountFor("a@x.com", null))
         assertTrue(emails().none { it!!.contains("@") })
+    }
+
+    /** An archive matches the relay server's account: Gmail dots, googlemail, and a +tag name the same mailbox; an earlier version's hash matches too. */
+    @Test fun archiveMatchesSameMailbox() = io {
+        val a = register("tA", "a.b+x@googlemail.com")
+        g.session.signOut()
+        assertEquals("login", g.session.prepareEmail("AB@gmail.com"))
+        assertEquals(a, g.dao.self()?.id)
+        g.session.prepareEmail("b@x.com")
+        register("tB", "b@x.com")
+        g.session.signOut()
+        assertEquals("login", g.session.prepareEmail("AB@gmail.com"))
+        assertEquals(a, g.dao.self()?.id)
+        // a hash an earlier version stored (of the address itself) still matches
+        g.session.switchAccount(null)
+        val sql = g.db.openHelper.writableDatabase
+        sql.execSQL("UPDATE arch_self SET email = ? WHERE account = ?", arrayOf(com.pusharmor.store.Slots.legacyEmailHash("a.b@gmail.com"), a.take(12)))
+        assertEquals(a.take(12), g.slots.accountFor(" A.B@gmail.com", null))
+        assertNull(g.slots.accountFor("ab@gmail.com.au", null))
+    }
+
+    /** A removed device has no id and no keys, but a switch keeps the history in the archive, and switching back brings it. */
+    @Test fun removedDeviceHistorySurvivesSwitch() = io {
+        register("tA", "a@x.com")
+        g.session.signOut()
+        g.session.prepareEmail("b@x.com")
+        val b = register("tB", "b@x.com")
+        history("hello B")
+        g.session.selfRemoved(deleted = false, lostKeys = false)
+        assertNull(g.dao.self())
+        assertEquals("hello B", historyTexts())
+
+        assertTrue(g.session.onTicket("tA", "a@x.com") is Session.SignIn.Switched)
+        assertNull(historyTexts())
+        assertTrue(g.slots.has(b.take(12)))
+        assertTrue(g.session.onTicket("tB", "b@x.com") is Session.SignIn.Switched)
+        assertEquals("hello B", historyTexts())
+    }
+
+    /** The screens read long-lived flows: a switch updates the devices, history, email, and settings they show without a restart. */
+    @Test fun switchUpdatesScreenFlows() = io {
+        val scope = kotlinx.coroutines.CoroutineScope(Dispatchers.IO)
+        try {
+            val peers = g.dao.peersFlow().stateIn(scope, SharingStarted.Eagerly, null)
+            val hist = g.dao.historyFlow().stateIn(scope, SharingStarted.Eagerly, null)
+            val self = g.dao.selfFlow().stateIn(scope, SharingStarted.Eagerly, null)
+            val days = g.settings.data.map { it[Settings.K.HISTORY_DAYS] }.stateIn(scope, SharingStarted.Eagerly, null)
+            fun waitFor(what: String, cond: () -> Boolean) {
+                val end = System.currentTimeMillis() + 5000
+                while (!cond()) { assertTrue(what, System.currentTimeMillis() < end); Thread.sleep(20) }
+            }
+            register("tA", "a@x.com")
+            g.store.putPeer(Peer(id = "P".repeat(40), name = "Laptop"))
+            history("hello A")
+            g.settings.set(Settings.K.HISTORY_DAYS, 7)
+            waitFor("A shown") { peers.value?.size == 1 && hist.value?.size == 1 && self.value?.email == "a@x.com" && days.value == 7 }
+            g.session.signOut()
+            g.session.prepareEmail("b@x.com")
+            waitFor("B shown") { peers.value?.isEmpty() == true && hist.value?.isEmpty() == true && self.value == null && days.value == null }
+        } finally { scope.cancel() }
     }
 }

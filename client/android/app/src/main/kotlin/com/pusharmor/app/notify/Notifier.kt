@@ -46,6 +46,20 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         /** A device's name as the app shows it: its name, else "Android device added Nov 4". */
         fun deviceName(p: PeerEntity): String = p.name ?: "${AppEffects.platformLabel(p.platform)} device added ${AppEffects.dateLabel(p.created)}"
 
+        /**
+         * The system keeps the group a channel was made with, so a per-device channel outside [PEER_GROUP] is made again
+         * under the new [id], with the importance, sound, vibration, and lights the user set on [old].
+         */
+        fun regrouped(old: NotificationChannel, id: String, name: String): NotificationChannel =
+            NotificationChannel(id, name, old.importance).also { c ->
+                c.group = PEER_GROUP
+                c.setSound(old.sound, old.audioAttributes)
+                old.vibrationPattern?.let { c.vibrationPattern = it }
+                c.enableVibration(old.shouldVibrate())
+                c.enableLights(old.shouldShowLights())
+                c.lightColor = old.lightColor
+            }
+
         fun randomChannelId(): String = B64url.encode(ByteArray(16).also { SecureRandom().nextBytes(it) })
 
         /** Notification id derived from the pairing key pk (first 4 bytes, positive). */
@@ -83,10 +97,21 @@ class Notifier(private val context: Context, private val settings: Settings, pri
     private fun peerChannel(id: String, p: PeerEntity) =
         NotificationChannel(id, deviceName(p), NotificationManager.IMPORTANCE_HIGH).also { it.group = PEER_GROUP }
 
-    /** Brings every existing per-device channel to its device's current name; on app start and when the device list changes, never on a timer. */
+    /**
+     * Brings every existing per-device channel to its device's current name; on app start and when the device list changes, never on a timer.
+     * A channel an earlier version made outside the group is made again in it (see [regrouped]), and the old one is deleted.
+     */
     fun syncPeerChannels() {
         nm.createNotificationChannelGroup(NotificationChannelGroup(PEER_GROUP, "Messages from devices"))
-        for (p in dao.peers()) p.channelId?.let { nm.createNotificationChannel(peerChannel(it, p)) }
+        for (p in dao.peers()) {
+            val id = p.channelId ?: continue
+            val old = nm.getNotificationChannel(id)
+            if (old == null || old.group == PEER_GROUP) { nm.createNotificationChannel(peerChannel(id, p)); continue }
+            val new = randomChannelId()
+            nm.createNotificationChannel(regrouped(old, new, deviceName(p)))
+            dao.setChannelId(p.id, new)
+            nm.deleteNotificationChannel(id)
+        }
     }
 
     fun renamePeerChannel(peerId: String) {

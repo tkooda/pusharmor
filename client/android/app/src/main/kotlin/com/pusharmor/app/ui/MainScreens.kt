@@ -449,13 +449,14 @@ internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, content: @Co
     // Live on each resume: a UnifiedPush app installed meanwhile clears the card and gets registered.
     val noPushApp = remember(tick, prefs == null, type) { prefs != null && UnifiedPushSupport.noPushApp(context, type, google) }
     val refused = remember(tick, prefs) { UnifiedPushSupport.refused(context, prefs, google) }
+    val setup = remember(tick, prefs) { UnifiedPushSupport.setupError(context, prefs, google) }
     LaunchedEffect(tick) { vm.registerIfInstalled() }
     val off = !n.enabled() || n.mainChannelsBlocked()
     val closed by vm.cannotReceiveClosed.collectAsState()
     val relay = relayFaultShown(Settings.flagOf(prefs, Settings.K.RELAY_FAULT, false), type, google)
     // The push address could not be sent: line 2 says why.
     val pushError = prefs?.get(Settings.K.PUSH_ERROR)
-    val cannot = UiText.cannotReceive(n.enabled(), n.mainChannelsBlocked(), noPushApp, refused != null || pushError != null, relay)
+    val cannot = UiText.cannotReceive(n.enabled(), n.mainChannelsBlocked(), noPushApp, refused != null || setup != null || pushError != null, relay)
     LaunchedEffect(cannot) { if (!cannot) vm.cannotReceiveClosed.value = false }
     val shown = cannot && !closed
     var getApp by rememberSaveable { mutableStateOf(false) }
@@ -466,7 +467,7 @@ internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, content: @Co
             val check = UiText.CHECK_AGAIN to {
                 val p = vm.prefs.value
                 vm.checkAgain(!n.enabled() || n.mainChannelsBlocked() || (p != null && UnifiedPushSupport.noPushApp(context, p[Settings.K.PUSH_TYPE], google)) ||
-                    UnifiedPushSupport.refused(context, p, google) != null)
+                    UnifiedPushSupport.refused(context, p, google) != null || UnifiedPushSupport.setupError(context, p, google) != null)
             }
             // Check again on the left; the card's own fix, the primary action, on the right.
             val (reason, actions) = when {
@@ -475,6 +476,7 @@ internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, content: @Co
                 })
                 noPushApp -> UiText.noPushApp(google) to listOf(check, UiText.GET_PUSH_APP to { getApp = true })
                 refused != null -> UiText.pushRefused(refused.first, refused.second, google) to listOf(check)
+                setup != null -> setup to listOf(check)
                 pushError != null -> pushError to listOf(check)
                 else -> UiText.RELAY_FAULT to listOf(check)
             }
