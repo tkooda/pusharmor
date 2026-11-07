@@ -36,6 +36,8 @@ test("Firefox matches and host permissions equal FIREFOX-MATCH-LIST and release/
 
 test("Firefox manifest asks for unlimitedStorage", () => {
   assert.ok(firefox.permissions.includes("unlimitedStorage"));
+  assert.equal(firefox.permissions.includes("downloads"), false);
+  assert.deepEqual(firefox.optional_permissions, ["downloads"]);
 });
 
 test("Firefox data_collection_permissions present; the committed gecko id is a placeholder (the build sets it)", () => {
@@ -52,7 +54,8 @@ test("Chrome manifest: MV3, no key in the committed or release manifest, permiss
   assert.equal(chrome.manifest_version, 3);
   assert.equal(chrome.minimum_chrome_version, "121");
   assert.equal("key" in chrome, false);
-  assert.deepEqual(chrome.permissions, ["notifications", "contextMenus", "storage", "activeTab", "identity", "alarms", "unlimitedStorage", "scripting", "downloads"]);
+  assert.deepEqual(chrome.permissions, ["notifications", "contextMenus", "storage", "activeTab", "identity", "alarms", "unlimitedStorage", "scripting"]);
+  assert.deepEqual(chrome.optional_permissions, ["downloads"]);
   assert.deepEqual(chrome.host_permissions, ["https://api.pusharmor.com/*"]);
   assert.equal("tabs" in chrome.permissions, false);
   const built = join(client, "chrome", "dist", "unpacked", "manifest.json");

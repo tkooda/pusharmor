@@ -1,6 +1,6 @@
 // Shared wiring for the two shells. The shell passes in its "browser"
 // namespace object; nothing here reads a browser global.
-import { saveTextFile } from "./model/savefile.ts";
+import { saveWithPermission } from "./model/savefile.ts";
 import { Api } from "./api/client.ts";
 import { MENU_PAGE, MENU_PARENTS, MENU_SEL, MENU_URL, clickTarget, menuSend } from "./core/actions.ts";
 import { Engine } from "./core/engine.ts";
@@ -287,7 +287,7 @@ export function uiEnv(b: Browser): UiEnv {
       if (/Android/i.test(navigator.userAgent)) location.assign(b.runtime.getURL("popup.html"));
       else window.close();
     },
-    saveFile: (text, filename) => saveTextFile(b.downloads, text, filename),
+    saveFile: (text, filename) => saveWithPermission(b.permissions, () => b.downloads, text, filename),
     async copy(text) {
       await navigator.clipboard.writeText(text);
     },

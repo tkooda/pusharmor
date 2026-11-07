@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { uiEnv } from "../src/shellkit.ts";
-import { saveTextFile } from "../src/model/savefile.ts";
+import { saveTextFile, saveWithPermission } from "../src/model/savefile.ts";
 import { ellipsize, msgActions, saveFilename } from "../src/model/msgactions.ts";
 
 test("action order by message type", () => {
@@ -61,4 +61,26 @@ test("Save: cancelling the dialog is silent (null); other failures reject", asyn
   const bad = { download: async () => Promise.reject(new Error("Invalid filename")), search: async () => [] };
   await assert.rejects(saveTextFile(bad, "x", "f.txt"), /Invalid filename/);
   await assert.rejects(saveTextFile(undefined, "x", "f.txt"));
+});
+
+test("Save requests the downloads permission first, then saves when granted", async () => {
+  const order: string[] = [];
+  const perms = { request: async (p: { permissions: string[] }) => (order.push("request:" + p.permissions.join()), true) };
+  const d = { download: async () => (order.push("download"), 3), search: async () => [{ filename: "/x/f.txt" }] };
+  assert.equal(await saveWithPermission(perms, () => d, "t", "f.txt"), "/x/f.txt");
+  assert.deepEqual(order, ["request:downloads", "download"]);
+});
+
+test("Save: permission denied rejects with the allow-downloads text and never downloads", async () => {
+  let downloaded = false;
+  const d = { download: async () => ((downloaded = true), 1), search: async () => [] };
+  await assert.rejects(saveWithPermission({ request: async () => false }, () => d, "t", "f.txt"), /DOWNLOADS_DENIED/);
+  assert.equal(downloaded, false);
+});
+
+test("Save: the downloads API is resolved after the grant", async () => {
+  let granted = false;
+  const d = { download: async () => 1, search: async () => [{ filename: "p" }] };
+  const perms = { request: async () => ((granted = true), true) };
+  assert.equal(await saveWithPermission(perms, () => (granted ? d : undefined), "t", "f.txt"), "p");
 });

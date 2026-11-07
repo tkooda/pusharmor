@@ -226,6 +226,7 @@ export const R = {
   keysUnusable: "This device's security keys cannot be used right now. Restart the device and try again.",
   storageFull: "Storage is full. Free some space and try again.",
   saveFailed: "PushArmor could not save its data on this device. Restart PushArmor and try again.",
+  downloadsDenied: "Allow downloads for PushArmor to save files",
   saveDenied: "PushArmor is not allowed to save there. Choose another location.",
   tryAgain: "Try again.",
   enterCode: "Enter the 6-character code from the email.",
@@ -246,6 +247,6 @@ export const R = {
 /** Save a message to a file: no access, a full disk, else a plain retry. */
 export function saveFailText(err: unknown): string {
   const m = String((err as { message?: unknown } | null)?.message ?? "");
-  const why = /FILE_ACCESS_DENIED/.test(m) ? R.saveDenied : /FILE_NO_SPACE/.test(m) ? R.storageFull : R.tryAgain;
+  const why = /DOWNLOADS_DENIED/.test(m) ? R.downloadsDenied : /FILE_ACCESS_DENIED/.test(m) ? R.saveDenied : /FILE_NO_SPACE/.test(m) ? R.storageFull : R.tryAgain;
   return actionLine("saveMessage") + "\n" + why;
 }

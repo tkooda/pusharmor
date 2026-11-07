@@ -13,12 +13,12 @@
     "unlimitedStorage",
     "activeTab",
     "alarms",
-    "downloads",
     "webRequest",
     "webRequestBlocking",
     "https://api.pusharmor.com/*",
     "https://pusharmor.com/fx/fwd"
   ],
+  "optional_permissions": ["downloads"],
   "content_scripts": [
     {
       "matches": [

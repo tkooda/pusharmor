@@ -81,6 +81,7 @@ export interface Browser {
     clear(name: string): Promise<boolean>;
     onAlarm: Event<(a: { name: string }) => void>;
   };
+  permissions?: { request(p: { permissions: string[] }): Promise<boolean> };
   downloads?: {
     download(o: { url: string; filename?: string; saveAs?: boolean }): Promise<number>;
     search(q: { id: number }): Promise<{ filename?: string }[]>;

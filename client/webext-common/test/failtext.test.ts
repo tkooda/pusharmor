@@ -96,6 +96,7 @@ test("every action line, with the device name in straight double quotes", () => 
 test("save message: denied, full, else a plain retry", () => {
   assert.equal(saveFailText(new Error("FILE_ACCESS_DENIED")), "Unable to save the message.\nPushArmor is not allowed to save there. Choose another location.");
   assert.equal(saveFailText(new Error("FILE_NO_SPACE")), "Unable to save the message.\nStorage is full. Free some space and try again.");
+  assert.equal(saveFailText(new Error("DOWNLOADS_DENIED")), "Unable to save the message.\nAllow downloads for PushArmor to save files");
   assert.equal(saveFailText(new Error("downloads unavailable")), "Unable to save the message.\nTry again.");
 });
 
