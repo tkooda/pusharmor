@@ -2,9 +2,10 @@ PushArmor sends links and text between a user's own devices.
 
 LOG IN
 1. Click the PushArmor toolbar button, enter the reviewer email address
-   given in the Developer Hub for this add-on, and click "Email me a code".
+   given in the Whiteboard (Technical Details) for this add-on, and click
+   "Email me a code".
    No email is sent to that address: enter the 6-digit code shown at the
-   URL given with it in the Developer Hub.
+   URL given with it in the Whiteboard.
 
 PAIR A SECOND DEVICE
 2. Install the PushArmor Android app and log in with the same account,
