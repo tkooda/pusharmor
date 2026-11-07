@@ -279,6 +279,25 @@ export function amoRetry(amo, wait = sleep, log = console.log) {
     }
   };
 }
+/** Wrap an App Store Connect request function: on HTTP 5xx or a network
+ *  error (not on 4xx), log, wait 5, 15, then 45 s and send the
+ *  request again, up to 3 retries. */
+export function ascRetry(fn, wait = sleep, log = console.log, delays = [5000, 15000, 45000]) {
+  return async (...args) => {
+    for (let n = 0; ; n++) {
+      try {
+        return await fn(...args);
+      } catch (e) {
+        const m = String(e?.message || "");
+        const http4 = /: HTTP (\d+)/.exec(m);
+        const retriable = http4 ? Number(http4[1]) >= 500 : true;
+        if (n >= delays.length || !retriable) throw e;
+        log("App Store Connect " + args[0] + " " + String(args[1]).split("?")[0] + " failed (" + m.slice(0, 120) + "), waiting " + delays[n] / 1000 + " s (retry " + (n + 1) + " of " + delays.length + ")");
+        await wait(delays[n]);
+      }
+    }
+  };
+}
 const sha256 = (b) => createHash("sha256").update(b).digest("hex");
 
 /** gh arguments that verify the build provenance attestation of file: made by
@@ -504,12 +523,12 @@ const ascState = (v) => v.attributes.appVersionState || v.attributes.appStoreSta
 export async function appstore(version) {
   const base = "https://api.appstoreconnect.apple.com";
   const key = process.env.ASC_API_KEY_P8;
-  const asc = (method, path, body, ok) =>
+  const asc = ascRetry((method, path, body, ok) =>
     http(method, path.startsWith("https://") ? path : base + path, {
       headers: { Authorization: "Bearer " + ascToken(key, process.env.ASC_API_KEY_ID, process.env.ASC_API_ISSUER_ID), "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
       ok,
-    });
+    }));
   const build = String(buildNumber(version));
 
   const apps = (await asc("GET", "/v1/apps?filter[bundleId]=" + BUNDLE_ID)).json.data.filter((a) => a.attributes.bundleId === BUNDLE_ID);
@@ -570,7 +589,7 @@ export async function appstore(version) {
   if (!set) {
     set = (await asc("POST", "/v1/appScreenshotSets", { data: { type: "appScreenshotSets", attributes: { screenshotDisplayType: IOS_SCREENSHOT_TYPE }, relationships: { appStoreVersionLocalization: { data: { type: "appStoreVersionLocalizations", id: loc.id } } } } })).json.data;
   }
-  const images = await syncScreenshots({ asc, http, setId: set.id, shots, sleep });
+  const images = await syncScreenshots({ asc, http: ascRetry(http), setId: set.id, shots, sleep });
 
   // App Review notes, contact details, and the demo account stay as
   // entered in App Store Connect; this script never writes them.

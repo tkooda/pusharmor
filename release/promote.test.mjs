@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, verify } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { AMO_REVIEW_NOTES, PLAY_ICON, IOS_SCREENSHOT_TYPE, amoNotesProblems, amoRetry, amoToken, appstore, ascToken, attestationArgs, clearOutput, cmpVersion, commitProblems, contactProblems, http, listingProblems, playGateProblem, readListing, releaseAssets, screenshotFiles, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncAmoPreviews, syncScreenshots, tagPlatform } from "./promote.mjs";
+import { AMO_REVIEW_NOTES, PLAY_ICON, IOS_SCREENSHOT_TYPE, amoNotesProblems, amoRetry, ascRetry, amoToken, appstore, ascToken, attestationArgs, clearOutput, cmpVersion, commitProblems, contactProblems, http, listingProblems, playGateProblem, readListing, releaseAssets, screenshotFiles, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncAmoPreviews, syncScreenshots, tagPlatform } from "./promote.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -380,6 +380,36 @@ test("App Store screenshots: waits for processing, fails on FAILED, reuses earli
   f = fakeAsc(files.map((s, i) => ({ id: "c" + i, name: s.name, sum: md5(s.data), state: "COMPLETE" })), {});
   assert.equal(await syncScreenshots({ ...f, ...opts }), "screenshots unchanged");
   assert.deepEqual(f.calls.filter((c) => !c.startsWith("GET")), []);
+});
+
+test("App Store requests: retried on HTTP 5xx and network errors, not on 4xx", async () => {
+  const waits = [];
+  const wait = async (ms) => void waits.push(ms);
+  let n = 0;
+  const flaky = ascRetry(async () => { if (++n < 4) throw new Error("POST https://x/v1/appScreenshots: HTTP 500: boom"); return "ok"; }, wait, () => {});
+  assert.equal(await flaky("POST", "/v1/appScreenshots"), "ok");
+  assert.deepEqual(waits, [5000, 15000, 45000]);
+  n = -10;
+  await assert.rejects(ascRetry(async () => { throw new Error("POST u: HTTP 503: x"); }, wait, () => {})("POST", "/p"), /HTTP 503/);
+  let net = 0;
+  assert.equal(await ascRetry(async () => { if (net++ < 1) throw new TypeError("fetch failed"); return "ok"; }, wait, () => {})("GET", "/p"), "ok");
+  let c = 0;
+  await assert.rejects(ascRetry(async () => { c++; throw new Error("GET u: HTTP 409: x"); }, wait, () => {})("GET", "/p"), /HTTP 409/);
+  assert.equal(c, 1);
+});
+
+test("App Store screenshots: a run that dies midway resumes and uploads only the missing files", async () => {
+  const files = ["01-a.png", "02-b.png", "03-c.png"].map((name) => ({ name, data: Buffer.from(name) }));
+  const opts = { setId: "set1", shots: files, sleep: async () => {}, now: () => 0 };
+  let f = fakeAsc([], {});
+  let posts = 0;
+  const dying = async (m, p, b) => { if (m === "POST" && p === "/v1/appScreenshots" && ++posts === 3) throw new Error("POST u: HTTP 500: boom"); return f.asc(m, p, b); };
+  await assert.rejects(syncScreenshots({ ...opts, asc: dying, http: f.http }), /HTTP 500/);
+  assert.equal(f.shots.size, 2);
+  f.calls.length = 0;
+  assert.equal(await syncScreenshots({ ...opts, asc: f.asc, http: f.http }), "1 screenshots uploaded, 2 reused");
+  assert.equal(f.calls.filter((c) => c === "POST /v1/appScreenshots").length, 1);
+  assert.equal(f.calls.filter((c) => c.startsWith("DELETE")).length, 0);
 });
 
 test("AMO previews: every screenshot is uploaded in order before the old previews are deleted", async () => {
