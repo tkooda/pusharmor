@@ -72,7 +72,9 @@ test("every code element has a copy button and no link has one", () => {
   for (const rel of htmlFiles) {
     const html = read(rel);
     const copied = new Set(buttons(html).map((b) => b.attrs["data-copy"]).filter(Boolean));
-    for (const c of tags(html, "code")) assert.ok(copied.has(c.attrs.id), rel + ": no copy button for " + c.raw);
+    assert.ok(!/<pre><code>/.test(html), rel + ": a code block has no id for its copy button");
+    // inline code in a sentence (no id) needs no copy button; every code block (pre) does
+    for (const c of tags(html, "code")) if (c.attrs.id) assert.ok(copied.has(c.attrs.id), rel + ": no copy button for " + c.raw);
     for (const a of tags(html, "a")) assert.ok(!copied.has(a.attrs.id), rel + ": a link has a copy button: " + a.attrs.href);
   }
 });
