@@ -79,6 +79,24 @@ public enum Ids {
         return true
     }
 
+    private static let plusTagDomains: Set<String> = ["gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "msn.com", "icloud.com", "me.com", "mac.com", "fastmail.com", "proton.me", "protonmail.com", "protonmail.ch", "pm.me"]
+
+    /// The account identity of a normalized address, as the relay server computes it: a
+    /// "+tag" is dropped for common providers, and Gmail also ignores dots in the local part.
+    public static func mailboxKey(_ normalized: String) -> String {
+        guard let at = normalized.lastIndex(of: "@") else { return normalized }
+        var local = String(normalized[normalized.startIndex ..< at])
+        var domain = String(normalized[normalized.index(after: at)...])
+        guard plusTagDomains.contains(domain) else { return normalized }
+        if let plus = local.firstIndex(of: "+"), plus != local.startIndex { local = String(local[local.startIndex ..< plus]) }
+        if domain == "gmail.com" || domain == "googlemail.com" {
+            domain = "gmail.com"
+            let dotless = local.replacingOccurrences(of: ".", with: "")
+            if !dotless.isEmpty { local = dotless }
+        }
+        return local + "@" + domain
+    }
+
     /// email_hash = sha256("PA-ACCT1\n" || normalized email)
     public static func emailHash(normalized: String) -> Data {
         Bytes.sha256(Bytes.ascii("PA-ACCT1\n"), Bytes.ascii(normalized))

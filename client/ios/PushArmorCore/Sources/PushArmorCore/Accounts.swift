@@ -51,9 +51,15 @@ public struct Accounts {
         try store.db.one("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'archive'") != nil
     }
 
-    /// The archive's stand-in for a normalized address: hex of its email hash. The archive holds no plain address.
-    static func emailKey(_ normalized: String) -> String {
-        Ids.emailHash(normalized: normalized).map { String(format: "%02x", $0) }.joined()
+    /// The archive's stand-in for a normalized address: hex of the email hash of its mailbox key.
+    /// The archive holds no plain address.
+    static func emailKey(_ normalized: String) -> String { hexHash(Ids.mailboxKey(normalized)) }
+
+    /// An earlier version hashed the plain normalized address; lookups still accept it.
+    static func legacyEmailKey(_ normalized: String) -> String { hexHash(normalized) }
+
+    private static func hexHash(_ s: String) -> String {
+        Ids.emailHash(normalized: s).map { String(format: "%02x", $0) }.joined()
     }
 
     /// Hashes a plain address an earlier version left in the archive, in its column and in its saved rows.
@@ -75,8 +81,8 @@ public struct Accounts {
         guard let n = Ids.normalizeEmail(email), !n.isEmpty, try hasArchive() else { return nil }
         try hashPlain()
         let active = try store.me().id.map(Accounts.accountId) ?? ""
-        return try store.db.one("SELECT account FROM archive WHERE email = ? AND account != ? ORDER BY rowid DESC LIMIT 1",
-                                [.text(Accounts.emailKey(n)), .text(active)])?.text("account")
+        return try store.db.one("SELECT account FROM archive WHERE (email = ? OR email = ?) AND account != ? ORDER BY rowid DESC LIMIT 1",
+                                [.text(Accounts.emailKey(n)), .text(Accounts.legacyEmailKey(n)), .text(active)])?.text("account")
     }
 
     public func isArchived(_ account: String) throws -> Bool {

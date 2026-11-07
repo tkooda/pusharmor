@@ -280,6 +280,26 @@ final class AccountsTests: XCTestCase {
         XCTAssertFalse(try store.db.query("SELECT email FROM archive").contains { ($0.text("email") ?? "").contains("@") })
     }
 
+    /// The Worker's mailbox key rules.
+    func testMailboxKey() {
+        XCTAssertEqual(Ids.mailboxKey("a.b+x@gmail.com"), "ab@gmail.com")
+        XCTAssertEqual(Ids.mailboxKey("a.b+x@googlemail.com"), "ab@gmail.com")
+        XCTAssertEqual(Ids.mailboxKey("a.b+x@outlook.com"), "a.b@outlook.com")
+        XCTAssertEqual(Ids.mailboxKey("a.b+x@example.com"), "a.b+x@example.com")
+        XCTAssertEqual(Ids.mailboxKey("+x@gmail.com"), "+x@gmail.com")
+    }
+
+    /// An archive matches any spelling of the same mailbox, and a hash made by an earlier version.
+    func testArchiveMatchesMailboxKey() async throws {
+        let (idA, _) = try await register("a.b+x@googlemail.com", account: acctA, name: "Adev")
+        try await logout()
+        try accounts.switchTo(nil)
+        XCTAssertEqual(try accounts.archived(email: "AB@gmail.com"), Accounts.accountId(idA))
+        XCTAssertNil(try accounts.archived(email: "other@gmail.com"))
+        try store.db.exec("UPDATE archive SET email = ?", [.text(Accounts.legacyEmailKey("a.b+x@googlemail.com"))])
+        XCTAssertEqual(try accounts.archived(email: "A.B+x@googlemail.com"), Accounts.accountId(idA))
+    }
+
     /// Keys with no id (the register reply was lost) are archived on a switch, not deleted.
     func testKeysWithoutIdSurviveSwitch() throws {
         _ = vault.create()
