@@ -952,7 +952,7 @@ FETCH_GAP_S = 60
 PLATFORMS = {"android": "Android", "ios": "iPhone", "chrome": "Chrome", "firefox": "Firefox", "cli": "Command line"}
 MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
 REC_KEYS = ("from", "name", "platform", "type", "body", "date")
-NOT_LOGGED_IN = "This device is not logged in. Run: pusharmor login"
+NOT_LOGGED_IN = "This device is not logged in. Run: `pusharmor login`"
 LOGGED_OUT = "This device is logged out. Log in to resume."
 REMOVED = "This device was removed from the account. Log in again."
 UNREACHABLE = "The relay server could not be reached. Check your internet connection and try again."
@@ -1303,8 +1303,8 @@ def check_private(path, want):
         return
     q = quoted_path(path)
     if st.st_uid != os.getuid():
-        raise Fail("%s belongs to another user. Run: chown $(id -un) %s" % (q, q))
-    raise Fail("%s must not be readable by other users. Run: chmod %o %s" % (q, want, q))
+        raise Fail("%s belongs to another user. Run: `chown $(id -un) %s`" % (q, q))
+    raise Fail("%s must not be readable by other users. Run: `chmod %o %s`" % (q, want, q))
 
 
 def check_unshared(path, folder):
@@ -1317,7 +1317,7 @@ def check_unshared(path, folder):
         return
     mode = stat.S_IMODE(st.st_mode)
     if mode & 0o022:
-        raise Fail("%s can be changed by other users. Run: chmod go-w %s" % (quoted_path(path), quoted_path(path)))
+        raise Fail("%s can be changed by other users. Run: `chmod go-w %s`" % (quoted_path(path), quoted_path(path)))
 
 
 def quoted_path(path):
@@ -2104,6 +2104,11 @@ def receive_pair(cx, pt):
         r = post_pair(cx, frm, "open", send)
         if r not in ("sent", "429") and cx.mode == "pair" and frm == cx.target:
             raise Fail(pair_reason(r, peer_label(p)))  # its fingerprint would never show; pair again sends it
+        if r not in ("sent", "429"):
+            with cx.store.state(write=False) as d:
+                sid = short_id(frm, d["peers"])
+            log("warning", 'Unable to continue pairing with "%s". %s Run: `pusharmor pair %s` to try again.'
+                % (peer_label(p), pair_reason(r, peer_label(p)), sid))
 
 
 def pair_note(cx, d, x, text):
@@ -2115,7 +2120,7 @@ def pair_note(cx, d, x, text):
         if x in cx.also:
             return None
         cx.also.add(x)
-        text = '"%s" also wants to pair. Run: pusharmor pair %s'
+        text = '"%s" also wants to pair. Run: `pusharmor pair %s`'
     return ("info", text % (peer_label(d["peers"].get(x)), short_id(x, d["peers"])))
 
 
@@ -2140,7 +2145,7 @@ def on_commit(cx, frm, c_n, listed):
                 ruling = p["ruling"]
                 unpin(p)
                 p["ruling"] = ruling
-            notes.append(pair_note(cx, d, frm, 'Pairing with "%s" failed. Run: pusharmor pair %s to start again.'))
+            notes.append(pair_note(cx, d, frm, 'Pairing with "%s" failed. Run: `pusharmor pair %s` to start again.'))
             # the old entry is gone: decide the new commit on its own
         if dec["entry"].startswith("created") or dec["entry"] == "n_wiped_x_replied":
             e = d["pairs"][frm] = new_entry("X", "prompted", secrets.token_bytes(32), c_n)
@@ -2151,12 +2156,12 @@ def on_commit(cx, frm, c_n, listed):
                 d["pair_auto"] = [t for t in d["pair_auto"] if 0 <= now - t < PAIR_CAP_WINDOW_S] + [now]
         notice = dec["notice"]
         if notice in ("commit", "represent"):
-            notes.append(pair_note(cx, d, frm, '"%s" wants to pair. Run: pusharmor pair %s'))
+            notes.append(pair_note(cx, d, frm, '"%s" wants to pair. Run: `pusharmor pair %s`'))
         elif notice == "crossing":
             notes.append(pair_note(cx, d, frm, 'Pairing with "%s" is in progress. (%s)'))
             again = e["msg"]  # X may never have got this device's commit: send the stored one again
         elif notice == "half_state":
-            notes.append(pair_note(cx, d, frm, '"%s" wants to pair again. Run: pusharmor pair %s'))
+            notes.append(pair_note(cx, d, frm, '"%s" wants to pair again. Run: `pusharmor pair %s`'))
         else:
             notes.append(("warning", UNREADABLE))
     for n in notes:
@@ -2195,7 +2200,7 @@ def on_open(cx, d, e, p, o, notes):
         return notes.append(("warning", UNREADABLE))
     if not open_matches_commit(o, b64d(e["c_N"])):
         d["pairs"].pop(frm, None)
-        return notes.append(pair_note(cx, d, frm, 'Pairing with "%s" failed. Run: pusharmor pair %s to start again.'))
+        return notes.append(pair_note(cx, d, frm, 'Pairing with "%s" failed. Run: `pusharmor pair %s` to start again.'))
     r_x = b64d(e["r"])
     pin_peer(p, o["sign_pub"], o["enc_pub"], pairing_id(o["r"], r_x))
     e.update(state="shown", fingerprint=sas(o["sign_pub"], o["enc_pub"], k["sign_pub"], k["enc_pub"], o["r"], r_x),
@@ -2345,7 +2350,7 @@ def sweep(cx):
             if a == "drop_pin" and p and not p["approve_verified"]:
                 unpin(p)
                 dropped = True
-                log("info", 'Pairing with "%s" timed out. Run: pusharmor pair %s to start again.'
+                log("info", 'Pairing with "%s" timed out. Run: `pusharmor pair %s` to start again.'
                     % (peer_label(p), short_id(x, d["peers"])))
     if dropped:
         reconcile_allow(cx)
@@ -2472,12 +2477,12 @@ def cmd_login(cx, args):
             try:
                 raw = ask("Code: ")
             except EOFError:
-                raise Fail("No code was entered. Run pusharmor login again.")
+                raise Fail("No code was entered. Run `pusharmor login` again.")
             code = re.sub(r"[\s\"'`]", "", raw)
             if not re.fullmatch(r"[A-Za-z0-9_-]{34}", code):
                 code, tries = None, tries + 1
                 if tries >= CODE_TRIES:
-                    raise Fail("The code was not accepted after %d tries. Run pusharmor login to get a new code."
+                    raise Fail("The code was not accepted after %d tries. Run `pusharmor login` to get a new code."
                                % CODE_TRIES)
                 print("The code is not correct. Copy the whole code from the page and paste it again.")
                 continue
@@ -2570,7 +2575,7 @@ def register_with(cx, code, stream, push, ntfy):
         if attempt == 0:
             with contextlib.suppress(ApiError, TempFail):
                 send_push(cx)
-    log("warning", "This device could not confirm that it can receive messages. Run pusharmor listen to try again.")
+    log("warning", "This device could not confirm that it can receive messages. Run `pusharmor listen` to try again.")
 
 
 def undo_register(cx):
@@ -2598,7 +2603,7 @@ def choose_evict(peers):
         a = ""
     picks = sorted({int(w) for w in a.split() if re.fullmatch(r"[0-9]{1,2}", w) and 1 <= int(w) <= len(rows)})
     if not picks or len(picks) > 9:
-        raise Fail("No devices were chosen to remove, so you are not logged in. Run pusharmor login to try again.")
+        raise Fail("No devices were chosen to remove, so you are not logged in. Run `pusharmor login` to try again.")
     return [rows[i - 1]["id"] for i in picks]
 
 
@@ -2652,7 +2657,7 @@ def cmd_logout(cx, args):
     cx.setup()
     with cx.store.state() as d:
         d["reg"], d["logout_pending"] = "logged_out", True
-    print("Logged out. Run pusharmor login to log in again.")
+    print("Logged out. Run `pusharmor login` to log in again.")
     retry_pending_logout(cx)
     with cx.store.state(write=False) as d:
         if d.get("logout_pending"):
@@ -2665,7 +2670,7 @@ def resolve_peer(cx, text, with_self=False):
         ids = list(d["peers"]) + ([cx.me] if with_self else [])
     x = resolve_id(text, ids)
     if x is None:
-        raise Fail('No device matches "%s". Run pusharmor pair to see your devices.' % text)
+        raise Fail('No device matches "%s". Run `pusharmor pair` to see your devices.' % text)
     return x
 
 
@@ -2783,7 +2788,7 @@ def cmd_pair(cx, args):
                               strict=True)
             except EOFError:
                 print()  # Ctrl-D leaves the cursor after the prompt
-                raise Fail("No answer was given. Run pusharmor pair %s again." % sid)
+                raise Fail("No answer was given. Run `pusharmor pair %s` again." % sid)
             if not yes:
                 try:
                     deny(cx, x)
@@ -2819,7 +2824,7 @@ def cmd_pair(cx, args):
             told, deadline = wait, time.time() + PAIR_WAIT_S  # each wait ends after PAIR_WAIT_S
         pt = stream.next(deadline)
         if pt is None:
-            raise Fail('Pairing with "%s" timed out. Run: pusharmor pair %s to try again.' % (name, sid))
+            raise Fail('Pairing with "%s" timed out. Run: `pusharmor pair %s` to try again.' % (name, sid))
         pair_receive(cx, pt, stream)
 
 
@@ -2910,7 +2915,7 @@ def cmd_send(cx, args):
             for t in args.to:
                 pid = resolve_id(t, list(d["peers"]))
                 if pid is None:
-                    raise Fail('No device matches "%s". Run pusharmor pair to see your devices.' % t)
+                    raise Fail('No device matches "%s". Run `pusharmor pair` to see your devices.' % t)
                 if pid not in ready:
                     p = d["peers"][pid]
                     why = ("unknown" if p["missing"] else "unapproved" if not (
@@ -2919,7 +2924,7 @@ def cmd_send(cx, args):
                     raise Fail(SEND_WHY[why] % peer_label(p), EXIT_SEND)
                 targets.append(pid)
         if not targets:
-            raise Fail("No device is paired yet. Run pusharmor pair to pair one.", EXIT_SEND)
+            raise Fail("No device is paired yet. Run `pusharmor pair` to pair one.", EXIT_SEND)
         m, names = {}, {}
         for pid in dict.fromkeys(targets):
             p = d["peers"][pid]
