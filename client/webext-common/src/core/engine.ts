@@ -16,6 +16,7 @@ import {
   commitHash,
   emailHash,
   keyhash,
+  mailboxKey,
   normalizeEmail,
   validPeerEntry,
   pairingFingerprint,
@@ -45,7 +46,7 @@ import { CONTENT_CAP, utf8Len } from "../model/padding.ts";
 import { AUTO_REPLY_WINDOW_MS, pairDecide, type PairDecision, pairHint, pairTimeout, type ResendResult } from "../model/pairdecide.ts";
 import { replayCheck, replayRecord } from "../model/replay.ts";
 import { receiveDecide } from "../model/receive.ts";
-import { type Platform, PushRefused } from "../platform.ts";
+import { type Platform, PushNotStarted, PushRefused } from "../platform.ts";
 import { type HistoryRow, type PeerRow, type Platform4, type SelfKeys, ACCOUNTS, Db, SLOT_LOCAL, newPeerRow } from "../store/db.ts";
 import {
   ALLOW_SET,
@@ -140,15 +141,21 @@ const KEYS_BROKEN = "keys_broken";
 /** meta key: a removal signal not confirmed yet ("removed" or "deleted"); checked again on start and popup open. */
 const WIPE_CHECK = "wipe_check";
 /** Waits before the retries of a push PATCH the relay server refused. */
+const PUSH_MISS_SHOWN = 3;
 const PUSH_RETRY_MS = [30_000, 120_000, 600_000];
 /** meta key: the account id of the last registration (kept by a wipe, so the history can be archived). */
 const ACCOUNT = "account";
 /** Length of an account id: the first 9 bytes of a peer id, in base64url. */
 const ACCOUNT_CHARS = 12;
 
-/** The archive's stand-in for an address: hex of emailHash of the normalized address. */
+/** Hex of emailHash of an address. */
+async function hexHash(s: string): Promise<string> {
+  return [...(await emailHash(s))].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** The archive's stand-in for an address: hex of emailHash of its mailbox key, like the relay server's account identity. */
 async function acctEmailHash(normalized: string): Promise<string> {
-  return [...(await emailHash(normalized))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return hexHash(mailboxKey(normalized));
 }
 
 export class Engine {
@@ -1337,6 +1344,12 @@ export class Engine {
         await this.db.setMeta("push_issue", "unsupported");
         throw e;
       }
+      if (e instanceof ApiError && (e.status === 0 || e.status === 429 || (e.status === 401 && e.error !== "unknown peer"))) {
+        // no reply: shown only after the same failure on PUSH_MISS_SHOWN opens or retries in a row
+        await this.db.del("meta", "push_hash"); // the next reconcile PATCHes again
+        const n = (await this.db.updateMeta<number>("push_miss", (v) => (v ?? 0) + 1)) ?? 1;
+        if (n >= PUSH_MISS_SHOWN) await this.db.setMeta("push_issue", "noreach");
+      }
       if (e instanceof ApiError && e.status !== 0 && ((e.status >= 400 && e.status < 500 && ![401, 426, 429].includes(e.status)) || e.status >= 500)) {
         await this.pushRefusedByRelay(retry);
       }
@@ -1398,6 +1411,7 @@ export class Engine {
 
   private async pushWorked(): Promise<void> {
     await this.db.del("meta", "push_issue");
+    await this.db.del("meta", "push_miss");
     await this.db.del("meta", "push_fail");
     this.p.clearAlarm("pushretry");
   }
@@ -1410,10 +1424,11 @@ export class Engine {
   async subscribePush(quiet = false, fresh = false): Promise<PushFields | null> {
     try {
       const sub = await this.p.pushSubscribe(this.vapid, quiet, fresh);
-      await this.db.updateMeta<string>("push_issue", (v) => (v === "refused" || v === "noservice" ? undefined : v));
+      await this.db.updateMeta<string>("push_issue", (v) => (v === "refused" || v === "noservice" || v === "nostart" ? undefined : v));
       return sub;
     } catch (e) {
-      if (e instanceof PushRefused) await this.db.setMeta("push_issue", e.noService ? "noservice" : "refused");
+      if (e instanceof PushNotStarted) await this.db.setMeta("push_issue", "nostart");
+      else if (e instanceof PushRefused) await this.db.setMeta("push_issue", e.noService ? "noservice" : "refused");
       return null;
     }
   }
@@ -1765,7 +1780,7 @@ export class Engine {
   async wipe(): Promise<void> {
     await this.p.storageLocal.remove([REG_MARKER]);
     await this.db.clear(["keys", "peers", "replay"]);
-    for (const k of ["reg", LOGOUT_PENDING, "push_hash", "listed", "my_push_sha256", "my_relay_fault", "fetch_pending", "last_fetch", "push_issue", "push_fail", KEYS_BROKEN, WIPE_CHECK]) await this.db.del("meta", k);
+    for (const k of ["reg", LOGOUT_PENDING, "push_hash", "listed", "my_push_sha256", "my_relay_fault", "fetch_pending", "last_fetch", "push_issue", "push_miss", "push_fail", KEYS_BROKEN, WIPE_CHECK]) await this.db.del("meta", k);
     const all = await this.p.storageLocal.get(null);
     const drop = Object.keys(all).filter((k) => k.startsWith(PAIR_PREFIX) || k.startsWith(PAIR_MSG_PREFIX) || k === PAIR_AUTO || k === PAIR_HELD || k === ALLOW_SET || k === NET_NOT_BEFORE);
     await this.p.storageLocal.remove(drop);
@@ -1862,7 +1877,8 @@ export class Engine {
   async archivedAccount(normalized: string): Promise<string | null> {
     const active = await this.accountId();
     const h = await acctEmailHash(normalized);
-    const hit = Object.entries(await this.accounts()).find(([id, e]) => e === h && id !== active);
+    const legacy = await hexHash(normalized); // an archive made before the mailbox key
+    const hit = Object.entries(await this.accounts()).find(([id, e]) => (e === h || e === legacy) && id !== active);
     return hit ? hit[0] : null;
   }
 

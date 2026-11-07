@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { failText } from "../src/core/failtext.ts";
-import { PushRefused } from "../src/platform.ts";
+import { PushNotStarted, PushRefused } from "../src/platform.ts";
 import { b64urlDecode, b64urlEncode } from "../src/crypto/b64url.ts";
 import { pairingKey } from "../src/crypto/labels.ts";
 import { T } from "../src/core/texts.ts";
@@ -1382,6 +1382,59 @@ test("push issue: a PATCH answered 400 push endpoint not allowed shows unsupport
   await a.e.onPopupOpen(); // the next open PATCHes again, and it works now
   assert.equal(patches(), before + 1);
   assert.equal((await new Rpc(a.e).state()).pushIssue, null);
+});
+
+test("push issue: an endpoint outside any list is sent as is, and a Worker refusal of it shows unsupported", async () => {
+  const { w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  const odd = { ...a.p.sub!, endpoint: "https://push.other.example/x/1" };
+  a.p.pushSubscribe = async () => odd;
+  w.inject.push({ match: /PATCH \/v1\/peers\//, status: 400, body: { error: "push endpoint not allowed" }, times: 1 });
+  await assert.rejects(a.e.pushReconcile(true));
+  const patch = w.calls.filter((x) => x.method === "PATCH" && x.path === "/v1/peers/" + a.id).at(-1)!;
+  assert.equal((patch.body as { push: { endpoint: string } }).push.endpoint, "https://push.other.example/x/1");
+  assert.equal((await new Rpc(a.e).state()).pushIssue, "unsupported");
+});
+
+test("push issue: a PATCH with no reply, 401, or 429 on 3 reconciles in a row shows noreach; success clears it; unknown peer does not count", async () => {
+  const { w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  const fail = (status: number, error?: string) => w.inject.push({ match: /PATCH \/v1\/peers\//, status, body: { error: error ?? "x" }, times: 1 });
+  const failAll = (status: number, error?: string) => w.inject.push({ match: /PATCH \/v1\/peers\//, status, body: { error: error ?? "x" }, times: 10 });
+  const state = async () => (await new Rpc(a.e).state()).pushIssue;
+  failAll(429);
+  await assert.rejects(a.e.pushReconcile(true));
+  w.inject.length = 0;
+  fail(401, "bad signature");
+  await assert.rejects(a.e.pushReconcile(true));
+  assert.equal(await state(), null);
+  failAll(429);
+  await assert.rejects(a.e.pushReconcile(true));
+  w.inject.length = 0;
+  assert.equal(await state(), "noreach");
+  await a.e.pushReconcile(true);
+  assert.equal(await state(), null);
+  fail(401, "unknown peer");
+  await assert.rejects(a.e.pushReconcile(true)).catch(() => undefined);
+  assert.equal(await a.db.meta("push_miss"), undefined);
+});
+
+test("push issue: Firefox autopush not running or registration pending shows nostart; a later subscribe clears it", async () => {
+  const { a } = await setup();
+  const orig = a.p.pushSubscribe;
+  for (const m of ["autopush not running", "autopush registration pending"]) {
+    a.p.pushSubscribe = async () => {
+      throw new PushNotStarted(m);
+    };
+    await a.e.pushReconcile(true);
+    assert.equal((await new Rpc(a.e).state()).pushIssue, "nostart");
+    a.p.pushSubscribe = orig;
+    await a.e.pushReconcile(true);
+    assert.equal((await new Rpc(a.e).state()).pushIssue, null);
+  }
+  const { pushIssueText } = await import("../src/core/texts.ts");
+  assert.equal(pushIssueText("nostart", false), "This browser cannot receive messages.\nFirefox did not start its push service. Restart Firefox, then click Check again.");
+  assert.equal(pushIssueText("noreach", false), "This browser cannot receive messages.\nIts push address did not reach the relay server. Check the internet connection, then click Check again.");
 });
 
 test("push issue: an offline PATCH sets nothing and arms no retry", async () => {

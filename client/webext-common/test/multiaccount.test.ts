@@ -15,7 +15,7 @@ import { emailHash } from "../src/crypto/labels.ts";
 import { Db, type HistoryRow, newPeerRow, openDb } from "../src/store/db.ts";
 import { Clock, FakePlatform, MockWorker, makeEngine } from "./harness.ts";
 
-const ACCT: Record<string, Uint8Array<ArrayBuffer>> = { "a@x.com": new Uint8Array(9).fill(0x11), "b@x.com": new Uint8Array(9).fill(0x22) };
+const ACCT: Record<string, Uint8Array<ArrayBuffer>> = { "a@x.com": new Uint8Array(9).fill(0x11), "a.b+x@googlemail.com": new Uint8Array(9).fill(0x33), "b@x.com": new Uint8Array(9).fill(0x22) };
 const acctId = (email: string) => b64urlEncode(ACCT[email]!);
 
 const eh = async (email: string) => [...(await emailHash(email))].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -273,4 +273,17 @@ test("the archive holds no plain address; a plain one from an earlier version be
   assert.deepEqual(await e.accounts(), { [a.id.slice(0, 12)]: await eh("a@x.com") });
   assert.equal(await e.archivedAccount("a@x.com"), a.id.slice(0, 12));
   void p;
+});
+
+test("an archive made for a.b+x@googlemail.com matches a login typed as AB@gmail.com; a legacy plain-address hash still matches", async () => {
+  const { e, db, issue, login } = await setup();
+  await login.complete("register", issue("a.b+x@googlemail.com"), "a.b+x@googlemail.com");
+  const a = (await e.self())!;
+  await e.logout();
+  await e.switchAccount(null);
+  const id = a.id.slice(0, 12);
+  assert.equal(await e.archivedAccount("ab@gmail.com"), id);
+  assert.deepEqual(await e.accounts(), { [id]: await eh("ab@gmail.com") });
+  await db.setMeta("accounts", { [id]: await eh("a.b+x@googlemail.com") });
+  assert.equal(await e.archivedAccount("a.b+x@googlemail.com"), id);
 });

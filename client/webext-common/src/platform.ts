@@ -52,6 +52,9 @@ export interface Platform {
 }
 
 /** The browser refused a push subscription (push service off or not available). noService: it has no working push service. */
+/** The browser's own push service did not start (Firefox autopush). */
+export class PushNotStarted extends Error {}
+
 export class PushRefused extends Error {
   readonly noService: boolean;
   constructor(message: string, noService = false) {

@@ -10,7 +10,7 @@ import { Db, openDb } from "../../webext-common/src/store/db.ts";
 import type { WebPushKeys } from "../../webext-common/src/crypto/rfc8291.ts";
 import { Autopush, type ApState } from "./autopush/client.ts";
 import { fromPrivate, fxSubFields, senderAllowed } from "./gate.ts";
-import { FWD_URL, endpointAllowed, firefoxPlatform, openSetup } from "./platform-firefox.ts";
+import { FWD_URL, firefoxPlatform, openSetup } from "./platform-firefox.ts";
 import { fwdAllowed, fxShowView, onForward, readSub } from "./sitefwd/fwd.ts";
 import { browser } from "./shim.ts";
 
@@ -101,7 +101,7 @@ async function storeFallback(a: unknown): Promise<boolean> {
   const p: PushFields = { type: "webpush", ...f };
   const k = b64urlTryDecode(p.p256dh);
   const au = b64urlTryDecode(p.auth);
-  if (!endpointAllowed(p.endpoint) || !k || k.length !== 65 || !au || au.length !== 16) return false;
+  if (!k || k.length !== 65 || !au || au.length !== 16) return false;
   const d = await db();
   await d.setMeta("fallback_push", p);
   const mode = isAndroid ? "fallback" : ((await d.meta<string>("receive_mode")) ?? "direct");

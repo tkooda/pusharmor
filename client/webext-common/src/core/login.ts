@@ -2,7 +2,7 @@
 // Google and Apple. The ticket then registers, logs in or deletes.
 import { API_BASE, ApiError } from "../api/client.ts";
 import { b64urlEncode } from "../crypto/b64url.ts";
-import { normalizeEmail, oauthK } from "../crypto/labels.ts";
+import { mailboxKey, normalizeEmail, oauthK } from "../crypto/labels.ts";
 import { AUTH_RESULT, type AuthResult, type Restore, SIGNIN_PROGRESS, chromiumRedirectOk, restoreStep } from "../model/signin.ts";
 import { type Engine, UserError } from "./engine.ts";
 import { ActionError, ReasonError, failText } from "./failtext.ts";
@@ -69,7 +69,7 @@ export class Login {
     if (await this.e.canSwitch()) {
       const cur = await this.e.email();
       const active = cur === null ? null : normalizeEmail(cur);
-      if (active !== n) {
+      if (active === null || mailboxKey(active) !== mailboxKey(n)) {
         const x = await this.e.archivedAccount(n);
         if (x !== null) await this.e.switchAccount(x);
         else if (active !== null && (await this.e.self())) await this.e.switchAccount(null);
@@ -177,7 +177,7 @@ export class Login {
     // a deletion is only for the account on this device: no call
     if (purpose === "delete-account" && n !== null && an !== null && n !== an) throw new ReasonError(R.deleteOther(email!));
     // a registration for an archived account: that account comes back instead
-    if (purpose === "register" && n !== null && n !== an && (await this.e.canSwitch())) {
+    if (purpose === "register" && n !== null && (an === null || mailboxKey(n) !== mailboxKey(an)) && (await this.e.canSwitch())) {
       const x = await this.e.archivedAccount(n);
       if (x !== null) {
         await this.e.switchAccount(x);

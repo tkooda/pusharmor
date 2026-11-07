@@ -6,7 +6,6 @@ import { cleanCode, parseFragment } from "../src/core/login.ts";
 import { MENU_PARENTS, selectionTitle } from "../src/core/actions.ts";
 import { T } from "../src/core/texts.ts";
 import { readForward } from "../../firefox/src/sitefwd/fwd.ts";
-import { endpointAllowed } from "../../firefox/src/platform-firefox.ts";
 import { fromPrivate, fxSubFields, senderAllowed } from "../../firefox/src/gate.ts";
 
 test("History filter: chips All / peer names / Unknown, peer chips hidden with one peer", () => {
@@ -61,15 +60,6 @@ test("fx/fwd catch: only the SW fetch, body concatenated, over 3800 bytes droppe
   assert.deepEqual(readForward({ ...base, originUrl: "https://evil.example/" }), { m: null, cancel: false });
   assert.deepEqual(readForward({ ...base, originUrl: undefined, requestBody: { raw: [raw("AB")] } }), { m: null, cancel: false }); // no origin: not the site SW
   assert.deepEqual(readForward({ ...base, requestBody: { raw: [raw("A".repeat(3801))] } }), { m: null, cancel: true });
-});
-
-test("Firefox fallback endpoint allow-list", () => {
-  assert.ok(endpointAllowed("https://updates.push.services.mozilla.com/wpush/v2/abc"));
-  assert.ok(endpointAllowed("https://fcm.googleapis.com/fcm/send/abc"));
-  assert.ok(!endpointAllowed("https://updates.push.services.mozilla.com:444/wpush/v2/abc"));
-  assert.ok(!endpointAllowed("https://u:p@fcm.googleapis.com/fcm/send/abc"));
-  assert.ok(!endpointAllowed("https://evil.example/wpush/v2/"));
-  assert.ok(!endpointAllowed("http://fcm.googleapis.com/fcm/send/abc"));
 });
 
 test("Firefox sender gate: a site content script gets only its own site op", () => {

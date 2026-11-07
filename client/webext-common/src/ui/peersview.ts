@@ -32,6 +32,13 @@ let refreshUntil = 0;
 /** the live read of the device list. */
 let fpTimer: ReturnType<typeof setInterval> | null = null;
 
+/** The view is gone (a new mount, an account switch): stops the live read and frees Refresh. */
+export function resetPeersView(): void {
+  if (fpTimer) clearInterval(fpTimer);
+  fpTimer = null;
+  refreshUntil = 0;
+}
+
 /** Draws the list again, with focus on that row after an action. */
 type Redraw = (focusId?: string) => Promise<void>;
 

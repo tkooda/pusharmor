@@ -7,11 +7,11 @@ import { isLikelyUrl } from "../model/sendurl.ts";
 import { AUTH_CHANGED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
 import { type UiEnv, accountLine, add, clear, deviceIdLine, failView, group, h, midEllipsis, nextTabIndex, openHref, rpc, sh, shortTime } from "./dom.ts";
-import { confirmDialog, dismissToast, toast } from "./dialog.ts";
+import { closeDialogs, confirmDialog, dismissToast, toast } from "./dialog.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
 import { type MsgAction, msgActions, saveFilename } from "../model/msgactions.ts";
 import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
-import { ownCard, renderPeers } from "./peersview.ts";
+import { ownCard, renderPeers, resetPeersView } from "./peersview.ts";
 import { THEME_CHOICES, parseTheme, setTheme, startTheme } from "./theme.ts";
 
 const CAP = 2048;
@@ -50,6 +50,8 @@ export async function mountPopup(env: UiEnv, root: HTMLElement, page?: PageStart
   lastPage = page;
   const again = () => mountPopup(env, root, page);
   dismissToast(); // a message that stays belongs to the view drawn before
+  closeDialogs(); // so does a question about a device or message of that view
+  resetPeersView();
   // not a real popup (Firefox for Android shows it full screen): the screen sets the size
   document.body.classList.toggle("full", env.inPopup?.() === false);
   const my = ++mounts;

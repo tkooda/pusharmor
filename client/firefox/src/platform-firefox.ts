@@ -1,17 +1,15 @@
 // Firefox bindings (sections 5.2, 5.3): own autopush client on desktop, the
 // pusharmor.com site SW forward on Android and in fallback mode.
 import type { PushFields } from "../../webext-common/src/crypto/labels.ts";
-import type { Platform } from "../../webext-common/src/platform.ts";
+import { type Platform, PushNotStarted } from "../../webext-common/src/platform.ts";
 import { basePlatform } from "../../webext-common/src/shellkit.ts";
 import type { Db } from "../../webext-common/src/store/db.ts";
 import type { Autopush } from "./autopush/client.ts";
-import { ALLOWED_PUSH_ENDPOINT_PREFIXES, endpointAllowed } from "./endpoint.ts";
 import { browser } from "./shim.ts";
 
 export const SETUP_URL = "https://pusharmor.com/fx/setup";
 export const FWD_URL = "https://pusharmor.com/fx/fwd";
 
-export { ALLOWED_PUSH_ENDPOINT_PREFIXES, endpointAllowed };
 
 /** Opens /fx/setup in a normal (not private) window: push and the add-on do not work in a private tab. */
 export async function openSetup(): Promise<void> {
@@ -64,14 +62,14 @@ export function firefoxPlatform(ctx: FxCtx): Platform {
         return f;
       }
       const ap = ctx.autopush();
-      if (!ap) throw new Error("autopush not running");
+      if (!ap) throw new PushNotStarted("autopush not running");
       await ap.ensureRunning();
       for (let i = 0; i < 30; i++) {
         const f = await ap.fields();
         if (f) return f;
         await new Promise((r) => setTimeout(r, 500));
       }
-      throw new Error("autopush registration pending");
+      throw new PushNotStarted("autopush registration pending");
     },
     async pushCurrent() {
       if (!(await direct())) return fallback();

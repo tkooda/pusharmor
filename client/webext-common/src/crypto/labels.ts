@@ -49,6 +49,25 @@ export function normalizeEmail(email: string): string | null {
   return t.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
 }
 
+// Providers that deliver "local+tag" to "local"; Gmail also ignores dots in the local part.
+const PLUS_TAG = new Set(["gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "msn.com", "icloud.com", "me.com", "mac.com", "fastmail.com", "proton.me", "protonmail.com", "protonmail.ch", "pm.me"]);
+const GMAIL = new Set(["gmail.com", "googlemail.com"]);
+
+/** One mailbox for a normalized address; the relay server identifies an account by this. */
+export function mailboxKey(normalized: string): string {
+  const at = normalized.lastIndexOf("@");
+  let local = normalized.slice(0, at);
+  let domain = normalized.slice(at + 1);
+  if (!PLUS_TAG.has(domain)) return normalized;
+  const plus = local.indexOf("+");
+  if (plus > 0) local = local.slice(0, plus);
+  if (GMAIL.has(domain)) {
+    domain = "gmail.com";
+    local = local.replace(/\./g, "") || local;
+  }
+  return local + "@" + domain;
+}
+
 /** email_hash = sha256("PA-ACCT1\n" || normalized email) */
 export async function emailHash(normalized: string): Promise<Uint8Array> {
   return sha256(concat(ascii("PA-ACCT1\n"), ascii(normalized)));

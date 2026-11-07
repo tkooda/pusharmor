@@ -3,6 +3,13 @@ import { h } from "./dom.ts";
 import { icon } from "./icons.ts";
 
 let dialogs = 0;
+/** The confirm dialogs open now. */
+const open = new Set<HTMLDialogElement>();
+
+/** Cancels every open confirm dialog: the view it asked about is gone. */
+export function closeDialogs(): void {
+  for (const d of [...open]) d.close("");
+}
 
 /**
  * Asks before a destructive action: Cancel on the left, the action on the right.
@@ -19,11 +26,13 @@ export function confirmDialog(title: string, message: string, ok: string): Promi
   return new Promise((done) => {
     // Esc closes the dialog without a return value (cancel)
     dlg.addEventListener("close", () => {
+      open.delete(dlg);
       dlg.remove();
       opener?.focus();
       done(dlg.returnValue === "ok");
     });
     document.body.append(dlg);
+    open.add(dlg);
     dlg.showModal();
     cancel.focus();
   });
