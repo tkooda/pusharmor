@@ -1,6 +1,6 @@
 // Shared wiring for the two shells. The shell passes in its "browser"
 // namespace object; nothing here reads a browser global.
-import { saveWithPermission } from "./model/savefile.ts";
+import { saveViaLink, saveWithPermission } from "./model/savefile.ts";
 import { Api } from "./api/client.ts";
 import { MENU_PAGE, MENU_PARENTS, MENU_SEL, MENU_URL, clickTarget, menuSend } from "./core/actions.ts";
 import { Engine } from "./core/engine.ts";
@@ -235,7 +235,7 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
 }
 
 /** UiEnv for popup.html and page.html. */
-export function uiEnv(b: Browser): UiEnv {
+export function uiEnv(b: Browser, linkSave = false): UiEnv {
   return {
     call: (req) => b.runtime.sendMessage(req) as Promise<never>,
     async activeUrl() {
@@ -287,7 +287,8 @@ export function uiEnv(b: Browser): UiEnv {
       if (/Android/i.test(navigator.userAgent)) location.assign(b.runtime.getURL("popup.html"));
       else window.close();
     },
-    saveFile: (text, filename) => saveWithPermission(b.permissions, () => b.downloads, text, filename),
+    saveFile: (text, filename) =>
+      linkSave ? saveViaLink(text, filename) : saveWithPermission(b.permissions, () => b.downloads, text, filename),
     async copy(text) {
       await navigator.clipboard.writeText(text);
     },

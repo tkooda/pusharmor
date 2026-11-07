@@ -1,4 +1,4 @@
-/** save text through downloads.download with the Save-as dialog (Chrome and Firefox). */
+/** save text through downloads.download with the Save-as dialog (Firefox). */
 interface DownloadsApi {
   download(o: { url: string; filename?: string; saveAs?: boolean }): Promise<number>;
   search(q: { id: number }): Promise<{ filename?: string }[]>;
@@ -36,4 +36,21 @@ export async function saveTextFile(d: DownloadsApi | undefined, text: string, fi
   }
   const path = (await d.search({ id }))[0]?.filename;
   return path || filename;
+}
+
+/**
+ * Chrome: no downloads permission. The text goes through a temporary download link, clicked from the click handler.
+ * The browser picks the folder, so the result is the file name.
+ */
+export async function saveViaLink(text: string, filename: string): Promise<string> {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+  try {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+  return filename;
 }
