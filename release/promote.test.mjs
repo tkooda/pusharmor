@@ -168,7 +168,7 @@ test("AMO listed version: approval notes from store/listing/amo/review_notes.txt
   assert.deepEqual(amoNotesProblems(), []);
   const notes = readFileSync(AMO_REVIEW_NOTES, "utf8");
   assert.match(notes, /Email me a code/);
-  assert.match(notes, /reviewer email address\s+given in the Developer Hub/);
+  assert.match(notes, /reviewer email address\s+given in the Whiteboard/);
   assert.match(notes, /Android app|second Firefox profile/);
   assert.match(notes, /Right-click/);
   assert.doesNotMatch(notes, /password\s*[:=]|@gmail\.com/i);
