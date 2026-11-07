@@ -630,3 +630,23 @@ test("Play sync replaces the 512 icon from the F-Droid metadata file", () => {
   assert.equal(png.readUInt32BE(16), 512);
   assert.equal(png.readUInt32BE(20), 512);
 });
+
+test("App Store: whatsNew is sent for an update and left out for a first version", async (t) => {
+  const want = readListing("appstore").whats_new;
+  assert.ok(want.length > 0);
+  let calls = fakeAscApi(t, [ascVersion("v-live", "0.0.20", "READY_FOR_DISTRIBUTION")]);
+  await appstore("0.0.29");
+  const patch = calls.find((c) => c.method === "PATCH" && c.path === "/v1/appStoreVersionLocalizations/loc1");
+  assert.equal(patch.body.data.attributes.whatsNew, want);
+  assert.ok(calls.findIndex((c) => c === patch) < calls.findIndex((c) => c.path === "/v1/reviewSubmissionItems"));
+  calls = fakeAscApi(t, [ascVersion("v-first", "0.0.28", "PREPARE_FOR_SUBMISSION")]);
+  await appstore("0.0.29");
+  const first = calls.find((c) => c.method === "PATCH" && c.path === "/v1/appStoreVersionLocalizations/loc1");
+  assert.ok(!("whatsNew" in first.body.data.attributes));
+});
+
+test("Play production release carries the What's New text", () => {
+  const src = readFileSync(join(ROOT, "release", "promote.mjs"), "utf8");
+  assert.match(src, /releaseNotes: \[\{ language: LOCALE, text: readListing\("play"\)\.whats_new \}\]/);
+  assert.ok(readListing("play").whats_new.length <= 500);
+});

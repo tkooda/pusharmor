@@ -41,6 +41,7 @@ export const LISTING = {
     title: { max: 30 },
     short_description: { max: 80 },
     full_description: { max: 4000 },
+    whats_new: { max: 500 },
   },
   appstore: {
     name: { max: 30 },
@@ -50,6 +51,7 @@ export const LISTING = {
     promotional_text: { max: 170 },
     privacy_url: { max: 255, url: true },
     copyright: { max: 200 },
+    whats_new: { max: 4000 },
   },
 };
 // Play 512x512 listing icon (shared with the F-Droid metadata).
@@ -450,7 +452,7 @@ async function play(version) {
     newer = true;
     track = "production has a newer versionCode (" + Math.max(...codes) + ")";
   } else {
-    const body = { track: "production", releases: [{ name: version, versionCodes: [String(code)], status: "completed" }] };
+    const body = { track: "production", releases: [{ name: version, versionCodes: [String(code)], status: "completed", releaseNotes: [{ language: LOCALE, text: readListing("play").whats_new }] }] };
     await http("PUT", e + "/tracks/production", { headers: json, body: JSON.stringify(body) });
     track = "sent to production (versionCode " + code + ")";
     changed = true;
@@ -518,6 +520,8 @@ export function ascToken(keyP8, keyId, issuer, now = Math.floor(Date.now() / 100
 // promote takes it over (new version string and build) instead of adding a second one.
 export const ASC_DONE = ["WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE", "PENDING_APPLE_RELEASE", "PROCESSING_FOR_APP_STORE", "READY_FOR_SALE", "READY_FOR_DISTRIBUTION", "ACCEPTED", "PREORDER_READY_FOR_SALE", "WAITING_FOR_EXPORT_COMPLIANCE"];
 export const ASC_EDITABLE = ["PREPARE_FOR_SUBMISSION", "READY_FOR_REVIEW", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED", "INVALID_BINARY"];
+// States of a version that was on sale; a first version rejects whatsNew.
+const ASC_RELEASED = ["READY_FOR_SALE", "READY_FOR_DISTRIBUTION", "REPLACED_WITH_NEW_VERSION", "REMOVED_FROM_SALE", "DEVELOPER_REMOVED_FROM_SALE"];
 const ascState = (v) => v.attributes.appVersionState || v.attributes.appStoreState;
 
 export async function appstore(version) {
@@ -566,6 +570,8 @@ export async function appstore(version) {
   // No contact field (support or marketing URL, email, phone, address): those
   // stay as set in App Store Connect (owner rule).
   const la = { description: want.description, keywords: want.keywords, promotionalText: want.promotional_text };
+  // Updates need What's New; the first version of an app must not have it.
+  if (versions.some((x) => x.id !== v.id && ASC_RELEASED.includes(ascState(x)))) la.whatsNew = want.whats_new;
   let loc = locs.find((l) => l.attributes.locale === LOCALE);
   if (loc) {
     await asc("PATCH", "/v1/appStoreVersionLocalizations/" + loc.id, { data: { type: "appStoreVersionLocalizations", id: loc.id, attributes: la } });
