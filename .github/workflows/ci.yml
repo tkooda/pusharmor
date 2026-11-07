@@ -3,7 +3,7 @@ name: ci
 # The one entry workflow for pushes to main, agent/** and internal/**. It decides which
 # component files to call; ci-ok is the per-change check that main fast-forwards
 # on. A release tag needs only its platform's jobs here plus repo and vectors to
-# succeed on its stamp commit (release/tag.mjs GATE), so the tag-only
+# succeed on its release commit (release/tag.mjs GATE), so the tag-only
 # *-release.yml files do not run these tests again; every call from here grants
 # contents: read and nothing more.
 on:
@@ -75,7 +75,7 @@ jobs:
           # Strict shared paths (workflows, release values, vectors, node pins) count as
           # every component. The npm lockfile and .npmrc reach only the npm-based
           # components, not the Android or iOS builds. release/version.properties is
-          # the Android version file (an Android stamp commit): Android, site, vectors.
+          # the Android version file (a release commit stamping Android): Android, site, vectors.
           if [ "$all" = 1 ] || printf '%s\n' "$files" | grep -vx 'release/version\.properties' \
             | grep -Eq '^(\.github/|release/|tests/vectors/|\.node-version$|site/\.node-version$)'; then all=1; fi
           npmall=0

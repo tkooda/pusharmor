@@ -8,8 +8,11 @@
 //   node release/tag.mjs --ci TAG          first release job: the release gate of the
 //                                          tag's platform passed on the commit of TAG
 //                                          (waits for a running CI)
-// Rules: a commit carries one version; the tags of X.Y.Z (one stamp commit per
-// platform) are on commits of one line of history, and versions grow along it; a
+// One release commit per version: stamp every platform of the release in one
+// working-tree change, commit it ("release X.Y.Z"), rerun the same command on that
+// commit, and all the tags <platform>/vX.Y.Z land on it.
+// Rules: a commit carries one version; the tags of X.Y.Z are on commits of one
+// line of history (several tags may share a commit), and versions grow along it; a
 // new version (no tag of it yet) is greater than every existing tag; the version
 // files at the commit hold X.Y.Z
 // (stampProblems), /download holds the SHA-256 of pusharmor.py at the commit, and
@@ -79,8 +82,8 @@ export function formatProblems(platform, version) {
  * Problems with giving `commit` the version `version`. tags: [{ name, commit }] of
  * the existing tags to compare with (names that are not <platform>/vX.Y.Z are ignored).
  * isAncestor(a, b): commit a is an earlier commit in the history of commit b.
- * Each platform has its own stamp commit, so the tags of X.Y.Z may be on several
- * commits, as long as they are on one line of history: a tag of X.Y.Z on a
+ * The tags of X.Y.Z are normally on one release commit; they may be on several
+ * commits (a platform that joins later), as long as they are on one line of history: a tag of X.Y.Z on a
  * commit that is neither before nor after this one is a problem. Other versions:
  * a tag on an earlier commit must be lower, a tag on a later commit higher.
  * platforms: the platforms being tagged; none of them may have a newer tag.
@@ -433,7 +436,7 @@ function tagHead(platforms, version) {
     if (bad.length) fail(bad);
     stamp(root, version, platforms);
     console.log("stamped " + version + " into the version files of " + platforms.join(", ") + "; nothing tagged.");
-    console.log("review and commit them (git commit -am \"release " + version + " " + platforms.join(" ") + "\"), then rerun:");
+    console.log("review and commit them (git commit -am \"release " + version + "\"), then rerun:");
     console.log("  node release/tag.mjs " + version + " " + platforms.join(" "));
     process.exit(1);
   }

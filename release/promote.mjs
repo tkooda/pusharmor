@@ -181,9 +181,9 @@ export function playGateProblem(env) {
 }
 
 /** The platforms without a tag of X.Y.Z. commits maps each platform to the
- *  commit of its tag, or null when it has no tag. Each platform has its own
- *  stamp commit, so the tags may be on different commits (release/tag.mjs keeps
- *  them on one line of history). */
+ *  commit of its tag, or null when it has no tag. The tags are normally on one
+ *  release commit; a platform that joined later may be on another commit
+ *  (release/tag.mjs keeps them on one line of history). */
 export function commitProblems(version, commits) {
   return { missing: PLATFORMS.filter((p) => !commits[p]) };
 }

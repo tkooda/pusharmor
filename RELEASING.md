@@ -26,10 +26,10 @@ three stores; it is not a manual release.
 
 All platforms share ONE version counter X.Y.Z. A release tags only the platforms
 that changed (for example `chrome/v0.0.22` alone); the others skip that number.
-Each platform of a release has its own stamp commit, so one slow platform never
-holds up the others. A commit carries one version; the tags of X.Y.Z are on one
-line of history and versions grow along it; a new version is greater than every
-existing tag. `release/tag.mjs` stamps the version files of the named platform
+A release has ONE release commit that stamps every platform of it, and all the
+tags of X.Y.Z are on that commit. A commit carries one version; the tags of
+X.Y.Z are on one line of history and versions grow along it; a new version is greater than every
+existing tag. `release/tag.mjs` stamps the version files of the named platforms
 (the Worker too: `server/worker/package.json` and its lockfile) and enforces the
 rules (header comment and `FILES` list there; tests in `release/tag.test.mjs`);
 every release workflow checks them again in its first job, including the
@@ -49,23 +49,20 @@ version (0.0.1 -> 1; `buildNumber` in `release/tag.mjs`).
 Order: deploy the Worker first when the clients need it. Every test channel
 talks to the production Worker, and the public clients must keep working with it.
 
-1. On an up-to-date main with a clean tree, one platform at a time, fastest
-   first (worker, cli, chrome, firefox, android, ios):
-   `node release/tag.mjs X.Y.Z <platform>`. It writes the version files of that
-   platform and stops (nothing tagged). Commit them ("release X.Y.Z
-   <platform>"), then do the next platform on top. Each stamp commit changes
-   only its platform's files, so CI runs only that platform's jobs (and the
-   shared checks) for it.
-2. Push each stamp commit to its own `internal/<12-char sha>` branch, one push
-   per branch (GitHub starts no workflow for a push of more than three refs).
-3. As soon as a platform's gate passes on its stamp commit, fast-forward main
-   to that commit (the stamp commits before it must have landed), check it out
-   and run `node release/tag.mjs X.Y.Z <platform>` again: it fetches the tags and
-   main of origin, checks the rules (the commit is on origin/main, and the
-   platform's gate, with your `gh` login) and creates the annotated tag.
+1. On an up-to-date main with a clean tree:
+   `node release/tag.mjs X.Y.Z <platform>...` (`all` = android ios chrome
+   firefox; list `cli` or `worker` too when they ship). It writes the version
+   files of those platforms and stops (nothing tagged). Commit them in ONE
+   commit ("release X.Y.Z").
+2. Push the release commit to an `internal/<12-char sha>` branch.
+3. When the gate of every platform passes on it, fast-forward main to that
+   commit, check it out and run the same command again: it fetches the tags and
+   main of origin, checks the rules (the commit is on origin/main, and each
+   platform's gate, with your `gh` login) and creates the annotated tags
+   `<platform>/vX.Y.Z`, all on that commit.
 4. `git push origin <platform>/vX.Y.Z`, one tag per push. A platform that
    failed: fix it on top of main and stamp it again on a new commit (same
-   X.Y.Z while no higher version is tagged).
+   X.Y.Z while no higher version is tagged; its tag may join later).
 
 `PA_MIN_CLIENT` (Worker) takes a per-platform list (`android=0.0.22,ios=0.0.20`)
 because platform versions differ; set a floor only for platforms that have it.

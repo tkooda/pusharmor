@@ -456,6 +456,7 @@ test("platform subset: only those version files change; numbers are shared and n
   assert.match(read("site/public/fx/beta/updates.json"), /"version": "1\.2\.3"/);
   assert.equal(r.status, 1, r.stderr);
   assert.match(r.stdout, /stamped 1\.2\.3 into the version files of chrome, firefox/);
+  assert.match(r.stdout, /git commit -am "release 1\.2\.3"\)/);
   assert.match(read("client/chrome/manifest.json"), /"version": "1\.2\.3"/);
   assert.match(read("client/firefox/manifest.json"), /"version": "1\.2\.3"/);
   assert.ok(!/^versionName=1\.2\.3$/m.test(read("release/version.properties")));
@@ -495,4 +496,29 @@ test("platform subset: only those version files change; numbers are shared and n
   assert.equal(r.status, 1);
   assert.match(r.stderr, /1\.2\.3 is not greater than the existing tag worker\/v1\.2\.4/);
   assert.equal(git("tag", "-l", "ios/*"), "");
+});
+
+test("one release commit: all platforms stamped in one change, every tag on that one commit", (t) => {
+  const { d, git, run, bin } = scratch();
+  t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
+  const read = (f) => readFileSync(join(d, f), "utf8");
+  let r = run("1.5.0", "all", "cli");
+  assert.equal(r.status, 1, r.stderr);
+  assert.match(r.stdout, /into the version files of android, ios, chrome, firefox, cli/);
+  assert.match(r.stdout, /git commit -am "release 1\.5\.0"\)/);
+  assert.match(r.stdout, /node release\/tag\.mjs 1\.5\.0 android ios chrome firefox cli/);
+  assert.match(read("client/ios/project.yml"), /MARKETING_VERSION: "1\.5\.0"/);
+  assert.match(read("client/cli/pusharmor.py"), /VERSION = "1\.5\.0"/);
+  assert.match(read("release/version.properties"), /^versionName=1\.5\.0$/m);
+  git("commit", "-q", "-am", "release 1.5.0");
+  r = run("1.5.0", "all", "cli");
+  assert.equal(r.status, 0, r.stderr);
+  const head = git("rev-parse", "HEAD");
+  const names = ["android", "ios", "chrome", "firefox", "cli"].map((p) => p + "/v1.5.0");
+  for (const n of names) {
+    assert.equal(git("rev-parse", n + "^{commit}"), head);
+    assert.equal(run("--check", n).status, 0, n);
+  }
+  // Rerun is idempotent.
+  assert.equal(run("1.5.0", "all", "cli").status, 0);
 });
