@@ -1,4 +1,4 @@
-PushArmor sends links and short notes between your own devices.
+PushArmor sends URLs and short notes between your own devices.
 
 Share a page from your browser to your phone, or send a note from your phone to your computer. It works between any devices you pair, and it stays private.
 
