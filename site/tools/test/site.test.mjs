@@ -708,7 +708,7 @@ test("/auth/cli script: /v1/ paths, fragment cleared, cli_code used", () => {
 
 test("about page mentions the command line client", () => {
   const html = read("about.html");
-  assert.ok(html.includes("<h2 id=\"cli\">Command line</h2>") && html.includes("pusharmor send https://example.com"));
+  assert.ok(html.includes("<h2 id=\"cli\">Command line</h2>") && html.includes("pusharmor send --to ID https://example.com"));
 });
 
 test("Turnstile frame has no src until the email field is used", () => {

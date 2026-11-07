@@ -33,7 +33,7 @@ const REVIEW = [
 ];
 const POPUP = [
   ["04-first-pair-waiting", "shots.html?bare&n=0&wait#peers"],
-  ["05-pairing-code", "shots.html?bare&only=new#peers"],
+  ["05-pairing-code", "shots.html?bare&n=3&only=new#peers"],
   ["06-settings", "shots.html?bare&top#settings"],
   ["07-devices", "shots.html?bare&n=9#peers"],
   ["08-send-error", "shots.html?bare&n=3&senderr#send"],
