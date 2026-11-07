@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { uiEnv } from "../src/shellkit.ts";
-import { saveTextFile, saveWithPermission } from "../src/model/savefile.ts";
+import { saveTextFile, saveViaLink, saveWithPermission } from "../src/model/savefile.ts";
 import { ellipsize, msgActions, saveFilename } from "../src/model/msgactions.ts";
 
 test("action order by message type", () => {
@@ -83,4 +83,40 @@ test("Save: the downloads API is resolved after the grant", async () => {
   const d = { download: async () => 1, search: async () => [{ filename: "p" }] };
   const perms = { request: async () => ((granted = true), true) };
   assert.equal(await saveWithPermission(perms, () => (granted ? d : undefined), "t", "f.txt"), "p");
+});
+
+test("Chrome Save clicks a temporary download link with the filename and a text blob, then revokes the URL", async () => {
+  const log: string[] = [];
+  const a: Record<string, unknown> = { click: () => log.push("click:" + a.download + ":" + a.href) };
+  const g = globalThis as Record<string, unknown>;
+  const saved = { document: g.document };
+  g.document = { createElement: (t: string) => (log.push("el:" + t), a) };
+  const orig = { create: URL.createObjectURL, revoke: URL.revokeObjectURL };
+  let blob: Blob | undefined;
+  URL.createObjectURL = (b: Blob | MediaSource) => ((blob = b as Blob), "blob:x");
+  URL.revokeObjectURL = (u: string) => void log.push("revoke:" + u);
+  try {
+    assert.equal(await saveViaLink("h\u00e9llo", "f.txt"), "f.txt");
+  } finally {
+    g.document = saved.document;
+    URL.createObjectURL = orig.create;
+    URL.revokeObjectURL = orig.revoke;
+  }
+  assert.deepEqual(log, ["el:a", "click:f.txt:blob:x", "revoke:blob:x"]);
+  assert.equal(blob!.type, "text/plain;charset=utf-8");
+  assert.equal(await blob!.text(), "h\u00e9llo");
+});
+
+test("Chrome uiEnv saves through the link and never asks for the downloads permission", async () => {
+  let asked = false;
+  const b = { permissions: { request: async () => ((asked = true), true) }, runtime: { getManifest: () => ({ name: "PushArmor" }) } };
+  const g = globalThis as Record<string, unknown>;
+  const saved = g.document;
+  g.document = { createElement: () => ({ click() {} }) };
+  try {
+    assert.equal(await uiEnv(b as never, true).saveFile!("t", "f.txt"), "f.txt");
+  } finally {
+    g.document = saved;
+  }
+  assert.equal(asked, false);
 });
