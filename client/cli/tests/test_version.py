@@ -1,4 +1,4 @@
-"""Line 2 of pusharmor.py, the version comment, matches VERSION (release/tag.mjs stamps both)."""
+"""Line 2 of pusharmor.py, the version comment, matches VERSION (cli-release writes the tag version into both)."""
 
 import os
 import sys

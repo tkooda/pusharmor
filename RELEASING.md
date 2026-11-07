@@ -26,13 +26,12 @@ three stores; it is not a manual release.
 
 All platforms share ONE version counter X.Y.Z. A release tags only the platforms
 that changed (for example `chrome/v0.0.22` alone); the others skip that number.
-A release has ONE release commit that stamps every platform of it, and all the
-tags of X.Y.Z are on that commit. A commit carries one version; the tags of
-X.Y.Z are on one line of history and versions grow along it; a new version is greater than every
-existing tag. `release/tag.mjs` stamps the version files of the named platforms
-(the Worker too: `server/worker/package.json` and its lockfile) and enforces the
-rules (header comment and `FILES` list there; tests in `release/tag.test.mjs`);
-every release workflow checks them again in its first job, including the
+Versions are tags only: nothing is committed for a release. A release tags one
+commit of main, and all the tags of X.Y.Z are on that commit. A commit carries
+one version; the tags of X.Y.Z are on one line of history and versions grow
+along it; a new version is greater than every existing tag. `release/tag.mjs`
+creates the tags and enforces the rules (header comment there; tests in
+`release/tag.test.mjs`); every release workflow checks them again in its first job, including the
 platform's release gate on the tag commit (it waits up to 40 minutes for a
 running CI): in one push run of the ci workflow, every job of the platform and
 of the shared checks (`repo`, `vectors`) ran and succeeded (`GATE` in
@@ -44,25 +43,39 @@ again.
 Build numbers: Android versionCode and the iOS build number grow with the
 version (0.0.1 -> 1; `buildNumber` in `release/tag.mjs`).
 
+Each build reads X.Y.Z from its tag; the repo holds only the dev version 0.0.0
+(build number 1), which every build without a tag gets:
+
+- Android: Gradle (`client/android/app/build.gradle.kts`) takes env `PA_VERSION`
+  (android-release and rebuild set it from the tag), else the tag `android/vX.Y.Z`
+  at HEAD (F-Droid builds a checkout of the tag), else 0.0.0. Both flavors.
+- iOS: ios-release passes the version and build number of the tag to
+  `client/ios/tools/release-archive.sh` (`MARKETING_VERSION`,
+  `CURRENT_PROJECT_VERSION`).
+- Chrome and Firefox: `client/webext-common/build.mjs` writes the manifest
+  version from env `PA_VERSION` (webext-release sets it), else
+  `release/source-tag.txt` (only in the Firefox source archive), else the tag
+  `chrome/vX.Y.Z` or `firefox/vX.Y.Z` at HEAD (`buildVersion` in `release/tag.mjs`).
+- CLI: cli-release writes X.Y.Z into `pusharmor.py` (`VERSION` and the line-2
+  comment) before it builds; PyPI and the GitHub release get that file.
+- Site: the site build reads the newest tags at deploy time (`site/README.md`).
+
 ## Making a tag
 
 Order: deploy the Worker first when the clients need it. Every test channel
 talks to the production Worker, and the public clients must keep working with it.
 
-1. On an up-to-date main with a clean tree:
+1. Pick a commit of main whose CI passed, check it out with a clean tree and run
    `node release/tag.mjs X.Y.Z <platform>...` (`all` = android ios chrome
-   firefox; list `cli` or `worker` too when they ship). It writes the version
-   files of those platforms and stops (nothing tagged). Commit them in ONE
-   commit ("release X.Y.Z").
-2. Push the release commit to an `internal/<12-char sha>` branch.
-3. When the gate of every platform passes on it, fast-forward main to that
-   commit, check it out and run the same command again: it fetches the tags and
+   firefox; list `cli` or `worker` too when they ship). It fetches the tags and
    main of origin, checks the rules (the commit is on origin/main, and each
    platform's gate, with your `gh` login) and creates the annotated tags
-   `<platform>/vX.Y.Z`, all on that commit.
-4. `git push origin <platform>/vX.Y.Z`, one tag per push. A platform that
-   failed: fix it on top of main and stamp it again on a new commit (same
-   X.Y.Z while no higher version is tagged; its tag may join later).
+   `<platform>/vX.Y.Z`, all on that commit. Nothing is committed.
+2. `git push origin <platform>/vX.Y.Z`, one tag per push (it prints the
+   commands). A platform that failed: fix it on main and tag the new commit
+   (same X.Y.Z while no higher version is tagged; its tag may join later).
+3. After the releases are published, deploy the site (`site/README.md`): it
+   picks up the new versions at build time.
 
 `PA_MIN_CLIENT` (Worker) takes a per-platform list (`android=0.0.22,ios=0.0.20`)
 because platform versions differ; set a floor only for platforms that have it.
@@ -141,7 +154,7 @@ accepts the build, or when X.Y.Z is already live or in review there.
 
 1. Tag and push; wait for the green worker-release run (tag rule and the
    worker gate: the Worker tests, bundle check and migrations with the
-   previous Worker tag passed in ci on the stamp commit).
+   previous Worker tag passed in ci on the tagged commit).
 2. From a clean checkout of the tag on main:
    `CLOUDFLARE_ACCOUNT_ID=... server/deploy/deploy.sh worker/vX.Y.Z`
    (`server/deploy/README.md`: preflight, restore bookmark, migrations, deploy, smoke test).
@@ -182,8 +195,10 @@ Promote:
 2. Optional: run the rebuild workflow (Actions > rebuild, "Use workflow
    from" and the tag input both `android/vX.Y.Z`, so the toolchain pins are
    those of the release) to prove the APKs are reproducible.
-3. F-Droid: `release/tag.mjs` stamps `site/public/fdroid/android.txt`
-   (versionName, then versionCode) with the other Android version files. The
+3. F-Droid: the site build writes `/fdroid/android.txt` (versionName, then
+   versionCode) from the newest `android/vX.Y.Z` tag; deploy the site after the
+   release. F-Droid builds a checkout of the tag, and Gradle takes the version
+   from the tag at HEAD. The
    first time, add the app metadata to fdroiddata by hand (UpdateCheckMode HTTP on that file,
    tag pattern `android/v%v`, Binaries
    `https://github.com/tkooda/pusharmor/releases/download/android/v%v/pusharmor-%v-foss.apk`,
@@ -250,10 +265,9 @@ Rerun: AMO accepts each version once. When `submit-firefox` passed and
 rerun signs the same version again and fails; fix a failure in
 `submit-firefox` or before it with a new patch version.
 
-Test: install the Beta XPI from the release link once. Auto-update:
-`release/tag.mjs` stamps `site/public/fx/beta/updates.json` (version and XPI
-URL) with the other Firefox version files; deploy the site after the
-release is published (the Beta manifest's update_url is
+Test: install the Beta XPI from the release link once. Auto-update: the site
+build writes `/fx/beta/updates.json` (version and XPI URL) from the newest
+`firefox/vX.Y.Z` tag; deploy the site after the release is published (the Beta manifest's update_url is
 `https://pusharmor.com/fx/beta/updates.json`, `release/constants.json`). Do not install the public add-on and the Beta add-on
 in the same Firefox profile: both handle the login page.
 
@@ -298,9 +312,8 @@ tag commit, so only reviewed commits may be tagged:
 
 1. Branch ruleset on `main`: block force pushes, restrict deletions, and
    require the status check `ci-ok`. No pull request: a commit reaches `main`
-   by a fast-forward push once `ci-ok` passed on it (CONTRIBUTING.md). A stamp
-   commit changes only its platform's files, so its ci-ok covers that platform
-   and the shared checks. `release/tag.mjs` and the first job of every release
+   by a fast-forward push once `ci-ok` passed on it (CONTRIBUTING.md).
+   `release/tag.mjs` and the first job of every release
    workflow refuse a commit whose platform gate did not pass (Versions).
 2. Tag ruleset, target pattern `*/v*` (all release tags): restrict creation,
    update and deletion to the owner (bypass list: repository admin and the

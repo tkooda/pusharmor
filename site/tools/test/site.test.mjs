@@ -2,7 +2,7 @@
 // Run: node --test site/tools/test/
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,7 +29,8 @@ const files = listFiles(PUB);
 const htmlFiles = files.filter((f) => f.endsWith(".html"));
 const read = (rel) => readFileSync(join(PUB, rel), "utf8");
 const text = (rel) => pageText(read(rel));
-const APK_VERSION = /^versionName=(.+)$/m.exec(readFileSync(join(SITE, "..", "release", "version.properties"), "utf8"))[1];
+// site/public holds the Android version as a placeholder; the build fills it from the newest android/v tag.
+const APK_VERSION = "ANDROID_VERSION_PLACEHOLDER";
 const rules = parseHeaders(read("_headers"));
 
 function siteFiles() {
@@ -251,6 +252,19 @@ test("assetlinks.json is valid and names com.pusharmor", () => {
   for (const f of a[0].target.sha256_cert_fingerprints) assert.match(f, /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
 });
 
+// Released versions for the build tests (--versions), and local copies of the
+// release files the build reads (--release-dir).
+const VERSIONS = "android=1.2.3,cli=1.2.4,firefox=1.2.5";
+function releaseDir(tmp, { foss = "a".repeat(64), play = "b".repeat(64), cli = "d".repeat(64), apkVersion = "1.2.3" } = {}) {
+  const d = join(tmp, "release");
+  mkdirSync(d, { recursive: true });
+  writeFileSync(join(d, "pusharmor-1.2.3.hashes.txt"), foss + "  pusharmor-" + apkVersion + "-foss.apk\n" + play + "  pusharmor-" + apkVersion + "-play.apk\n" + "c".repeat(64) + "  release certificate SHA-256\n");
+  writeFileSync(join(d, "pusharmor.py.sha256"), cli + "  pusharmor.py\n");
+  const link = "https://github.com/tkooda/pusharmor/releases/download/firefox/v1.2.5/pusharmor-firefox-beta-1.2.5.xpi";
+  writeFileSync(join(d, "pusharmor-firefox-beta-1.2.5-updates.json"), JSON.stringify({ addons: { "{x}": { updates: [{ version: "1.2.5", update_link: link, update_hash: "sha256:" + "e".repeat(64) }] } } }));
+  return d;
+}
+
 // Builds site/public into a temp dir with the given public file; returns {dir, r}.
 function buildCopy(publicPath, env = {}, args = []) {
   const dir = mkdtempSync(join(tmpdir(), "pa-site-build-"));
@@ -275,7 +289,7 @@ test("wrangler.jsonc runs tools/build.mjs on deploy, and the build skips for wra
   const { dir, r } = buildCopy(PUBLIC_PATH, { WRANGLER_COMMAND: "dev" });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /ids not filled for wrangler dev/);
-  assert.deepEqual(placeholderFiles(dir).length, 5);
+  assert.deepEqual(placeholderFiles(dir).length, 7);
   const tmp = mkdtempSync(join(tmpdir(), "pa-public-"));
   const d = buildCopy(placeholderPublic(tmp), { WRANGLER_COMMAND: "deploy" });
   assert.notEqual(d.r.status, 0);
@@ -290,6 +304,8 @@ test("committed site files hold the placeholders, not ids (release/public.json f
     "site/public/_headers: CHROME_BETA_EXTENSION_ID",
     "site/public/_headers: CHROME_EXTENSION_ID",
     "site/public/download.html: PLACEHOLDER",
+    "site/public/fdroid/android.txt: PLACEHOLDER",
+    "site/public/fx/beta/updates.json: PLACEHOLDER",
     "site/public/js/fx-setup.js: PLACEHOLDER",
     "site/public/turnstile.html: PLACEHOLDER"
   ]);
@@ -305,11 +321,11 @@ test("site build fills every id from a public file and leaves current hashes", (
     google_chrome_beta_extension_id: "ponmlkjihgfedcbaponmlkjihgfedcba",
     android_release_cert_sha256: [fp.toLowerCase()]
   }));
-  const hashes = join(tmp, "hashes.txt");
   const foss = "a".repeat(64);
   const play = "b".repeat(64);
-  writeFileSync(hashes, foss + "  pusharmor-" + APK_VERSION + "-foss.apk\n" + play + "  pusharmor-" + APK_VERSION + "-play.apk\n" + "c".repeat(64) + "  release certificate SHA-256\n");
-  const { dir, r } = buildCopy(lp, {}, ["--apk-hashes", hashes]);
+  const cli = "d".repeat(64);
+  const rel = releaseDir(tmp, { foss, play, cli });
+  const { dir, r } = buildCopy(lp, {}, ["--versions", VERSIONS, "--release-dir", rel]);
   try {
     assert.equal(r.status, 0, r.stderr);
     assert.deepEqual(placeholderFiles(dir), []);
@@ -320,6 +336,13 @@ test("site build fills every id from a public file and leaves current hashes", (
     assert.deepEqual(JSON.parse(readFileSync(join(dir, ".well-known", "assetlinks.json"), "utf8"))[0].target.sha256_cert_fingerprints, [fp]);
     const page = readFileSync(join(dir, "download.html"), "utf8");
     assert.ok(page.includes('<code id="apk-foss-sha256">' + foss + "</code>") && page.includes('<code id="apk-play-sha256">' + play + "</code>"));
+    assert.ok(page.includes('<code id="cli-sha256">' + cli + "</code>"));
+    for (const k of ["foss", "play"]) assert.ok(page.includes('href="https://github.com/tkooda/pusharmor/releases/download/android/v1.2.3/pusharmor-1.2.3-' + k + '.apk">pusharmor-1.2.3-' + k + ".apk</a>"), k);
+    assert.ok(page.includes("apksigner verify --print-certs pusharmor-1.2.3-foss.apk"));
+    assert.ok(page.includes('href="https://github.com/tkooda/pusharmor/releases/download/cli/v1.2.4/pusharmor.py"'));
+    assert.equal(readFileSync(join(dir, "fdroid", "android.txt"), "utf8"), "1.2.3\n1002003\n");
+    assert.deepEqual(Object.values(JSON.parse(readFileSync(join(dir, "fx", "beta", "updates.json"), "utf8")).addons)[0].updates,
+      [{ version: "1.2.5", update_link: "https://github.com/tkooda/pusharmor/releases/download/firefox/v1.2.5/pusharmor-firefox-beta-1.2.5.xpi" }]);
   } finally { rmSync(dir, { recursive: true, force: true }); rmSync(tmp, { recursive: true, force: true }); }
 });
 
@@ -339,7 +362,7 @@ test("site build writes a gitignored output dir and leaves the git tree clean", 
     assert.equal(git("status", "--porcelain").stdout, before, "the build changed tracked files");
     assert.equal(r.status, 0, r.stderr);
     assert.deepEqual(placeholderFiles(out), []);
-    assert.equal(placeholderFiles(PUB).length, 5);
+    assert.equal(placeholderFiles(PUB).length, 7);
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
@@ -395,7 +418,6 @@ test("PA_RELEASE=1: release/public.json builds the site with no placeholder; fdr
       if (!a[0].target.sha256_cert_fingerprints.length) bad.push("assetlinks.json: empty sha256_cert_fingerprints");
     }
   } finally { rmSync(dir, { recursive: true, force: true }); }
-  if (read("fdroid/android.txt").split("\n")[0] === "0.0.0") bad.push("fdroid/android.txt: version 0.0.0");
   assert.deepEqual(bad, []);
 });
 
@@ -412,12 +434,8 @@ test("security.txt: Contact, Expires (> 60 days, <= 1 year), Canonical", () => {
   assert.ok(exp - Date.now() <= 366 * day, "Expires is more than 1 year ahead");
 });
 
-test("fdroid/android.txt: 2 lines, versionName then versionCode", () => {
-  const lines = read("fdroid/android.txt").split("\n");
-  assert.equal(lines.length, 3);
-  assert.equal(lines[2], "");
-  assert.match(lines[0], /^\d+\.\d+\.\d+$/);
-  assert.match(lines[1], /^\d+$/);
+test("fdroid/android.txt: 2 lines, versionName then versionCode (filled by the site build)", () => {
+  assert.equal(read("fdroid/android.txt"), "ANDROID_VERSION_PLACEHOLDER\nANDROID_VERSION_CODE_PLACEHOLDER\n");
 });
 
 test("retention: 4 weeks on /privacy; stored list", () => {
@@ -769,16 +787,30 @@ test("fx/setup in a private tab asks for a normal tab and makes no push subscrip
   assert.deepEqual(normal.calls.slice(0, 2), ["permission", "register"]);
 });
 
-test("site build fails when the APK hashes file lacks the page's APK version", () => {
+test("site build fails when the APK hashes file lacks the APK version of the tag", () => {
   const tmp = mkdtempSync(join(tmpdir(), "pa-public-"));
   const lp = placeholderPublic(tmp);
   assert.equal(spawnSync("node", [join(REPO, "release", "ci-dummy.mjs"), lp]).status, 0);
-  const hashes = join(tmp, "hashes.txt");
-  writeFileSync(hashes, "a".repeat(64) + "  pusharmor-0.0.0-foss.apk\n" + "b".repeat(64) + "  pusharmor-0.0.0-play.apk\n");
+  const rel = releaseDir(tmp, { apkVersion: "0.0.0" });
   try {
-    const { dir, r } = buildCopy(lp, { PA_CI_DUMMY: "1" }, ["--apk-hashes", hashes]);
+    const { dir, r } = buildCopy(lp, { PA_CI_DUMMY: "1" }, ["--versions", VERSIONS, "--release-dir", rel]);
     rmSync(dir, { recursive: true, force: true });
     assert.equal(r.status, 1);
-    assert.match(r.stderr, new RegExp("no SHA-256 line for pusharmor-" + APK_VERSION.replaceAll(".", "\\.") + "-foss\\.apk"));
+    assert.match(r.stderr, /no SHA-256 line for pusharmor-1\.2\.3-foss\.apk/);
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
+
+test("site build fails when the Beta update manifest of the release names another XPI", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "pa-public-"));
+  const lp = placeholderPublic(tmp);
+  assert.equal(spawnSync("node", [join(REPO, "release", "ci-dummy.mjs"), lp]).status, 0);
+  const rel = releaseDir(tmp);
+  const f = join(rel, "pusharmor-firefox-beta-1.2.5-updates.json");
+  writeFileSync(f, readFileSync(f, "utf8").replaceAll("1.2.5", "1.2.1"));
+  try {
+    const { dir, r } = buildCopy(lp, { PA_CI_DUMMY: "1" }, ["--versions", VERSIONS, "--release-dir", rel]);
+    rmSync(dir, { recursive: true, force: true });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /pusharmor-firefox-beta-1\.2\.5-updates\.json: update_link .*firefox\/v1\.2\.1\//);
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });

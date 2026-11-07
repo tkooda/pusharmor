@@ -19,7 +19,8 @@ Compose, Gradle Kotlin DSL with a version catalog.
 - `foss`: no Firebase and no Google Play services code; UnifiedPush only.
 
 Both use applicationId `com.pusharmor` and the same versionCode. The version comes from
-`release/version.properties` (versionCode = major * 1000000 + minor * 1000 + patch).
+the release tag `android/vX.Y.Z` (env `PA_VERSION`, else the tag at HEAD, else the dev
+version 0.0.0 with versionCode 1; versionCode = major * 1000000 + minor * 1000 + patch).
 
 Build ids come from the tracked `release/public.json` (meanings in
 `release/names.json`); the owner fills them in a normal commit. Gradle reads

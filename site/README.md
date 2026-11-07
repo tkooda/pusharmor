@@ -47,10 +47,14 @@ hashes there (see its header comment), so `git status` stays clean. Try it with
 `node site/tools/build.mjs` (`--out DIR` writes elsewhere).
 
 Deploy is manual: `npx wrangler deploy` in `site/` (a push to main does not deploy). It runs
-the build first (`wrangler.jsonc`) and fails while a placeholder is left. The build also
-downloads `pusharmor-X.Y.Z.hashes.txt` of the GitHub release `android/vX.Y.Z` named in
-`/download` and fills the APK SHA-256 values from it, so deploy after android-release has
-published that release (until then the build fails and nothing deploys). Before a release
+the build first (`wrangler.jsonc`) and fails while a placeholder is left. No version is
+committed for a release: the build reads the newest tags `android/vX.Y.Z`, `cli/vX.Y.Z` and
+`firefox/vX.Y.Z` of the GitHub repo (`git ls-remote`) and fills `/download`,
+`/fdroid/android.txt` and `/fx/beta/updates.json` with them. It also downloads
+`pusharmor-X.Y.Z.hashes.txt` of the GitHub release `android/vX.Y.Z` (the APK SHA-256
+values), `pusharmor.py.sha256` of `cli/vX.Y.Z` and the Beta update manifest of
+`firefox/vX.Y.Z`, so deploy after those releases are published (until then the build fails
+and nothing deploys). Before a release
 deploy, run the checks with the release gate on, and do not deploy if any check fails or is
 skipped:
 

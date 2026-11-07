@@ -1,31 +1,26 @@
-// Release tags: <platform>/vX.Y.Z, one shared version line.
-//   node release/tag.mjs X.Y.Z PLATFORM...  owner: stamp the version files of those
-//                                          platforms, or tag HEAD (PLATFORM X.Y.Z with
-//                                          one platform also works; "all" = android
-//                                          ios chrome firefox; platforms are required)
+// Release tags: <platform>/vX.Y.Z, one shared version line. Tag-only versioning:
+// nothing is committed for a release; each build reads X.Y.Z from its tag
+// (RELEASING.md, Versions).
+//   node release/tag.mjs X.Y.Z PLATFORM...  owner: tag HEAD for those platforms
+//                                          (PLATFORM X.Y.Z with one platform also
+//                                          works; "all" = android ios chrome firefox;
+//                                          platforms are required)
 //   node release/tag.mjs --check TAG       release jobs: the checked-out tag obeys
 //                                          the rules; prints X.Y.Z
 //   node release/tag.mjs --ci TAG          first release job: the release gate of the
 //                                          tag's platform passed on the commit of TAG
 //                                          (waits for a running CI)
-// One release commit per version: stamp every platform of the release in one
-// working-tree change, commit it ("release X.Y.Z"), rerun the same command on that
-// commit, and all the tags <platform>/vX.Y.Z land on it.
+// One commit per version: all the tags <platform>/vX.Y.Z of a release go on one
+// commit of main.
 // Rules: a commit carries one version; the tags of X.Y.Z are on commits of one
 // line of history (several tags may share a commit), and versions grow along it; a
-// new version (no tag of it yet) is greater than every existing tag; the version
-// files at the commit hold X.Y.Z
-// (stampProblems), /download holds the SHA-256 of pusharmor.py at the commit, and
-// /fdroid/android.txt holds the Android versionName and versionCode, and
-// /fx/beta/updates.json points at the Firefox Beta XPI of X.Y.Z.
+// new version (no tag of it yet) is greater than every existing tag.
 // One shared counter, but a release tags only the platforms that changed:
-// platforms skip numbers, so each platform's version files are stamped and checked
-// for that platform alone. Android versionCode and the iOS build number are
+// platforms skip numbers. Android versionCode and the iOS build number are
 // buildNumber(X.Y.Z) = X * 1000000 + Y * 1000 + Z, so they grow with the version.
 // Tag mode fetches the tags and main of origin first (when a remote origin
-// exists); HEAD must be on origin/main (--check too, when origin/main exists). When
-// the version files do not hold X.Y.Z it writes them and stops: commit, then
-// rerun. Otherwise it creates the annotated tag at HEAD; the owner pushes it.
+// exists); HEAD must be on origin/main (--check too, when origin/main exists). It
+// creates the annotated tags at HEAD; the owner pushes them.
 // --check compares only with tags created no later than TAG (a rerun after newer
 // tags still passes) and wants an annotated tag (tag mode makes one).
 // Release gate (per platform): tag mode and --ci need one push run of the ci
@@ -35,8 +30,7 @@
 // platform's jobs do not count, so a slow platform never holds up the others.
 // They read it with gh api (GH_TOKEN with actions: read; --check needs no token).
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -82,7 +76,7 @@ export function formatProblems(platform, version) {
  * Problems with giving `commit` the version `version`. tags: [{ name, commit }] of
  * the existing tags to compare with (names that are not <platform>/vX.Y.Z are ignored).
  * isAncestor(a, b): commit a is an earlier commit in the history of commit b.
- * The tags of X.Y.Z are normally on one release commit; they may be on several
+ * The tags of X.Y.Z are normally on one commit; they may be on several
  * commits (a platform that joins later), as long as they are on one line of history: a tag of X.Y.Z on a
  * commit that is neither before nor after this one is a problem. Other versions:
  * a tag on an earlier commit must be lower, a tag on a later commit higher.
@@ -114,132 +108,33 @@ export function tagProblems(version, commit, tags, isAncestor = () => false, pla
   return bad;
 }
 
-const cliSha256 = (root) => createHash("sha256").update(readFileSync(join(root, "client/cli/pusharmor.py"))).digest("hex");
+export const DEV_VERSION = "0.0.0";
 
-// The version files, relative to the repo root: how to read and write X.Y.Z there.
-const FILES = [
-  {
-    path: "release/version.properties",
-    platforms: ["android"],
-    get: (s) => [/^versionName=(.*)$/m.exec(s)?.[1], /^versionCode=(.*)$/m.exec(s)?.[1]],
-    want: (v) => [v, String(buildNumber(v))],
-    set: (s, v) => s.replace(/^versionName=.*$/m, "versionName=" + v).replace(/^versionCode=.*$/m, "versionCode=" + buildNumber(v)),
-  },
-  {
-    path: "client/cli/pusharmor.py",
-    platforms: ["cli"],
-    get: (s) => [/^VERSION = "([^"]*)"$/m.exec(s)?.[1], /^# PushArmor command-line client, version (.*)$/m.exec(s)?.[1]],
-    want: (v) => [v, v],
-    set: (s, v) => s.replace(/^VERSION = "[^"]*"$/m, 'VERSION = "' + v + '"').replace(/^(# PushArmor command-line client, version ).*$/m, "$1" + v),
-  },
-  ...["chrome", "firefox"].map((pl) => ({
-    path: "client/" + pl + "/manifest.json",
-    platforms: [pl],
-    get: (s) => [JSON.parse(s).version],
-    want: (v) => [v],
-    set: (s, v) => s.replace(/("version": )"[^"]*"/, "$1" + JSON.stringify(v)),
-  })),
-  {
-    path: "client/ios/project.yml",
-    platforms: ["ios"],
-    get: (s) => [/^ *MARKETING_VERSION: "(.*)"$/m.exec(s)?.[1], /^ *CURRENT_PROJECT_VERSION: "(.*)"$/m.exec(s)?.[1]],
-    want: (v) => [v, String(buildNumber(v))],
-    set: (s, v) => s.replace(/^( *MARKETING_VERSION: ).*$/m, '$1"' + v + '"').replace(/^( *CURRENT_PROJECT_VERSION: ).*$/m, '$1"' + buildNumber(v) + '"'),
-  },
-  // The Worker: the version of its npm package and of the lockfile root (both
-  // lockfile entries), so a worker release has a stamp commit like the clients.
-  {
-    path: "server/worker/package.json",
-    platforms: ["worker"],
-    get: (s) => [JSON.parse(s).version],
-    want: (v) => [v],
-    set: (s, v) => s.replace(/("version": )"[^"]*"/, "$1" + JSON.stringify(v)),
-  },
-  {
-    path: "server/worker/package-lock.json",
-    platforms: ["worker"],
-    get: (s) => [JSON.parse(s).version, JSON.parse(s).packages[""].version],
-    want: (v) => [v, v],
-    set: (s, v) => {
-      let n = 0;
-      return s.replace(/("version": )"[^"]*"/g, (m, k) => (n++ < 2 ? k + JSON.stringify(v) : m));
-    },
-  },
-  // The F-Droid update check (UpdateCheckMode HTTP): versionName, then versionCode.
-  {
-    path: "site/public/fdroid/android.txt",
-    platforms: ["android"],
-    get: (s) => s.split("\n").slice(0, 2),
-    want: (v) => [v, String(buildNumber(v))],
-    set: (s, v) => v + "\n" + buildNumber(v) + "\n",
-  },
-  // The command-line row of /download: X.Y.Z in each release asset URL and the
-  // SHA-256 of pusharmor.py (stamp writes pusharmor.py first).
-  {
-    path: "site/public/download.html",
-    platforms: ["cli"],
-    get: (s) => [[...new Set([...s.matchAll(/\/releases\/download\/cli\/v([^/"<]*)\/pusharmor\.py/g)].map((m) => m[1]))].join(", "), /<code id="cli-sha256">([^<]*)<\/code>/.exec(s)?.[1]],
-    want: (v, root) => [v, cliSha256(root)],
-    set: (s, v, root) => s.replaceAll(/(\/releases\/download\/cli\/v)[^/"<]*(\/pusharmor\.py)/g, "$1" + v + "$2").replace(/(<code id="cli-sha256">)[^<]*/, "$1" + cliSha256(root)),
-  },
-  // The APK rows of /download: X.Y.Z in the foss and play release URLs (tag
-  // android/vX.Y.Z) and in each APK file name (link text, QR label, command).
-  // The SHA-256 values are known only after CI signs the APKs: not stamped;
-  // the site build fills them from the release hashes file (site/tools/build.mjs).
-  {
-    path: "site/public/download.html",
-    platforms: ["android"],
-    get: (s) => [
-      [...new Set([...s.matchAll(/\/releases\/download\/android\/v([^/"<]*)\//g)].map((m) => m[1]))].join(", "),
-      [...new Set([...s.matchAll(/pusharmor-([0-9][^"<\s/]*)-(?:foss|play)\.apk/g)].map((m) => m[1]))].join(", "),
-    ],
-    want: (v) => [v, v],
-    set: (s, v) => s.replaceAll(/(\/releases\/download\/android\/v)[^/"<]*\//g, "$1" + v + "/").replaceAll(/pusharmor-[0-9][^"<\s/]*-(foss|play)\.apk/g, "pusharmor-" + v + "-$1.apk"),
-  },
-  // The self-hosted update manifest of the Firefox Beta add-on: X.Y.Z and the
-  // URL of the signed Beta XPI of the tag firefox/vX.Y.Z.
-  {
-    path: "site/public/fx/beta/updates.json",
-    platforms: ["firefox"],
-    get: (s) => {
-      const u = Object.values(JSON.parse(s).addons)[0].updates[0];
-      return [u.version, u.update_link];
-    },
-    want: (v) => [v, betaXpiUrl(v)],
-    set: (s, v) => {
-      const j = JSON.parse(s);
-      const u = Object.values(j.addons)[0].updates[0];
-      u.version = v;
-      u.update_link = betaXpiUrl(v);
-      return JSON.stringify(j, null, 2) + "\n";
-    },
-  },
-];
-
-const filesOf = (platforms) => FILES.filter((f) => f.platforms.some((p) => platforms.includes(p)));
+/**
+ * X.Y.Z of a build of platform from the checkout at root: env PA_VERSION (the
+ * release jobs), else the tag <platform>/vX.Y.Z named in release/source-tag.txt
+ * (only in a release source archive), else the tag <platform>/vX.Y.Z at HEAD of
+ * the git checkout, else DEV_VERSION. Throws on a malformed version.
+ */
+export function buildVersion(platform, root, env = process.env) {
+  let v = env.PA_VERSION;
+  if (!v) {
+    const src = join(root, "release", "source-tag.txt");
+    const tags = existsSync(src)
+      ? readFileSync(src, "utf8").split("\n")
+      : existsSync(join(root, ".git"))
+        ? execFileSync("git", ["-C", root, "tag", "--points-at", "HEAD", "--list", platform + "/v*"], { encoding: "utf8" }).split("\n")
+        : [];
+    v = tags.map((t) => parseTag(t.trim())).find((t) => t && t.platform === platform)?.version || DEV_VERSION;
+  }
+  const bad = formatProblems(platform, v);
+  if (bad.length) throw new Error("build version: " + bad.join("; "));
+  return v;
+}
 
 /** The URL of the signed Firefox Beta XPI of X.Y.Z in GitHub Releases. */
 export function betaXpiUrl(v) {
   return "https://github.com/tkooda/pusharmor/releases/download/firefox/v" + v + "/pusharmor-firefox-beta-" + v + ".xpi";
-}
-
-/** One line per version file of platforms under root that does not hold X.Y.Z. */
-export function stampProblems(root, version, platforms = PLATFORMS) {
-  const bad = [];
-  for (const f of filesOf(platforms)) {
-    const got = f.get(readFileSync(join(root, f.path), "utf8"));
-    const want = f.want(version, root);
-    if (JSON.stringify(got) !== JSON.stringify(want)) bad.push(f.path + " holds " + got.join(" / ") + ", want " + want.join(" / "));
-  }
-  return bad;
-}
-
-/** Writes X.Y.Z into the version files of platforms under root. */
-export function stamp(root, version, platforms = PLATFORMS) {
-  for (const f of filesOf(platforms)) {
-    const p = join(root, f.path);
-    writeFileSync(p, f.set(readFileSync(p, "utf8"), version, root));
-  }
 }
 
 const git = (args) => execFileSync("git", args, { encoding: "utf8" }).trim();
@@ -266,7 +161,7 @@ function allTags() {
 
 // The ci.yml jobs a release of each platform needs on its commit, by the job id of
 // the called workflow in ci.yml (job names "<id> / <name>"): the platform's own
-// jobs, plus the site checks where the stamp writes files under site/.
+// jobs, plus the site checks where the site build reads the platform's release.
 export const GATE = {
   android: ["android", "android-emulator", "site"],
   ios: ["ios"],
@@ -391,7 +286,6 @@ function check(tag) {
   if (self.commit !== git(["rev-parse", "HEAD"])) bad.push("HEAD is not the commit of " + tag);
   bad.push(...mainProblems());
   bad.push(...tagProblems(p.version, self.commit, tags.filter((t) => t.name !== tag && t.date <= self.date), isAncestor, [p.platform]));
-  bad.push(...stampProblems(git(["rev-parse", "--show-toplevel"]), p.version, [p.platform]));
   if (bad.length) fail(bad);
   console.log(p.version);
 }
@@ -414,7 +308,6 @@ function checkCi(tag) {
 function tagHead(platforms, version) {
   const bad = platforms.flatMap((p) => formatProblems(p, version));
   if (bad.length) fail([...new Set(bad)]);
-  const root = git(["rev-parse", "--show-toplevel"]);
   if (git(["status", "--porcelain"]) !== "") fail(["the working tree is not clean"]);
   if (git(["remote"]).split("\n").includes("origin")) {
     try {
@@ -428,18 +321,6 @@ function tagHead(platforms, version) {
   const tags = allTags();
   const names = platforms.map((p) => p + "/v" + version);
   const head = git(["rev-parse", "HEAD"]);
-  if (stampProblems(root, version, platforms).length) {
-    // A new stamp commit, a child of HEAD: X.Y.Z must be new and greater than every
-    // tag of any platform, or a version whose tags are in the history of HEAD.
-    const NEW = "(new commit)";
-    const bad = tagProblems(version, NEW, tags, (a, b) => (b === NEW ? a === head || isAncestor(a, head) : isAncestor(a, b)));
-    if (bad.length) fail(bad);
-    stamp(root, version, platforms);
-    console.log("stamped " + version + " into the version files of " + platforms.join(", ") + "; nothing tagged.");
-    console.log("review and commit them (git commit -am \"release " + version + "\"), then rerun:");
-    console.log("  node release/tag.mjs " + version + " " + platforms.join(" "));
-    process.exit(1);
-  }
   const bad2 = tagProblems(version, head, tags.filter((t) => !names.includes(t.name)), isAncestor, platforms);
   for (const n of names) {
     const own = tags.find((t) => t.name === n);

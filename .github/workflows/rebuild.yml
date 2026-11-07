@@ -71,6 +71,8 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install $SDK_PACKAGES < /dev/null
       - name: Release builds (play APK, foss APK)
         working-directory: client/android
+        env:
+          PA_VERSION: ${{ steps.tag.outputs.version }}
         run: ./gradlew --no-daemon --stacktrace :app:assemblePlayRelease :app:assembleFossRelease
       - name: Download the release APKs
         env:

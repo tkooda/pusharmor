@@ -17,9 +17,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # The tag rule, version files and the release gate.
+  # The tag rule and the release gate.
   tag:
-    name: release tag rule and version files
+    name: release tag rule
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:

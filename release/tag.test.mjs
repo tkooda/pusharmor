@@ -2,11 +2,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync, execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { chmodSync, cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { GATE, SHARED, betaXpiUrl, buildNumber, ciRuns, repoName, ciProblems, gateState, formatProblems, parseTag, stampProblems, tagProblems } from "./tag.mjs";
+import { DEV_VERSION, GATE, SHARED, buildNumber, buildVersion, ciRuns, repoName, ciProblems, gateState, formatProblems, parseTag, tagProblems } from "./tag.mjs";
 
 const REPO = join(import.meta.dirname, "..");
 const CLI = join(import.meta.dirname, "tag.mjs");
@@ -75,7 +74,7 @@ test("another platform may join a version already bound to the commit, also afte
   ]);
 });
 
-test("one stamp commit per platform: the tags of a version follow one line of history", () => {
+test("the tags of a version follow one line of history", () => {
   // history: a (android/v1.0.0) -> b -> c -> d (worker/v1.0.1); x is on a side branch.
   const order = ["a", "b", "c", "d"].map((c) => c.repeat(40));
   const anc = (x, y) => order.includes(x) && order.includes(y) && order.indexOf(x) < order.indexOf(y);
@@ -84,7 +83,7 @@ test("one stamp commit per platform: the tags of a version follow one line of hi
     { name: "ios/v1.0.0", commit: order[1] },
     { name: "worker/v1.0.1", commit: order[3] },
   ];
-  // chrome joins 1.0.0 on its own stamp commit c, after android and ios, before 1.0.1.
+  // chrome joins 1.0.0 on a later commit c, after android and ios, before 1.0.1.
   assert.deepEqual(tagProblems("1.0.0", order[2], tags, anc), []);
   // ... but not after a commit that already has a higher version.
   assert.deepEqual(tagProblems("1.0.0", "e".repeat(40), tags, (x, y) => anc(x, y) || (order.includes(x) && y === "e".repeat(40))), [
@@ -111,61 +110,43 @@ test("a platform joining a bound version must not have a newer tag of its own", 
   assert.deepEqual(tagProblems("1.0.0", "a".repeat(40), tags, undefined, ["chrome"]), []);
 });
 
-test("the committed version files of each platform agree with each other", () => {
-  // a release stamps only the platforms it tags, so platforms may hold different versions.
+
+test("the repo holds the dev version: no version is committed for a release", () => {
   const read = (f) => readFileSync(join(REPO, f), "utf8");
-  const held = {
-    android: read("release/version.properties").match(/^versionName=(.*)$/m)[1],
-    ios: read("client/ios/project.yml").match(/^ *MARKETING_VERSION: "(.*)"$/m)[1],
-    chrome: JSON.parse(read("client/chrome/manifest.json")).version,
-    firefox: JSON.parse(read("client/firefox/manifest.json")).version,
-    cli: read("client/cli/pusharmor.py").match(/^VERSION = "([^"]*)"$/m)[1],
-  };
-  for (const [p, v] of Object.entries(held)) {
-    // Between releases /download keeps the SHA-256 of the released pusharmor.py.
-    assert.deepEqual(stampProblems(REPO, v, [p]).filter((l) => p !== "cli" || !l.startsWith("site/public/download.html holds " + v + " / ")), [], p);
-  }
+  assert.equal(JSON.parse(read("client/chrome/manifest.json")).version, DEV_VERSION);
+  assert.equal(JSON.parse(read("client/firefox/manifest.json")).version, DEV_VERSION);
+  assert.match(read("client/ios/project.yml"), /^ *MARKETING_VERSION: "0\.0\.0"$/m);
+  assert.match(read("client/ios/project.yml"), /^ *CURRENT_PROJECT_VERSION: "1"$/m);
+  const py = read("client/cli/pusharmor.py");
+  assert.match(py, /^VERSION = "0\.0\.0"$/m);
+  assert.equal(py.split("\n")[1], "# PushArmor command-line client, version 0.0.0");
+  // cli-release writes the tag's version over exactly these two lines.
+  const wf = read(".github/workflows/cli-release.yml");
+  assert.ok(wf.includes('s/^VERSION = \\"0\\.0\\.0\\"\\$/VERSION = \\"$v\\"/'), "cli-release stamp of VERSION");
+  assert.ok(wf.includes("2s/^# PushArmor command-line client, version 0\\.0\\.0\\$/"), "cli-release stamp of line 2");
 });
 
-test("the version comment on line 2 of pusharmor.py must match VERSION", (t) => {
-  const { d, bin } = scratch();
+test("build version: PA_VERSION, else the source archive tag, else the tag at HEAD, else 0.0.0", (t) => {
+  const { d, git, bin } = scratch();
   t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
-  const py = join(d, "client/cli/pusharmor.py");
-  const v = /^VERSION = "([^"]*)"$/m.exec(readFileSync(py, "utf8"))[1];
-  assert.equal(readFileSync(py, "utf8").split("\n")[1], "# PushArmor command-line client, version " + v);
-  writeFileSync(py, readFileSync(py, "utf8").replace(/^(# PushArmor command-line client, version ).*$/m, "$19.9.9"));
-  assert.deepEqual(stampProblems(d, v).filter((l) => l.startsWith("client/cli/")), ["client/cli/pusharmor.py holds " + v + " / 9.9.9, want " + v + " / " + v]);
-});
-
-test("an Android stamp check fails when fdroid/android.txt holds another version", (t) => {
-  const { d, bin } = scratch();
-  t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
-  const v = /^versionName=(.*)$/m.exec(readFileSync(join(d, "release/version.properties"), "utf8"))[1];
-  writeFileSync(join(d, "site/public/fdroid/android.txt"), "0.0.0\n0\n");
-  assert.deepEqual(stampProblems(d, v, ["android"]), ["site/public/fdroid/android.txt holds 0.0.0 / 0, want " + v + " / " + buildNumber(v)]);
-});
-
-test("an Android stamp check fails when an APK URL or file name on /download holds another version", (t) => {
-  const { d, bin } = scratch();
-  t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
-  const v = /^versionName=(.*)$/m.exec(readFileSync(join(d, "release/version.properties"), "utf8"))[1];
-  const f = join(d, "site/public/download.html");
-  const page = readFileSync(f, "utf8");
-  assert.deepEqual(stampProblems(d, v, ["android"]), []);
-  writeFileSync(f, page.replace("pusharmor-" + v + "-play.apk</a>", "pusharmor-0.0.1-play.apk</a>"));
-  assert.deepEqual(stampProblems(d, v, ["android"]), ["site/public/download.html holds " + v + " / " + v + ", 0.0.1, want " + v + " / " + v]);
-  writeFileSync(f, page.replace("/android/v" + v + "/pusharmor-" + v + "-foss.apk", "/android/v0.0.1/pusharmor-" + v + "-foss.apk"));
-  assert.deepEqual(stampProblems(d, v, ["android"]), ["site/public/download.html holds 0.0.1, " + v + " / " + v + ", want " + v + " / " + v]);
-});
-
-test("a Firefox stamp check fails when fx/beta/updates.json points at another XPI", (t) => {
-  const { d, bin } = scratch();
-  t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
-  const f = join(d, "site/public/fx/beta/updates.json");
-  const v = Object.values(JSON.parse(readFileSync(f, "utf8")).addons)[0].updates[0].version;
-  assert.deepEqual(stampProblems(d, v, ["firefox"]), []);
-  writeFileSync(f, readFileSync(f, "utf8").replace("/firefox/v" + v + "/", "/firefox/v0.0.1/"));
-  assert.deepEqual(stampProblems(d, v, ["firefox"]), ["site/public/fx/beta/updates.json holds " + v + " / " + betaXpiUrl(v).replace("/firefox/v" + v + "/", "/firefox/v0.0.1/") + ", want " + v + " / " + betaXpiUrl(v)]);
+  const env = {};
+  assert.equal(buildVersion("chrome", d, env), "0.0.0");
+  git("tag", "-a", "chrome/v1.2.3", "-m", "chrome 1.2.3");
+  git("tag", "-a", "android/v1.2.3", "-m", "android 1.2.3");
+  assert.equal(buildVersion("chrome", d, env), "1.2.3");
+  assert.equal(buildVersion("firefox", d, env), "0.0.0");
+  assert.equal(buildVersion("firefox", d, { PA_VERSION: "1.2.4" }), "1.2.4");
+  assert.throws(() => buildVersion("firefox", d, { PA_VERSION: "1.2" }), /not X\.Y\.Z/);
+  git("commit", "-q", "--allow-empty", "-m", "next");
+  assert.equal(buildVersion("chrome", d, env), "0.0.0");
+  // A source archive has no .git; release/source-tag.txt names its tag.
+  const src = mkdtempSync(join(tmpdir(), "pa-src-"));
+  t.after(() => rmSync(src, { recursive: true, force: true }));
+  assert.equal(buildVersion("firefox", src, env), "0.0.0");
+  mkdirSync(join(src, "release"));
+  writeFileSync(join(src, "release", "source-tag.txt"), "firefox/v1.3.0\n");
+  assert.equal(buildVersion("firefox", src, env), "1.3.0");
+  assert.equal(buildVersion("chrome", src, env), "0.0.0");
 });
 
 // Jobs of one ci run: every gate group succeeded unless overridden.
@@ -248,17 +229,13 @@ test("release gate wait: polls a running CI and a failing gh api until the deadl
   assert.equal(k.now(), 0);
 });
 
-// A scratch repo holding copies of the version files, and a fake gh on PATH that
-// answers one completed ci run whose jobs are ci.jobs (name TAB status TAB
-// conclusion lines).
+// A scratch repo with one commit, and a fake gh on PATH that answers one
+// completed ci run whose jobs are ci.jobs (name TAB status TAB conclusion lines).
 const tsv = (jobs) => jobs.map((j) => [j.name, j.status, j.conclusion || ""].join("\t") + "\n").join("");
 
 function scratch() {
   const d = mkdtempSync(join(tmpdir(), "pa-tag-"));
-  for (const f of ["release/version.properties", "client/chrome/manifest.json", "client/firefox/manifest.json", "client/ios/project.yml", "client/cli/pusharmor.py", "site/public/download.html", "site/public/fdroid/android.txt", "site/public/fx/beta/updates.json", "server/worker/package.json", "server/worker/package-lock.json"]) {
-    mkdirSync(join(d, dirname(f)), { recursive: true });
-    cpSync(join(REPO, f), join(d, f));
-  }
+  writeFileSync(join(d, "README"), "scratch\n");
   const git = (...a) => execFileSync("git", a, { cwd: d, encoding: "utf8", env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" } }).trim();
   git("init", "-q", "-b", "main");
   git("config", "user.email", "t@example.com");
@@ -275,47 +252,23 @@ function scratch() {
   return { d, git, run, ci, bin };
 }
 
-test("CLI: stamp, commit, tag; second platform at the same commit or a later one; check mode", (t) => {
+test("CLI: tag HEAD; second platform at the same commit or a later one; check mode", (t) => {
   const { d, git, run, bin } = scratch();
   t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
   assert.equal(run().status, 2);
-  let r = run("1.2.3", "all", "cli");
-  assert.equal(r.status, 1, r.stderr);
-  assert.match(r.stdout, /stamped 1\.2\.3/);
-  assert.deepEqual(stampProblems(d, "1.2.3", ["android", "ios", "chrome", "firefox", "cli"]), []);
-  assert.match(readFileSync(join(d, "release/version.properties"), "utf8"), /^versionCode=1002003$/m);
-  assert.match(readFileSync(join(d, "client/ios/project.yml"), "utf8"), /CURRENT_PROJECT_VERSION: "1002003"/);
-  assert.equal(readFileSync(join(d, "site/public/fdroid/android.txt"), "utf8"), "1.2.3\n1002003\n");
-  const beta = Object.values(JSON.parse(readFileSync(join(d, "site/public/fx/beta/updates.json"), "utf8")).addons)[0].updates;
-  assert.deepEqual(beta, [{ version: "1.2.3", update_link: "https://github.com/tkooda/pusharmor/releases/download/firefox/v1.2.3/pusharmor-firefox-beta-1.2.3.xpi" }]);
-  assert.match(readFileSync(join(d, "client/cli/pusharmor.py"), "utf8"), /^VERSION = "1\.2\.3"$/m);
-  assert.match(readFileSync(join(d, "client/cli/pusharmor.py"), "utf8"), /^# PushArmor command-line client, version 1\.2\.3$/m);
-  const page = readFileSync(join(d, "site/public/download.html"), "utf8");
-  assert.ok(page.includes('href="https://github.com/tkooda/pusharmor/releases/download/cli/v1.2.3/pusharmor.py"'));
-  assert.ok(!/releases\/download\/cli\/v(?!1\.2\.3\/)/.test(page));
-  assert.ok(page.includes('<code id="cli-sha256">' + createHash("sha256").update(readFileSync(join(d, "client/cli/pusharmor.py"))).digest("hex") + "</code>"));
-  for (const k of ["foss", "play"]) {
-    assert.ok(page.includes('href="https://github.com/tkooda/pusharmor/releases/download/android/v1.2.3/pusharmor-1.2.3-' + k + '.apk">pusharmor-1.2.3-' + k + ".apk</a>"), k);
-    assert.ok(page.includes('aria-label="Show QR code for pusharmor-1.2.3-' + k + '.apk"'), k);
-  }
-  assert.ok(page.includes("apksigner verify --print-certs pusharmor-1.2.3-foss.apk"));
-  assert.ok(!/releases\/download\/android\/v(?!1\.2\.3\/)/.test(page));
-  assert.ok(!/pusharmor-(?!1\.2\.3-)[0-9][^"<\s/]*-(foss|play)\.apk/.test(page));
-  // The APK and certificate SHA-256 values are not stamped (CI signs the APKs later).
-  const hashes = (h) => ["apk-foss-sha256", "apk-play-sha256", "apk-cert-sha256"].map((id) => new RegExp('<code id="' + id + '">([^<]*)<').exec(h)[1]);
-  assert.deepEqual(hashes(page), hashes(readFileSync(join(REPO, "site/public/download.html"), "utf8")));
-  git("commit", "-q", "-am", "release 1.2.3");
-  r = run("android", "1.2.3");
+  let r = run("android", "1.2.3");
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /tagged: android\/v1\.2\.3/);
+  assert.match(r.stdout, /git push origin android\/v1\.2\.3/);
   assert.equal(git("cat-file", "-t", "android/v1.2.3"), "tag");
+  assert.equal(git("status", "--porcelain"), "");
+  assert.equal(git("rev-list", "--count", "HEAD"), "1");
   assert.equal(run("ios", "1.2.3").status, 0);
   r = run("--check", "ios/v1.2.3");
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout.trim(), "1.2.3");
 
-  // A later commit may take 1.2.3 for another platform (one stamp commit per
-  // platform), and an older version is refused before stamping.
+  // A later commit may take 1.2.3 for another platform, and an older version is refused.
   git("commit", "-q", "--allow-empty", "-m", "next");
   r = run("chrome", "1.2.3");
   assert.equal(r.status, 0, r.stderr);
@@ -323,50 +276,37 @@ test("CLI: stamp, commit, tag; second platform at the same commit or a later one
   r = run("chrome", "1.2.2");
   assert.equal(r.status, 1);
   assert.match(r.stderr, /1\.2\.2 is not greater than the existing tag android\/v1\.2\.3/);
-  assert.equal(git("status", "--porcelain"), "");
   r = run("--check", "android/v1.2.3");
   assert.equal(r.status, 1);
   assert.match(r.stderr, /HEAD is not the commit of android\/v1\.2\.3/);
+  // A commit carries one version.
+  r = run("firefox", "1.2.4");
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /the commit already carries version 1\.2\.3 \(tag chrome\/v1\.2\.3\)/);
 
-  // Check mode: a lightweight tag and version files that differ fail.
+  // Check mode: a lightweight tag fails.
+  git("commit", "-q", "--allow-empty", "-m", "next");
   git("tag", "firefox/v1.2.4");
   r = run("--check", "firefox/v1.2.4");
   assert.equal(r.status, 1);
   assert.match(r.stderr, /lightweight tag/);
-  assert.match(r.stderr, /client\/firefox\/manifest\.json holds 1\.2\.3, want 1\.2\.4/);
   r = run("--check", "chrome-v1.2.3");
   assert.equal(r.status, 1);
   assert.match(r.stderr, /is not <platform>\/vX\.Y\.Z/);
-});
-
-test("CLI check: /download holds the SHA-256 of pusharmor.py at the commit", (t) => {
-  const { d, git, run, bin } = scratch();
-  t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
-  run("cli", "1.3.0");
-  git("commit", "-q", "-am", "release 1.3.0");
-  git("tag", "-a", "cli/v1.3.0", "-m", "cli 1.3.0");
-  let r = run("--check", "cli/v1.3.0");
-  assert.equal(r.status, 0, r.stderr);
-  const py = join(d, "client/cli/pusharmor.py");
-  writeFileSync(py, readFileSync(py, "utf8") + "\n");
-  git("commit", "-q", "-am", "edit pusharmor.py");
-  git("tag", "-f", "-a", "cli/v1.3.0", "-m", "cli 1.3.0");
-  r = run("--check", "cli/v1.3.0");
+  // A dirty tree is refused.
+  writeFileSync(join(d, "README"), "changed\n");
+  r = run("ios", "1.2.5");
   assert.equal(r.status, 1);
-  const sha = createHash("sha256").update(readFileSync(py)).digest("hex");
-  assert.match(r.stderr, new RegExp("site/public/download\\.html holds 1\\.3\\.0 / [0-9a-f]{64}, want 1\\.3\\.0 / " + sha));
+  assert.match(r.stderr, /the working tree is not clean/);
 });
 
 test("CLI check: a rerun of an older tag ignores tags created after it", (t) => {
   const { d, git, run, bin } = scratch();
   t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
-  run("0.1.0", "chrome", "worker");
-  git("commit", "-q", "-am", "release 0.1.0");
   const env = (date) => ({ ...process.env, GIT_COMMITTER_DATE: date, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" });
   execFileSync("git", ["tag", "-a", "chrome/v0.1.0", "-m", "w"], { cwd: d, env: env("2026-01-01T00:00:00Z") });
   const first = git("rev-parse", "HEAD");
-  run("0.2.0", "chrome");
-  git("commit", "-q", "-am", "release 0.2.0");
+  git("commit", "-q", "--allow-empty", "-m", "next");
   execFileSync("git", ["tag", "-a", "chrome/v0.2.0", "-m", "w"], { cwd: d, env: env("2026-02-01T00:00:00Z") });
   git("checkout", "-q", "--detach", first);
   let r = run("--check", "chrome/v0.1.0");
@@ -382,11 +322,8 @@ test("CLI check: a rerun of an older tag ignores tags created after it", (t) => 
 });
 
 test("CLI: no tag unless the platform's release gate passed on HEAD; --ci checks the commit of the tag", (t) => {
-  const { d, git, run, ci, bin } = scratch();
+  const { git, run, ci, d, bin } = scratch();
   t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
-  // A version far above the repo version files, so the stamp always changes them.
-  run("ios", "90.0.7");
-  git("commit", "-q", "-am", "release 90.0.7");
   const head = git("rev-parse", "HEAD").slice(0, 12);
   for (const [jobs, want] of [
     [withJob(okJobs(), "ios / job", "completed", "failure"), "the ios release gate (repo, vectors, ios) did not pass on commit " + head + ": ios / job: failure"],
@@ -428,8 +365,7 @@ test("CLI: no tag and no check pass for a commit that is not on origin/main", (t
   git("remote", "add", "origin", origin);
   git("push", "-q", "origin", "main");
   git("checkout", "-q", "-b", "x");
-  run("1.4.0", "chrome");
-  git("commit", "-q", "-am", "release 1.4.0");
+  git("commit", "-q", "--allow-empty", "-m", "x");
   git("push", "-q", "origin", "x");
   let r = run("1.4.0", "chrome");
   assert.equal(r.status, 1);
@@ -446,29 +382,12 @@ test("CLI: no tag and no check pass for a commit that is not on origin/main", (t
   assert.equal(run("--check", "chrome/v1.4.0").status, 0);
 });
 
-test("platform subset: only those version files change; numbers are shared and never reused", (t) => {
-  const { d, git, run, bin } = scratch();
+test("platform subset: numbers are shared and never reused", (t) => {
+  const { git, run, d, bin } = scratch();
   t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
-  const read = (f) => readFileSync(join(d, f), "utf8");
-  const page = read("site/public/download.html");
-  const fdroid = read("site/public/fdroid/android.txt");
   let r = run("1.2.3", "chrome", "firefox");
-  assert.match(read("site/public/fx/beta/updates.json"), /"version": "1\.2\.3"/);
-  assert.equal(r.status, 1, r.stderr);
-  assert.match(r.stdout, /stamped 1\.2\.3 into the version files of chrome, firefox/);
-  assert.match(r.stdout, /git commit -am "release 1\.2\.3"\)/);
-  assert.match(read("client/chrome/manifest.json"), /"version": "1\.2\.3"/);
-  assert.match(read("client/firefox/manifest.json"), /"version": "1\.2\.3"/);
-  assert.ok(!/^versionName=1\.2\.3$/m.test(read("release/version.properties")));
-  assert.ok(!/MARKETING_VERSION: "1\.2\.3"/.test(read("client/ios/project.yml")));
-  assert.ok(!/VERSION = "1\.2\.3"/.test(read("client/cli/pusharmor.py")));
-  assert.equal(read("site/public/download.html"), page);
-  assert.equal(read("site/public/fdroid/android.txt"), fdroid);
-  git("commit", "-q", "-am", "release 1.2.3");
-  r = run("1.2.3", "chrome", "firefox");
   assert.equal(r.status, 0, r.stderr);
   assert.equal(git("tag", "-l").split("\n").join(" "), "chrome/v1.2.3 firefox/v1.2.3");
-  // The other tags check against their own files only, and a skipped platform stays quiet.
   assert.equal(run("--check", "chrome/v1.2.3").status, 0);
   // Without a platform, or with an unknown one, nothing is tagged.
   assert.equal(run("1.2.3").status, 2);
@@ -478,47 +397,39 @@ test("platform subset: only those version files change; numbers are shared and n
   r = run("1.2.2", "android");
   assert.equal(r.status, 1);
   assert.match(r.stderr, /1\.2\.2 is not greater than the existing tag/);
-  // One stamp commit per platform: android joins 1.2.3 on its own later commit.
-  r = run("1.2.3", "android");
-  assert.equal(r.status, 1);
-  assert.match(r.stdout, /stamped 1\.2\.3 into the version files of android/);
-  git("commit", "-q", "-am", "release 1.2.3 android");
+  // android joins 1.2.3 on a later commit.
   assert.equal(run("android", "1.2.3").status, 0);
   assert.equal(run("--check", "android/v1.2.3").status, 0);
   // Next release, worker alone; after it, nothing joins 1.2.3 any more.
-  assert.equal(run("1.2.4", "worker").status, 1);
-  assert.match(read("server/worker/package.json"), /"version": "1\.2\.4"/);
-  assert.equal(JSON.parse(read("server/worker/package-lock.json")).packages[""].version, "1.2.4");
-  git("commit", "-q", "-am", "release 1.2.4 worker");
+  git("commit", "-q", "--allow-empty", "-m", "next");
   assert.equal(run("worker", "1.2.4").status, 0);
   assert.equal(run("--check", "worker/v1.2.4").status, 0);
+  r = run("1.2.3", "ios");
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /the commit already carries version 1\.2\.4/);
+  git("commit", "-q", "--allow-empty", "-m", "next");
   r = run("1.2.3", "ios");
   assert.equal(r.status, 1);
   assert.match(r.stderr, /1\.2\.3 is not greater than the existing tag worker\/v1\.2\.4/);
   assert.equal(git("tag", "-l", "ios/*"), "");
 });
 
-test("one release commit: all platforms stamped in one change, every tag on that one commit", (t) => {
-  const { d, git, run, bin } = scratch();
+test("one release: every tag of a version on one commit, nothing committed", (t) => {
+  const { git, run, d, bin } = scratch();
   t.after(() => [d, bin].forEach((p) => rmSync(p, { recursive: true, force: true })));
-  const read = (f) => readFileSync(join(d, f), "utf8");
-  let r = run("1.5.0", "all", "cli");
-  assert.equal(r.status, 1, r.stderr);
-  assert.match(r.stdout, /into the version files of android, ios, chrome, firefox, cli/);
-  assert.match(r.stdout, /git commit -am "release 1\.5\.0"\)/);
-  assert.match(r.stdout, /node release\/tag\.mjs 1\.5\.0 android ios chrome firefox cli/);
-  assert.match(read("client/ios/project.yml"), /MARKETING_VERSION: "1\.5\.0"/);
-  assert.match(read("client/cli/pusharmor.py"), /VERSION = "1\.5\.0"/);
-  assert.match(read("release/version.properties"), /^versionName=1\.5\.0$/m);
-  git("commit", "-q", "-am", "release 1.5.0");
-  r = run("1.5.0", "all", "cli");
-  assert.equal(r.status, 0, r.stderr);
   const head = git("rev-parse", "HEAD");
+  const r = run("1.5.0", "all", "cli");
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(git("rev-parse", "HEAD"), head);
+  assert.equal(git("status", "--porcelain"), "");
   const names = ["android", "ios", "chrome", "firefox", "cli"].map((p) => p + "/v1.5.0");
   for (const n of names) {
     assert.equal(git("rev-parse", n + "^{commit}"), head);
     assert.equal(run("--check", n).status, 0, n);
+    assert.ok(r.stdout.includes("git push origin " + n), n);
   }
   // Rerun is idempotent.
-  assert.equal(run("1.5.0", "all", "cli").status, 0);
+  const again = run("1.5.0", "all", "cli");
+  assert.equal(again.status, 0);
+  assert.match(again.stdout, /tag exists: android\/v1\.5\.0/);
 });

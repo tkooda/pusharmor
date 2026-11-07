@@ -13,8 +13,10 @@ configFiles:
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    MARKETING_VERSION: "0.0.44"
-    CURRENT_PROJECT_VERSION: "44"
+    # Dev values; ios-release passes the version and build number of the tag
+    # (tools/release-archive.sh).
+    MARKETING_VERSION: "0.0.0"
+    CURRENT_PROJECT_VERSION: "1"
     APP_BUNDLE_ID: com.pusharmor.app            # repo constant after the store bootstrap
     CODE_SIGN_STYLE: Automatic
   configs:

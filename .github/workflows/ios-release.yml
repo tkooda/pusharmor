@@ -42,9 +42,9 @@ env:
   APP_BUNDLE_ID: com.pusharmor.app
 
 jobs:
-  # Fails early: the tag rule, version files and the release gate before any build.
+  # Fails early: the tag rule and the release gate before any build.
   tag:
-    name: release tag rule and version files
+    name: release tag rule
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
@@ -110,7 +110,7 @@ jobs:
           echo "$v"
           printf '%s\n' "$v" | grep -qx "$XCODE_VERSION"
           printf '%s\n' "$v" | grep -qx "$XCODE_BUILD"
-      - name: Release tag rule, version files and release values
+      - name: Release tag rule and release values
         id: tag
         run: |
           version="$(node release/tag.mjs --check "$TAG")"

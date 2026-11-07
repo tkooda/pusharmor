@@ -3,8 +3,8 @@
     "{549aa960-212f-41ba-b28c-7d7d1662bb57}": {
       "updates": [
         {
-          "version": "0.0.44",
-          "update_link": "https://github.com/tkooda/pusharmor/releases/download/firefox/v0.0.44/pusharmor-firefox-beta-0.0.44.xpi"
+          "version": "FIREFOX_VERSION_PLACEHOLDER",
+          "update_link": "https://github.com/tkooda/pusharmor/releases/download/firefox/vFIREFOX_VERSION_PLACEHOLDER/pusharmor-firefox-beta-FIREFOX_VERSION_PLACEHOLDER.xpi"
         }
       ]
     }

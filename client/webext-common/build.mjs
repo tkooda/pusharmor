@@ -12,6 +12,8 @@
 //   --dev --shots           also bundles src/shots (store screenshots, shots.mjs) into the
 //                           Chrome dev build, and the sign-in screenshot page (signin.html)
 //                           into both dev builds; refused without --dev
+// The manifest version comes from the release tag (buildVersion in release/tag.mjs:
+// env PA_VERSION, else the tag chrome/vX.Y.Z or firefox/vX.Y.Z at HEAD, else 0.0.0).
 // Build ids (VAPID public key, add-on id, Chrome dev key) come from the tracked
 // release/public.json; a release build fails while one holds a placeholder (or a
 // CI dummy without PA_CI_DUMMY=1). A release build then checks all five zips
@@ -21,6 +23,7 @@ import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync, readdirSync, st
 import { dirname, join, relative } from "node:path";
 import { deflateRawSync, crc32 } from "node:zlib";
 import { PUBLIC_PATH, isUnset, loadPublic, publicProblems } from "../../release/public.mjs";
+import { buildVersion } from "../../release/tag.mjs";
 import { checkZips } from "./check-release.mjs";
 
 const here = dirname(new URL(import.meta.url).pathname);
@@ -147,6 +150,7 @@ async function shell(name, entries, iife, target, manifestFix) {
   writeFileSync(join(out, "tokens.css"), readFileSync(join(ui, "tokens-" + name + ".css")));
   cpSync(join(here, "icons"), join(out, "icons"), { recursive: true });
   const manifest = JSON.parse(readFileSync(join(root, "manifest.json"), "utf8"));
+  manifest.version = buildVersion(name, join(client, ".."));
   manifestFix(manifest, out, root);
   writeFileSync(join(out, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
   zip(out, join(root, "dist", "pusharmor-" + name + (dev ? "-dev" : "") + ".zip"));

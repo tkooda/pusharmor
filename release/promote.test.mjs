@@ -147,7 +147,7 @@ test("store commands report clear_prerelease only for this version", () => {
   assert.equal(clearOutput(undefined), "false");
 });
 
-// each platform has its own stamp commit: tags of X.Y.Z may differ in commit;
+// tags of X.Y.Z may be on different commits (a platform may join later);
 // missing platforms are listed.
 test("promote check: tags of X.Y.Z may be on different commits, missing platforms listed", () => {
   const a = "a".repeat(40);

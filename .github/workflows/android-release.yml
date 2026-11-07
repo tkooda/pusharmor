@@ -34,9 +34,9 @@ env:
   PLAY_INTERNAL_STATUS: completed
 
 jobs:
-  # Fails early: the tag rule, version files and the release gate before any build.
+  # Fails early: the tag rule and the release gate before any build.
   tag:
-    name: release tag rule and version files
+    name: release tag rule
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
@@ -86,8 +86,8 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: site/.node-version
-      # Tag rule and version files (release/tag.mjs --check; version.properties is checked for android only).
-      - name: Release tag rule, version files and release values
+      # Tag rule (release/tag.mjs --check); the build takes X.Y.Z from it (PA_VERSION).
+      - name: Release tag rule and release values
         id: tag
         run: |
           version="$(node release/tag.mjs --check "$TAG")"
@@ -123,6 +123,8 @@ jobs:
       # needs nothing outside the repo (F-Droid builds it the same way).
       - name: Release builds (AAB, play APK, foss APK)
         working-directory: client/android
+        env:
+          PA_VERSION: ${{ steps.tag.outputs.version }}
         run: ./gradlew --no-daemon --stacktrace :app:bundlePlayRelease :app:assemblePlayRelease :app:assembleFossRelease
       - name: Release APK check (play, foss)
         working-directory: client/android

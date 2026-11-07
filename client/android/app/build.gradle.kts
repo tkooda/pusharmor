@@ -1,5 +1,4 @@
 import groovy.json.JsonSlurper
-import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -7,10 +6,21 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-// Version: committed release/version.properties (release/tag.mjs; CI asserts it equals the android/v tag).
-val versionProps = Properties().apply {
-    rootProject.file("../../release/version.properties").inputStream().use { load(it) }
-}
+// Version from the release tag (buildVersion in release/tag.mjs): env PA_VERSION
+// (the release jobs), else the tag android/vX.Y.Z at HEAD (git; F-Droid builds a
+// checkout of the tag), else the dev version 0.0.0.
+// versionCode = major * 1000000 + minor * 1000 + patch (buildNumber in
+// release/tag.mjs); the dev version gets 1.
+val tagVersion: String = providers.environmentVariable("PA_VERSION").orNull?.takeIf { it.isNotEmpty() }
+    ?: runCatching {
+        providers.exec {
+            commandLine("git", "-C", rootDir.path, "tag", "--points-at", "HEAD", "--list", "android/v*")
+        }.standardOutput.asText.get()
+    }.getOrDefault("").lines().map { it.trim().removePrefix("android/v") }.firstOrNull { it.isNotEmpty() }
+    ?: "0.0.0"
+val tagVersionParts = Regex("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]{0,2})\\.(0|[1-9][0-9]{0,2})$").find(tagVersion)?.groupValues?.drop(1)?.map { it.toInt() }
+    ?: throw GradleException("version $tagVersion is not X.Y.Z (minor and patch <= 999)")
+val tagVersionCode = if (tagVersion == "0.0.0") 1 else tagVersionParts[0] * 1000000 + tagVersionParts[1] * 1000 + tagVersionParts[2]
 // Public build ids from the tracked release/public.json (meanings in release/names.json
 // "public_keys"). Debug builds work with its placeholders; release builds fail on them.
 @Suppress("UNCHECKED_CAST")
@@ -31,8 +41,8 @@ android {
         applicationId = "com.pusharmor"
         minSdk = 31
         targetSdk = 36
-        versionCode = versionProps.getProperty("versionCode").toInt()
-        versionName = versionProps.getProperty("versionName")
+        versionCode = tagVersionCode
+        versionName = tagVersion
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "API_BASE", "\"https://api.pusharmor.com\"")
         // A placeholder bakes in "" (UnifiedPush registers without a VAPID key).

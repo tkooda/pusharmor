@@ -13,4 +13,6 @@ Build and test from `client/webext-common`:
 The zip is `dist/pusharmor-firefox.zip`; load `dist/unpacked` from
 about:debugging for a local test. AMO receives the source with each version
 because the output is bundled: check out the release tag and run the
-commands above to reproduce it.
+commands above to reproduce it. The manifest version comes from the tag (the
+tag at HEAD, or `release/source-tag.txt` in the source archive); other builds
+get 0.0.0.

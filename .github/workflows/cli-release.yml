@@ -6,8 +6,8 @@ name: cli-release
 #   github-release  contents: write: GitHub release with pusharmor.py, its
 #                   SHA-256 line, the sdist and the wheel
 #   publish         Environment pypi, id-token: write: PyPI Trusted Publishing
-# The version in pusharmor.py is stamped in the repo by release/tag.mjs and
-# checked by --check; the build does not change it. Only this file holds the
+# The build writes X.Y.Z of the tag into pusharmor.py (VERSION and the line-2
+# comment; the repo holds the dev version 0.0.0). Only this file holds the
 # write and id-token permissions; ci.yml never calls it.
 on:
   push:
@@ -21,9 +21,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Fails early: the tag rule, version files and the release gate before any build.
+  # Fails early: the tag rule and the release gate before any build.
   tag:
-    name: release tag rule and version files
+    name: release tag rule
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
@@ -64,6 +64,16 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.11"
+      - name: Version of the tag into pusharmor.py
+        working-directory: client/cli
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          v="${TAG#cli/v}"
+          sed -i -e "s/^VERSION = \"0\.0\.0\"\$/VERSION = \"$v\"/" \
+            -e "2s/^# PushArmor command-line client, version 0\.0\.0\$/# PushArmor command-line client, version $v/" pusharmor.py
+          grep -qx "VERSION = \"$v\"" pusharmor.py
+          [ "$(sed -n 2p pusharmor.py)" = "# PushArmor command-line client, version $v" ]
       - name: Build
         working-directory: client/cli
         run: |

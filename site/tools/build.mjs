@@ -1,18 +1,26 @@
 // Release build of the site: copies site/public to OUT, fills the build ids from
 // release/public.json into OUT, then rewrites the SRI and CSP hashes in OUT.
-// The APK SHA-256 values of /download come from the hashes file of the GitHub
-// release android/vX.Y.Z (X.Y.Z from the page's APK URLs), so a deploy before
-// that release is published fails; --apk-hashes FILE reads a local copy, and a
-// CI dummy build fills zeros. The tracked site/public keeps its placeholders. "wrangler deploy" runs it as the
+// Released versions (nothing is committed for a release): the newest tags
+// android/vX.Y.Z, cli/vX.Y.Z and firefox/vX.Y.Z of the GitHub repo (git ls-remote)
+// fill /download, /fdroid/android.txt (versionName, versionCode) and
+// /fx/beta/updates.json. From each GitHub release: the APK SHA-256 values (hashes
+// file of android/vX.Y.Z), the SHA-256 of pusharmor.py (cli/vX.Y.Z) and the Beta
+// update manifest (firefox/vX.Y.Z, checked to name the same XPI), so a deploy
+// before those releases are published fails. --versions android=X.Y.Z,cli=X.Y.Z,firefox=X.Y.Z
+// replaces the tag lookup, --release-dir DIR reads local copies of those release
+// files, and a CI dummy build takes 0.0.0 and zeros. The tracked site/public keeps
+// its placeholders. "wrangler deploy" runs it as the
 // build command from wrangler.jsonc and serves OUT (see site/README.md).
-//   node site/tools/build.mjs [--out OUT] [--public FILE] [--apk-hashes FILE]
+//   node site/tools/build.mjs [--out OUT] [--public FILE] [--versions LIST] [--release-dir DIR]
 // OUT defaults to site/dist (gitignored) and is replaced. Fails when a value is missing, empty, malformed
 // or a PLACEHOLDER (or a CI dummy without PA_CI_DUMMY=1), or a placeholder is left.
 // A CI dummy skips the format checks.
+import { execFileSync } from "node:child_process";
 import { cpSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PUBLIC_PATH, loadPublic, publicProblems } from "../../release/public.mjs";
+import { betaXpiUrl, buildNumber, parseTag, parseVersion } from "../../release/tag.mjs";
 import { computeHashUpdates, placeholderFiles } from "./site-lib.mjs";
 
 const arg = (name) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : undefined; };
@@ -59,24 +67,65 @@ fill("turnstile.html", 'data-sitekey="TURNSTILE_SITEKEY_PLACEHOLDER"', 'data-sit
 fill("js/fx-setup.js", '"VAPID_PUBLIC_KEY_PLACEHOLDER"', JSON.stringify(pub.webpush_vapid_public_key));
 fill("_headers", "chrome-extension://CHROME_EXTENSION_ID", "chrome-extension://" + pub.google_chrome_extension_id);
 fill("_headers", "chrome-extension://CHROME_BETA_EXTENSION_ID", "chrome-extension://" + pub.google_chrome_beta_extension_id);
-const page = readFileSync(join(dir, "download.html"), "utf8");
-const apkVersion = /\/releases\/download\/android\/v([0-9]+\.[0-9]+\.[0-9]+)\//.exec(page)?.[1];
-if (!apkVersion) fail(["download.html: no android/vX.Y.Z release URL"]);
-let apkHashes;
-if (arg("--apk-hashes")) apkHashes = readFileSync(arg("--apk-hashes"), "utf8");
-else if (process.env.PA_CI_DUMMY === "1") apkHashes = ["foss", "play"].map((k) => "0".repeat(64) + "  pusharmor-" + apkVersion + "-" + k + ".apk").join("\n");
-else {
-  const url = "https://github.com/tkooda/pusharmor/releases/download/android/v" + apkVersion + "/pusharmor-" + apkVersion + ".hashes.txt";
+const REPO_URL = "https://github.com/tkooda/pusharmor";
+const ciDummy = process.env.PA_CI_DUMMY === "1";
+const versions = {};
+if (arg("--versions")) {
+  for (const kv of arg("--versions").split(",")) versions[kv.split("=")[0]] = kv.split("=")[1];
+} else if (ciDummy) {
+  for (const p of ["android", "cli", "firefox"]) versions[p] = "0.0.0";
+} else {
+  let refs;
+  try { refs = execFileSync("git", ["ls-remote", "--tags", "--refs", REPO_URL + ".git"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }); }
+  catch (e) { fail(["git ls-remote " + REPO_URL + ": " + String(e.stderr || e.message).trim()]); }
+  for (const l of refs.split("\n")) {
+    const t = parseTag((l.split("\t")[1] || "").replace(/^refs\/tags\//, ""));
+    if (t && (!versions[t.platform] || buildNumber(t.version) > buildNumber(versions[t.platform]))) versions[t.platform] = t.version;
+  }
+}
+const noVersion = ["android", "cli", "firefox"].filter((p) => !parseVersion(versions[p] || ""));
+if (noVersion.length) fail(noVersion.map((p) => "no " + p + "/vX.Y.Z version"));
+console.log("site build: android " + versions.android + ", cli " + versions.cli + ", firefox " + versions.firefox);
+// A file of the GitHub release <platform>/vX.Y.Z; null in a CI dummy build without --release-dir.
+async function releaseFile(platform, name) {
+  if (arg("--release-dir")) {
+    const p = join(arg("--release-dir"), name);
+    try { return readFileSync(p, "utf8"); } catch (e) { fail([p + ": " + e.message]); }
+  }
+  if (ciDummy) return null;
+  const tag = platform + "/v" + versions[platform];
+  const url = REPO_URL + "/releases/download/" + tag + "/" + name;
   let r;
   try { r = await fetch(url); } catch (e) { fail([url + ": " + e.message]); }
-  if (!r.ok) fail([url + ": HTTP " + r.status + " (deploy after android-release publishes android/v" + apkVersion + ")"]);
-  apkHashes = await r.text();
+  if (!r.ok) fail([url + ": HTTP " + r.status + " (deploy after the release " + tag + " is published)"]);
+  return r.text();
 }
+const apkVersion = versions.android;
+fill("download.html", "ANDROID_VERSION_PLACEHOLDER", apkVersion);
+fill("fdroid/android.txt", "ANDROID_VERSION_CODE_PLACEHOLDER", String(buildNumber(apkVersion)));
+fill("fdroid/android.txt", "ANDROID_VERSION_PLACEHOLDER", apkVersion);
+const apkHashes = (await releaseFile("android", "pusharmor-" + apkVersion + ".hashes.txt"))
+  ?? ["foss", "play"].map((k) => "0".repeat(64) + "  pusharmor-" + apkVersion + "-" + k + ".apk").join("\n");
 for (const k of ["foss", "play"]) {
   const name = "pusharmor-" + apkVersion + "-" + k + ".apk";
   const h = apkHashes.split("\n").map((l) => l.trim().split(/\s+/)).find((x) => x[1] === name)?.[0];
   if (!/^[0-9a-f]{64}$/.test(h || "")) fail(["APK hashes file: no SHA-256 line for " + name]);
   fill("download.html", "APK_" + k.toUpperCase() + "_SHA256_PLACEHOLDER", h);
+}
+fill("download.html", "CLI_VERSION_PLACEHOLDER", versions.cli);
+const cliSha = (await releaseFile("cli", "pusharmor.py.sha256")) ?? "0".repeat(64) + "  pusharmor.py";
+const cliHash = cliSha.split("\n").map((l) => l.trim().split(/\s+/)).find((x) => x[1] === "pusharmor.py")?.[0];
+if (!/^[0-9a-f]{64}$/.test(cliHash || "")) fail(["pusharmor.py.sha256: no SHA-256 line for pusharmor.py"]);
+fill("download.html", "CLI_SHA256_PLACEHOLDER", cliHash);
+fill("fx/beta/updates.json", "FIREFOX_VERSION_PLACEHOLDER", versions.firefox);
+const beta = Object.values(JSON.parse(readFileSync(join(dir, "fx", "beta", "updates.json"), "utf8")).addons)[0].updates[0];
+if (beta.update_link !== betaXpiUrl(versions.firefox)) fail(["fx/beta/updates.json: update_link " + beta.update_link + ", want " + betaXpiUrl(versions.firefox)]);
+const betaName = "pusharmor-firefox-beta-" + versions.firefox + "-updates.json";
+const released = await releaseFile("firefox", betaName);
+if (released !== null) {
+  let link;
+  try { link = Object.values(JSON.parse(released).addons)[0].updates[0].update_link; } catch (e) { fail([betaName + ": " + e.message]); }
+  if (link !== beta.update_link) fail([betaName + ": update_link " + link + ", want " + beta.update_link]);
 }
 const alp = join(dir, ".well-known", "assetlinks.json");
 const al = JSON.parse(readFileSync(alp, "utf8"));
