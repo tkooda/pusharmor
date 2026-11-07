@@ -371,10 +371,13 @@ class UiTextTest {
         assertEquals("Next in 2 minutes", UiText.sendLabel("Next", 61_000))
     }
 
-    @Test fun thisDeviceIdIsTheCliShortId() {
+    @Test fun pairCommandLineHasTheCliShortIdAndNeverBreaks() {
         val raw = ByteArray(30) { it.toByte() }
         raw[9] = 0x38; raw[10] = 0x58; raw[11] = 0x05
         val id = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(raw)
-        assertEquals("This device's ID: 385805", UiText.thisDeviceId(id))
+        assertEquals("385805", UiText.shortDeviceId(id))
+        val t = UiText.pairCommandLine("Server", id)
+        assertEquals("To pair, run this on \"Server\": pusharmor\u00A0pair\u00A0385805", t.text)
+        assertTrue(t.spanStyles.any { it.item.fontFamily == androidx.compose.ui.text.font.FontFamily.Monospace })
     }
 }

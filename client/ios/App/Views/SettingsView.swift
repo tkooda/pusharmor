@@ -53,9 +53,6 @@ struct SettingsView: View {
                             }
                         }
                         .buttonStyle(.borderless)
-                        if let id = model.me?.id {
-                            Text(S.thisDeviceId(id)).font(.footnote).foregroundColor(.secondaryText)
-                        }
                         if let e = email {
                             // Dim label, the address on its own line, truncated in the middle.
                             VStack(alignment: .leading, spacing: 2) {

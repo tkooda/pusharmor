@@ -154,8 +154,6 @@ struct PeersView: View {
 struct PairHowToView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var typeSize
-    @EnvironmentObject var model: AppModel
-
     var body: some View {
         NavigationStack {
             List {
@@ -163,9 +161,6 @@ struct PairHowToView: View {
                     Label(S.pairHowTo1, systemImage: "1.circle.fill")
                     Label(S.pairHowTo2, systemImage: "2.circle.fill")
                     Label(S.pairHowTo3, systemImage: "3.circle.fill")
-                    if let id = model.me?.id {
-                        Text(S.thisDeviceId(id)).font(.footnote).foregroundColor(.secondaryText)
-                    }
                 }
             }
             .navigationTitle("Pair a new device")
@@ -279,6 +274,12 @@ struct PairingCardView: View {
             VStack(alignment: .leading, spacing: 12) {
                 stateBlock
                 PeerPendingLines(p: p, showCancel: false)
+                if entry == nil && p.platform == "cli" && !p.pinned && !p.hidden, let me = model.me?.id {
+                    // The command never splits: it moves to its own line as a whole.
+                    (Text(S.pairCommandPrefix(label)) + Text(S.pairCommand(me)).font(.system(.footnote, design: .monospaced)))
+                        .font(.footnote)
+                        .foregroundColor(.secondaryText)
+                }
             }
             .padding(.top, 16)
 

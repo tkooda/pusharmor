@@ -292,10 +292,7 @@ fun PeersScreen(vm: AppViewModel) {
                     }
                 }
                 if (firstDevice) item(key = "steps") {
-                    Column {
-                        SectionHeader(UiText.FIRST_DEVICE_TITLE); FirstDeviceSteps()
-                        me?.let { Text(UiText.thisDeviceId(it.id), Modifier.padding(horizontal = 32.dp, vertical = 8.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    }
+                    Column { SectionHeader(UiText.FIRST_DEVICE_TITLE); FirstDeviceSteps() }
                 }
                 if (pairing.isNotEmpty()) {
                     item(key = "pairing-header") { SectionHeader("Pairing") }
@@ -307,7 +304,7 @@ fun PeersScreen(vm: AppViewModel) {
                 if (plain.isNotEmpty()) {
                     item(key = "peers-header") { SectionHeader(if (firstDevice) "Waiting to pair" else "Other devices") }
                     itemsIndexed(plain, key = { _, p -> p.id }) { i, p ->
-                        PeerRow(vm, p, now, p.id == highlight, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, plain.size)) { confirmRemove = p.id }
+                        PeerRow(vm, p, now, p.id == highlight, me?.id, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, plain.size)) { confirmRemove = p.id }
                     }
                 } else if (pairing.isEmpty() && firstDevice) {
                     item(key = "waiting-header") { SectionHeader("Waiting to pair") }
@@ -331,7 +328,6 @@ fun PeersScreen(vm: AppViewModel) {
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 UiText.numbered(UiText.PAIR_HOWTO_STEPS).forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
-                me?.let { Text(UiText.thisDeviceId(it.id), style = MaterialTheme.typography.bodyMedium) }
             }
         },
         confirmButton = { TextButton(onClick = { pairHowTo = false }) { Text("OK") } })
@@ -579,7 +575,7 @@ private fun BannerRow(text: String, action: String, fault: Boolean, icon: ImageV
 
 /** One peer in the Peers group: icon tile, name, platform, status line, overflow menu; the menu holds the per-device options. */
 @Composable
-private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, modifier: Modifier, onRemove: () -> Unit) {
+private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, selfId: String?, modifier: Modifier, onRemove: () -> Unit) {
     val x = label(p)
     var menu by remember { mutableStateOf(false) }
     val pairingAgain by vm.pairingAgain.collectAsState()
@@ -656,6 +652,9 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
             },
         )
         val inset = Modifier.padding(start = 72.dp, end = 16.dp)
+        if (selfId != null && p.platform == "cli" && !p.pinned && !p.hidden) {
+            Text(UiText.pairCommandLine(x, selfId), inset.padding(bottom = 8.dp), style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+        }
         when {
             !p.pinned -> Row(inset.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.heightIn(min = 48.dp), enabled = "deny:${p.id}" !in running, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
@@ -1490,7 +1489,6 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                 GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
                     NameEditRow(me?.name ?: "", m) { vm.rename(it) }
                 })
-                me?.let { Text(UiText.thisDeviceId(it.id), Modifier.padding(horizontal = 32.dp, vertical = 8.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
             SectionHeader("Appearance")
             GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->

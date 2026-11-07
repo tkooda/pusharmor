@@ -56,7 +56,9 @@ public enum S {
     public static let firstPairStep1 = "Install PushArmor on another device."
     public static let firstPairStep2 = "Log in with the same account."
     public static let firstPairStep3 = "When it shows below, tap Pair, then tap Codes match when the fingerprints match."
-    public static func thisDeviceId(_ id: PeerId) -> String { "This device's ID: " + id.shortHex }
+    /// Extra line on an unpaired command line device: prefix text, then the command in monospace (no-break spaces keep it whole).
+    public static func pairCommandPrefix(_ name: String) -> String { "To pair, run this on \"\(name)\": " }
+    public static func pairCommand(_ id: PeerId) -> String { "pusharmor\u{00A0}pair\u{00A0}" + id.shortHex }
     public static let firstPairWaiting = "Waiting for another device to log in."
     public static let deviceReset = "This device was reset. Log in to start again."
     public static let launchFailedTitle = "Unable to open PushArmor data"

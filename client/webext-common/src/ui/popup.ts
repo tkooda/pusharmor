@@ -6,7 +6,7 @@ import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendT
 import { isLikelyUrl } from "../model/sendurl.ts";
 import { AUTH_CHANGED, AUTH_SWITCHED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
-import { type UiEnv, accountLine, add, clear, deviceIdLine, failView, group, h, midEllipsis, nextTabIndex, openHref, rpc, sh, shortTime } from "./dom.ts";
+import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, nextTabIndex, openHref, rpc, sh, shortTime } from "./dom.ts";
 import { closeDialogs, confirmDialog, dismissToast, toast } from "./dialog.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
 import { type MsgAction, msgActions, saveFilename } from "../model/msgactions.ts";
@@ -809,7 +809,6 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     root,
     self && sh("Device name"),
     self && ownCard(env, self.name, st.platform),
-    self && deviceIdLine(self.id),
     sh("Appearance"),
     group(h("div", { class: "srow" }, h("div", { class: "txt" }, h("div", {}, "Theme"), h("div", { class: "t2" }, "Dark uses a true black background.")), theme)),
     sh("Sending"),

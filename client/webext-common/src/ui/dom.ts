@@ -293,7 +293,7 @@ export function shortDeviceId(id: string): string {
   return Array.from(b64urlDecode(id).slice(9), (b) => b.toString(16).padStart(2, "0")).join("").slice(0, 6);
 }
 
-/** "This device's ID: 385805", shown on the pairing screen and in Settings. */
-export function deviceIdLine(id: string): HTMLElement {
-  return h("div", { class: "t2 devid" }, "This device's ID: " + shortDeviceId(id));
+/** Extra line on an unpaired command line device: To pair, run this on "name": pusharmor pair ID (the command never breaks). */
+export function pairCommandLine(name: string, selfId: string): HTMLElement {
+  return h("div", { class: "t2 line" }, 'To pair, run this on "' + name + '": ', h("code", { class: "paircmd" }, "pusharmor pair " + shortDeviceId(selfId)));
 }

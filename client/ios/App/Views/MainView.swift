@@ -64,9 +64,6 @@ struct FirstPairView: View {
                     Label(S.firstPairStep1, systemImage: "1.circle.fill")
                     Label(S.firstPairStep2, systemImage: "2.circle.fill")
                     Label(S.firstPairStep3, systemImage: "3.circle.fill")
-                    if let id = model.me?.id {
-                        Text(S.thisDeviceId(id)).font(.footnote).foregroundColor(.secondaryText)
-                    }
                 }
                 Section("Waiting to pair") {
                     let waiting = model.waitingToPair

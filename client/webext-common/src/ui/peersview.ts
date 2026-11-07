@@ -2,7 +2,7 @@
 import type { PeerView } from "../core/rpc.ts";
 import { sortByLabel } from "../model/sendsel.ts";
 import { T, confirmResultText } from "../core/texts.ts";
-import { type UiEnv, add, deviceIdLine, clear, disableFor, greyFor, group, h, overflowMenu, peerStatus, platformLabel, rpc, sh, statusLine } from "./dom.ts";
+import { type UiEnv, add, clear, pairCommandLine, disableFor, greyFor, group, h, overflowMenu, peerStatus, platformLabel, rpc, sh, statusLine } from "./dom.ts";
 import { confirmDialog, toast } from "./dialog.ts";
 import { devicesArt, icon, platformIcon, shield } from "./icons.ts";
 
@@ -65,7 +65,6 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
           h("li", {}, h("span", { class: "fp-num", "aria-hidden": "true" }, String(i + 1)), h("span", {}, t)),
         ),
       ),
-      ...(data.self ? [deviceIdLine(data.self.id)] : []),
       sh("Waiting to pair"),
       ...waiting.filter((p) => p.fingerprint).map((p) => pairCard(env, p, redraw)),
       ...(waiting.some((p) => !p.fingerprint)
@@ -76,7 +75,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
     );
   } else {
     for (const p of pairing) root.append(pairCard(env, p, redraw));
-    if (rows.length) root.append(sh("Other devices"), group(...rows.map((p) => peerRow(env, p, redraw, data.allowContent !== false))));
+    if (rows.length) root.append(sh("Other devices"), group(...rows.map((p) => peerRow(env, p, redraw, data.allowContent !== false, data.self?.id))));
     else if (!pairing.length) {
       root.append(
         h(
@@ -89,7 +88,6 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
       );
     }
     root.append(pairNew(openPair));
-    if (data.self) root.append(deviceIdLine(data.self.id));
   }
   // new devices and pairing steps arrive by push into the local list: read it again every few seconds, redraw on a change
   const key = JSON.stringify(data.peers);
@@ -224,7 +222,7 @@ function statusIcons(p: PeerView, globalAllow: boolean): HTMLElement {
   return h("span", { class: "stat", role: "img", "aria-label": statusLabel(send, notif) }, one("send", send), one("bell", notif));
 }
 
-function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = true): HTMLElement {
+function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = true, selfId?: string): HTMLElement {
   const dim = p.greyed !== null && p.greyed !== "logged out" && p.greyed !== "send only";
   const row = h("div", { class: "prow peer" + (dim ? " off" : ""), id: "peer-" + p.id, tabindex: "-1" });
   const col = h("div", { class: "txt" });
@@ -238,8 +236,10 @@ function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = true): H
   for (const l of p.lines) info.append(h("div", { class: "t2 line" }, l));
   if (p.countdown) info.append(h("div", { class: "t2 countdown" }, T.countdownLeft(p.countdown)));
   sub.append(info);
+  const pairCmd = selfId && p.platform === "cli" && !p.paired && !p.hidden ? pairCommandLine(p.label, selfId) : null;
   if (p.paired && globalAllow !== undefined) sub.append(statusIcons(p, globalAllow));
   col.append(head, sub);
+  if (pairCmd) col.append(pairCmd);
   // Negative actions (Reject, Cancel pairing request) on the left, the main action on the right.
   const neg = (a: string): number => (a === "deny" || a === "cancel" ? 0 : 1);
   const main = [...p.actions].filter((a) => !inMenu(p, a)).sort((x, y) => neg(x) - neg(y) || rank(x) - rank(y));

@@ -1,5 +1,10 @@
 package com.pusharmor.app.ui
 
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.withStyle
 import com.pusharmor.protocol.NameEntry
 import com.pusharmor.protocol.Peer
 import com.pusharmor.protocol.engine.PairStart
@@ -285,9 +290,14 @@ object UiText {
     const val FIRST_DEVICE_TITLE = "Pair your first device"
     /** Same steps as the iOS first-pair screen; each shows with a numbered circle. */
     val FIRST_DEVICE_STEPS = listOf("Install PushArmor on another device.", "Log in with the same account.", "When it shows below, tap Pair, then tap Codes match when the fingerprints match.")
-    /** "This device's ID: 385805": the short ID the command line prints (first 6 hex chars after the 9 account bytes). */
-    fun thisDeviceId(id: String): String =
-        "This device's ID: " + java.util.Base64.getUrlDecoder().decode(id).drop(9).joinToString("") { "%02x".format(it) }.take(6)
+    /** The short ID the command line prints for this device: first 6 hex chars after the 9 account bytes. */
+    fun shortDeviceId(id: String): String =
+        java.util.Base64.getUrlDecoder().decode(id).drop(9).joinToString("") { "%02x".format(it) }.take(6)
+    /** Extra line on an unpaired command line device; the command is monospace with no-break spaces so it never splits. */
+    fun pairCommandLine(name: String, selfId: String): AnnotatedString = buildAnnotatedString {
+        append("To pair, run this on \"$name\": ")
+        withStyle(SpanStyle(fontFamily = FontFamily.Monospace)) { append("pusharmor\u00A0pair\u00A0" + shortDeviceId(selfId)) }
+    }
     const val FIRST_DEVICE_WAITING = "Waiting for another device to log in."
 
     /** Send with no paired device: pairing guidance replaces the empty "Send to" block once this device is loaded. */
