@@ -70,7 +70,7 @@ final class AppEnvironment: PlatformHooks {
     /// Reset this device, only after the user confirms it: an empty pa.sqlite after a
     /// best-effort DELETE of this device with the surviving Keychain keys.
     func resetStore() async throws -> Store {
-        let s = try await StoreRepair.reset(path: dbURL.path) { await self.deleteSelfBestEffort() }
+        let s = try await StoreRepair.reset(path: dbURL.path, vault: keychain) { await self.deleteSelfBestEffort() }
         protectFiles()
         return s
     }

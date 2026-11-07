@@ -301,10 +301,12 @@ public enum StoreRepair {
     }
 
     /// Reset this device, only after the user confirms: runs `beforeReset`, removes the file
-    /// and its -wal / -shm, and opens a new one.
-    public static func reset(path: String, beforeReset: () async -> Void) async throws -> Store {
+    /// and its -wal / -shm (with them go the archive rows), drops every archived Keychain
+    /// item, and opens a new one.
+    public static func reset(path: String, vault: AccountKeyVault, beforeReset: () async -> Void) async throws -> Store {
         await beforeReset()
         for suffix in ["", "-wal", "-shm"] { try? FileManager.default.removeItem(atPath: path + suffix) }
+        vault.dropAllArchivedKeys()
         return try Store(path: path)
     }
 

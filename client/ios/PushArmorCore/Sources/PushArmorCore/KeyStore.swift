@@ -196,6 +196,12 @@ extension KeychainKeyStore: AccountKeyVault {
         for (item, d) in copy { try write(item, d) }
     }
 
+    public func dropAllArchivedKeys() {
+        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: KeychainKeyStore.archiveService,
+                                kSecAttrAccessGroup as String: accessGroup]
+        SecItemDelete(q as CFDictionary)
+    }
+
     public func dropArchivedKeys(account: String) {
         for item in KeychainKeyStore.slotItems { SecItemDelete(archiveQuery(account, item) as CFDictionary) }
     }

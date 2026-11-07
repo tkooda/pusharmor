@@ -9,6 +9,8 @@ public protocol AccountKeyVault: AnyObject {
     func activateKeys(account: String?) throws
     /// Removes the archived copy of `account`.
     func dropArchivedKeys(account: String)
+    /// Removes every archived copy, whatever the account.
+    func dropAllArchivedKeys()
 }
 
 /// Several accounts on one device, one active at a time. The active account is the usual

@@ -68,7 +68,7 @@ public enum S {
     public static let dataBrokenTitle = "This device's data has become unusable."
     public static let dataBrokenBody = "Tap Retry to try again. If this keeps happening, you can reset this device. You will then log in again and pair all your devices again."
     public static let dataBrokenConfirmTitle = "Reset this device?"
-    public static let dataBrokenConfirmBody = "This cannot be undone. You will need to pair all your devices again."
+    public static let dataBrokenConfirmBody = "This removes all accounts from this device and cannot be undone. You will need to pair all your devices again."
     public static let updateRequired = "Update PushArmor to continue."
     public static let updateTitle = "Please update PushArmor"
     public static let updateBody = "This version no longer works with the relay server. Update to keep sending and receiving."

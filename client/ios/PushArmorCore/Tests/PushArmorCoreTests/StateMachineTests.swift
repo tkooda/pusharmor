@@ -1660,7 +1660,7 @@ final class StateMachineTests: XCTestCase {
         XCTAssertNil(try StoreRepair.open(path: path))
         XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: path)), bad)
         var called = 0
-        let s = try await StoreRepair.reset(path: path) { called += 1 }
+        let s = try await StoreRepair.reset(path: path, vault: FakeVault()) { called += 1 }
         XCTAssertEqual(called, 1)
         XCTAssertNil(try s.me().id)
         XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 1)
@@ -1668,6 +1668,20 @@ final class StateMachineTests: XCTestCase {
         let s2 = try XCTUnwrap(try StoreRepair.open(path: path))
         XCTAssertEqual(called, 1)
         XCTAssertEqual(try s2.me().name, "kept")
+    }
+
+    /// reset removes every archived account: no archive rows, and the archived Keychain
+    /// items are dropped.
+    func testResetRemovesArchivedAccounts() async throws {
+        let path = NSTemporaryDirectory() + "pa-arch-\(UUID().uuidString).sqlite"
+        let s0 = try Store(path: path)
+        try s0.db.exec("CREATE TABLE IF NOT EXISTS archive (account TEXT PRIMARY KEY, email TEXT, data BLOB NOT NULL)")
+        try s0.db.exec("INSERT INTO archive (account, email, data) VALUES ('a', 'e', x'01')")
+        let vault = FakeVault()
+        vault.archive = ["a": ["sign": Data([1])]]
+        let s = try await StoreRepair.reset(path: path, vault: vault) {}
+        XCTAssertNil(try s.db.one("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'archive'"))
+        XCTAssertTrue(vault.archive.isEmpty)
     }
 
     /// the best-effort DELETE of this device is signed with the surviving keys and

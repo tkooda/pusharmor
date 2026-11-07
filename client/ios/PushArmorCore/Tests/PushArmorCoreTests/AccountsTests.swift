@@ -16,6 +16,7 @@ final class FakeVault: AccountKeyVault {
     }
 
     func dropArchivedKeys(account: String) { archive[account] = nil }
+    func dropAllArchivedKeys() { archive = [:] }
 
     /// A fresh key set as the active items (sign-in with new keys).
     func create() -> DeviceKeys {
