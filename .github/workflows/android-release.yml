@@ -4,15 +4,13 @@ name: android-release
 # jobs, so the signing keys never share a job with Gradle or a third-party action:
 #   android-rel-build    no Environment, no secrets: unsigned AAB and APKs
 #   android-rel-sign     Environment android-sign: keystores, no checkout
-#   android-rel-publish  Environment android-release: provenance, GitHub
-#                        release
-#   android-rel-play     Environment android-release: the Play internal upload,
-#                        in its own job so a failed upload can be rerun alone
+#   android-rel-publish  no Environment: provenance, GitHub release (APKs,
+#                        mapping files, the signed AAB, hashes)
 #   android-rel-fdroid   Environment fdroid-release: the F-Droid repo (repo
 #                        signing key, R2 upload); skips while its secrets are missing
-# Test channels only: Play internal track and the GitHub
-# release (a regular release; it keeps the Latest badge). The owner promotes by hand
-# (RELEASING.md): Play promote, F-Droid metadata.
+# Nothing goes to Google Play: the GitHub release (a regular release; it keeps
+# the Latest badge) and the F-Droid repo only. The promote workflow uploads the
+# AAB of the release to Play (store.yml, RELEASING.md).
 on:
   push:
     tags:
@@ -28,10 +26,6 @@ env:
   JAVA_VERSION: "17.0.20+8"
   SDK_PACKAGES: platforms;android-36 build-tools;35.0.0 build-tools;34.0.0 platform-tools
   PACKAGE_NAME: com.pusharmor
-  # Status of the Play internal track release. Play accepts only draft while the
-  # app has never been published; the first release was published by hand, so
-  # later tags roll out to internal testers on their own.
-  PLAY_INTERNAL_STATUS: completed
 
 jobs:
   # Fails early: the tag rule and the release gate before any build.
@@ -75,8 +69,6 @@ jobs:
     outputs:
       version: ${{ steps.tag.outputs.version }}
       certs: ${{ steps.ids.outputs.certs }}
-      wif_provider: ${{ steps.ids.outputs.wif_provider }}
-      wif_service_account: ${{ steps.ids.outputs.wif_service_account }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -94,17 +86,14 @@ jobs:
           # PA_CI_DUMMY must be unset here; --check fails when it is set at all.
           node release/public.mjs --check webpush_vapid_public_key google_web_client_id \
             google_fcm_android_app_id google_fcm_project_number google_fcm_android_api_key \
-            google_fcm_project_id android_release_cert_sha256 \
-            google_play_wif_provider google_play_wif_service_account
+            google_fcm_project_id android_release_cert_sha256
           echo "version=$version" >> "$GITHUB_OUTPUT"
-      - name: Ids for the sign and publish jobs
+      - name: Certificates for the sign job
         id: ids
         run: |
           node -e '
             const p = require(process.argv[1]);
             console.log("certs=" + JSON.stringify(p.android_release_cert_sha256));
-            console.log("wif_provider=" + p.google_play_wif_provider);
-            console.log("wif_service_account=" + p.google_play_wif_service_account);
           ' "$PWD/release/public.json" >> "$GITHUB_OUTPUT"
       - name: SOURCE_DATE_EPOCH from the tag commit
         run: echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct "$TAG")" >> "$GITHUB_ENV"
@@ -253,7 +242,7 @@ jobs:
         run: |
           out="$RUNNER_TEMP/signed"
           cert="$(head -n 1 "$RUNNER_TEMP/certs.txt")"
-          (cd "$out" && sha256sum "pusharmor-$VERSION-play.apk" "pusharmor-$VERSION-foss.apk") > "$RUNNER_TEMP/apk.sha256"
+          (cd "$out" && sha256sum "pusharmor-$VERSION-play.apk" "pusharmor-$VERSION-foss.apk" "pusharmor-$VERSION-play.aab") > "$RUNNER_TEMP/apk.sha256"
           {
             cat "$RUNNER_TEMP/apk.sha256"
             echo "$cert  release certificate SHA-256 (the one release certificate; the upload key never appears)"
@@ -266,12 +255,13 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
+  # No Environment: this job can get no store credential (the Play WIF
+  # provider accepts only the Environment android-release).
   android-rel-publish:
-    name: publish (GitHub release, Play internal track)
+    name: publish (GitHub release)
     needs: [android-rel-build, android-rel-sign]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    environment: android-release
     permissions:
       contents: write
       id-token: write
@@ -294,12 +284,13 @@ jobs:
           out="$RUNNER_TEMP/release"
           mkdir -p "$out"
           s="$RUNNER_TEMP/signed"
-          cp "$s/pusharmor-$VERSION-play.apk" "$s/pusharmor-$VERSION-foss.apk" "$s/pusharmor-$VERSION.hashes.txt" "$out/"
+          # The AAB (upload key signature) is for Play: promote uploads it from here.
+          cp "$s/pusharmor-$VERSION-play.apk" "$s/pusharmor-$VERSION-foss.apk" "$s/pusharmor-$VERSION-play.aab" "$s/pusharmor-$VERSION.hashes.txt" "$out/"
           cp "$RUNNER_TEMP/unsigned/pusharmor-$VERSION-play-mapping.txt" "$RUNNER_TEMP/unsigned/pusharmor-$VERSION-foss-mapping.txt" "$out/"
-          (cd "$out" && sha256sum ./*.apk)
+          (cd "$out" && sha256sum ./*.apk ./*.aab)
           {
             echo "dir=$out"
-            echo "aab=$s/pusharmor-$VERSION-play.aab"
+            echo "aab=$out/pusharmor-$VERSION-play.aab"
           } >> "$GITHUB_OUTPUT"
       # Build provenance attestation (needs a public repo or an org plan; skipped if the repo is private).
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
@@ -333,82 +324,6 @@ jobs:
               "$DIR"/*
           fi
           gh release edit "$TAG" --draft=false --prerelease=false --latest
-
-  # Its own job: "Re-run failed jobs" repeats only the Play upload (the GitHub
-  # release above is published and immutable). The bundles check below makes
-  # a rerun skip an upload that already happened.
-  android-rel-play:
-    name: Play internal track upload
-    needs: [android-rel-build, android-rel-publish]
-    # One Play edit at a time: a promote (store.yml play) or another tag waits.
-    concurrency:
-      group: play-edit
-      cancel-in-progress: false
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    environment: android-release
-    permissions:
-      id-token: write
-    env:
-      VERSION: ${{ needs.android-rel-build.outputs.version }}
-    steps:
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: android-signed
-          path: ${{ runner.temp }}/signed
-      - name: AAB path
-        id: files
-        run: |
-          aab="$RUNNER_TEMP/signed/pusharmor-$VERSION-play.aab"
-          test -s "$aab"
-          sha256sum "$aab"
-          echo "aab=$aab" >> "$GITHUB_OUTPUT"
-      - id: auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          workload_identity_provider: ${{ needs.android-rel-build.outputs.wif_provider }}
-          service_account: ${{ needs.android-rel-build.outputs.wif_service_account }}
-          token_format: access_token
-          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
-          create_credentials_file: false
-      # Play internal track (edits.insert, bundles.upload, tracks.update,
-      # edits.commit). Rerun this job after a failure; a committed upload is skipped.
-      - name: Upload the AAB to the Play internal track
-        # bash -eo pipefail: a failed API call inside a pipe into jq fails the step.
-        shell: bash
-        env:
-          TOKEN: ${{ steps.auth.outputs.access_token }}
-          AAB: ${{ steps.files.outputs.aab }}
-        run: |
-          api="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME"
-          up="https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/$PACKAGE_NAME"
-          auth="Authorization: Bearer $TOKEN"
-          # Print the API error body on an HTTP error, then fail.
-          call() { local r; if ! r="$(curl -sS --fail-with-body "$@")"; then printf '%s\n' "$r" >&2; return 1; fi; printf '%s\n' "$r"; }
-          edit="$(call -X POST -H "$auth" -H "Content-Type: application/json" --data '{}' "$api/edits" | jq -r '.id')"
-          if [ -z "$edit" ] || [ "$edit" = null ]; then echo "edits.insert returned no id"; exit 1; fi
-          IFS=. read -r major minor patch <<EOF
-          $VERSION
-          EOF
-          want="$((major * 1000000 + minor * 1000 + patch))"
-          # A rerun of the same tag: Play rejects a second upload of a versionCode.
-          have="$(call -H "$auth" "$api/edits/$edit/bundles" | jq -r --argjson c "$want" '[.bundles[]? | select(.versionCode == $c)] | length')"
-          if [ "$have" != 0 ]; then
-            echo "versionCode $want is already on Play; skipping the upload"
-            code="$want"
-          else
-            code="$(call -X POST -H "$auth" -H "Content-Type: application/octet-stream" \
-              --data-binary "@$AAB" "$up/edits/$edit/bundles?uploadType=media" | jq -r '.versionCode')"
-            echo "uploaded versionCode: $code"
-          fi
-          if [ "$code" != "$want" ]; then
-            echo "Play reports versionCode $code, not the tag's"
-            exit 1
-          fi
-          body="$(jq -nc --arg c "$code" --arg s "$PLAY_INTERNAL_STATUS" --arg n "$VERSION" '{track: "internal", releases: [{name: $n, versionCodes: [$c], status: $s}]}')"
-          call -X PUT -H "$auth" -H "Content-Type: application/json" --data "$body" "$api/edits/$edit/tracks/internal"
-          # Content-Length: 0: a POST with no body gets HTTP 411 from the Google front end.
-          call -X POST -H "$auth" -H "Content-Length: 0" "$api/edits/$edit:commit"
 
   # F-Droid repo https://fdroid.pusharmor.com/repo (R2 bucket pusharmor-fdroid):
   # the foss APKs of the newest three Android releases and the index signed

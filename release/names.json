@@ -69,7 +69,7 @@
     "google_cws_publisher_id": "Chrome Web Store publisher id (release jobs only)"
   },
   "github_secrets": {
-    "ASC_API_KEY_P8": "App Store Connect TEAM API key (.p8 content), Admin role; used for cloud-managed signing and the TestFlight upload. GitHub Environment: ios-release",
+    "ASC_API_KEY_P8": "App Store Connect TEAM API key (.p8 content), Admin role; used for cloud-managed signing and the App Store Connect upload of promote. GitHub Environment: ios-release",
     "ASC_API_KEY_ID": "id of the App Store Connect team API key. GitHub Environment: ios-release",
     "ASC_API_ISSUER_ID": "issuer id of the App Store Connect team API key. GitHub Environment: ios-release",
     "ANDROID_APP_SIGNING_KEYSTORE_B64": "Android app signing keystore, base64. GitHub Environment: android-sign",

@@ -1,12 +1,20 @@
 // Promote (workflow promote.yml, then store.yml on each platform tag): sends the
-// already tested build of version X.Y.Z to the public channel of one store.
-// Nothing is rebuilt: Play promotes the internal-track versionCode, App Store
-// submits the TestFlight build, Chrome and Firefox upload the public zip of the
-// GitHub release. Every command is safe to rerun: it skips a version that is
-// already live or in review.
+// build of version X.Y.Z in its GitHub release to the public channel of one
+// store. A tag uploads nothing to any store; the store job uploads the release
+// file right before the review submission. Nothing is rebuilt: Play uploads the
+// AAB of the release, App Store the IPA of the release (store.yml uploads it
+// after appstore-upload), Chrome and Firefox the public zip of the release.
+// Each file is checked against the release hashes file and the build
+// attestation. Every command is safe to rerun: it skips a version that is
+// already live or in review, and fails with the store and version when an
+// earlier version is still in review there.
 //   node release/promote.mjs check X.Y.Z      tags, releases, listings
 //   node release/promote.mjs gate X.Y.Z       store.yml: tag ref, approved promote run
-//   node release/promote.mjs play X.Y.Z       env TOKEN (androidpublisher)
+//   node release/promote.mjs play X.Y.Z       env TOKEN (androidpublisher), GH_TOKEN
+//   node release/promote.mjs appstore-upload X.Y.Z  env as appstore, GH_TOKEN, IPA_DIR:
+//                                             review check; output ipa (the verified
+//                                             IPA in IPA_DIR) when the build is not on
+//                                             App Store Connect yet, else empty
 //   node release/promote.mjs appstore X.Y.Z   env ASC_API_KEY_P8, ASC_API_KEY_ID, ASC_API_ISSUER_ID
 //   node release/promote.mjs chrome X.Y.Z     env TOKEN (chromewebstore)
 //   node release/promote.mjs firefox X.Y.Z    env MOZILLA_AMO_JWT_ISSUER, MOZILLA_AMO_JWT_SECRET
@@ -27,8 +35,7 @@ export const PLATFORMS = ["android", "ios", "chrome", "firefox"];
 export const PACKAGE_NAME = "com.pusharmor";
 export const BUNDLE_ID = "com.pusharmor.app";
 export const LOCALE = "en-US";
-// App Store release after approval: the build was tested on TestFlight, and the
-// other three stores also go live when their review passes. MANUAL keeps a
+// App Store release after approval: the other three stores also go live when their review passes. MANUAL keeps a
 // "Release this version" tap in App Store Connect.
 export const IOS_RELEASE_TYPE = "AFTER_APPROVAL";
 // 6.9-inch iPhone screenshots (1320x2868 or 1290x2796).
@@ -150,8 +157,8 @@ export function releaseAssets(platform, version, have = new Set()) {
   // Chrome releases before the -store.zip naming have the store zip as the plain name and a -unpacked.zip.
   const oldChrome = have.has("pusharmor-chrome-" + version + "-unpacked.zip");
   return {
-    android: [],
-    ios: [],
+    android: [hashesName("android", version)],
+    ios: ["pusharmor-" + version + ".ipa", hashesName("ios", version)],
     chrome: ["pusharmor-chrome-" + version + (oldChrome ? ".zip" : "-store.zip"), "pusharmor-chrome-" + version + ".hashes.txt"],
     firefox: ["pusharmor-firefox-" + version + ".zip", "pusharmor-firefox-" + version + "-source.zip", "pusharmor-firefox-" + version + ".hashes.txt"],
   }[platform];
@@ -302,11 +309,19 @@ export function ascRetry(fn, wait = sleep, log = console.log, delays = [5000, 15
 }
 const sha256 = (b) => createHash("sha256").update(b).digest("hex");
 
+/** The tag workflow that builds and attests the release files of a platform. */
+export const RELEASE_WORKFLOW = { android: "android-release.yml", ios: "ios-release.yml", chrome: "webext-release.yml", firefox: "webext-release.yml" };
+
+/** Name of the SHA-256 file in the GitHub release platform/vX.Y.Z. */
+export function hashesName(platform, version) {
+  return platform === "android" ? "pusharmor-" + version + ".hashes.txt" : "pusharmor-" + platform + "-" + version + ".hashes.txt";
+}
+
 /** gh arguments that verify the build provenance attestation of file: made by
- *  webext-release.yml of repository on a GitHub-hosted runner for the tag
- *  platform/vX.Y.Z. */
+ *  the release workflow of the platform in repository on a GitHub-hosted
+ *  runner for the tag platform/vX.Y.Z. */
 export function attestationArgs(file, platform, version, repository = repo()) {
-  return ["attestation", "verify", file, "--repo", repository, "--signer-workflow", repository + "/.github/workflows/webext-release.yml", "--source-ref", "refs/tags/" + platform + "/v" + version, "--deny-self-hosted-runners"];
+  return ["attestation", "verify", file, "--repo", repository, "--signer-workflow", repository + "/.github/workflows/" + RELEASE_WORKFLOW[platform], "--source-ref", "refs/tags/" + platform + "/v" + version, "--deny-self-hosted-runners"];
 }
 
 /** Throws unless gh finds a valid build attestation for the bytes data (env GH_TOKEN). */
@@ -333,7 +348,7 @@ async function releaseFile(platform, version, name) {
     return Buffer.from(await r.arrayBuffer());
   };
   const data = await get(name);
-  const hashes = (await get("pusharmor-" + platform + "-" + version + ".hashes.txt")).toString("utf8");
+  const hashes = (await get(hashesName(platform, version))).toString("utf8");
   const want = hashes.split("\n").map((l) => l.trim().split(/\s+/)).find((p) => p[1] === name);
   if (!want || want[0] !== sha256(data)) throw new Error(name + ": sha256 does not match the release hashes file");
   verifyAttestation(data, platform, version, name);
@@ -424,6 +439,17 @@ async function gate(version) {
 
 // ---- Google Play ----
 
+/** The error for a Play commit refused because changes are already in review,
+ *  naming the newest other production release; "" for any other error. */
+export function playInReviewProblem(err, live, code, version) {
+  const m = String(err?.message || "");
+  if (!/: HTTP 400: /.test(m) || !/review/i.test(m)) return "";
+  const other = live.filter((r) => !(r.versionCodes || []).map(Number).includes(code));
+  const top = other.sort((a, b) => Math.max(...(b.versionCodes || [0]).map(Number)) - Math.max(...(a.versionCodes || [0]).map(Number)))[0];
+  const pending = top ? (top.name || "versionCode " + Math.max(...(top.versionCodes || [0]).map(Number))) : "unknown";
+  return "Google Play: changes are already in review (newest production release: " + pending + "); wait for that review to finish, then promote " + version + " again";
+}
+
 async function play(version) {
   // Hard gate: the owner sets the repository variables
   // PLAY_CONTACT_OK and PLAY_PUBLIC_OK to yes.
@@ -439,8 +465,6 @@ async function play(version) {
   const e = api + "/edits/" + edit;
   let changed = false;
 
-  const bundles = (await http("GET", e + "/bundles", { headers: auth })).json.bundles || [];
-  if (!bundles.some((b) => b.versionCode === code)) throw new Error("versionCode " + code + " is not on Play; tag android/v" + version + " uploads it");
   const prod = (await http("GET", e + "/tracks/production", { headers: auth, ok: [200, 404] })).json || {};
   const live = (prod.releases || []).filter((r) => r.status !== "draft");
   const codes = live.flatMap((r) => (r.versionCodes || []).map(Number));
@@ -452,6 +476,17 @@ async function play(version) {
     newer = true;
     track = "production has a newer versionCode (" + Math.max(...codes) + ")";
   } else {
+    // The AAB of the GitHub release, uploaded into this edit right before the
+    // review submission (the commit below); a rerun finds it on Play.
+    const bundles = (await http("GET", e + "/bundles", { headers: auth })).json.bundles || [];
+    if (!bundles.some((b) => b.versionCode === code)) {
+      const name = "pusharmor-" + version + "-play.aab";
+      const aab = await releaseFile("android", version, name).catch((err) => {
+        throw new Error("Play: the AAB " + name + " of the release android/v" + version + " is missing or not verified: " + err.message);
+      });
+      const got = (await http("POST", up + "/edits/" + edit + "/bundles?uploadType=media", { headers: { ...auth, "Content-Type": "application/octet-stream" }, body: aab })).json?.versionCode;
+      if (got !== code) throw new Error("Play: the uploaded AAB has versionCode " + got + ", want " + code);
+    }
     const body = { track: "production", releases: [{ name: version, versionCodes: [String(code)], status: "completed", releaseNotes: [{ language: LOCALE, text: readListing("play").whats_new }] }] };
     await http("PUT", e + "/tracks/production", { headers: json, body: JSON.stringify(body) });
     track = "sent to production (versionCode " + code + ")";
@@ -496,8 +531,15 @@ async function play(version) {
   }
 
   if (changed) {
-    // ERROR_IF_IN_REVIEW: never cancel a review that is already running.
-    await http("POST", e + ":commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW", { headers: { ...auth, "Content-Length": "0" } });
+    // ERROR_IF_IN_REVIEW: never cancel a review that is already running. The
+    // Play API shows no review state before this point; a refused commit
+    // changes nothing on Play.
+    try {
+      await http("POST", e + ":commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW", { headers: { ...auth, "Content-Length": "0" } });
+    } catch (err) {
+      const why = playInReviewProblem(err, live, code, version);
+      throw why ? new Error(why) : err;
+    }
   } else {
     await http("DELETE", e, { headers: auth });
   }
@@ -523,8 +565,20 @@ export const ASC_EDITABLE = ["PREPARE_FOR_SUBMISSION", "READY_FOR_REVIEW", "DEVE
 // States of a version that was on sale; a first version rejects whatsNew.
 const ASC_RELEASED = ["READY_FOR_SALE", "READY_FOR_DISTRIBUTION", "REPLACED_WITH_NEW_VERSION", "REMOVED_FROM_SALE", "DEVELOPER_REMOVED_FROM_SALE"];
 const ascState = (v) => v.attributes.appVersionState || v.attributes.appStoreState;
+// States of a version that waits for or is in App Review.
+export const ASC_IN_REVIEW = ["WAITING_FOR_REVIEW", "IN_REVIEW"];
 
-export async function appstore(version) {
+/** The error for another App Store version in review (it names that
+ *  version), or "". versions are the IOS appStoreVersions. */
+export function ascInReviewProblem(versions, version) {
+  const v = versions.find((x) => x.attributes.versionString !== version && ASC_IN_REVIEW.includes(ascState(x)));
+  return v ? "App Store: version " + v.attributes.versionString + " is " + ascState(v) + "; wait for that review to finish (or cancel it in App Store Connect), then promote " + version + " again" : "";
+}
+
+/** App Store Connect client, app id and IOS versions. early is the result
+ *  when nothing is to be done (X.Y.Z live or in review, or a newer version
+ *  there); throws when another version is in review. */
+async function ascOpen(version) {
   const base = "https://api.appstoreconnect.apple.com";
   const key = process.env.ASC_API_KEY_P8;
   const asc = ascRetry((method, path, body, ok) =>
@@ -533,27 +587,70 @@ export async function appstore(version) {
       body: body === undefined ? undefined : JSON.stringify(body),
       ok,
     }));
-  const build = String(buildNumber(version));
-
   const apps = (await asc("GET", "/v1/apps?filter[bundleId]=" + BUNDLE_ID)).json.data.filter((a) => a.attributes.bundleId === BUNDLE_ID);
   if (apps.length !== 1) throw new Error("App Store Connect: no app with bundle id " + BUNDLE_ID);
   const app = apps[0].id;
-
-  const builds = (await asc("GET", "/v1/builds?filter[app]=" + app + "&filter[version]=" + build + "&filter[preReleaseVersion.version]=" + version)).json.data;
-  const b = builds[0];
-  if (!b) throw new Error("no TestFlight build " + version + " (" + build + "); tag ios/v" + version + " uploads it");
-  if (b.attributes.processingState !== "VALID" || b.attributes.expired) throw new Error("build " + build + " is " + b.attributes.processingState + (b.attributes.expired ? ", expired" : ""));
-  if (b.attributes.usesNonExemptEncryption == null) throw new Error("build " + build + ": answer export compliance in App Store Connect first");
-
   const versions = (await asc("GET", "/v1/apps/" + app + "/appStoreVersions?filter[platform]=IOS&limit=200")).json.data;
   const same = versions.find((v) => v.attributes.versionString === version);
+  let early = null;
   if (same && ASC_DONE.includes(ascState(same))) {
-    return done("App Store " + version + ": already " + ascState(same) + "; nothing to do");
+    early = { promoted: true, line: "App Store " + version + ": already " + ascState(same) + "; nothing to do" };
+  } else {
+    const newer = versions.find((v) => parseVersion(v.attributes.versionString) && cmpVersion(v.attributes.versionString, version) > 0 && !ASC_EDITABLE.includes(ascState(v)));
+    if (newer) early = { promoted: false, line: "App Store " + version + ": SKIP, " + newer.attributes.versionString + " is already " + ascState(newer) };
   }
-  const newer = versions.find((v) => parseVersion(v.attributes.versionString) && cmpVersion(v.attributes.versionString, version) > 0 && !ASC_EDITABLE.includes(ascState(v)));
-  if (newer) {
-    return skip("App Store " + version + ": SKIP, " + newer.attributes.versionString + " is already " + ascState(newer));
+  if (!early) {
+    const why = ascInReviewProblem(versions, version);
+    if (why) throw new Error(why);
   }
+  return { asc, app, versions, same, early };
+}
+
+/** The builds of X.Y.Z on App Store Connect (build number and version). */
+const ascBuilds = async (asc, app, version) => (await asc("GET", "/v1/builds?filter[app]=" + app + "&filter[version]=" + buildNumber(version) + "&filter[preReleaseVersion.version]=" + version)).json.data;
+
+/** Max wait for App Store Connect to list and process an uploaded build. */
+export const ASC_BUILD_TIMEOUT_MS = 40 * 60 * 1000;
+
+/** The build of X.Y.Z once App Store Connect has processed it (VALID). Waits
+ *  while it is not listed yet or PROCESSING; fails on any other state, when
+ *  expired, or after the timeout. */
+export async function ascValidBuild({ asc, app, version, sleep, now = Date.now, timeoutMs = ASC_BUILD_TIMEOUT_MS, intervalMs = 30000 }) {
+  const deadline = now() + timeoutMs;
+  for (;;) {
+    const b = (await ascBuilds(asc, app, version))[0];
+    const st = b?.attributes.processingState;
+    if (b && st === "VALID" && !b.attributes.expired) return b;
+    if (b && (b.attributes.expired || (st && st !== "PROCESSING"))) throw new Error("build " + buildNumber(version) + " is " + st + (b.attributes.expired ? ", expired" : ""));
+    if (now() >= deadline) throw new Error("App Store: build " + version + " (" + buildNumber(version) + ") is " + (b ? st : "not on App Store Connect") + " after " + Math.round(timeoutMs / 60000) + " minutes; the store job uploads the IPA of the release ios/v" + version);
+    console.log("App Store: build " + buildNumber(version) + " is " + (b ? st : "not listed yet") + ", waiting " + intervalMs / 1000 + " s");
+    await sleep(intervalMs);
+  }
+}
+
+/** store.yml, before the IPA upload: the review check, then the verified IPA
+ *  of the release written to IPA_DIR (step output ipa) when App Store Connect
+ *  does not have build X.Y.Z yet. Output ipa is empty when nothing is to be
+ *  uploaded. */
+export async function appstoreUpload(version) {
+  const { asc, app, early } = await ascOpen(version);
+  output("ipa", "");
+  if (early) return summary("- " + early.line.replace(/; nothing to do$/, "") + "; no upload");
+  if ((await ascBuilds(asc, app, version)).length) return summary("- App Store " + version + ": build " + buildNumber(version) + " is already on App Store Connect; no upload");
+  const name = "pusharmor-" + version + ".ipa";
+  const ipa = await releaseFile("ios", version, name);
+  const file = join(process.env.IPA_DIR || tmpdir(), name);
+  writeFileSync(file, ipa);
+  output("ipa", file);
+  summary("- App Store " + version + ": " + name + " of the release verified; uploading build " + buildNumber(version));
+}
+
+export async function appstore(version) {
+  const { asc, app, versions, same, early } = await ascOpen(version);
+  if (early) return early.promoted ? done(early.line) : skip(early.line);
+  const build = String(buildNumber(version));
+  const b = await ascValidBuild({ asc, app, version, sleep });
+  if (b.attributes.usesNonExemptEncryption == null) throw new Error("build " + build + ": answer export compliance in App Store Connect first");
 
   const want = readListing("appstore");
   let v = same || versions.find((x) => ASC_EDITABLE.includes(ascState(x)));
@@ -686,7 +783,7 @@ async function chrome(version) {
   if (sub && crx(sub).includes(version) && ["PENDING_REVIEW", "STAGED"].includes(sub.state)) return done("Chrome " + version + ": already " + sub.state + "; nothing to do");
   const newer = [...live, ...crx(sub)].filter((x) => parseVersion(x) && cmpVersion(x, version) > 0);
   if (newer.length) return skip("Chrome " + version + ": SKIP, store already has " + newer[0]);
-  if (sub && sub.state === "PENDING_REVIEW") throw new Error("Chrome: version " + crx(sub).join(",") + " is in review; cancel it in the dashboard first");
+  if (sub && sub.state === "PENDING_REVIEW") throw new Error("Chrome Web Store: version " + (crx(sub).join(",") || "unknown") + " is in review (PENDING_REVIEW); wait for that review to finish (or cancel it in the dashboard), then promote " + version + " again");
 
   const zip = await releaseFile("chrome", version, "pusharmor-chrome-" + version + "-store.zip").catch(() => releaseFile("chrome", version, "pusharmor-chrome-" + version + ".zip"));
   let r = (await http("POST", api + "/upload/v2/" + item + ":upload", { headers: { ...auth, "Content-Type": "application/zip" }, body: zip })).json;
@@ -754,6 +851,15 @@ export async function syncAmoPreviews({ amo, id, shots, wait = sleep, gap = 1500
 }
 
 const AMO_TIMEOUT_MS = 60000;
+// AMO file states of a listed version that waits for review.
+export const AMO_IN_REVIEW = ["unreviewed", "nominated"];
+
+/** The error for another listed AMO version that waits for review (it names
+ *  that version), or "". versions are the AMO version objects. */
+export function amoInReviewProblem(versions, version) {
+  const v = versions.find((x) => x.version !== version && x.channel === "listed" && AMO_IN_REVIEW.includes(x.file?.status));
+  return v ? "Firefox AMO: version " + v.version + " is in review (" + v.file.status + "); wait for that review to finish, then promote " + version + " again" : "";
+}
 
 export async function firefox(version) {
   const api = "https://addons.mozilla.org/api/v5/addons";
@@ -783,6 +889,8 @@ export async function firefox(version) {
   }
   const newer = versions.find((x) => x.channel === "listed" && parseVersion(x.version) && cmpVersion(x.version, version) > 0);
   if (newer) return skip("Firefox " + version + ": SKIP, AMO already has " + newer.version);
+  const why = amoInReviewProblem(versions, version);
+  if (why) throw new Error(why);
 
   const zip = await releaseFile("firefox", version, "pusharmor-firefox-" + version + ".zip");
   const src = await releaseFile("firefox", version, "pusharmor-firefox-" + version + "-source.zip");
@@ -805,7 +913,7 @@ export async function firefox(version) {
   return done("Firefox " + version + ": public zip and source submitted as a listed version; " + (await previews()));
 }
 
-const COMMANDS = { check, gate, play, appstore, chrome, firefox };
+const COMMANDS = { check, gate, play, "appstore-upload": appstoreUpload, appstore, chrome, firefox };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [cmd, version] = process.argv.slice(2);
@@ -815,7 +923,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     process.exit(2);
   }
   COMMANDS[cmd](version).then((r) => {
-    if (cmd !== "check" && cmd !== "gate") output("clear_prerelease", clearOutput(r));
+    if (!["check", "gate", "appstore-upload"].includes(cmd)) output("clear_prerelease", clearOutput(r));
   }, (e) => {
     summary("- " + cmd + " " + version + ": FAILED: " + e.message.split("\n")[0].slice(0, 300));
     console.error(e.message);

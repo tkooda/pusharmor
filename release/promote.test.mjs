@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, verify } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { AMO_REVIEW_NOTES, PLAY_ICON, IOS_SCREENSHOT_TYPE, amoNotesProblems, amoRetry, ascRetry, amoToken, appstore, ascToken, attestationArgs, clearOutput, cmpVersion, commitProblems, contactProblems, http, listingProblems, playGateProblem, readListing, releaseAssets, screenshotFiles, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncAmoPreviews, syncScreenshots, tagPlatform } from "./promote.mjs";
+import { AMO_REVIEW_NOTES, PLAY_ICON, IOS_SCREENSHOT_TYPE, amoInReviewProblem, amoNotesProblems, amoRetry, ascInReviewProblem, ascRetry, ascValidBuild, amoToken, appstore, ascToken, attestationArgs, hashesName, playInReviewProblem, clearOutput, cmpVersion, commitProblems, contactProblems, http, listingProblems, playGateProblem, readListing, releaseAssets, screenshotFiles, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncAmoPreviews, syncScreenshots, tagPlatform } from "./promote.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -35,12 +35,17 @@ test("idempotence guards are present in every store command", () => {
   assert.match(body("play"), /already on production/);
   assert.match(body("play"), /production has a newer versionCode/);
   assert.match(body("play"), /ERROR_IF_IN_REVIEW/);
-  assert.match(body("appstore"), /ASC_DONE\.includes/);
-  assert.match(body("appstore"), /nothing to do/);
+  assert.match(body("play"), /playInReviewProblem\(/);
+  assert.match(body("ascOpen"), /ASC_DONE\.includes/);
+  assert.match(body("ascOpen"), /nothing to do/);
+  assert.match(body("ascOpen"), /ascInReviewProblem\(/);
+  assert.match(body("appstore"), /= await ascOpen\(version\);\n {2}if \(early\) return /);
+  assert.match(body("appstoreUpload"), /= await ascOpen\(version\);/);
   assert.match(body("chrome"), /already live; nothing to do/);
   assert.match(body("chrome"), /PENDING_REVIEW/);
   assert.match(body("firefox"), /already on AMO/);
-  for (const fn of ["play", "appstore", "chrome", "firefox"]) assert.match(body(fn), /SKIP/, fn);
+  assert.match(body("firefox"), /amoInReviewProblem\(/);
+  for (const fn of ["play", "ascOpen", "chrome", "firefox"]) assert.match(body(fn), /SKIP/, fn);
 });
 
 // Owner rule: no contact field (email, phone, website, address) is set or
@@ -72,7 +77,10 @@ test("release checks: tag, published release and the needed assets", () => {
   assert.match(releaseProblem("chrome", "1.2.3", true, rel(["pusharmor-chrome-1.2.3.zip"])), /lacks pusharmor-chrome-1\.2\.3-store\.zip/);
   assert.equal(releaseProblem("chrome", "1.2.3", true, rel(["pusharmor-chrome-1.2.3.zip", "pusharmor-chrome-1.2.3-unpacked.zip", "pusharmor-chrome-1.2.3.hashes.txt"])), "");
   assert.equal(releaseProblem("firefox", "1.2.3", true, rel(releaseAssets("firefox", "1.2.3"))), "");
-  assert.equal(releaseProblem("android", "1.2.3", true, rel([])), "");
+  assert.equal(releaseProblem("android", "1.2.3", true, rel(["pusharmor-1.2.3.hashes.txt"])), "");
+  assert.match(releaseProblem("android", "1.2.3", true, rel([])), /lacks pusharmor-1\.2\.3\.hashes\.txt/);
+  assert.equal(releaseProblem("ios", "1.2.3", true, rel(["pusharmor-1.2.3.ipa", "pusharmor-ios-1.2.3.hashes.txt"])), "");
+  assert.match(releaseProblem("ios", "1.2.3", true, rel(["pusharmor-ios-1.2.3.hashes.txt"])), /lacks pusharmor-1\.2\.3\.ipa/);
   assert.equal(cmpVersion("0.0.10", "0.0.9"), 1);
   assert.equal(cmpVersion("0.0.9", "0.0.9"), 0);
   assert.equal(cmpVersion("0.1.0", "1.0.0"), -1);
@@ -253,6 +261,12 @@ test("public zips and the Firefox source zip need the build attestation of their
   assert.deepEqual(attestationArgs("/t/a.zip", "firefox", "1.2.3", "o/r"), [
     "attestation", "verify", "/t/a.zip", "--repo", "o/r", "--signer-workflow", "o/r/.github/workflows/webext-release.yml", "--source-ref", "refs/tags/firefox/v1.2.3", "--deny-self-hosted-runners",
   ]);
+  assert.equal(attestationArgs("/t/a.aab", "android", "1.2.3", "o/r")[6], "o/r/.github/workflows/android-release.yml");
+  assert.equal(attestationArgs("/t/a.ipa", "ios", "1.2.3", "o/r")[6], "o/r/.github/workflows/ios-release.yml");
+  assert.equal(attestationArgs("/t/a.zip", "chrome", "1.2.3", "o/r")[6], "o/r/.github/workflows/webext-release.yml");
+  assert.equal(hashesName("android", "1.2.3"), "pusharmor-1.2.3.hashes.txt");
+  assert.equal(hashesName("ios", "1.2.3"), "pusharmor-ios-1.2.3.hashes.txt");
+  assert.equal(hashesName("chrome", "1.2.3"), "pusharmor-chrome-1.2.3.hashes.txt");
   const src = readFileSync(join(ROOT, "release", "promote.mjs"), "utf8");
   const rf = src.slice(src.indexOf("async function releaseFile("), src.indexOf("\n}\n", src.indexOf("async function releaseFile(")));
   assert.match(rf, /verifyAttestation\(data, platform, version, name\);\n {2}return data;/);
@@ -649,4 +663,79 @@ test("Play production release carries the What's New text", () => {
   const src = readFileSync(join(ROOT, "release", "promote.mjs"), "utf8");
   assert.match(src, /releaseNotes: \[\{ language: LOCALE, text: readListing\("play"\)\.whats_new \}\]/);
   assert.ok(readListing("play").whats_new.length <= 500);
+});
+
+// A tag push builds the GitHub release only: no tag workflow uploads to a
+// store or can get a store credential. Store uploads run in store.yml after
+// the owner approval of promote.
+test("tag workflows reach no store API and hold no store credential", () => {
+  const dir = join(ROOT, ".github", "workflows");
+  const stores = /androidpublisher|chromewebstore|addons\.mozilla\.org|appstoreconnect|altool|web-ext sign|destination upload|MOZILLA_AMO|google-github-actions\/auth|_wif_/;
+  let n = 0;
+  for (const f of readdirSync(dir)) {
+    const wf = readFileSync(join(dir, f), "utf8");
+    const on = wf.slice(wf.indexOf("\non:"), wf.indexOf("\npermissions:"));
+    if (!/\n {2}push:\n {4}tags:/.test(on) && !/\n {2}push:\n {4}tags: \[/.test(on)) continue;
+    n++;
+    const code = wf.split("\n").filter((l) => !/^\s*#/.test(l)).join("\n");
+    if (f === "collect.yml") {
+      // Reads the public store downloads only: no credential, no upload.
+      assert.doesNotMatch(code, /secrets\.|environment:|id-token|Authorization/, f);
+      continue;
+    }
+    assert.doesNotMatch(code, stores, f);
+    assert.doesNotMatch(code, /environment: (android-release|chrome-release|firefox-release)\n/, f);
+    if (f === "ios-release.yml") {
+      // The ASC key only signs the export (cloud-managed signing) in sign-ios.
+      const envs = [...code.matchAll(/\n {2}([\w-]+):\n(?: {4}.*\n|\n)*? {4}environment: ios-release\n/g)].map((m) => m[1]);
+      assert.deepEqual(envs, ["sign-ios"], f);
+      assert.match(code, /plutil -insert destination -string export /);
+    }
+  }
+  assert.ok(n >= 5, "tag workflows found: " + n);
+  const store = readFileSync(join(dir, "store.yml"), "utf8");
+  const i = store.indexOf("\n  appstore:\n");
+  const app = store.slice(i, store.indexOf("\n\n  ", i + 1));
+  const order = ["promote.mjs appstore-upload", "xcrun altool --upload-app", "promote.mjs appstore \""].map((x) => app.indexOf(x));
+  assert.ok(order.every((x, k) => x > 0 && (k === 0 || x > order[k - 1])), "appstore: review check, upload, submit in that order");
+  assert.match(app, /\n {4}runs-on: macos-/);
+  assert.match(app, /\n {8}if: steps\.ipa\.outputs\.ipa != ''\n/);
+  const j = store.indexOf("\n  play:\n");
+  assert.match(store.slice(j, store.indexOf("\n\n  ", j + 1)), /\n {6}attestations: read\n/);
+});
+
+test("in-review checks name the store and the pending version", () => {
+  const v = (versionString, state) => ({ attributes: { versionString, appVersionState: state } });
+  assert.equal(ascInReviewProblem([v("0.0.40", "READY_FOR_DISTRIBUTION"), v("0.0.42", "PREPARE_FOR_SUBMISSION")], "0.0.42"), "");
+  assert.equal(ascInReviewProblem([v("0.0.42", "WAITING_FOR_REVIEW")], "0.0.42"), "");
+  for (const st of ["WAITING_FOR_REVIEW", "IN_REVIEW"]) {
+    assert.match(ascInReviewProblem([v("0.0.40", "READY_FOR_DISTRIBUTION"), v("0.0.41", st)], "0.0.42"), new RegExp("^App Store: version 0\\.0\\.41 is " + st + "; .*promote 0\\.0\\.42 again$"));
+  }
+  const a = (version, channel, status) => ({ version, channel, file: { status } });
+  assert.equal(amoInReviewProblem([a("0.0.40", "listed", "public"), a("0.0.41", "unlisted", "unreviewed")], "0.0.42"), "");
+  assert.match(amoInReviewProblem([a("0.0.40", "listed", "public"), a("0.0.41", "listed", "unreviewed")], "0.0.42"), /^Firefox AMO: version 0\.0\.41 is in review \(unreviewed\); .*promote 0\.0\.42 again$/);
+  const live = [{ name: "0.0.40", versionCodes: ["40"], status: "completed" }, { name: "0.0.41", versionCodes: ["41"], status: "completed" }];
+  const refused = new Error("POST https://x/edits/1:commit: HTTP 400: {\"error\":{\"message\":\"Changes are already in review.\"}}");
+  assert.match(playInReviewProblem(refused, live, 42, "0.0.42"), /^Google Play: changes are already in review \(newest production release: 0\.0\.41\); .*promote 0\.0\.42 again$/);
+  assert.equal(playInReviewProblem(new Error("POST x: HTTP 400: bad request"), live, 42, "0.0.42"), "");
+  assert.equal(playInReviewProblem(new Error("POST x: HTTP 500: in review"), live, 42, "0.0.42"), "");
+  const src = readFileSync(join(ROOT, "release", "promote.mjs"), "utf8");
+  assert.match(src, /throw new Error\("Chrome Web Store: version " \+ .* is in review \(PENDING_REVIEW\)/);
+});
+
+test("App Store: the store job waits until the uploaded build is processed", async () => {
+  const states = [null, "PROCESSING", "VALID"];
+  let t0 = 0;
+  const asc = async () => {
+    const st = states.shift();
+    return { json: { data: st ? [{ id: "b1", attributes: { processingState: st, expired: false } }] : [] } };
+  };
+  const waits = [];
+  const b = await ascValidBuild({ asc, app: "app1", version: "0.0.42", sleep: async (ms) => { waits.push(ms); t0 += ms; }, now: () => t0, intervalMs: 1000 });
+  assert.equal(b.id, "b1");
+  assert.deepEqual(waits, [1000, 1000]);
+  await assert.rejects(ascValidBuild({ asc: async () => ({ json: { data: [{ attributes: { processingState: "INVALID" } }] } }), app: "a", version: "0.0.42", sleep: async () => {} }), /is INVALID/);
+  t0 = 0;
+  await assert.rejects(ascValidBuild({ asc: async () => ({ json: { data: [] } }), app: "a", version: "0.0.42", sleep: async (ms) => { t0 += ms; }, now: () => t0, timeoutMs: 5000, intervalMs: 1000 }),
+    /^Error: App Store: build 0\.0\.42 \(42\) is not on App Store Connect after 0 minutes/);
 });

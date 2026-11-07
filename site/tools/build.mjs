@@ -1,12 +1,11 @@
 // Release build of the site: copies site/public to OUT, fills the build ids from
 // release/public.json into OUT, then rewrites the SRI and CSP hashes in OUT.
 // Released versions (nothing is committed for a release): the newest tags
-// android/vX.Y.Z, cli/vX.Y.Z and firefox/vX.Y.Z of the GitHub repo (git ls-remote)
-// fill /download, /fdroid/android.txt (versionName, versionCode) and
-// /fx/beta/updates.json. From each GitHub release: the APK SHA-256 values (hashes
-// file of android/vX.Y.Z), the SHA-256 of pusharmor.py (cli/vX.Y.Z) and the Beta
-// update manifest (firefox/vX.Y.Z, checked to name the same XPI), so a deploy
-// before those releases are published fails. --versions android=X.Y.Z,cli=X.Y.Z,firefox=X.Y.Z
+// android/vX.Y.Z and cli/vX.Y.Z of the GitHub repo (git ls-remote)
+// fill /download and /fdroid/android.txt (versionName, versionCode). From each
+// GitHub release: the APK SHA-256 values (hashes file of android/vX.Y.Z) and the
+// SHA-256 of pusharmor.py (cli/vX.Y.Z), so a deploy
+// before those releases are published fails. --versions android=X.Y.Z,cli=X.Y.Z
 // replaces the tag lookup, --release-dir DIR reads local copies of those release
 // files, and a CI dummy build takes 0.0.0 and zeros. The tracked site/public keeps
 // its placeholders. "wrangler deploy" runs it as the
@@ -20,7 +19,7 @@ import { cpSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PUBLIC_PATH, loadPublic, publicProblems } from "../../release/public.mjs";
-import { betaXpiUrl, buildNumber, parseTag, parseVersion } from "../../release/tag.mjs";
+import { buildNumber, parseTag, parseVersion } from "../../release/tag.mjs";
 import { computeHashUpdates, placeholderFiles } from "./site-lib.mjs";
 
 const arg = (name) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : undefined; };
@@ -73,7 +72,7 @@ const versions = {};
 if (arg("--versions")) {
   for (const kv of arg("--versions").split(",")) versions[kv.split("=")[0]] = kv.split("=")[1];
 } else if (ciDummy) {
-  for (const p of ["android", "cli", "firefox"]) versions[p] = "0.0.0";
+  for (const p of ["android", "cli"]) versions[p] = "0.0.0";
 } else {
   let refs;
   try { refs = execFileSync("git", ["ls-remote", "--tags", "--refs", REPO_URL + ".git"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }); }
@@ -83,9 +82,9 @@ if (arg("--versions")) {
     if (t && (!versions[t.platform] || buildNumber(t.version) > buildNumber(versions[t.platform]))) versions[t.platform] = t.version;
   }
 }
-const noVersion = ["android", "cli", "firefox"].filter((p) => !parseVersion(versions[p] || ""));
+const noVersion = ["android", "cli"].filter((p) => !parseVersion(versions[p] || ""));
 if (noVersion.length) fail(noVersion.map((p) => "no " + p + "/vX.Y.Z version"));
-console.log("site build: android " + versions.android + ", cli " + versions.cli + ", firefox " + versions.firefox);
+console.log("site build: android " + versions.android + ", cli " + versions.cli);
 // A file of the GitHub release <platform>/vX.Y.Z; null in a CI dummy build without --release-dir.
 async function releaseFile(platform, name) {
   if (arg("--release-dir")) {
@@ -117,16 +116,6 @@ const cliSha = (await releaseFile("cli", "pusharmor.py.sha256")) ?? "0".repeat(6
 const cliHash = cliSha.split("\n").map((l) => l.trim().split(/\s+/)).find((x) => x[1] === "pusharmor.py")?.[0];
 if (!/^[0-9a-f]{64}$/.test(cliHash || "")) fail(["pusharmor.py.sha256: no SHA-256 line for pusharmor.py"]);
 fill("download.html", "CLI_SHA256_PLACEHOLDER", cliHash);
-fill("fx/beta/updates.json", "FIREFOX_VERSION_PLACEHOLDER", versions.firefox);
-const beta = Object.values(JSON.parse(readFileSync(join(dir, "fx", "beta", "updates.json"), "utf8")).addons)[0].updates[0];
-if (beta.update_link !== betaXpiUrl(versions.firefox)) fail(["fx/beta/updates.json: update_link " + beta.update_link + ", want " + betaXpiUrl(versions.firefox)]);
-const betaName = "pusharmor-firefox-beta-" + versions.firefox + "-updates.json";
-const released = await releaseFile("firefox", betaName);
-if (released !== null) {
-  let link;
-  try { link = Object.values(JSON.parse(released).addons)[0].updates[0].update_link; } catch (e) { fail([betaName + ": " + e.message]); }
-  if (link !== beta.update_link) fail([betaName + ": update_link " + link + ", want " + beta.update_link]);
-}
 const alp = join(dir, ".well-known", "assetlinks.json");
 const al = JSON.parse(readFileSync(alp, "utf8"));
 al[0].target.sha256_cert_fingerprints = [].concat(pub.android_release_cert_sha256).map((f) => String(f).toUpperCase());

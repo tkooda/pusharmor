@@ -254,14 +254,12 @@ test("assetlinks.json is valid and names com.pusharmor", () => {
 
 // Released versions for the build tests (--versions), and local copies of the
 // release files the build reads (--release-dir).
-const VERSIONS = "android=1.2.3,cli=1.2.4,firefox=1.2.5";
+const VERSIONS = "android=1.2.3,cli=1.2.4";
 function releaseDir(tmp, { foss = "a".repeat(64), play = "b".repeat(64), cli = "d".repeat(64), apkVersion = "1.2.3" } = {}) {
   const d = join(tmp, "release");
   mkdirSync(d, { recursive: true });
   writeFileSync(join(d, "pusharmor-1.2.3.hashes.txt"), foss + "  pusharmor-" + apkVersion + "-foss.apk\n" + play + "  pusharmor-" + apkVersion + "-play.apk\n" + "c".repeat(64) + "  release certificate SHA-256\n");
   writeFileSync(join(d, "pusharmor.py.sha256"), cli + "  pusharmor.py\n");
-  const link = "https://github.com/tkooda/pusharmor/releases/download/firefox/v1.2.5/pusharmor-firefox-beta-1.2.5.xpi";
-  writeFileSync(join(d, "pusharmor-firefox-beta-1.2.5-updates.json"), JSON.stringify({ addons: { "{x}": { updates: [{ version: "1.2.5", update_link: link, update_hash: "sha256:" + "e".repeat(64) }] } } }));
   return d;
 }
 
@@ -289,7 +287,7 @@ test("wrangler.jsonc runs tools/build.mjs on deploy, and the build skips for wra
   const { dir, r } = buildCopy(PUBLIC_PATH, { WRANGLER_COMMAND: "dev" });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /ids not filled for wrangler dev/);
-  assert.deepEqual(placeholderFiles(dir).length, 7);
+  assert.deepEqual(placeholderFiles(dir).length, 6);
   const tmp = mkdtempSync(join(tmpdir(), "pa-public-"));
   const d = buildCopy(placeholderPublic(tmp), { WRANGLER_COMMAND: "deploy" });
   assert.notEqual(d.r.status, 0);
@@ -305,7 +303,6 @@ test("committed site files hold the placeholders, not ids (release/public.json f
     "site/public/_headers: CHROME_EXTENSION_ID",
     "site/public/download.html: PLACEHOLDER",
     "site/public/fdroid/android.txt: PLACEHOLDER",
-    "site/public/fx/beta/updates.json: PLACEHOLDER",
     "site/public/js/fx-setup.js: PLACEHOLDER",
     "site/public/turnstile.html: PLACEHOLDER"
   ]);
@@ -341,8 +338,6 @@ test("site build fills every id from a public file and leaves current hashes", (
     assert.ok(page.includes("apksigner verify --print-certs pusharmor-1.2.3-foss.apk"));
     assert.ok(page.includes('href="https://github.com/tkooda/pusharmor/releases/download/cli/v1.2.4/pusharmor.py"'));
     assert.equal(readFileSync(join(dir, "fdroid", "android.txt"), "utf8"), "1.2.3\n1002003\n");
-    assert.deepEqual(Object.values(JSON.parse(readFileSync(join(dir, "fx", "beta", "updates.json"), "utf8")).addons)[0].updates,
-      [{ version: "1.2.5", update_link: "https://github.com/tkooda/pusharmor/releases/download/firefox/v1.2.5/pusharmor-firefox-beta-1.2.5.xpi" }]);
   } finally { rmSync(dir, { recursive: true, force: true }); rmSync(tmp, { recursive: true, force: true }); }
 });
 
@@ -362,7 +357,7 @@ test("site build writes a gitignored output dir and leaves the git tree clean", 
     assert.equal(git("status", "--porcelain").stdout, before, "the build changed tracked files");
     assert.equal(r.status, 0, r.stderr);
     assert.deepEqual(placeholderFiles(out), []);
-    assert.equal(placeholderFiles(PUB).length, 7);
+    assert.equal(placeholderFiles(PUB).length, 6);
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
@@ -797,20 +792,5 @@ test("site build fails when the APK hashes file lacks the APK version of the tag
     rmSync(dir, { recursive: true, force: true });
     assert.equal(r.status, 1);
     assert.match(r.stderr, /no SHA-256 line for pusharmor-1\.2\.3-foss\.apk/);
-  } finally { rmSync(tmp, { recursive: true, force: true }); }
-});
-
-test("site build fails when the Beta update manifest of the release names another XPI", () => {
-  const tmp = mkdtempSync(join(tmpdir(), "pa-public-"));
-  const lp = placeholderPublic(tmp);
-  assert.equal(spawnSync("node", [join(REPO, "release", "ci-dummy.mjs"), lp]).status, 0);
-  const rel = releaseDir(tmp);
-  const f = join(rel, "pusharmor-firefox-beta-1.2.5-updates.json");
-  writeFileSync(f, readFileSync(f, "utf8").replaceAll("1.2.5", "1.2.1"));
-  try {
-    const { dir, r } = buildCopy(lp, { PA_CI_DUMMY: "1" }, ["--versions", VERSIONS, "--release-dir", rel]);
-    rmSync(dir, { recursive: true, force: true });
-    assert.equal(r.status, 1);
-    assert.match(r.stderr, /pusharmor-firefox-beta-1\.2\.5-updates\.json: update_link .*firefox\/v1\.2\.1\//);
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });

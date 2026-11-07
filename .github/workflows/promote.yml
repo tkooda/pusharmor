@@ -3,10 +3,13 @@ name: promote
 # the owner starts this workflow by hand
 # (workflow_dispatch, also from the GitHub phone app) with a version X.Y.Z and
 # approves it once (Environment promote, the owner is the required reviewer).
-# It sends that SAME tested build to the public channel of each store. Nothing
-# is rebuilt (release/promote.mjs; the store jobs are in store.yml):
-#   play      Play internal versionCode to production, listing text, screenshots
-#   appstore  TestFlight build to App Review, version page text, screenshots
+# It sends the build of the GitHub release X.Y.Z to the public channel of each
+# store; a tag uploads nothing to any store. Nothing is rebuilt
+# (release/promote.mjs; the store jobs are in store.yml):
+#   play      AAB of the android/vX.Y.Z release to production, listing text,
+#             screenshots
+#   appstore  IPA of the ios/vX.Y.Z release uploaded, then to App Review,
+#             version page text, screenshots
 #   chrome    public zip of the chrome/vX.Y.Z release to the public item
 #   firefox   public zip and source of the firefox/vX.Y.Z release to the
 #             listed add-on
@@ -17,7 +20,9 @@ name: promote
 # once per ready platform on the tag <platform>/vX.Y.Z (workflow_dispatch),
 # and that run uses the store's release Environment for its secrets (WIF for
 # Play and Chrome Web Store). Each store is its own run: rerun only the failed
-# one. Every store job skips a version that is already live or in review.
+# one. Every store job skips a version that is already live or in review, and
+# fails with the store and version when an earlier version is in review.
+# Policy: promote to a store at most once a week (RELEASING.md).
 on:
   workflow_dispatch:
     inputs:

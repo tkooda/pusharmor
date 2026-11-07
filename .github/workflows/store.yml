@@ -10,6 +10,10 @@ name: store
 # commit of that run: the store job checks it out, so it sends the listing
 # files the promote check job checked. Only the job of the tag's platform
 # runs. To retry a failed store, rerun this run ("Re-run failed jobs").
+# A tag uploads nothing to any store: each job here sends the file of the
+# GitHub release <platform>/vX.Y.Z (hash and build attestation checked) right
+# before the review submission, and fails with the store and version when an
+# earlier version is still in review there.
 on:
   workflow_dispatch:
     inputs:
@@ -69,7 +73,7 @@ jobs:
     name: Google Play production
     needs: gate
     if: needs.gate.outputs.platform == 'android' && startsWith(github.ref, 'refs/tags/android/v')
-    # One Play edit at a time: an android/v* upload (android-release.yml) waits.
+    # One Play edit at a time: a second promote of android waits.
     concurrency:
       group: play-edit
       cancel-in-progress: false
@@ -79,6 +83,7 @@ jobs:
     permissions:
       contents: write
       id-token: write
+      attestations: read
     steps:
       # Hard gate: no Play production release
       # until the owner sets both repository variables to yes: PLAY_CONTACT_OK
@@ -115,9 +120,10 @@ jobs:
           access_token_scopes: https://www.googleapis.com/auth/androidpublisher
           create_credentials_file: false
       - id: promote
-        name: Promote to production
+        name: Upload the AAB of the release and send it to production
         env:
           TOKEN: ${{ steps.auth.outputs.access_token }}
+          GH_TOKEN: ${{ github.token }}
           PLAY_CONTACT_OK: ${{ vars.PLAY_CONTACT_OK }}
           PLAY_PUBLIC_OK: ${{ vars.PLAY_PUBLIC_OK }}
         run: node release/promote.mjs play "$VERSION"
@@ -135,11 +141,14 @@ jobs:
     name: App Store review
     needs: gate
     if: needs.gate.outputs.platform == 'ios' && startsWith(github.ref, 'refs/tags/ios/v')
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # macOS for xcrun altool (the IPA upload); then up to 40 minutes while
+    # App Store Connect processes the build.
+    runs-on: macos-26
+    timeout-minutes: 75
     environment: ios-release
     permissions:
       contents: write
+      attestations: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -153,6 +162,35 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: site/.node-version
+      # Fails when another version is in review; else the IPA of the release
+      # (hash and build attestation checked) when App Store Connect does not
+      # have build X.Y.Z yet.
+      - id: ipa
+        name: Review check and the IPA of the release
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          GH_TOKEN: ${{ github.token }}
+          IPA_DIR: ${{ runner.temp }}
+        run: node release/promote.mjs appstore-upload "$VERSION"
+      - name: Upload the IPA to App Store Connect
+        if: steps.ipa.outputs.ipa != ''
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          IPA: ${{ steps.ipa.outputs.ipa }}
+        run: |
+          umask 077
+          mkdir -p "$RUNNER_TEMP/asc"
+          printf '%s\n' "$ASC_API_KEY_P8" > "$RUNNER_TEMP/asc/AuthKey_$ASC_API_KEY_ID.p8"
+          grep -q 'BEGIN PRIVATE KEY' "$RUNNER_TEMP/asc/AuthKey_$ASC_API_KEY_ID.p8"
+          API_PRIVATE_KEYS_DIR="$RUNNER_TEMP/asc" xcrun altool --upload-app -f "$IPA" -t ios \
+            --apiKey "$ASC_API_KEY_ID" --apiIssuer "$ASC_API_ISSUER_ID"
+      - name: Remove the API key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/asc"
       - id: promote
         name: Submit for App Review
         env:

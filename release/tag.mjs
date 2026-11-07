@@ -132,11 +132,6 @@ export function buildVersion(platform, root, env = process.env) {
   return v;
 }
 
-/** The URL of the signed Firefox Beta XPI of X.Y.Z in GitHub Releases. */
-export function betaXpiUrl(v) {
-  return "https://github.com/tkooda/pusharmor/releases/download/firefox/v" + v + "/pusharmor-firefox-beta-" + v + ".xpi";
-}
-
 const git = (args) => execFileSync("git", args, { encoding: "utf8" }).trim();
 
 /** a is an earlier commit in the history of b (git merge-base --is-ancestor). */

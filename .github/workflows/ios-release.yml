@@ -7,14 +7,14 @@ name: ios-release
 #   build-ios    resolve packages, archive (ad-hoc signed), upload the archive
 #                and its SHA-256
 #   sign-ios     Environment ios-release: verify the archive SHA-256, export
-#                and check the IPA with cloud-managed signing, upload the IPA,
-#                then the App Store Connect upload. No package resolution, no
-#                npm, no node.
-#   publish-ios  Environment ios-release, id-token: verify the IPA SHA-256,
+#                and check the IPA with cloud-managed signing, upload the IPA
+#                as a run artifact. No package resolution, no npm, no node.
+#   publish-ios  no Environment, id-token: verify the IPA SHA-256,
 #                provenance, GitHub release. No third-party code.
-# Test channels only: TestFlight (no review submission)
-# and the GitHub release. The owner submits the build for App Store review
-# with manual release (RELEASING.md).
+# No build is uploaded to App Store Connect (no TestFlight build; the export
+# only signs through the API key): the GitHub release only. The promote
+# workflow uploads the IPA of the release and submits it for App Review
+# (store.yml, RELEASING.md).
 #
 # Signing: no certificate, profile or keychain is stored.
 # xcodebuild -exportArchive re-signs the ad-hoc signed archive through App Store
@@ -176,7 +176,7 @@ jobs:
           if-no-files-found: error
 
   sign-ios:
-    name: sign iOS (export the IPA, App Store Connect upload)
+    name: sign iOS (export the IPA)
     needs: build-ios
     runs-on: macos-26
     timeout-minutes: 60
@@ -233,18 +233,16 @@ jobs:
           mkdir -p "$RUNNER_TEMP/asc"
           printf '%s\n' "$ASC_API_KEY_P8" > "$RUNNER_TEMP/asc/AuthKey_$ASC_API_KEY_ID.p8"
           grep -q 'BEGIN PRIVATE KEY' "$RUNNER_TEMP/asc/AuthKey_$ASC_API_KEY_ID.p8"
-      - name: ExportOptions.plist (export and upload)
+      - name: ExportOptions.plist (export)
         run: |
-          for dest in export upload; do
-            f="$RUNNER_TEMP/ExportOptions-$dest.plist"
-            plutil -create xml1 "$f"
-            plutil -insert method -string app-store-connect "$f"
-            plutil -insert signingStyle -string automatic "$f"
-            plutil -insert teamID -string "$TEAM" "$f"
-            plutil -insert destination -string "$dest" "$f"
-            plutil -insert manageAppVersionAndBuildNumber -bool NO "$f"
-            plutil -p "$f"
-          done
+          f="$RUNNER_TEMP/ExportOptions-export.plist"
+          plutil -create xml1 "$f"
+          plutil -insert method -string app-store-connect "$f"
+          plutil -insert signingStyle -string automatic "$f"
+          plutil -insert teamID -string "$TEAM" "$f"
+          plutil -insert destination -string export "$f"
+          plutil -insert manageAppVersionAndBuildNumber -bool NO "$f"
+          plutil -p "$f"
       - name: Export the IPA
         env:
           ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
@@ -307,8 +305,8 @@ jobs:
           (cd "$out" && shasum -a 256 "pusharmor-$VERSION.ipa") > "$out/pusharmor-ios-$VERSION.hashes.txt"
           cat "$out/pusharmor-ios-$VERSION.hashes.txt"
           echo "ipa_sha256=$(shasum -a 256 "$out/pusharmor-$VERSION.ipa" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-      # overwrite: a rerun after a failed App Store Connect upload replaces the
-      # IPA of the failed attempt (publish-ios checks ipa_sha256 of this attempt).
+      # overwrite: a rerun replaces the IPA of a failed attempt (publish-ios
+      # checks ipa_sha256 of this attempt).
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-ipa
@@ -316,32 +314,16 @@ jobs:
           retention-days: 30
           if-no-files-found: error
           overwrite: true
-      # Last step of this job: upload to App Store Connect (TestFlight) by a
-      # second export with destination upload; publish-ios runs after it.
-      # Fallback if that fails on a future Xcode:
-      # xcrun altool --upload-app -f <ipa> -t ios --apiKey <id> --apiIssuer <issuer>
-      # with API_PRIVATE_KEYS_DIR pointing at the .p8 directory. A failure after
-      # the upload is fixed with a new patch tag.
-      - name: Upload to App Store Connect
-        env:
-          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
-          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
-        run: >-
-          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/PushArmor.xcarchive"
-          -exportOptionsPlist "$RUNNER_TEMP/ExportOptions-upload.plist" -exportPath "$RUNNER_TEMP/upload"
-          -allowProvisioningUpdates
-          -authenticationKeyPath "$RUNNER_TEMP/asc/AuthKey_$ASC_API_KEY_ID.p8"
-          -authenticationKeyID "$ASC_API_KEY_ID" -authenticationKeyIssuerID "$ASC_API_ISSUER_ID"
       - name: Remove the API key and export options
         if: always()
         run: rm -rf "$RUNNER_TEMP/asc" "$RUNNER_TEMP"/ExportOptions-*.plist
 
+  # No Environment: this job gets no store secret.
   publish-ios:
     name: publish iOS (provenance, GitHub release)
     needs: [build-ios, sign-ios]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    environment: ios-release
     permissions:
       contents: write
       id-token: write

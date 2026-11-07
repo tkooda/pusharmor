@@ -1,22 +1,28 @@
 # Releasing
 
-A tag builds ONE platform and uploads it to that platform's test channel and to
-a GitHub release. A tag never publishes to a public channel, except `cli/vX.Y.Z`:
-it publishes to PyPI at once (a PyPI version can never be uploaded again). After testing
-on devices, the owner promotes the same build with the promote workflow (below)
-or by hand in each store console. Nothing is rebuilt for the promotion. The
+A tag builds ONE platform and publishes it to a GitHub release only. A tag
+uploads nothing to any store (no TestFlight, no Play internal track, no Chrome
+Web Store or AMO upload), except `cli/vX.Y.Z`: it publishes to PyPI at once (a
+PyPI version can never be uploaded again). The owner later sends the build of
+the GitHub release to the stores with the promote workflow (below). Nothing is
+rebuilt for the promotion. The
 site has no tag and a push to main does NOT deploy it: deploy it by hand with
 `npx wrangler deploy` in `site/` (`wrangler.jsonc` runs the build into the
 gitignored `site/dist` first, so the tree stays clean; `site/README.md`).
 
-| Tag              | CI uploads to (test channel)                          | Owner promotes (promote workflow or by hand)    |
-|------------------|-------------------------------------------------------|-------------------------------------------------|
-| `android/vX.Y.Z` | Play internal track, GitHub release (Obtainium)       | Play production, GitHub release, F-Droid        |
-| `ios/vX.Y.Z`     | TestFlight (no review submission), GitHub release     | App Store (see NOTE), GitHub release            |
-| `chrome/vX.Y.Z`  | private "PushArmor Beta" item, GitHub release         | public zip to the public item, GitHub release   |
-| `firefox/vX.Y.Z` | unlisted "PushArmor Beta" add-on, GitHub release      | public zip to the listed add-on, GitHub release |
-| `worker/vX.Y.Z`  | nothing (build and tests only)                        | `server/deploy/deploy.sh worker/vX.Y.Z`         |
-| `cli/vX.Y.Z`     | PyPI (public at once), GitHub release                 | nothing (already public)                        |
+Cadence (owner policy, no schedule in CI): release to GitHub at any time.
+Promote to the stores in a batch at most once a week, and never while that
+store has a version in review, unless the owner says otherwise. The store
+jobs refuse a store that has an earlier version in review.
+
+| Tag              | CI publishes to                                       | Owner promotes (promote workflow)                |
+|------------------|-------------------------------------------------------|--------------------------------------------------|
+| `android/vX.Y.Z` | GitHub release (Obtainium), F-Droid repo              | AAB of the release to Play production            |
+| `ios/vX.Y.Z`     | GitHub release                                        | IPA of the release to App Store (see NOTE)       |
+| `chrome/vX.Y.Z`  | GitHub release                                        | public zip of the release to the public item     |
+| `firefox/vX.Y.Z` | GitHub release                                        | public zip of the release to the listed add-on   |
+| `worker/vX.Y.Z`  | nothing (build and tests only)                        | `server/deploy/deploy.sh worker/vX.Y.Z`          |
+| `cli/vX.Y.Z`     | PyPI (public at once), GitHub release                 | nothing (already public)                         |
 
 NOTE: the App Store version is released automatically after approval
 (`IOS_RELEASE_TYPE` = `AFTER_APPROVAL` in `release/promote.mjs`), like the other
@@ -62,7 +68,7 @@ Each build reads X.Y.Z from its tag; the repo holds only the dev version 0.0.0
 
 ## Making a tag
 
-Order: deploy the Worker first when the clients need it. Every test channel
+Order: deploy the Worker first when the clients need it. Every release build
 talks to the production Worker, and the public clients must keep working with it.
 
 1. Pick a commit of main whose CI passed, check it out with a clean tree and run
@@ -80,8 +86,7 @@ talks to the production Worker, and the public clients must keep working with it
 `PA_MIN_CLIENT` (Worker) takes a per-platform list (`android=0.0.22,ios=0.0.20`)
 because platform versions differ; set a floor only for platforms that have it.
 
-A failed upload after the store accepted the file is fixed with a new patch
-version. Each tag workflow creates the GitHub release as a draft, uploads every
+Each tag workflow creates the GitHub release as a draft, uploads every
 asset, then publishes it as a release. A rerun replaces the assets of a
 draft; it never changes a published release.
 
@@ -106,16 +111,19 @@ on the tag `<platform>/vX.Y.Z`, so each store job runs on a tag ref that the
 tag-only release Environment allows. In each store run, the `gate` job checks
 the tag and that an approved promote run on `main` for this version and
 platform started it, then the store job checks out that promote run's commit
-and runs with the store's release Environment:
+and runs with the store's release Environment. Each job takes its file from
+the GitHub release X.Y.Z (hash in the release hashes file and the build
+attestation of the tag workflow checked) and uploads it to the store as the
+step right before the review submission:
 
 | Job        | What it does (`release/promote.mjs`)                                        |
 |------------|-----------------------------------------------------------------------------|
-| `play`     | Play versionCode of X.Y.Z (already on the internal track) to production, status completed; listing text and phone screenshots |
-| `appstore` | TestFlight build of X.Y.Z on the version page X.Y.Z (an unsubmitted version page of an older version is renamed to X.Y.Z, not duplicated), version page text, app name, subtitle, privacy URL, 6.9-inch screenshots; submits for App Review, release after approval |
+| `play`     | `pusharmor-X.Y.Z-play.aab` of the release uploaded (skipped when Play has the versionCode) and sent to production, status completed, in one edit; listing text and phone screenshots |
+| `appstore` | (macOS) `pusharmor-X.Y.Z.ipa` of the release uploaded with `xcrun altool` (skipped when App Store Connect has the build), waits up to 40 minutes for processing; the build on the version page X.Y.Z (an unsubmitted version page of an older version is renamed to X.Y.Z, not duplicated), version page text, app name, subtitle, privacy URL, 6.9-inch screenshots; submits for App Review, release after approval |
 | `chrome`   | `pusharmor-chrome-X.Y.Z-store.zip` of the release (hash and build attestation checked) to the public item, then publish (live after review) |
 | `firefox`  | `pusharmor-firefox-X.Y.Z.zip` and the source archive of the release (hash and build attestation checked) to the listed add-on as a new listed version, with the reviewer notes of `store/listing/amo/review_notes.txt`; then replaces the listing previews with `store/screenshots/amo/en-US/` (uploads them, then deletes the old ones) |
 
-Hard gate: Play stays on internal testing until BOTH repository variables
+Hard gate: nothing goes to Play until BOTH repository variables
 `PLAY_CONTACT_OK` and `PLAY_PUBLIC_OK` are `yes` (Settings > Secrets and
 variables > Actions > Variables). The owner sets `PLAY_CONTACT_OK` only after
 the public developer contact details in Play Console are fixed, and
@@ -124,7 +132,15 @@ before the approval: Play shows BLOCKED and its job is skipped; the other
 stores still go. The `play` job tests them again.
 
 Every job skips a version that is already live or in review, and a version
-older than the one the store has, so a rerun is safe. When one store fails,
+older than the one the store has, so a rerun is safe. Before it uploads or
+submits, each job checks that the store has no other version in review and
+fails with the store and that version when it has one (App Store: a version in
+WAITING_FOR_REVIEW or IN_REVIEW; Chrome Web Store: a submitted revision in
+PENDING_REVIEW; AMO: a listed version whose file is `unreviewed` or
+`nominated`). Play shows no review state through its API: the Play job commits
+its edit with ERROR_IF_IN_REVIEW and reports a refused commit as changes
+already in review, naming the newest production release; a refused commit
+changes nothing on Play. When one store fails,
 rerun only its `store` run ("Re-run failed jobs"); the others are not redone.
 Each job ends with one summary line per store.
 
@@ -167,9 +183,8 @@ Errors are always logged (`server/worker/README.md`, Logs).
 
 ## Android (`android/vX.Y.Z`)
 
-CI: signed play and foss APKs, mapping files and hashes in the GitHub
-release. The AAB is not attached there: it goes to the Play internal track
-and stays in the `android-signed` run artifact.
+CI: signed play and foss APKs, mapping files, the play AAB (upload key
+signature, for Play) and hashes in the GitHub release. Nothing goes to Play.
 
 CI also updates the F-Droid repo https://fdroid.pusharmor.com/repo (job
 `android-rel-fdroid`, `release/fdroid/publish.sh`, fdroidserver 2.4.5): the
@@ -181,17 +196,13 @@ older APKs are deleted from the bucket. It reads the secrets
 `CLOUDFLARE_ACCOUNT_ID` of the Environment `fdroid-release`; while one is
 missing the job skips with a notice. Rerun only that job after a failure.
 
-Test: internal testers install from Play; Obtainium testers install from the
-GitHub release. `PLAY_INTERNAL_STATUS` in
-`.github/workflows/android-release.yml` is `completed`: each tag rolls out to
-internal testers on its own. (Play accepts only `draft` until an app's first
-release is published by hand in Play Console; that step is done.)
+Test: Obtainium installs from the GitHub release.
 
 Promote:
 
-1. The promote workflow (job `play`), or by hand: Play Console > Test and
-   release > Internal testing > Promote release > Production (a personal developer account created after 2023-11-13 must run
-   a closed test with 12 testers for 14 days first: promote to a closed track).
+1. The promote workflow (job `play`): uploads the AAB of the release and sends
+   it to production (a personal developer account created after 2023-11-13 must run
+   a closed test with 12 testers for 14 days first).
 2. Optional: run the rebuild workflow (Actions > rebuild, "Use workflow
    from" and the tag input both `android/vX.Y.Z`, so the toolchain pins are
    those of the release) to prove the APKs are reproducible.
@@ -207,12 +218,10 @@ Promote:
 
 ## iOS (`ios/vX.Y.Z`)
 
-CI: the IPA (cloud-managed signing) in the GitHub release; the build uploaded
-to App Store Connect. No review submission. Before the archive, ios-release
+CI: the IPA (cloud-managed signing) in the GitHub release. Nothing is
+uploaded to App Store Connect (no TestFlight build). Before the archive, ios-release
 runs the iOS UI tests and the iOS 17 job: they are not in the per-change gate
 (the nightly workflow runs them on main when main changed).
-
-Test: internal TestFlight testers (no Beta App Review).
 
 The app is iPhone only (`TARGETED_DEVICE_FAMILY: "1"` in
 `client/ios/project.yml`), so promote sends only the 6.9-inch iPhone
@@ -225,9 +234,8 @@ encryption (CryptoKit), so no export compliance answer is needed.
 
 Promote:
 
-1. The promote workflow (job `appstore`, release after approval), or by
-   hand: App Store Connect: create the version X.Y.Z, choose the uploaded
-   build, select the release option, submit for review.
+1. The promote workflow (job `appstore`, release after approval): uploads the
+   IPA of the release, waits for processing, submits for review.
 2. By hand with "Manually release this version" only: after approval,
    Release this version.
 
@@ -236,16 +244,16 @@ Promote:
 CI: the store zip `pusharmor-chrome-X.Y.Z-store.zip` (no "key"), the
 same zip with the public item's "key" `pusharmor-chrome-X.Y.Z.zip` (for
 "Load unpacked": it gets the store id, so Google login works; never uploaded to
-the store) and the Beta zip in the GitHub release; the Beta zip ("PushArmor Beta") uploaded to the PRIVATE
-Beta item and published there to trusted testers after store review.
+the store) and the Beta zip ("PushArmor Beta") in the GitHub release. Nothing
+goes to the Chrome Web Store.
 
-Test: testers install "PushArmor Beta" from the store; it auto-updates.
+Test: "Load unpacked" from `pusharmor-chrome-X.Y.Z.zip` of the release.
 
 Promote:
 
-1. The promote workflow (job `chrome`), or by hand: Chrome Web Store
-   dashboard, the public item: upload `pusharmor-chrome-X.Y.Z-store.zip` from the
-   release, submit for review, publish.
+1. The promote workflow (job `chrome`): uploads
+   `pusharmor-chrome-X.Y.Z-store.zip` of the release to the public item and
+   publishes it (live after review).
 2. The collect workflow (on each chrome/v or firefox/v tag push, or run by hand
    once the store serves the new version) publishes the store CRX as the release
    `store/chrome/vX.Y.Z` after it checks it against the release file hashes. It
@@ -254,28 +262,17 @@ Promote:
 
 ## Firefox (`firefox/vX.Y.Z`)
 
-CI: the public zip `pusharmor-firefox-X.Y.Z.zip`, the source archive, the
-signed Beta XPI `pusharmor-firefox-beta-X.Y.Z.xpi` and its update manifest
-`pusharmor-firefox-beta-X.Y.Z-updates.json` in the GitHub release. The Beta
-add-on ("PushArmor Beta", own gecko id) is signed UNLISTED on AMO; AMO never
-lists it.
+CI: the public zip `pusharmor-firefox-X.Y.Z.zip` and the source archive in
+the GitHub release. Nothing goes to AMO (no signed Beta XPI).
 
-Rerun: AMO accepts each version once. When `submit-firefox` passed and
-`publish-firefox` failed, rerun only the failed `publish-firefox` job. A full
-rerun signs the same version again and fails; fix a failure in
-`submit-firefox` or before it with a new patch version.
-
-Test: install the Beta XPI from the release link once. Auto-update: the site
-build writes `/fx/beta/updates.json` (version and XPI URL) from the newest
-`firefox/vX.Y.Z` tag; deploy the site after the release is published (the Beta manifest's update_url is
-`https://pusharmor.com/fx/beta/updates.json`, `release/constants.json`). Do not install the public add-on and the Beta add-on
-in the same Firefox profile: both handle the login page.
+Test: load `pusharmor-firefox-X.Y.Z.zip` of the release as a temporary add-on
+(about:debugging).
 
 Promote:
 
-1. The promote workflow (job `firefox`), or by hand: AMO Developer Hub, the
-   listed add-on: upload `pusharmor-firefox-X.Y.Z.zip` as a new version with
-   the source archive; it goes public after review. The listed add-on is
+1. The promote workflow (job `firefox`): uploads `pusharmor-firefox-X.Y.Z.zip`
+   of the release as a new listed version with the source archive; it goes
+   public after review. The listed add-on is
    created by hand once (the first listed version, with the public gecko id
    of `release/public.json`); the workflow fails until it exists.
 2. The collect workflow publishes the AMO XPI of the current public version
@@ -289,14 +286,13 @@ Store items and ids:
   "PushArmor Beta" (the first upload by hand, e.g. the Beta zip of a local
   release build or a dev zip), description stating it is a test build,
   visibility Private (trusted testers). Put its id in `release/public.json`
-  `google_chrome_beta_extension_id`. The CWS service account must have access
-  to that item. The release build and the `chrome/v` job fail when this id
-  equals the public id or is not 32 letters a-p.
+  `google_chrome_beta_extension_id`. The release build fails when this id
+  equals the public id or is not 32 letters a-p. No workflow uploads to it.
 - Firefox: both gecko ids are random lowercase GUIDs in braces
   (`{xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}`, from `uuidgen`); the release build
   refuses any other form. Pick the Beta gecko id (not the public id) for
-  `mozilla_firefox_beta_addon_id`. The first `firefox/v` tag creates the
-  unlisted add-on on AMO.
+  `mozilla_firefox_beta_addon_id`. No workflow signs or uploads the Beta
+  add-on.
 - Worker variable `PA_OAUTH_REDIRECT_CHROME` (Cloudflare dashboard): a JSON
   list of both redirects,
   `["https://<public id>.chromiumapp.org/","https://<Beta id>.chromiumapp.org/"]`.
@@ -323,7 +319,12 @@ tag commit, so only reviewed commits may be tagged:
    `chrome-release`, `firefox-release`, `pypi`: "Deployment branches and tags"
    = selected tags only, `android/v*` for both Android environments, `ios/v*`,
    `chrome/v*`, `firefox/v*`, `cli/v*`. Required reviewers are optional
-   because the store promotion is the human gate.
+   because the store promotion is the human gate. In the tag workflows only
+   the jobs that need a secret name an Environment (`android-sign`,
+   `fdroid-release`, `ios-release` for the export signing, `pypi`); the
+   publish jobs name none, so a tag run can get no store credential.
+   `android-release`, `chrome-release` and `firefox-release` are named only
+   by store.yml.
 4. Secrets only as environment secrets, never repository or organization
    secrets (names and environments: `release/names.json` "github_secrets"):
    `ANDROID_*` in `android-sign`, `ASC_*` in `ios-release`, `MOZILLA_AMO_*` in
@@ -349,5 +350,4 @@ tag commit, so only reviewed commits may be tagged:
    `actions: write`. The store jobs are in `.github/workflows/store.yml`,
    started by promote on each platform tag, so `android-release`,
    `ios-release`, `chrome-release` and `firefox-release` stay tags only (item
-   3); only store.yml and the tag-triggered release workflows name them. No
-   secret is copied.
+   3). No secret is copied.

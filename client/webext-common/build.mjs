@@ -39,7 +39,7 @@ const pub = loadPublic(pi > 0 ? process.argv[pi + 1] : PUBLIC_PATH);
 if (!dev) {
   const bad = publicProblems(["webpush_vapid_public_key", "mozilla_firefox_addon_id", "mozilla_firefox_beta_addon_id", "google_chrome_dev_key"], pub);
   if (pub.mozilla_firefox_beta_addon_id === pub.mozilla_firefox_addon_id) bad.push("release/public.json: mozilla_firefox_beta_addon_id equals mozilla_firefox_addon_id");
-  // The chrome/v release job uploads to the Beta item only: it must never be the public item.
+  // The Beta zip carries the Beta item's id: it must never be the public item.
   const cb = pub.google_chrome_beta_extension_id;
   if (typeof cb === "string" && cb === pub.google_chrome_extension_id) bad.push("release/public.json: google_chrome_beta_extension_id equals google_chrome_extension_id");
   if (typeof cb === "string" && !/placeholder|ci-fork-dummy/i.test(cb) && !/^[a-p]{32}$/.test(cb)) bad.push("release/public.json: google_chrome_beta_extension_id is not 32 letters a-p");
