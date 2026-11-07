@@ -4,7 +4,7 @@ import type { SendResult } from "../core/engine.ts";
 import { R, T, greyedText, pushIssueText, quoted, saveFailText } from "../core/texts.ts";
 import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter, sortByLabel } from "../model/sendsel.ts";
 import { isLikelyUrl } from "../model/sendurl.ts";
-import { AUTH_CHANGED, type Restore } from "../model/signin.ts";
+import { AUTH_CHANGED, AUTH_SWITCHED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
 import { type UiEnv, accountLine, add, clear, deviceIdLine, failView, group, h, midEllipsis, nextTabIndex, openHref, rpc, sh, shortTime } from "./dom.ts";
 import { closeDialogs, confirmDialog, dismissToast, toast } from "./dialog.ts";
@@ -55,10 +55,13 @@ export async function mountPopup(env: UiEnv, root: HTMLElement, page?: PageStart
   // not a real popup (Firefox for Android shows it full screen): the screen sets the size
   document.body.classList.toggle("full", env.inPopup?.() === false);
   const my = ++mounts;
-  if (!watching) {
+  if (!watching && env.session !== undefined) {
     // a login state change (here, in a tab, or from the relay server) shows the matching view
     watching = true;
-    env.session?.watch(AUTH_CHANGED, () => void mountPopup(env, root, lastPage));
+    env.session?.watch(AUTH_CHANGED, (v) => {
+      if (typeof v === "string" && v.endsWith(AUTH_SWITCHED)) lastPage = undefined; // the old account's tab and item do not apply
+      void mountPopup(env, root, lastPage);
+    });
   }
   let st: StateView;
   try {
@@ -838,4 +841,9 @@ export async function copyText(env: UiEnv, text: string): Promise<void> {
 /** The bottom line of Settings: "Version X.Y.Z"; a click copies X.Y.Z. */
 export function versionButton(env: UiEnv, version: string): HTMLElement {
   return h("button", { type: "button", class: "quiet t2 version", "aria-label": "Copy version", onclick: () => void copyText(env, version) }, "Version " + version);
+}
+
+/** For tests: the start a login change would draw again with. */
+export function lastPageForTest(): PageStart | undefined {
+  return lastPage;
 }

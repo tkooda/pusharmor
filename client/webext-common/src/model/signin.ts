@@ -78,6 +78,8 @@ export function clampFrameHeight(h: unknown): number | null {
 
 /** storage.session key the background changes on every login state change; open views mount again. */
 export const AUTH_CHANGED = "auth_changed";
+/** Ends the AUTH_CHANGED value of an account switch: the view starts on its home page, not on the old account's tab or item. */
+export const AUTH_SWITCHED = ":switched";
 
 /** A Chrome extension id is known when it is one of the store ids the build put in (public, Beta). */
 export function knownChromeId(id: string, known: readonly string[]): boolean {

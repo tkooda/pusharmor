@@ -67,7 +67,7 @@ import {
   pairKeyOf,
 } from "./state.ts";
 import { R, T, peerLabel, quoted, rowLabel, sendResultText } from "./texts.ts";
-import { AUTH_CHANGED } from "../model/signin.ts";
+import { AUTH_CHANGED, AUTH_SWITCHED } from "../model/signin.ts";
 
 type Src = "push" | "bridge" | "returned" | "fetched";
 
@@ -247,8 +247,8 @@ export class Engine {
   }
 
   /** Tells open popups and tabs that the login state changed: they mount again. */
-  async authChanged(): Promise<void> {
-    await this.p.storageSession.set({ [AUTH_CHANGED]: this.p.now() + ":" + ++this.authN }).catch(() => undefined);
+  async authChanged(switched = false): Promise<void> {
+    await this.p.storageSession.set({ [AUTH_CHANGED]: this.p.now() + ":" + ++this.authN + (switched ? AUTH_SWITCHED : "") }).catch(() => undefined);
   }
 
   private async setReg(v: "registered" | "logged_out"): Promise<void> {
@@ -1926,7 +1926,7 @@ export class Engine {
     await this.p.clearAllNotifications().catch(() => undefined);
     await this.rebuildMenus();
     await this.updateBadge();
-    await this.authChanged();
+    await this.authChanged(true);
   }
 
   /** The storage.local keys of a loaded account go there (again after a stop in between). */

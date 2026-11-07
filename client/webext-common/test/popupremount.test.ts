@@ -27,3 +27,24 @@ test("drawing the popup again (an account switch) cancels an open confirm dialog
   void mountPopup(env, new N("div") as unknown as HTMLElement);
   assert.deepEqual(seen, [""]);
 });
+
+test("an account switch draws the popup again on the start page, a plain login change keeps the page start", async () => {
+  const { AUTH_CHANGED } = await import("../src/model/signin.ts");
+  let fire: ((v: unknown) => void) | null = null;
+  const starts: string[] = [];
+  const env = {
+    call: (op: string) => {
+      if (op === "popupOpen") starts.push("open");
+      return new Promise(() => undefined);
+    },
+    theme: { get: () => new Promise(() => undefined), onChange() {} },
+    session: { watch: (k: string, cb: (v: unknown) => void) => ((fire = k === AUTH_CHANGED ? cb : fire), () => undefined) },
+  } as unknown as UiEnv;
+  const page = { tab: "history", arg: "42" } as const;
+  void mountPopup(env, new N("div") as unknown as HTMLElement, page);
+  const { lastPageForTest } = await import("../src/ui/popup.ts");
+  fire!("1:1");
+  assert.deepEqual(lastPageForTest(), page);
+  fire!("2:2:switched");
+  assert.equal(lastPageForTest(), undefined);
+});
