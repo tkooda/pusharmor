@@ -436,9 +436,10 @@ private fun Banners(vm: AppViewModel, prefs: androidx.datastore.preferences.core
 /**
  * "This device cannot receive messages." above [content], on every signed-in tab and on the logged-out screen.
  * [topInset] pads the card below the status bar and takes that inset off [content], for screens that pad it themselves.
+ * [enabled] false shows no card but keeps [content] in place, so its state stays when the card may show again.
  */
 @Composable
-internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, content: @Composable () -> Unit) {
+internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, enabled: Boolean = true, content: @Composable () -> Unit) {
     val context = LocalContext.current
     // Read here, so the checks below run again on each return to the app.
     val tick = resumeTick()
@@ -458,7 +459,7 @@ internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, content: @Co
     val pushError = prefs?.get(Settings.K.PUSH_ERROR)
     val cannot = UiText.cannotReceive(n.enabled(), n.mainChannelsBlocked(), noPushApp, refused != null || setup != null || pushError != null, relay)
     LaunchedEffect(cannot) { if (!cannot) vm.cannotReceiveClosed.value = false }
-    val shown = cannot && !closed
+    val shown = enabled && cannot && !closed
     var getApp by rememberSaveable { mutableStateOf(false) }
     val top = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
     Column(Modifier.fillMaxSize()) {

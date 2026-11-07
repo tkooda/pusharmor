@@ -305,4 +305,16 @@ class AccountSwitchTest {
             waitFor("B shown") { peers.value?.isEmpty() == true && hist.value?.isEmpty() == true && self.value == null && days.value == null }
         } finally { scope.cancel() }
     }
+
+    /** An email that switches a logged-out device to a new empty account shows the first sign-in state at once, not logged out. */
+    @Test fun emailSwitchUpdatesTheStartState() = io {
+        register("tA", "a@x.com")
+        g.session.signOut()
+        val vm = com.pusharmor.app.ui.AppViewModel(app)
+        vm.start.value = Session.Start.SIGNED_OUT
+        runBlocking { vm.emailStart("b@x.com", "turnstile", "login") }
+        assertNull(g.dao.self())
+        assertEquals(Session.Start.SIGN_IN, vm.start.value)
+        assertEquals("register", vm.signInPurpose.value)
+    }
 }

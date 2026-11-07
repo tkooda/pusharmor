@@ -113,4 +113,30 @@ class FlavorPushSwitchTest {
             assertNull(s.get(Settings.K.PUSH_SETUP))
         } finally { FlavorPush.tokenTask = savedTask; s.set(Settings.K.PUSH_SETUP, null) }
     }
+
+    /** Check again on a push setup error waits for the retry: a token says nothing, a second failure says still. */
+    @Test fun checkAgainWaitsForTheSetupRetry() {
+        setUp()
+        val s = app.graph.settings
+        s.set(Settings.K.PUSH_TYPE, "fcm")
+        val savedTask = FlavorPush.tokenTask
+        fun tap(vm: com.pusharmor.app.ui.AppViewModel) {
+            vm.checkAgain(local = true)
+            val end = System.currentTimeMillis() + 5000
+            while ((vm.busy.value || "check" in vm.running.value) && System.currentTimeMillis() < end) { Thread.sleep(20); org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle() }
+            Thread.sleep(50); org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        }
+        try {
+            val vm = com.pusharmor.app.ui.AppViewModel(app)
+            s.set(Settings.K.PUSH_SETUP, "fcm_token")
+            FlavorPush.tokenTask = { com.google.android.gms.tasks.Tasks.forException(java.io.IOException("SERVICE_NOT_AVAILABLE")) }
+            tap(vm)
+            assertEquals(com.pusharmor.app.ui.UiText.CHECK_STILL, vm.message.value)
+            vm.message.value = null
+            FlavorPush.tokenTask = { com.google.android.gms.tasks.Tasks.forResult("token-3") }
+            tap(vm)
+            assertNull(vm.message.value)
+            assertNull(s.get(Settings.K.PUSH_SETUP))
+        } finally { FlavorPush.tokenTask = savedTask; s.set(Settings.K.PUSH_SETUP, null) }
+    }
 }

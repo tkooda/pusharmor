@@ -21,6 +21,7 @@ import com.pusharmor.store.SelfEntity
 import com.pusharmor.store.toPeer
 import com.pusharmor.store.toRow
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -67,6 +68,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val highlight = MutableStateFlow<String?>(null)
 
     companion object {
+        /** Check again on a push setup error waits this long for the token or address before it says still. */
+        const val SETUP_WAIT_MS = 35_000L
+
         /** Line 2 for a tap that failed with an exception: keys, storage, or a plain retry. */
         fun localReason(e: Throwable): String = when (e) {
             is android.database.sqlite.SQLiteFullException -> ErrorText.STORAGE_FULL
@@ -179,7 +183,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             // The address picks the account (an archived one, or a new one) before the keys sign the request.
             val before = g.dao.self()?.id
             val p = if (purpose == "delete-account") purpose else g.session.prepareEmail(email).also { signInPurpose.value = it }
-            if (g.dao.self()?.id != before) accountSwitched()
+            if (g.dao.self()?.id != before) {
+                accountSwitched()
+                start.value = if (g.session.signedOut) Session.Start.SIGNED_OUT else Session.Start.SIGN_IN
+            }
             val r = g.client.authEmail(email, signPubB64(), p, turnstile)
             val addr = email.trim().lowercase()
             if (r is ApiResult.Ok) { resend.value = addr to System.currentTimeMillis() + UiText.RESEND_MS; r.value }
@@ -420,8 +427,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * push. "sent" says Working and the card goes; the line for each result is [UiText.checkAgainText].
      */
     fun checkAgain(local: Boolean) = once("check", UiText.CHECK_FAILED) {
-        // Push could not be set up here: set it up again; the card goes when a token or address arrives.
-        if (g.settings.get(Settings.K.PUSH_SETUP) != null) g.push.start(g)
+        // Push could not be set up here: set it up again and wait for its result (bounded); the card goes when a token or address arrives.
+        if (g.settings.get(Settings.K.PUSH_SETUP) != null) {
+            val result = kotlinx.coroutines.coroutineScope {
+                val r = async(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                    kotlinx.coroutines.withTimeoutOrNull(SETUP_WAIT_MS) { com.pusharmor.app.push.UnifiedPushSupport.setupResults.first() }
+                }
+                g.push.start(g)
+                r.await()
+            }
+            if (result != true && g.settings.get(Settings.K.PUSH_SETUP) != null) message.value = UiText.CHECK_STILL
+            return@once
+        }
         // The push address could not be sent: send it again first; the card goes when it is accepted.
         if (g.settings.get(Settings.K.PUSH_ERROR) != null) when (g.session.patchPushNow()) {
             true -> Unit

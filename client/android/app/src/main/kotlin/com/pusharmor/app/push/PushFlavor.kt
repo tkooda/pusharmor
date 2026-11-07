@@ -82,11 +82,20 @@ object UnifiedPushSupport {
         return UiText.pushSetup(code, if (up) saved(context)?.let { appName(context, it) } else null)
     }
 
+    /** Each push setup result as it happens (true = a token or address arrived), for a Check again that waits on its retry. */
+    val setupResults = kotlinx.coroutines.flow.MutableSharedFlow<Boolean>(extraBufferCapacity = 8)
+
     /** Records a push setup failure ([Settings.K.PUSH_SETUP]); the cannot-receive card says it. */
-    fun setupFailed(g: Graph, code: String) { if (g.settings.get(Settings.K.PUSH_SETUP) != code) g.settings.set(Settings.K.PUSH_SETUP, code) }
+    fun setupFailed(g: Graph, code: String) {
+        if (g.settings.get(Settings.K.PUSH_SETUP) != code) g.settings.set(Settings.K.PUSH_SETUP, code)
+        setupResults.tryEmit(false)
+    }
 
     /** A token or address arrived: a setup failure no longer holds. */
-    fun setupOk(g: Graph) { if (g.settings.get(Settings.K.PUSH_SETUP) != null) g.settings.set(Settings.K.PUSH_SETUP, null) }
+    fun setupOk(g: Graph) {
+        if (g.settings.get(Settings.K.PUSH_SETUP) != null) g.settings.set(Settings.K.PUSH_SETUP, null)
+        setupResults.tryEmit(true)
+    }
 
     /** The relay server refused the push address: its host and the UnifiedPush app's name, else null. */
     fun refused(context: Context, prefs: Preferences?, playServices: Boolean): Pair<String, String>? {

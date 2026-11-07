@@ -290,8 +290,9 @@ internal fun App(vm: AppViewModel) {
         // Logged out: no bottom bar; a Settings button on the sign-in screens opens the settings that need no account.
         var settings by rememberSaveable { mutableStateOf(false) }
         // The cannot-receive card shows on the logged-out screen (not while deleting the account, nor on a first sign-in).
+        // The host stays when the start changes (an email that switched accounts), so a pending code step is kept.
         val host: @Composable (@Composable () -> Unit) -> Unit = { c ->
-            if (start == Session.Start.SIGNED_OUT && !deleting) CannotReceiveHost(vm, topInset = true, c) else c()
+            CannotReceiveHost(vm, topInset = true, enabled = start == Session.Start.SIGNED_OUT && !deleting, c)
         }
         if (settings && !deleting) {
             val close = { settings = false }
