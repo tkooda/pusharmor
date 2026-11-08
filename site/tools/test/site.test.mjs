@@ -463,7 +463,8 @@ test("download: copy and QR icons stay on the last line of their text (structura
 
 test("download: every Android channel, release asset names, certificate fingerprint", () => {
   const t = text("download.html");
-  assert.ok(t.includes("Google Play Coming soon"), "download lacks: Google Play");
+  assert.ok(t.includes("Google Play") && !t.includes("Google Play Coming soon"), "download lacks: Google Play");
+  assert.ok(read("download.html").includes('href="https://play.google.com/store/apps/details?id=com.pusharmor"'), "download lacks the Play URL");
   assert.ok(t.includes("pusharmor-" + APK_VERSION + "-foss.apk"), "download lacks the APK entry");
   assert.ok(!t.includes("APK from GitHub Releases (below) Coming soon"), "APK still coming soon");
   const raw = read("download.html");
