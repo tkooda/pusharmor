@@ -34,7 +34,7 @@ export const T = {
   storageFull: "Storage is full. Free some space and try again.",
   saveFailed: "PushArmor could not save its data on this device. Restart PushArmor and try again.",
   signedOut: "This device is logged out. Log in to resume.",
-  sendOnly: "Send only",
+  sendOnly: "Not listening",
   pairFailed: (x: string) => "Unable to pair with " + quoted(x) + ".\nClick Pair to start again.",
   pairTimedOut: (x: string) => "Unable to pair with " + quoted(x) + ".\nIt did not answer in time. Click Pair to start again.",
   pairing: "Pairing...",
@@ -107,7 +107,7 @@ export function sendResultText(name: string, res: string): string {
   const to = 'Unable to send to "' + name + '".\n';
   if (res === "gone") return 'Unable to deliver message to "' + name + '".\nOpen PushArmor on it to resolve.';
   if (res === "logged out") return to + "That device is logged out. Log in on that device to receive messages.";
-  if (res === "not listening") return to + "It is set to send only. It does not receive messages.";
+  if (res === "not listening") return to + "It has not listened recently. Run pusharmor listen on it.";
   if (res === "unapproved") return to + "It is not paired with this device. Pair with it to send it messages.";
   if (res === "denied") return to + "It isn't paired with this device.";
   if (res === "unknown") return to + "It is no longer on this account.";

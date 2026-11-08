@@ -1032,7 +1032,7 @@ test("send result not listening shows Send only and marks the peer send only", a
   w.inject.push({ match: /POST \/v1\/send/, status: 200, body: { r: { [b.id]: "not listening" } }, times: 1 });
   const r = await a.e.send("hi", "auto", "all");
   assert.equal(r.sent, 0);
-  assert.equal(r.failures[0]!.text, 'Unable to send to "Chrome".\nIt is set to send only. It does not receive messages.');
+  assert.equal(r.failures[0]!.text, 'Unable to send to "Chrome".\nIt has not listened recently. Run pusharmor listen on it.');
   assert.equal((await a.db.peer(b.id))!.listening, false);
   assert.equal((await a.e.allSet()).length, 0);
 });
