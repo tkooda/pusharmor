@@ -149,7 +149,6 @@ label.srow { cursor: pointer; }
 /* stacked by large text, the main action (on the right) goes on top */
 .pair-acts { display: flex; flex-wrap: wrap-reverse; gap: 8px; margin-top: 12px; }
 .pair-acts button { flex: 1; }
-.hint { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 8px; font-size: 12px; line-height: 1.33334; color: var(--ink2); }
 .pair-foot { display: flex; flex-wrap: wrap; column-gap: 8px; align-items: center; justify-content: space-between; margin: 8px -14px 0; padding: 0 14px 0 4px; border-top: 1px solid var(--line); min-height: 40px; }
 .pair-foot button { height: 32px; }
 .pair button, .foot.bar button { font-weight: 600; }

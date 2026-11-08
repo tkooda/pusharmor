@@ -145,7 +145,6 @@ public enum S {
     }
     public static func pairWith(_ x: String) -> String { "Pair with new device: \"\(x)\"" }
     public static func checkSameCode(_ x: String) -> String { "Verify that \"\(x)\" shows this same code." }
-    public static let codesMismatch = "Codes do not match? Tap Codes differ."
     public static let newPeerWantsToPair = "A new device wants to pair."
     public static func timesOutIn(_ t: String) -> String { "Times out in \(t)" }
     public static let sameAccount = "Use the same account on every device you want to pair."

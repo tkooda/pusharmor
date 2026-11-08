@@ -278,7 +278,6 @@ function pairCard(env: UiEnv, p: PeerView, redraw: Redraw): HTMLElement {
   // Codes differ left, Codes match right, equal width.
   const order = main.includes("deny") ? ["deny", ...main.filter((a) => a !== "deny")] : main;
   if (order.length) card.append(h("div", { class: "pair-acts" }, ...order.map((a) => actionButton(env, a, p, redraw, ACTION_CLASS[a] ?? "", a === "deny" && p.actions.includes("approve") ? "Codes differ" : undefined))));
-  if (p.actions.includes("deny") && p.actions.includes("approve")) card.append(h("div", { class: "hint" }, icon("info", 14), "Codes do not match? Click Codes differ."));
   const foot = h("div", { class: "pair-foot" });
   if (p.actions.includes("cancel")) foot.append(actionButton(env, "cancel", p, redraw, ""));
   if (p.countdown) foot.append(h("span", { class: "t2 countdown" }, T.countdownLeft(p.countdown)));

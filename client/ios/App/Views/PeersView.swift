@@ -337,10 +337,6 @@ struct PairingCardView: View {
                     denyButton("Codes differ")
                 }
                 .padding(.top, 4)
-                Label(S.codesMismatch, systemImage: "info.circle.fill")
-                    .font(.footnote)
-                    .foregroundColor(.secondaryText)
-                    .frame(maxWidth: .infinity)
             }
         } else {
             ButtonPair {

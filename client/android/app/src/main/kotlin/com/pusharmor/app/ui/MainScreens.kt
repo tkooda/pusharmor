@@ -790,12 +790,6 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
                     TonalGreenButton(onClick = { vm.approve(p.id) }, text = "Codes match", modifier = Modifier.weight(1f),
                         enabled = "approve:${p.id}" !in running)
                 }
-                Spacer(Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Icon(PaIcons.Info, null, Modifier.size(16.dp), tint = cs.onSurfaceVariant)
-                    Text("Codes do not match? Tap Codes differ.", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
-                }
             }
             prompted -> {
                 Text("A new device wants to pair.", style = body, color = cs.onSurfaceVariant)
