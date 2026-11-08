@@ -107,11 +107,23 @@ export function pairTimeout(approveVerified: boolean, approved: boolean, resend:
   return "keep_waiting";
 }
 
-const NO_REPLY_MS = 3 * 24 * 3600 * 1000;
+const NO_REPLY_HINT_MS = 3 * 24 * 3600 * 1000;
 
 /** N-side hint on a row in state committed. */
 export function pairHint(approvesMe: boolean | null, committedMs: number): "still_holds" | "no_reply_yet" | null {
   if (approvesMe === true) return "still_holds";
-  if (committedMs >= NO_REPLY_MS) return "no_reply_yet";
+  if (committedMs >= NO_REPLY_HINT_MS) return "no_reply_yet";
   return null;
+}
+
+/** How long a pairing waits on the other device before its row shows No reply. */
+export const NO_REPLY_MS = 2 * 60 * 1000;
+
+/**
+ * No reply: the entry waits on the other device to answer by itself (N committed, X replied)
+ * and NO_REPLY_MS passed since the wait started (wait_from; started on older entries).
+ */
+export function noReply(e: { role: Role; state: PairState; started: number; wait_from?: number }, now: number): boolean {
+  const waits = (e.role === "N" && e.state === "committed") || (e.role === "X" && e.state === "replied");
+  return waits && now - (e.wait_from ?? e.started) >= NO_REPLY_MS;
 }

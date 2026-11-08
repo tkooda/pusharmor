@@ -35,6 +35,7 @@ export interface PairEntry {
   not_before?: number;
   msg?: string; // last pair message sent (commit, reply or open)
   last_send?: number;
+  wait_from?: number; // start of the current no-reply window (ms); started when absent
   last_result?: string;
   approved?: boolean; // this device tapped Approve
   approve_body?: string; // stored POST /approve body (same bytes on re-fetch)

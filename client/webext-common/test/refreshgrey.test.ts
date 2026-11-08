@@ -53,3 +53,27 @@ test("Devices: a pairing that completes by push shows at once in a list with pai
     mock.timers.reset();
   }
 });
+
+test("Try again: after a click it is greyed for 10 s across redraws, then clickable again", async () => {
+  mock.timers.enable({ apis: ["setTimeout", "Date"], now: 2_000_000 });
+  try {
+    const ops: string[] = [];
+    const row = { id: "b", label: "Phone", platform: "android", lines: ['No reply from "Phone"', "Check that notifications are on for PushArmor on both devices, then try again"], actions: ["try_again", "cancel"], countdown: null, fingerprint: null, pk: null, greyed: null, hidden: false, sendable: false, approvesMe: null, paired: false };
+    const env = { call: async (req: { op: string }) => (ops.push(req.op), { ok: true, data: req.op === "peers" ? { peers: [row] } : null }) } as unknown as UiEnv;
+    const root = new N("div");
+    await renderPeers(env, root as unknown as HTMLElement, false);
+    const btn = () => all(root).find((n) => n.tag === "button" && n.textContent === "Try again") as unknown as HTMLButtonElement & N;
+    assert.ok(btn() && !btn().disabled);
+    for (const f of btn().on.click!) f({});
+    for (let i = 0; i < 10 && ops.filter((o) => o === "peers").length < 2; i++) await new Promise((r) => setImmediate(r));
+    assert.equal(ops.filter((o) => o === "tryAgain").length, 1);
+    // the list was drawn again: the new button is still greyed
+    assert.equal(btn().disabled, true);
+    mock.timers.tick(9_000);
+    assert.equal(btn().disabled, true);
+    mock.timers.tick(1_000);
+    assert.equal(btn().disabled, false);
+  } finally {
+    mock.timers.reset();
+  }
+});

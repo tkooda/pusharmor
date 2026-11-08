@@ -43,7 +43,7 @@ import {
   verifyNameEntry,
 } from "../model/message.ts";
 import { CONTENT_CAP, utf8Len } from "../model/padding.ts";
-import { AUTO_REPLY_WINDOW_MS, pairDecide, type PairDecision, pairHint, pairTimeout, type ResendResult } from "../model/pairdecide.ts";
+import { AUTO_REPLY_WINDOW_MS, noReply, pairDecide, type PairDecision, pairHint, pairTimeout, type ResendResult } from "../model/pairdecide.ts";
 import { replayCheck, replayRecord } from "../model/replay.ts";
 import { receiveDecide } from "../model/receive.ts";
 import { type Platform, PushNotStarted, PushRefused } from "../platform.ts";
@@ -622,6 +622,7 @@ export class Engine {
           started: t,
           authorized: d.action === "reply",
           unsent: d.action === "reply",
+          ...(d.action === "reply" ? { wait_from: t } : {}),
         };
         // one storage.local.set with both keys; the cap counts when the entry persists
         const items: Record<string, unknown> = { [pairKeyOf(from)]: entry };
@@ -878,6 +879,20 @@ export class Engine {
     else if (e.state === "shown" && !(await this.db.peer(x))?.approve_verified) this.pairSent(await this.sendStored(x, "open", self));
   }
 
+  /** [Try again] on a No reply row: the waiting step (N: commit, X: reply) now, no 60 s wait; a server wait is kept. */
+  async pairTryAgain(x: string): Promise<void> {
+    const self = await this.self();
+    const e = await getEntry(this.p.storageLocal, x);
+    const t = now(this.p);
+    if (!self || !e || !noReply(e, t)) return;
+    if (e.not_before && t < e.not_before) {
+      this.p.alarmAt("pair:" + x, Math.max(e.not_before, t + 30_000));
+      return;
+    }
+    await this.p.storageLocal.set({ [pairKeyOf(x)]: { ...e, wait_from: t } satisfies PairEntry });
+    this.pairSent(e.role === "N" ? await this.sendStored(x, "commit", self) : await this.sendReply(x));
+  }
+
   /**
    * Popup open, Refresh: each pairing that waits on the other device sends its own last message
    * again (N committed: commit; N shown: open; X replied: reply), 60 s after the last send and
@@ -900,7 +915,7 @@ export class Engine {
     await this.lock.run(async () => {
       const e = await getEntry(this.p.storageLocal, x);
       if (!e || e.role !== "X" || e.state !== "prompted") return;
-      await this.p.storageLocal.set({ [pairKeyOf(x)]: { ...e, authorized: true, unsent: true } satisfies PairEntry });
+      await this.p.storageLocal.set({ [pairKeyOf(x)]: { ...e, authorized: true, unsent: true, wait_from: now(this.p) } satisfies PairEntry });
     });
     this.pairSent(await this.sendReply(x));
   }
@@ -1814,18 +1829,25 @@ export class Engine {
       lines.push(T.waiting(nm));
       if (e.approve_result && e.approve_result !== "sent" && e.approve_result !== "stored" && e.approve_result !== "denied") actions.push("approve_again");
     } else if (e.state === "committed") {
-      lines.push(T.pairingWith(nm)); // the codes and how to compare them come in state shown
       const hint = pairHint((await this.db.meta<string[]>("listed"))?.includes(x) ? peer.approves_me : null, t - e.started);
-      if (hint === "still_holds") lines.push(T.stillHolds(nm));
-      else if (hint === "no_reply_yet") lines.push(T.noReplyYet(nm));
-      actions.push("send_again");
+      if (hint !== "still_holds" && noReply(e, t)) {
+        lines.push(...T.noReplyFrom(nm).split("\n"));
+        actions.push("try_again");
+      } else {
+        lines.push(T.pairingWith(nm)); // the codes and how to compare them come in state shown
+        if (hint === "still_holds") lines.push(T.stillHolds(nm));
+        actions.push("send_again");
+      }
     } else if (e.state === "prompted") {
       lines.push(T.wantsToPair(nm), T.pairing);
       // a failed reply with no wait set can be tapped again while no send runs
       const retry = e.unsent && !this.replying.has(x) && !(e.not_before && t < e.not_before);
       if (!e.authorized || retry) actions.push("reply");
     } else if (e.state === "replied") {
-      lines.push(T.pairing);
+      if (noReply(e, t)) {
+        lines.push(...T.noReplyFrom(nm).split("\n"));
+        actions.push("try_again");
+      } else lines.push(T.pairing);
     } else if (e.state === "shown") {
       lines.push(T.fingerprint(e.fingerprint ?? "????"));
       actions.push("approve", "deny");

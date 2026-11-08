@@ -81,6 +81,7 @@ const ACTION: Record<string, ActionId> = {
   pair: "pair",
   pairAgain: "pair",
   sendAgain: "pair",
+  tryAgain: "pair",
   reply: "pair",
   approve: "confirm",
   deny: "reject",
@@ -200,6 +201,8 @@ export class Rpc {
         return e.pairStart(s("id"));
       case "sendAgain":
         return e.pairSendAgain(s("id"));
+      case "tryAgain":
+        return e.pairTryAgain(s("id"));
       case "reply":
         return e.pairReplyTap(s("id"));
       case "approve":

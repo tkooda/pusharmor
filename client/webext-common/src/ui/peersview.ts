@@ -13,13 +13,14 @@ const ACTION_LABEL: Record<string, string> = {
   approve: "Codes match",
   reply: "Reply",
   send_again: "Send again",
+  try_again: "Try again",
   approve_again: "Send again",
   cancel: "Cancel pairing request",
   remove: "Remove device from account",
   localDelete: "Delete",
 };
 // Display order of a row's actions: the main action first, the row tools last.
-const ACTION_ORDER = ["pair", "pair_again", "approve", "approve_again", "reply", "send_again", "deny", "cancel", "localDelete", "remove"];
+const ACTION_ORDER = ["pair", "pair_again", "approve", "approve_again", "reply", "send_again", "try_again", "deny", "cancel", "localDelete", "remove"];
 const ACTION_CLASS: Record<string, string> = { pair: "approve", pair_again: "tonal", approve: "approve", reply: "tonal", deny: "reject" };
 // Row tools live in the overflow menu.
 const MENU = new Set(["remove", "localDelete"]);
@@ -29,6 +30,8 @@ const rank = (a: string): number => (ACTION_ORDER.indexOf(a) + 1 || ACTION_ORDER
 
 /** Refresh stays grey until then, across redraws of the list. */
 let refreshUntil = 0;
+/** Try again stays grey 10 s after a click, per row, across redraws of the list. */
+const tryAgainUntil = new Map<string, number>();
 /** the live read of the device list. */
 let fpTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -37,6 +40,7 @@ export function resetPeersView(): void {
   if (fpTimer) clearInterval(fpTimer);
   fpTimer = null;
   refreshUntil = 0;
+  tryAgainUntil.clear();
 }
 
 /** Draws the list again, with focus on that row after an action. */
@@ -188,6 +192,8 @@ export function ownCard(env: UiEnv, name: string, platform: string): HTMLElement
 function actionButton(env: UiEnv, a: string, p: PeerView, redraw: Redraw, cls = ACTION_CLASS[a] ?? "", label?: string): HTMLButtonElement {
   const b = h("button", cls ? { class: cls } : {}, label ?? ACTION_LABEL[a] ?? a) as HTMLButtonElement;
   b.addEventListener("click", () => void act(env, a, p, b, redraw));
+  const left = a === "try_again" ? (tryAgainUntil.get(p.id) ?? 0) - Date.now() : 0;
+  if (left > 0) disableFor(b, left);
   return b;
 }
 
@@ -301,10 +307,13 @@ async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, red
     await redraw(p.id);
     return toast(msg, ok ? "ok" : "err");
   }
-  const op = a === "pair_again" ? "pairAgain" : a === "send_again" ? "sendAgain" : a === "approve_again" ? "approve" : a;
+  const op = a === "pair_again" ? "pairAgain" : a === "send_again" ? "sendAgain" : a === "try_again" ? "tryAgain" : a === "approve_again" ? "approve" : a;
   const args: Record<string, unknown> = { id: p.id };
   if (a === "send_again" || a === "approve_again") greyFor(b, 60_000);
-  else b.disabled = true; // one request per click; the redraw below replaces the button
+  else if (a === "try_again") {
+    tryAgainUntil.set(p.id, Date.now() + 10_000);
+    disableFor(b, 10_000);
+  } else b.disabled = true; // one request per click; the redraw below replaces the button
   try {
     const r = await rpc<unknown>(env, op, args);
     if (op === "approve" && typeof r === "string" && r !== "stored" && r !== "sent") msg = r === "denied" ? T.declinedBy(p.label) : confirmResultText(p.label, r);

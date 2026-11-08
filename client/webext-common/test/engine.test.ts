@@ -858,8 +858,8 @@ test("N-side hint: approves_me true while committed reads still holds an earlier
   assert.match(label, /^Chrome, added \d{4}-\d{2}-\d{2}$/);
   assert.ok(v.lines.includes(T.stillHolds(label)));
   await a.db.put("peers", { ...(await a.db.peer(b.id))!, approves_me: false });
-  assert.ok((await a.e.pairRowView(b.id))!.lines.includes(T.noReplyYet(label)));
-  assert.equal((await a.e.pairRowView(b.id))!.lines[0], 'Pairing with "' + label + '". Waiting for its reply.');
+  assert.deepEqual((await a.e.pairRowView(b.id))!.lines, T.noReplyFrom(label).split("\n")); // the 3-day hint gave way to No reply
+  assert.ok(!(await a.e.pairRowView(b.id))!.lines.some((l) => /No reply yet/.test(l)));
   assert.ok(!(await a.e.pairRowView(b.id))!.lines.some((l) => /compare|Pairing\.\.\./.test(l))); // no code check before the codes show
 });
 

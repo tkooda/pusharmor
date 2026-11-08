@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { T } from "../src/core/texts.ts";
 
 const fns = Object.entries(T).filter(([, v]) => typeof v === "function" && v.length === 1) as [string, (x: string) => string][];
-const named = ["pairHalf", "pairCrossing", "approved", "denied", "loggedOutRecv", "loggedInRecv", "newMessageFrom", "pairingWith", "wantsToPair", "waiting", "noReplyYet", "stillHolds", "notPairedOn", "declinedBy", "removeConfirm", "removedDevice"];
+const named = ["pairHalf", "pairCrossing", "approved", "denied", "loggedOutRecv", "loggedInRecv", "newMessageFrom", "pairingWith", "wantsToPair", "waiting", "noReplyFrom", "stillHolds", "notPairedOn", "declinedBy", "removeConfirm", "removedDevice"];
 
 test("every text with a device name quotes it", () => {
   for (const k of named) assert.ok(fns.some(([n]) => n === k), k);
@@ -30,7 +30,7 @@ test("device name texts keep their words, with the name quoted", () => {
   assert.equal(T.pairCrossing("X"), 'Pairing with "X" is in progress. Open PushArmor.');
   assert.equal(T.pairingWith("X"), 'Pairing with "X". Waiting for its reply.');
   assert.equal(T.waiting("X"), 'Waiting for "X": open PushArmor there, compare the codes on both devices, and click Codes match only if they are the same.');
-  assert.equal(T.noReplyYet("X"), 'No reply yet. Open PushArmor on "X", or click Send again.');;
+  assert.equal(T.noReplyFrom("X"), 'No reply from "X"\nCheck that notifications are on for PushArmor on both devices, then try again');
   assert.equal(T.removeConfirm("X"), 'Remove "X" from this account? It must log in again and pair with every device again.');
   assert.equal(T.removedDevice("X"), 'Removed "X".');
   assert.equal(T.loggedOutRecv(T.aPeer), "A device logged out.");
