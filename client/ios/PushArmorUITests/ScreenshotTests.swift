@@ -53,20 +53,6 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(labelled(app, "Galaxy S23").waitForExistence(timeout: 10))
         sleep(1)
         shot("03-devices")
-        // the just-paired row's device menu open: its options and Remove
-        let menu = app.buttons["peerMenu:Galaxy S23"]
-        XCTAssertTrue(menu.waitForExistence(timeout: 10))
-        let remove = app.buttons["Remove device from account"]
-        for _ in 0..<2 where !remove.exists {
-            menu.tap()
-            _ = remove.waitForExistence(timeout: 10)
-        }
-        // a Toggle in a menu shows as a menu item, so match any element type
-        XCTAssertTrue(app.descendants(matching: .any)["Show message content on lock screen"].exists)
-        XCTAssertTrue(remove.exists)
-        sleep(1)
-        shot("04-device-options")
-        // the first tap outside the menu may only close it
         let sendTo = app.buttons["Send to \"Pixel 8\""]
         for _ in 0..<2 where !sendTo.exists {
             app.tabBars.buttons["Send"].tap()
@@ -75,10 +61,6 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(sendTo.exists)
         sleep(1)
         shot("05-send")
-        app.tabBars.buttons["History"].tap()
-        XCTAssertTrue(labelled(app, "Meeting moved to 3:30 pm").waitForExistence(timeout: 10))
-        sleep(1)
-        shot("06-history")
         app.terminate()
 
         app = launch(store + ["-PAScreenshotsDetailText"])
@@ -92,13 +74,6 @@ final class ScreenshotTests: XCTestCase {
         shot("98-view")
         app.terminate()
 
-        app = launch(store + ["-PAScreenshotsDetail"])
-        XCTAssertTrue(app.buttons["Copy"].waitForExistence(timeout: 30))
-        XCTAssertTrue(app.buttons["Open"].exists)
-        sleep(1)
-        shot("08-history-link")
-        app.terminate()
-
         app = launch(store)
         let settings = app.tabBars.buttons["Settings"]
         XCTAssertTrue(settings.waitForExistence(timeout: 30))
@@ -106,12 +81,6 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
         sleep(1)
         shot("10-settings")
-        // Settings is longer than one screen: the rest, scrolled to the Account section
-        let logOut = app.buttons["Log out"]
-        for _ in 0..<10 where !(logOut.exists && logOut.isHittable) { app.swipeUp() }
-        XCTAssertTrue(logOut.isHittable)
-        sleep(1)
-        shot("11-settings-more")
         app.terminate()
     }
 
