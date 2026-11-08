@@ -258,6 +258,7 @@ enum Schema {
         CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
         INSERT INTO me (k) VALUES (1);
         """,
+        "ALTER TABLE pairing ADD COLUMN wait_from INTEGER",
     ]
 
     /// Reads user_version first with no transaction; takes the write lock only when a

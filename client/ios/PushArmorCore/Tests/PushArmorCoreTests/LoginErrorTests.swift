@@ -56,7 +56,6 @@ final class LoginErrorTests: XCTestCase {
         XCTAssertEqual(S.declinedBy("Ndev"), "Rejected by \"Ndev\"")
         XCTAssertEqual(S.notPairedOn("Ndev"), "Not paired on \"Ndev\"")
         XCTAssertEqual(S.waiting("Ndev"), "Waiting for \"Ndev\": open PushArmor there and tap Codes match.")
-        XCTAssertEqual(S.noReplyYet("Ndev"), "No reply yet. Open PushArmor on \"Ndev\", or tap Send again.")
         XCTAssertEqual(S.stillHolds("Ndev"),
                        "\"Ndev\" still holds an earlier pairing. On \"Ndev\", tap Cancel pairing request, then tap Send again.")
         XCTAssertEqual(S.removeConfirm("Ndev"),

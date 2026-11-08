@@ -75,7 +75,7 @@ extension Core {
                 func newX(authorized: Bool) throws {
                     try store.savePairing(PairingEntry(peerId: from, role: .x, state: .prompted, r: PairingCrypto.randomR(), cN: cN,
                                                        authorized: authorized, unsent: authorized, startedAt: now, notBefore: 0,
-                                                       lastSendAt: 0))
+                                                       lastSendAt: 0, waitFrom: authorized ? now : nil))
                     if var q = try store.peer(from) {
                         q.note = nil
                         if q.state == .denied { q.state = .unruled }   // a new request shows a rejected device again
@@ -301,6 +301,30 @@ extension Core {
         }
     }
 
+    /// The row shows the no-reply error (with [Try again]) now. The "still holds an earlier
+    /// pairing" hint comes first.
+    public func noReply(_ e: PairingEntry, peer: Peer) -> Bool {
+        if e.role == .n && peer.getApprovesMe == true { return false }
+        return PairDecide.noReply(e, now: clock())
+    }
+
+    /// [Try again] on a no-reply row: re-sends the waiting step now (no 60 s gate; not_before
+    /// still holds) and starts a new no-reply window.
+    public func tryAgain(_ x: PeerId) async -> PairSendResult? {
+        let now = clock()
+        guard let e = try? store.pairing(x), PairDecide.noReply(e, now: now) else { return nil }
+        guard now >= e.notBefore else { return .waiting(e.notBefore) }
+        do {
+            try store.db.write {
+                guard var cur = try store.pairing(x), cur.r == e.r else { return }
+                cur.waitFrom = now
+                try store.savePairing(cur)
+            }
+        } catch { return .error(0) }
+        if e.role == .n { return await sendCommit(e) }
+        return await sendReply(e)
+    }
+
     /// Whether [Send again] is enabled now (greyed 60 s after the last send).
     public func canSendAgain(_ e: PairingEntry) -> Bool {
         e.role == .n && (e.state == .committed || e.state == .shown) && clock() >= max(e.lastSendAt + 60, e.notBefore)
@@ -312,6 +336,7 @@ extension Core {
             guard var e = try store.pairing(x), e.role == .x, e.state == .prompted else { return nil }
             e.authorized = true
             e.unsent = true
+            e.waitFrom = clock()
             try store.savePairing(e)
             return e
         }
@@ -484,8 +509,8 @@ extension Core {
         let x = PeerLabel.label(peer)
         switch PairDecide.hint(approvesMe: peer.getApprovesMe, committedSeconds: clock() - e.startedAt) {
         case .stillHolds?: return S.stillHolds(x)
-        case .noReplyYet?: return S.noReplyYet(x)
-        case nil: return nil
+        // the no-reply error replaces the 3-day hint
+        case .noReplyYet?, nil: return nil
         }
     }
 }

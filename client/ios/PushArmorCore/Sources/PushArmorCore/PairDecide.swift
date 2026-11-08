@@ -156,4 +156,14 @@ public enum PairDecide {
         if committedSeconds >= 3 * 86400 { return .noReplyYet }
         return nil
     }
+
+    /// Seconds a sent pairing step waits for the other device's automatic answer before the row shows an error.
+    public static let noReplySeconds: Int64 = 120
+
+    /// N committed or X replied (waiting on the other device, not on a person) with no answer for
+    /// noReplySeconds since waitFrom (an older entry without it: startedAt).
+    public static func noReply(_ e: PairingEntry, now: Int64) -> Bool {
+        let waiting = (e.role == .n && e.state == .committed) || (e.role == .x && e.state == .replied)
+        return waiting && now - (e.waitFrom ?? e.startedAt) >= noReplySeconds
+    }
 }

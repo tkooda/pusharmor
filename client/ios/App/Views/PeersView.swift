@@ -271,14 +271,17 @@ struct PairingCardView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 12) {
-                stateBlock
-                PeerPendingLines(p: p, showCancel: false)
-                if entry == nil && p.platform == "cli" && !p.pinned && !p.hidden, let me = model.me?.id {
-                    // The command never splits: it moves to its own line as a whole.
-                    (Text(S.pairCommandPrefix(label)) + Text(S.pairCommand(me)).font(.system(.footnote, design: .monospaced)))
-                        .font(.footnote)
-                        .foregroundColor(.secondaryText)
+            // A local tick only re-renders, so the no-reply error shows on time (no network).
+            TimelineView(.periodic(from: .now, by: 5)) { _ in
+                VStack(alignment: .leading, spacing: 12) {
+                    stateBlock
+                    PeerPendingLines(p: p, showCancel: false)
+                    if entry == nil && p.platform == "cli" && !p.pinned && !p.hidden, let me = model.me?.id {
+                        // The command never splits: it moves to its own line as a whole.
+                        (Text(S.pairCommandPrefix(label)) + Text(S.pairCommand(me)).font(.system(.footnote, design: .monospaced)))
+                            .font(.footnote)
+                            .foregroundColor(.secondaryText)
+                    }
                 }
             }
             .padding(.top, 16)
@@ -309,10 +312,23 @@ struct PairingCardView: View {
         .buttonStyle(OutlinedDenyButtonStyle())
     }
 
+    /// The other device did not answer: an error and [Try again] in place of [Send again].
+    @ViewBuilder
+    private func noReplyBlock(_ e: PairingEntry) -> some View {
+        Label(S.noReplyFrom(label) + "\n" + S.noReplyCheck, systemImage: "exclamationmark.circle")
+            .font(.footnote)
+            .foregroundColor(.errorText)
+        Button("Try again") { Task { await model.tryAgain(p) } }
+            .buttonStyle(.bordered)
+            .disabled(Int64(Date().timeIntervalSince1970) < e.notBefore || model.tryAgainGreyed(p.id.text))
+    }
+
     @ViewBuilder
     private var stateBlock: some View {
         if let e = entry {
             switch e.state {
+            case .committed where model.noReply(e, p), .replied where model.noReply(e, p):
+                noReplyBlock(e)
             case .committed:
                 Button("Send again") { Task { await model.sendAgain(p) } }
                     .buttonStyle(.bordered)

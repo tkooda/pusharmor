@@ -66,6 +66,9 @@ final class AppModel: ObservableObject {
     @Published var refreshGreyUntil: Date = .distantPast
     /// Refresh and pull-to-refresh stay greyed this long after use.
     static let refreshGreySeconds: TimeInterval = 10
+    /// Try again on a pairing card stays greyed this long after a tap (per device, in memory only).
+    @Published var tryAgainGreyUntil: [String: Date] = [:]
+    static let tryAgainGreySeconds: TimeInterval = 10
     /// A Refresh (button or pull) is running: the toolbar shows a spinner in its place.
     @Published var refreshing = false
     @Published var highlightPeer: String?
@@ -740,6 +743,18 @@ final class AppModel: ObservableObject {
         if let r = await core?.sendAgain(p.id), let t = Core.pairAgainToast(.success(r), name: label(p)) { toast = t }
         reload()
     }
+    func tryAgainGreyed(_ id: String, at now: Date = Date()) -> Bool { now < (tryAgainGreyUntil[id] ?? .distantPast) }
+    /// Starts the grey time; false while it still runs (the tap does nothing).
+    func startTryAgainGrey(_ id: String, at now: Date = Date()) -> Bool {
+        guard !tryAgainGreyed(id, at: now) else { return false }
+        tryAgainGreyUntil[id] = now.addingTimeInterval(AppModel.tryAgainGreySeconds)
+        return true
+    }
+    func tryAgain(_ p: Peer) async {
+        guard startTryAgainGrey(p.id.text) else { return }
+        if let r = await core?.tryAgain(p.id), let t = Core.pairAgainToast(.success(r), name: label(p)) { toast = t }
+        reload()
+    }
     func reply(_ p: Peer) async {
         if let r = await core?.tapReply(p.id), let t = Core.pairAgainToast(.success(r), name: label(p)) { toast = t }
         reload()
@@ -826,6 +841,8 @@ final class AppModel: ObservableObject {
     func hintLine(_ e: PairingEntry, _ p: Peer) -> String? { core?.hintLine(e, peer: p) }
 
     func canSendAgain(_ e: PairingEntry) -> Bool { core?.canSendAgain(e) ?? false }
+
+    func noReply(_ e: PairingEntry, _ p: Peer) -> Bool { core?.noReply(e, peer: p) ?? false }
 
     /// Without Core only screenshot mode runs the same rule on the loaded pairings.
     func offersCancel(_ p: Peer) -> Bool {

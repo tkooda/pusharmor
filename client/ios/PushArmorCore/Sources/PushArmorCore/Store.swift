@@ -106,6 +106,8 @@ public struct PairingEntry: Sendable, Equatable {
     public var startedAt: Int64
     public var notBefore: Int64
     public var lastSendAt: Int64
+    /// Start of the current no-reply window; nil (an older entry): startedAt.
+    public var waitFrom: Int64? = nil
 }
 
 public enum HistoryDir: String, Sendable { case incoming = "in", outgoing = "out" }
@@ -327,7 +329,8 @@ public final class Store: @unchecked Sendable {
         return PairingEntry(peerId: id, role: role,
                      state: state, r: r.blob("r"), cN: r.blob("c_n"),
                      authorized: r.bool("authorized"), unsent: r.bool("unsent"), startedAt: r.int("started_at") ?? 0,
-                     notBefore: r.int("not_before") ?? 0, lastSendAt: r.int("last_send_at") ?? 0)
+                     notBefore: r.int("not_before") ?? 0, lastSendAt: r.int("last_send_at") ?? 0,
+                     waitFrom: r.int("wait_from"))
     }
 
     public func pairing(_ id: PeerId) throws -> PairingEntry? {
@@ -345,13 +348,14 @@ public final class Store: @unchecked Sendable {
                 db.checkpointAfterCommit = true
             }
             try db.exec("""
-                INSERT INTO pairing (peer_id, role, state, r, c_n, authorized, unsent, started_at, not_before, last_send_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(peer_id) DO UPDATE SET role = excluded.role,
+                INSERT INTO pairing (peer_id, role, state, r, c_n, authorized, unsent, started_at, not_before, last_send_at, wait_from)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(peer_id) DO UPDATE SET role = excluded.role,
                 state = excluded.state, r = excluded.r, c_n = excluded.c_n, authorized = excluded.authorized,
                 unsent = excluded.unsent, started_at = excluded.started_at, not_before = excluded.not_before,
-                last_send_at = excluded.last_send_at
+                last_send_at = excluded.last_send_at, wait_from = excluded.wait_from
                 """, [.text(e.peerId.text), .text(e.role.rawValue), .text(e.state.rawValue), .opt(e.r), .opt(e.cN),
-                      .bool(e.authorized), .bool(e.unsent), .int(e.startedAt), .int(e.notBefore), .int(e.lastSendAt)])
+                      .bool(e.authorized), .bool(e.unsent), .int(e.startedAt), .int(e.notBefore), .int(e.lastSendAt),
+                      .opt(e.waitFrom)])
         }
     }
 

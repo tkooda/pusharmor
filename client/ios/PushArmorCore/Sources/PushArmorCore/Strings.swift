@@ -33,7 +33,8 @@ public enum S {
     public static let pairingFailed = "Pairing failed. Start again on the new device."
     public static let pairingTimedOut = "Pairing timed out. Tap Pair to start again."
     public static func waiting(_ x: String) -> String { "Waiting for \"\(x)\": open PushArmor there and tap Codes match." }
-    public static func noReplyYet(_ x: String) -> String { "No reply yet. Open PushArmor on \"\(x)\", or tap Send again." }
+    public static func noReplyFrom(_ x: String) -> String { "No reply from " + quoted(x) }
+    public static let noReplyCheck = "Check that notifications are on for PushArmor on both devices, then try again"
     public static func stillHolds(_ x: String) -> String { "\"\(x)\" still holds an earlier pairing. On \"\(x)\", tap Cancel pairing request, then tap Send again." }
     public static func notPairedOn(_ x: String) -> String { "Not paired on \"\(x)\"" }
     public static func declinedBy(_ x: String) -> String { "Rejected by \"\(x)\"" }

@@ -798,6 +798,56 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(w.take(n.id).count, 1)
     }
 
+    /// N committed, then X replied: plain waiting until 2 minutes pass with no answer, then the
+    /// no-reply error, also after a reload. Automatic resends keep the window; Try again
+    /// re-sends at once (no 60 s gate) and starts a new window.
+    func testNoReplyErrorAfterTwoMinutes() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        await n.core.fetchPeers(force: true)
+        await x.core.fetchPeers(force: true)
+        _ = try await n.core.startPair(x.id)
+        _ = w.take(x.id)                                                // lost commit
+        let px = try n.core.store.peer(x.id)!
+        clock.now += PairDecide.noReplySeconds - 1
+        XCTAssertFalse(n.core.noReply(try n.core.store.pairing(x.id)!, peer: px))
+        await n.core.refresh(push: nil)                                 // automatic resend: same window
+        XCTAssertEqual(w.take(x.id).count, 1)
+        XCTAssertNil(try n.core.store.pairing(x.id)!.waitFrom)
+        clock.now += 1
+        XCTAssertTrue(n.core.noReply(try n.core.store.pairing(x.id)!, peer: px))
+        let n2 = try Device(worker: w, clock: clock, name: "Ndev", path: n.path, keys: n.keys)
+        XCTAssertTrue(n2.core.noReply(try n2.core.store.pairing(x.id)!, peer: px))   // rebuilt from storage
+        var holds = px
+        holds.getApprovesMe = true                                      // the earlier-pairing hint comes first
+        XCTAssertFalse(n.core.noReply(try n.core.store.pairing(x.id)!, peer: holds))
+        XCTAssertEqual(S.noReplyFrom("Xdev"), "No reply from \"Xdev\"")
+        XCTAssertEqual(S.noReplyCheck, "Check that notifications are on for PushArmor on both devices, then try again")
+        let greyed = await n.core.sendAgain(x.id)                       // 1 s after the last send
+        XCTAssertNil(greyed)
+        let v = await n.core.tryAgain(x.id)
+        XCTAssertEqual(v, .sent)
+        let commits = w.take(x.id)
+        XCTAssertEqual(commits.count, 1)
+        XCTAssertEqual(try n.core.store.pairing(x.id)!.waitFrom, clock.now)
+        XCTAssertFalse(n.core.noReply(try n.core.store.pairing(x.id)!, peer: px))
+        // X replies on its own; the reply is lost
+        _ = await x.core.receive(commits[0], mode: .nse)
+        _ = w.take(n.id)
+        XCTAssertEqual(try x.core.store.pairing(n.id)?.state, .replied)
+        XCTAssertEqual(try x.core.store.pairing(n.id)?.waitFrom, clock.now)
+        let pn = try x.core.store.peer(n.id)!
+        clock.now += PairDecide.noReplySeconds - 1
+        await x.core.appOpen(push: nil)                                 // automatic resend: same window
+        XCTAssertEqual(w.take(n.id).count, 1)
+        XCTAssertFalse(x.core.noReply(try x.core.store.pairing(n.id)!, peer: pn))
+        clock.now += 1
+        XCTAssertTrue(x.core.noReply(try x.core.store.pairing(n.id)!, peer: pn))
+        let r = await x.core.tryAgain(n.id)
+        XCTAssertEqual(r, .sent)
+        XCTAssertEqual(w.take(n.id).count, 1)
+        XCTAssertFalse(x.core.noReply(try x.core.store.pairing(n.id)!, peer: pn))
+    }
+
     func testPairRetryWaitsForNotBefore() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
         await n.core.fetchPeers(force: true)
@@ -1644,9 +1694,29 @@ final class StateMachineTests: XCTestCase {
         let path = NSTemporaryDirectory() + "pa-mig-\(UUID().uuidString).sqlite"
         _ = try Store(path: path)
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 1)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 2)
         XCTAssertEqual(try s.db.one("PRAGMA journal_mode")?.text("journal_mode"), "wal")
         XCTAssertNil(try s.me().id)
+    }
+
+    /// a version 1 file with a pairing row opens at version 2; the row keeps its fields and has no wait_from.
+    func testDBMigration1To2KeepsPairings() throws {
+        let path = NSTemporaryDirectory() + "pa-mig1-\(UUID().uuidString).sqlite"
+        let id = PeerId(raw: Data((0 ..< 30).map { UInt8($0) }))!
+        do {
+            let db = try DB(path: path)
+            for stmt in Schema.migrations[0].components(separatedBy: ";\n") where !stmt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                try db.exec(stmt)
+            }
+            try db.exec("PRAGMA user_version = 1")
+            try db.exec("INSERT INTO pairing (peer_id, role, state, started_at, last_send_at) VALUES (?, 'N', 'committed', 1000, 1010)", [.text(id.text)])
+        }
+        let s = try Store(path: path)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 2)
+        let e = try XCTUnwrap(try s.pairing(id))
+        XCTAssertEqual(e.startedAt, 1000)
+        XCTAssertEqual(e.lastSendAt, 1010)
+        XCTAssertNil(e.waitFrom)
     }
 
     /// a corrupt pa.sqlite is only reported: the file stays as it was and nothing runs. Only
@@ -1663,7 +1733,7 @@ final class StateMachineTests: XCTestCase {
         let s = try await StoreRepair.reset(path: path, vault: FakeVault()) { called += 1 }
         XCTAssertEqual(called, 1)
         XCTAssertNil(try s.me().id)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 1)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 2)
         try s.setMe("name", .text("kept"))
         let s2 = try XCTUnwrap(try StoreRepair.open(path: path))
         XCTAssertEqual(called, 1)
