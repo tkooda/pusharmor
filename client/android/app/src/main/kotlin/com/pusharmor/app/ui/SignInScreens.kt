@@ -133,10 +133,16 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onCanc
         vm.message.collectAsState().value?.let { Text(it, Modifier.fillMaxWidth().padding(bottom = 12.dp).semantics { liveRegion = LiveRegionMode.Polite }, color = cs.error, textAlign = TextAlign.Center) }
         Column(Modifier.fillMaxWidth().padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             val g = if (x.dark) Triple(Color(0xFF131314), Color(0xFF8E918F), Color(0xFFE3E3E3)) else Triple(Color.White, Color(0xFF747775), Color(0xFF1F1F1F))
+            // In flight: a second tap while the Google account picker is open does nothing.
+            var googleOpen by remember { mutableStateOf(false) }
             OutlinedButton(onClick = {
+                if (googleOpen) return@OutlinedButton
+                googleOpen = true
                 scope.launch {
-                    val token = if (vm.g.push.hasPlayServices) GoogleSignIn.idToken(context as Activity, vm.nonce(purpose) ?: return@launch) else null
-                    if (token != null) vm.googleToken(token, purpose, onDone) else vm.oauthUrl("google", purpose)?.let { customTab(context, it) { m -> vm.message.value = m } }
+                    try {
+                        val token = if (vm.g.push.hasPlayServices) GoogleSignIn.idToken(context as Activity, vm.nonce(purpose) ?: return@launch) else null
+                        if (token != null) vm.googleToken(token, purpose, onDone) else vm.oauthUrl("google", purpose)?.let { customTab(context, it) { m -> vm.message.value = m } }
+                    } finally { googleOpen = false }
                 }
             }, Modifier.fillMaxWidth().heightIn(min = 48.dp), border = BorderStroke(1.dp, g.second),
                 colors = ButtonDefaults.outlinedButtonColors(containerColor = g.first, contentColor = g.third)) {

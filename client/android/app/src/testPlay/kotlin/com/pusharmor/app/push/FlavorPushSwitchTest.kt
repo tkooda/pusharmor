@@ -134,6 +134,7 @@ class FlavorPushSwitchTest {
             assertEquals(com.pusharmor.app.ui.UiText.CHECK_STILL, vm.message.value)
             vm.message.value = null
             FlavorPush.tokenTask = { com.google.android.gms.tasks.Tasks.forResult("token-3") }
+            vm.coolTaps.value = emptyMap() // past the 10 s grey time
             tap(vm)
             assertNull(vm.message.value)
             assertNull(s.get(Settings.K.PUSH_SETUP))

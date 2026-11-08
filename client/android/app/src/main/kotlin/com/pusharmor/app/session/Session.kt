@@ -596,10 +596,17 @@ class Session(private val g: Graph) {
         return word
     }
 
-    /** UnifiedPush probe: confirm at once with no user input. */
+    /**
+     * UnifiedPush probe: confirm at once with no user input. A failed confirm shows the cannot-receive card with the
+     * reason ([Settings.K.PUSH_ERROR]); Check again sends the push address again, and its new probe clears the card.
+     */
     fun confirmProbe(code: String) {
-        val r = g.client.confirm(code)
-        if (r is ApiResult.Ok) s.set(Settings.K.UP_VERIFIED, true)
+        val r = try { g.client.confirm(code) } catch (e: Exception) { s.set(Settings.K.PUSH_ERROR, ErrorText.KEYS_UNUSABLE); throw e }
+        when {
+            r is ApiResult.Ok -> { s.set(Settings.K.UP_VERIFIED, true); s.set(Settings.K.PUSH_ERROR, null) }
+            r.isLoggedOut || r.isUnknownPeer -> {} // the sign-in state screens say so
+            else -> s.set(Settings.K.PUSH_ERROR, ErrorText.reason(r))
+        }
     }
 
     // ---- misc -----------------------------------------------------------------------------

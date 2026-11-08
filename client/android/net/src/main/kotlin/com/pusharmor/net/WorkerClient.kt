@@ -40,8 +40,9 @@ class Reply(val status: Int, val json: JsonObject?, val retryAfter: Long?, val t
 
 /**
  * The Worker API client (api.pusharmor.com, /v1). Bodies are serialized once to bytes;
- * PA-Sig signs exactly those bytes and OkHttp sends the same array. Retries (429, 503,
- * network only; never 502) reuse the same bytes and signature inside an 8 s budget.
+ * PA-Sig signs exactly those bytes and OkHttp sends the same array. Retries reuse the same
+ * bytes and signature: a 429 waits the server-given time inside an 8 s budget; a 5xx or
+ * network failure is tried 3 times in all, 1 s then 3 s apart ([FAULT_RETRY_MS]).
  */
 class WorkerClient(
     private val keys: () -> KeyOps,
@@ -73,6 +74,8 @@ class WorkerClient(
         /** Largest reply body read; a longer one is a network failure. */
         const val MAX_BODY = 1L shl 20
         val BACKOFF_MS = longArrayOf(500, 1500, 3000)
+        /** Waits before the 2nd and 3rd try after a 5xx or network failure. */
+        val FAULT_RETRY_MS = longArrayOf(1000, 3000)
         private val JSON = "application/json".toMediaType()
 
         fun defaultHttp(): OkHttpClient = OkHttpClient.Builder()
@@ -104,9 +107,9 @@ class WorkerClient(
     /**
      * One call. [signed]: PA-ID + PA-Time + PA-Sig; [signedNoId]: PA-Time + PA-Sig only
      * (POST /peers, DELETE /account). [path] includes /v1 and no query. [once]: one attempt
-     * with [ONCE_TIMEOUT_MS], no retry.
+     * with [ONCE_TIMEOUT_MS], no retry. [retry] false: a call the server must not see twice is not retried.
      */
-    fun call(method: String, path: String, body: ByteArray?, signed: Boolean, signedNoId: Boolean = false, query: Map<String, String> = emptyMap(), once: Boolean = false): Reply? {
+    fun call(method: String, path: String, body: ByteArray?, signed: Boolean, signedNoId: Boolean = false, query: Map<String, String> = emptyMap(), once: Boolean = false, retry: Boolean = true): Reply? {
         val bytes = body ?: ByteArray(0)
         val url = base.newBuilder().encodedPath(path).apply { query.forEach { (k, v) -> addQueryParameter(k, v) } }.build()
         val rb = Request.Builder().url(url).header("PA-Client", paClient)
@@ -120,6 +123,7 @@ class WorkerClient(
         val req = rb.build()
         val start = now()
         var attempt = 0
+        var faults = 0
         while (true) {
             var retryAfter: Long? = null
             var code = 0
@@ -143,8 +147,13 @@ class WorkerClient(
                 if ((err == "unknown peer" || err == "logged out") && !onAuthState(err)) return null
             }
             if (reply?.status == 426) onUpdateRequired()
-            val retryable = reply == null || reply.status == 429 || reply.status == 503
-            if (once || !retryable || attempt >= BACKOFF_MS.size) return reply
+            if (once || !retry) return reply
+            if (reply == null || reply.status in 500..599) {
+                if (faults >= FAULT_RETRY_MS.size) return reply
+                sleep(FAULT_RETRY_MS[faults++])
+                continue
+            }
+            if (reply.status != 429 || attempt >= BACKOFF_MS.size) return reply
             val wait = maxOf(BACKOFF_MS[attempt], (retryAfter ?: 0) * 1000)
             if (now() - start + wait > BUDGET_MS) return reply
             sleep(wait)

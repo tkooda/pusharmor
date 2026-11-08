@@ -20,6 +20,11 @@ class TestApp : PaApp() {
     override fun httpClient(): OkHttpClient =
         WorkerClient.defaultHttp().newBuilder().addInterceptor { chain -> fakeHttp?.intercept(chain) ?: chain.proceed(chain.request()) }.build()
 
+    /** Every wait between retries of a relay server call, in ms; none is slept. */
+    val retrySleeps: MutableList<Long> = java.util.Collections.synchronizedList(ArrayList())
+
+    override fun retrySleep(ms: Long) { retrySleeps.add(ms) }
+
     override fun onCreate() {
         if (!WorkManager.isInitialized()) WorkManager.initialize(this, Configuration.Builder().setExecutor { it.run() }.build())
         super.onCreate()

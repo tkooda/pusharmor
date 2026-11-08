@@ -391,7 +391,8 @@ internal class NameEdit(editing: Boolean = false, typed: TextFieldValue = TextFi
     val error: String? get() = UiText.nameError(typed.text)
     fun start(current: String) { typed = TextFieldValue(current, TextRange(0, current.length)); editing = true }
     fun cancel() { editing = false }
-    fun save(): String? = typed.text.takeIf { error == null }?.also { editing = false }
+    /** Only while editing: Enter and a Save tap in one frame submit once. */
+    fun save(): String? = typed.text.takeIf { editing && error == null }?.also { editing = false }
 
     companion object {
         /** Kept through a rotation. */
@@ -415,7 +416,7 @@ private fun Banners(vm: AppViewModel, prefs: androidx.datastore.preferences.core
     if (noPushApp && vm.g.push.hasPlayServices) TextButton(onClick = { vm.switchPush(toUp = false) }) { Text("Switch back to Google") }
     val upAt = prefs?.get(Settings.K.UP_REGISTERED_AT)
     if (prefs?.get(Settings.K.PUSH_TYPE) == "unifiedpush" && upAt != null && !Settings.flagOf(prefs, Settings.K.UP_VERIFIED, false) && System.currentTimeMillis() - upAt > 10 * 60_000) {
-        BannerRow("This push server did not deliver. Check your UnifiedPush app.", "Retry", fault = true, PaIcons.Info) { vm.retryPush() }
+        BannerRow("This push server did not deliver. Check your UnifiedPush app.", "Retry", fault = true, PaIcons.Info, coolEnabled(vm, AppViewModel.RETRY_PUSH_KEY)) { vm.retryPush() }
         if (vm.g.push.hasPlayServices) TextButton(onClick = { vm.switchPush(toUp = false) }) { Text("Switch back to Google") }
     }
     val st = remember(tick) { try { PackageManagerCompat.getUnusedAppRestrictionsStatus(context).get(2, java.util.concurrent.TimeUnit.SECONDS) } catch (e: Exception) { 0 } }
@@ -476,7 +477,8 @@ internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, enabled: Boo
                 pushError != null -> pushError to listOf(check)
                 else -> UiText.RELAY_FAULT to listOf(check)
             }
-            CannotReceiveBanner(reason, actions,
+            val checkOn = coolEnabled(vm, AppViewModel.CHECK_AGAIN_KEY)
+            CannotReceiveBanner(reason, actions, greyed = UiText.CHECK_AGAIN.takeUnless { checkOn },
                 Modifier.then(if (topInset) Modifier.windowInsetsPadding(top) else Modifier).padding(horizontal = 16.dp, vertical = 8.dp))
         }
         if (getApp) GetPushAppDialog(vm) { getApp = false }
@@ -531,7 +533,7 @@ internal fun pushCurrent(type: String?, google: Boolean, saved: String?): String
 
 /** "This device cannot receive messages." with its reason on line 2 and its actions; it has no close control. */
 @Composable
-private fun CannotReceiveBanner(reason: String, actions: List<Pair<String, () -> Unit>>, modifier: Modifier) {
+private fun CannotReceiveBanner(reason: String, actions: List<Pair<String, () -> Unit>>, greyed: String?, modifier: Modifier) {
     val cs = MaterialTheme.colorScheme
     Card(modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = cs.errorContainer, contentColor = cs.onErrorContainer)) {
@@ -544,15 +546,28 @@ private fun CannotReceiveBanner(reason: String, actions: List<Pair<String, () ->
                 }
             }
             if (actions.isNotEmpty()) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                for ((label, onClick) in actions) TextButton(onClick = onClick, colors = ButtonDefaults.textButtonColors(contentColor = cs.onErrorContainer)) { Text(label) }
+                for ((label, onClick) in actions) TextButton(onClick = onClick, enabled = label != greyed, colors = ButtonDefaults.textButtonColors(contentColor = cs.onErrorContainer)) { Text(label) }
             }
         }
     }
 }
 
+/** false for 10 s after a tap of the [key] control ([AppViewModel.coolTaps]), then true again by itself. */
+@Composable
+private fun coolEnabled(vm: AppViewModel, key: String): Boolean {
+    val tapped = vm.coolTaps.collectAsState().value[key]
+    var ungrey by remember { mutableStateOf(0L) }
+    LaunchedEffect(tapped) {
+        val left = (tapped ?: return@LaunchedEffect) + AppViewModel.TRY_AGAIN_GREY_MS - System.currentTimeMillis()
+        if (left > 0) delay(left)
+        ungrey = System.currentTimeMillis()
+    }
+    return AppViewModel.tryAgainEnabled(tapped, maxOf(System.currentTimeMillis(), ungrey))
+}
+
 /** Fault banners on errorContainer, advice on surfaceContainerHigh. */
 @Composable
-private fun BannerRow(text: String, action: String, fault: Boolean, icon: ImageVector, onClick: () -> Unit) {
+private fun BannerRow(text: String, action: String, fault: Boolean, icon: ImageVector, enabled: Boolean = true, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = if (fault) cs.errorContainer else cs.surfaceContainerHigh,
@@ -563,7 +578,7 @@ private fun BannerRow(text: String, action: String, fault: Boolean, icon: ImageV
                 Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onClick, colors = ButtonDefaults.textButtonColors(
+                TextButton(onClick = onClick, enabled = enabled, colors = ButtonDefaults.textButtonColors(
                     contentColor = if (fault) cs.onErrorContainer else cs.primary)) { Text(action) }
             }
         }

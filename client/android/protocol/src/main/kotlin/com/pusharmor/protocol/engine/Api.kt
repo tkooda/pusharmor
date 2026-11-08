@@ -1,8 +1,8 @@
 package com.pusharmor.protocol.engine
 
 /**
- * Outcome of one signed Worker call after the client's own retries (429 / 503 / network,
- * inside the 8 s budget). Implemented by :net.
+ * Outcome of one signed Worker call after the client's own retries (429 inside the 8 s budget;
+ * 5xx / network 3 tries in all). Implemented by :net.
  */
 sealed class ApiResult<out T> {
     data class Ok<T>(val value: T, val pushMissing: Boolean = false) : ApiResult<T>()

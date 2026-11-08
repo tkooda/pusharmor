@@ -69,8 +69,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         /** Check again on a push setup error waits this long for the token or address before it says still. */
         const val SETUP_WAIT_MS = 35_000L
 
-        /** Try again stays greyed this long after a tap, as Refresh does. */
+        /** Try again, Check again, and banner Retry stay greyed this long after a tap, as Refresh does. */
         const val TRY_AGAIN_GREY_MS = 10_000L
+
+        const val CHECK_AGAIN_KEY = "check"
+        const val RETRY_PUSH_KEY = "retry-push"
 
         /** Try again is enabled when it was not tapped, or its grey time after the last tap ended. */
         fun tryAgainEnabled(tappedAt: Long?, now: Long): Boolean = tappedAt == null || now - tappedAt >= TRY_AGAIN_GREY_MS
@@ -209,7 +212,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun googleToken(idToken: String, purpose: String, onDone: () -> Unit) = io(UiText.UNABLE_LOGIN_GOOGLE) {
+    /** One Google sign-in call at a time: a second tap while one runs does nothing. */
+    fun googleToken(idToken: String, purpose: String, onDone: () -> Unit) = once("google", UiText.UNABLE_LOGIN_GOOGLE) {
         when (val r = g.client.authGoogleToken(idToken, signPubB64(), purpose)) {
             is ApiResult.Ok -> ticket(r.value.ticket, r.value.email, purpose, onDone)
             else -> message.value = ErrorText.of(UiText.UNABLE_LOGIN_GOOGLE, r)
@@ -309,6 +313,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun reply(id: String) = io(UiText.unablePair(nameOf(id))) { g.pairing().tapReply(id, System.currentTimeMillis()) }
     fun sendAgainPair(id: String) = io(UiText.unablePair(nameOf(id))) { g.pairing().sendAgain(id, System.currentTimeMillis()) }
+    /** Last tap of Check again ([CHECK_AGAIN_KEY]) and banner Retry ([RETRY_PUSH_KEY]), in memory only (greys it for [TRY_AGAIN_GREY_MS]). */
+    val coolTaps = MutableStateFlow<Map<String, Long>>(emptyMap())
+    /** Records a tap of [key]; false while its grey time after the last tap runs, so the tap does nothing. */
+    fun coolTap(key: String, now: Long = System.currentTimeMillis()): Boolean {
+        var won = false
+        coolTaps.update { won = tryAgainEnabled(it[key], now); if (won) it + (key to now) else it }
+        return won
+    }
     /** Last Try again tap per peer id, in memory only (greys the button for [TRY_AGAIN_GREY_MS]). */
     val tryAgainTaps = MutableStateFlow<Map<String, Long>>(emptyMap())
     fun tryAgainPair(id: String) {
@@ -438,7 +450,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * Check again on the cannot-receive card: a cause on this device ([local], read on the main thread at the tap) sends no test push; else one test
      * push. "sent" says Working and the card goes; the line for each result is [UiText.checkAgainText].
      */
-    fun checkAgain(local: Boolean) = once("check", UiText.CHECK_FAILED) {
+    fun checkAgain(local: Boolean) { if (coolTap(CHECK_AGAIN_KEY)) checkAgainNow(local) }
+    private fun checkAgainNow(local: Boolean) = once("check", UiText.CHECK_FAILED) {
         // Push could not be set up here: set it up again and wait for its result (bounded); the card goes when a token or address arrives.
         if (g.settings.get(Settings.K.PUSH_SETUP) != null) {
             val result = kotlinx.coroutines.coroutineScope {
@@ -461,7 +474,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         UiText.checkAgainText(local, word)?.let { message.value = it }
     }
     /** Retry on the "did not deliver" banner: the push address is sent now, and a failure says why. */
-    fun retryPush() = once("retry-push", UiText.UNABLE_TURN_ON_NOTIFICATIONS) {
+    fun retryPush() { if (coolTap(RETRY_PUSH_KEY)) retryPushNow() }
+    private fun retryPushNow() = once("retry-push", UiText.UNABLE_TURN_ON_NOTIFICATIONS) {
         g.session.patchPushNow { r -> message.value = ErrorText.of(UiText.UNABLE_TURN_ON_NOTIFICATIONS, r, UiText.pushHost(g.settings.get(Settings.K.UP_ENDPOINT))) }
     }
 

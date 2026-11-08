@@ -337,6 +337,8 @@ class UiTextTest {
         assertEquals(null, e.error)
         assertEquals("Kitchen", e.save())
         assertEquals(false, e.editing)
+        // Enter and a Save tap in one frame: the second save submits nothing.
+        assertEquals(null, e.save())
     }
 
     @Test fun hibernationBannerSaysWhyItMatters() {

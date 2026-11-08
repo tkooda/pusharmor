@@ -16,6 +16,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import com.pusharmor.app.Graph
 import com.pusharmor.app.PaApp
 import com.pusharmor.app.data.Settings
 import com.pusharmor.app.push.PushDispatcher
@@ -23,7 +24,7 @@ import com.pusharmor.protocol.Countdown
 import com.pusharmor.protocol.engine.PairingEngine
 import java.util.concurrent.TimeUnit
 
-/** WorkManager only (section 10): pair sends, coalesced GET /peers, reconcile, token PATCH, daily job. */
+/** WorkManager only (section 10): pair sends, coalesced GET /peers, reconcile, token PATCH, daily local purge. */
 object Work {
     const val FETCH_WINDOW_MS = 60_000L
     private val net = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
@@ -80,6 +81,9 @@ object Work {
         WorkManager.getInstance(context).enqueueUniqueWork("logout", ExistingWorkPolicy.REPLACE,
             OneTimeWorkRequestBuilder<LogoutWorker>().setConstraints(net).setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS).build())
     }
+
+    /** The daily job: local only, no relay server call (those run on app open). */
+    fun daily(g: Graph) = g.session.purgeHistory()
 
     fun scheduleDaily(context: Context) {
         WorkManager.getInstance(context).enqueueUniquePeriodicWork("daily", ExistingPeriodicWorkPolicy.KEEP,
@@ -158,15 +162,10 @@ class UpPushWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
     }
 }
 
-/** Daily: history purge, UnifiedPush distributor check, reconcile, pairing timeouts. */
+/** Daily: local history purge only; relay server steps run on app open, never on a schedule. */
 class DailyWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
     override suspend fun doWork(): Result {
-        val g = (applicationContext as PaApp).graph
-        g.session.purgeHistory()
-        if (g.identity() == null) return Result.success()
-        g.push.distributorCheck(g)
-        Work.reconcile(applicationContext)
-        g.session.checkTimeouts(System.currentTimeMillis(), refetch = true)
+        Work.daily((applicationContext as PaApp).graph)
         return Result.success()
     }
 }

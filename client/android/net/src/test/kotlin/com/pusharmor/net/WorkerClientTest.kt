@@ -154,12 +154,30 @@ class WorkerClientTest {
         assertEquals(0L, (client.send(mapOf("x" to "M")) as ApiResult.Http).retryAfter)
     }
 
-    @Test fun backoffOn503ThenGiveUpAfterThreeRetries() {
-        repeat(4) { server.enqueue(MockResponse().setResponseCode(503).setBody("{\"error\":\"unavailable\"}")) }
-        val r = client.peers() as ApiResult.Http
-        assertEquals(503, r.status)
-        assertEquals(listOf(500L, 1500L, 3000L), slept)
-        assertEquals(4, server.requestCount)
+    @Test fun every5xxTriedThreeTimesOneThenThreeSecondsApart() {
+        for (status in listOf(500, 502, 503, 504, 599)) {
+            slept.clear()
+            val before = server.requestCount
+            repeat(3) { server.enqueue(MockResponse().setResponseCode(status).setBody("{\"error\":\"unavailable\"}")) }
+            assertEquals(status, (client.send(mapOf("x" to "M")) as ApiResult.Http).status)
+            assertEquals(listOf(1000L, 3000L), slept)
+            assertEquals(3, server.requestCount - before)
+        }
+    }
+
+    @Test fun a5xxThenOkReturnsOk() {
+        server.enqueue(MockResponse().setResponseCode(500))
+        server.enqueue(ok())
+        assertTrue(client.send(mapOf("x" to "M")) is ApiResult.Ok)
+        assertEquals(listOf(1000L), slept)
+    }
+
+    @Test fun retryOptOutTriesOnce() {
+        server.enqueue(MockResponse().setResponseCode(500))
+        assertEquals(500, client.call("POST", "/v1/x", ByteArray(0), signed = false, retry = false)!!.status)
+        server.shutdown()
+        assertNull(client.call("POST", "/v1/x", ByteArray(0), signed = false, retry = false))
+        assertTrue(slept.isEmpty())
     }
 
     @Test fun errorTextSentencesEndWithAPeriod() {
@@ -172,15 +190,17 @@ class WorkerClientTest {
         assertEquals("The relay server could not be reached. Check your internet connection and try again.", ErrorText.reason(ApiResult.Network))
     }
 
-    @Test fun no502RetryAndPermanentErrors() {
-        server.enqueue(MockResponse().setResponseCode(502).setBody("{\"error\":\"email send failed\"}"))
+    @Test fun email502RetriedAndPermanentErrorsNot() {
+        repeat(3) { server.enqueue(MockResponse().setResponseCode(502).setBody("{\"error\":\"email send failed\"}")) }
         val r = client.authEmail("a@b.com", "k", "register", "t")
         assertEquals("The relay server could not send the email. Try again.", ErrorText.reason(r))
+        assertEquals(listOf(1000L, 3000L), slept)
+        slept.clear()
         server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"clock skew\"}"))
         assertTrue(client.peers().isClockSkew)
         server.enqueue(MockResponse().setResponseCode(401).setBody("{\"error\":\"logged out\"}"))
         assertTrue(client.peers().isLoggedOut)
-        assertEquals(3, server.requestCount)
+        assertEquals(5, server.requestCount)
         assertTrue(slept.isEmpty())
     }
 
@@ -217,6 +237,7 @@ class WorkerClientTest {
     @Test fun networkErrorRetriedThenReported() {
         server.shutdown()
         assertTrue(client.peers() is ApiResult.Network)
+        assertEquals(listOf(1000L, 3000L), slept)
     }
 
     @Test fun oversizedBodyIsBadReplyAndNotRetried() {

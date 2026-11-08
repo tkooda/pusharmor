@@ -33,6 +33,9 @@ open class PaApp : Application() {
     /** The HTTP client for the relay server; tests replace it. */
     open fun httpClient(): OkHttpClient = WorkerClient.defaultHttp()
 
+    /** The wait between retries of a relay server call; tests replace it, so they do not sleep. */
+    open fun retrySleep(ms: Long) = Thread.sleep(ms)
+
     /** Room's invalidation across processes; tests turn it off (Robolectric answers its service bind with no name). */
     open fun multiInstanceDb(): Boolean = true
 
@@ -82,7 +85,7 @@ class Graph(val app: PaApp) {
     }
 
     val client = WorkerClient({ keysOrNull ?: error("no keys") }, { dao.self()?.id }, offset, BuildConfig.API_BASE.toHttpUrl(),
-        http = if (BuildConfig.SCREENSHOT_MODE) ScreenshotMode.guard(app.httpClient()) else app.httpClient(),
+        http = if (BuildConfig.SCREENSHOT_MODE) ScreenshotMode.guard(app.httpClient()) else app.httpClient(), sleep = app::retrySleep,
         onAuthState = ::onAuthState, paClient = "android/${BuildConfig.VERSION_NAME}",
         onUpdateRequired = { settings.markUpdateRequired(BuildConfig.VERSION_NAME) },
         onPushMissing = { settings.set(Settings.K.PUSH_MISSING, true) })
