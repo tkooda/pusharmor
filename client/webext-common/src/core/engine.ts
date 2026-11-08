@@ -721,7 +721,7 @@ export class Engine {
 
   private async postPair(x: string, kind: "commit" | "reply" | "open", c: string, self: SelfKeys): Promise<PairPost> {
     try {
-      const r = await this.api.call("POST", "/pair/" + x, { signer: this.signerOf(self), body: { k: kind, c }, noRetry: true });
+      const r = await this.api.call("POST", "/pair/" + x, { signer: this.signerOf(self), body: { k: kind, c } });
       await this.afterSignedReply(r);
       return { result: typeof r.json.r === "string" ? r.json.r : "failed" };
     } catch (e) {
@@ -1413,7 +1413,7 @@ export class Engine {
     if (await this.db.meta("push_issue")) return "local";
     let word: unknown;
     try {
-      word = (await this.api.call("POST", "/peers/" + self.id + "/check", { signer: this.signerOf(self), body: {}, noRetry: true })).json.result;
+      word = (await this.api.call("POST", "/peers/" + self.id + "/check", { signer: this.signerOf(self), body: {} })).json.result;
     } catch (e) {
       return e instanceof ApiError && (e.status === 0 || e.status === 429) ? "unable" : "failed";
     }

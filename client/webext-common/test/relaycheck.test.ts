@@ -79,7 +79,7 @@ test("Check again: 429 and network errors read as unable; unknown words and othe
   const { w, a, r } = await setup();
   w.relayFault = true;
   await refresh(a);
-  w.inject.push({ match: /POST \/v1\/peers\/[^/]+\/check$/, status: 429, body: { error: "rate limited" }, times: 1 });
+  w.inject.push({ match: /POST \/v1\/peers\/[^/]+\/check$/, status: 429, body: { error: "rate limited" }, times: 4 });
   assert.equal((await check(r)).result, "unable");
   w.inject.push({ match: /POST \/v1\/peers\/[^/]+\/check$/, status: 400, body: { error: "bad request" }, times: 1 });
   assert.equal((await check(r)).result, "failed");

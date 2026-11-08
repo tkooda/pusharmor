@@ -22,7 +22,7 @@ async function setup(platform: "chrome" | "firefox") {
 test("delete account by email code: a failed check says Unable to delete the account", async () => {
   const { w, p, rpc } = await setup("chrome");
   await p.storageSession.set({ [REQUEST_TOKEN]: { token: "t", purpose: "delete-account" } });
-  w.inject.push({ match: /POST \/v1\/auth\/email\/verify$/, status: 500, body: { error: "internal" }, times: 1 });
+  w.inject.push({ match: /POST \/v1\/auth\/email\/verify$/, status: 500, body: { error: "internal" }, times: 3 });
   assert.deepEqual(await rpc.handle({ op: "emailVerify", args: { code: "ABCDEF" } }), { ok: false, error: LINE + "\n" + DOWN });
 });
 

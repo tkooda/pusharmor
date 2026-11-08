@@ -6,7 +6,7 @@ import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendT
 import { isLikelyUrl } from "../model/sendurl.ts";
 import { AUTH_CHANGED, AUTH_SWITCHED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
-import { type UiEnv, accountLine, add, clear, failView, group, h, midEllipsis, nextTabIndex, openHref, rpc, sh, shortTime } from "./dom.ts";
+import { type UiEnv, accountLine, add, clear, disableFor, failView, group, h, midEllipsis, nextTabIndex, openHref, rpc, sh, shortTime } from "./dom.ts";
 import { closeDialogs, confirmDialog, dismissToast, toast } from "./dialog.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
 import { type MsgAction, msgActions, saveFilename } from "../model/msgactions.ts";
@@ -178,11 +178,21 @@ export async function showPushIssue(env: UiEnv, st: StateView, live: () => boole
     brave = false;
   }
   const msg = pushIssueText(st.pushIssue, brave, st.pushVendor) + (note ? "\n" + note : "");
-  if (live()) toast(msg, "err", true, { label: "Check again", run: (b) => void checkPushAgain(env, st, b) });
+  if (live()) {
+    toast(msg, "err", true, { label: "Check again", run: (b) => void checkPushAgain(env, st, b) });
+    // Check again stays grey for 10 s after each tap, also in the toast drawn again
+    const left = checkAgainUntil - Date.now();
+    const again = document.querySelector<HTMLButtonElement>(".toast .act");
+    if (left > 0 && again) disableFor(again, left);
+  }
 }
 
+/** Check again is greyed until then. */
+let checkAgainUntil = 0;
+
 async function checkPushAgain(env: UiEnv, st: StateView, b: HTMLButtonElement): Promise<void> {
-  b.disabled = true;
+  checkAgainUntil = Date.now() + 10_000;
+  disableFor(b, 10_000);
   const r = await rpc<{ result: string; state: StateView }>(env, "pushCheck").catch(() => null);
   if (r?.result === "sent") return toast(T.pushWorking, "ok");
   // every other result keeps the message (gone: the push address is new, but no test push arrived yet)
@@ -765,7 +775,10 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
   const pref = parseTheme(await env.theme.get().catch(() => undefined));
   for (const [v, label] of THEME_CHOICES) theme.append(h("option", { value: v, selected: v === pref }, label));
   theme.addEventListener("change", () => void setTheme(env.theme, parseTheme(theme.value)));
-  const save = () => void rpc(env, "settings", { showAll: showAll.checked, autoOpen: autoOpen.checked, allowContent: allowContent.checked, historyDays: Number(days.value) });
+  const save = () =>
+    void rpc(env, "settings", { showAll: showAll.checked, autoOpen: autoOpen.checked, allowContent: allowContent.checked, historyDays: Number(days.value) }).catch(() =>
+      toast("Could not save the settings", "err"),
+    );
   showAll.addEventListener("change", save);
   autoOpen.addEventListener("change", save);
   allowContent.addEventListener("change", save);

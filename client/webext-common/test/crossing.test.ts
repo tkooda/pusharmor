@@ -204,7 +204,7 @@ test("commit from an unlisted sender during a fetch wait is kept and answered af
 
 test("commit from an unlisted sender when the fetch fails is kept and answered after the next fetch", async () => {
   const { clock, w, a, b } = await unlisted();
-  w.inject.push({ match: /^GET \/v1\/peers$/, status: 500, body: { error: "internal" }, times: 1 });
+  w.inject.push({ match: /^GET \/v1\/peers$/, status: 500, body: { error: "internal" }, times: 3 });
   await b.e.pairStart(a.id);
   await deliver(w, a);
   assert.equal(await getEntry(a.p.storageLocal, b.id), null);

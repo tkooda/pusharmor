@@ -169,14 +169,19 @@ export function ownCard(env: UiEnv, name: string, platform: string): HTMLElement
       else return;
       ev.preventDefault();
     });
+    let saving = false; // Enter plus a click must not rename twice
     const save = h("button", {
         onclick: async () => {
+          if (saving) return;
+          saving = true;
           try {
             await rpc(env, "rename", { name: input.value });
             toast("Renamed", "ok");
             show(input.value, true);
           } catch (e) {
             toast((e as Error).message, "err");
+          } finally {
+            saving = false;
           }
         },
       }, "Save");

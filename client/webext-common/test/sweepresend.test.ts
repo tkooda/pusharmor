@@ -10,7 +10,7 @@ test("a sweep does not resend a reply that was sent after it read its list", asy
   const b = await device(w, clock);
   await refresh(a, b);
   await a.e.pairStart(b.id);
-  w.inject.push({ match: /POST \/v1\/pair\//, status: 503, body: { error: "unavailable" }, times: 1 });
+  w.inject.push({ match: /POST \/v1\/pair\//, status: 503, body: { error: "unavailable" }, times: 3 });
   await deliver(w, b);
   const key = "pair:" + a.id;
   assert.ok((await getEntry(b.p.storageLocal, a.id))!.unsent);

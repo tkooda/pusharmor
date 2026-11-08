@@ -616,13 +616,13 @@ test("a failed reply with no Retry-After keeps Reply; with Retry-After it waits"
   const { w, a, b } = await setup();
   await refresh(a, b);
   await a.e.pairStart(b.id);
-  w.inject.push({ match: new RegExp("POST /v1/pair/" + a.id + "$"), status: 500, body: { error: "internal" }, times: 1 });
+  w.inject.push({ match: new RegExp("POST /v1/pair/" + a.id + "$"), status: 500, body: { error: "internal" }, times: 3 });
   await deliver(w, b);
   const e = (await getEntry(b.p.storageLocal, a.id))!;
   assert.equal(e.state, "prompted");
   assert.ok(e.authorized && e.unsent);
   assert.ok((await b.e.pairRowView(a.id))!.actions.includes("reply"));
-  w.inject.push({ match: new RegExp("POST /v1/pair/" + a.id + "$"), status: 503, body: { error: "busy" }, headers: { "Retry-After": "60" }, times: 1 });
+  w.inject.push({ match: new RegExp("POST /v1/pair/" + a.id + "$"), status: 503, body: { error: "busy" }, headers: { "Retry-After": "60" }, times: 3 });
   await assert.rejects(b.e.pairReplyTap(a.id));
   assert.ok(!(await b.e.pairRowView(a.id))!.actions.includes("reply"));
   w.clock.t += 61_000;
@@ -666,7 +666,7 @@ test("failed automatic reply stays prompted with authorized and unsent; sweep re
   const { w, a, b, clock } = await setup();
   await refresh(a, b);
   await a.e.pairStart(b.id);
-  w.inject.push({ match: /POST \/v1\/pair\//, status: 503, body: { error: "unavailable" }, times: 1 });
+  w.inject.push({ match: /POST \/v1\/pair\//, status: 503, body: { error: "unavailable" }, times: 3 });
   await deliver(w, b);
   const e = (await getEntry(b.p.storageLocal, a.id))!;
   assert.equal(e.state, "prompted");
@@ -762,7 +762,7 @@ test("an automatic reply that did not go out shows Reply while no send runs", as
   const { w, a, b } = await setup();
   await refresh(a, b);
   await a.e.pairStart(b.id);
-  w.inject.push({ match: /POST \/v1\/pair\//, status: 500, body: { error: "internal" }, times: 1 });
+  w.inject.push({ match: /POST \/v1\/pair\//, status: 500, body: { error: "internal" }, times: 3 });
   await deliver(w, b);
   const eb = (await getEntry(b.p.storageLocal, a.id))!;
   assert.equal(eb.state, "prompted");
@@ -1056,7 +1056,7 @@ test("send failures read as sentences, never raw result words", async () => {
   }
   const { w, a, b } = await setup();
   await pairAndApprove(w, a, b);
-  w.inject.push({ match: /POST \/v1\/send/, status: 500, body: { error: "internal" }, times: 1 });
+  w.inject.push({ match: /POST \/v1\/send/, status: 500, body: { error: "internal" }, times: 3 });
   const r = await a.e.send("hi", "auto", [b.id]);
   assert.equal(r.error, "Unable to send.\nThe relay server is not working right now. Try again later.");
   assert.equal(r.failures[0]!.text, r.error);
@@ -1180,7 +1180,7 @@ test("Log out is local at once; the relay server logout stays pending and is ret
   const { w, a, b, clock } = await setup();
   await pairAndApprove(w, a, b);
   const rpc = new Rpc(a.e);
-  w.inject.push({ match: /POST \/v1\/peers\/[^/]+\/logout$/, status: 500, body: { error: "internal" }, times: 2 });
+  w.inject.push({ match: /POST \/v1\/peers\/[^/]+\/logout$/, status: 500, body: { error: "internal" }, times: 6 });
   const r = await rpc.handle({ op: "signout" });
   assert.equal(r.ok, true);
   assert.equal(await a.e.regState(), "logged_out"); // logged out here before any reply
@@ -1478,7 +1478,7 @@ test("two concurrent starts send one pairing reply", async () => {
   const { w, a, b, clock } = await setup();
   await refresh(a, b);
   await a.e.pairStart(b.id);
-  w.inject.push({ match: /POST \/v1\/pair\//, status: 503, body: { error: "unavailable" }, times: 1 });
+  w.inject.push({ match: /POST \/v1\/pair\//, status: 503, body: { error: "unavailable" }, times: 3 });
   await deliver(w, b);
   const b2 = await restart(b, clock);
   const before = w.calls.filter((c) => c.path === "/v1/pair/" + a.id && c.method === "POST").length;

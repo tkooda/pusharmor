@@ -1,11 +1,13 @@
 // Worker client (catalog General): PA-Sig signing, PA-Epoch offset (seconds),
-// retries on 429 / 503 / network errors only, clock-skew rebuild.
+// retries on 429 (server wait) and on 5xx / network errors (3 tries, 1 s then 3 s), clock-skew rebuild.
 import { utf8 } from "../crypto/bytes.ts";
 import { paSig } from "../crypto/pasig.ts";
 
 export const API_BASE = "https://api.pusharmor.com";
 const RETRY_DELAYS_MS = [500, 1500, 3000];
 const RETRY_BUDGET_MS = 8000;
+/** HTTP 5xx and network errors: 3 tries in all, with these waits between them. */
+export const SERVER_RETRY_DELAYS_MS = [1000, 3000];
 /** One request (headers and body) may take this long before it is aborted. */
 export const FETCH_TIMEOUT_MS = 15000;
 
@@ -48,7 +50,7 @@ export interface CallOpts {
   /** Body builder; re-run after a 401 "clock skew" (new n, new encryption). */
   build?: () => Promise<unknown>;
   body?: unknown;
-  /** No retries at all (used where the caller handles waits itself). */
+  /** No retries at all (used where the caller handles waits itself, or the server may apply a repeat twice). */
   noRetry?: boolean;
 }
 
@@ -95,17 +97,24 @@ export class Api {
 
   private async withRetries(method: string, path: string, bodyText: string, opts: CallOpts): Promise<ApiReply> {
     const start = this.d.now();
-    for (let attempt = 0; ; attempt++) {
+    let busy = 0;
+    let down = 0;
+    for (;;) {
       try {
         return await this.once(method, path, bodyText, opts);
       } catch (e) {
         if (!(e instanceof ApiError) || opts.noRetry) throw e;
-        const retryable = e.status === 0 || e.status === 429 || e.status === 503;
-        if (!retryable || attempt >= RETRY_DELAYS_MS.length) throw e;
-        let wait = RETRY_DELAYS_MS[attempt]!;
-        if (e.retryAfter !== null) wait = Math.max(wait, e.retryAfter * 1000);
-        if (this.d.now() - start + wait > RETRY_BUDGET_MS) throw e;
-        await this.d.sleep(wait);
+        if (e.status === 429) {
+          if (busy >= RETRY_DELAYS_MS.length) throw e;
+          let wait = RETRY_DELAYS_MS[busy]!;
+          if (e.retryAfter !== null) wait = Math.max(wait, e.retryAfter * 1000);
+          if (this.d.now() - start + wait > RETRY_BUDGET_MS) throw e;
+          busy++;
+          await this.d.sleep(wait);
+        } else if (e.status === 0 || (e.status >= 500 && e.status <= 599)) {
+          if (down >= SERVER_RETRY_DELAYS_MS.length) throw e;
+          await this.d.sleep(SERVER_RETRY_DELAYS_MS[down++]!);
+        } else throw e;
       }
     }
   }

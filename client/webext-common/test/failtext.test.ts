@@ -189,7 +189,7 @@ test("a Pair, Send again, or Reply that did not reach the device shows why", asy
   w.inject.push({ match: /POST \/v1\/pair\//, status: 200, body: { r: "logged out" }, times: 1 });
   await pairFails(ra, "pair", b.id, "That device is logged out. Log in on that device to receive messages.");
   clock.t += 61_000;
-  w.inject.push({ match: /POST \/v1\/pair\//, status: 500, body: { error: "internal" }, times: 1 });
+  w.inject.push({ match: /POST \/v1\/pair\//, status: 500, body: { error: "internal" }, times: 3 });
   await pairFails(ra, "sendAgain", b.id, DOWN);
   clock.t += 61_000;
   assert.equal((await ra.handle({ op: "sendAgain", args: { id: b.id } })).ok, true); // sent: no error

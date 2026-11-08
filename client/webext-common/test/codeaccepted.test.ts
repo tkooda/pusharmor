@@ -37,7 +37,7 @@ test("a code the relay server does not take still says Unable to check the code"
   const p = new FakePlatform("chrome", w, clock);
   const { e } = await makeEngine(p, new IDBFactory(), clock);
   await p.storageSession.set({ [REQUEST_TOKEN]: { token: "t", purpose: "login" } });
-  w.inject.push({ match: /POST \/v1\/auth\/email\/verify$/, status: 500, body: { error: "internal" }, times: 1 });
+  w.inject.push({ match: /POST \/v1\/auth\/email\/verify$/, status: 500, body: { error: "internal" }, times: 3 });
   const r = await new Rpc(e).handle({ op: "emailVerify", args: { code: "ABCDEF" } });
   assert.deepEqual(r, { ok: false, error: "Unable to check the code.\n" + DOWN });
 });
