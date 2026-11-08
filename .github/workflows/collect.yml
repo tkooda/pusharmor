@@ -185,6 +185,7 @@ jobs:
           TAG: ${{ steps.find.outputs.tag }}
           STORE_TAG: ${{ steps.find.outputs.store_tag }}
           NAME: ${{ steps.find.outputs.name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           d="$RUNNER_TEMP/out"
           mkdir -p "$d"
@@ -192,7 +193,9 @@ jobs:
           (cd "$d" && sha256sum "$NAME.$EXT") > "$d/$NAME.$EXT.sha256"
           cat "$d/$NAME.$EXT.sha256"
           sha="$(git rev-list -n 1 "refs/tags/$TAG")"
-          gh release create "$STORE_TAG" --draft --prerelease=false --latest=false --target "$sha" --title "$STORE_TAG" \
-            --notes "Store-signed $NAME.$EXT, checked against the file hashes of $TAG." \
+          # The new tag points at the default branch: GITHUB_TOKEN cannot create a tag at a
+          # commit whose workflow files differ from it (HTTP 403, no workflows permission).
+          gh release create "$STORE_TAG" --draft --prerelease=false --latest=false --target "$DEFAULT_BRANCH" --title "$STORE_TAG" \
+            --notes "Store-signed $NAME.$EXT, checked against the file hashes of $TAG ($sha)." \
             "$d/$NAME.$EXT" "$d/$NAME.$EXT.sha256"
           gh release edit "$STORE_TAG" --draft=false --latest=false

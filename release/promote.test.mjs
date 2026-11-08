@@ -749,3 +749,13 @@ test("App Store: the store job waits until the uploaded build is processed", asy
   await assert.rejects(ascValidBuild({ asc: async () => ({ json: { data: [] } }), app: "a", version: "0.0.42", sleep: async (ms) => { t0 += ms; }, now: () => t0, timeoutMs: 5000, intervalMs: 1000 }),
     /^Error: App Store: build 0\.0\.42 \(42\) is not on App Store Connect after 0 minutes/);
 });
+
+// GITHUB_TOKEN gets HTTP 403 creating a tag at a commit whose workflow files differ
+// from the default branch, so the store release tag points at the default branch.
+test("collect creates the store release tag at the default branch", () => {
+  const wf = readFileSync(join(ROOT, ".github", "workflows", "collect.yml"), "utf8");
+  const create = wf.split("\n").filter((l) => /gh release create/.test(l));
+  assert.equal(create.length, 1);
+  assert.match(create[0], /--target "\$DEFAULT_BRANCH"/);
+  assert.match(wf, /DEFAULT_BRANCH: \$\{\{ github\.event\.repository\.default_branch \}\}/);
+});
