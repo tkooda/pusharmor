@@ -396,6 +396,16 @@ test("App Store screenshots: waits for processing, fails on FAILED, reuses earli
   assert.deepEqual(f.calls.filter((c) => !c.startsWith("GET")), []);
 });
 
+test("http: a fetch failure names the method, URL without query, and cause", async () => {
+  const real = globalThis.fetch;
+  globalThis.fetch = async () => { throw Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } }); };
+  try {
+    await assert.rejects(http("POST", "https://x.test/up?token=SECRET", { headers: { Authorization: "Bearer SECRET" } }), (e) => /^POST https:\/\/x\.test\/up: fetch failed \(ECONNRESET\)$/.test(e.message));
+  } finally {
+    globalThis.fetch = real;
+  }
+});
+
 test("App Store requests: retried on HTTP 5xx and network errors, not on 4xx", async () => {
   const waits = [];
   const wait = async (ms) => void waits.push(ms);

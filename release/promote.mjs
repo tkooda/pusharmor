@@ -245,6 +245,14 @@ export const clearOutput = (promoted) => (promoted === true ? "true" : "false");
 
 // ---- HTTP ----
 
+/** Error for a fetch that threw: names the method, the URL without its query
+ *  string, the message, and the underlying cause (Node hides it behind
+ *  "fetch failed"). */
+function fetchError(method, url, e) {
+  const c = e?.cause?.code || e?.cause?.message;
+  return new Error(method + " " + String(url).split("?")[0] + ": " + (e?.message || e) + (c ? " (" + c + ")" : ""));
+}
+
 /** fetch that throws on an unexpected status with the API error body. The
  *  query string is left out of the message (upload URLs carry tokens). With
  *  `timeout` (ms), a request that has no full answer by then throws. */
@@ -254,7 +262,7 @@ export async function http(method, url, { headers = {}, body, ok = [200, 201, 20
     r = await fetch(url, { method, headers, body, signal: timeout ? AbortSignal.timeout(timeout) : undefined });
     text = await r.text();
   } catch (e) {
-    if (e?.name !== "TimeoutError") throw e;
+    if (e?.name !== "TimeoutError") throw fetchError(method, url, e);
     throw new Error(method + " " + url.split("?")[0] + ": no answer in " + timeout / 1000 + " s");
   }
   if (!ok.includes(r.status)) {
@@ -288,10 +296,10 @@ export function amoRetry(amo, wait = sleep, log = console.log) {
     }
   };
 }
-/** Wrap an App Store Connect request function: on HTTP 5xx or a network
+/** Wrap a request function (App Store Connect by default): on HTTP 5xx or a network
  *  error (not on 4xx), log, wait 5, 15, then 45 s and send the
  *  request again, up to 3 retries. */
-export function ascRetry(fn, wait = sleep, log = console.log, delays = [5000, 15000, 45000]) {
+export function ascRetry(fn, wait = sleep, log = console.log, delays = [5000, 15000, 45000], label = "App Store Connect") {
   return async (...args) => {
     for (let n = 0; ; n++) {
       try {
@@ -301,7 +309,7 @@ export function ascRetry(fn, wait = sleep, log = console.log, delays = [5000, 15
         const http4 = /: HTTP (\d+)/.exec(m);
         const retriable = http4 ? Number(http4[1]) >= 500 : true;
         if (n >= delays.length || !retriable) throw e;
-        log("App Store Connect " + args[0] + " " + String(args[1]).split("?")[0] + " failed (" + m.slice(0, 120) + "), waiting " + delays[n] / 1000 + " s (retry " + (n + 1) + " of " + delays.length + ")");
+        log(label + " " + args[0] + " " + String(args[1]).split("?")[0] + " failed (" + m.slice(0, 120) + "), waiting " + delays[n] / 1000 + " s (retry " + (n + 1) + " of " + delays.length + ")");
         await wait(delays[n]);
       }
     }
@@ -342,11 +350,17 @@ function verifyAttestation(data, platform, version, name) {
  *  and the build attestation of the release workflow. */
 async function releaseFile(platform, version, name) {
   const base = "https://github.com/" + repo() + "/releases/download/" + platform + "/v" + version + "/";
-  const get = async (n) => {
-    const r = await fetch(base + n);
-    if (!r.ok) throw new Error("download " + n + ": HTTP " + r.status);
+  const dl = ascRetry(async (method, url) => {
+    let r;
+    try {
+      r = await fetch(url);
+    } catch (e) {
+      throw fetchError(method, url, e);
+    }
+    if (!r.ok) throw new Error("download " + url.split("/").pop() + ": HTTP " + r.status);
     return Buffer.from(await r.arrayBuffer());
-  };
+  }, sleep, console.log, undefined, "GitHub");
+  const get = (n) => dl("GET", base + n);
   const data = await get(name);
   const hashes = (await get(hashesName(platform, version))).toString("utf8");
   const want = hashes.split("\n").map((l) => l.trim().split(/\s+/)).find((p) => p[1] === name);
@@ -773,7 +787,8 @@ async function chrome(version) {
   const item = "publishers/" + pub.google_cws_publisher_id + "/items/" + pub.google_chrome_extension_id;
   if (pub.google_chrome_extension_id === pub.google_chrome_beta_extension_id) throw new Error("public Chrome id equals the Beta id");
   const auth = { Authorization: "Bearer " + process.env.TOKEN };
-  const status = async () => (await http("GET", api + "/v2/" + item + ":fetchStatus", { headers: auth })).json;
+  const getRetry = ascRetry(http, sleep, console.log, undefined, "Chrome Web Store");
+  const status = async () => (await getRetry("GET", api + "/v2/" + item + ":fetchStatus", { headers: auth })).json;
   const crx = (r) => (r?.distributionChannels || []).map((c) => c.crxVersion).filter(Boolean);
 
   const s = await status();
@@ -786,7 +801,7 @@ async function chrome(version) {
   if (sub && sub.state === "PENDING_REVIEW") throw new Error("Chrome Web Store: version " + (crx(sub).join(",") || "unknown") + " is in review (PENDING_REVIEW); wait for that review to finish (or cancel it in the dashboard), then promote " + version + " again");
 
   const zip = await releaseFile("chrome", version, "pusharmor-chrome-" + version + "-store.zip").catch(() => releaseFile("chrome", version, "pusharmor-chrome-" + version + ".zip"));
-  let r = (await http("POST", api + "/upload/v2/" + item + ":upload", { headers: { ...auth, "Content-Type": "application/zip" }, body: zip })).json;
+  let r = (await getRetry("POST", api + "/upload/v2/" + item + ":upload", { headers: { ...auth, "Content-Type": "application/zip" }, body: zip })).json;
   let state = r.uploadState;
   for (let i = 0; state === "IN_PROGRESS" && i < 30; i++) {
     await sleep(10000);
