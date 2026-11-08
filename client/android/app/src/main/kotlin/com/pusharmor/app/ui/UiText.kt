@@ -171,7 +171,7 @@ object UiText {
     fun status(p: Peer): Pair<Mark, String> = when {
         p.missing -> Mark.OFF to "(missing)"
         p.loggedOut -> Mark.OFF to "Logged out"
-        !p.listening -> Mark.OFF to "Send only"
+        !p.listening -> Mark.OFF to "Not listening"
         !p.reachable -> Mark.OFF to "Unreachable"
         !p.pinned -> Mark.WAIT to "Ready to pair" // a Pair and Reject row, same word as the extensions
         p.approvesMe -> Mark.OK to "Paired"
@@ -233,7 +233,7 @@ object UiText {
             word == "sent" -> null
             word == "gone" -> "Unable to deliver message to \"$x\".\nOpen PushArmor on it to resolve."
             word == "logged out" -> to + "That device is logged out. Log in on that device to receive messages."
-            word == "not listening" -> to + "It is set to send only. It does not receive messages."
+            word == "not listening" -> to + "It has not listened recently. Run pusharmor listen on it."
             word == "unapproved" -> to + "It is not paired with this device. Pair with it to send it messages."
             word == "denied" -> to + "It isn't paired with this device."
             word == "unknown" -> to + "It is no longer on this account."

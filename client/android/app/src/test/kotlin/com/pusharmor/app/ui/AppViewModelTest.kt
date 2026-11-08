@@ -101,7 +101,7 @@ class AppViewModelTest {
         val none = vm.sendResult(1, com.pusharmor.protocol.engine.SendFlow.Outcome(mapOf("a" to "not listening"), 2, historyId = 8L)) { "Laptop" }
         assertFalse(none.ok)
         assertNull(vm.sent.value)
-        assertEquals("Unable to send to \"Laptop\".\nIt is set to send only. It does not receive messages.", none.text)
+        assertEquals("Unable to send to \"Laptop\".\nIt has not listened recently. Run pusharmor listen on it.", none.text)
         // no result word for the one picked device reads as not ready yet; two picks keep the count
         val missing = vm.sendResult(1, com.pusharmor.protocol.engine.SendFlow.Outcome(emptyMap(), 2), only = "a") { "Laptop" }
         assertEquals("Unable to send to \"Laptop\".\nIt has not finished turning on notifications. Open PushArmor on it.", missing.text)
