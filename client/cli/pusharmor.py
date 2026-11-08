@@ -906,6 +906,7 @@ import secrets
 import shlex
 import shutil
 import socket
+import ssl
 import stat
 import string
 import subprocess
@@ -946,7 +947,7 @@ LINK_LIFE_S = 600
 PROBE_WAIT_S = 30
 PAIR_WAIT_S = 600
 LISTEN_TIMEOUT_S = 120  # ntfy sends a keepalive every 45 s
-WAIT_TIMEOUT_S = 15  # login and pair: short reads, so a wait ends on time
+WAIT_TIMEOUT_S = 60  # login and pair: above the 45 s keepalive, so an idle read is not cut short
 LISTEN_REPORT_S = 86400
 FETCH_GAP_S = 60
 PLATFORMS = {"android": "Android", "ios": "iPhone", "chrome": "Chrome", "firefox": "Firefox", "cli": "Command line"}
@@ -955,6 +956,7 @@ REC_KEYS = ("from", "name", "platform", "type", "body", "date")
 NOT_LOGGED_IN = "This device is not logged in. Run: `pusharmor login`"
 LOGGED_OUT = "This device is logged out. Log in to resume."
 REMOVED = "This device was removed from the account. Log in again."
+CERT_BAD = "The relay server's certificate could not be verified. Check this device's date and time, proxy, and CA certificates."
 UNREACHABLE = "The relay server could not be reached. Check your internet connection and try again."
 SERVER_DOWN = "The relay server is not working right now. Try again later."
 TOO_OLD = "This version of PushArmor is too old. " + UPDATE_REQUIRED
@@ -1561,6 +1563,11 @@ def ntfy_open(url, timeout):
         raise OSError(str(e)) from e
 
 
+def is_cert_error(e):
+    """True for a TLS certificate failure, bare or wrapped in URLError.reason."""
+    return isinstance(e, ssl.SSLCertVerificationError) or isinstance(getattr(e, "reason", None), ssl.SSLCertVerificationError)
+
+
 def _why(e):
     return e.reason() if isinstance(e, ApiError) else str(e)
 
@@ -1593,7 +1600,9 @@ class Api:
                     h["PA-ID"] = self.keys["id"]
             try:
                 status, hdrs, data = http_request(method, self.base + path, h, raw or None)
-            except OSError:
+            except OSError as e:
+                if is_cert_error(e):
+                    raise TempFail(CERT_BAD, 0)  # a retry cannot fix it
                 status, hdrs, data = 0, {}, b""
             try:
                 j = json.loads(data) if data else {}
@@ -1633,6 +1642,29 @@ NTFY_LINE_CAP = 65536  # far above the largest push; a longer line is skipped, n
 MAX_REPLY = 1 << 20  # a longer relay server reply counts as a network failure
 
 
+def read_line(resp, cap):
+    """resp.readline(cap). On Windows a blocked read ignores Ctrl+C until its timeout, so the read runs in a
+    daemon thread and the main thread waits in short slices, where Ctrl+C is seen at once."""
+    if os.name != "nt":
+        return resp.readline(cap)
+    box = []
+
+    def run():
+        try:
+            box.append((True, resp.readline(cap)))
+        except BaseException as e:
+            box.append((False, e))
+
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    while t.is_alive():
+        t.join(0.2)
+    ok, v = box[0]
+    if not ok:
+        raise v
+    return v
+
+
 class Stream:
     def __init__(self, ntfy, topic, keys, since, timeout, poll=False):
         self.url = ntfy.rstrip("/") + "/" + topic + "/json"
@@ -1669,7 +1701,7 @@ class Stream:
                     self.delay = True
                     continue
             try:
-                line = self.resp.readline(NTFY_LINE_CAP)
+                line = read_line(self.resp, NTFY_LINE_CAP)
             except (TimeoutError, socket.timeout):
                 self.close(False)
                 continue
@@ -2535,7 +2567,7 @@ def register(cx, code):
         cx.topic = new_topic()
     ntfy = cx.settings.get("ntfy", DEFAULT_NTFY)
     d0 = {"ntfy": ntfy, "topic": cx.topic}
-    stream = Stream(ntfy, cx.topic, k, "", WAIT_TIMEOUT_S)
+    stream = Stream(ntfy, cx.topic, k, str(int(time.time()) - 30), WAIT_TIMEOUT_S)  # since: a probe sent just before the connect is kept
     try:
         stream.connect()
     except OSError:
@@ -2688,7 +2720,7 @@ def resolve_peer(cx, text, with_self=False):
 
 def peer_status(p, e):
     if p["pinned"] and p["ruling"] == "approved" and p["approves_me"]:
-        return "paired" + (", logged out" if p["logged_out"] else ", send only" if not p["listening"] else "")
+        return "paired" + (", logged out" if p["logged_out"] else ", not listening" if not p["listening"] else "")
     if e and e["state"] == "shown" and not e["approved"]:
         return "compare fingerprint " + e["fingerprint"]
     if p["pinned"] and p["ruling"] == "approved":
@@ -2961,7 +2993,7 @@ def cmd_send(cx, args):
 # /v1/send, /v1/pair, and /v1/approve result word -> reason for one device (%s: its name).
 SEND_WHY = {"gone": '"%s" needs attention. Open PushArmor on it to resolve.',
             "logged out": '"%s" is logged out. Log in on it to receive messages.',
-            "not listening": '"%s" is set to send only. It does not receive messages.',
+            "not listening": '"%s" has not listened recently. Run `pusharmor listen` on it.',
             "unapproved": '"%s" is not paired with this device. Pair with it to send it messages.',
             "denied": '"%s" is not paired with this device.', "unknown": '"%s" is no longer on this account.'}
 SEND_FAILED = 'The push service of "%s" did not accept the message. Try again later.'  # failed:CODE

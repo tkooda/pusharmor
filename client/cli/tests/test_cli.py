@@ -361,6 +361,37 @@ def test_clock_skew_resync(monkeypatch):
     assert len(seen) == 2 and abs(seen[1] - 2000000000000) < 5000 and len(str(seen[1])) == 13
 
 
+def test_certificate_failure_named(monkeypatch):
+    import ssl
+    import urllib.error
+    calls = []
+
+    def bad(*a):
+        calls.append(1)
+        raise urllib.error.URLError(ssl.SSLCertVerificationError("certificate verify failed"))
+
+    monkeypatch.setattr(pa, "http_request", bad)
+    with pytest.raises(pa.TempFail) as e:
+        pa.Api("https://r.example", {"id": "x", "sign": pa.new_key()[0]}).call("GET", "/v1/peers")
+    assert str(e.value) == pa.CERT_BAD and "internet" not in str(e.value) and len(calls) == 1
+    assert pa.is_cert_error(ssl.SSLCertVerificationError("x")) and not pa.is_cert_error(OSError("x"))
+
+
+def test_read_line_windows_waits_in_slices(monkeypatch):
+    class Slow:
+        def readline(self, cap):
+            time.sleep(0.3)
+            return b"x\n"
+
+    class Os:
+        name = "nt"
+
+    monkeypatch.setattr(pa, "os", Os)
+    assert pa.read_line(Slow(), 10) == b"x\n"
+    monkeypatch.undo()
+    assert pa.WAIT_TIMEOUT_S >= 60
+
+
 def test_temporary_failures(monkeypatch):
     monkeypatch.setattr(pa.time, "sleep", lambda s: None)
     calls = []
@@ -1857,7 +1888,7 @@ def test_not_logged_in_is_one_line(tmp_path, capsys):
 @pytest.mark.parametrize("word, line", [
     ("gone", '"%s" needs attention. Open PushArmor on it to resolve.'),
     ("logged out", '"%s" is logged out. Log in on it to receive messages.'),
-    ("not listening", '"%s" is set to send only. It does not receive messages.'),
+    ("not listening", '"%s" has not listened recently. Run `pusharmor listen` on it.'),
     ("unapproved", '"%s" is not paired with this device. Pair with it to send it messages.'),
     ("denied", '"%s" is not paired with this device.'),
     ("unknown", '"%s" is no longer on this account.'),
