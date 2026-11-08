@@ -376,17 +376,14 @@ struct WelcomeView: View {
     @EnvironmentObject var model: AppModel
 
     var body: some View {
-        BrandLayout(text: WelcomeText.intro + " Allow notifications so this device can receive them.") {
-            Button("Allow notifications") { Task { await model.requestNotifications() } }
-                .buttonStyle(GreenButtonStyle())
-            if model.notificationsOff {
-                Text(S.notificationsOff)
-                    .foregroundColor(.errorText)
-                    .multilineTextAlignment(.center)
+        BrandLayout(text: WelcomeText.text(undecided: model.notificationsUndecided)) {
+            if model.notificationsUndecided {
+                Button("Allow notifications") { Task { await model.requestNotifications() } }
+                    .buttonStyle(GreenButtonStyle())
+            } else {
+                // denied or alerts off: only Settings can turn them on
                 Button("Open notification settings") { model.openNotificationSettings() }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.capsule)
-                    .controlSize(.large)
+                    .buttonStyle(GreenButtonStyle())
             }
         }
     }

@@ -1852,6 +1852,20 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(w.count("POST", path), 14)
     }
 
+    /// A push token that arrives on the name step (signed in, not yet named) is sent at
+    /// once; a logged-out device sends none.
+    func testPushTokenOnTheNameStepIsSent() async throws {
+        let n = try dev("Ndev")
+        try n.core.store.setMe("name", .null)
+        let before = w.count("PATCH", "/v1/peers/")
+        let out = await n.core.reconcilePush(PushInfo(type: .apns, tokenBytes: Data([0x07, 0x08])))
+        XCTAssertEqual(out?.reply?.ok, true)
+        XCTAssertEqual(w.count("PATCH", "/v1/peers/"), before + 1)
+        try n.core.store.setMe("logged_out", .int(1))
+        _ = await n.core.reconcilePush(PushInfo(type: .apns, tokenBytes: Data([0x09])))
+        XCTAssertEqual(w.count("PATCH", "/v1/peers/"), before + 1)
+    }
+
     /// A 400 "push endpoint not allowed" to the push PATCH marks this device's push service
     /// as not supported; each app open tries the PATCH again, and one that works clears it.
     /// On Refresh a failed PATCH gives a toast.

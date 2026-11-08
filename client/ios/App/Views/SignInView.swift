@@ -119,6 +119,12 @@ struct SignInView: View {
 
 enum WelcomeText {
     static let intro = "Send URLs or text to your devices. All of your data is always end-to-end encrypted, and can never be read by the server or anyone else."
+    static let needsNotifications = "PushArmor needs notifications to receive messages. Turn on notifications for PushArmor in Settings."
+
+    /// The notification explainer: not yet asked, or turned off (only Settings can turn them on).
+    static func text(undecided: Bool) -> String {
+        intro + " " + (undecided ? "Allow notifications so this device can receive them." : needsNotifications)
+    }
 }
 
 /// Welcome and sign-in layout: halo, wordmark, one sentence, then the buttons at the bottom.

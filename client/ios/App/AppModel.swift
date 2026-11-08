@@ -257,7 +257,7 @@ final class AppModel: ObservableObject {
         guard let store = store, let me = try? store.me() else { phase = .loading; return }
         self.me = me
         if let p = launchStop { phase = p; return }
-        if notificationsOff && me.id == nil { phase = .welcome; return }
+        if AppModel.welcomes(notificationsOff: notificationsOff, me: me) { phase = .welcome; return }
         if let r = AppModel.restoredCode(me: me, email: try? store.setting("code_email"),
                                          purpose: try? store.setting("code_purpose")) {
             // the request_token is bound to the keys made for this sign-in
@@ -273,6 +273,13 @@ final class AppModel: ObservableObject {
         phase = .main
         reload()
     }
+
+    /// A device with no account stays on the notification explainer until notifications are on.
+    static func welcomes(notificationsOff: Bool, me: Me) -> Bool { notificationsOff && me.id == nil }
+
+    /// The explainer routes again on every foreground, so notifications turned on in
+    /// Settings go on to the log-in screen with no tap.
+    static func reroutesOnForeground(_ phase: Phase) -> Bool { phase == .welcome }
 
     /// the email-code step survives process death. Its request_token, address, and
     /// purpose are saved; a register or login code step comes back on the next launch.
@@ -310,6 +317,7 @@ final class AppModel: ObservableObject {
     /// reconcile, retries, timeouts, permission check.
     func onForeground() async {
         await checkPermission()
+        if AppModel.reroutesOnForeground(phase) { await route() }
         askIfUndecided()
         if started, !sample, AppModel.needsReopen(hasStore: store != nil, hasCore: core != nil, me: try? store?.me(), launchRetry: launchRetry) {
             await once("open") {
@@ -483,7 +491,8 @@ final class AppModel: ObservableObject {
     func didRegister(token: Data) async {
         pushRegisterFailed = false
         pushInfo = PushInfo(type: AppModel.pushType(), tokenBytes: token)
-        if let core = core, phase == .main {
+        // on any screen: reconcilePush skips a device with no account or logged out
+        if let core = core {
             await core.reconcilePush(pushInfo)
             pushUnsupported = core.pushUnsupported()
         }
@@ -873,8 +882,13 @@ final class AppModel: ObservableObject {
 
     /// Remove the "Pairing fingerprint ready" notice once the fingerprint shows (pk).
     func fingerprintShown(_ p: Peer) {
-        guard let me = me?.id else { return }
-        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [PairingCrypto.pairingKey(nId: me, xId: p.id)])
+        guard let me = me?.id, let e = pairings[p.id.text] else { return }
+        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [AppModel.pairingNoticeKey(me: me, peer: p.id, role: e.role)])
+    }
+
+    /// The pairing notice key is pk(N, X) on both devices: this device is N or X by its role.
+    static func pairingNoticeKey(me: PeerId, peer: PeerId, role: PairDecide.Role) -> String {
+        role == .x ? PairingCrypto.pairingKey(nId: peer, xId: me) : PairingCrypto.pairingKey(nId: me, xId: peer)
     }
 
     func countdown(_ e: PairingEntry) -> String? { Pairing.countdown(startedAt: e.startedAt, now: Int64(Date().timeIntervalSince1970)) }
@@ -1025,7 +1039,7 @@ final class AppModel: ObservableObject {
         // routing keys count only with the NSE stamp; relay userInfo is ignored
         let stamped = TapStamp.verified(info, key: key)
         let rowid = stamped ? (info["rowid"] as? NSNumber)?.int64Value : nil
-        let row = rowid.flatMap { r in history.first { $0.rowid == r } }
+        let row = AppModel.tapRow(rowid, store: store)
         if action == "COPY", let r = row {
             UIPasteboard.general.string = r.content
             return
@@ -1037,6 +1051,13 @@ final class AppModel: ObservableObject {
         case "detail": if let r = row { markRead(r); detailRow = r; showHistory = true }
         default: break
         }
+    }
+
+    /// The tapped row comes from the store: the NSE wrote it while the app was in the
+    /// background, so the in-memory history does not have it yet.
+    static func tapRow(_ rowid: Int64?, store: Store?) -> HistoryRow? {
+        guard let r = rowid else { return nil }
+        return (try? store?.historyRow(r)) ?? nil
     }
 
     /// The History row that is open, with its text and action buttons under it.

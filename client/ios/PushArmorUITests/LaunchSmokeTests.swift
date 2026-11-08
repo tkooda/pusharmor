@@ -13,7 +13,8 @@ final class LaunchSmokeTests: XCTestCase {
         app.launch()
         let signIn = app.buttons["Continue with Google"]
         let welcome = app.buttons["Allow notifications"]
-        let shown = signIn.waitForExistence(timeout: 20) || welcome.exists
+        let settings = app.buttons["Open notification settings"]
+        let shown = signIn.waitForExistence(timeout: 20) || welcome.exists || settings.exists
         XCTAssertTrue(shown, "neither the login screen nor the notification explainer appeared")
     }
 }
