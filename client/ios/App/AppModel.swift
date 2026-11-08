@@ -69,6 +69,9 @@ final class AppModel: ObservableObject {
     /// Try again on a pairing card stays greyed this long after a tap (per device, in memory only).
     @Published var tryAgainGreyUntil: [String: Date] = [:]
     static let tryAgainGreySeconds: TimeInterval = 10
+    /// Check again on the "cannot receive" banner stays greyed this long after a tap.
+    @Published var checkGreyUntil: Date = .distantPast
+    static let checkGreySeconds: TimeInterval = 10
     /// A Refresh (button or pull) is running: the toolbar shows a spinner in its place.
     @Published var refreshing = false
     @Published var highlightPeer: String?
@@ -396,6 +399,7 @@ final class AppModel: ObservableObject {
     /// relay server sends one test push. It went through: "Working" and the banner goes.
     /// "none" keeps the banner with no line; no reply or a 429: "Unable to check right now".
     func checkAgain() async {
+        guard startCheckGrey() else { return }
         await once("check") {
             await checkPermission()
             if notificationsOff {
@@ -409,6 +413,14 @@ final class AppModel: ObservableObject {
             toast = line
             toastIsSuccess = r == .sent
         }
+    }
+
+    func checkGreyed(at now: Date = Date()) -> Bool { now < checkGreyUntil }
+    /// Starts the grey time of Check again; false while it still runs (the tap does nothing).
+    func startCheckGrey(at now: Date = Date()) -> Bool {
+        guard !checkGreyed(at: now) else { return false }
+        checkGreyUntil = now.addingTimeInterval(AppModel.checkGreySeconds)
+        return true
     }
 
     /// The line after Check again; nil result: notifications are still off (no test push).
@@ -509,7 +521,12 @@ final class AppModel: ObservableObject {
         Ids.oauthNonce(purpose: purpose.rawValue, signPub: try keysForSignIn(purpose).signer.publicKey)
     }
 
+    /// Send code: one run at a time, so a second tap cannot send a second request.
     func emailStart(_ email: String, purpose asked: AuthPurpose, turnstile: String) async {
+        await once("sendCode") { await emailStartOnce(email, purpose: asked, turnstile: turnstile) }
+    }
+
+    private func emailStartOnce(_ email: String, purpose asked: AuthPurpose, turnstile: String) async {
         guard Ids.normalizeEmail(email) != nil else { toast = ErrorCopy.text(.sendCode, .badEmail); return }
         // an address of another account switches to that account first
         var purpose = asked
@@ -564,9 +581,11 @@ final class AppModel: ObservableObject {
     }
 
     func appleToken(idToken: String, code: String?, purpose: AuthPurpose) async {
-        guard let k = try? keysForSignIn(purpose) else { toast = ErrorCopy.text(.prepareLogin, .keysUnusable); return }
-        await finishTicket(await auth.appleToken(idToken: idToken, signPub: k.signer.publicKey, purpose: purpose, code: code), purpose: purpose,
-                           action: .loginApple)
+        await once("apple") {
+            guard let k = try? keysForSignIn(purpose) else { toast = ErrorCopy.text(.prepareLogin, .keysUnusable); return }
+            await finishTicket(await auth.appleToken(idToken: idToken, signPub: k.signer.publicKey, purpose: purpose, code: code),
+                               purpose: purpose, action: .loginApple)
+        }
     }
 
     func googleToken(idToken: String, purpose: AuthPurpose) async {
@@ -774,9 +793,12 @@ final class AppModel: ObservableObject {
         if let r = await core?.tryAgain(p.id), let t = Core.pairAgainToast(.success(r), name: label(p)) { toast = t }
         reload()
     }
+    /// Reply: one run per device at a time, so a double tap sends one pair message.
     func reply(_ p: Peer) async {
-        if let r = await core?.tapReply(p.id), let t = Core.pairAgainToast(.success(r), name: label(p)) { toast = t }
-        reload()
+        await once("reply:" + p.id.text) {
+            if let r = await core?.tapReply(p.id), let t = Core.pairAgainToast(.success(r), name: label(p)) { toast = t }
+            reload()
+        }
     }
     func cancelPairing(_ p: Peer) async { await core?.cancelPairing(p.id); reload() }
     /// Pair again: one run per peer at a time; a failure shows a toast.
@@ -979,8 +1001,10 @@ final class AppModel: ObservableObject {
 
     func rename(_ name: String) async {
         guard let core = core else { return }
-        await renameToast(core, name)
-        reload()
+        await once("rename") {
+            await renameToast(core, name)
+            reload()
+        }
     }
 
     /// Renames this device; a failure shows the name rule only for a bad name, else the reason.

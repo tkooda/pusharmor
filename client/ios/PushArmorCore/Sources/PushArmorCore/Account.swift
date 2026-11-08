@@ -234,8 +234,8 @@ extension Core {
         guard let me = try? myId() else { return .failed }
         let path = "/v1/peers/" + me.text + "/check"
         let body = JOut.obj([]).data
-        var out = await signed("POST", path, body: body, retry: false)
-        if out.isClockSkew { out = await signed("POST", path, body: body, retry: false) }
+        var out = await signed("POST", path, body: body)
+        if out.isClockSkew { out = await signed("POST", path, body: body) }
         guard let r = out.reply, r.status != 429 else { return .unavailable }
         guard r.ok, let word = r.json?["result"]?.stringValue else { return .failed }
         let result = PushCheckResult(word: word)

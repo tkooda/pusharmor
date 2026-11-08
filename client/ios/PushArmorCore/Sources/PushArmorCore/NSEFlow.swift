@@ -38,6 +38,7 @@ public enum NSEFlow {
                 try inbox.write(ms, nowMs: nowMs)
                 return .plain(.locked)
             } catch {
+                inbox.countDrop()
                 return .plain(.dropped)
             }
         } catch KeyLoadError.other(let s) where s == -25300 {   // errSecItemNotFound: no keys on this device
@@ -46,21 +47,21 @@ public enum NSEFlow {
             return dropWithEvent(openCore(nil))
         } catch {
             // any other key fault may pass: keep "m" in the locked inbox for the app drain, no event
-            try? inbox.write(ms, nowMs: nowMs)
+            inbox.keep(ms, nowMs: nowMs)
             return .plain(.dropped)
         }
         // step 3
         // a fault (DB not open, thrown store error) also keeps "m" in the locked inbox, so a
         // cleared notification is not its only copy
         guard let core = openCore(keys) else {
-            try? inbox.write(ms, nowMs: nowMs)
+            inbox.keep(ms, nowMs: nowMs)
             return .plain(.dropped)
         }
         var r = await core.receive(ms, mode: .nse)
         r = await core.confirmPushedRemoval(r, run: budgetLeft() >= 10)
         if r.banner == nil { r.banner = .dropped }   // never empty content for a push
         r.handled = !r.fault   // a thrown store error stays unmarked: the app drain retries it
-        if r.fault { try? inbox.write(ms, nowMs: nowMs) }
+        if r.fault { inbox.keep(ms, nowMs: nowMs) }
         if r.handled { onReceived?(r) }
         // 6.5: an unknown sender sets fetch_due; one GET /peers only with >= 10 s of budget left
         if (try? core.store.me().fetchDue) == true && budgetLeft() >= 10 {

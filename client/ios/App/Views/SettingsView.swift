@@ -183,7 +183,8 @@ struct SettingsView: View {
     }
 
     private func saveName() {
-        guard NameEntry.isValidName(name) else { return }
+        // renaming is false once a save ran: Enter and Save together submit once
+        guard renaming, NameEntry.isValidName(name) else { return }
         renaming = false
         if name != model.me?.name { Task { await model.rename(name) } }
     }

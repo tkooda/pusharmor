@@ -153,6 +153,39 @@ final class NSEFlowTests: XCTestCase {
         inbox.removeAll()
     }
 
+    /// a push the NSE cannot write to the locked inbox is not lost silently: it is counted,
+    /// and the next drain writes one could-not-read event.
+    func testFailedInboxWriteCountsDrop() async throws {
+        struct Fault: Error {}
+        let w = FakeWorker(), clock = TestClock()
+        let x = try Device(worker: w, clock: clock, name: "Xdev")
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-ro-\(UUID().uuidString)")
+        let inbox = LockedInbox(dir: dir)
+        try inbox.ensureDirectory()
+        try Data("0".utf8).write(to: inbox.droppedFile)
+        // a read-only directory: no new file can be made, the existing counter still writes
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: dir.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dir.path)
+            inbox.removeAll()
+        }
+        let m = String(repeating: "A", count: 400)
+        var r = await NSEFlow.handle(m: m, loadKeys: { throw Fault() }, openCore: { _ in nil }, inbox: inbox, nowMs: 1, budgetLeft: { 30 })
+        XCTAssertEqual(r.banner, .dropped)
+        r = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in nil }, inbox: inbox, nowMs: 2, budgetLeft: { 30 })
+        XCTAssertEqual(r.banner, .dropped)
+        r = await NSEFlow.handle(m: m, loadKeys: { throw KeyLoadError.beforeFirstUnlock }, openCore: { _ in nil }, inbox: inbox,
+                                 nowMs: 3, budgetLeft: { 30 })
+        XCTAssertEqual(r.banner, .dropped)
+        XCTAssertEqual(inbox.files().count, 0)
+        XCTAssertEqual(inbox.droppedCount(), 3)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dir.path)
+        _ = await x.core.drainLockedInbox(inbox)
+        let ev = try x.core.store.history().filter { $0.event == .couldNotRead }
+        XCTAssertEqual(ev.count, 1)
+        XCTAssertEqual(inbox.droppedCount(), 0)
+    }
+
     /// a push the NSE dropped is marked handled under the stamp; the drain then counts no
     /// second could-not-read event. A relay "done" without the stamp is still drained.
     func testDrainSkipsHandledDrop() async throws {

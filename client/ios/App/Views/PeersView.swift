@@ -340,6 +340,7 @@ struct PairingCardView: View {
                 Text(S.newPeerWantsToPair).font(.subheadline).foregroundColor(.secondaryText)
                 Button("Reply") { Task { await model.reply(p) } }
                     .buttonStyle(NeutralButtonStyle())
+                    .disabled(model.busy.contains("reply:" + p.id.text))
             case .prompted, .replied:
                 EmptyView()
             case .shown:

@@ -282,16 +282,19 @@ struct CannotReceiveBanner: View {
     private var buttons: some View {
         ForEach(CannotReceiveBanner.actions(notificationsOff: model.notificationsOff,
                                                    undecided: model.notificationsUndecided), id: \.self) { a in
-            Button(a.rawValue) {
-                switch a {
-                case .checkAgain: Task { await model.checkAgain() }
-                case .openSettings: model.openNotificationSettings()
-                case .allow: Task { await model.requestNotifications() }
+            // Check again stays greyed 10 s after a tap; the timeline turns it back on.
+            TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                Button(a.rawValue) {
+                    switch a {
+                    case .checkAgain: Task { await model.checkAgain() }
+                    case .openSettings: model.openNotificationSettings()
+                    case .allow: Task { await model.requestNotifications() }
+                    }
                 }
+                .font(.subheadline)
+                .buttonStyle(.borderless)
+                .disabled(a == .checkAgain && (model.busy.contains("check") || model.checkGreyed(at: ctx.date)))
             }
-            .font(.subheadline)
-            .buttonStyle(.borderless)
-            .disabled(a == .checkAgain && model.busy.contains("check"))
         }
     }
 }

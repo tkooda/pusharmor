@@ -101,18 +101,23 @@ public enum APIOutcome: Sendable {
     public var isClockSkew: Bool { reply?.status == 401 && reply?.error == "clock skew" }
 }
 
-/// Retries (catalog General): up to 3 retries on 429, 503 and network errors only, backoff
-/// about 0.5 s, 1.5 s, 3 s, 8 s total budget; Retry-After honored when it fits the budget.
+/// Retries. A 5xx reply or a network error: up to 3 tries in all, 1 s then 3 s apart.
+/// A 429: up to 3 retries, backoff about 0.5 s, 1.5 s, 3 s, 8 s total budget; Retry-After
+/// honored when it fits the budget.
 public enum RetryPolicy {
     public static let delays: [Double] = [0.5, 1.5, 3.0]
     public static let budget: Double = 8
+    public static let serverDelays: [Double] = [1, 3]
 
     /// Delay before the next try, or nil to stop. status nil = network error.
     public static func delay(retriesDone: Int, status: Int?, retryAfter: Int?, elapsed: Double) -> Double? {
-        if let s = status, s != 429 && s != 503 { return nil }
+        if status != 429 {
+            if let s = status, !(500 ... 599).contains(s) { return nil }
+            return retriesDone < serverDelays.count ? serverDelays[retriesDone] : nil
+        }
         guard retriesDone < delays.count else { return nil }
         var d = delays[retriesDone]
-        if status == 429, let ra = retryAfter { d = Double(ra) }
+        if let ra = retryAfter { d = Double(ra) }
         return elapsed + d <= budget ? d : nil
     }
 }

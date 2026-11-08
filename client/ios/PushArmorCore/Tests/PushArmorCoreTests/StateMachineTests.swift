@@ -446,12 +446,19 @@ final class StateMachineTests: XCTestCase {
     }
 
     func testRetryPolicy() {
-        XCTAssertEqual(RetryPolicy.delay(retriesDone: 0, status: nil, retryAfter: nil, elapsed: 0), 0.5)
-        XCTAssertEqual(RetryPolicy.delay(retriesDone: 1, status: 503, retryAfter: nil, elapsed: 0.5), 1.5)
-        XCTAssertEqual(RetryPolicy.delay(retriesDone: 2, status: 429, retryAfter: nil, elapsed: 2), 3)
-        XCTAssertNil(RetryPolicy.delay(retriesDone: 3, status: 503, retryAfter: nil, elapsed: 5))
-        XCTAssertNil(RetryPolicy.delay(retriesDone: 0, status: 502, retryAfter: nil, elapsed: 0))
+        // 5xx or network: 3 tries in all, 1 s then 3 s apart, with no budget
+        XCTAssertEqual(RetryPolicy.delay(retriesDone: 0, status: nil, retryAfter: nil, elapsed: 0), 1)
+        XCTAssertEqual(RetryPolicy.delay(retriesDone: 1, status: 503, retryAfter: nil, elapsed: 20), 3)
+        XCTAssertEqual(RetryPolicy.delay(retriesDone: 0, status: 500, retryAfter: nil, elapsed: 0), 1)
+        XCTAssertEqual(RetryPolicy.delay(retriesDone: 1, status: 599, retryAfter: nil, elapsed: 0), 3)
+        XCTAssertNil(RetryPolicy.delay(retriesDone: 2, status: 502, retryAfter: nil, elapsed: 4))
+        XCTAssertNil(RetryPolicy.delay(retriesDone: 2, status: nil, retryAfter: nil, elapsed: 4))
         XCTAssertNil(RetryPolicy.delay(retriesDone: 0, status: 400, retryAfter: nil, elapsed: 0))
+        XCTAssertNil(RetryPolicy.delay(retriesDone: 0, status: 426, retryAfter: nil, elapsed: 0))
+        // 429: unchanged
+        XCTAssertEqual(RetryPolicy.delay(retriesDone: 0, status: 429, retryAfter: nil, elapsed: 0), 0.5)
+        XCTAssertEqual(RetryPolicy.delay(retriesDone: 2, status: 429, retryAfter: nil, elapsed: 2), 3)
+        XCTAssertNil(RetryPolicy.delay(retriesDone: 3, status: 429, retryAfter: nil, elapsed: 5))
         XCTAssertEqual(RetryPolicy.delay(retriesDone: 0, status: 429, retryAfter: 5, elapsed: 1), 5)
         XCTAssertNil(RetryPolicy.delay(retriesDone: 0, status: 429, retryAfter: 60, elapsed: 0))   // countdown instead
     }
@@ -1772,7 +1779,7 @@ final class StateMachineTests: XCTestCase {
     /// a failed Refresh gives its outcome and the mapped toast; a good one gives no toast.
     func testRefreshReportsFailure() async throws {
         let n = try dev("Ndev")
-        for _ in 0 ..< 4 { w.script("GET", "/v1/peers", 503, "{\"error\":\"unavailable\"}") }
+        for _ in 0 ..< 3 { w.script("GET", "/v1/peers", 503, "{\"error\":\"unavailable\"}") }
         let out = await n.core.refresh(push: nil).fetch
         XCTAssertEqual(out?.reply?.status, 503)
         XCTAssertEqual(ErrorCopy.refreshFailText(out),
@@ -1800,7 +1807,7 @@ final class StateMachineTests: XCTestCase {
         XCTAssertFalse(n.core.relayFault())
     }
 
-    /// Check again: one signed POST /v1/peers/<id>/check; "sent" clears the relay fault,
+    /// Check again: a signed POST /v1/peers/<id>/check (retried like any other call); "sent" clears the relay fault,
     /// "relay" sets it, "gone" sends the push address again and keeps the fault, a 429 or
     /// no reply is unavailable, and anything else is "failed".
     func testCheckPushResults() async throws {
@@ -1829,17 +1836,20 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(none, .noAddress)
         for (status, body) in [(200, "{\"result\":\"failed\"}"), (200, "{\"result\":\"other\"}"), (200, "{\"result\":\"unavailable\"}"),
                                (503, "{\"error\":\"unavailable\"}")] {
-            w.script("POST", path, status, body)
+            // a 5xx is tried 3 times in all, like any other call
+            for _ in 0 ..< (status == 503 ? 3 : 1) { w.script("POST", path, status, body) }
             let r = await n.core.checkPush(push)
             XCTAssertEqual(r, .failed, body)
         }
-        w.script("POST", path, 429, "{\"error\":\"rate limited\"}")
+        XCTAssertEqual(w.count("POST", path), 10)
+        // a 429 with no retry_after: the 429 policy (3 retries) runs, then unavailable
+        for _ in 0 ..< 4 { w.script("POST", path, 429, "{\"error\":\"rate limited\"}") }
         let limited = await n.core.checkPush(push)
         XCTAssertEqual(limited, .unavailable)
         w.offline = true
         let offline = await n.core.checkPush(push)
         XCTAssertEqual(offline, .unavailable)
-        XCTAssertEqual(w.count("POST", path), 9)
+        XCTAssertEqual(w.count("POST", path), 14)
     }
 
     /// A 400 "push endpoint not allowed" to the push PATCH marks this device's push service
@@ -1863,7 +1873,7 @@ final class StateMachineTests: XCTestCase {
         XCTAssertNil(ErrorCopy.refreshFailText(r.fetch))
         XCTAssertEqual(ErrorCopy.refreshFailText(r.fetch, push: r.push),
                        "Unable to turn on notifications.\nThis device's push service is not supported yet.")
-        for _ in 0 ..< 4 { w.script("PATCH", "/v1/peers/", 503, "{\"error\":\"unavailable\"}") }
+        for _ in 0 ..< 3 { w.script("PATCH", "/v1/peers/", 503, "{\"error\":\"unavailable\"}") }
         await n.core.appOpen(push: push)
         XCTAssertTrue(n.core.pushUnsupported())                           // another failure keeps it
         await n.core.appOpen(push: push)
@@ -1990,7 +2000,7 @@ final class StateMachineTests: XCTestCase {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try await pairFully(n, x)
         await n.core.fetchPeers(force: true)
-        w.script("POST", "/v1/send", 500, "{}")
+        for _ in 0 ..< 3 { w.script("POST", "/v1/send", 500, "{}") }
         do {
             _ = try await n.core.send("hi", as: .text, to: [x.id], allCount: 1)
             XCTFail("expected a failed send")

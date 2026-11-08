@@ -44,6 +44,22 @@ public struct LockedInbox: Sendable {
         try Data(m.utf8).write(to: dir.appendingPathComponent(name), options: opts)
     }
 
+    /// Stores m for the app drain like write. When the file cannot be written, the push is
+    /// counted in "dropped" instead, so the next drain writes a could-not-read event.
+    public func keep(_ m: String, nowMs: Int64) {
+        do { try write(m, nowMs: nowMs) } catch { countDrop() }
+    }
+
+    /// Adds one to the "dropped" count. Written in place (not atomic), so an existing
+    /// counter still counts when no new file can be made in the directory.
+    func countDrop() {
+        var opts: Data.WritingOptions = []
+        #if os(iOS)
+        opts.insert(.noFileProtection)
+        #endif
+        try? Data(String(droppedCount() + 1).utf8).write(to: droppedFile, options: opts)
+    }
+
     /// The trimmed ASCII "m" a file holds, or nil when it does not read.
     public func m(of f: URL) -> String? {
         guard let d = try? Data(contentsOf: f), let s = String(data: d, encoding: .ascii) else { return nil }

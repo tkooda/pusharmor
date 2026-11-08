@@ -18,7 +18,7 @@ final class APITests: XCTestCase {
         w.script("POST", "/v1/auth/email", 200, "{\"request_token\":\"rt\"}")
         let r = await AuthClient(api: api).emailStart(email: "A@B.com", signPub: SoftwareSigner().publicKey, purpose: .register, turnstile: "t")
         XCTAssertEqual(r, .requestToken("rt"))
-        XCTAssertEqual(rec.sleeps, [2, 1.5])
+        XCTAssertEqual(rec.sleeps, [2, 3])
     }
 
     /// an extreme retry_after is clamped to 0...3600 before any sleep or clock sum.
@@ -52,12 +52,46 @@ final class APITests: XCTestCase {
         XCTAssertFalse(Core.fetchOk(.reply(r)))
     }
 
-    func testNoRetryOn502AndLongRetryAfter() async {
+    /// a 5xx reply or a network error: 3 tries in all, 1 s then 3 s apart, then the last result.
+    func testServerErrorRetriedThreeTries() async {
         let w = FakeWorker(), rec = Recorder()
         let api = client(w, rec)
-        w.script("POST", "/v1/auth/email", 502, "{\"error\":\"email send failed\"}")
+        for _ in 0 ..< 3 { w.script("POST", "/v1/auth/email", 502, "{\"error\":\"email send failed\"}") }
         let r = await AuthClient(api: api).emailStart(email: "a@b.com", signPub: SoftwareSigner().publicKey, purpose: .register, turnstile: "t")
         XCTAssertEqual(r, .emailSendFailed)
+        XCTAssertEqual(w.count("POST", "/v1/auth/email"), 3)
+        XCTAssertEqual(rec.sleeps, [1, 3])
+        // a 500 then a good reply: one retry
+        w.script("POST", "/v1/auth/email", 500, "{}")
+        w.script("POST", "/v1/auth/email", 200, "{\"request_token\":\"rt\"}")
+        let r2 = await AuthClient(api: api).emailStart(email: "a@b.com", signPub: SoftwareSigner().publicKey, purpose: .register, turnstile: "t")
+        XCTAssertEqual(r2, .requestToken("rt"))
+        XCTAssertEqual(rec.sleeps, [1, 3, 1])
+        // no reply at all: 3 tries, then network
+        rec.sleeps = []
+        w.offline = true
+        let out = await api.call("GET", "/v1/x", auth: .none)
+        guard case .network = out else { return XCTFail("expected network, got \(out)") }
+        XCTAssertEqual(rec.sleeps, [1, 3])
+    }
+
+    /// Apple sign-in with a single-use authorization code is sent once: no retry on 5xx.
+    func testAppleTokenWithCodeIsNotRetried() async {
+        let w = FakeWorker(), rec = Recorder()
+        let api = client(w, rec)
+        for _ in 0 ..< 3 { w.script("POST", "/v1/auth/apple/token", 503, "{\"error\":\"unavailable\"}") }
+        _ = await AuthClient(api: api).appleToken(idToken: "i", signPub: SoftwareSigner().publicKey, purpose: .deleteAccount, code: "c")
+        XCTAssertEqual(w.count("POST", "/v1/auth/apple/token"), 1)
+        XCTAssertEqual(rec.sleeps, [])
+        // with no code it is retried like any other call: 503, 503, then the 401 of an unscripted call
+        _ = await AuthClient(api: api).appleToken(idToken: "i", signPub: SoftwareSigner().publicKey, purpose: .register, code: "c")
+        XCTAssertEqual(w.count("POST", "/v1/auth/apple/token"), 4)
+        XCTAssertEqual(rec.sleeps, [1, 3])
+    }
+
+    func testNoRetryOnLongRetryAfter() async {
+        let w = FakeWorker(), rec = Recorder()
+        let api = client(w, rec)
         w.script("POST", "/v1/auth/email", 429, "{\"error\":\"rate limited\",\"retry_after\":60}")
         let r2 = await AuthClient(api: api).emailStart(email: "a@b.com", signPub: SoftwareSigner().publicKey, purpose: .register, turnstile: "t")
         XCTAssertEqual(r2, .rateLimited(60))

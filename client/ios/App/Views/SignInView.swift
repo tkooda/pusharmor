@@ -21,13 +21,15 @@ struct SignInView: View {
                 .signInWithAppleButtonStyle(scheme == .dark ? .white : .black)
                 .frame(height: 50)
                 .clipShape(Capsule())
+                .disabled(model.busy.contains("apple"))
 
                 Button {
-                    Task { await GoogleSignIn().signIn(purpose: purpose, model: model) }
+                    Task { await model.once("google") { await GoogleSignIn().signIn(purpose: purpose, model: model) } }
                 } label: {
                     Text("Continue with Google")
                 }
                 .buttonStyle(GoogleButtonStyle())
+                .disabled(model.busy.contains("google"))
 
                 if showEmail {
                     // Red border while non-empty and not a valid address, updated on every edit.
@@ -58,7 +60,7 @@ struct SignInView: View {
                             Text(S.sendLabel("Send code", leftMs: left))
                         }
                         .buttonStyle(GreenButtonStyle())
-                        .disabled(left > 0)
+                        .disabled(left > 0 || model.busy.contains("sendCode"))
                     }
                 } else {
                     Button {

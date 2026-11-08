@@ -78,12 +78,14 @@ public struct AuthClient: Sendable {
         return handle(await api.call("POST", "/v1/auth/google/token", body: body, auth: .none))
     }
 
-    /// With purpose delete-account the body also carries "code" (the authorizationCode).
+    /// With purpose delete-account the body also carries "code" (the authorizationCode). The
+    /// code is single-use, so a body that carries it is sent once, with no retry.
     public func appleToken(idToken: String, signPub: Data, purpose: AuthPurpose, code: String?) async -> AuthResult {
         var f: [(String, JOut)] = [("id_token", .str(idToken)), ("sign_pub", .str(B64URL.encode(signPub))),
                                    ("purpose", .str(purpose.rawValue))]
-        if purpose == .deleteAccount, let c = code { f.append(("code", .str(c))) }
-        return handle(await api.call("POST", "/v1/auth/apple/token", body: JOut.obj(f).data, auth: .none))
+        var once = false
+        if purpose == .deleteAccount, let c = code { f.append(("code", .str(c))); once = true }
+        return handle(await api.call("POST", "/v1/auth/apple/token", body: JOut.obj(f).data, auth: .none, retry: !once))
     }
 }
 
