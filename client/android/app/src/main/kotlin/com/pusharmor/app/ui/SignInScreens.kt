@@ -96,6 +96,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** Welcome / Sign-in: Google, Apple, Email (all three always offered). */
+/** The user closed the Google account picker. */
+internal class GoogleSignInCancelled : Exception()
+
 @Composable
 fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onCancel: (() -> Unit)? = null, onSettings: (() -> Unit)? = null, onDone: () -> Unit) {
     // Delete account: Back and Cancel return to Settings, never out of the app.
@@ -142,6 +145,8 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onCanc
                     try {
                         val token = if (vm.g.push.hasPlayServices) GoogleSignIn.idToken(context as Activity, vm.nonce(purpose) ?: return@launch) else null
                         if (token != null) vm.googleToken(token, purpose, onDone) else vm.oauthUrl("google", purpose)?.let { customTab(context, it) { m -> vm.message.value = m } }
+                    } catch (e: GoogleSignInCancelled) {
+                        // The user closed the account picker: nothing more happens.
                     } finally { googleOpen = false }
                 }
             }, Modifier.fillMaxWidth().heightIn(min = 48.dp), border = BorderStroke(1.dp, g.second),

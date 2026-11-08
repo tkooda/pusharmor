@@ -16,6 +16,9 @@ interface PushFlavor {
     /** foss holds the constant "no Play services". */
     val hasPlayServices: Boolean
 
+    /** Play services need an update or are disabled: shows Google's dialog to fix it and returns true; else false (foss: always). */
+    fun resolvePlayServices(activity: android.app.Activity): Boolean = false
+
     /** The flavor can serve this push type. */
     fun canServe(type: String): Boolean
 

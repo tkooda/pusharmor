@@ -461,7 +461,9 @@ internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, enabled: Boo
     Column(Modifier.fillMaxSize()) {
         if (shown) {
             // Check again reads each cause on this device live, at the tap.
-            val check = UiText.CHECK_AGAIN to {
+            val check = UiText.CHECK_AGAIN to check@{
+                // Play services that need an update or are disabled: Google's dialog first.
+                if ((context as? android.app.Activity)?.let { vm.g.push.resolvePlayServices(it) } == true) return@check
                 val p = vm.prefs.value
                 vm.checkAgain(!n.enabled() || n.mainChannelsBlocked() || (p != null && UnifiedPushSupport.noPushApp(context, p[Settings.K.PUSH_TYPE], google)) ||
                     UnifiedPushSupport.refused(context, p, google) != null || UnifiedPushSupport.setupError(context, p, google) != null)
@@ -522,6 +524,9 @@ internal const val PUSH_GOOGLE = "google"
 /** Push method options: Google where Play services run (never on the build without Google), then each installed UnifiedPush app by name. */
 internal fun pushOptions(google: Boolean, apps: List<Pair<String, String>>): List<String> =
     (if (google) listOf(PUSH_GOOGLE) else emptyList()) + UiText.sortedByName(apps, { it.second }).map { it.first }
+
+/** A pick runs unless it is the option in use; Google with no token yet (an earlier fetch failed) runs again. */
+internal fun pushPickRuns(choice: String, current: String?, token: String?): Boolean = choice != current || (choice == PUSH_GOOGLE && token == null)
 
 /** Push method value: Google, the UnifiedPush app's name, or None available when no push service can be used. */
 internal fun pushMethodName(o: String?, apps: List<Pair<String, String>>): String =
@@ -1602,7 +1607,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
         onDismiss = { pickTheme = false }) { vm.setTheme(it) }
     if (pickPush) ChoiceDialog("Push method", pushOptions(google, apps), pushNow ?: "", ::pushName, note = UiText.UNIFIEDPUSH_NOTE,
         extra = { TextButton(onClick = { getApp = true }) { Text(UiText.GET_PUSH_APP) } },
-        onDismiss = { pickPush = false }) { if (it != pushNow) vm.choosePush(it) }
+        onDismiss = { pickPush = false }) { if (pushPickRuns(it, pushNow, prefs?.get(Settings.K.PUSH_TOKEN))) vm.choosePush(it) }
     if (getApp) GetPushAppDialog(vm) { getApp = false }
     if (confirmHistory) AlertDialog(onDismissRequest = { confirmHistory = false }, text = { Text("Delete all history?") },
         confirmButton = { TextButton(onClick = { vm.deleteAllHistory(); confirmHistory = false }) { Text("Delete") } },

@@ -386,6 +386,7 @@ class Session(private val g: Graph) {
         val account = dao.self()?.id?.take(ACCOUNT_LEN) ?: s.get(Settings.K.ACCOUNT)
         g.notifier.cancelAll()
         g.notifier.deleteAllPeerChannels()
+        g.notifier.deleteMainChannels()
         ShortcutManagerCompat.removeAllDynamicShortcuts(g.app)
         WorkManager.getInstance(g.app).cancelAllWork()
         if (keepOldId) s.clearKeepingOldId() else s.clearKeepingOldId().also { s.set(Settings.K.OLD_ID, null) }

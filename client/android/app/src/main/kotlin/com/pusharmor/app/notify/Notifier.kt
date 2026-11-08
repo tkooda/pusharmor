@@ -125,6 +125,11 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         p.channelId?.let { nm.deleteNotificationChannel(it) }
     }
 
+    /** Wipe: the clear drops the "messages" and "peers" channel ids, so the old channels go first (else they stay in system settings). */
+    fun deleteMainChannels() {
+        for (k in listOf(Settings.K.CH_MESSAGES, Settings.K.CH_PEERS)) settings.get(k)?.let { nm.deleteNotificationChannel(it) }
+    }
+
     fun deleteAllPeerChannels() {
         for (p in dao.peers()) p.channelId?.let { nm.deleteNotificationChannel(it) }
     }

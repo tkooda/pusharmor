@@ -1,5 +1,6 @@
 package com.pusharmor.app.push
 
+import android.app.Activity
 import android.content.Context
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
@@ -17,6 +18,13 @@ class FlavorPush(private val context: Context) : PushFlavor {
     companion object {
         fun create(context: Context): PushFlavor = FlavorPush(context)
 
+        /** Play services that are installed but need an update, are updating, or are disabled count as present; only a missing install does not. */
+        internal fun present(code: Int): Boolean = code == ConnectionResult.SUCCESS || code == ConnectionResult.SERVICE_VERSION_UPDATE_REQUIRED ||
+            code == ConnectionResult.SERVICE_DISABLED || code == ConnectionResult.SERVICE_UPDATING
+
+        /** Google's dialog can fix these: update or enable. */
+        internal fun fixable(code: Int): Boolean = code == ConnectionResult.SERVICE_VERSION_UPDATE_REQUIRED || code == ConnectionResult.SERVICE_DISABLED
+
         /** Turns FCM's own token fetch on or off; a test replaces it (no Firebase app runs in unit tests). */
         internal var autoInit: (Boolean) -> Unit = { FirebaseMessaging.getInstance().isAutoInitEnabled = it }
 
@@ -28,7 +36,14 @@ class FlavorPush(private val context: Context) : PushFlavor {
     }
 
     override val hasPlayServices: Boolean
-        get() = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context) == ConnectionResult.SUCCESS
+        get() = present(GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context))
+
+    override fun resolvePlayServices(activity: Activity): Boolean {
+        val api = GoogleApiAvailability.getInstance()
+        if (!fixable(api.isGooglePlayServicesAvailable(context))) return false
+        api.makeGooglePlayServicesAvailable(activity)
+        return true
+    }
 
     override fun canServe(type: String) = type == "fcm" || type == "unifiedpush"
 
