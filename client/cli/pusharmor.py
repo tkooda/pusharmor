@@ -1561,15 +1561,23 @@ def ntfy_open(url, timeout):
         raise OSError(str(e)) from e
 
 
+def _why(e):
+    return e.reason() if isinstance(e, ApiError) else str(e)
+
+
+RETRY_WAITS = (1, 3)  # seconds slept before the 2nd and 3rd try of a 5xx or network failure
+
+
 class Api:
     def __init__(self, server, keys=None):
         self.base = server.rstrip("/")
         self.keys = keys
         self.skew_ms = 0
         self.push_missing = False
+        self.sleep = lambda s: time.sleep(s)  # injectable; tests replace it
 
     def call(self, method, path, body=None, with_id=True, signed=True, tries=3):
-        """Signed JSON call -> reply object. 426 and network/5xx/429 (after tries) raise Fail;
+        """Pass tries=1 for a call that is not safe to repeat. Signed JSON call -> reply object. 426 and network/5xx/429 (after tries) raise Fail;
         other non-2xx raise ApiError. One retry after a clock skew 401, PA-Time resynced from PA-Epoch."""
         raw = json.dumps(body, separators=(",", ":")).encode() if body is not None else b""
         skewed, attempt = False, 0
@@ -1603,7 +1611,7 @@ class Api:
                 attempt += 1
                 if attempt < tries:
                     ra = j.get("retry_after")
-                    time.sleep(min(ra if type(ra) is int and ra > 0 else 2 ** attempt, 60))
+                    self.sleep(min(ra if type(ra) is int and ra > 0 else RETRY_WAITS[attempt - 1], 60))
                     continue
                 if status == 0:
                     raise TempFail(UNREACHABLE, 0)
@@ -1673,7 +1681,6 @@ class Stream:
                 if self.poll:
                     return None
                 continue
-            self.backoff = 1
             was_long, self.in_long_line = self.in_long_line, not line.endswith(b"\n")
             if was_long or self.in_long_line:
                 continue
@@ -1683,6 +1690,7 @@ class Stream:
                 continue
             if not isinstance(ev, dict) or ev.get("event") != "message":
                 continue
+            self.backoff = 1
             if isinstance(ev.get("id"), str):
                 self.since = ev["id"]
             try:
@@ -1819,8 +1827,10 @@ class Ctx:
 
     def refresh_soon(self):
         if time.time() - self.last_fetch >= FETCH_GAP_S:
-            with contextlib.suppress(ApiError, TempFail):
+            try:
                 self.refresh()
+            except (ApiError, TempFail) as e:
+                log("warning", "Could not refresh the device list: %s" % _why(e))
 
 
 def _ids(xs):
@@ -1910,6 +1920,7 @@ def reconcile_allow(cx):
             if e.status == 401:
                 raise
             if e.status != 400:
+                log("warning", "Could not withdraw a device from the allow list: %s" % _why(e))
                 continue
         with cx.store.state() as d:
             d["my_allow"] = [x for x in d["my_allow"] if x != i]
@@ -2211,7 +2222,7 @@ def on_open(cx, d, e, p, o, notes):
 def post_pair(cx, x, kind, c):
     """POST /v1/pair/X once -> result word (sent, denied, not listening, ...)."""
     try:
-        j = cx.api.call("POST", "/v1/pair/" + x, {"k": kind, "c": c}, tries=1)
+        j = cx.api.call("POST", "/v1/pair/" + x, {"k": kind, "c": c})
     except TempFail as e:
         return "network" if e.status == 0 else str(e.status)
     except ApiError as e:
@@ -2339,7 +2350,8 @@ def sweep(cx):
                 with cx.store.state(write=False) as d:
                     ok = d["peers"].get(x, {}).get("approve_verified")
                 i["resend"] = "200_c_verified" if ok else "200_other"
-            except (TempFail, ApiError, ValueError):
+            except (TempFail, ApiError, ValueError) as err:
+                log("warning", "Could not resend the pairing approval: %s" % _why(err))
                 i["resend"] = "offline"
             a = pair_timeout(i)
         if a in ("keep_waiting", "resend"):
@@ -2540,7 +2552,7 @@ def register_with(cx, code, stream, push, ntfy):
             "push": push}
     while True:
         try:
-            j = cx.api.call("POST", "/v1/peers", body, with_id=False, tries=1)
+            j = cx.api.call("POST", "/v1/peers", body, with_id=False)
             break
         except ApiError as e:
             if e.status != 409 or e.error != "peer limit" or not isinstance(e.body.get("ticket"), str):

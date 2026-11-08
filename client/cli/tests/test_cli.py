@@ -2355,3 +2355,86 @@ def test_requests_send_user_agent():
 
 def test_api_error_426_says_update():
     assert pa.ApiError(426, "", {}).reason() == pa.TOO_OLD
+
+
+def test_retry_schedule_1s_3s_injected_sleeper(monkeypatch):
+    monkeypatch.setattr(pa.time, "sleep", lambda s: pytest.fail("real sleep"))
+    monkeypatch.setattr(pa, "http_request", lambda *a: (503, {}, b""))
+    api = pa.Api("https://r.example", {"id": "x", "sign": pa.new_key()[0]})
+    waits = []
+    api.sleep = waits.append
+    with pytest.raises(pa.TempFail):
+        api.call("POST", "/v1/send", {"v": 1})
+    assert waits == [1, 3]
+    waits.clear()
+    with pytest.raises(pa.TempFail):
+        api.call("POST", "/v1/send", {"v": 1}, tries=1)
+    assert waits == []
+
+
+def test_pair_and_register_calls_retry(monkeypatch):
+    calls = []
+
+    def down(*a):
+        calls.append(1)
+        return 500, {}, b""
+
+    monkeypatch.setattr(pa, "http_request", down)
+    api = pa.Api("https://r.example", {"id": "x", "sign": pa.new_key()[0]})
+    api.sleep = lambda s: None
+
+    class Cx:
+        pass
+
+    cx = Cx()
+    cx.api = api
+    assert pa.post_pair(cx, "x", "a", "c") == "500"
+    assert len(calls) == 3
+
+
+def _stream_with(monkeypatch, lines):
+    st = pa.Stream("https://n.example", "t", {}, None, 5)
+    it = iter(lines)
+
+    class R:
+        def readline(self, n):
+            return next(it, b"")
+
+        def close(self):
+            pass
+
+    st.resp = R()
+    monkeypatch.setattr(pa.time, "sleep", lambda s: None)
+    return st
+
+
+def test_stream_backoff_resets_only_on_message(monkeypatch):
+    st = _stream_with(monkeypatch, [b'{"event":"open"}\n', b'{"event":"keepalive"}\n'])
+    st.backoff = 8
+    st.poll = True
+    assert st.next() is None
+    assert st.backoff == 8
+    st = _stream_with(monkeypatch, [b'{"event":"message","message":"x"}\n'])
+    st.backoff = 8
+    st.poll = True
+    st.next()
+    assert st.backoff == 1
+
+
+def test_reconcile_failure_is_reported(monkeypatch, capsys):
+    cx = type("Cx", (), {})()
+
+    class St:
+        def state(self, write=True):
+            import contextlib
+            d = {"my_allow": ["a"], "peers": {}}
+            return contextlib.nullcontext(d)
+
+    cx.store = St()
+
+    def boom(*a, **k):
+        raise pa.ApiError(500, "oops", {})
+
+    cx.api = type("A", (), {"call": staticmethod(boom)})()
+    pa.reconcile_allow(cx)
+    assert "warning: Could not withdraw" in capsys.readouterr().err
