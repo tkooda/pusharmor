@@ -450,13 +450,11 @@ internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, enabled: Boo
     val setup = remember(tick, prefs) { UnifiedPushSupport.setupError(context, prefs, google) }
     LaunchedEffect(tick) { vm.registerIfInstalled() }
     val off = !n.enabled() || n.mainChannelsBlocked()
-    val closed by vm.cannotReceiveClosed.collectAsState()
     val relay = relayFaultShown(Settings.flagOf(prefs, Settings.K.RELAY_FAULT, false), type, google)
     // The push address could not be sent: line 2 says why.
     val pushError = prefs?.get(Settings.K.PUSH_ERROR)
     val cannot = UiText.cannotReceive(n.enabled(), n.mainChannelsBlocked(), noPushApp, refused != null || setup != null || pushError != null, relay)
-    LaunchedEffect(cannot) { if (!cannot) vm.cannotReceiveClosed.value = false }
-    val shown = enabled && cannot && !closed
+    val shown = enabled && cannot
     var getApp by rememberSaveable { mutableStateOf(false) }
     val top = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
     Column(Modifier.fillMaxSize()) {
@@ -479,8 +477,7 @@ internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, enabled: Boo
                 else -> UiText.RELAY_FAULT to listOf(check)
             }
             CannotReceiveBanner(reason, actions,
-                Modifier.then(if (topInset) Modifier.windowInsetsPadding(top) else Modifier).padding(horizontal = 16.dp, vertical = 8.dp),
-                onClose = { vm.cannotReceiveClosed.value = true })
+                Modifier.then(if (topInset) Modifier.windowInsetsPadding(top) else Modifier).padding(horizontal = 16.dp, vertical = 8.dp))
         }
         if (getApp) GetPushAppDialog(vm) { getApp = false }
         Box(Modifier.weight(1f).then(if (shown && topInset) Modifier.consumeWindowInsets(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)) else Modifier)) { content() }
@@ -532,9 +529,9 @@ internal fun pushMethodName(o: String?, apps: List<Pair<String, String>>): Strin
 internal fun pushCurrent(type: String?, google: Boolean, saved: String?): String? =
     if (UnifiedPushSupport.active(type, google)) saved else PUSH_GOOGLE
 
-/** "This device cannot receive messages." with its reason on line 2, its actions, and an X that hides it until the next app open. */
+/** "This device cannot receive messages." with its reason on line 2 and its actions; it has no close control. */
 @Composable
-private fun CannotReceiveBanner(reason: String, actions: List<Pair<String, () -> Unit>>, modifier: Modifier, onClose: () -> Unit) {
+private fun CannotReceiveBanner(reason: String, actions: List<Pair<String, () -> Unit>>, modifier: Modifier) {
     val cs = MaterialTheme.colorScheme
     Card(modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = cs.errorContainer, contentColor = cs.onErrorContainer)) {
@@ -545,7 +542,6 @@ private fun CannotReceiveBanner(reason: String, actions: List<Pair<String, () ->
                     Text(UiText.CANNOT_RECEIVE, style = MaterialTheme.typography.bodyMedium)
                     Text(reason, style = MaterialTheme.typography.bodyMedium)
                 }
-                IconButton(onClick = onClose, Modifier.size(24.dp)) { Icon(PaIcons.Close, "Close") }
             }
             if (actions.isNotEmpty()) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 for ((label, onClick) in actions) TextButton(onClick = onClick, colors = ButtonDefaults.textButtonColors(contentColor = cs.onErrorContainer)) { Text(label) }

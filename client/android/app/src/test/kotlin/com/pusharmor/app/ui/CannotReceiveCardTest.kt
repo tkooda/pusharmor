@@ -27,7 +27,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/** The cannot-receive card sits above every signed-in tab and the logged-out screen, and one X hides it on all of them. */
+/** The cannot-receive card sits above every signed-in tab and the logged-out screen and has no close control. */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], application = TestApp::class)
@@ -100,24 +100,17 @@ class CannotReceiveCardTest {
         assertTrue("settings tab", cards(a) == 1)
     }
 
-    @Test fun closingTheCardHidesItOnEveryTab() {
-        val (a, vm) = show(app(false), Session.Start.READY)
-        tap(a, "Send")
-        tap(a, "Close")
-        assertTrue(cards(a) == 0)
-        tap(a, "History")
-        assertTrue(cards(a) == 0)
-        tap(a, "Devices")
-        assertTrue(cards(a) == 0)
-        assertTrue(vm.cannotReceiveClosed.value)
+    @Test fun cardStaysOnEveryTabWithNoCloseControl() {
+        val (a, _) = show(app(false), Session.Start.READY)
+        assertTrue(nodes(a).none { text(it) == "Close" || it.config.getOrNull(SemanticsProperties.ContentDescription)?.contains("Close") == true })
+        for (t in listOf("Send", "History", "Devices")) { tap(a, t); assertTrue(cards(a) == 1) }
     }
 
-    @Test fun loggedOutScreenShowsTheCardAndCloseHidesIt() {
+    @Test fun loggedOutScreenShowsTheCardWithNoCloseControl() {
         val (a, _) = show(app(false), Session.Start.SIGNED_OUT)
         assertTrue(cards(a) == 1)
         assertTrue("reason and action", reasonAndAction(a))
-        tap(a, "Close")
-        assertTrue(cards(a) == 0)
+        assertTrue(nodes(a).none { it.config.getOrNull(SemanticsProperties.ContentDescription)?.contains("Close") == true })
     }
 
     @Test fun noCardWhenNotificationsAreOn() {
@@ -150,14 +143,6 @@ class CannotReceiveCardTest {
     @Test fun firstSignInScreenShowsNoCard() {
         val (a, _) = show(app(false), Session.Start.SIGN_IN)
         assertTrue(cards(a) == 0)
-    }
-
-    @Test fun cardComesBackOnNewOpenAfterClose() {
-        val app = app(false)
-        val (a, _) = show(app, Session.Start.READY)
-        tap(a, "Close")
-        val (b, _) = show(app, Session.Start.READY)
-        assertTrue(cards(b) == 1)
     }
 
     /** A relay-side fault on Google push: the card with the relay server line and Check again; UnifiedPush never shows it. */
