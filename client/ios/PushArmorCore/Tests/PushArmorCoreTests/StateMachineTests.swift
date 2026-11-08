@@ -1704,10 +1704,9 @@ final class StateMachineTests: XCTestCase {
         let path = NSTemporaryDirectory() + "pa-mig1-\(UUID().uuidString).sqlite"
         let id = PeerId(raw: Data((0 ..< 30).map { UInt8($0) }))!
         do {
+            // DB(path:) migrates to the latest version: undo migration 2 to get a version 1 file
             let db = try DB(path: path)
-            for stmt in Schema.migrations[0].components(separatedBy: ";\n") where !stmt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                try db.exec(stmt)
-            }
+            try db.exec("ALTER TABLE pairing DROP COLUMN wait_from")
             try db.exec("PRAGMA user_version = 1")
             try db.exec("INSERT INTO pairing (peer_id, role, state, started_at, last_send_at) VALUES (?, 'N', 'committed', 1000, 1010)", [.text(id.text)])
         }
