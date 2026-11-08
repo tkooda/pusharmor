@@ -1,9 +1,10 @@
 import XCTest
+import UserNotifications
 import PushArmorCore
 @testable import PushArmor
 
-/// notifications off: a banner on the tabs and the logged-out screen that stays until its X
-/// is tapped and shows again on the next app open. A relay-side fault shows it on the tabs.
+/// notifications off: a banner on the tabs and the logged-out screen that stays while they
+/// are off and has no close control. A relay-side fault shows it on the tabs.
 @MainActor
 final class CannotReceiveBannerTests: XCTestCase {
     func testBannerShowsWhileNotificationsAreOff() {
@@ -20,14 +21,29 @@ final class CannotReceiveBannerTests: XCTestCase {
         XCTAssertEqual(S.allowNotifications, "Allow notifications for PushArmor in Settings.")
     }
 
-    func testDismissHidesItUntilTheNextAppOpen() async {
-        let model = AppModel()
-        model.phase = .main
-        model.notificationsOff = true
-        model.cannotReceiveDismissed = true
-        XCTAssertFalse(model.showsCannotReceive)
-        await model.onForeground()
-        XCTAssertFalse(model.cannotReceiveDismissed)
+    /// Not yet asked counts as off: iOS drops alert pushes until the user allows them.
+    func testNotYetAskedCountsAsOff() {
+        XCTAssertTrue(AppModel.notificationsAreOff(.notDetermined, alert: .notSupported))
+        XCTAssertTrue(AppModel.notificationsAreOff(.notDetermined, alert: .enabled))
+    }
+
+    func testDeniedIsOff() {
+        XCTAssertTrue(AppModel.notificationsAreOff(.denied, alert: .disabled))
+        XCTAssertTrue(AppModel.notificationsAreOff(.denied, alert: .enabled))
+    }
+
+    func testAllowedWithAlertsOffIsOff() {
+        XCTAssertTrue(AppModel.notificationsAreOff(.authorized, alert: .disabled))
+    }
+
+    func testAllowedWithAlertsOnIsOn() {
+        XCTAssertFalse(AppModel.notificationsAreOff(.authorized, alert: .enabled))
+    }
+
+    /// Provisional is allowed; only alerts turned off make it off.
+    func testProvisionalFollowsTheAlertSetting() {
+        XCTAssertFalse(AppModel.notificationsAreOff(.provisional, alert: .enabled))
+        XCTAssertTrue(AppModel.notificationsAreOff(.provisional, alert: .disabled))
     }
 
     func testRelayFaultShowsItOnTheTabs() {
@@ -35,9 +51,6 @@ final class CannotReceiveBannerTests: XCTestCase {
         model.phase = .main
         model.relayFault = true
         XCTAssertTrue(model.showsCannotReceive)
-        model.cannotReceiveDismissed = true
-        XCTAssertFalse(model.showsCannotReceive)
-        model.cannotReceiveDismissed = false
         model.phase = .signedOut
         XCTAssertFalse(model.showsCannotReceive)
         XCTAssertEqual(S.relayFaultApple, "The relay server cannot reach Apple's push service right now. "
@@ -56,11 +69,15 @@ final class CannotReceiveBannerTests: XCTestCase {
     }
 
     /// Check again is on every banner: notifications off (tabs and logged-out screen, beside
-    /// Open notification settings on the right) and the relay-side fault.
+    /// Open notification settings, or Allow notifications while not yet asked, on the right)
+    /// and the relay-side fault.
     func testCheckAgainIsOnEveryBanner() {
-        XCTAssertEqual(CannotReceiveBanner.actions(notificationsOff: true).map(\.rawValue),
+        XCTAssertEqual(CannotReceiveBanner.actions(notificationsOff: true, undecided: false).map(\.rawValue),
                        ["Check again", "Open notification settings"])
-        XCTAssertEqual(CannotReceiveBanner.actions(notificationsOff: false).map(\.rawValue), ["Check again"])
+        XCTAssertEqual(CannotReceiveBanner.actions(notificationsOff: true, undecided: true).map(\.rawValue),
+                       ["Check again", "Allow notifications"])
+        XCTAssertEqual(CannotReceiveBanner.actions(notificationsOff: false, undecided: false).map(\.rawValue),
+                       ["Check again"])
     }
 
     /// The line after Check again for each outcome.

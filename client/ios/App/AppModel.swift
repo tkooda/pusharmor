@@ -54,13 +54,13 @@ final class AppModel: ObservableObject {
     @Published var repairedNotice = false
     @Published var lockedLine: String?
     @Published var notificationsOff = false
+    /// Not yet asked for notification permission: every app open shows the system prompt.
+    @Published var notificationsUndecided = false
     /// The relay server cannot reach Apple's push service for this device (my_relay_fault).
     @Published var relayFault = false
     /// The relay server does not take this device's push service (push_unsupported).
     @Published var pushUnsupported = false
     @Published var pushRegisterFailed = false
-    /// The X on the "cannot receive" banner hides it until the next app open.
-    @Published var cannotReceiveDismissed = false
     @Published var limitEntries: [LimitEntry] = []
     @Published var limitTicked: Set<String> = []
     @Published var refreshGreyUntil: Date = .distantPast
@@ -306,8 +306,8 @@ final class AppModel: ObservableObject {
     /// Launch and every foreground: locked-inbox drain, delivered notifications, push
     /// reconcile, retries, timeouts, permission check.
     func onForeground() async {
-        cannotReceiveDismissed = false
         await checkPermission()
+        askIfUndecided()
         if started, !sample, AppModel.needsReopen(hasStore: store != nil, hasCore: core != nil, me: try? store?.me(), launchRetry: launchRetry) {
             await once("open") {
                 await open()
@@ -357,19 +357,38 @@ final class AppModel: ObservableObject {
         let center = UNUserNotificationCenter.current()
         _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
         await checkPermission()
-        await route()
+        if phase == .welcome { await route() }
+    }
+
+    /// Not yet asked: show the system prompt without holding up the rest of the app open.
+    private func askIfUndecided() {
+        #if DEBUG
+        if ScreenshotSample.isOn { return }
+        #endif
+        guard notificationsUndecided else { return }
+        Task { await once("notify") { await requestNotifications() } }
     }
 
     func checkPermission() async {
         let s = await UNUserNotificationCenter.current().notificationSettings()
-        notificationsOff = s.authorizationStatus == .denied || s.alertSetting == .disabled
+        notificationsUndecided = s.authorizationStatus == .notDetermined
+        notificationsOff = AppModel.notificationsAreOff(s.authorizationStatus, alert: s.alertSetting)
+    }
+
+    /// Notifications are off until allowed: not yet asked, denied, or alerts turned off.
+    /// iOS drops alert pushes in all three cases, so this device receives nothing.
+    static func notificationsAreOff(_ status: UNAuthorizationStatus, alert: UNNotificationSetting) -> Bool {
+        switch status {
+        case .notDetermined, .denied: return true
+        default: return alert == .disabled
+        }
     }
 
     /// The "cannot receive" banner: on the tabs and the logged-out screen while notifications
     /// are off, and on the tabs while the relay server cannot reach Apple's push service or
-    /// does not take this device's push service, until its X is tapped.
+    /// does not take this device's push service. It has no close control.
     var showsCannotReceive: Bool {
-        (notificationsOff || ((relayFault || pushUnsupported) && phase == .main)) && !cannotReceiveDismissed
+        (notificationsOff || ((relayFault || pushUnsupported) && phase == .main))
             && (phase == .main || phase == .signedOut)
     }
 

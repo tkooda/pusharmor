@@ -224,7 +224,7 @@ struct SettingsGear: ViewModifier {
 
 /// Notifications are off, the relay server does not take this device's push service, or the
 /// relay server cannot reach Apple's push service: a light red
-/// banner at the top that stays until its X is tapped and comes back on the next app open.
+/// banner at the top that stays while the cause lasts. It has no close control.
 struct CannotReceiveBanner: View {
     @EnvironmentObject var model: AppModel
 
@@ -235,9 +235,12 @@ struct CannotReceiveBanner: View {
                     .font(.subheadline.weight(.semibold))
                     .fixedSize(horizontal: false, vertical: true)
                 if model.notificationsOff {
-                    Text(S.allowNotifications)
-                        .font(.subheadline)
-                        .fixedSize(horizontal: false, vertical: true)
+                    // not yet asked: the Allow notifications button shows the system prompt
+                    if !model.notificationsUndecided {
+                        Text(S.allowNotifications)
+                            .font(.subheadline)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 } else if model.pushUnsupported {
                     Text(ErrorCopy.Reason.pushNotSupported.line)
                         .font(.subheadline)
@@ -255,13 +258,6 @@ struct CannotReceiveBanner: View {
             }
             .foregroundStyle(.primary)
             Spacer(minLength: 0)
-            Button {
-                model.cannotReceiveDismissed = true
-            } label: {
-                Image(systemName: "xmark.circle")
-            }
-            .buttonStyle(.borderless)
-            .accessibilityLabel("Dismiss")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -273,19 +269,24 @@ struct CannotReceiveBanner: View {
     enum Action: String {
         case checkAgain = "Check again"
         case openSettings = "Open notification settings"
+        case allow = "Allow notifications"
     }
 
-    /// The buttons, left to right: Check again on every banner.
-    static func actions(notificationsOff: Bool) -> [Action] {
-        notificationsOff ? [.checkAgain, .openSettings] : [.checkAgain]
+    /// The buttons, left to right: Check again on every banner. Notifications off: Allow
+    /// notifications (system prompt) while not yet asked, else Open notification settings.
+    static func actions(notificationsOff: Bool, undecided: Bool) -> [Action] {
+        guard notificationsOff else { return [.checkAgain] }
+        return undecided ? [.checkAgain, .allow] : [.checkAgain, .openSettings]
     }
 
     private var buttons: some View {
-        ForEach(CannotReceiveBanner.actions(notificationsOff: model.notificationsOff), id: \.self) { a in
+        ForEach(CannotReceiveBanner.actions(notificationsOff: model.notificationsOff,
+                                                   undecided: model.notificationsUndecided), id: \.self) { a in
             Button(a.rawValue) {
                 switch a {
                 case .checkAgain: Task { await model.checkAgain() }
                 case .openSettings: model.openNotificationSettings()
+                case .allow: Task { await model.requestNotifications() }
                 }
             }
             .font(.subheadline)
