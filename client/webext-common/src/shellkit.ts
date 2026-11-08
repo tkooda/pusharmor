@@ -85,7 +85,7 @@ export function basePlatform(b: Browser, name: "chrome" | "firefox", isAndroid: 
         .then(() => {
           for (const [id, title, ctx] of MENU_PARENTS) {
             menus.create({ id, title, contexts: [ctx] });
-            if (showAll) menus.create({ id: id + "|all", parentId: id, title: "All devices", contexts: [ctx] });
+            if (showAll && peers.length > 0) menus.create({ id: id + "|all", parentId: id, title: "All devices", contexts: [ctx] });
             for (const p of peers) menus.create({ id: id + "|" + p.id, parentId: id, title: p.name, contexts: [ctx] });
           }
         })

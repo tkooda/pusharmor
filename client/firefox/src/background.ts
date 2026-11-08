@@ -180,7 +180,8 @@ if (browser.menus) {
   browser.menus.onClicked.addListener(onMenuClick(browser, boot, async (_tab, text) => text));
   browser.menus.onShown.addListener((info) => {
     if (!info.contexts?.includes("selection") || !info.selectionText) return;
-    void browser.menus!.update(MENU_SEL, { title: selectionTitle(info.selectionText) }).then(() => browser.menus!.refresh());
+    void browser.menus!.update(MENU_SEL, { title: selectionTitle(info.selectionText) }).then(() => browser.menus!.refresh())
+      .catch(() => undefined); // the item may not exist yet (a rebuild is running)
   });
 }
 

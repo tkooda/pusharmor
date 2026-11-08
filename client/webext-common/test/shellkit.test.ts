@@ -111,6 +111,19 @@ test("context menu rebuilds run one after another: the last list wins, no duplic
   assert.ok(ids.some((id) => id.endsWith("|B")));
 });
 
+test("context menu offers All devices only when a device is listed", async () => {
+  const { basePlatform } = await import("../src/shellkit.ts");
+  const m = fakeMenus();
+  const b = { runtime: { getManifest: () => ({ version: "0.0.19" }) }, storage: { local: {}, session: {} }, menus: m.menus };
+  const p = basePlatform(b as never, "firefox", false, {} as never);
+  p.menusRebuild([], true);
+  await new Promise((r) => setTimeout(r, 20));
+  assert.ok(![...m.items.keys()].some((id) => id.endsWith("|all")));
+  p.menusRebuild([{ id: "A", name: "One" }], true);
+  await new Promise((r) => setTimeout(r, 20));
+  assert.ok([...m.items.keys()].some((id) => id.endsWith("|all")));
+});
+
 test("a menu click after a wipe shows the error in a notification, no unhandled rejection", async () => {
   const { onMenuClick } = await import("../src/shellkit.ts");
   const { UserError } = await import("../src/core/engine.ts");
