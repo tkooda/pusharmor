@@ -97,8 +97,10 @@ export async function mountPopup(env: UiEnv, root: HTMLElement, page?: PageStart
     root.querySelector<HTMLElement>("button.primary")?.focus();
     return;
   }
+  const blocked = env.notificationsBlocked?.().catch(() => false);
   // a failed read keeps Send, the view this open showed before
   const peers = (await rpc<{ peers: PeerView[] }>(env, "peers").catch(() => null))?.peers;
+  const off = (await blocked) ? h("div", { class: "setup-bar", role: "status" }, h("span", {}, T.notificationsOff)) : null;
   if (my !== mounts) return;
   const first: Tab = page?.tab ?? (peers ? launchTab(peers) : "send");
   clear(root);
@@ -146,7 +148,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement, page?: PageStart
     all[to].focus();
     show(all[to].dataset.tab as Tab);
   });
-  const top = h("div", { class: "top" }, h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), setupBar(env, st), tabs);
+  const top = h("div", { class: "top" }, h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), setupBar(env, st), off, tabs);
   root.append(top, body);
   // after the first view is drawn, so the message keeps clear of its footer
   void show(first, page?.openPair, page?.arg)

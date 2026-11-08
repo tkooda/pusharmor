@@ -24,6 +24,8 @@ export interface UiEnv {
   beta: boolean;
   /** Theme choice (storage.local, written by the UI directly) */
   theme: ThemeStore;
+  /** true while the browser blocks this extension's notifications; absent means not blocked. */
+  notificationsBlocked?(): Promise<boolean>;
   /** storage.session for the login tab (Firefox Google or Apple result); absent in screenshot mode. */
   session?: SessionStore;
 }

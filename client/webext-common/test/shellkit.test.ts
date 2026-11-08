@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { lazyBoot, onRuntimeMessage, uiEnv } from "../src/shellkit.ts";
+import { lazyBoot, notificationsBlocked, onRuntimeMessage, uiEnv } from "../src/shellkit.ts";
 
 test("openPage: an open tab on the same page is focused and reloaded", async () => {
   const log: string[] = [];
@@ -195,4 +195,14 @@ test("login page: Close tab and Cancel close the tab through the add-on, not win
   const page = readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8");
   assert.match(page, /onclick: \(\) => void \(env\.closeTab \? env\.closeTab\(\) : window\.close\(\)\) \}, "Close tab"\)/);
   assert.match(page, /onclick: \(\) => void \(env\.closeTab \? env\.closeTab\(\) : window\.close\(\)\) \}, "Cancel"\)/);
+});
+
+test("notifications blocked: Chrome asks notifications.getPermissionLevel; Firefox reads the web permission", async () => {
+  const level = (v: string) => ({ getPermissionLevel: async () => v });
+  assert.equal(await notificationsBlocked(level("denied"), "granted"), true);
+  assert.equal(await notificationsBlocked(level("granted"), "denied"), false); // Chrome: the extension level decides
+  assert.equal(await notificationsBlocked({ getPermissionLevel: async () => Promise.reject(new Error("x")) }, undefined), false);
+  assert.equal(await notificationsBlocked({}, "denied"), true); // Firefox has no getPermissionLevel
+  assert.equal(await notificationsBlocked({}, "granted"), false);
+  assert.equal(await notificationsBlocked({}, undefined), false);
 });

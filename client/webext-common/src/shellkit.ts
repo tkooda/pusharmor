@@ -234,6 +234,16 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
   };
 }
 
+/**
+ * true while the browser blocks this extension's notifications: notifications.getPermissionLevel
+ * (Chrome), else the web Notification permission (Firefox). Neither sees a block in the operating
+ * system's notification settings.
+ */
+export async function notificationsBlocked(n: { getPermissionLevel?(): Promise<string> }, webPermission: string | undefined): Promise<boolean> {
+  if (n.getPermissionLevel) return (await n.getPermissionLevel().catch(() => "")) === "denied";
+  return webPermission === "denied";
+}
+
 /** UiEnv for popup.html and page.html. */
 export function uiEnv(b: Browser, linkSave = false): UiEnv {
   return {
@@ -293,6 +303,7 @@ export function uiEnv(b: Browser, linkSave = false): UiEnv {
       await navigator.clipboard.writeText(text);
     },
     beta: b.runtime.getManifest().name === "PushArmor Beta",
+    notificationsBlocked: () => notificationsBlocked(b.notifications, globalThis.Notification?.permission),
     session: {
       get: async (key) => (await b.storage.session.get([key]))[key],
       remove: (key) => b.storage.session.remove([key]),

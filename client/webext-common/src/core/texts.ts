@@ -63,7 +63,7 @@ export const T = {
   badEmail: "Only email addresses with plain ASCII characters are supported.",
   unknownSender: "Unknown sender",
   signedInAs: (e: string) => "Logged in as " + e,
-  notificationsOff: "Notifications are off. This device cannot receive messages.",
+  notificationsOff: "Notifications are off. New messages appear only in History",
   ffFinishSetup: "Finish setup in the Firefox setup tab.",
   pushWorking: "Working",
   pushCheckFailed: "Unable to check right now. Try again later.",

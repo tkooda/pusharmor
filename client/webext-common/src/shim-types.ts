@@ -59,6 +59,8 @@ export interface Browser {
     create(id: string, opts: { type: "basic"; iconUrl?: string; title: string; message: string }): Promise<string>;
     clear(id: string): Promise<boolean>;
     getAll(): Promise<Record<string, unknown>>;
+    /** Chrome only. */
+    getPermissionLevel?(): Promise<string>;
     onClicked: Event<(id: string) => void>;
   };
   tabs: {

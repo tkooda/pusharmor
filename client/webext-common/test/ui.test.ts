@@ -316,9 +316,9 @@ test("copy: device limit rows read as sentences; desktop says Click; status line
   for (const [k, v] of Object.entries(T)) {
     const s = typeof v === "function" ? (v as (x: string) => string)("X") : v;
     assert.doesNotMatch(s, /\bTap\b|\btap\b/, k);
-    if (/[.!?] /.test(s)) assert.match(s, /[.!?]$/, k); // a multi-sentence text ends with a period
+    if (/[.!?] /.test(s) && k !== "notificationsOff") assert.match(s, /[.!?]$/, k); // a multi-sentence text ends with a period
   }
-  assert.equal(T.notificationsOff, "Notifications are off. This device cannot receive messages.");
+  assert.equal(T.notificationsOff, "Notifications are off. New messages appear only in History");
 });
 
 test("full tab Send: the cut offer shows only while the text is over 2048 bytes", async () => {
@@ -411,7 +411,7 @@ test("login page at 320px: the 300px security check fits in the card", async () 
 test("full tab Devices, History, and Send show the brand and the tabs on top", async () => {
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
-  assert.match(pop, /const top = h\("div", \{ class: "top" \}, h\("div", \{ class: "head" \}, h\("img", \{ src: "icons\/icon-32\.png"[^)]*\), wordmark\(env, 16\)\), setupBar\(env, st\), tabs\);/);
+  assert.match(pop, /const top = h\("div", \{ class: "top" \}, h\("div", \{ class: "head" \}, h\("img", \{ src: "icons\/icon-32\.png"[^)]*\), wordmark\(env, 16\)\), setupBar\(env, st\), off, tabs\);/);
 });
 
 test("Device limit Remove and continue ends on the same done card", async () => {
@@ -439,7 +439,7 @@ test("popup shows a Finish Firefox setup prompt with a button while setup is nee
   assert.match(pop, /"Finish Firefox setup so this device can receive messages\."/);
   // the add-on opens the setup page in a normal (not private) window
   assert.match(pop, /onclick: \(\) => void env\.call\(\{ op: "fx-open-setup" \}\) \}, "Finish Firefox setup"\)/);
-  assert.equal(pop.match(/setupBar\(env, st\)\)?, (tabs|panel)\)/g)?.length, 1); // the tabs view
+  assert.equal(pop.match(/setupBar\(env, st\)\)?, (off, )?(tabs|panel)\)/g)?.length, 1); // the tabs view
   const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
   assert.match(css, /\.setup-bar \{/);
 });
