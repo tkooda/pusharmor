@@ -235,7 +235,7 @@ class EngineTest {
         assertEquals(PairState.REPLIED, states[0].state) // 10th automatic reply
         assertEquals(PairState.PROMPTED, states[1].state) // 11th: prompted, needs [Reply]
         assertFalse(states[1].authorized)
-        assertTrue(x2.tapReply(more[1].id))
+        assertTrue(x2.tapReply(more[1].id, t0))
         assertTrue(x.store.pairing(more[1].id)!!.authorized)
         assertEquals(10, x.store.capTimestamps().size) // tapped reply not counted
     }
@@ -294,6 +294,66 @@ class EngineTest {
         assertEquals(PairState.SHOWN, low.store.pairing(high.id)!!.state)
         assertEquals(PairState.SHOWN, high.store.pairing(low.id)!!.state)
         assertEquals(low.store.pairing(high.id)!!.fingerprint, high.store.pairing(low.id)!!.fingerprint)
+    }
+
+    /** N committed with no answer: plain waiting before 2 minutes, the no-reply error at 2 minutes; Try again skips the 60 s wait. */
+    @Test fun noReplyOnTheCommitSideAndTryAgain() {
+        assertEquals(PairStart.STARTED, n.pairing.tapPair(x.id, t0))
+        n.runPairSends(t0)
+        x.deliver(t0, drop = true)
+        val mark = t0 + PairingEngine.NO_REPLY_MS
+        assertFalse(PairingEngine.noReply(n.store.pairing(x.id)!!, mark - 1000))
+        // an automatic resend (app open, Refresh) does not move the window
+        val auto = t0 + 100_000
+        n.pairing.resendWaiting(auto); n.runPairSends(auto); x.deliver(auto, drop = true)
+        assertEquals(2, commits(n))
+        val row = n.store.pairing(x.id)!!
+        assertEquals(auto, row.lastSendAt)
+        assertNull(row.waitFrom)
+        assertTrue(PairingEngine.noReply(row, mark))
+        // inside the 60 s Send again wait: Send again refuses, Try again sends the same commit now
+        assertFalse(n.pairing.sendAgain(x.id, mark))
+        assertTrue(n.pairing.tryAgain(x.id, mark))
+        n.runPairSends(mark)
+        assertEquals(3, commits(n))
+        val after = n.store.pairing(x.id)!!
+        assertTrue(after.cN!!.contentEquals(row.cN))
+        assertEquals(mark, after.waitFrom)
+        assertFalse(PairingEngine.noReply(after, mark))
+        assertTrue(PairingEngine.noReply(after, mark + PairingEngine.NO_REPLY_MS))
+        // the commit gets through: shown waits on a person, never the no-reply error
+        x.deliver(mark); x.runPairSends(mark); n.deliver(mark)
+        assertEquals(PairState.SHOWN, n.store.pairing(x.id)!!.state)
+        assertFalse(PairingEngine.noReply(n.store.pairing(x.id)!!, mark + 10 * PairingEngine.NO_REPLY_MS))
+    }
+
+    /** X replied (automatic reply) with no open: the window starts at the reply; Try again sends the same reply. */
+    @Test fun noReplyOnTheReplySideAndTryAgain() {
+        assertEquals(PairStart.STARTED, n.pairing.tapPair(x.id, t0))
+        n.runPairSends(t0)
+        x.deliver(t0)
+        x.runPairSends(t0)
+        n.deliver(t0, drop = true)
+        val r = x.store.pairing(n.id)!!
+        assertEquals(PairState.REPLIED, r.state)
+        assertEquals(t0, r.waitFrom)
+        val mark = t0 + PairingEngine.NO_REPLY_MS
+        assertFalse(PairingEngine.noReply(r, mark - 1000))
+        // automatic resends on X (Refresh) and the reply to N's resent commit leave the window alone
+        val auto = t0 + 100_000
+        x.pairing.resendWaiting(auto); x.runPairSends(auto)
+        n.pairing.resendWaiting(auto); n.runPairSends(auto); x.deliver(auto); x.runPairSends(auto); n.deliver(auto, drop = true)
+        assertEquals(t0, x.store.pairing(n.id)!!.waitFrom)
+        assertTrue(PairingEngine.noReply(x.store.pairing(n.id)!!, mark))
+        val replies = x.calls.count { it == "pair:reply" }
+        assertTrue(x.pairing.tryAgain(n.id, mark))
+        x.runPairSends(mark)
+        assertEquals(replies + 1, x.calls.count { it == "pair:reply" })
+        val after = x.store.pairing(n.id)!!
+        assertEquals(mark, after.waitFrom)
+        assertFalse(PairingEngine.noReply(after, mark))
+        n.deliver(mark); n.runPairSends(mark); x.deliver(mark)
+        assertEquals(PairState.SHOWN, x.store.pairing(n.id)!!.state)
     }
 
     // Crossing commits: any timing of Pair taps on both sides ends at compare codes on both.

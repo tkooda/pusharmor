@@ -91,6 +91,7 @@ data class PairingEntity(
     val fingerprint: String?,
     @ColumnInfo(name = "last_send_at") val lastSendAt: Long,
     @ColumnInfo(name = "last_result") val lastResult: String?,
+    @ColumnInfo(name = "wait_from") val waitFrom: Long? = null,
 )
 
 @Entity(tableName = "pairing_cap")
@@ -200,7 +201,7 @@ interface PaDao {
 
 @Database(
     entities = [SelfEntity::class, PeerEntity::class, PairingEntity::class, CapEntity::class, ReplayEntity::class, AllowEntity::class, HistoryEntity::class, StateEntity::class],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 abstract class PaDatabase : RoomDatabase() {
@@ -216,6 +217,13 @@ abstract class PaDatabase : RoomDatabase() {
             }
         }
 
+        /** 7 -> 8: pairing.wait_from, the start of the no-reply window (null: started_at). */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `pairing` ADD COLUMN `wait_from` INTEGER")
+            }
+        }
+
         /**
          * [onCreate] runs when the file is made new: first start, or after a confirmed [deleteCorrupt]. A corrupt
          * file is kept: SQLite hands it to [onCorrupt] instead of deleting it, and the call that met it throws.
@@ -223,7 +231,7 @@ abstract class PaDatabase : RoomDatabase() {
         fun open(context: Context, name: String? = NAME, multiInstance: Boolean = true, onCorrupt: (SupportSQLiteDatabase) -> Unit = {}, onCreate: () -> Unit = {}): PaDatabase {
             val b = if (name == null) Room.inMemoryDatabaseBuilder(context, PaDatabase::class.java)
             else Room.databaseBuilder(context, PaDatabase::class.java, name).let { if (multiInstance) it.enableMultiInstanceInvalidation() else it }
-            return b.addMigrations(MIGRATION_6_7)
+            return b.addMigrations(MIGRATION_6_7, MIGRATION_7_8)
                 .openHelperFactory(KeepCorruptFactory(onCorrupt))
                 .addCallback(object : RoomDatabase.Callback() { override fun onCreate(db: SupportSQLiteDatabase) = onCreate() }).build()
         }

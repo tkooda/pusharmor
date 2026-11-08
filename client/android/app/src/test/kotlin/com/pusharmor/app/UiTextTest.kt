@@ -165,7 +165,7 @@ class UiTextTest {
         assertEquals("Waiting for \"Pixel\": open PushArmor there and tap Codes match.", UiText.waitingCodesMatch("Pixel"))
         assertEquals("Replied. Waiting for \"Pixel\".", UiText.repliedWaiting("Pixel"))
         assertEquals("Waiting for \"Pixel\" to reply.", UiText.waitingReply("Pixel"))
-        assertEquals("No reply yet. Open PushArmor on \"Pixel\", or tap Send again.", UiText.noReplyYet("Pixel"))
+        assertEquals("No reply from \"Pixel\"\nCheck that notifications are on for PushArmor on both devices, then try again", UiText.noReplyFrom("Pixel"))
         assertEquals("\"Pixel\" still holds an earlier pairing. On \"Pixel\", tap Cancel pairing request, then tap Send again.", UiText.stillHolds("Pixel"))
     }
 

@@ -125,10 +125,10 @@ fun Peer.toEntity(old: PeerEntity?) = PeerEntity(
 
 fun PairingEntity.toRow() = PairingRow(
     peerId, PairRole.valueOf(role), PairState.valueOf(state), r, cN, peerSignPub, peerEncPub, peerR, startedAt,
-    pendingKind?.let { PairKind.valueOf(it) }, pendingMessage, notBefore, authorized, fingerprint, lastSendAt, lastResult,
+    pendingKind?.let { PairKind.valueOf(it) }, pendingMessage, notBefore, authorized, fingerprint, lastSendAt, lastResult, waitFrom,
 )
 
 fun PairingRow.toEntity() = PairingEntity(
     peerId, role.name, state.name, r, cN, peerSignPub, peerEncPub, peerR, startedAt, pendingKind?.name, pendingMessage, notBefore,
-    authorized, fingerprint, lastSendAt, lastResult,
+    authorized, fingerprint, lastSendAt, lastResult, waitFrom,
 )

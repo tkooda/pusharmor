@@ -764,6 +764,22 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
     val prompted = row.role == PairRole.X && row.state == PairState.PROMPTED
     val body = MaterialTheme.typography.bodyMedium
     val running by vm.running.collectAsState()
+    // A card open across the no-reply mark turns to the error on its own (a local re-render, no network call).
+    var late by remember { mutableStateOf(0L) }
+    LaunchedEffect(row.state, row.waitFrom, row.startedAt) {
+        val left = (row.waitFrom ?: row.startedAt) + PairingEngine.NO_REPLY_MS - System.currentTimeMillis()
+        if (left > 0) { delay(left); late = System.currentTimeMillis() }
+    }
+    val stillHolds = PairingEngine.hint(row, p, now) == PairDecide.Hint.STILL_HOLDS
+    val noReply = !stillHolds && PairingEngine.noReply(row, maxOf(now, late))
+    // Try again greys for 10 s after a tap and turns on again by itself.
+    val tapped = vm.tryAgainTaps.collectAsState().value[p.id]
+    var ungrey by remember { mutableStateOf(0L) }
+    LaunchedEffect(tapped) {
+        val left = (tapped ?: return@LaunchedEffect) + AppViewModel.TRY_AGAIN_GREY_MS - System.currentTimeMillis()
+        if (left > 0) delay(left)
+        ungrey = System.currentTimeMillis()
+    }
     Column(modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(shape).background(ex.tile).border(1.dp, ex.pairBorder, shape)
         // Bottom padding as wide as the gap above the footer, so Cancel pairing request does not sit on the border.
         .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 12.dp)) {
@@ -796,17 +812,17 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
                 Spacer(Modifier.height(12.dp))
                 GreenButton(onClick = { vm.reply(p.id) }, text = "Reply", icon = null, modifier = Modifier.fillMaxWidth())
             }
+            noReply -> {
+                Text(UiText.noReplyFrom(x), style = body, color = cs.error)
+                TextButton(onClick = { vm.tryAgainPair(p.id) }, enabled = AppViewModel.tryAgainEnabled(tapped, maxOf(now, late, ungrey))) { Text("Try again") }
+            }
             row.role == PairRole.X -> Text(UiText.repliedWaiting(x), style = body, color = cs.onSurfaceVariant)
             else -> {
                 Text(UiText.waitingReply(x), style = body, color = cs.onSurfaceVariant)
-                when (PairingEngine.hint(row, p, now)) {
-                    PairDecide.Hint.STILL_HOLDS -> Text(UiText.stillHolds(x), style = body, color = cs.onSurfaceVariant)
-                    PairDecide.Hint.NO_REPLY_YET -> Text(UiText.noReplyYet(x), style = body, color = cs.onSurfaceVariant)
-                    null -> Unit
-                }
+                if (stillHolds) Text(UiText.stillHolds(x), style = body, color = cs.onSurfaceVariant)
             }
         }
-        if (row.role == PairRole.N && row.state != PairState.PROMPTED && !(row.state == PairState.SHOWN && p.approveVerified)) {
+        if (!noReply && row.role == PairRole.N && row.state != PairState.PROMPTED && !(row.state == PairState.SHOWN && p.approveVerified)) {
             TextButton(onClick = { vm.sendAgainPair(p.id) }, enabled = now - row.lastSendAt >= PairingEngine.SEND_AGAIN_MS) { Text("Send again") }
         }
         Spacer(Modifier.height(12.dp))

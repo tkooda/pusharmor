@@ -71,6 +71,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         /** Check again on a push setup error waits this long for the token or address before it says still. */
         const val SETUP_WAIT_MS = 35_000L
 
+        /** Try again stays greyed this long after a tap, as Refresh does. */
+        const val TRY_AGAIN_GREY_MS = 10_000L
+
+        /** Try again is enabled when it was not tapped, or its grey time after the last tap ended. */
+        fun tryAgainEnabled(tappedAt: Long?, now: Long): Boolean = tappedAt == null || now - tappedAt >= TRY_AGAIN_GREY_MS
+
         /** Line 2 for a tap that failed with an exception: keys, storage, or a plain retry. */
         fun localReason(e: Throwable): String = when (e) {
             is android.database.sqlite.SQLiteFullException -> ErrorText.STORAGE_FULL
@@ -303,8 +309,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private fun refused(id: String, r: PairStart) {
         UiText.pairRefused(r, peers.value.firstOrNull { it.id == id }?.let(::label) ?: "")?.let { message.value = it }
     }
-    fun reply(id: String) = io(UiText.unablePair(nameOf(id))) { g.pairing().tapReply(id) }
+    fun reply(id: String) = io(UiText.unablePair(nameOf(id))) { g.pairing().tapReply(id, System.currentTimeMillis()) }
     fun sendAgainPair(id: String) = io(UiText.unablePair(nameOf(id))) { g.pairing().sendAgain(id, System.currentTimeMillis()) }
+    /** Last Try again tap per peer id, in memory only (greys the button for [TRY_AGAIN_GREY_MS]). */
+    val tryAgainTaps = MutableStateFlow<Map<String, Long>>(emptyMap())
+    fun tryAgainPair(id: String) {
+        val now = System.currentTimeMillis()
+        if (!tryAgainEnabled(tryAgainTaps.value[id], now)) return
+        tryAgainTaps.update { it + (id to now) }
+        io(UiText.unablePair(nameOf(id))) { g.pairing().tryAgain(id, now) }
+    }
     fun cancelPairing(id: String) = io(UiText.unableCancelPairing(nameOf(id))) { g.pairing().cancelPairing(id); g.reconcile().run() }
     /** Peer ids with a Pair again call running; their button is greyed so a second tap cannot cancel the first. */
     val pairingAgain = MutableStateFlow<Set<String>>(emptySet())

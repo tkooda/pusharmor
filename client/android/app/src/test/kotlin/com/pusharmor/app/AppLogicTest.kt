@@ -471,6 +471,16 @@ class AppLogicTest {
         for (v in listOf("deleting", "email", "skipped")) assertTrue(v, act.contains("var $v by rememberSaveable"))
     }
 
+    @Test fun tryAgainGreysForTenSecondsAfterATap() {
+        val t = 1_000_000L
+        assertTrue(AppViewModel.tryAgainEnabled(null, t))
+        assertFalse(AppViewModel.tryAgainEnabled(t, t)) // right after the tap
+        assertFalse(AppViewModel.tryAgainEnabled(t, t + AppViewModel.TRY_AGAIN_GREY_MS - 1))
+        assertTrue(AppViewModel.tryAgainEnabled(t, t + AppViewModel.TRY_AGAIN_GREY_MS))
+        val ui = source("ui/MainScreens.kt")
+        assertTrue(ui.contains("enabled = AppViewModel.tryAgainEnabled(tapped, "))
+    }
+
     @Test fun secondTapOfARunningActionDoesNotRun() {
         val running = kotlinx.coroutines.flow.MutableStateFlow<Set<String>>(emptySet())
         assertTrue(AppViewModel.claim(running, "send"))

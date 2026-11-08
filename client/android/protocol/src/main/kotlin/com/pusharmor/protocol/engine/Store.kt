@@ -38,6 +38,8 @@ data class PairingRow(
     val fingerprint: String? = null,
     val lastSendAt: Long = 0,
     val lastResult: String? = null,
+    /** Start of the current no-reply window (a [Reply] tap, an automatic reply, a Try again tap); null: [startedAt]. */
+    val waitFrom: Long? = null,
 )
 
 enum class Direction { SENT, RECEIVED }

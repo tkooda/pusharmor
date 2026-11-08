@@ -394,7 +394,8 @@ object UiText {
     // Screen reader labels that carry a device name in a sentence quote it too.
     fun moreOptionsFor(x: String): String = "More options for \"$x\""
     fun chipLabel(name: String, status: String): String = "\"$name\": $status"
-    fun noReplyYet(x: String): String = "No reply yet. Open PushArmor on \"$x\", or tap Send again."
+    /** The pairing row error when the other device has not answered (two lines). */
+    fun noReplyFrom(x: String): String = "No reply from \"$x\"\nCheck that notifications are on for PushArmor on both devices, then try again"
     private fun quoted(name: String?, none: String): String = if (name == null) none else "\"$name\""
 
     /** Screen reader state of the sign-in code field, which has no visible label: "Code, 2 of 6 entered". */

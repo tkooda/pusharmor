@@ -10,9 +10,11 @@ import com.pusharmor.protocol.Peer
 import com.pusharmor.protocol.ReplayWindow
 import com.pusharmor.protocol.engine.Direction
 import com.pusharmor.protocol.engine.HistoryRow
+import com.pusharmor.protocol.engine.PairingEngine
 import com.pusharmor.protocol.engine.PairingRow
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -88,6 +90,22 @@ class RoomLocalStoreTest {
         assertEquals(listOf(5L), s2.capTimestamps())
         s2.deletePairing("x")
         assertNull(s2.pairing("x"))
+    }
+
+    @Test fun noReplyWindowSurvivesReopen() {
+        val db1 = Room.databaseBuilder(ctx, PaDatabase::class.java, "w.db").allowMainThreadQueries().build()
+        RoomLocalStore(db1).putPairing(PairingRow("x", PairRole.X, PairState.REPLIED, ByteArray(32) { 3 }, ByteArray(32) { 4 }, startedAt = 1000,
+            authorized = true, lastSendAt = 1000, waitFrom = 50_000))
+        RoomLocalStore(db1).putPairing(PairingRow("n", PairRole.N, PairState.COMMITTED, ByteArray(32) { 5 }, ByteArray(32) { 6 }, startedAt = 2000))
+        db1.close()
+        val s2 = RoomLocalStore(Room.databaseBuilder(ctx, PaDatabase::class.java, "w.db").allowMainThreadQueries().build())
+        val x = s2.pairing("x")!!
+        assertEquals(50_000L, x.waitFrom)
+        assertFalse(PairingEngine.noReply(x, 50_000 + PairingEngine.NO_REPLY_MS - 1))
+        assertTrue(PairingEngine.noReply(x, 50_000 + PairingEngine.NO_REPLY_MS))
+        val n = s2.pairing("n")!!
+        assertNull(n.waitFrom) // falls back to started_at
+        assertTrue(PairingEngine.noReply(n, 2000 + PairingEngine.NO_REPLY_MS))
     }
 
     @Test fun replayHistoryMergeAndWipeKeepsHistory() {

@@ -38,6 +38,15 @@ class PairingEngine(
         const val PAIRING_FAILED = "Pairing failed. Start again on the new device."
         const val TIMED_OUT = "Pairing timed out. Tap Pair to start again."
         const val SEND_AGAIN_MS = 60_000L
+        /** Time the other device has to answer a commit or a reply before the row shows the no-reply error. */
+        const val NO_REPLY_MS = 120_000L
+
+        /** The entry waits on the other device to answer on its own: N committed, or X replied. */
+        fun waitsOnDevice(row: PairingRow): Boolean =
+            (row.role == PairRole.N && row.state == PairState.COMMITTED) || (row.role == PairRole.X && row.state == PairState.REPLIED)
+
+        /** No answer within [NO_REPLY_MS] of the window start ([PairingRow.waitFrom], else the entry's start). */
+        fun noReply(row: PairingRow, now: Long): Boolean = waitsOnDevice(row) && now - (row.waitFrom ?: row.startedAt) >= NO_REPLY_MS
 
         /** The waiting hint from rows the caller already holds (the Peers screen, on the main thread). */
         fun hint(row: PairingRow, peer: Peer?, now: Long): PairDecide.Hint? {
@@ -153,7 +162,7 @@ class PairingEngine(
                 val rX = random(32)
                 // Row (c_N, r_X, state) persisted BEFORE the reply send.
                 store.putPairing(PairingRow(from, PairRole.X, PairState.REPLIED, rX, cN, startedAt = now, authorized = true,
-                    pendingKind = PairKind.REPLY, pendingMessage = reply(from, enc, rX)))
+                    pendingKind = PairKind.REPLY, pendingMessage = reply(from, enc, rX), waitFrom = now))
                 if (d.capCounted) store.addCapTimestamp(now / 1000)
             }
             EntryChange.CREATED_PROMPTED -> {
@@ -259,12 +268,12 @@ class PairingEngine(
     }
 
     /** [Reply] tap on a prompted X row: authorized, sent with REPLACE. */
-    fun tapReply(peerId: String): Boolean {
+    fun tapReply(peerId: String, now: Long): Boolean {
         val ok = store.tx {
             val row = store.pairing(peerId) ?: return@tx false
             if (row.role != PairRole.X || row.state != PairState.PROMPTED) return@tx false
             val enc = store.peer(peerId)?.let { listedEncPub(it) } ?: return@tx false
-            store.putPairing(row.copy(authorized = true, pendingKind = PairKind.REPLY, pendingMessage = row.pendingMessage ?: reply(peerId, enc, row.r)))
+            store.putPairing(row.copy(authorized = true, pendingKind = PairKind.REPLY, pendingMessage = row.pendingMessage ?: reply(peerId, enc, row.r), waitFrom = now))
             true
         }
         if (ok) effects.schedulePairSend(peerId, replace = true)
@@ -335,6 +344,22 @@ class PairingEngine(
                 else -> return@tx false
             }
             store.putPairing(row.copy(pendingKind = if (row.state == PairState.COMMITTED) PairKind.COMMIT else PairKind.OPEN, pendingMessage = msg))
+            true
+        }
+        if (ok) effects.schedulePairSend(peerId, replace = true)
+        return ok
+    }
+
+    /**
+     * [Try again] on a no-reply row: the same commit (N committed) or the same reply (X replied) now,
+     * without the 60 s wait; a server wait (notBefore) still holds. Starts a new no-reply window.
+     */
+    fun tryAgain(peerId: String, now: Long): Boolean {
+        val ok = store.tx {
+            val row = store.pairing(peerId) ?: return@tx false
+            if (!waitsOnDevice(row)) return@tx false
+            val (kind, msg) = sameMessage(row) ?: return@tx false
+            store.putPairing(row.copy(pendingKind = kind, pendingMessage = msg, waitFrom = now))
             true
         }
         if (ok) effects.schedulePairSend(peerId, replace = true)
@@ -459,6 +484,6 @@ class PairingEngine(
         return t
     }
 
-    /** N row text: hint after 3 days in committed (golden pair_hint). */
+    /** N row hint in committed (golden pair_hint); the rows show only STILL_HOLDS, [noReply] replaced NO_REPLY_YET. */
     fun hint(row: PairingRow, now: Long): PairDecide.Hint? = hint(row, store.peer(row.peerId), now)
 }
