@@ -58,7 +58,7 @@ jobs:
           [ "$GITHUB_REF" = "refs/tags/$TAG" ] || echo "::warning::workflow file from $GITHUB_REF, not from $TAG: its toolchain pins may differ from the release"
           echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct HEAD)" >> "$GITHUB_ENV"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
