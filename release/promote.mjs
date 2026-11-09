@@ -25,6 +25,7 @@ import { appendFileSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFi
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { inflateSync } from "node:zlib";
 import { checkDir } from "./check-screenshots.mjs";
 import { loadPublic } from "./public.mjs";
 import { buildNumber, formatProblems, parseVersion } from "./tag.mjs";
@@ -279,9 +280,12 @@ export async function http(method, url, { headers = {}, body, ok = [200, 201, 20
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Wrap an AMO request function: when AMO answers HTTP 429, log and wait the
- *  time its message names ("Expected available in N seconds", else 60 s) plus
- *  2 s and send the request again, up to 5 times. */
-export function amoRetry(amo, wait = sleep, log = console.log) {
+ *  time its message names ("Expected available in N seconds", the Retry-After
+ *  time; else 60 s) plus 2 s and send the request again, up to 5 times. All
+ *  waits of one wrapper together stay within `budgetMs` (well under the
+ *  60-minute store job): a wait that does not fit fails at once. */
+export function amoRetry(amo, wait = sleep, log = console.log, budgetMs = 20 * 60000) {
+  let waited = 0;
   return async (...args) => {
     for (let n = 0; ; n++) {
       try {
@@ -290,6 +294,8 @@ export function amoRetry(amo, wait = sleep, log = console.log) {
         const m = String(e?.message || "");
         if (n >= 5 || !/HTTP 429/.test(m)) throw e;
         const s = Number(/Expected available in (\d+) second/.exec(m)?.[1] ?? 60) + 2;
+        if (waited + s * 1000 > budgetMs) throw new Error("AMO throttled " + args[0] + " " + args[1] + " for " + s + " s, more than the " + Math.round((budgetMs - waited) / 1000) + " s left of the " + budgetMs / 60000 + "-minute throttle budget (" + m.slice(0, 300) + ")");
+        waited += s * 1000;
         log("AMO throttled " + args[0] + " " + args[1] + ", waiting " + s + " s (retry " + (n + 1) + " of 5)");
         await wait(s * 1000);
       }
@@ -830,45 +836,127 @@ export function amoToken(issuer, secret, now = Math.floor(Date.now() / 1000)) {
   return data + "." + createHmac("sha256", secret).update(data).digest("base64url");
 }
 
-/** Replace the AMO listing previews with `shots`, in order: upload each one
- *  (position = its index, `gap` ms apart to stay under the AMO throttle),
- *  then delete every preview that was there before. AMO re-encodes previews,
- *  so an unchanged set cannot be detected by content. A run that already
- *  uploaded the set is recognised by ids: when the listing holds more than
- *  shots.length previews and the newest shots.length ids (the last upload)
- *  carry the positions 0..N-1 in id order, those are kept, the rest deleted,
- *  and nothing is uploaded. A failed upload leaves the old previews in place. */
-export async function syncAmoPreviews({ amo, id, shots, wait = sleep, gap = 15000, log = console.log }) {
-  const old = ((await amo("GET", "/addon/" + id + "/")).json.previews || []).slice().sort((a, b) => a.id - b.id);
+/** A key for the pixels of a PNG: the size, the pixel format, and the
+ *  unfiltered rows (plus the palette), so two encodings of the same image
+ *  match. AMO re-encodes each uploaded preview, but keeps its pixels. Not a
+ *  PNG (or an interlaced one): the sha256 of the bytes. */
+export function pngKey(buf) {
+  const b = Buffer.from(buf);
+  if (b.length < 33 || b.readUInt32BE(0) !== 0x89504e47 || b.toString("latin1", 12, 16) !== "IHDR") return "bytes:" + sha256(b);
+  const w = b.readUInt32BE(16);
+  const h = b.readUInt32BE(20);
+  const [depth, type, , , interlace] = b.subarray(24, 29);
+  const channels = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[type];
+  if (!channels || interlace) return "bytes:" + sha256(b);
+  const idat = [];
+  let plte = Buffer.alloc(0);
+  for (let i = 8; i + 8 <= b.length; ) {
+    const len = b.readUInt32BE(i);
+    const t = b.toString("latin1", i + 4, i + 8);
+    if (t === "IDAT") idat.push(b.subarray(i + 8, i + 8 + len));
+    if (t === "PLTE") plte = b.subarray(i + 8, i + 8 + len);
+    i += 12 + len;
+  }
+  const raw = inflateSync(Buffer.concat(idat));
+  const bpp = Math.max(1, (channels * depth) >> 3);
+  const stride = Math.ceil((w * channels * depth) / 8);
+  const out = Buffer.alloc(stride * h);
+  for (let y = 0; y < h; y++) {
+    const f = raw[y * (stride + 1)];
+    const src = raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1));
+    const row = out.subarray(y * stride, (y + 1) * stride);
+    const up = y ? out.subarray((y - 1) * stride, y * stride) : Buffer.alloc(stride);
+    for (let x = 0; x < stride; x++) {
+      const a = x >= bpp ? row[x - bpp] : 0;
+      const c = x >= bpp ? up[x - bpp] : 0;
+      const p = a + up[x] - c;
+      const pa = Math.abs(p - a), pb = Math.abs(p - up[x]), pc = Math.abs(p - c);
+      const pred = [0, a, up[x], (a + up[x]) >> 1, pa <= pb && pa <= pc ? a : pb <= pc ? up[x] : c][f];
+      row[x] = (src[x] + pred) & 255;
+    }
+  }
+  return "png:" + w + "x" + h + "/" + depth + "/" + type + "/" + sha256(Buffer.concat([plte, out]));
+}
+
+/** The bytes of a listing preview image (a public AMO URL). */
+async function amoImage(url) {
+  let r;
+  try {
+    r = await fetch(url, { signal: AbortSignal.timeout(AMO_TIMEOUT_MS) });
+  } catch (e) {
+    throw fetchError("GET", url, e);
+  }
+  if (!r.ok) throw new Error("GET " + url.split("?")[0] + ": HTTP " + r.status);
+  return Buffer.from(await r.arrayBuffer());
+}
+
+/** Make the AMO listing previews equal `shots`, in order. AMO re-encodes
+ *  previews, so each listing image is downloaded (`image`) and compared with
+ *  the screenshots by pixels (pngKey). A preview that shows a screenshot is
+ *  kept (the first one by position, then id); only the screenshots with no
+ *  such preview are uploaded (position = its index, `gap` ms apart to stay
+ *  under the AMO throttle). Then the previews that are duplicates or not in
+ *  the set are deleted and kept previews at the wrong position are moved. A
+ *  failed step stops the sync with an error that names the steps left undone
+ *  (a failed upload leaves the old previews in place); the next run reuses
+ *  what was uploaded. */
+export async function syncAmoPreviews({ amo, id, shots, wait = sleep, gap = 15000, log = console.log, image = amoImage }) {
+  const old = ((await amo("GET", "/addon/" + id + "/")).json.previews || []).slice().sort((a, b) => a.position - b.position || a.id - b.id);
   const n = shots.length;
   log("AMO previews: " + old.length + " on the listing, " + n + " screenshots");
-  const del = async (list) => {
-    for (const p of list) {
+  const keys = new Map();
+  for (const p of old) keys.set(p.id, pngKey(await image(p.image_url)));
+  const used = new Set();
+  const keep = shots.map((s) => {
+    const k = pngKey(s.data);
+    const p = old.find((q) => !used.has(q.id) && keys.get(q.id) === k);
+    if (p) used.add(p.id);
+    return p;
+  });
+  const steps = [];
+  for (const [i, s] of shots.entries()) {
+    if (!keep[i]) {
+      steps.push({ what: "upload " + s.name, run: async () => {
+        if (steps.some((x) => x.done && x.upload)) {
+          log("AMO previews: waiting " + gap / 1000 + " s before the next upload");
+          await wait(gap);
+        }
+        log("AMO previews: uploading " + s.name + " at position " + i);
+        const f = new FormData();
+        f.append("image", new Blob([s.data], { type: "image/png" }), s.name);
+        f.append("position", String(i));
+        await amo("POST", "/addon/" + id + "/previews/", f);
+      }, upload: true });
+    }
+  }
+  const extra = old.filter((p) => !used.has(p.id));
+  for (const p of extra) {
+    steps.push({ what: "delete preview " + p.id, run: async () => {
       log("AMO previews: deleting preview " + p.id);
       await amo("DELETE", "/addon/" + id + "/previews/" + p.id + "/");
-    }
-  };
-  if (old.length > n) {
-    const newest = old.slice(old.length - n);
-    if (newest.every((p, i) => Number(p.position) === i)) {
-      log("AMO previews: the newest " + n + " are the screenshots, nothing to upload");
-      await del(old.slice(0, old.length - n));
-      return "previews already uploaded, " + (old.length - n) + " old previews removed";
+    } });
+  }
+  for (const [i, p] of keep.entries()) {
+    if (p && Number(p.position) !== i) {
+      steps.push({ what: "move preview " + p.id + " to position " + i, run: async () => {
+        log("AMO previews: moving preview " + p.id + " (" + shots[i].name + ") to position " + i);
+        const f = new FormData();
+        f.append("position", String(i));
+        await amo("PATCH", "/addon/" + id + "/previews/" + p.id + "/", f);
+      } });
     }
   }
-  for (const [i, s] of shots.entries()) {
-    if (i > 0) {
-      log("AMO previews: waiting " + gap / 1000 + " s before the next upload");
-      await wait(gap);
+  if (!steps.length) return "previews unchanged";
+  for (const s of steps) {
+    try {
+      await s.run();
+      s.done = true;
+    } catch (e) {
+      throw new Error("AMO previews: " + (e?.message || e) + "; left undone: " + steps.filter((x) => !x.done).map((x) => x.what).join(", "));
     }
-    log("AMO previews: uploading " + s.name + " at position " + i);
-    const f = new FormData();
-    f.append("image", new Blob([s.data], { type: "image/png" }), s.name);
-    f.append("position", String(i));
-    await amo("POST", "/addon/" + id + "/previews/", f);
   }
-  await del(old);
-  return n + " previews uploaded, " + old.length + " old previews removed";
+  const up = steps.filter((x) => x.upload).length;
+  return up + " previews uploaded, " + extra.length + " old previews removed";
 }
 
 const AMO_TIMEOUT_MS = 60000;
