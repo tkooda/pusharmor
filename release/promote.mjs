@@ -781,7 +781,7 @@ export async function syncScreenshots({ asc, http, setId, shots, sleep, now = Da
 
 // ---- Chrome Web Store (public item) ----
 
-async function chrome(version) {
+export async function chrome(version) {
   const pub = loadPublic();
   const api = "https://chromewebstore.googleapis.com";
   const item = "publishers/" + pub.google_cws_publisher_id + "/items/" + pub.google_chrome_extension_id;
@@ -798,7 +798,13 @@ async function chrome(version) {
   if (sub && crx(sub).includes(version) && ["PENDING_REVIEW", "STAGED"].includes(sub.state)) return done("Chrome " + version + ": already " + sub.state + "; nothing to do");
   const newer = [...live, ...crx(sub)].filter((x) => parseVersion(x) && cmpVersion(x, version) > 0);
   if (newer.length) return skip("Chrome " + version + ": SKIP, store already has " + newer[0]);
-  if (sub && sub.state === "PENDING_REVIEW") throw new Error("Chrome Web Store: version " + (crx(sub).join(",") || "unknown") + " is in review (PENDING_REVIEW); wait for that review to finish (or cancel it in the dashboard), then promote " + version + " again");
+  // An older version in review is cancelled through the API so the new version can be submitted
+  // (cancelSubmission only cancels a submission if present, so a retry is safe).
+  const pending = sub && sub.state === "PENDING_REVIEW" ? crx(sub) : [];
+  if (pending.length && pending.every((x) => parseVersion(x) && cmpVersion(x, version) < 0)) {
+    await getRetry("POST", api + "/v2/" + item + ":cancelSubmission", { headers: { ...auth, "Content-Type": "application/json" }, body: "{}" });
+    console.log("Chrome Web Store: cancelled the review of version " + pending.join(",") + " to submit " + version);
+  } else if (sub && sub.state === "PENDING_REVIEW") throw new Error("Chrome Web Store: version " + (pending.join(",") || "unknown") + " is in review (PENDING_REVIEW); wait for that review to finish (or cancel it in the dashboard), then promote " + version + " again");
 
   const zip = await releaseFile("chrome", version, "pusharmor-chrome-" + version + "-store.zip").catch(() => releaseFile("chrome", version, "pusharmor-chrome-" + version + ".zip"));
   let r = (await getRetry("POST", api + "/upload/v2/" + item + ":upload", { headers: { ...auth, "Content-Type": "application/zip" }, body: zip })).json;

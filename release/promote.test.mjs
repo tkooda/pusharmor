@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, verify } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { AMO_REVIEW_NOTES, PLAY_ICON, IOS_SCREENSHOT_TYPE, amoInReviewProblem, amoNotesProblems, amoRetry, ascInReviewProblem, ascRetry, ascValidBuild, amoToken, appstore, ascToken, attestationArgs, hashesName, playInReviewProblem, clearOutput, cmpVersion, commitProblems, contactProblems, http, listingProblems, playGateProblem, readListing, releaseAssets, screenshotFiles, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncAmoPreviews, syncScreenshots, tagPlatform } from "./promote.mjs";
+import { AMO_REVIEW_NOTES, PLAY_ICON, IOS_SCREENSHOT_TYPE, amoInReviewProblem, amoNotesProblems, amoRetry, ascInReviewProblem, ascRetry, ascValidBuild, amoToken, appstore, chrome, ascToken, attestationArgs, hashesName, playInReviewProblem, clearOutput, cmpVersion, commitProblems, contactProblems, http, listingProblems, playGateProblem, readListing, releaseAssets, screenshotFiles, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncAmoPreviews, syncScreenshots, tagPlatform } from "./promote.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -758,4 +758,42 @@ test("collect creates the store release tag at the default branch", () => {
   assert.equal(create.length, 1);
   assert.match(create[0], /--target "\$DEFAULT_BRANCH"/);
   assert.match(wf, /DEFAULT_BRANCH: \$\{\{ github\.event\.repository\.default_branch \}\}/);
+});
+
+/** Fake Chrome Web Store for chrome(): fetchStatus answers with the given
+ *  submitted revision; release downloads answer HTTP 404. Returns the calls. */
+function fakeCwsApi(t, submitted) {
+  const real = globalThis.fetch;
+  const env = { ...process.env };
+  t.after(() => {
+    globalThis.fetch = real;
+    process.env = env;
+  });
+  delete process.env.GITHUB_STEP_SUMMARY;
+  process.env.TOKEN = "t";
+  const calls = [];
+  globalThis.fetch = async (url, { method = "GET" } = {}) => {
+    const path = String(url).replace(/^https:\/\/[^/]+/, "");
+    calls.push(method + " " + path.replace(/publishers\/[^/]+\/items\/[^/:]+/, "ITEM"));
+    if (/:fetchStatus$/.test(path)) return new Response(JSON.stringify({ publishedItemRevisionStatus: { state: "PUBLISHED", distributionChannels: [{ crxVersion: "0.0.40" }] }, submittedItemRevisionStatus: submitted }));
+    if (/:cancelSubmission$/.test(path)) return new Response("{}");
+    return new Response("Not Found", { status: 404 });
+  };
+  return calls;
+}
+
+test("Chrome: an older version in review is cancelled before the new version is uploaded", async (t) => {
+  const calls = fakeCwsApi(t, { state: "PENDING_REVIEW", distributionChannels: [{ crxVersion: "0.0.41" }] });
+  await assert.rejects(chrome("0.0.42"), /download pusharmor-chrome-0\.0\.42.*HTTP 404/);
+  assert.deepEqual(calls.slice(0, 2), ["GET /v2/ITEM:fetchStatus", "POST /v2/ITEM:cancelSubmission"]);
+  assert.ok(calls.slice(2).every((c) => /^GET \/[^/]+\/[^/]+\/releases\/download\/chrome\/v0\.0\.42\//.test(c)), calls.join("; "));
+});
+
+test("Chrome: the same or an unknown version in review is never cancelled", async (t) => {
+  let calls = fakeCwsApi(t, { state: "PENDING_REVIEW", distributionChannels: [{ crxVersion: "0.0.42" }] });
+  assert.equal(await chrome("0.0.42"), true);
+  assert.deepEqual(calls, ["GET /v2/ITEM:fetchStatus"]);
+  calls = fakeCwsApi(t, { state: "PENDING_REVIEW", distributionChannels: [] });
+  await assert.rejects(chrome("0.0.42"), /^Error: Chrome Web Store: version unknown is in review \(PENDING_REVIEW\)/);
+  assert.deepEqual(calls, ["GET /v2/ITEM:fetchStatus"]);
 });
