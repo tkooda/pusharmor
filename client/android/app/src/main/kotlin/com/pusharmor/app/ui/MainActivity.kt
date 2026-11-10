@@ -1,6 +1,7 @@
 package com.pusharmor.app.ui
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -74,6 +75,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.pusharmor.app.BuildConfig
 import com.pusharmor.app.data.Settings
 import com.pusharmor.app.session.Session
 import com.pusharmor.app.ui.theme.BlockingState
@@ -193,8 +195,9 @@ internal fun UpdateScreen(modifier: Modifier = Modifier) {
             Text(UPDATE_BODY, style = MaterialTheme.typography.bodyLarge, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             androidx.compose.foundation.layout.Spacer(Modifier.padding(top = 24.dp))
             GreenButton(onClick = {
-                startOrToast(ctx, Intent(Intent.ACTION_VIEW, android.net.Uri.parse(UPDATE_URL)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) {
-                    scope.launch { snack.showSnackbar(UiText.brief(it)) }
+                val route = updateRoute(installerOf(ctx), BuildConfig.FLAVOR == "play", ctx.packageName)
+                if (!tryStart(ctx, route.url, route.storePackage) && route.fallbacks.none { tryStart(ctx, it, null) }) {
+                    scope.launch { snack.showSnackbar(UiText.brief(NO_APP_LINK)) }
                 }
             }, text = "Update", icon = null, modifier = Modifier.fillMaxWidth())
         }
@@ -205,6 +208,29 @@ internal fun UpdateScreen(modifier: Modifier = Modifier) {
 internal const val UPDATE_TITLE = "Please update PushArmor"
 internal const val UPDATE_BODY = "This version no longer works with the relay server. Update to keep sending and receiving."
 internal const val UPDATE_URL = "https://pusharmor.com/download"
+
+/** Where the Update button goes: [url] (in [storePackage] when set), then each of [fallbacks] in order. */
+internal data class UpdateRoute(val url: String, val storePackage: String?, val fallbacks: List<String>)
+
+/** Picks the store that installed this app; the foss flavor never goes to Play. Anything unknown goes to the download page. */
+internal fun updateRoute(installer: String?, isPlayFlavor: Boolean, pkg: String): UpdateRoute = when {
+    installer == "com.android.vending" && isPlayFlavor -> UpdateRoute("market://details?id=$pkg", installer,
+        listOf("https://play.google.com/store/apps/details?id=$pkg", UPDATE_URL))
+    installer == "org.fdroid.fdroid" || installer == "org.fdroid.basic" -> UpdateRoute("market://details?id=$pkg", installer, listOf(UPDATE_URL))
+    else -> UpdateRoute(UPDATE_URL, null, emptyList())
+}
+
+@Suppress("DEPRECATION")
+private fun installerOf(ctx: Context): String? = try {
+    if (Build.VERSION.SDK_INT >= 30) ctx.packageManager.getInstallSourceInfo(ctx.packageName).installingPackageName
+    else ctx.packageManager.getInstallerPackageName(ctx.packageName)
+} catch (e: Exception) { null }
+
+private fun tryStart(ctx: Context, url: String, pkg: String?): Boolean = try {
+    val i = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (pkg != null) i.setPackage(pkg)
+    ctx.startActivity(i); true
+} catch (e: Exception) { false }
 
 /**
  * Keys that fail the start check. Retry runs the check again on this device only. Delete broken keys asks
