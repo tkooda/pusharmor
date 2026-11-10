@@ -278,6 +278,9 @@ export function uiEnv(b: Browser, linkSave = false): UiEnv {
     openUrl(url) {
       void b.tabs.create({ url, active: true });
     },
+    async installType() {
+      return (await b.management?.getSelf())?.installType;
+    },
     inPopup() {
       // Firefox for Android shows the page full screen: a new tab opens behind it and it cannot close itself.
       if (/Android/i.test(navigator.userAgent)) return false;

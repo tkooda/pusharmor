@@ -83,6 +83,8 @@ export interface Browser {
     clear(name: string): Promise<boolean>;
     onAlarm: Event<(a: { name: string }) => void>;
   };
+  /** getSelf needs no "management" permission (Chrome and Firefox). */
+  management?: { getSelf(): Promise<{ installType?: string }> };
   permissions?: { request(p: { permissions: string[] }): Promise<boolean> };
   downloads?: {
     download(o: { url: string; filename?: string; saveAs?: boolean }): Promise<number>;

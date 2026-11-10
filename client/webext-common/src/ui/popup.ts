@@ -72,7 +72,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement, page?: PageStart
   }
   if (my !== mounts) return;
   if (st.updateRequired) {
-    clear(root).append(updateCard(env, st.recheckLocked, () => void again()));
+    clear(root).append(updateCard(env, st.recheckLocked, () => void again(), st.platform));
     root.querySelector<HTMLElement>("button.primary")?.focus(); // start on the one action
     return;
   }
@@ -212,11 +212,23 @@ function setupBar(env: UiEnv, st: StateView): HTMLElement | null {
   );
 }
 
+const DOWNLOAD_URL = "https://pusharmor.com/download";
+const STORE_URL = {
+  chrome: "https://chromewebstore.google.com/detail/pusharmor/eglfppbcdpmgpnckkgcjcmmbknjgeihd",
+  firefox: "https://addons.mozilla.org/firefox/addon/pusharmor/",
+};
+
+/** Where Update goes: the store listing for a store install (management installType "normal"), else the download page. */
+export function updateUrl(installType: string | undefined, platform: string): string {
+  if (installType !== "normal") return DOWNLOAD_URL;
+  return platform === "chrome" || platform === "firefox" ? STORE_URL[platform] : DOWNLOAD_URL;
+}
+
 /**
  * HTTP 426: this version no longer works with the relay server. "Check again"
  * asks once (then greyed for an hour); again() draws the view after the check.
  */
-export function updateCard(env: UiEnv, locked: boolean, again: () => void): HTMLElement {
+export function updateCard(env: UiEnv, locked: boolean, again: () => void, platform: string): HTMLElement {
   const check = h("button", { class: "big", disabled: locked }, locked ? "Try again later." : "Check again") as HTMLButtonElement;
   check.addEventListener("click", async () => {
     if (check.disabled) return;
@@ -232,7 +244,7 @@ export function updateCard(env: UiEnv, locked: boolean, again: () => void): HTML
     wordmark(env, 24),
     h("h1", { class: "banner" }, "Unable to connect."),
     h("p", { class: "slogan" }, R.tooOld),
-    h("div", { class: "btns" }, check, h("button", { class: "primary big", onclick: () => env.openUrl("https://pusharmor.com/download") }, "Update")),
+    h("div", { class: "btns" }, check, h("button", { class: "primary big", onclick: async () => env.openUrl(updateUrl(await env.installType?.().catch(() => undefined), platform)) }, "Update")),
   );
 }
 

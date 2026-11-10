@@ -13,6 +13,8 @@ export interface UiEnv {
   /** Opens page.html with the given hash in a full tab (or shows the tab already open on it). */
   openPage(hash: string): void | Promise<void>;
   openUrl(url: string): void;
+  /** management.getSelf().installType ("normal" for a store install); absent or undefined when unknown. */
+  installType?(): Promise<string | undefined>;
   /** false when popup.html is not a real toolbar popup (Firefox for Android shows it full screen); absent means a popup. */
   inPopup?(): boolean;
   /** Closes the tab this page is in; absent means window.close(). */

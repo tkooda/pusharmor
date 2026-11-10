@@ -29,7 +29,7 @@ async function mountRoute(env: UiEnv, root: HTMLElement, hash: string, selfOrigi
   document.body.classList.toggle("signin-bg", route === "login");
   const up = await rpc<StateView>(env, "state");
   if (up.updateRequired) {
-    root.append(updateCard(env, up.recheckLocked, () => void mountRoute(env, root, hash, selfOrigin)));
+    root.append(updateCard(env, up.recheckLocked, () => void mountRoute(env, root, hash, selfOrigin), up.platform));
     return;
   }
   if (up.keysBroken) {
