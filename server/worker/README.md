@@ -58,8 +58,11 @@ dashboard (for example `0.1`); a deploy keeps it (`keep_vars`). 5xx lines stay c
 
 Clients send `PA-Client: <platform>/<x.y.z>` (android, ios, chrome, firefox, web, cli). The
 log line carries it as `client` (`"invalid"` when malformed). When the var `PA_MIN_CLIENT`
-(`x.y.z`, or a per-platform list `android=0.0.22,ios=0.0.20` where an unlisted platform has no floor) is set, a request whose PA-Client version is lower gets 426
-`{"error":"update required"}`. Unset: never 426. With a floor set, a signed request
+(a per-platform list `ios/0.0.47 cli/0.0.42 android/0.0.28`, entries separated by spaces
+and/or commas, where an unlisted platform has no floor) is set, a request whose PA-Client
+version is lower than the floor of its platform gets 426 `{"error":"update required"}`. A
+platform listed twice takes its highest floor. A malformed entry (also a bare `x.y.z` or the
+old `ios=0.0.47` form) is skipped with a warning in the log and never blocks. Unset: never 426. With a floor set, a signed request
 (PA-ID or PA-Sig) with a missing or malformed header also gets 426; an unsigned one passes.
 
 The website sends `PA-Client: delete-account` on the /delete-account page and

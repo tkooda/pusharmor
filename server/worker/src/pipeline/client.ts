@@ -25,8 +25,8 @@ export function checkSiteAction(h: string | null, action: "delete-account" | "cl
   if (isSiteValue(h) && h !== action) throw new ApiError(426, "update required");
 }
 
-const CLIENT = /^(android|ios|chrome|firefox|web|cli)\/([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})$/;
-const VERSION = /^([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})$/;
+const PLATFORM = "(android|ios|chrome|firefox|web|cli)";
+const CLIENT = new RegExp(`^${PLATFORM}\\/([0-9]{1,6})\\.([0-9]{1,6})\\.([0-9]{1,6})$`);
 
 export function parseClient(h: string | null): { platform: string; version: number[] } | null {
   const m = h === null ? null : CLIENT.exec(h);
@@ -38,27 +38,37 @@ function lower(a: number[], b: number[]): boolean {
   return false;
 }
 
-// PA_MIN_CLIENT is "x.y.z" (the floor of every platform) or a list "android=0.0.22,ios=0.0.20"
-// (a floor per platform; an unlisted platform has none). Platforms skip version numbers, so
-// one floor above the latest release of a platform would lock that platform out.
-function anyFloor(min: string): boolean {
-  return VERSION.test(min) || min.split(",").some((e) => {
-    const m = /^([a-z]+)=(.+)$/.exec(e.trim());
-    return m !== null && VERSION.test(m[2]);
-  });
+// PA_MIN_CLIENT is a list of "<platform>/<x.y.z>" entries separated by spaces and/or commas,
+// e.g. "ios/0.0.47 cli/0.0.42 android/0.0.28": a floor per platform; an unlisted platform has
+// none. Platforms skip version numbers, so one floor above the latest release of a platform
+// would lock that platform out. A malformed entry (a bare "x.y.z", the old "ios=x.y.z") is
+// skipped with one warning per isolate. A platform listed twice takes its highest floor.
+const warned = new Set<string>();
+
+export function minFloors(min: string | undefined): Map<string, number[]> {
+  const floors = new Map<string, number[]>();
+  for (const e of (min ?? "").split(/[\s,]+/)) {
+    if (e === "") continue;
+    const c = parseClient(e);
+    if (c === null) {
+      if (!warned.has(e)) {
+        warned.add(e);
+        console.warn(`PA_MIN_CLIENT: skipped malformed entry "${e}"`);
+      }
+      continue;
+    }
+    const prev = floors.get(c.platform);
+    if (prev === undefined || lower(prev, c.version)) floors.set(c.platform, c.version);
+  }
+  return floors;
 }
 
 export function checkMinClient(client: { platform: string; version: number[] } | null, min: string | undefined, signed: boolean): void {
-  if (min === undefined) return;
+  const floors = minFloors(min);
   if (client === null) {
-    if (signed && anyFloor(min)) throw new ApiError(426, "update required");
+    if (signed && floors.size > 0) throw new ApiError(426, "update required");
     return;
   }
-  let floor = VERSION.exec(min);
-  if (floor === null) {
-    const hit = min.split(",").map((e) => /^([a-z]+)=(.+)$/.exec(e.trim())).find((m) => m !== null && m[1] === client.platform);
-    floor = hit ? VERSION.exec(hit[2]) : null;
-  }
-  if (floor === null) return;
-  if (lower(client.version, [Number(floor[1]), Number(floor[2]), Number(floor[3])])) throw new ApiError(426, "update required");
+  const floor = floors.get(client.platform);
+  if (floor !== undefined && lower(client.version, floor)) throw new ApiError(426, "update required");
 }

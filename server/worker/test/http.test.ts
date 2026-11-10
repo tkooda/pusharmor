@@ -179,7 +179,7 @@ describe("PA-Client", () => {
 
   it("426 only when PA_MIN_CLIENT is set and the version is lower, or missing on a signed request", async () => {
     const p = await newPeer(randomEmail());
-    const min = await testEnv({ PA_MIN_CLIENT: "0.1.10" } as Partial<Env>);
+    const min = await testEnv({ PA_MIN_CLIENT: "android/0.1.10 ios/0.1.10 chrome/0.1.10 firefox/0.1.10 web/0.1.10 cli/0.1.10" } as Partial<Env>);
     const st = async (h: string | null, e: Env) => (await call("GET", "/v1/peers", undefined, { peer: p, env: e, headers: h === null ? {} : { "PA-Client": h } }));
     const r = await st("ios/0.1.9", min);
     expect(r.status).toBe(426);
@@ -194,7 +194,7 @@ describe("PA-Client", () => {
       expect((await st(h, junk)).status, String(h)).toBe(200);
     }
     // A per-platform floor blocks only the listed platforms.
-    const per = await testEnv({ PA_MIN_CLIENT: "android=0.0.22, ios=0.0.20" } as Partial<Env>);
+    const per = await testEnv({ PA_MIN_CLIENT: "android/0.0.22, ios/0.0.20" } as Partial<Env>);
     expect((await st("android/0.0.21", per)).status).toBe(426);
     expect((await st("ios/0.0.19", per)).status).toBe(426);
     for (const h of ["android/0.0.22", "ios/0.0.20", "chrome/0.0.1", "cli/0.0.1"]) expect((await st(h, per)).status, h).toBe(200);
@@ -222,7 +222,7 @@ describe("PA-Client website values", () => {
 
   it("delete-account and cli-login skip every floor and pass only for their own action", async () => {
     const k = await keys();
-    const min = await testEnv({ PA_MIN_CLIENT: "9.9.9" } as Partial<Env>);
+    const min = await testEnv({ PA_MIN_CLIENT: "android/9.9.9 ios/9.9.9 chrome/9.9.9 firefox/9.9.9 web/9.9.9 cli/9.9.9" } as Partial<Env>);
     const st = async (method: string, path: string, body: unknown, h: string) => (await call(method, path, body, { env: min, headers: { "PA-Client": h } })).status;
     // Delete account: the email step, the code step, and DELETE /v1/account. An empty
     // turnstile or a wrong code still fails after the version check, not at it.

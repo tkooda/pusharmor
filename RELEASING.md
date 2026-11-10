@@ -83,7 +83,7 @@ talks to the production Worker, and the public clients must keep working with it
 3. After the releases are published, deploy the site (`site/README.md`): it
    picks up the new versions at build time.
 
-`PA_MIN_CLIENT` (Worker) takes a per-platform list (`android=0.0.22,ios=0.0.20`)
+`PA_MIN_CLIENT` (Worker) takes a per-platform list (`ios/0.0.47 cli/0.0.42 android/0.0.28`)
 because platform versions differ; set a floor only for platforms that have it.
 
 Each tag workflow creates the GitHub release as a draft, uploads every
