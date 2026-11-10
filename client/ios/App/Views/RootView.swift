@@ -333,9 +333,9 @@ struct ToastBanner: View {
     }
 }
 
-/// this version got HTTP 426 from the relay server; the button opens the download page.
+/// this version got HTTP 426 from the relay server; the button opens the App Store page.
 struct UpdateView: View {
-    static let downloadURL = URL(string: "https://pusharmor.com/download")!
+    static let downloadURL = URL(string: "https://apps.apple.com/app/id6827796403")!
 
     var body: some View {
         CenteredScroll {
