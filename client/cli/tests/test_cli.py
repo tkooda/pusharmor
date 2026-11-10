@@ -343,7 +343,7 @@ def test_426_update(monkeypatch):
     monkeypatch.setattr(pa, "http_request", lambda *a: (426, {}, b'{"error":"update required"}'))
     with pytest.raises(pa.Fail) as e:
         pa.Api("https://r.example", {"id": "x", "sign": pa.new_key()[0]}).call("GET", "/v1/peers")
-    assert str(e.value) == "This version of PushArmor is too old. Update PushArmor to continue." and e.value.code == 1
+    assert str(e.value) == "This version of PushArmor is too old. Update PushArmor to continue. Update: pipx upgrade pusharmor (or download it from https://pusharmor.com/download)" and e.value.code == 1
 
 
 def test_clock_skew_resync(monkeypatch):
@@ -1852,7 +1852,7 @@ def _offline(*a):
     ((429, {"error": "rate limited", "retry_after": 120}), pa.EXIT_TEMP, "Too many tries. Try again in 2 minutes."),
     ((429, {"error": "rate limited", "retry_after": 30}), pa.EXIT_TEMP, "Too many tries. Try again in 30 seconds."),
     ((426, {"error": "update required"}), pa.EXIT_ERR,
-     "This version of PushArmor is too old. Update PushArmor to continue."),
+     "This version of PushArmor is too old. Update PushArmor to continue. Update: pipx upgrade pusharmor (or download it from https://pusharmor.com/download)"),
     ((401, {"error": "clock skew"}), pa.EXIT_ERR,
      "This device's clock is off by more than 5 minutes. Fix the clock and try again."),
     ((401, {"error": "logged out"}), pa.EXIT_LOGIN, "This device is logged out. Log in to resume."),

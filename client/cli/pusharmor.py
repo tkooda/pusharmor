@@ -959,7 +959,8 @@ REMOVED = "This device was removed from the account. Log in again."
 CERT_BAD = "The relay server's certificate could not be verified. Check this device's date and time, proxy, and CA certificates."
 UNREACHABLE = "The relay server could not be reached. Check your internet connection and try again."
 SERVER_DOWN = "The relay server is not working right now. Try again later."
-TOO_OLD = "This version of PushArmor is too old. " + UPDATE_REQUIRED
+TOO_OLD = ("This version of PushArmor is too old. " + UPDATE_REQUIRED + " "
+    "Update: pipx upgrade pusharmor (or download it from https://pusharmor.com/download)")
 CLOCK_OFF = "This device's clock is off by more than 5 minutes. Fix the clock and try again."
 REFUSED = "The relay server refused the request (HTTP %d)."
 BAD_LINK = "The login link is not valid. Request a new code and try again."
