@@ -1,1 +1,1 @@
-New icon and look. Use more than one account on one device. Clearer messages when something goes wrong. Fixes for pairing, sharing, and settings.
+You can now close the keyboard with the Done button above it. When the app needs an update, the Update button opens the App Store.
