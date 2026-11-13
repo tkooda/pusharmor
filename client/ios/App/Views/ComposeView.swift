@@ -316,6 +316,13 @@ struct ComposeView: View {
         }
         .contentMargins(.bottom, 12, for: .scrollContent)
         .scrollDismissesKeyboard(.interactively)
+        // Return adds a new line in the message, so Done is the way to close the keyboard
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { editing = false }
+            }
+        }
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { listTop = $0 }
         // the banner goes under the Send bar, inside the content, so it covers neither Send nor the tab bar
         .safeAreaInset(edge: .bottom, spacing: 0) {
