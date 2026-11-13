@@ -1,1 +1,1 @@
-New icon and look. Use more than one account on one device. Clearer messages when something goes wrong. Fixes for pairing, sharing, and settings.
+The Update button now opens the store you installed from.
