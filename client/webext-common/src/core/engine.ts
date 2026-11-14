@@ -342,6 +342,15 @@ export class Engine {
       window: async (from) => (await this.db.replay(from)) ?? null,
       hasHistory: async (from, pid, n) => (await this.db.historyRowFor(from, pid, n)) !== undefined,
     });
+    if (r.outcome === "unreadable" && r.ignored) {
+      // unknown type: consume n like a handled message (known messages from "returned" and "fetched" never consume an unknown one), then do nothing
+      if (r.ignored.consume && src !== "returned" && src !== "fetched") {
+        const n = r.ignored.n;
+        const pid = b64urlEncode((await this.db.peer(r.from!))!.pairing_id!);
+        await this.db.acceptN(r.from!, pid, n, null, (s) => replayCheck(s, n), (s) => replayRecord(s, n));
+      }
+      return;
+    }
     if (r.outcome === "unreadable") {
       if (r.unknownSender && src !== "returned" && src !== "fetched") await this.fetchTrigger();
       return this.dropEvent("unreadable", r.from, src);

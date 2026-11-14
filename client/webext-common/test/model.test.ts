@@ -56,10 +56,10 @@ test("inner JSON parse rules", () => {
   assert.equal(p('{"n":1e0,"text":"a"}'), null);
   assert.equal(p('{"n":1,"text":"a","text":"b"}'), null);
   assert.equal(p('{"n":0,"text":"a"}'), null);
-  assert.equal(p('{"n":1}'), null);
+  assert.deepEqual(p('{"n":1}'), { n: 1, content: null });
   assert.deepEqual(p('{"n":1,"text":"a","url":"b"}'), { n: 1, content: { type: "url", value: "b" } });
   assert.deepEqual(p('{"n":1,"text":"a","x":1}'), { n: 1, content: { type: "text", value: "a" } });
-  assert.equal(p('{"n":1,"foo":"a"}'), null);
+  assert.deepEqual(p('{"n":1,"foo":"a"}'), { n: 1, content: null });
   assert.equal(p('{"n":1,"deny":2}'), null);
   assert.deepEqual(p('{"n":1,"deny":1}'), { n: 1, content: { type: "deny" } });
   assert.equal(p('{"n":1,"text":"' + "a".repeat(2049) + '"}'), null);
@@ -125,7 +125,7 @@ test("inner message round trip per type, every bucket, sig and pad checks", asyn
   const p = parseInnerPlain((await openInner(b.enc, ID_B, m))!)!;
   assert.deepEqual(p.keys!.sign_pub, a.sign_pub);
   const j = parseInnerJson((await inflateInner(p))!)!;
-  assert.equal(j.content.type, "approve");
+  assert.equal(j.content!.type, "approve");
   assert.equal(await verifyNameEntry(a.sign_pub, ID_A, ID_B, pid, (j.content as { entry: typeof entry }).entry), "Laptop");
   assert.equal(await verifyNameEntry(a.sign_pub, ID_A, ID_B, new Uint8Array(8), entry), null); // other pairing id
 

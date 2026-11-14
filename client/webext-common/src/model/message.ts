@@ -169,7 +169,7 @@ export async function verifyInner(signPub: Uint8Array, myId: string, p: InnerPla
 
 interface ParsedJson {
   n: number;
-  content: Content;
+  content: Content | null; // null: a well-formed message of a type this client does not know
 }
 
 export function isPrintableName(name: string): boolean {
@@ -205,7 +205,7 @@ export function parseInnerJson(bytes: Uint8Array): ParsedJson | null {
   if (n === null) return null;
   // Unknown keys are ignored; the type is the first known type key in TYPE_KEYS order.
   const t = TYPE_KEYS.find((k) => k in v);
-  if (t === undefined) return null;
+  if (t === undefined) return { n, content: null };
   const val = v[t];
   switch (t) {
     case "url":

@@ -193,6 +193,34 @@ test("must_fail: wrong pairing id is could-not-read; raw n vectors, n = 0, dupli
   assert.equal(b.p.notes.get("drop")!.body, "Unable to read a message.\nIt is not valid or was damaged.");
 });
 
+test("a valid-signed message of an unknown type is ignored silently and consumes n", async () => {
+  const { w, a, b } = await setup("firefox");
+  await pairAndApprove(w, a, b);
+  const before = (await b.db.history()).length;
+  b.p.notes.clear();
+  const m = await mkMsg(a, b, '{"n":5,"future":"x"}');
+  await b.e.receive(m, "push");
+  assert.equal(b.p.notes.size, 0);
+  assert.equal((await b.db.history()).length, before);
+  assert.equal((await b.db.replay(a.id))!.h, 5);
+  await b.e.receive(m, "push");
+  assert.equal(b.p.notes.size, 0);
+  assert.equal((await b.db.history()).length, before);
+});
+
+test("an unreadable message with no type key and a bad signature still yields could-not-read", async () => {
+  const { w, a, b } = await setup("firefox");
+  await pairAndApprove(w, a, b);
+  const raw = b64urlDecode(await mkMsg(a, b, '{"n":8,"future":"x"}'));
+  raw[200]! ^= 1;
+  b.p.notes.clear();
+  await b.e.receive(b64urlEncode(raw), "push");
+  assert.equal(b.p.notes.get("drop")!.body, "Unable to read a message.\nIt is not valid or was damaged.");
+  assert.equal((await b.db.history())[0]!.event, "unreadable");
+  await b.e.receive(await mkMsg(a, b, "not json"), "push");
+  assert.equal((await b.db.history())[0]!.event, "unreadable");
+});
+
 test("Chrome drops silently but writes the History event", async () => {
   const { w, a, b } = await setup();
   await pairAndApprove(w, a, b);

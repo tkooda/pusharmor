@@ -6,7 +6,7 @@ import { b64urlEncode, b64urlTryDecode } from "../crypto/b64url.ts";
 import { equal } from "../crypto/bytes.ts";
 import { accountOf, hasAccount, idMatchesKeys } from "../crypto/labels.ts";
 import { type Content, inflateInner, openInner, parseInnerJson, parseInnerPlain, verifyInner, verifyNameEntry } from "./message.ts";
-import { type ReplayOutcome, type ReplayState, replayClassify } from "./replay.ts";
+import { type ReplayOutcome, type ReplayState, replayCheck, replayClassify } from "./replay.ts";
 
 export interface Pin {
   id: string;
@@ -27,7 +27,7 @@ interface ReceiveInput {
 }
 
 export type ReceiveResult =
-  | { outcome: "unreadable"; from: string | null; unknownSender?: boolean }
+  | { outcome: "unreadable"; from: string | null; unknownSender?: boolean; ignored?: { n: number; consume: boolean } } // ignored: valid-signed message of an unknown type
   | { outcome: Exclude<ReplayOutcome, "accept">; from: string; n: number; content: Content }
   | { outcome: "accept"; from: string; n: number; content: Content; name: string | null; pin: Pin };
 
@@ -66,6 +66,13 @@ export async function receiveDecide(i: ReceiveInput): Promise<ReceiveResult> {
   const j = inflated ? parseInnerJson(inflated) : null;
   if (!j) return { outcome: "unreadable", from };
   const c = j.content;
+  if (!c) {
+    // unknown type: consume n like a handled message from an approved peer, then do nothing
+    if (p.keys !== null || pin.ruling !== "approved") return { outcome: "unreadable", from };
+    const w = await i.window(from);
+    if (!w || !equal(w.pairing_id, pin.pairing_id)) return { outcome: "unreadable", from };
+    return { outcome: "unreadable", from, ignored: { n: j.n, consume: replayCheck(w, j.n) === "accept" } };
+  }
   if ((c.type === "approve") !== (p.keys !== null)) return { outcome: "unreadable", from };
   let name: string | null = null;
   if (c.type === "approve" || c.type === "rename") {
