@@ -314,7 +314,7 @@ final class StateMachineTests: XCTestCase {
         let n = try dev("Ndev"), x = try dev("Xdev")
         try await pairFully(n, x)
         let pin = try n.core.store.reserveCounter(x.id)
-        let m = try InnerMessage.seal(raw: Data("{\"n\":\(pin.n),\"del\":1}".utf8), approve: false, signer: n.keys.signer,
+        let m = try InnerMessage.seal(raw: Data("{\"n\":\(pin.n),\"zzz\":1}".utf8), approve: false, signer: n.keys.signer,
                                       from: n.id, to: x.id, toEncPub: pin.encPub, pairingId: pin.pairingId, keys: nil)
         let before = try x.core.store.history().count
         let r = await x.core.receive(m, mode: .nse)
@@ -2321,7 +2321,7 @@ final class StateMachineTests: XCTestCase {
     /// a device's push failed: the del goes again to that device only; once it is sent there
     /// is no notice and the rows are gone.
     func testSyncDeletionsFailedPushIsResentToThatDeviceOnly() async throws {
-        let n = try dev("Ndev"), x = try dev("Xdev"), y = try dev("Ydev")
+        let n = try dev("Ndev"), x = try dev("Xdev"), y = try dev("Xdev") // pairFully checks the name "Xdev"
         try await pairFully(n, x)
         try await pairFully(n, y)
         await n.core.fetchPeers(force: true)
@@ -2341,7 +2341,7 @@ final class StateMachineTests: XCTestCase {
 
     /// two devices did not get the del: the rows go and the notice counts them.
     func testSyncDeletionsTwoDevicesMissedItCountsThem() async throws {
-        let n = try dev("Ndev"), x = try dev("Xdev"), y = try dev("Ydev")
+        let n = try dev("Ndev"), x = try dev("Xdev"), y = try dev("Xdev") // pairFully checks the name "Xdev"
         try await pairFully(n, x)
         try await pairFully(n, y)
         await n.core.fetchPeers(force: true)
