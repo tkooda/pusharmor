@@ -98,7 +98,7 @@ object Receive {
                     is MessageBody.Tel -> ContentType.TEL to b.value
                     else -> error("unreachable")
                 }
-                if (SizeCap.utf8Size(value) > SizeCap.MAX_CONTENT_BYTES) return Effect.Drop("too large")
+                if (SizeCap.utf8Size(value) > SizeCap.RECEIVE_MAX_BYTES) return Effect.Drop("too large")
                 val shownValue = if (type == ContentType.TEL) Phone.normalize(value).takeIf { Phone.isPhone(value) } ?: value else value
                 val parsed = if (type == ContentType.URL) UrlCheck.parse(value) else null
                 Effect.Show(ShownContent(type, shownValue, parsed?.href, parsed?.host))

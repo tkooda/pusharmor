@@ -176,8 +176,8 @@ class GoldenProtocolTest {
         for (c in Golden.cases("content_cap")) {
             val input = c.str("input")
             assertEquals(c.long("utf8_bytes").toInt(), SizeCap.utf8Size(input))
-            assertEquals(c.bool("ok"), SizeCap.utf8Size(input) <= SizeCap.MAX_CONTENT_BYTES)
-            assertEquals(c.str("truncated"), SizeCap.truncateUtf8(input))
+            assertEquals(c.bool("ok"), SizeCap.utf8Size(input) <= SizeCap.RECEIVE_MAX_BYTES)
+            assertEquals(c.str("truncated"), SizeCap.truncateUtf8(input, SizeCap.RECEIVE_MAX_BYTES))
         }
     }
 

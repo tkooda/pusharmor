@@ -325,7 +325,7 @@ object ErrorText {
     const val ACCOUNT_MISMATCH = "This login is for another account."
     const val BAD_REPLY = "The relay server sent a reply this device cannot use. Try again."
     const val REFUSED = "The relay server did not accept the request. Update PushArmor and try again."
-    const val TOO_LONG = "The message is longer than 2048 characters."
+    const val TOO_LONG = "The message is longer than 2000 characters."
     const val PUSH_NOT_SUPPORTED = "This device's push service is not supported yet."
     const val KEYS_UNUSABLE = "This device's security keys cannot be used right now. Restart the device and try again."
     const val STORAGE_FULL = "Storage is full. Free some space and try again."

@@ -118,7 +118,7 @@ class UiTextTest {
     }
 
     @Test fun shareTooLongIsSentence() {
-        assertEquals("Unable to send.\nThe message is longer than 2048 characters.", UiText.SHARE_TOO_LONG)
+        assertEquals("Unable to send.\nThe message is longer than 2000 characters.", UiText.SHARE_TOO_LONG)
     }
 
     @Test fun codeFieldState() {
@@ -183,9 +183,9 @@ class UiTextTest {
     }
 
     @Test fun counterAndSendLabel() {
-        assertEquals("(39 / 2048)", UiText.counter(39))
-        assertEquals("(2048 / 2048)", UiText.counter(2048))
-        assertEquals("Too long (2049 / 2048)", UiText.counter(2049))
+        assertEquals("(39 / 2000)", UiText.counter(39))
+        assertEquals("(2000 / 2000)", UiText.counter(2000))
+        assertEquals("Too long (2001 / 2000)", UiText.counter(2001))
         assertEquals("Send", UiText.sendLabel(0))
         assertEquals("Send to 1 device", UiText.sendLabel(1))
         assertEquals("Send to 2 devices", UiText.sendLabel(2))
@@ -227,8 +227,8 @@ class UiTextTest {
         assertEquals(false, UiText.sendExtrasShown(keyboardUp = true, areaPx = 499, chipsPx = 200, extrasPx = 100, fieldMinPx = 200))
         assertEquals(false, UiText.sendExtrasShown(keyboardUp = true, areaPx = 300, chipsPx = 250, extrasPx = 100, fieldMinPx = 200))
         assertEquals(true, UiText.sendExtrasShown(keyboardUp = false, areaPx = 300, chipsPx = 250, extrasPx = 100, fieldMinPx = 200))
-        assertEquals(false, UiText.showCounter(1843))
-        assertEquals(true, UiText.showCounter(1844))
+        assertEquals(false, UiText.showCounter(1799))
+        assertEquals(true, UiText.showCounter(1800))
         assertEquals(true, UiText.showCounter(2049))
         assertEquals("Will be sent as URL", UiText.typeCaption(ContentType.URL))
         assertEquals("Will be sent as phone number", UiText.typeCaption(ContentType.TEL))

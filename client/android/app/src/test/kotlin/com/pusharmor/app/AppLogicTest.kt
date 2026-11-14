@@ -254,7 +254,7 @@ class AppLogicTest {
         val share = source("ui/ShareActivity.kt")
         val tooLong = share.substring(share.indexOf("if (tooLong && cut == null)"), share.indexOf("SendScreen("))
         assertTrue(tooLong.contains("UiText.SHARE_TOO_LONG") && tooLong.contains("TextButton(onClick = { finish() }) { Text(\"Close\") }"))
-        assertTrue(tooLong.contains("Text(\"Send the first 2048 characters\")") && !tooLong.contains("bytes"))
+        assertTrue(tooLong.contains("Text(\"Send the first 2000 characters\")") && !tooLong.contains("bytes"))
         assertFalse(tooLong.contains("Too long ("))
     }
 

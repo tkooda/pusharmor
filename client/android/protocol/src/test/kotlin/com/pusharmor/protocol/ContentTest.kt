@@ -72,11 +72,11 @@ class ContentTest {
     @Test fun sizeCap() {
         val s = "\u00e9".repeat(1100) // 2200 bytes
         val t = SizeCap.truncateUtf8(s)
-        assertEquals(2048, SizeCap.utf8Size(t))
+        assertEquals(2000, SizeCap.utf8Size(t))
         val e = "\ud83d\ude00".repeat(600) // 4 bytes each
-        assertEquals(2048, SizeCap.utf8Size(SizeCap.truncateUtf8(e)))
-        assertEquals(2045, SizeCap.utf8Size(SizeCap.truncateUtf8("a" + e)))
-        assertTrue(isNearCap("a".repeat(1844)))
-        assertFalse(isNearCap("a".repeat(1843)))
+        assertEquals(2000, SizeCap.utf8Size(SizeCap.truncateUtf8(e)))
+        assertEquals(1997, SizeCap.utf8Size(SizeCap.truncateUtf8("a" + e)))
+        assertTrue(isNearCap("a".repeat(1800)))
+        assertFalse(isNearCap("a".repeat(1799)))
     }
 }

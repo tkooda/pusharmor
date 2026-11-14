@@ -37,7 +37,7 @@ class ErrorTextTest {
             ApiResult.Http(404, null) to "The relay server did not accept the request. Update PushArmor and try again.",
             ApiResult.Http(405, null) to "The relay server did not accept the request. Update PushArmor and try again.",
             ApiResult.Http(401, "invalid client signature") to "The relay server did not accept the request. Update PushArmor and try again.",
-            ApiResult.Http(413, "too large") to "The message is longer than 2048 characters.",
+            ApiResult.Http(413, "too large") to "The message is longer than 2000 characters.",
             ApiResult.Http(400, "push endpoint not allowed") to "This device's push service is not supported yet.",
             ApiResult.Http(401, "bad id") to "The relay server did not accept the request. Update PushArmor and try again.",
             ApiResult.Http(409, "some code") to "Try again.",

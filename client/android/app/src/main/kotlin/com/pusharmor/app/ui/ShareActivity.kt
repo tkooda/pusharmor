@@ -96,7 +96,7 @@ class ShareActivity : ComponentActivity() {
                         // Dialog buttons at the end, as in a standard dialog; stacked, Send first, when they do not fit.
                         ButtonRow(Modifier.fillMaxWidth(), end = true) {
                             TextButton(onClick = { finish() }) { Text("Close") }
-                            if (type == ContentType.TEXT) TextButton(onClick = { cut = SizeCap.truncateUtf8(text) }) { Text("Send the first 2048 characters") }
+                            if (type == ContentType.TEXT) TextButton(onClick = { cut = SizeCap.truncateUtf8(text) }) { Text("Send the first 2000 characters") }
                         }
                     } else Column(Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
                         SendScreen(vm, cut ?: text, preselect = direct, inDialog = true, onPair = {

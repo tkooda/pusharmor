@@ -4,7 +4,10 @@ package com.pusharmor.protocol
 enum class ContentType(val key: String) { URL("url"), TEXT("text"), TEL("tel") }
 
 object SizeCap {
-    const val MAX_CONTENT_BYTES = 2048
+    /** Most UTF-8 bytes this device sends. */
+    const val MAX_CONTENT_BYTES = 2000
+    /** Most UTF-8 bytes a received message may hold (older senders send up to 2048). */
+    const val RECEIVE_MAX_BYTES = 2048
     const val WIRE_CAP = 3800
     const val INFLATE_CAP = 16 * 1024
 

@@ -48,7 +48,7 @@ class InnerMessageTest {
         val big = send(1, MessageBody.Text(sb.toString()))
         assertTrue(big.length == 2048 || big.length == 3800)
         // all-control-char text at the cap still fits under 3800 (measured worst case)
-        val ctl = StringBuilder(); while (ctl.length < 2048) ctl.append((rnd.nextInt(31) + 1).toChar())
+        val ctl = StringBuilder(); while (ctl.length < SizeCap.MAX_CONTENT_BYTES) ctl.append((rnd.nextInt(31) + 1).toChar())
         assertEquals(3800, send(1, MessageBody.Text(ctl.toString())).length)
     }
 
@@ -186,7 +186,7 @@ class InnerMessageTest {
         InnerMessage.bytesForChars(InnerMessage.BUCKETS.last()) - 81 - 64 - (39 + 2 + deflated.size)
     }
 
-    /** The content max (2048 UTF-8 bytes) with an id, worst case, still seals within the largest bucket (3800 chars). */
+    /** The content max (2000 UTF-8 bytes) with an id, worst case, still seals within the largest bucket (3800 chars). */
     @Test fun maxContentWithIdSealsWithinTheCap() {
         for (b in listOf(2000, 2048, 2500)) println("content $b bytes with id: margin ${worstMargin(b)} bytes")
         assertTrue(worstMargin(SizeCap.MAX_CONTENT_BYTES) >= 0)
