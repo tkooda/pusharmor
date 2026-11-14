@@ -133,6 +133,8 @@ public struct HistoryRow: Sendable {
     public var event: HistoryEvent?
     public var count: Int64
     public var createdLocal: Int64
+    /// The message id (Sync deletions); nil for an older row, an event, or a message sent without one.
+    public var msgId: String? = nil
 }
 
 /// Typed access to pa.sqlite.
@@ -409,7 +411,7 @@ public final class Store: @unchecked Sendable {
         return HistoryRow(rowid: rowid, dir: dir, peerId: r.text("peer_id"),
                    type: type, content: content, n: r.int("n"), pairingId: r.blob("pairing_id"),
                    read: r.bool("read"), results: r.text("results"), event: r.text("event").flatMap(HistoryEvent.init(rawValue:)),
-                   count: r.int("count") ?? 1, createdLocal: created)
+                   count: r.int("count") ?? 1, createdLocal: created, msgId: r.text("msg_id"))
     }
 
     /// History keeps at most this many rows, the newest.
@@ -440,14 +442,27 @@ public final class Store: @unchecked Sendable {
 
     @discardableResult
     public func addMessage(dir: HistoryDir, peer: PeerId, type: String, content: String, n: UInt64?, pairingId: Data?,
-                           read: Bool, results: String?, now: Int64) throws -> Int64 {
+                           read: Bool, results: String?, now: Int64, msgId: String? = nil) throws -> Int64 {
         try db.write {
-            try db.exec("INSERT INTO history (dir, peer_id, type, content, n, pairing_id, read, results, created_local) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            try db.exec("INSERT INTO history (dir, peer_id, type, content, n, pairing_id, read, results, created_local, msg_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         [.text(dir.rawValue), .text(peer.text), .text(type), .text(content), .opt(n.map { Int64($0) }),
-                         .opt(pairingId), .bool(read), .opt(results), .int(now)])
+                         .opt(pairingId), .bool(read), .opt(results), .int(now), .opt(msgId)])
             let id = db.lastInsertRowId
             try capHistory()
             return id
+        }
+    }
+
+    /// Sync deletions: delete the rows (in or out) whose message id is in `ids`; returns their rowids.
+    @discardableResult
+    public func deleteHistory(msgIds ids: [String]) throws -> [Int64] {
+        guard !ids.isEmpty else { return [] }
+        let marks = Array(repeating: "?", count: ids.count).joined(separator: ",")
+        let args = ids.map { SQLValue.text($0) }
+        return try db.write {
+            let gone = try db.query("SELECT rowid FROM history WHERE msg_id IN (\(marks))", args).compactMap { $0.int("rowid") }
+            try db.exec("DELETE FROM history WHERE msg_id IN (\(marks))", args)
+            return gone
         }
     }
 

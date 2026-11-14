@@ -114,6 +114,8 @@ extension Core {
         var newMessage = false
         var approveVerified = false
         var removalSignal = false
+        /// History rows a del removed: their delivered notifications go after the commit.
+        var deletedRowids: [Int64] = []
     }
 
     /// Steps 4-8 and the step 9 table for an inner message against the stored pins and windows.
@@ -171,6 +173,7 @@ extension Core {
             switch r.outcome {
             case .accept:
                 guard let a = applied else { return drop(mode) }
+                if !a.deletedRowids.isEmpty { hooks?.removeDeliveredNotifications(rowids: a.deletedRowids) }
                 var res = ReceiveResult(banner: mode == .nse ? a.banner : nil, rowid: a.rowid, committed: true,
                                         newMessage: a.newMessage, approveVerified: a.approveVerified)
                 res.removalSignal = a.removalSignal
@@ -214,6 +217,7 @@ extension Core {
         case .deny: return noticeBanner(S.denied(nm), peer: id, category: .notice, tap: .peers(id?.text))
         case .logout: return noticeBanner(S.loggedOutNotice(nm), peer: id, category: .notice, tap: .peers(id?.text))
         case .login: return noticeBanner(S.loggedInNotice(nm), peer: id, category: .notice, tap: .peers(id?.text))
+        case .del(let ids): return noticeBanner(S.messagesDeleted(ids.count, nm), peer: id, category: .event, tap: .history)
         case .url, .text, .tel: return nil
         }
     }
@@ -232,7 +236,7 @@ extension Core {
             if case .tel = j.content, PhoneDetection.isPhone(s) { type = "tel" }
             try store.savePeer(p)
             let rowid = try store.addMessage(dir: .incoming, peer: from, type: type, content: content, n: j.n, pairingId: pid,
-                                             read: false, results: nil, now: now)
+                                             read: false, results: nil, now: now, msgId: j.id)
             a.rowid = rowid
             a.newMessage = true
             if let row = try store.historyRow(rowid) { a.banner = banner(forRow: row) }
@@ -288,6 +292,10 @@ extension Core {
         case .deny:
             p.deniedMeMsg = true
             try store.savePeer(p)
+        case .del(let ids):
+            // always obeyed, whatever this device's own Sync deletions setting
+            try store.savePeer(p)
+            a.deletedRowids = try store.deleteHistory(msgIds: ids)
         }
         a.banner = controlBanner(j.content, peer: try store.peer(from) ?? p, name: r.name, me: me)
         return a

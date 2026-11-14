@@ -292,6 +292,7 @@ final class GoldenTests: XCTestCase {
             XCTAssertEqual(r.name, str(v["name"]), name)
             XCTAssertEqual(f.n, u64(v["n"]), name)
         case .deny, .delete, .logout, .login: XCTAssertEqual(i64(e["value"]), 1, name)
+        case .del: XCTFail(name)
         }
         XCTAssertEqual(r.windowAfter?.h, max(u64((c["window"] as! J)["h"]), j.n))
         guard reseal else { return }

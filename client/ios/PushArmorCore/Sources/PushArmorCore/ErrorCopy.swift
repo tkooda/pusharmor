@@ -23,6 +23,8 @@ public enum ErrorCopy {
         case prepareLogin
         case deleteAccount
         case deleteHistory
+        /// Deleting History rows (count) while Sync deletions could not reach the other devices.
+        case deleteMessages(Int)
         case changeSetting
         case turnOnNotifications
 
@@ -46,6 +48,7 @@ public enum ErrorCopy {
             case .prepareLogin: return "Unable to start the login."
             case .deleteAccount: return "Unable to delete the account."
             case .deleteHistory: return "Unable to delete the history."
+            case .deleteMessages(let n): return n == 1 ? "Unable to delete the message." : "Unable to delete the messages."
             case .changeSetting: return "Unable to change this setting."
             case .turnOnNotifications: return "Unable to turn on notifications."
             }
@@ -233,6 +236,15 @@ public enum ErrorCopy {
         case .clockOff?: return text(.send, .clockOff)
         case .tooLong?: return text(.send, .tooLong)
         default: return text(.send, reason(local: e))
+        }
+    }
+
+    /// Delete of History rows: the del send failed (rows kept) or the local delete failed.
+    public static func deleteFailText(_ a: Action, _ e: Error) -> String {
+        switch e as? Core.SendError {
+        case .rejected(let r)?: return text(a, r)
+        case .clockOff?: return text(a, .clockOff)
+        default: return text(a, reason(local: e))
         }
     }
 

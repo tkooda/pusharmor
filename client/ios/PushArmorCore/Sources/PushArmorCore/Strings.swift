@@ -29,6 +29,10 @@ public enum S {
     public static func denied(_ name: String) -> String { quoted(name) + " rejected this device" }
     public static func loggedOutNotice(_ name: String) -> String { quoted(name) + " logged out." }
     public static func loggedInNotice(_ name: String) -> String { quoted(name) + " logged in." }
+    /// Sync deletions: a del from another device removed messages here.
+    public static func messagesDeleted(_ count: Int, _ name: String) -> String {
+        (count == 1 ? "1 message" : "\(count) messages") + " deleted by " + quoted(name)
+    }
     public static func newMessageFrom(_ peer: String) -> String { "New message from " + quoted(peer) }
     public static let pairingFailed = "Pairing failed. Start again on the new device."
     public static let pairingTimedOut = "Pairing timed out. Tap Pair to start again."

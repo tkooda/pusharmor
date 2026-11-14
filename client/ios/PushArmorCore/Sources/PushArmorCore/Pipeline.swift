@@ -127,7 +127,7 @@ public enum ReceivePipeline {
         }
         // step 9: acceptance table
         switch j.content {
-        case .url, .text, .tel, .rename, .remove, .delete, .logout, .login, .deny:
+        case .url, .text, .tel, .rename, .remove, .delete, .logout, .login, .deny, .del:
             guard p.ruling == .approved else { return .drop(from) }
         case .approve:
             guard p.ruling == .approved || p.ruling == .unruled else { return .drop(from) }

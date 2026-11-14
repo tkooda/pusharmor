@@ -27,6 +27,8 @@ final class ErrorCopyTests: XCTestCase {
             (.prepareLogin, "Unable to start the login."),
             (.deleteAccount, "Unable to delete the account."),
             (.deleteHistory, "Unable to delete the history."),
+            (.deleteMessages(1), "Unable to delete the message."),
+            (.deleteMessages(2), "Unable to delete the messages."),
             (.changeSetting, "Unable to change this setting."),
             (.turnOnNotifications, "Unable to turn on notifications."),
         ]

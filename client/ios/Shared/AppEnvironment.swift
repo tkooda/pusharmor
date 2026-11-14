@@ -103,6 +103,18 @@ final class AppEnvironment: PlatformHooks {
     func removeLockedInbox() { inbox.removeAll() }
     func removeDeliveredNotifications() { UNUserNotificationCenter.current().removeAllDeliveredNotifications() }
 
+    /// Sync deletions: the delivered notifications of the deleted History rows go.
+    func removeDeliveredNotifications(rowids: [Int64]) {
+        let gone = Set(rowids)
+        UNUserNotificationCenter.current().getDeliveredNotifications { delivered in
+            let ids = delivered.filter { n in
+                guard let r = n.request.content.userInfo["rowid"] as? NSNumber else { return false }
+                return gone.contains(r.int64Value)
+            }.map { $0.request.identifier }
+            if !ids.isEmpty { UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: ids) }
+        }
+    }
+
     /// The lock-screen switch reads the canary (protection complete): a failed read means
     /// the phone is locked.
     func isProtectedDataLocked() -> Bool { (try? Data(contentsOf: canaryURL)) == nil }

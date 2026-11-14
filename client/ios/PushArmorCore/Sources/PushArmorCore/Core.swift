@@ -20,6 +20,12 @@ public protocol PlatformHooks: AnyObject {
     func removeDeliveredNotifications()
     /// True when the canary file (protection complete) cannot be read.
     func isProtectedDataLocked() -> Bool
+    /// Remove the delivered notifications whose userInfo "rowid" is one of `rowids`.
+    func removeDeliveredNotifications(rowids: [Int64])
+}
+
+public extension PlatformHooks {
+    func removeDeliveredNotifications(rowids: [Int64]) {}
 }
 
 /// Settings keys (section 11).
@@ -29,6 +35,7 @@ public enum SettingKey {
     public static let showContent = "show_content"         // main switch, default on
     public static let historyDays = "history_days"         // default 30
     public static let sendDraft = "send_draft"             // the Send draft; gone with the wipe
+    public static let syncDeletions = "sync_deletions"     // default on
 }
 
 /// Shared logic of the app, the NSE and the share extension over one store and one API client.
@@ -110,13 +117,14 @@ public final class Core: @unchecked Sendable {
 
     /// Build one inner message to a pinned peer: reserve n first (one atomic increment), then
     /// encrypt.
-    public func buildMessage(to id: PeerId, withKeys: Bool = false, _ content: (UInt64) throws -> MessageContent) throws -> String {
+    public func buildMessage(to id: PeerId, withKeys: Bool = false, msgId: String? = nil,
+                             _ content: (UInt64) throws -> MessageContent) throws -> String {
         guard let p = try store.peer(id), p.pinned else { throw CoreError.notPinned }
         let me = try myId()
         let pin = try store.reserveCounter(id)
         let n = pin.n
         let keys: (Data, Data)? = withKeys ? (self.keys.signer.publicKey, self.keys.decryptor.publicKey) : nil
-        return try InnerMessage.seal(InnerJSON(n: n, content: try content(n)), signer: self.keys.signer, from: me, to: id,
+        return try InnerMessage.seal(InnerJSON(n: n, content: try content(n), id: msgId), signer: self.keys.signer, from: me, to: id,
                                      toEncPub: pin.encPub, pairingId: pin.pairingId, keys: keys)
     }
 

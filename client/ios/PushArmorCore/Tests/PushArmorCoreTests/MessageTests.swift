@@ -160,6 +160,65 @@ final class MessageTests: XCTestCase {
         XCTAssertNil(NameEntry.verify(f, owner: a.id, recipient: b.id, pairingId: pid, ownerSignPub: a.signPub))
     }
 
+    /// Sync deletions: a url, text or tel carries "id"; a control never does; a bad id is dropped.
+    func testInnerJSONMessageId() throws {
+        let id = InnerJSON.newId()
+        XCTAssertEqual(id.count, 22)
+        XCTAssertTrue(InnerJSON.isValidId(id))
+        XCTAssertNotEqual(InnerJSON.newId(), id)
+        let j = InnerJSON(n: 4, content: .text("hi"), id: id)
+        XCTAssertEqual(String(decoding: j.encode(), as: UTF8.self), "{\"n\":4,\"text\":\"hi\",\"id\":\"" + id + "\"}")
+        XCTAssertEqual(try InnerJSON.parse(j.encode()), j)
+        XCTAssertEqual(try InnerJSON.parse(Data("{\"n\":1,\"url\":\"x\",\"id\":\"a-b_C9\"}".utf8)).id, "a-b_C9")
+        for bad in ["\"\"", "\"a.b\"", "5", "\"" + String(repeating: "a", count: 65) + "\""] {
+            XCTAssertNil(try InnerJSON.parse(Data(("{\"n\":1,\"url\":\"x\",\"id\":" + bad + "}").utf8)).id, bad)
+        }
+        XCTAssertNotNil(try InnerJSON.parse(Data(("{\"n\":1,\"url\":\"x\",\"id\":\"" + String(repeating: "a", count: 64) + "\"}").utf8)).id)
+        XCTAssertNil(InnerJSON(n: 1, content: .logout, id: id).id)
+        XCTAssertNil(try InnerJSON.parse(Data("{\"n\":1,\"logout\":1,\"id\":\"abc\"}".utf8)).id)
+    }
+
+    /// del is a known type: {"n":N,"del":[ids]}; not an array of strings = not readable.
+    func testInnerJSONDel() throws {
+        let j = InnerJSON(n: 7, content: .del(["a", "b-c"]))
+        XCTAssertEqual(String(decoding: j.encode(), as: UTF8.self), "{\"n\":7,\"del\":[\"a\",\"b-c\"]}")
+        XCTAssertEqual(try InnerJSON.parse(j.encode()), j)
+        XCTAssertEqual(try InnerJSON.parse(Data("{\"n\":1,\"del\":[]}".utf8)), InnerJSON(n: 1, content: .del([])))
+        XCTAssertTrue(ReceivePipeline.isControl(.del(["a"])))
+        for bad in ["{\"n\":1,\"del\":1}", "{\"n\":1,\"del\":\"a\"}", "{\"n\":1,\"del\":[1]}"] {
+            XCTAssertThrowsError(try InnerJSON.parse(Data(bad.utf8)), bad)
+        }
+        // the old account-delete key is unchanged
+        XCTAssertEqual(try InnerJSON.parse(Data("{\"n\":1,\"delete\":1}".utf8)).content, .delete)
+    }
+
+    /// Many ids split over as few del messages as fit: a del filled to the max seals within
+    /// 3800 characters, and one more id does not seal.
+    func testDelChunksFitTheSizeCap() throws {
+        let maxN: UInt64 = 9_007_199_254_740_991
+        let ids = (0 ..< 400).map { _ in InnerJSON.newId() }
+        let chunks = try InnerJSON.delChunks(ids)
+        XCTAssertGreaterThan(chunks.count, 1)
+        XCTAssertEqual(chunks.flatMap { $0 }, ids)
+        let first = chunks[0]
+        let (m, _) = try roundTrip(InnerJSON(n: maxN, content: .del(first)))
+        XCTAssertLessThanOrEqual(m.utf8.count, InnerMessage.maxWire)
+        XCTAssertThrowsError(try roundTrip(InnerJSON(n: maxN, content: .del(Array(ids.prefix(first.count + 1))))))
+        for c in chunks {
+            let (m, _) = try roundTrip(InnerJSON(n: maxN, content: .del(c)))
+            XCTAssertLessThanOrEqual(m.utf8.count, InnerMessage.maxWire)
+        }
+        // received ids may be up to 64 characters: they split the same way
+        let long = (0 ..< 200).map { _ in InnerJSON.newId() + InnerJSON.newId() + "abcdefghijklmnopqrst" }
+        XCTAssertEqual(long[0].count, 64)
+        for c in try InnerJSON.delChunks(long) {
+            let (m, _) = try roundTrip(InnerJSON(n: maxN, content: .del(c)))
+            XCTAssertLessThanOrEqual(m.utf8.count, InnerMessage.maxWire)
+        }
+        XCTAssertEqual(try InnerJSON.delChunks(["a"]), [["a"]])
+        XCTAssertEqual(try InnerJSON.delChunks([]), [])
+    }
+
     func testPairMessages() throws {
         let n = TestPeer(), x = TestPeer()
         let rN = PairingCrypto.randomR()

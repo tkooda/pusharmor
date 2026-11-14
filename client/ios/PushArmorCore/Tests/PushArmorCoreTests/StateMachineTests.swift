@@ -142,6 +142,8 @@ final class StateMachineTests: XCTestCase {
         func removeLockedInbox() {}
         func removeDeliveredNotifications() {}
         func isProtectedDataLocked() -> Bool { false }
+        var removedRowids: [Int64] = []
+        func removeDeliveredNotifications(rowids: [Int64]) { removedRowids += rowids }
     }
 
     /// a failed DB wipe keeps the keys (the next 401 tries again); once it commits the
@@ -1740,7 +1742,7 @@ final class StateMachineTests: XCTestCase {
         let path = NSTemporaryDirectory() + "pa-mig-\(UUID().uuidString).sqlite"
         _ = try Store(path: path)
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 2)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 3)
         XCTAssertEqual(try s.db.one("PRAGMA journal_mode")?.text("journal_mode"), "wal")
         XCTAssertNil(try s.me().id)
     }
@@ -1750,18 +1752,40 @@ final class StateMachineTests: XCTestCase {
         let path = NSTemporaryDirectory() + "pa-mig1-\(UUID().uuidString).sqlite"
         let id = PeerId(raw: Data((0 ..< 30).map { UInt8($0) }))!
         do {
-            // DB(path:) migrates to the latest version: undo migration 2 to get a version 1 file
+            // DB(path:) migrates to the latest version: undo migrations 3 and 2 to get a version 1 file
             let db = try DB(path: path)
+            try db.exec("ALTER TABLE history DROP COLUMN msg_id")
             try db.exec("ALTER TABLE pairing DROP COLUMN wait_from")
             try db.exec("PRAGMA user_version = 1")
             try db.exec("INSERT INTO pairing (peer_id, role, state, started_at, last_send_at) VALUES (?, 'N', 'committed', 1000, 1010)", [.text(id.text)])
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 2)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 3)
         let e = try XCTUnwrap(try s.pairing(id))
         XCTAssertEqual(e.startedAt, 1000)
         XCTAssertEqual(e.lastSendAt, 1010)
         XCTAssertNil(e.waitFrom)
+    }
+
+    /// a version 2 file with History rows opens at version 3; the rows keep their fields and have no message id.
+    func testDBMigration2To3KeepsHistory() throws {
+        let path = NSTemporaryDirectory() + "pa-mig2-\(UUID().uuidString).sqlite"
+        let id = PeerId(raw: Data((0 ..< 30).map { UInt8($0) }))!
+        do {
+            let db = try DB(path: path)
+            try db.exec("ALTER TABLE history DROP COLUMN msg_id")
+            try db.exec("PRAGMA user_version = 2")
+            try db.exec("INSERT INTO history (dir, peer_id, type, content, read, created_local) VALUES ('in', ?, 'text', 'kept', 0, 1000)",
+                        [.text(id.text)])
+        }
+        let s = try Store(path: path)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 3)
+        let rows = try s.history()
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows[0].content, "kept")
+        XCTAssertEqual(rows[0].peerId, id.text)
+        XCTAssertEqual(rows[0].createdLocal, 1000)
+        XCTAssertNil(rows[0].msgId)
     }
 
     /// a corrupt pa.sqlite is only reported: the file stays as it was and nothing runs. Only
@@ -1778,7 +1802,7 @@ final class StateMachineTests: XCTestCase {
         let s = try await StoreRepair.reset(path: path, vault: FakeVault()) { called += 1 }
         XCTAssertEqual(called, 1)
         XCTAssertNil(try s.me().id)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 2)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 3)
         try s.setMe("name", .text("kept"))
         let s2 = try XCTUnwrap(try StoreRepair.open(path: path))
         XCTAssertEqual(called, 1)
@@ -2135,6 +2159,175 @@ final class StateMachineTests: XCTestCase {
         _ = await n.core.deny(x.id)
         _ = await x.drainInbox(w)
         XCTAssertTrue(try x.core.store.history().allSatisfy { $0.event != .denied })
+    }
+
+    // MARK: Sync deletions
+
+    /// a sent message carries a new id: stored on the out row and on the receiver's in row.
+    func testSyncDeletionsIdOnSendAndReceive() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        _ = try await n.core.send("hello", as: .text, to: [x.id], allCount: 1)
+        let out = try XCTUnwrap(try n.core.store.history().first { $0.dir == .outgoing })
+        let id = try XCTUnwrap(out.msgId)
+        XCTAssertEqual(id.count, 22)
+        await x.drainInbox(w)
+        let row = try XCTUnwrap(try x.core.store.history().first { $0.type == "text" })
+        XCTAssertEqual(row.msgId, id)
+    }
+
+    /// a del removes the matching rows, received and sent, and their notifications; the
+    /// receiver obeys with its own setting off; no History row; one banner.
+    func testSyncDeletionsDelRemovesRowsReceiverSettingOff() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        await n.core.fetchPeers(force: true)
+        await x.core.fetchPeers(force: true)
+        _ = try await n.core.send("one", as: .text, to: [x.id], allCount: 1)
+        await x.drainInbox(w)
+        _ = try await x.core.send("two", as: .text, to: [n.id], allCount: 1)
+        await n.drainInbox(w)
+        _ = try await x.core.send("three", as: .text, to: [n.id], allCount: 1)
+        await n.drainInbox(w)
+        let keep = try XCTUnwrap(try x.core.store.history().first { $0.content == "three" })
+        let hooks = RecordingHooks()
+        x.core.hooks = hooks
+        try x.core.store.setSetting(SettingKey.syncDeletions, "0")
+        let xRows = try x.core.store.history().filter { $0.content == "one" || $0.content == "two" }
+        XCTAssertEqual(xRows.count, 2)
+        let nRows = try n.core.store.history().filter { $0.content == "one" || $0.content == "two" }
+        let sends = w.count("POST", "/v1/send")
+        try await n.core.deleteHistoryRows(nRows.map { $0.rowid })
+        XCTAssertEqual(w.count("POST", "/v1/send"), sends + 1)
+        XCTAssertTrue(try n.core.store.history().filter { $0.content == "one" || $0.content == "two" }.isEmpty)
+        let before = try x.core.store.history().count
+        let r = await x.drainInbox(w)
+        XCTAssertEqual(r.count, 1)
+        XCTAssertEqual(r[0].banner?.body, "2 messages deleted by \"Ndev\"")
+        XCTAssertNil(r[0].rowid)
+        XCTAssertEqual(try x.core.store.history().count, before - 2)
+        XCTAssertNotNil(try x.core.store.historyRow(keep.rowid))
+        XCTAssertEqual(Set(hooks.removedRowids), Set(xRows.map { $0.rowid }))
+        XCTAssertEqual(S.messagesDeleted(1, "Ndev"), "1 message deleted by \"Ndev\"")
+        XCTAssertEqual(S.messagesDeleted(0, "Ndev"), "0 messages deleted by \"Ndev\"")
+    }
+
+    /// setting off: rows go at once, nothing is sent; setting on: a del with the ids.
+    func testSyncDeletionsSettingOffSendsNothing() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        await n.core.fetchPeers(force: true)
+        _ = try await n.core.send("a", as: .text, to: [x.id], allCount: 1)
+        _ = try await n.core.send("b", as: .text, to: [x.id], allCount: 1)
+        _ = w.take(x.id)
+        try n.core.store.setSetting(SettingKey.syncDeletions, "0")
+        let sends = w.count("POST", "/v1/send")
+        let a = try XCTUnwrap(try n.core.store.history().first { $0.content == "a" })
+        try await n.core.deleteHistoryRows([a.rowid])
+        XCTAssertEqual(w.count("POST", "/v1/send"), sends)
+        XCTAssertNil(try n.core.store.historyRow(a.rowid))
+        XCTAssertTrue(w.take(x.id).isEmpty)
+        try n.core.store.setSetting(SettingKey.syncDeletions, "1")
+        let b = try XCTUnwrap(try n.core.store.history().first { $0.content == "b" })
+        try await n.core.deleteHistoryRows([b.rowid])
+        XCTAssertEqual(w.count("POST", "/v1/send"), sends + 1)
+        XCTAssertEqual(w.take(x.id).count, 1)
+    }
+
+    /// an older row without an id is deleted here only: no del.
+    func testSyncDeletionsRowWithoutIdSendsNothing() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        await n.core.fetchPeers(force: true)
+        let rowid = try n.core.store.addMessage(dir: .outgoing, peer: x.id, type: "text", content: "old", n: nil, pairingId: nil,
+                                                read: true, results: nil, now: clock.now)
+        let sends = w.count("POST", "/v1/send")
+        try await n.core.deleteHistoryRows([rowid])
+        XCTAssertEqual(w.count("POST", "/v1/send"), sends)
+        XCTAssertNil(try n.core.store.historyRow(rowid))
+    }
+
+    /// the relay server cannot be reached: the rows stay and the error says why.
+    func testSyncDeletionsWorkerFailureKeepsRows() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        await n.core.fetchPeers(force: true)
+        _ = try await n.core.send("a", as: .text, to: [x.id], allCount: 1)
+        let a = try XCTUnwrap(try n.core.store.history().first { $0.content == "a" })
+        w.offline = true
+        do {
+            try await n.core.deleteHistoryRows([a.rowid])
+            XCTFail("the delete went on without the relay server")
+        } catch {
+            XCTAssertEqual(ErrorCopy.deleteFailText(.deleteMessages(1), error),
+                           "Unable to delete the message.\nThe relay server could not be reached. Check your internet connection and try again.")
+        }
+        w.offline = false
+        XCTAssertNotNil(try n.core.store.historyRow(a.rowid))
+        w.script("POST", "/v1/send", 400, "{\"error\":\"bad request\"}")
+        do {
+            try await n.core.deleteHistoryRows([a.rowid])
+            XCTFail("the delete went on after a 400")
+        } catch {
+            XCTAssertTrue(ErrorCopy.deleteFailText(.deleteMessages(1), error).hasPrefix("Unable to delete the message.\n"))
+        }
+        XCTAssertNotNil(try n.core.store.historyRow(a.rowid))
+    }
+
+    /// many ids: one delete splits into several del sends, each within the size cap, and the
+    /// receiver deletes every row.
+    func testSyncDeletionsSplitsOverTheSizeCap() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        await n.core.fetchPeers(force: true)
+        let ids = (0 ..< 250).map { _ in InnerJSON.newId() }
+        var rowids: [Int64] = []
+        for id in ids {
+            rowids.append(try n.core.store.addMessage(dir: .outgoing, peer: x.id, type: "text", content: "m", n: nil, pairingId: nil,
+                                                      read: true, results: nil, now: clock.now, msgId: id))
+            _ = try x.core.store.addMessage(dir: .incoming, peer: n.id, type: "text", content: "m", n: nil, pairingId: nil,
+                                            read: false, results: nil, now: clock.now, msgId: id)
+        }
+        let sends = w.count("POST", "/v1/send")
+        try await n.core.deleteHistoryRows(rowids)
+        let chunks = try InnerJSON.delChunks(ids).count
+        XCTAssertGreaterThan(chunks, 1)
+        XCTAssertEqual(w.count("POST", "/v1/send"), sends + chunks)
+        let pushed = w.take(x.id)
+        XCTAssertEqual(pushed.count, chunks)
+        XCTAssertTrue(pushed.allSatisfy { $0.utf8.count <= InnerMessage.maxWire })
+        for m in pushed { _ = await x.core.receive(m, mode: .nse) }
+        XCTAssertTrue(try x.core.store.history().filter { $0.type == "text" }.isEmpty)
+        XCTAssertTrue(try n.core.store.history().filter { $0.type == "text" }.isEmpty)
+    }
+
+    /// delete all is a delete of every row: a del with every id; a failure keeps the rows.
+    func testSyncDeletionsDeleteAll() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        await n.core.fetchPeers(force: true)
+        _ = try await n.core.send("a", as: .text, to: [x.id], allCount: 1)
+        _ = try await n.core.send("b", as: .text, to: [x.id], allCount: 1)
+        await x.drainInbox(w)
+        _ = try n.core.store.addMessage(dir: .outgoing, peer: x.id, type: "text", content: "old", n: nil, pairingId: nil,
+                                        read: true, results: nil, now: clock.now)
+        let count = try n.core.store.history().count
+        w.offline = true
+        do {
+            try await n.core.deleteAllHistory()
+            XCTFail("delete all went on without the relay server")
+        } catch {
+            XCTAssertEqual(ErrorCopy.deleteFailText(.deleteHistory, error),
+                           "Unable to delete the history.\nThe relay server could not be reached. Check your internet connection and try again.")
+        }
+        w.offline = false
+        XCTAssertEqual(try n.core.store.history().count, count)
+        try await n.core.deleteAllHistory()
+        XCTAssertTrue(try n.core.store.history().isEmpty)
+        let r = await x.drainInbox(w)
+        XCTAssertEqual(r.count, 1)
+        XCTAssertEqual(r[0].banner?.body, "2 messages deleted by \"Ndev\"")
+        XCTAssertTrue(try x.core.store.history().filter { $0.type == "text" }.isEmpty)
     }
 
     func testSortedByNameIgnoresCase() {

@@ -116,6 +116,9 @@ struct SettingsView: View {
                     )) {
                         ForEach(dayChoices, id: \.self) { Text($0 == 1 ? "1 day" : "\($0) days").tag($0) }
                     }
+                    Toggle("Sync deletions", isOn: boolBinding(SettingKey.syncDeletions, true))
+                    Text("Deleting on this device will also delete on your other devices.")
+                        .font(.caption).foregroundColor(.secondaryText)
                     Button("Delete all history", role: .destructive) { confirmDeleteHistory = true }
                 }
 

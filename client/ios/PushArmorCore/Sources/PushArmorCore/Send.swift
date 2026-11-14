@@ -31,9 +31,10 @@ extension Core {
         case .text: mc = .text(content)
         case .tel: mc = .tel(content)
         }
+        let msgId = InnerJSON.newId()
         let out = try await signedWithMessages("POST", "/v1/send") {
             var m: [PeerId: String] = [:]
-            for id in recipients { m[id] = try buildMessage(to: id) { _ in mc } }
+            for id in recipients { m[id] = try buildMessage(to: id, msgId: msgId) { _ in mc } }
             return JOut.obj([("v", .int(1)), ("m", JOut.messages(m))]).data
         }
         guard let r = out.reply, r.ok else {
@@ -69,7 +70,45 @@ extension Core {
         if due { try? store.setMe("fetch_due", .int(1)) }
         let resultsJSON = JOut.obj(recipients.map { ($0.text, .str(results[$0.text] ?? "failed")) }).text
         let rowid = try? store.addMessage(dir: .outgoing, peer: recipients[0], type: type.rawValue, content: content, n: nil,
-                                          pairingId: nil, read: true, results: resultsJSON, now: clock())
+                                          pairingId: nil, read: true, results: resultsJSON, now: clock(), msgId: msgId)
         return SendReport(sent: sent, total: allCount, results: results, lines: lines, rowid: rowid, soleName: soleName)
+    }
+
+    /// The Worker takes at most this many recipients in one POST /v1/send.
+    static let maxSendTargets = 9
+
+    /// Sync deletions targets: every other approved device of this account that approves
+    /// this device, command line devices excluded.
+    func syncTargets() throws -> [PeerId] {
+        try store.peers().filter { $0.pinned && $0.state == .approved && $0.approvesMe && !$0.missing && $0.platform != "cli" }
+            .map { $0.id }
+    }
+
+    /// Delete History rows. With Sync deletions on, the message ids of the rows go first in
+    /// del messages to the other devices; the rows are deleted only after every POST /v1/send
+    /// succeeded. A failure throws SendError and keeps the rows. Rows without a message id
+    /// are deleted on this device only.
+    public func deleteHistoryRows(_ rowids: [Int64]) async throws {
+        let ids = try rowids.compactMap { try store.historyRow($0)?.msgId }
+        if !ids.isEmpty, (try? store.boolSetting(SettingKey.syncDeletions, default: true)) ?? true {
+            let targets = try syncTargets()
+            for chunk in try InnerJSON.delChunks(ids) {
+                for start in stride(from: 0, to: targets.count, by: Core.maxSendTargets) {
+                    let batch = Array(targets[start ..< min(start + Core.maxSendTargets, targets.count)])
+                    let out = try await signedWithMessages("POST", "/v1/send") {
+                        var m: [PeerId: String] = [:]
+                        for id in batch { m[id] = try buildMessage(to: id) { _ in .del(chunk) } }
+                        return JOut.obj([("v", .int(1)), ("m", JOut.messages(m))]).data
+                    }
+                    guard let r = out.reply, r.ok else {
+                        if out.isClockSkew { throw SendError.clockOff }
+                        throw SendError.rejected(ErrorCopy.reason(from: out))
+                    }
+                }
+            }
+        }
+        try store.db.write {
+            for id in rowids { try store.db.exec("DELETE FROM history WHERE rowid = ?", [.int(id)]) }
+        }
     }
 }

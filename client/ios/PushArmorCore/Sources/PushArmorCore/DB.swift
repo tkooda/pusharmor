@@ -259,6 +259,7 @@ enum Schema {
         INSERT INTO me (k) VALUES (1);
         """,
         "ALTER TABLE pairing ADD COLUMN wait_from INTEGER",
+        "ALTER TABLE history ADD COLUMN msg_id TEXT",
     ]
 
     /// Reads user_version first with no transaction; takes the write lock only when a

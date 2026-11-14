@@ -967,13 +967,21 @@ final class AppModel: ObservableObject {
     }
 
     func deleteRow(_ row: HistoryRow) {
-        try? store?.db.exec("DELETE FROM history WHERE rowid = ?", [.int(row.rowid)])
-        reload()
+        deleteRows([row.rowid])
     }
 
+    /// With Sync deletions on, the rows go only once the other devices were told; a failure
+    /// keeps them and shows why.
     func deleteRows(_ ids: Set<Int64>) {
-        for id in ids { try? store?.db.exec("DELETE FROM history WHERE rowid = ?", [.int(id)]) }
-        reload()
+        guard let core = core else {
+            for id in ids { try? store?.db.exec("DELETE FROM history WHERE rowid = ?", [.int(id)]) }
+            reload()
+            return
+        }
+        Task {
+            do { try await core.deleteHistoryRows(Array(ids)) } catch { toast = ErrorCopy.deleteFailText(.deleteMessages(ids.count), error) }
+            reload()
+        }
     }
 
     /// Copy from a screen: the value goes on the pasteboard and the banner says "Copied", or
@@ -986,9 +994,20 @@ final class AppModel: ObservableObject {
     }
 
     func deleteAllHistory() {
-        do { try core?.deleteAllHistory() } catch { toast = ErrorCopy.text(.deleteHistory, ErrorCopy.reason(local: error)) }
-        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
-        reload()
+        guard let core = core else {
+            UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+            reload()
+            return
+        }
+        Task {
+            do {
+                try await core.deleteAllHistory()
+                UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+            } catch {
+                toast = ErrorCopy.deleteFailText(.deleteHistory, error)
+            }
+            reload()
+        }
     }
 
     /// Tap on a url: re-check the parsed scheme, then open it directly.
