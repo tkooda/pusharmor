@@ -823,8 +823,8 @@ def test_send_reads_a_bounded_amount_of_stdin(net, tmp_path, monkeypatch, capsys
     big = Stdin(tty=False, data=b"x" * (3 << 20))
     monkeypatch.setattr(sys, "stdin", big)
     assert run(tmp_path, "send") == 2
-    assert "The message is longer than 2048 characters." in capsys.readouterr().err
-    assert big.buffer.tell() == pa.CONTENT_CAP * 4 + 1
+    assert "The message is longer than 2000 characters." in capsys.readouterr().err
+    assert big.buffer.tell() == pa.SEND_CAP * 4 + 1
     monkeypatch.setattr(sys, "stdin", Stdin(tty=False, data=b"y" * 100 + b"\n"))
     assert run(tmp_path, "send") == 4
     assert "No device is paired yet. Run `pusharmor pair` to pair one." in capsys.readouterr().err
@@ -1203,7 +1203,7 @@ def test_relay_error_text_is_cleaned_and_short(net, tmp_path, monkeypatch, capsy
 def test_send_too_long(net, tmp_path, monkeypatch, capsys):
     login(monkeypatch, tmp_path)
     assert run(tmp_path, "send", "x" * 2049) == 2
-    assert capsys.readouterr().err.splitlines() == ["error: The message is longer than 2048 characters."]
+    assert capsys.readouterr().err.splitlines() == ["error: The message is longer than 2000 characters."]
 
 
 # ---- listen output ----
@@ -2007,7 +2007,7 @@ def test_sent_content_carries_a_22_char_id_and_controls_do_not(net, tmp_path, mo
     assert "id" not in json.loads(pa.msg_json(5, "logout", 1))
 
 
-@pytest.mark.parametrize("unit,count", [(0x7e, 2048), (0x7ff, 1024), (0xfffd, 682), (0x10ffff, 512), (0x1f, 2048)])
+@pytest.mark.parametrize("unit,count", [(0x7e, 2000), (0x7ff, 1000), (0xfffd, 666), (0x10ffff, 500), (0x1f, 2000)])
 def test_max_length_content_with_id_seals_within_the_limit(unit, count, net, tmp_path, monkeypatch):
     a, b = tmp_path / "a", tmp_path / "b"
     ida, idb = pair_two(monkeypatch, net, a, b)

@@ -324,6 +324,7 @@ MAX_WIRE = 3800
 HPKE_OVERHEAD = 65 + 16
 INFLATE_CAP = 16384
 CONTENT_CAP = 2048
+SEND_CAP = 2000
 
 
 def wire_chars(n):
@@ -973,7 +974,7 @@ TOO_OLD = ("This version of PushArmor is too old. " + UPDATE_REQUIRED + " "
 CLOCK_OFF = "This device's clock is off by more than 5 minutes. Fix the clock and try again."
 REFUSED = "The relay server refused the request (HTTP %d)."
 BAD_LINK = "The login link is not valid. Request a new code and try again."
-TOO_LONG = "The message is longer than 2048 characters."
+TOO_LONG = "The message is longer than 2000 characters."
 STORAGE_FULL = "Storage is full. Free some space and try again."
 DAMAGED = "The file %s is damaged. Delete it and log in again."
 UNREADABLE = "PushArmor could not read a message. It is not valid or was damaged."
@@ -2948,8 +2949,8 @@ def cmd_send(cx, args):
     if args.message and args.message != ["-"]:
         text = " ".join(args.message)
     elif args.message == ["-"] or not stdin_tty():
-        data = sys.stdin.buffer.read(CONTENT_CAP * 4 + 1) if sys.stdin else b""
-        if len(data) > CONTENT_CAP * 4:
+        data = sys.stdin.buffer.read(SEND_CAP * 4 + 1) if sys.stdin else b""
+        if len(data) > SEND_CAP * 4:
             raise Fail(TOO_LONG, EXIT_USAGE)
         try:
             text = data.decode("utf-8").rstrip("\r\n")
@@ -2965,7 +2966,7 @@ def cmd_send(cx, args):
         raise Fail("The message is empty.", EXIT_USAGE)
     type_, value = ("text", text) if args.text else detect(text)
     size = len(value.encode("utf-8"))
-    if size > CONTENT_CAP:
+    if size > SEND_CAP:
         raise Fail(TOO_LONG, EXIT_USAGE)
     cx.refresh()
     with cx.store.state() as d:
