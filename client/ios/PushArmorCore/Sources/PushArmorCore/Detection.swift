@@ -391,7 +391,7 @@ public enum SendDetection {
 
 /// Size cap helpers (catalog Size cap).
 public enum SizeCap {
-    public static let bytes = 2048
+    public static let bytes = 2000
 
     public static func count(_ s: String) -> Int { s.utf8.count }
 
@@ -400,13 +400,13 @@ public enum SizeCap {
 
     public static func isOver(_ s: String) -> Bool { count(s) > bytes }
 
-    /// "(N / 2048)" or "Too long (N / 2048)".
+    /// "(N / 2000)" or "Too long (N / 2000)".
     public static func label(_ s: String) -> String {
         let n = count(s)
         return n > bytes ? "Too long (\(n) / \(bytes))" : "(\(n) / \(bytes))"
     }
 
-    /// The first 2048 bytes, cut on a UTF-8 boundary.
+    /// The first 2000 bytes, cut on a UTF-8 boundary.
     public static func truncated(_ s: String) -> String {
         var out = ""
         var n = 0

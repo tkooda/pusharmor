@@ -63,7 +63,7 @@ final class ShareModel: ObservableObject {
         text = shared.0
         type = shared.1
         if SizeCap.isOver(text) {
-            // URL and tel over cap are refused; text offers the first 2048 bytes
+            // URL and tel over cap are refused; text offers the first 2000 bytes
             if type == .text { step = .offerTruncate } else { step = .failed(ErrorCopy.sendFailText(Core.SendError.tooLong)) }
             return
         }

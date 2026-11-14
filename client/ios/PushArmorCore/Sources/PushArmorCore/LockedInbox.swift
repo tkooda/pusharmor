@@ -224,8 +224,9 @@ extension Core {
     }
 
     /// Delete all history: every row, deleted like a selection of all rows (Sync deletions
-    /// included). The caller also clears delivered notifications.
-    public func deleteAllHistory() async throws {
+    /// included), with the same result. The caller also clears delivered notifications.
+    @discardableResult
+    public func deleteAllHistory() async throws -> String? {
         try await deleteHistoryRows(try store.db.query("SELECT rowid FROM history").compactMap { $0.int("rowid") })
     }
 }

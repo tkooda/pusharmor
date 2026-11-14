@@ -21,11 +21,11 @@ public protocol PlatformHooks: AnyObject {
     /// True when the canary file (protection complete) cannot be read.
     func isProtectedDataLocked() -> Bool
     /// Remove the delivered notifications whose userInfo "rowid" is one of `rowids`.
-    func removeDeliveredNotifications(rowids: [Int64])
+    func removeDeliveredNotifications(rowids: [Int64]) async
 }
 
 public extension PlatformHooks {
-    func removeDeliveredNotifications(rowids: [Int64]) {}
+    func removeDeliveredNotifications(rowids: [Int64]) async {}
 }
 
 /// Settings keys (section 11).

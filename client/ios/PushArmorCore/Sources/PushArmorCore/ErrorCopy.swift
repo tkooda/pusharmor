@@ -23,8 +23,8 @@ public enum ErrorCopy {
         case prepareLogin
         case deleteAccount
         case deleteHistory
-        /// Deleting History rows (count) while Sync deletions could not reach the other devices.
-        case deleteMessages(Int)
+        /// Deleting History rows while Sync deletions could not reach the other devices.
+        case deleteOnOtherDevices
         case changeSetting
         case turnOnNotifications
 
@@ -48,7 +48,7 @@ public enum ErrorCopy {
             case .prepareLogin: return "Unable to start the login."
             case .deleteAccount: return "Unable to delete the account."
             case .deleteHistory: return "Unable to delete the history."
-            case .deleteMessages(let n): return n == 1 ? "Unable to delete the message." : "Unable to delete the messages."
+            case .deleteOnOtherDevices: return "Unable to delete on your other devices."
             case .changeSetting: return "Unable to change this setting."
             case .turnOnNotifications: return "Unable to turn on notifications."
             }
@@ -115,7 +115,7 @@ public enum ErrorCopy {
             case .windowClosed: return "The login window was closed. Try again."
             case .badReply: return "The relay server sent a reply this device cannot use. Try again."
             case .refused: return "The relay server did not accept the request. Update PushArmor and try again."
-            case .tooLong: return "The message is longer than 2048 characters."
+            case .tooLong: return "The message is longer than 2000 characters."
             case .notificationsUnavailable:
                 return "Notifications are not available on this device. Allow notifications for PushArmor in iOS Settings, then try again."
             case .appleUnreachable:
@@ -246,6 +246,16 @@ public enum ErrorCopy {
         case .clockOff?: return text(a, .clockOff)
         default: return text(a, reason(local: e))
         }
+    }
+
+    /// The notice after a delete whose del calls all went through, nil when every device got
+    /// it: one device by name with line 2 of its send result text, or a count for several.
+    public static func deleteResultText(_ failed: [(name: String, word: String)]) -> String? {
+        guard let f = failed.first else { return nil }
+        guard failed.count == 1 else { return "Unable to delete on \(failed.count) devices" }
+        let line = "Unable to delete on \"\(f.name)\""
+        guard let t = sendResultText(f.word, f.name), let i = t.firstIndex(of: "\n") else { return line }
+        return line + String(t[i...])
     }
 
     /// The reason for a local data error: SQLITE_FULL = storage full, any other store error =

@@ -25,6 +25,8 @@ public struct ReceiveResult: Sendable {
     public var fault = false
     /// A verified remove(me) or delete applied: the removal check runs before any wipe.
     var removalSignal = false
+    /// History rows a del removed: receive awaits the removal of their delivered notifications.
+    var deletedRowids: [Int64] = []
 
     static func plain(_ b: Banner?) -> ReceiveResult {
         ReceiveResult(banner: b, rowid: nil, committed: false, newMessage: false, approveVerified: false)
@@ -92,6 +94,7 @@ extension Core {
             return await receivePair(m, me: myId, mode: mode)
         }
         let r = receiveInner(m, me: myId, mode: mode)
+        if !r.deletedRowids.isEmpty { await hooks?.removeDeliveredNotifications(rowids: r.deletedRowids) }
         if r.removalSignal && mode != .nse { await confirmRemoval() }
         return r
     }
@@ -173,10 +176,10 @@ extension Core {
             switch r.outcome {
             case .accept:
                 guard let a = applied else { return drop(mode) }
-                if !a.deletedRowids.isEmpty { hooks?.removeDeliveredNotifications(rowids: a.deletedRowids) }
                 var res = ReceiveResult(banner: mode == .nse ? a.banner : nil, rowid: a.rowid, committed: true,
                                         newMessage: a.newMessage, approveVerified: a.approveVerified)
                 res.removalSignal = a.removalSignal
+                res.deletedRowids = a.deletedRowids
                 return res
             case .invalid:
                 return drop(mode, peer: r.verifiedFrom, invalid: true)
@@ -202,7 +205,7 @@ extension Core {
     }
 
     /// The banner a control type shows (also re-presented for a seen-n duplicate).
-    func controlBanner(_ c: MessageContent, peer p: Peer?, name: String?, me: PeerId) -> Banner? {
+    func controlBanner(_ c: MessageContent, peer p: Peer?, name: String?, me: PeerId, removed: Int? = nil) -> Banner? {
         let id = p?.id
         let nm = p?.noticeName ?? S.aPeer
         switch c {
@@ -217,7 +220,7 @@ extension Core {
         case .deny: return noticeBanner(S.denied(nm), peer: id, category: .notice, tap: .peers(id?.text))
         case .logout: return noticeBanner(S.loggedOutNotice(nm), peer: id, category: .notice, tap: .peers(id?.text))
         case .login: return noticeBanner(S.loggedInNotice(nm), peer: id, category: .notice, tap: .peers(id?.text))
-        case .del(let ids): return noticeBanner(S.messagesDeleted(ids.count, nm), peer: id, category: .event, tap: .history)
+        case .del(let ids): return noticeBanner(S.messagesDeleted(removed ?? ids.count, nm), peer: id, category: .event, tap: .history)
         case .url, .text, .tel: return nil
         }
     }
@@ -297,7 +300,7 @@ extension Core {
             try store.savePeer(p)
             a.deletedRowids = try store.deleteHistory(msgIds: ids)
         }
-        a.banner = controlBanner(j.content, peer: try store.peer(from) ?? p, name: r.name, me: me)
+        a.banner = controlBanner(j.content, peer: try store.peer(from) ?? p, name: r.name, me: me, removed: a.deletedRowids.count)
         return a
     }
 }

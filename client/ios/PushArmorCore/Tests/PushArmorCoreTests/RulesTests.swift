@@ -64,12 +64,12 @@ final class RulesTests: XCTestCase {
     }
 
     func testSizeCap() {
-        XCTAssertEqual(SizeCap.label("abc"), "(3 / 2048)")
-        XCTAssertEqual(SizeCap.label(String(repeating: "a", count: 2049)), "Too long (2049 / 2048)")
-        XCTAssertFalse(SizeCap.isWarning(String(repeating: "a", count: 1843)))
-        XCTAssertTrue(SizeCap.isWarning(String(repeating: "a", count: 1844)))
-        let s = String(repeating: "a", count: 2047) + "\u{e9}"   // 2049 bytes, cut before the 2-byte char
-        XCTAssertEqual(SizeCap.truncated(s).utf8.count, 2047)
+        XCTAssertEqual(SizeCap.label("abc"), "(3 / 2000)")
+        XCTAssertEqual(SizeCap.label(String(repeating: "a", count: 2001)), "Too long (2001 / 2000)")
+        XCTAssertFalse(SizeCap.isWarning(String(repeating: "a", count: 1799)))
+        XCTAssertTrue(SizeCap.isWarning(String(repeating: "a", count: 1800)))
+        let s = String(repeating: "a", count: 1999) + "\u{e9}"   // 2001 bytes, cut before the 2-byte char
+        XCTAssertEqual(SizeCap.truncated(s).utf8.count, 1999)
         XCTAssertEqual(SizeCap.truncated("abc"), "abc")
     }
 

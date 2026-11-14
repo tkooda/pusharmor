@@ -127,7 +127,7 @@ public enum S {
     }
     public static func receivedWhileLocked(_ n: Int) -> String { "\(n) " + (n == 1 ? "message" : "messages") + " received while locked" }
     public static let thisPhoneOldInstall = "(this phone, old install)"
-    public static let tooLongShare = "Send the first 2048 characters"
+    public static let tooLongShare = "Send the first 2000 characters"
     /// Share sheet texts when nothing can be sent: line 1, then line 2.
     public static let shareLoggedOut = ErrorCopy.Action.send.line + "\nThis device is logged out. Open PushArmor and log in."
     public static let shareNothing = ErrorCopy.Action.send.line + "\nThere is no text or URL to send."

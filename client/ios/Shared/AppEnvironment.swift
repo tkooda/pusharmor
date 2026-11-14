@@ -104,15 +104,15 @@ final class AppEnvironment: PlatformHooks {
     func removeDeliveredNotifications() { UNUserNotificationCenter.current().removeAllDeliveredNotifications() }
 
     /// Sync deletions: the delivered notifications of the deleted History rows go.
-    func removeDeliveredNotifications(rowids: [Int64]) {
+    /// Awaited, so the NSE does not hand over its content before the removal is asked for.
+    func removeDeliveredNotifications(rowids: [Int64]) async {
         let gone = Set(rowids)
-        UNUserNotificationCenter.current().getDeliveredNotifications { delivered in
-            let ids = delivered.filter { n in
-                guard let r = n.request.content.userInfo["rowid"] as? NSNumber else { return false }
-                return gone.contains(r.int64Value)
-            }.map { $0.request.identifier }
-            if !ids.isEmpty { UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: ids) }
-        }
+        let center = UNUserNotificationCenter.current()
+        let ids = await center.deliveredNotifications().filter { n in
+            guard let r = n.request.content.userInfo["rowid"] as? NSNumber else { return false }
+            return gone.contains(r.int64Value)
+        }.map { $0.request.identifier }
+        if !ids.isEmpty { center.removeDeliveredNotifications(withIdentifiers: ids) }
     }
 
     /// The lock-screen switch reads the canary (protection complete): a failed read means

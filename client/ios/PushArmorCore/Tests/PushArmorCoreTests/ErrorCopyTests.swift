@@ -27,8 +27,7 @@ final class ErrorCopyTests: XCTestCase {
             (.prepareLogin, "Unable to start the login."),
             (.deleteAccount, "Unable to delete the account."),
             (.deleteHistory, "Unable to delete the history."),
-            (.deleteMessages(1), "Unable to delete the message."),
-            (.deleteMessages(2), "Unable to delete the messages."),
+            (.deleteOnOtherDevices, "Unable to delete on your other devices."),
             (.changeSetting, "Unable to change this setting."),
             (.turnOnNotifications, "Unable to turn on notifications."),
         ]
@@ -59,7 +58,7 @@ final class ErrorCopyTests: XCTestCase {
             (.windowClosed, "The login window was closed. Try again."),
             (.badReply, "The relay server sent a reply this device cannot use. Try again."),
             (.refused, "The relay server did not accept the request. Update PushArmor and try again."),
-            (.tooLong, "The message is longer than 2048 characters."),
+            (.tooLong, "The message is longer than 2000 characters."),
             (.notificationsUnavailable,
              "Notifications are not available on this device. Allow notifications for PushArmor in iOS Settings, then try again."),
             (.keysUnusable, "This device's security keys cannot be used right now. Restart the device and try again."),

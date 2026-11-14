@@ -170,9 +170,9 @@ public struct InnerJSON: Equatable, Sendable {
         case "logout": try one(); c = .logout
         case "login": try one(); c = .login
         case "del":
-            guard case .array(let a) = val else { throw Failure.value }
+            guard case .array(let a) = val, !a.isEmpty else { throw Failure.value }
             c = .del(try a.map { (e: JSONValue) throws -> String in
-                guard let s = e.stringValue else { throw Failure.value }
+                guard let s = e.stringValue, isValidId(s) else { throw Failure.value }
                 return s
             })
         default: throw Failure.shape

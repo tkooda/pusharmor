@@ -970,8 +970,8 @@ final class AppModel: ObservableObject {
         deleteRows([row.rowid])
     }
 
-    /// With Sync deletions on, the rows go only once the other devices were told; a failure
-    /// keeps them and shows why.
+    /// With Sync deletions on, a row goes only once the other devices were told of it; a
+    /// failure keeps it and shows why, and devices that did not get it are named.
     func deleteRows(_ ids: Set<Int64>) {
         guard let core = core else {
             for id in ids { try? store?.db.exec("DELETE FROM history WHERE rowid = ?", [.int(id)]) }
@@ -979,7 +979,9 @@ final class AppModel: ObservableObject {
             return
         }
         Task {
-            do { try await core.deleteHistoryRows(Array(ids)) } catch { toast = ErrorCopy.deleteFailText(.deleteMessages(ids.count), error) }
+            do {
+                if let t = try await core.deleteHistoryRows(Array(ids)) { toast = t }
+            } catch { toast = ErrorCopy.deleteFailText(.deleteOnOtherDevices, error) }
             reload()
         }
     }
@@ -1001,10 +1003,10 @@ final class AppModel: ObservableObject {
         }
         Task {
             do {
-                try await core.deleteAllHistory()
+                if let t = try await core.deleteAllHistory() { toast = t }
                 UNUserNotificationCenter.current().removeAllDeliveredNotifications()
             } catch {
-                toast = ErrorCopy.deleteFailText(.deleteHistory, error)
+                toast = ErrorCopy.deleteFailText(.deleteOnOtherDevices, error)
             }
             reload()
         }

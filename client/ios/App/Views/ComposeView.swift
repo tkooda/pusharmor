@@ -513,7 +513,7 @@ struct ComposeView: View {
         SendScreenRules.sendTitle(count: recipientCount, soleName: soleRecipientName)
     }
 
-    /// "(39 / 2048)", or "Too long (2049 / 2048)" (SizeCap.label).
+    /// "(39 / 2000)", or "Too long (2001 / 2000)" (SizeCap.label).
     private var counter: String { SizeCap.label(text) }
 
     private func note(_ p: Peer) -> String? {

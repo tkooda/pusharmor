@@ -101,9 +101,13 @@ final class MessageTests: XCTestCase {
         let noisy = String((0 ..< 900).map { _ in Character(Unicode.Scalar(UInt8.random(in: 0x21 ... 0x7e, using: &g))) })
         let (m3, _) = try roundTrip(InnerJSON(n: 5, content: .text(noisy)))
         XCTAssertEqual(m3.count, 2048)
-        let noisy2 = String((0 ..< 2048).map { _ in Character(Unicode.Scalar(UInt8.random(in: 0x21 ... 0x7e, using: &g))) })
+        let noisy2 = String((0 ..< SizeCap.bytes).map { _ in Character(Unicode.Scalar(UInt8.random(in: 0x21 ... 0x7e, using: &g))) })
         let (m4, _) = try roundTrip(InnerJSON(n: 5, content: .text(noisy2)))
         XCTAssertEqual(m4.count, 3800)
+        // the worst case: the longest content with a message id and the largest n still seals within 3800
+        let worst = String(repeating: "\"", count: SizeCap.bytes)
+        let (m5, _) = try roundTrip(InnerJSON(n: 9_007_199_254_740_991, content: .text(worst), id: InnerJSON.newId()))
+        XCTAssertLessThanOrEqual(m5.count, InnerMessage.maxWire)
     }
 
     func testSplitRejects() throws {
@@ -178,14 +182,14 @@ final class MessageTests: XCTestCase {
         XCTAssertNil(try InnerJSON.parse(Data("{\"n\":1,\"logout\":1,\"id\":\"abc\"}".utf8)).id)
     }
 
-    /// del is a known type: {"n":N,"del":[ids]}; not an array of strings = not readable.
+    /// del is a known type: {"n":N,"del":[ids]}; empty, or not an array of valid ids = not readable.
     func testInnerJSONDel() throws {
         let j = InnerJSON(n: 7, content: .del(["a", "b-c"]))
         XCTAssertEqual(String(decoding: j.encode(), as: UTF8.self), "{\"n\":7,\"del\":[\"a\",\"b-c\"]}")
         XCTAssertEqual(try InnerJSON.parse(j.encode()), j)
-        XCTAssertEqual(try InnerJSON.parse(Data("{\"n\":1,\"del\":[]}".utf8)), InnerJSON(n: 1, content: .del([])))
         XCTAssertTrue(ReceivePipeline.isControl(.del(["a"])))
-        for bad in ["{\"n\":1,\"del\":1}", "{\"n\":1,\"del\":\"a\"}", "{\"n\":1,\"del\":[1]}"] {
+        for bad in ["{\"n\":1,\"del\":1}", "{\"n\":1,\"del\":\"a\"}", "{\"n\":1,\"del\":[1]}", "{\"n\":1,\"del\":[]}",
+                    "{\"n\":1,\"del\":[\"a b\"]}", "{\"n\":1,\"del\":[\"\"]}", "{\"n\":1,\"del\":[\"\(String(repeating: "a", count: 65))\"]}"] {
             XCTAssertThrowsError(try InnerJSON.parse(Data(bad.utf8)), bad)
         }
         // the old account-delete key is unchanged

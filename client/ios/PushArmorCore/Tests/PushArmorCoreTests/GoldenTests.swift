@@ -371,8 +371,10 @@ final class GoldenTests: XCTestCase {
         for c in cases("content_cap") {
             let s = str(c["input"])
             XCTAssertEqual(SizeCap.count(s), Int(i64(c["utf8_bytes"])))
-            XCTAssertEqual(!SizeCap.isOver(s), c["ok"] as! Bool)
-            XCTAssertEqual(SizeCap.truncated(s), str(c["truncated"]))
+            // the send cap is 2000 bytes; the vectors are for the 2048-byte receive cap
+            XCTAssertEqual(SizeCap.isOver(s), SizeCap.count(s) > 2000)
+            XCTAssertLessThanOrEqual(SizeCap.truncated(s).utf8.count, 2000)
+            XCTAssertTrue(s.hasPrefix(SizeCap.truncated(s)))
             // receivers drop decoded content over 2048 bytes
             let j = InnerJSON(n: 1, content: .text(s)).encode()
             XCTAssertEqual((try? InnerJSON.parse(j)) != nil, c["ok"] as! Bool)
