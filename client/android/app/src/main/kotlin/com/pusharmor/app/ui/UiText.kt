@@ -243,6 +243,13 @@ object UiText {
         }
     }
 
+    /** Sync deletions the relay server took but some devices did not get: one is named (and why), several are counted; null when all got it. */
+    fun syncDeleteMissed(missed: List<Pair<String, String>>): String? = when (missed.size) {
+        0 -> null
+        1 -> missed[0].let { (x, w) -> "Unable to delete on \"$x\"" + (sendResultText(w, x)?.substringAfter('\n', "")?.takeIf { it.isNotEmpty() }?.let { "\n$it" } ?: "") }
+        else -> "Unable to delete on ${missed.size} devices"
+    }
+
     private fun cutName(name: String) = if (name.length > SEND_NAME_MAX) name.take(SEND_NAME_MAX - 3).trimEnd() + "..." else name
 
     /** History title of a sent row (F22): reached its one device reads Sent to "Laptop", cut like the Send button; else "Sent". */

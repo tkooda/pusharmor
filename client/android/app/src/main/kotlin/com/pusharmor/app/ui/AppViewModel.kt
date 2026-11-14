@@ -430,19 +430,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun deleteAllHistory() = io(UiText.UNABLE_DELETE_HISTORY) {
-        if (syncDeleteFailed(g.dao.allHistory())) return@io
-        g.dao.deleteAllHistory()
+        if (!syncDelete(g.dao.allHistory())) g.dao.deleteAllHistory()
     }
     fun deleteHistory(ids: List<Long>) = io(UiText.UNABLE_DELETE_HISTORY) {
-        if (syncDeleteFailed(g.dao.historyRows(ids))) return@io
-        g.dao.deleteHistory(ids)
+        if (!syncDelete(g.dao.historyRows(ids))) g.dao.deleteHistory(ids)
     }
 
-    /** Sync deletions on: tells the other devices first; a failed send keeps the rows and shows why. */
-    private fun syncDeleteFailed(rows: List<HistoryEntity>): Boolean {
+    /**
+     * Sync deletions on: tells the other devices first and deletes each row here once the relay server took
+     * its del (rows with no id at the end); the rows of a failed call stay. One notice says what still failed.
+     * False when nothing was sent: the caller deletes as before.
+     */
+    private fun syncDelete(rows: List<HistoryEntity>): Boolean {
         val sync = g.settings.get(Settings.K.SYNC_DELETIONS) ?: true
-        val r = g.deleteSync()?.send(rows.map { it.toRow() }, sync) ?: return false
-        message.value = ErrorText.of(UiText.UNABLE_DELETE_SYNC, r)
+        val byMsgId = rows.groupBy({ it.msgId }, { it.id })
+        fun drop(ids: List<Long>) = ids.chunked(500).forEach { g.dao.deleteHistory(it) }
+        val r = g.deleteSync()?.send(rows.map { it.toRow() }, sync) { acc -> drop(acc.flatMap { byMsgId[it].orEmpty() }) } ?: return false
+        drop(byMsgId[null].orEmpty())
+        val notice = r.failed?.let { ErrorText.of(UiText.UNABLE_DELETE_SYNC, it) } ?: UiText.syncDeleteMissed(r.missed.map { (id, w) -> nameOf(id) to w })
+        if (notice != null) message.value = notice
         return true
     }
     fun markRead(id: Long) = io(null) { g.dao.markRead(id) }

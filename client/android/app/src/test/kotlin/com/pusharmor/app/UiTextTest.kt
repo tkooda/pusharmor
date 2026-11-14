@@ -382,4 +382,11 @@ class UiTextTest {
         assertEquals("To pair, run this on \"Server\": pusharmor\u00A0pair\u00A0385805", t.text)
         assertTrue(t.spanStyles.any { it.item.fontFamily == androidx.compose.ui.text.font.FontFamily.Monospace })
     }
+
+    @Test fun syncDeleteMissed() {
+        assertEquals(null, UiText.syncDeleteMissed(emptyList()))
+        assertEquals("Unable to delete on \"Phone\"\nThat device is logged out. Log in on that device to receive messages.", UiText.syncDeleteMissed(listOf("Phone" to "logged out")))
+        assertEquals("Unable to delete on \"Phone\"\nIts push service did not accept the message. Try again later.", UiText.syncDeleteMissed(listOf("Phone" to "failed:fcm-500")))
+        assertEquals("Unable to delete on 2 devices", UiText.syncDeleteMissed(listOf("Phone" to "gone", "Tab" to "logged out")))
+    }
 }

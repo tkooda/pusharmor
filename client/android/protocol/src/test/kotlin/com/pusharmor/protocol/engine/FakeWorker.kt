@@ -27,6 +27,12 @@ class FakeWorker {
         var skewNext = 0
         var rateLimitNext = 0
         var offline = false
+        /** These /v1/send calls (1 = this device's first) fail with a network error. */
+        var failSends: Set<Int> = emptySet()
+        /** The next pushes to this device fail at the push service. */
+        var pushFailNext = 0
+        /** Waits a del retry asked for (not slept). */
+        val sleeps = ArrayList<Long>()
         /** The next pair message is relayed, but the sender sees a network failure. */
         var relayThenNetworkFail = false
         val calls = ArrayList<String>()
@@ -37,7 +43,7 @@ class FakeWorker {
         val receive = ReceiveEngine(store, me, effects)
         val reconcile = AllowReconcile(store, api) { effects.log.add("selfRemovedPath") }
         val send = SendFlow(store, me, api, effects)
-        val deleteSync = DeleteSync(store, me, api)
+        val deleteSync = DeleteSync(store, me, api, longArrayOf(1000, 3000)) { sleeps.add(it) }
         val sync = PeersSync(store, me)
 
         fun fetch() { (api.peers() as ApiResult.Ok).value.let { sync.merge(it) } }
@@ -74,12 +80,14 @@ class FakeWorker {
             if (d.id !in t.allow) return "unapproved"
             if (t.loggedOut) return "logged out"
             if (!t.listening) return "not listening"
+            if (t.pushFailNext > 0) { t.pushFailNext--; return "failed:fcm-500" }
             t.inbox.add(msg)
             return "sent"
         }
 
         override fun send(messages: Map<String, String>): ApiResult<Map<String, String>> {
             gate("send")?.let { return it }
+            if (d.calls.count { it == "send" } in d.failSends) return ApiResult.Network
             return ApiResult.Ok(messages.mapValues { (to, m) -> relay(to, m) })
         }
 

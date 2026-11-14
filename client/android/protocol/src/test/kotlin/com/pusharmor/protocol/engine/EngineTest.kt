@@ -799,7 +799,7 @@ class EngineTest {
         pairedWithMessages()
         x.store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = n.id, type = "text", content = "old", at = t0)) // no id
         val before = sends(n)
-        assertNull(n.deleteSync.send(n.store.history.toList(), sync = true))
+        assertNull(n.deleteSync.send(n.store.history.toList(), sync = true)!!.failed)
         assertEquals(before + 1, sends(n))
         val gone = x.store.history.filter { it.content == "a" || it.content == "b" }.map { it.id }
         x.deliver(t0)
@@ -811,7 +811,7 @@ class EngineTest {
     @Test fun delMatchingNothingIsFineAndMakesNoHistoryRow() {
         pairedWithMessages()
         val keep = x.store.history.toList()
-        assertNull(n.deleteSync.send(listOf(HistoryRow(direction = Direction.SENT, peerId = null, type = "text", at = t0, msgId = "zzz")), sync = true))
+        assertNull(n.deleteSync.send(listOf(HistoryRow(direction = Direction.SENT, peerId = null, type = "text", at = t0, msgId = "zzz")), sync = true)!!.failed)
         x.deliver(t0)
         assertEquals(keep, x.store.history)
         assertTrue(x.effects.log.contains("deleted:[]:0"))
@@ -829,11 +829,11 @@ class EngineTest {
     @Test fun workerFailureIsReturnedSoTheRowsAreKept() {
         pairedWithMessages()
         n.offline = true
-        assertEquals(ApiResult.Network, n.deleteSync.send(n.store.history.toList(), sync = true))
+        assertEquals(ApiResult.Network, n.deleteSync.send(n.store.history.toList(), sync = true)!!.failed)
         assertTrue(x.inbox.isEmpty())
         n.offline = false
         n.rateLimitNext = 1
-        assertTrue(n.deleteSync.send(n.store.history.toList(), sync = true) is ApiResult.Http)
+        assertTrue(n.deleteSync.send(n.store.history.toList(), sync = true)!!.failed is ApiResult.Http)
     }
 
     /** Delete all: every row with an id is named, split over several del messages under the wire cap. */
@@ -842,7 +842,7 @@ class EngineTest {
         val ids = (1..300).map { _ -> com.pusharmor.crypto.B64url.encode(ByteArray(48).also { b -> java.security.SecureRandom().nextBytes(b) }) }
         for (id in ids) { n.store.insertHistory(HistoryRow(direction = Direction.SENT, peerId = null, type = "text", at = t0, msgId = id)); x.store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = n.id, type = "text", at = t0, msgId = id)) }
         val before = sends(n)
-        assertNull(n.deleteSync.send(n.store.history.toList(), sync = true))
+        assertNull(n.deleteSync.send(n.store.history.toList(), sync = true)!!.failed)
         assertTrue(sends(n) - before > 1)
         x.deliver(t0)
         assertTrue(x.store.history.isEmpty())
@@ -855,5 +855,60 @@ class EngineTest {
         val before = sends(n)
         assertNull(n.deleteSync.send(n.store.history.toList(), sync = true))
         assertEquals(before, sends(n))
+    }
+
+    private fun manyIds(k: Int): List<String> {
+        val ids = (1..k).map { _ -> com.pusharmor.crypto.B64url.encode(ByteArray(48).also { b -> java.security.SecureRandom().nextBytes(b) }) }
+        for (id in ids) n.store.insertHistory(HistoryRow(direction = Direction.SENT, peerId = null, type = "text", at = t0, msgId = id))
+        return ids
+    }
+
+    /** One del call fails: the others are still made, only the failed one's ids are not accepted. */
+    @Test fun aFailedCallDoesNotStopTheOthers() {
+        pairedWithMessages()
+        manyIds(300)
+        val chunks = com.pusharmor.protocol.InnerMessage.delChunks(n.store.history.mapNotNull { it.msgId })
+        assertTrue(chunks.size > 2)
+        val before = sends(n)
+        n.failSends = setOf(before + 2)
+        val accepted = ArrayList<List<String>>()
+        val r = n.deleteSync.send(n.store.history.toList(), sync = true) { accepted.add(it) }!!
+        assertEquals(ApiResult.Network, r.failed)
+        assertEquals(before + chunks.size, sends(n))
+        assertEquals(chunks.filterIndexed { i, _ -> i != 1 }, accepted)
+        assertTrue(r.missed.isEmpty())
+    }
+
+    /** A push the push service did not take is sent again to that device only; a later "sent" means no notice. */
+    @Test fun aFailedPushIsSentAgainAndThenNotReported() {
+        pairedWithMessages()
+        x.pushFailNext = 1
+        val before = sends(n)
+        val r = n.deleteSync.send(n.store.history.toList(), sync = true)!!
+        assertNull(r.failed)
+        assertTrue(r.missed.isEmpty())
+        assertEquals(listOf(1000L), n.sleeps)
+        assertEquals(before + 2, sends(n))
+        x.deliver(t0)
+        assertTrue(x.store.history.none { it.content == "a" || it.content == "b" })
+    }
+
+    @Test fun aPushStillFailingAfterThreeTriesIsReported() {
+        pairedWithMessages()
+        x.pushFailNext = 3
+        val r = n.deleteSync.send(n.store.history.toList(), sync = true)!!
+        assertEquals(mapOf(x.id to "failed:fcm-500"), r.missed)
+        assertEquals(listOf(1000L, 3000L), n.sleeps)
+    }
+
+    /** A final word (logged out) is not sent again. */
+    @Test fun aFinalWordIsNotRetried() {
+        pairedWithMessages()
+        x.loggedOut = true
+        val before = sends(n)
+        val r = n.deleteSync.send(n.store.history.toList(), sync = true)!!
+        assertEquals(mapOf(x.id to "logged out"), r.missed)
+        assertEquals(before + 1, sends(n))
+        assertTrue(n.sleeps.isEmpty())
     }
 }

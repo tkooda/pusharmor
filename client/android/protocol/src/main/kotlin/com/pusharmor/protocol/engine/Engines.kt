@@ -94,27 +94,53 @@ class SendFlow(private val store: LocalStore, me: Identity, private val api: Api
     }
 }
 
-/** Sync deletions: del to the other own devices, sent before the local delete. */
-class DeleteSync(private val store: LocalStore, me: Identity, private val api: Api) {
+/**
+ * Sync deletions: del to the other own devices, sent before the local delete. A push a device did not take
+ * ("failed:" reply word) is sent again to that device only, after each of [retryMs].
+ */
+class DeleteSync(private val store: LocalStore, me: Identity, private val api: Api, private val retryMs: LongArray = longArrayOf(), private val sleep: (Long) -> Unit = { Thread.sleep(it) }) {
     private val outbox = Outbox(store, me)
 
     /** Other approved own devices that keep a History (not the command line). */
     fun targets(): List<Peer> = store.peers().filter { it.pinned && it.approved && it.approvesMe && !it.removed && !it.missing && it.platform != "cli" }
 
     /**
-     * Sends del for the message ids of [rows] when [sync] is on. Returns null when the
-     * local delete may go on (every /v1/send got a 2xx reply, or nothing needed sending), else the failed result.
+     * What a del send did: [failed] the first /v1/send that got no 2xx reply (the rows of its ids stay here),
+     * [missed] devices whose reply word was still not "sent" after the retries (id to word).
      */
-    fun send(rows: List<HistoryRow>, sync: Boolean): ApiResult<*>? {
+    class Result(val failed: ApiResult<*>?, val missed: Map<String, String>)
+
+    /**
+     * Sends del for the message ids of [rows] when [sync] is on; null when nothing needed sending. Every call is
+     * made, even after one failed; [onAccepted] gets the ids of each del the relay server took, before any retry.
+     */
+    fun send(rows: List<HistoryRow>, sync: Boolean, onAccepted: (List<String>) -> Unit = {}): Result? {
         if (!sync) return null
-        val bodies = InnerMessage.delChunks(rows.mapNotNull { it.msgId }).map { MessageBody.Del(it) }
+        val chunks = InnerMessage.delChunks(rows.mapNotNull { it.msgId })
         val peers = targets()
-        if (bodies.isEmpty() || peers.isEmpty()) return null
-        for (b in bodies) for (chunk in peers.chunked(MAX_TARGETS)) {
-            val r = ClockSkew.run({ chunk.associate { it.id to outbox.simple(it, b).message } }) { api.send(it) }
-            if (r !is ApiResult.Ok) return r
+        if (chunks.isEmpty() || peers.isEmpty()) return null
+        var failed: ApiResult<*>? = null
+        val words = LinkedHashMap<Pair<Int, Peer>, String>() // (del, device) not "sent"
+        fun call(i: Int, to: List<Peer>): Boolean {
+            val b = MessageBody.Del(chunks[i])
+            var ok = true
+            for (batch in to.chunked(MAX_TARGETS)) {
+                val r = ClockSkew.run({ batch.associate { it.id to outbox.simple(it, b).message } }) { api.send(it) }
+                if (r is ApiResult.Ok) batch.forEach { p -> r.value[p.id]?.let { w -> if (w == "sent") words.remove(i to p) else words[i to p] = w } }
+                else { if (failed == null) failed = r; ok = false }
+            }
+            return ok
         }
-        return null
+        for (i in chunks.indices) if (call(i, peers)) onAccepted(chunks[i])
+        for (wait in retryMs) {
+            val again = words.filterValues { it.startsWith("failed:") }.keys.groupBy({ it.first }, { it.second })
+            if (again.isEmpty()) break
+            sleep(wait)
+            for ((i, to) in again) call(i, to)
+        }
+        val missed = LinkedHashMap<String, String>()
+        for ((k, w) in words) missed.putIfAbsent(k.second.id, w)
+        return Result(failed, missed)
     }
 
     companion object {

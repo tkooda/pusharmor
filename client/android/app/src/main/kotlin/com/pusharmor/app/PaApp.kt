@@ -117,7 +117,7 @@ class Graph(val app: PaApp) {
     fun approve(fcm: Boolean = true) = ApproveFlow(store, identity()!!, client, effects(fcm))
     fun receive(fcm: Boolean) = ReceiveEngine(store, identity()!!, effects(fcm))
     fun sender() = SendFlow(store, identity()!!, client, effects(true))
-    fun deleteSync() = identity()?.let { DeleteSync(store, it, client) }
+    fun deleteSync() = identity()?.let { DeleteSync(store, it, client, WorkerClient.FAULT_RETRY_MS, app::retrySleep) }
     fun sync() = PeersSync(store, identity()!!, effects(false))
     fun reconcile() = AllowReconcile(store, client) { session.onRemovedSignal(deleted = false) }
     fun logoutFlow() = LogoutFlow(store, identity()!!, client, reconcile())

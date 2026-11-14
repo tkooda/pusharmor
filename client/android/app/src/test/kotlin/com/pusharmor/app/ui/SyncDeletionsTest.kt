@@ -83,11 +83,11 @@ class SyncDeletionsTest {
         val vm = AppViewModel(app)
         val ids = listOf(row("aaaa"), row(null))
         run(vm) { vm.deleteHistory(ids) }
-        assertEquals(2, count())
+        assertEquals(1, count()) // the row with no id is deleted here only
         assertEquals("Unable to delete on your other devices.\nThe relay server is not working right now. Try again later.", vm.message.value)
         vm.message.value = null
         run(vm) { vm.deleteAllHistory() }
-        assertEquals(2, count())
+        assertEquals(1, count())
         assertEquals("Unable to delete on your other devices.\nThe relay server is not working right now. Try again later.", vm.message.value)
     }
 
@@ -114,5 +114,23 @@ class SyncDeletionsTest {
         assertEquals(0, sends.get())
         assertEquals(0, count())
         assertNull(vm.message.value)
+    }
+
+    /** Del 1 taken, del 2 failed at the relay server: del 1's rows go, del 2's rows stay, one notice. */
+    @Test fun aFailedDelKeepsOnlyItsRows() {
+        val vm = AppViewModel(app)
+        val ids = (1..300).map { B64url.encode(ByteArray(48).also { java.security.SecureRandom().nextBytes(it) }) }
+        val chunks = com.pusharmor.protocol.InnerMessage.delChunks(ids)
+        val rows = ids.map { row(it) }
+        app.fakeHttp = Interceptor { chain ->
+            val k = if (chain.request().url.encodedPath == "/v1/send") sends.incrementAndGet() else 0
+            val ok = k != 2 && k != 3 && k != 4 // the second del and its two retries fail
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(if (ok) 200 else 500).message("x")
+                .body((if (ok) "{\"r\":{\"$peerId\":\"sent\"}}" else "{}").toResponseBody("application/json".toMediaType())).build()
+        }
+        run(vm) { vm.deleteHistory(rows) }
+        assertEquals(chunks[1].size, count())
+        assertEquals(chunks.size + 2, sends.get())
+        assertEquals("Unable to delete on your other devices.\nThe relay server is not working right now. Try again later.", vm.message.value)
     }
 }
