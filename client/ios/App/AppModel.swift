@@ -1002,12 +1002,14 @@ final class AppModel: ObservableObject {
             return
         }
         Task {
+            let before = ((try? store?.db.query("SELECT rowid FROM history")) ?? []).compactMap { $0.int("rowid") }
             do {
                 if let t = try await core.deleteAllHistory() { toast = t }
-                UNUserNotificationCenter.current().removeAllDeliveredNotifications()
             } catch {
                 toast = ErrorCopy.deleteFailText(.deleteOnOtherDevices, error)
             }
+            let kept = Set(((try? store?.db.query("SELECT rowid FROM history")) ?? []).compactMap { $0.int("rowid") })
+            await env.removeDeliveredNotifications(rowids: before.filter { !kept.contains($0) })
             reload()
         }
     }
