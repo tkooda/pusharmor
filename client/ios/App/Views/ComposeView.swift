@@ -386,6 +386,7 @@ struct ComposeView: View {
                     Text(counter)
                         .font(.footnote)
                         .foregroundColor(.errorText)
+                        .frame(maxWidth: ax ? .infinity : nil, alignment: .trailing)
                 }
                 // only while a URL or phone number is detected, at the far right
                 if typeChoice.offered {
@@ -512,11 +513,8 @@ struct ComposeView: View {
         SendScreenRules.sendTitle(count: recipientCount, soleName: soleRecipientName)
     }
 
-    /// "39 / 2048" (SizeCap.label without the brackets), or "Too long (2049 / 2048)".
-    private var counter: String {
-        let l = SizeCap.label(text)
-        return l.hasPrefix("(") && l.hasSuffix(")") ? String(l.dropFirst().dropLast()) : l
-    }
+    /// "(39 / 2048)", or "Too long (2049 / 2048)" (SizeCap.label).
+    private var counter: String { SizeCap.label(text) }
 
     private func note(_ p: Peer) -> String? {
         let label = model.label(p)
