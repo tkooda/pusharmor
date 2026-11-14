@@ -191,7 +191,7 @@ extension Core {
             case .noop:
                 guard mode == .nse, let from = r.verifiedFrom, let j = r.json else { return .plain(nil) }
                 let p = try? store.peer(from)
-                return .plain(controlBanner(j.content, peer: p, name: r.name, me: me))
+                return .plain(controlBanner(j.content, peer: p, name: r.name, me: me, removed: 0))
             case .unreadable:
                 if r.ignored { return .plain(mode == .nse ? .fallback : nil) }
                 if let u = r.unknownFrom, mode != .returnedC, (try? store.peer(u)) == nil {
