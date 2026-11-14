@@ -56,7 +56,7 @@ export const T = {
   googleNotInCopy: "Google login is not available in this copy of PushArmor\nUse email login, or install PushArmor from the Chrome Web Store or GitHub",
   messageSentToN: (n: number) => "Message sent to " + n + (n === 1 ? " device" : " devices"),
   tooLong: (n: number) => "Too long (" + n + " / 2048)",
-  counter: (n: number) => n + " / 2048",
+  counter: (n: number) => "(" + n + " / 2048)",
   countdownLeft: (c: string) => "Times out in " + c,
   typeCaption: (t: string) => (t === "url" ? "Will be sent as URL" : t === "tel" ? "Will be sent as phone number" : "Will be sent as text"),
   clockOff: "This device's clock is off by more than 5 minutes.",

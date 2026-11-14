@@ -48,7 +48,7 @@ test("type captions and the pairing countdown text", () => {
   assert.equal(T.typeCaption("tel"), "Will be sent as phone number");
   assert.equal(T.countdownLeft("13 days"), "Times out in 13 days");
   assert.equal(T.countdownLeft("1 hour"), "Times out in 1 hour");
-  assert.equal(T.counter(39), "39 / 2048");
+  assert.equal(T.counter(39), "(39 / 2048)");
 });
 
 test("fx/fwd catch: only the SW fetch, body concatenated, over 3800 bytes dropped", () => {
