@@ -1959,6 +1959,38 @@ def test_listen_ignores_a_check_push_silently(net, tmp_path, monkeypatch, capsys
     assert cap.out == "" and cap.err.splitlines() == ["info: Listening. Press Ctrl+C to stop.", "info: Stopped."]
 
 
+def _sealed(cfg_from, ida, idb, a, json_text):
+    k = pa.Store(str(cfg_from)).load_keys()
+    with pa.Store(str(cfg_from)).state(write=False) as d:
+        p = d["peers"][idb]
+    pid = pa.b64d(p["pairing_id"])
+    return pa.build_message(k["sign"], k["id"], idb, pa.b64d(p["enc_pub"]), pid, json_text)
+
+
+def test_listen_ignores_a_signed_message_of_an_unknown_type(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = pair_two(monkeypatch, net, a, b)
+    n = state(a)["peers"][idb]["n"] + 50
+    net.deliver(idb, _sealed(a, ida, idb, a, '{"n":%d,"zzz":1}' % n))
+    net.stop.set()
+    capsys.readouterr()
+    assert run(b, "listen") == 130
+    cap = capsys.readouterr()
+    assert cap.out == "" and cap.err.splitlines() == ["info: Listening. Press Ctrl+C to stop.", "info: Stopped."]
+    assert n in state(b)["peers"][ida]["seen"]
+
+
+def test_listen_still_warns_about_an_unreadable_message(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = pair_two(monkeypatch, net, a, b)
+    net.deliver(idb, _sealed(a, ida, idb, a, '{"zzz":1}'))  # signed, but no n
+    net.stop.set()
+    capsys.readouterr()
+    assert run(b, "listen") == 130
+    cap = capsys.readouterr()
+    assert cap.out == "" and "warning: " + pa.UNREADABLE in cap.err
+
+
 def test_peers_list_with_my_relay_fault_is_accepted(net, tmp_path, monkeypatch, capsys):
     a, b = tmp_path / "a", tmp_path / "b"
     ida, idb = pair_two(monkeypatch, net, a, b)

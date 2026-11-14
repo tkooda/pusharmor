@@ -453,8 +453,10 @@ def open_message(message, own_id, own_enc_priv, own_account, pins):
     if n is None:
         return bad("n")
     type_ = next((t for t in TYPES if t in obj), None)
-    if type_ is None:
-        return bad("type")
+    if type_ is None:  # signed by a pinned peer: the caller may consume n and ignore it (a type from a newer client)
+        window = pin.get("window") or {"h": 0, "seen": []}
+        return {"outcome": "unreadable", "why": "type", "from": from_id, "n": n, "flag": flag,
+                "ignorable": pin["ruling"] == "approved" and flag == 0 and replay_outcome(window, n, "", False) == "accept"}
     value = obj[type_]
     if (flag == 1) != (type_ == "approve"):
         return bad("keys flag and type")
@@ -2022,7 +2024,14 @@ def receive_inner(cx, pt, src):
                 for pid, p in d["peers"].items() if p["pinned"] and p["pairing_id"]}
         r = open_message(pt, k["id"], k["enc"], b64d(k["id"])[:9], pins)
         out = r["outcome"]
-        if out == "unreadable":
+        if out == "unreadable" and r["why"] == "type" and r["flag"] == 0:
+            if r["ignorable"] and src != "returned":
+                p = d["peers"][r["from"]]
+                w = window_accept({"h": p["h"], "seen": p["seen"]}, r["n"])
+                p["h"], p["seen"] = w["h"], w["seen"]
+            elif not r["ignorable"] and src != "returned" and r["ruling"] != "approved":
+                notes.append(("warning", UNREADABLE))
+        elif out == "unreadable":
             if src != "returned":
                 notes.append(("warning", UNREADABLE))
                 fetch = r.get("why") == "unknown sender"
