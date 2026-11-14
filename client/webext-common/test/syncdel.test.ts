@@ -245,3 +245,23 @@ test("a max-length message with an id seals to 3800 chars or less, worst-case co
     }
   }
 });
+
+test("delete all: a row that arrives while the del messages are being sent survives; the rows read at the start are gone", async () => {
+  const { w, a, b } = await setup();
+  await a.e.send("one", "auto", "all");
+  await deliver(w, b);
+  await b.e.send("two", "auto", "all");
+  await deliver(w, a);
+  const reserve = a.db.reserveN.bind(a.db);
+  let added = false;
+  a.db.reserveN = async (id: string) => {
+    if (!added) {
+      added = true;
+      await a.db.addHistory({ dir: "in", peer: null, type: "text", content: "late", n: null, pairing_id: null, received: 1, read: false });
+    }
+    return reserve(id);
+  };
+  assert.deepEqual(await new Rpc(a.e).handle({ op: "historyDeleteAll" }), { ok: true, data: null });
+  assert.equal(added, true);
+  assert.deepEqual((await rows(a)).map((r) => r.content), ["late"]);
+});

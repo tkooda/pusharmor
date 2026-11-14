@@ -1601,9 +1601,8 @@ export class Engine {
   async deleteAllHistory(): Promise<string | null> {
     const rows = await this.db.history();
     const s = await this.syncDeletes(rows);
-    if (s.kept.size) {
-      for (const r of rows) if (!r.mid || !s.kept.has(r.mid)) await this.db.del("history", r.id!);
-    } else await this.db.clear(["history"]);
+    // only the rows read above: a row that arrived while the del messages were sent stays
+    for (const r of rows) if (!r.mid || !s.kept.has(r.mid)) await this.db.del("history", r.id!);
     await this.updateBadge();
     if (s.failed) throw new ActionError("syncDelete", s.err);
     return s.notice;

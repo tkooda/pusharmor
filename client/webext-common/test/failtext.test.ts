@@ -231,7 +231,8 @@ test("each device list action shows its own action line", async () => {
   await stub("setSettings", "settings", { showAll: true }, "Unable to change this setting.");
   await stub("logoutLocal", "signout", {}, "Unable to log out.");
   const db = a.db as unknown as Record<string, unknown>;
-  for (const [name, op, args] of [["del", "historyDelete", { ids: [1] }], ["clear", "historyDeleteAll", {}]] as const) {
+  await a.db.addHistory({ dir: "in", peer: null, type: "text", content: "x", n: null, pairing_id: null, received: 1, read: true });
+  for (const [name, op, args] of [["del", "historyDelete", { ids: [1] }], ["del", "historyDeleteAll", {}]] as const) {
     const real = db[name];
     db[name] = full;
     try {
