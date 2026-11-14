@@ -184,9 +184,9 @@ object UiText {
         "Trusts $approves ${if (approves == 1) "device" else "devices"}. Trusted by $approvedBy." +
             (if (!reachable) " Unreachable." else "") + (if (loggedOut) " Logged out." else "")
 
-    /** "39 / 2048"; over the cap "Too long (N / 2048)". */
+    /** "(39 / 2048)"; over the cap "Too long (N / 2048)". */
     fun counter(bytes: Int): String =
-        if (bytes > SizeCap.MAX_CONTENT_BYTES) "Too long ($bytes / 2048)" else "$bytes / 2048"
+        if (bytes > SizeCap.MAX_CONTENT_BYTES) "Too long ($bytes / 2048)" else "($bytes / 2048)"
 
     /** Share sheet over the cap, then Close (and for text, Send the first 2048 characters). The cap still counts UTF-8 bytes. */
     const val SHARE_TOO_LONG = UNABLE_SEND + "\n" + com.pusharmor.net.ErrorText.TOO_LONG

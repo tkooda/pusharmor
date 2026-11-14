@@ -183,8 +183,8 @@ class UiTextTest {
     }
 
     @Test fun counterAndSendLabel() {
-        assertEquals("39 / 2048", UiText.counter(39))
-        assertEquals("2048 / 2048", UiText.counter(2048))
+        assertEquals("(39 / 2048)", UiText.counter(39))
+        assertEquals("(2048 / 2048)", UiText.counter(2048))
         assertEquals("Too long (2049 / 2048)", UiText.counter(2049))
         assertEquals("Send", UiText.sendLabel(0))
         assertEquals("Send to 1 device", UiText.sendLabel(1))

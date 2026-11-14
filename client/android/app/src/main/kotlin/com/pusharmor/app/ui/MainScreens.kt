@@ -1008,12 +1008,12 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                             focusedBorderColor = cs.primary, unfocusedBorderColor = cs.outline))
                     val counter = UiText.showCounter(bytes)
                     if (extras) Column(Modifier.onSizeChanged { extrasPx = it.height }) {
-                        // The type caption and the counter at the left; "Send as text" at the far right, only for a detected URL or phone number.
+                        // The type caption at the left and the counter at the right of it; "Send as text" at the far right, only for a detected URL or phone number.
                         Row(Modifier.padding(start = 32.dp, end = 16.dp).fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Box(Modifier.align(Alignment.CenterVertically)) { TypeCaption(SendAsUrl.effective(text, asText)) }
-                                if (counter) Text(UiText.counter(bytes), Modifier.align(Alignment.CenterVertically), style = MaterialTheme.typography.bodySmall, color = cs.error)
+                                if (counter) Text(UiText.counter(bytes), Modifier.weight(1f).align(Alignment.CenterVertically), style = MaterialTheme.typography.bodySmall, color = cs.error, textAlign = TextAlign.End)
                             }
                             if (SendAsUrl.offersText(text)) Row(Modifier.heightIn(min = 40.dp).toggleable(asText, role = Role.Checkbox) { asText = it },
                                 verticalAlignment = Alignment.CenterVertically) {
