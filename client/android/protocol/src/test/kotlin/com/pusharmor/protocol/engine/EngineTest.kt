@@ -911,4 +911,15 @@ class EngineTest {
         assertEquals(before + 1, sends(n))
         assertTrue(n.sleeps.isEmpty())
     }
+
+    /** The relay server took the del, a push failed, and the retry call fails: no relay failure, the device is named. */
+    @Test fun aFailedRetryCallIsNotARelayFailure() {
+        pairedWithMessages()
+        x.pushFailNext = 1
+        val before = sends(n)
+        n.failSends = setOf(before + 2, before + 3)
+        val r = n.deleteSync.send(n.store.history.toList(), sync = true)!!
+        assertNull(r.failed)
+        assertEquals(mapOf(x.id to "failed:fcm-500"), r.missed)
+    }
 }

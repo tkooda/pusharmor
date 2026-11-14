@@ -121,13 +121,13 @@ class DeleteSync(private val store: LocalStore, me: Identity, private val api: A
         if (chunks.isEmpty() || peers.isEmpty()) return null
         var failed: ApiResult<*>? = null
         val words = LinkedHashMap<Pair<Int, Peer>, String>() // (del, device) not "sent"
-        fun call(i: Int, to: List<Peer>): Boolean {
+        fun call(i: Int, to: List<Peer>, retry: Boolean = false): Boolean {
             val b = MessageBody.Del(chunks[i])
             var ok = true
             for (batch in to.chunked(MAX_TARGETS)) {
                 val r = ClockSkew.run({ batch.associate { it.id to outbox.simple(it, b).message } }) { api.send(it) }
                 if (r is ApiResult.Ok) batch.forEach { p -> r.value[p.id]?.let { w -> if (w == "sent") words.remove(i to p) else words[i to p] = w } }
-                else { if (failed == null) failed = r; ok = false }
+                else { if (!retry && failed == null) failed = r; ok = false }
             }
             return ok
         }
@@ -136,7 +136,7 @@ class DeleteSync(private val store: LocalStore, me: Identity, private val api: A
             val again = words.filterValues { it.startsWith("failed:") }.keys.groupBy({ it.first }, { it.second })
             if (again.isEmpty()) break
             sleep(wait)
-            for ((i, to) in again) call(i, to)
+            for ((i, to) in again) call(i, to, retry = true)
         }
         val missed = LinkedHashMap<String, String>()
         for ((k, w) in words) missed.putIfAbsent(k.second.id, w)
