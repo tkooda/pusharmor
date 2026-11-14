@@ -461,6 +461,7 @@ def open_message(message, own_id, own_enc_priv, own_account, pins):
     if type_ is None:  # signed by a pinned peer: the caller may consume n and ignore it (a type from a newer client)
         window = pin.get("window") or {"h": 0, "seen": []}
         return {"outcome": "unreadable", "why": "type", "from": from_id, "n": n, "flag": flag,
+                "ruling": pin["ruling"],
                 "ignorable": pin["ruling"] == "approved" and flag == 0 and replay_outcome(window, n, "", False) == "accept"}
     value = obj[type_]
     if (flag == 1) != (type_ == "approve"):

@@ -1981,6 +1981,21 @@ def test_listen_ignores_a_signed_message_of_an_unknown_type(net, tmp_path, monke
     assert n in state(b)["peers"][ida]["seen"]
 
 
+def test_listen_survives_a_duplicate_signed_message_of_an_unknown_type(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = pair_two(monkeypatch, net, a, b)
+    n = state(a)["peers"][idb]["n"] + 50
+    msg = _sealed(a, ida, idb, a, '{"n":%d,"zzz":1}' % n)
+    net.deliver(idb, msg)
+    net.deliver(idb, msg)
+    net.stop.set()
+    capsys.readouterr()
+    assert run(b, "listen") == 130
+    cap = capsys.readouterr()
+    assert cap.out == "" and cap.err.splitlines() == ["info: Listening. Press Ctrl+C to stop.", "info: Stopped."]
+    assert n in state(b)["peers"][ida]["seen"]
+
+
 @pytest.mark.parametrize("body", ['"del":["abc","d-_"]', '"del":[]'])
 def test_listen_ignores_del_silently_and_consumes_n(body, net, tmp_path, monkeypatch, capsys):
     a, b = tmp_path / "a", tmp_path / "b"
