@@ -48,7 +48,7 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
     }
     override fun historyDeleted(peerId: String, historyIds: List<Long>, count: Int) {
         historyIds.forEach { n.cancel(Notifier.TAG_MSG, it.toInt()) }
-        n.notice(UiText.deletedNotice(count, nameOf(peerId)))
+        n.deletedNotice(peerId, count) { UiText.deletedNotice(it, nameOf(peerId)) }
     }
     override fun selfRemoved(deleted: Boolean) { g.session.onRemovedSignal(deleted = deleted) }
 

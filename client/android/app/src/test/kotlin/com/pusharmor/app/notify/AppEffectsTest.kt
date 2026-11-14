@@ -42,4 +42,20 @@ class AppEffectsTest {
     @Test fun fcmShowsInProgressAndReady() {
         assertEquals(listOf("Pairing fingerprint ready. Open PushArmor.", "Pairing with a device in progress. Open PushArmor."), noticesFor(fcm = true))
     }
+
+    private fun text(id: Int) = nm.activeNotifications.filter { it.tag == Notifier.TAG_NOTICE && it.id == id }
+        .map { it.notification.extras.getCharSequence(Notification.EXTRA_TEXT).toString() }
+
+    /** A delete notice keeps its own id, so a logout notice stays, and the dels of one delete add up to one total. */
+    @Test fun deleteNoticeHasItsOwnIdAndAddsUpTheCounts() {
+        app.graph.notifier.ensureChannels()
+        onThread {
+            val e = AppEffects(app.graph, true)
+            e.logoutNotice("peer", true)
+            e.historyDeleted("peer", emptyList(), 3)
+            e.historyDeleted("peer", emptyList(), 4)
+        }
+        assertEquals(1, text(Notifier.NOTICE_ID).size)
+        assertEquals(listOf("7 messages deleted by a device"), text(Notifier.DELETED_ID))
+    }
 }

@@ -33,6 +33,12 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         const val TAG_PAIR = "pair"
         const val NOTICE_ID = 1
         const val UNDELIVERED_ID = 2
+        /** Notices that devices deleted messages here; no other notice uses it. */
+        const val DELETED_ID = 6
+        /** Dels of one delete all arrive within this time; their counts add up in one notice. */
+        const val DELETED_JOIN_MS = 60_000L
+        private const val EXTRA_DELETED_PEER = "pa_deleted_peer"
+        private const val EXTRA_DELETED_COUNT = "pa_deleted_count"
         const val GROUP_PREFIX = "group:"
         /** A post this process made still counts this long while the system list does not show it yet. */
         const val POST_LAG_MS = 5_000L
@@ -160,12 +166,25 @@ class Notifier(private val context: Context, private val settings: Settings, pri
     }
 
     /** Fixed-form notices (deny, logout, login, could not read, invalid): one id, tag "notice", "OK" only; a tap only dismisses. */
-    fun notice(text: String) {
-        val dismiss = dismiss(TAG_NOTICE, NOTICE_ID)
-        notify(TAG_NOTICE, NOTICE_ID, NotificationCompat.Builder(context, peersChannel)
+    fun notice(text: String, id: Int = NOTICE_ID, extras: android.os.Bundle? = null) {
+        val dismiss = dismiss(TAG_NOTICE, id)
+        val b = NotificationCompat.Builder(context, peersChannel)
             .setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setContentTitle("PushArmor").setContentText(text)
             .setContentIntent(dismiss).setAutoCancel(true)
-            .addAction(0, "OK", dismiss).build())
+            .addAction(0, "OK", dismiss)
+        if (extras != null) b.addExtras(extras)
+        notify(TAG_NOTICE, id, b.build())
+    }
+
+    /**
+     * Notice that [peerId] deleted [count] messages here, under its own id. A notice of the same device still shown
+     * from the last [DELETED_JOIN_MS] gets this count added, so a delete sent in several dels shows one total.
+     */
+    fun deletedNotice(peerId: String, count: Int, text: (Int) -> String) {
+        val prev = try { nm.activeNotifications.firstOrNull { it.tag == TAG_NOTICE && it.id == DELETED_ID } } catch (e: Exception) { null }
+        val e = prev?.notification?.extras
+        val total = count + if (e != null && e.getString(EXTRA_DELETED_PEER) == peerId && System.currentTimeMillis() - prev.notification.`when` <= DELETED_JOIN_MS) e.getInt(EXTRA_DELETED_COUNT) else 0
+        notice(text(total), DELETED_ID, android.os.Bundle().apply { putString(EXTRA_DELETED_PEER, peerId); putInt(EXTRA_DELETED_COUNT, total) })
     }
 
     fun peersNotice(text: String, id: Int = UNDELIVERED_ID) {
