@@ -50,6 +50,9 @@ sealed class Inbound {
     /** Seen n of a control type: no state change, no event; on FCM re-present that type's notice. */
     data class Duplicate(val peerId: String, val body: MessageBody) : Inbound()
 
+    /** Verified message of an unknown (future) type: no row, no notice. [window] is the replay window to store (null: unchanged). */
+    data class Ignored(val peerId: String, val pairingId: ByteArray, val window: ReplayWindow?) : Inbound()
+
     /** Window-fresh: commit [window] in the same transaction as any History row. */
     data class Accepted(val peerId: String, val n: Long, val pairingId: ByteArray, val window: ReplayWindow, val body: MessageBody, val effect: Effect) : Inbound()
 }
@@ -165,6 +168,11 @@ object ReceivePipeline {
         return when (opened) {
             is OpenResult.Fail -> Inbound.Unreadable(opened.verifiedFrom)
             is OpenResult.UnknownSender -> Inbound.Unreadable(null, fetch = peerOf(opened.fromId)?.removed != true)
+            is OpenResult.Ignored -> {
+                val window = windowOf(opened.fromId) ?: return Inbound.Unreadable(null)
+                val fresh = window.check(opened.n) == ReplayWindow.Verdict.FRESH
+                Inbound.Ignored(opened.fromId, opened.pairingId, if (fresh) window.accept(opened.n) else null)
+            }
             is OpenResult.Ok -> {
                 val peer = peerOf(opened.fromId)!!
                 if (!Receive.nameEntryOk(opened, peer, ownId)) return Inbound.Unreadable(peer.id)

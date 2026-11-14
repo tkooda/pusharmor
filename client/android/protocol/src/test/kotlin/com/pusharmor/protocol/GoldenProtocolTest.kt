@@ -75,6 +75,7 @@ class GoldenProtocolTest {
             is Inbound.Invalid -> "invalid"
             is Inbound.RePresent -> "represent"
             is Inbound.Duplicate -> "noop"
+            is Inbound.Ignored -> "unreadable" // golden vectors predate ignoring unknown types
             is Inbound.Accepted -> if (inbound.effect is Effect.Drop) "unreadable" else "accept"
         }
         return outcome to inbound
@@ -210,6 +211,7 @@ class GoldenProtocolTest {
                 is Inbound.Invalid -> "invalid" to w
                 is Inbound.RePresent -> "represent" to w
                 is Inbound.Duplicate -> "noop" to w
+                is Inbound.Ignored -> "unreadable" to w // golden vectors predate ignoring unknown types
                 is Inbound.Unreadable -> "unreadable" to w
             }
             assertEquals(c.str("name"), c.str("outcome"), outcome)

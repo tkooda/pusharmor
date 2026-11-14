@@ -67,6 +67,9 @@ sealed class OpenResult {
     data class UnknownSender(val fromId: String) : OpenResult()
 
     data class Ok(val fromId: String, val n: Long, val body: MessageBody, val pairingId: ByteArray) : OpenResult()
+
+    /** Decrypted, parsed and verified, but no known type key (a future type): consume n, do nothing else. */
+    data class Ignored(val fromId: String, val n: Long, val pairingId: ByteArray) : OpenResult()
 }
 
 class MessageTooLargeException : Exception("message over the wire cap")
@@ -175,8 +178,9 @@ object InnerMessage {
         if (off + len > body.size) return OpenResult.Fail(FailReason.PADDING)
         for (k in off + len until body.size) if (body[k] != 0.toByte()) return OpenResult.Fail(FailReason.PADDING)
         val json = DeflateRaw.inflate(body.copyOfRange(off, off + len)) ?: return OpenResult.Fail(FailReason.INFLATE)
-        val parsed = parseJson(json) ?: return OpenResult.Fail(FailReason.JSON)
+        val parsed = parseJsonOrUnknown(json) ?: return OpenResult.Fail(FailReason.JSON)
         val (n, mb) = parsed
+        if (mb == null) return if (flag == 1) OpenResult.Fail(FailReason.TYPE) else OpenResult.Ignored(fromId, n, pairingId)
         if ((flag == 1) != (mb is MessageBody.Approve)) return OpenResult.Fail(FailReason.TYPE)
         return OpenResult.Ok(fromId, n, mb, pairingId)
     }
@@ -195,10 +199,16 @@ object InnerMessage {
 
     /** {"n": counter, type key}; unknown keys are ignored; no known type key is null (drop). */
     fun parseJson(bytes: ByteArray): Pair<Long, MessageBody>? {
+        val (n, body) = parseJsonOrUnknown(bytes) ?: return null
+        return if (body == null) null else n to body
+    }
+
+    /** Like [parseJson], but a valid object with n and no known type key is (n, null), not a failure. */
+    fun parseJsonOrUnknown(bytes: ByteArray): Pair<Long, MessageBody?>? {
         val text = utf8(bytes) ?: return null
         val obj = StrictJson.parseOrNull(text) as? JValue.JObject ?: return null
         val n = counterOf(obj.fields["n"]) ?: return null
-        val k = TYPE_ORDER.firstOrNull { it in obj.fields } ?: return null
+        val k = TYPE_ORDER.firstOrNull { it in obj.fields } ?: return n to null
         val v = obj.fields.getValue(k)
         val body: MessageBody = when (k) {
             "url" -> MessageBody.Url((v as? JValue.JString)?.value ?: return null)

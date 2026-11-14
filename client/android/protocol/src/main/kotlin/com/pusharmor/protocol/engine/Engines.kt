@@ -265,6 +265,7 @@ class ReceiveEngine(
                 }
                 is Inbound.RePresent -> after = { effects.rePresent(inbound.historyId) }
                 is Inbound.Duplicate -> after = { rePresentControl(inbound.peerId, inbound.body) }
+                is Inbound.Ignored -> inbound.window?.let { store.putWindow(inbound.peerId, inbound.pairingId, it) }
                 is Inbound.Accepted -> after = apply(inbound, now)
             }
             inbound
