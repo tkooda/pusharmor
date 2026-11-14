@@ -55,8 +55,8 @@ export const T = {
   appleNotInBrowser: "Apple login is not available in this browser\nUse email login",
   googleNotInCopy: "Google login is not available in this copy of PushArmor\nUse email login, or install PushArmor from the Chrome Web Store or GitHub",
   messageSentToN: (n: number) => "Message sent to " + n + (n === 1 ? " device" : " devices"),
-  tooLong: (n: number) => "Too long (" + n + " / 2048)",
-  counter: (n: number) => "(" + n + " / 2048)",
+  tooLong: (n: number) => "Too long (" + n + " / 2000)",
+  counter: (n: number) => "(" + n + " / 2000)",
   countdownLeft: (c: string) => "Times out in " + c,
   typeCaption: (t: string) => (t === "url" ? "Will be sent as URL" : t === "tel" ? "Will be sent as phone number" : "Will be sent as text"),
   clockOff: "This device's clock is off by more than 5 minutes.",
@@ -113,6 +113,12 @@ export function sendResultText(name: string, res: string): string {
   if (res === "unknown") return to + "It is no longer on this account.";
   if (res.startsWith("failed:")) return to + "Its push service did not accept the message. Try again later.";
   return to + "It has not finished turning on notifications. Open PushArmor on it.";
+}
+
+/** The notice when a Sync deletions delete reached the relay server but not count devices: name and why for one. */
+export function syncDeleteResultText(count: number, name: string, res: string): string {
+  if (count > 1) return "Unable to delete on " + count + " devices";
+  return 'Unable to delete on "' + name + '"\n' + sendResultText(name, res).split("\n")[1];
 }
 
 /** The two lines when Codes match reached the relay server but not the device: why, as for a send. */
@@ -223,7 +229,7 @@ export const R = {
   windowClosed: "The login window was closed. Try again.",
   badReply: "The relay server sent a reply this device cannot use. Try again.",
   refused: "The relay server did not accept the request. Update PushArmor and try again.",
-  tooLong: "The message is longer than 2048 characters.",
+  tooLong: "The message is longer than 2000 characters.",
   pushNotSupported: "This browser's push service is not supported yet.",
   keysUnusable: "This device's security keys cannot be used right now. Restart the device and try again.",
   storageFull: "Storage is full. Free some space and try again.",

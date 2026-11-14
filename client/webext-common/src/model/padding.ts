@@ -2,7 +2,8 @@
 
 export const BUCKETS = [512, 1024, 2048, 3800] as const;
 export const WIRE_CAP = 3800;
-export const CONTENT_CAP = 2048;
+export const CONTENT_CAP = 2048; // receive side: accepts older senders
+export const SEND_CAP = 2000;
 export const INFLATE_CAP = 16384;
 export const PAIR_WIRE_LEN = 366;
 

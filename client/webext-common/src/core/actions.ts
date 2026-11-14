@@ -1,7 +1,7 @@
 // Shell-independent handlers for notification clicks and the page menu
 // (component-webext sections 5 and 8).
 import { detectType } from "../model/detect.ts";
-import { CONTENT_CAP, utf8Len } from "../model/padding.ts";
+import { SEND_CAP, utf8Len } from "../model/padding.ts";
 import type { HistoryRow } from "../store/db.ts";
 import type { Engine } from "./engine.ts";
 import { allEntries } from "./state.ts";
@@ -62,8 +62,8 @@ interface MenuSendResult {
 
 /** A click on a child item: send the link, page URL or selection. */
 export async function menuSend(e: Engine, text: string, child: string, fromSelection: boolean): Promise<MenuSendResult> {
-  if (utf8Len(text) > CONTENT_CAP) {
-    // no silent cut: the send window offers the first 2048 bytes (text only)
+  if (utf8Len(text) > SEND_CAP) {
+    // no silent cut: the send window offers the first 2000 bytes (text only)
     return { badge: null, notice: null, overCap: text };
   }
   const targets = child === "all" ? "all" : [child];

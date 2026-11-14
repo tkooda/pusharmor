@@ -43,7 +43,7 @@ test("each relay server reply maps to its reason line under the action line", ()
     [api(404, "not found"), "The relay server did not accept the request. Update PushArmor and try again."],
     [api(405, "method not allowed"), "The relay server did not accept the request. Update PushArmor and try again."],
     [api(401, "invalid client signature"), "The relay server did not accept the request. Update PushArmor and try again."],
-    [api(413, "too large"), "The message is longer than 2048 characters."],
+    [api(413, "too large"), "The message is longer than 2000 characters."],
     [api(400, "push endpoint not allowed"), "This browser's push service is not supported yet."],
     [api(401, "bad id"), "The relay server did not accept the request. Update PushArmor and try again."],
     [api(418, "teapot"), "Try again."],
@@ -264,7 +264,7 @@ test("send: a failed call, a too long text, and one device that did not get it",
   const d = r.data as { error: string; failures: { text: string }[] };
   assert.equal(d.error, "Unable to send.\n" + DOWN);
   w.inject = [];
-  assert.equal(await fails(rpc, "send", { text: "x".repeat(2049) }), "Unable to send.\nThe message is longer than 2048 characters.");
+  assert.equal(await fails(rpc, "send", { text: "x".repeat(2001) }), "Unable to send.\nThe message is longer than 2000 characters.");
   w.inject.push({ match: /POST \/v1\/send/, status: 200, body: { r: { [b.id]: "failed:net" } }, times: 1 });
   const r2 = (await rpc.handle({ op: "send", args: { text: "hi", targets: "all" } })).data as { failures: { text: string }[] };
   assert.equal(r2.failures[0]!.text, 'Unable to send to "' + nm + '".\nIts push service did not accept the message. Try again later.');

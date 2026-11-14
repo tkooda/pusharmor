@@ -295,7 +295,7 @@ test("send: a URL whose normalized href exceeds the cap is refused before any co
   await pairAndApprove(w, a, b);
   const n0 = (await a.db.peer(b.id))!.last_n;
   const url = "https://example.com/" + "\u4e2d".repeat(400); // 1220 raw bytes, 3620 as href
-  await assert.rejects(a.e.send(url, "auto", "all"), (e: unknown) => failText("send", e) === "Unable to send.\nThe message is longer than 2048 characters.");
+  await assert.rejects(a.e.send(url, "auto", "all"), (e: unknown) => failText("send", e) === "Unable to send.\nThe message is longer than 2000 characters.");
   assert.equal((await a.db.peer(b.id))!.last_n, n0);
   assert.equal(w.calls.filter((c) => c.path === "/v1/send").length, 0);
 });

@@ -31,10 +31,10 @@ test("Send view: All chip only with 2 or more devices and the setting on", () =>
 });
 
 test("Send view: byte counter shows from 90 percent of the cap", () => {
-  assert.equal(showCounter(0, 2048), false);
-  assert.equal(showCounter(1843, 2048), false);
-  assert.equal(showCounter(1844, 2048), true);
-  assert.equal(showCounter(3000, 2048), true);
+  assert.equal(showCounter(0, 2000), false);
+  assert.equal(showCounter(1799, 2000), false);
+  assert.equal(showCounter(1800, 2000), true);
+  assert.equal(showCounter(3000, 2000), true);
 });
 
 test("Send view: greyed devices cannot receive now", () => {
@@ -46,10 +46,10 @@ test("Send view: greyed devices cannot receive now", () => {
 });
 
 test("Send view: Send is disabled with no device selected", () => {
-  assert.equal(sendDisabled(10, 2048, 0), true);
-  assert.equal(sendDisabled(10, 2048, 1), false);
-  assert.equal(sendDisabled(0, 2048, 1), true);
-  assert.equal(sendDisabled(3000, 2048, 1), true);
+  assert.equal(sendDisabled(10, 2000, 0), true);
+  assert.equal(sendDisabled(10, 2000, 1), false);
+  assert.equal(sendDisabled(0, 2000, 1), true);
+  assert.equal(sendDisabled(3000, 2000, 1), true);
 });
 
 test("devices sort by name, ignoring case", () => {

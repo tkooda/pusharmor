@@ -14,7 +14,7 @@ import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
 import { ownCard, renderPeers, resetPeersView } from "./peersview.ts";
 import { THEME_CHOICES, parseTheme, setTheme, startTheme } from "./theme.ts";
 
-const CAP = 2048;
+const CAP = 2000;
 type Tab = "send" | "history" | "peers" | "settings";
 
 /** Wordmark "PushArmor" plus the Beta badge in the Beta build. */
@@ -465,7 +465,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
           asText.checked = true; // a cut text goes as text
           await update();
         },
-      }, "Send the first 2048 characters")),
+      }, "Send the first 2000 characters")),
     );
   }
   // every device is greyed: say why Send is off
@@ -579,9 +579,10 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
           const title = ids.length === 1 ? "Delete 1 message?" : "Delete " + ids.length + " messages?";
           if (!(await confirmDialog(title, "This deletes the selected messages from this device.", "Delete"))) return;
           try {
-            await rpc(env, "historyDelete", { ids });
+            const notice = await rpc<string | null>(env, "historyDelete", { ids });
+            if (notice) toast(notice, "err");
           } catch (e) {
-            return toast((e as Error).message, "err");
+            toast((e as Error).message, "err"); // rows whose delete reached the relay server are gone: redraw
           }
           clear(root);
           await historyView(env, root, undefined, nav);
@@ -832,8 +833,9 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
   delAll.addEventListener("click", async () => {
     if (!(await confirmDialog("Delete all history?", "This deletes every sent and received message on this device.", "Delete"))) return;
     try {
-      await rpc(env, "historyDeleteAll");
-      toast("History deleted", "ok");
+      const notice = await rpc<string | null>(env, "historyDeleteAll");
+      if (notice) toast(notice, "err");
+      else toast("History deleted", "ok");
     } catch (e) {
       toast((e as Error).message, "err");
     }

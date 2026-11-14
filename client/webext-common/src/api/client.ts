@@ -73,6 +73,11 @@ export class Api {
     this.d = d;
   }
 
+  /** Waits ms with the injected sleep (tests do not wait). */
+  sleep(ms: number): Promise<void> {
+    return this.d.sleep(ms);
+  }
+
   async call(method: string, path: string, opts: CallOpts = {}): Promise<ApiReply> {
     let skews = 0;
     for (;;) {

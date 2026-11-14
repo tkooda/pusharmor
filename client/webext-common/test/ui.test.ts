@@ -321,7 +321,7 @@ test("copy: device limit rows read as sentences; desktop says Click; status line
   assert.equal(T.notificationsOff, "Notifications are off. New messages appear only in History");
 });
 
-test("full tab Send: the cut offer shows only while the text is over 2048 bytes", async () => {
+test("full tab Send: the cut offer shows only while the text is over 2000 bytes", async () => {
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
   assert.match(pop, /cut\.hidden = !offerCut \|\| d\.bytes <= CAP;/);
@@ -380,7 +380,7 @@ test("Send with every device greyed says, on two lines, that no device can recei
   const { readFileSync } = await import("node:fs");
   assert.match(readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8"), /!sendable\.length && chips\.childElementCount \? h\("p", \{ class: "dim nosend" \}, "Unable to send\.\\nNo device can receive messages right now\."\)/);
   assert.match(readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8"), /\.nosend \{ margin: 8px 16px 0; white-space: pre-line; \}/);
-  assert.match(readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8"), /\}, "Send the first 2048 characters"\)\),/);
+  assert.match(readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8"), /\}, "Send the first 2000 characters"\)\),/);
 });
 
 test("popup update and log in screens start with focus on their button", async () => {

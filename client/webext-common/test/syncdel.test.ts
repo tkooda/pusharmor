@@ -3,8 +3,9 @@ import { test } from "node:test";
 import { Rpc } from "../src/core/rpc.ts";
 import { buildJson, delChunks, encodeInner, newMsgId, parseInnerJson } from "../src/model/message.ts";
 import { utf8 } from "../src/crypto/bytes.ts";
-import { CONTENT_CAP } from "../src/model/padding.ts";
+import { SEND_CAP } from "../src/model/padding.ts";
 import { b64urlDecode } from "../src/crypto/b64url.ts";
+import { SERVER_RETRY_DELAYS_MS } from "../src/api/client.ts";
 import { Clock, MockWorker, deliver, device, pairAndApprove } from "./harness.ts";
 
 async function setup() {
@@ -111,7 +112,7 @@ for (const [len, count] of [[22, 300], [64, 120]] as const) test("a del of " + c
   assert.equal((await rows(a)).length, 0);
 });
 
-test("delete all with the setting on sends del with every id; a relay server failure keeps the rows", async () => {
+test("delete all with the setting on sends del with every id; a relay server failure keeps the rows with ids", async () => {
   const { w, a, b } = await setup();
   await a.e.send("one", "auto", "all");
   await deliver(w, b);
@@ -121,7 +122,7 @@ test("delete all with the setting on sends del with every id; a relay server fai
   w.inject.push({ match: /POST \/v1\/send$/, status: 500, body: { error: "internal" }, times: 99 });
   const r = await new Rpc(a.e).handle({ op: "historyDeleteAll" });
   assert.deepEqual(r, { ok: false, error: "Unable to delete on your other devices.\nThe relay server is not working right now. Try again later." });
-  assert.equal((await rows(a)).length, 3);
+  assert.deepEqual((await rows(a)).map((r) => r.content).sort(), ["one", "two"]); // "old" has no id: local only, deleted
   w.inject.length = 0;
   const n0 = sends(w);
   assert.deepEqual(await new Rpc(a.e).handle({ op: "historyDeleteAll" }), { ok: true, data: null });
@@ -129,6 +130,86 @@ test("delete all with the setting on sends del with every id; a relay server fai
   assert.equal((await a.db.history()).length, 0);
   await deliver(w, b);
   assert.equal((await rows(b)).length, 0);
+});
+
+test("partial: chunk 1 ok, chunk 2 relay server failure, chunk 3 still sent; only chunk 2 rows kept; one error", async () => {
+  const { w, a } = await setup();
+  const mids: string[] = [];
+  const ids: number[] = [];
+  for (let i = 0; i < 450; i++) {
+    const mid = newMsgId();
+    mids.push(mid);
+    ids.push(await a.db.addHistory({ dir: "out", peer: null, type: "text", content: "x" + i, n: null, pairing_id: null, received: 1000 + i, read: true, mid }));
+  }
+  ids.push(await a.db.addHistory({ dir: "out", peer: null, type: "text", content: "noid", n: null, pairing_id: null, received: 1, read: true }));
+  const chunks = await delChunks(mids);
+  assert.ok(chunks.length >= 3);
+  const handle = w.handle.bind(w);
+  let n = 0;
+  w.handle = async (url: string, init: RequestInit) => {
+    if (new URL(url).pathname === "/v1/send" && ++n === 2) w.inject.push({ match: /POST \/v1\/send$/, status: 500, body: { error: "internal" }, times: 1 + SERVER_RETRY_DELAYS_MS.length });
+    return handle(url, init);
+  };
+  const r = await new Rpc(a.e).handle({ op: "historyDelete", args: { ids } });
+  assert.deepEqual(r, { ok: false, error: "Unable to delete on your other devices.\nThe relay server is not working right now. Try again later." });
+  assert.equal(n, chunks.length + SERVER_RETRY_DELAYS_MS.length);
+  const left = (await rows(a)).map((r) => r.mid).sort();
+  assert.deepEqual(left, [...chunks[1]!].sort());
+});
+
+test("relay server ok but one device did not get the del: rows gone, notice names it with why", async () => {
+  const { w, a, b } = await setup();
+  await a.e.send("one", "auto", "all");
+  w.inject.push({ match: /POST \/v1\/send$/, status: 200, body: { r: { [b.id]: "logged out" } }, times: 1 });
+  const r = await new Rpc(a.e).handle({ op: "historyDelete", args: { ids: (await rows(a)).map((r) => r.id!) } });
+  assert.deepEqual(r, { ok: true, data: 'Unable to delete on "Chrome"\nThat device is logged out. Log in on that device to receive messages.' });
+  assert.equal((await rows(a)).length, 0);
+});
+
+test("relay server ok but two devices did not get the del: rows gone, notice counts them", async () => {
+  const { w, a, b } = await setup();
+  const c = await device(w, w.clock);
+  await pairAndApprove(w, a, c);
+  await a.e.send("one", "auto", "all");
+  w.inject.push({ match: /POST \/v1\/send$/, status: 200, body: { r: { [b.id]: "gone", [c.id]: "unknown" } }, times: 1 });
+  const r = await new Rpc(a.e).handle({ op: "historyDeleteAll" });
+  assert.deepEqual(r, { ok: true, data: "Unable to delete on 2 devices" });
+  assert.equal((await rows(a)).length, 0);
+});
+
+test("every device got the del: rows gone, no notice", async () => {
+  const { a } = await setup();
+  await a.e.send("one", "auto", "all");
+  const r = await new Rpc(a.e).handle({ op: "historyDelete", args: { ids: (await rows(a)).map((r) => r.id!) } });
+  assert.deepEqual(r, { ok: true, data: null });
+  assert.equal((await rows(a)).length, 0);
+});
+
+test("a failed push is resent only to that device; a resend that gets sent leaves no notice", async () => {
+  const { w, a, b } = await setup();
+  const c = await device(w, w.clock);
+  await pairAndApprove(w, a, c);
+  await a.e.send("one", "auto", "all");
+  w.inject.push({ match: /POST \/v1\/send$/, status: 200, body: { r: { [b.id]: "failed:503", [c.id]: "sent" } }, times: 1 });
+  const n0 = sends(w);
+  const t0 = w.clock.t;
+  const r = await new Rpc(a.e).handle({ op: "historyDelete", args: { ids: (await rows(a)).map((r) => r.id!) } });
+  assert.deepEqual(r, { ok: true, data: null });
+  assert.equal((await rows(a)).length, 0);
+  assert.equal(sends(w) - n0, 2);
+  assert.deepEqual(Object.keys((w.calls.at(-1)!.body as { m: Record<string, string> }).m), [b.id]);
+  assert.equal(w.clock.t - t0, SERVER_RETRY_DELAYS_MS[0]); // the injected sleep, no real wait
+});
+
+test("a push that fails on every attempt is sent 3 times in all, then named in the notice", async () => {
+  const { w, a, b } = await setup();
+  await a.e.send("one", "auto", "all");
+  w.inject.push({ match: /POST \/v1\/send$/, status: 200, body: { r: { [b.id]: "failed:503" } }, times: 99 });
+  const n0 = sends(w);
+  const r = await new Rpc(a.e).handle({ op: "historyDelete", args: { ids: (await rows(a)).map((r) => r.id!) } });
+  assert.deepEqual(r, { ok: true, data: 'Unable to delete on "Chrome"\nIts push service did not accept the message. Try again later.' });
+  assert.equal(sends(w) - n0, 1 + SERVER_RETRY_DELAYS_MS.length);
+  assert.equal((await rows(a)).length, 0);
 });
 
 test("a del filled to the max with 22-char ids seals to 3800 chars or less; one more id goes past 3800", async () => {
@@ -152,9 +233,9 @@ test("a max-length message with an id seals to 3800 chars or less, worst-case co
   const gens = [() => String.fromCharCode(rnd(0, 0x1f)), () => String.fromCharCode(rnd(0, 0x7f)), () => String.fromCharCode(rnd(0x800, 0xd7ff))];
   for (const g of gens) {
     let text = "";
-    while (utf8(text + "x").length <= CONTENT_CAP) {
+    while (utf8(text + "x").length <= SEND_CAP) {
       const ch = g();
-      if (utf8(text + ch).length > CONTENT_CAP) break;
+      if (utf8(text + ch).length > SEND_CAP) break;
       text += ch;
     }
     for (const type of ["text", "url", "tel"] as const) {

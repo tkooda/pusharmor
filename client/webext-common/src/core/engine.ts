@@ -2,7 +2,7 @@
 // counters, replay state and Worker calls. Every operation reads state at
 // start and commits before it returns, so a stopped service worker loses
 // nothing.
-import { type ApiReply, Api, ApiError, UPDATE_REQUIRED } from "../api/client.ts";
+import { type ApiReply, Api, ApiError, SERVER_RETRY_DELAYS_MS, UPDATE_REQUIRED } from "../api/client.ts";
 import { ActionError, ReasonError, RestartError, failText } from "./failtext.ts";
 import { b64urlDecode, b64urlEncode, b64urlTryDecode } from "../crypto/b64url.ts";
 import { equal, randomBytes } from "../crypto/bytes.ts";
@@ -44,7 +44,7 @@ import {
   sealNameEntry,
   verifyNameEntry,
 } from "../model/message.ts";
-import { CONTENT_CAP, utf8Len } from "../model/padding.ts";
+import { SEND_CAP, utf8Len } from "../model/padding.ts";
 import { AUTO_REPLY_WINDOW_MS, noReply, pairDecide, type PairDecision, pairHint, pairTimeout, type ResendResult } from "../model/pairdecide.ts";
 import { replayCheck, replayRecord } from "../model/replay.ts";
 import { receiveDecide } from "../model/receive.ts";
@@ -68,7 +68,7 @@ import {
   getEntry,
   pairKeyOf,
 } from "./state.ts";
-import { R, T, peerLabel, quoted, rowLabel, sendResultText } from "./texts.ts";
+import { R, T, peerLabel, quoted, rowLabel, sendResultText, syncDeleteResultText } from "./texts.ts";
 import { AUTH_CHANGED, AUTH_SWITCHED } from "../model/signin.ts";
 
 type Src = "push" | "bridge" | "returned" | "fetched";
@@ -77,6 +77,14 @@ interface HeldCommit {
   from: string;
   c_N: string;
   src: Src;
+}
+
+/** The outcome of a Sync deletions send: ids to keep, the first failed call (err), and the notice. */
+interface DelOutcome {
+  kept: Set<string>;
+  failed: boolean;
+  err: unknown;
+  notice: string | null;
 }
 
 /** The outcome of one POST /pair: the relay word, or why the call failed (err). */
@@ -1489,7 +1497,7 @@ export class Engine {
     const ids = targets === "all" ? all.map((p) => p.id) : targets.filter((t) => all.some((p) => p.id === t));
     const total = all.length;
     const len = utf8Len(text);
-    if (len > CONTENT_CAP) throw new ReasonError(R.tooLong);
+    if (len > SEND_CAP) throw new ReasonError(R.tooLong);
     let type: SendType = as === "auto" ? detectType(text) : as === "url" && isLikelyUrl(text) ? "url" : as === "telOrText" && detectType(text) === "tel" ? "tel" : "text";
     let value = type === "url" && as === "url" ? urlToSend(text) : text;
     if (type === "url" && as === "auto") {
@@ -1498,7 +1506,7 @@ export class Engine {
       else type = "text";
     }
     const valueLen = utf8Len(value);
-    if (valueLen > CONTENT_CAP) throw new ReasonError(R.tooLong); // href percent-encodes
+    if (valueLen > SEND_CAP) throw new ReasonError(R.tooLong); // href percent-encodes
     if (ids.length === 0) return { sent: 0, total, failures: [] };
     const mid = newMsgId();
     const build = async () => {
@@ -1572,69 +1580,137 @@ export class Engine {
 
   /**
    * Deletes History rows. With Sync deletions on, the message ids of the rows go to the
-   * other devices first; the rows stay when the relay server does not take every send.
+   * other devices first; a row stays when a relay server call that carried its id failed.
+   * Returns the notice when some devices did not get the delete, else null.
    */
-  async deleteHistory(rowIds: number[]): Promise<void> {
+  async deleteHistory(rowIds: number[]): Promise<string | null> {
     const rows: HistoryRow[] = [];
     for (const id of rowIds) {
       const row = await this.db.get<HistoryRow>("history", id);
       if (row) rows.push(row);
     }
-    await this.syncDeletes(rows);
-    for (const id of rowIds) await this.db.del("history", id);
+    const s = await this.syncDeletes(rows);
+    const keep = new Set(rows.flatMap((r) => (r.mid && s.kept.has(r.mid) ? [r.id!] : [])));
+    for (const id of rowIds) if (!keep.has(id)) await this.db.del("history", id);
     await this.updateBadge();
+    if (s.failed) throw new ActionError("syncDelete", s.err);
+    return s.notice;
   }
 
   /** Deletes all History, like a delete of every row (sent and received). */
-  async deleteAllHistory(): Promise<void> {
-    await this.syncDeletes(await this.db.history());
-    await this.db.clear(["history"]);
+  async deleteAllHistory(): Promise<string | null> {
+    const rows = await this.db.history();
+    const s = await this.syncDeletes(rows);
+    if (s.kept.size) {
+      for (const r of rows) if (!r.mid || !s.kept.has(r.mid)) await this.db.del("history", r.id!);
+    } else await this.db.clear(["history"]);
     await this.updateBadge();
+    if (s.failed) throw new ActionError("syncDelete", s.err);
+    return s.notice;
   }
 
-  /** With Sync deletions on, sends the message ids of the rows in del messages; throws when a send fails. */
-  private async syncDeletes(rows: HistoryRow[]): Promise<void> {
+  /** With Sync deletions on, sends the message ids of the rows in del messages; deletes each accepted chunk's rows at once. */
+  private async syncDeletes(rows: HistoryRow[]): Promise<DelOutcome> {
     const mids = rows.flatMap((r) => (r.mid ? [r.mid] : []));
-    if (!mids.length || !(await this.settings()).syncDeletions) return;
-    await this.sendDeletes((await delChunks(mids)).map((ids): Content => ({ type: "del", ids })));
+    if (!mids.length || !(await this.settings()).syncDeletions) return { kept: new Set(), failed: false, err: null, notice: null };
+    return this.sendDeletes(await delChunks(mids), async (ids) => {
+      for (const r of rows) if (r.mid && ids.includes(r.mid)) await this.db.del("history", r.id!);
+    });
   }
 
-  /** Sends each message to the other own devices (not command line), at most 9 per call; throws when a call fails. */
-  private async sendDeletes(msgs: Content[]): Promise<void> {
+  /**
+   * Sends each id chunk to the other own devices (not command line), at most 9 per call; every call
+   * is sent. A chunk whose calls all got a reply goes to accepted at once; the ids of a chunk with a
+   * failed call are kept. A device whose push failed ("failed:...") gets the chunk again after each
+   * server-retry delay. The notice names devices that still did not get it.
+   */
+  private async sendDeletes(chunks: string[][], accepted: (ids: string[]) => Promise<void>): Promise<DelOutcome> {
+    const out: DelOutcome = { kept: new Set(), failed: false, err: null, notice: null };
     const self = await this.self();
-    if (!self || (await this.regState()) !== "registered") return;
+    if (!self || (await this.regState()) !== "registered") return out;
     const peers = (await this.db.peers()).filter(
       (p) => p.pinned && p.pairing_id && p.ruling === "approved" && p.approves_me && !p.logged_out && !p.missing && !p.removed && p.platform !== "cli",
     );
-    for (const c of msgs) {
+    const words = new Map<string, string>(); // device id -> its final result word, when not "sent"
+    type Pending = { c: Content; peers: { p: PeerRow; word: string }[] };
+    // sends c to at most 9 devices; adds the devices whose push failed to again; throws when the call fails
+    const post = async (c: Content, batch: PeerRow[], again: Pending["peers"]) => {
+      const build = async () => {
+        const m: Record<string, string> = {};
+        for (const p of batch) {
+          const n = await this.db.reserveN(p.id);
+          m[p.id] = await encodeInner({
+            signKey: self.sign.privateKey,
+            fromId: b64urlDecode(self.id),
+            pairingId: p.pairing_id!,
+            json: buildJson(n, c),
+            recipientId: p.id,
+            recipientEncPub: p.enc_pub,
+          });
+        }
+        return { v: 1, m };
+      };
+      let res: Record<string, string> = {};
+      try {
+        const r = await this.api.call("POST", "/send", { signer: this.signerOf(self), build });
+        await this.afterSignedReply(r);
+        if (r.json.r && typeof r.json.r === "object") res = r.json.r as Record<string, string>;
+      } catch (e) {
+        await this.callFailure(e);
+        if (e instanceof ApiError && (e.status === 429 || e.status === 503) && e.retryAfter !== null) {
+          await this.p.storageLocal.set({ [NET_NOT_BEFORE]: now(this.p) + e.retryAfter * 1000 });
+        }
+        throw e;
+      }
+      for (const p of batch) {
+        const word = res[p.id] ?? "failed";
+        if (word.startsWith("failed:")) again.push({ p, word });
+        else if (word !== "sent" && !words.has(p.id)) words.set(p.id, word);
+      }
+    };
+    let pending: Pending[] = [];
+    for (const ids of chunks) {
+      const c: Content = { type: "del", ids };
+      const again: Pending["peers"] = [];
+      let ok = true;
       for (let i = 0; i < peers.length; i += 9) {
-        const batch = peers.slice(i, i + 9);
-        const build = async () => {
-          const m: Record<string, string> = {};
-          for (const p of batch) {
-            const n = await this.db.reserveN(p.id);
-            m[p.id] = await encodeInner({
-              signKey: self.sign.privateKey,
-              fromId: b64urlDecode(self.id),
-              pairingId: p.pairing_id!,
-              json: buildJson(n, c),
-              recipientId: p.id,
-              recipientEncPub: p.enc_pub,
-            });
-          }
-          return { v: 1, m };
-        };
         try {
-          await this.afterSignedReply(await this.api.call("POST", "/send", { signer: this.signerOf(self), build }));
+          await post(c, peers.slice(i, i + 9), again);
         } catch (e) {
-          await this.callFailure(e);
-          if (e instanceof ApiError && (e.status === 429 || e.status === 503) && e.retryAfter !== null) {
-            await this.p.storageLocal.set({ [NET_NOT_BEFORE]: now(this.p) + e.retryAfter * 1000 });
-          }
-          throw new ActionError("syncDelete", e);
+          if (!out.failed) out.err = e;
+          out.failed = true;
+          ok = false;
         }
       }
+      if (!ok) {
+        for (const id of ids) out.kept.add(id);
+        continue;
+      }
+      await accepted(ids);
+      if (again.length) pending.push({ c, peers: again });
     }
+    for (const ms of SERVER_RETRY_DELAYS_MS) {
+      if (!pending.length) break;
+      await this.api.sleep(ms);
+      const next: Pending[] = [];
+      for (const { c, peers: to } of pending) {
+        const again: Pending["peers"] = [];
+        for (let i = 0; i < to.length; i += 9) {
+          try {
+            await post(c, to.slice(i, i + 9).map((a) => a.p), again);
+          } catch {
+            again.push(...to.slice(i, i + 9)); // a resend the relay server did not take: still failed
+          }
+        }
+        if (again.length) next.push({ c, peers: again });
+      }
+      pending = next;
+    }
+    for (const { peers: to } of pending) for (const a of to) if (!words.has(a.p.id)) words.set(a.p.id, a.word);
+    if (out.failed || !words.size) return out;
+    const [id, res] = [...words][0]!;
+    out.notice = syncDeleteResultText(words.size, await this.peerName(id), res);
+    return out;
   }
 
   // -------------------------------------------- allow-list m (logout etc.)
