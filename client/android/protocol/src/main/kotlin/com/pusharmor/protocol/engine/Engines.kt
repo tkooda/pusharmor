@@ -102,7 +102,7 @@ class DeleteSync(private val store: LocalStore, me: Identity, private val api: A
     private val outbox = Outbox(store, me)
 
     /** Other approved own devices that keep a History (not the command line). */
-    fun targets(): List<Peer> = store.peers().filter { it.pinned && it.approved && it.approvesMe && !it.removed && !it.missing && it.platform != "cli" }
+    fun targets(): List<Peer> = store.peers().filter { it.pinned && it.approved && it.approvesMe && !it.loggedOut && !it.removed && !it.missing && it.platform != "cli" }
 
     /**
      * What a del send did: [failed] the first /v1/send that got no 2xx reply (the rows of its ids stay here),

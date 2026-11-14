@@ -922,4 +922,13 @@ class EngineTest {
         assertNull(r.failed)
         assertEquals(mapOf(x.id to "failed:fcm-500"), r.missed)
     }
+
+    /** A device that logged out is no target: no del is sent, so it is not named as a device that missed it. */
+    @Test fun loggedOutDevicesAreNoTargets() {
+        pairedWithMessages()
+        n.store.peer(x.id)!!.let { n.store.putPeer(it.copy(loggedOut = true)) }
+        val before = sends(n)
+        assertNull(n.deleteSync.send(n.store.history.toList(), sync = true))
+        assertEquals(before, sends(n))
+    }
 }
