@@ -20,6 +20,7 @@ import com.pusharmor.protocol.engine.LogoutFlow
 import com.pusharmor.protocol.engine.PeersSync
 import com.pusharmor.protocol.engine.ReceiveEngine
 import com.pusharmor.protocol.engine.SendFlow
+import com.pusharmor.protocol.engine.DeleteSync
 import com.pusharmor.store.PaDatabase
 import com.pusharmor.store.RoomLocalStore
 import com.pusharmor.store.Slots
@@ -116,6 +117,7 @@ class Graph(val app: PaApp) {
     fun approve(fcm: Boolean = true) = ApproveFlow(store, identity()!!, client, effects(fcm))
     fun receive(fcm: Boolean) = ReceiveEngine(store, identity()!!, effects(fcm))
     fun sender() = SendFlow(store, identity()!!, client, effects(true))
+    fun deleteSync() = identity()?.let { DeleteSync(store, it, client) }
     fun sync() = PeersSync(store, identity()!!, effects(false))
     fun reconcile() = AllowReconcile(store, client) { session.onRemovedSignal(deleted = false) }
     fun logoutFlow() = LogoutFlow(store, identity()!!, client, reconcile())

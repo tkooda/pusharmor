@@ -21,9 +21,10 @@ data class NameEntryClear(val nameB64: String, val n: Long, val s: String) {
 sealed class MessageBody {
     abstract val key: String
 
-    data class Url(val value: String) : MessageBody() { override val key = "url" }
-    data class Text(val value: String) : MessageBody() { override val key = "text" }
-    data class Tel(val value: String) : MessageBody() { override val key = "tel" }
+    /** [id]: the message id ("id" field) that a later del names; null on old messages. */
+    data class Url(val value: String, val id: String? = null) : MessageBody() { override val key = "url" }
+    data class Text(val value: String, val id: String? = null) : MessageBody() { override val key = "text" }
+    data class Tel(val value: String, val id: String? = null) : MessageBody() { override val key = "tel" }
     data class Approve(val entry: NameEntryClear) : MessageBody() { override val key = "approve" }
     data class Rename(val entry: NameEntryClear) : MessageBody() { override val key = "rename" }
     object Deny : MessageBody() { override val key = "deny" }
@@ -31,6 +32,11 @@ sealed class MessageBody {
     object Delete : MessageBody() { override val key = "delete" }
     object Logout : MessageBody() { override val key = "logout" }
     object Login : MessageBody() { override val key = "login" }
+    /** Sync deletions: delete the History rows with these message ids. */
+    data class Del(val ids: List<String>) : MessageBody() { override val key = "del" }
+
+    /** Message id of a url / text / tel; null for controls and old messages. */
+    val msgId: String? get() = when (this) { is Url -> id; is Text -> id; is Tel -> id; else -> null }
 
     /** Control types (no History row; a seen n is a silent duplicate). */
     val isControl: Boolean get() = this !is Url && this !is Text && this !is Tel
@@ -42,15 +48,24 @@ sealed class MessageBody {
         is Approve -> entry.toJson()
         is Rename -> entry.toJson()
         is Remove -> StrictJson.quote(peerId)
+        is Del -> ids.joinToString(",", "[", "]") { StrictJson.quote(it) }
         Deny, Delete, Logout, Login -> "1"
     }
 
     companion object {
-        fun content(type: ContentType, value: String): MessageBody = when (type) {
-            ContentType.URL -> Url(value)
-            ContentType.TEXT -> Text(value)
-            ContentType.TEL -> Tel(value)
+        fun content(type: ContentType, value: String, id: String? = null): MessageBody = when (type) {
+            ContentType.URL -> Url(value, id)
+            ContentType.TEXT -> Text(value, id)
+            ContentType.TEL -> Tel(value, id)
         }
+
+        private val ID_CHARS = Regex("[A-Za-z0-9_-]{1,64}")
+
+        /** A message id as received: 1..64 chars of [A-Za-z0-9_-]. */
+        fun validId(id: String): Boolean = ID_CHARS.matches(id)
+
+        /** A new message id: 128 random bits, base64url without padding (22 chars). */
+        fun newId(): String = com.pusharmor.crypto.B64url.encode(ByteArray(16).also { java.security.SecureRandom().nextBytes(it) })
     }
 }
 
@@ -86,7 +101,31 @@ object InnerMessage {
 
     fun jsonOf(n: Long, body: MessageBody): String {
         require(n in 1..MAX_COUNTER)
-        return "{\"n\":$n,\"${body.key}\":${body.valueJson()}}"
+        val id = body.msgId?.let { ",\"id\":${StrictJson.quote(it)}" } ?: ""
+        return "{\"n\":$n,\"${body.key}\":${body.valueJson()}$id}"
+    }
+
+    /**
+     * Splits [ids] over as few del messages as needed. Each candidate is measured exactly as [build] seals it:
+     * the deflated JSON (with the longest n) must fit the largest bucket, which seals to [SizeCap.WIRE_CAP] chars,
+     * and the JSON must stay within the receiver's inflate cap.
+     */
+    fun delChunks(ids: List<String>): List<List<String>> {
+        val out = ArrayList<List<String>>()
+        var cur = ArrayList<String>()
+        for (id in ids) {
+            if (cur.isNotEmpty() && !delFits(cur + id)) { out.add(cur); cur = ArrayList() }
+            cur.add(id)
+        }
+        if (cur.isNotEmpty()) out.add(cur)
+        return out
+    }
+
+    /** True when a del naming [ids] seals within the wire cap. */
+    fun delFits(ids: List<String>): Boolean {
+        val json = jsonOf(MAX_COUNTER, MessageBody.Del(ids)).toByteArray(Charsets.UTF_8)
+        if (json.size > SizeCap.INFLATE_CAP) return false // the receiver's inflate cap
+        return paddedBodySize(HEADER + 2 + DeflateRaw.deflate(json).size) != null
     }
 
     /** Signed string for an inner message: "PA-MSG1\n" + recipient id + "\n" + body bytes. */
@@ -195,7 +234,7 @@ object InnerMessage {
     }
 
     /** Known type keys; the message type is the first of these present. */
-    private val TYPE_ORDER = listOf("url", "text", "tel", "approve", "deny", "remove", "rename", "delete", "logout", "login")
+    private val TYPE_ORDER = listOf("url", "text", "tel", "approve", "deny", "remove", "rename", "delete", "logout", "login", "del")
 
     /** {"n": counter, type key}; unknown keys are ignored; no known type key is null (drop). */
     fun parseJson(bytes: ByteArray): Pair<Long, MessageBody>? {
@@ -211,9 +250,9 @@ object InnerMessage {
         val k = TYPE_ORDER.firstOrNull { it in obj.fields } ?: return n to null
         val v = obj.fields.getValue(k)
         val body: MessageBody = when (k) {
-            "url" -> MessageBody.Url((v as? JValue.JString)?.value ?: return null)
-            "text" -> MessageBody.Text((v as? JValue.JString)?.value ?: return null)
-            "tel" -> MessageBody.Tel((v as? JValue.JString)?.value ?: return null)
+            "url" -> MessageBody.Url((v as? JValue.JString)?.value ?: return null, idOf(obj))
+            "text" -> MessageBody.Text((v as? JValue.JString)?.value ?: return null, idOf(obj))
+            "tel" -> MessageBody.Tel((v as? JValue.JString)?.value ?: return null, idOf(obj))
             "approve" -> MessageBody.Approve(nameEntryOf(v) ?: return null)
             "rename" -> MessageBody.Rename(nameEntryOf(v) ?: return null)
             "remove" -> MessageBody.Remove(((v as? JValue.JString)?.value ?: return null).takeIf { Ids.decodeId(it) != null } ?: return null)
@@ -221,10 +260,14 @@ object InnerMessage {
             "delete" -> if (isOne(v)) MessageBody.Delete else return null
             "logout" -> if (isOne(v)) MessageBody.Logout else return null
             "login" -> if (isOne(v)) MessageBody.Login else return null
+            "del" -> MessageBody.Del((v as? JValue.JArray)?.items?.takeIf { it.isNotEmpty() }?.map { e -> ((e as? JValue.JString)?.value ?: return null).takeIf { MessageBody.validId(it) } ?: return null } ?: return null)
             else -> return null
         }
         return n to body
     }
+
+    /** The optional "id" of a url / text / tel; anything but a valid id string is null. */
+    private fun idOf(o: JValue.JObject): String? = (o.fields["id"] as? JValue.JString)?.value?.takeIf { MessageBody.validId(it) }
 
     private fun isOne(v: JValue) = v is JValue.JNumber && v.raw == "1"
 

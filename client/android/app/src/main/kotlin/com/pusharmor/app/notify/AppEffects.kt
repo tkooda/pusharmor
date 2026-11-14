@@ -46,6 +46,10 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
     override fun logoutNotice(peerId: String, loggedOut: Boolean) {
         if (fcm) n.notice(UiText.logoutNotice(nameOf(peerId), loggedOut))
     }
+    override fun historyDeleted(peerId: String, historyIds: List<Long>, count: Int) {
+        historyIds.forEach { n.cancel(Notifier.TAG_MSG, it.toInt()) }
+        n.notice(UiText.deletedNotice(count, nameOf(peerId)))
+    }
     override fun selfRemoved(deleted: Boolean) { g.session.onRemovedSignal(deleted = deleted) }
 
     companion object {

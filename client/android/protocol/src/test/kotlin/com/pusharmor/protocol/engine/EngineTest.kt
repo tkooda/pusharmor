@@ -773,4 +773,87 @@ class EngineTest {
         n.fetch()
         assertTrue(n.store.peer(x.id)!!.inAll)
     }
+
+    // ---- sync deletions ----
+
+    /** Paired N and X; N sent "a" to X and X sent "b" to N, so each side has one out row and one in row with an id. */
+    private fun pairedWithMessages() {
+        pairShown(); approveBoth(); n.fetch(); x.fetch()
+        n.send.send(listOf(x.id), ContentType.TEXT, "a", t0); x.deliver(t0)
+        x.send.send(listOf(n.id), ContentType.TEXT, "b", t0); n.deliver(t0)
+    }
+
+    private fun sends(d: FakeWorker.Device) = d.calls.count { it == "send" }
+
+    @Test fun sendAddsAMessageIdStoredOnTheOutAndInRows() {
+        pairedWithMessages()
+        val out = n.store.history.single { it.content == "a" }
+        val inRow = x.store.history.single { it.content == "a" }
+        assertEquals(Direction.SENT, out.direction)
+        assertEquals(Direction.RECEIVED, inRow.direction)
+        assertEquals(22, out.msgId!!.length)
+        assertEquals(out.msgId, inRow.msgId)
+    }
+
+    @Test fun delRemovesMatchingInAndOutRowsAndCancelsTheirNotifications() {
+        pairedWithMessages()
+        x.store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = n.id, type = "text", content = "old", at = t0)) // no id
+        val before = sends(n)
+        assertNull(n.deleteSync.send(n.store.history.toList(), sync = true))
+        assertEquals(before + 1, sends(n))
+        val gone = x.store.history.filter { it.content == "a" || it.content == "b" }.map { it.id }
+        x.deliver(t0)
+        assertEquals(listOf("old"), x.store.history.map { it.content })
+        assertTrue(x.effects.log.contains("deleted:$gone:2"))
+    }
+
+    /** The receive path has no setting: a del always applies, whatever the receiver's own Sync deletions switch says. */
+    @Test fun delMatchingNothingIsFineAndMakesNoHistoryRow() {
+        pairedWithMessages()
+        val keep = x.store.history.toList()
+        assertNull(n.deleteSync.send(listOf(HistoryRow(direction = Direction.SENT, peerId = null, type = "text", at = t0, msgId = "zzz")), sync = true))
+        x.deliver(t0)
+        assertEquals(keep, x.store.history)
+        assertTrue(x.effects.log.contains("deleted:[]:0"))
+    }
+
+    @Test fun settingOffOrRowsWithoutIdSendNothing() {
+        pairedWithMessages()
+        val before = sends(n)
+        assertNull(n.deleteSync.send(n.store.history.toList(), sync = false))
+        assertNull(n.deleteSync.send(listOf(HistoryRow(direction = Direction.SENT, peerId = null, type = "text", at = t0)), sync = true))
+        assertEquals(before, sends(n))
+        assertTrue(x.inbox.isEmpty())
+    }
+
+    @Test fun workerFailureIsReturnedSoTheRowsAreKept() {
+        pairedWithMessages()
+        n.offline = true
+        assertEquals(ApiResult.Network, n.deleteSync.send(n.store.history.toList(), sync = true))
+        assertTrue(x.inbox.isEmpty())
+        n.offline = false
+        n.rateLimitNext = 1
+        assertTrue(n.deleteSync.send(n.store.history.toList(), sync = true) is ApiResult.Http)
+    }
+
+    /** Delete all: every row with an id is named, split over several del messages under the wire cap. */
+    @Test fun deleteAllSendsEveryIdInSeveralDels() {
+        pairedWithMessages()
+        val ids = (1..300).map { _ -> com.pusharmor.crypto.B64url.encode(ByteArray(48).also { b -> java.security.SecureRandom().nextBytes(b) }) }
+        for (id in ids) { n.store.insertHistory(HistoryRow(direction = Direction.SENT, peerId = null, type = "text", at = t0, msgId = id)); x.store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = n.id, type = "text", at = t0, msgId = id)) }
+        val before = sends(n)
+        assertNull(n.deleteSync.send(n.store.history.toList(), sync = true))
+        assertTrue(sends(n) - before > 1)
+        x.deliver(t0)
+        assertTrue(x.store.history.isEmpty())
+        assertFalse(x.effects.log.contains("couldNotRead"))
+    }
+
+    @Test fun cliDevicesAreNoTargets() {
+        pairedWithMessages()
+        n.store.peer(x.id)!!.let { n.store.putPeer(it.copy(platform = "cli")) }
+        val before = sends(n)
+        assertNull(n.deleteSync.send(n.store.history.toList(), sync = true))
+        assertEquals(before, sends(n))
+    }
 }

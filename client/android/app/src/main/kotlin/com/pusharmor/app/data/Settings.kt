@@ -76,6 +76,8 @@ class Settings(private val context: Context, private val dao: PaDao) {
         val SHOW_ALL = booleanPreferencesKey("show_all")
         val TAP_OPENS_LINK = booleanPreferencesKey("tap_opens_link")
         val HISTORY_DAYS = intPreferencesKey("history_days")
+        /** "Sync deletions" (this device only); absent = on. */
+        val SYNC_DELETIONS = booleanPreferencesKey("sync_deletions")
         /** Device ids left out of the share sheet; absent = every device shows. */
         val SHARE_OFF = stringSetPreferencesKey("share_off")
         val LOCK_SCREEN = booleanPreferencesKey("lock_screen")

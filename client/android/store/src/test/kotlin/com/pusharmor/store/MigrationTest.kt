@@ -32,4 +32,13 @@ class MigrationTest {
         val db = helper.runMigrationsAndValidate("m8.db", 8, true, PaDatabase.MIGRATION_7_8)
         db.query("SELECT started_at, wait_from FROM pairing").use { c -> c.moveToFirst(); assertEquals(7, c.getLong(0)); assertTrue(c.isNull(1)) }
     }
+
+    @Test fun migrate8To9KeepsHistoryWithNoMessageId() {
+        helper.createDatabase("m9.db", 8).apply {
+            execSQL("INSERT INTO history (direction, peer_id, type, content, received_at, read, results, count) VALUES ('RECEIVED', 'p', 'text', 'hi', 5, 0, '', 1)")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate("m9.db", 9, true, PaDatabase.MIGRATION_8_9)
+        db.query("SELECT content, msg_id FROM history").use { c -> c.moveToFirst(); assertEquals("hi", c.getString(0)); assertTrue(c.isNull(1)) }
+    }
 }

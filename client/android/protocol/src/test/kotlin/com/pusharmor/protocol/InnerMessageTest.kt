@@ -26,6 +26,7 @@ class InnerMessageTest {
             MessageBody.Url("https://example.com/a"), MessageBody.Text("hi \u00e9 \ud83d\ude00"), MessageBody.Tel("+1 555-123-4567"),
             MessageBody.Approve(entry), MessageBody.Rename(entry), MessageBody.Deny, MessageBody.Remove(b.id),
             MessageBody.Delete, MessageBody.Logout, MessageBody.Login,
+            MessageBody.Text("with id", MessageBody.newId()), MessageBody.Del(listOf(MessageBody.newId(), "a-b_C")),
         )
         for (body in bodies) {
             val wire = send(7, body)
@@ -121,5 +122,75 @@ class InnerMessageTest {
         assertArrayEquals(ok, DeflateRaw.inflate(DeflateRaw.deflate(ok)))
         assertEquals(null, DeflateRaw.inflate(DeflateRaw.deflate(ok) + byteArrayOf(1, 2)))
         assertEquals(null, DeflateRaw.inflate(DeflateRaw.deflate(ok).copyOf(5)))
+    }
+
+    @Test fun messageIdIsOptionalAndOnlyAValidIdIsKept() {
+        assertEquals(22, MessageBody.newId().length)
+        fun parse(json: String) = InnerMessage.parseJson(json.toByteArray())?.second
+        assertEquals(MessageBody.Text("x", "abc_-9"), parse("{\"n\":1,\"text\":\"x\",\"id\":\"abc_-9\"}"))
+        assertEquals(MessageBody.Text("x"), parse("{\"n\":1,\"text\":\"x\"}"))
+        assertEquals(MessageBody.Text("x"), parse("{\"n\":1,\"text\":\"x\",\"id\":\"a b\"}"))
+        assertEquals(MessageBody.Text("x"), parse("{\"n\":1,\"text\":\"x\",\"id\":7}"))
+        assertEquals(MessageBody.Text("x"), parse("{\"n\":1,\"text\":\"x\",\"id\":\"${"a".repeat(65)}\"}"))
+        assertEquals(MessageBody.Del(listOf("a", "b")), parse("{\"n\":1,\"del\":[\"a\",\"b\"]}"))
+        assertEquals(null, parse("{\"n\":1,\"del\":[\"a\",\"b c\"]}"))
+        assertEquals(null, parse("{\"n\":1,\"del\":\"a\"}"))
+        assertEquals(null, parse("{\"n\":1,\"del\":[]}"))
+    }
+
+    /** Ids that would pass the 3800-char sealed message cap go in several del messages, each under the cap. */
+    @Test fun delSplitsOverTheWireCap() {
+        val ids = (1..500).map { B64url.encode(ByteArray(48).also { r -> java.security.SecureRandom().nextBytes(r) }) } // 64 chars, incompressible
+        val chunks = InnerMessage.delChunks(ids)
+        assertTrue(chunks.size > 1)
+        assertEquals(ids, chunks.flatten())
+        for (c in chunks) assertTrue(send(9_007_199_254_740_991, MessageBody.Del(c)).length <= SizeCap.WIRE_CAP)
+        val short = (1..500).map { MessageBody.newId() }
+        for (c in InnerMessage.delChunks(short)) assertTrue(send(1, MessageBody.Del(c)).length <= SizeCap.WIRE_CAP)
+        assertEquals(1, InnerMessage.delChunks(listOf("a")).size)
+        assertEquals(0, InnerMessage.delChunks(emptyList()).size)
+        // compressible ids stay within the receiver's inflate cap
+        for (c in InnerMessage.delChunks((1..1000).map { "a".repeat(64) })) assertTrue(InnerMessage.jsonOf(1, MessageBody.Del(c)).length <= SizeCap.INFLATE_CAP)
+    }
+
+    /** A del filled to the most 22-char ids seals to at most 3800 chars; one more id does not fit and is split off. */
+    @Test fun delFilledToTheMaxSealsWithinTheCapAndOneMoreSplits() {
+        val ids = (1..400).map { MessageBody.newId() }
+        val first = InnerMessage.delChunks(ids).first()
+        assertEquals(3800, send(9_007_199_254_740_991, MessageBody.Del(first)).length)
+        assertTrue(!InnerMessage.delFits(ids.take(first.size + 1)))
+        try { send(9_007_199_254_740_991, MessageBody.Del(ids.take(first.size + 1))); error("fits") } catch (e: MessageTooLargeException) { }
+        println("max 22-char ids per del: ${first.size}")
+    }
+
+    /** Worst-case content of [bytes] UTF-8 bytes: the least compressible shapes, including JSON escapes. */
+    private fun worstCases(bytes: Int): List<String> {
+        val r = java.util.Random(bytes.toLong())
+        fun fill(pick: () -> String): String { val sb = StringBuilder(); while (true) { val c = pick(); if (SizeCap.utf8Size(sb.toString() + c) > bytes) return sb.toString(); sb.append(c) } }
+        val ctrl = { r.nextInt(0x20).toChar().toString() }
+        val two = { (0x80 + r.nextInt(0x780)).toChar().toString() }
+        val three = { (0x800 + r.nextInt(0xD000 - 0x800)).toChar().toString() }
+        val four = { String(Character.toChars(0x10000 + r.nextInt(0xFFFFF))) }
+        val ascii = { (0x20 + r.nextInt(0x5F)).toChar().toString() }
+        return listOf(
+            fill(ascii), fill(ctrl), fill(two), fill(three), fill(four),
+            fill { listOf(ctrl, two, three, four, ascii)[r.nextInt(5)]() },
+            fill { listOf(ctrl, ascii)[r.nextInt(2)]() },
+        )
+    }
+
+    /** Free bytes left in the largest padded bucket (3800 chars sealed) for a text of [bytes] with an id and the longest n; negative: does not fit. */
+    private fun worstMargin(bytes: Int): Int = worstCases(bytes).minOf { v ->
+        val body = MessageBody.Text(v, MessageBody.newId())
+        val deflated = DeflateRaw.deflate(InnerMessage.jsonOf(9_007_199_254_740_991, body).toByteArray(Charsets.UTF_8))
+        InnerMessage.bytesForChars(InnerMessage.BUCKETS.last()) - 81 - 64 - (39 + 2 + deflated.size)
+    }
+
+    /** The content max (2048 UTF-8 bytes) with an id, worst case, still seals within the largest bucket (3800 chars). */
+    @Test fun maxContentWithIdSealsWithinTheCap() {
+        for (b in listOf(2000, 2048, 2500)) println("content $b bytes with id: margin ${worstMargin(b)} bytes")
+        assertTrue(worstMargin(SizeCap.MAX_CONTENT_BYTES) >= 0)
+        for (v in worstCases(SizeCap.MAX_CONTENT_BYTES)) for (t in ContentType.entries)
+            assertTrue(send(9_007_199_254_740_991, MessageBody.content(t, v, MessageBody.newId())).length <= SizeCap.WIRE_CAP)
     }
 }

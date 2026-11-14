@@ -43,9 +43,12 @@ class MemStore(var name: String = "This device") : LocalStore {
         history.firstOrNull { it.peerId == peerId && it.n == n && it.pairingId?.contentEquals(pairingId) == true }?.id
     }
     override fun insertHistory(row: HistoryRow): Long = synchronized(lock) {
-        val id = history.size + 1L
+        val id = (history.maxOfOrNull { it.id } ?: 0) + 1
         history.add(row.copy(id = id))
         id
+    }
+    override fun deleteHistoryByMsgIds(msgIds: List<String>): List<Long> = synchronized(lock) {
+        history.filter { it.msgId != null && it.msgId in msgIds }.map { it.id }.also { ids -> history.removeAll { it.id in ids } }
     }
     override fun ownName() = name
 }
@@ -65,4 +68,5 @@ class RecEffects : Effects {
     override fun logoutNotice(peerId: String, loggedOut: Boolean) { log.add("logout:$loggedOut") }
     override fun deniedNotice(peerId: String) { log.add("denied") }
     override fun selfRemoved(deleted: Boolean) { log.add("selfRemoved:$deleted") }
+    override fun historyDeleted(peerId: String, historyIds: List<Long>, count: Int) { log.add("deleted:$historyIds:$count") }
 }

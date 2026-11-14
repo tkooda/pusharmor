@@ -78,6 +78,10 @@ class RoomLocalStore(val db: PaDatabase) : LocalStore {
         dao.insertHistory(row.copy(at = at).toEntity()).also { dao.trimHistory(HISTORY_CAP) }
     }
 
+    override fun deleteHistoryByMsgIds(msgIds: List<String>): List<Long> = tx {
+        msgIds.chunked(500).flatMap { dao.historyIdsByMsgIds(it) }.also { if (it.isNotEmpty()) dao.deleteHistory(it) }
+    }
+
     override fun ownName() = dao.self()?.name ?: ""
 
     /** Self-removed / account-deleted wipe of protocol state (history is kept). */
@@ -102,8 +106,8 @@ private fun resultsJson(m: Map<String, String>) = m.entries.joinToString(",", "{
 private fun resultsOf(s: String): Map<String, String> =
     (StrictJson.parseOrNull(s) as? JValue.JObject)?.fields?.mapNotNull { (k, v) -> (v as? JValue.JString)?.let { k to it.value } }?.toMap() ?: emptyMap()
 
-fun HistoryRow.toEntity() = HistoryEntity(id, direction.name, peerId, type, content, n, pairingId, at, read, resultsJson(results), count)
-fun HistoryEntity.toRow() = HistoryRow(id, Direction.valueOf(direction), peerId, type, content, n, pairingId, at, read, resultsOf(results), count)
+fun HistoryRow.toEntity() = HistoryEntity(id, direction.name, peerId, type, content, n, pairingId, at, read, resultsJson(results), count, msgId)
+fun HistoryEntity.toRow() = HistoryRow(id, Direction.valueOf(direction), peerId, type, content, n, pairingId, at, read, resultsOf(results), count, msgId)
 
 fun PeerEntity.toPeer() = Peer(
     id = id, platform = platform, created = created, listSignPub = listSignPub, listEncPub = listEncPub, signPub = signPub, encPub = encPub,

@@ -35,6 +35,9 @@ sealed class Effect {
     data class Logout(val loggedOut: Boolean, val applied: Boolean) : Effect()
 
     object Deny : Effect()
+
+    /** Sync deletions: delete the History rows with these message ids. */
+    data class Del(val ids: List<String>) : Effect()
 }
 
 sealed class Inbound {
@@ -125,6 +128,7 @@ object Receive {
                 Effect.Logout(b == MessageBody.Logout, applied = ok.n > peer.logoutN)
             }
             MessageBody.Deny -> if (!approved) Effect.Drop("not approved") else Effect.Deny
+            is MessageBody.Del -> if (!approved) Effect.Drop("not approved") else Effect.Del(b.ids)
         }
     }
 

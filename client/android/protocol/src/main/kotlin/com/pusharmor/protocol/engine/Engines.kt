@@ -67,11 +67,11 @@ class SendFlow(private val store: LocalStore, me: Identity, private val api: Api
     fun send(recipientIds: List<String>, type: ContentType, value: String, now: Long, onStep: (Int) -> Unit = {}): Outcome {
         val total = allSet(store.peers()).size
         val peers = recipientIds.mapNotNull { store.peer(it) }.filter { it.pinned }
-        val body = MessageBody.content(type, value)
+        val body = MessageBody.content(type, value, MessageBody.newId())
         val r = ClockSkew.run({ peers.associate { it.id to outbox.simple(it, body).message }.also { onStep(Step.ENCRYPTED) } }) { api.send(it) }
         return when (r) {
             is ApiResult.Ok -> {
-                val id = store.insertHistory(HistoryRow(direction = Direction.SENT, peerId = null, type = type.key, content = value, at = now, read = true, results = r.value))
+                val id = store.insertHistory(HistoryRow(direction = Direction.SENT, peerId = null, type = type.key, content = value, at = now, read = true, results = r.value, msgId = body.msgId))
                 handleResults(r.value)
                 Outcome(r.value, total, historyId = id)
             }
@@ -91,6 +91,35 @@ class SendFlow(private val store: LocalStore, me: Identity, private val api: Api
             if (res == "not listening") store.peer(id)?.let { store.putPeer(it.copy(listening = false)) }
         }
         if (fetch) effects.fetchPeersSoon()
+    }
+}
+
+/** Sync deletions: del to the other own devices, sent before the local delete. */
+class DeleteSync(private val store: LocalStore, me: Identity, private val api: Api) {
+    private val outbox = Outbox(store, me)
+
+    /** Other approved own devices that keep a History (not the command line). */
+    fun targets(): List<Peer> = store.peers().filter { it.pinned && it.approved && it.approvesMe && !it.removed && !it.missing && it.platform != "cli" }
+
+    /**
+     * Sends del for the message ids of [rows] when [sync] is on. Returns null when the
+     * local delete may go on (every /v1/send got a 2xx reply, or nothing needed sending), else the failed result.
+     */
+    fun send(rows: List<HistoryRow>, sync: Boolean): ApiResult<*>? {
+        if (!sync) return null
+        val bodies = InnerMessage.delChunks(rows.mapNotNull { it.msgId }).map { MessageBody.Del(it) }
+        val peers = targets()
+        if (bodies.isEmpty() || peers.isEmpty()) return null
+        for (b in bodies) for (chunk in peers.chunked(MAX_TARGETS)) {
+            val r = ClockSkew.run({ chunk.associate { it.id to outbox.simple(it, b).message } }) { api.send(it) }
+            if (r !is ApiResult.Ok) return r
+        }
+        return null
+    }
+
+    companion object {
+        /** The relay server takes at most this many messages per /v1/send. */
+        const val MAX_TARGETS = 9
     }
 }
 
@@ -310,7 +339,7 @@ class ReceiveEngine(
             if (peer !== peer0) store.putPeer(peer)
             when (val e = a.effect) {
                 is Effect.Show -> {
-                    val hid = store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = a.peerId, type = e.content.type.key, content = e.content.value, n = a.n, pairingId = a.pairingId, at = now))
+                    val hid = store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = a.peerId, type = e.content.type.key, content = e.content.value, n = a.n, pairingId = a.pairingId, at = now, msgId = a.body.msgId))
                     after = { effects.showContent(hid, a.peerId, e.content) }
                 }
                 is Effect.Drop -> {
@@ -345,6 +374,10 @@ class ReceiveEngine(
                 Effect.Deny -> {
                     store.putPeer(peer.copy(declined = true))
                     after = { effects.deniedNotice(a.peerId) }
+                }
+                is Effect.Del -> {
+                    val gone = store.deleteHistoryByMsgIds(e.ids)
+                    after = { effects.historyDeleted(a.peerId, gone, gone.size) }
                 }
             }
         }

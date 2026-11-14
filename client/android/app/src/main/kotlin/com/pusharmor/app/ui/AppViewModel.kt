@@ -429,8 +429,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         com.pusharmor.app.ui.theme.ThemePref.applyToSystem(getApplication(), t)
     }
 
-    fun deleteAllHistory() = io(UiText.UNABLE_DELETE_HISTORY) { g.dao.deleteAllHistory() }
-    fun deleteHistory(ids: List<Long>) = io(UiText.UNABLE_DELETE_HISTORY) { g.dao.deleteHistory(ids) }
+    fun deleteAllHistory() = io(UiText.UNABLE_DELETE_HISTORY) {
+        if (syncDeleteFailed(g.dao.allHistory())) return@io
+        g.dao.deleteAllHistory()
+    }
+    fun deleteHistory(ids: List<Long>) = io(UiText.UNABLE_DELETE_HISTORY) {
+        if (syncDeleteFailed(g.dao.historyRows(ids))) return@io
+        g.dao.deleteHistory(ids)
+    }
+
+    /** Sync deletions on: tells the other devices first; a failed send keeps the rows and shows why. */
+    private fun syncDeleteFailed(rows: List<HistoryEntity>): Boolean {
+        val sync = g.settings.get(Settings.K.SYNC_DELETIONS) ?: true
+        val r = g.deleteSync()?.send(rows.map { it.toRow() }, sync) ?: return false
+        message.value = ErrorText.of(UiText.UNABLE_DELETE_SYNC, r)
+        return true
+    }
     fun markRead(id: Long) = io(null) { g.dao.markRead(id) }
     fun rename(name: String) = io(UiText.UNABLE_RENAME) { g.session.rename(name)?.let { message.value = it } }
     fun signOut(onDone: () -> Unit) = once("logout", UiText.UNABLE_LOGOUT) {

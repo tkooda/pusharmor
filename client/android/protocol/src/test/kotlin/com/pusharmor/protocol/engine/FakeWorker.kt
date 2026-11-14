@@ -37,6 +37,7 @@ class FakeWorker {
         val receive = ReceiveEngine(store, me, effects)
         val reconcile = AllowReconcile(store, api) { effects.log.add("selfRemovedPath") }
         val send = SendFlow(store, me, api, effects)
+        val deleteSync = DeleteSync(store, me, api)
         val sync = PeersSync(store, me)
 
         fun fetch() { (api.peers() as ApiResult.Ok).value.let { sync.merge(it) } }

@@ -60,6 +60,8 @@ data class HistoryRow(
     val results: Map<String, String> = emptyMap(),
     /** Merged event count. */
     val count: Int = 1,
+    /** Message id of a url / text / tel (sent or received); null on old messages and events. */
+    val msgId: String? = null,
 )
 
 /** Storage the engines need (Room in the app, in memory in tests). */
@@ -102,6 +104,9 @@ interface LocalStore {
     fun historyIdFor(peerId: String, pairingId: ByteArray, n: Long): Long?
     fun insertHistory(row: HistoryRow): Long
 
+    /** Deletes the History rows (in or out) whose message id is in [msgIds]; returns their row ids. */
+    fun deleteHistoryByMsgIds(msgIds: List<String>): List<Long>
+
     /** Own peer name (1..32 printable ASCII). */
     fun ownName(): String
 }
@@ -131,6 +136,9 @@ interface Effects {
     fun deniedNotice(peerId: String) {}
     fun logoutNotice(peerId: String, loggedOut: Boolean) {}
     fun selfRemoved(deleted: Boolean) {}
+
+    /** Sync deletions from [peerId]: cancel the notifications of [historyIds]; [count] rows removed here. */
+    fun historyDeleted(peerId: String, historyIds: List<Long>, count: Int) {}
 }
 
 enum class PairNoticeKind { COMMIT, COMPARE, READY, IN_PROGRESS, PAIR_AGAIN }

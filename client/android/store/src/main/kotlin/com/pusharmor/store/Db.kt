@@ -121,6 +121,8 @@ data class HistoryEntity(
     val read: Boolean,
     val results: String,
     val count: Int,
+    /** Message id of a url / text / tel (sync deletions); null on old rows and events. */
+    @ColumnInfo(name = "msg_id") val msgId: String? = null,
 )
 
 /** App security state by key (signed out, removal check, old id, push registration); the app's Settings owns the keys. */
@@ -188,6 +190,9 @@ interface PaDao {
     @Query("DELETE FROM history WHERE received_at < :before") fun purgeHistory(before: Long)
     @Query("DELETE FROM history") fun deleteAllHistory()
     @Query("DELETE FROM history WHERE id IN (:ids)") fun deleteHistory(ids: List<Long>)
+    @Query("SELECT id FROM history WHERE msg_id IN (:msgIds)") fun historyIdsByMsgIds(msgIds: List<String>): List<Long>
+    @Query("SELECT * FROM history WHERE id IN (:ids)") fun historyRows(ids: List<Long>): List<HistoryEntity>
+    @Query("SELECT * FROM history") fun allHistory(): List<HistoryEntity>
     /** Keeps the [keep] newest rows by received time (ties: newest id). */
     @Query("UPDATE history SET received_at = :to WHERE received_at > :now") fun clampHistoryTimes(now: Long, to: Long)
     @Query("DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY received_at DESC, id DESC LIMIT :keep)") fun trimHistory(keep: Int)
@@ -201,7 +206,7 @@ interface PaDao {
 
 @Database(
     entities = [SelfEntity::class, PeerEntity::class, PairingEntity::class, CapEntity::class, ReplayEntity::class, AllowEntity::class, HistoryEntity::class, StateEntity::class],
-    version = 8,
+    version = 9,
     exportSchema = true,
 )
 abstract class PaDatabase : RoomDatabase() {
@@ -224,6 +229,13 @@ abstract class PaDatabase : RoomDatabase() {
             }
         }
 
+        /** 8 -> 9: history.msg_id, the message id that sync deletions name (null: old row, never synced). */
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `history` ADD COLUMN `msg_id` TEXT")
+            }
+        }
+
         /**
          * [onCreate] runs when the file is made new: first start, or after a confirmed [deleteCorrupt]. A corrupt
          * file is kept: SQLite hands it to [onCorrupt] instead of deleting it, and the call that met it throws.
@@ -231,7 +243,7 @@ abstract class PaDatabase : RoomDatabase() {
         fun open(context: Context, name: String? = NAME, multiInstance: Boolean = true, onCorrupt: (SupportSQLiteDatabase) -> Unit = {}, onCreate: () -> Unit = {}): PaDatabase {
             val b = if (name == null) Room.inMemoryDatabaseBuilder(context, PaDatabase::class.java)
             else Room.databaseBuilder(context, PaDatabase::class.java, name).let { if (multiInstance) it.enableMultiInstanceInvalidation() else it }
-            return b.addMigrations(MIGRATION_6_7, MIGRATION_7_8)
+            return b.addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .openHelperFactory(KeepCorruptFactory(onCorrupt))
                 .addCallback(object : RoomDatabase.Callback() { override fun onCreate(db: SupportSQLiteDatabase) = onCreate() }).build()
         }

@@ -1566,6 +1566,8 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             SectionHeader("History")
             GroupedList(listOf<@Composable (Modifier) -> Unit>(
                 { m -> SettingRow("Delete messages older than", modifier = m, value = UiText.days(days)) { pickDays = true } },
+                { m -> SwitchRow("Sync deletions", b(Settings.K.SYNC_DELETIONS, true), sub = "Deleting on this device will also delete on your other devices.",
+                    modifier = m.then(pad)) { vm.setPref(Settings.K.SYNC_DELETIONS, it) } },
                 { m -> SettingRow("Delete all history", modifier = m, color = cs.error) { confirmHistory = true } },
             ))
             SectionHeader("Account")

@@ -56,6 +56,7 @@ object UiText {
     const val UNABLE_START_LOGIN = "Unable to start the login."
     const val UNABLE_DELETE_ACCOUNT = "Unable to delete the account."
     const val UNABLE_DELETE_HISTORY = "Unable to delete the history."
+    const val UNABLE_DELETE_SYNC = "Unable to delete on your other devices."
 
     /** Line 2 for a login ticket of another account [to]; this device switched to that account and the next login uses it. */
     fun switchAccount(to: String?): String = when {
@@ -376,6 +377,7 @@ object UiText {
     // Device texts: the name is always in straight double quotes; no name reads "A device" / "a device".
     fun approvedNotice(name: String?): String = "${quoted(name, "A device")} confirmed this device."
     fun renamedNotice(old: String?, new: String): String = "${quoted(old, "A device")} renamed to \"$new\""
+    fun deletedNotice(count: Int, name: String?): String = (if (count == 1) "1 message" else "$count messages") + " deleted by " + quoted(name, "a device")
     fun rejectedNotice(name: String?): String = "Rejected by ${quoted(name, "a device")}."
     fun logoutNotice(name: String?, loggedOut: Boolean): String = quoted(name, "A device") + if (loggedOut) " logged out." else " logged in."
     fun greyedChip(name: String, status: String): String = "\"$name\": $status"
