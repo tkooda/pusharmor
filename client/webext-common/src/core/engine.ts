@@ -3,7 +3,7 @@
 // start and commits before it returns, so a stopped service worker loses
 // nothing.
 import { type ApiReply, Api, ApiError, UPDATE_REQUIRED } from "../api/client.ts";
-import { ReasonError, RestartError, failText } from "./failtext.ts";
+import { ActionError, ReasonError, RestartError, failText } from "./failtext.ts";
 import { b64urlDecode, b64urlEncode, b64urlTryDecode } from "../crypto/b64url.ts";
 import { equal, randomBytes } from "../crypto/bytes.ts";
 import { checkKeys, generateKeySet, isValidPub } from "../crypto/keys.ts";
@@ -31,11 +31,13 @@ import { isLikelyUrl, urlToSend } from "../model/sendurl.ts";
 import {
   type Content,
   buildJson,
+  delChunks,
   encodeInner,
   encodePair,
   isPairWire,
   isPrintableName,
   makeNameEntry,
+  newMsgId,
   openNameEntry,
   openPair,
   pairAcceptable,
@@ -94,8 +96,10 @@ export interface Settings {
   historyDays: number;
   /** false = notifications show no message content. */
   allowContent: boolean;
+  /** true = deleting history here also deletes those messages on the other devices. */
+  syncDeletions: boolean;
 }
-export const DEFAULT_SETTINGS: Settings = { showAll: true, autoOpen: false, historyDays: 30, allowContent: true };
+export const DEFAULT_SETTINGS: Settings = { showAll: true, autoOpen: false, historyDays: 30, allowContent: true, syncDeletions: true };
 
 interface EngineDeps {
   platform: Platform;
@@ -371,7 +375,7 @@ export class Engine {
     if (src === "fetched" && !(c.type === "remove" && c.id === onlyRemove)) return;
     const peer = (await this.db.peer(r.from))!;
     const pidB64 = b64urlEncode(r.pin.pairing_id);
-    const row = c.type === "url" || c.type === "text" || c.type === "tel" ? this.inboundRow(peer, c.type, c.value, r.n, pidB64) : null;
+    const row = c.type === "url" || c.type === "text" || c.type === "tel" ? this.inboundRow(peer, c.type, c.value, r.n, pidB64, c.id ?? null) : null;
     // approve: the peer-row change commits with the replay record
     const peerFn = c.type === "approve" ? approveRow(r.n, r.name, r.pin.pairing_id) : undefined;
     const rec = await this.db.acceptN(r.from, pidB64, r.n, row, (s) => replayCheck(s, r.n), (s) => replayRecord(s, r.n), true, peerFn);
@@ -384,7 +388,7 @@ export class Engine {
     await this.act(c, r.n, cur, r.name, rec.rowId, src, self, rec.peer);
   }
 
-  private inboundRow(peer: PeerRow, type: "url" | "text" | "tel", value: string, n: number, pidB64: string): HistoryRow {
+  private inboundRow(peer: PeerRow, type: "url" | "text" | "tel", value: string, n: number, pidB64: string, mid: string | null): HistoryRow {
     let t: HistoryRow["type"] = type;
     let content = value;
     if (type === "url") {
@@ -402,6 +406,7 @@ export class Engine {
       pairing_id: pidB64,
       received: now(this.p),
       read: false,
+      mid,
     } as HistoryRow;
   }
 
@@ -456,6 +461,13 @@ export class Engine {
       case "delete":
         await this.removalSignal("deleted");
         return;
+      case "del": {
+        // always obeyed, whatever this device's Sync deletions setting; no notification on this platform
+        const gone = await this.db.deleteHistoryWhere((r) => !!r.mid && c.ids.includes(r.mid));
+        for (const id of gone) this.p.clearNotification("h:" + id);
+        if (gone.length) await this.updateBadge();
+        return;
+      }
       case "logout":
       case "login": {
         await this.db.updatePeer(peer.id, (p) => (p && n > p.logout_n ? { ...p, logged_out: c.type === "logout", logout_n: n } : null));
@@ -1488,6 +1500,7 @@ export class Engine {
     const valueLen = utf8Len(value);
     if (valueLen > CONTENT_CAP) throw new ReasonError(R.tooLong); // href percent-encodes
     if (ids.length === 0) return { sent: 0, total, failures: [] };
+    const mid = newMsgId();
     const build = async () => {
       const m: Record<string, string> = {};
       for (const id of ids) {
@@ -1497,7 +1510,7 @@ export class Engine {
           signKey: self.sign.privateKey,
           fromId: b64urlDecode(self.id),
           pairingId: peer.pairing_id!,
-          json: buildJson(n, { type, value } as Content),
+          json: buildJson(n, { type, value, id: mid } as Content),
           recipientId: id,
           recipientEncPub: peer.enc_pub,
         });
@@ -1547,11 +1560,81 @@ export class Engine {
       read: true,
       results,
       targets: ids,
+      mid,
     });
     if (trigger) await this.fetchTrigger();
     const out: SendResult = { sent, total, failures };
     if (error) out.error = error;
     return out;
+  }
+
+  // ------------------------------------------------------ history delete
+
+  /**
+   * Deletes History rows. With Sync deletions on, the message ids of the rows go to the
+   * other devices first; the rows stay when the relay server does not take every send.
+   */
+  async deleteHistory(rowIds: number[]): Promise<void> {
+    const rows: HistoryRow[] = [];
+    for (const id of rowIds) {
+      const row = await this.db.get<HistoryRow>("history", id);
+      if (row) rows.push(row);
+    }
+    await this.syncDeletes(rows);
+    for (const id of rowIds) await this.db.del("history", id);
+    await this.updateBadge();
+  }
+
+  /** Deletes all History, like a delete of every row (sent and received). */
+  async deleteAllHistory(): Promise<void> {
+    await this.syncDeletes(await this.db.history());
+    await this.db.clear(["history"]);
+    await this.updateBadge();
+  }
+
+  /** With Sync deletions on, sends the message ids of the rows in del messages; throws when a send fails. */
+  private async syncDeletes(rows: HistoryRow[]): Promise<void> {
+    const mids = rows.flatMap((r) => (r.mid ? [r.mid] : []));
+    if (!mids.length || !(await this.settings()).syncDeletions) return;
+    await this.sendDeletes((await delChunks(mids)).map((ids): Content => ({ type: "del", ids })));
+  }
+
+  /** Sends each message to the other own devices (not command line), at most 9 per call; throws when a call fails. */
+  private async sendDeletes(msgs: Content[]): Promise<void> {
+    const self = await this.self();
+    if (!self || (await this.regState()) !== "registered") return;
+    const peers = (await this.db.peers()).filter(
+      (p) => p.pinned && p.pairing_id && p.ruling === "approved" && p.approves_me && !p.logged_out && !p.missing && !p.removed && p.platform !== "cli",
+    );
+    for (const c of msgs) {
+      for (let i = 0; i < peers.length; i += 9) {
+        const batch = peers.slice(i, i + 9);
+        const build = async () => {
+          const m: Record<string, string> = {};
+          for (const p of batch) {
+            const n = await this.db.reserveN(p.id);
+            m[p.id] = await encodeInner({
+              signKey: self.sign.privateKey,
+              fromId: b64urlDecode(self.id),
+              pairingId: p.pairing_id!,
+              json: buildJson(n, c),
+              recipientId: p.id,
+              recipientEncPub: p.enc_pub,
+            });
+          }
+          return { v: 1, m };
+        };
+        try {
+          await this.afterSignedReply(await this.api.call("POST", "/send", { signer: this.signerOf(self), build }));
+        } catch (e) {
+          await this.callFailure(e);
+          if (e instanceof ApiError && (e.status === 429 || e.status === 503) && e.retryAfter !== null) {
+            await this.p.storageLocal.set({ [NET_NOT_BEFORE]: now(this.p) + e.retryAfter * 1000 });
+          }
+          throw new ActionError("syncDelete", e);
+        }
+      }
+    }
   }
 
   // -------------------------------------------- allow-list m (logout etc.)

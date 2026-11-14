@@ -61,6 +61,7 @@ export interface HistoryRow {
   results?: Record<string, string>;
   count?: number; // merged consecutive events
   targets?: string[];
+  mid?: string | null; // message id (inner "id"); absent on older rows
 }
 
 function req<T>(r: IDBRequest<T>): Promise<T> {
@@ -545,6 +546,26 @@ export class Db {
   async history(): Promise<HistoryRow[]> {
     const rows = await this.all<HistoryRow>("history");
     return rows.sort((a, b) => b.received - a.received || (b.id ?? 0) - (a.id ?? 0));
+  }
+
+  /** Deletes the rows that match (url, text, and tel rows only); returns their row ids. */
+  async deleteHistoryWhere(match: (r: HistoryRow) => boolean): Promise<number[]> {
+    const tx = this.db.transaction("history", "readwrite");
+    const done = txDone(tx);
+    const out: number[] = [];
+    const c = tx.objectStore("history").openCursor();
+    c.onsuccess = () => {
+      const cur = c.result;
+      if (!cur) return;
+      const row = cur.value as HistoryRow;
+      if (row.type !== "event" && match(row)) {
+        out.push(row.id!);
+        cur.delete();
+      }
+      cur.continue();
+    };
+    await done;
+    return out;
   }
 
   async purgeHistory(before: number, t: number): Promise<void> {

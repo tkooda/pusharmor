@@ -132,7 +132,7 @@ test("email login: A, then B with new keys, then A again brings back A's keys, d
   assert.ok(await db.peer("PEERA"));
   assert.equal(await db.peer("PEERB"), undefined);
   assert.equal(await e.myName(), "Laptop A");
-  assert.deepEqual(await e.settings(), { showAll: true, autoOpen: true, historyDays: 7, allowContent: true });
+  assert.deepEqual(await e.settings(), { showAll: true, autoOpen: true, historyDays: 7, allowContent: true, syncDeletions: true });
 
   // B is archived intact; A's archive is gone (A is active)
   assert.deepEqual(await e.accounts(), { [acctId("b@x.com")]: await eh("b@x.com") });

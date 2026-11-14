@@ -181,12 +181,10 @@ export class Rpc {
         await e.updateBadge();
         return null;
       case "historyDelete":
-        for (const id of a.ids as number[]) await e.db.del("history", Number(id));
-        await e.updateBadge();
+        await e.deleteHistory((a.ids as number[]).map(Number));
         return null;
       case "historyDeleteAll":
-        await e.db.clear(["history"]);
-        await e.updateBadge();
+        await e.deleteAllHistory();
         return null;
       case "sendSel":
         return ((await e.p.storageLocal.get([SEND_SEL_KEY]))[SEND_SEL_KEY] as string[] | undefined) ?? [];

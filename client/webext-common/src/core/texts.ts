@@ -168,6 +168,7 @@ export type ActionId =
   | "loginApple"
   | "deleteAccount"
   | "deleteHistory"
+  | "syncDelete"
   | "saveMessage"
   | "changeSetting";
 
@@ -192,6 +193,7 @@ export function actionLine(a: ActionId, x = ""): string {
     case "loginApple": return "Unable to log in with Apple.";
     case "deleteAccount": return "Unable to delete the account.";
     case "deleteHistory": return "Unable to delete the history.";
+    case "syncDelete": return "Unable to delete on your other devices.";
     case "saveMessage": return "Unable to save the message.";
     case "changeSetting": return "Unable to change this setting.";
   }

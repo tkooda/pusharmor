@@ -578,7 +578,11 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
           const ids = [...(picked ?? [])];
           const title = ids.length === 1 ? "Delete 1 message?" : "Delete " + ids.length + " messages?";
           if (!(await confirmDialog(title, "This deletes the selected messages from this device.", "Delete"))) return;
-          await rpc(env, "historyDelete", { ids });
+          try {
+            await rpc(env, "historyDelete", { ids });
+          } catch (e) {
+            return toast((e as Error).message, "err");
+          }
           clear(root);
           await historyView(env, root, undefined, nav);
         },
@@ -781,6 +785,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
   const showAll = h("input", { type: "checkbox", role: "switch", checked: s.showAll }) as HTMLInputElement;
   const autoOpen = h("input", { type: "checkbox", role: "switch", checked: s.autoOpen }) as HTMLInputElement;
   const allowContent = h("input", { type: "checkbox", role: "switch", checked: s.allowContent }) as HTMLInputElement;
+  const syncDeletions = h("input", { type: "checkbox", role: "switch", checked: s.syncDeletions }) as HTMLInputElement;
   const days = h("select", { "aria-label": "Delete messages older than" }) as HTMLSelectElement;
   for (const d of [1, 7, 30, 90, 365]) days.append(h("option", { value: String(d), selected: d === s.historyDays }, d + (d === 1 ? " day" : " days")));
   const theme = h("select", { "aria-label": "Theme" }) as HTMLSelectElement;
@@ -788,12 +793,13 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
   for (const [v, label] of THEME_CHOICES) theme.append(h("option", { value: v, selected: v === pref }, label));
   theme.addEventListener("change", () => void setTheme(env.theme, parseTheme(theme.value)));
   const save = () =>
-    void rpc(env, "settings", { showAll: showAll.checked, autoOpen: autoOpen.checked, allowContent: allowContent.checked, historyDays: Number(days.value) }).catch(() =>
+    void rpc(env, "settings", { showAll: showAll.checked, autoOpen: autoOpen.checked, allowContent: allowContent.checked, syncDeletions: syncDeletions.checked, historyDays: Number(days.value) }).catch(() =>
       toast("Could not save the settings", "err"),
     );
   showAll.addEventListener("change", save);
   autoOpen.addEventListener("change", save);
   allowContent.addEventListener("change", save);
+  syncDeletions.addEventListener("change", save);
   days.addEventListener("change", save);
   // logged out, the settings that need an account (device name, Log out, Delete account) are not offered
   const loggedIn = st.reg === "registered";
@@ -846,6 +852,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     sh("History"),
     group(
       h("div", { class: "srow" }, h("span", {}, "Delete messages older than"), days),
+      h("label", { class: "srow" }, h("div", { class: "txt" }, h("div", {}, "Sync deletions"), h("div", { class: "t2" }, "Deleting on this device will also delete on your other devices.")), syncDeletions),
       h("div", { class: "srow" }, delAll),
     ),
     ...(loggedIn ? [sh("Account"), group(acctRow, h("div", { class: "srow acct-acts" }, btns))] : []),

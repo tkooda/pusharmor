@@ -2,7 +2,7 @@
 // pair messages (Pairing). Sender order: build body, pad to bucket, sign,
 // prepend sig, HPKE seal. Receiver: open, parse, verify, then inflate.
 import { b64urlEncode, b64urlTryDecode } from "../crypto/b64url.ts";
-import { ascii, concat, equal, utf8, utf8Decode } from "../crypto/bytes.ts";
+import { ascii, concat, equal, randomBytes, utf8, utf8Decode } from "../crypto/bytes.ts";
 import { ENC_LEN, TAG_LEN, hpkeOpen, hpkeSeal } from "../crypto/hpke.ts";
 import { sign, verify } from "../crypto/keys.ts";
 import { ID_LEN, PAIRING_ID_LEN, R_LEN, commitHash, hasAccount, validPeerEntry } from "../crypto/labels.ts";
@@ -23,16 +23,17 @@ export interface NameEntry {
 }
 
 export type Content =
-  | { type: "url"; value: string }
-  | { type: "text"; value: string }
-  | { type: "tel"; value: string }
+  | { type: "url"; value: string; id?: string | null }
+  | { type: "text"; value: string; id?: string | null }
+  | { type: "tel"; value: string; id?: string | null }
   | { type: "approve"; entry: NameEntry }
   | { type: "rename"; entry: NameEntry }
   | { type: "deny" }
   | { type: "remove"; id: string }
   | { type: "delete" }
   | { type: "logout" }
-  | { type: "login" };
+  | { type: "login" }
+  | { type: "del"; ids: string[] };
 
 export type ContentType = Content["type"];
 export const CONTROL_TYPES: ReadonlySet<ContentType> = new Set([
@@ -43,6 +44,7 @@ export const CONTROL_TYPES: ReadonlySet<ContentType> = new Set([
   "logout",
   "login",
   "deny",
+  "del",
 ]);
 // Fixed order: when several type keys appear, the first one listed wins.
 const TYPE_KEYS: readonly string[] = [
@@ -56,6 +58,7 @@ const TYPE_KEYS: readonly string[] = [
   "delete",
   "logout",
   "login",
+  "del",
 ];
 
 /** JSON {"n": n, type: value}. */
@@ -65,12 +68,14 @@ export function buildJson(n: number, c: Content): string {
     case "url":
     case "text":
     case "tel":
-      return '{"n":' + ns + "," + JSON.stringify(c.type) + ":" + JSON.stringify(c.value) + "}";
+      return '{"n":' + ns + (c.id ? ',"id":' + JSON.stringify(c.id) : "") + "," + JSON.stringify(c.type) + ":" + JSON.stringify(c.value) + "}";
     case "approve":
     case "rename":
       return '{"n":' + ns + ',"' + c.type + '":' + nameEntryJson(c.entry) + "}";
     case "remove":
       return '{"n":' + ns + ',"remove":' + JSON.stringify(c.id) + "}";
+    case "del":
+      return '{"n":' + ns + ',"del":' + JSON.stringify(c.ids) + "}";
     default:
       return '{"n":' + ns + ',"' + c.type + '":1}';
   }
@@ -78,6 +83,42 @@ export function buildJson(n: number, c: Content): string {
 
 function nameEntryJson(e: NameEntry): string {
   return '{"name":' + JSON.stringify(e.name) + ',"n":' + nStr(e.n) + ',"s":' + JSON.stringify(e.s) + "}";
+}
+
+/** A message id: 1..64 chars of base64url. */
+export function isMsgId(v: unknown): v is string {
+  return typeof v === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(v);
+}
+
+/** A new random message id: 128 bits in base64url (22 chars). */
+export function newMsgId(): string {
+  return b64urlEncode(randomBytes(16));
+}
+
+/** HPKE wire bytes of an inner message before padding: enc, sig, from id, pairing id, flag, keys, length, deflated JSON, tag. */
+function unpaddedWireBytes(deflatedLen: number, keys: boolean): number {
+  return ENC_LEN + SIG_LEN + ID_LEN + PAIRING_ID_LEN + 1 + (keys ? KEYS_LEN : 0) + 2 + deflatedLen + TAG_LEN;
+}
+
+/** true when a del of these ids seals to WIRE_CAP chars or less (measured with the longest n). */
+export async function delFits(ids: string[]): Promise<boolean> {
+  const d = await deflateRaw(utf8(buildJson(Number.MAX_SAFE_INTEGER, { type: "del", ids })));
+  return paddedWireBytes(unpaddedWireBytes(d.length, false), false) !== null;
+}
+
+/** Splits ids over as few del messages as fit the size cap, in order. */
+export async function delChunks(ids: string[]): Promise<string[][]> {
+  const out: string[][] = [];
+  let cur: string[] = [];
+  for (const id of ids) {
+    if (cur.length && !(await delFits([...cur, id]))) {
+      out.push(cur);
+      cur = [];
+    }
+    cur.push(id);
+  }
+  if (cur.length) out.push(cur);
+  return out;
 }
 
 /** Signed bytes of an inner message: "PA-MSG1\n" + recipient id + "\n" + body. */
@@ -110,7 +151,7 @@ export async function buildBody(a: EncodeArgs): Promise<Uint8Array> {
     new Uint8Array([deflated.length >> 8, deflated.length & 255]),
     deflated,
   );
-  const unpadded = ENC_LEN + SIG_LEN + head.length + TAG_LEN;
+  const unpadded = unpaddedWireBytes(deflated.length, flag === 1);
   const target = paddedWireBytes(unpadded, flag === 1);
   if (target === null) throw new Error("too large");
   return concat(head, new Uint8Array(target - unpadded));
@@ -212,7 +253,7 @@ export function parseInnerJson(bytes: Uint8Array): ParsedJson | null {
     case "text":
     case "tel":
       if (typeof val !== "string" || utf8Len(val) > CONTENT_CAP) return null;
-      return { n, content: { type: t, value: val } };
+      return { n, content: isMsgId(v.id) ? { type: t, value: val, id: v.id } : { type: t, value: val } };
     case "approve":
     case "rename": {
       const entry = parseEntry(val);
@@ -224,6 +265,10 @@ export function parseInnerJson(bytes: Uint8Array): ParsedJson | null {
       const id = b64urlTryDecode(val);
       if (!id || id.length !== ID_LEN) return null;
       return { n, content: { type: "remove", id: val } };
+    }
+    case "del": {
+      if (!Array.isArray(val) || val.length === 0 || !val.every(isMsgId)) return null;
+      return { n, content: { type: "del", ids: val as string[] } };
     }
     default:
       if (!(val instanceof JNum) || val.raw !== "1") return null;
