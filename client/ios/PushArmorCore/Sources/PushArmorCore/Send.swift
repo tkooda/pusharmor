@@ -78,9 +78,9 @@ extension Core {
     static let maxSendTargets = 9
 
     /// Sync deletions targets: every other approved device of this account that approves
-    /// this device, command line devices excluded.
+    /// this device, logged out and command line devices excluded.
     func syncTargets() throws -> [PeerId] {
-        try store.peers().filter { $0.pinned && $0.state == .approved && $0.approvesMe && !$0.missing && $0.platform != "cli" }
+        try store.peers().filter { $0.pinned && $0.state == .approved && $0.approvesMe && !$0.missing && !$0.loggedOut && $0.platform != "cli" }
             .map { $0.id }
     }
 
