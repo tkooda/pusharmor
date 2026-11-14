@@ -86,7 +86,10 @@ public struct InnerJSON: Equatable, Sendable {
         Data(("{\"n\":" + String(n) + "," + StrictJSON.quote(content.typeKey) + ":" + content.valueJSON + "}").utf8)
     }
 
-    public enum Failure: Error { case json, shape, counter, value, tooLong }
+    public enum Failure: Error { case json, shape, counter, value, tooLong
+        /// A valid n and no known type key (a type from a newer version): carries n.
+        case unknownType(UInt64)
+    }
 
     /// Type keys in priority order: the first one present is the message type.
     static let typeOrder = ["url", "text", "tel", "approve", "deny", "remove", "rename", "delete", "logout", "login"]
@@ -98,7 +101,7 @@ public struct InnerJSON: Equatable, Sendable {
         guard let v = try? StrictJSON.parse(data), v.objectMembers != nil else { throw Failure.json }
         guard let nv = v["n"] else { throw Failure.shape }
         guard let n = nv.counterValue else { throw Failure.counter }
-        guard let key = typeOrder.first(where: { v[$0] != nil }), let val = v[key] else { throw Failure.shape }
+        guard let key = typeOrder.first(where: { v[$0] != nil }), let val = v[key] else { throw Failure.unknownType(n) }
         let c: MessageContent
         func str() throws -> String {
             guard let s = val.stringValue else { throw Failure.value }
@@ -183,9 +186,15 @@ public enum InnerMessage {
     /// Build, pad, sign and seal one message to one recipient. Returns the b64url wire string.
     public static func seal(_ json: InnerJSON, signer: PASigner, from: PeerId, to: PeerId, toEncPub: Data,
                             pairingId: Data, keys: (Data, Data)?) throws -> String {
-        let deflated = try Deflate.deflateRaw(json.encode())
         var approve = false
         if case .approve = json.content { approve = true }
+        return try seal(raw: json.encode(), approve: approve, signer: signer, from: from, to: to, toEncPub: toEncPub,
+                        pairingId: pairingId, keys: keys)
+    }
+
+    static func seal(raw: Data, approve: Bool, signer: PASigner, from: PeerId, to: PeerId, toEncPub: Data,
+                     pairingId: Data, keys: (Data, Data)?) throws -> String {
+        let deflated = try Deflate.deflateRaw(raw)
         let body = try paddedBody(from: from, pairingId: pairingId, keys: keys, deflated: deflated, approve: approve)
         let sig = try signer.sign(signedBytes(recipient: to, tail: body))
         let wire = try HPKEWire.seal(sig + body, to: toEncPub, info: info, aad: Bytes.ascii(to.text))

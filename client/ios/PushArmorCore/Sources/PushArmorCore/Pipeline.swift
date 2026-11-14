@@ -44,6 +44,9 @@ public enum ReceivePipeline {
         public var name: String?
         public var windowAfter: ReplayWindow?
         public var pairingId: Data?
+        /// Unreadable outcome only: a verified, approved message of an unknown type. windowAfter is set
+        /// when its n is fresh (to be consumed); the receiver shows no row, no event and no error.
+        public var ignored = false
 
         static func drop(_ from: PeerId? = nil) -> Result {
             Result(outcome: .unreadable, verifiedFrom: from, unknownFrom: nil, json: nil, name: nil, windowAfter: nil, pairingId: nil)
@@ -84,7 +87,21 @@ public enum ReceivePipeline {
         let from = sp.from
         guard sp.pairingId == p.pairingId, p.ruling != .removed else { return .drop(from) }
         // step 7: inflate with the cap only after the verify; strict JSON
-        guard let raw = try? Deflate.inflateRaw(sp.deflated), let j = try? InnerJSON.parse(raw) else { return .drop(from) }
+        guard let raw = try? Deflate.inflateRaw(sp.deflated) else { return .drop(from) }
+        let j: InnerJSON
+        do {
+            j = try InnerJSON.parse(raw)
+        } catch InnerJSON.Failure.unknownType(let n) {
+            // verified, from the pinned pairing, no known type: consume n like a control message, do nothing else
+            guard sp.keys == nil, p.ruling == .approved, var w = window(from) else { return .drop(from) }
+            var r = Result(outcome: .unreadable, verifiedFrom: from, unknownFrom: nil, json: nil, name: nil, windowAfter: nil,
+                           pairingId: p.pairingId)
+            r.ignored = true
+            if case .accept = w.outcome(n, control: true, hasHistory: false) { w.accept(n); r.windowAfter = w }
+            return r
+        } catch {
+            return .drop(from)
+        }
         var isApprove = false
         if case .approve = j.content { isApprove = true }
         guard isApprove == (sp.keys != nil) else { return .drop(from) }

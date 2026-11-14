@@ -159,6 +159,9 @@ extension Core {
         do {
             let (r, applied) = try store.db.write { () -> (ReceivePipeline.Result, Applied?) in
                 let r = runPipeline(m, me: me)
+                if r.ignored, mode != .returnedC, let w = r.windowAfter, let pid = r.pairingId {
+                    try store.saveReplay(r.verifiedFrom!, pairingId: pid, window: w)
+                }
                 guard r.outcome == .accept else { return (r, nil) }
                 // a returned c may only be an approve; anything else is dropped before
                 // the replay window is saved, so a real delivery of it still applies.
@@ -184,6 +187,7 @@ extension Core {
                 let p = try? store.peer(from)
                 return .plain(controlBanner(j.content, peer: p, name: r.name, me: me))
             case .unreadable:
+                if r.ignored { return .plain(mode == .nse ? .fallback : nil) }
                 if let u = r.unknownFrom, mode != .returnedC, (try? store.peer(u)) == nil {
                     try? store.setMe("fetch_due", .int(1))
                 }

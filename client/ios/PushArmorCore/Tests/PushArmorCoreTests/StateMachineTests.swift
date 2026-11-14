@@ -306,6 +306,45 @@ final class StateMachineTests: XCTestCase {
         XCTAssertTrue(try x.core.store.me().removed)
     }
 
+    /// a signed message with a valid n and no known type key is ignored: no row, no could-not-read,
+    /// n consumed, and a repeat is a silent no-op.
+    func testSignedUnknownTypeIsIgnoredAndConsumesN() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        let pin = try n.core.store.reserveCounter(x.id)
+        let m = try InnerMessage.seal(raw: Data("{\"n\":\(pin.n),\"del\":1}".utf8), approve: false, signer: n.keys.signer,
+                                      from: n.id, to: x.id, toEncPub: pin.encPub, pairingId: pin.pairingId, keys: nil)
+        let before = try x.core.store.history().count
+        let r = await x.core.receive(m, mode: .nse)
+        XCTAssertNotEqual(r.banner, Banner.dropped)
+        XCTAssertEqual(r.banner, Banner.fallback)
+        XCTAssertNil(r.rowid)
+        XCTAssertEqual(try x.core.store.history().count, before)
+        XCTAssertEqual(try x.core.store.replay(n.id)?.window.outcome(pin.n, control: true, hasHistory: false), .noop)
+        let dup = await x.core.receive(m, mode: .nse)
+        XCTAssertNotEqual(dup.banner, Banner.dropped)
+        XCTAssertEqual(try x.core.store.history().count, before)
+        let app = await x.core.receive(m, mode: .drain)
+        XCTAssertNil(app.banner)
+        XCTAssertEqual(try x.core.store.history().count, before)
+    }
+
+    /// a bad signature or a missing n still ends as could-not-read.
+    func testUnreadableStillCouldNotRead() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        let pin = try n.core.store.reserveCounter(x.id)
+        let badSig = try InnerMessage.seal(raw: Data("{\"n\":\(pin.n),\"del\":1}".utf8), approve: false, signer: SoftwareSigner(),
+                                           from: n.id, to: x.id, toEncPub: pin.encPub, pairingId: pin.pairingId, keys: nil)
+        let noN = try InnerMessage.seal(raw: Data("{\"del\":1}".utf8), approve: false, signer: n.keys.signer,
+                                        from: n.id, to: x.id, toEncPub: pin.encPub, pairingId: pin.pairingId, keys: nil)
+        for m in [badSig, noN] {
+            let r = await x.core.receive(m, mode: .nse)
+            XCTAssertEqual(r.banner, Banner.dropped)
+        }
+        XCTAssertEqual(try x.core.store.history().filter { $0.event == .couldNotRead }.count, 2)
+    }
+
     /// a 401 "bad id" is a failed id check: no removal check GET, no wipe.
     func testBadIdNeverStartsRemovalCheck() async throws {
         let n = try dev("Ndev")
