@@ -317,8 +317,8 @@ def counter_n(v):
 
 # ---- inner messages ----
 
-TYPES = ("url", "text", "tel", "approve", "deny", "remove", "rename", "delete", "logout", "login")
-CONTROL_TYPES = ("approve", "rename", "remove", "delete", "logout", "login", "deny")
+TYPES = ("url", "text", "tel", "approve", "deny", "remove", "rename", "delete", "logout", "login", "del")
+CONTROL_TYPES = ("approve", "rename", "remove", "delete", "logout", "login", "deny", "del")
 BUCKETS = (512, 1024, 2048, 3800)
 MAX_WIRE = 3800
 HPKE_OVERHEAD = 65 + 16
@@ -365,11 +365,15 @@ def name_entry_json(e):
     return '{"name":' + json.dumps(e["name"]) + ',"n":' + str(e["n"]) + ',"s":' + json.dumps(e["s"]) + "}"
 
 
-def msg_json(n, type_, value):
+def new_msg_id():
+    return base64.urlsafe_b64encode(os.urandom(16)).rstrip(b"=").decode()
+
+
+def msg_json(n, type_, value, mid=None):
     """Exact inner JSON {"n":N,"<type>":value}, n first. value: str for url/text/tel/remove,
     a name entry (make_name_entry, same n) for approve/rename, 1 for deny/delete/logout/login."""
     v = name_entry_json(value) if type_ in ("approve", "rename") else json.dumps(value)
-    return '{"n":' + str(n) + ',"' + type_ + '":' + v + "}"
+    return '{"n":' + str(n) + ',"' + type_ + '":' + v + ("" if mid is None else ',"id":' + json.dumps(mid)) + "}"
 
 
 def msg_signed_bytes(recipient_id, padded_body):
@@ -470,6 +474,9 @@ def open_message(message, own_id, own_enc_priv, own_account, pins):
     elif type_ == "remove":
         if type(value) is not str or len(value) != 40 or not b64ok(value):
             return bad("remove id")
+    elif type_ == "del":
+        if type(value) is not list or not all(type(i) is str for i in value):
+            return bad("del ids")
     else:
         if not isinstance(value, _Num) or value != "1":
             return bad("flag value")
@@ -1811,7 +1818,7 @@ def default_name():
 
 def seal_msg(k, x, p, n, type_, value, approve=False):
     pid = b64d(p["pairing_id"]) if p["pairing_id"] else bytes(8)
-    return build_message(k["sign"], k["id"], x, b64d(p["enc_pub"]), pid, msg_json(n, type_, value),
+    return build_message(k["sign"], k["id"], x, b64d(p["enc_pub"]), pid, msg_json(n, type_, value, new_msg_id() if type_ in ("url", "text", "tel") else None),
                          keys=(k["sign_pub"], k["enc_pub"]) if approve else None)
 
 

@@ -5,6 +5,7 @@ import io
 import json
 import os
 import re
+import random
 import shutil
 import stat
 import sys
@@ -757,7 +758,7 @@ def test_listen_exec_replaces_nul_and_lone_surrogates(net, tmp_path, monkeypatch
     a, b = tmp_path / "a", tmp_path / "b"
     pair_two(monkeypatch, net, a, b)
     orig = pa.msg_json
-    monkeypatch.setattr(pa, "msg_json", lambda n, t, v: orig(n, t, "a\x00b\ud800" if v == "zz" else v))
+    monkeypatch.setattr(pa, "msg_json", lambda n, t, v, *m: orig(n, t, "a\x00b\ud800" if v == "zz" else v, *m))
     assert run(a, "send", "zz") == 0
     monkeypatch.setattr(pa, "msg_json", orig)
     out, prog = tmp_path / "out", tmp_path / "prog"
@@ -1978,6 +1979,50 @@ def test_listen_ignores_a_signed_message_of_an_unknown_type(net, tmp_path, monke
     cap = capsys.readouterr()
     assert cap.out == "" and cap.err.splitlines() == ["info: Listening. Press Ctrl+C to stop.", "info: Stopped."]
     assert n in state(b)["peers"][ida]["seen"]
+
+
+@pytest.mark.parametrize("body", ['"del":["abc","d-_"]', '"del":[]'])
+def test_listen_ignores_del_silently_and_consumes_n(body, net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = pair_two(monkeypatch, net, a, b)
+    n = state(a)["peers"][idb]["n"] + 50
+    net.deliver(idb, _sealed(a, ida, idb, a, '{"n":%d,%s}' % (n, body)))
+    net.stop.set()
+    capsys.readouterr()
+    assert run(b, "listen") == 130
+    cap = capsys.readouterr()
+    assert cap.out == "" and cap.err.splitlines() == ["info: Listening. Press Ctrl+C to stop.", "info: Stopped."]
+    assert n in state(b)["peers"][ida]["seen"]
+
+
+def test_sent_content_carries_a_22_char_id_and_controls_do_not(net, tmp_path, monkeypatch):
+    a, b = tmp_path / "a", tmp_path / "b"
+    pair_two(monkeypatch, net, a, b)
+    seen = []
+    orig = pa.build_message
+    monkeypatch.setattr(pa, "build_message", lambda *x, **k: seen.append(x[5]) or orig(*x, **k))
+    assert run(a, "send", "hello") == 0
+    o = json.loads(seen[-1])
+    assert o["text"] == "hello" and re.fullmatch(r"[A-Za-z0-9_-]{22}", o["id"])
+    assert "id" not in json.loads(pa.msg_json(5, "logout", 1))
+
+
+@pytest.mark.parametrize("unit,count", [(0x7e, 2048), (0x7ff, 1024), (0xfffd, 682), (0x10ffff, 512), (0x1f, 2048)])
+def test_max_length_content_with_id_seals_within_the_limit(unit, count, net, tmp_path, monkeypatch):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = pair_two(monkeypatch, net, a, b)
+    k = pa.Store(str(a)).load_keys()
+    with pa.Store(str(a)).state(write=False) as d:
+        p = d["peers"][idb]
+    rnd = random.Random(unit)
+    lo = 0 if unit < 0x80 else (unit + 1) // 2
+    pool = [c for c in range(lo, unit + 1) if not 0xd800 <= c <= 0xdfff]
+    pick = lambda: chr(rnd.choice(pool))
+    for type_ in ("text", "url", "tel"):
+        v = "".join(pick() for _ in range(count))
+        assert pa._content_ok(v)
+        m = pa.seal_msg(k, idb, p, 2**53 - 1, type_, v)
+        assert len(m) <= pa.MAX_WIRE
 
 
 def test_listen_still_warns_about_an_unreadable_message(net, tmp_path, monkeypatch, capsys):
