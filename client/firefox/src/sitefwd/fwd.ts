@@ -61,3 +61,53 @@ export async function onForward(d: WebRequestDetails, deliver: (m: string) => Pr
 
 /** What /fx/open turns into once its waiting messages are passed on: the full view on History at the newest received message (rows newest first). */
 export const fxShowView = (rows: HistoryRow[]): string => historyAt(rows.find((r) => r.dir === "in" && r.type !== "event")?.id);
+
+/**
+ * The site SW keeps each message it forwards in its queue (newest 150, up to 14 days)
+ * and /fx/open passes every queued one on again. The add-on keeps a SHA-256 of each
+ * message it has handled for as long, so /fx/open gets an ack for a known one
+ * without a second receive, and the page deletes that queue entry.
+ */
+export const SEEN_MAX = 150;
+export const SEEN_AGE_MS = 14 * 24 * 3600 * 1000;
+export type Seen = { h: string; t: number }[];
+
+async function fwdKey(m: string): Promise<string> {
+  const d = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(m)));
+  let s = "";
+  for (const b of d) s += b.toString(16).padStart(2, "0");
+  return s;
+}
+
+/** The handled-message record; calls run one at a time. */
+export function fwdSeen(load: () => Promise<Seen | undefined>, save: (s: Seen) => Promise<void>, now: () => number) {
+  let chain: Promise<unknown> = Promise.resolve();
+  const run = <T>(f: () => Promise<T>): Promise<T> => {
+    const p = chain.then(f);
+    chain = p.catch(() => undefined);
+    return p;
+  };
+  const fresh = async () => ((await load()) ?? []).filter((e) => now() - e.t <= SEEN_AGE_MS);
+  return {
+    has: (m: string) =>
+      run(async () => {
+        const h = await fwdKey(m);
+        return (await fresh()).some((e) => e.h === h);
+      }),
+    add: (m: string) =>
+      run(async () => {
+        const h = await fwdKey(m);
+        const s = (await fresh()).filter((e) => e.h !== h);
+        s.push({ h, t: now() });
+        await save(s.slice(-SEEN_MAX));
+      }),
+  };
+}
+
+/** /fx/open "fx-msg": a message handled before is acked at once; any other is received, then recorded, then acked. */
+export async function bridgeMsg(m: string, seen: ReturnType<typeof fwdSeen>, receive: (m: string) => Promise<void>): Promise<{ ok: boolean }> {
+  if (await seen.has(m)) return { ok: true };
+  await receive(m);
+  await seen.add(m);
+  return { ok: true };
+}

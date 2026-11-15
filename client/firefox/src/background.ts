@@ -11,7 +11,7 @@ import type { WebPushKeys } from "../../webext-common/src/crypto/rfc8291.ts";
 import { Autopush, type ApState } from "./autopush/client.ts";
 import { fromPrivate, fxSubFields, senderAllowed } from "./gate.ts";
 import { FWD_URL, firefoxPlatform, openSetup } from "./platform-firefox.ts";
-import { fwdAllowed, fxShowView, onForward, readSub } from "./sitefwd/fwd.ts";
+import { bridgeMsg, fwdAllowed, fwdSeen, fxShowView, onForward, readSub, type Seen } from "./sitefwd/fwd.ts";
 import { browser } from "./shim.ts";
 
 declare const VAPID_PUBLIC_KEY: string;
@@ -29,6 +29,12 @@ const db = () =>
       throw e;
     },
   ));
+
+const seen = fwdSeen(
+  async () => (await db()).meta<Seen>("fx_seen"),
+  async (s) => (await db()).setMeta("fx_seen", s),
+  () => Date.now(),
+);
 
 const boot = lazyBoot(() => firefoxPlatform({ isAndroid, autopush: () => autopush, db }), vapid);
 
@@ -127,8 +133,7 @@ async function extra(msg: Req, sender: MessageSender): Promise<unknown> {
   if (msg.op === "fx-sub") return fromPrivate(sender) ? { ok: false, private: true } : { ok: await storeFallback(a) };
   if (msg.op === "fx-msg") {
     if (!fwdAllowed(a.m)) return { ok: false };
-    await engine.receive(a.m, "bridge");
-    return { ok: true };
+    return bridgeMsg(a.m, seen, (m) => engine.receive(m, "bridge"));
   }
   if (msg.op === "fx-show") {
     // a site notification click opened /fx/open: that tab shows the add-on's tabs on History
@@ -172,6 +177,7 @@ browser.webRequest?.onBeforeRequest.addListener(
       if (sub !== undefined) return void (fromPrivate(d) ? undefined : await storeFallback(sub));
       const { engine } = await boot();
       await engine.receive(m, "push");
+      await seen.add(m);
     }),
   { urls: [FWD_URL] },
   ["blocking", "requestBody"],
