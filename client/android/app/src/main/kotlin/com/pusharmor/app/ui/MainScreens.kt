@@ -288,6 +288,11 @@ fun PeersScreen(vm: AppViewModel) {
         // Pull down to refresh; the indicator also shows while the Refresh button runs.
         PullToRefreshBox(refreshing, onRefresh = { vm.refresh() }, modifier = Modifier.padding(inner).fillMaxSize()) {
             LazyColumn(Modifier.fillMaxSize(), state = state, contentPadding = PaddingValues(top = 8.dp, bottom = fabH + 16.dp + 16.dp)) {
+                // The refresh step, under the pull indicator.
+                if (refreshing) item(key = "refreshing") {
+                    Text(UiText.UPDATING_DEVICES, Modifier.fillMaxWidth().padding(top = 56.dp, bottom = 8.dp), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                }
                 item(key = "banners") {
                     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Banners(vm, prefs)
@@ -1620,6 +1625,11 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                 RowAction("Log out", PaIcons.Logout, enabled = "logout" !in running) { vm.signOut(onSignedOut) }
                 // Log out on a slow or missing connection: visible progress beside the buttons.
                 if ("logout" in running) androidx.compose.material3.CircularProgressIndicator(Modifier.size(24.dp).align(Alignment.CenterVertically).semantics { contentDescription = "Logging out" })
+            }
+            // The logout step, under the buttons.
+            if ("logout" in running) vm.caption.collectAsState().value?.let {
+                Text(it, Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp), style = MaterialTheme.typography.bodySmall,
+                    color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
             }
             // Tap copies just the number; the button role and label name the action for TalkBack.
             Text(UiText.version(BuildConfig.VERSION_NAME),

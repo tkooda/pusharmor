@@ -160,11 +160,11 @@ class Session(private val g: Graph) {
      * A ticket arrived (email code, Google token, or the App Link). A register ticket whose email is an archived
      * account's is not registered: that account is switched in, and the next login uses its keys.
      */
-    fun onTicket(ticket: String, email: String?, evict: List<String>? = null): SignIn {
-        if (signedOut) return login(ticket, email)
+    fun onTicket(ticket: String, email: String?, evict: List<String>? = null, step: (String) -> Unit = {}): SignIn {
+        if (signedOut) return login(ticket, email, step)
         val archived = if (evict == null && dao.self() == null) email?.let { g.slots.accountFor(it, null) } else null
         if (archived != null) return switchFor(archived, email)
-        return register(ticket, email, evict)
+        return register(ticket, email, evict, step)
     }
 
     /** Switches to the archived [account] (else to a new empty one) and says the next login completes it. */
@@ -223,16 +223,19 @@ class Session(private val g: Graph) {
         Work.scheduleDaily(g.app)
     }
 
-    private fun register(ticket: String, email: String?, evict: List<String>?): SignIn {
+    /** [step] gets each step's caption: "Setting up this device" (an evict's caption is the caller's), then "Logging in" or "Loading your devices". */
+    private fun register(ticket: String, email: String?, evict: List<String>?, step: (String) -> Unit): SignIn {
         val action = if (evict != null) UiText.UNABLE_EVICT else UiText.UNABLE_LOGIN
         val k = g.keysOrNull ?: return SignIn.Error(ErrorText.text(action, ErrorText.KEYS_UNUSABLE))
         val sp = B64url.encode(k.signPub); val ep = B64url.encode(k.encPub)
+        if (evict == null) step(UiText.SETTING_UP)
         // POST /peers is signed by the new key with no PA-ID: the client signs with keysOrNull.
         var first = g.client.register(ticket, sp, ep, evict)
         // A clock skew re-synced the clock from the reply; sign again once (a second skew is returned).
         if (first is WorkerClient.RegisterResult.Error && first.result.isClockSkew) first = g.client.register(ticket, sp, ep, evict)
         return when (val r = first) {
             is WorkerClient.RegisterResult.Ok -> {
+                step(if (evict != null) UiText.LOGGING_IN else UiText.LOADING_DEVICES)
                 val id = r.registered.id
                 val raw = Ids.decodeId(id)
                 if (raw == null || !raw.copyOfRange(9, 21).contentEquals(Ids.keyhash(k.signPub, k.encPub))) return SignIn.Error(ErrorText.text(action, ErrorText.BAD_REPLY))
@@ -255,7 +258,8 @@ class Session(private val g: Graph) {
         }
     }
 
-    private fun login(ticket: String, email: String?): SignIn {
+    private fun login(ticket: String, email: String?, step: (String) -> Unit): SignIn {
+        step(UiText.SETTING_UP)
         val r = g.logoutFlow().login(ticket)
         // A ticket for another account: switch to it, and the next login (its keys, or a new registration) completes.
         if (r is ApiResult.Http && r.status == 401 && r.error == "account mismatch" && r.account?.matches(ACCOUNT_ID) == true) return switchFor(r.account, email)
@@ -265,6 +269,7 @@ class Session(private val g: Graph) {
         // after a successful login: the app-start push reconcile at once, and one GET /peers
         g.push.start(g)
         pushReconcile()
+        step(UiText.LOADING_DEVICES)
         fetchPeers(force = true)
         refetchWaiting()
         return SignIn.Done
@@ -314,7 +319,7 @@ class Session(private val g: Graph) {
      * DELETE /account with a delete-account ticket; then wipe everything including the keys. A ticket for another
      * email than this account's ([email]) sends nothing.
      */
-    fun deleteAccount(ticket: String, email: String? = null): String? {
+    fun deleteAccount(ticket: String, email: String? = null, step: (String) -> Unit = {}): String? {
         val me = g.identity() ?: return ErrorText.text(UiText.UNABLE_DELETE_ACCOUNT, ErrorText.LOGGED_OUT)
         val mine = dao.self()?.email
         if (email != null && mine != null && Slots.mailbox(email) != Slots.mailbox(mine)) return ErrorText.text(UiText.UNABLE_DELETE_ACCOUNT, UiText.deleteOtherAccount(email))
@@ -323,6 +328,7 @@ class Session(private val g: Graph) {
             g.store.allowSet().mapNotNull { g.store.peer(it)?.takeIf { p -> p.pinned } }.associate { it.id to outbox.simple(it, MessageBody.Delete).message }
         }) { g.client.deleteAccount(ticket, B64url.encode(me.keys.signPub), it) }
         if (r !is ApiResult.Ok) return ErrorText.of(UiText.UNABLE_DELETE_ACCOUNT, r)
+        step(UiText.REMOVING_THIS_DEVICE)
         wipe(keepOldId = false)
         return null
     }

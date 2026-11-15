@@ -132,6 +132,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Quoted name of the device [id] for an error line. */
     private fun nameOf(id: String): String = peers.value.firstOrNull { it.id == id }?.let(::label) ?: ""
 
+    /** Caption of the step a sign-in, device limit, logout, or delete account is at; null when none runs. */
+    val caption = MutableStateFlow<String?>(null)
+
     /** Keys of taps still running ("send", "logout", "pair:<id>", ...); their button is greyed until the call ends. */
     val running = MutableStateFlow<Set<String>>(emptySet())
 
@@ -194,7 +197,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 accountSwitched()
                 start.value = if (g.session.signedOut) Session.Start.SIGNED_OUT else Session.Start.SIGN_IN
             }
-            val r = g.client.authEmail(email, signPubB64(), p, turnstile)
+            caption.value = UiText.SENDING_CODE
+            val r = try { g.client.authEmail(email, signPubB64(), p, turnstile) } finally { caption.value = null }
             val addr = email.trim().lowercase()
             if (r is ApiResult.Ok) { resend.value = addr to System.currentTimeMillis() + UiText.RESEND_MS; r.value }
             else {
@@ -206,18 +210,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun emailVerify(requestToken: String, code: String, purpose: String, onDone: () -> Unit) = once("verify", UiText.UNABLE_CHECK_CODE) {
-        when (val r = g.client.authEmailVerify(requestToken, code)) {
-            is ApiResult.Ok -> ticket(r.value.ticket, r.value.email, purpose, onDone)
-            else -> message.value = ErrorText.of(UiText.UNABLE_CHECK_CODE, r)
-        }
+        caption.value = UiText.CHECKING_CODE
+        try {
+            when (val r = g.client.authEmailVerify(requestToken, code)) {
+                is ApiResult.Ok -> ticket(r.value.ticket, r.value.email, purpose, onDone)
+                else -> message.value = ErrorText.of(UiText.UNABLE_CHECK_CODE, r)
+            }
+        } finally { caption.value = null }
     }
 
     /** One Google sign-in call at a time: a second tap while one runs does nothing. */
     fun googleToken(idToken: String, purpose: String, onDone: () -> Unit) = once("google", UiText.UNABLE_LOGIN_GOOGLE) {
-        when (val r = g.client.authGoogleToken(idToken, signPubB64(), purpose)) {
-            is ApiResult.Ok -> ticket(r.value.ticket, r.value.email, purpose, onDone)
-            else -> message.value = ErrorText.of(UiText.UNABLE_LOGIN_GOOGLE, r)
-        }
+        caption.value = if (purpose == "delete-account") UiText.DELETING_ACCOUNT else UiText.SETTING_UP
+        try {
+            when (val r = g.client.authGoogleToken(idToken, signPubB64(), purpose)) {
+                is ApiResult.Ok -> ticket(r.value.ticket, r.value.email, purpose, onDone)
+                else -> message.value = ErrorText.of(UiText.UNABLE_LOGIN_GOOGLE, r)
+            }
+        } finally { caption.value = null }
     }
 
     /** Key preparation runs off the main thread; a Keystore failure says the login could not start and returns null. */
@@ -240,17 +250,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val purpose = g.settings.get(Settings.K.PENDING_PURPOSE) ?: return@io
         g.settings.set(Settings.K.PENDING_PURPOSE, null)
         if (purpose != "delete-account" && g.dao.self() != null && !g.session.signedOut) return@io
-        ticket(ticket, email, purpose, onDone)
+        try { ticket(ticket, email, purpose, onDone) } finally { caption.value = null }
     }
 
+    /** Sets [caption] at each step; the caller clears it. */
     private suspend fun ticket(ticket: String, email: String?, purpose: String, onDone: () -> Unit) {
         if (purpose == "delete-account") {
-            val err = g.session.deleteAccount(ticket, email)
+            caption.value = UiText.DELETING_ACCOUNT
+            val err = g.session.deleteAccount(ticket, email) { caption.value = it }
             if (err != null) message.value = err else { setStart(Session.Start.SIGN_IN); withContext(Dispatchers.Main) { onDone() } }
             return
         }
         val evict = limit.value?.let { pendingEvict }
-        when (val r = g.session.onTicket(ticket, email, evict)) {
+        if (evict != null) caption.value = UiText.removing(limit.value!!.peers.filter { it.id in evict }.map { limitLabel(it) })
+        when (val r = g.session.onTicket(ticket, email, evict) { caption.value = it }) {
             Session.SignIn.Done -> {
                 message.value = null // a failed earlier step must not show on Peers
                 g.settings.set(Settings.K.BANNER, null)
@@ -292,8 +305,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun evict(ids: List<String>, onDone: () -> Unit) = once("evict", UiText.UNABLE_EVICT) {
         pendingEvict = ids
         val t = limitTicket ?: return@once
-        ticket(t, null, "register", onDone)
+        try { ticket(t, null, "register", onDone) } finally { caption.value = null }
     }
+
+    /** A device of the limit picker as its row names it: "Android, added Nov 3". */
+    private fun limitLabel(p: com.pusharmor.protocol.engine.ListedPeer): String =
+        "${com.pusharmor.app.notify.AppEffects.platformLabel(p.platform)}, added ${com.pusharmor.app.notify.AppEffects.dateLabel(p.created)}"
 
     fun cancelLimit() { limit.value = null; pendingEvict = null; message.value = null }
 
@@ -450,7 +467,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val targets = ds.targets().map { it.id }.toSet()
         if (targets.isEmpty()) return false
         val asked = rows.associate { it.id to (if (it.delReq == null) targets else PendingDeletes.ids(it.delReq)) }
-        val want = HashMap<String, MutableSet<String>>()
+        val want = LinkedHashMap<String, MutableSet<String>>()
         for (h in rows) if (h.msgId != null) want.getOrPut(h.msgId!!) { HashSet() } += PendingDeletes.remaining(asked.getValue(h.id), PendingDeletes.ids(h.delOk), targets)
         var shown = false
         g.client.onRetry = { a -> deleteBar.value?.let { deleteBar.value = DeleteBar(it.done, UiText.tryingAgain(a)) } }
@@ -487,9 +504,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun markRead(id: Long) = io(null) { g.dao.markRead(id) }
     fun rename(name: String) = io(UiText.UNABLE_RENAME) { g.session.rename(name)?.let { message.value = it } }
     fun signOut(onDone: () -> Unit) = once("logout", UiText.UNABLE_LOGOUT) {
-        g.session.signOut()
-        setStart(Session.Start.SIGNED_OUT)
-        withContext(Dispatchers.Main) { onDone() }
+        try {
+            caption.value = UiText.LOGGING_OUT
+            g.session.signOut()
+            caption.value = UiText.REMOVING_THIS_DEVICE
+            setStart(Session.Start.SIGNED_OUT)
+            withContext(Dispatchers.Main) { onDone() }
+        } finally { caption.value = null }
     }
     fun switchPush(toUp: Boolean) = io(UiText.UNABLE_CHANGE_SETTING) { g.session.pushSwitched(); if (toUp) g.push.switchToUnifiedPush(g) else g.push.switchToGoogle(g) }
     /** Push method choice: [PUSH_GOOGLE] or the package of an installed UnifiedPush app. */

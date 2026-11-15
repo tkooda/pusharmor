@@ -383,6 +383,14 @@ class UiTextTest {
         assertTrue(t.spanStyles.any { it.item.fontFamily == androidx.compose.ui.text.font.FontFamily.Monospace })
     }
 
+    @Test fun stepCaptions() {
+        assertEquals("Deleting on your other devices (2 of 3)", UiText.deletingOnOthers(2, 3))
+        assertEquals("Trying again (attempt 2 of 3)", UiText.tryingAgain(2))
+        assertEquals("Removing \"Android, added Nov 3\"", UiText.removing(listOf("Android, added Nov 3")))
+        assertEquals("Encrypting for \"Phone\"", UiText.encryptingFor("Phone"))
+        assertEquals("Sending to \"Phone\"", UiText.sendingTo("Phone"))
+    }
+
     @Test fun syncDeleteMissed() {
         assertEquals(null, UiText.syncDeleteMissed(emptyList()))
         assertEquals("Unable to delete on \"Phone\"\nThat device is logged out. Log in on that device to receive messages.", UiText.syncDeleteMissed(listOf("Phone" to "logged out")))

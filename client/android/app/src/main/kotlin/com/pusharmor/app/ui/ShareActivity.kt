@@ -32,6 +32,7 @@ import com.pusharmor.net.ErrorText
 import com.pusharmor.protocol.Detect
 import com.pusharmor.protocol.Peer
 import com.pusharmor.protocol.SizeCap
+import com.pusharmor.protocol.engine.SendFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -124,6 +125,8 @@ class ShareActivity : ComponentActivity() {
     private fun sendDirect(peer: Peer, text: String) {
         val step = mutableIntStateOf(0)
         val caption = UiText.directSending(Detect.type(text), label(peer))
+        // The step under the bar: encrypting, sending, or a retry of the relay server call.
+        val retry = mutableIntStateOf(0)
         setContent {
             Frame {
                 Column(Modifier.padding(24.dp)) {
@@ -132,12 +135,20 @@ class ShareActivity : ComponentActivity() {
                         Text(caption, Modifier.padding(start = 16.dp), style = MaterialTheme.typography.bodyLarge)
                     }
                     LinearProgressIndicator({ step.intValue / 100f }, Modifier.fillMaxWidth().padding(top = 16.dp), color = BrandGreen)
+                    Text(when {
+                        retry.intValue > 1 -> UiText.tryingAgain(retry.intValue)
+                        step.intValue < SendFlow.Step.ENCRYPTED -> UiText.encryptingFor(label(peer))
+                        else -> UiText.sendingTo(label(peer))
+                    }, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
         lifecycleScope.launch {
             val r = if (SizeCap.utf8Size(text) > SizeCap.MAX_CONTENT_BYTES) AppViewModel.SendResult(UiText.SHARE_TOO_LONG)
-            else vm.send(listOf(peer.id), text) { s -> if (s > step.intValue) step.intValue = s }
+            else {
+                vm.g.client.onRetry = { a -> retry.intValue = a }
+                try { vm.send(listOf(peer.id), text) { s -> if (s > step.intValue) step.intValue = s } } finally { vm.g.client.onRetry = null }
+            }
             if (r.ok) toastAndFinish(UiText.directShareSent(label(peer)))
             else {
                 val n = vm.g.notifier

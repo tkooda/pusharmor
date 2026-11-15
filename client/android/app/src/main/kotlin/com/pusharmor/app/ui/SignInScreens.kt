@@ -133,6 +133,7 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onCanc
             status?.let { Spacer(Modifier.height(12.dp)); Text(it, color = cs.onSurfaceVariant, textAlign = TextAlign.Center) }
         }
         Column(Modifier.fillMaxWidth()) {
+        StepBar(vm, Modifier.padding(bottom = 12.dp))
         vm.message.collectAsState().value?.let { Text(it, Modifier.fillMaxWidth().padding(bottom = 12.dp).semantics { liveRegion = LiveRegionMode.Polite }, color = cs.error, textAlign = TextAlign.Center) }
         Column(Modifier.fillMaxWidth().padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             val g = if (x.dark) Triple(Color(0xFF131314), Color(0xFF8E918F), Color(0xFFE3E3E3)) else Triple(Color.White, Color(0xFF747775), Color(0xFF1F1F1F))
@@ -239,9 +240,21 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onSe
                     }
                 }
             }
+            StepBar(vm)
             (error ?: msg)?.let { Text(it, Modifier.semantics { liveRegion = LiveRegionMode.Polite }, color = MaterialTheme.colorScheme.error) }
         }
         }
+    }
+}
+
+/** A thin bar and the caption of the step a sign-in, device limit, or delete account is at; nothing when none runs. */
+@Composable
+internal fun StepBar(vm: AppViewModel, modifier: Modifier = Modifier) {
+    val c = vm.caption.collectAsState().value ?: return
+    Column(modifier.fillMaxWidth()) {
+        androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth(), color = com.pusharmor.app.ui.theme.BrandGreen)
+        Text(c, Modifier.padding(top = 4.dp).semantics { liveRegion = LiveRegionMode.Polite }, style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -344,6 +357,7 @@ fun LimitScreen(vm: AppViewModel, onDone: () -> Unit) {
                 )
             }
         }
+        StepBar(vm, Modifier.padding(horizontal = 16.dp))
         vm.message.collectAsState().value?.let { Text(it, Modifier.padding(horizontal = 16.dp).semantics { liveRegion = LiveRegionMode.Polite }, color = MaterialTheme.colorScheme.error) }
         Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
             verticalAlignment = Alignment.CenterVertically) {

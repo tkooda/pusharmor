@@ -264,6 +264,20 @@ object UiText {
     fun tryingAgain(attempt: Int): String = "Trying again (attempt $attempt of 3)"
     const val DELETING_HERE = "Deleting on this device"
 
+    /** Step captions under a progress indicator: sign-in, device limit, logout, Refresh, delete account, and Direct Share. */
+    const val SENDING_CODE = "Sending the code"
+    const val CHECKING_CODE = "Checking the code"
+    const val SETTING_UP = "Setting up this device"
+    const val LOADING_DEVICES = "Loading your devices"
+    const val LOGGING_IN = "Logging in"
+    const val LOGGING_OUT = "Logging out"
+    const val REMOVING_THIS_DEVICE = "Removing this device"
+    const val UPDATING_DEVICES = "Updating devices"
+    const val DELETING_ACCOUNT = "Deleting your account"
+    fun removing(names: List<String>): String = "Removing " + quotedList(names)
+    fun encryptingFor(name: String): String = "Encrypting for \"${cutName(name)}\""
+    fun sendingTo(name: String): String = "Sending to \"${cutName(name)}\""
+
     private fun cutName(name: String) = if (name.length > SEND_NAME_MAX) name.take(SEND_NAME_MAX - 3).trimEnd() + "..." else name
 
     /** History title of a sent row (F22): reached its one device reads Sent to "Laptop", cut like the Send button; else "Sent". */
