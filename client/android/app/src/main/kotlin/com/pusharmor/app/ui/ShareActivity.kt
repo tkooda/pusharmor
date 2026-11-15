@@ -7,7 +7,6 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.Alignment
@@ -18,26 +17,18 @@ import com.pusharmor.app.ui.theme.BrandTile
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialogDefaults
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.lifecycle.lifecycleScope
 import com.pusharmor.net.ErrorText
-import com.pusharmor.protocol.ContentType
 import com.pusharmor.protocol.Detect
 import com.pusharmor.protocol.Peer
 import com.pusharmor.protocol.SizeCap
@@ -83,23 +74,13 @@ class ShareActivity : ComponentActivity() {
         if (shortcut != null) { sendDirect(all.first { it.id == shortcut }, text); return }
         // The app icon (no shortcut id) only preselects the target; the user must tap Send.
         val direct = directTarget(intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID), all.map { it.id })
-        val tooLong = SizeCap.utf8Size(text) > SizeCap.MAX_CONTENT_BYTES
-        val type = Detect.type(text)
         setContent {
             Frame {
-                var cut by remember { mutableStateOf<String?>(null) }
                 Column {
                     Text("Send", Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp), style = MaterialTheme.typography.headlineSmall)
-                    if (tooLong && cut == null) Column(Modifier.verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 24.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(UiText.SHARE_TOO_LONG)
-                        // Dialog buttons at the end, as in a standard dialog; stacked, Send first, when they do not fit.
-                        ButtonRow(Modifier.fillMaxWidth(), end = true) {
-                            TextButton(onClick = { finish() }) { Text("Close") }
-                            if (type == ContentType.TEXT) TextButton(onClick = { cut = SizeCap.truncateUtf8(text) }) { Text("Send the first 2000 characters") }
-                        }
-                    } else Column(Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
-                        SendScreen(vm, cut ?: text, preselect = direct, inDialog = true, onPair = {
+                    // A message over the cap shows with Send greyed; the counter says why.
+                    Column(Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
+                        SendScreen(vm, text, preselect = direct, inDialog = true, onPair = {
                             startActivity(MainActivity.openIntent(this@ShareActivity, "peers").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); finish()
                         }) { r -> if (r.text.endsWith(ErrorText.UPDATE)) showUpdate() else if (r.ok) toastAndFinish(r.text) }
                     }

@@ -249,13 +249,13 @@ class AppLogicTest {
         assertTrue(com.pusharmor.app.ui.UiText.APPLE_RELAY_HINT.endsWith("."))
     }
 
-    @Test fun shareTooLongHasClose() {
-        // a link over the cap has a way out besides Back.
+    @Test fun shareTooLongGreysSend() {
+        // a message over the cap opens the Send screen as is: no cut-down offer, Send is greyed by the cap.
         val share = source("ui/ShareActivity.kt")
-        val tooLong = share.substring(share.indexOf("if (tooLong && cut == null)"), share.indexOf("SendScreen("))
-        assertTrue(tooLong.contains("UiText.SHARE_TOO_LONG") && tooLong.contains("TextButton(onClick = { finish() }) { Text(\"Close\") }"))
-        assertTrue(tooLong.contains("Text(\"Send the first 2000 characters\")") && !tooLong.contains("bytes"))
-        assertFalse(tooLong.contains("Too long ("))
+        assertFalse(share.contains("Send the first") || share.contains("truncateUtf8"))
+        assertTrue(share.contains("SendScreen(vm, text,"))
+        val main = source("ui/MainScreens.kt")
+        assertTrue(main.contains("bytes <= SizeCap.MAX_CONTENT_BYTES && \"send\" !in running)"))
     }
 
     @Test fun refreshFailureSaysWhy() {
