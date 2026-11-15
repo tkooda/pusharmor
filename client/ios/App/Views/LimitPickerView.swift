@@ -32,6 +32,13 @@ struct LimitPickerView: View {
                     Text("This account has too many devices. Choose the ones to remove.")
                         .textCase(nil)
                 }
+                // removing the chosen devices, then logging in
+                if model.busy.contains("evict"), let c = model.caption {
+                    Section {
+                        ProgressView(c)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
             }
             .navigationTitle("Device limit")
             .toolbar {

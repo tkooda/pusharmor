@@ -75,6 +75,12 @@ struct SignInView: View {
                     .controlSize(.large)
                 }
 
+                // the step of a running login, log out, or account delete
+                if let c = model.caption {
+                    ProgressView(c)
+                        .frame(maxWidth: .infinity)
+                }
+
                 if purpose == .deleteAccount {
                     Button("Cancel") { model.phase = .main }
                         .frame(maxWidth: .infinity)

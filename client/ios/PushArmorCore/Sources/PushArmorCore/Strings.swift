@@ -125,6 +125,19 @@ public enum S {
         }
         return ErrorCopy.text(a, reason)
     }
+    /// The step of a running sign-in, log out, account delete, or device refresh, under its
+    /// progress indicator.
+    public static let stepSendingCode = "Sending the code"
+    public static let stepCheckingCode = "Checking the code"
+    public static let stepSettingUp = "Setting up this device"
+    public static let stepLoadingDevices = "Loading your devices"
+    public static let stepLoggingIn = "Logging in"
+    public static let stepLoggingOut = "Logging out"
+    public static let stepRemovingThisDevice = "Removing this device"
+    public static let stepDeletingAccount = "Deleting your account"
+    public static let stepUpdatingDevices = "Updating devices"
+    public static func stepRemoving(_ names: [String]) -> String { "Removing " + ErrorCopy.quotedList(names) }
+
     /// Under a History row whose delete did not reach every device.
     public static func notDeletedOn(_ names: [String]) -> String {
         names.count == 1 ? "Not deleted on \"\(names[0])\"" : "Not deleted on \(names.count) devices"

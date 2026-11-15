@@ -167,4 +167,13 @@ final class ErrorCopyTests: XCTestCase {
         XCTAssertEqual(ErrorCopy.text(.loginGoogle, ErrorCopy.tokenFailReason(URLError(.notConnectedToInternet), provider: "Google")),
                        "Unable to log in with Google.\nThe relay server could not be reached. Check your internet connection and try again.")
     }
+
+    /// The step captions, as approved.
+    func testStepCaptions() {
+        XCTAssertEqual([S.stepSendingCode, S.stepCheckingCode, S.stepSettingUp, S.stepLoadingDevices],
+                       ["Sending the code", "Checking the code", "Setting up this device", "Loading your devices"])
+        XCTAssertEqual(S.stepRemoving(["Pixel"]), "Removing \"Pixel\"")
+        XCTAssertEqual([S.stepLoggingIn, S.stepLoggingOut, S.stepRemovingThisDevice, S.stepDeletingAccount, S.stepUpdatingDevices],
+                       ["Logging in", "Logging out", "Removing this device", "Deleting your account", "Updating devices"])
+    }
 }

@@ -72,7 +72,10 @@ struct CodeEntryView: View {
             .contentShape(Rectangle())
             .onTapGesture { focused = true }
             .onAppear { focused = true }
-            if busy { ProgressView() }
+            if busy {
+                // the step under the indicator: checking the code, then setting up
+                if let c = model.caption { ProgressView(c) } else { ProgressView() }
+            }
             Button("Back") { model.leaveCode(purpose) }
             Spacer()
         }

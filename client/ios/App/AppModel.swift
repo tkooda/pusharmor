@@ -39,6 +39,8 @@ final class AppModel: ObservableObject {
     @Published var peers: [Peer] = []
     @Published var pairings: [String: PairingEntry] = [:]
     @Published var history: [HistoryRow] = []
+    /// The step of a running sign-in, log out, or account delete, under its indicator.
+    @Published var caption: String?
     /// A delete running: its step, for the bar above History; nil when none runs.
     @Published var deleteProgress: DeleteProgress?
     /// The bottom banner: every transient message, success or failure. A new text
@@ -540,6 +542,8 @@ final class AppModel: ObservableObject {
 
     private func emailStartOnce(_ email: String, purpose asked: AuthPurpose, turnstile: String) async {
         guard Ids.normalizeEmail(email) != nil else { toast = ErrorCopy.text(.sendCode, .badEmail); return }
+        caption = S.stepSendingCode
+        defer { caption = nil }
         // an address of another account switches to that account first
         var purpose = asked
         if let a = accounts {
@@ -589,12 +593,15 @@ final class AppModel: ObservableObject {
 
     private func emailVerifyOnce(_ code: String, purpose: AuthPurpose) async {
         guard let t = requestToken ?? (try? store?.me().requestToken) ?? nil else { phase = .signIn(purpose); return }
+        caption = S.stepCheckingCode
+        defer { caption = nil }
         await finishTicket(await auth.emailVerify(requestToken: t, code: code), purpose: purpose, action: .checkCode)
     }
 
     func appleToken(idToken: String, code: String?, purpose: AuthPurpose) async {
         await once("apple") {
             guard let k = try? keysForSignIn(purpose) else { toast = ErrorCopy.text(.prepareLogin, .keysUnusable); return }
+            defer { caption = nil }
             await finishTicket(await auth.appleToken(idToken: idToken, signPub: k.signer.publicKey, purpose: purpose, code: code),
                                purpose: purpose, action: .loginApple)
         }
@@ -602,6 +609,7 @@ final class AppModel: ObservableObject {
 
     func googleToken(idToken: String, purpose: AuthPurpose) async {
         guard let k = try? keysForSignIn(purpose) else { toast = ErrorCopy.text(.prepareLogin, .keysUnusable); return }
+        defer { caption = nil }
         await finishTicket(await auth.googleToken(idToken: idToken, signPub: k.signer.publicKey, purpose: purpose), purpose: purpose,
                            action: .loginGoogle)
     }
@@ -655,6 +663,8 @@ final class AppModel: ObservableObject {
         let c = env.makeCore(store: store, keys: keys)
         core = c
         try? store.setSetting(KeyBootstrap.registerKeysSetting, "1")
+        let removing = limitEntries.filter { evict.contains($0.id) }.map { PeerLabel.platformName($0.platform) }
+        caption = removing.isEmpty ? S.stepSettingUp : S.stepRemoving(removing)
         let r = await c.register(ticket: ticket, push: pushInfo, evict: evict)
         settleRegisterKeys(r)
         switch r {
@@ -662,6 +672,7 @@ final class AppModel: ObservableObject {
             pendingKeys = nil
             try? env.keychain.savePeerId(id)
             limitTicket = nil
+            caption = evict.isEmpty ? S.stepLoadingDevices : S.stepLoggingIn
             await route()
         case .peerLimit(let t, let list):
             limitTicket = (t, Date())
@@ -722,6 +733,7 @@ final class AppModel: ObservableObject {
 
     private func submitEvictOnce() async {
         guard let t = limitTicket else { return }
+        defer { caption = nil }
         if Date().timeIntervalSince(t.at) > 600 {
             toast = ErrorCopy.text(.login, .loginExpired)
             phase = .signIn(.register)
@@ -747,8 +759,11 @@ final class AppModel: ObservableObject {
 
     func login(ticket: String, email: String, action: ErrorCopy.Action) async {
         guard let core = core, let a = accounts else { return }
+        caption = S.stepSettingUp
         switch await a.login(core: core, ticket: ticket, email: email, push: pushInfo) {
-        case .loggedIn: await route()
+        case .loggedIn:
+            caption = S.stepLoadingDevices
+            await route()
         case .switched(let r):
             await afterSwitch()
             toast = ErrorCopy.text(action, r)
@@ -762,16 +777,23 @@ final class AppModel: ObservableObject {
     /// later app opens until it goes through.
     func signOut() async {
         guard let core = core else { return }
+        caption = S.stepLoggingOut
         do { try core.logoutLocal() } catch { toast = ErrorCopy.text(.logout, ErrorCopy.reason(local: error)) }
+        caption = S.stepRemovingThisDevice
         await route()
-        Task { await core.retryPendingLogout() }
+        Task {
+            await core.retryPendingLogout()
+            if caption == S.stepRemovingThisDevice { caption = nil }
+        }
     }
 
     func deleteAccount(ticket: String, email: String) async {
         guard let core = core, let a = accounts else { return }
+        caption = S.stepDeletingAccount
         if let r = await a.deleteAccount(core: core, ticket: ticket, email: email) {
             toast = ErrorCopy.text(.deleteAccount, r)
         } else {
+            caption = S.stepRemovingThisDevice
             phase = .removed
         }
     }

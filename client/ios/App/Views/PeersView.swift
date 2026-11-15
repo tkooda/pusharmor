@@ -80,7 +80,12 @@ struct PeersView: View {
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         if model.refreshing && !pulling {
-                            ProgressView()
+                            HStack(spacing: 6) {
+                                ProgressView()
+                                Text(S.stepUpdatingDevices)
+                                    .font(.caption)
+                                    .foregroundColor(.secondaryText)
+                            }
                         } else {
                             TimelineView(.periodic(from: .now, by: 1)) { ctx in
                                 Button { Task { await model.refresh() } } label: {

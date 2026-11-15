@@ -130,6 +130,10 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.borderless)
                         .frame(maxWidth: .infinity)
+                        if let c = model.caption {
+                            ProgressView(c)
+                                .frame(maxWidth: .infinity)
+                        }
                     }
                 }
 
