@@ -530,7 +530,7 @@ test("history multi-select: long-press, right-click, Shift+Enter, checkboxes, De
   assert.match(pop, /addEventListener\("contextmenu"/);
   assert.match(pop, /ev\.shiftKey && ev\.key === "Enter"/);
   assert.match(pop, /type: "checkbox", class: "hsel"/);
-  assert.match(pop, /if \(!picked\.size && !explicit\) picked = null;/); // unchecking every row leaves the mode, unless Select turned it on
+  assert.match(pop, /if \(!picked\.size && !always\) picked = null;/); // unchecking every row leaves the mode (Firefox for Android)
   assert.match(pop, /"Delete " \+ n \+ " selected"/);
   assert.match(pop, /confirmDialog\(title,/);
   assert.match(pop, /ids\.length === 1 \? "Delete 1 message\?" : "Delete " \+ ids\.length \+ " messages\?"/);

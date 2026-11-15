@@ -7,6 +7,8 @@ import type { UiEnv } from "../src/ui/dom.ts";
 const find = (n: N, f: (x: N) => boolean): N | undefined => (f(n) ? n : n.kids.map((k) => find(k, f)).find(Boolean));
 
 async function mount() {
+  // the long-press mode is Firefox for Android's; desktop rows always show their checkboxes
+  Object.defineProperty(globalThis, "navigator", { value: { userAgent: "Mozilla/5.0 (Android 14; Mobile; rv:140.0) Gecko/140.0 Firefox/140.0" }, configurable: true });
   const msg = { id: 1, dir: "in", peer: "p1", sender: "Phone", type: "text", content: "x".repeat(400), n: 1, pairing_id: null, received: Date.now(), read: true };
   const data: Record<string, unknown> = { historyOpened: null, history: [msg] };
   const env = { call: async (m: { op: string }) => ({ ok: true, data: data[m.op] }) } as unknown as UiEnv;
