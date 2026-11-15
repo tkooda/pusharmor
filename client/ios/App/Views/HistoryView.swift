@@ -197,7 +197,7 @@ struct HistoryRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             summary
-            if isOpen { MessageDetailView(row: row) }
+            if isOpen { MessageDetailView(row: row, notDeletedOn: notDeletedOn) }
         }
     }
 
@@ -240,7 +240,8 @@ struct HistoryRowView: View {
                             .foregroundColor(unread ? .primary : .secondaryText)
                             .strikethrough(!notDeletedOn.isEmpty)
                     }
-                    if !notDeletedOn.isEmpty {
+                    // open: the detail shows it under the struck through text
+                    if !isOpen, !notDeletedOn.isEmpty {
                         Text(S.notDeletedOn(notDeletedOn)).font(.caption).foregroundColor(.errorText)
                     }
                     if let name = soleRecipientName {

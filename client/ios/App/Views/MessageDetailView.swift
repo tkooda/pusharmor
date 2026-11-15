@@ -81,6 +81,8 @@ private struct ActionLabel: View {
 /// An opened History message under its row: the text and the action buttons.
 struct MessageDetailView: View {
     let row: HistoryRow
+    /// A delete that did not reach every device: the names of those still to take it.
+    let notDeletedOn: [String]
     @EnvironmentObject var model: AppModel
     @State private var reading = false
     @State private var saving = false
@@ -92,10 +94,14 @@ struct MessageDetailView: View {
         VStack(alignment: .leading, spacing: 16) {
             if row.type == "url" || row.type == "tel" {
                 Text(row.content)
+                    .strikethrough(!notDeletedOn.isEmpty)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 textBox
+            }
+            if !notDeletedOn.isEmpty {
+                Text(S.notDeletedOn(notDeletedOn)).font(.caption).foregroundColor(.errorText)
             }
             if typeSize >= .accessibility1 {
                 // large text: two columns, so the labels do not break mid-word
@@ -121,6 +127,7 @@ struct MessageDetailView: View {
     @ViewBuilder
     private var textBox: some View {
         let box = Text(row.content)
+            .strikethrough(!notDeletedOn.isEmpty)
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)

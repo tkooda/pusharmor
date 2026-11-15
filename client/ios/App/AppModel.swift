@@ -41,6 +41,10 @@ final class AppModel: ObservableObject {
     @Published var history: [HistoryRow] = []
     /// The step of a running sign-in, log out, or account delete, under its indicator.
     @Published var caption: String?
+    /// A log out running: its steps done of logoutSteps, for its bar; nil when none runs.
+    @Published var logoutDone: Int?
+    /// Log out's steps: this device, then the relay server.
+    static let logoutSteps = 2
     /// A delete running: its step, for the bar above History; nil when none runs.
     @Published var deleteProgress: DeleteProgress?
     /// The bottom banner: every transient message, success or failure. A new text
@@ -778,12 +782,14 @@ final class AppModel: ObservableObject {
     func signOut() async {
         guard let core = core else { return }
         caption = S.stepLoggingOut
+        logoutDone = 0
         do { try core.logoutLocal() } catch { toast = ErrorCopy.text(.logout, ErrorCopy.reason(local: error)) }
-        caption = S.stepRemovingThisDevice
+        logoutDone = 1
         await route()
         Task {
             await core.retryPendingLogout()
-            if caption == S.stepRemovingThisDevice { caption = nil }
+            logoutDone = nil
+            if caption == S.stepLoggingOut { caption = nil }
         }
     }
 
@@ -793,7 +799,6 @@ final class AppModel: ObservableObject {
         if let r = await a.deleteAccount(core: core, ticket: ticket, email: email) {
             toast = ErrorCopy.text(.deleteAccount, r)
         } else {
-            caption = S.stepRemovingThisDevice
             phase = .removed
         }
     }
@@ -1008,7 +1013,7 @@ final class AppModel: ObservableObject {
                 if let t = try await core.deleteHistoryRows(Array(ids), progress: { p in
                     await MainActor.run { self.deleteProgress = p }
                 }) { toast = t }
-            } catch { toast = ErrorCopy.deleteFailText(.deleteOnOtherDevices, error) }
+            } catch { toast = ErrorCopy.deleteFailText(.deleteOnThisDevice, error) }
             deleteProgress = nil
             reload()
         }

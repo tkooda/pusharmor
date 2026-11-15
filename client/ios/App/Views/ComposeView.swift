@@ -39,6 +39,10 @@ enum SendScreenRules {
     /// The byte counter shows only from 90 percent of the cap (and while over it).
     static func showsCounter(_ text: String) -> Bool { SizeCap.isWarning(text) }
 
+    /// What a send carries: a URL as its payload ("https://" added when it has no scheme), else
+    /// the text. The cap, the counter, and the greyed Send all go by this.
+    static func content(_ text: String, type: SendType) -> String { type == .url ? LikelyURL.payload(text) : text }
+
     /// With exactly one device that can receive, that device is preselected.
     static func soleDevice(_ candidates: [(id: String, canReceive: Bool)]) -> String? {
         guard candidates.count == 1, candidates[0].canReceive else { return nil }
@@ -301,8 +305,10 @@ struct ComposeView: View {
         return candidates.contains { selected.contains($0.id.text) && enabled($0) }
     }
 
+    private var content: String { SendScreenRules.content(text, type: typeChoice.type) }
+
     private var canSend: Bool {
-        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !SizeCap.isOver(text) && hasRecipient
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !SizeCap.isOver(content) && hasRecipient
     }
 
     private func enabled(_ p: Peer) -> Bool { p.canReceive }
@@ -382,7 +388,7 @@ struct ComposeView: View {
                     .font(.footnote)
                     .foregroundColor(.secondaryText)
                 if !ax { Spacer(minLength: 8) }
-                if SendScreenRules.showsCounter(text) {
+                if SendScreenRules.showsCounter(content) {
                     Text(counter)
                         .font(.footnote)
                         .foregroundColor(.errorText)
@@ -424,7 +430,7 @@ struct ComposeView: View {
             }
             Button {
                 let u = typeChoice.type == .url
-                let t = u ? LikelyURL.payload(text) : text
+                let t = content
                 let a = typeChoice.on
                 let all = toAll && showAll
                 let ids = all ? [] : candidates.filter { selected.contains($0.id.text) && enabled($0) }.map { $0.id.text }
@@ -514,7 +520,7 @@ struct ComposeView: View {
     }
 
     /// "(39 / 2000)", or "Too long (2001 / 2000)" (SizeCap.label).
-    private var counter: String { SizeCap.label(text) }
+    private var counter: String { SizeCap.label(content) }
 
     private func note(_ p: Peer) -> String? {
         let label = model.label(p)

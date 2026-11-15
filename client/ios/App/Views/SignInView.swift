@@ -77,7 +77,7 @@ struct SignInView: View {
 
                 // the step of a running login, log out, or account delete
                 if let c = model.caption {
-                    ProgressView(c)
+                    StepProgressView(caption: c)
                         .frame(maxWidth: .infinity)
                 }
 

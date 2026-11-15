@@ -24,6 +24,8 @@ public enum ErrorCopy {
         case deleteAccount
         /// Deleting History rows while Sync deletions could not reach the other devices.
         case deleteOnOtherDevices
+        /// Deleting History rows failed in this device's own data.
+        case deleteOnThisDevice
         case changeSetting
         case turnOnNotifications
 
@@ -47,6 +49,7 @@ public enum ErrorCopy {
             case .prepareLogin: return "Unable to start the login."
             case .deleteAccount: return "Unable to delete the account."
             case .deleteOnOtherDevices: return "Unable to delete on your other devices."
+            case .deleteOnThisDevice: return "Unable to delete on this device."
             case .changeSetting: return "Unable to change this setting."
             case .turnOnNotifications: return "Unable to turn on notifications."
             }

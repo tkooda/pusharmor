@@ -133,7 +133,6 @@ public enum S {
     public static let stepLoadingDevices = "Loading your devices"
     public static let stepLoggingIn = "Logging in"
     public static let stepLoggingOut = "Logging out"
-    public static let stepRemovingThisDevice = "Removing this device"
     public static let stepDeletingAccount = "Deleting your account"
     public static let stepUpdatingDevices = "Updating devices"
     public static func stepRemoving(_ names: [String]) -> String { "Removing " + ErrorCopy.quotedList(names) }

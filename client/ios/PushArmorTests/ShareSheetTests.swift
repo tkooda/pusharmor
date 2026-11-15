@@ -37,4 +37,13 @@ final class ShareSheetTests: XCTestCase {
         XCTAssertFalse(src.contains("truncate"))
         XCTAssertFalse(src.contains("Send the first"))
     }
+
+    /// A URL or phone number over the cap greys out Send like text, with no error.
+    func testTooLongURLGreysOutSendToo() throws {
+        let src = try source()
+        let check = src.components(separatedBy: "if SizeCap.isOver(text) {")[1].components(separatedBy: "return")[0]
+        XCTAssertTrue(check.contains("step = .tooLong"))
+        XCTAssertFalse(check.contains("type =="))
+        XCTAssertFalse(src.contains("Core.SendError.tooLong"))
+    }
 }

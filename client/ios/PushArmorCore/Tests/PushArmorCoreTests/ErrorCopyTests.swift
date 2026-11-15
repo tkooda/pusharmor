@@ -27,6 +27,7 @@ final class ErrorCopyTests: XCTestCase {
             (.prepareLogin, "Unable to start the login."),
             (.deleteAccount, "Unable to delete the account."),
             (.deleteOnOtherDevices, "Unable to delete on your other devices."),
+            (.deleteOnThisDevice, "Unable to delete on this device."),
             (.changeSetting, "Unable to change this setting."),
             (.turnOnNotifications, "Unable to turn on notifications."),
         ]
@@ -173,7 +174,7 @@ final class ErrorCopyTests: XCTestCase {
         XCTAssertEqual([S.stepSendingCode, S.stepCheckingCode, S.stepSettingUp, S.stepLoadingDevices],
                        ["Sending the code", "Checking the code", "Setting up this device", "Loading your devices"])
         XCTAssertEqual(S.stepRemoving(["Pixel"]), "Removing \"Pixel\"")
-        XCTAssertEqual([S.stepLoggingIn, S.stepLoggingOut, S.stepRemovingThisDevice, S.stepDeletingAccount, S.stepUpdatingDevices],
-                       ["Logging in", "Logging out", "Removing this device", "Deleting your account", "Updating devices"])
+        XCTAssertEqual([S.stepLoggingIn, S.stepLoggingOut, S.stepDeletingAccount, S.stepUpdatingDevices],
+                       ["Logging in", "Logging out", "Deleting your account", "Updating devices"])
     }
 }

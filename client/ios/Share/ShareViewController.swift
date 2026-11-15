@@ -63,8 +63,8 @@ final class ShareModel: ObservableObject {
         text = shared.0
         type = shared.1
         if SizeCap.isOver(text) {
-            // URL and tel over cap are refused; text shows the counter and a greyed Send
-            if type == .text { step = .tooLong } else { step = .failed(ErrorCopy.sendFailText(Core.SendError.tooLong)) }
+            // text, URL, or phone number over cap: the counter and a greyed Send
+            step = .tooLong
             return
         }
         await route()

@@ -30,7 +30,7 @@ final class ToastTextTests: XCTestCase {
         let actions: [ErrorCopy.Action] = [.send, .sendOne("X"), .refresh, .rename, .pair("X"), .confirm("X"),
                                            .reject("X"), .remove("X"), .evict, .logout, .sendCode, .checkCode, .login,
                                            .loginGoogle, .loginApple, .prepareLogin, .deleteAccount,
-                                           .changeSetting, .turnOnNotifications, .deleteOnOtherDevices]
+                                           .changeSetting, .turnOnNotifications, .deleteOnOtherDevices, .deleteOnThisDevice]
         let reasons: [ErrorCopy.Reason] = [.unreachable, .serverDown, .rateLimited(waitMs: 60_000), .tooOld, .removed,
                                            .loggedOut, .loginExpired, .badLink, .clockOff, .blocked, .wrongCode,
                                            .codeExpired, .securityCheck, .emailSendFailed, .badEmail, .emailNotVerified,

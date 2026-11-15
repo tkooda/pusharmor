@@ -27,8 +27,8 @@ final class SyncDeletionsTests: XCTestCase {
 
     func testFailedDeleteShowsTheError() throws {
         let src = try source("App/AppModel.swift")
-        XCTAssertEqual(try count(#"catch \{ toast = ErrorCopy\.deleteFailText\(\.deleteOnOtherDevices, error\) \}"#, in: src), 1)
-        XCTAssertEqual(try count(#"toast = ErrorCopy\.deleteFailText\(\.deleteOnOtherDevices, error\)"#, in: src), 1)
+        XCTAssertEqual(try count(#"catch \{ toast = ErrorCopy\.deleteFailText\(\.deleteOnThisDevice, error\) \}"#, in: src), 1)
+        XCTAssertEqual(try count(#"toast = ErrorCopy\.deleteFailText\(\.deleteOnThisDevice, error\)"#, in: src), 1)
         XCTAssertEqual(try count(#"if let t = try await core\.deleteHistoryRows\(Array\(ids\), progress: \{ p in"#, in: src), 1)
     }
 
@@ -40,6 +40,17 @@ final class SyncDeletionsTests: XCTestCase {
         XCTAssertEqual(try count(#"Text\(S\.notDeletedOn\(notDeletedOn\)\)"#, in: src), 1)
         XCTAssertEqual(try count(#"if let p = model\.deleteProgress, p\.total > 1 \{"#, in: src), 1)
         XCTAssertEqual(try count(#"ProgressView\(value: Double\(p\.done\), total: Double\(p\.total\)\)"#, in: src), 1)
+    }
+
+    /// An opened message not deleted on every device: its text struck through and the devices
+    /// under it, as on its closed row; the row does not repeat the line while open.
+    func testPendingDetail() throws {
+        let row = try source("App/Views/HistoryView.swift")
+        XCTAssertEqual(try count(#"MessageDetailView\(row: row, notDeletedOn: notDeletedOn\)"#, in: row), 1)
+        XCTAssertEqual(try count(#"if !isOpen, !notDeletedOn\.isEmpty \{"#, in: row), 1)
+        let src = try source("App/Views/MessageDetailView.swift")
+        XCTAssertEqual(try count(#"\.strikethrough\(!notDeletedOn\.isEmpty\)"#, in: src), 2)
+        XCTAssertEqual(try count(#"Text\(S\.notDeletedOn\(notDeletedOn\)\)"#, in: src), 1)
     }
 
     /// No delete-all anywhere: History has a select-all checkbox instead.

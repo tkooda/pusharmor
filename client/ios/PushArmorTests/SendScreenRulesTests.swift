@@ -78,6 +78,18 @@ final class SendScreenRulesTests: XCTestCase {
         XCTAssertEqual(LikelyURL.payload("sub.example.com:8080/path"), "https://sub.example.com:8080/path")
     }
 
+    /// A URL is capped as its payload, so one that grows over the cap with "https://" greys out
+    /// Send (and shows Too long) instead of failing on send.
+    func testURLIsCappedAsItsPayload() {
+        let host = String(repeating: "a", count: SizeCap.bytes - 6) + ".com"
+        XCTAssertFalse(SizeCap.isOver(host))
+        XCTAssertEqual(SendScreenRules.content(host, type: .url), "https://" + host)
+        XCTAssertTrue(SizeCap.isOver(SendScreenRules.content(host, type: .url)))
+        XCTAssertEqual(SendScreenRules.content(host, type: .text), host)
+        XCTAssertEqual(SendScreenRules.content(" 555 ", type: .tel), " 555 ")
+        XCTAssertTrue(SendScreenRules.showsCounter(SendScreenRules.content(host, type: .url)))
+    }
+
     func testDetectedTypeUrlWinsThenPhoneThenText() {
         XCTAssertEqual(SendScreenRules.detected("minilock.org"), .url)
         XCTAssertEqual(SendScreenRules.detected("https://example.com/x"), .url)

@@ -131,7 +131,7 @@ struct SettingsView: View {
                         .buttonStyle(.borderless)
                         .frame(maxWidth: .infinity)
                         if let c = model.caption {
-                            ProgressView(c)
+                            StepProgressView(caption: c)
                                 .frame(maxWidth: .infinity)
                         }
                     }
@@ -193,5 +193,26 @@ struct SettingsView: View {
             get: { model.boolSetting(key, def) },
             set: { model.setBool(key, $0) }
         )
+    }
+}
+
+/// The step of a running login, log out, or account delete: log out as a bar with its step
+/// under it, any other step as a spinner with its step.
+struct StepProgressView: View {
+    @EnvironmentObject var model: AppModel
+    let caption: String
+
+    var body: some View {
+        if caption == S.stepLoggingOut, let done = model.logoutDone {
+            VStack(alignment: .leading, spacing: 4) {
+                ProgressView(value: Double(done), total: Double(AppModel.logoutSteps))
+                    .progressViewStyle(.linear)
+                Text(caption)
+                    .font(.caption)
+                    .foregroundColor(.secondaryText)
+            }
+        } else {
+            ProgressView(caption)
+        }
     }
 }
