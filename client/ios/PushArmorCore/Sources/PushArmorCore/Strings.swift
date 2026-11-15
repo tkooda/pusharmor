@@ -125,6 +125,10 @@ public enum S {
         }
         return ErrorCopy.text(a, reason)
     }
+    /// Under a History row whose delete did not reach every device.
+    public static func notDeletedOn(_ names: [String]) -> String {
+        names.count == 1 ? "Not deleted on \"\(names[0])\"" : "Not deleted on \(names.count) devices"
+    }
     public static func receivedWhileLocked(_ n: Int) -> String { "\(n) " + (n == 1 ? "message" : "messages") + " received while locked" }
     public static let thisPhoneOldInstall = "(this phone, old install)"
     /// Share sheet texts when nothing can be sent: line 1, then line 2.

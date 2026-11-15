@@ -29,7 +29,17 @@ final class SyncDeletionsTests: XCTestCase {
         let src = try source("App/AppModel.swift")
         XCTAssertEqual(try count(#"catch \{ toast = ErrorCopy\.deleteFailText\(\.deleteOnOtherDevices, error\) \}"#, in: src), 1)
         XCTAssertEqual(try count(#"toast = ErrorCopy\.deleteFailText\(\.deleteOnOtherDevices, error\)"#, in: src), 1)
-        XCTAssertEqual(try count(#"if let t = try await core\.deleteHistoryRows\(Array\(ids\)\) \{ toast = t \}"#, in: src), 1)
+        XCTAssertEqual(try count(#"if let t = try await core\.deleteHistoryRows\(Array\(ids\), progress: \{ p in"#, in: src), 1)
+    }
+
+    /// A row not deleted on every device is struck through with the devices under it; a
+    /// delete in several calls shows a determinate bar with its step.
+    func testPendingRowAndProgressBar() throws {
+        let src = try source("App/Views/HistoryView.swift")
+        XCTAssertEqual(try count(#"\.strikethrough\(!notDeletedOn\.isEmpty\)"#, in: src), 1)
+        XCTAssertEqual(try count(#"Text\(S\.notDeletedOn\(notDeletedOn\)\)"#, in: src), 1)
+        XCTAssertEqual(try count(#"if let p = model\.deleteProgress, p\.total > 1 \{"#, in: src), 1)
+        XCTAssertEqual(try count(#"ProgressView\(value: Double\(p\.done\), total: Double\(p\.total\)\)"#, in: src), 1)
     }
 
     /// No delete-all anywhere: History has a select-all checkbox instead.

@@ -39,6 +39,8 @@ final class AppModel: ObservableObject {
     @Published var peers: [Peer] = []
     @Published var pairings: [String: PairingEntry] = [:]
     @Published var history: [HistoryRow] = []
+    /// A delete running: its step, for the bar above History; nil when none runs.
+    @Published var deleteProgress: DeleteProgress?
     /// The bottom banner: every transient message, success or failure. A new text
     /// clears toastIsSuccess; a successful send sets it right after.
     @Published var toast: String? { willSet { toastIsSuccess = false } }
@@ -299,6 +301,7 @@ final class AppModel: ObservableObject {
         if let m = me, let next = AppModel.phaseAfterReload(phase, me: m) { phase = next }
         peers = (try? store.peers()) ?? []
         pairings = Dictionary(uniqueKeysWithValues: ((try? store.pairings()) ?? []).map { ($0.peerId.text, $0) })
+        try? core?.settlePendingDeletes()
         history = HistoryFilter.listed((try? store.history()) ?? [])
         relayFault = (try? store.setting(Core.relayFaultKey)) == "1"
         pushUnsupported = (try? store.setting(Core.pushUnsupportedKey)) == "1"
@@ -970,8 +973,8 @@ final class AppModel: ObservableObject {
         deleteRows([row.rowid])
     }
 
-    /// With Sync deletions on, a row goes only once the other devices were told of it; a
-    /// failure keeps it and shows why, and devices that did not get it are named.
+    /// With Sync deletions on, a row goes only once every other device took the del; else it
+    /// stays, struck through, and the devices that did not take it are named.
     func deleteRows(_ ids: Set<Int64>) {
         guard let core = core else {
             for id in ids { try? store?.db.exec("DELETE FROM history WHERE rowid = ?", [.int(id)]) }
@@ -980,8 +983,11 @@ final class AppModel: ObservableObject {
         }
         Task {
             do {
-                if let t = try await core.deleteHistoryRows(Array(ids)) { toast = t }
+                if let t = try await core.deleteHistoryRows(Array(ids), progress: { p in
+                    await MainActor.run { self.deleteProgress = p }
+                }) { toast = t }
             } catch { toast = ErrorCopy.deleteFailText(.deleteOnOtherDevices, error) }
+            deleteProgress = nil
             reload()
         }
     }

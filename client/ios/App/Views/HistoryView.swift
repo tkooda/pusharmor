@@ -25,6 +25,16 @@ struct HistoryView: View {
     var body: some View {
         let rows = HistoryFilter.apply(effective, model.history)
         Section {
+            // a delete in several calls: a thin bar with the step under it
+            if let p = model.deleteProgress, p.total > 1 {
+                VStack(alignment: .leading, spacing: 4) {
+                    ProgressView(value: Double(p.done), total: Double(p.total))
+                    Text(p.caption)
+                        .font(.caption)
+                        .foregroundColor(.secondaryText)
+                }
+                .listRowSeparator(.hidden)
+            }
             if options.count > 1 {
                 filterControl
             }
@@ -151,6 +161,11 @@ struct HistoryRowView: View {
 
     private var unread: Bool { !row.read && !isEvent && !outgoing }
 
+    /// A delete that did not reach every device: the names of those still to take it.
+    private var notDeletedOn: [String] {
+        row.delPending.compactMap { id in model.peers.first { $0.id.text == id } }.map { PeerLabel.label($0) }
+    }
+
     private var isOpen: Bool { expanded && !selecting && !isEvent }
 
     private var contentText: String {
@@ -223,6 +238,10 @@ struct HistoryRowView: View {
                             .font(isEvent ? .subheadline : .body)
                             .fontWeight(unread ? .semibold : nil)
                             .foregroundColor(unread ? .primary : .secondaryText)
+                            .strikethrough(!notDeletedOn.isEmpty)
+                    }
+                    if !notDeletedOn.isEmpty {
+                        Text(S.notDeletedOn(notDeletedOn)).font(.caption).foregroundColor(.errorText)
                     }
                     if let name = soleRecipientName {
                         // The name truncates inside the quotes; the line stays one line.
@@ -253,7 +272,8 @@ struct HistoryRowView: View {
     }
 
     private var a11yLabel: String {
-        [unread ? "Unread" : nil, senderName, timeLabel, contentText, resultsSummary]
+        [unread ? "Unread" : nil, senderName, timeLabel, contentText, resultsSummary,
+         notDeletedOn.isEmpty ? nil : S.notDeletedOn(notDeletedOn)]
             .compactMap { $0 }
             .joined(separator: ", ")
     }

@@ -135,6 +135,12 @@ public struct HistoryRow: Sendable {
     public var createdLocal: Int64
     /// The message id (Sync deletions); nil for an older row, an event, or a message sent without one.
     public var msgId: String? = nil
+    /// Sync deletions not done on every device: the device ids the del was for, and those
+    /// whose push the relay server accepted. Both empty for a row with no pending delete.
+    public var delRequested: [String] = []
+    public var delAccepted: [String] = []
+    /// The devices that did not take the del yet.
+    public var delPending: [String] { delRequested.filter { !delAccepted.contains($0) } }
 }
 
 /// Typed access to pa.sqlite.
@@ -411,7 +417,19 @@ public final class Store: @unchecked Sendable {
         return HistoryRow(rowid: rowid, dir: dir, peerId: r.text("peer_id"),
                    type: type, content: content, n: r.int("n"), pairingId: r.blob("pairing_id"),
                    read: r.bool("read"), results: r.text("results"), event: r.text("event").flatMap(HistoryEvent.init(rawValue:)),
-                   count: r.int("count") ?? 1, createdLocal: created, msgId: r.text("msg_id"))
+                   count: r.int("count") ?? 1, createdLocal: created, msgId: r.text("msg_id"),
+                   delRequested: idList(r.text("del_requested")), delAccepted: idList(r.text("del_accepted")))
+    }
+
+    /// Device ids stored comma separated; nil or empty = none.
+    static func idList(_ s: String?) -> [String] {
+        (s ?? "").split(separator: ",").map(String.init)
+    }
+
+    /// Keeps a row whose delete is not done on every device, with the devices it waits for.
+    public func setDelPending(_ rowid: Int64, requested: [String], accepted: [String]) throws {
+        try db.exec("UPDATE history SET del_requested = ?, del_accepted = ? WHERE rowid = ?",
+                    [.text(requested.joined(separator: ",")), .text(accepted.joined(separator: ",")), .int(rowid)])
     }
 
     /// History keeps at most this many rows, the newest.

@@ -246,14 +246,27 @@ public enum ErrorCopy {
         }
     }
 
-    /// The notice after a delete whose del calls all went through, nil when every device got
-    /// it: one device by name with line 2 of its send result text, or a count for several.
-    public static func deleteResultText(_ failed: [(name: String, word: String)]) -> String? {
+    /// The notice after a delete, nil when every device took it: one device by name with line
+    /// 2 of its send result text (or of `error` when its del call failed), or the names of
+    /// several.
+    public static func deleteResultText(_ failed: [(name: String, word: String)], error: Error? = nil) -> String? {
         guard let f = failed.first else { return nil }
-        guard failed.count == 1 else { return "Unable to delete on \(failed.count) devices" }
+        guard failed.count == 1 else { return "Unable to delete on " + quotedList(failed.map { $0.name }) }
         let line = "Unable to delete on \"\(f.name)\""
+        if f.word == Core.delCallFailed, let e = error {
+            let t = deleteFailText(.deleteOnOtherDevices, e)
+            guard let i = t.firstIndex(of: "\n") else { return line }
+            return line + String(t[i...])
+        }
         guard let t = sendResultText(f.word, f.name), let i = t.firstIndex(of: "\n") else { return line }
         return line + String(t[i...])
+    }
+
+    /// "\"A\" and \"B\"", "\"A\", \"B\", and \"C\"".
+    public static func quotedList(_ names: [String]) -> String {
+        let q = names.map { "\"\($0)\"" }
+        if q.count <= 2 { return q.joined(separator: " and ") }
+        return q.dropLast().joined(separator: ", ") + ", and " + q[q.count - 1]
     }
 
     /// The reason for a local data error: SQLITE_FULL = storage full, any other store error =
