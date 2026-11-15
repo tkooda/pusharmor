@@ -88,7 +88,6 @@ struct HistoryView: View {
                 Image(systemName: state == .all ? "checkmark.circle.fill" : (state == .partial ? "minus.circle.fill" : "circle"))
                     .foregroundColor(state == .empty ? .secondaryText : .accentColor)
                     .imageScale(.large)
-                Text("Select all")
             }
         }
         .buttonStyle(.plain)
