@@ -115,7 +115,6 @@ export function nextTabIndex(key: string, i: number, n: number): number | null {
   return null;
 }
 
-/** A bordered group card holding rows. */
 export interface BusyBar {
   el: HTMLElement;
   /** Shows the bar (with cap when given) and follows the steps the background writes. */
@@ -160,6 +159,7 @@ export function busyBar(env: UiEnv): BusyBar {
   };
 }
 
+/** A bordered group card holding rows. */
 export function group(...rows: (Node | null | undefined | false)[]): HTMLElement {
   return h("div", { class: "grp" }, ...rows);
 }
