@@ -1,1 +1,1 @@
-The Update button now opens the store you installed from.
+Deleting a message can now also delete it on your other devices (Sync deletions in Settings, on by default). Select all in History. Clearer progress while signing in, logging out, and deleting.

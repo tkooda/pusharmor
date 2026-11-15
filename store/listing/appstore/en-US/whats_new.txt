@@ -1,1 +1,1 @@
-You can now close the keyboard with the Done button above it. When the app needs an update, the Update button opens the App Store.
+Deleting a message can now also delete it on your other devices (Sync deletions in Settings, on by default). Select all in History. Clearer progress while signing in, logging out, and deleting.
