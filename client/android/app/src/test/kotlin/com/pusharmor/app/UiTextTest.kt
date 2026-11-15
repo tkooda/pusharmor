@@ -160,6 +160,8 @@ class UiTextTest {
         assertEquals("New message from \"Pixel\"", UiText.newMessageFrom("Pixel"))
         assertEquals("New message from a device", UiText.newMessageFrom(null))
         assertEquals("Remove \"Pixel\" from this account? \"Pixel\" must log in again and pair with every device again.", UiText.removeDeviceBody("Pixel"))
+        assertEquals("Delete \"Pixel\"?", UiText.deleteDeviceTitle("Pixel"))
+        assertEquals("This removes \"Pixel\" from this device.", UiText.deleteDeviceBody("Pixel"))
         assertEquals("Rejected by \"Pixel\"", UiText.rejectedBy("Pixel"))
         assertEquals("Not paired on \"Pixel\"", UiText.notPairedOn("Pixel"))
         assertEquals("Waiting for \"Pixel\": open PushArmor there and tap Codes match.", UiText.waitingCodesMatch("Pixel"))

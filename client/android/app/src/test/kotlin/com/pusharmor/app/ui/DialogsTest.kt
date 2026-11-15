@@ -57,15 +57,15 @@ class DialogsTest {
         idle()
     }
 
-    @Test fun deleteAccountDialogHasTitleTextContinueAndCancel() {
+    @Test fun deleteAccountDialogHasTitleTextLogInToDeleteAndCancel() {
         var confirmed = 0
         var dismissed = 0
         show { DeleteAccountDialog(onConfirm = { confirmed++ }) { dismissed++ } }
         val t = texts()
-        assertTrue(t.toString(), t.containsAll(listOf("Delete account", UiText.DELETE_CONFIRM, "Continue", "Cancel")))
+        assertTrue(t.toString(), t.containsAll(listOf("Delete account", UiText.DELETE_CONFIRM, "Log in to delete", "Cancel")))
         click("Cancel")
         assertEquals(0 to 1, confirmed to dismissed)
-        click("Continue")
+        click("Log in to delete")
         assertEquals(1 to 1, confirmed to dismissed)
     }
 

@@ -64,5 +64,8 @@ class ShareActivityTest {
         assertEquals("Sending URL to \"Laptop\"...", UiText.directSending(com.pusharmor.protocol.ContentType.URL, "Laptop"))
         assertEquals("Sending text to \"Laptop\"...", UiText.directSending(com.pusharmor.protocol.ContentType.TEXT, "Laptop"))
         assertEquals("Sending phone number to \"Laptop\"...", UiText.directSending(com.pusharmor.protocol.ContentType.TEL, "Laptop"))
+        assertEquals("Sending URL to:", UiText.directSendingList(com.pusharmor.protocol.ContentType.URL))
+        assertEquals("Sending text to:", UiText.directSendingList(com.pusharmor.protocol.ContentType.TEXT))
+        assertEquals("\u2022 Laptop", UiText.bulleted("Laptop"))
     }
 }

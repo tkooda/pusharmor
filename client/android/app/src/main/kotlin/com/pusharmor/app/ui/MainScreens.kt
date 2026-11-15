@@ -234,6 +234,7 @@ fun PeersScreen(vm: AppViewModel) {
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     // Saved, so both dialogs stay open through a rotation; the device by its id.
     var confirmRemove by rememberSaveable { mutableStateOf<String?>(null) }
+    var confirmDelete by rememberSaveable { mutableStateOf<String?>(null) }
     var pairHowTo by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { devicesScreenOpen(vm) { now = System.currentTimeMillis() } }
     val me by vm.self.collectAsState()
@@ -311,7 +312,7 @@ fun PeersScreen(vm: AppViewModel) {
                 if (plain.isNotEmpty()) {
                     item(key = "peers-header") { SectionHeader(if (firstDevice) "Waiting to pair" else "Other devices") }
                     itemsIndexed(plain, key = { _, p -> p.id }) { i, p ->
-                        PeerRow(vm, p, now, p.id == highlight, me?.id, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, plain.size)) { confirmRemove = p.id }
+                        PeerRow(vm, p, now, p.id == highlight, me?.id, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, plain.size), onDelete = { confirmDelete = p.id }) { confirmRemove = p.id }
                     }
                 } else if (pairing.isEmpty() && firstDevice) {
                     item(key = "waiting-header") { SectionHeader("Waiting to pair") }
@@ -326,10 +327,17 @@ fun PeersScreen(vm: AppViewModel) {
     }
     peers.firstOrNull { it.id == confirmRemove }?.let { p ->
         val x = label(p)
-        AlertDialog(onDismissRequest = { confirmRemove = null },
+        AlertDialog(onDismissRequest = { confirmRemove = null }, title = { Text("Remove device?") },
             text = { Text(UiText.removeDeviceBody(x)) },
             confirmButton = { TextButton(onClick = { vm.remove(p.id); confirmRemove = null }) { Text("Remove") } },
             dismissButton = { TextButton(onClick = { confirmRemove = null }) { Text("Cancel") } })
+    }
+    peers.firstOrNull { it.id == confirmDelete }?.let { p ->
+        val x = label(p)
+        AlertDialog(onDismissRequest = { confirmDelete = null }, title = { Text(UiText.deleteDeviceTitle(x)) },
+            text = { Text(UiText.deleteDeviceBody(x)) },
+            confirmButton = { TextButton(onClick = { vm.localDelete(p.id); confirmDelete = null }) { Text("Delete") } },
+            dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Cancel") } })
     }
     if (pairHowTo) AlertDialog(onDismissRequest = { pairHowTo = false }, title = { Text("Pair a new device") },
         text = {
@@ -598,7 +606,7 @@ private fun BannerRow(text: String, action: String, fault: Boolean, icon: ImageV
 
 /** One peer in the Peers group: icon tile, name, platform, status line, overflow menu; the menu holds the per-device options. */
 @Composable
-private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, selfId: String?, modifier: Modifier, onRemove: () -> Unit) {
+private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, selfId: String?, modifier: Modifier, onDelete: () -> Unit, onRemove: () -> Unit) {
     val x = label(p)
     var menu by remember { mutableStateOf(false) }
     val pairingAgain by vm.pairingAgain.collectAsState()
@@ -668,7 +676,7 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                         if (p.pinned) CheckItem("Show shortcut in sharing menu", shareShown) { menu = false; vm.setShareShown(p.id, !shareShown) }
                         HorizontalDivider()
                         if (p.offersPairAgain) DropdownMenuItem(text = { Text("Cancel pairing request") }, onClick = { menu = false; vm.cancelPairing(p.id) })
-                        if (p.missing) DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; vm.localDelete(p.id) })
+                        if (p.missing) DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; onDelete() })
                         DropdownMenuItem(text = { Text("Remove device from account") }, onClick = { menu = false; onRemove() })
                     }
                 }
@@ -1021,7 +1029,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                                 Box(Modifier.align(Alignment.CenterVertically)) { TypeCaption(SendAsUrl.effective(text, asText)) }
                                 if (counter) Text(UiText.counter(bytes), Modifier.weight(1f).align(Alignment.CenterVertically), style = MaterialTheme.typography.bodySmall, color = cs.error, textAlign = TextAlign.End)
                             }
-                            if (SendAsUrl.offersText(text)) Row(Modifier.heightIn(min = 40.dp).toggleable(asText, role = Role.Checkbox) { asText = it },
+                            if (SendAsUrl.offersText(text)) Row(Modifier.heightIn(min = 48.dp).toggleable(asText, role = Role.Checkbox) { asText = it },
                                 verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(asText, null)
                                 Spacer(Modifier.width(12.dp))
@@ -1071,6 +1079,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                             com.pusharmor.app.ui.theme.BrandTile(40.dp)
                             Text(sendCaption, Modifier.padding(start = 16.dp), style = MaterialTheme.typography.bodyLarge)
                         }
+                        if (sendNames.size > 1) sendNames.forEach { Text(UiText.bulleted(it), Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodyLarge) }
                         LinearProgressIndicator({ sendStep / 100f }, Modifier.fillMaxWidth().padding(top = 16.dp), color = com.pusharmor.app.ui.theme.BrandGreen)
                         Text(when {
                             sendRetry > 1 -> UiText.tryingAgain(sendRetry)
@@ -1087,7 +1096,8 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                     sendStep = 0
                     sendRetry = 0
                     sendNames = sendTo.mapNotNull { id -> peers.firstOrNull { it.id == id } }.map(::label)
-                    sendCaption = UiText.directSending(if (asText) ContentType.TEXT else com.pusharmor.protocol.Detect.type(text), sendNames)
+                    val sendType = if (asText) ContentType.TEXT else com.pusharmor.protocol.Detect.type(text)
+                    sendCaption = if (sendNames.size > 1) UiText.directSendingList(sendType) else UiText.directSending(sendType, sendNames)
                     scope.launch {
                         // A send that reached a device leaves this screen, so only a failure shows here.
                         try {
@@ -1704,12 +1714,12 @@ internal fun <T> ChoiceDialog(title: String, options: List<T>, current: T, label
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
 }
 
-/** Delete account confirmation: a standard dialog with a title, a red Continue, and Cancel. */
+/** Delete account confirmation: a standard dialog with a title, a red Log in to delete, and Cancel. */
 @Composable
 internal fun DeleteAccountDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Delete account") }, text = { Text(UiText.DELETE_CONFIRM) },
         confirmButton = {
-            TextButton(onClick = onConfirm, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Continue") }
+            TextButton(onClick = onConfirm, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Log in to delete") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
 }

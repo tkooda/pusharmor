@@ -232,6 +232,13 @@ object UiText {
     fun directSending(type: ContentType, names: List<String>): String =
         "Sending ${when (type) { ContentType.URL -> "URL"; ContentType.TEL -> "phone number"; ContentType.TEXT -> "text" }} to ${quotedList(names.map(::cutName))}..."
 
+    /** Progress caption for 2 or more devices: the devices follow, one per line. */
+    fun directSendingList(type: ContentType): String =
+        "Sending ${when (type) { ContentType.URL -> "URL"; ContentType.TEL -> "phone number"; ContentType.TEXT -> "text" }} to:"
+
+    /** One device in the progress list: a bullet and the name, no quotes. */
+    fun bulleted(name: String): String = "\u2022 ${cutName(name)}"
+
     fun directShareSent(name: String): String = "Sent to \"${cutName(name)}\""
 
     /** The two lines for the one picked device that did not get a send; null when it did. An unknown or missing word reads as not ready yet. */
@@ -432,6 +439,8 @@ object UiText {
     /** A message notification title: the sending device's name in quotes. */
     fun messageTitle(name: String?): String = quoted(name, "Unknown sender")
     fun removeDeviceBody(x: String): String = "Remove \"$x\" from this account? \"$x\" must log in again and pair with every device again."
+    fun deleteDeviceTitle(x: String): String = "Delete \"$x\"?"
+    fun deleteDeviceBody(x: String): String = "This removes \"$x\" from this device."
     fun rejectedBy(x: String): String = "Rejected by \"$x\""
     fun notPairedOn(x: String): String = "Not paired on \"$x\""
     fun waitingCodesMatch(x: String): String = "Waiting for \"$x\": open PushArmor there and tap Codes match."
