@@ -29,6 +29,8 @@
 // ran and succeeded; a component that was skipped is not a pass. Another
 // platform's jobs do not count, so a slow platform never holds up the others.
 // They read it with gh api (GH_TOKEN with actions: read; --check needs no token).
+// A push that changes only listing text skips those jobs, so tag the commit that
+// ran them, or push a change under release/ (it runs every component).
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
