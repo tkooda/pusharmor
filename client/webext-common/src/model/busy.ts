@@ -30,9 +30,10 @@ export const STEP = {
   sendingTo: (names: string[]) => "Sending to " + quoteList(names),
 };
 
-/** The Send popup caption: the content type as the Send screen names it, then the devices. */
+/** The Send popup caption: the content type as the Send screen names it, then the devices (several are listed apart, one per line). */
 export function sendingCaption(type: string, names: string[]): string {
-  return "Sending " + (type === "url" ? "URL" : type === "tel" ? "phone number" : "text") + " to " + quoteList(names) + "...";
+  const what = "Sending " + (type === "url" ? "URL" : type === "tel" ? "phone number" : "text") + " to";
+  return names.length > 1 ? what + ":" : what + " " + quoteList(names) + "...";
 }
 
 /** "A", "A" and "B", or "A", "B", and "C" (each in double quotes). */

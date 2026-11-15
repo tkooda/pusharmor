@@ -434,7 +434,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     sendBtn.disabled = true;
     const to = allChip && on(allChip) ? "all" : checks.filter((c) => on(c.chip)).map((c) => c.id);
     const names = sendable.filter((p) => to === "all" || to.includes(p.id)).map((p) => p.label);
-    const prog = sendProgress(env, sendingCaption(asText.checked ? "text" : lastType, names), STEP.encryptingFor(names));
+    const prog = sendProgress(env, sendingCaption(asText.checked ? "text" : lastType, names), STEP.encryptingFor(names), names);
     try {
       let r: SendResult;
       try {
@@ -468,11 +468,12 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
 }
 
 /** The Send popup: a modal dialog over the view (the layout stays) with the brand tile, a caption, the bar, and the step line. */
-function sendProgress(env: UiEnv, caption: string, first: string): { close: () => void } {
+function sendProgress(env: UiEnv, caption: string, first: string, names: string[]): { close: () => void } {
   const bar = h("progress", { max: "100", value: "25" }) as HTMLProgressElement;
   const step = h("div", { class: "dim", role: "status" }, first);
   const dlg = h("dialog", { class: "dlg sendprog", "aria-label": "Sending" },
     h("div", { class: "sendprog-head" }, h("img", { src: "icons/icon-128.png", width: "40", height: "40", alt: "", class: "tile big-tile" }), h("span", {}, caption)),
+    ...(names.length > 1 ? [h("ul", {}, ...names.map((n) => h("li", {}, n)))] : []),
     bar,
     step,
   ) as HTMLDialogElement;
@@ -871,7 +872,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     },
   }, "Log out") as HTMLButtonElement;
   const delAcct = async () => {
-    if (await confirmDialog("Delete account?", "You must log in again to confirm. This cannot be undone.", "Continue")) env.openPage("#login=delete-account");
+    if (await confirmDialog("Delete account?", "You must log in again to confirm. This cannot be undone.", "Log in to delete")) env.openPage("#login=delete-account");
   };
   const btns = h("div", { class: "btns" }, h("button", { class: "danger", onclick: () => void delAcct() }, "Delete account"), logOut);
   add(

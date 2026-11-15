@@ -37,7 +37,7 @@ const tick = async () => {
 
 let gate: Promise<void> | null = null;
 
-async function mount(inPopup: boolean, result: unknown) {
+async function mount(inPopup: boolean, result: unknown, peers: unknown[] = [PEER], sel: string[] = []) {
   const sent: Record<string, unknown>[] = [];
   let closed = 0;
   (globalThis as unknown as { window: unknown }).window = { close: () => void closed++ };
@@ -48,7 +48,7 @@ async function mount(inPopup: boolean, result: unknown) {
       if (m.op === "send") sent.push(m.args!);
       if (m.op === "send" && gate) await gate;
       const text = String(m.args?.text ?? "");
-      const data: Record<string, unknown> = { peers: { peers: [PEER] }, sendSel: [], sendSelSet: null, detect: { type: detectType(text), bytes: text.length }, send: result };
+      const data: Record<string, unknown> = { peers: { peers }, sendSel: sel, sendSelSet: null, detect: { type: detectType(text), bytes: text.length }, send: result };
       if (m.op === "send" && result instanceof Error) return { ok: false, error: result.message };
       return { ok: true, data: data[m.op] };
     },
@@ -177,5 +177,22 @@ test("Send: while a send runs a modal popup shows the caption and the bar, and i
   release();
   await run;
   assert.equal(body.kids.some((k) => k.tag === "dialog"), false);
+  for (const k of [...body.kids]) k.remove();
+});
+
+test("Send: with several recipients the popup caption ends in a colon and the devices are listed one per line, without quotes", async () => {
+  const v = await mount(false, { sent: 2, total: 2, failures: [] }, [PEER, { ...PEER, id: "p2", label: "Laptop" }], ["p1", "p2"]);
+  await v.type("hi");
+  let release!: () => void;
+  gate = new Promise<void>((r) => (release = r));
+  const run = v.send();
+  await tick();
+  const dlg = body.kids.find((k) => k.tag === "dialog")!;
+  assert.equal(find(dlg, (x) => x.tag === "span")!.textContent, "Sending text to:");
+  const ul = find(dlg, (x) => x.tag === "ul")!;
+  assert.deepEqual(ul.kids.map((k) => k.textContent), ["Phone", "Laptop"]);
+  gate = null;
+  release();
+  await run;
   for (const k of [...body.kids]) k.remove();
 });

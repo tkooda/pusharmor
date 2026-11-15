@@ -393,3 +393,12 @@ dialog.sendprog { width: min(340px, calc(100vw - 48px)); }
 .toast button.act { flex: none; height: 32px; color: inherit; font-weight: 600; }
 .toast button.ib:hover { background: rgba(127, 127, 127, 0.16); }
 .fail p { margin: 0 0 12px; }
+/* touch screens only: every control gets at least a 48px hit area (the desktop look is unchanged) */
+@media (pointer: coarse) {
+  button, button.ib, button.ac, button.quiet, button.errtext, button.dellight, button.version, .actions button, .menu button, .foot.bar button, .pair-foot button, .dlg-acts button, .toast button.ib, .toast button.act, .chip, .chip.dchip, .tabs button, .links button.text { min-height: 48px; }
+  button.ib, .toast button.ib { min-width: 48px; }
+  .menu button { padding-top: 0; padding-bottom: 0; }
+  .login button.text { min-height: 48px; }
+  .srow, .prow.target, label.srow, .astext { min-height: 48px; }
+  .astext { padding: 0 8px; margin: 0 -8px; }
+}
