@@ -4,7 +4,7 @@ import type { SendResult } from "../core/engine.ts";
 import { R, T, greyedText, notDeletedText, pushIssueText, quoted, saveFailText } from "../core/texts.ts";
 import { STEP } from "../model/busy.ts";
 import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter, sortByLabel } from "../model/sendsel.ts";
-import { isLikelyUrl } from "../model/sendurl.ts";
+import { isLikelyUrl, sentLength } from "../model/sendurl.ts";
 import { AUTH_CHANGED, AUTH_SWITCHED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
 import { type UiEnv, accountLine, add, busyBar, clear, disableFor, failView, group, h, midEllipsis, nextTabIndex, openHref, rpc, sh, shortTime } from "./dom.ts";
@@ -423,8 +423,10 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     clear(caption);
     caption.append(icon(TYPE_ICON[type] ?? "notes", 16), T.typeCaption(type));
     asTextRow.hidden = found === "text";
-    counter.textContent = !showCounter(d.bytes, CAP) ? "" : d.bytes > CAP ? T.tooLong(d.bytes) : T.counter(d.bytes);
-    sendBtn.disabled = sendDisabled(d.bytes, CAP, count());
+    // a URL also counts as sent, with "https://" when it has none (the background checks both)
+    const bytes = type === "url" ? Math.max(d.bytes, sentLength(field.value, true)) : d.bytes;
+    counter.textContent = !showCounter(bytes, CAP) ? "" : bytes > CAP ? T.tooLong(bytes) : T.counter(bytes);
+    sendBtn.disabled = sendDisabled(bytes, CAP, count());
   };
   field.addEventListener("input", () => void update());
   asText.addEventListener("change", () => void update());

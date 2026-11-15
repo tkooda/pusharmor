@@ -1901,7 +1901,6 @@ export class Engine {
     if (!self) return;
     await this.step(STEP.deletingAccount);
     await this.allowListCall("DELETE", "/account", self, (m) => ({ ticket, sign_pub: b64urlEncode(self.sign_pub), m }), async () => ({ type: "delete" }), false);
-    await this.step(STEP.removingThis);
     await this.wipe();
     await this.db.setMeta("banner", null);
   }

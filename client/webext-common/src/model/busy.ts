@@ -24,7 +24,6 @@ export const STEP = {
   removing: (names: string[]) => "Removing " + quoteList(names),
   loggingIn: "Logging in",
   loggingOut: "Logging out",
-  removingThis: "Removing this device",
   updating: "Updating devices",
   deletingAccount: "Deleting your account",
 };

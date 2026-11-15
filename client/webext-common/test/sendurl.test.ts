@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { N, body, toastEl } from "./fakedom.ts";
-import { isLikelyUrl, urlToSend } from "../src/model/sendurl.ts";
+import { isLikelyUrl, sentLength, urlToSend } from "../src/model/sendurl.ts";
 import { sendView } from "../src/ui/popup.ts";
 import { detectType } from "../src/model/detect.ts";
 import type { StateView } from "../src/core/rpc.ts";
@@ -73,7 +73,8 @@ async function mount(inPopup: boolean, result: unknown) {
     await tick();
   };
   const meta = find(root, (x) => x.attrs.class === "meta") as N & { hidden: boolean };
-  return { type, send, sent, closed: () => closed, caption, textRow, tickText, meta };
+  const counter = find(root, (x) => x.attrs.class === "counter") as N & { textContent: string };
+  return { type, send, sent, closed: () => closed, caption, textRow, tickText, meta, sendBtn, counter };
 }
 
 test("Send: the type line always shows; a URL is sent as URL unless Send as text is ticked, and the override is for one send", async () => {
@@ -137,4 +138,21 @@ test("Send: a phone number shows its caption and the Send as text box; other tex
   assert.deepEqual([!!v.caption.hidden, !!v.textRow.hidden, !!v.meta.hidden], [false, true, false]);
   await v.type("x".repeat(1900));
   assert.deepEqual([!!v.meta.hidden, !!v.caption.hidden], [false, false]); // the counter shows too
+});
+
+test("Send: a URL that is too long once https:// is added greys out Send, like too-long text; Send as text turns it back on", async () => {
+  assert.equal(sentLength("a.com", true), 13);
+  assert.equal(sentLength("a.com", false), 5);
+  const v = await mount(false, { sent: 1, total: 1, failures: [] });
+  const btn = v.sendBtn as N & { disabled: boolean };
+  const url = "a.com/" + "x".repeat(2000 - 6 - 4); // 1996 characters, 2004 with https://
+  await v.type(url);
+  assert.equal(v.caption.textContent, "Will be sent as URL");
+  assert.equal(btn.disabled, true);
+  assert.equal(v.counter.textContent, "Too long (2004 / 2000)");
+  await v.tickText(true);
+  assert.equal(btn.disabled, false);
+  await v.tickText(false);
+  await v.type("https://a.com/" + "x".repeat(2000 - 14));
+  assert.equal(btn.disabled, false, "a URL with its scheme at the cap still sends");
 });

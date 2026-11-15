@@ -204,7 +204,7 @@ export function actionLine(a: ActionId, x = ""): string {
     case "loginGoogle": return "Unable to log in with Google.";
     case "loginApple": return "Unable to log in with Apple.";
     case "deleteAccount": return "Unable to delete the account.";
-    case "deleteHistory": return "Unable to delete the messages.";
+    case "deleteHistory": return "Unable to delete on this device.";
     case "saveMessage": return "Unable to save the message.";
     case "changeSetting": return "Unable to change this setting.";
   }

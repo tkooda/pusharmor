@@ -20,3 +20,8 @@ export function urlToSend(text: string): string {
   const t = text.trim();
   return /^https?:\/\//i.test(t) ? t : "https://" + t;
 }
+
+/** The length that counts against the cap: the URL as sent (see urlToSend) when it goes as a URL, else the text. */
+export function sentLength(text: string, asUrl: boolean): number {
+  return new TextEncoder().encode(asUrl ? urlToSend(text) : text).length;
+}

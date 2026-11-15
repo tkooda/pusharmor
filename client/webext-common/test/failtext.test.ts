@@ -82,7 +82,7 @@ test("every action line, with the device name in straight double quotes", () => 
     ["login", "Unable to log in."],
     ["loginGoogle", "Unable to log in with Google."],
     ["loginApple", "Unable to log in with Apple."],
-    ["deleteHistory", "Unable to delete the messages."],
+    ["deleteHistory", "Unable to delete on this device."],
     ["changeSetting", "Unable to change this setting."],
   ];
   for (const [a, line] of lines) assert.equal(failText(a, e, { name: "Lap top" }), line + "\nTry again.");
@@ -236,7 +236,7 @@ test("each device list action shows its own action line", async () => {
     const real = db[name];
     db[name] = full;
     try {
-      assert.equal(await fails(rpc, op, args), "Unable to delete the messages.\n" + FULL, op);
+      assert.equal(await fails(rpc, op, args), "Unable to delete on this device.\n" + FULL, op);
     } finally {
       db[name] = real;
     }

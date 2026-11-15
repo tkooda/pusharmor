@@ -325,7 +325,7 @@ test("Send: no cut offer; a text over 2000 bytes only greys out Send", async () 
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
   assert.doesNotMatch(pop, /Send the first|offerCut|class: "cut"/);
-  assert.match(pop, /sendBtn\.disabled = sendDisabled\(d\.bytes, CAP, count\(\)\);/);
+  assert.match(pop, /sendBtn\.disabled = sendDisabled\(bytes, CAP, count\(\)\);/);
   assert.doesNotMatch(readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8"), /\.cut \{/);
 });
 

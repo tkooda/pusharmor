@@ -6,7 +6,6 @@ import { utf8Len } from "../model/padding.ts";
 import type { HistoryRow } from "../store/db.ts";
 import { type Engine, type Settings, UserError } from "./engine.ts";
 import { ActionError, RestartError, reasonOf, failText } from "./failtext.ts";
-import { STEP } from "../model/busy.ts";
 import { Login, type Purpose } from "./login.ts";
 import { PAIR_MSG_PREFIX, allEntries } from "./state.ts";
 import { type ActionId, T, peerLabel, pushVendor, rowLabel } from "./texts.ts";
@@ -231,12 +230,7 @@ export class Rpc {
       case "signout":
         await this.login.clearProgress();
         // logged out here at once; the relay server call runs after and is retried
-        await e.step(STEP.removingThis);
-        try {
-          await e.logoutLocal();
-        } finally {
-          await e.step(null);
-        }
+        await e.logoutLocal();
         void e.retryPendingLogout().catch(() => undefined);
         return null;
       case "loginPurpose":

@@ -313,3 +313,19 @@ test("a delete in one batch writes no steps", async () => {
   await a.e.deleteHistory((await rows(a)).map((r) => r.id!));
   assert.equal((await a.p.storageSession.get(["busy"])).busy, undefined);
 });
+
+test("log out writes no step of its own; account delete shows only Deleting your account", async () => {
+  const caps = async (run: (d: Awaited<ReturnType<typeof setup>>["a"]) => Promise<unknown>) => {
+    const { a } = await setup();
+    const seen: string[] = [];
+    const set = a.p.storageSession.set.bind(a.p.storageSession);
+    a.p.storageSession.set = async (items: Record<string, unknown>) => {
+      if ("busy" in items) seen.push((items.busy as { cap: string }).cap);
+      return set(items);
+    };
+    await run(a);
+    return seen;
+  };
+  assert.deepEqual(await caps((a) => new Rpc(a.e).handle({ op: "signout" })), []);
+  assert.deepEqual(await caps((a) => a.e.deleteAccount("T")), ["Deleting your account"]);
+});
