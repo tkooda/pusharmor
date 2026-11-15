@@ -51,7 +51,7 @@ async function mount(inPopup: boolean, result: unknown) {
     },
   } as unknown as UiEnv;
   const root = new N("div");
-  await sendView(env, root as unknown as HTMLElement, { settings: { showAll: false } } as unknown as StateView, "", false);
+  await sendView(env, root as unknown as HTMLElement, { settings: { showAll: false } } as unknown as StateView, "");
   const field = find(root, (x) => x.tag === "textarea") as N & { value: string };
   const sendBtn = find(root, (x) => x.tag === "button" && (x.attrs.class ?? "").includes("primary"))!;
   const type = async (v: string) => {

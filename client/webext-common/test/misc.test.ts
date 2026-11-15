@@ -66,7 +66,7 @@ test("Firefox sender gate: a site content script gets only its own site op", () 
   const id = "ext@pusharmor";
   const base = "moz-extension://1111-2222/";
   const site = (path: string) => ({ id, url: "https://pusharmor.com" + path, tab: { id: 7 } });
-  for (const op of ["approve", "send", "deny", "historyDeleteAll", "peers"]) {
+  for (const op of ["approve", "send", "deny", "historyDelete", "peers"]) {
     assert.equal(senderAllowed(op, site("/fx/open"), id, base), false, op);
     assert.equal(senderAllowed(op, site("/auth/done"), id, base), false, op);
     assert.equal(senderAllowed(op, { id, url: base + "popup.html" }, id, base), true, op);

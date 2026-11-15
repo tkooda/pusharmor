@@ -209,7 +209,6 @@ body.page .foot { position: static; }
 .dchip.greyed { cursor: default; }
 .counter { margin-left: auto; font-size: 12px; line-height: 16px; color: var(--err); }
 .counter:empty { display: none; }
-.cut { padding: 0 16px 10px; }
 
 /* History. */
 .chip { height: 28px; padding: 0 12px; border-color: var(--ctl); color: var(--ink2); font-size: 12px; flex: none; gap: 4px; }
@@ -223,9 +222,14 @@ body.page .foot { position: static; }
 .hrow.sel, .hrow:focus-within { background: var(--s1); }
 .hrow.msel { grid-template-columns: 20px 32px minmax(0, 1fr); }
 .hrow.msel .acts { display: none; }
-input.hsel { margin: 2px 0 0; width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
+input.hsel, input.hselall { margin: 2px 0 0; width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
 .hselbar { display: flex; flex-wrap: wrap-reverse; justify-content: flex-end; gap: 8px; padding: 8px 16px 0; }
 .hselbar[hidden] { display: none; }
+.busy { padding: 8px 16px 0; }
+.busy progress { display: block; width: 100%; }
+.busy[hidden] { display: none; }
+form .busy, .oauth .busy { padding: 8px 0 0; }
+.content.struck { text-decoration: line-through; }
 button.dellight { height: 32px; border-color: transparent; color: var(--err); background: color-mix(in srgb, var(--err) 14%, transparent); }
 .hrow.closed:focus-within { background: none; }
 .hmeta { display: flex; gap: 8px; font-size: 12px; line-height: 1.33334; color: var(--ink2); }

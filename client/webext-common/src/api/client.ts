@@ -52,6 +52,8 @@ export interface CallOpts {
   body?: unknown;
   /** No retries at all (used where the caller handles waits itself, or the server may apply a repeat twice). */
   noRetry?: boolean;
+  /** Called before each retry after a network or 5xx failure, with the attempt about to run (2, 3, ...). */
+  onRetry?: (attempt: number) => Promise<void>;
 }
 
 export interface ApiReply {
@@ -118,6 +120,7 @@ export class Api {
           await this.d.sleep(wait);
         } else if (e.status === 0 || (e.status >= 500 && e.status <= 599)) {
           if (down >= SERVER_RETRY_DELAYS_MS.length) throw e;
+          await opts.onRetry?.(down + 2);
           await this.d.sleep(SERVER_RETRY_DELAYS_MS[down++]!);
         } else throw e;
       }

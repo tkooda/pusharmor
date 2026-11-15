@@ -6,6 +6,7 @@ import { utf8Len } from "../model/padding.ts";
 import type { HistoryRow } from "../store/db.ts";
 import { type Engine, type Settings, UserError } from "./engine.ts";
 import { ActionError, RestartError, reasonOf, failText } from "./failtext.ts";
+import { STEP } from "../model/busy.ts";
 import { Login, type Purpose } from "./login.ts";
 import { PAIR_MSG_PREFIX, allEntries } from "./state.ts";
 import { type ActionId, T, peerLabel, pushVendor, rowLabel } from "./texts.ts";
@@ -93,7 +94,6 @@ const ACTION: Record<string, ActionId> = {
   settings: "changeSetting",
   signout: "logout",
   historyDelete: "deleteHistory",
-  historyDeleteAll: "deleteHistory",
   emailStart: "sendCode",
   emailVerify: "checkCode",
   evict: "evict",
@@ -182,8 +182,6 @@ export class Rpc {
         return null;
       case "historyDelete":
         return e.deleteHistory((a.ids as number[]).map(Number));
-      case "historyDeleteAll":
-        return e.deleteAllHistory();
       case "sendSel":
         return ((await e.p.storageLocal.get([SEND_SEL_KEY]))[SEND_SEL_KEY] as string[] | undefined) ?? [];
       case "sendSelSet":
@@ -233,7 +231,12 @@ export class Rpc {
       case "signout":
         await this.login.clearProgress();
         // logged out here at once; the relay server call runs after and is retried
-        await e.logoutLocal();
+        await e.step(STEP.removingThis);
+        try {
+          await e.logoutLocal();
+        } finally {
+          await e.step(null);
+        }
         void e.retryPendingLogout().catch(() => undefined);
         return null;
       case "loginPurpose":
@@ -340,8 +343,9 @@ export class Rpc {
     return { self: self ? { id: self.id, name: await e.myName() } : null, peers: out, allowContent: (await e.settings()).allowContent };
   }
 
-  async history(): Promise<(HistoryRow & { sender: string })[]> {
+  async history(): Promise<(HistoryRow & { sender: string; notDeleted?: string[] })[]> {
     const e = this.e;
+    const waiting = await e.settleDeletes();
     const peers = new Map((await e.db.peers()).map((p) => [p.id, p]));
     // no device status rows: those an older version stored stay in the database, unlisted
     return (await e.db.history()).filter((r) => !isStatusRow(r)).map((r) => {
@@ -354,7 +358,9 @@ export class Rpc {
         // A message to one device: History names it (Sent to "Laptop").
         sender = peers.get(r.targets[0]!)?.name ?? T.aPeer;
       }
-      return { ...r, sender };
+      // a delete not done yet: the names of the devices it waits on
+      const left = waiting.get(r.id!);
+      return left ? { ...r, sender, notDeleted: left.map((id) => peers.get(id)?.name ?? T.aPeer) } : { ...r, sender };
     });
   }
 }

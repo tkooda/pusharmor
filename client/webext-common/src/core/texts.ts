@@ -115,10 +115,17 @@ export function sendResultText(name: string, res: string): string {
   return to + "It has not finished turning on notifications. Open PushArmor on it.";
 }
 
-/** The notice when a Sync deletions delete reached the relay server but not count devices: name and why for one. */
-export function syncDeleteResultText(count: number, name: string, res: string): string {
-  if (count > 1) return "Unable to delete on " + count + " devices";
-  return 'Unable to delete on "' + name + '"\n' + sendResultText(name, res).split("\n")[1];
+/** The notice when a Sync deletions delete did not reach some devices: their names, and why when it is one (res null: no why). */
+export function syncDeleteResultText(names: string[], res: string | null): string {
+  const q = names.map(quoted);
+  const list = q.length < 3 ? q.join(" and ") : q.slice(0, -1).join(", ") + ", and " + q.at(-1);
+  if (names.length > 1 || res === null) return "Unable to delete on " + list;
+  return "Unable to delete on " + list + "\n" + sendResultText(names[0]!, res).split("\n")[1];
+}
+
+/** The line under a History row whose delete did not reach some devices. */
+export function notDeletedText(names: string[]): string {
+  return names.length === 1 ? "Not deleted on " + quoted(names[0]!) : "Not deleted on " + names.length + " devices";
 }
 
 /** The two lines when Codes match reached the relay server but not the device: why, as for a send. */
@@ -174,7 +181,6 @@ export type ActionId =
   | "loginApple"
   | "deleteAccount"
   | "deleteHistory"
-  | "syncDelete"
   | "saveMessage"
   | "changeSetting";
 
@@ -198,8 +204,7 @@ export function actionLine(a: ActionId, x = ""): string {
     case "loginGoogle": return "Unable to log in with Google.";
     case "loginApple": return "Unable to log in with Apple.";
     case "deleteAccount": return "Unable to delete the account.";
-    case "deleteHistory": return "Unable to delete the history.";
-    case "syncDelete": return "Unable to delete on your other devices.";
+    case "deleteHistory": return "Unable to delete the messages.";
     case "saveMessage": return "Unable to save the message.";
     case "changeSetting": return "Unable to change this setting.";
   }

@@ -56,3 +56,20 @@ test("History: Ctrl or Cmd + click toggles a row; Shift + click selects a range 
   v.click(3, { ctrlKey: true });
   assert.deepEqual(v.checked(), [true, true, false, true]);
 });
+
+test("History select all: empty, dash for some, check for all; a click selects all, the next clears all", async () => {
+  const v = await mount();
+  const sa = () => find(v.root, (x) => x.tag === "input" && x.attrs.class === "hselall") as N & { checked?: boolean; indeterminate?: boolean; hidden?: boolean };
+  assert.equal(sa().attrs.type, "checkbox");
+  assert.equal(sa().hidden, true); // only in the select mode
+  for (const f of v.btn().on.click!) f({});
+  assert.deepEqual([sa().hidden, !!sa().checked, !!sa().indeterminate], [false, false, false]);
+  v.click(2);
+  assert.deepEqual([!!sa().checked, !!sa().indeterminate], [false, true]);
+  for (const f of sa().on.click!) f({});
+  assert.deepEqual(v.checked(), [true, true, true, true]);
+  assert.deepEqual([!!sa().checked, !!sa().indeterminate], [true, false]);
+  for (const f of sa().on.click!) f({});
+  assert.deepEqual(v.checked(), [false, false, false, false]);
+  assert.deepEqual([!!sa().checked, !!sa().indeterminate, sa().hidden], [false, false, false]); // the mode stays on
+});

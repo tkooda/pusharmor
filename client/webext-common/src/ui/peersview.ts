@@ -1,8 +1,9 @@
 // Peers list (popup and the full tab), component-webext section 7 Peers.
 import type { PeerView } from "../core/rpc.ts";
 import { sortByLabel } from "../model/sendsel.ts";
+import { STEP } from "../model/busy.ts";
 import { T, confirmResultText } from "../core/texts.ts";
-import { type UiEnv, add, clear, pairCommandLine, disableFor, greyFor, group, h, overflowMenu, peerStatus, platformLabel, rpc, sh, statusLine } from "./dom.ts";
+import { type UiEnv, add, busyBar, clear, pairCommandLine, disableFor, greyFor, group, h, overflowMenu, peerStatus, platformLabel, rpc, sh, statusLine } from "./dom.ts";
 import { confirmDialog, toast } from "./dialog.ts";
 import { devicesArt, icon, platformIcon, shield } from "./icons.ts";
 
@@ -116,17 +117,21 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
   if (focusId !== undefined) (document.getElementById("peer-" + focusId) ?? root.querySelector<HTMLElement>(".sh"))?.focus();
   const refresh = h("button", {}, icon("refresh", 18), h("span", { class: "lbl" }, "Refresh")) as HTMLButtonElement;
   if (refreshUntil > Date.now()) disableFor(refresh, refreshUntil - Date.now());
+  const upBar = busyBar(env);
   refresh.addEventListener("click", async () => {
     refreshUntil = Date.now() + 10_000;
     disableFor(refresh, 10_000);
+    upBar.start(STEP.updating);
     try {
       await rpc(env, "refresh");
       await renderPeers(env, root, full);
     } catch (e) {
       toast((e as Error).message, "err");
+    } finally {
+      upBar.stop();
     }
   });
-  root.append(h("div", { class: "grow" }), add(h("div", { class: "foot bar" }, refresh), !full && h("button", { onclick: () => env.openPage("#peers") }, "Open full view")));
+  root.append(h("div", { class: "grow" }), upBar.el, add(h("div", { class: "foot bar" }, refresh), !full && h("button", { onclick: () => env.openPage("#peers") }, "Open full view")));
 }
 
 /** "Pair a new device": pairing starts from Pair on a listed device, so the button shows how to get it listed. */

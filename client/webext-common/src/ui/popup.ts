@@ -1,12 +1,13 @@
 // Toolbar popup: Send, History, Peers, Settings (component-webext section 7).
 import type { PeerView, StateView } from "../core/rpc.ts";
 import type { SendResult } from "../core/engine.ts";
-import { R, T, greyedText, pushIssueText, quoted, saveFailText } from "../core/texts.ts";
+import { R, T, greyedText, notDeletedText, pushIssueText, quoted, saveFailText } from "../core/texts.ts";
+import { STEP } from "../model/busy.ts";
 import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter, sortByLabel } from "../model/sendsel.ts";
 import { isLikelyUrl } from "../model/sendurl.ts";
 import { AUTH_CHANGED, AUTH_SWITCHED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
-import { type UiEnv, accountLine, add, clear, disableFor, failView, group, h, midEllipsis, nextTabIndex, openHref, rpc, sh, shortTime } from "./dom.ts";
+import { type UiEnv, accountLine, add, busyBar, clear, disableFor, failView, group, h, midEllipsis, nextTabIndex, openHref, rpc, sh, shortTime } from "./dom.ts";
 import { closeDialogs, confirmDialog, dismissToast, toast } from "./dialog.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
 import { type MsgAction, msgActions, saveFilename } from "../model/msgactions.ts";
@@ -125,7 +126,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement, page?: PageStart
     const wait = h("div", { class: "loading", role: "status" }, "Loading...");
     const slow = setTimeout(() => pane.isConnected && !pane.firstChild && body.prepend(wait), 150);
     let ready: Promise<unknown> = Promise.resolve();
-    if (t === "send") ready = sendView(env, pane, st, arg, !!page, nav);
+    if (t === "send") ready = sendView(env, pane, st, arg, nav);
     if (t === "history") ready = historyView(env, pane, arg, nav);
     if (t === "peers") ready = renderPeers(env, pane, !!page, arg, undefined, openPair);
     if (t === "settings") ready = settingsView(env, pane, st, again);
@@ -330,7 +331,7 @@ function cta(text: string, label: string, go: () => void): HTMLElement {
   return h("div", { class: "cta" }, h("p", {}, text), h("button", { class: "tonal", onclick: go }, label));
 }
 
-export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, prefill?: string, offerCut = false, nav?: Nav): Promise<void> {
+export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, prefill?: string, nav?: Nav): Promise<void> {
   const field = h("textarea", { rows: "3", "aria-label": "Text to send" }) as HTMLTextAreaElement;
   field.value = prefill ?? (await env.activeUrl().catch(() => ""));
   const caption = h("span", { class: "caption" });
@@ -345,8 +346,6 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   const sendBtn = h("button", { class: "primary big" }, icon("send", 18), sendLabel) as HTMLButtonElement;
   const head = sh("");
   const chips = h("div", { class: "dchips" });
-  // the cut offer shows only while the text is over the limit
-  const cut = h("div", { class: "cut", hidden: true });
   const data = await rpc<{ peers: PeerView[] }>(env, "peers");
   // Like Android: a device that cannot receive right now is a greyed chip, never selected and not counted.
   const sendable = data.peers.filter(canReceiveNow);
@@ -426,7 +425,6 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     asTextRow.hidden = found === "text";
     counter.textContent = !showCounter(d.bytes, CAP) ? "" : d.bytes > CAP ? T.tooLong(d.bytes) : T.counter(d.bytes);
     sendBtn.disabled = sendDisabled(d.bytes, CAP, count());
-    cut.hidden = !offerCut || d.bytes <= CAP;
   };
   field.addEventListener("input", () => void update());
   asText.addEventListener("change", () => void update());
@@ -451,23 +449,6 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     await update();
   });
   root.append(field, meta);
-  if (offerCut) {
-    root.append(
-      add(cut, h("button", {
-        onclick: async () => {
-          const enc = new TextEncoder();
-          let out = "";
-          for (const ch of field.value) {
-            if (enc.encode(out + ch).length > CAP) break;
-            out += ch;
-          }
-          field.value = out;
-          asText.checked = true; // a cut text goes as text
-          await update();
-        },
-      }, "Send the first 2000 characters")),
-    );
-  }
   // every device is greyed: say why Send is off
   const none = !sendable.length && chips.childElementCount ? h("p", { class: "dim nosend" }, "Unable to send.\nNo device can receive messages right now.") : null;
   const noPair = nav && !data.peers.some((p) => p.paired) ? cta("Pair your first device to start sending.", "Pair a device", nav.toDevices) : null;
@@ -479,7 +460,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
 
 export async function historyView(env: UiEnv, root: HTMLElement, focus?: string, nav?: Nav): Promise<void> {
   await rpc(env, "historyOpened");
-  const rows = await rpc<(HistoryRow & { sender: string })[]>(env, "history");
+  const rows = await rpc<(HistoryRow & { sender: string; notDeleted?: string[] })[]>(env, "history");
   let key = "all";
   // long-press (or right-click, or Shift+Enter) starts multi-select; null means the mode is off.
   let picked: Set<number> | null = null;
@@ -546,7 +527,17 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
     explicit = true;
     draw();
   } }, "Select") as HTMLButtonElement;
-  const filterRow = h("div", { class: "hfilter" }, filter, selBtn);
+  // select all, in the checkbox column: none, some (dash), or all of the shown rows; a click selects all, or clears all when all are selected
+  const selAll = h("input", { type: "checkbox", class: "hselall", "aria-label": "Select all messages", hidden: true }) as HTMLInputElement;
+  selAll.addEventListener("click", () => {
+    const all = visible.length > 0 && visible.every((id) => picked?.has(id));
+    picked = all ? new Set() : new Set(visible);
+    explicit = true;
+    draw();
+  });
+  const filterRow = h("div", { class: "hfilter" }, selAll, filter, selBtn);
+  // a delete in several batches shows its steps above the list
+  const delBar = busyBar(env);
   const list = group();
   list.classList.add("hist-list");
   const draw = () => {
@@ -561,6 +552,10 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
     visible = f.rows.flatMap((r) => (r.id === undefined ? [] : [r.id]));
     const now = Date.now();
     for (const r of f.rows) list.append(historyRow(env, r, now, ctl));
+    const n = visible.filter((id) => picked?.has(id)).length;
+    selAll.hidden = !picked;
+    selAll.checked = n > 0 && n === visible.length;
+    selAll.indeterminate = n > 0 && n < visible.length;
     drawBar();
     if (focusId !== null) document.getElementById("h-" + focusId)?.querySelector<HTMLElement>("input.hsel, .content")?.focus();
     focusId = null;
@@ -578,11 +573,14 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
           const ids = [...(picked ?? [])];
           const title = ids.length === 1 ? "Delete 1 message?" : "Delete " + ids.length + " messages?";
           if (!(await confirmDialog(title, "This deletes the selected messages from this device.", "Delete"))) return;
+          delBar.start(); // shows only when the background sends steps (several batches)
           try {
             const notice = await rpc<string | null>(env, "historyDelete", { ids });
             if (notice) toast(notice, "err");
           } catch (e) {
             toast((e as Error).message, "err"); // rows whose delete reached the relay server are gone: redraw
+          } finally {
+            delBar.stop();
           }
           clear(root);
           await historyView(env, root, undefined, nav);
@@ -598,7 +596,7 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
     draw();
   });
   draw();
-  root.append(filterRow, bar, list, h("div", { class: "grow" }));
+  root.append(filterRow, bar, delBar.el, list, h("div", { class: "grow" }));
   if (focus) document.getElementById("h-" + focus)?.scrollIntoView({ block: "center" });
 }
 
@@ -689,7 +687,7 @@ function saveText(env: UiEnv, text: string, ms: number): void {
   );
 }
 
-function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, now: number, ctl: SelectCtl): HTMLElement {
+function historyRow(env: UiEnv, r: HistoryRow & { sender: string; notDeleted?: string[] }, now: number, ctl: SelectCtl): HTMLElement {
   const full = new Date(r.received).toLocaleString();
   const time = h("span", { class: "time", title: full }, shortTime(r.received, now));
   const row = h("div", { class: "hrow", id: "h-" + r.id });
@@ -717,6 +715,9 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, now: number,
   const content = h("div", { class: "content " + (one ? "one" : "clamp"), tabindex: "0" });
   if (r.type === "url") midEllipsis(content, r.content);
   else content.textContent = r.content;
+  // a delete that did not reach every device yet: struck through, with the devices under it
+  const notDeleted = r.notDeleted?.length ? r.notDeleted : null;
+  if (notDeleted) content.classList.add("struck");
   // Unread: bold text, no visible marker (times stay in one column); screen readers hear "Unread".
   if (!r.read) {
     row.classList.add("unread");
@@ -771,6 +772,7 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string }, now: number,
   for (const a of msgActions(r.type)) if (a !== "share" || canShare) main.append(btn[a]());
   acts.append(main);
   col.append(content);
+  if (notDeleted) col.append(h("div", { class: "dim" }, notDeletedText(notDeleted)));
   if (r.dir === "out" && r.results) {
     const fails = Object.values(r.results).filter((v) => v !== "sent").length;
     if (fails) col.append(h("div", { class: "dim" }, fails + " not delivered"));
@@ -814,14 +816,18 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     ff && st.receiveNote ? h("div", { class: "t2" }, st.receiveNote) : null,
   );
   const acctRow = acct.childNodes.length ? h("div", { class: "srow acct" }, acct) : null;
+  const outBar = busyBar(env);
   const logOut = h("button", {
     onclick: async () => {
+      outBar.start(STEP.loggingOut);
       try {
         await rpc(env, "signout");
         // the logout is done: read the state again, which shows the logged-out view
         await reload();
       } catch (e) {
         toast((e as Error).message, "err");
+      } finally {
+        outBar.stop();
       }
     },
   }, "Log out") as HTMLButtonElement;
@@ -829,17 +835,6 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     if (await confirmDialog("Delete account?", "You must log in again to confirm. This cannot be undone.", "Continue")) env.openPage("#login=delete-account");
   };
   const btns = h("div", { class: "btns" }, h("button", { class: "danger", onclick: () => void delAcct() }, "Delete account"), logOut);
-  const delAll = h("button", { class: "quiet errtext" }, "Delete all history") as HTMLButtonElement;
-  delAll.addEventListener("click", async () => {
-    if (!(await confirmDialog("Delete all history?", "This deletes every sent and received message on this device.", "Delete"))) return;
-    try {
-      const notice = await rpc<string | null>(env, "historyDeleteAll");
-      if (notice) toast(notice, "err");
-      else toast("History deleted", "ok");
-    } catch (e) {
-      toast((e as Error).message, "err");
-    }
-  });
   add(
     root,
     self && sh("Device name"),
@@ -855,9 +850,8 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     group(
       h("div", { class: "srow" }, h("span", {}, "Delete messages older than"), days),
       h("label", { class: "srow" }, h("div", { class: "txt" }, h("div", {}, "Sync deletions"), h("div", { class: "t2" }, "Deleting on this device will also delete on your other devices.")), syncDeletions),
-      h("div", { class: "srow" }, delAll),
     ),
-    ...(loggedIn ? [sh("Account"), group(acctRow, h("div", { class: "srow acct-acts" }, btns))] : []),
+    ...(loggedIn ? [sh("Account"), group(acctRow, h("div", { class: "srow acct-acts" }, btns)), outBar.el] : []),
     h("div", { class: "grow" }),
     versionButton(env, st.version),
   );

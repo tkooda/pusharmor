@@ -170,6 +170,14 @@ export class Login {
   }
 
   async complete(purpose: Purpose, ticket: string, email: string | null, evict?: string[]): Promise<LoginResult> {
+    try {
+      return await this.completeRun(purpose, ticket, email, evict);
+    } finally {
+      await this.e.step(null); // the page's bar caption ends with the call
+    }
+  }
+
+  private async completeRun(purpose: Purpose, ticket: string, email: string | null, evict?: string[]): Promise<LoginResult> {
     if (!TICKET_RE.test(ticket)) throw new ReasonError(R.badLink);
     const active = await this.e.email();
     const n = email === null ? null : normalizeEmail(email);

@@ -3,6 +3,7 @@ import type { PeerView, Reply, Req } from "../core/rpc.ts";
 import { T } from "../core/texts.ts";
 import type { ThemeStore } from "./theme.ts";
 import { b64urlDecode } from "../crypto/b64url.ts";
+import { BUSY, type Busy, readBusy } from "../model/busy.ts";
 
 export type Call = (req: Req) => Promise<Reply>;
 
@@ -115,6 +116,50 @@ export function nextTabIndex(key: string, i: number, n: number): number | null {
 }
 
 /** A bordered group card holding rows. */
+export interface BusyBar {
+  el: HTMLElement;
+  /** Shows the bar (with cap when given) and follows the steps the background writes. */
+  start(cap?: string): void;
+  stop(): void;
+}
+
+/** A thin stock progress bar with a caption under it; indeterminate unless a step carries done and total. */
+export function busyBar(env: UiEnv): BusyBar {
+  const bar = h("progress", {}) as HTMLProgressElement;
+  const cap = h("div", { class: "dim", role: "status" });
+  const el = h("div", { class: "busy", hidden: true }, bar, cap);
+  let unwatch: (() => void) | null = null;
+  let determinate = false;
+  const show = (b: Busy) => {
+    if (b.total !== undefined) {
+      bar.max = b.total;
+      bar.value = b.done ?? 0;
+      determinate = true;
+    } else if (determinate) {
+      bar.removeAttribute("value"); // back to indeterminate
+      determinate = false;
+    }
+    cap.textContent = b.cap;
+    el.hidden = false;
+  };
+  return {
+    el,
+    start(c?: string) {
+      unwatch?.();
+      unwatch = env.session?.watch(BUSY, (v) => {
+        const b = readBusy(v);
+        if (b) show(b);
+      }) ?? null;
+      if (c !== undefined) show({ cap: c });
+    },
+    stop() {
+      unwatch?.();
+      unwatch = null;
+      el.hidden = true;
+    },
+  };
+}
+
 export function group(...rows: (Node | null | undefined | false)[]): HTMLElement {
   return h("div", { class: "grp" }, ...rows);
 }

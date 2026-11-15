@@ -62,6 +62,8 @@ export interface HistoryRow {
   count?: number; // merged consecutive events
   targets?: string[];
   mid?: string | null; // message id (inner "id"); absent on older rows
+  del_req?: string[]; // a Sync deletions delete that is not done yet: the devices it was sent to
+  del_ok?: string[]; // of del_req, the devices whose push the relay server accepted
 }
 
 function req<T>(r: IDBRequest<T>): Promise<T> {

@@ -94,7 +94,7 @@ test("focus moves sensibly on view change, dialogs and errors", async () => {
   const pop = rd("popup.ts");
   // every confirm is the shared dialog (focus on Cancel, Esc cancels, focus restored; see dialog.test.ts)
   assert.match(peers, /confirmDialog\("Remove device\?"/);
-  assert.match(pop, /confirmDialog\("Delete all history\?"/);
+  assert.doesNotMatch(pop, /Delete all history/);
   assert.match(pop, /confirmDialog\("Delete account\?"/);
   for (const f of ["popup.ts", "peersview.ts", "page.ts"]) assert.doesNotMatch(rd(f), /confirm-inline|class: "confirm"|class: "keep"/, f);
   assert.match(pop, /"aria-label": "Unread"/);
@@ -139,8 +139,8 @@ test("Log out acts at once: no confirm, one signout call, Delete account still o
   const popup = rd("ui/popup.ts");
   assert.doesNotMatch(popup, /logoutConfirm|confirmOut|closeConfirm/);
   assert.doesNotMatch(rd("ui/style.css"), /confirm-out/);
-  assert.ok(popup.includes('const logOut = h("button", {\n    onclick: async () => {\n      try {\n        await rpc(env, "signout");'));
-  assert.ok(popup.includes('group(acctRow, h("div", { class: "srow acct-acts" }, btns))'));
+  assert.ok(popup.includes('const logOut = h("button", {\n    onclick: async () => {\n      outBar.start(STEP.loggingOut);\n      try {\n        await rpc(env, "signout");'));
+  assert.ok(popup.includes('group(acctRow, h("div", { class: "srow acct-acts" }, btns)), outBar.el'));
   assert.ok(popup.includes('env.openPage("#login=delete-account")'));
   assert.equal(popup.split('rpc(env, "signout")').length, 2, "only one signout call");
 });
@@ -321,10 +321,12 @@ test("copy: device limit rows read as sentences; desktop says Click; status line
   assert.equal(T.notificationsOff, "Notifications are off. New messages appear only in History");
 });
 
-test("full tab Send: the cut offer shows only while the text is over 2000 bytes", async () => {
+test("Send: no cut offer; a text over 2000 bytes only greys out Send", async () => {
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
-  assert.match(pop, /cut\.hidden = !offerCut \|\| d\.bytes <= CAP;/);
+  assert.doesNotMatch(pop, /Send the first|offerCut|class: "cut"/);
+  assert.match(pop, /sendBtn\.disabled = sendDisabled\(d\.bytes, CAP, count\(\)\);/);
+  assert.doesNotMatch(readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8"), /\.cut \{/);
 });
 
 test("History filter is a native select that shows only with more than All", async () => {
@@ -380,7 +382,6 @@ test("Send with every device greyed says, on two lines, that no device can recei
   const { readFileSync } = await import("node:fs");
   assert.match(readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8"), /!sendable\.length && chips\.childElementCount \? h\("p", \{ class: "dim nosend" \}, "Unable to send\.\\nNo device can receive messages right now\."\)/);
   assert.match(readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8"), /\.nosend \{ margin: 8px 16px 0; white-space: pre-line; \}/);
-  assert.match(readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8"), /\}, "Send the first 2000 characters"\)\),/);
 });
 
 test("popup update and log in screens start with focus on their button", async () => {

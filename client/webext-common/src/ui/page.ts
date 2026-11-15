@@ -3,9 +3,10 @@
 import type { LoginResult, Purpose } from "../core/login.ts";
 import type { StateView } from "../core/rpc.ts";
 import { R, T, actionLine } from "../core/texts.ts";
-import { type UiEnv, add, clear, failView, group, h, platformLabel, rpc } from "./dom.ts";
+import { type UiEnv, add, busyBar, clear, failView, group, h, platformLabel, rpc } from "./dom.ts";
 import { AUTH_CHANGED, AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResult, type Restore, autoVerifyCode, formatWait, resendLeftMs, sendLeftMs } from "../model/signin.ts";
 import { toast } from "./dialog.ts";
+import { STEP } from "../model/busy.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { startTheme } from "./theme.ts";
 import { keysCard, mountPopup, type PageStart, signinCard, updateCard, wordmark } from "./popup.ts";
@@ -196,6 +197,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     draftTimer = setTimeout(() => void rpc(env, "signinDraft", { email: email.value, purpose }).catch(() => undefined), 300) as unknown as number;
   });
   const sendBtn = h("button", { type: "submit", class: "primary big" }, "Email me a code") as HTMLButtonElement;
+  const sendBar = busyBar(env);
   let sentAt = 0;
   let sentTo = "";
   let tick = 0;
@@ -245,6 +247,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     sending = true;
     sendBtn.disabled = true;
     sendBtn.textContent = "Sending...";
+    sendBar.start(STEP.sendingCode);
     try {
       await rpc(env, "emailStart", { email: v, turnstile: token, purpose });
       tokenUsed = true;
@@ -254,6 +257,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       setHelp(sendHelp, (e as Error).message, true);
       freshFrame();
     } finally {
+      sendBar.stop();
       sending = false;
       refreshSend();
     }
@@ -265,8 +269,11 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     frame = f;
     token = "";
   };
+  // shows the steps after Google or Apple returns (Chrome), when this device is set up
+  const oauthBar = busyBar(env);
   const oauth = (provider: string) => async () => {
     resetNotes();
+    oauthBar.start();
     try {
       const r = await rpc<LoginResult>(env, "oauth", { provider, purpose });
       // Firefox: this tab goes to Google or Apple and comes back with the result
@@ -274,6 +281,8 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       else await done(r);
     } catch (e) {
       toast((e as Error).message, "err");
+    } finally {
+      oauthBar.stop();
     }
   };
   const title = purpose === "delete-account" ? "Delete account" : "Log in";
@@ -291,6 +300,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       { class: "oauth" },
       h("button", { type: "button", class: "big google", onclick: oauth("google") }, googleLogo(), "Continue with Google"),
       h("button", { type: "button", class: "big apple", onclick: oauth("apple") }, appleLogo(), "Continue with Apple"),
+      oauthBar.el,
     ),
     h("div", { class: "or" }, "or"),
     h(
@@ -308,6 +318,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       frame,
       frameHelp,
       sendBtn,
+      sendBar.el,
       sendHelp,
     ),
   );
@@ -320,6 +331,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   const chip = h("span", { class: "who" });
   const s2notes = h("div", { class: "notes" });
   const signBtn = h("button", { type: "submit", class: "primary big" }, "Log in") as HTMLButtonElement;
+  const signBar = busyBar(env);
   const resend = h("button", { type: "button", class: "text" }, "Get a new code") as HTMLButtonElement;
   let busy = false;
   let lastTried = ""; // the last code sent to the relay server; an edit back to it is not sent again
@@ -335,6 +347,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     busy = true;
     lastTried = code.value.replace(/[\s-]/g, "");
     signBtn.disabled = true;
+    signBar.start(STEP.checkingCode);
     try {
       await done(await rpc<LoginResult>(env, "emailVerify", { code: code.value }));
     } catch (e) {
@@ -347,6 +360,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
         setHelp(codeHelp, msg, true, code);
       }
     } finally {
+      signBar.stop();
       busy = false;
       signBtn.disabled = false;
     }
@@ -388,6 +402,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       codeField,
       codeHelp,
       signBtn,
+      signBar.el,
     ),
     h(
       "div",
@@ -531,8 +546,10 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
       ),
     );
   }
+  const evictBar = busyBar(env);
   root.append(
     list,
+    evictBar.el,
     h(
       "div",
       { class: "btns" },
@@ -544,6 +561,9 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
           if (btn.disabled) return;
           btn.disabled = true; // the ticket is single use; a second request would fail
           const evict = boxes.filter((b) => b.box.checked).map((b) => b.id);
+          const names = peers.filter((p) => evict.includes(p.id)).map((p) => platformLabel(p.platform));
+          if (names.length) evictBar.start(STEP.removing(names));
+          else evictBar.start(STEP.setUp);
           try {
             const r = await rpc<LoginResult>(env, "evict", { ticket, evict });
             if (r.done) {
@@ -557,6 +577,7 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
             toast((e as Error).message, "err");
             if (endsFlow(e)) env.openPage("#login");
           } finally {
+            evictBar.stop();
             btn.disabled = false;
           }
         },

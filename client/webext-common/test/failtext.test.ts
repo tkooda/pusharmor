@@ -82,7 +82,7 @@ test("every action line, with the device name in straight double quotes", () => 
     ["login", "Unable to log in."],
     ["loginGoogle", "Unable to log in with Google."],
     ["loginApple", "Unable to log in with Apple."],
-    ["deleteHistory", "Unable to delete the history."],
+    ["deleteHistory", "Unable to delete the messages."],
     ["changeSetting", "Unable to change this setting."],
   ];
   for (const [a, line] of lines) assert.equal(failText(a, e, { name: "Lap top" }), line + "\nTry again.");
@@ -232,11 +232,11 @@ test("each device list action shows its own action line", async () => {
   await stub("logoutLocal", "signout", {}, "Unable to log out.");
   const db = a.db as unknown as Record<string, unknown>;
   await a.db.addHistory({ dir: "in", peer: null, type: "text", content: "x", n: null, pairing_id: null, received: 1, read: true });
-  for (const [name, op, args] of [["del", "historyDelete", { ids: [1] }], ["del", "historyDeleteAll", {}]] as const) {
+  for (const [name, op, args] of [["del", "historyDelete", { ids: [1] }]] as const) {
     const real = db[name];
     db[name] = full;
     try {
-      assert.equal(await fails(rpc, op, args), "Unable to delete the history.\n" + FULL, op);
+      assert.equal(await fails(rpc, op, args), "Unable to delete the messages.\n" + FULL, op);
     } finally {
       db[name] = real;
     }
