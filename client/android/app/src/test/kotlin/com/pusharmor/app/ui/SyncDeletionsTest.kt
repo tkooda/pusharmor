@@ -192,4 +192,9 @@ class SyncDeletionsTest {
         assertNull(PendingDeletes.join(emptySet()))
         assertEquals(emptySet<String>(), PendingDeletes.ids(null))
     }
+
+    @Test fun deleteSelectedBodyFollowsSyncSetting() {
+        assertEquals("This deletes the selected messages off this and other paired devices.", UiText.deleteSelectedBody(true))
+        assertEquals("This deletes the selected messages off this device.", UiText.deleteSelectedBody(false))
+    }
 }

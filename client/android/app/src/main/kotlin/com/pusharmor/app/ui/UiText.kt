@@ -225,6 +225,13 @@ object UiText {
     fun directSending(type: ContentType, name: String): String =
         "Sending ${when (type) { ContentType.URL -> "URL"; ContentType.TEL -> "phone number"; ContentType.TEXT -> "text" }} to \"${cutName(name)}\"..."
 
+    /** Body of the History multi-select delete confirmation; [sync] is the Sync deletions setting. */
+    fun deleteSelectedBody(sync: Boolean): String =
+        if (sync) "This deletes the selected messages off this and other paired devices." else "This deletes the selected messages off this device."
+
+    fun directSending(type: ContentType, names: List<String>): String =
+        "Sending ${when (type) { ContentType.URL -> "URL"; ContentType.TEL -> "phone number"; ContentType.TEXT -> "text" }} to ${quotedList(names.map(::cutName))}..."
+
     fun directShareSent(name: String): String = "Sent to \"${cutName(name)}\""
 
     /** The two lines for the one picked device that did not get a send; null when it did. An unknown or missing word reads as not ready yet. */
@@ -276,6 +283,9 @@ object UiText {
     fun removing(names: List<String>): String = "Removing " + quotedList(names)
     fun encryptingFor(name: String): String = "Encrypting for \"${cutName(name)}\""
     fun sendingTo(name: String): String = "Sending to \"${cutName(name)}\""
+
+    fun encryptingFor(names: List<String>): String = "Encrypting for ${quotedList(names.map(::cutName))}"
+    fun sendingTo(names: List<String>): String = "Sending to ${quotedList(names.map(::cutName))}"
 
     private fun cutName(name: String) = if (name.length > SEND_NAME_MAX) name.take(SEND_NAME_MAX - 3).trimEnd() + "..." else name
 

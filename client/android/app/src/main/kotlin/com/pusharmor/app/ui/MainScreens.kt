@@ -1059,14 +1059,40 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                 }
             }
             val running by vm.running.collectAsState()
+            // Progress popup over the screen while a send is on its way: the caption and the device name, set at the tap.
+            var sendStep by remember { mutableIntStateOf(0) }
+            var sendRetry by remember { mutableIntStateOf(0) }
+            var sendCaption by remember { mutableStateOf("") }
+            var sendNames by remember { mutableStateOf(listOf<String>()) }
+            if ("send" in running) Dialog(onDismissRequest = {}, properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)) {
+                androidx.compose.material3.Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surface) {
+                    Column(Modifier.padding(24.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            com.pusharmor.app.ui.theme.BrandTile(40.dp)
+                            Text(sendCaption, Modifier.padding(start = 16.dp), style = MaterialTheme.typography.bodyLarge)
+                        }
+                        LinearProgressIndicator({ sendStep / 100f }, Modifier.fillMaxWidth().padding(top = 16.dp), color = com.pusharmor.app.ui.theme.BrandGreen)
+                        Text(when {
+                            sendRetry > 1 -> UiText.tryingAgain(sendRetry)
+                            sendStep < com.pusharmor.protocol.engine.SendFlow.Step.ENCRYPTED -> UiText.encryptingFor(sendNames)
+                            else -> UiText.sendingTo(sendNames)
+                        }, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
             GreenButton(onClick = {
                 // One send per tap: a second tap while the first is on its way does not send twice.
                 if (AppViewModel.claim(vm.running, "send")) {
                     scope.launch { vm.g.settings.saveSendTo(sendTo) }
+                    sendStep = 0
+                    sendRetry = 0
+                    sendNames = sendTo.mapNotNull { id -> peers.firstOrNull { it.id == id } }.map(::label)
+                    sendCaption = UiText.directSending(if (asText) ContentType.TEXT else com.pusharmor.protocol.Detect.type(text), sendNames)
                     scope.launch {
                         // A send that reached a device leaves this screen, so only a failure shows here.
                         try {
-                            val r = vm.send(sendTo, text, asText)
+                            vm.g.client.onRetry = { a -> sendRetry = a }
+                            val r = try { vm.send(sendTo, text, asText) { st -> if (st > sendStep) sendStep = st } } finally { vm.g.client.onRetry = null }
                             if (r.ok) asText = false else result = ((result?.first ?: 0) + 1) to r.text
                             onSent(r)
                         }
@@ -1132,6 +1158,7 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
     // the ids checked in multi-select; empty means the mode is off. Leaving the screen ends it.
     var picked by rememberSaveable { mutableStateOf(listOf<Long>()) }
     var confirmDeleteSel by rememberSaveable { mutableStateOf(false) }
+    val historyPrefs by vm.prefs.collectAsState()
     androidx.activity.compose.BackHandler(enabled = picked.isNotEmpty()) { picked = emptyList() }
     DisposableEffect(Unit) { onDispose { picked = emptyList() } }
     fun nameOf(id: String) = peers.firstOrNull { it.id == id }?.let { (it.name ?: label(it)) + if (it.removed) " (removed)" else "" } ?: "(removed)"
@@ -1194,7 +1221,7 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
                     contentColor = MaterialTheme.colorScheme.onErrorContainer)) { Text(deleteSelectedLabel(picked.size)) }
         }
         if (confirmDeleteSel && picked.isNotEmpty()) AlertDialog(onDismissRequest = { confirmDeleteSel = false },
-            title = { Text(deleteSelectedTitle(picked.size)) }, text = { Text("This deletes the selected messages from this device.") },
+            title = { Text(deleteSelectedTitle(picked.size)) }, text = { Text(UiText.deleteSelectedBody(historyPrefs?.get(Settings.K.SYNC_DELETIONS) ?: true)) },
             confirmButton = { TextButton(onClick = { vm.deleteHistory(picked); picked = emptyList(); confirmDeleteSel = false }) { Text("Delete") } },
             dismissButton = { TextButton(onClick = { confirmDeleteSel = false }) { Text("Cancel") } })
         // A delete in several del calls: how far it is, and the step.
