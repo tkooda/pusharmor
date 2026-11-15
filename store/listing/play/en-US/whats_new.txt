@@ -1,1 +1,1 @@
-Deleting a message can now also delete it on your other devices (Sync deletions in Settings, on by default). Select all in History. Clearer progress while signing in, logging out, and deleting.
+Sending shows a progress window with the device names and each step. When you delete from History, the confirmation says whether the message goes off this device only or also off your other paired devices.
