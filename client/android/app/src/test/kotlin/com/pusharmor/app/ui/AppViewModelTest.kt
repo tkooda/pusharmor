@@ -11,6 +11,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -58,11 +59,11 @@ class AppViewModelTest {
     /** A tap that throws shows its action line and "Try again." on the next line. */
     @Test fun ioErrorSetsMessage() {
         val vm = vm()
-        val job = vm.io(UiText.UNABLE_DELETE_HISTORY) { throw IllegalStateException("boom") }
+        val job = vm.io(UiText.UNABLE_DELETE_MESSAGES) { throw IllegalStateException("boom") }
         waitFor { job.isCompleted }
         assertNull(uncaught)
         assertFalse(vm.busy.value)
-        assertEquals("Unable to delete the history.\nTry again.", vm.message.value)
+        assertEquals("Unable to delete the messages.\nTry again.", vm.message.value)
         // a full disk, another store error, and a Keystore fault each say why
         assertEquals("Storage is full. Free some space and try again.", AppViewModel.localReason(android.database.sqlite.SQLiteFullException("full")))
         assertEquals("PushArmor could not save its data on this device. Restart PushArmor and try again.",
@@ -117,6 +118,28 @@ class AppViewModelTest {
         assertEquals("Delete 3 selected", deleteSelectedLabel(3))
         assertEquals("Delete 1 message?", deleteSelectedTitle(1))
         assertEquals("Delete 2 messages?", deleteSelectedTitle(2))
+    }
+
+    /** Select all: empty with none picked, dash with some, check with all; a tap picks all, a tap on all clears. */
+    @Test fun selectAllIsTriState() {
+        val shown = setOf(1L, 2L, 3L)
+        assertEquals(androidx.compose.ui.state.ToggleableState.Off, selectAllState(emptyList(), shown))
+        assertEquals(androidx.compose.ui.state.ToggleableState.Indeterminate, selectAllState(listOf(2L), shown))
+        assertEquals(androidx.compose.ui.state.ToggleableState.On, selectAllState(listOf(3L, 1L, 2L), shown))
+        assertEquals(shown, selectAllToggle(emptyList(), shown).toSet())
+        assertEquals(shown, selectAllToggle(listOf(2L), shown).toSet())
+        assertEquals(emptyList<Long>(), selectAllToggle(listOf(1L, 2L, 3L), shown))
+    }
+
+    /** There is no delete-all anywhere: Settings has no row for it and the view model no call. */
+    @Test fun noDeleteAll() {
+        val main = java.io.File("src/main/kotlin/com/pusharmor/app/ui/MainScreens.kt").readText()
+        val vm = java.io.File("src/main/kotlin/com/pusharmor/app/ui/AppViewModel.kt").readText()
+        val text = java.io.File("src/main/kotlin/com/pusharmor/app/ui/UiText.kt").readText()
+        assertFalse(main.contains("Delete all history") || main.contains("deleteAllHistory"))
+        assertFalse(vm.contains("deleteAllHistory"))
+        assertFalse(text.contains("Unable to delete the history."))
+        assertTrue(main.contains("TriStateCheckbox(selectAllState(picked, shownIds)"))
     }
 
     /** Robolectric has no AndroidKeyStore, so key generation fails as a broken Keystore would. */

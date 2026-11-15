@@ -387,6 +387,7 @@ class UiTextTest {
         assertEquals(null, UiText.syncDeleteMissed(emptyList()))
         assertEquals("Unable to delete on \"Phone\"\nThat device is logged out. Log in on that device to receive messages.", UiText.syncDeleteMissed(listOf("Phone" to "logged out")))
         assertEquals("Unable to delete on \"Phone\"\nIts push service did not accept the message. Try again later.", UiText.syncDeleteMissed(listOf("Phone" to "failed:fcm-500")))
-        assertEquals("Unable to delete on 2 devices", UiText.syncDeleteMissed(listOf("Phone" to "gone", "Tab" to "logged out")))
+        assertEquals("Unable to delete on \"Phone\" and \"Tab\"", UiText.syncDeleteMissed(listOf("Phone" to "gone", "Tab" to "logged out")))
+        assertEquals("Unable to delete on \"A\", \"B\", and \"C\"", UiText.syncDeleteMissed(listOf("A" to "gone", "B" to "gone", "C" to "gone")))
     }
 }

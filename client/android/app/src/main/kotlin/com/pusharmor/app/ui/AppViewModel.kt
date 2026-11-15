@@ -429,27 +429,60 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         com.pusharmor.app.ui.theme.ThemePref.applyToSystem(getApplication(), t)
     }
 
-    fun deleteAllHistory() = io(UiText.UNABLE_DELETE_HISTORY) {
-        if (!syncDelete(g.dao.allHistory())) g.dao.deleteAllHistory()
-    }
-    fun deleteHistory(ids: List<Long>) = io(UiText.UNABLE_DELETE_HISTORY) {
-        if (!syncDelete(g.dao.historyRows(ids))) g.dao.deleteHistory(ids)
+    fun deleteHistory(ids: List<Long>) = io(UiText.UNABLE_DELETE_MESSAGES) {
+        if (!syncDelete(g.dao.historyRows(ids))) ids.chunked(500).forEach { g.dao.deleteHistory(it) }
     }
 
+    /** The delete progress bar of a delete in several del calls: its part done and caption; null when none shows. */
+    class DeleteBar(val done: Float, val caption: String)
+    val deleteBar = MutableStateFlow<DeleteBar?>(null)
+
     /**
-     * Sync deletions on: tells the other devices first and deletes each row here once the relay server took
-     * its del (rows with no id at the end); the rows of a failed call stay. One notice says what still failed.
-     * False when nothing was sent: the caller deletes as before.
+     * Sync deletions on: tells the other devices first. A row goes here only when every device it was sent to
+     * that is still a target took it; else it keeps the devices asked and those that took it, and a repeat delete
+     * asks only the rest. Rows with no id go at once. One notice says what failed. False when nothing needs sending
+     * (setting off, no other devices): the caller deletes as before.
      */
     private fun syncDelete(rows: List<HistoryEntity>): Boolean {
         val sync = g.settings.get(Settings.K.SYNC_DELETIONS) ?: true
-        val byMsgId = rows.groupBy({ it.msgId }, { it.id })
-        fun drop(ids: List<Long>) = ids.chunked(500).forEach { g.dao.deleteHistory(it) }
-        val r = g.deleteSync()?.send(rows.map { it.toRow() }, sync) { acc -> drop(acc.flatMap { byMsgId[it].orEmpty() }) } ?: return false
-        drop(byMsgId[null].orEmpty())
-        val notice = r.failed?.let { ErrorText.of(UiText.UNABLE_DELETE_SYNC, it) } ?: UiText.syncDeleteMissed(r.missed.map { (id, w) -> nameOf(id) to w })
+        if (!sync) return false
+        val ds = g.deleteSync() ?: return false
+        val targets = ds.targets().map { it.id }.toSet()
+        if (targets.isEmpty()) return false
+        val asked = rows.associate { it.id to (if (it.delReq == null) targets else PendingDeletes.ids(it.delReq)) }
+        val want = HashMap<String, MutableSet<String>>()
+        for (h in rows) if (h.msgId != null) want.getOrPut(h.msgId!!) { HashSet() } += PendingDeletes.remaining(asked.getValue(h.id), PendingDeletes.ids(h.delOk), targets)
+        var shown = false
+        g.client.onRetry = { a -> deleteBar.value?.let { deleteBar.value = DeleteBar(it.done, UiText.tryingAgain(a)) } }
+        val r = try {
+            ds.sendTo(want, progress = { done, total, attempt ->
+                if (total > 1) shown = true
+                if (shown) deleteBar.value = DeleteBar(done.toFloat() / total, if (attempt > 1) UiText.tryingAgain(attempt) else UiText.deletingOnOthers(done, total))
+            })
+        } finally { g.client.onRetry = null }
+        try {
+            if (shown) deleteBar.value = DeleteBar(1f, UiText.DELETING_HERE)
+            // a device the relay server says is logged out or gone leaves the targets here too
+            r?.let { g.sender().handleResults(it.missed) }
+            val now = ds.targets().map { it.id }.toSet()
+            val drop = ArrayList<Long>()
+            for (h in rows) {
+                val ok = PendingDeletes.ids(h.delOk) + (h.msgId?.let { r?.accepted?.get(it) } ?: emptySet())
+                if (h.msgId == null || PendingDeletes.remaining(asked.getValue(h.id), ok, now).isEmpty()) drop += h.id
+                else g.dao.setDeletePending(h.id, PendingDeletes.join(asked.getValue(h.id)), PendingDeletes.join(ok))
+            }
+            drop.chunked(500).forEach { g.dao.deleteHistory(it) }
+        } finally { deleteBar.value = null }
+        val notice = r?.failed?.let { ErrorText.of(UiText.UNABLE_DELETE_SYNC, it) } ?: r?.let { UiText.syncDeleteMissed(it.missed.map { (id, w) -> nameOf(id) to w }) }
         if (notice != null) message.value = notice
         return true
+    }
+
+    /** Rows whose pending delete has no device left (removed or logged out since) go here. */
+    fun settlePendingDeletes() = io(null) {
+        val targets = g.store.peers().filter(com.pusharmor.protocol.engine.DeleteSync::isTarget).map { it.id }.toSet()
+        val done = g.dao.pendingDeletes().filter { PendingDeletes.remaining(PendingDeletes.ids(it.delReq), PendingDeletes.ids(it.delOk), targets).isEmpty() }
+        done.map { it.id }.chunked(500).forEach { g.dao.deleteHistory(it) }
     }
     fun markRead(id: Long) = io(null) { g.dao.markRead(id) }
     fun rename(name: String) = io(UiText.UNABLE_RENAME) { g.session.rename(name)?.let { message.value = it } }

@@ -22,6 +22,7 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -85,8 +86,11 @@ class SyncDeletionsTest {
         run(vm) { vm.deleteHistory(ids) }
         assertEquals(1, count()) // the row with no id is deleted here only
         assertEquals("Unable to delete on your other devices.\nThe relay server is not working right now. Try again later.", vm.message.value)
+        val kept = io { g.dao.history(ids[0])!! }
+        assertEquals(peerId, kept.delReq)
+        assertNull(kept.delOk)
         vm.message.value = null
-        run(vm) { vm.deleteAllHistory() }
+        run(vm) { vm.deleteHistory(ids) }
         assertEquals(1, count())
         assertEquals("Unable to delete on your other devices.\nThe relay server is not working right now. Try again later.", vm.message.value)
     }
@@ -98,7 +102,7 @@ class SyncDeletionsTest {
         run(vm) { vm.deleteHistory(ids.take(1)) }
         assertEquals(1, sends.get())
         assertEquals(1, count())
-        run(vm) { vm.deleteAllHistory() }
+        run(vm) { vm.deleteHistory(ids.drop(1)) }
         assertEquals(2, sends.get())
         assertEquals(0, count())
         assertNull(vm.message.value)
@@ -132,5 +136,60 @@ class SyncDeletionsTest {
         assertEquals(chunks[1].size, count())
         assertEquals(chunks.size + 2, sends.get())
         assertEquals("Unable to delete on your other devices.\nThe relay server is not working right now. Try again later.", vm.message.value)
+    }
+
+    private val peer2Id = "D".repeat(40)
+
+    /** Adds a second target; each /v1/send answers every device it names with the word [words] holds for it ("sent" if none). */
+    private fun twoDevices(words: Map<String, String>) {
+        val k = SoftwareKeyOps.generate()
+        io { g.store.putPeer(Peer(id = peer2Id, platform = "android", signPub = B64url.encode(k.signPub), encPub = B64url.encode(k.encPub),
+            pairingId = ByteArray(8), approved = true, approveVerified = true)) }
+        app.fakeHttp = Interceptor { chain ->
+            val body = chain.request().body?.let { b -> okio.Buffer().also { b.writeTo(it) }.readUtf8() }.orEmpty()
+            if (chain.request().url.encodedPath == "/v1/send") { sends.incrementAndGet(); asked.add(listOf(peerId, peer2Id).filter { body.contains(it) }) }
+            val r = listOf(peerId, peer2Id).filter { body.contains(it) }.joinToString(",") { "\"$it\":\"${words[it] ?: "sent"}\"" }
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("x")
+                .body("{\"r\":{$r}}".toResponseBody("application/json".toMediaType())).build()
+        }
+    }
+    private val asked = java.util.Collections.synchronizedList(ArrayList<List<String>>())
+
+    /** One device took the del, one did not: the row stays, struck through, and a repeat asks only the device left. */
+    @Test fun aRowStaysUntilEveryDeviceTookItAndARepeatAsksOnlyTheRest() {
+        val vm = AppViewModel(app)
+        twoDevices(mapOf(peer2Id to "failed:fcm-500"))
+        val id = row("aaaa")
+        run(vm) { vm.deleteHistory(listOf(id)) }
+        val kept = io { g.dao.history(id)!! }
+        assertEquals(setOf(peerId, peer2Id), PendingDeletes.ids(kept.delReq))
+        assertEquals(setOf(peerId), PendingDeletes.ids(kept.delOk))
+        assertEquals(listOf(listOf(peerId, peer2Id), listOf(peer2Id), listOf(peer2Id)), asked.toList()) // the first send and its two retries
+        assertTrue(vm.message.value!!.startsWith("Unable to delete on "))
+        asked.clear()
+        twoDevices(emptyMap())
+        run(vm) { vm.deleteHistory(listOf(id)) }
+        assertEquals(listOf(listOf(peer2Id)), asked.toList())
+        assertEquals(0, count())
+    }
+
+    /** A device removed since the delete leaves the pending set; with none left the row goes. */
+    @Test fun aRemovedDeviceDropsOutOfPending() {
+        val vm = AppViewModel(app)
+        twoDevices(mapOf(peer2Id to "failed:fcm-500"))
+        val id = row("aaaa")
+        run(vm) { vm.deleteHistory(listOf(id)) }
+        assertEquals(1, count())
+        io { g.store.putPeer(g.store.peer(peer2Id)!!.copy(removed = true)) }
+        run(vm) { vm.settlePendingDeletes() }
+        assertEquals(0, count())
+    }
+
+    @Test fun notDeletedSubtextAndMissedList() {
+        assertEquals("Not deleted on \"Phone\"", UiText.notDeletedOn(listOf("Phone")))
+        assertEquals("Not deleted on 2 devices", UiText.notDeletedOn(listOf("Phone", "Tab")))
+        assertEquals(setOf("b"), PendingDeletes.remaining(setOf("a", "b", "c"), setOf("a"), setOf("a", "b")))
+        assertNull(PendingDeletes.join(emptySet()))
+        assertEquals(emptySet<String>(), PendingDeletes.ids(null))
     }
 }

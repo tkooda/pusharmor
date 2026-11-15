@@ -66,6 +66,8 @@ class WorkerClient(
 ) : Api {
     /** Set while a screen shows send progress: gets 50 (connected), 75 (request sent), 100 (reply in) as each call proceeds. */
     @Volatile var onProgress: ((Int) -> Unit)? = null
+    /** Set while a screen shows retry progress: gets the number of the next try (2 or 3) before the wait for it. */
+    @Volatile var onRetry: ((Int) -> Unit)? = null
 
     companion object {
         const val BUDGET_MS = 8_000L
@@ -150,6 +152,7 @@ class WorkerClient(
             if (once || !retry) return reply
             if (reply == null || reply.status in 500..599) {
                 if (faults >= FAULT_RETRY_MS.size) return reply
+                onRetry?.invoke(faults + 2)
                 sleep(FAULT_RETRY_MS[faults++])
                 continue
             }

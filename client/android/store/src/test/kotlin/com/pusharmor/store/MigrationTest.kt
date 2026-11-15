@@ -41,4 +41,15 @@ class MigrationTest {
         val db = helper.runMigrationsAndValidate("m9.db", 9, true, PaDatabase.MIGRATION_8_9)
         db.query("SELECT content, msg_id FROM history").use { c -> c.moveToFirst(); assertEquals("hi", c.getString(0)); assertTrue(c.isNull(1)) }
     }
+
+    @Test fun migrate9To10KeepsHistoryWithNoPendingDelete() {
+        helper.createDatabase("m10.db", 9).apply {
+            execSQL("INSERT INTO history (direction, peer_id, type, content, received_at, read, results, count, msg_id) VALUES ('SENT', null, 'text', 'hi', 5, 1, '{}', 1, 'abc')")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate("m10.db", 10, true, PaDatabase.MIGRATION_9_10)
+        db.query("SELECT content, msg_id, del_req, del_ok FROM history").use { c ->
+            c.moveToFirst(); assertEquals("hi", c.getString(0)); assertEquals("abc", c.getString(1)); assertTrue(c.isNull(2)); assertTrue(c.isNull(3))
+        }
+    }
 }

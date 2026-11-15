@@ -65,6 +65,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -1130,6 +1131,12 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
     DisposableEffect(Unit) { onDispose { picked = emptyList() } }
     fun nameOf(id: String) = peers.firstOrNull { it.id == id }?.let { (it.name ?: label(it)) + if (it.removed) " (removed)" else "" } ?: "(removed)"
     val view = remember(rows, peers, chip, dirs) { historyView(rows, chip, dirs, ::nameOf) }
+    // A delete still pending on other devices: the devices left; a row with none left (removed, logged out) goes.
+    val targets = remember(peers) { peers.filter(com.pusharmor.protocol.engine.DeleteSync::isTarget).map { it.id }.toSet() }
+    fun notDeleted(h: com.pusharmor.store.HistoryEntity): Set<String> =
+        if (h.delReq == null) emptySet() else PendingDeletes.remaining(PendingDeletes.ids(h.delReq), PendingDeletes.ids(h.delOk), targets)
+    LaunchedEffect(rows, targets) { if (rows.any { it.delReq != null && notDeleted(it).isEmpty() }) vm.settlePendingDeletes() }
+    val bar by vm.deleteBar.collectAsState()
     val eff = view.eff
     val ex = LocalPaExtra.current
     val now = System.currentTimeMillis()
@@ -1172,8 +1179,12 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
         // Rows that were deleted or filtered away leave the selection; none left ends the mode.
         val shownIds = view.shownIds
         if (picked.any { it !in shownIds }) picked = picked.filter { it in shownIds }
-        if (picked.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.End) {
-            FilledTonalButton(onClick = { confirmDeleteSel = true }, Modifier.heightIn(min = 48.dp),
+        // Select all, in the rows' checkbox column: empty (none), dash (some), check (all); a tap selects all, a tap on all clears.
+        if (shownIds.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.TriStateCheckbox(selectAllState(picked, shownIds), { picked = selectAllToggle(picked, shownIds) },
+                Modifier.semantics { contentDescription = "Select all" })
+            Spacer(Modifier.weight(1f))
+            if (picked.isNotEmpty()) FilledTonalButton(onClick = { confirmDeleteSel = true }, Modifier.heightIn(min = 48.dp),
                 colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.errorContainer,
                     contentColor = MaterialTheme.colorScheme.onErrorContainer)) { Text(deleteSelectedLabel(picked.size)) }
         }
@@ -1181,6 +1192,13 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
             title = { Text(deleteSelectedTitle(picked.size)) }, text = { Text("This deletes the selected messages from this device.") },
             confirmButton = { TextButton(onClick = { vm.deleteHistory(picked); picked = emptyList(); confirmDeleteSel = false }) { Text("Delete") } },
             dismissButton = { TextButton(onClick = { confirmDeleteSel = false }) { Text("Cancel") } })
+        // A delete in several del calls: how far it is, and the step.
+        bar?.let { b ->
+            Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp)) {
+                LinearProgressIndicator({ b.done }, Modifier.fillMaxWidth(), color = com.pusharmor.app.ui.theme.BrandGreen)
+                Text(b.caption, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         val days = view.days
         // A row just sent from the Send tab: scrolled to and flashed once; a filter that hides it is cleared.
         LaunchedEffect(flashId, shown) {
@@ -1203,7 +1221,9 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
                 }
                 itemsIndexed(group, key = { _, h -> h.id }) { i, h ->
                     val fill = if (open == h.id) ex.expandedRow else ex.tile
+                    val left = notDeleted(h)
                     HistoryRow(vm, h, open == h.id, picked.isNotEmpty(), h.id in picked, { picked = toggleSelected(picked, h.id) }, ::nameOf,
+                        if (left.isEmpty()) null else UiText.notDeletedOn(left.map(::nameOf)),
                         Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, group.size,
                             if (glowId == h.id) lerp(fill, MaterialTheme.colorScheme.secondaryContainer, glow.value) else fill)) { open = toggleOpenRow(open, h.id) }
                 }
@@ -1240,6 +1260,16 @@ internal fun toggleOpenRow(open: Long?, id: Long): Long? = if (open == id) null 
 
 /** Multi-select: a long-press or tap toggles [id]; the mode is on while the list is not empty. */
 internal fun toggleSelected(picked: List<Long>, id: Long): List<Long> = if (id in picked) picked - id else picked + id
+
+/** The select-all box: off with none picked, on with every shown row picked, else the dash. */
+internal fun selectAllState(picked: List<Long>, shown: Set<Long>): androidx.compose.ui.state.ToggleableState = when {
+    picked.isEmpty() -> androidx.compose.ui.state.ToggleableState.Off
+    shown.all { it in picked } -> androidx.compose.ui.state.ToggleableState.On
+    else -> androidx.compose.ui.state.ToggleableState.Indeterminate
+}
+
+/** A tap on select all: every shown row, or none when all were picked. */
+internal fun selectAllToggle(picked: List<Long>, shown: Set<Long>): List<Long> = if (shown.all { it in picked }) emptyList() else shown.toList()
 
 /** "Delete 1 selected", "Delete 3 selected". */
 internal fun deleteSelectedLabel(n: Int): String = "Delete $n selected"
@@ -1295,7 +1325,7 @@ internal fun withoutStatus(rows: List<com.pusharmor.store.HistoryEntity>) = rows
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
 private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, expanded: Boolean, selecting: Boolean, checked: Boolean,
-                       onSelect: () -> Unit, nameOf: (String) -> String,
+                       onSelect: () -> Unit, nameOf: (String) -> String, notDeleted: String?,
                        modifier: Modifier, onOpen: () -> Unit) {
     val context = LocalContext.current
     val cs = MaterialTheme.colorScheme
@@ -1347,7 +1377,9 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(time, Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
                     }
-                    val style = MaterialTheme.typography.bodyLarge.copy(fontWeight = weight)
+                    // A delete still pending on other devices: the text struck through, and where it is left.
+                    val style = MaterialTheme.typography.bodyLarge.copy(fontWeight = weight,
+                        textDecoration = if (notDeleted != null) androidx.compose.ui.text.style.TextDecoration.LineThrough else null)
                     val hc = h.content
                     when {
                         expanded && hc != null && messageKind(h.type, hc) == MessageKind.TEXT -> TextBox(hc, style)
@@ -1356,6 +1388,7 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
                         h.type == "tel" -> Text(body, style = style, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         else -> Text(body, style = style, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
+                    if (notDeleted != null) Text(notDeleted, style = MaterialTheme.typography.bodySmall, color = cs.error)
                 }
             }
         }
@@ -1491,7 +1524,6 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     val prefs by vm.prefs.collectAsState()
     val context = LocalContext.current
     val me by vm.self.collectAsState()
-    var confirmHistory by rememberSaveable { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     val running by vm.running.collectAsState()
     var pickDays by rememberSaveable { mutableStateOf(false) }
@@ -1568,7 +1600,6 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                 { m -> SettingRow("Delete messages older than", modifier = m, value = UiText.days(days)) { pickDays = true } },
                 { m -> SwitchRow("Sync deletions", b(Settings.K.SYNC_DELETIONS, true), sub = "Deleting on this device will also delete on your other devices.",
                     modifier = m.then(pad)) { vm.setPref(Settings.K.SYNC_DELETIONS, it) } },
-                { m -> SettingRow("Delete all history", modifier = m, color = cs.error) { confirmHistory = true } },
             ))
             SectionHeader("Account")
             me?.email?.let { email ->
@@ -1611,9 +1642,6 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
         extra = { TextButton(onClick = { getApp = true }) { Text(UiText.GET_PUSH_APP) } },
         onDismiss = { pickPush = false }) { if (pushPickRuns(it, pushNow, prefs?.get(Settings.K.PUSH_TOKEN))) vm.choosePush(it) }
     if (getApp) GetPushAppDialog(vm) { getApp = false }
-    if (confirmHistory) AlertDialog(onDismissRequest = { confirmHistory = false }, text = { Text("Delete all history?") },
-        confirmButton = { TextButton(onClick = { vm.deleteAllHistory(); confirmHistory = false }) { Text("Delete") } },
-        dismissButton = { TextButton(onClick = { confirmHistory = false }) { Text("Cancel") } })
     if (confirmDelete) DeleteAccountDialog(onConfirm = { confirmDelete = false; onDeleteAccount() }) { confirmDelete = false }
 }
 

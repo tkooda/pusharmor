@@ -55,7 +55,7 @@ object UiText {
     const val UNABLE_LOGIN_GOOGLE = "Unable to log in with Google."
     const val UNABLE_START_LOGIN = "Unable to start the login."
     const val UNABLE_DELETE_ACCOUNT = "Unable to delete the account."
-    const val UNABLE_DELETE_HISTORY = "Unable to delete the history."
+    const val UNABLE_DELETE_MESSAGES = "Unable to delete the messages."
     const val UNABLE_DELETE_SYNC = "Unable to delete on your other devices."
 
     /** Line 2 for a login ticket of another account [to]; this device switched to that account and the next login uses it. */
@@ -188,7 +188,7 @@ object UiText {
     fun counter(bytes: Int): String =
         if (bytes > SizeCap.MAX_CONTENT_BYTES) "Too long ($bytes / 2000)" else "($bytes / 2000)"
 
-    /** Share sheet over the cap, then Close (and for text, Send the first 2000 characters). The cap still counts UTF-8 bytes. */
+    /** A Direct Share send over the cap. The cap still counts UTF-8 bytes. */
     const val SHARE_TOO_LONG = UNABLE_SEND + "\n" + com.pusharmor.net.ErrorText.TOO_LONG
 
     /** Remembered recipient ids ("a,b,c") that can still receive; empty when none, so the default stays. */
@@ -243,12 +243,26 @@ object UiText {
         }
     }
 
-    /** Sync deletions the relay server took but some devices did not get: one is named (and why), several are counted; null when all got it. */
+    /** Sync deletions the relay server took but some devices did not get: one is named (and why), several are listed; null when all got it. */
     fun syncDeleteMissed(missed: List<Pair<String, String>>): String? = when (missed.size) {
         0 -> null
         1 -> missed[0].let { (x, w) -> "Unable to delete on \"$x\"" + (sendResultText(w, x)?.substringAfter('\n', "")?.takeIf { it.isNotEmpty() }?.let { "\n$it" } ?: "") }
-        else -> "Unable to delete on ${missed.size} devices"
+        else -> "Unable to delete on " + quotedList(missed.map { it.first })
     }
+
+    /** "\"A\" and \"B\""; "\"A\", \"B\", and \"C\"". */
+    fun quotedList(names: List<String>): String {
+        val q = names.map { "\"$it\"" }
+        return if (q.size <= 2) q.joinToString(" and ") else q.dropLast(1).joinToString(", ") + ", and " + q.last()
+    }
+
+    /** Subtext of a History row whose delete is still pending on [names]. */
+    fun notDeletedOn(names: List<String>): String = if (names.size == 1) "Not deleted on \"${names[0]}\"" else "Not deleted on ${names.size} devices"
+
+    /** Delete progress captions: del calls finished of all, a retry, then the local delete. */
+    fun deletingOnOthers(done: Int, total: Int): String = "Deleting on your other devices ($done of $total)"
+    fun tryingAgain(attempt: Int): String = "Trying again (attempt $attempt of 3)"
+    const val DELETING_HERE = "Deleting on this device"
 
     private fun cutName(name: String) = if (name.length > SEND_NAME_MAX) name.take(SEND_NAME_MAX - 3).trimEnd() + "..." else name
 
