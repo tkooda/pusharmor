@@ -68,9 +68,6 @@ final class RulesTests: XCTestCase {
         XCTAssertEqual(SizeCap.label(String(repeating: "a", count: 2001)), "Too long (2001 / 2000)")
         XCTAssertFalse(SizeCap.isWarning(String(repeating: "a", count: 1799)))
         XCTAssertTrue(SizeCap.isWarning(String(repeating: "a", count: 1800)))
-        let s = String(repeating: "a", count: 1999) + "\u{e9}"   // 2001 bytes, cut before the 2-byte char
-        XCTAssertEqual(SizeCap.truncated(s).utf8.count, 1999)
-        XCTAssertEqual(SizeCap.truncated("abc"), "abc")
     }
 
     func testCountdown() {

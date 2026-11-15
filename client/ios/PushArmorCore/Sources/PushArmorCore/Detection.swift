@@ -405,17 +405,4 @@ public enum SizeCap {
         let n = count(s)
         return n > bytes ? "Too long (\(n) / \(bytes))" : "(\(n) / \(bytes))"
     }
-
-    /// The first 2000 bytes, cut on a UTF-8 boundary.
-    public static func truncated(_ s: String) -> String {
-        var out = ""
-        var n = 0
-        for ch in s.unicodeScalars {
-            let l = String(ch).utf8.count
-            if n + l > bytes { break }
-            out.unicodeScalars.append(ch)
-            n += l
-        }
-        return out
-    }
 }

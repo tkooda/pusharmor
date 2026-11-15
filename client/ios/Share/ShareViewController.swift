@@ -20,7 +20,7 @@ final class ShareViewController: UIViewController {
 
 @MainActor
 final class ShareModel: ObservableObject {
-    enum Step: Equatable { case loading, pick, offerTruncate, done(String), failed(String), update }
+    enum Step: Equatable { case loading, pick, tooLong, done(String), failed(String), update }
 
     @Published var step: Step = .loading
     @Published var text = ""
@@ -63,15 +63,10 @@ final class ShareModel: ObservableObject {
         text = shared.0
         type = shared.1
         if SizeCap.isOver(text) {
-            // URL and tel over cap are refused; text offers the first 2000 bytes
-            if type == .text { step = .offerTruncate } else { step = .failed(ErrorCopy.sendFailText(Core.SendError.tooLong)) }
+            // URL and tel over cap are refused; text shows the counter and a greyed Send
+            if type == .text { step = .tooLong } else { step = .failed(ErrorCopy.sendFailText(Core.SendError.tooLong)) }
             return
         }
-        await route()
-    }
-
-    func truncate() async {
-        text = SizeCap.truncated(text)
         await route()
     }
 
@@ -126,10 +121,11 @@ final class ShareModel: ObservableObject {
 struct ShareView: View {
     @ObservedObject var model: ShareModel
 
-    private var offerTruncate: some View {
+    private var tooLong: some View {
         VStack(spacing: 12) {
             Text(SizeCap.label(model.text))
-            Button(S.tooLongShare) { Task { await model.truncate() } }
+            Button("Send") {}
+                .disabled(true)
         }
     }
 
@@ -139,11 +135,11 @@ struct ShareView: View {
                 switch model.step {
                 case .loading:
                     ProgressView()
-                case .offerTruncate:
+                case .tooLong:
                     // Scrolls only when it does not fit (large text).
                     ViewThatFits(in: .vertical) {
-                        offerTruncate
-                        ScrollView { offerTruncate.padding() }
+                        tooLong
+                        ScrollView { tooLong.padding() }
                     }
                 case .pick:
                     List {

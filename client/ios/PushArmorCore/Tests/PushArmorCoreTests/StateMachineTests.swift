@@ -2091,7 +2091,6 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(ErrorCopy.sendFailText(Core.SendError.rejected(.unreachable)),
                        "Unable to send.\nThe relay server could not be reached. Check your internet connection and try again.")
         XCTAssertEqual(ErrorCopy.sendFailText(Core.CoreError.notPinned), "Unable to send.\nTry again.")
-        XCTAssertEqual(S.tooLongShare, "Send the first 2000 characters")
     }
 
     func testSendNotListeningShowsSendOnly() async throws {

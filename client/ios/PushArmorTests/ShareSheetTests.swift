@@ -22,9 +22,19 @@ final class ShareSheetTests: XCTestCase {
     /// when it scrolls (large text).
     func testTooLongViewHasPaddingOnlyWhenItScrolls() throws {
         let src = try source()
-        let view = src.components(separatedBy: "private var offerTruncate: some View {")[1]
+        let view = src.components(separatedBy: "private var tooLong: some View {")[1]
             .components(separatedBy: "var body: some View")[0]
         XCTAssertFalse(view.contains(".padding("))
-        XCTAssertTrue(src.contains("ScrollView { offerTruncate.padding() }"))
+        XCTAssertTrue(src.contains("ScrollView { tooLong.padding() }"))
+    }
+
+    /// Too long text: the counter and a greyed Send that cannot be tapped; no send of a part.
+    func testTooLongGreysOutSend() throws {
+        let src = try source()
+        let view = src.components(separatedBy: "private var tooLong: some View {")[1]
+            .components(separatedBy: "var body: some View")[0]
+        XCTAssertTrue(view.contains("Button(\"Send\") {}\n                .disabled(true)"))
+        XCTAssertFalse(src.contains("truncate"))
+        XCTAssertFalse(src.contains("Send the first"))
     }
 }
