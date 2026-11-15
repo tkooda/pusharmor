@@ -58,6 +58,8 @@ export class N {
     return false;
   }
   focus() {}
+  showModal() {}
+  close() {}
   get parentElement(): N | null {
     return this.parent;
   }

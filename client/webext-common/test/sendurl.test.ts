@@ -35,6 +35,8 @@ const tick = async () => {
   for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
 };
 
+let gate: Promise<void> | null = null;
+
 async function mount(inPopup: boolean, result: unknown) {
   const sent: Record<string, unknown>[] = [];
   let closed = 0;
@@ -44,6 +46,7 @@ async function mount(inPopup: boolean, result: unknown) {
     activeUrl: async () => "",
     call: async (m: { op: string; args?: Record<string, unknown> }) => {
       if (m.op === "send") sent.push(m.args!);
+      if (m.op === "send" && gate) await gate;
       const text = String(m.args?.text ?? "");
       const data: Record<string, unknown> = { peers: { peers: [PEER] }, sendSel: [], sendSelSet: null, detect: { type: detectType(text), bytes: text.length }, send: result };
       if (m.op === "send" && result instanceof Error) return { ok: false, error: result.message };
@@ -155,4 +158,24 @@ test("Send: a URL that is too long once https:// is added greys out Send, like t
   await v.tickText(false);
   await v.type("https://a.com/" + "x".repeat(2000 - 14));
   assert.equal(btn.disabled, false, "a URL with its scheme at the cap still sends");
+});
+
+test("Send: while a send runs a modal popup shows the caption and the bar, and it is gone after", async () => {
+  const v = await mount(false, { sent: 1, total: 1, failures: [] });
+  await v.type("hi");
+  let release!: () => void;
+  gate = new Promise<void>((r) => (release = r));
+  const run = v.send();
+  await tick();
+  const dlg = body.kids.find((k) => k.tag === "dialog")!;
+  assert.ok(dlg);
+  assert.equal(find(dlg, (x) => x.tag === "span")!.textContent, 'Sending text to "Phone"...');
+  assert.equal(find(dlg, (x) => x.tag === "progress")!.attrs.value, "25");
+  assert.equal(find(dlg, (x) => x.attrs.role === "status")!.textContent, 'Encrypting for "Phone"');
+  assert.equal(v.sendBtn.attrs.disabled === undefined, true);
+  gate = null;
+  release();
+  await run;
+  assert.equal(body.kids.some((k) => k.tag === "dialog"), false);
+  for (const k of [...body.kids]) k.remove();
 });

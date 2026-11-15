@@ -375,6 +375,11 @@ dialog.dlg::backdrop { background: rgba(0, 0, 0, 0.45); }
 .dlg h2 { margin: 0 0 8px; font-size: 17px; line-height: 24px; font-weight: 600; }
 .dlg p { font-size: 14px; line-height: 1.42858; color: var(--ink2); }
 /* at a large zoom or minimum font size the row wraps as a whole; the action (on the right) goes on top */
+dialog.sendprog { width: min(340px, calc(100vw - 48px)); }
+.sendprog-head { display: flex; align-items: center; gap: 16px; font-size: 14px; line-height: 1.42858; }
+.sendprog .tile { border-radius: 10px; flex: none; }
+.sendprog progress { display: block; width: 100%; margin-top: 16px; }
+.sendprog .dim { margin-top: 4px; font-size: 12px; }
 .dlg-acts { display: flex; flex-wrap: wrap-reverse; justify-content: flex-end; gap: 8px; margin-top: 24px; }
 .dlg-acts button { min-width: 88px; font-weight: 600; white-space: nowrap; }
 .dlg-acts button.danger { background: var(--err); border-color: var(--err); color: var(--card); }

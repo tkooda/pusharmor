@@ -73,3 +73,22 @@ test("History select all: empty, dash for some, check for all; a click selects a
   assert.deepEqual(v.checked(), [false, false, false, false]);
   assert.deepEqual([!!sa().checked, !!sa().indeterminate, sa().hidden], [false, false, false]); // the mode stays on
 });
+
+test("History: the multi-select delete confirmation names the devices by the Sync deletions setting", async () => {
+  for (const [sync, text] of [[true, "This deletes the selected messages off this and other paired devices."], [false, "This deletes the selected messages off this device."]] as const) {
+    const msg = { id: 1, dir: "in", peer: "p1", sender: "Phone", type: "text", content: "m", n: 1, pairing_id: null, received: Date.now(), read: true };
+    const data: Record<string, unknown> = { historyOpened: null, history: [msg], getSettings: { syncDeletions: sync } };
+    const env = { call: async (m: { op: string }) => ({ ok: true, data: data[m.op] }) } as unknown as UiEnv;
+    const root = new N("div");
+    await historyView(env, root as unknown as HTMLElement, undefined, { toDevices: () => undefined, toSend: () => undefined });
+    for (const f of find(root, (x) => x.tag === "button" && (x.attrs.class ?? "").includes("hselect"))!.on.click!) f({});
+    for (const f of find(root, (x) => x.attrs.id === "h-1")!.on.click!) f({ target: Object.assign(find(find(root, (x) => x.attrs.id === "h-1")!, (x) => (x.attrs.class ?? "").includes("content"))!, { closest: () => null }), preventDefault() {}, stopPropagation() {} });
+    const del = find(root, (x) => x.tag === "button" && (x.attrs.class ?? "").includes("dellight"))!;
+    const p = Promise.all(del.on.click!.map((f) => (f as () => Promise<void>)()));
+    await new Promise((r) => setImmediate(r));
+    const dlg = [...(globalThis as unknown as { document: { body: N } }).document.body.kids].find((k) => k.tag === "dialog")!;
+    assert.equal(find(dlg, (x) => x.tag === "p")!.textContent, text);
+    void p;
+    dlg.remove();
+  }
+});

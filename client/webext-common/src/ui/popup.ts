@@ -2,7 +2,7 @@
 import type { PeerView, StateView } from "../core/rpc.ts";
 import type { SendResult } from "../core/engine.ts";
 import { R, T, greyedText, notDeletedText, pushIssueText, quoted, saveFailText } from "../core/texts.ts";
-import { STEP } from "../model/busy.ts";
+import { BUSY, STEP, readBusy, sendingCaption } from "../model/busy.ts";
 import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter, sortByLabel } from "../model/sendsel.ts";
 import { isLikelyUrl, sentLength } from "../model/sendurl.ts";
 import { AUTH_CHANGED, AUTH_SWITCHED, type Restore } from "../model/signin.ts";
@@ -433,8 +433,15 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   sendBtn.addEventListener("click", async () => {
     sendBtn.disabled = true;
     const to = allChip && on(allChip) ? "all" : checks.filter((c) => on(c.chip)).map((c) => c.id);
+    const names = sendable.filter((p) => to === "all" || to.includes(p.id)).map((p) => p.label);
+    const prog = sendProgress(env, sendingCaption(asText.checked ? "text" : lastType, names), STEP.encryptingFor(names));
     try {
-      const r = await rpc<SendResult>(env, "send", { text: field.value, asUrl: lastType === "url" && !asText.checked, asText: lastType !== "text" && asText.checked, targets: to });
+      let r: SendResult;
+      try {
+        r = await rpc<SendResult>(env, "send", { text: field.value, asUrl: lastType === "url" && !asText.checked, asText: lastType !== "text" && asText.checked, targets: to });
+      } finally {
+        prog.close();
+      }
       // one device sent to is named
       const one = r.total === 1 && r.sent === 1 && count() === 1 ? sendable.find((p) => p.id === checks.find((c) => on(c.chip))?.id) : undefined;
       if (r.error) toast(r.error, "err");
@@ -458,6 +465,35 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   root.append(h("div", { class: "grow" }), head, chips, ...(none ? [none] : []), ...(noPair ? [noPair] : []), h("div", { class: "foot send-foot" }, sendBtn));
   relabel();
   await update();
+}
+
+/** The Send popup: a modal dialog over the view (the layout stays) with the brand tile, a caption, the bar, and the step line. */
+function sendProgress(env: UiEnv, caption: string, first: string): { close: () => void } {
+  const bar = h("progress", { max: "100", value: "25" }) as HTMLProgressElement;
+  const step = h("div", { class: "dim", role: "status" }, first);
+  const dlg = h("dialog", { class: "dlg sendprog", "aria-label": "Sending" },
+    h("div", { class: "sendprog-head" }, h("img", { src: "icons/icon-128.png", width: "40", height: "40", alt: "", class: "tile big-tile" }), h("span", {}, caption)),
+    bar,
+    step,
+  ) as HTMLDialogElement;
+  // Esc must not dismiss it: the send runs on
+  dlg.addEventListener("cancel", (ev) => ev.preventDefault());
+  const unwatch = env.session?.watch(BUSY, (v) => {
+    const b = readBusy(v);
+    if (!b) return;
+    step.textContent = b.cap;
+    if (b.done !== undefined && b.total) bar.value = Math.round((b.done / b.total) * 100);
+  });
+  document.body.append(dlg);
+  dlg.showModal();
+  return {
+    close: () => {
+      unwatch?.();
+      bar.value = 100;
+      dlg.close();
+      dlg.remove();
+    },
+  };
 }
 
 export async function historyView(env: UiEnv, root: HTMLElement, focus?: string, nav?: Nav): Promise<void> {
@@ -574,7 +610,8 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
         onclick: async () => {
           const ids = [...(picked ?? [])];
           const title = ids.length === 1 ? "Delete 1 message?" : "Delete " + ids.length + " messages?";
-          if (!(await confirmDialog(title, "This deletes the selected messages from this device.", "Delete"))) return;
+          const sync = (await rpc<{ syncDeletions: boolean }>(env, "getSettings")).syncDeletions;
+          if (!(await confirmDialog(title, "This deletes the selected messages off " + (sync ? "this and other paired devices." : "this device."), "Delete"))) return;
           delBar.start(); // shows only when the background sends steps (several batches)
           try {
             const notice = await rpc<string | null>(env, "historyDelete", { ids });

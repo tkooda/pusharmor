@@ -225,6 +225,8 @@ export class Rpc {
       }
       case "greyedTap":
         return e.fetchTrigger();
+      case "getSettings":
+        return e.settings();
       case "settings":
         return e.setSettings(a as Partial<Settings>);
       case "signout":

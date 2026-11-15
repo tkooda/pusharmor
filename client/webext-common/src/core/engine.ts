@@ -1502,6 +1502,10 @@ export class Engine {
     if (valueLen > SEND_CAP) throw new ReasonError(R.tooLong); // href percent-encodes
     if (ids.length === 0) return { sent: 0, total, failures: [] };
     const mid = newMsgId();
+    // the Send popup shows these steps (a quarter of the bar each); a retry holds the bar at sending
+    const names = await Promise.all(ids.map((id) => this.peerName(id)));
+    const stage = (cap: string, done: number) => this.p.storageSession.set({ [BUSY]: { cap, done, total: 4 } });
+    await stage(STEP.encryptingFor(names), 1);
     const build = async () => {
       const m: Record<string, string> = {};
       for (const id of ids) {
@@ -1516,12 +1520,14 @@ export class Engine {
           recipientEncPub: peer.enc_pub,
         });
       }
+      await stage(STEP.sendingTo(names), 2);
       return { v: 1, m };
     };
     let results: Record<string, string> = {};
     let error: string | undefined;
     try {
-      const r = await this.api.call("POST", "/send", { signer: this.signerOf(self), build });
+      const r = await this.api.call("POST", "/send", { signer: this.signerOf(self), build, onRetry: (a) => stage(DEL_CAP.retry(a, 1 + SERVER_RETRY_DELAYS_MS.length), 2) });
+      await stage(STEP.sendingTo(names), 3);
       await this.afterSignedReply(r);
       if (r.json.r && typeof r.json.r === "object") results = r.json.r as Record<string, string>;
     } catch (e) {
@@ -1531,6 +1537,7 @@ export class Engine {
         await this.p.storageLocal.set({ [NET_NOT_BEFORE]: now(this.p) + e.retryAfter * 1000 });
       }
     }
+    await this.step(null);
     const failures: SendResult["failures"] = [];
     let sent = 0;
     let trigger = false;

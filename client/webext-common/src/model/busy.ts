@@ -26,7 +26,14 @@ export const STEP = {
   loggingOut: "Logging out",
   updating: "Updating devices",
   deletingAccount: "Deleting your account",
+  encryptingFor: (names: string[]) => "Encrypting for " + quoteList(names),
+  sendingTo: (names: string[]) => "Sending to " + quoteList(names),
 };
+
+/** The Send popup caption: the content type as the Send screen names it, then the devices. */
+export function sendingCaption(type: string, names: string[]): string {
+  return "Sending " + (type === "url" ? "URL" : type === "tel" ? "phone number" : "text") + " to " + quoteList(names) + "...";
+}
 
 /** "A", "A" and "B", or "A", "B", and "C" (each in double quotes). */
 export function quoteList(names: string[]): string {
