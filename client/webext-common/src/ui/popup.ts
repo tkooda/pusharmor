@@ -660,6 +660,8 @@ function eventText(r: HistoryRow & { sender: string }): string {
 
 type SelectCtl = { on: () => boolean; has: (id: number) => boolean; start: (id: number) => void; toggle: (id: number) => void; range: (id: number) => void; exit: () => void };
 const LONG_PRESS_MS = 500;
+// when the last long-press fired: a touch long-press also fires contextmenu (Firefox for Android), on the redrawn row
+let longPressAt = -Infinity;
 
 /** the checkbox, the long-press and right-click starts, and the tap that toggles while the mode is on. */
 function wireSelect(row: HTMLElement, id: number, ctl: SelectCtl): void {
@@ -682,6 +684,7 @@ function wireSelect(row: HTMLElement, id: number, ctl: SelectCtl): void {
     y = ev.clientY;
     timer = setTimeout(() => {
       suppress = true;
+      longPressAt = Date.now();
       if (ctl.on()) ctl.toggle(id);
       else ctl.start(id);
     }, LONG_PRESS_MS);
@@ -694,6 +697,9 @@ function wireSelect(row: HTMLElement, id: number, ctl: SelectCtl): void {
   row.addEventListener("scroll", stop, true);
   row.addEventListener("contextmenu", (ev: Event) => {
     ev.preventDefault();
+    // the same press must not toggle twice: cancel a pending long-press, skip one that just fired
+    stop();
+    if (Date.now() - longPressAt < 1000) return;
     if (ctl.on()) ctl.toggle(id);
     else ctl.start(id);
   });
