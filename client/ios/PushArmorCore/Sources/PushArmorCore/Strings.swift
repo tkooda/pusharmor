@@ -55,6 +55,18 @@ public enum S {
     /// Send banner when every chosen device got the message.
     public static func messageSentTo(_ x: String) -> String { "Message sent to \"\(x)\"" }
     public static func messageSentTo(count n: Int) -> String { "Message sent to \(n) devices" }
+    /// Send progress popup: the caption, and the step under its bar (as the Android client words them).
+    /// Every name is quoted: "A", "A" and "B", or "A", "B", and "C".
+    public static func sending(_ type: SendType, to names: [String]) -> String {
+        "Sending " + (type == .url ? "URL" : type == .tel ? "phone number" : "text") + " to " + cutList(names) + "..."
+    }
+    public static func encryptingFor(_ names: [String]) -> String { "Encrypting for " + cutList(names) }
+    public static func sendingTo(_ names: [String]) -> String { "Sending to " + cutList(names) }
+    static func cutList(_ names: [String]) -> String { ErrorCopy.quotedList(names.map(cutName)) }
+    /// Names in the send progress popup: at most 20 characters, cut with "...".
+    static func cutName(_ name: String) -> String {
+        name.count > 20 ? String(name.prefix(17)).trimmingCharacters(in: .whitespaces) + "..." : name
+    }
     public static let pairHowTo1 = "Install PushArmor on the other device."
     public static let pairHowTo2 = "Log in with the same account."
     public static let pairHowTo3 = "It appears here. Tap Pair."

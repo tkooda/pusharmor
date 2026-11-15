@@ -35,6 +35,7 @@ extension Core {
         let out = try await signedWithMessages("POST", "/v1/send") {
             var m: [PeerId: String] = [:]
             for id in recipients { m[id] = try buildMessage(to: id, msgId: msgId) { _ in mc } }
+            SendProgress.step?(SendProgress.encrypted)
             return JOut.obj([("v", .int(1)), ("m", JOut.messages(m))]).data
         }
         guard let r = out.reply, r.ok else {

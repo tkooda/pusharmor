@@ -88,6 +88,9 @@ final class AppModel: ObservableObject {
     @Published var pairAgainBusy: Set<String> = []
     /// Keys of taps still running ("send", "pair:<id>", ...); their buttons are disabled.
     @Published var busy: Set<String> = []
+    /// The running send's progress (25, 50, 75, 100) and its try number (2 or 3 when trying again), for the send popup.
+    @Published var sendStep = 0
+    @Published var sendRetry = 0
 
     /// Runs [body] unless the same key is still running, so a second tap does not run twice.
     func once(_ key: String, _ body: () async -> Void) async {
@@ -977,8 +980,18 @@ final class AppModel: ObservableObject {
         let all = allSet
         let ids = toAll ? all.map { $0.id } : peerIds.compactMap { PeerId(text: $0) }
         var sent = false
+        sendStep = 0
+        sendRetry = 0
         do {
-            let rep = try await core.send(text, as: type, to: ids, allCount: all.count)
+            let rep = try await SendProgress.$step.withValue({ s in
+                _ = Task { @MainActor in if s > self.sendStep { self.sendStep = s } }
+            }) {
+                try await SendProgress.$retry.withValue({ a in
+                    _ = Task { @MainActor in self.sendRetry = a }
+                }) {
+                    try await core.send(text, as: type, to: ids, allCount: all.count)
+                }
+            }
             toast = rep.toast
             toastIsSuccess = rep.allSent
             sent = true

@@ -34,6 +34,11 @@ final class HistorySelectionTests: XCTestCase {
         XCTAssertEqual(s.confirmTitle, "Delete 2 messages?")
     }
 
+    func testConfirmBodyFollowsSyncDeletions() {
+        XCTAssertEqual(HistorySelection.confirmBody(sync: true), "This deletes the selected messages off this and other paired devices.")
+        XCTAssertEqual(HistorySelection.confirmBody(sync: false), "This deletes the selected messages off this device.")
+    }
+
     func testSelectAllIsTriState() {
         var s = HistorySelection()
         let shown: [Int64] = [1, 2, 3]

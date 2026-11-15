@@ -49,4 +49,9 @@ public struct HistorySelection: Equatable, Sendable {
 
     /// The confirm title: "Delete 1 message?", "Delete 3 messages?".
     public var confirmTitle: String { count == 1 ? "Delete 1 message?" : "Delete \(count) messages?" }
+
+    /// The confirm body; `sync` is this device's Sync deletions setting.
+    public static func confirmBody(sync: Bool) -> String {
+        sync ? "This deletes the selected messages off this and other paired devices." : "This deletes the selected messages off this device."
+    }
 }

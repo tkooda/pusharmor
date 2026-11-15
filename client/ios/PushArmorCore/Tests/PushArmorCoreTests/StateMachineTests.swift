@@ -27,6 +27,14 @@ final class StateMachineTests: XCTestCase {
         XCTAssertTrue(rep.allSent)
         XCTAssertEqual(rep.toast, S.messageSentTo(PeerLabel.label(try n.core.store.peer(x.id))))
         XCTAssertEqual(S.messageSentTo("Laptop"), "Message sent to \"Laptop\"")
+        XCTAssertEqual(S.sending(.url, to: ["Laptop"]), "Sending URL to \"Laptop\"...")
+        XCTAssertEqual(S.sending(.tel, to: ["A", "B"]), "Sending phone number to \"A\" and \"B\"...")
+        XCTAssertEqual(S.sending(.text, to: ["A very long device name", "B", "C"]),
+                       "Sending text to \"A very long devic...\", \"B\", and \"C\"...")
+        XCTAssertEqual(S.encryptingFor(["Laptop"]), "Encrypting for \"Laptop\"")
+        XCTAssertEqual(S.encryptingFor(["A", "B"]), "Encrypting for \"A\" and \"B\"")
+        XCTAssertEqual(S.sendingTo(["Laptop"]), "Sending to \"Laptop\"")
+        XCTAssertEqual(S.sendingTo(["A", "B", "C"]), "Sending to \"A\", \"B\", and \"C\"")
         XCTAssertEqual(S.messageSentTo(count: 3), "Message sent to 3 devices")
         XCTAssertEqual(S.sentToOne("Laptop"), "Sent to \"Laptop\"")
         let pushed = w.take(x.id)
@@ -42,6 +50,24 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(try x.core.store.history().filter { $0.type == "url" }.count, 1)
         // the outgoing History row carries the results
         XCTAssertEqual(try n.core.store.history().first?.dir, .outgoing)
+    }
+
+    func testSendReportsProgressSteps() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        await n.core.fetchPeers(force: true)
+        final class Steps: @unchecked Sendable {
+            let lock = NSLock()
+            var all: [Int] = []
+            func add(_ s: Int) { lock.lock(); all.append(s); lock.unlock() }
+        }
+        let steps = Steps()
+        _ = try await SendProgress.$step.withValue({ steps.add($0) }) {
+            try await n.core.send("hello", as: .text, to: [x.id], allCount: 1)
+        }
+        XCTAssertEqual(steps.all.first, SendProgress.encrypted)
+        XCTAssertEqual(steps.all.last, 100)
+        XCTAssertTrue(steps.all.contains(50))
     }
 
     func testReplayOfMessageWithoutHistoryIsInvalid() async throws {

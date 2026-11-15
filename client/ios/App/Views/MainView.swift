@@ -169,7 +169,7 @@ struct HistoryTab: View {
                     selection.exit()
                 }
             } message: {
-                Text("This deletes the selected messages from this device.")
+                Text(HistorySelection.confirmBody(sync: model.boolSetting(SettingKey.syncDeletions, true)))
             }
             .navigationTitle("History")
             .safeAreaInset(edge: .bottom, spacing: 0) { ToastBanner() }

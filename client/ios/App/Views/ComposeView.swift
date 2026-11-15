@@ -274,6 +274,9 @@ struct ComposeView: View {
     @FocusState private var editing: Bool
     /// Chip name width: 150 pt at the default text size, wider at large Dynamic Type (L8).
     @ScaledMetric(relativeTo: .subheadline) private var chipNameWidth: CGFloat = 150
+    /// The send popup's caption and device names, set at the tap.
+    @State private var sendCaption = ""
+    @State private var sendNames: [String] = []
 
     init(draft: String) {
         _text = State(initialValue: draft)
@@ -336,6 +339,10 @@ struct ComposeView: View {
                 sendBar
                 ToastBanner()
             }
+        }
+        // Over the screen while a send is on its way; the layout under it does not move.
+        .overlay {
+            if model.busy.contains("send") { sendPopup }
         }
         .onAppear { restoreSelection() }
         .onChange(of: candidates.map { $0.id.text }) { _, _ in restoreSelection() }
@@ -435,6 +442,9 @@ struct ComposeView: View {
                 let all = toAll && showAll
                 let ids = all ? [] : candidates.filter { selected.contains($0.id.text) && enabled($0) }.map { $0.id.text }
                 let sel = selected
+                let chosen = all ? model.allSet : candidates.filter { selected.contains($0.id.text) && enabled($0) }
+                sendNames = PeerLabel.sorted(chosen).map { model.label($0) }
+                sendCaption = S.sending(SendScreenRules.sendType(t, asURL: u, asText: a), to: sendNames)
                 Task {
                     // A failed send keeps the draft, so "Unable to send." can be retried.
                     if await RecipientMemory.send(sel, { await model.send(t, asURL: u, asText: a, toAll: all, peerIds: ids) }) {
@@ -467,6 +477,33 @@ struct ComposeView: View {
         .padding(.vertical, 8)
         .background(Color(uiColor: .systemGroupedBackground))
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { barTop = $0 }
+    }
+
+    /// The send popup: brand tile and caption, a bar at the send's step, and the step under it.
+    private var sendPopup: some View {
+        ZStack {
+            Color.black.opacity(0.4).ignoresSafeArea()
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 16) {
+                    BrandTileView(size: 40)
+                    Text(sendCaption)
+                }
+                ProgressView(value: Double(model.sendStep), total: 100)
+                    .progressViewStyle(.linear)
+                    .tint(Color.brandGreen)
+                    .padding(.top, 16)
+                Text(model.sendRetry > 1 ? DeleteProgress.retry(model.sendRetry, RetryPolicy.serverDelays.count + 1)
+                     : model.sendStep < SendProgress.encrypted ? S.encryptingFor(sendNames) : S.sendingTo(sendNames))
+                    .font(.caption)
+                    .foregroundColor(.secondaryText)
+                    .padding(.top, 4)
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(.horizontal, 32)
+            .accessibilityElement(children: .combine)
+        }
     }
 
     /// The wrapping chip toggles. With the keyboard up only the chosen devices show.

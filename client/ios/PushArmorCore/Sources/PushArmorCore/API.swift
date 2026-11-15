@@ -46,6 +46,27 @@ public protocol HTTPTransport: Sendable {
     func perform(method: String, url: URL, headers: [String: String], body: Data, timeout: Double) async throws -> HTTPResponse
 }
 
+/// Send progress for a screen that shows it, set only for the duration of that send (task-local, so
+/// no other call reports into it). `step` gets 25 (encrypted), 50 (request going out), 75 (request
+/// sent), 100 (reply in); `retry` gets the number of the next try (2 or 3) before the wait for it.
+public enum SendProgress {
+    public static let encrypted = 25
+    @TaskLocal public static var step: (@Sendable (Int) -> Void)? = nil
+    @TaskLocal public static var retry: (@Sendable (Int) -> Void)? = nil
+}
+
+#if !canImport(FoundationNetworking)
+/// Reports 75 once the whole request body is sent.
+final class BodySentDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    let step: @Sendable (Int) -> Void
+    init(_ step: @escaping @Sendable (Int) -> Void) { self.step = step }
+    func urlSession(_ session: URLSession, task: URLSessionTask, didSendBodyData bytesSent: Int64, totalBytesSent: Int64,
+                    totalBytesExpectedToSend: Int64) {
+        if totalBytesSent >= totalBytesExpectedToSend { step(75) }
+    }
+}
+#endif
+
 public struct URLSessionTransport: HTTPTransport {
     public init() {}
     public func perform(method: String, url: URL, headers: [String: String], body: Data, timeout: Double) async throws -> HTTPResponse {
@@ -53,7 +74,11 @@ public struct URLSessionTransport: HTTPTransport {
         req.httpMethod = method
         for (k, v) in headers { req.setValue(v, forHTTPHeaderField: k) }
         if !body.isEmpty || method != "GET" { req.httpBody = body }
+        #if canImport(FoundationNetworking)
         let (data, resp) = try await URLSession.shared.data(for: req)
+        #else
+        let (data, resp) = try await URLSession.shared.data(for: req, delegate: SendProgress.step.map { BodySentDelegate($0) })
+        #endif
         guard let h = resp as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         var hs: [String: String] = [:]
         for (k, v) in h.allHeaderFields { hs[String(describing: k)] = String(describing: v) }
@@ -214,6 +239,7 @@ public final class APIClient: @unchecked Sendable {
             }
             var status: Int? = nil
             var reply: APIReply? = nil
+            SendProgress.step?(50)
             do {
                 let r = try await transport.perform(method: method, url: URL(string: path, relativeTo: base)!.absoluteURL,
                                                     headers: headers, body: body, timeout: timeout)
@@ -223,6 +249,7 @@ public final class APIClient: @unchecked Sendable {
                 if r.status == 426 { NotificationCenter.default.post(name: APIClient.upgradeRequired, object: self) }
                 reply = APIReply(status: r.status, body: r.body)
                 status = r.status
+                SendProgress.step?(100)
             } catch {
                 status = nil
             }
@@ -232,6 +259,8 @@ public final class APIClient: @unchecked Sendable {
                 return reply.map { .reply($0) } ?? .network
             }
             retries += 1
+            // a 5xx or network failure: the next try's number, as the Android client shows it
+            if status != 429 { SendProgress.retry?(retries + 1) }
             await sleep(d)
         }
     }
