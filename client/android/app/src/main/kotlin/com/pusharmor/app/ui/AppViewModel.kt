@@ -257,7 +257,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun ticket(ticket: String, email: String?, purpose: String, onDone: () -> Unit) {
         if (purpose == "delete-account") {
             caption.value = UiText.DELETING_ACCOUNT
-            val err = g.session.deleteAccount(ticket, email) { caption.value = it }
+            val err = g.session.deleteAccount(ticket, email)
             if (err != null) message.value = err else { setStart(Session.Start.SIGN_IN); withContext(Dispatchers.Main) { onDone() } }
             return
         }
@@ -507,7 +507,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         try {
             caption.value = UiText.LOGGING_OUT
             g.session.signOut()
-            caption.value = UiText.REMOVING_THIS_DEVICE
             setStart(Session.Start.SIGNED_OUT)
             withContext(Dispatchers.Main) { onDone() }
         } finally { caption.value = null }

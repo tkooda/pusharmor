@@ -20,6 +20,16 @@ class SendAsUrlTest {
         assertTrue(LikelyUrl.check("${"a".repeat(63)}.com"))
     }
 
+    /** Send greys on the size of what is sent: a URL that its added "https://" takes over the cap, as long text does. */
+    @Test fun sentSizeCountsTheAddedScheme() {
+        val host = "aaaaaaaaa.".repeat(199) + "com" // 1993 bytes, under the cap as typed
+        assertTrue(LikelyUrl.check(host))
+        assertEquals(1993, SendAsUrl.bytes(host, asText = true))
+        assertEquals(2001, SendAsUrl.bytes(host, asText = false))
+        assertTrue(SendAsUrl.bytes(host, asText = false) > com.pusharmor.protocol.SizeCap.MAX_CONTENT_BYTES)
+        assertEquals(2001, SendAsUrl.bytes("https://$host", asText = false))
+    }
+
     @Test fun sentUrlIsTrimmedWithAScheme() {
         assertEquals("https://minilock.org", LikelyUrl.asUrl("  minilock.org \n"))
         assertEquals("http://a.b.co/x", LikelyUrl.asUrl("http://a.b.co/x"))

@@ -247,7 +247,7 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onSe
     }
 }
 
-/** A thin bar and the caption of the step a sign-in, device limit, or delete account is at; nothing when none runs. */
+/** A thin bar and the caption of the step a sign-in, device limit, logout, or delete account is at; nothing when none runs. */
 @Composable
 internal fun StepBar(vm: AppViewModel, modifier: Modifier = Modifier) {
     val c = vm.caption.collectAsState().value ?: return

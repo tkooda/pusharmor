@@ -72,4 +72,7 @@ object SendAsUrl {
         ContentType.TEL -> ContentType.TEL to text.trim()
         ContentType.TEXT -> ContentType.TEXT to text
     }
+
+    /** Size of what a send carries, so a URL whose added "https://" takes it over the cap greys Send as long text does. */
+    fun bytes(text: String, asText: Boolean): Int = com.pusharmor.protocol.SizeCap.utf8Size(content(text, asText).second)
 }

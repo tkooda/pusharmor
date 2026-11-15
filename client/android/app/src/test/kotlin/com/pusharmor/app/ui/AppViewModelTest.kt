@@ -63,7 +63,7 @@ class AppViewModelTest {
         waitFor { job.isCompleted }
         assertNull(uncaught)
         assertFalse(vm.busy.value)
-        assertEquals("Unable to delete the messages.\nTry again.", vm.message.value)
+        assertEquals("Unable to delete on this device.\nTry again.", vm.message.value)
         // a full disk, another store error, and a Keystore fault each say why
         assertEquals("Storage is full. Free some space and try again.", AppViewModel.localReason(android.database.sqlite.SQLiteFullException("full")))
         assertEquals("PushArmor could not save its data on this device. Restart PushArmor and try again.",
@@ -129,6 +129,13 @@ class AppViewModelTest {
         assertEquals(shown, selectAllToggle(emptyList(), shown).toSet())
         assertEquals(shown, selectAllToggle(listOf(2L), shown).toSet())
         assertEquals(emptyList<Long>(), selectAllToggle(listOf(1L, 2L, 3L), shown))
+    }
+
+    /** Log out shows a progress bar with its step under the buttons, not a spinner beside them. */
+    @Test fun logoutShowsStepBar() {
+        val main = java.io.File("src/main/kotlin/com/pusharmor/app/ui/MainScreens.kt").readText()
+        assertTrue(main.contains("if (\"logout\" in running) StepBar(vm"))
+        assertFalse(main.contains("contentDescription = \"Logging out\""))
     }
 
     /** There is no delete-all anywhere: Settings has no row for it and the view model no call. */

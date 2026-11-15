@@ -319,7 +319,7 @@ class Session(private val g: Graph) {
      * DELETE /account with a delete-account ticket; then wipe everything including the keys. A ticket for another
      * email than this account's ([email]) sends nothing.
      */
-    fun deleteAccount(ticket: String, email: String? = null, step: (String) -> Unit = {}): String? {
+    fun deleteAccount(ticket: String, email: String? = null): String? {
         val me = g.identity() ?: return ErrorText.text(UiText.UNABLE_DELETE_ACCOUNT, ErrorText.LOGGED_OUT)
         val mine = dao.self()?.email
         if (email != null && mine != null && Slots.mailbox(email) != Slots.mailbox(mine)) return ErrorText.text(UiText.UNABLE_DELETE_ACCOUNT, UiText.deleteOtherAccount(email))
@@ -328,7 +328,6 @@ class Session(private val g: Graph) {
             g.store.allowSet().mapNotNull { g.store.peer(it)?.takeIf { p -> p.pinned } }.associate { it.id to outbox.simple(it, MessageBody.Delete).message }
         }) { g.client.deleteAccount(ticket, B64url.encode(me.keys.signPub), it) }
         if (r !is ApiResult.Ok) return ErrorText.of(UiText.UNABLE_DELETE_ACCOUNT, r)
-        step(UiText.REMOVING_THIS_DEVICE)
         wipe(keepOldId = false)
         return null
     }

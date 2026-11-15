@@ -55,7 +55,7 @@ object UiText {
     const val UNABLE_LOGIN_GOOGLE = "Unable to log in with Google."
     const val UNABLE_START_LOGIN = "Unable to start the login."
     const val UNABLE_DELETE_ACCOUNT = "Unable to delete the account."
-    const val UNABLE_DELETE_MESSAGES = "Unable to delete the messages."
+    const val UNABLE_DELETE_MESSAGES = "Unable to delete on this device."
     const val UNABLE_DELETE_SYNC = "Unable to delete on your other devices."
 
     /** Line 2 for a login ticket of another account [to]; this device switched to that account and the next login uses it. */
@@ -271,7 +271,6 @@ object UiText {
     const val LOADING_DEVICES = "Loading your devices"
     const val LOGGING_IN = "Logging in"
     const val LOGGING_OUT = "Logging out"
-    const val REMOVING_THIS_DEVICE = "Removing this device"
     const val UPDATING_DEVICES = "Updating devices"
     const val DELETING_ACCOUNT = "Deleting your account"
     fun removing(names: List<String>): String = "Removing " + quotedList(names)

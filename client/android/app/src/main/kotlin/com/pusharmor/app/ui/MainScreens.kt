@@ -968,7 +968,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
         }
     }
     val scope = rememberCoroutineScope()
-    val bytes = SizeCap.utf8Size(text)
+    val bytes = SendAsUrl.bytes(text, asText)
     val prefs by vm.prefs.collectAsState()
     // Hidden until the settings load, so the chip does not flash on for a user who turned it off.
     val showAll = prefs?.get(Settings.K.SHOW_ALL) ?: (prefs != null)
@@ -1623,14 +1623,9 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 RowAction("Delete account", PaIcons.Delete, error = true) { confirmDelete = true }
                 RowAction("Log out", PaIcons.Logout, enabled = "logout" !in running) { vm.signOut(onSignedOut) }
-                // Log out on a slow or missing connection: visible progress beside the buttons.
-                if ("logout" in running) androidx.compose.material3.CircularProgressIndicator(Modifier.size(24.dp).align(Alignment.CenterVertically).semantics { contentDescription = "Logging out" })
             }
-            // The logout step, under the buttons.
-            if ("logout" in running) vm.caption.collectAsState().value?.let {
-                Text(it, Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp), style = MaterialTheme.typography.bodySmall,
-                    color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
-            }
+            // Log out on a slow or missing connection: a progress bar and the logout step, under the buttons.
+            if ("logout" in running) StepBar(vm, Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp))
             // Tap copies just the number; the button role and label name the action for TalkBack.
             Text(UiText.version(BuildConfig.VERSION_NAME),
                 Modifier.fillMaxWidth().heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically)
