@@ -233,6 +233,7 @@ struct PairingCardView: View {
     let p: Peer
     @EnvironmentObject var model: AppModel
     @State private var confirmRemove = false
+    @State private var confirmDelete = false
 
     private var label: String { model.label(p) }
     private var entry: PairingEntry? { model.pairings[p.id.text] }
@@ -302,10 +303,16 @@ struct PairingCardView: View {
             Button("Remove", role: .destructive) { Task { await model.remove(p) } }
             Button("Cancel", role: .cancel) {}
         }
+        .confirmationDialog(S.deleteMissingTitle(label), isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) { Task { await model.localDelete(p) } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(S.deleteMissingMessage(label))
+        }
     }
 
     private var peerActions: some View {
-        PeerMenuItems(p: p, model: model, confirmRemove: $confirmRemove)
+        PeerMenuItems(p: p, model: model, confirmRemove: $confirmRemove, confirmDelete: $confirmDelete)
     }
 
     private func denyButton(_ title: String = "Reject") -> some View {
@@ -432,6 +439,7 @@ struct PeerRowView: View {
     @ScaledMetric private var statusGlyph: CGFloat = 14
     @ScaledMetric private var statusFrame: CGFloat = 16
     @State private var confirmRemove = false
+    @State private var confirmDelete = false
 
     private var label: String { model.label(p) }
     private var removed: Bool { p.state == .removed }
@@ -465,7 +473,7 @@ struct PeerRowView: View {
                 }
                 // Full width so the status icons in the header sit just left of the menu button.
                 .frame(maxWidth: .infinity, alignment: .leading)
-                Menu { PeerMenuItems(p: p, model: model, confirmRemove: $confirmRemove) } label: {
+                Menu { PeerMenuItems(p: p, model: model, confirmRemove: $confirmRemove, confirmDelete: $confirmDelete) } label: {
                     Image(systemName: "ellipsis")
                         .font(.title3)
                         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
@@ -479,6 +487,12 @@ struct PeerRowView: View {
             .confirmationDialog(S.removeConfirm(label), isPresented: $confirmRemove, titleVisibility: .visible) {
                 Button("Remove", role: .destructive) { Task { await model.remove(p) } }
                 Button("Cancel", role: .cancel) {}
+            }
+            .confirmationDialog(S.deleteMissingTitle(label), isPresented: $confirmDelete, titleVisibility: .visible) {
+                Button("Delete", role: .destructive) { Task { await model.localDelete(p) } }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(S.deleteMissingMessage(label))
             }
         }
     }
@@ -538,6 +552,7 @@ struct PeerMenuItems: View {
     let p: Peer
     let model: AppModel
     @Binding var confirmRemove: Bool
+    @Binding var confirmDelete: Bool
 
     var body: some View {
         Toggle("Show device on Send screen", isOn: Binding(
@@ -557,7 +572,7 @@ struct PeerMenuItems: View {
         .disabled(!model.boolSetting(SettingKey.lockShow, true) || !model.boolSetting(SettingKey.showContent, true) || !p.showContent)
         Divider()
         if p.missing {
-            Button("Delete") { Task { await model.localDelete(p) } }
+            Button("Delete") { confirmDelete = true }
         }
         Button("Remove device from account", role: .destructive) { confirmRemove = true }
     }

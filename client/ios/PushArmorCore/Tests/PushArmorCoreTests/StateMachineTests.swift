@@ -31,6 +31,11 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(S.sending(.tel, to: ["A", "B"]), "Sending phone number to \"A\" and \"B\"...")
         XCTAssertEqual(S.sending(.text, to: ["A very long device name", "B", "C"]),
                        "Sending text to \"A very long devic...\", \"B\", and \"C\"...")
+        XCTAssertEqual(S.sendingHeader(.url), "Sending URL to:")
+        XCTAssertEqual(S.sendingHeader(.tel), "Sending phone number to:")
+        XCTAssertEqual(S.sendingHeader(.text), "Sending text to:")
+        XCTAssertEqual(S.deleteMissingTitle("Old"), "Delete \"Old\"?")
+        XCTAssertEqual(S.deleteMissingMessage("Old"), "This removes \"Old\" from this device.")
         XCTAssertEqual(S.encryptingFor(["Laptop"]), "Encrypting for \"Laptop\"")
         XCTAssertEqual(S.encryptingFor(["A", "B"]), "Encrypting for \"A\" and \"B\"")
         XCTAssertEqual(S.sendingTo(["Laptop"]), "Sending to \"Laptop\"")

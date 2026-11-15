@@ -168,7 +168,7 @@ struct SettingsView: View {
             // standard alerts; Cancel and the destructive action are placed by the system
             .alert("Delete account?", isPresented: $confirmDeleteAccount) {
                 Button("Cancel", role: .cancel) {}
-                Button("Continue", role: .destructive) { model.phase = .signIn(.deleteAccount) }
+                Button("Log in to delete", role: .destructive) { model.phase = .signIn(.deleteAccount) }
             } message: {
                 Text("You must log in again to confirm. This cannot be undone.")
             }

@@ -1009,10 +1009,6 @@ final class AppModel: ObservableObject {
         reload()
     }
 
-    func deleteRow(_ row: HistoryRow) {
-        deleteRows([row.rowid])
-    }
-
     /// With Sync deletions on, a row goes only once every other device took the del; else it
     /// stays, struck through, and the devices that did not take it are named.
     func deleteRows(_ ids: Set<Int64>) {

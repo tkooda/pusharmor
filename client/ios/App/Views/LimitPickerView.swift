@@ -46,7 +46,7 @@ struct LimitPickerView: View {
                     Button("Cancel") { model.cancelLimit() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Submit") { Task { await model.submitEvict() } }
+                    Button("Remove", role: .destructive) { Task { await model.submitEvict() } }
                         .disabled(model.busy.contains("evict"))
                 }
             }

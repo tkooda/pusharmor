@@ -444,7 +444,8 @@ struct ComposeView: View {
                 let sel = selected
                 let chosen = all ? model.allSet : candidates.filter { selected.contains($0.id.text) && enabled($0) }
                 sendNames = PeerLabel.sorted(chosen).map { model.label($0) }
-                sendCaption = S.sending(SendScreenRules.sendType(t, asURL: u, asText: a), to: sendNames)
+                let kind = SendScreenRules.sendType(t, asURL: u, asText: a)
+                sendCaption = sendNames.count > 1 ? S.sendingHeader(kind) : S.sending(kind, to: sendNames)
                 Task {
                     // A failed send keeps the draft, so "Unable to send." can be retried.
                     if await RecipientMemory.send(sel, { await model.send(t, asURL: u, asText: a, toAll: all, peerIds: ids) }) {
@@ -486,7 +487,14 @@ struct ComposeView: View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 16) {
                     BrandTileView(size: 40)
-                    Text(sendCaption)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(sendCaption)
+                        if sendNames.count > 1 {
+                            ForEach(Array(sendNames.enumerated()), id: \.offset) { _, name in
+                                Text("\u{2022} " + name)
+                            }
+                        }
+                    }
                 }
                 ProgressView(value: Double(model.sendStep), total: 100)
                     .progressViewStyle(.linear)

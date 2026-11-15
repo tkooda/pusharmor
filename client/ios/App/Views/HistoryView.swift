@@ -73,10 +73,6 @@ struct HistoryView: View {
                                selecting: selection.active, selected: selection.contains(row.rowid),
                                onToggle: { selection.toggle(row.rowid) }, onLongPress: { selection.start(row.rowid) })
             }
-            .onDelete { idx in
-                for i in idx { model.deleteRow(rows[i]) }
-            }
-            .deleteDisabled(selection.active)
         }
     }
 

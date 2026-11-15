@@ -45,6 +45,8 @@ public enum S {
     public static func removeConfirm(_ x: String) -> String {
         "Remove \"\(x)\" from this account? \"\(x)\" must log in again and pair with every device again."
     }
+    public static func deleteMissingTitle(_ x: String) -> String { "Delete \"\(x)\"?" }
+    public static func deleteMissingMessage(_ x: String) -> String { "This removes \"\(x)\" from this device." }
     /// Device-limit row: how many devices it trusts and how many trust it.
     public static func trusts(_ n: Int, trustedBy m: Int) -> String {
         "Trusts \(n) \(n == 1 ? "device" : "devices"). Trusted by \(m)."
@@ -59,6 +61,10 @@ public enum S {
     /// Every name is quoted: "A", "A" and "B", or "A", "B", and "C".
     public static func sending(_ type: SendType, to names: [String]) -> String {
         "Sending " + (type == .url ? "URL" : type == .tel ? "phone number" : "text") + " to " + cutList(names) + "..."
+    }
+    /// The caption for two or more devices: the names follow as a list, one per line.
+    public static func sendingHeader(_ type: SendType) -> String {
+        "Sending " + (type == .url ? "URL" : type == .tel ? "phone number" : "text") + " to:"
     }
     public static func encryptingFor(_ names: [String]) -> String { "Encrypting for " + cutList(names) }
     public static func sendingTo(_ names: [String]) -> String { "Sending to " + cutList(names) }
