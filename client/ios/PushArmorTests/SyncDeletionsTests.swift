@@ -28,8 +28,14 @@ final class SyncDeletionsTests: XCTestCase {
     func testFailedDeleteShowsTheError() throws {
         let src = try source("App/AppModel.swift")
         XCTAssertEqual(try count(#"catch \{ toast = ErrorCopy\.deleteFailText\(\.deleteOnOtherDevices, error\) \}"#, in: src), 1)
-        XCTAssertEqual(try count(#"toast = ErrorCopy\.deleteFailText\(\.deleteOnOtherDevices, error\)"#, in: src), 2)
+        XCTAssertEqual(try count(#"toast = ErrorCopy\.deleteFailText\(\.deleteOnOtherDevices, error\)"#, in: src), 1)
         XCTAssertEqual(try count(#"if let t = try await core\.deleteHistoryRows\(Array\(ids\)\) \{ toast = t \}"#, in: src), 1)
-        XCTAssertEqual(try count(#"if let t = try await core\.deleteAllHistory\(\) \{ toast = t \}"#, in: src), 1)
+    }
+
+    /// No delete-all anywhere: History has a select-all checkbox instead.
+    func testNoDeleteAll() throws {
+        XCTAssertFalse(try source("App/Views/SettingsView.swift").contains("Delete all history"))
+        XCTAssertFalse(try source("App/AppModel.swift").contains("deleteAllHistory"))
+        XCTAssertTrue(try source("App/Views/HistoryView.swift").contains("selection.toggleAll(shown)"))
     }
 }

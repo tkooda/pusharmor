@@ -29,7 +29,7 @@ final class ToastTextTests: XCTestCase {
     func testNoBannerLineEndsWithAPeriod() {
         let actions: [ErrorCopy.Action] = [.send, .sendOne("X"), .refresh, .rename, .pair("X"), .confirm("X"),
                                            .reject("X"), .remove("X"), .evict, .logout, .sendCode, .checkCode, .login,
-                                           .loginGoogle, .loginApple, .prepareLogin, .deleteAccount, .deleteHistory,
+                                           .loginGoogle, .loginApple, .prepareLogin, .deleteAccount,
                                            .changeSetting, .turnOnNotifications, .deleteOnOtherDevices]
         let reasons: [ErrorCopy.Reason] = [.unreachable, .serverDown, .rateLimited(waitMs: 60_000), .tooOld, .removed,
                                            .loggedOut, .loginExpired, .badLink, .clockOff, .blocked, .wrongCode,

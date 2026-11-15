@@ -22,7 +22,6 @@ public enum ErrorCopy {
         case loginApple
         case prepareLogin
         case deleteAccount
-        case deleteHistory
         /// Deleting History rows while Sync deletions could not reach the other devices.
         case deleteOnOtherDevices
         case changeSetting
@@ -47,7 +46,6 @@ public enum ErrorCopy {
             case .loginApple: return "Unable to log in with Apple."
             case .prepareLogin: return "Unable to start the login."
             case .deleteAccount: return "Unable to delete the account."
-            case .deleteHistory: return "Unable to delete the history."
             case .deleteOnOtherDevices: return "Unable to delete on your other devices."
             case .changeSetting: return "Unable to change this setting."
             case .turnOnNotifications: return "Unable to turn on notifications."

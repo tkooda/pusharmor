@@ -22,6 +22,21 @@ public struct HistorySelection: Equatable, Sendable {
 
     public mutating func exit() { ids = nil }
 
+    /// The select-all checkbox: none, some, or all of the shown rows are checked.
+    public enum AllState: Equatable, Sendable { case empty, partial, all }
+
+    public func allState(of visible: [Int64]) -> AllState {
+        let n = visible.filter { contains($0) }.count
+        if n == 0 { return .empty }
+        return n == visible.count ? .all : .partial
+    }
+
+    /// A tap on the select-all checkbox: every shown row is checked; when all already are,
+    /// none is and the mode ends.
+    public mutating func toggleAll(_ visible: [Int64]) {
+        if visible.isEmpty || allState(of: visible) == .all { ids = nil } else { ids = Set(visible) }
+    }
+
     /// Drops ids whose rows are gone (deleted, or hidden by the filter), which can end the mode.
     public mutating func keep(only visible: Set<Int64>) {
         guard let s = ids else { return }

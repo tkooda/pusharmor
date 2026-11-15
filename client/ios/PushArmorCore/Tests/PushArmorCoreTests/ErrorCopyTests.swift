@@ -26,7 +26,6 @@ final class ErrorCopyTests: XCTestCase {
             (.loginApple, "Unable to log in with Apple."),
             (.prepareLogin, "Unable to start the login."),
             (.deleteAccount, "Unable to delete the account."),
-            (.deleteHistory, "Unable to delete the history."),
             (.deleteOnOtherDevices, "Unable to delete on your other devices."),
             (.changeSetting, "Unable to change this setting."),
             (.turnOnNotifications, "Unable to turn on notifications."),

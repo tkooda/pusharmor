@@ -2421,35 +2421,6 @@ final class StateMachineTests: XCTestCase {
         XCTAssertTrue(try n.core.store.history().filter { $0.type == "text" }.isEmpty)
     }
 
-    /// delete all is a delete of every row: a del with every id; a failure keeps the rows.
-    func testSyncDeletionsDeleteAll() async throws {
-        let n = try dev("Ndev"), x = try dev("Xdev")
-        try await pairFully(n, x)
-        await n.core.fetchPeers(force: true)
-        _ = try await n.core.send("a", as: .text, to: [x.id], allCount: 1)
-        _ = try await n.core.send("b", as: .text, to: [x.id], allCount: 1)
-        await x.drainInbox(w)
-        _ = try n.core.store.addMessage(dir: .outgoing, peer: x.id, type: "text", content: "old", n: nil, pairingId: nil,
-                                        read: true, results: nil, now: clock.now)
-        w.offline = true
-        do {
-            try await n.core.deleteAllHistory()
-            XCTFail("delete all went on without the relay server")
-        } catch {
-            XCTAssertEqual(ErrorCopy.deleteFailText(.deleteOnOtherDevices, error),
-                           "Unable to delete on your other devices.\nThe relay server could not be reached. Check your internet connection and try again.")
-        }
-        w.offline = false
-        // the rows with an id stay; the row without one (this device only) is gone
-        XCTAssertEqual(Set(try n.core.store.history().filter { $0.type == "text" }.map { $0.content }), ["a", "b"])
-        try await n.core.deleteAllHistory()
-        XCTAssertTrue(try n.core.store.history().isEmpty)
-        let r = await x.drainInbox(w)
-        XCTAssertEqual(r.count, 1)
-        XCTAssertEqual(r[0].banner?.body, "2 messages deleted by \"Ndev\"")
-        XCTAssertTrue(try x.core.store.history().filter { $0.type == "text" }.isEmpty)
-    }
-
     func testSortedByNameIgnoresCase() {
         XCTAssertEqual(PeerLabel.sortedByName(["gamma", "Beta", "alpha", "Beta2"]) { $0 }, ["alpha", "Beta", "Beta2", "gamma"])
     }

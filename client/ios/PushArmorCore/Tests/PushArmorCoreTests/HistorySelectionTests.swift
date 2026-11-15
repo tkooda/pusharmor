@@ -34,6 +34,28 @@ final class HistorySelectionTests: XCTestCase {
         XCTAssertEqual(s.confirmTitle, "Delete 2 messages?")
     }
 
+    func testSelectAllIsTriState() {
+        var s = HistorySelection()
+        let shown: [Int64] = [1, 2, 3]
+        XCTAssertEqual(s.allState(of: shown), .empty)
+        s.toggleAll(shown)
+        XCTAssertTrue(s.active)
+        XCTAssertEqual(s.ids, [1, 2, 3])
+        XCTAssertEqual(s.allState(of: shown), .all)
+        s.toggle(2)
+        XCTAssertEqual(s.allState(of: shown), .partial)
+        // from some, a tap checks every row
+        s.toggleAll(shown)
+        XCTAssertEqual(s.allState(of: shown), .all)
+        // from all, a tap clears every row and ends the mode
+        s.toggleAll(shown)
+        XCTAssertFalse(s.active)
+        XCTAssertEqual(s.allState(of: shown), .empty)
+        // no rows: nothing to select
+        s.toggleAll([])
+        XCTAssertFalse(s.active)
+    }
+
     func testKeepOnlyVisibleCanEndTheMode() {
         var s = HistorySelection()
         s.start(1)

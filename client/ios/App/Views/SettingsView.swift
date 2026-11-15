@@ -6,7 +6,6 @@ struct SettingsView: View {
     @State private var name = ""
     @FocusState private var nameFocused: Bool
     @State private var renaming = false
-    @State private var confirmDeleteHistory = false
     @State private var confirmDeleteAccount = false
     @AppStorage(AppearancePreference.storageKey) private var appearance = AppearancePreference.system.rawValue
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -119,7 +118,6 @@ struct SettingsView: View {
                     Toggle("Sync deletions", isOn: boolBinding(SettingKey.syncDeletions, true))
                     Text("Deleting on this device will also delete on your other devices.")
                         .font(.caption).foregroundColor(.secondaryText)
-                    Button("Delete all history", role: .destructive) { confirmDeleteHistory = true }
                 }
 
                 if model.phase == .main {
@@ -164,12 +162,6 @@ struct SettingsView: View {
             .contentMargins(.bottom, 12, for: .scrollContent)
             .navigationTitle("Settings")
             // standard alerts; Cancel and the destructive action are placed by the system
-            .alert("Delete all history?", isPresented: $confirmDeleteHistory) {
-                Button("Cancel", role: .cancel) {}
-                Button("Delete", role: .destructive) { model.deleteAllHistory() }
-            } message: {
-                Text("This deletes every sent and received message on this device.")
-            }
             .alert("Delete account?", isPresented: $confirmDeleteAccount) {
                 Button("Cancel", role: .cancel) {}
                 Button("Continue", role: .destructive) { model.phase = .signIn(.deleteAccount) }

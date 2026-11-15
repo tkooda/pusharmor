@@ -28,16 +28,13 @@ struct HistoryView: View {
             if options.count > 1 {
                 filterControl
             }
-            if selection.active {
+            if !rows.isEmpty {
                 HStack {
+                    selectAll(rows.map(\.rowid))
                     Spacer()
-                    Button(selection.deleteLabel) { confirmDelete = true }
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundColor(.red)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 7)
-                        .background(Capsule().fill(Color.red.opacity(0.15)))
-                        .buttonStyle(.plain)
+                    if selection.active {
+                        deleteButton
+                    }
                 }
                 .listRowSeparator(.hidden)
             }
@@ -71,6 +68,32 @@ struct HistoryView: View {
             }
             .deleteDisabled(selection.active)
         }
+    }
+
+    /// The select-all checkbox in the checkbox column: empty, a dash for some, a check for all.
+    private func selectAll(_ shown: [Int64]) -> some View {
+        let state = selection.allState(of: shown)
+        return Button { selection.toggleAll(shown) } label: {
+            HStack(spacing: 10) {
+                Image(systemName: state == .all ? "checkmark.circle.fill" : (state == .partial ? "minus.circle.fill" : "circle"))
+                    .foregroundColor(state == .empty ? .secondaryText : .accentColor)
+                    .imageScale(.large)
+                Text("Select all")
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Select all")
+        .accessibilityValue(state == .all ? "All selected" : (state == .partial ? "Some selected" : "None selected"))
+    }
+
+    private var deleteButton: some View {
+        Button(selection.deleteLabel) { confirmDelete = true }
+            .font(.subheadline.weight(.semibold))
+            .foregroundColor(.red)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .background(Capsule().fill(Color.red.opacity(0.15)))
+            .buttonStyle(.plain)
     }
 
     @ViewBuilder
