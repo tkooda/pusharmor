@@ -404,3 +404,17 @@ test("Firefox for Android says tap Codes match while waiting, desktop says click
     if (nav) Object.defineProperty(globalThis, "navigator", nav);
   }
 });
+
+test("Firefox for Android says tap Cancel pairing request and tap Send again, desktop says click", async () => {
+  const desk = await import("../src/core/texts.ts");
+  assert.equal(desk.T.stillHolds("X"), '"X" still holds an earlier pairing. On "X", click Cancel pairing request, then click Send again.');
+  const nav = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  Object.defineProperty(globalThis, "navigator", { value: { userAgent: "Mozilla/5.0 (Android 14; Mobile; rv:133.0) Gecko/133.0 Firefox/133.0" }, configurable: true });
+  try {
+    const fresh: string = "../src/core/texts.ts?android-stillholds"; // a second copy reads the Android user agent at load
+    const fa = (await import(fresh)) as typeof desk;
+    assert.equal(fa.T.stillHolds("X"), '"X" still holds an earlier pairing. On "X", tap Cancel pairing request, then tap Send again.');
+  } finally {
+    if (nav) Object.defineProperty(globalThis, "navigator", nav);
+  }
+});
