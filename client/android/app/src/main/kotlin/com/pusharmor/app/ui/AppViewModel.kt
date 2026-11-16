@@ -3,6 +3,10 @@ package com.pusharmor.app.ui
 import android.app.Application
 import android.database.sqlite.SQLiteDatabaseCorruptException
 import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pusharmor.app.PaApp
@@ -21,6 +25,8 @@ import com.pusharmor.store.SelfEntity
 import com.pusharmor.store.toPeer
 import com.pusharmor.store.toRow
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -66,6 +72,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val highlight = MutableStateFlow<String?>(null)
 
     companion object {
+        /** Runs a Direct Share send to its end, whether or not its dialog is still open. */
+        private val directScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
         /** Check again on a push setup error waits this long for the token or address before it says still. */
         const val SETUP_WAIT_MS = 35_000L
 
@@ -400,6 +409,45 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Set when a send reached a device; the main screen then opens History at that row. */
     val sent = MutableStateFlow<SendResult?>(null)
+
+    /** Progress of the send on its way, kept here so a screen recreated meanwhile (a rotation) still shows it. */
+    var sendStep by mutableIntStateOf(0)
+    var sendRetry by mutableIntStateOf(0)
+    var sendCaption by mutableStateOf("")
+    var sendNames by mutableStateOf(listOf<String>())
+
+    /** The result of the Send screen's send, taken once by the screen that shows it. */
+    val sendDone = MutableStateFlow<SendResult?>(null)
+
+    /** A Direct Share send started from this dialog: a recreated dialog does not send it again. */
+    var directStarted = false
+
+    /** Set when that Direct Share send is done and its result shown; the dialog then closes. */
+    val directDone = MutableStateFlow(false)
+
+    /** The Send screen's send: it runs here, so a rotation does not stop it; its result goes to [sendDone]. */
+    fun sendFromScreen(to: List<String>, text: String, asText: Boolean) {
+        viewModelScope.launch {
+            try {
+                g.client.onRetry = { a -> sendRetry = a }
+                val r = try { send(to, text, asText) { st -> if (st > sendStep) sendStep = st } } finally { g.client.onRetry = null }
+                sendDone.value = r
+            }
+            finally { running.update { it - "send" } }
+        }
+    }
+
+    /** The Direct Share send, started once per dialog: it runs to its end even when the dialog closes; [report] then shows its result. */
+    fun sendDirect(peerId: String, text: String, report: (SendResult) -> Unit) {
+        if (directStarted) return
+        directStarted = true
+        directScope.launch {
+            g.client.onRetry = { a -> sendRetry = a }
+            val r = try { send(listOf(peerId), text) { s -> if (s > sendStep) sendStep = s } } finally { g.client.onRetry = null }
+            report(r)
+            directDone.value = true
+        }
+    }
 
     /** History row to scroll to and flash once. */
     val flashRow = MutableStateFlow<Long?>(null)

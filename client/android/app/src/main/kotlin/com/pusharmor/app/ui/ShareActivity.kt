@@ -10,7 +10,6 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.Alignment
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.foundation.layout.width
 import com.pusharmor.app.ui.theme.BrandGreen
 import com.pusharmor.app.ui.theme.BrandTile
@@ -34,6 +33,7 @@ import com.pusharmor.protocol.Peer
 import com.pusharmor.protocol.SizeCap
 import com.pusharmor.protocol.engine.SendFlow
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -128,10 +128,8 @@ class ShareActivity : ComponentActivity() {
 
     /** The type is detected as on the Send screen. A send that reached the device shows a toast; a failure posts an error notification. */
     private fun sendDirect(peer: Peer, text: String) {
-        val step = mutableIntStateOf(0)
         val caption = UiText.directSending(Detect.type(text), label(peer))
         // The step under the bar: encrypting, sending, or a retry of the relay server call.
-        val retry = mutableIntStateOf(0)
         setContent {
             Frame {
                 Column(Modifier.padding(24.dp)) {
@@ -139,27 +137,28 @@ class ShareActivity : ComponentActivity() {
                         BrandTile(40.dp)
                         Text(caption, Modifier.padding(start = 16.dp), style = MaterialTheme.typography.bodyLarge)
                     }
-                    LinearProgressIndicator({ step.intValue / 100f }, Modifier.fillMaxWidth().padding(top = 16.dp), color = BrandGreen)
+                    LinearProgressIndicator({ vm.sendStep / 100f }, Modifier.fillMaxWidth().padding(top = 16.dp), color = BrandGreen)
                     Text(when {
-                        retry.intValue > 1 -> UiText.tryingAgain(retry.intValue)
-                        step.intValue < SendFlow.Step.ENCRYPTED -> UiText.encryptingFor(label(peer))
+                        vm.sendRetry > 1 -> UiText.tryingAgain(vm.sendRetry)
+                        vm.sendStep < SendFlow.Step.ENCRYPTED -> UiText.encryptingFor(label(peer))
                         else -> UiText.sendingTo(label(peer))
                     }, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
-        lifecycleScope.launch {
-            vm.g.client.onRetry = { a -> retry.intValue = a }
-            val r = try { vm.send(listOf(peer.id), text) { s -> if (s > step.intValue) step.intValue = s } } finally { vm.g.client.onRetry = null }
-            if (r.ok) toastAndFinish(UiText.directShareSent(label(peer)))
+        // The send runs outside this activity: a rotation does not send it again, and a tap outside neither stops it nor hides its result.
+        val app = applicationContext
+        val notifier = vm.g.notifier
+        vm.sendDirect(peer.id, text) { r ->
+            if (r.ok) Toast.makeText(app, UiText.brief(UiText.directShareSent(label(peer))), Toast.LENGTH_SHORT).show()
             else {
-                val n = vm.g.notifier
+                val n = notifier
                 // With notifications off or the channel blocked the notification cannot show, so the error is a toast:
                 // a failure is never silent.
-                if (n.noticeShows()) n.notice(r.text) else Toast.makeText(this@ShareActivity, UiText.brief(r.text), Toast.LENGTH_LONG).show()
-                finish()
+                if (n.noticeShows()) n.notice(r.text) else Toast.makeText(app, UiText.brief(r.text), Toast.LENGTH_LONG).show()
             }
         }
+        lifecycleScope.launch { vm.directDone.first { it }; finish() }
     }
 
     /** A send that reached a device returns the user to the sharing app; this activity is gone, so a Toast says so. */

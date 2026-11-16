@@ -187,7 +187,6 @@ import com.pusharmor.store.toRow
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.update
 import java.text.DateFormat
 import java.util.Date
 
@@ -1087,24 +1086,30 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                 }
             }
             val running by vm.running.collectAsState()
+            // The send runs in the ViewModel: a screen recreated meanwhile keeps its progress and shows its result once.
+            LaunchedEffect(Unit) {
+                vm.sendDone.collect { r ->
+                    if (r != null) {
+                        vm.sendDone.value = null
+                        if (r.ok) asText = false else result = ((result?.first ?: 0) + 1) to r.text
+                        onSent(r)
+                    }
+                }
+            }
             // Progress popup over the screen while a send is on its way: the caption and the device name, set at the tap.
-            var sendStep by remember { mutableIntStateOf(0) }
-            var sendRetry by remember { mutableIntStateOf(0) }
-            var sendCaption by remember { mutableStateOf("") }
-            var sendNames by remember { mutableStateOf(listOf<String>()) }
             if ("send" in running) Dialog(onDismissRequest = {}, properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)) {
                 androidx.compose.material3.Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surface) {
                     Column(Modifier.padding(24.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             com.pusharmor.app.ui.theme.BrandTile(40.dp)
-                            Text(sendCaption, Modifier.padding(start = 16.dp), style = MaterialTheme.typography.bodyLarge)
+                            Text(vm.sendCaption, Modifier.padding(start = 16.dp), style = MaterialTheme.typography.bodyLarge)
                         }
-                        if (sendNames.size > 1) sendNames.forEach { Text(UiText.bulleted(it), Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodyLarge) }
-                        LinearProgressIndicator({ sendStep / 100f }, Modifier.fillMaxWidth().padding(top = 16.dp), color = com.pusharmor.app.ui.theme.BrandGreen)
+                        if (vm.sendNames.size > 1) vm.sendNames.forEach { Text(UiText.bulleted(it), Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodyLarge) }
+                        LinearProgressIndicator({ vm.sendStep / 100f }, Modifier.fillMaxWidth().padding(top = 16.dp), color = com.pusharmor.app.ui.theme.BrandGreen)
                         Text(when {
-                            sendRetry > 1 -> UiText.tryingAgain(sendRetry)
-                            sendStep < com.pusharmor.protocol.engine.SendFlow.Step.ENCRYPTED -> UiText.encryptingFor(sendNames)
-                            else -> UiText.sendingTo(sendNames)
+                            vm.sendRetry > 1 -> UiText.tryingAgain(vm.sendRetry)
+                            vm.sendStep < com.pusharmor.protocol.engine.SendFlow.Step.ENCRYPTED -> UiText.encryptingFor(vm.sendNames)
+                            else -> UiText.sendingTo(vm.sendNames)
                         }, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
@@ -1113,21 +1118,12 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                 // One send per tap: a second tap while the first is on its way does not send twice.
                 if (AppViewModel.claim(vm.running, "send")) {
                     scope.launch { vm.g.settings.saveSendTo(sendTo) }
-                    sendStep = 0
-                    sendRetry = 0
-                    sendNames = sendTo.mapNotNull { id -> peers.firstOrNull { it.id == id } }.map(::label)
+                    vm.sendStep = 0
+                    vm.sendRetry = 0
+                    vm.sendNames = sendTo.mapNotNull { id -> peers.firstOrNull { it.id == id } }.map(::label)
                     val sendType = if (asText) ContentType.TEXT else com.pusharmor.protocol.Detect.type(text)
-                    sendCaption = if (sendNames.size > 1) UiText.directSendingList(sendType) else UiText.directSending(sendType, sendNames)
-                    scope.launch {
-                        // A send that reached a device leaves this screen, so only a failure shows here.
-                        try {
-                            vm.g.client.onRetry = { a -> sendRetry = a }
-                            val r = try { vm.send(sendTo, text, asText) { st -> if (st > sendStep) sendStep = st } } finally { vm.g.client.onRetry = null }
-                            if (r.ok) asText = false else result = ((result?.first ?: 0) + 1) to r.text
-                            onSent(r)
-                        }
-                        finally { vm.running.update { it - "send" } }
-                    }
+                    vm.sendCaption = if (vm.sendNames.size > 1) UiText.directSendingList(sendType) else UiText.directSending(sendType, vm.sendNames)
+                    vm.sendFromScreen(sendTo, text, asText)
                 }
             }, text = UiText.sendLabel(sendTo.size, sendTo.singleOrNull()?.let { id -> peers.firstOrNull { it.id == id } }?.let(::label)), icon = PaIcons.Send,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp).fillMaxWidth().heightIn(min = 56.dp),

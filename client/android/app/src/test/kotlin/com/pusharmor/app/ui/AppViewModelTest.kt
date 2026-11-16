@@ -223,6 +223,31 @@ class AppViewModelTest {
         assertFalse(r.ok)
     }
 
+    /** The Send screen's send runs in the ViewModel: its result waits there for the screen (one recreated meanwhile) to show it. */
+    @Test fun screenSendResultWaitsForTheScreen() {
+        val vm = vm()
+        vm.g.keysOrNull = null
+        onIo { vm.g.dao.putSelf(SelfEntity(id = "A".repeat(40), accountPrefix = ByteArray(9), name = "t")) }
+        assertTrue(AppViewModel.claim(vm.running, "send"))
+        vm.sendFromScreen(listOf("B".repeat(40)), "hi", asText = true)
+        waitFor { vm.sendDone.value != null }
+        assertEquals("Unable to send.\nTry again.", vm.sendDone.value?.text)
+        assertEquals(emptySet<String>(), vm.running.value)
+    }
+
+    /** A Direct Share send starts once per dialog: a recreated dialog does not send it again, and its result shows once. */
+    @Test fun directSendStartsOnce() {
+        val vm = vm()
+        vm.g.keysOrNull = null
+        onIo { vm.g.dao.putSelf(SelfEntity(id = "A".repeat(40), accountPrefix = ByteArray(9), name = "t")) }
+        val shown = mutableListOf<String>()
+        vm.sendDirect("B".repeat(40), "hi") { shown.add(it.text) }
+        vm.sendDirect("B".repeat(40), "hi") { shown.add(it.text) }
+        waitFor { vm.directDone.value }
+        Thread.sleep(200); shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(listOf("Unable to send.\nTry again."), shown)
+    }
+
     /** Each pairing and device tap that fails names its own action on line 1. */
     @Test fun pairingTapsNameTheirAction() {
         val vm = vm()
