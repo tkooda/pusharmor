@@ -13,7 +13,25 @@ final class ScreenshotTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-PAScreenshots"] + extra
         app.launch()
+        allowNotifications(app)
         return app
+    }
+
+    /// Notifications on in the simulator, so no shot shows the cannot-receive banner: while
+    /// not yet asked, the banner's Allow notifications opens the system prompt, which gets
+    /// Allow. Once per install; later launches skip it.
+    private static var notificationsAllowed = false
+    private func allowNotifications(_ app: XCUIApplication) {
+        guard !Self.notificationsAllowed,
+              app.staticTexts["This device cannot receive messages."].waitForExistence(timeout: 3) else { return }
+        let ask = app.buttons["Allow notifications"]
+        XCTAssertTrue(ask.waitForExistence(timeout: 5))
+        ask.tap()
+        let allow = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.buttons["Allow"]
+        XCTAssertTrue(allow.waitForExistence(timeout: 10))
+        allow.tap()
+        XCTAssertTrue(app.staticTexts["This device cannot receive messages."].waitForNonExistence(timeout: 10))
+        Self.notificationsAllowed = true
     }
 
     private func shot(_ name: String) {
