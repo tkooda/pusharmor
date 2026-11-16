@@ -120,14 +120,14 @@ class AppViewModelTest {
         assertEquals("Delete 2 messages?", deleteSelectedTitle(2))
     }
 
-    /** Select all: empty with none picked, dash with some, check with all; a tap picks all, a tap on all clears. */
+    /** Select all: empty with none picked, dash with some, check with all; a tap on none picks all, a tap on some or all clears. */
     @Test fun selectAllIsTriState() {
         val shown = setOf(1L, 2L, 3L)
         assertEquals(androidx.compose.ui.state.ToggleableState.Off, selectAllState(emptyList(), shown))
         assertEquals(androidx.compose.ui.state.ToggleableState.Indeterminate, selectAllState(listOf(2L), shown))
         assertEquals(androidx.compose.ui.state.ToggleableState.On, selectAllState(listOf(3L, 1L, 2L), shown))
         assertEquals(shown, selectAllToggle(emptyList(), shown).toSet())
-        assertEquals(shown, selectAllToggle(listOf(2L), shown).toSet())
+        assertEquals(emptyList<Long>(), selectAllToggle(listOf(2L), shown))
         assertEquals(emptyList<Long>(), selectAllToggle(listOf(1L, 2L, 3L), shown))
     }
 

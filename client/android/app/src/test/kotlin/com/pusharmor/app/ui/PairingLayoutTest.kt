@@ -65,7 +65,7 @@ class PairingLayoutTest {
         val a = c.get()
         val px = a.resources.displayMetrics.density
         val plate = nodes(a.window.decorView).first { n ->
-            n.config.getOrNull(SemanticsProperties.ContentDescription)?.any { it == "Pairing fingerprint G, Z, J, 3" } == true
+            n.config.getOrNull(SemanticsProperties.ContentDescription)?.any { it == "Pairing code G, Z, J, 3" } == true
         }.boundsInRoot
         val cell = minOf(64f * px, (plate.width - 30f * px) / 4f)
         val screen = a.window.decorView.width

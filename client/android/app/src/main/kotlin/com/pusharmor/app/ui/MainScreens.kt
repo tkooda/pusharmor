@@ -916,7 +916,7 @@ internal fun FingerprintPlate(code: String, x: String) {
         horizontalAlignment = Alignment.CenterHorizontally) {
         Row(Modifier.clearAndSetSemantics {}, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(painterResource(R.drawable.ic_notify), null, Modifier.size(13.dp), tint = cs.primary)
-            Text("Pairing fingerprint".uppercase(), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = cs.onSurfaceVariant)
+            Text("Pairing code".uppercase(), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = cs.onSurfaceVariant)
         }
         Spacer(Modifier.height(12.dp))
         val shape = RoundedCornerShape(14.dp)
@@ -1241,7 +1241,7 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
         // Rows that were deleted or filtered away leave the selection; none left ends the mode.
         val shownIds = view.shownIds
         if (picked.any { it !in shownIds }) picked = picked.filter { it in shownIds }
-        // Select all, in the rows' checkbox column: empty (none), dash (some), check (all); a tap selects all, a tap on all clears.
+        // Select all, in the rows' checkbox column: empty (none), dash (some), check (all); a tap on none selects all, a tap on some or all clears.
         if (shownIds.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             androidx.compose.material3.TriStateCheckbox(selectAllState(picked, shownIds), { picked = selectAllToggle(picked, shownIds) },
                 Modifier.semantics { contentDescription = "Select all" })
@@ -1330,8 +1330,8 @@ internal fun selectAllState(picked: List<Long>, shown: Set<Long>): androidx.comp
     else -> androidx.compose.ui.state.ToggleableState.Indeterminate
 }
 
-/** A tap on select all: every shown row, or none when all were picked. */
-internal fun selectAllToggle(picked: List<Long>, shown: Set<Long>): List<Long> = if (shown.all { it in picked }) emptyList() else shown.toList()
+/** A tap on select all: every shown row when none are picked; none when some or all are picked (the mode ends). */
+internal fun selectAllToggle(picked: List<Long>, shown: Set<Long>): List<Long> = if (picked.isNotEmpty()) emptyList() else shown.toList()
 
 /** "Delete 1 selected", "Delete 3 selected". */
 internal fun deleteSelectedLabel(n: Int): String = "Delete $n selected"
@@ -1632,7 +1632,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                     }
                 }
                 add { m ->
-                    SwitchRow("Allow message content in notifications", b(Settings.K.SHOW_CONTENT, true), sub = "When off, notifications show only \"New message\".",
+                    SwitchRow("Allow message content in notifications", b(Settings.K.SHOW_CONTENT, true), sub = "When off, every notification shows \"New message from\" and the device name, with no content.",
                         modifier = m.then(pad)) { vm.setPref(Settings.K.SHOW_CONTENT, it) }
                 }
                 add { m ->

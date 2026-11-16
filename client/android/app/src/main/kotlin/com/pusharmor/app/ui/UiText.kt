@@ -350,7 +350,7 @@ object UiText {
     }
     const val FIRST_DEVICE_TITLE = "Pair your first device"
     /** Same steps as the iOS first-pair screen; each shows with a numbered circle. */
-    val FIRST_DEVICE_STEPS = listOf("Install PushArmor on another device.", "Log in with the same account.", "When it shows below, tap Pair, then tap Codes match when the fingerprints match.")
+    val FIRST_DEVICE_STEPS = listOf("Install PushArmor on another device.", "Log in with the same account.", "When it shows below, tap Pair, then tap Codes match when the codes match.")
     /** The short ID the command line prints for this device: first 6 hex chars after the 9 account bytes. */
     fun shortDeviceId(id: String): String =
         java.util.Base64.getUrlDecoder().decode(id).drop(9).joinToString("") { "%02x".format(it) }.take(6)
@@ -403,7 +403,7 @@ object UiText {
     }
 
     /** Spoken form of a fingerprint: "Pairing fingerprint K, 7, Q, D". */
-    fun fingerprintLabel(code: String): String = "Pairing fingerprint " + code.toList().joinToString(", ")
+    fun fingerprintLabel(code: String): String = "Pairing code " + code.toList().joinToString(", ")
 
     /** Day of [at] (epoch ms) in [zone], for grouping History rows. */
     fun day(at: Long, zone: ZoneId = ZoneId.systemDefault()): LocalDate = Instant.ofEpochMilli(at).atZone(zone).toLocalDate()

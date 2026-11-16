@@ -36,11 +36,11 @@ class AppEffectsTest {
     }
 
     @Test fun unifiedPushShowsInProgressAndReady() {
-        assertEquals(listOf("Pairing fingerprint ready. Open PushArmor.", "Pairing with a device is in progress. Open PushArmor."), noticesFor(fcm = false))
+        assertEquals(listOf("Pairing code ready. Open PushArmor.", "Pairing with a device is in progress. Open PushArmor."), noticesFor(fcm = false))
     }
 
     @Test fun fcmShowsInProgressAndReady() {
-        assertEquals(listOf("Pairing fingerprint ready. Open PushArmor.", "Pairing with a device is in progress. Open PushArmor."), noticesFor(fcm = true))
+        assertEquals(listOf("Pairing code ready. Open PushArmor.", "Pairing with a device is in progress. Open PushArmor."), noticesFor(fcm = true))
     }
 
     private fun text(id: Int) = nm.activeNotifications.filter { it.tag == Notifier.TAG_NOTICE && it.id == id }

@@ -252,7 +252,7 @@ class UiTextTest {
     }
 
     @Test fun fingerprintIsReadPerCharacter() {
-        assertEquals("Pairing fingerprint K, 7, Q, D", UiText.fingerprintLabel("K7QD"))
+        assertEquals("Pairing code K, 7, Q, D", UiText.fingerprintLabel("K7QD"))
     }
 
     @Test fun dayLabels() {
