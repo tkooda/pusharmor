@@ -43,6 +43,27 @@ test("openPage on Firefox for Android: the full screen popup goes to the page it
   }
 });
 
+test("openUrl on Firefox for Android: the full screen popup goes to the URL itself, no tab opens behind it; desktop opens a tab", async () => {
+  const log: string[] = [];
+  const g = globalThis as { location?: unknown; navigator?: unknown };
+  const savedLoc = Object.getOwnPropertyDescriptor(globalThis, "location");
+  const savedNav = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const ua = (v: string) => Object.defineProperty(globalThis, "navigator", { value: { userAgent: v }, configurable: true });
+  Object.defineProperty(globalThis, "location", { value: { pathname: "/popup.html", assign: (u: string) => void log.push("assign " + u) }, configurable: true });
+  try {
+    const b = { runtime: { getManifest: () => ({ name: "PushArmor", version: "0.0.19" }) }, tabs: { create: async (o: { url: string }) => void log.push("create " + o.url) } };
+    ua("Mozilla/5.0 (Android 15; Mobile; rv:144.0) Gecko/144.0 Firefox/144.0");
+    uiEnv(b as never).openUrl("https://example.com/a");
+    ua("Mozilla/5.0 (X11; Linux x86_64; rv:144.0) Gecko/20100101 Firefox/144.0");
+    uiEnv(b as never).openUrl("https://example.com/b");
+    assert.deepEqual(log, ["assign https://example.com/a", "create https://example.com/b"]);
+  } finally {
+    if (savedLoc) Object.defineProperty(globalThis, "location", savedLoc);
+    else delete g.location;
+    if (savedNav) Object.defineProperty(globalThis, "navigator", savedNav);
+  }
+});
+
 test("a failed database open does not stick: the next call tries again, the caller gets an error reply", async () => {
   assert.equal(typeof (globalThis as { indexedDB?: unknown }).indexedDB, "undefined"); // node: the open fails
   const boot = lazyBoot(() => ({}) as never, new Uint8Array(0));

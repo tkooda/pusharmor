@@ -441,6 +441,8 @@ export function uiEnv(b: Browser, linkSave = false): UiEnv {
       })();
     },
     openUrl(url) {
+      // Firefox for Android: as openPage, a new tab would open behind the full screen popup
+      if (/Android/i.test(navigator.userAgent) && globalThis.location?.pathname.endsWith("/popup.html")) return location.assign(url);
       void b.tabs.create({ url, active: true });
     },
     async installType() {
