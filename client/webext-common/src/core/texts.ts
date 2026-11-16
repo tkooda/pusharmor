@@ -28,7 +28,6 @@ export const T = {
   keysBrokenBody: "Click Retry to try again. If this keeps happening, you can delete the broken keys. You will then sign in again and pair all your devices again.",
   keysDeleteTitle: "Delete broken keys?",
   keysDeleteBody: "This cannot be undone. You will need to pair all your devices again.",
-  startLoginFailed: "Unable to start the login.",
   requestFailed: "Request failed.\nTry again.",
   noReply: "Unable to reach PushArmor.\nClose this window, open it again, and try again.",
   storageFull: "Storage is full. Free some space and try again.",
@@ -181,6 +180,7 @@ export type ActionId =
   | "loginApple"
   | "deleteAccount"
   | "deleteHistory"
+  | "deleteKeys"
   | "saveMessage"
   | "changeSetting";
 
@@ -205,6 +205,7 @@ export function actionLine(a: ActionId, x = ""): string {
     case "loginApple": return "Unable to log in with Apple.";
     case "deleteAccount": return "Unable to delete the account.";
     case "deleteHistory": return "Unable to delete on this device.";
+    case "deleteKeys": return "Unable to delete the broken keys.";
     case "saveMessage": return "Unable to save the message.";
     case "changeSetting": return "Unable to change this setting.";
   }

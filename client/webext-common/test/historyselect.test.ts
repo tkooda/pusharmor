@@ -68,6 +68,7 @@ test("History on Firefox for Android: no checkboxes until a long-press, which ch
     assert.equal(v.boxes().length, 0);
     v.longPress(2);
     const sa = find(v.root, (x) => x.tag === "input" && x.attrs.class === "hselall")!;
+    assert.ok(find(v.root, (x) => x.tag === "label" && x.attrs.class === "hselallbox" && x.children.includes(sa)));
     for (const f of sa.on.click!) f({}); // select all
     assert.deepEqual(v.checked(), [true, true, true, true]);
     for (const f of sa.on.click!) f({}); // clear all leaves the mode

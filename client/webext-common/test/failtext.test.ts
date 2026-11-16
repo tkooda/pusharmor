@@ -83,6 +83,7 @@ test("every action line, with the device name in straight double quotes", () => 
     ["loginGoogle", "Unable to log in with Google."],
     ["loginApple", "Unable to log in with Apple."],
     ["deleteHistory", "Unable to delete on this device."],
+    ["deleteKeys", "Unable to delete the broken keys."],
     ["changeSetting", "Unable to change this setting."],
   ];
   for (const [a, line] of lines) assert.equal(failText(a, e, { name: "Lap top" }), line + "\nTry again.");

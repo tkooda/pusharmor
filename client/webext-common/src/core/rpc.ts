@@ -93,6 +93,7 @@ const ACTION: Record<string, ActionId> = {
   settings: "changeSetting",
   signout: "logout",
   historyDelete: "deleteHistory",
+  keysDelete: "deleteKeys",
   emailStart: "sendCode",
   emailVerify: "checkCode",
   evict: "evict",

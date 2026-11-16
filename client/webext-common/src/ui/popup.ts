@@ -567,7 +567,8 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
     picked = !all ? new Set(visible) : always ? new Set() : null;
     draw();
   });
-  const filterRow = h("div", { class: "hfilter" }, selAll, filter);
+  const selAllBox = h("label", { class: "hselallbox" }, selAll);
+  const filterRow = h("div", { class: "hfilter" }, selAllBox, filter);
   // a delete in several batches shows its steps above the list
   const delBar = busyBar(env);
   const list = group();
@@ -585,6 +586,7 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
     for (const r of f.rows) list.append(historyRow(env, r, now, ctl));
     const n = visible.filter((id) => picked?.has(id)).length;
     selAll.hidden = !picked;
+    selAllBox.hidden = !picked;
     selAll.checked = n > 0 && n === visible.length;
     selAll.indeterminate = n > 0 && n < visible.length;
     drawBar();

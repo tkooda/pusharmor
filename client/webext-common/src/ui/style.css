@@ -222,6 +222,8 @@ body.page .foot { position: static; }
 .hrow.msel, .hrow.hck { grid-template-columns: 20px 32px minmax(0, 1fr); }
 .hrow.msel .acts { display: none; }
 input.hsel, input.hselall { margin: 2px 0 0; width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
+.hselallbox { display: inline-flex; align-items: center; }
+.hselallbox[hidden] { display: none; }
 .hselbar { display: flex; flex-wrap: wrap-reverse; justify-content: flex-end; gap: 8px; padding: 8px 16px 0; }
 .hselbar[hidden] { display: none; }
 .busy { padding: 8px 16px 0; }
@@ -401,4 +403,5 @@ dialog.sendprog { width: min(340px, calc(100vw - 48px)); }
   .login button.text { min-height: 48px; }
   .srow, .prow.target, label.srow, .astext { min-height: 48px; }
   .astext { padding: 0 8px; margin: 0 -8px; }
+  .hselallbox { min-width: 48px; min-height: 48px; justify-content: center; }
 }

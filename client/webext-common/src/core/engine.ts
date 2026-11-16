@@ -68,7 +68,7 @@ import {
   getEntry,
   pairKeyOf,
 } from "./state.ts";
-import { R, T, peerLabel, quoted, rowLabel, sendResultText, syncDeleteResultText } from "./texts.ts";
+import { R, T, actionLine, peerLabel, quoted, rowLabel, sendResultText, syncDeleteResultText } from "./texts.ts";
 import { AUTH_CHANGED, AUTH_SWITCHED } from "../model/signin.ts";
 import { BUSY, type Busy, DEL_CAP, STEP } from "../model/busy.ts";
 
@@ -2213,7 +2213,7 @@ export class Engine {
       });
     } catch (e) {
       const full = (e as { name?: unknown } | null)?.name === "QuotaExceededError";
-      throw new UserError(T.startLoginFailed + "\n" + (full ? T.storageFull : T.saveFailed));
+      throw new UserError(actionLine("deleteKeys") + "\n" + (full ? T.storageFull : T.saveFailed));
     }
     await this.authChanged();
   }

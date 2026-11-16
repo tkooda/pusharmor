@@ -88,12 +88,12 @@ test("Delete broken keys that cannot be saved says why in two lines and keeps th
     throw new DOMException("full", "QuotaExceededError");
   };
   let r = await rpc.handle({ op: "keysDelete" });
-  assert.deepEqual(r, { ok: false, error: "Unable to start the login.\nStorage is full. Free some space and try again." });
+  assert.deepEqual(r, { ok: false, error: "Unable to delete the broken keys.\nStorage is full. Free some space and try again." });
   a.db.tx = async () => {
     throw new DOMException("bad", "UnknownError");
   };
   r = await rpc.handle({ op: "keysDelete" });
-  assert.deepEqual(r, { ok: false, error: "Unable to start the login.\nPushArmor could not save its data on this device. Restart PushArmor and try again." });
+  assert.deepEqual(r, { ok: false, error: "Unable to delete the broken keys.\nPushArmor could not save its data on this device. Restart PushArmor and try again." });
   a.db.tx = tx;
   assert.equal((await a.db.self())!.id, good.id);
   assert.equal((await state(rpc)).keysBroken, true);
