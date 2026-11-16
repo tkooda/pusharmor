@@ -141,24 +141,41 @@
     update: "Update PushArmor to continue."
   };
 
-  // User text for a failed call.
-  function errorText(r) {
+  var ACTION = {
+    sendCode: "Unable to send the code.",
+    checkCode: "Unable to check the code.",
+    deleteAccount: "Unable to delete the account."
+  };
+
+  function wait(s) {
+    var m = Math.ceil(s / 60);
+    return s > 60 ? m + (m === 1 ? " minute" : " minutes") : s + (s === 1 ? " second" : " seconds");
+  }
+
+  // Why a call failed: the same reason lines as the browser extension.
+  function reasonText(r) {
     var e = r.data && r.data.error;
-    if (r.status === 0) return TEXT.network;
-    if (r.status === 426) return TEXT.update;
-    if (e === "bad email") return TEXT.badEmail;
-    if (e === "ticket expired" || e === "invalid ticket") return TEXT.expired;
-    if (e === "clock skew") return TEXT.clock;
-    if (r.status === 502) return TEXT.mailFailed;
-    if (r.status === 429) {
-      var s = Number(r.data.retry_after) > 0 ? Number(r.data.retry_after) : 60;
-      var m = Math.ceil(s / 60);
-      return "Too many requests. Try again in " + (s > 60 ? m + (m === 1 ? " minute." : " minutes.") : s + (s === 1 ? " second." : " seconds."));
-    }
-    if (e === "wrong code") return "Wrong code, check it and try again";
-    if (e === "code expired") return "The code expired, request a new one";
-    if (e === "turnstile failed") return "The robot check failed, try again";
-    return "Error: " + (typeof e === "string" ? e : "HTTP " + r.status);
+    var s = r.status;
+    if (s === 0) return "The relay server could not be reached. Check your internet connection and try again.";
+    if (s === 426) return "This version of PushArmor is too old. Update PushArmor to continue.";
+    if (s === 429) return "Too many tries. Try again in " + wait(Number(r.data && r.data.retry_after) > 0 ? Number(r.data.retry_after) : 60) + ".";
+    if (s === 401 && typeof e === "string" && e.indexOf("clock skew") === 0) return "This device's clock is off by more than 5 minutes. Fix the clock and try again.";
+    if (s === 401 && e === "ticket expired") return "The login expired. Log in again.";
+    if (s === 401 && (e === "invalid ticket" || e === "bad ticket")) return "The login link is not valid. Request a new code and try again.";
+    if (s === 401 && e === "wrong code") return "The code is not correct. Check the newest email from PushArmor and try again.";
+    if (s === 401 && e === "code expired") return "The code expired. Request a new code to continue.";
+    if (s === 403 && e === "banned") return "This account is blocked.";
+    if (s === 403 && e === "turnstile failed") return "The security check did not finish. Try again.";
+    if (s === 400 && e === "bad email") return TEXT.badEmail;
+    if ((s === 400 && e === "bad request") || s === 404 || s === 405 || (s === 401 && (e === "invalid client signature" || e === "bad id"))) return "The relay server did not accept the request. Update PushArmor and try again.";
+    if (s === 502 && e === "email send failed") return "The relay server could not send the email. Try again.";
+    if (s >= 500 && s <= 599) return "The relay server is not working right now. Try again later.";
+    return "Try again.";
+  }
+
+  // User text for a failed call: line 1 says what could not be done, line 2 says why.
+  function errorText(action, r) {
+    return ACTION[action] + "\n" + reasonText(r);
   }
 
   function isAscii(s) {

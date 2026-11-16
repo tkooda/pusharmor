@@ -158,7 +158,7 @@ test("no third-party loaded resource except Turnstile on /turnstile", () => {
   for (const rel of files.filter((f) => f.endsWith(".js"))) {
     const js = read(rel).replace(/^\s*\/\/.*$/gm, "").split("http://www.w3.org/2000/svg").join("");
     for (const m of js.matchAll(/https?:\/\/[a-z0-9.-]+/gi)) {
-      assert.ok(["https://pusharmor.com", "https://api.pusharmor.com"].includes(m[0]), rel + ": " + m[0]);
+      assert.ok(["https://pusharmor.com", "https://api.pusharmor.com"].concat(rel === "js/fx-open.js" ? ["https://addons.mozilla.org"] : []).includes(m[0]), rel + ": " + m[0]);
     }
   }
 });
@@ -471,12 +471,12 @@ test("download: every Android channel, release asset names, certificate fingerpr
   const ids = ["android", "cli"];
   for (const id of ids) assert.ok(raw.includes('<li><a href="#' + id + '">') && raw.includes('id="' + id + '"'), "download lacks anchor " + id);
   assert.deepEqual(ids.map((id) => raw.indexOf('id="' + id + '"')), ids.map((id) => raw.indexOf('id="' + id + '"')).sort((x, y) => x - y), "sections out of order");
-  for (const id of ["iphone", "chrome", "firefox"]) assert.ok(!raw.includes('id="' + id + '"') && !raw.includes('href="#' + id + '"'), "download still has a section for " + id);
+  for (const id of ["iphone", "chrome", "firefox"]) assert.ok(!new RegExp("<h[1-6][^>]* id=\"" + id + "\"").test(raw) && !raw.includes('href="#' + id + '"'), "download still has a section for " + id);
   const top = raw.slice(raw.indexOf("<ul>"), raw.indexOf("</ul>"));
   assert.ok(top.indexOf("Android") < top.indexOf("iPhone") && top.indexOf("iPhone") < top.indexOf("Chrome") && top.indexOf("Chrome") < top.indexOf("Firefox") && top.indexOf("Firefox") < top.indexOf("Command line"), "top list out of order");
-  assert.ok(top.includes('<li><a href="https://apps.apple.com/app/pusharmor/id6827796403">iPhone</a></li>'), "iPhone does not link to the App Store");
-  assert.ok(top.includes('<li><a href="https://chromewebstore.google.com/detail/pusharmor/eglfppbcdpmgpnckkgcjcmmbknjgeihd">Chrome</a></li>'), "Chrome does not link to the Chrome Web Store");
-  assert.ok(top.includes('<li><a href="https://addons.mozilla.org/en-US/firefox/addon/pusharmor/">Firefox</a></li>'), "Firefox does not link to the add-on");
+  assert.ok(top.includes('<li id="iphone"><a href="https://apps.apple.com/app/pusharmor/id6827796403">iPhone</a></li>'), "iPhone does not link to the App Store");
+  assert.ok(top.includes('<li id="chrome"><a href="https://chromewebstore.google.com/detail/pusharmor/eglfppbcdpmgpnckkgcjcmmbknjgeihd">Chrome</a></li>'), "Chrome does not link to the Chrome Web Store");
+  assert.ok(top.includes('<li id="firefox"><a href="https://addons.mozilla.org/en-US/firefox/addon/pusharmor/">Firefox</a></li>'), "Firefox does not link to the add-on");
   assert.ok(t.includes("Obtainium: Add to Obtainium (below)"), "download lacks the Obtainium entry");
   assert.ok(read("download.html").includes('href="https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F'), "download lacks the Obtainium link");
   const obt = decodeURIComponent(decodeURIComponent(raw.match(/id="obtainium-add" href="([^"]+)"/)[1]));

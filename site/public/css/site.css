@@ -1,5 +1,6 @@
 /* PushArmor site styles. One file, no external fonts. */
 :root {
+  color-scheme: light dark;
   --fg: #1d2330;
   --bg: #ffffff;
   --surface: #f3f6f9;
@@ -194,6 +195,7 @@ button, .button {
 .button.primary { color: #0d1f33; background: var(--green); border-color: var(--green); }
 button.secondary, .button.secondary { color: var(--link); background: transparent; border-color: currentColor; }
 button.danger { color: #ffffff; background: #b3261e; border-color: #b3261e; }
+button:disabled { opacity: 0.5; cursor: default; }
 
 /* Home page. */
 .hero { padding: 1.5rem 0 0.5rem; text-align: center; }
@@ -242,7 +244,7 @@ button.danger { color: #ffffff; background: #b3261e; border-color: #b3261e; }
 .framed body { margin: 0; background: transparent; }
 .framed body, .framed main { padding: 0; }
 .framed footer, .framed #status { display: none; }
-.status { min-height: 1.5rem; font-weight: 600; }
+.status { min-height: 1.5rem; font-weight: 600; white-space: pre-line; }
 
 /* About page */
 .sec-callout {

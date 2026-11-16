@@ -14,7 +14,10 @@
   var status = $("status");
   var ts = $("ts");
 
-  function say(text) { status.textContent = text; }
+  function say(text, fail) {
+    if (fail) status.setAttribute("role", "alert"); else status.setAttribute("role", "status");
+    status.textContent = text;
+  }
 
   function show(step) {
     $("bad").hidden = step !== "bad";
@@ -54,7 +57,7 @@
   $("email-form").addEventListener("submit", async function (e) {
     e.preventDefault();
     var email = $("email").value.trim();
-    if (!PA.isAscii(email)) { say(PA.TEXT.badEmail); return; }
+    if (!PA.isAscii(email)) { say(PA.TEXT.badEmail, true); return; }
     if (!tsToken) {
       loadTurnstile();
       waiting = true;
@@ -65,7 +68,10 @@
     var token = tsToken;
     freshTurnstile();
     say("Sending code...");
+    var btn = this.querySelector('button[type="submit"]');
+    btn.disabled = true;
     var r = await client.request("POST", "/v1/auth/email", PA.cliEmailBody(email, link, token), null);
+    btn.disabled = false;
     if (r.status === 200 && typeof r.data.request_token === "string") {
       requestToken = r.data.request_token;
       $("sent-to").textContent = "We sent a 6-character code to " + email + ".";
@@ -73,7 +79,7 @@
       say("");
       $("code").focus();
     } else {
-      say(PA.errorText(r));
+      say(PA.errorText("sendCode", r), true);
     }
   });
 
@@ -81,12 +87,15 @@
     e.preventDefault();
     var code = $("code").value.replace(/[\s-]/g, "").toUpperCase();
     say("Checking code...");
+    var btn = this.querySelector('button[type="submit"]');
+    btn.disabled = true;
     var r = await client.request("POST", "/v1/auth/email/verify",
       { request_token: requestToken, code: code }, null);
+    btn.disabled = false;
     if (r.status === 200 && typeof r.data.cli_code === "string") {
       finished(r.data.cli_code, r.data.email);
     } else {
-      say(PA.errorText(r));
+      say(PA.errorText("checkCode", r), true);
     }
   });
 
@@ -129,7 +138,7 @@
       await navigator.clipboard.writeText($("cli-code").textContent);
     } catch (e) {
       toast("Unable to copy");
-      say("Select the code and copy it by hand");
+      say("Select the code and copy it by hand", true);
       return;
     }
     say("");
@@ -152,7 +161,7 @@
     if (res && res.code) { finished(res.code, res.email); return; }
     if (res) {
       show("bad");
-      say(res.error === "cancelled" ? "Login was cancelled. Run the command again to get a new link." : "Login did not finish. Run the command again to get a new link.");
+      say(res.error === "cancelled" ? "Login was cancelled. Run the command again to get a new link." : "Login did not finish. Run the command again to get a new link.", true);
       return;
     }
     link = PA.parseCliLink(h);

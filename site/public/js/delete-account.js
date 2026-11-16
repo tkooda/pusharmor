@@ -16,7 +16,10 @@
   var status = $("status");
   var ts = $("ts");
 
-  function say(text) { status.textContent = text; }
+  function say(text, fail) {
+    if (fail) status.setAttribute("role", "alert"); else status.setAttribute("role", "status");
+    status.textContent = text;
+  }
 
   function show(step) {
     $("prove").hidden = step !== "prove" && step !== "code";
@@ -41,7 +44,7 @@
     requestToken = null;
     ticket = null;
     show("prove");
-    say(text || "");
+    say(text || "", !!text);
   }
 
   var waiting = false;
@@ -75,7 +78,7 @@
   $("email-form").addEventListener("submit", async function (e) {
     e.preventDefault();
     var email = $("email").value.trim();
-    if (!PA.isAscii(email)) { say(PA.TEXT.badEmail); return; }
+    if (!PA.isAscii(email)) { say(PA.TEXT.badEmail, true); return; }
     if (!tsToken) {
       loadTurnstile();
       waiting = true;
@@ -86,8 +89,11 @@
     var token = tsToken;
     freshTurnstile();
     say("Sending code...");
+    var btn = this.querySelector('button[type="submit"]');
+    btn.disabled = true;
     var r = await client.request("POST", "/v1/auth/email",
       { email: email, sign_pub: key.pub, purpose: PURPOSE, turnstile: token }, null);
+    btn.disabled = false;
     if (r.status === 200 && typeof r.data.request_token === "string") {
       requestToken = r.data.request_token;
       $("sent-to").textContent = "We sent a 6-character code to " + email + ".";
@@ -95,7 +101,7 @@
       say("");
       $("code").focus();
     } else {
-      say(PA.errorText(r));
+      say(PA.errorText("sendCode", r), true);
     }
   });
 
@@ -103,12 +109,15 @@
     e.preventDefault();
     var code = $("code").value.replace(/[\s-]/g, "").toUpperCase();
     say("Checking code...");
+    var btn = this.querySelector('button[type="submit"]');
+    btn.disabled = true;
     var r = await client.request("POST", "/v1/auth/email/verify",
       { request_token: requestToken, code: code }, null);
+    btn.disabled = false;
     if (r.status === 200 && typeof r.data.ticket === "string") {
       signedIn(r.data.ticket, r.data.email);
     } else {
-      say(PA.errorText(r));
+      say(PA.errorText("checkCode", r), true);
     }
   });
 
@@ -144,7 +153,10 @@
   $("confirm-form").addEventListener("submit", async function (e) {
     e.preventDefault();
     say("Deleting...");
+    var btn = $("delete");
+    btn.disabled = true;
     var r = await client.deleteAccount(key, ticket);
+    btn.disabled = false;
     if (r.status === 200) {
       // A retried DELETE after a lost reply sees deleted 0: the first try did the delete.
       $("result").textContent = r.data.deleted === 0 && !r.unsure ? PA.TEXT.noPeers : PA.TEXT.deleted;
@@ -155,7 +167,7 @@
       freshTurnstile();
       await restart(PA.TEXT.expired);
     } else {
-      say(PA.errorText(r));
+      say(PA.errorText("deleteAccount", r), true);
     }
   });
 

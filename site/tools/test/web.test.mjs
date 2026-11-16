@@ -157,7 +157,7 @@ test("HTTP 426 -> Update PushArmor to continue.", async () => {
   const api = fakeApi([{ status: 426, body: { error: "update required" } }]);
   const r = await api.client.deleteAccount(key, "T");
   assert.equal(r.status, 426);
-  assert.equal(PA.errorText(r), "Update PushArmor to continue.");
+  assert.equal(PA.errorText("deleteAccount", r), "Unable to delete the account.\nThis version of PushArmor is too old. Update PushArmor to continue.");
 });
 
 test("second clock skew stops with the clock text", async () => {
@@ -166,16 +166,16 @@ test("second clock skew stops with the clock text", async () => {
   const api = fakeApi([skewed, { ...skewed }]);
   const r = await api.client.deleteAccount(key, "T");
   assert.equal(api.calls.length, 2);
-  assert.equal(PA.errorText(r), "This device's clock is off by more than 5 minutes");
+  assert.equal(PA.errorText("deleteAccount", r), "Unable to delete the account.\nThis device's clock is off by more than 5 minutes. Fix the clock and try again.");
 });
 
-test("expired or invalid ticket -> Login expired, log in again", async () => {
+test("expired or invalid ticket -> login reason lines", async () => {
   const key = await PA.newKey();
   for (const e of ["ticket expired", "invalid ticket"]) {
     const api = fakeApi([{ status: 401, body: { error: e } }]);
     const r = await api.client.deleteAccount(key, "T");
     assert.equal(api.calls.length, 1);
-    assert.equal(PA.errorText(r), "Login expired, log in again");
+    assert.equal(PA.errorText("deleteAccount", r), "Unable to delete the account.\n" + (e === "ticket expired" ? "The login expired. Log in again." : "The login link is not valid. Request a new code and try again."));
   }
 });
 
@@ -194,17 +194,17 @@ test("retries: 503 and network errors up to 3, not 502; 429 beyond the 8 s budge
   api = fakeApi([{ status: 502, body: { error: "email send failed" } }]);
   r = await api.client.request("POST", "/v1/auth/email", {}, null);
   assert.equal(api.calls.length, 1);
-  assert.equal(PA.errorText(r), "Could not send the email, try again");
+  assert.equal(PA.errorText("sendCode", r), "Unable to send the code.\nThe relay server could not send the email. Try again.");
 
   api = fakeApi([{ status: 429, body: { error: "rate limited", retry_after: 60 }, headers: { "Retry-After": 60 } }]);
   r = await api.client.request("POST", "/v1/auth/email", {}, null);
   assert.equal(api.calls.length, 1);
-  assert.equal(PA.errorText(r), "Too many requests. Try again in 60 seconds.");
-  assert.equal(PA.errorText({ status: 429, data: { retry_after: 1 } }), "Too many requests. Try again in 1 second.");
-  assert.equal(PA.errorText({ status: 429, data: {} }), "Too many requests. Try again in 60 seconds.");
-  assert.equal(PA.errorText({ status: 429, data: { retry_after: 61 } }), "Too many requests. Try again in 2 minutes.");
-  assert.equal(PA.errorText({ status: 429, data: { retry_after: 120 } }), "Too many requests. Try again in 2 minutes.");
-  assert.equal(PA.errorText({ status: 429, data: { retry_after: 3600 } }), "Too many requests. Try again in 60 minutes.");
+  assert.equal(PA.errorText("sendCode", r), "Unable to send the code.\nToo many tries. Try again in 60 seconds.");
+  assert.equal(PA.errorText("sendCode", { status: 429, data: { retry_after: 1 } }), "Unable to send the code.\nToo many tries. Try again in 1 second.");
+  assert.equal(PA.errorText("sendCode", { status: 429, data: {} }), "Unable to send the code.\nToo many tries. Try again in 60 seconds.");
+  assert.equal(PA.errorText("sendCode", { status: 429, data: { retry_after: 61 } }), "Unable to send the code.\nToo many tries. Try again in 2 minutes.");
+  assert.equal(PA.errorText("sendCode", { status: 429, data: { retry_after: 120 } }), "Unable to send the code.\nToo many tries. Try again in 2 minutes.");
+  assert.equal(PA.errorText("sendCode", { status: 429, data: { retry_after: 3600 } }), "Unable to send the code.\nToo many tries. Try again in 60 minutes.");
 
   api = fakeApi([{ status: 429, body: { retry_after: 2 }, headers: { "Retry-After": 2 } }, { status: 200, body: {} }]);
   r = await api.client.request("POST", "/v1/auth/email", {}, null);
@@ -213,7 +213,7 @@ test("retries: 503 and network errors up to 3, not 502; 429 beyond the 8 s budge
 });
 
 test("bad email text and ASCII pre-check", () => {
-  assert.equal(PA.errorText({ status: 400, data: { error: "bad email" } }), "Only email addresses with plain ASCII characters are supported.");
+  assert.equal(PA.errorText("sendCode", { status: 400, data: { error: "bad email" } }), "Unable to send the code.\nOnly email addresses with plain ASCII characters are supported.");
   assert.equal(PA.isAscii("a@b.com"), true);
   assert.equal(PA.isAscii("a@b" + String.fromCharCode(233) + ".com"), false);
 });
@@ -270,4 +270,19 @@ test("cli result fragment: cli_code + email, errors, junk", () => {
   assert.deepEqual(PA.parseCliResult("#cli_code=short&email=a%40b.co"), { error: "failed" });
   assert.equal(PA.parseCliResult("#l.abcdefghijklmnopqrstuv"), null);
   assert.equal(PA.parseCliResult(""), null);
+});
+
+test("errorText: action line, reason line, generic reason, no HTTP text", () => {
+  assert.equal(PA.errorText("checkCode", { status: 401, data: { error: "wrong code" } }), "Unable to check the code.\nThe code is not correct. Check the newest email from PushArmor and try again.");
+  assert.equal(PA.errorText("sendCode", { status: 0, data: {} }), "Unable to send the code.\nThe relay server could not be reached. Check your internet connection and try again.");
+  assert.equal(PA.errorText("deleteAccount", { status: 418, data: { error: "x" } }), "Unable to delete the account.\nTry again.");
+});
+
+test("download page ids, alt text, copy failure text, color-scheme", () => {
+  const dl = readFileSync(join(PUB, "download.html"), "utf8");
+  for (const id of ["iphone", "chrome", "firefox"]) assert.ok(dl.includes('<li id="' + id + '">'), id);
+  assert.ok(!readFileSync(join(PUB, "about.html"), "utf8").includes('alt="IPhone'));
+  assert.ok(!readFileSync(join(PUB, "js", "copyqr.js"), "utf8").includes("Not copied"));
+  assert.ok(readFileSync(join(PUB, "css", "site.css"), "utf8").includes("color-scheme: light dark"));
+  assert.ok(!/<footer[\s\S]*aria-current[\s\S]*<\/footer>/.test(readFileSync(join(PUB, "support.html"), "utf8")));
 });

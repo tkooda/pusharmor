@@ -9,7 +9,13 @@
   var pending = null;
 
   var timer = setTimeout(function () {
-    if (!ready) status.textContent = "Install the PushArmor add-on";
+    if (!ready) {
+      var a = document.createElement("a");
+      a.href = "https://addons.mozilla.org/en-US/firefox/addon/pusharmor/";
+      a.textContent = "Install the PushArmor add-on";
+      status.textContent = "";
+      status.appendChild(a);
+    }
   }, 3000);
 
   window.addEventListener("message", function (e) {

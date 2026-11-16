@@ -111,7 +111,7 @@
       btn.addEventListener("click", function () {
         var text = targetText(el);
         if (!copy) return showQr(btn, text);
-        g.navigator.clipboard.writeText(text).then(function () { say(s, "Copied"); }, function () { say(s, "Not copied"); });
+        g.navigator.clipboard.writeText(text).then(function () { say(s, "Copied"); }, function () { say(s, "Unable to copy"); });
       });
       btn.hidden = false;
     });
