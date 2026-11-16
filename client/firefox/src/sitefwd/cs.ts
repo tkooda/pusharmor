@@ -23,7 +23,11 @@ if (location.origin === SITE) {
     const hash = location.hash;
     if (hash.length > 1) {
       history.replaceState(null, "", location.pathname + location.search);
-      void relay("authDone", { hash: hash.slice(1) });
+      void relay("authDone", { hash: hash.slice(1) }).then((r) => {
+        // Firefox for Android: the login ran in the add-on view (no tab); it goes back to the login page here
+        const back = (r as { data?: { back?: unknown } } | undefined)?.data?.back;
+        if (back === "#login" || back === "#login=delete-account") location.replace(browser.runtime.getURL("page.html" + back));
+      });
     }
   } else if (path === "/fx/setup") {
     // a private tab: the page asks for a normal tab and makes no push subscription (none would get pushes)

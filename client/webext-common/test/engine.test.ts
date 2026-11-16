@@ -1219,6 +1219,59 @@ test("Firefox Google login in the same tab: the login tab goes to the provider a
   assert.deepEqual(d.p.shown, [{ tab: 3, hash: "#login=delete-account" }]);
 });
 
+test("Firefox for Android Google or Apple login in the add-on view (no tab): it goes to the provider and back to #login", async () => {
+  const clock = new Clock();
+  const w = new MockWorker(clock);
+  const TICKET = "ticket=" + "t".repeat(20);
+  const fresh = async (android = true) => {
+    const p = new FakePlatform("firefox", w, clock);
+    p.isAndroid = android;
+    const { e } = await makeEngine(p, new IDBFactory(), clock);
+    return { p, login: new Login(e) };
+  };
+  const result = async (p: FakePlatform) => readAuthResult((await p.storageSession.get([AUTH_RESULT]))[AUTH_RESULT], clock.t);
+  for (const noTab of [undefined, -1]) {
+    // start: no tab opens; the view gets the provider URL
+    const a = await fresh();
+    const r = await a.login.oauthStart("apple", "register", noTab);
+    assert.match(r.url ?? "", /^https:\/\/api\.pusharmor\.com\/v1\/auth\/apple\?/);
+    assert.deepEqual(a.p.opened, []);
+    // a tab (another page on the site) cannot finish it
+    assert.deepEqual(await a.login.authDone(5, TICKET), { done: false });
+    assert.equal(await result(a.p), null);
+    // done from no tab: the result is stored, no tab is updated, the view is told where to go back to
+    assert.deepEqual(await a.login.authDone(noTab, TICKET), { done: true, back: "#login" });
+    assert.equal((await result(a.p))?.done, true);
+    assert.deepEqual(a.p.shown, []);
+    // used once
+    await a.p.storageSession.remove([AUTH_RESULT]);
+    assert.deepEqual(await a.login.authDone(noTab, TICKET), { done: false });
+    assert.equal(await result(a.p), null);
+  }
+  // an error comes back to the login page of the view, which shows it
+  const b = await fresh();
+  await b.login.oauthStart("google", "delete-account");
+  assert.deepEqual(await b.login.authDone(undefined, "ticket=bad"), { done: false, back: "#login=delete-account" });
+  assert.match((await result(b.p))?.error ?? "", /^Unable to delete the account\./);
+  // expired: nothing
+  const c = await fresh();
+  await c.login.oauthStart("google", "register");
+  clock.t += 11 * 60_000;
+  assert.deepEqual(await c.login.authDone(undefined, TICKET), { done: false });
+  assert.equal(await result(c.p), null);
+  // a start from a tab cannot be finished from no tab
+  const d = await fresh();
+  await d.login.oauthStart("google", "register", 4);
+  assert.deepEqual(await d.login.authDone(undefined, TICKET), { done: false });
+  assert.equal(await result(d.p), null);
+  // desktop Firefox: a call without a tab still opens a login tab, and no tab cannot finish it
+  const f = await fresh(false);
+  assert.deepEqual(await f.login.oauthStart("google", "register"), { done: false });
+  assert.equal(f.p.opened.length, 1);
+  assert.deepEqual(await f.login.authDone(undefined, TICKET), { done: false });
+  assert.equal(await result(f.p), null);
+});
+
 test("devices list: paired only after both sides approve; a listed device waits with Pair", async () => {
   const clock = new Clock();
   const w = new MockWorker(clock);

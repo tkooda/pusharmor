@@ -19,6 +19,8 @@ export interface LoginResult {
   done: boolean;
   /** Firefox: the login tab goes here (Google or Apple) and comes back through authDone. */
   url?: string;
+  /** Firefox for Android: the login page route the add-on view goes back to (it has no tab). */
+  back?: string;
   limit?: Record<string, unknown>; // 409 "peer limit" body for the picker
   ticket?: string;
 }
@@ -120,7 +122,8 @@ export class Login {
   /**
    * Starts Google or Apple sign-in. Chrome finishes here (launchWebAuthFlow). Firefox:
    * the login tab itself goes to the provider (the page follows the returned url) and comes
-   * back through authDone; a call without a tab opens a new one.
+   * back through authDone; a call without a tab opens a new one. Firefox for Android: the
+   * add-on view has no tab, so it goes to the provider itself and comes back through authDone.
    */
   async oauthStart(provider: "google" | "apple", purpose: Purpose, tabId?: number): Promise<LoginResult> {
     // a Chromium build that rewrote the redirect host: the provider can never return, so the flow never starts
@@ -140,15 +143,24 @@ export class Login {
       const f = parseFragment(redirect);
       return this.complete(purpose, f.ticket ?? "", f.email ?? null);
     }
+    if ((tabId === undefined || tabId < 0) && this.e.p.isAndroid) {
+      // only a call from no tab can finish this start (once, before until)
+      await this.e.p.storageSession.set({ [AUTH_PENDING]: { tabId: null, view: true, purpose, until: this.e.p.now() + AUTH_PENDING_MS } });
+      return { done: false, url };
+    }
     const tab = tabId ?? (await this.e.p.openTab(url, true));
     await this.e.p.storageSession.set({ [AUTH_PENDING]: { tabId: tab, purpose, until: this.e.p.now() + AUTH_PENDING_MS } });
     return tabId === undefined ? { done: false } : { done: false, url };
   }
 
-  /** Firefox: the /auth/done content script relayed the fragment from tab tabId (the login tab). */
+  /**
+   * Firefox: the /auth/done content script relayed the fragment from tab tabId (the login tab),
+   * or from no tab (the add-on view on Firefox for Android, for a start made there).
+   */
   async authDone(tabId: number | undefined, hash: string): Promise<LoginResult> {
-    const pend = (await this.e.p.storageSession.get([AUTH_PENDING]))[AUTH_PENDING] as { tabId: number | null; purpose: Purpose; until: number } | undefined;
-    if (!pend || tabId === undefined || pend.tabId !== tabId || this.e.p.now() > pend.until) return { done: false };
+    const pend = (await this.e.p.storageSession.get([AUTH_PENDING]))[AUTH_PENDING] as { tabId: number | null; view?: boolean; purpose: Purpose; until: number } | undefined;
+    const view = tabId === undefined || tabId < 0;
+    if (!pend || (view ? pend.view !== true : pend.tabId !== tabId) || this.e.p.now() > pend.until) return { done: false };
     await this.e.p.storageSession.remove([AUTH_PENDING]); // consumed once
     const f = parseFragment("#" + hash.replace(/^#/, ""));
     // The content script drops the reply: the login view reads the result from storage.session
@@ -156,15 +168,17 @@ export class Login {
     const back = pend.purpose === "delete-account" ? "#login=delete-account" : "#login";
     const report = async (r: Omit<AuthResult, "at">) => {
       await this.e.p.storageSession.set({ [AUTH_RESULT]: { ...r, at: this.e.p.now() } });
-      this.e.p.showPage(tabId, back);
+      if (!view) this.e.p.showPage(tabId!, back);
     };
     try {
       const r = await this.complete(pend.purpose, f.ticket ?? "", f.email ?? null);
       await report(r);
-      return r;
+      return view ? { ...r, back } : r;
     } catch (err) {
       const action = actionFor(pend.purpose);
       await report({ done: false, error: failText(action, err) });
+      // the add-on view goes back to the login page, which shows the error
+      if (view) return { done: false, back };
       throw new ActionError(action, err);
     }
   }
