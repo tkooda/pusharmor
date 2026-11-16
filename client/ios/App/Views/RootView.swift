@@ -15,6 +15,10 @@ struct RootView: View {
         VStack(spacing: 0) {
             if !model.updateRequired && model.showsCannotReceive {
                 CannotReceiveBanner()
+                    // the band behind the status bar and the banner takes the screen's own
+                    // background: grey under the tabs (grouped lists), else plain
+                    .background((model.phase == .main ? Color(uiColor: .systemGroupedBackground)
+                        : Color(uiColor: .systemBackground)).ignoresSafeArea(edges: .top))
             }
             Group { if model.updateRequired { UpdateView() } else { content } }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
