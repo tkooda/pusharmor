@@ -65,7 +65,7 @@ final class RefreshGreyTests: XCTestCase {
         XCTAssertEqual(try count(#"\.disabled\(model\.busy\.contains\("apple"\)\)"#, in: signIn), 1)
         XCTAssertEqual(try count(#"model\.once\("google"\)"#, in: signIn), 1)
         XCTAssertEqual(try count(#"\.disabled\(model\.busy\.contains\("google"\)\)"#, in: signIn), 1)
-        XCTAssertEqual(try count(#"model\.busy\.contains\("sendCode"\)"#, in: signIn), 1)
+        XCTAssertEqual(try count(#"model\.busy\.contains\("sendCode"\)"#, in: signIn), 2) // the button and the Return key guard
         XCTAssertFalse(signIn.contains("Grey"))
         let peers = try source("App/Views/PeersView.swift")
         XCTAssertEqual(try count(#"Button\("Reply"\)[^\n]*\n[^\n]*\n\s*\.disabled\(model\.busy\.contains\("reply:" \+ p\.id\.text\)\)"#, in: peers), 1)
