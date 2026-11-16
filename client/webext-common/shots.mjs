@@ -24,6 +24,7 @@ const SHOTS = [
 ];
 // --popup=<dir>: the About-page popup shots (plus the send message and the Remove confirm) (400x560 popup alone, captured at 2x: 800x1120 files).
 // --store-popup=<dir> (Chrome): the store shots 01-06 as the 400x560 popup alone, captured at 2x (800x1120 files), for the site About page.
+// With ?about: 02 starts at the last line of the first-pair steps, and 04 has no focus in the message field.
 // --review=<dir>: also write review images (sign-in, Settings, Log out, last device menu) there; not store shots.
 const REVIEW = [
   ["90-signin", "signin.html#email"],
@@ -102,7 +103,7 @@ const jobs = firefox
   : SHOTS.slice(0, 5).map(([name, q]) => [name, "shots.html?bare&tab&store&" + q, out, "tab"]);
 if (reviewOut) jobs.push(...REVIEW.map(([name, page]) => [name, page, reviewOut]));
 if (popupOut) jobs.push(...POPUP.map(([name, page]) => [name, page, popupOut, true]));
-if (storePopupOut) jobs.push(...SHOTS.map(([name, q]) => [name, "shots.html?bare&store&" + q, storePopupOut, true]));
+if (storePopupOut) jobs.push(...SHOTS.map(([name, q]) => [name, "shots.html?bare&store&about&" + q, storePopupOut, true]));
 for (const [name, page, dir, popup] of jobs) {
   const size = popup === "tab" ? "640,400" : popup && firefox ? "800,1120" : popup ? "400,560" : "1280,800";
   const scale = popup ? 2 : 1;

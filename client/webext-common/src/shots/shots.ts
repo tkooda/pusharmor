@@ -227,6 +227,12 @@ async function main(): Promise<void> {
     const pn = document.getElementById("panel")!;
     const plate = pn.querySelector(".plate");
     pn.scrollTop = q.has("tab") && plate ? pn.scrollTop + plate.getBoundingClientRect().top - pn.getBoundingClientRect().top - 12 : pn.scrollHeight;
+    // ?about (site About page): from the last line of the first-pair steps down
+    const step = q.has("about") && !q.has("tab") ? pn.querySelector(".fp-steps li:last-child span:last-child") : null;
+    const range = document.createRange();
+    if (step) range.selectNodeContents(step);
+    const line = step ? [...range.getClientRects()].pop() : undefined;
+    if (line) pn.scrollTop += line.top - pn.getBoundingClientRect().top - 4;
   }
   if ((tab === "settings" || tab === "signout") && !q.has("top")) {
     await new Promise((done) => setTimeout(done, 500));
@@ -238,6 +244,11 @@ async function main(): Promise<void> {
     await new Promise((done) => setTimeout(done, 300));
     const pn = document.getElementById("panel")!;
     pn.scrollTop = pn.scrollHeight;
+  }
+  // ?about#send (site About page): no focus ring or caret in the message field
+  if (q.has("about") && tab === "send") {
+    await new Promise((done) => setTimeout(done, 300));
+    (document.activeElement as HTMLElement | null)?.blur();
   }
   // store frame: scale the popup (layout zoom, so text stays sharp) to the height under the
   // 96px band
