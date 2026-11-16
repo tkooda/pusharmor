@@ -296,21 +296,37 @@ extension Core {
     public func rename(_ name: String) async throws -> APIOutcome {
         guard NameEntry.isValidName(name) else { throw CoreError.refused("name") }
         let me = try myId()
-        try store.db.write {
+        let old = try store.db.write { () -> Me in
             let m = try store.me()
             try store.setMe("name", .text(name))
             try store.setMe("name_rev", .int(m.nameRev + 1))
+            return m
         }
-        return try await signedWithMessages("PATCH", "/v1/peers/" + me.text) {
-            var names: [PeerId: String] = [:]
-            let msgs = try allowMessages { id, n in
-                guard let p = try store.peer(id), let pid = p.pairingId, let enc = p.encPub else { throw CoreError.notPinned }
-                let f = try NameEntry.make(name: name, n: n, owner: me, recipient: id, pairingId: pid, signer: keys.signer)
-                names[id] = try NameEntry.seal(f, recipient: id, recipientEncPub: enc)
-                return .rename(f)
+        // A failed rename puts the old name back, so saving the new name again really sends it.
+        func restore() {
+            try? store.db.write {
+                try store.setMe("name", .opt(old.name))
+                try store.setMe("name_rev", .int(old.nameRev))
             }
-            return JOut.obj([("name", JOut.messages(names)), ("m", JOut.messages(msgs))]).data
         }
+        let out: APIOutcome
+        do {
+            out = try await signedWithMessages("PATCH", "/v1/peers/" + me.text) {
+                var names: [PeerId: String] = [:]
+                let msgs = try allowMessages { id, n in
+                    guard let p = try store.peer(id), let pid = p.pairingId, let enc = p.encPub else { throw CoreError.notPinned }
+                    let f = try NameEntry.make(name: name, n: n, owner: me, recipient: id, pairingId: pid, signer: keys.signer)
+                    names[id] = try NameEntry.seal(f, recipient: id, recipientEncPub: enc)
+                    return .rename(f)
+                }
+                return JOut.obj([("name", JOut.messages(names)), ("m", JOut.messages(msgs))]).data
+            }
+        } catch {
+            restore()
+            throw error
+        }
+        if out.reply?.ok != true { restore() }
+        return out
     }
 
     /// Remove (any peer may remove any peer; account-wide).

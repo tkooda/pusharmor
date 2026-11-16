@@ -784,6 +784,29 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(try x.core.store.peer(n.id)!.name, "Renamed")
     }
 
+    /// A failed rename (no reply, or an error reply) puts the old name and name_rev back.
+    func testFailedRenameKeepsOldName() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        let before = try n.core.store.me()
+        let path = "/v1/peers/" + n.id.text
+        w.offline = true
+        let o1 = try await n.core.rename("Renamed")
+        XCTAssertNil(o1.reply)
+        XCTAssertEqual(try n.core.store.me().name, before.name)
+        XCTAssertEqual(try n.core.store.me().nameRev, before.nameRev)
+        w.offline = false
+        w.script("PATCH", path, 400, "{\"error\":\"bad\"}")
+        let o2 = try await n.core.rename("Renamed")
+        XCTAssertEqual(o2.reply?.status, 400)
+        XCTAssertEqual(try n.core.store.me().name, before.name)
+        XCTAssertEqual(try n.core.store.me().nameRev, before.nameRev)
+        let o3 = try await n.core.rename("Renamed")
+        XCTAssertEqual(o3.reply?.ok, true)
+        XCTAssertEqual(try n.core.store.me().name, "Renamed")
+        XCTAssertEqual(try n.core.store.me().nameRev, before.nameRev + 1)
+    }
+
     /// A re-presented rename never reads as a rename to the same name.
     func testRenameBannerIsNeverANoOp() throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
