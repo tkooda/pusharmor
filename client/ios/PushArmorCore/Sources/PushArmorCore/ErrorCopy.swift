@@ -226,7 +226,7 @@ public enum ErrorCopy {
         case "sent": return nil
         case "gone": return "Unable to deliver message to \"\(x)\".\nOpen PushArmor on it to resolve."
         case "logged out": return sendTo + "\nThat device is logged out. Log in on that device to receive messages."
-        case "not listening": return sendTo + "\nIt is set to send only. It does not receive messages."
+        case "not listening": return sendTo + "\nIt has not listened recently. Run pusharmor listen on it."
         case "unapproved": return sendTo + "\nIt is not paired with this device. Pair with it to send it messages."
         case "denied": return sendTo + "\nIt isn't paired with this device."
         case "unknown": return sendTo + "\nIt is no longer on this account."

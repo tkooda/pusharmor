@@ -204,7 +204,7 @@ final class ErrorCopyTests: XCTestCase {
         XCTAssertEqual(ErrorCopy.greyedText("Tablet", note: "Logged out"),
                        to + "That device is logged out. Log in on that device to receive messages.")
         XCTAssertEqual(ErrorCopy.greyedText("Tablet", note: "Send only"),
-                       to + "It is set to send only. It does not receive messages.")
+                       to + "It has not listened recently. Run pusharmor listen on it.")
         XCTAssertEqual(ErrorCopy.greyedText("Tablet", note: "(missing)"), to + "It is no longer on this account.")
         XCTAssertEqual(ErrorCopy.greyedText("Tablet", note: S.notPairedOn("Tablet")),
                        to + "It is not paired with this device. Pair with it to send it messages.")

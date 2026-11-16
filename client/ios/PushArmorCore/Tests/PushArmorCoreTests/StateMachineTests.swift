@@ -2107,7 +2107,7 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(ErrorCopy.sendResultText("logged out", x),
                        "Unable to send to \"Tablet\".\nThat device is logged out. Log in on that device to receive messages.")
         XCTAssertEqual(ErrorCopy.sendResultText("not listening", x),
-                       "Unable to send to \"Tablet\".\nIt is set to send only. It does not receive messages.")
+                       "Unable to send to \"Tablet\".\nIt has not listened recently. Run pusharmor listen on it.")
         XCTAssertEqual(ErrorCopy.sendResultText("unapproved", x),
                        "Unable to send to \"Tablet\".\nIt is not paired with this device. Pair with it to send it messages.")
         XCTAssertEqual(ErrorCopy.sendResultText("denied", x), "Unable to send to \"Tablet\".\nIt isn't paired with this device.")
@@ -2162,7 +2162,7 @@ final class StateMachineTests: XCTestCase {
         let rep = try await n.core.send("hi", as: .text, to: [x.id], allCount: 1)
         XCTAssertEqual(rep.results[x.id.text], "not listening")
         let label = PeerLabel.label(try n.core.store.peer(x.id))
-        XCTAssertEqual(rep.toast, "Sent to 0 of 1 device\nUnable to send to \"\(label)\".\nIt is set to send only. It does not receive messages.")
+        XCTAssertEqual(rep.toast, "Sent to 0 of 1 device\nUnable to send to \"\(label)\".\nIt has not listened recently. Run pusharmor listen on it.")
         XCTAssertFalse(try n.core.store.peer(x.id)!.listening)
         XCTAssertTrue(try n.core.store.me().fetchDue)
         XCTAssertTrue(w.take(x.id).isEmpty)

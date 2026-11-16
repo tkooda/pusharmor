@@ -26,7 +26,13 @@ struct SignInView: View {
                 Button {
                     Task { await model.once("google") { await GoogleSignIn().signIn(purpose: purpose, model: model) } }
                 } label: {
-                    Text("Continue with Google")
+                    HStack(spacing: 10) {
+                        Image("GoogleG")
+                            .resizable()
+                            .frame(width: 18, height: 18)
+                            .accessibilityHidden(true)
+                        Text("Continue with Google")
+                    }
                 }
                 .buttonStyle(GoogleButtonStyle())
                 .disabled(model.busy.contains("google"))
@@ -93,7 +99,7 @@ struct SignInView: View {
     private var title: String {
         switch purpose {
         case .register: return "Log in"
-        case .login: return "Log in to resume"
+        case .login: return "" // the Logged out screen says it above
         case .deleteAccount: return "Log in to delete this account"
         }
     }
@@ -155,12 +161,14 @@ struct BrandLayout<Buttons: View>: View {
                     SignInHalo()
                     Wordmark(size: 36)
                         .padding(.top, 6)
-                    Text(text)
-                        .font(.body)
-                        .foregroundColor(.secondaryText)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: 330)
-                        .padding(.top, 12)
+                    if !text.isEmpty {
+                        Text(text)
+                            .font(.body)
+                            .foregroundColor(.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 330)
+                            .padding(.top, 12)
+                    }
                     Spacer(minLength: 32)
                     VStack(spacing: 12) {
                         buttons()
