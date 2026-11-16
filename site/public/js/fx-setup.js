@@ -43,9 +43,9 @@
     if (perm !== "granted") {
       if (android) {
         say("Firefox did not allow notifications. If this is a private tab, open PushArmor.com/fx/setup in a normal tab. " +
-          "Otherwise, allow notifications for PushArmor.com in Firefox Settings > Site permissions, then tap Retry.", true, true);
+          "Otherwise, allow notifications for PushArmor.com in Firefox Settings > Site permissions, then tap Retry.", true);
       } else {
-        say("Allow notifications for PushArmor.com in the address bar, then Retry.", true, true);
+        say("Allow notifications for PushArmor.com in the address bar, then Retry.", true);
       }
       return;
     }
