@@ -15,7 +15,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" integrity="sha256-s7S0G3qHSQUyznoBd6Seg2VUid7YrpcyYBFdDHDg0EY=">
 <link rel="stylesheet" href="/css/site.css" integrity="sha256-g3DJscfTktvTDRjxZOOwsWtfozv1WttashpLnOQLJxY=">
 <script src="/js/pa-web.js" integrity="sha256-mEJWAEhFkiWx9Tz6No95PWHzYcODmCGHAhZv0OjjDBo=" defer></script>
-<script src="/js/fx-setup.js" integrity="sha256-z1tnrbieNCELkx/f4be9OajI2cb9xinSltFe3pN+riI=" defer></script>
+<script src="/js/fx-setup.js" integrity="sha256-oIT3epT+cWV5udMq6gdKsB4SomEtDPDDCxfTgzOTLz4=" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -26,9 +26,7 @@
 <main id="main">
 <h1>Set up PushArmor for Firefox</h1>
 <p>The PushArmor add-on uses a background script on PushArmor.com to receive encrypted messages
-when its own push connection is not available, and always on Firefox for Android. This needs
-notifications for PushArmor.com. The background script only passes along encrypted messages it cannot
-read to the add-on.</p>
+when its own push connection is not available, and always on Firefox for Android. PushArmor.com passes your messages to the add-on. It only passes encrypted messages it cannot read. To do this it needs notifications for PushArmor.com.</p>
 <p><button id="retry" type="button" class="secondary" hidden>Retry</button> <button id="close" type="button" hidden>Close this tab</button> <button id="start" type="button">Turn on notifications</button></p>
 <p id="status" class="status" role="status" aria-live="polite"></p>
 </main>

@@ -32,6 +32,14 @@
   });
 
   async function drain() {
+    try {
+      await drainAll();
+    } catch (e) {
+      status.textContent = "Unable to pass the messages to PushArmor.\n" + (e && e.message ? e.message : "Try again.");
+    }
+  }
+
+  async function drainAll() {
     var entries = await window.PAQ.list(Date.now());
     for (var i = 0; i < entries.length; i++) {
       var ent = entries[i];

@@ -64,7 +64,7 @@
     }
     if (!sub) {
       if (android) {
-        say("This Firefox build cannot receive push (no Google Play services)", false);
+        say("Unable to turn on notifications.\nThis Firefox cannot get notifications on this phone because Google Play services is missing. Install Firefox from Google Play, or use the PushArmor app for Android.", false);
       } else {
         say("Firefox could not create a push subscription (offline, or push is disabled in this profile)", true);
       }
