@@ -2571,6 +2571,33 @@ def _stream_with(monkeypatch, lines):
     return st
 
 
+def test_stream_warns_once_per_outage(monkeypatch, capsys):
+    st = _stream_with(monkeypatch, [])
+    st.resp = None
+    steps = iter([OSError, OSError, None, OSError, OSError, None])
+
+    class R:
+        def readline(self, n):
+            return b""
+
+        def close(self):
+            pass
+
+    def connect():
+        step = next(steps)
+        if step is None:
+            st.resp = R()
+        else:
+            raise step()
+
+    monkeypatch.setattr(st, "connect", connect)
+    monkeypatch.setattr(st, "close", lambda delay: (setattr(st, "resp", None), setattr(st, "delay", True)))
+    with pytest.raises(StopIteration):
+        st.next()
+    err = capsys.readouterr().err
+    assert err.count(pa.PUSH_DOWN % "n.example") == 2
+
+
 def test_stream_backoff_resets_only_on_message(monkeypatch):
     st = _stream_with(monkeypatch, [b'{"event":"open"}\n', b'{"event":"keepalive"}\n'])
     st.backoff = 8

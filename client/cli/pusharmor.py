@@ -1690,6 +1690,7 @@ class Stream:
         self.url = ntfy.rstrip("/") + "/" + topic + "/json"
         self.keys, self.since, self.timeout, self.poll = keys, since, timeout, poll
         self.resp, self.backoff, self.delay, self.in_long_line = None, 1, False, False
+        self.warned = False
 
     def connect(self):
         self.in_long_line = False
@@ -1718,8 +1719,12 @@ class Stream:
                 except OSError:
                     if self.poll:
                         return None
+                    if not self.warned:
+                        self.warned = True
+                        log("warning", PUSH_DOWN % urllib.parse.urlsplit(self.url).hostname)
                     self.delay = True
                     continue
+                self.warned = False
             try:
                 line = read_line(self.resp, NTFY_LINE_CAP)
             except (TimeoutError, socket.timeout):
