@@ -31,6 +31,8 @@
 // They read it with gh api (GH_TOKEN with actions: read; --check needs no token).
 // A push that changes only listing text skips those jobs, so tag the commit that
 // ran them, or push a change under release/ (it runs every component).
+// The same holds for a platform whose files did not change since the last main
+// run: its jobs are skipped on that push.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
