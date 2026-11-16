@@ -132,6 +132,8 @@ class CannotReceiveCardTest {
             assertTrue(cards(a) == 1)
             assertTrue(nodes(a).count { text(it) == UiText.noPushApp(app.graph.push.hasPlayServices) } == 1)
             assertTrue(nodes(a).count { text(it) == UiText.GET_PUSH_APP } == 1 && nodes(a).none { text(it) == "Get ntfy" || text(it) == "Get Sunup" })
+            // One Switch back to Google, in the card, only where Google push can run.
+            assertTrue(nodes(a).count { text(it) == SWITCH_TO_GOOGLE } == (if (app.graph.push.hasPlayServices) 1 else 0))
             assertTrue("check again", checkAgain(a))
             UnifiedPushSupport.installed = { listOf("io.heckel.ntfy") }
             app.graph.settings.set(Settings.K.BANNER, "no_distributor") // a stale flag does not bring the card back

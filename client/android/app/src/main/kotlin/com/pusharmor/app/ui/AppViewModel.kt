@@ -357,7 +357,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val offered = g.store.peer(id)?.offersPairAgain == true
                 val r = g.pairing().pairAgain(id, System.currentTimeMillis()) { g.reconcile().run() }
                 // Past the offer check the old pairing is already cancelled; say so, the row is now a plain Pair row.
-                if (r != PairStart.STARTED && offered) message.value = "The old pairing was cancelled, but a new one could not start. Tap Pair to try again."
+                if (r != PairStart.STARTED && offered) message.value = UiText.pairAgainFailed(nameOf(id))
                 else refused(id, r)
             } finally {
                 pairingAgain.update { it - id }

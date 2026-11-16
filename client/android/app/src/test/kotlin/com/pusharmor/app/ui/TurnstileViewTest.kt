@@ -65,12 +65,23 @@ class TurnstileViewTest {
 
     private fun flat(n: SemanticsNode): List<SemanticsNode> = listOf(n) + n.children.flatMap { flat(it) }
 
-    private fun showsFallback(): Boolean {
-        UiHostActivity.content = { TurnstileView(onNoApp = {}) {} }
+    private fun fallbackTexts(playStore: Boolean = true): List<String> {
+        UiHostActivity.content = { TurnstileView(onNoApp = {}, playStore = playStore) {} }
         val a = Robolectric.buildActivity(UiHostActivity::class.java).setup().get()
         shadowOf(Looper.getMainLooper()).idle()
         return roots(a.window.decorView).flatMap { flat(it.semanticsOwner.unmergedRootSemanticsNode) }
-            .any { it.config.getOrNull(SemanticsProperties.Text)?.any { t -> t.text == "Open Play Store" } == true }
+            .flatMap { it.config.getOrNull(SemanticsProperties.Text)?.map { t -> t.text } ?: emptyList() }
+    }
+
+    private fun showsFallback(): Boolean = fallbackTexts().let { "Open Play Store" in it && UiText.SECURITY_CHECK_FAILED in it }
+
+    /** No Google Play: the 2-line error shows with no store button. */
+    @Config(shadows = [ThrowingWebViewFeature::class])
+    @Test fun fallbackWithoutPlayHasNoStoreButton() {
+        val t = fallbackTexts(playStore = false)
+        assertTrue(UiText.SECURITY_CHECK_FAILED in t)
+        assertTrue("Open Play Store" !in t)
+        assertEquals("Unable to show the security check.\nUpdate Android System WebView.", UiText.SECURITY_CHECK_FAILED)
     }
 
     @Config(shadows = [ThrowingWebViewFeature::class])

@@ -24,5 +24,7 @@ class SafeStartTest {
         }
         safeStart(ctx, Intent("android.settings.APP_NOTIFICATION_SETTINGS"))
         assertEquals(1, tried)
+        // A failure is never silent: a 2-line toast says what failed and what to do.
+        assertEquals("Unable to open settings\nOpen the Settings app and find PushArmor", org.robolectric.shadows.ShadowToast.getTextOfLatestToast())
     }
 }

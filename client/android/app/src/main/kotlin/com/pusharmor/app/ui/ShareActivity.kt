@@ -112,9 +112,10 @@ class ShareActivity : ComponentActivity() {
         fun directTarget(shortcutId: String?, allIds: List<String>): String? =
             if (shortcutId != null && shortcutId in allIds) shortcutId else allIds.singleOrNull()
 
-        /** A shortcut id in the All set with a message to send: that device gets the message with no Send screen. Else null. */
+        /** A shortcut id in the All set with a message to send that fits the cap: that device gets the message with no Send screen. Else null.
+         *  A message over the cap opens the Send screen instead, so the user can shorten it. */
         fun directShortcut(shortcutId: String?, allIds: List<String>, text: String): String? =
-            if (shortcutId != null && shortcutId in allIds && text.isNotBlank()) shortcutId else null
+            if (shortcutId != null && shortcutId in allIds && text.isNotBlank() && SizeCap.utf8Size(text) <= SizeCap.MAX_CONTENT_BYTES) shortcutId else null
 
         /** Dialog width and largest height, as parts of the screen. */
         const val DIALOG_WIDTH = 0.94f
@@ -148,11 +149,8 @@ class ShareActivity : ComponentActivity() {
             }
         }
         lifecycleScope.launch {
-            val r = if (SizeCap.utf8Size(text) > SizeCap.MAX_CONTENT_BYTES) AppViewModel.SendResult(UiText.SHARE_TOO_LONG)
-            else {
-                vm.g.client.onRetry = { a -> retry.intValue = a }
-                try { vm.send(listOf(peer.id), text) { s -> if (s > step.intValue) step.intValue = s } } finally { vm.g.client.onRetry = null }
-            }
+            vm.g.client.onRetry = { a -> retry.intValue = a }
+            val r = try { vm.send(listOf(peer.id), text) { s -> if (s > step.intValue) step.intValue = s } } finally { vm.g.client.onRetry = null }
             if (r.ok) toastAndFinish(UiText.directShareSent(label(peer)))
             else {
                 val n = vm.g.notifier

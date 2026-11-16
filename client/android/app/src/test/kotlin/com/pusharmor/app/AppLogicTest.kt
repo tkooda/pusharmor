@@ -452,6 +452,16 @@ class AppLogicTest {
         assertTrue(source("ui/MainActivity.kt").contains("popUpTo(\"peers\") { saveState = true }"))
     }
 
+    /** The code step offers a new code after the resend countdown, with the same title and labels as the browser add-ons. */
+    @Test fun emailScreenOffersANewCode() {
+        val sign = source("ui/SignInScreens.kt")
+        assertTrue(sign.contains("UiText.sendLabel(\"Get a new code\", left)"))
+        assertTrue(sign.contains("UiText.sendLabel(\"Email me a code\", left)"))
+        assertTrue(sign.contains("if (stage == 2) \"Check your email\""))
+        assertTrue(sign.contains("Text(UiText.CODE_SENT_NOTE"))
+        assertTrue(sign.contains("can never be read by our relay server or anyone else."))
+    }
+
     @Test fun deleteAccountAsksFirstAndCanBeCancelled() {
         val main = source("ui/MainScreens.kt")
         assertTrue(main.contains("RowAction(\"Delete account\", PaIcons.Delete, error = true) { confirmDelete = true }"))

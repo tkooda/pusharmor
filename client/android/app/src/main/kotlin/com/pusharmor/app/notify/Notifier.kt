@@ -45,7 +45,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         /** A post this process made still counts this long while the system list does not show it yet. */
         const val POST_LAG_MS = 5_000L
 
-        const val COULD_NOT_READ = "PushArmor received a message it could not read"
+        const val COULD_NOT_READ = "Unable to read a message.\nIt is not valid or was damaged."
         const val INVALID = "Invalid message received"
 
         /** Group of the per-device message channels, as the system settings list it. */

@@ -26,8 +26,8 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
     override fun pairNotice(peerId: String, pk: String, kind: PairNoticeKind, fingerprint: String?) {
         val x = g.dao.peer(peerId)?.let { it.name ?: "${platformLabel(it.platform)} device added ${dateLabel(it.created)}" }
         when (kind) {
-            PairNoticeKind.COMMIT -> n.pairNotice(pk, "A new device wants to pair. Open PushArmor.", peerId)
-            PairNoticeKind.COMPARE -> n.pairNotice(pk, "New device: compare ${fingerprint ?: ""}", peerId)
+            PairNoticeKind.COMMIT -> n.pairNotice(pk, UiText.wantsToPairNotice(x), peerId)
+            PairNoticeKind.COMPARE -> n.pairNotice(pk, UiText.compareNotice(x, fingerprint ?: ""), peerId)
             PairNoticeKind.READY -> n.pairNotice(pk, "Pairing fingerprint ready. Open PushArmor.", peerId)
             PairNoticeKind.IN_PROGRESS -> n.pairNotice(pk, UiText.pairingInProgress(x), peerId)
             PairNoticeKind.PAIR_AGAIN -> n.pairNotice(pk, UiText.pairAgainNotice(x), peerId, highlight = true, ok = true)

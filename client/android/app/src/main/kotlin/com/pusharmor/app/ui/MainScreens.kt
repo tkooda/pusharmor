@@ -429,11 +429,12 @@ private fun Banners(vm: AppViewModel, prefs: androidx.datastore.preferences.core
     n.blockedChannelPeer(vm.peerEntities.collectAsState().value)?.let { BannerRow(UiText.blockedChannel(it.name), "Fix", fault = true, PaIcons.NotificationsOff) {
         safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
     } }
-    if (noPushApp && vm.g.push.hasPlayServices) TextButton(onClick = { vm.switchPush(toUp = false) }) { Text("Switch back to Google") }
     val upAt = prefs?.get(Settings.K.UP_REGISTERED_AT)
     if (prefs?.get(Settings.K.PUSH_TYPE) == "unifiedpush" && upAt != null && !Settings.flagOf(prefs, Settings.K.UP_VERIFIED, false) && System.currentTimeMillis() - upAt > 10 * 60_000) {
-        BannerRow("This push server did not deliver. Check your UnifiedPush app.", "Retry", fault = true, PaIcons.Info, coolEnabled(vm, AppViewModel.RETRY_PUSH_KEY)) { vm.retryPush() }
-        if (vm.g.push.hasPlayServices) TextButton(onClick = { vm.switchPush(toUp = false) }) { Text("Switch back to Google") }
+        // With no UnifiedPush app the cannot-receive card offers Switch back to Google, so this banner does not offer it twice.
+        val toGoogle: () -> Unit = { vm.switchPush(toUp = false) }
+        val back = if (vm.g.push.hasPlayServices && !noPushApp) SWITCH_TO_GOOGLE to toGoogle else null
+        BannerRow("This push server did not deliver. Check your UnifiedPush app.", "Retry", fault = true, PaIcons.Info, coolEnabled(vm, AppViewModel.RETRY_PUSH_KEY), back) { vm.retryPush() }
     }
     // The status call can block up to 2 s, so it runs off the main thread.
     var st by remember { mutableIntStateOf(0) }
@@ -495,7 +496,11 @@ internal fun CannotReceiveHost(vm: AppViewModel, topInset: Boolean, enabled: Boo
                 off -> UiText.CANNOT_RECEIVE_NOTIFICATIONS_OFF to listOf<Pair<String, () -> Unit>>(check, "Fix" to {
                     safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
                 })
-                noPushApp -> UiText.noPushApp(google) to listOf(check, UiText.GET_PUSH_APP to { getApp = true })
+                noPushApp -> {
+                    val toGoogle: () -> Unit = { vm.switchPush(toUp = false) }
+                    UiText.noPushApp(google) to (listOf(check) + (if (google) listOf(SWITCH_TO_GOOGLE to toGoogle) else emptyList()) +
+                        listOf<Pair<String, () -> Unit>>(UiText.GET_PUSH_APP to { getApp = true }))
+                }
                 refused != null -> UiText.pushRefused(refused.first, refused.second, google) to listOf(check)
                 setup != null -> setup to listOf(check)
                 pushError != null -> pushError to listOf(check)
@@ -540,6 +545,9 @@ internal fun GetPushAppDialog(vm: AppViewModel, onDismiss: () -> Unit) {
 /** The relay-side card: the stored mark, for Google push only (UnifiedPush faults are never on the relay server's side). */
 internal fun relayFaultShown(fault: Boolean, type: String?, google: Boolean): Boolean = fault && !UnifiedPushSupport.active(type, google)
 
+/** The action that sets the push method back to Google, on the banner that matches the UnifiedPush fault. */
+internal const val SWITCH_TO_GOOGLE = "Switch back to Google"
+
 /** Push method option for Google push. A package name always holds a dot, so it never matches. */
 internal const val PUSH_GOOGLE = "google"
 
@@ -559,6 +567,7 @@ internal fun pushCurrent(type: String?, google: Boolean, saved: String?): String
     if (UnifiedPushSupport.active(type, google)) saved else PUSH_GOOGLE
 
 /** "This device cannot receive messages." with its reason on line 2 and its actions; it has no close control. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CannotReceiveBanner(reason: String, actions: List<Pair<String, () -> Unit>>, greyed: String?, modifier: Modifier) {
     val cs = MaterialTheme.colorScheme
@@ -572,7 +581,7 @@ private fun CannotReceiveBanner(reason: String, actions: List<Pair<String, () ->
                     Text(reason, style = MaterialTheme.typography.bodyMedium)
                 }
             }
-            if (actions.isNotEmpty()) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            if (actions.isNotEmpty()) FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 for ((label, onClick) in actions) TextButton(onClick = onClick, enabled = label != greyed, colors = ButtonDefaults.textButtonColors(contentColor = cs.onErrorContainer)) { Text(label) }
             }
         }
@@ -594,7 +603,7 @@ private fun coolEnabled(vm: AppViewModel, key: String): Boolean {
 
 /** Fault banners on errorContainer, advice on surfaceContainerHigh. */
 @Composable
-private fun BannerRow(text: String, action: String, fault: Boolean, icon: ImageVector, enabled: Boolean = true, onClick: () -> Unit) {
+private fun BannerRow(text: String, action: String, fault: Boolean, icon: ImageVector, enabled: Boolean = true, second: Pair<String, () -> Unit>? = null, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = if (fault) cs.errorContainer else cs.surfaceContainerHigh,
@@ -605,6 +614,9 @@ private fun BannerRow(text: String, action: String, fault: Boolean, icon: ImageV
                 Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                // The second action on the left; the banner's own action, the primary one, on the right.
+                second?.let { (label, go) -> TextButton(onClick = go, colors = ButtonDefaults.textButtonColors(
+                    contentColor = if (fault) cs.onErrorContainer else cs.primary)) { Text(label) } }
                 TextButton(onClick = onClick, enabled = enabled, colors = ButtonDefaults.textButtonColors(
                     contentColor = if (fault) cs.onErrorContainer else cs.primary)) { Text(action) }
             }
@@ -1384,7 +1396,7 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
     val who = h.peerId?.let { nameOf(it) } ?: if (h.direction == "SENT") UiText.sentTitle(h.toRow().results, nameOf) else "Unknown sender"
     val time = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(h.at))
     val body = when (h.type) {
-        "unreadable" -> "PushArmor received a message it could not read" + if (h.count > 1) " (${h.count})" else ""
+        "unreadable" -> com.pusharmor.app.notify.Notifier.COULD_NOT_READ + if (h.count > 1) " (${h.count})" else ""
         "invalid" -> "Invalid message received" + if (h.count > 1) " (${h.count})" else ""
         "denied" -> "Rejected this device"
         "logged_out" -> "Logged out"
@@ -1635,7 +1647,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                 add { m ->
                     SettingRow("System lock screen settings", "Choose what Android shows on your lock screen for all apps, including PushArmor messages.",
                         modifier = m, trailing = external) {
-                        try { context.startActivity(Intent("android.settings.NOTIFICATION_SETTINGS")) } catch (e: Exception) { }
+                        safeStart(context, Intent("android.settings.NOTIFICATION_SETTINGS"))
                     }
                 }
                 add { m ->

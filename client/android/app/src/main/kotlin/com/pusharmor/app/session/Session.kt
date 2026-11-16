@@ -46,9 +46,9 @@ class Session(private val g: Graph) {
         fun shareTargets(peers: List<Peer>, off: Set<String>): List<Peer> = allSet(peers).filter { it.id !in off }
         /** A device's name as the app shows it; the share sheet needs it distinct per device. */
         fun shortcutLabel(p: Peer): String = p.name ?: "${AppEffects.platformLabel(p.platform)} device added ${AppEffects.dateLabel(p.created)}"
-        const val REMOVED = "This device was removed. Log in again."
+        const val REMOVED = "This device was removed from the account. Log in again."
         const val LOST_KEYS = "This device lost its keys. Log in again."
-        const val DELETED = "Account deleted on another device."
+        const val DELETED = "The account was deleted on another device."
         const val NO_GOOGLE_PUSH = "This build has no Google push. Install a UnifiedPush app or reinstall from Play."
         const val REFRESH_GREY_MS = 10_000L
         /** Tries of the push address PATCH work before the cannot-receive card says why it failed (30 s backoff, doubled). */
@@ -508,7 +508,7 @@ class Session(private val g: Graph) {
 
     /** Rename this device: PATCH name entries + rename messages for every pinned allow id. */
     fun rename(newName: String): String? {
-        if (!NameEntry.isValidName(newName)) return "Use 1 to 32 plain ASCII characters, no double quotes."
+        if (!NameEntry.isValidName(newName)) return UiText.NAME_RULE
         val me = g.identity() ?: return ErrorText.text(UiText.UNABLE_RENAME, ErrorText.LOGGED_OUT)
         val self = dao.self() ?: return ErrorText.text(UiText.UNABLE_RENAME, ErrorText.LOGGED_OUT)
         if (self.name == newName) return null // the same name: nothing to send, so no device shows a rename

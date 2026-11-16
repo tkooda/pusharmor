@@ -122,10 +122,6 @@ class UiTextTest {
         assertEquals(null, UiText.emailErrorAfterEdit(null, "a@"))
     }
 
-    @Test fun shareTooLongIsSentence() {
-        assertEquals("Unable to send.\nThe message is longer than 2000 characters.", UiText.SHARE_TOO_LONG)
-    }
-
     @Test fun codeFieldState() {
         assertEquals("Code, 0 of 6 entered", UiText.codeState(0))
         assertEquals("Code, 4 of 6 entered", UiText.codeState(4))
@@ -160,8 +156,15 @@ class UiTextTest {
         assertEquals("Messages from \"Pixel\" are blocked.", UiText.blockedChannel("Pixel"))
         assertEquals("Messages from a device are blocked.", UiText.blockedChannel(null))
         assertEquals("A device wants to pair again. Tap Pair again on its row.", UiText.pairAgainNotice(null))
-        assertEquals("Pairing with \"Pixel\" in progress. Open PushArmor.", UiText.pairingInProgress("Pixel"))
-        assertEquals("Pairing with a device in progress. Open PushArmor.", UiText.pairingInProgress(null))
+        assertEquals("Pairing with \"Pixel\" is in progress. Open PushArmor.", UiText.pairingInProgress("Pixel"))
+        assertEquals("Pairing with a device is in progress. Open PushArmor.", UiText.pairingInProgress(null))
+        assertEquals("\"Pixel\" wants to pair.", UiText.wantsToPairNotice("Pixel"))
+        assertEquals("A new device wants to pair. Open PushArmor.", UiText.wantsToPairNotice(null))
+        assertEquals("\"Pixel\": compare K7QD", UiText.compareNotice("Pixel", "K7QD"))
+        assertEquals("New device: compare K7QD", UiText.compareNotice(null, "K7QD"))
+        assertEquals("Unable to pair with \"Pixel\".\nThe old pairing was cancelled. Tap Pair to try again.", UiText.pairAgainFailed("Pixel"))
+        assertEquals("Unable to read a message.\nIt is not valid or was damaged.", com.pusharmor.app.notify.Notifier.COULD_NOT_READ)
+        assertEquals("We sent a 6-character code to this address. It can take a minute to arrive.", UiText.CODE_SENT_NOTE)
         assertEquals("New message from \"Pixel\"", UiText.newMessageFrom("Pixel"))
         assertEquals("New message from a device", UiText.newMessageFrom(null))
         assertEquals("Remove \"Pixel\" from this account? \"Pixel\" must log in again and pair with every device again.", UiText.removeDeviceBody("Pixel"))
@@ -272,10 +275,10 @@ class UiTextTest {
     @Test fun renameFieldError() {
         assertEquals(null, UiText.nameError("Phone"))
         assertEquals(null, UiText.nameError("x".repeat(32)))
-        assertEquals("Use 1 to 32 plain ASCII characters, no double quotes.", UiText.nameError(""))
-        assertEquals("Use 1 to 32 plain ASCII characters, no double quotes.", UiText.nameError("Caf\u00e9"))
-        assertEquals("Use 1 to 32 plain ASCII characters, no double quotes.", UiText.nameError("x".repeat(33)))
-        assertEquals("Use 1 to 32 plain ASCII characters, no double quotes.", UiText.nameError("My \"phone\""))
+        assertEquals("Use 1 to 32 plain ASCII characters, with no double quote.", UiText.nameError(""))
+        assertEquals("Use 1 to 32 plain ASCII characters, with no double quote.", UiText.nameError("Caf\u00e9"))
+        assertEquals("Use 1 to 32 plain ASCII characters, with no double quote.", UiText.nameError("x".repeat(33)))
+        assertEquals("Use 1 to 32 plain ASCII characters, with no double quote.", UiText.nameError("My \"phone\""))
     }
 
     @Test fun middleEllipsisKeepsStartAndEnd() {

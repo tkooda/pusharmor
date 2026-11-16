@@ -43,6 +43,8 @@ object UiText {
     const val UNABLE_REFRESH = "Unable to refresh the device list."
     const val UNABLE_RENAME = "Unable to rename this device."
     fun unablePair(x: String) = "Unable to pair with \"$x\"."
+    /** Pair again cancelled the old pairing but a new one did not start. */
+    fun pairAgainFailed(x: String) = unablePair(x) + "\nThe old pairing was cancelled. Tap Pair to try again."
     fun unableCancelPairing(x: String) = "Unable to cancel pairing with \"$x\"."
     fun unableConfirm(x: String) = "Unable to confirm \"$x\"."
     fun unableReject(x: String) = "Unable to reject \"$x\"."
@@ -188,8 +190,6 @@ object UiText {
     fun counter(bytes: Int): String =
         if (bytes > SizeCap.MAX_CONTENT_BYTES) "Too long ($bytes / 2000)" else "($bytes / 2000)"
 
-    /** A Direct Share send over the cap. The cap still counts UTF-8 bytes. */
-    const val SHARE_TOO_LONG = UNABLE_SEND + "\n" + com.pusharmor.net.ErrorText.TOO_LONG
     /** Share sheet toasts when nothing can be sent: line 1, then line 2. */
     const val SHARE_LOGGED_OUT = UNABLE_SEND + "\nThis device is logged out. Open PushArmor and log in."
     const val SHARE_NOTHING = UNABLE_SEND + "\nThere is no text or URL to send."
@@ -319,6 +319,12 @@ object UiText {
     /** Resend rule of the relay server: 2 sends per 60 s per address, so a code may be sent again 60 s after the last one. */
     const val RESEND_MS = 60_000L
 
+    /** Under the code cells. */
+    const val CODE_SENT_NOTE = "We sent a 6-character code to this address. It can take a minute to arrive."
+
+    /** The security check cannot show: line 1, then line 2. */
+    const val SECURITY_CHECK_FAILED = "Unable to show the security check.\nUpdate Android System WebView."
+
     /** ms until a code may be sent to [email] again; only the address just sent to (or limited) waits. */
     fun sendLeftMs(until: Long, sentTo: String, email: String, now: Long): Long =
         if (sentTo.isEmpty() || sentTo != email.trim().lowercase()) 0L else maxOf(0L, until - now)
@@ -414,7 +420,8 @@ object UiText {
     }
 
     /** Rename field error: null when [name] is a valid peer name (same rule and text as Session.rename). */
-    fun nameError(name: String): String? = if (NameEntry.isValidName(name)) null else "Use 1 to 32 plain ASCII characters, no double quotes."
+    const val NAME_RULE = "Use 1 to 32 plain ASCII characters, with no double quote."
+    fun nameError(name: String): String? = if (NameEntry.isValidName(name)) null else NAME_RULE
 
     /** Why a Pair or Pair again tap did not start a pairing; null when it did. Pairing is not live, so no "online". */
     fun pairRefused(r: PairStart, name: String): String? = when (r) {
@@ -437,7 +444,11 @@ object UiText {
     fun greyedChip(name: String, status: String): String = "\"$name\": $status"
     fun blockedChannel(name: String?): String = "Messages from ${quoted(name, "a device")} are blocked."
     fun stillHolds(x: String): String = "\"$x\" still holds an earlier pairing. On \"$x\", tap Cancel pairing request, then tap Send again."
-    fun pairingInProgress(name: String?): String = "Pairing with ${quoted(name, "a device")} in progress. Open PushArmor."
+    fun pairingInProgress(name: String?): String = "Pairing with ${quoted(name, "a device")} is in progress. Open PushArmor."
+    /** A device asks to pair: named when its name is known, else the generic text. */
+    fun wantsToPairNotice(name: String?): String = if (name == null) "A new device wants to pair. Open PushArmor." else "\"$name\" wants to pair."
+    /** The compare step: the device in quotes, then its fingerprint. */
+    fun compareNotice(name: String?, fingerprint: String): String = "${quoted(name, "New device")}: compare $fingerprint"
     fun newMessageFrom(name: String?): String = "New message from ${quoted(name, "a device")}"
     /** A message notification title: the sending device's name in quotes. */
     fun messageTitle(name: String?): String = quoted(name, "Unknown sender")

@@ -58,6 +58,9 @@ class ShareActivityTest {
         assertEquals(null, ShareActivity.directShortcut(null, listOf("a"), "hi"))
         assertEquals(null, ShareActivity.directShortcut("zz", ids, "hi"))
         assertEquals(null, ShareActivity.directShortcut("a", ids, "  "))
+        // Over the cap: the Send screen opens with the text in the box and the counter, Send greyed until it fits.
+        assertEquals("a", ShareActivity.directShortcut("a", ids, "x".repeat(2000)))
+        assertEquals(null, ShareActivity.directShortcut("a", ids, "x".repeat(2001)))
     }
 
     @Test fun directShareToastNamesTheDevice() {

@@ -20,7 +20,10 @@ fun startOrToast(context: Context, intent: Intent, text: String = NO_APP_LINK,
 /** A short Toast, for where no app snackbar shows. */
 fun toast(context: Context, text: String) = Toast.makeText(context, UiText.brief(text), Toast.LENGTH_SHORT).show()
 
-/** Starts [intent]; with no app to handle it, does nothing instead of crashing. */
+/** A settings screen that no app can open: line 1, then line 2. */
+const val UNABLE_OPEN_SETTINGS = "Unable to open settings.\nOpen the Settings app and find PushArmor."
+
+/** Starts a settings [intent]; with no app to handle it, a toast says so instead of crashing. */
 fun safeStart(context: Context, intent: Intent) {
-    try { context.startActivity(intent) } catch (e: ActivityNotFoundException) { }
+    try { context.startActivity(intent) } catch (e: Exception) { toast(context, UNABLE_OPEN_SETTINGS) }
 }

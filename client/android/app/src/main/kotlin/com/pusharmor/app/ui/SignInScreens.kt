@@ -122,11 +122,11 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onCanc
             Spacer(Modifier.height(8.dp))
             Wordmark(34.sp)
             Spacer(Modifier.height(12.dp))
-            Text("Send URLs or text to your devices. All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.", Modifier.widthIn(max = 320.dp),
+            Text("Send URLs or text to your devices. All of your data is always end-to-end encrypted, and can never be read by our relay server or anyone else.", Modifier.widthIn(max = 320.dp),
                 style = MaterialTheme.typography.bodyLarge, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
             val status = when {
                 banner != null -> null
-                purpose == "login" -> "Logged out. Log in to resume."
+                purpose == "login" -> "This device is logged out. Log in to resume."
                 purpose == "delete-account" -> "Log in to confirm deleting the account."
                 else -> null
             }
@@ -198,11 +198,25 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onSe
     // Back goes to the log-in choices, not out of the app.
     androidx.activity.compose.BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        PaTopBar("Log in with email", navigationIcon = { IconButton(onClick = onBack) { Icon(PaIcons.ArrowBack, "Back") } },
+        // The code step says to check the email; the address step keeps the log-in title.
+        PaTopBar(if (stage == 2) "Check your email" else "Log in with email", navigationIcon = { IconButton(onClick = onBack) { Icon(PaIcons.ArrowBack, "Back") } },
             actions = { onSettings?.let { IconButton(onClick = it) { Icon(PaIcons.Settings, "Settings") } } })
         // Centered for a thumb; the screen already pads for the keyboard, and the column scrolls when the content is taller than the room left.
         Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // The resend countdown greys Email me a code and Get a new code for the address just sent to.
+            val gate by vm.resend.collectAsState()
+            var now by remember { mutableStateOf(System.currentTimeMillis()) }
+            val left = UiText.sendLeftMs(gate.second, gate.first, email, now)
+            // Tick on each second boundary of the remaining time while a countdown runs.
+            LaunchedEffect(gate, email, left > 0) {
+                while (true) {
+                    now = System.currentTimeMillis()
+                    val l = UiText.sendLeftMs(gate.second, gate.first, email, now)
+                    if (l <= 0) break
+                    delay(((l - 1) % 1000) + 1)
+                }
+            }
             when (stage) {
                 0 -> {
                     val next = {
@@ -211,25 +225,13 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onSe
                         else { error = null; stage = 1 }
                     }
                     val invalid = UiText.emailFieldError(email)
-                    val gate by vm.resend.collectAsState()
-                    var now by remember { mutableStateOf(System.currentTimeMillis()) }
-                    val left = UiText.sendLeftMs(gate.second, gate.first, email, now)
-                    // Tick on each second boundary of the remaining time while a countdown runs.
-                    LaunchedEffect(gate, email, left > 0) {
-                        while (true) {
-                            now = System.currentTimeMillis()
-                            val l = UiText.sendLeftMs(gate.second, gate.first, email, now)
-                            if (l <= 0) break
-                            delay(((l - 1) % 1000) + 1)
-                        }
-                    }
                     OutlinedTextField(email, { email = it; error = UiText.emailErrorAfterEdit(error, it) }, label = { Text("Email address") }, singleLine = true, isError = invalid,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
                         keyboardActions = KeyboardActions(onNext = { next() }),
                         modifier = Modifier.fillMaxWidth().semantics { if (invalid) this.error("Not a valid email address") })
-                    GreenButton(onClick = next, text = UiText.sendLabel("Next", left), icon = null, modifier = Modifier.fillMaxWidth(), enabled = left <= 0)
+                    GreenButton(onClick = next, text = UiText.sendLabel("Email me a code", left), icon = null, modifier = Modifier.fillMaxWidth(), enabled = left <= 0)
                 }
-                1 -> TurnstileView(onNoApp = { vm.message.value = it }) { token ->
+                1 -> TurnstileView(onNoApp = { vm.message.value = it }, playStore = vm.g.push.hasPlayServices) { token ->
                     scope.launch {
                         val rt = vm.emailStart(email, token, purpose)
                         if (rt != null) { requestToken = rt; stage = 2 } else stage = 0
@@ -237,6 +239,7 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onSe
                 }
                 2 -> {
                     Text("Enter the code sent to $email.")
+                    Text(UiText.CODE_SENT_NOTE, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     CodeCells(code) { v ->
                         // paste takes a standalone 6-char token; typing is cleaned as typed
                         if (v != code) { error = null; vm.message.value = null } // a rejected code's error goes as soon as the code is edited
@@ -244,6 +247,10 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onSe
                         val submit = shouldSubmit(code, cleaned)
                         code = cleaned
                         if (submit) requestToken?.let { vm.emailVerify(it, code, purpose, onDone) }
+                    }
+                    // Back to the address step with the address kept, after the resend countdown; the code goes out again from there.
+                    TextButton(onClick = { code = ""; error = null; vm.message.value = null; stage = 0 }, Modifier.heightIn(min = 48.dp), enabled = left <= 0) {
+                        Text(UiText.sendLabel("Get a new code", left))
                     }
                 }
             }
@@ -297,15 +304,16 @@ private fun CodeCells(code: String, onChange: (String) -> Unit) {
 /** Turnstile host page in a WebView; the token comes back through a WebMessageListener for https://pusharmor.com only. */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun TurnstileView(onNoApp: (String) -> Unit, onToken: (String) -> Unit) {
+fun TurnstileView(onNoApp: (String) -> Unit, playStore: Boolean = true, onToken: (String) -> Unit) {
     val context = LocalContext.current
     // A missing, disabled, or updating WebView throws; the update fallback shows instead.
     val supported = remember { try { WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER) } catch (e: Exception) { false } }
     var failed by remember { mutableStateOf(false) }
     if (!supported || failed) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Update Android System WebView")
-            Button(onClick = {
+            Text(UiText.SECURITY_CHECK_FAILED, color = MaterialTheme.colorScheme.error)
+            // The store button only where Google Play can open it.
+            if (playStore) Button(onClick = {
                 startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.webview")), show = onNoApp)
             }) { Text("Open Play Store") }
         }
