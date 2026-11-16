@@ -274,6 +274,7 @@ test("a failed menu send a late toolbar popup shows is not also a notification; 
     // the popup asks after the send failed: the toast only
     await lateClick();
     assert.deepEqual(await ask("menuSendRun"), { ok: false, error: failText("send", new UserError(T.signedOut)) });
+    await ask("menuSendShown");
     mock.timers.tick(10000);
     await flush();
     assert.deepEqual(notes, []);
@@ -281,12 +282,22 @@ test("a failed menu send a late toolbar popup shows is not also a notification; 
     fail = "some";
     await lateClick();
     assert.equal(((await ask("menuSendRun")) as { ok: boolean; data: { sent: number } }).data.sent, 0);
+    await ask("menuSendShown");
     mock.timers.tick(10000);
     await flush();
     assert.deepEqual(notes, []);
     // the popup never asks (closed): the notification still shows
     fail = "throw";
     await lateClick();
+    mock.timers.tick(5000);
+    await flush();
+    assert.deepEqual(notes, ["send-result: " + failText("send", new UserError(T.signedOut))]);
+    // the popup asks but closes before it shows the failure: the notification shows
+    notes.length = 0;
+    await lateClick();
+    assert.deepEqual(await ask("menuSendRun"), { ok: false, error: failText("send", new UserError(T.signedOut)) });
+    await flush();
+    assert.deepEqual(notes, []);
     mock.timers.tick(5000);
     await flush();
     assert.deepEqual(notes, ["send-result: " + failText("send", new UserError(T.signedOut))]);
@@ -328,6 +339,7 @@ test("a toolbar popup that asks for a menu send the background took over gets th
     const failed = ask("menuSendRun");
     finish(false);
     assert.deepEqual(await failed, { ok: false, error: failText("send", new UserError(T.signedOut)) });
+    await ask("menuSendShown");
     mock.timers.tick(10000);
     await flush();
     assert.deepEqual(notes, []);
@@ -346,6 +358,66 @@ test("a toolbar popup that asks for a menu send the background took over gets th
     await flush();
     assert.deepEqual(notes, ["send-result: " + failText("send", new UserError(T.signedOut))]);
     assert.deepEqual(await ask("menuSendClaim"), { ok: true, data: null });
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("a failed menu send a toolbar popup started on time is a notification when the popup closes before it shows it", async () => {
+  const { onMenuClick, onRuntimeMessage } = await import("../src/shellkit.ts");
+  const { Rpc } = await import("../src/core/rpc.ts");
+  const { UserError } = await import("../src/core/engine.ts");
+  const { T } = await import("../src/core/texts.ts");
+  const { failText } = await import("../src/core/failtext.ts");
+  const notes: string[] = [];
+  const b = { action: { setBadgeText: async () => undefined, openPopup: async () => undefined } };
+  let fail: "throw" | "some" | "none" = "throw";
+  const engine = {
+    send: async () => {
+      if (fail === "throw") throw new UserError(T.signedOut);
+      return fail === "some" ? { sent: 0, total: 1, failures: [{ id: "dev1", text: "Not sent" }] } : { sent: 1, total: 1, failures: [] };
+    },
+    p: { notify: (id: string, _t: string, body: string) => void notes.push(id + ": " + body), setBadge: () => undefined },
+  };
+  const boot = async () => ({ engine, rpc: new Rpc(engine as never) }) as never;
+  const ask = (op: string) => new Promise((resolve) => onRuntimeMessage(boot)({ op }, {} as never, resolve as never));
+  const flush = () => new Promise((r) => setImmediate(r));
+  const onTime = async () => {
+    onMenuClick(b as never, boot, async () => "")({ menuItemId: "pa-page|dev1", pageUrl: "https://example.com/" } as never);
+    assert.deepEqual(await ask("menuSendClaim"), { ok: true, data: { text: "https://example.com/", child: "dev1" } });
+    return ask("menuSendRun");
+  };
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    // the popup shows the error: no notification
+    assert.deepEqual(await onTime(), { ok: false, error: failText("send", new UserError(T.signedOut)) });
+    await ask("menuSendShown");
+    mock.timers.tick(10000);
+    await flush();
+    assert.deepEqual(notes, []);
+    // the popup closes before it shows the error: the notification, after 5 s
+    await onTime();
+    await flush();
+    mock.timers.tick(4999);
+    await flush();
+    assert.deepEqual(notes, []);
+    mock.timers.tick(1);
+    await flush();
+    assert.deepEqual(notes, ["send-result: " + failText("send", new UserError(T.signedOut))]);
+    // not every device got it and the popup closed: the notification names what failed
+    notes.length = 0;
+    fail = "some";
+    await onTime();
+    mock.timers.tick(5000);
+    await flush();
+    assert.deepEqual(notes, ["send-result: Not sent"]);
+    // success: no notification
+    notes.length = 0;
+    fail = "none";
+    assert.deepEqual(await onTime(), { ok: true, data: { sent: 1, total: 1, failures: [] } });
+    mock.timers.tick(10000);
+    await flush();
+    assert.deepEqual(notes, []);
   } finally {
     mock.timers.reset();
   }

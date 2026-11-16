@@ -503,10 +503,13 @@ async function menuSendHere(env: UiEnv, m: { text: string; child: string }): Pro
       return;
     }
     const total = m.child === "all" ? r.total : 1;
+    // the popup shows the failure, so the background does not also notify it
+    if (r.error || r.sent < total) void rpc(env, "menuSendShown").catch(() => undefined);
     if (r.error) toast(r.error, "err");
     else if (r.sent < total) toast([T.sentToNofM(r.sent, total), ...r.failures.map((f) => f.text)].join("\n"), "err");
     else window.close();
   } catch (e) {
+    void rpc(env, "menuSendShown").catch(() => undefined);
     toast((e as Error).message, "err");
   }
 }

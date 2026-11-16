@@ -4,9 +4,10 @@ import { SEND_CAP, utf8Len } from "./model/padding.ts";
 import { saveViaLink, saveWithPermission } from "./model/savefile.ts";
 import { Api } from "./api/client.ts";
 import { MENU_PAGE, MENU_PARENTS, MENU_SEL, MENU_SINGLE, MENU_URL, clickTarget, menuSend, type MenuMode } from "./core/actions.ts";
-import { Engine } from "./core/engine.ts";
+import { Engine, type SendResult } from "./core/engine.ts";
 import { failText } from "./core/failtext.ts";
 import { Rpc, type Req } from "./core/rpc.ts";
+import { R, actionLine } from "./core/texts.ts";
 import type { PushFields } from "./crypto/labels.ts";
 import type { KV, MenuPeer, Platform } from "./platform.ts";
 import type { Browser, MenuInfo, MessageSender, Tab } from "./shim-types.ts";
@@ -173,17 +174,26 @@ interface MenuPending {
 let menuPending: MenuPending | null = null;
 /**
  * A menu send the background took over: the reply for a toolbar popup that took it but started it late, or that
- * asks for it while it still runs (seen: a popup took it, asked: the popup asked for the reply, done: it ended).
+ * asks for it while it still runs (seen: a popup took it, shown: the popup showed its failure, done: it ended).
  */
 interface MenuLate {
   text: string;
   child: string;
   seen: boolean;
-  asked: boolean;
+  shown: boolean;
   done: boolean;
   result: Promise<unknown>;
 }
 let menuLate: MenuLate | null = null;
+/** The menu send whose result a toolbar popup asked for: the popup says when it shows its failure (menuSendShown). */
+let menuAsked: { shown: boolean } | null = null;
+
+/** A failed menu send a toolbar popup asked for: the notification, unless the popup shows the failure in 5 s (it can close first). */
+function notifyUnlessShown(p: { notify: (id: string, title: string, body: string) => void }, asked: { shown: boolean }, body: string): void {
+  setTimeout(() => {
+    if (!asked.shown) p.notify("send-result", "PushArmor", body);
+  }, 5000);
+}
 
 /** The toolbar popup takes the waiting context menu send (once). The background still owns a send until menuSendRun. */
 async function claimMenuSend(): Promise<{ text: string; child: string; over?: true } | null> {
@@ -240,14 +250,31 @@ export function onRuntimeMessage(boot: () => Promise<Booted>, extra?: (msg: Req,
       const late = menuPending?.seen || !menuLate?.seen ? null : menuLate;
       if (late) {
         menuLate = null;
-        late.asked = true;
+        menuAsked = late;
         void late.result.then(sendResponse);
         return true;
       }
       void runMenuSend()
-        .then(async (d) => (d ? (await boot()).rpc.handle({ op: "send", args: { text: d.text, auto: true, targets: d.child === "all" ? "all" : [d.child] } }) : { ok: true, data: null }))
+        .then(async (d) => {
+          if (!d) return { ok: true, data: null };
+          const { engine, rpc } = await boot();
+          const asked = { shown: false };
+          menuAsked = asked;
+          const res = await rpc.handle({ op: "send", args: { text: d.text, auto: true, targets: d.child === "all" ? "all" : [d.child] } });
+          // a failure the popup closed before it showed: the notification the background gives a send it runs
+          const r = res.data as SendResult | undefined;
+          const total = d.child === "all" ? r?.total ?? 0 : 1;
+          const body = !res.ok ? res.error ?? "" : r && r.sent < total ? r.error || r.failures.map((f) => f.text).join("\n") || actionLine("send") + "\n" + R.someNotSent : "";
+          if (body) notifyUnlessShown(engine.p, asked, body);
+          return res;
+        })
         .then(sendResponse, () => sendResponse({ ok: false, error: BOOT_ERROR }));
       return true;
+    }
+    if (m.op === "menuSendShown") {
+      if (menuAsked) menuAsked.shown = true;
+      sendResponse({ ok: true, data: null });
+      return false;
     }
     const ex = extra?.(m, sender);
     if (ex) {
@@ -330,7 +357,7 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
       // the popup took it but did not start it in time, or asks for it while it runs: it gets this send's result to show
       let tellPopup: (v: unknown) => void = () => undefined;
       const late: MenuLate | null = mine.seen || utf8Len(text) <= SEND_CAP
-        ? { text, child, seen: mine.seen === true, asked: false, done: false, result: new Promise((r) => (tellPopup = r)) }
+        ? { text, child, seen: mine.seen === true, shown: false, done: false, result: new Promise((r) => (tellPopup = r)) }
         : null;
       if (late) {
         const reply = tellPopup;
@@ -340,13 +367,10 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
         };
       }
       menuLate = late;
-      // a failure the popup shows is not also a notification; a popup that does not ask for it in 5 s gets the notification
+      // a failure the popup shows is not also a notification; a popup that does not show it in 5 s (closed) gets the notification
       const notifyFail = (p: { notify: (id: string, title: string, body: string) => void }, body: string) => {
         if (!late?.seen) return p.notify("send-result", "PushArmor", body);
-        if (late.asked) return;
-        setTimeout(() => {
-          if (!late.asked) p.notify("send-result", "PushArmor", body);
-        }, 5000);
+        notifyUnlessShown(p, late, body);
       };
       const { engine } = await boot().catch((err: unknown) => {
         tellPopup({ ok: false, error: BOOT_ERROR });
