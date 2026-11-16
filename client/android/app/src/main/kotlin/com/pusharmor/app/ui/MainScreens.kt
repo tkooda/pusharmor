@@ -449,7 +449,7 @@ private fun Banners(vm: AppViewModel, prefs: androidx.datastore.preferences.core
         }
     }
     val am = context.getSystemService(android.app.ActivityManager::class.java)
-    if (am.isBackgroundRestricted) BannerRow("Battery setting Restricted delays messages.", "Settings", fault = false, PaIcons.Info) {
+    if (am.isBackgroundRestricted) BannerRow("The battery setting \"Restricted\" delays messages.", "Settings", fault = false, PaIcons.Info) {
         safeStart(context, Intent(SysSettings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName)))
     }
 }
@@ -577,7 +577,7 @@ private fun CannotReceiveBanner(reason: String, actions: List<Pair<String, () ->
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Icon(PaIcons.NotificationsOff, null)
                 Column(Modifier.weight(1f)) {
-                    Text(UiText.CANNOT_RECEIVE, style = MaterialTheme.typography.bodyMedium)
+                    Text(UiText.CANNOT_RECEIVE, style = MaterialTheme.typography.titleSmall)
                     Text(reason, style = MaterialTheme.typography.bodyMedium)
                 }
             }
@@ -916,7 +916,7 @@ internal fun FingerprintPlate(code: String, x: String) {
         horizontalAlignment = Alignment.CenterHorizontally) {
         Row(Modifier.clearAndSetSemantics {}, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(painterResource(R.drawable.ic_notify), null, Modifier.size(13.dp), tint = cs.primary)
-            Text("Pairing code".uppercase(), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = cs.onSurfaceVariant)
+            Text("Pairing code", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = cs.onSurfaceVariant)
         }
         Spacer(Modifier.height(12.dp))
         val shape = RoundedCornerShape(14.dp)
@@ -1218,7 +1218,7 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
                     "Everything you send or receive shows up here. Share a URL from any app to send it to your devices.", top = 110.dp,
                     action = cta?.let { c -> {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(if (c == UiText.EmptyCta.PAIR) UiText.PAIR_FIRST_CTA else UiText.SEND_FIRST_CTA, Modifier.padding(bottom = 12.dp),
+                            if (c == UiText.EmptyCta.PAIR) Text(UiText.PAIR_FIRST_CTA, Modifier.padding(bottom = 12.dp),
                                 style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
                             FilledTonalButton(onClick = if (c == UiText.EmptyCta.PAIR) onPair else onSend, Modifier.heightIn(min = 48.dp)) {
                                 Text(if (c == UiText.EmptyCta.PAIR) "Pair a device" else "Send a message")
@@ -1278,7 +1278,7 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
             for ((day, group) in days) {
                 item(key = "day-$day") {
                     val l = UiText.dayLabel(group.first().at, now)
-                    Text(l.uppercase(), Modifier.padding(start = 32.dp, end = 16.dp, top = 20.dp, bottom = 8.dp).semantics { contentDescription = l; heading() },
+                    Text(l, Modifier.padding(start = 32.dp, end = 16.dp, top = 20.dp, bottom = 8.dp).semantics { contentDescription = l; heading() },
                         style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 itemsIndexed(group, key = { _, h -> h.id }) { i, h ->

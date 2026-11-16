@@ -374,7 +374,6 @@ object UiText {
     /** Call to action under an empty or not-yet-usable Send or History. */
     const val PAIR_FIRST_CTA = "Pair your first device to start sending."
     /** Call to action under an empty History when devices are paired. */
-    const val SEND_FIRST_CTA = "Messages you send or receive show here."
 
     enum class EmptyCta { PAIR, SEND }
 
@@ -454,8 +453,8 @@ object UiText {
     fun pairingInProgress(name: String?): String = "Pairing with ${quoted(name, "a device")} is in progress. Open PushArmor."
     /** A device asks to pair: named when its name is known, else the generic text. */
     fun wantsToPairNotice(name: String?): String = if (name == null) "A new device wants to pair. Open PushArmor." else "\"$name\" wants to pair."
-    /** The compare step: the device in quotes, then its fingerprint. */
-    fun compareNotice(name: String?, fingerprint: String): String = "${quoted(name, "New device")}: compare $fingerprint"
+    /** The compare step: the generic text, then the fingerprint. */
+    fun compareNotice(fingerprint: String): String = "New device: compare $fingerprint"
     fun newMessageFrom(name: String?): String = "New message from ${quoted(name, "a device")}"
     /** A message notification title: the sending device's name in quotes. */
     fun messageTitle(name: String?): String = quoted(name, "Unknown sender")

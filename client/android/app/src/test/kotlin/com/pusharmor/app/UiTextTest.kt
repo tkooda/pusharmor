@@ -160,8 +160,7 @@ class UiTextTest {
         assertEquals("Pairing with a device is in progress. Open PushArmor.", UiText.pairingInProgress(null))
         assertEquals("\"Pixel\" wants to pair.", UiText.wantsToPairNotice("Pixel"))
         assertEquals("A new device wants to pair. Open PushArmor.", UiText.wantsToPairNotice(null))
-        assertEquals("\"Pixel\": compare K7QD", UiText.compareNotice("Pixel", "K7QD"))
-        assertEquals("New device: compare K7QD", UiText.compareNotice(null, "K7QD"))
+        assertEquals("New device: compare K7QD", UiText.compareNotice("K7QD"))
         assertEquals("Unable to pair with \"Pixel\".\nThe old pairing was cancelled. Tap Pair to try again.", UiText.pairAgainFailed("Pixel"))
         assertEquals("Unable to read a message.\nIt is not valid or was damaged.", com.pusharmor.app.notify.Notifier.COULD_NOT_READ)
         assertEquals("We sent a 6-character code to this address. It can take a minute to arrive.", UiText.CODE_SENT_NOTE)
@@ -325,7 +324,6 @@ class UiTextTest {
         assertEquals(UiText.EmptyCta.SEND, UiText.historyCta(selfLoaded = true, paired = 2))
         assertEquals(null, UiText.historyCta(selfLoaded = false, paired = 0))
         assertEquals("Pair your first device to start sending.", UiText.PAIR_FIRST_CTA)
-        assertEquals("Messages you send or receive show here.", UiText.SEND_FIRST_CTA)
     }
 
     @Test fun renameInPlaceStartsCancelsSavesAndValidates() {
