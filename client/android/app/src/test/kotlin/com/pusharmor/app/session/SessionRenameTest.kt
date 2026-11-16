@@ -15,6 +15,7 @@ import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
@@ -29,6 +30,7 @@ class SessionRenameTest {
     private val app get() = ApplicationProvider.getApplicationContext<PaApp>() as TestApp
     private val g get() = app.graph
     private var calls = 0
+    private var code = 200
 
     private fun <T> io(block: () -> T): T = runBlocking(Dispatchers.IO) { block() }
 
@@ -39,7 +41,7 @@ class SessionRenameTest {
         g.dao.putSelf(SelfEntity(id = "B".repeat(40), accountPrefix = ByteArray(9), name = "Phone"))
         app.fakeHttp = Interceptor { chain ->
             calls++
-            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("x")
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(code).message("x")
                 .body("{}".toResponseBody("application/json".toMediaType())).build()
         }
     }
@@ -60,6 +62,17 @@ class SessionRenameTest {
     @Test fun newNameIsSent() {
         io { g.session.rename("Tablet") }
         assertEquals(1, calls)
+        assertEquals("Tablet", io { g.dao.self()!!.name })
+    }
+
+    @Test fun failedRenameKeepsOldNameAndRetrySends() {
+        code = 400
+        assertNotNull(io { g.session.rename("Tablet") })
+        assertEquals("Phone", io { g.dao.self()!!.name })
+        code = 200
+        val before = calls
+        assertNull(io { g.session.rename("Tablet") })
+        assertEquals(before + 1, calls)
         assertEquals("Tablet", io { g.dao.self()!!.name })
     }
 }

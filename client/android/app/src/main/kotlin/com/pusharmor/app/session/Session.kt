@@ -520,7 +520,10 @@ class Session(private val g: Graph) {
                 built.mapValues { it.value.nameEntry!! } to built.mapValues { it.value.message }
             }) { (names, m) -> g.client.rename(names, m) }
         }
-        return if (r is ApiResult.Ok) null else ErrorText.of(UiText.UNABLE_RENAME, r)
+        if (r is ApiResult.Ok) return null
+        // Not sent: the old name stays, so a retry with the same new name sends again.
+        dao.setSelfName(self.name)
+        return ErrorText.of(UiText.UNABLE_RENAME, r)
     }
 
     /**
