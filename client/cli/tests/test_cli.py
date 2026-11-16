@@ -685,12 +685,15 @@ def test_failed_confirm_says_unable_to_confirm(net, tmp_path, monkeypatch, capsy
 def test_rejected_device_is_hidden_until_it_asks_again_or_pair_id_runs(net, tmp_path, monkeypatch, capsys):
     a, b = tmp_path / "a", tmp_path / "b"
     ida, idb = login(monkeypatch, a), login(monkeypatch, b)
-    assert pair_with_b_answer(monkeypatch, net, a, b, ida, idb, "n") == 0
+    assert pair_with_b_answer(monkeypatch, net, a, b, ida, idb, "n") == pa.EXIT_ERR
     assert state(b)["peers"][ida]["ruling"] == "denied"
     capsys.readouterr()
     assert run(b, "pair") == 0
     out = capsys.readouterr().out
     assert pa.id_hex(ida)[:6] not in out and "rejected" not in out and "this device" in out
+    assert "No other devices yet. Log in on another device, then run pusharmor pair." in out
+    assert run(b, "devices") == 0
+    assert "No other devices yet" not in capsys.readouterr().out
     # pair ID still finds the hidden device and clears the denied state
     monkeypatch.setattr(pa, "PAIR_WAIT_S", 1)
     assert run(b, "pair", pa.id_hex(ida)[:8]) == 1

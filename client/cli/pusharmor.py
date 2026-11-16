@@ -2792,7 +2792,7 @@ def drain_cache(cx):
         pair_receive(cx, pt, drain)
 
 
-def pair_list(cx):
+def pair_list(cx, hint=False):
     cx.refresh()
     resend_waiting(cx)
     drain_cache(cx)
@@ -2809,6 +2809,8 @@ def pair_list(cx):
         print("  ".join(c.ljust(w[i]) for i, c in enumerate(r[:3])) + "  " + r[3])
     if len(rows) > 2:
         print("\nTo pair with a device: pusharmor pair ID")
+    elif hint:
+        print("\nNo other devices yet. Log in on another device, then run pusharmor pair.")
     return EXIT_OK
 
 
@@ -2820,7 +2822,7 @@ def cmd_devices(cx, args):
 def cmd_pair(cx, args):
     cx.need()
     if not args.id:
-        return pair_list(cx)
+        return pair_list(cx, hint=True)
     if not stdin_tty():
         raise Fail("pusharmor pair needs a terminal to compare the pairing code. Run it in a terminal window.",
                    EXIT_USAGE)
@@ -2871,7 +2873,7 @@ def cmd_pair(cx, args):
                 except (ApiError, TempFail) as err:
                     raise could_not(err, "reject", name)
                 print('Did not pair with "%s".' % name)
-                return EXIT_OK
+                return EXIT_ERR
             try:
                 r = approve(cx, x)
             except (ApiError, TempFail) as err:
