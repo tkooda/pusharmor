@@ -450,7 +450,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     try {
       let r: SendResult;
       try {
-        r = await rpc<SendResult>(env, "send", { text: field.value, asUrl: lastType === "url" && !asText.checked, asText: lastType !== "text" && asText.checked, targets: to });
+        r = await rpc<SendResult>(env, "send", { text: field.value, asUrl: lastType === "url" && !asText.checked, asText: lastType !== "text" && asText.checked, targets: to, shown: checks.map((c) => c.id) });
       } finally {
         prog.close();
       }

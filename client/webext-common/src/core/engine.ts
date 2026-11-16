@@ -1486,8 +1486,9 @@ export class Engine {
   /**
    * engine.send (section 10). as: "auto" detects the type (context menus). The Send view: "url" (Send as URL ticked),
    * "text" (Send as text ticked), "telOrText" (a phone number goes as one, anything else as text).
+   * shown: for "all", the devices the Send view offered (a greyed device was never offered).
    */
-  async send(text: string, as: "auto" | "url" | "text" | "telOrText", targets: string[] | "all"): Promise<SendResult> {
+  async send(text: string, as: "auto" | "url" | "text" | "telOrText", targets: string[] | "all", shown?: string[]): Promise<SendResult> {
     const self = await this.self();
     if (!self) throw new ReasonError(R.loggedOut);
     const all = await this.allSet();
@@ -1504,20 +1505,16 @@ export class Engine {
     }
     const valueLen = utf8Len(value);
     if (valueLen > SEND_CAP) throw new ReasonError(R.tooLong); // href percent-encodes
-    // a requested device out of the All set gets nothing: say why, as a send result would (none sent is never a success)
+    // a device the user could pick that left the All set since gets nothing: say why, as a send result would
+    // (a device that was greyed already is not named; none sent is never a success)
     const skipped: SendResult["failures"] = [];
-    const left =
-      targets === "all"
-        ? ids.length
-          ? []
-          : (await this.db.peers()).filter((p) => p.pinned && p.ruling === "approved" && p.approves_me && !p.hidden && !p.missing && !p.removed).map((p) => p.id)
-        : targets.filter((t) => !ids.includes(t));
+    const left = (targets === "all" ? shown ?? [] : targets).filter((t) => !ids.includes(t));
     for (const id of left) {
       const p = await this.db.peer(id);
       const res = !p || p.missing || p.removed ? "unknown" : p.logged_out ? "logged out" : p.listening === false ? "not listening" : "unapproved";
       skipped.push({ id, result: res, text: sendResultText(await this.peerName(id), res) });
     }
-    if (ids.length === 0) return { sent: 0, total, failures: skipped };
+    if (ids.length === 0) return skipped.length ? { sent: 0, total, failures: skipped } : { sent: 0, total, failures: [], error: actionLine("send") + "\n" + R.noneCanReceive };
     const mid = newMsgId();
     // the Send popup shows these steps (a quarter of the bar each); a retry holds the bar at sending
     const names = await Promise.all(ids.map((id) => this.peerName(id)));

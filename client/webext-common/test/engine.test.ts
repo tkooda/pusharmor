@@ -1087,13 +1087,40 @@ test("a second send to a device that just failed shows the failure, not a succes
     const posts = () => w.calls.filter((c) => c.path === "/v1/send" && c.method === "POST").length;
     const before = posts();
     for (const to of [[b.id], "all"] as const) {
-      const r = await a.e.send("again", "auto", to === "all" ? "all" : [...to]);
+      // All in a Send view that still shows the device (drawn before it failed)
+      const r = await a.e.send("again", "auto", to === "all" ? "all" : [...to], to === "all" ? [b.id] : undefined);
       assert.equal(r.sent, 0, word);
       assert.equal(r.error, undefined, word);
       assert.deepEqual(r.failures, first.failures, word);
     }
+    // All with no device it offered (the right-click menu): no device is named, and it is not a success
+    const r = await a.e.send("again", "auto", "all");
+    assert.equal(r.sent, 0, word);
+    assert.deepEqual(r.failures, [], word);
+    assert.equal(r.error, "Unable to send.\nNo device can receive messages right now.", word);
     assert.equal(posts(), before, word);
   }
+});
+
+test("a send to All does not name a device that was greyed before; one the Send view offered that left since is named", async () => {
+  const { clock, w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  const c = await device(w, clock, "firefox");
+  await pairAndApprove(w, a, c);
+  // c is greyed (logged out) before the Send view is drawn: the view offers only b
+  w.inject.push({ match: /POST \/v1\/send/, status: 200, body: { r: { [c.id]: "logged out" } }, times: 1 });
+  await a.e.send("hi", "auto", [c.id]);
+  w.inject.push({ match: /POST \/v1\/send/, status: 200, body: { r: { [b.id]: "sent" } }, times: 1 });
+  const ok = await a.e.send("hi", "auto", "all", [b.id]);
+  assert.equal(ok.sent, 1);
+  assert.deepEqual(ok.failures, []);
+  assert.equal(ok.error, undefined);
+  // b leaves the All set after the view was drawn: All names b only, never c
+  w.inject.push({ match: /POST \/v1\/send/, status: 200, body: { r: { [b.id]: "not listening" } }, times: 1 });
+  await a.e.send("hi", "auto", [b.id]);
+  const r = await a.e.send("again", "auto", "all", [b.id]);
+  assert.equal(r.sent, 0);
+  assert.deepEqual(r.failures.map((f) => [f.id, f.result]), [[b.id, "not listening"]]);
 });
 
 test("send failures read as sentences, never raw result words", async () => {

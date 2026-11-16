@@ -190,7 +190,7 @@ export class Rpc {
       case "detect":
         return { type: detectType(s("text")), bytes: utf8Len(s("text")) };
       case "send":
-        return e.send(s("text"), a.auto === true ? "auto" : a.asUrl === true ? "url" : a.asText === true ? "text" : "telOrText", Array.isArray(a.targets) ? (a.targets as string[]) : "all");
+        return e.send(s("text"), a.auto === true ? "auto" : a.asUrl === true ? "url" : a.asText === true ? "text" : "telOrText", Array.isArray(a.targets) ? (a.targets as string[]) : "all", Array.isArray(a.shown) ? (a.shown as string[]) : undefined);
       case "pair":
         return e.pairStart(s("id"));
       case "sendAgain":

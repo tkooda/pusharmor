@@ -201,7 +201,7 @@ test("a menu click opens the toolbar popup, which takes the send to run it with 
   assert.deepEqual(await ask("menuSendClaim"), { ok: true, data: null });
   // the popup starts it; the background runs it, once
   assert.deepEqual(await ask("menuSendRun"), { ok: true, data: { sent: 1, total: 1, failures: [] } });
-  assert.deepEqual(sends, [["https://example.com/", "auto", ["dev1"]]]);
+  assert.deepEqual(sends, [["https://example.com/", "auto", ["dev1"], undefined]]);
   assert.deepEqual(await ask("menuSendRun"), { ok: true, data: null });
   assert.equal(sends.length, 1);
 });
