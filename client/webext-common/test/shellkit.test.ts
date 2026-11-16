@@ -162,6 +162,33 @@ test("a menu click after a wipe shows the error in a notification, no unhandled 
   assert.deepEqual(notes, ["send-result: " + T.signedOut]);
 });
 
+test("a menu click opens the toolbar popup, which takes the send to run it with the Send popup", async () => {
+  const { onMenuClick, onRuntimeMessage } = await import("../src/shellkit.ts");
+  let opened = 0;
+  let sends = 0;
+  const b = { action: { setBadgeText: async () => undefined, openPopup: async () => void opened++ } };
+  const engine = { send: async () => (sends++, { sent: 1, total: 1, failures: [] }), p: { notify: () => undefined, setBadge: () => undefined } };
+  const boot = async () => ({ engine }) as never;
+  onMenuClick(b as never, boot, async () => "")({ menuItemId: "pa-page|dev1", pageUrl: "https://example.com/" } as never);
+  assert.equal(opened, 1);
+  const got = await new Promise((resolve) => onRuntimeMessage(boot)({ op: "menuSendClaim" }, {} as never, resolve as never));
+  assert.deepEqual(got, { ok: true, data: { text: "https://example.com/", child: "dev1" } });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(sends, 0); // the popup sends it, not the background
+  // taken once: a second popup open finds nothing
+  assert.deepEqual(await new Promise((resolve) => onRuntimeMessage(boot)({ op: "menuSendClaim" }, {} as never, resolve as never)), { ok: true, data: null });
+});
+
+test("a menu click sends in the background when the toolbar popup cannot open", async () => {
+  const { onMenuClick } = await import("../src/shellkit.ts");
+  let sends = 0;
+  const b = { action: { setBadgeText: async () => undefined, openPopup: async () => Promise.reject(new Error("no window")) } };
+  const engine = { send: async () => (sends++, { sent: 1, total: 1, failures: [] }), updateBadge: async () => undefined, p: { notify: () => undefined, setBadge: () => undefined } };
+  onMenuClick(b as never, async () => ({ engine }) as never, async () => "")({ menuItemId: "pa-page|dev1", pageUrl: "https://example.com/" } as never);
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(sends, 1);
+});
+
 test("a huge selection opens the send window with a URL below the browser limit", async () => {
   const { onMenuClick } = await import("../src/shellkit.ts");
   const urls: string[] = [];

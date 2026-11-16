@@ -259,7 +259,7 @@ test("login page: one note at a time, setup note only while needed with Open set
   assert.match(page, /ff && st\.setupNeeded \? setupNote\(\)/);
   assert.match(page, /"Open setup"/);
   assert.match(page, /resuming \? null : h\("p", \{ class: "step-n" \}, "Step 1 of 2"\)/);
-  assert.match(page, /"You are logged out\. Log in to resume\."/);
+  assert.match(page, /"This device is logged out\. Log in to resume\."/);
   const texts = readFileSync(new URL("../src/core/texts.ts", import.meta.url), "utf8");
   assert.match(texts, /ffFinishSetup: "Finish setup in the Firefox setup tab\.",/);
   assert.match(texts, /signedOut: "This device is logged out\. Log in to resume\.",/);
@@ -391,9 +391,9 @@ test("popup update and log in screens start with focus on their button", async (
   assert.match(pop, /clear\(root\)\.append\(h\("div", \{ class: "top" \}[^\n]*, panel\);\s*root\.querySelector<HTMLElement>\("button\.primary"\)\?\.focus\(\);/);
 });
 
-test("login page with a banner gives one reason, not also You are logged out", async () => {
+test("login page with a banner gives one reason, not also This device is logged out", async () => {
   const { readFileSync } = await import("node:fs");
-  assert.match(readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8"), /resuming && !banner \? "You are logged out\. Log in to resume\."/);
+  assert.match(readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8"), /resuming && !banner \? "This device is logged out\. Log in to resume\."/);
 });
 
 test("login step 2 links stay inside the card and stack centered when narrow", async () => {

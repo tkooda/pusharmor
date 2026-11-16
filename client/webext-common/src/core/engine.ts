@@ -596,6 +596,9 @@ export class Engine {
     const d: PairDecision = pairDecide({ ...input, fetched: afterFetch });
     const pkX = await pairingKey(b64urlDecode(from), b64urlDecode(self.id)); // sender is N
     const name = await this.halfName(from);
+    // the device is named in the notice when it has a name; else the generic text
+    const known = (await this.db.peer(from))?.name;
+    const commitText = known ? T.wantsToPair(known) : T.pairCommit;
     switch (d.action) {
       case "fetch":
         // no GET /peers ran (a server wait or a failure): keep the commit for the next fetch, never drop it
@@ -625,10 +628,10 @@ export class Engine {
         }
         const e = await getEntry(this.p.storageLocal, from);
         if (e && e.state === "shown" && e.fingerprint) return this.pairNotice(e.pk, T.pairOpen(e.fingerprint));
-        return this.pairNotice(e?.pk ?? pkX, T.pairCommit);
+        return this.pairNotice(e?.pk ?? pkX, commitText);
       }
       case "resend": {
-        await this.pairNotice(pkX, T.pairCommit);
+        await this.pairNotice(pkX, commitText);
         await this.sendReply(from);
         return;
       }
@@ -654,7 +657,7 @@ export class Engine {
         await this.p.storageLocal.remove([PAIR_MSG_PREFIX + from]);
         await this.p.storageLocal.set(items);
         await this.clearDenied(from);
-        await this.pairNotice(pkX, T.pairCommit);
+        await this.pairNotice(pkX, commitText);
         if (d.action === "reply") await this.sendReply(from);
         return;
       }

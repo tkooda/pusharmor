@@ -34,12 +34,19 @@ test("View opens a new tab on the extension read page for the message", async ()
   assert.deepEqual(created, [{ url: "chrome-extension://x/page.html#read=42", active: true }]);
 });
 
-test("the read page has only an X that closes the tab", () => {
+test("the read page has an X that closes the tab", () => {
   const page = readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8");
   const view = page.slice(page.indexOf("async function readView"));
   assert.match(view, /class: "quiet ib readx"[^\n]*onclick: close/);
   assert.match(view, /window\.close\(\)/);
-  assert.equal((view.slice(0, view.indexOf("\n}\n")).match(/h\("button"/g) ?? []).length, 1);
+  assert.equal((view.slice(0, view.indexOf("\n}\n")).match(/h\("button"/g) ?? []).length, 2);
+});
+
+test("the read page for a message no longer in History says so, with Back to History", () => {
+  const page = readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8");
+  const view = page.slice(page.indexOf("async function readView"));
+  assert.match(view, /"This message is no longer in History\."/);
+  assert.match(view, /location\.hash = "#history"\) \}, "Back to History"\)/);
 });
 
 test("Save asks downloads.download for a Save-as dialog with the dated filename, then reports the real path", async () => {

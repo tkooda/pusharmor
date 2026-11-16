@@ -42,6 +42,6 @@ test("the popup and the device list quote device names in toasts and the filter"
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
   assert.match(pv, /msg = T\.removedDevice\(p\.label\);/);
   assert.match(pop, /c\.title = greyedText\(p\.label, p\.greyed \?\? ""\);/);
-  assert.match(pop, /toast\(c\.title, "info"\);/);
+  assert.match(pop, /toast\(c\.title, "err"\);/);
   assert.match(pop, /"From " \+ quoted\(label\)/);
 });

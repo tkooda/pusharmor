@@ -1,5 +1,6 @@
 // Shared wiring for the two shells. The shell passes in its "browser"
 // namespace object; nothing here reads a browser global.
+import { SEND_CAP, utf8Len } from "./model/padding.ts";
 import { saveViaLink, saveWithPermission } from "./model/savefile.ts";
 import { Api } from "./api/client.ts";
 import { MENU_PAGE, MENU_PARENTS, MENU_SEL, MENU_URL, clickTarget, menuSend } from "./core/actions.ts";
@@ -158,11 +159,42 @@ export function lazyBoot(make: () => Platform, vapid: Uint8Array): () => Promise
   };
 }
 
+/** A context menu send the toolbar popup takes over: ready gives the text, or null when there is none to send. */
+interface MenuPending {
+  ready: Promise<{ text: string; child: string } | null>;
+  claimed: () => void;
+}
+let menuPending: MenuPending | null = null;
+
+/** The toolbar popup takes the waiting context menu send (once), to send it with its Send popup. */
+async function claimMenuSend(): Promise<{ text: string; child: string } | null> {
+  const m = menuPending;
+  menuPending = null;
+  if (!m) return null;
+  m.claimed();
+  return m.ready;
+}
+
+/** Opens the toolbar popup; false when the browser cannot. Call it before any await (Firefox needs the click). */
+function openActionPopup(b: Browser): Promise<boolean> {
+  const a = b.action ?? b.browserAction;
+  if (!a?.openPopup) return Promise.resolve(false);
+  try {
+    return a.openPopup().then(() => true, () => false);
+  } catch {
+    return Promise.resolve(false);
+  }
+}
+
 /** runtime.onMessage: {op, args} from UI pages and content scripts. */
 export function onRuntimeMessage(boot: () => Promise<Booted>, extra?: (msg: Req, sender: MessageSender) => Promise<unknown> | null) {
   return (msg: unknown, sender: MessageSender, sendResponse: (r: unknown) => void): boolean => {
     const m = msg as Req;
     if (!m || typeof m.op !== "string") return false;
+    if (m.op === "menuSendClaim") {
+      claimMenuSend().then((data) => sendResponse({ ok: true, data }), () => sendResponse({ ok: true, data: null }));
+      return true;
+    }
     const ex = extra?.(m, sender);
     if (ex) {
       ex.then(sendResponse, () => sendResponse({ ok: false }));
@@ -205,6 +237,17 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
     void (async () => {
       const [parent, child] = String(info.menuItemId).split("|");
       if (!child) return;
+      // the toolbar popup sends it with the same Send popup as its Send screen; if it cannot open
+      // or does not take the send in time, the send runs here as before
+      const opened = openActionPopup(b);
+      let give: (v: { text: string; child: string } | null) => void = () => undefined;
+      let taken: () => void = () => undefined;
+      const claim = new Promise<void>((r) => (taken = r));
+      const mine: MenuPending = { ready: new Promise((r) => (give = r)), claimed: () => taken() };
+      menuPending = mine;
+      const unclaim = () => {
+        if (menuPending === mine) menuPending = null;
+      };
       let text = "";
       if (parent === MENU_URL) text = info.linkUrl ?? "";
       else if (parent === MENU_PAGE) text = info.pageUrl ?? tab?.url ?? "";
@@ -212,7 +255,15 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
         text = (await readSelection(tab, info.selectionText ?? "", info.frameId)).slice(0, 200000); // the send window URL stays under 2 MiB
         if (/[\uD800-\uDBFF]$/.test(text)) text = text.slice(0, -1); // a cut inside a pair would make encodeURIComponent throw
       }
-      if (!text) return;
+      if (!text || utf8Len(text) > SEND_CAP) give(null);
+      else give({ text, child });
+      if (!text) return unclaim();
+      if (utf8Len(text) <= SEND_CAP && (await opened)) {
+        let late = false;
+        await Promise.race([claim, new Promise<void>((r) => setTimeout(() => ((late = true), r()), 5000))]);
+        if (!late) return;
+      }
+      unclaim();
       const { engine } = await boot();
       let r: Awaited<ReturnType<typeof menuSend>>;
       try {

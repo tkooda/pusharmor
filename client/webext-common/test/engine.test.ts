@@ -27,6 +27,16 @@ async function setup(bName: "chrome" | "firefox" = "chrome") {
   return { clock, w, a, b };
 }
 
+test("the pairing notice names a device that has a name", async () => {
+  const { w, a, b } = await setup();
+  await refresh(a, b);
+  await b.db.updatePeer(a.id, (p) => (p ? { ...p, name: "Laptop" } : null));
+  await a.e.pairStart(b.id);
+  await deliver(w, b);
+  const pk = await pairingKey(b64urlDecode(a.id), b64urlDecode(b.id));
+  assert.equal(b.p.notes.get("p:" + pk)!.body, '"Laptop" wants to pair.');
+});
+
 test("happy path: commit, automatic reply, open, same fingerprint, approve both, send", async () => {
   const { w, a, b } = await setup();
   await refresh(a, b);

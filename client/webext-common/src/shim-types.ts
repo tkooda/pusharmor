@@ -90,8 +90,8 @@ export interface Browser {
     download(o: { url: string; filename?: string; saveAs?: boolean }): Promise<number>;
     search(q: { id: number }): Promise<{ filename?: string }[]>;
   };
-  action?: { setBadgeText(d: { text: string }): Promise<void> };
-  browserAction?: { setBadgeText(d: { text: string }): Promise<void> };
+  action?: { setBadgeText(d: { text: string }): Promise<void>; openPopup?(): Promise<void> };
+  browserAction?: { setBadgeText(d: { text: string }): Promise<void>; openPopup?(): Promise<void> };
   contextMenus?: MenusApi;
   menus?: MenusApi & {
     onShown: Event<(info: MenuInfo, tab: Tab) => void>;

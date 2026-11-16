@@ -72,7 +72,7 @@ export function pageStart(route: string, arg?: string): PageStart {
   return { tab: "peers", arg: route === "peers" ? arg : undefined };
 }
 
-const E2E = "All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.";
+const E2E = "All of your data is always end-to-end encrypted, and can never be read by our relay server or anyone else.";
 const CODE_HELP = "Paste or type the code.";
 /** A code check that failed for one of these reasons starts again at the email step. */
 const ENDS_FLOW = [R.loginExpired, R.codeExpired];
@@ -300,7 +300,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     { class: "step" },
     resuming ? null : h("p", { class: "step-n" }, "Step 1 of 2"),
     h("h1", {}, title),
-    h("p", { class: "sub" }, purpose === "delete-account" ? "Log in to the account you want to delete." : resuming && !banner ? "You are logged out. Log in to resume." : "Use the same account on every device you want to pair."),
+    h("p", { class: "sub" }, purpose === "delete-account" ? "Log in to the account you want to delete." : resuming && !banner ? "This device is logged out. Log in to resume." : "Use the same account on every device you want to pair."),
     resetNotes(),
     h(
       "div",
@@ -602,9 +602,15 @@ async function readView(env: UiEnv, root: HTMLElement, id: number): Promise<void
     // a tab the user opened by hand cannot close itself
     location.hash = "#history";
   };
+  // a message deleted since (Sync deletions, auto-delete) says so, with a way back
+  const body = row
+    ? h("div", { class: "readtext", tabindex: "0" }, row.content)
+    : h("div", { class: "cta", role: "status" },
+      h("p", {}, "This message is no longer in History."),
+      h("button", { type: "button", class: "tonal", onclick: () => (location.hash = "#history") }, "Back to History"));
   root.append(
     h("div", { class: "readview" },
       h("button", { type: "button", class: "quiet ib readx", "aria-label": "Close", title: "Close", onclick: close }, icon("close", 22)),
-      h("div", { class: "readtext", tabindex: "0" }, row?.content ?? "")),
+      body),
   );
 }

@@ -99,6 +99,8 @@ export async function mountPopup(env: UiEnv, root: HTMLElement, page?: PageStart
     root.querySelector<HTMLElement>("button.primary")?.focus();
     return;
   }
+  // a context menu send opened this popup: it runs here with the Send popup
+  if (env.inPopup?.() === true) void menuSendHere(env);
   const blocked = env.notificationsBlocked?.().catch(() => false);
   // a failed read keeps Send, the view this open showed before
   const peers = (await rpc<{ peers: PeerView[] }>(env, "peers").catch(() => null))?.peers;
@@ -314,7 +316,7 @@ export function signinCard(env: UiEnv, st: StateView, going: boolean, inTab: boo
       },
     }, going ? "Continue logging in" : "Log in"),
     inTab || !popup ? null : h("div", { class: "opens" }, icon("open", 16), "Opens in a new tab"),
-    h("p", { class: "e2e" }, icon("lock", 20), h("span", {}, "All of your data is always end-to-end encrypted, and can never be read by the server or anyone else.")),
+    h("p", { class: "e2e" }, icon("lock", 20), h("span", {}, "All of your data is always end-to-end encrypted, and can never be read by our relay server or anyone else.")),
     st.platform === "firefox" && st.receiveNote ? h("div", { class: "dim" }, st.receiveNote) : null,
   );
 }
@@ -408,7 +410,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     c.removeAttribute("aria-pressed");
     c.title = greyedText(p.label, p.greyed ?? "");
     c.addEventListener("click", () => {
-      toast(c.title, "info");
+      toast(c.title, "err");
       void rpc(env, "greyedTap");
     });
     chips.append(c);
@@ -466,6 +468,31 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   root.append(h("div", { class: "grow" }), head, chips, ...(none ? [none] : []), ...(noPair ? [noPair] : []), h("div", { class: "foot send-foot" }, sendBtn));
   relabel();
   await update();
+}
+
+/** A context menu send this popup took: the Send popup while it runs, then the result as on Send. */
+async function menuSendHere(env: UiEnv): Promise<void> {
+  const m = await rpc<{ text: string; child: string } | null>(env, "menuSendClaim").catch(() => null);
+  if (!m) return;
+  try {
+    const peers = (await rpc<{ peers: PeerView[] }>(env, "peers")).peers;
+    const one = peers.find((p) => p.id === m.child);
+    const names = m.child === "all" ? peers.filter(canReceiveNow).map((p) => p.label) : one ? [one.label] : [];
+    const d = await rpc<{ type: string }>(env, "detect", { text: m.text });
+    const prog = sendProgress(env, sendingCaption(d.type, names), STEP.encryptingFor(names), names);
+    let r: SendResult;
+    try {
+      r = await rpc<SendResult>(env, "send", { text: m.text, auto: true, targets: m.child === "all" ? "all" : [m.child] });
+    } finally {
+      prog.close();
+    }
+    const total = m.child === "all" ? r.total : 1;
+    if (r.error) toast(r.error, "err");
+    else if (r.sent < total) toast([T.sentToNofM(r.sent, total), ...r.failures.map((f) => f.text)].join("\n"), "err");
+    else window.close();
+  } catch (e) {
+    toast((e as Error).message, "err");
+  }
 }
 
 /** The Send popup: a modal dialog over the view (the layout stays) with the brand tile, a caption, the bar, and the step line. */
