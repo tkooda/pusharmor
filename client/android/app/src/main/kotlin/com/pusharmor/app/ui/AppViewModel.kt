@@ -328,7 +328,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private fun refused(id: String, r: PairStart) {
         UiText.pairRefused(r, peers.value.firstOrNull { it.id == id }?.let(::label) ?: "")?.let { message.value = it }
     }
-    fun reply(id: String) = io(UiText.unablePair(nameOf(id))) { g.pairing().tapReply(id, System.currentTimeMillis()) }
+    fun reply(id: String) = once("reply:$id", UiText.unablePair(nameOf(id))) { g.pairing().tapReply(id, System.currentTimeMillis()) }
     fun sendAgainPair(id: String) = io(UiText.unablePair(nameOf(id))) { g.pairing().sendAgain(id, System.currentTimeMillis()) }
     /** Last tap of Check again ([CHECK_AGAIN_KEY]) and banner Retry ([RETRY_PUSH_KEY]), in memory only (greys it for [TRY_AGAIN_GREY_MS]). */
     val coolTaps = MutableStateFlow<Map<String, Long>>(emptyMap())
@@ -346,7 +346,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         tryAgainTaps.update { it + (id to now) }
         io(UiText.unablePair(nameOf(id))) { g.pairing().tryAgain(id, now) }
     }
-    fun cancelPairing(id: String) = io(UiText.unableCancelPairing(nameOf(id))) { g.pairing().cancelPairing(id); g.reconcile().run() }
+    fun cancelPairing(id: String) = once("cancel:$id", UiText.unableCancelPairing(nameOf(id))) { g.pairing().cancelPairing(id); g.reconcile().run() }
     /** Peer ids with a Pair again call running; their button is greyed so a second tap cannot cancel the first. */
     val pairingAgain = MutableStateFlow<Set<String>>(emptySet())
     fun pairAgain(id: String) {

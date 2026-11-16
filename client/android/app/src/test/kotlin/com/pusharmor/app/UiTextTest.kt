@@ -21,9 +21,14 @@ class UiTextTest {
         assertEquals("Unable to copy\nSelect the text and copy it by hand", UiText.copyResult(false))
     }
 
+    @Test fun shareSheetToastTexts() {
+        assertEquals("Unable to send\nThis device is logged out. Open PushArmor and log in", UiText.brief(UiText.SHARE_LOGGED_OUT))
+        assertEquals("Unable to send\nThere is no text or URL to send", UiText.brief(UiText.SHARE_NOTHING))
+    }
+
     @Test fun keysBrokenTexts() {
         assertEquals("This device's keys have become unusable.", UiText.KEYS_BROKEN_TITLE)
-        assertEquals("Tap Retry to try again. If this keeps happening, you can delete the broken keys. You will then sign in again and pair all your devices again.", UiText.KEYS_BROKEN_BODY)
+        assertEquals("Tap Retry to try again. If this keeps happening, you can delete the broken keys. You will then log in again and pair all your devices again.", UiText.KEYS_BROKEN_BODY)
         assertEquals("Retry", UiText.KEYS_BROKEN_RETRY)
         assertEquals("Tap Retry to try again. If this keeps happening, you can reset this device. You will then log in again and pair all your devices again.", UiText.DATA_BROKEN_BODY)
         assertEquals("Delete broken keys", UiText.KEYS_BROKEN_DELETE)
@@ -60,7 +65,7 @@ class UiTextTest {
         assertEquals(to + "That device is logged out. Log in on that device to receive messages.", UiText.sendResultText("logged out", "Laptop"))
         assertEquals(to + "It has not listened recently. Run pusharmor listen on it.", UiText.sendResultText("not listening", "Laptop"))
         assertEquals(to + "It is not paired with this device. Pair with it to send it messages.", UiText.sendResultText("unapproved", "Laptop"))
-        assertEquals(to + "It isn't paired with this device.", UiText.sendResultText("denied", "Laptop"))
+        assertEquals(to + "It is not paired with this device.", UiText.sendResultText("denied", "Laptop"))
         assertEquals(to + "It is no longer on this account.", UiText.sendResultText("unknown", "Laptop"))
         assertEquals(to + "Its push service did not accept the message. Try again later.", UiText.sendResultText("failed:410", "Laptop"))
         val notReady = to + "It has not finished turning on notifications. Open PushArmor on it."

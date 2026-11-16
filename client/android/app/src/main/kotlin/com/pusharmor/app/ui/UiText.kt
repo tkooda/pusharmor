@@ -87,7 +87,7 @@ object UiText {
     /** Same words as iOS: keys that fail the start check; deleting them is the user's choice and asks first. */
     const val KEYS_BROKEN_TITLE = "This device's keys have become unusable."
     const val KEYS_BROKEN_BODY = "Tap Retry to try again. If this keeps happening, you can delete the broken keys. " +
-        "You will then sign in again and pair all your devices again."
+        "You will then log in again and pair all your devices again."
     const val KEYS_BROKEN_RETRY = "Retry"
     const val KEYS_BROKEN_DELETE = "Delete broken keys"
     const val KEYS_BROKEN_DIALOG_TITLE = "Delete broken keys?"
@@ -190,6 +190,9 @@ object UiText {
 
     /** A Direct Share send over the cap. The cap still counts UTF-8 bytes. */
     const val SHARE_TOO_LONG = UNABLE_SEND + "\n" + com.pusharmor.net.ErrorText.TOO_LONG
+    /** Share sheet toasts when nothing can be sent: line 1, then line 2. */
+    const val SHARE_LOGGED_OUT = UNABLE_SEND + "\nThis device is logged out. Open PushArmor and log in."
+    const val SHARE_NOTHING = UNABLE_SEND + "\nThere is no text or URL to send."
 
     /** Remembered recipient ids ("a,b,c") that can still receive; empty when none, so the default stays. */
     fun rememberedSelection(remembered: String?, available: List<String>): List<String> {
@@ -250,7 +253,7 @@ object UiText {
             word == "logged out" -> to + "That device is logged out. Log in on that device to receive messages."
             word == "not listening" -> to + "It has not listened recently. Run pusharmor listen on it."
             word == "unapproved" -> to + "It is not paired with this device. Pair with it to send it messages."
-            word == "denied" -> to + "It isn't paired with this device."
+            word == "denied" -> to + "It is not paired with this device."
             word == "unknown" -> to + "It is no longer on this account."
             word.startsWith("failed:") -> to + "Its push service did not accept the message. Try again later."
             else -> to + "It has not finished turning on notifications. Open PushArmor on it."

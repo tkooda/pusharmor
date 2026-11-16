@@ -48,6 +48,7 @@ class ShareActivityTest {
 
     @Test fun shareWithoutTextCloses() {
         assertTrue(launch { }.isFinishing)
+        assertEquals("Unable to send\nThere is no text or URL to send", org.robolectric.shadows.ShadowToast.getTextOfLatestToast())
     }
 
     @Test fun directShareRoutesOnlyAShortcutInTheAllSet() {

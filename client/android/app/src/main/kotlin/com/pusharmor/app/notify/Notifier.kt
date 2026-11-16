@@ -26,6 +26,8 @@ class Notifier(private val context: Context, private val settings: Settings, pri
     companion object {
         /** Brand navy accent on every notification (small icon tint and actions). */
         const val NAVY = 0xFF1F3A5F.toInt()
+        /** A notice shows only with notifications on and the "peers" channel not blocked. */
+        fun noticeShows(enabled: Boolean, peersImportance: Int?): Boolean = enabled && peersImportance != NotificationManager.IMPORTANCE_NONE
         const val DEFAULT_CHANNEL = "default"
         const val TAG_MSG = "msg"
         const val MAX_MESSAGES = 25
@@ -149,6 +151,9 @@ class Notifier(private val context: Context, private val settings: Settings, pri
 
     fun enabled() = NotificationManagerCompat.from(context).areNotificationsEnabled()
 
+    /** False when a [notice] cannot show: notifications off, or the "peers" channel blocked. */
+    fun noticeShows(): Boolean = noticeShows(enabled(), settings.get(Settings.K.CH_PEERS)?.let { nm.getNotificationChannel(it)?.importance })
+
     private fun openApp(route: String, extra: String? = null): PendingIntent {
         val i = MainActivity.openIntent(context, route).setAction("open:$route:${extra ?: ""}")
             .putExtra("peer", extra).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -170,6 +175,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         val dismiss = dismiss(TAG_NOTICE, id)
         val b = NotificationCompat.Builder(context, peersChannel)
             .setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setContentTitle("PushArmor").setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(dismiss).setAutoCancel(true)
             .addAction(0, "OK", dismiss)
         if (extras != null) b.addExtras(extras)
@@ -190,6 +196,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
     fun peersNotice(text: String, id: Int = UNDELIVERED_ID) {
         notify(TAG_NOTICE, id, NotificationCompat.Builder(context, peersChannel)
             .setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setContentTitle("PushArmor").setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(openApp("peers")).setAutoCancel(true).build())
     }
 

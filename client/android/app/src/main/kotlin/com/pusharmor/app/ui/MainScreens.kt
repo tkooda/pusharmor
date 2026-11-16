@@ -129,6 +129,8 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.layout.Layout
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -287,7 +289,7 @@ fun PeersScreen(vm: AppViewModel) {
         // The first banner card keeps the same gap under the top bar as the cards on the other tabs.
         // The bottom padding keeps the last row clear of the floating button.
         // Pull down to refresh; the indicator also shows while the Refresh button runs.
-        PullToRefreshBox(refreshing, onRefresh = { vm.refresh() }, modifier = Modifier.padding(inner).fillMaxSize()) {
+        PullToRefreshBox(refreshing, onRefresh = { if (canRefresh) vm.refresh() }, modifier = Modifier.padding(inner).fillMaxSize()) {
             LazyColumn(Modifier.fillMaxSize(), state = state, contentPadding = PaddingValues(top = 8.dp, bottom = fabH + 16.dp + 16.dp)) {
                 // The refresh step, under the pull indicator.
                 if (refreshing) item(key = "refreshing") {
@@ -433,7 +435,13 @@ private fun Banners(vm: AppViewModel, prefs: androidx.datastore.preferences.core
         BannerRow("This push server did not deliver. Check your UnifiedPush app.", "Retry", fault = true, PaIcons.Info, coolEnabled(vm, AppViewModel.RETRY_PUSH_KEY)) { vm.retryPush() }
         if (vm.g.push.hasPlayServices) TextButton(onClick = { vm.switchPush(toUp = false) }) { Text("Switch back to Google") }
     }
-    val st = remember(tick) { try { PackageManagerCompat.getUnusedAppRestrictionsStatus(context).get(2, java.util.concurrent.TimeUnit.SECONDS) } catch (e: Exception) { 0 } }
+    // The status call can block up to 2 s, so it runs off the main thread.
+    var st by remember { mutableIntStateOf(0) }
+    LaunchedEffect(tick) {
+        st = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try { PackageManagerCompat.getUnusedAppRestrictionsStatus(context).get(2, java.util.concurrent.TimeUnit.SECONDS) } catch (e: Exception) { 0 }
+        }
+    }
     if (st == androidx.core.content.UnusedAppRestrictionsConstants.API_31) {
         BannerRow(UiText.HIBERNATION_BANNER, "Settings", fault = false, PaIcons.Info) {
             safeStart(context, IntentCompat.createManageUnusedAppRestrictionsIntent(context, context.packageName))
@@ -694,11 +702,11 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
             }
             p.notPairedOnPeer -> Row(inset.padding(bottom = 8.dp)) {
                 if (p.offersPairAgain) OutlinedButton(onClick = { vm.pairAgain(p.id) }, Modifier.heightIn(min = 48.dp), enabled = p.id !in pairingAgain) { Text("Pair again") }
-                else OutlinedButton(onClick = { vm.cancelPairing(p.id) }, Modifier.heightIn(min = 48.dp)) { Text("Cancel pairing request") }
+                else OutlinedButton(onClick = { vm.cancelPairing(p.id) }, Modifier.heightIn(min = 48.dp), enabled = "cancel:${p.id}" !in running) { Text("Cancel pairing request") }
             }
             p.waiting -> ButtonRow(inset.padding(bottom = 8.dp)) {
                 if (p.offersPairAgain) OutlinedButton(onClick = { vm.pairAgain(p.id) }, Modifier.heightIn(min = 48.dp), enabled = p.id !in pairingAgain) { Text("Pair again") }
-                else OutlinedButton(onClick = { vm.cancelPairing(p.id) }, Modifier.heightIn(min = 48.dp)) { Text("Cancel pairing request") }
+                else OutlinedButton(onClick = { vm.cancelPairing(p.id) }, Modifier.heightIn(min = 48.dp), enabled = "cancel:${p.id}" !in running) { Text("Cancel pairing request") }
                 WaitingSendAgain(vm, p, now)
             }
         }
@@ -840,7 +848,7 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
             prompted -> {
                 Text("A new device wants to pair.", style = body, color = cs.onSurfaceVariant)
                 Spacer(Modifier.height(12.dp))
-                GreenButton(onClick = { vm.reply(p.id) }, text = "Reply", icon = null, modifier = Modifier.fillMaxWidth())
+                GreenButton(onClick = { vm.reply(p.id) }, text = "Reply", icon = null, modifier = Modifier.fillMaxWidth(), enabled = "reply:${p.id}" !in running)
             }
             noReply -> {
                 Text(UiText.noReplyFrom(x), style = body, color = cs.error)
@@ -862,7 +870,7 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
             val pl = m.measure(c.copy(minWidth = c.maxWidth + extra, maxWidth = c.maxWidth + extra))
             layout(c.maxWidth, pl.height) { pl.place(-extra / 2, 0) }
         }, color = cs.outlineVariant)
-        PairingFooter("Times out in " + Countdown.format(row.startedAt, now)) { vm.cancelPairing(p.id) }
+        PairingFooter("Times out in " + Countdown.format(row.startedAt, now), enabled = "cancel:${p.id}" !in running) { vm.cancelPairing(p.id) }
     }
 }
 
@@ -876,10 +884,10 @@ private class SpaceBetweenMin(gap: Dp) : Arrangement.Horizontal {
 /** Pairing card footer: Cancel pairing request at the left, the timeout at the right, or under the button when both do not fit. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun PairingFooter(timeout: String, onCancel: () -> Unit) {
+internal fun PairingFooter(timeout: String, enabled: Boolean = true, onCancel: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     FlowRow(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = SpaceBetweenMin(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = onCancel, Modifier.heightIn(min = 48.dp)) { Text("Cancel pairing request") }
+        OutlinedButton(onClick = onCancel, Modifier.heightIn(min = 48.dp), enabled = enabled) { Text("Cancel pairing request") }
         Row(Modifier.align(Alignment.CenterVertically), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(PaIcons.Schedule, null, Modifier.size(16.dp), tint = cs.onSurfaceVariant)
             Text(timeout, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
@@ -923,7 +931,7 @@ internal fun FingerprintPlate(code: String, x: String) {
 @Composable
 private fun CheckItem(text: String, checked: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
     DropdownMenuItem(text = { Text(text) }, onClick = onClick, enabled = enabled,
-        modifier = Modifier.semantics { stateDescription = if (checked) "On" else "Off" },
+        modifier = Modifier.semantics { role = Role.Checkbox; toggleableState = ToggleableState(checked) },
         trailingIcon = { Checkbox(checked, null, enabled = enabled) })
 }
 
@@ -1666,7 +1674,6 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             // Tap copies just the number; the button role and label name the action for TalkBack.
             Text(UiText.version(BuildConfig.VERSION_NAME),
                 Modifier.fillMaxWidth().heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically)
-                    .semantics { contentDescription = UiText.COPY_VERSION }
                     .clickable(onClickLabel = UiText.COPY_VERSION, role = Role.Button) {
                         // Logged out, Settings has no snackbar, and the sign-in screens show vm.message as an error: a Toast.
                         val msg = UiText.copyResult(com.pusharmor.app.notify.ActionActivity.copy(context, BuildConfig.VERSION_NAME))

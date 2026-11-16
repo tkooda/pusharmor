@@ -44,7 +44,7 @@ class ShareActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString() ?: intent.getCharSequenceExtra(Intent.EXTRA_SUBJECT)?.toString()
-        if (text == null) { finish(); return }
+        if (text == null) { Toast.makeText(this, UiText.brief(UiText.SHARE_NOTHING), Toast.LENGTH_LONG).show(); finish(); return }
         // The dialog shows at once: a placeholder until the peer read returns, never a blank box.
         setContent { Frame { LinearProgressIndicator(Modifier.fillMaxWidth().padding(24.dp), color = BrandGreen) } }
         // A floating dialog nearly as wide as the screen, as tall as its content; a tap outside cancels.
@@ -56,15 +56,19 @@ class ShareActivity : ComponentActivity() {
             val update = withContext(Dispatchers.IO) { vm.g.settings.updateRequired(com.pusharmor.app.BuildConfig.VERSION_NAME) }
             // this version got HTTP 426, so the share sheet shows the update screen, never a send that fails.
             if (update) { showUpdate(); return@launch }
+            var loggedOut = false
             val all = withContext(Dispatchers.IO) {
                 try {
-                    if (!canShare(vm.g.identity() != null, vm.g.settings.flag(com.pusharmor.app.data.Settings.K.SIGNED_OUT, false))) null
+                    if (!canShare(vm.g.identity() != null, vm.g.settings.flag(com.pusharmor.app.data.Settings.K.SIGNED_OUT, false))) { loggedOut = true; null }
                     else vm.g.store.peers().filter { it.inAll }
                 } catch (e: android.database.SQLException) { null }
             }
-            // Logged out or not set up: the app opens at log in, never a Send screen that cannot send. A damaged
-            // database opens the app on its data screen.
-            if (all == null) { startActivity(Intent(this@ShareActivity, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); finish() }
+            // Logged out or not set up: a toast says why, and the app opens at log in, never a Send screen that cannot
+            // send. A damaged database opens the app on its data screen.
+            if (all == null) {
+                if (loggedOut) Toast.makeText(this@ShareActivity, UiText.brief(UiText.SHARE_LOGGED_OUT), Toast.LENGTH_LONG).show()
+                startActivity(Intent(this@ShareActivity, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); finish()
+            }
             else show(text, all)
         }
     }
@@ -152,8 +156,9 @@ class ShareActivity : ComponentActivity() {
             if (r.ok) toastAndFinish(UiText.directShareSent(label(peer)))
             else {
                 val n = vm.g.notifier
-                // With notifications off the notification cannot show, so the error is a toast: a failure is never silent.
-                if (n.enabled()) n.notice(r.text) else Toast.makeText(this@ShareActivity, UiText.brief(r.text), Toast.LENGTH_LONG).show()
+                // With notifications off or the channel blocked the notification cannot show, so the error is a toast:
+                // a failure is never silent.
+                if (n.noticeShows()) n.notice(r.text) else Toast.makeText(this@ShareActivity, UiText.brief(r.text), Toast.LENGTH_LONG).show()
                 finish()
             }
         }

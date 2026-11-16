@@ -441,7 +441,8 @@ class AppLogicTest {
         val main = source("ui/MainScreens.kt")
         val banners = main.substring(main.indexOf("private fun Banners("), main.indexOf("private fun BannerRow("))
         assertTrue(banners.contains("val tick = resumeTick()"))
-        assertTrue(banners.contains("remember(tick)"))
+        assertTrue(banners.contains("remember(tick,"))
+        assertTrue(banners.contains("LaunchedEffect(tick)")) // the hibernation status, read off the main thread
     }
 
     @Test fun backStaysInTheApp() {

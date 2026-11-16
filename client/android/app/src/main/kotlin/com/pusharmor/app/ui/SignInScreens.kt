@@ -94,6 +94,7 @@ import com.pusharmor.app.data.Settings
 import com.pusharmor.app.notify.AppEffects
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.update
 
 /** Welcome / Sign-in: Google, Apple, Email (all three always offered). */
 /** The user closed the Google account picker. */
@@ -155,7 +156,13 @@ fun WelcomeScreen(vm: AppViewModel, purpose: String, onEmail: () -> Unit, onCanc
                 Icon(PaIcons.GoogleG, null, Modifier.size(20.dp), tint = Color.Unspecified); Spacer(Modifier.width(10.dp)); Text("Continue with Google")
             }
             val a = if (x.dark) Color.White to Color.Black else Color.Black to Color.White
-            Button(onClick = { scope.launch { vm.oauthUrl("apple", purpose)?.let { customTab(context, it) { m -> vm.message.value = m } } } }, Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            // In flight: greyed, so a second tap does not start a second login.
+            val running by vm.running.collectAsState()
+            Button(onClick = {
+                if (AppViewModel.claim(vm.running, "apple")) scope.launch {
+                    try { vm.oauthUrl("apple", purpose)?.let { customTab(context, it) { m -> vm.message.value = m } } } finally { vm.running.update { it - "apple" } }
+                }
+            }, Modifier.fillMaxWidth().heightIn(min = 48.dp), enabled = "apple" !in running,
                 colors = ButtonDefaults.buttonColors(containerColor = a.first, contentColor = a.second)) {
                 Icon(PaIcons.Apple, null, Modifier.size(18.dp)); Spacer(Modifier.width(10.dp)); Text("Continue with Apple")
             }
