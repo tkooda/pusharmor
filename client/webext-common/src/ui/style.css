@@ -45,7 +45,7 @@ h1 { margin: 0 0 8px; font-size: 22px; line-height: 28px; font-weight: 600; colo
 .tabs button.on::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2.5px; border-radius: 3px 3px 0 0; background: var(--primary); }
 
 /* Section headers and group cards. */
-.sh { margin: 0; font-size: 11px; line-height: 1.45455; font-weight: 600; letter-spacing: 0.7px; color: var(--sh, var(--ink2)); padding: 16px 20px 6px; }
+.sh { margin: 0; font-size: 11px; line-height: 1.45455; font-weight: 600; color: var(--sh, var(--ink2)); padding: 16px 20px 6px; }
 .grp { margin: 0 16px; border: 1px solid var(--line); border-radius: var(--rc); background: var(--card); overflow: hidden; }
 .grp > * + * { border-top: 1px solid var(--line); }
 .grp:empty { display: none; }

@@ -699,3 +699,11 @@ test("over-limit menu text: the popup opens on Send with the text first and neve
   assert.match(pop, /const shown = over \? show\("send", false, over\.text, over\.child === "all" \? undefined : over\.child\) : show\(first, page\?\.openPair, page\?\.arg\);/);
   assert.doesNotMatch(pop, /menuOver\]\)\.then/);
 });
+
+test("section headings are sentence case and keep normal letter spacing", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  const m = css.match(/\n\.sh \{([^}]*)\}/);
+  assert.ok(m);
+  assert.doesNotMatch(m[1], /letter-spacing/);
+});
