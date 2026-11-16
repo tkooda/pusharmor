@@ -204,9 +204,39 @@ test("a menu send the toolbar popup took is not lost when the popup closes befor
     mock.timers.tick(5000);
     await flush();
     assert.equal(sends, 1); // the background sends it
-    // a late start from the popup does not send it again
-    assert.deepEqual(await ask("menuSendRun"), { ok: true, data: null });
+    // a late start from the popup does not send it again; it gets the result to show
+    assert.deepEqual(await ask("menuSendRun"), { ok: true, data: { sent: 1, total: 1, failures: [] } });
     assert.equal(sends, 1);
+    assert.deepEqual(await ask("menuSendRun"), { ok: true, data: null });
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("a toolbar popup that starts a menu send late gets the error of the send the background ran", async () => {
+  const { onMenuClick, onRuntimeMessage } = await import("../src/shellkit.ts");
+  const { Rpc } = await import("../src/core/rpc.ts");
+  const { UserError } = await import("../src/core/engine.ts");
+  const { T } = await import("../src/core/texts.ts");
+  const { failText } = await import("../src/core/failtext.ts");
+  const b = { action: { setBadgeText: async () => undefined, openPopup: async () => undefined } };
+  const engine = {
+    send: async () => {
+      throw new UserError(T.signedOut);
+    },
+    p: { notify: () => undefined, setBadge: () => undefined },
+  };
+  const boot = async () => ({ engine, rpc: new Rpc(engine as never) }) as never;
+  const ask = (op: string) => new Promise((resolve) => onRuntimeMessage(boot)({ op }, {} as never, resolve as never));
+  const flush = () => new Promise((r) => setImmediate(r));
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    onMenuClick(b as never, boot, async () => "")({ menuItemId: "pa-page|dev1", pageUrl: "https://example.com/" } as never);
+    assert.deepEqual(await ask("menuSendClaim"), { ok: true, data: { text: "https://example.com/", child: "dev1" } });
+    await flush();
+    mock.timers.tick(5000);
+    await flush();
+    assert.deepEqual(await ask("menuSendRun"), { ok: false, error: failText("send", new UserError(T.signedOut)) });
   } finally {
     mock.timers.reset();
   }

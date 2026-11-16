@@ -171,6 +171,8 @@ interface MenuPending {
   seen?: true;
 }
 let menuPending: MenuPending | null = null;
+/** The reply for a toolbar popup that took a menu send but started it after the background sent it. */
+let menuLate: Promise<unknown> | null = null;
 
 /** The toolbar popup takes the waiting context menu send (once). The background still owns a send until menuSendRun. */
 async function claimMenuSend(): Promise<{ text: string; child: string; over?: true } | null> {
@@ -217,6 +219,12 @@ export function onRuntimeMessage(boot: () => Promise<Booted>, extra?: (msg: Req,
       return true;
     }
     if (m.op === "menuSendRun") {
+      const late = menuPending?.seen ? null : menuLate;
+      menuLate = null;
+      if (late) {
+        void late.then(sendResponse);
+        return true;
+      }
       void runMenuSend()
         .then(async (d) => (d ? (await boot()).rpc.handle({ op: "send", args: { text: d.text, auto: true, targets: d.child === "all" ? "all" : [d.child] } }) : { ok: true, data: null }))
         .then(sendResponse, () => sendResponse({ ok: false, error: BOOT_ERROR }));
@@ -273,6 +281,7 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
       // the toolbar popup sends it with the same Send popup as its Send screen; if it cannot open
       // or does not take the send in time, the send runs here as before
       const opened = openActionPopup(b);
+      menuLate = null;
       let give: (v: { text: string; child: string; over?: true } | null) => void = () => undefined;
       let taken: () => void = () => undefined;
       const claim = new Promise<void>((r) => (taken = r));
@@ -299,15 +308,23 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
         if (!late) return;
       }
       unclaim();
-      const { engine } = await boot();
+      // the popup took it but did not start it in time: it gets this send's result to show
+      let tellPopup: (v: unknown) => void = () => undefined;
+      if (mine.seen) menuLate = new Promise((r) => (tellPopup = r));
+      const { engine } = await boot().catch((err: unknown) => {
+        tellPopup({ ok: false, error: BOOT_ERROR });
+        throw err;
+      });
       let r: Awaited<ReturnType<typeof menuSend>>;
       try {
         r = await menuSend(engine, text, child, parent === MENU_SEL);
       } catch (err) {
         // a send that fails (logged out after a wipe) says why
         engine.p.notify("send-result", "PushArmor", failText("send", err));
+        tellPopup({ ok: false, error: failText("send", err) });
         return;
       }
+      tellPopup({ ok: true, data: r.result });
       if (r.overCap !== null) {
         await b.tabs.create({ url: b.runtime.getURL("page.html#send=" + encodeURIComponent(r.overCap)), active: true });
         return;

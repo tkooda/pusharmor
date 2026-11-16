@@ -3,7 +3,7 @@
 import { detectType } from "../model/detect.ts";
 import { SEND_CAP, utf8Len } from "../model/padding.ts";
 import type { HistoryRow } from "../store/db.ts";
-import type { Engine } from "./engine.ts";
+import type { Engine, SendResult } from "./engine.ts";
 import { allEntries } from "./state.ts";
 import { R, actionLine } from "./texts.ts";
 
@@ -69,13 +69,14 @@ interface MenuSendResult {
   badge: string | null;
   notice: string | null;
   overCap: string | null; // text to open in the send window
+  result: SendResult | null; // the send, for a toolbar popup that started it late
 }
 
 /** A click on a child item: send the link, page URL or selection. */
 export async function menuSend(e: Engine, text: string, child: string, fromSelection: boolean): Promise<MenuSendResult> {
   if (utf8Len(text) > SEND_CAP) {
     // no silent cut: the send window offers the first 2000 bytes (text only)
-    return { badge: null, notice: null, overCap: text };
+    return { badge: null, notice: null, overCap: text, result: null };
   }
   const targets = child === "all" ? "all" : [child];
   const r = await e.send(text, "auto", targets);
@@ -83,5 +84,5 @@ export async function menuSend(e: Engine, text: string, child: string, fromSelec
   const total = targets === "all" ? r.total : 1;
   const badge = r.sent + "/" + total;
   const notice = r.sent < total ? (r.error || r.failures.map((f) => f.text).join("\n") || actionLine("send") + "\n" + R.someNotSent) : null;
-  return { badge, notice, overCap: null };
+  return { badge, notice, overCap: null, result: r };
 }
