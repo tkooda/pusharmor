@@ -795,6 +795,10 @@ test("site failure status lines get the red error color; progress and success li
   assert.match(readFileSync(join(PUB, "js", "fx-open.js"), "utf8"), /status\.classList\.add\("fail"\);\n\s*status\.textContent = "Unable to pass/);
 });
 
+test("Firefox hand-over failure says the add-on did not answer as the second line", () => {
+  assert.ok(readFileSync(join(PUB, "js", "fx-open.js"), "utf8").includes('status.textContent = "Unable to pass the messages to PushArmor.\\nThe PushArmor add-on did not answer. Try again.";'));
+});
+
 test("site build fails when the APK hashes file lacks the APK version of the tag", () => {
   const tmp = mkdtempSync(join(tmpdir(), "pa-public-"));
   const lp = placeholderPublic(tmp);

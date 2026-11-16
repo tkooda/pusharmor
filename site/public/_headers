@@ -17,7 +17,7 @@
   ! Content-Security-Policy
   ! Cache-Control
   X-Robots-Tag: noindex
-  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-3HWDzyMxFwlbKtmmE2R94eV2Mh6a4ejnKj6XEt3kdlg=' 'sha256-SXI7rxpnY21hLaShQKVucb30FTfjG1ToNq42GhRwcqc=' 'sha256-mEJWAEhFkiWx9Tz6No95PWHzYcODmCGHAhZv0OjjDBo=' 'sha256-sHhB3POCHPtLnfZPXCrOooRp5ABHDS4PTZQdaPTRC+E=' 'sha256-ROSQMPpVFG50j13HnavDY3p/UeXNE3TbPZYSfBcm+L8='; connect-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-3HWDzyMxFwlbKtmmE2R94eV2Mh6a4ejnKj6XEt3kdlg=' 'sha256-rAEy531WFFMHvZkTbVw1leTQ41SBj7QPTWkPfSOZZVk=' 'sha256-mEJWAEhFkiWx9Tz6No95PWHzYcODmCGHAhZv0OjjDBo=' 'sha256-sHhB3POCHPtLnfZPXCrOooRp5ABHDS4PTZQdaPTRC+E=' 'sha256-ROSQMPpVFG50j13HnavDY3p/UeXNE3TbPZYSfBcm+L8='; connect-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   Cache-Control: no-cache
 
 /fx/sw.js

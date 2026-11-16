@@ -36,7 +36,7 @@
       await drainAll();
     } catch (e) {
       status.classList.add("fail");
-      status.textContent = "Unable to pass the messages to PushArmor.\nTry again.";
+      status.textContent = "Unable to pass the messages to PushArmor.\nThe PushArmor add-on did not answer. Try again.";
     }
   }
 
