@@ -168,16 +168,32 @@ export function lazyBoot(make: () => Platform, vapid: Uint8Array): () => Promise
 interface MenuPending {
   ready: Promise<{ text: string; child: string; over?: true } | null>;
   claimed: () => void;
+  seen?: true;
 }
 let menuPending: MenuPending | null = null;
 
-/** The toolbar popup takes the waiting context menu send (once), to send it with its Send popup. */
+/** The toolbar popup takes the waiting context menu send (once). The background still owns a send until menuSendRun. */
 async function claimMenuSend(): Promise<{ text: string; child: string; over?: true } | null> {
   const m = menuPending;
+  if (!m || m.seen) return null;
+  m.seen = true;
+  const d = await m.ready;
+  // text over the limit: the popup shows it to edit, nothing is sent
+  if (d?.over) {
+    if (menuPending === m) menuPending = null;
+    m.claimed();
+  }
+  return d;
+}
+
+/** The toolbar popup starts the send it took: it runs here, so a popup that closes cannot lose it. null: the background already sent it. */
+async function runMenuSend(): Promise<{ text: string; child: string } | null> {
+  const m = menuPending;
+  if (!m?.seen) return null;
   menuPending = null;
-  if (!m) return null;
   m.claimed();
-  return m.ready;
+  const d = await m.ready;
+  return d && !d.over ? d : null;
 }
 
 /** Opens the toolbar popup; false when the browser cannot. Call it before any await (Firefox needs the click). */
@@ -198,6 +214,12 @@ export function onRuntimeMessage(boot: () => Promise<Booted>, extra?: (msg: Req,
     if (!m || typeof m.op !== "string") return false;
     if (m.op === "menuSendClaim") {
       claimMenuSend().then((data) => sendResponse({ ok: true, data }), () => sendResponse({ ok: true, data: null }));
+      return true;
+    }
+    if (m.op === "menuSendRun") {
+      void runMenuSend()
+        .then(async (d) => (d ? (await boot()).rpc.handle({ op: "send", args: { text: d.text, auto: true, targets: d.child === "all" ? "all" : [d.child] } }) : { ok: true, data: null }))
+        .then(sendResponse, () => sendResponse({ ok: false, error: BOOT_ERROR }));
       return true;
     }
     const ex = extra?.(m, sender);

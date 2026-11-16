@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { mock, test } from "node:test";
 import { lazyBoot, notificationsBlocked, onRuntimeMessage, uiEnv } from "../src/shellkit.ts";
 
 test("openPage: an open tab on the same page is focused and reloaded", async () => {
@@ -164,19 +164,52 @@ test("a menu click after a wipe shows the error in a notification, no unhandled 
 
 test("a menu click opens the toolbar popup, which takes the send to run it with the Send popup", async () => {
   const { onMenuClick, onRuntimeMessage } = await import("../src/shellkit.ts");
+  const { Rpc } = await import("../src/core/rpc.ts");
   let opened = 0;
-  let sends = 0;
+  const sends: unknown[][] = [];
   const b = { action: { setBadgeText: async () => undefined, openPopup: async () => void opened++ } };
-  const engine = { send: async () => (sends++, { sent: 1, total: 1, failures: [] }), p: { notify: () => undefined, setBadge: () => undefined } };
-  const boot = async () => ({ engine }) as never;
+  const engine = { send: async (...a: unknown[]) => (sends.push(a), { sent: 1, total: 1, failures: [] }), p: { notify: () => undefined, setBadge: () => undefined } };
+  const boot = async () => ({ engine, rpc: new Rpc(engine as never) }) as never;
+  const ask = (op: string) => new Promise((resolve) => onRuntimeMessage(boot)({ op }, {} as never, resolve as never));
   onMenuClick(b as never, boot, async () => "")({ menuItemId: "pa-page|dev1", pageUrl: "https://example.com/" } as never);
   assert.equal(opened, 1);
-  const got = await new Promise((resolve) => onRuntimeMessage(boot)({ op: "menuSendClaim" }, {} as never, resolve as never));
-  assert.deepEqual(got, { ok: true, data: { text: "https://example.com/", child: "dev1" } });
+  assert.deepEqual(await ask("menuSendClaim"), { ok: true, data: { text: "https://example.com/", child: "dev1" } });
   await new Promise((r) => setTimeout(r, 20));
-  assert.equal(sends, 0); // the popup sends it, not the background
+  assert.equal(sends.length, 0);
   // taken once: a second popup open finds nothing
-  assert.deepEqual(await new Promise((resolve) => onRuntimeMessage(boot)({ op: "menuSendClaim" }, {} as never, resolve as never)), { ok: true, data: null });
+  assert.deepEqual(await ask("menuSendClaim"), { ok: true, data: null });
+  // the popup starts it; the background runs it, once
+  assert.deepEqual(await ask("menuSendRun"), { ok: true, data: { sent: 1, total: 1, failures: [] } });
+  assert.deepEqual(sends, [["https://example.com/", "auto", ["dev1"]]]);
+  assert.deepEqual(await ask("menuSendRun"), { ok: true, data: null });
+  assert.equal(sends.length, 1);
+});
+
+test("a menu send the toolbar popup took is not lost when the popup closes before it starts the send", async () => {
+  const { onMenuClick, onRuntimeMessage } = await import("../src/shellkit.ts");
+  const { Rpc } = await import("../src/core/rpc.ts");
+  let sends = 0;
+  const b = { action: { setBadgeText: async () => undefined, openPopup: async () => undefined } };
+  const engine = { send: async () => (sends++, { sent: 1, total: 1, failures: [] }), updateBadge: async () => undefined, p: { notify: () => undefined, setBadge: () => undefined } };
+  const boot = async () => ({ engine, rpc: new Rpc(engine as never) }) as never;
+  const ask = (op: string) => new Promise((resolve) => onRuntimeMessage(boot)({ op }, {} as never, resolve as never));
+  const flush = () => new Promise((r) => setImmediate(r));
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    onMenuClick(b as never, boot, async () => "")({ menuItemId: "pa-page|dev1", pageUrl: "https://example.com/" } as never);
+    assert.deepEqual(await ask("menuSendClaim"), { ok: true, data: { text: "https://example.com/", child: "dev1" } });
+    // the popup closes here, before menuSendRun
+    await flush();
+    assert.equal(sends, 0);
+    mock.timers.tick(5000);
+    await flush();
+    assert.equal(sends, 1); // the background sends it
+    // a late start from the popup does not send it again
+    assert.deepEqual(await ask("menuSendRun"), { ok: true, data: null });
+    assert.equal(sends, 1);
+  } finally {
+    mock.timers.reset();
+  }
 });
 
 test("a menu click with text over the limit gives the toolbar popup the text to edit, and sends nothing", async () => {

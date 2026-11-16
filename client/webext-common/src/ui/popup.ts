@@ -479,17 +479,24 @@ async function menuSendHere(env: UiEnv): Promise<string | null> {
   const m = await rpc<{ text: string; child: string; over?: true } | null>(env, "menuSendClaim").catch(() => null);
   if (!m) return null;
   if (m.over) return m.text;
+  // the send starts first and runs in the background, so a popup that closes cannot lose it; the names come after
+  const sending = rpc<SendResult | null>(env, "menuSendRun");
   try {
-    const peers = (await rpc<{ peers: PeerView[] }>(env, "peers")).peers;
+    const peers = (await rpc<{ peers: PeerView[] }>(env, "peers").catch(() => null))?.peers ?? [];
     const one = peers.find((p) => p.id === m.child);
     const names = m.child === "all" ? peers.filter(canReceiveNow).map((p) => p.label) : one ? [one.label] : [];
-    const d = await rpc<{ type: string }>(env, "detect", { text: m.text });
+    const d = await rpc<{ type: string }>(env, "detect", { text: m.text }).catch(() => ({ type: "text" }));
     const prog = sendProgress(env, sendingCaption(d.type, names), STEP.encryptingFor(names), names);
-    let r: SendResult;
+    let r: SendResult | null;
     try {
-      r = await rpc<SendResult>(env, "send", { text: m.text, auto: true, targets: m.child === "all" ? "all" : [m.child] });
+      r = await sending;
     } finally {
       prog.close();
+    }
+    // the background sent it (the popup was late) and shows how it went
+    if (!r) {
+      window.close();
+      return null;
     }
     const total = m.child === "all" ? r.total : 1;
     if (r.error) toast(r.error, "err");
