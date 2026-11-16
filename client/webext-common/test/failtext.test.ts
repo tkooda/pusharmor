@@ -390,3 +390,17 @@ test("Firefox for Android says Tap, desktop says Click", async () => {
   assert.equal(clickWord("Mozilla/5.0 (Android 14; Mobile; rv:133.0) Gecko/133.0 Firefox/133.0"), "Tap");
   assert.equal(clickWord("Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0"), "Click");
 });
+
+test("Firefox for Android says tap Codes match while waiting, desktop says click", async () => {
+  const desk = await import("../src/core/texts.ts");
+  assert.equal(desk.T.waiting("X"), 'Waiting for "X": open PushArmor there, compare the codes on both devices, and click Codes match only if they are the same.');
+  const nav = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  Object.defineProperty(globalThis, "navigator", { value: { userAgent: "Mozilla/5.0 (Android 14; Mobile; rv:133.0) Gecko/133.0 Firefox/133.0" }, configurable: true });
+  try {
+    const fresh: string = "../src/core/texts.ts?android"; // a second copy reads the Android user agent at load
+    const fa = (await import(fresh)) as typeof desk;
+    assert.equal(fa.T.waiting("X"), 'Waiting for "X": open PushArmor there, compare the codes on both devices, and tap Codes match only if they are the same.');
+  } finally {
+    if (nav) Object.defineProperty(globalThis, "navigator", nav);
+  }
+});

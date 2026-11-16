@@ -43,7 +43,7 @@ export const T = {
   pairing: "Pairing...",
   pairingWith: (x: string) => "Pairing with " + quoted(x) + ". Waiting for its reply.",
   wantsToPair: (x: string) => quoted(x) + " wants to pair.",
-  waiting: (x: string) => "Waiting for " + quoted(x) + ": open PushArmor there, compare the codes on both devices, and click Codes match only if they are the same.",
+  waiting: (x: string) => "Waiting for " + quoted(x) + ": open PushArmor there, compare the codes on both devices, and " + CLICK.toLowerCase() + " Codes match only if they are the same.",
   noReplyFrom: (x: string) => "No reply from " + quoted(x) + "\nCheck that notifications are on for PushArmor on both devices, then try again",
   stillHolds: (x: string) => quoted(x) + " still holds an earlier pairing. On " + quoted(x) + ", click Cancel pairing request, then click Send again.",
   notPairedOn: (x: string) => "Not paired on " + quoted(x) + ".",

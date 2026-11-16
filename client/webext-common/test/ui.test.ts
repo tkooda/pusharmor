@@ -234,7 +234,8 @@ test("no paired device: the tabs stay, and Devices shows the first-pair content,
   assert.match(pv, /if \(!data\.peers\.some\(\(p\) => p\.paired\)\) \{/);
   assert.match(pv, /"Pair your first device"/);
   assert.match(pv, /"Install PushArmor on another device\."/);
-  assert.match(pv, /"When it shows below, click Pair, then click Codes match when the codes match\."/);
+  assert.match(pv, /const fpClick = clickWord\(navigator\.userAgent\)\.toLowerCase\(\);/); // tap on Firefox for Android, click on desktop
+  assert.match(pv, /"When it shows below, " \+ fpClick \+ " Pair, then " \+ fpClick \+ " Codes match when the codes match\."/);
   assert.match(pv, /class: "fp-num"/);
   assert.match(pv, /class: "fp-spin"[^)]*\), "Waiting for another device to log in\."/);
   assert.match(pv, /JSON\.stringify\(now\.peers\) === key/); // the live read redraws only on a change

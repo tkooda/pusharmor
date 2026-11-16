@@ -61,12 +61,13 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
   if (!data.peers.some((p) => p.paired)) {
     // no paired device yet: the first-pair steps and the devices waiting to pair (live)
     const waiting = sortByLabel(listed.filter((p) => !p.hidden));
+    const fpClick = clickWord(navigator.userAgent).toLowerCase();
     root.append(
       h("h1", { class: "fp-title", tabindex: "-1" }, "Pair your first device"),
       h(
         "ol",
         { class: "grp fp-steps" },
-        ...["Install PushArmor on another device.", "Log in with the same account.", "When it shows below, click Pair, then click Codes match when the codes match."].map((t, i) =>
+        ...["Install PushArmor on another device.", "Log in with the same account.", "When it shows below, " + fpClick + " Pair, then " + fpClick + " Codes match when the codes match."].map((t, i) =>
           h("li", {}, h("span", { class: "fp-num", "aria-hidden": "true" }, String(i + 1)), h("span", {}, t)),
         ),
       ),
