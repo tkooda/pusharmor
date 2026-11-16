@@ -461,10 +461,13 @@ class AppLogicTest {
         assertTrue(sign.contains("Text(UiText.CODE_SENT_NOTE"))
         assertTrue(sign.contains("can never be read by our relay server or anyone else."))
         // Get a new code sends to the same address and stays on the code step.
-        assertTrue(sign.contains("vm.message.value = null; resending = true; resendTry++ }"))
+        assertTrue(sign.contains("vm.message.value = null; resending = true; checkFailed = false; resendTry++ }"))
         assertTrue(sign.contains("if (rt != null) requestToken = rt\n                                } finally {\n                                    requesting = false\n                                    resending = false"))
-        // A security check that fails or never gives a token does not leave the button greyed; a new tap starts a new check.
-        assertTrue(sign.contains("enabled = left <= 0 && !requesting) {\n                        Text(UiText.sendLabel(\"Get a new code\", left))"))
+        // Greyed while the security check shows; a check that fails does not leave the button greyed, and a new tap starts a new check.
+        assertTrue(sign.contains("enabled = left <= 0 && !requesting && (!resending || checkFailed)) {\n                        Text(UiText.sendLabel(\"Get a new code\", left))"))
+        assertTrue(sign.contains("playStore = vm.g.push.hasPlayServices, onFail = { checkFailed = true }) { token ->"))
+        assertTrue(sign.contains("if (!supported || failed) {\n        LaunchedEffect(Unit) { onFail() }"))
+        assertTrue(sign.contains("if (request.isForMainFrame) view.post { onFail() }"))
         assertTrue(sign.contains("if (resending) key(resendTry) {"))
         assertFalse(sign.contains("left <= 0 && !resending"))
         // The security check fallback line keeps the normal text color.

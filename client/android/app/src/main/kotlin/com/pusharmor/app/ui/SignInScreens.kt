@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.view.View
 import android.webkit.CookieManager
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebStorage
 import android.webkit.WebView
@@ -197,6 +198,7 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onSe
     var resending by rememberSaveable { mutableStateOf(false) }
     var resendTry by rememberSaveable { mutableStateOf(0) }
     var requesting by remember { mutableStateOf(false) }
+    var checkFailed by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val msg by vm.message.collectAsState()
     // Back goes to the log-in choices, not out of the app.
@@ -253,12 +255,12 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onSe
                         if (submit) requestToken?.let { vm.emailVerify(it, code, purpose, onDone) }
                     }
                     // A new code for the same address after the resend countdown; the security check shows here and the code step stays.
-                    // Greyed only while the new code is requested: a security check that fails or never gives a token can be started again.
-                    TextButton(onClick = { code = ""; error = null; vm.message.value = null; resending = true; resendTry++ }, Modifier.heightIn(min = 48.dp), enabled = left <= 0 && !requesting) {
+                    // Greyed while the security check shows and while the new code is requested: a security check that fails can be started again.
+                    TextButton(onClick = { code = ""; error = null; vm.message.value = null; resending = true; checkFailed = false; resendTry++ }, Modifier.heightIn(min = 48.dp), enabled = left <= 0 && !requesting && (!resending || checkFailed)) {
                         Text(UiText.sendLabel("Get a new code", left))
                     }
                     if (resending) key(resendTry) {
-                        TurnstileView(onNoApp = { vm.message.value = it }, playStore = vm.g.push.hasPlayServices) { token ->
+                        TurnstileView(onNoApp = { vm.message.value = it }, playStore = vm.g.push.hasPlayServices, onFail = { checkFailed = true }) { token ->
                             requesting = true
                             scope.launch {
                                 try {
@@ -320,15 +322,16 @@ private fun CodeCells(code: String, onChange: (String) -> Unit) {
         })
 }
 
-/** Turnstile host page in a WebView; the token comes back through a WebMessageListener for https://pusharmor.com only. */
+/** Turnstile host page in a WebView; the token comes back through a WebMessageListener for https://pusharmor.com only. onFail: the check cannot show or its page did not load. */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun TurnstileView(onNoApp: (String) -> Unit, playStore: Boolean = true, onToken: (String) -> Unit) {
+fun TurnstileView(onNoApp: (String) -> Unit, playStore: Boolean = true, onFail: () -> Unit = {}, onToken: (String) -> Unit) {
     val context = LocalContext.current
     // A missing, disabled, or updating WebView throws; the update fallback shows instead.
     val supported = remember { try { WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER) } catch (e: Exception) { false } }
     var failed by remember { mutableStateOf(false) }
     if (!supported || failed) {
+        LaunchedEffect(Unit) { onFail() }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(UiText.SECURITY_CHECK_FAILED)
             // The store button only where Google Play can open it.
@@ -349,6 +352,9 @@ fun TurnstileView(onNoApp: (String) -> Unit, playStore: Boolean = true, onToken:
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
                     request.isForMainFrame && !request.url.toString().startsWith("https://pusharmor.com/")
+                override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                    if (request.isForMainFrame) view.post { onFail() }
+                }
             }
             var done = false
             WebViewCompat.addWebMessageListener(this, "paTurnstile", setOf("https://pusharmor.com")) { view, msg, _, _, _ ->
