@@ -37,7 +37,7 @@ const tick = async () => {
 
 let gate: Promise<void> | null = null;
 
-async function mount(inPopup: boolean, result: unknown, peers: unknown[] = [PEER], sel: string[] = []) {
+async function mount(inPopup: boolean, result: unknown, peers: unknown[] = [PEER], sel: string[] = [], pick?: string) {
   const sent: Record<string, unknown>[] = [];
   let closed = 0;
   (globalThis as unknown as { window: unknown }).window = { close: () => void closed++ };
@@ -54,7 +54,7 @@ async function mount(inPopup: boolean, result: unknown, peers: unknown[] = [PEER
     },
   } as unknown as UiEnv;
   const root = new N("div");
-  await sendView(env, root as unknown as HTMLElement, { settings: { showAll: false } } as unknown as StateView, "");
+  await sendView(env, root as unknown as HTMLElement, { settings: { showAll: false } } as unknown as StateView, "", undefined, pick);
   const field = find(root, (x) => x.tag === "textarea") as N & { value: string };
   const sendBtn = find(root, (x) => x.tag === "button" && (x.attrs.class ?? "").includes("primary"))!;
   const type = async (v: string) => {
@@ -77,7 +77,8 @@ async function mount(inPopup: boolean, result: unknown, peers: unknown[] = [PEER
   };
   const meta = find(root, (x) => x.attrs.class === "meta") as N & { hidden: boolean };
   const counter = find(root, (x) => x.attrs.class === "counter") as N & { textContent: string };
-  return { type, send, sent, closed: () => closed, caption, textRow, tickText, meta, sendBtn, counter };
+  const chipsOn = () => (find(root, (x) => x.attrs.class === "dchips")!.kids.filter((c) => (c.attrs.class ?? "").includes("dchip")) as N[]).filter((c) => c.classList.contains("on")).map((c) => c.attrs.title);
+  return { chipsOn, type, send, sent, closed: () => closed, caption, textRow, tickText, meta, sendBtn, counter };
 }
 
 test("Send: the type line always shows; a URL is sent as URL unless Send as text is ticked, and the override is for one send", async () => {
@@ -212,4 +213,12 @@ test("Send: the text box has focus when the toolbar popup opens, not in a full t
   } finally {
     N.prototype.focus = old;
   }
+});
+
+test("Send: a device picked in the right-click menu is the one selected, not the remembered devices", async () => {
+  const two = [PEER, { ...PEER, id: "p2", label: "Laptop" }];
+  assert.deepEqual((await mount(false, { ok: [] }, two, ["p1"])).chipsOn(), ["Phone"]);
+  assert.deepEqual((await mount(false, { ok: [] }, two, ["p1"], "p2")).chipsOn(), ["Laptop"]);
+  // a device that is not on the list leaves the remembered selection
+  assert.deepEqual((await mount(false, { ok: [] }, two, ["p1"], "gone")).chipsOn(), ["Phone"]);
 });

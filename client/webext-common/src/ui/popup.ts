@@ -112,7 +112,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement, page?: PageStart
   const tabs = h("div", { class: "tabs", role: "tablist" });
   const nav: Nav = { toDevices: () => show("peers", true), toSend: () => show("send") };
   // arg: the History message to show, the Devices row to highlight, or the text to send
-  const show = (t: Tab, openPair = false, arg?: string) => {
+  const show = (t: Tab, openPair = false, arg?: string, pick?: string) => {
     for (const b of Array.from(tabs.children)) {
       const on = (b as HTMLElement).dataset.tab === t;
       b.classList.toggle("on", on);
@@ -129,7 +129,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement, page?: PageStart
     const wait = h("div", { class: "loading", role: "status" }, "Loading...");
     const slow = setTimeout(() => pane.isConnected && !pane.firstChild && body.prepend(wait), 150);
     let ready: Promise<unknown> = Promise.resolve();
-    if (t === "send") ready = sendView(env, pane, st, arg, nav);
+    if (t === "send") ready = sendView(env, pane, st, arg, nav, pick);
     if (t === "history") ready = historyView(env, pane, arg, nav);
     if (t === "peers") ready = renderPeers(env, pane, !!page, arg, undefined, openPair);
     if (t === "settings") ready = settingsView(env, pane, st, again);
@@ -156,7 +156,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement, page?: PageStart
   root.append(top, body);
   // after the first view is drawn, so the message keeps clear of its footer
   const shown = show(first, page?.openPair, page?.arg);
-  void Promise.all([shown, menuOver]).then(([, over]) => over !== null && my === mounts && show("send", false, over));
+  void Promise.all([shown, menuOver]).then(([, over]) => over !== null && my === mounts && show("send", false, over.text, over.child === "all" ? undefined : over.child));
   void shown
     .then(() => showPushIssue(env, st, () => my === mounts))
     .then(() => settlePushIssue(env, st, () => my === mounts));
@@ -336,7 +336,7 @@ function cta(text: string, label: string, go: () => void): HTMLElement {
   return h("div", { class: "cta" }, h("p", {}, text), h("button", { class: "tonal", onclick: go }, label));
 }
 
-export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, prefill?: string, nav?: Nav): Promise<void> {
+export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, prefill?: string, nav?: Nav, pick?: string): Promise<void> {
   const field = h("textarea", { rows: "3", "aria-label": "Text to send" }) as HTMLTextAreaElement;
   field.value = prefill ?? (await env.activeUrl().catch(() => ""));
   const caption = h("span", { class: "caption" });
@@ -356,7 +356,9 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   const sendable = data.peers.filter(canReceiveNow);
   const checks: { id: string; chip: HTMLButtonElement }[] = [];
   const on = (c: HTMLElement) => c.classList.contains("on");
-  const remembered = rememberedSelection(await rpc<string[]>(env, "sendSel").catch(() => []), sendable.map((p) => p.id));
+  const saved = rememberedSelection(await rpc<string[]>(env, "sendSel").catch(() => []), sendable.map((p) => p.id));
+  // a device named by the right-click menu is selected instead of the remembered ones (not saved until the chips change)
+  const remembered = pick !== undefined && sendable.some((p) => p.id === pick) ? [pick] : saved;
   const save = () => void rpc(env, "sendSelSet", { ids: checks.filter((c) => on(c.chip)).map((c) => c.id) }).catch(() => undefined);
   let allChip: HTMLButtonElement | null = null;
   // A toggle chip: platform icon, or a check while selected (CSS); long names end in "...".
@@ -475,10 +477,10 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
 }
 
 /** A context menu send this popup took: the Send popup while it runs, then the result as on Send. Text over the limit is returned, not sent. */
-async function menuSendHere(env: UiEnv): Promise<string | null> {
+async function menuSendHere(env: UiEnv): Promise<{ text: string; child: string } | null> {
   const m = await rpc<{ text: string; child: string; over?: true } | null>(env, "menuSendClaim").catch(() => null);
   if (!m) return null;
-  if (m.over) return m.text;
+  if (m.over) return { text: m.text, child: m.child };
   // the send starts first and runs in the background, so a popup that closes cannot lose it; the names come after
   const sending = rpc<SendResult | null>(env, "menuSendRun");
   try {
