@@ -1504,7 +1504,20 @@ export class Engine {
     }
     const valueLen = utf8Len(value);
     if (valueLen > SEND_CAP) throw new ReasonError(R.tooLong); // href percent-encodes
-    if (ids.length === 0) return { sent: 0, total, failures: [] };
+    // a requested device out of the All set gets nothing: say why, as a send result would (none sent is never a success)
+    const skipped: SendResult["failures"] = [];
+    const left =
+      targets === "all"
+        ? ids.length
+          ? []
+          : (await this.db.peers()).filter((p) => p.pinned && p.ruling === "approved" && p.approves_me && !p.hidden && !p.missing && !p.removed).map((p) => p.id)
+        : targets.filter((t) => !ids.includes(t));
+    for (const id of left) {
+      const p = await this.db.peer(id);
+      const res = !p || p.missing || p.removed ? "unknown" : p.logged_out ? "logged out" : p.listening === false ? "not listening" : "unapproved";
+      skipped.push({ id, result: res, text: sendResultText(await this.peerName(id), res) });
+    }
+    if (ids.length === 0) return { sent: 0, total, failures: skipped };
     const mid = newMsgId();
     // the Send popup shows these steps (a quarter of the bar each); a retry holds the bar at sending
     const names = await Promise.all(ids.map((id) => this.peerName(id)));
@@ -1542,9 +1555,10 @@ export class Engine {
       }
     }
     await this.step(null);
-    const failures: SendResult["failures"] = [];
+    const failures: SendResult["failures"] = [...skipped];
     let sent = 0;
     let trigger = false;
+    let menus = false;
     for (const id of ids) {
       const res = results[id] ?? (error ? "failed" : "failed");
       if (res === "sent") {
@@ -1556,11 +1570,14 @@ export class Engine {
       if (res === "unapproved" || res === "unknown" || res === "gone") trigger = true;
       if (res === "logged out") {
         await this.db.updatePeer(id, (p) => (p ? { ...p, logged_out: true } : null));
+        menus = true;
       }
       if (res === "not listening") {
         await this.db.updatePeer(id, (p) => (p ? { ...p, listening: false } : null));
+        menus = true;
       }
     }
+    if (menus) await this.rebuildMenus();
     await this.db.addHistory({
       dir: "out",
       peer: null,

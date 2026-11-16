@@ -1075,6 +1075,27 @@ test("send result not listening shows Send only and marks the peer send only", a
   assert.equal((await a.e.allSet()).length, 0);
 });
 
+test("a second send to a device that just failed shows the failure, not a success, and sends nothing", async () => {
+  for (const word of ["logged out", "not listening"]) {
+    const { w, a, b } = await setup();
+    await pairAndApprove(w, a, b);
+    await a.e.rebuildMenus();
+    assert.equal(a.p.menus.length, 1);
+    w.inject.push({ match: /POST \/v1\/send/, status: 200, body: { r: { [b.id]: word } }, times: 1 });
+    const first = await a.e.send("hi", "auto", [b.id]);
+    assert.equal(a.p.menus.length, 0, word); // the menus drop it at once
+    const posts = () => w.calls.filter((c) => c.path === "/v1/send" && c.method === "POST").length;
+    const before = posts();
+    for (const to of [[b.id], "all"] as const) {
+      const r = await a.e.send("again", "auto", to === "all" ? "all" : [...to]);
+      assert.equal(r.sent, 0, word);
+      assert.equal(r.error, undefined, word);
+      assert.deepEqual(r.failures, first.failures, word);
+    }
+    assert.equal(posts(), before, word);
+  }
+});
+
 test("send failures read as sentences, never raw result words", async () => {
   const want: Record<string, string> = {
     gone: 'Unable to deliver message to "Chrome".\nOpen PushArmor on it to resolve.',
