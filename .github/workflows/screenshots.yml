@@ -187,7 +187,7 @@ jobs:
         working-directory: client/webext-common
         run: |
           google-chrome --version
-          node shots.mjs "$RUNNER_TEMP/shots/chrome" google-chrome --review="$RUNNER_TEMP/review/chrome"
+          node shots.mjs "$RUNNER_TEMP/shots/chrome" google-chrome --review="$RUNNER_TEMP/review/chrome" --store-popup="$RUNNER_TEMP/popup/chrome"
       - name: Check the screenshots
         run: node release/check-screenshots.mjs chrome "$RUNNER_TEMP/shots/chrome" --flatten
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -200,6 +200,12 @@ jobs:
         with:
           name: review-chrome
           path: ${{ runner.temp }}/review/chrome/
+          retention-days: 14
+          if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: popup-chrome
+          path: ${{ runner.temp }}/popup/chrome/
           retention-days: 14
           if-no-files-found: error
 

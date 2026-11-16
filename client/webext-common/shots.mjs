@@ -23,6 +23,7 @@ const SHOTS = [
   ["06-settings", "top#settings"],
 ];
 // --popup=<dir>: the About-page popup shots (plus the send message and the Remove confirm) (400x560 popup alone, captured at 2x: 800x1120 files).
+// --store-popup=<dir> (Chrome): the store shots 01-06 as the 400x560 popup alone, captured at 2x (800x1120 files), for the site About page.
 // --review=<dir>: also write review images (sign-in, Settings, Log out, last device menu) there; not store shots.
 const REVIEW = [
   ["90-signin", "signin.html#email"],
@@ -48,7 +49,9 @@ const reviewArg = process.argv.find((a) => a.startsWith("--review="));
 const reviewOut = reviewArg?.slice("--review=".length);
 const popupArg = process.argv.find((a) => a.startsWith("--popup="));
 const popupOut = popupArg?.slice("--popup=".length);
-const [out, bin0] = process.argv.slice(2).filter((a) => a !== "--firefox" && a !== reviewArg && a !== popupArg);
+const storePopupArg = process.argv.find((a) => a.startsWith("--store-popup="));
+const storePopupOut = storePopupArg?.slice("--store-popup=".length);
+const [out, bin0] = process.argv.slice(2).filter((a) => a !== "--firefox" && a !== reviewArg && a !== popupArg && a !== storePopupArg);
 const chrome = bin0 ?? (firefox ? process.env.FIREFOX ?? "firefox" : process.env.CHROME ?? "google-chrome");
 if (!out) {
   console.error("usage: node shots.mjs <out-dir> [--firefox] [browser binary]");
@@ -62,6 +65,7 @@ if (!existsSync(join(root, "shots.html"))) {
 mkdirSync(out, { recursive: true });
 if (reviewOut) mkdirSync(reviewOut, { recursive: true });
 if (popupOut) mkdirSync(popupOut, { recursive: true });
+if (storePopupOut) mkdirSync(storePopupOut, { recursive: true });
 
 const server = createServer((req, res) => {
   const path = decodeURIComponent(new URL(req.url ?? "/", "http://x").pathname);
@@ -98,6 +102,7 @@ const jobs = firefox
   : SHOTS.slice(0, 5).map(([name, q]) => [name, "shots.html?bare&tab&store&" + q, out, "tab"]);
 if (reviewOut) jobs.push(...REVIEW.map(([name, page]) => [name, page, reviewOut]));
 if (popupOut) jobs.push(...POPUP.map(([name, page]) => [name, page, popupOut, true]));
+if (storePopupOut) jobs.push(...SHOTS.map(([name, q]) => [name, "shots.html?bare&store&" + q, storePopupOut, true]));
 for (const [name, page, dir, popup] of jobs) {
   const size = popup === "tab" ? "640,400" : popup && firefox ? "800,1120" : popup ? "400,560" : "1280,800";
   const scale = popup ? 2 : 1;
