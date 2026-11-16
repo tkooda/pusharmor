@@ -171,13 +171,31 @@ interface MenuPending {
   seen?: true;
 }
 let menuPending: MenuPending | null = null;
-/** The reply for a toolbar popup that took a menu send but started it after the background sent it (asked: the popup asked for it). */
-let menuLate: { result: Promise<unknown>; asked: boolean } | null = null;
+/**
+ * A menu send the background took over: the reply for a toolbar popup that took it but started it late, or that
+ * asks for it while it still runs (seen: a popup took it, asked: the popup asked for the reply, done: it ended).
+ */
+interface MenuLate {
+  text: string;
+  child: string;
+  seen: boolean;
+  asked: boolean;
+  done: boolean;
+  result: Promise<unknown>;
+}
+let menuLate: MenuLate | null = null;
 
 /** The toolbar popup takes the waiting context menu send (once). The background still owns a send until menuSendRun. */
 async function claimMenuSend(): Promise<{ text: string; child: string; over?: true } | null> {
   const m = menuPending;
-  if (!m || m.seen) return null;
+  if (!m) {
+    // the background already took it over and still sends it: the popup shows how it goes, as a late popup does
+    const l = menuLate;
+    if (!l || l.seen || l.done) return null;
+    l.seen = true;
+    return { text: l.text, child: l.child };
+  }
+  if (m.seen) return null;
   m.seen = true;
   const d = await m.ready;
   // text over the limit: the popup shows it to edit, nothing is sent
@@ -219,9 +237,9 @@ export function onRuntimeMessage(boot: () => Promise<Booted>, extra?: (msg: Req,
       return true;
     }
     if (m.op === "menuSendRun") {
-      const late = menuPending?.seen ? null : menuLate;
-      menuLate = null;
+      const late = menuPending?.seen || !menuLate?.seen ? null : menuLate;
       if (late) {
+        menuLate = null;
         late.asked = true;
         void late.result.then(sendResponse);
         return true;
@@ -309,13 +327,22 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
         if (!late) return;
       }
       unclaim();
-      // the popup took it but did not start it in time: it gets this send's result to show
+      // the popup took it but did not start it in time, or asks for it while it runs: it gets this send's result to show
       let tellPopup: (v: unknown) => void = () => undefined;
-      const late = mine.seen ? { result: new Promise((r) => (tellPopup = r)), asked: false } : null;
+      const late: MenuLate | null = mine.seen || utf8Len(text) <= SEND_CAP
+        ? { text, child, seen: mine.seen === true, asked: false, done: false, result: new Promise((r) => (tellPopup = r)) }
+        : null;
+      if (late) {
+        const reply = tellPopup;
+        tellPopup = (v) => {
+          late.done = true;
+          reply(v);
+        };
+      }
       menuLate = late;
       // a failure the popup shows is not also a notification; a popup that does not ask for it in 5 s gets the notification
       const notifyFail = (p: { notify: (id: string, title: string, body: string) => void }, body: string) => {
-        if (!late) return p.notify("send-result", "PushArmor", body);
+        if (!late?.seen) return p.notify("send-result", "PushArmor", body);
         if (late.asked) return;
         setTimeout(() => {
           if (!late.asked) p.notify("send-result", "PushArmor", body);
