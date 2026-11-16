@@ -1066,13 +1066,10 @@ def ask(prompt):
         return "\ufffd"
 
 
-def ask_yes(question, default=False, strict=False):
-    """strict: end of input (Ctrl-D) raises EOFError instead of answering no."""
+def ask_yes(question, default=False):
     try:
         a = ask(question).strip().lower()
     except EOFError:
-        if strict:
-            raise
         return False
     return default if a == "" else a in ("y", "yes")
 
@@ -2278,7 +2275,7 @@ def on_open(cx, d, e, p, o, notes):
     pin_peer(p, o["sign_pub"], o["enc_pub"], pairing_id(o["r"], r_x))
     e.update(state="shown", fingerprint=sas(o["sign_pub"], o["enc_pub"], k["sign_pub"], k["enc_pub"], o["r"], r_x),
              sign_pub=b64e(o["sign_pub"]), enc_pub=b64e(o["enc_pub"]))
-    notes.append(pair_note(cx, d, frm, '"%s" wants to pair. Compare the fingerprint: pusharmor pair %s'))
+    notes.append(pair_note(cx, d, frm, '"%s" wants to pair. Compare the code: pusharmor pair %s'))
 
 
 def post_pair(cx, x, kind, c):
@@ -2752,7 +2749,7 @@ def peer_status(p, e):
     if p["pinned"] and p["ruling"] == "approved" and p["approves_me"]:
         return "paired" + (", logged out" if p["logged_out"] else ", not listening" if not p["listening"] else "")
     if e and e["state"] == "shown" and not e["approved"]:
-        return "compare fingerprint " + e["fingerprint"]
+        return "compare code " + e["fingerprint"]
     if p["pinned"] and p["ruling"] == "approved":
         return "waiting for it to confirm"
     if e:
@@ -2825,7 +2822,7 @@ def cmd_pair(cx, args):
     if not args.id:
         return pair_list(cx)
     if not stdin_tty():
-        raise Fail("pusharmor pair needs a terminal to compare the pairing fingerprint. Run it in a terminal window.",
+        raise Fail("pusharmor pair needs a terminal to compare the pairing code. Run it in a terminal window.",
                    EXIT_USAGE)
     cx.mode = "pair"
     cx.refresh()
@@ -2858,10 +2855,13 @@ def cmd_pair(cx, args):
                 if r not in ("sent", "429"):
                     raise Fail(pair_reason(r))
             first = False
-            print("\nCompare Pairing Fingerprint: %s\n" % e["fingerprint"])
+            print("\nCompare Pairing Code: %s\n" % e["fingerprint"])
             try:
-                yes = ask_yes('Check that "%s" shows the same fingerprint. Confirmed (y) or Reject (n)? [y/N] ' % name,
-                              strict=True)
+                while True:
+                    a = ask('Does "%s" show the same code? [y/N] ' % name).strip().lower()
+                    if a in ("", "n", "no", "y", "yes"):
+                        break
+                yes = a in ("y", "yes")
             except EOFError:
                 print()  # Ctrl-D leaves the cursor after the prompt
                 raise Fail("No answer was given. Run `pusharmor pair %s` again." % sid)
@@ -3097,7 +3097,7 @@ def cmd_delete(cx, args):
 COMMANDS = {
     "login": (cmd_login, "Log in this device to your PushArmor account.", []),
     "logout": (cmd_logout, "Log out this device. Keys and paired devices stay on it.", []),
-    "pair": (cmd_pair, "List your devices, or pair with one (compare the fingerprint, then confirm or reject).",
+    "pair": (cmd_pair, "List your devices, or pair with one (compare the code, then confirm or reject).",
              [(("id",), {"nargs": "?", "metavar": "ID", "help": "device ID from the list (6 or more hex characters)"})]),
     "devices": (cmd_devices, "List your devices and their pairing status.", []),
     "listen": (cmd_listen, "Receive messages and print them as they arrive.",

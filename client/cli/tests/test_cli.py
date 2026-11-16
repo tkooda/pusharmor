@@ -495,7 +495,7 @@ def test_pair_send_listen(net, tmp_path, monkeypatch, capsys):
     assert da["peers"][idb]["pairing_id"] == db["peers"][ida]["pairing_id"]
     assert da["pairs"] == {} and db["pairs"] == {}
     out = capsys.readouterr().out
-    assert len(re.findall(r"(?:^|(?<=\n))\nCompare Pairing Fingerprint: [0-9A-Z]{4}\n(?=\n)", out)) == 2
+    assert len(re.findall(r"(?:^|(?<=\n))\nCompare Pairing Code: [0-9A-Z]{4}\n(?=\n)", out)) == 2
     assert out.count("Paired with ") == 2
 
     assert run(a, "pair") == 0
@@ -614,8 +614,14 @@ def pair_with_b_answer(monkeypatch, net, a, b, ida, idb, answer):
     """a confirms; b gets the fingerprint prompt and gives `answer`. Returns b's exit code."""
     monkeypatch.setattr(pa, "PAIR_WAIT_S", 8)
 
+    answers = list(answer) if isinstance(answer, list) else [answer]
+    prompts = []
+
     def inp(prompt=""):
-        return answer if threading.current_thread().name == "b" else "y"
+        if threading.current_thread().name != "b":
+            return "y"
+        prompts.append(prompt)
+        return answers.pop(0) if len(answers) > 1 else answers[0]
 
     monkeypatch.setattr(pa, "input", inp, raising=False)
     codes = {}
@@ -629,7 +635,30 @@ def pair_with_b_answer(monkeypatch, net, a, b, ida, idb, answer):
     tb.start()
     tb.join(30)
     ta.join(30)
+    pair_with_b_answer.prompts = prompts
     return codes["b"]
+
+
+@pytest.mark.parametrize("answer,paired", [("y", True), ("YES", True), (" n ", False), ("", False), ("no", False)])
+def test_pair_prompt_answers(answer, paired, net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = login(monkeypatch, a), login(monkeypatch, b)
+    pair_with_b_answer(monkeypatch, net, a, b, ida, idb, answer)
+    name = pa.peer_label(state(b)["peers"][ida])
+    assert len(pair_with_b_answer.prompts) == 1
+    assert re.fullmatch(r'Does ".+" show the same code\? \[y/N\] ', pair_with_b_answer.prompts[0])
+    out = capsys.readouterr().out
+    assert ('Paired with "%s".' % name in out) == paired
+
+
+def test_pair_prompt_asks_again_on_other_input(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = login(monkeypatch, a), login(monkeypatch, b)
+    pair_with_b_answer(monkeypatch, net, a, b, ida, idb, ["maybe", "?", "y"])
+    name = pa.peer_label(state(b)["peers"][ida])
+    assert len(pair_with_b_answer.prompts) == 3
+    assert len(set(pair_with_b_answer.prompts)) == 1
+    assert 'Paired with "' in capsys.readouterr().out
 
 
 def test_failed_reject_says_unable_to_reject(net, tmp_path, monkeypatch, capsys):
@@ -869,7 +898,7 @@ def test_another_device_that_wants_to_pair_is_shown_once(net, tmp_path, monkeypa
     cx.refresh()
     cx.target = "x" * 40
     with cx.store.state(write=False) as d:
-        notes = [pa.pair_note(cx, d, ida, '"%s" wants to pair. Compare the fingerprint: pusharmor pair %s'),
+        notes = [pa.pair_note(cx, d, ida, '"%s" wants to pair. Compare the code: pusharmor pair %s'),
                  pa.pair_note(cx, d, ida, '"%s" wants to pair. Run: `pusharmor pair %s`')]
         name = pa.peer_label(d["peers"][ida])
     assert notes == [("info", '"%s" also wants to pair. Run: `pusharmor pair %s`' % (name, pa.id_hex(ida)[:6])), None]
