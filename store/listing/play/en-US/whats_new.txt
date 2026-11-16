@@ -1,1 +1,1 @@
-Sending shows a progress window with the device names and each step. When you delete from History, the confirmation says whether the message goes off this device only or also off your other paired devices.
+Send progress now shows on every send. Long shared text can be edited before sending. Selecting messages in History is easier: long-press on phones, checkboxes on desktop. Clearer errors and confirmations, and fixes for Firefox for Android.
