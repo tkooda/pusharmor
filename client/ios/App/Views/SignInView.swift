@@ -47,16 +47,11 @@ struct SignInView: View {
                                 .allowsHitTesting(false)
                         )
                         .accessibilityValue(invalid ? email + ", " + S.emailInvalid : email)
+                        .onSubmit(sendCode)
                     // The countdown ticks once a second while the same address waits.
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
                         let left = model.resend.leftMs(for: email, nowMs: Int(ctx.date.timeIntervalSince1970 * 1000))
-                        Button {
-                            if Ids.normalizeEmail(email) == nil {
-                                model.toast = ErrorCopy.text(.sendCode, .badEmail)
-                            } else {
-                                instantly { showTurnstile = true }
-                            }
-                        } label: {
+                        Button(action: sendCode) {
                             Text(S.sendLabel("Send code", leftMs: left))
                         }
                         .buttonStyle(GreenButtonStyle())
@@ -87,9 +82,11 @@ struct SignInView: View {
                 }
         }
         .sheet(isPresented: $showTurnstile) {
-            TurnstileSheet { token in
+            TurnstileSheet(onToken: { token in
                 Task { await model.emailStart(email, purpose: purpose, turnstile: token) }
-            }
+            }, onFail: {
+                model.toast = ErrorCopy.text(.sendCode, .unreachable)
+            })
         }
     }
 
@@ -98,6 +95,17 @@ struct SignInView: View {
         case .register: return "Log in"
         case .login: return "Log in to resume"
         case .deleteAccount: return "Log in to delete this account"
+        }
+    }
+
+    /// Send code, and the Return key: blocked while the countdown or a send runs, like the button.
+    private func sendCode() {
+        let left = model.resend.leftMs(for: email, nowMs: Int(Date().timeIntervalSince1970 * 1000))
+        guard left <= 0, !model.busy.contains("sendCode") else { return }
+        if Ids.normalizeEmail(email) == nil {
+            model.toast = ErrorCopy.text(.sendCode, .badEmail)
+        } else {
+            instantly { showTurnstile = true }
         }
     }
 

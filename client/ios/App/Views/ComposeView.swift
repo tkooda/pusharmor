@@ -511,6 +511,8 @@ struct ComposeView: View {
             .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .padding(.horizontal, 32)
             .accessibilityElement(children: .combine)
+            // VoiceOver stays on the popup while it shows.
+            .accessibilityAddTraits(.isModal)
         }
     }
 

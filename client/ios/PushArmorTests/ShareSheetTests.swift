@@ -46,4 +46,13 @@ final class ShareSheetTests: XCTestCase {
         XCTAssertFalse(check.contains("type =="))
         XCTAssertFalse(src.contains("Core.SendError.tooLong"))
     }
+
+    /// A failed send stays on screen; only a sent message closes the sheet by itself.
+    func testOnlySuccessAutoCloses() throws {
+        let src = try source()
+        let send = src.components(separatedBy: "func send(to ids: [PeerId]) async {")[1]
+            .components(separatedBy: "func close()")[0]
+        XCTAssertTrue(send.contains("step = .failed(ErrorCopy.sendFailText(error))\n            return"))
+        XCTAssertFalse(send.contains("step = .done(ErrorCopy"))
+    }
 }

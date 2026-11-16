@@ -92,13 +92,19 @@ struct HistoryView: View {
     }
 
     private var deleteButton: some View {
-        Button(selection.deleteLabel) { confirmDelete = true }
-            .font(.subheadline.weight(.semibold))
-            .foregroundColor(.red)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            .background(Capsule().fill(Color.red.opacity(0.15)))
-            .buttonStyle(.plain)
+        Button { confirmDelete = true } label: {
+            Text(selection.deleteLabel)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.red)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(Capsule().fill(Color.red.opacity(0.15)))
+                // A 44 pt tap area; the outer negative padding keeps the pill's size and place.
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, -6)
     }
 
     @ViewBuilder
@@ -255,14 +261,14 @@ struct HistoryRowView: View {
             }
             .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
         }
-        // The whole row is one tap target and one VoiceOver button.
+        // The whole row is one tap target and one VoiceOver element: a button, except an event row outside select mode.
         .contentShape(Rectangle())
         .onTapGesture { selecting ? onToggle() : tap() }
         .onLongPressGesture { if selecting { onToggle() } else { onLongPress() } }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(a11yLabel)
         .accessibilityValue(isEvent || selecting ? "" : (isOpen ? "Expanded" : "Collapsed"))
-        .accessibilityAddTraits(selecting && selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAddTraits(selecting && selected ? [.isButton, .isSelected] : (selecting || !isEvent ? AccessibilityTraits.isButton : []))
         .accessibilityAction { selecting ? onToggle() : tap() }
         .accessibilityAction(named: "Select") { if selecting { onToggle() } else { onLongPress() } }
     }

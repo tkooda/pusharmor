@@ -90,7 +90,9 @@ final class ShareModel: ObservableObject {
             step = .done(rep.toast)
         } catch {
             if AppEnvironment.shared.updateRequired { step = .update; return }
-            step = .done(ErrorCopy.sendFailText(error))
+            // A failure stays on screen until the user taps Cancel.
+            step = .failed(ErrorCopy.sendFailText(error))
+            return
         }
         try? await Task.sleep(nanoseconds: 1_500_000_000)
         close()

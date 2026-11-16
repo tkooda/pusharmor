@@ -87,7 +87,7 @@ public enum S {
     public static let launchFailedTitle = "Unable to open PushArmor data"
     public static let launchFailed = "PushArmor could not open its data on this device. Free some storage space, then leave PushArmor and open it again."
     public static let keysBrokenTitle = "This device's keys have become unusable."
-    public static let keysBrokenBody = "Tap Retry to try again. If this keeps happening, you can delete the broken keys. You will then sign in again and pair all your devices again."
+    public static let keysBrokenBody = "Tap Retry to try again. If this keeps happening, you can delete the broken keys. You will then log in again and pair all your devices again."
     public static let keysBrokenConfirmTitle = "Delete broken keys?"
     public static let keysBrokenConfirmBody = "This cannot be undone. You will need to pair all your devices again."
     public static let dataBrokenTitle = "This device's data has become unusable."
@@ -118,6 +118,9 @@ public enum S {
     public static let unreachable = "Unreachable"
     public static let loggedOutBadge = "Logged out"
     public static let pushRegistrationFailed = ErrorCopy.text(.turnOnNotifications, .appleUnreachable)
+    /// History Open when no app takes the URL or the phone number.
+    public static let noAppLink = "No app can open this URL."
+    public static let noAppDial = "No app can call this number."
     /// Google login with no client id in this build.
     public static let loginFailed = ErrorCopy.text(.loginGoogle, .googleUnavailable)
     /// Wait text: over 60 s whole minutes rounded up, else whole seconds rounded up; same words as the other clients.

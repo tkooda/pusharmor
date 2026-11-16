@@ -284,16 +284,22 @@ struct CannotReceiveBanner: View {
                                                    undecided: model.notificationsUndecided), id: \.self) { a in
             // Check again stays greyed 10 s after a tap; the timeline turns it back on.
             TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                Button(a.rawValue) {
+                Button {
                     switch a {
                     case .checkAgain: Task { await model.checkAgain() }
                     case .openSettings: model.openNotificationSettings()
                     case .allow: Task { await model.requestNotifications() }
                     }
+                } label: {
+                    // A 44 pt tap area; the outer negative padding keeps the banner's size.
+                    Text(a.rawValue)
+                        .padding(.vertical, 12)
+                        .contentShape(Rectangle())
                 }
                 .font(.subheadline)
                 .buttonStyle(.borderless)
                 .disabled(a == .checkAgain && (model.busy.contains("check") || model.checkGreyed(at: ctx.date)))
+                .padding(.vertical, -12)
             }
         }
     }

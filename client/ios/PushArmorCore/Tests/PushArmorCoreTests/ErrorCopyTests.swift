@@ -14,6 +14,7 @@ final class ErrorCopyTests: XCTestCase {
             (.refresh, "Unable to refresh the device list."),
             (.rename, "Unable to rename this device."),
             (.pair("Ndev"), "Unable to pair with \"Ndev\"."),
+            (.cancelPairing("Ndev"), "Unable to cancel pairing with \"Ndev\"."),
             (.confirm("Ndev"), "Unable to confirm \"Ndev\"."),
             (.reject("Ndev"), "Unable to reject \"Ndev\"."),
             (.remove("Ndev"), "Unable to remove \"Ndev\"."),
@@ -30,6 +31,7 @@ final class ErrorCopyTests: XCTestCase {
             (.deleteOnThisDevice, "Unable to delete on this device."),
             (.changeSetting, "Unable to change this setting."),
             (.turnOnNotifications, "Unable to turn on notifications."),
+            (.saveMessage, "Unable to save the message."),
         ]
         for (a, s) in lines { XCTAssertEqual(a.line, s) }
     }
@@ -176,5 +178,24 @@ final class ErrorCopyTests: XCTestCase {
         XCTAssertEqual(S.stepRemoving(["Pixel"]), "Removing \"Pixel\"")
         XCTAssertEqual([S.stepLoggingIn, S.stepLoggingOut, S.stepDeletingAccount, S.stepUpdatingDevices],
                        ["Logging in", "Logging out", "Deleting your account", "Updating devices"])
+    }
+
+    /// Save to Files: a cancel shows nothing, a full disk says so, anything else asks to try again.
+    func testSaveFailText() {
+        XCTAssertNil(ErrorCopy.saveFailText(CocoaError(.userCancelled)))
+        XCTAssertEqual(ErrorCopy.saveFailText(CocoaError(.fileWriteOutOfSpace)),
+                       "Unable to save the message.\nStorage is full. Free some space and try again.")
+        XCTAssertEqual(ErrorCopy.saveFailText(CocoaError(.fileWriteUnknown)), "Unable to save the message.\nTry again.")
+        struct OtherError: Error {}
+        XCTAssertEqual(ErrorCopy.saveFailText(OtherError()), "Unable to save the message.\nTry again.")
+    }
+
+    /// Fixed texts copied from the other clients.
+    func testFixedTexts() {
+        XCTAssertEqual(ErrorCopy.Action.cancelPairing(S.aPeer).line, "Unable to cancel pairing with A device.")
+        XCTAssertEqual(S.noAppLink, "No app can open this URL.")
+        XCTAssertEqual(S.noAppDial, "No app can call this number.")
+        XCTAssertTrue(S.keysBrokenBody.contains("You will then log in again"))
+        XCTAssertFalse(S.keysBrokenBody.contains("sign in"))
     }
 }

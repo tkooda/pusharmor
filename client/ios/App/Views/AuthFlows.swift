@@ -82,17 +82,21 @@ final class GoogleSignIn: NSObject, ASWebAuthenticationPresentationContextProvid
 }
 
 /// Sheet with the Turnstile page. Only a String message from the pusharmor.com origin
-/// is accepted as a token.
+/// is accepted as a token. A page that does not load closes the sheet and calls onFail.
 struct TurnstileSheet: View {
     let onToken: (String) -> Void
+    let onFail: () -> Void
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            TurnstileWebView { token in
+            TurnstileWebView(onToken: { token in
                 onToken(token)
                 instantly { dismiss() }
-            }
+            }, onFail: {
+                onFail()
+                instantly { dismiss() }
+            })
             .navigationTitle("Verify")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -107,13 +111,15 @@ struct TurnstileSheet: View {
 private struct TurnstileWebView: UIViewRepresentable {
     static let handlerName = "paTurnstile"
     let onToken: (String) -> Void
+    let onFail: () -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator(onToken: onToken) }
+    func makeCoordinator() -> Coordinator { Coordinator(onToken: onToken, onFail: onFail) }
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.userContentController.add(context.coordinator, name: TurnstileWebView.handlerName)
         let web = WKWebView(frame: .zero, configuration: config)
+        web.navigationDelegate = context.coordinator
         if let url = URL(string: "https://pusharmor.com/turnstile") {
             web.load(URLRequest(url: url))
         }
@@ -127,11 +133,30 @@ private struct TurnstileWebView: UIViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject, WKScriptMessageHandler {
+    final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         let onToken: (String) -> Void
+        let onFail: () -> Void
         private var done = false
 
-        init(onToken: @escaping (String) -> Void) { self.onToken = onToken }
+        init(onToken: @escaping (String) -> Void, onFail: @escaping () -> Void) {
+            self.onToken = onToken
+            self.onFail = onFail
+        }
+
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            failed(error)
+        }
+
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            failed(error)
+        }
+
+        /// A load that did not finish; a cancelled load (a new one replaced it) is not a failure.
+        private func failed(_ error: Error) {
+            guard !done, (error as NSError).code != NSURLErrorCancelled else { return }
+            done = true
+            onFail()
+        }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             let origin = message.frameInfo.securityOrigin

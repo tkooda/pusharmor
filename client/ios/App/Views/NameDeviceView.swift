@@ -14,16 +14,23 @@ struct NameDeviceView: View {
                 TextField("Name this device", text: $name)
                     .textFieldStyle(.roundedBorder)
                     .autocorrectionDisabled()
+                    .onSubmit(save)
                 Text("1 to 32 plain ASCII characters, no double quotes.")
                     .font(.caption)
                     .foregroundColor(.secondaryText)
-                Button("Save") { Task { await model.setName(name) } }
+                Button("Save", action: save)
                     .buttonStyle(.borderedProminent)
-                    .disabled(!NameEntry.isValidName(name))
+                    .disabled(!NameEntry.isValidName(name) || model.busy.contains("setName"))
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollBounceBehavior(.basedOnSize)
+    }
+
+    /// Save, and the Return key: only a valid name, one run at a time.
+    private func save() {
+        guard NameEntry.isValidName(name), !model.busy.contains("setName") else { return }
+        Task { await model.setName(name) }
     }
 }

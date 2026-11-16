@@ -756,12 +756,14 @@ final class AppModel: ObservableObject {
 
     func setName(_ name: String) async {
         guard let core = core, NameEntry.isValidName(name) else { toast = ErrorCopy.nameRule; return }
-        if (try? core.store.me().name) == nil {
-            try? core.store.setMe("name", .text(name))
-        } else {
-            await renameToast(core, name)
+        await once("setName") {
+            if (try? core.store.me().name) == nil {
+                try? core.store.setMe("name", .text(name))
+            } else {
+                await renameToast(core, name)
+            }
+            await route()
         }
-        await route()
     }
 
     func login(ticket: String, email: String, action: ErrorCopy.Action) async {
@@ -820,8 +822,10 @@ final class AppModel: ObservableObject {
         }
     }
     func sendAgain(_ p: Peer) async {
-        if let r = await core?.sendAgain(p.id), let t = Core.pairAgainToast(.success(r), name: label(p)) { toast = t }
-        reload()
+        await once("sendAgain:" + p.id.text) {
+            if let r = await core?.sendAgain(p.id), let t = Core.pairAgainToast(.success(r), name: label(p)) { toast = t }
+            reload()
+        }
     }
     func tryAgainGreyed(_ id: String, at now: Date = Date()) -> Bool { now < (tryAgainGreyUntil[id] ?? .distantPast) }
     /// Starts the grey time; false while it still runs (the tap does nothing).
@@ -842,7 +846,14 @@ final class AppModel: ObservableObject {
             reload()
         }
     }
-    func cancelPairing(_ p: Peer) async { await core?.cancelPairing(p.id); reload() }
+    func cancelPairing(_ p: Peer) async {
+        guard let core = core else { return }
+        await once("cancelPairing:" + p.id.text) {
+            let e = await core.cancelPairing(p.id)
+            reload()
+            if let e = e { toast = ErrorCopy.text(.cancelPairing(label(p)), ErrorCopy.reason(local: e)) }
+        }
+    }
     /// Pair again: one run per peer at a time; a failure shows a toast.
     func pairAgain(_ p: Peer) async {
         guard let core = core, !pairAgainBusy.contains(p.id.text) else { return }

@@ -191,10 +191,14 @@ struct HomeBanners: View {
                         Button {
                             model.lockedLine = nil
                         } label: {
+                            // A 44 pt tap area; the outer negative padding keeps the row's size.
                             Image(systemName: "xmark.circle")
+                                .padding(12)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.borderless)
                         .accessibilityLabel("Dismiss")
+                        .padding(-12)
                     }
                 }
                 if model.pushRegisterFailed {

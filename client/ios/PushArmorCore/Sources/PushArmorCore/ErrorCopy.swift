@@ -10,6 +10,7 @@ public enum ErrorCopy {
         case refresh
         case rename
         case pair(String)
+        case cancelPairing(String)
         case confirm(String)
         case reject(String)
         case remove(String)
@@ -28,6 +29,7 @@ public enum ErrorCopy {
         case deleteOnThisDevice
         case changeSetting
         case turnOnNotifications
+        case saveMessage
 
         public var line: String {
             switch self {
@@ -36,6 +38,7 @@ public enum ErrorCopy {
             case .refresh: return "Unable to refresh the device list."
             case .rename: return "Unable to rename this device."
             case .pair(let x): return "Unable to pair with \"\(x)\"."
+            case .cancelPairing(let x): return "Unable to cancel pairing with " + S.quoted(x) + "."
             case .confirm(let x): return "Unable to confirm \"\(x)\"."
             case .reject(let x): return "Unable to reject \"\(x)\"."
             case .remove(let x): return "Unable to remove \"\(x)\"."
@@ -52,6 +55,7 @@ public enum ErrorCopy {
             case .deleteOnThisDevice: return "Unable to delete on this device."
             case .changeSetting: return "Unable to change this setting."
             case .turnOnNotifications: return "Unable to turn on notifications."
+            case .saveMessage: return "Unable to save the message."
             }
         }
     }
@@ -270,6 +274,14 @@ public enum ErrorCopy {
         let q = names.map { "\"\($0)\"" }
         if q.count <= 2 { return q.joined(separator: " and ") }
         return q.dropLast().joined(separator: ", ") + ", and " + q[q.count - 1]
+    }
+
+    /// The toast after Save to Files, nil when the user cancelled: a full disk says so,
+    /// else a plain retry.
+    public static func saveFailText(_ e: Error) -> String? {
+        guard let c = e as? CocoaError else { return text(.saveMessage, .unknown) }
+        if c.code == .userCancelled { return nil }
+        return text(.saveMessage, c.code == .fileWriteOutOfSpace ? .storageFull : .unknown)
     }
 
     /// The reason for a local data error: SQLITE_FULL = storage full, any other store error =

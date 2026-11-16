@@ -121,7 +121,9 @@ struct MessageDetailView: View {
             document: MessageTextFile(text: row.content),
             contentType: .plainText,
             defaultFilename: MessageActions.saveFilename(epoch: row.createdLocal)
-        ) { _ in }
+        ) { result in
+            if case .failure(let e) = result, let t = ErrorCopy.saveFailText(e) { model.toast = t }
+        }
     }
 
     @ViewBuilder
@@ -169,9 +171,16 @@ struct MessageDetailView: View {
     private func openIt() {
         model.markRead(row)
         if row.type == "tel" {
-            if let u = URL(string: "tel:" + digits) { UIApplication.shared.open(u) }
+            if let u = URL(string: "tel:" + digits) { open(u, orShow: S.noAppDial) }
         } else if let u = URL(string: row.content), URLRule.isOpenable(u) {
-            UIApplication.shared.open(u)
+            open(u, orShow: S.noAppLink)
+        }
+    }
+
+    /// Opens [u]; when no app takes it, shows [text].
+    private func open(_ u: URL, orShow text: String) {
+        UIApplication.shared.open(u) { ok in
+            if !ok { Task { @MainActor in model.toast = text } }
         }
     }
 }

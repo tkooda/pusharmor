@@ -208,6 +208,7 @@ struct PeerPendingLines: View {
         } else if showCancel && model.offersCancel(p) {
             Button("Cancel pairing request") { Task { await model.cancelPairing(p) } }
                 .buttonStyle(.bordered)
+                .disabled(model.busy.contains("cancelPairing:" + p.id.text))
         }
         if p.notPairedOnPeer {
             Text(p.declinedByPeer ? S.declinedBy(label) : S.notPairedOn(label))
@@ -241,7 +242,7 @@ struct PairingCardView: View {
     private var title: String {
         guard let e = entry else { return S.pairWith(label) }
         switch e.state {
-        case .committed: return "Pairing with \(label)"
+        case .committed: return "Pairing with " + S.quoted(label)
         case .prompted where !e.authorized: return S.pairWith(label)
         case .prompted, .replied: return "Pairing..."
         case .shown: return S.pairWith(label)
@@ -344,7 +345,7 @@ struct PairingCardView: View {
             case .committed:
                 Button("Send again") { Task { await model.sendAgain(p) } }
                     .buttonStyle(.bordered)
-                    .disabled(!model.canSendAgain(e))
+                    .disabled(!model.canSendAgain(e) || model.busy.contains("sendAgain:" + p.id.text))
                 if let hint = model.hintLine(e, p) {
                     Text(hint).font(.footnote).foregroundColor(.secondaryText)
                 }
@@ -417,6 +418,7 @@ struct PairingCardView: View {
         } else if cancel {
             Button("Cancel pairing request") { Task { await model.cancelPairing(p) } }
                 .buttonStyle(.bordered)
+                .disabled(model.busy.contains("cancelPairing:" + p.id.text))
                 .font(.subheadline)
         }
     }
@@ -575,5 +577,6 @@ struct PeerMenuItems: View {
             Button("Delete") { confirmDelete = true }
         }
         Button("Remove device from account", role: .destructive) { confirmRemove = true }
+            .disabled(model.busy.contains("remove:" + p.id.text))
     }
 }

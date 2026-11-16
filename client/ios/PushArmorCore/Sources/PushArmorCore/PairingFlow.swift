@@ -370,13 +370,21 @@ extension Core {
         }
     }
 
-    /// Cancel pairing (step 8): local only, then the allow reconcile.
-    public func cancelPairing(_ x: PeerId) async {
-        try? store.db.write {
-            try store.dropPin(x)
-            if var p = try store.peer(x) { p.note = nil; try store.savePeer(p) }
+    /// Cancel pairing (step 8): local only, then the allow reconcile. Returns the error
+    /// when the local change could not be saved.
+    @discardableResult
+    public func cancelPairing(_ x: PeerId) async -> Error? {
+        var failure: Error?
+        do {
+            try store.db.write {
+                try store.dropPin(x)
+                if var p = try store.peer(x) { p.note = nil; try store.savePeer(p) }
+            }
+        } catch {
+            failure = error
         }
         await allowReconcile()
+        return failure
     }
 
     /// Whether a row offers Cancel pairing.
