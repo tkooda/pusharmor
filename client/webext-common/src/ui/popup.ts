@@ -467,6 +467,8 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   // Like iOS: the free space sits under the field, so the chips sit just above Send.
   root.append(h("div", { class: "grow" }), head, chips, ...(none ? [none] : []), ...(noPair ? [noPair] : []), h("div", { class: "foot send-foot" }, sendBtn));
   relabel();
+  // desktop toolbar popup: ready to type; Firefox for Android (full screen) would pop up the keyboard
+  if (env.inPopup?.() === true) field.focus();
   await update();
 }
 

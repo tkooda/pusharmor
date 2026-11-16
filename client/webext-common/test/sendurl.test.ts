@@ -196,3 +196,20 @@ test("Send: with several recipients the popup caption ends in a colon and the de
   await run;
   for (const k of [...body.kids]) k.remove();
 });
+
+test("Send: the text box has focus when the toolbar popup opens, not in a full tab or on Firefox for Android", async () => {
+  const focused: string[] = [];
+  const old = N.prototype.focus;
+  N.prototype.focus = function (this: N) {
+    focused.push(this.tag);
+  };
+  try {
+    await mount(true, { ok: [] });
+    assert.deepEqual(focused, ["textarea"]);
+    focused.length = 0;
+    await mount(false, { ok: [] });
+    assert.deepEqual(focused, []);
+  } finally {
+    N.prototype.focus = old;
+  }
+});
