@@ -52,7 +52,7 @@ h1 { margin: 0 0 8px; font-size: 22px; line-height: 28px; font-weight: 600; colo
 
 /* Buttons. */
 button { font: inherit; font-weight: 500; height: 36px; padding: 0 16px; border-radius: var(--rb); border: 1px solid var(--ctl); color: var(--primary); background: transparent; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
-button:hover { background: var(--s1); }
+@media (hover: hover) { button:hover { background: var(--s1); } }
 button:disabled { opacity: 0.5; cursor: default; }
 button svg { flex: none; }
 button.primary { background: var(--green); color: var(--on-green); border: 0; box-shadow: inset 0 0 0 1px var(--cta-edge); font-weight: 600; }
@@ -199,7 +199,7 @@ body.page .foot { position: static; }
 .dchips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 12px; }
 .nosend { margin: 8px 16px 0; white-space: pre-line; }
 .chip.dchip { height: 30px; padding: 0 12px 0 8px; gap: 6px; background: var(--card); border-color: var(--ctl); color: var(--ink); font-size: 13px; font-weight: 500; }
-.chip.dchip:hover { background: var(--s1); }
+@media (hover: hover) { .chip.dchip:hover { background: var(--s1); } }
 .dchip .nm { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
 .dchip .pi, .dchip .ck { display: inline-flex; color: var(--ink2); }
 .dchip .ck, .dchip.on .pi { display: none; }

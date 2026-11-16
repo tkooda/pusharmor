@@ -14,7 +14,7 @@ test("Settings version line: a button that copies just the version", async () =>
   const b = versionButton(env, "1.2.3") as unknown as N;
   assert.equal(b.tag, "button");
   assert.equal(b.attrs.type, "button");
-  assert.equal(b.attrs["aria-label"], "Copy version");
+  assert.equal(b.attrs["aria-label"], "Copy version 1.2.3");
   assert.equal(b.textContent, "Version 1.2.3");
   assert.match(b.attrs.class!, /\bt2\b/); // the muted secondary text style
   for (const f of b.on.click!) f({});

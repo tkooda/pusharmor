@@ -124,6 +124,20 @@ test("context menu offers All devices only when a device is listed", async () =>
   assert.ok([...m.items.keys()].some((id) => id.endsWith("|all")));
 });
 
+test("Firefox menu titles show an & in a device name as one &; Chrome titles keep the name", async () => {
+  const { basePlatform } = await import("../src/shellkit.ts");
+  for (const [name, want] of [["firefox", "Tom && Ann"], ["chrome", "Tom & Ann"]] as const) {
+    const m = fakeMenus();
+    const b = { runtime: { getManifest: () => ({ version: "0.0.19" }) }, storage: { local: {}, session: {} }, menus: m.menus };
+    const p = basePlatform(b as never, name, false, {} as never);
+    p.menusRebuild([{ id: "A", name: "Tom & Ann" }], false);
+    await new Promise((r) => setTimeout(r, 20));
+    const titles = [...m.items].filter(([id]) => id.endsWith("|A")).map(([, t]) => t);
+    assert.ok(titles.length > 0);
+    assert.ok(titles.every((t) => t === want));
+  }
+});
+
 test("a menu click after a wipe shows the error in a notification, no unhandled rejection", async () => {
   const { onMenuClick } = await import("../src/shellkit.ts");
   const { UserError } = await import("../src/core/engine.ts");

@@ -25,7 +25,7 @@ export const T = {
   accountDeleted: "The account was deleted on another device.",
   keysLost: "This device's security keys cannot be used right now. Log in again.",
   keysBrokenTitle: "This device's keys have become unusable.",
-  keysBrokenBody: "Click Retry to try again. If this keeps happening, you can delete the broken keys. You will then sign in again and pair all your devices again.",
+  keysBrokenBody: "Click Retry to try again. If this keeps happening, you can delete the broken keys. You will then log in again and pair all your devices again.",
   keysDeleteTitle: "Delete broken keys?",
   keysDeleteBody: "This cannot be undone. You will need to pair all your devices again.",
   requestFailed: "Request failed.\nTry again.",

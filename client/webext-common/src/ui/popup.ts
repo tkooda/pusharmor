@@ -1,6 +1,7 @@
 // Toolbar popup: Send, History, Peers, Settings (component-webext section 7).
 import type { PeerView, StateView } from "../core/rpc.ts";
 import type { SendResult } from "../core/engine.ts";
+import { failText } from "../core/failtext.ts";
 import { R, T, greyedText, notDeletedText, pushIssueText, quoted, saveFailText } from "../core/texts.ts";
 import { BUSY, STEP, readBusy, sendingCaption } from "../model/busy.ts";
 import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendToHeader, showAllChip, showCounter, sortByLabel } from "../model/sendsel.ts";
@@ -459,7 +460,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   });
   root.append(field, meta);
   // every device is greyed: say why Send is off
-  const none = !sendable.length && chips.childElementCount ? h("p", { class: "dim nosend" }, "Unable to send.\nNo device can receive messages right now.") : null;
+  const none = !sendable.length && chips.childElementCount ? h("p", { class: "dim nosend", role: "status" }, "Unable to send.\nNo device can receive messages right now.") : null;
   const noPair = nav && !data.peers.some((p) => p.paired) ? cta("Pair your first device to start sending.", "Pair a device", nav.toDevices) : null;
   // Like iOS: the free space sits under the field, so the chips sit just above Send.
   root.append(h("div", { class: "grow" }), head, chips, ...(none ? [none] : []), ...(noPair ? [noPair] : []), h("div", { class: "foot send-foot" }, sendBtn));
@@ -659,10 +660,11 @@ const LONG_PRESS_MS = 500;
 let longPressAt = -Infinity;
 
 /** the checkbox, the long-press and right-click starts, and the tap that toggles while the mode is on. */
-function wireSelect(row: HTMLElement, id: number, ctl: SelectCtl): void {
+function wireSelect(row: HTMLElement, id: number, ctl: SelectCtl, labelIds: string): void {
   if (ctl.on()) {
     row.classList.add(ctl.always ? "hck" : "msel");
-    row.prepend(h("input", { type: "checkbox", class: "hsel", "aria-label": "Select message", checked: ctl.has(id) }));
+    // the checkbox is named by the row's sender and content
+    row.prepend(h("input", { type: "checkbox", class: "hsel", "aria-labelledby": labelIds, checked: ctl.has(id) }));
   }
   let timer: ReturnType<typeof setTimeout> | undefined;
   let suppress = false;
@@ -736,16 +738,16 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string; notDeleted?: s
   if (r.type === "event") {
     // Events: a bare glyph, no tile; the sender stays visible when the text lacks it.
     const named = r.event === "denied" || r.event === "logged_out" || r.event === "logged_in";
-    const col = h("div", { class: "txt" }, h("div", { class: "hmeta" }, h("span", { class: "who" }, named ? eventText(r) : r.sender), time));
-    if (!named) col.append(h("div", { class: "content ev" }, eventText(r)));
+    const col = h("div", { class: "txt" }, h("div", { class: "hmeta" }, h("span", { class: "who", id: "h-" + r.id + "-who" }, named ? eventText(r) : r.sender), time));
+    if (!named) col.append(h("div", { class: "content ev", id: "h-" + r.id + "-c" }, eventText(r)));
     row.classList.add("event");
     row.append(h("div", { class: "av bare" }, icon(r.event === "logged_out" ? "pause" : "info", 18)), col);
-    wireSelect(row, r.id ?? 0, ctl);
+    wireSelect(row, r.id ?? 0, ctl, "h-" + r.id + "-who" + (named ? "" : " h-" + r.id + "-c"));
     return row;
   }
   const sent = r.results ? Object.values(r.results).filter((v) => v === "sent").length : (r.targets?.length ?? 0);
   const whoText = r.dir === "out" ? T.sentToNofM(sent, r.targets?.length ?? 0) : r.sender;
-  const who = h("span", { class: "who" }, whoText);
+  const who = h("span", { class: "who", id: "h-" + r.id + "-who" }, whoText);
   // Sent to one device: name it in quotes; the name truncates inside them (F22).
   if (r.dir === "out" && r.targets?.length === 1 && sent === 1 && r.sender) {
     who.classList.add("one");
@@ -754,7 +756,7 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string; notDeleted?: s
   }
   const col = h("div", { class: "txt" }, h("div", { class: "hmeta" }, who, time));
   const one = r.type === "url" || r.type === "tel";
-  const content = h("div", { class: "content " + (one ? "one" : "clamp"), tabindex: "0" });
+  const content = h("div", { class: "content " + (one ? "one" : "clamp"), id: "h-" + r.id + "-c", role: "button", tabindex: "0" });
   if (r.type === "url") midEllipsis(content, r.content);
   else content.textContent = r.content;
   // a delete that did not reach every device yet: struck through, with the devices under it
@@ -821,7 +823,7 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string; notDeleted?: s
   }
   col.append(acts);
   row.append(h("div", { class: "av" }, icon(r.dir === "in" ? "received" : "sent", 18)), col);
-  wireSelect(row, r.id ?? 0, ctl);
+  wireSelect(row, r.id ?? 0, ctl, "h-" + r.id + "-who h-" + r.id + "-c");
   return row;
 }
 
@@ -836,11 +838,25 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
   const theme = h("select", { "aria-label": "Theme" }) as HTMLSelectElement;
   const pref = parseTheme(await env.theme.get().catch(() => undefined));
   for (const [v, label] of THEME_CHOICES) theme.append(h("option", { value: v, selected: v === pref }, label));
-  theme.addEventListener("change", () => void setTheme(env.theme, parseTheme(theme.value)));
-  const save = () =>
-    void rpc(env, "settings", { showAll: showAll.checked, autoOpen: autoOpen.checked, allowContent: allowContent.checked, syncDeletions: syncDeletions.checked, historyDays: Number(days.value) }).catch(() =>
-      toast("Could not save the settings", "err"),
+  theme.addEventListener("change", () => void setTheme(env.theme, parseTheme(theme.value)).catch((e) => toast(failText("changeSetting", e), "err")));
+  const values = () => ({ showAll: showAll.checked, autoOpen: autoOpen.checked, allowContent: allowContent.checked, syncDeletions: syncDeletions.checked, historyDays: Number(days.value) });
+  // the values last saved: a failed save sets the controls back to them
+  let saved = values();
+  const save = () => {
+    const next = values();
+    void rpc(env, "settings", next).then(
+      () => void (saved = next),
+      (e) => {
+        showAll.checked = saved.showAll;
+        autoOpen.checked = saved.autoOpen;
+        allowContent.checked = saved.allowContent;
+        syncDeletions.checked = saved.syncDeletions;
+        days.value = String(saved.historyDays);
+        // the reply already reads "Unable to change this setting." and why
+        toast((e as Error).message, "err");
+      },
     );
+  };
   showAll.addEventListener("change", save);
   autoOpen.addEventListener("change", save);
   allowContent.addEventListener("change", save);
@@ -854,13 +870,13 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     h("div", { class: "txt" }),
     // "Logged in as" dim, the email on its own line (long ones end in "...")
     ...(accountLine(st) ? [h("div", { class: "t2" }, "Logged in as"), h("div", { class: "t1 email", title: st.email ?? "" }, st.email ?? "")] : []),
-    ff && st.receiveMode ? h("div", { class: "t2" }, "Receive mode: " + st.receiveMode) : null,
     ff && st.receiveNote ? h("div", { class: "t2" }, st.receiveNote) : null,
   );
   const acctRow = acct.childNodes.length ? h("div", { class: "srow acct" }, acct) : null;
   const outBar = busyBar(env);
   const logOut = h("button", {
     onclick: async () => {
+      logOut.disabled = true;
       outBar.start(STEP.loggingOut);
       try {
         await rpc(env, "signout");
@@ -870,6 +886,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
         toast((e as Error).message, "err");
       } finally {
         outBar.stop();
+        logOut.disabled = false;
       }
     },
   }, "Log out") as HTMLButtonElement;
@@ -911,7 +928,7 @@ export async function copyText(env: UiEnv, text: string): Promise<void> {
 
 /** The bottom line of Settings: "Version X.Y.Z"; a click copies X.Y.Z. */
 export function versionButton(env: UiEnv, version: string): HTMLElement {
-  return h("button", { type: "button", class: "quiet t2 version", "aria-label": "Copy version", onclick: () => void copyText(env, version) }, "Version " + version);
+  return h("button", { type: "button", class: "quiet t2 version", "aria-label": "Copy version " + version, onclick: () => void copyText(env, version) }, "Version " + version);
 }
 
 /** For tests: the start a login change would draw again with. */

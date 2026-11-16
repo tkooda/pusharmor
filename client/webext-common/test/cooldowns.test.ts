@@ -24,8 +24,17 @@ test("rename Save ignores a second submit while one runs", () => {
   assert.match(peers, /let saving = false;[\s\S]*if \(saving\) return;\s+saving = true;[\s\S]*finally \{\s+saving = false;/);
 });
 
-test("settings save() shows an error toast when the call fails", () => {
-  assert.match(popup, /"settings", \{[^\n]*\}\)\.catch\(\(\) =>\s+toast\("Could not save the settings/);
+test("settings save() shows the reply's error toast when the call fails and sets the controls back", () => {
+  assert.doesNotMatch(popup, /Could not save the settings/);
+  const save = popup.slice(popup.indexOf("const save = () =>"), popup.indexOf("showAll.addEventListener"));
+  assert.match(save, /rpc\(env, "settings", next\)\.then\(/);
+  for (const c of ["showAll", "autoOpen", "allowContent", "syncDeletions"]) assert.ok(save.includes(c + ".checked = saved." + c + ";"));
+  assert.ok(save.includes("days.value = String(saved.historyDays);"));
+  assert.match(save, /toast\(\(e as Error\)\.message, "err"\)/);
+});
+
+test("a failed theme change shows the Unable to change this setting error", () => {
+  assert.match(popup, /setTheme\(env\.theme, parseTheme\(theme\.value\)\)\.catch\(\(e\) => toast\(failText\("changeSetting", e\), "err"\)\)/);
 });
 
 test("no periodic relay-server call: the only timers in the background scripts are local", () => {

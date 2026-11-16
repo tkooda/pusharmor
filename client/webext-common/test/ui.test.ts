@@ -139,7 +139,7 @@ test("Log out acts at once: no confirm, one signout call, Delete account still o
   const popup = rd("ui/popup.ts");
   assert.doesNotMatch(popup, /logoutConfirm|confirmOut|closeConfirm/);
   assert.doesNotMatch(rd("ui/style.css"), /confirm-out/);
-  assert.ok(popup.includes('const logOut = h("button", {\n    onclick: async () => {\n      outBar.start(STEP.loggingOut);\n      try {\n        await rpc(env, "signout");'));
+  assert.ok(popup.includes('const logOut = h("button", {\n    onclick: async () => {\n      logOut.disabled = true;\n      outBar.start(STEP.loggingOut);\n      try {\n        await rpc(env, "signout");'));
   assert.ok(popup.includes('group(acctRow, h("div", { class: "srow acct-acts" }, btns)), outBar.el'));
   assert.ok(popup.includes('env.openPage("#login=delete-account")'));
   assert.equal(popup.split('rpc(env, "signout")').length, 2, "only one signout call");
@@ -378,9 +378,9 @@ test("Send result names the one device; counts read singular for one", async () 
   assert.match(readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8"), /toast\(one \? T\.messageSentToOne\(one\.label\) : T\.messageSentToN\(r\.sent\), "ok"\)/);
 });
 
-test("Send with every device greyed says, on two lines, that no device can receive now", async () => {
+test("Send with every device greyed says, on two lines, that no device can receive now, as a status", async () => {
   const { readFileSync } = await import("node:fs");
-  assert.match(readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8"), /!sendable\.length && chips\.childElementCount \? h\("p", \{ class: "dim nosend" \}, "Unable to send\.\\nNo device can receive messages right now\."\)/);
+  assert.match(readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8"), /!sendable\.length && chips\.childElementCount \? h\("p", \{ class: "dim nosend", role: "status" \}, "Unable to send\.\\nNo device can receive messages right now\."\)/);
   assert.match(readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8"), /\.nosend \{ margin: 8px 16px 0; white-space: pre-line; \}/);
 });
 

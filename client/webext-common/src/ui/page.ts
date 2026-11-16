@@ -273,6 +273,8 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
   const oauthBar = busyBar(env);
   const oauth = (provider: string) => async () => {
     resetNotes();
+    // both buttons are off while one runs
+    for (const b of oauthBtns) b.disabled = true;
     oauthBar.start();
     try {
       const r = await rpc<LoginResult>(env, "oauth", { provider, purpose });
@@ -283,8 +285,13 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       toast((e as Error).message, "err");
     } finally {
       oauthBar.stop();
+      for (const b of oauthBtns) b.disabled = false;
     }
   };
+  const oauthBtns = [
+    h("button", { type: "button", class: "big google", onclick: oauth("google") }, googleLogo(), "Continue with Google") as HTMLButtonElement,
+    h("button", { type: "button", class: "big apple", onclick: oauth("apple") }, appleLogo(), "Continue with Apple") as HTMLButtonElement,
+  ];
   const title = purpose === "delete-account" ? "Delete account" : "Log in";
   // resuming (logged out) is not a setup: no step counter, and the body says why
   const resuming = purpose === "login";
@@ -298,8 +305,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     h(
       "div",
       { class: "oauth" },
-      h("button", { type: "button", class: "big google", onclick: oauth("google") }, googleLogo(), "Continue with Google"),
-      h("button", { type: "button", class: "big apple", onclick: oauth("apple") }, appleLogo(), "Continue with Apple"),
+      ...oauthBtns,
       oauthBar.el,
     ),
     h("div", { class: "or" }, "or"),

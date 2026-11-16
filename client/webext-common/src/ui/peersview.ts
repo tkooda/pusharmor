@@ -101,9 +101,21 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
     try {
       const now = await rpc<{ peers: PeerView[] }>(env, "peers");
       if (JSON.stringify(now.peers) === key || !root.isConnected) return;
-      const refocus = !document.activeElement || document.activeElement === document.body;
+      // a redraw would close an open row menu: the next read tries again
+      if (root.querySelector(".more .menu")) return;
+      const active = document.activeElement as HTMLElement | null;
+      const refocus = !active || active === document.body;
+      // focus in a row: the same row and control get it back after the redraw
+      const row = active?.closest<HTMLElement>('[id^="peer-"]') ?? null;
+      const name = (el: Element) => el.getAttribute("aria-label") ?? el.textContent;
+      const ctl = row && active !== row ? name(active!) : null;
       await renderPeers(env, root, full);
       if (refocus) root.querySelector<HTMLElement>(".fp-title, .sh")?.focus();
+      else if (row) {
+        const again = document.getElementById(row.id);
+        const same = ctl === null ? undefined : Array.from(again?.querySelectorAll<HTMLElement>("button, input, a, [tabindex]") ?? []).find((el) => name(el) === ctl);
+        (same ?? again ?? root.querySelector<HTMLElement>(".fp-title, .sh"))?.focus();
+      }
     } catch {
       // the next read tries again
     }
@@ -131,7 +143,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
       upBar.stop();
     }
   });
-  root.append(h("div", { class: "grow" }), upBar.el, add(h("div", { class: "foot bar" }, refresh), !full && h("button", { onclick: () => env.openPage("#peers") }, "Open full view")));
+  root.append(h("div", { class: "grow" }), upBar.el, add(h("div", { class: "foot bar" }, refresh), !full && env.inPopup?.() !== false && h("button", { onclick: () => env.openPage("#peers") }, "Open full view")));
 }
 
 /** "Pair a new device": pairing starts from Pair on a listed device, so the button shows how to get it listed. */
