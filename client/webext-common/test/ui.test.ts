@@ -234,7 +234,7 @@ test("no paired device: the tabs stay, and Devices shows the first-pair content,
   assert.match(pv, /if \(!data\.peers\.some\(\(p\) => p\.paired\)\) \{/);
   assert.match(pv, /"Pair your first device"/);
   assert.match(pv, /"Install PushArmor on another device\."/);
-  assert.match(pv, /"When it shows below, click Pair, then click Codes match when the fingerprints match\."/);
+  assert.match(pv, /"When it shows below, click Pair, then click Codes match when the codes match\."/);
   assert.match(pv, /class: "fp-num"/);
   assert.match(pv, /class: "fp-spin"[^)]*\), "Waiting for another device to log in\."/);
   assert.match(pv, /JSON\.stringify\(now\.peers\) === key/); // the live read redraws only on a change
@@ -660,4 +660,33 @@ test("a plain open of the popup or the full tab shows Send with a completed pair
 test("login code help is one short sentence", async () => {
   const { readFileSync } = await import("node:fs");
   assert.match(readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8"), /const CODE_HELP = "Paste or type the code\.";/);
+});
+
+test("Device limit: Remove and continue is disabled until a device is ticked", async () => {
+  const { readFileSync } = await import("node:fs");
+  const page = readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8");
+  assert.match(page, /class: "primary",\s+disabled: true, \/\/ until a device is ticked/);
+  assert.match(page, /box\.addEventListener\("change", \(\) => \(go\.disabled = busy \|\| !ticked\(\)\)\)/);
+  assert.match(page, /btn\.disabled = !ticked\(\);/);
+});
+
+test("pairing text says code, not fingerprint", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { T } = await import("../src/core/texts.ts");
+  assert.equal(T.fingerprint("K7QD"), "Pairing code K7QD");
+  assert.equal(T.fingerprint("").trim(), "Pairing code"); // the plate label, shown in capitals
+  assert.equal(T.pairReply, "Pairing code ready. Open PushArmor.");
+  for (const f of ["../src/ui/peersview.ts", "../src/ui/popup.ts", "../src/ui/page.ts", "../src/core/texts.ts"]) {
+    const src = readFileSync(new URL(f, import.meta.url), "utf8");
+    assert.doesNotMatch(src, /"[^"\n]*(?: [Ff]ingerprints?\b|\b[Ff]ingerprints? )[^"\n]*"/, f); // in a text, not an op name
+  }
+});
+
+test("an expanded History row wraps the full URL and the full device name", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  assert.match(css, /\.hrow\.sel \.content\.one \{ white-space: normal; \}/);
+  assert.match(css, /\.hrow\.sel \.hmeta \.who \{ white-space: normal; overflow-wrap: anywhere; \}/);
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  assert.match(pop, /content\.classList\.remove\("mid"\);\s+content\.textContent = r\.content;/);
 });

@@ -69,9 +69,13 @@ test("History on Firefox for Android: no checkboxes until a long-press, which ch
     v.longPress(2);
     const sa = find(v.root, (x) => x.tag === "input" && x.attrs.class === "hselall")!;
     assert.ok(find(v.root, (x) => x.tag === "label" && x.attrs.class === "hselallbox" && x.children.includes(sa)));
-    for (const f of sa.on.click!) f({}); // select all
+    for (const f of sa.on.click!) f({}); // some ticked (dash): clears all and leaves the mode
+    assert.equal(v.boxes().length, 0);
+    assert.equal((sa as N & { hidden?: boolean }).hidden, true);
+    v.longPress(2);
+    for (const r of [1, 3, 4]) v.click(r);
     assert.deepEqual(v.checked(), [true, true, true, true]);
-    for (const f of sa.on.click!) f({}); // clear all leaves the mode
+    for (const f of sa.on.click!) f({}); // all ticked: clears all and leaves the mode
     assert.equal(v.boxes().length, 0);
     assert.equal((sa as N & { hidden?: boolean }).hidden, true);
   } finally {
@@ -91,13 +95,16 @@ test("History: Ctrl or Cmd + click toggles a row; Shift + click selects a range 
   assert.deepEqual(v.checked(), [true, true, false, true]);
 });
 
-test("History select all: empty, dash for some, check for all; a click selects all, the next clears all", async () => {
+test("History select all: empty, dash for some, check for all; a click on the dash clears all, on empty selects all, on check clears all", async () => {
   const v = await mount();
   const sa = () => find(v.root, (x) => x.tag === "input" && x.attrs.class === "hselall") as N & { checked?: boolean; indeterminate?: boolean; hidden?: boolean };
   assert.equal(sa().attrs.type, "checkbox");
   assert.deepEqual([sa().hidden, !!sa().checked, !!sa().indeterminate], [false, false, false]); // always above the top row on desktop
   v.click(2, {}, true);
   assert.deepEqual([!!sa().checked, !!sa().indeterminate], [false, true]);
+  for (const f of sa().on.click!) f({});
+  assert.deepEqual(v.checked(), [false, false, false, false]); // the checkboxes stay on desktop
+  assert.deepEqual([!!sa().checked, !!sa().indeterminate, sa().hidden], [false, false, false]);
   for (const f of sa().on.click!) f({});
   assert.deepEqual(v.checked(), [true, true, true, true]);
   assert.deepEqual([!!sa().checked, !!sa().indeterminate], [true, false]);

@@ -258,6 +258,7 @@ export class Engine {
 
   private async setReg(v: "registered" | "logged_out"): Promise<void> {
     await this.db.setMeta("reg", v);
+    await this.rebuildMenus();
     await this.authChanged();
   }
 
@@ -2015,7 +2016,9 @@ export class Engine {
   async rebuildMenus(): Promise<void> {
     const s = await this.settings();
     const peers = (await this.allSet()).map((p) => ({ id: p.id, name: peerLabel(p.name) }));
-    this.p.menusRebuild(peers, s.showAll);
+    const paired = (await this.db.peers()).some((p) => p.pinned && p.ruling === "approved" && p.approves_me && !p.removed);
+    const mode = !(await this.self()) || (await this.regState()) !== "registered" ? "login" : paired ? "send" : "pair";
+    this.p.menusRebuild(peers, s.showAll, mode);
   }
 
   // ------------------------------------------------------------- views
@@ -2281,7 +2284,7 @@ export class Engine {
       await this.db.setMeta("banner", T.keysLost);
       return;
     }
-    if (!(await this.self())) return;
+    if (!(await this.self())) return void (await this.rebuildMenus());
     if (!(await this.probeKeys())) return;
     if ((await this.confirmRemoval()) || this.checking) return;
     await this.sweep();

@@ -66,7 +66,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
       h(
         "ol",
         { class: "grp fp-steps" },
-        ...["Install PushArmor on another device.", "Log in with the same account.", "When it shows below, click Pair, then click Codes match when the fingerprints match."].map((t, i) =>
+        ...["Install PushArmor on another device.", "Log in with the same account.", "When it shows below, click Pair, then click Codes match when the codes match."].map((t, i) =>
           h("li", {}, h("span", { class: "fp-num", "aria-hidden": "true" }, String(i + 1)), h("span", {}, t)),
         ),
       ),
@@ -301,7 +301,7 @@ function pairCard(env: UiEnv, p: PeerView, redraw: Redraw): HTMLElement {
     ),
   );
   if (p.pk) void rpc(env, "fingerprintShown", { pk: p.pk }).catch(() => undefined);
-  for (const l of p.lines) if (!l.startsWith("Pairing fingerprint")) card.append(h("div", { class: "t2 line" }, l));
+  for (const l of p.lines) if (!l.startsWith(T.fingerprint("").trim())) card.append(h("div", { class: "t2 line" }, l));
   const main = [...p.actions].filter((a) => !MENU.has(a) && a !== "cancel").sort((x, y) => rank(x) - rank(y));
   // Codes differ left, Codes match right, equal width.
   const order = main.includes("deny") ? ["deny", ...main.filter((a) => a !== "deny")] : main;

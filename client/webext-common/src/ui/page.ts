@@ -553,6 +553,8 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
     );
   }
   const evictBar = busyBar(env);
+  let busy = false;
+  const ticked = () => boxes.some((b) => b.box.checked);
   root.append(
     list,
     evictBar.el,
@@ -562,10 +564,12 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
       h("button", { onclick: () => void (env.closeTab ? env.closeTab() : window.close()) }, "Cancel"),
       h("button", {
         class: "primary",
+        disabled: true, // until a device is ticked
         onclick: async (ev: Event) => {
           const btn = ev.currentTarget as HTMLButtonElement;
           if (btn.disabled) return;
           btn.disabled = true; // the ticket is single use; a second request would fail
+          busy = true;
           const evict = boxes.filter((b) => b.box.checked).map((b) => b.id);
           const names = peers.filter((p) => evict.includes(p.id)).map((p) => platformLabel(p.platform));
           if (names.length) evictBar.start(STEP.removing(names));
@@ -584,12 +588,15 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
             if (endsFlow(e)) env.openPage("#login");
           } finally {
             evictBar.stop();
-            btn.disabled = false;
+            busy = false;
+            btn.disabled = !ticked();
           }
         },
       }, "Remove and continue"),
     ),
   );
+  const go = root.querySelector<HTMLButtonElement>(".btns > .primary")!;
+  for (const { box } of boxes) box.addEventListener("change", () => (go.disabled = busy || !ticked()));
   heading.focus();
 }
 

@@ -41,6 +41,17 @@ export async function clickTarget(e: Engine, id: string): Promise<ClickTarget> {
 export const MENU_URL = "pa-url";
 export const MENU_PAGE = "pa-page";
 export const MENU_SEL = "pa-sel";
+/** The one item while logged out: opens the toolbar popup (the log in screen). */
+export const MENU_LOGIN = "pa-login";
+/** The one item while logged in with no paired device: opens Devices. */
+export const MENU_PAIR = "pa-pair";
+/** The context menu: the send items, or the one log in or pair item. */
+export type MenuMode = "send" | "login" | "pair";
+/** The one item each for "login" and "pair": [id, title, page.html hash when the popup cannot open]. */
+export const MENU_SINGLE: Record<Exclude<MenuMode, "send">, readonly [string, string, string]> = {
+  login: [MENU_LOGIN, "Log in to PushArmor...", ""],
+  pair: [MENU_PAIR, "Pair a new device...", "#peers"],
+};
 
 /** Context menu parents: [id, title, context]. */
 export const MENU_PARENTS: readonly (readonly [string, string, string])[] = [

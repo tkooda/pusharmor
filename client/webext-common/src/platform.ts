@@ -1,5 +1,6 @@
 // Interface the two shells implement (component-webext section 2). Shared
 // code never touches chrome.* or browser.* directly.
+import type { MenuMode } from "./core/actions.ts";
 import type { PushFields } from "./crypto/labels.ts";
 
 export type { PushFields };
@@ -40,7 +41,7 @@ export interface Platform {
   authFlow(url: string): Promise<string | null>;
   /** Auto-open in the last focused normal window; false when no window exists. */
   autoOpenTab(url: string): Promise<boolean>;
-  menusRebuild(peers: MenuPeer[], showAll: boolean): void;
+  menusRebuild(peers: MenuPeer[], showAll: boolean, mode?: MenuMode): void;
   setBadge(text: string): void;
   storageLocal: KV;
   storageSession: KV;

@@ -588,11 +588,12 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
   }
   // The filter is a native select; it shows only when there is more than All to pick.
   const filter = h("select", { "aria-label": "Show messages" }) as HTMLSelectElement;
-  // select all, in the checkbox column: none, some (dash), or all of the shown rows; a click selects all, or clears all when all are selected
+  // select all, in the checkbox column: none, some (dash), or all of the shown rows; a click selects all when none
+  // is selected, else clears all (Firefox for Android then leaves select mode)
   const selAll = h("input", { type: "checkbox", class: "hselall", "aria-label": "Select all messages", hidden: true }) as HTMLInputElement;
   selAll.addEventListener("click", () => {
-    const all = visible.length > 0 && visible.every((id) => picked?.has(id));
-    picked = !all ? new Set(visible) : always ? new Set() : null;
+    const some = visible.some((id) => picked?.has(id));
+    picked = !some ? new Set(visible) : always ? new Set() : null;
     draw();
   });
   const selAllBox = h("label", { class: "hselallbox" }, selAll);
@@ -796,15 +797,26 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string; notDeleted?: s
   }
   // a tap on the selected row (not its buttons) collapses it; another row selects.
   const sync = () => content.setAttribute("aria-expanded", String(row.classList.contains("sel")));
+  // an expanded URL row wraps the full URL; collapsed, it goes back to one line with the middle cut
   const select = () => {
-    for (const o of Array.from(row.parentElement?.querySelectorAll(".hrow.sel") ?? [])) if (o !== row) o.classList.remove("sel");
+    for (const o of Array.from(row.parentElement?.querySelectorAll<HTMLElement>(".hrow.sel") ?? [])) {
+      if (o === row) continue;
+      o.classList.remove("sel");
+      const u = o.querySelector<HTMLElement>(".content[data-full]");
+      if (u) midEllipsis(u, u.dataset.full ?? "");
+    }
     row.classList.remove("closed");
     row.classList.add("sel");
+    if (r.type === "url") {
+      content.classList.remove("mid");
+      content.textContent = r.content;
+    }
     sync();
   };
   const collapse = () => {
     row.classList.remove("sel");
     row.classList.add("closed");
+    if (r.type === "url") midEllipsis(content, r.content);
     sync();
   };
   const markRead = () => {

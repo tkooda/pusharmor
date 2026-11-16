@@ -11,6 +11,7 @@ import { verify } from "../src/crypto/keys.ts";
 import { type PushFields } from "../src/crypto/labels.ts";
 import { reqSignedBytes } from "../src/crypto/pasig.ts";
 import { Engine } from "../src/core/engine.ts";
+import type { MenuMode } from "../src/core/actions.ts";
 import type { KV, MenuPeer, Platform } from "../src/platform.ts";
 import { Db, openDb } from "../src/store/db.ts";
 
@@ -45,6 +46,7 @@ export class FakePlatform implements Platform {
   opened: string[] = [];
   badge = "";
   menus: MenuPeer[] = [];
+  menuMode: MenuMode = "send";
   storageLocal = new MemKV();
   storageSession = new MemKV();
   sub: PushFields | null = null;
@@ -92,8 +94,9 @@ export class FakePlatform implements Platform {
     this.opened.push(url);
     return true;
   }
-  menusRebuild(peers: MenuPeer[]) {
+  menusRebuild(peers: MenuPeer[], _showAll: boolean, mode: MenuMode = "send") {
     this.menus = peers;
+    this.menuMode = mode;
   }
   setBadge(t: string) {
     this.badge = t;

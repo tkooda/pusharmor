@@ -166,7 +166,7 @@ const env: UiEnv = {
 
 const HEADLINES: Record<string, string> = {
   send: "Send the page you are on to your phone in one click.",
-  peers: "Pair your devices with a four-character fingerprint.",
+  peers: "Pair your devices with a four-character code.",
   history: "Send URLs or text to your devices, end-to-end encrypted.",
 };
 

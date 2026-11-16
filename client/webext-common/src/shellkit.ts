@@ -3,7 +3,7 @@
 import { SEND_CAP, utf8Len } from "./model/padding.ts";
 import { saveViaLink, saveWithPermission } from "./model/savefile.ts";
 import { Api } from "./api/client.ts";
-import { MENU_PAGE, MENU_PARENTS, MENU_SEL, MENU_URL, clickTarget, menuSend } from "./core/actions.ts";
+import { MENU_PAGE, MENU_PARENTS, MENU_SEL, MENU_SINGLE, MENU_URL, clickTarget, menuSend, type MenuMode } from "./core/actions.ts";
 import { Engine } from "./core/engine.ts";
 import { failText } from "./core/failtext.ts";
 import { Rpc, type Req } from "./core/rpc.ts";
@@ -79,11 +79,16 @@ export function basePlatform(b: Browser, name: "chrome" | "firefox", isAndroid: 
       await b.tabs.create({ url, active: false, windowId: w.id });
       return true;
     },
-    menusRebuild(peers: MenuPeer[], showAll: boolean) {
+    menusRebuild(peers: MenuPeer[], showAll: boolean, mode: MenuMode = "send") {
       if (!menus) return;
       menuChain = menuChain
         .then(() => menus.removeAll())
         .then(() => {
+          if (mode !== "send") {
+            const [id, title] = MENU_SINGLE[mode];
+            menus.create({ id, title, contexts: MENU_PARENTS.map(([, , ctx]) => ctx) });
+            return;
+          }
           for (const [id, title, ctx] of MENU_PARENTS) {
             menus.create({ id, title, contexts: [ctx] });
             if (showAll && peers.length > 0) menus.create({ id: id + "|all", parentId: id, title: "All devices", contexts: [ctx] });
@@ -235,6 +240,12 @@ export async function readTabSelection(b: Browser, tab: Tab | undefined, text: s
 export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelection: (tab: Tab | undefined, text: string, frameId?: number) => Promise<string>) {
   return (info: MenuInfo, tab?: Tab): void => {
     void (async () => {
+      const single = Object.values(MENU_SINGLE).find(([id]) => id === info.menuItemId);
+      if (single) {
+        // the toolbar popup (log in screen, or Devices with no paired device); else the page in a tab
+        if (!(await openActionPopup(b))) await b.tabs.create({ url: b.runtime.getURL("page.html" + single[2]), active: true });
+        return;
+      }
       const [parent, child] = String(info.menuItemId).split("|");
       if (!child) return;
       // the toolbar popup sends it with the same Send popup as its Send screen; if it cannot open
