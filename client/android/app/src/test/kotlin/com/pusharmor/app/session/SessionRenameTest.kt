@@ -31,6 +31,7 @@ class SessionRenameTest {
     private val g get() = app.graph
     private var calls = 0
     private var code = 200
+    private var boom = false
 
     private fun <T> io(block: () -> T): T = runBlocking(Dispatchers.IO) { block() }
 
@@ -41,6 +42,7 @@ class SessionRenameTest {
         g.dao.putSelf(SelfEntity(id = "B".repeat(40), accountPrefix = ByteArray(9), name = "Phone"))
         app.fakeHttp = Interceptor { chain ->
             calls++
+            if (boom) throw IllegalStateException("transport failed")
             Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(code).message("x")
                 .body("{}".toResponseBody("application/json".toMediaType())).build()
         }
@@ -70,6 +72,17 @@ class SessionRenameTest {
         assertNotNull(io { g.session.rename("Tablet") })
         assertEquals("Phone", io { g.dao.self()!!.name })
         code = 200
+        val before = calls
+        assertNull(io { g.session.rename("Tablet") })
+        assertEquals(before + 1, calls)
+        assertEquals("Tablet", io { g.dao.self()!!.name })
+    }
+
+    @Test fun thrownRenameKeepsOldNameAndRetrySends() {
+        boom = true
+        try { io { g.session.rename("Tablet") }; org.junit.Assert.fail("expected a throw") } catch (e: IllegalStateException) { }
+        assertEquals("Phone", io { g.dao.self()!!.name })
+        boom = false
         val before = calls
         assertNull(io { g.session.rename("Tablet") })
         assertEquals(before + 1, calls)

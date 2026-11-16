@@ -514,11 +514,16 @@ class Session(private val g: Graph) {
         if (self.name == newName) return null // the same name: nothing to send, so no device shows a rename
         dao.setSelfName(newName)
         val outbox = Outbox(g.store, me)
-        val r = g.reconcile().withMissingRetry {
-            ClockSkew.run({
-                val built = g.store.allowSet().mapNotNull { g.store.peer(it)?.takeIf { p -> p.pinned } }.associate { it.id to outbox.rename(it) }
-                built.mapValues { it.value.nameEntry!! } to built.mapValues { it.value.message }
-            }) { (names, m) -> g.client.rename(names, m) }
+        val r = try {
+            g.reconcile().withMissingRetry {
+                ClockSkew.run({
+                    val built = g.store.allowSet().mapNotNull { g.store.peer(it)?.takeIf { p -> p.pinned } }.associate { it.id to outbox.rename(it) }
+                    built.mapValues { it.value.nameEntry!! } to built.mapValues { it.value.message }
+                }) { (names, m) -> g.client.rename(names, m) }
+            }
+        } catch (t: Throwable) {
+            dao.setSelfName(self.name) // the call threw: the old name stays, so a retry sends again
+            throw t
         }
         if (r is ApiResult.Ok) return null
         // Not sent: the old name stays, so a retry with the same new name sends again.
