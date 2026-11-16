@@ -52,7 +52,7 @@ struct SignInView: View {
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
                         let left = model.resend.leftMs(for: email, nowMs: Int(ctx.date.timeIntervalSince1970 * 1000))
                         Button(action: sendCode) {
-                            Text(S.sendLabel("Send code", leftMs: left))
+                            Text(S.sendLabel("Email me a code", leftMs: left))
                         }
                         .buttonStyle(GreenButtonStyle())
                         .disabled(left > 0 || model.busy.contains("sendCode"))
@@ -98,7 +98,7 @@ struct SignInView: View {
         }
     }
 
-    /// Send code, and the Return key: blocked while the countdown or a send runs, like the button.
+    /// Email me a code, and the Return key: blocked while the countdown or a send runs, like the button.
     private func sendCode() {
         let left = model.resend.leftMs(for: email, nowMs: Int(Date().timeIntervalSince1970 * 1000))
         guard left <= 0, !model.busy.contains("sendCode") else { return }
@@ -132,7 +132,7 @@ struct SignInView: View {
 }
 
 enum WelcomeText {
-    static let intro = "Send URLs or text to your devices. All of your data is always end-to-end encrypted, and can never be read by the server or anyone else."
+    static let intro = "Send URLs or text to your devices. All of your data is always end-to-end encrypted, and can never be read by our relay server or anyone else."
     static let needsNotifications = "PushArmor needs notifications to receive messages. Turn on notifications for PushArmor in Settings."
 
     /// The notification explainer: not yet asked, or turned off (only Settings can turn them on).

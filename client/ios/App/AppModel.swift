@@ -16,9 +16,9 @@ final class AppModel: ObservableObject {
         case limitPicker
         case nameDevice
         case main
-        case removed                    // "This device was removed. Log in again"
+        case removed                    // "This device was removed from the account. Log in again."
         case banned
-        case signedOut                  // "Logged out. Log in to resume"
+        case signedOut                  // "This device is logged out. Log in to resume."
         case keysBroken                 // the saved keys failed the launch check
         case dataBroken                 // pa.sqlite is corrupt; nothing is deleted until Reset this device
     }

@@ -109,12 +109,12 @@ extension Core {
         var banner: Banner?
         switch out.notice {
         case .commit:
-            banner = pairBanner(S.pairCommit, n: from, x: me, peer: from)
+            banner = pairBanner(S.pairCommit(peer?.name), n: from, x: me, peer: from)
         case .represent:
             if entry?.state == .shown, let fp = peer?.fingerprint {
-                banner = pairBanner(S.pairOpen(fp), n: from, x: me, peer: from)
+                banner = pairBanner(S.pairOpen(fp, name: peer?.name), n: from, x: me, peer: from)
             } else {
-                banner = pairBanner(S.pairCommit, n: from, x: me, peer: from)
+                banner = pairBanner(S.pairCommit(peer?.name), n: from, x: me, peer: from)
             }
         case .halfState:
             banner = pairBanner(S.pairAgain(PeerLabel.label(peer)), n: from, x: me, peer: from, category: .notice)
@@ -196,7 +196,9 @@ extension Core {
         }
         switch r {
         case .drop, .abort: return drop(mode)
-        case .shown(let fp): return .plain(mode == .nse ? pairBanner(S.pairOpen(fp), n: from, x: me, peer: from) : nil)
+        case .shown(let fp):
+            let name = (try? store.peer(from))?.name
+            return .plain(mode == .nse ? pairBanner(S.pairOpen(fp, name: name), n: from, x: me, peer: from) : nil)
         }
     }
 

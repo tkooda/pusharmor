@@ -87,6 +87,8 @@ struct TurnstileSheet: View {
     let onToken: (String) -> Void
     let onFail: () -> Void
     @Environment(\.dismiss) private var dismiss
+    /// A spinner shows over the sheet until the security check page has loaded.
+    @State private var loading = true
 
     var body: some View {
         NavigationStack {
@@ -96,7 +98,12 @@ struct TurnstileSheet: View {
             }, onFail: {
                 onFail()
                 instantly { dismiss() }
+            }, onLoaded: {
+                loading = false
             })
+            .overlay {
+                if loading { ProgressView() }
+            }
             .navigationTitle("Verify")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -112,8 +119,9 @@ private struct TurnstileWebView: UIViewRepresentable {
     static let handlerName = "paTurnstile"
     let onToken: (String) -> Void
     let onFail: () -> Void
+    let onLoaded: () -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator(onToken: onToken, onFail: onFail) }
+    func makeCoordinator() -> Coordinator { Coordinator(onToken: onToken, onFail: onFail, onLoaded: onLoaded) }
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -136,11 +144,17 @@ private struct TurnstileWebView: UIViewRepresentable {
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         let onToken: (String) -> Void
         let onFail: () -> Void
+        let onLoaded: () -> Void
         private var done = false
 
-        init(onToken: @escaping (String) -> Void, onFail: @escaping () -> Void) {
+        init(onToken: @escaping (String) -> Void, onFail: @escaping () -> Void, onLoaded: @escaping () -> Void) {
             self.onToken = onToken
             self.onFail = onFail
+            self.onLoaded = onLoaded
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            onLoaded()
         }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {

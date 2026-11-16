@@ -241,14 +241,14 @@ enum Scenario {
         let v1 = try await n.core.startPair(x.id)
         XCTAssertEqual(v1, .sent)
         let r1 = await x.drainInbox(w)
-        XCTAssertEqual(r1.first?.banner?.body, S.pairCommit)
+        XCTAssertEqual(r1.first?.banner?.body, S.pairCommit(try x.core.store.peer(n.id)?.name))
         let r2 = await n.drainInbox(w)
         XCTAssertEqual(r2.first?.banner?.body, S.pairReply)
         let r3 = await x.drainInbox(w)
         let fpN = try n.core.store.peer(x.id)!.fingerprint!
         let fpX = try x.core.store.peer(n.id)!.fingerprint!
         XCTAssertEqual(fpN, fpX)
-        XCTAssertEqual(r3.first?.banner?.body, S.pairOpen(fpX))
+        XCTAssertEqual(r3.first?.banner?.body, S.pairOpen(fpX, name: try x.core.store.peer(n.id)?.name))
         XCTAssertEqual(r3.first?.banner?.threadId, r1.first?.banner?.threadId)   // open replaces the commit notice (pk)
         XCTAssertEqual(try n.core.store.pairing(x.id)?.state, .shown)
         XCTAssertEqual(try x.core.store.pairing(n.id)?.state, .shown)

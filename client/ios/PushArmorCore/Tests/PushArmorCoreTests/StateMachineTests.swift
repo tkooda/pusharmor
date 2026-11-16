@@ -792,12 +792,12 @@ final class StateMachineTests: XCTestCase {
         var p = Peer(id: n.id)
         p.name = "Renamed"
         XCTAssertEqual(x.core.controlBanner(rename, peer: p, name: "Renamed", me: x.id)?.body,
-                       "A device renamed to \"Renamed\"")
+                       "A device renamed to \"Renamed\".")
         XCTAssertEqual(x.core.controlBanner(rename, peer: nil, name: "Renamed", me: x.id)?.body,
-                       "A device renamed to \"Renamed\"")
+                       "A device renamed to \"Renamed\".")
         p.name = "Old"
         XCTAssertEqual(x.core.controlBanner(rename, peer: p, name: "Renamed", me: x.id)?.body,
-                       "\"Old\" renamed to \"Renamed\"")
+                       "\"Old\" renamed to \"Renamed\".")
     }
 
     func testPairingStatePersistsAcrossRestartAndTwoOpenAtOnce() async throws {
@@ -1208,13 +1208,13 @@ final class StateMachineTests: XCTestCase {
         let fp = try x.core.store.peer(n.id)!.fingerprint
         XCTAssertNotNil(fp)
         XCTAssertEqual(fp, try n.core.store.peer(x.id)!.fingerprint)
-        XCTAssertEqual(opened.first?.banner?.body, S.pairOpen(fp!))
+        XCTAssertEqual(opened.first?.banner?.body, S.pairOpen(fp!, name: try x.core.store.peer(n.id)?.name))
         // a repeated open on X at compare codes re-presents the notice: no "could not read"
         clock.now += 61
         await n.core.refresh(push: nil)
         let again = await x.drainInbox(w)
         XCTAssertEqual(again.count, 1)
-        XCTAssertEqual(again.first?.banner?.body, S.pairOpen(fp!))
+        XCTAssertEqual(again.first?.banner?.body, S.pairOpen(fp!, name: try x.core.store.peer(n.id)?.name))
         XCTAssertFalse(try x.core.store.history().contains { $0.event == .couldNotRead })
         XCTAssertEqual(try x.core.store.pairing(n.id)?.state, .shown)
         // X's approve verified on N: the open is not sent again
@@ -1272,7 +1272,7 @@ final class StateMachineTests: XCTestCase {
         XCTAssertFalse(try x.core.store.allowSet().contains(n.id.text))   // withdrawn by the reconcile
         XCTAssertNil(w.rows[x.id.text]!.allow[n.id.text])
         let r3 = await x.core.receive(commit, mode: .nse)
-        XCTAssertEqual(r3.banner?.body, S.pairCommit)
+        XCTAssertEqual(r3.banner?.body, S.pairCommit(try x.core.store.peer(n.id)?.name))
         XCTAssertEqual(try x.core.store.pairing(n.id)?.role, .x)
     }
 
@@ -1557,7 +1557,7 @@ final class StateMachineTests: XCTestCase {
         try n.core.store.deletePairing(x.id)
         _ = try await n.core.startPair(x.id)
         let r = await x.drainInbox(w)
-        XCTAssertEqual(r.first?.banner?.body, S.pairCommit)
+        XCTAssertEqual(r.first?.banner?.body, S.pairCommit(try x.core.store.peer(n.id)?.name))
         let e = try XCTUnwrap(try x.core.store.pairing(n.id))
         XCTAssertEqual(e.role, .x)
         XCTAssertNotEqual(e.cN, oldCN)
@@ -1582,7 +1582,7 @@ final class StateMachineTests: XCTestCase {
         XCTAssertNil(p.fingerprint)
         XCTAssertNil(try x.core.store.replay(n.id))
         XCTAssertEqual(p.state, .unruled)
-        XCTAssertEqual(r.first?.banner?.body, S.pairCommit)
+        XCTAssertEqual(r.first?.banner?.body, S.pairCommit(try x.core.store.peer(n.id)?.name))
         XCTAssertEqual(try x.core.store.pairing(n.id)?.role, .x)
     }
 
@@ -2262,13 +2262,13 @@ final class StateMachineTests: XCTestCase {
         let before = try x.core.store.history().count
         let r = await x.drainInbox(w)
         XCTAssertEqual(r.count, 1)
-        XCTAssertEqual(r[0].banner?.body, "2 messages deleted by \"Ndev\"")
+        XCTAssertEqual(r[0].banner?.body, "2 messages deleted by \"Ndev\".")
         XCTAssertNil(r[0].rowid)
         XCTAssertEqual(try x.core.store.history().count, before - 2)
         XCTAssertNotNil(try x.core.store.historyRow(keep.rowid))
         XCTAssertEqual(Set(hooks.removedRowids), Set(xRows.map { $0.rowid }))
-        XCTAssertEqual(S.messagesDeleted(1, "Ndev"), "1 message deleted by \"Ndev\"")
-        XCTAssertEqual(S.messagesDeleted(0, "Ndev"), "0 messages deleted by \"Ndev\"")
+        XCTAssertEqual(S.messagesDeleted(1, "Ndev"), "1 message deleted by \"Ndev\".")
+        XCTAssertEqual(S.messagesDeleted(0, "Ndev"), "0 messages deleted by \"Ndev\".")
     }
 
     /// the banner counts the rows removed on this device, not the ids the del names.
@@ -2288,7 +2288,7 @@ final class StateMachineTests: XCTestCase {
         try await n.core.deleteHistoryRows(nRows.map { $0.rowid })
         var r = await x.drainInbox(w)
         XCTAssertEqual(r.count, 1)
-        XCTAssertEqual(r[0].banner?.body, "1 message deleted by \"Ndev\"")
+        XCTAssertEqual(r[0].banner?.body, "1 message deleted by \"Ndev\".")
         _ = try await n.core.send("three", as: .text, to: [x.id], allCount: 1)
         await x.drainInbox(w)
         let xThree = try XCTUnwrap(try x.core.store.history().first { $0.content == "three" })
@@ -2297,7 +2297,7 @@ final class StateMachineTests: XCTestCase {
         try await n.core.deleteHistoryRows([three.rowid])
         r = await x.drainInbox(w)
         XCTAssertEqual(r.count, 1)
-        XCTAssertEqual(r[0].banner?.body, "0 messages deleted by \"Ndev\"")
+        XCTAssertEqual(r[0].banner?.body, "0 messages deleted by \"Ndev\".")
     }
 
     /// setting off: rows go at once, nothing is sent; setting on: a del with the ids.

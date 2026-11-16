@@ -4,13 +4,16 @@ import Foundation
 public enum S {
     public static let title = "PushArmor"
     public static let fallback = "New message"
-    public static let locked = "New message. Unlock to view"
-    public static let dropped = "PushArmor received a message it could not read"
-    public static let invalid = "Invalid message received"
+    public static let locked = "New message. Unlock to view."
+    public static let dropped = "Unable to read a message.\nIt is not valid or was damaged."
+    public static let invalid = "Unable to read a message.\nIt is not valid or was damaged."
     public static let unknownSender = "Unknown sender"
     public static let aPeer = "A device"
-    public static let pairCommit = "A new device wants to pair. Open PushArmor."
-    public static func pairOpen(_ fp: String) -> String { "New device: compare \(fp)" }
+    /// The device named in quotes when its name is known, else the generic text.
+    public static func pairCommit(_ name: String?) -> String {
+        name.map { quoted($0) + " wants to pair." } ?? "A new device wants to pair. Open PushArmor."
+    }
+    public static func pairOpen(_ fp: String, name: String?) -> String { (name.map { quoted($0) } ?? "New device") + ": compare \(fp)." }
     public static let pairReply = "Pairing fingerprint ready. Open PushArmor."
     /// A device name in straight double quotes; "A device" (a name that is not known) stays as it is.
     public static func quoted(_ x: String) -> String { x == aPeer ? aPeer : "\"\(x)\"" }
@@ -20,22 +23,24 @@ public enum S {
     public static func pairingInProgress(_ x: String) -> String { "Pairing with \"\(x)\" is already in progress." }
     public static func cannotPairYet(_ x: String) -> String { "\"\(x)\" can't pair right now. Open PushArmor on that device, then try again." }
     public static let tooManyPairings = "Too many pairings are in progress. Finish or cancel one, then try again."
-    public static func pairCrossing(_ x: String) -> String { "Pairing with " + quoted(x) + " in progress. Open PushArmor." }
+    public static func pairCrossing(_ x: String) -> String { "Pairing with " + quoted(x) + " is in progress. Open PushArmor." }
     public static func approved(_ name: String) -> String { quoted(name) + " confirmed this device." }
-    public static func renamed(_ old: String, _ new: String) -> String { quoted(old) + " renamed to \"\(new)\"" }
-    public static let peerListChanged = "Device list changed"
-    public static let thisDeviceRemoved = "This device was removed. Log in again."
-    public static let accountDeleted = "Account deleted on another device."
-    public static func denied(_ name: String) -> String { quoted(name) + " rejected this device" }
+    public static func renamed(_ old: String, _ new: String) -> String { quoted(old) + " renamed to \"\(new)\"." }
+    public static let peerListChanged = "Device list changed."
+    public static let thisDeviceRemoved = "This device was removed from the account. Log in again."
+    public static let accountDeleted = "The account was deleted on another device."
+    public static func denied(_ name: String) -> String { quoted(name) + " rejected this device." }
     public static func loggedOutNotice(_ name: String) -> String { quoted(name) + " logged out." }
     public static func loggedInNotice(_ name: String) -> String { quoted(name) + " logged in." }
     /// Sync deletions: a del from another device removed messages here.
     public static func messagesDeleted(_ count: Int, _ name: String) -> String {
-        (count == 1 ? "1 message" : "\(count) messages") + " deleted by " + quoted(name)
+        (count == 1 ? "1 message" : "\(count) messages") + " deleted by " + quoted(name) + "."
     }
     public static func newMessageFrom(_ peer: String) -> String { "New message from " + quoted(peer) }
-    public static let pairingFailed = "Pairing failed. Start again on the new device."
-    public static let pairingTimedOut = "Pairing timed out. Tap Pair to start again."
+    public static func pairingFailed(_ x: String) -> String { "Unable to pair with " + quoted(x) + ".\nTap Pair to start again." }
+    public static func pairingTimedOut(_ x: String) -> String {
+        "Unable to pair with " + quoted(x) + ".\nIt did not answer in time. Tap Pair to start again."
+    }
     public static func waiting(_ x: String) -> String { "Waiting for \"\(x)\": open PushArmor there and tap Codes match." }
     public static func noReplyFrom(_ x: String) -> String { "No reply from " + quoted(x) }
     public static let noReplyCheck = "Check that notifications are on for PushArmor on both devices, then try again"
@@ -98,7 +103,7 @@ public enum S {
     public static let updateTitle = "Please update PushArmor"
     public static let updateBody = "This version no longer works with the relay server. Update to keep sending and receiving."
     public static let emailInvalid = "Not a valid email address"
-    public static let signedOutResume = "Logged out. Log in to resume."
+    public static let signedOutResume = "This device is logged out. Log in to resume."
     public static let notificationsOff = "Notifications are off. This device cannot receive messages."
     /// The "cannot receive" banner while notifications are off: line 1, then line 2.
     public static let cannotReceive = "This device cannot receive messages."

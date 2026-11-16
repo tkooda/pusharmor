@@ -50,9 +50,15 @@ final class LoginErrorTests: XCTestCase {
     /// device names are always in straight double quotes; "A device" (no known name) is not.
     func testDeviceNamesAreQuoted() {
         XCTAssertEqual(S.loggedOutNotice(S.aPeer), "A device logged out.")
-        XCTAssertEqual(S.denied("Ndev"), "\"Ndev\" rejected this device")
-        XCTAssertEqual(S.renamed("Old", "New"), "\"Old\" renamed to \"New\"")
-        XCTAssertEqual(S.pairCrossing("Ndev"), "Pairing with \"Ndev\" in progress. Open PushArmor.")
+        XCTAssertEqual(S.denied("Ndev"), "\"Ndev\" rejected this device.")
+        XCTAssertEqual(S.renamed("Old", "New"), "\"Old\" renamed to \"New\".")
+        XCTAssertEqual(S.pairCrossing("Ndev"), "Pairing with \"Ndev\" is in progress. Open PushArmor.")
+        XCTAssertEqual(S.pairCommit("Ndev"), "\"Ndev\" wants to pair.")
+        XCTAssertEqual(S.pairCommit(nil), "A new device wants to pair. Open PushArmor.")
+        XCTAssertEqual(S.pairOpen("K7QD", name: "Ndev"), "\"Ndev\": compare K7QD.")
+        XCTAssertEqual(S.pairOpen("K7QD", name: nil), "New device: compare K7QD.")
+        XCTAssertEqual(S.pairingFailed("Ndev"), "Unable to pair with \"Ndev\".\nTap Pair to start again.")
+        XCTAssertEqual(S.pairingTimedOut("Ndev"), "Unable to pair with \"Ndev\".\nIt did not answer in time. Tap Pair to start again.")
         XCTAssertEqual(S.declinedBy("Ndev"), "Rejected by \"Ndev\"")
         XCTAssertEqual(S.notPairedOn("Ndev"), "Not paired on \"Ndev\"")
         XCTAssertEqual(S.waiting("Ndev"), "Waiting for \"Ndev\": open PushArmor there and tap Codes match.")

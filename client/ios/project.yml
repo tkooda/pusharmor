@@ -112,6 +112,10 @@ targets:
     sources:
       - Share
       - Shared
+      # the send popup of the Send screen, with its brand tile and colours
+      - App/Views/SendPopup.swift
+      - App/Views/Brand.swift
+      - App/Assets.xcassets
     dependencies:
       - package: PushArmorCore
     info:
@@ -138,6 +142,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).share
+        ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS: NO   # colours are named in App/Views/Brand.swift
   # Tests: built and run only by the scheme's test action (Debug); never part of an archive.
   PushArmorTests:
     type: bundle.unit-test

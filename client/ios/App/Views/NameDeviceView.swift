@@ -15,7 +15,7 @@ struct NameDeviceView: View {
                     .textFieldStyle(.roundedBorder)
                     .autocorrectionDisabled()
                     .onSubmit(save)
-                Text("1 to 32 plain ASCII characters, no double quotes.")
+                Text("Use 1 to 32 plain ASCII characters, with no double quote.")
                     .font(.caption)
                     .foregroundColor(.secondaryText)
                 Button("Save", action: save)

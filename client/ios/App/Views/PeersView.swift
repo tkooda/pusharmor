@@ -216,9 +216,9 @@ struct PeerPendingLines: View {
                 .foregroundColor(.secondaryText)
         }
         if p.note == "failed" {
-            failure(S.pairingFailed)
+            failure(S.pairingFailed(label))
         } else if p.note == "timedOut" {
-            failure(S.pairingTimedOut)
+            failure(S.pairingTimedOut(label))
         }
     }
 

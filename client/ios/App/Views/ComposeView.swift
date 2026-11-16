@@ -269,7 +269,7 @@ struct ComposeView: View {
     @State private var listTop: CGFloat = 0
     @State private var barTop: CGFloat = 0
     /// Starts at one chip row (chip minHeight), so the chips do not flicker in from 0.
-    @State private var chipsHeight: CGFloat = 34
+    @State private var chipsHeight: CGFloat = 44
     @Environment(\.dynamicTypeSize) private var typeSize
     @FocusState private var editing: Bool
     /// Chip name width: 150 pt at the default text size, wider at large Dynamic Type (L8).
@@ -342,7 +342,9 @@ struct ComposeView: View {
         }
         // Over the screen while a send is on its way; the layout under it does not move.
         .overlay {
-            if model.busy.contains("send") { sendPopup }
+            if model.busy.contains("send") {
+                SendPopup(caption: sendCaption, names: sendNames, step: model.sendStep, retry: model.sendRetry)
+            }
         }
         .onAppear { restoreSelection() }
         .onChange(of: candidates.map { $0.id.text }) { _, _ in restoreSelection() }
@@ -480,42 +482,6 @@ struct ComposeView: View {
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { barTop = $0 }
     }
 
-    /// The send popup: brand tile and caption, a bar at the send's step, and the step under it.
-    private var sendPopup: some View {
-        ZStack {
-            Color.black.opacity(0.4).ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 16) {
-                    BrandTileView(size: 40)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(sendCaption)
-                        if sendNames.count > 1 {
-                            ForEach(Array(sendNames.enumerated()), id: \.offset) { _, name in
-                                Text("\u{2022} " + name)
-                            }
-                        }
-                    }
-                }
-                ProgressView(value: Double(model.sendStep), total: 100)
-                    .progressViewStyle(.linear)
-                    .tint(Color.brandGreen)
-                    .padding(.top, 16)
-                Text(model.sendRetry > 1 ? DeleteProgress.retry(model.sendRetry, RetryPolicy.serverDelays.count + 1)
-                     : model.sendStep < SendProgress.encrypted ? S.encryptingFor(sendNames) : S.sendingTo(sendNames))
-                    .font(.caption)
-                    .foregroundColor(.secondaryText)
-                    .padding(.top, 4)
-            }
-            .padding(24)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .padding(.horizontal, 32)
-            .accessibilityElement(children: .combine)
-            // VoiceOver stays on the popup while it shows.
-            .accessibilityAddTraits(.isModal)
-        }
-    }
-
     /// The wrapping chip toggles. With the keyboard up only the chosen devices show.
     private var chips: some View {
         let shown = Set(SendScreenRules.visibleChips(
@@ -592,7 +558,7 @@ struct ComposeView: View {
         .font(.subheadline.weight(on ? .semibold : .regular))
         .foregroundStyle(on ? Color.onApproveFill : Color.primary)
         .padding(.horizontal, 12)
-        .frame(minHeight: 34)
+        .frame(minHeight: 44)
         .background(Capsule().fill(on ? Color.approveFill : Color.clear))
         .overlay(Capsule().strokeBorder(on ? Color.clear : Color(uiColor: .separator), lineWidth: 1))
         .contentShape(Capsule())

@@ -133,7 +133,7 @@ final class ErrorCopyTests: XCTestCase {
     /// a rename shows the name rule only for a bad name; any other failure says why.
     func testRenameFailText() {
         XCTAssertEqual(ErrorCopy.renameFailText("a\"b", .success(.network)), ErrorCopy.nameRule)
-        XCTAssertEqual(ErrorCopy.nameRule, "Use 1 to 32 plain ASCII characters, no double quote.")
+        XCTAssertEqual(ErrorCopy.nameRule, "Use 1 to 32 plain ASCII characters, with no double quote.")
         XCTAssertNil(ErrorCopy.renameFailText("Ndev", .success(reply(200))))
         XCTAssertEqual(ErrorCopy.renameFailText("Ndev", .success(.network)),
                        "Unable to rename this device.\nThe relay server could not be reached. Check your internet connection and try again.")

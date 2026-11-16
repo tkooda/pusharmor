@@ -195,7 +195,7 @@ public enum ErrorCopy {
     }
 
     /// The name rule; shown only for a name that breaks it.
-    public static let nameRule = "Use 1 to 32 plain ASCII characters, no double quote."
+    public static let nameRule = "Use 1 to 32 plain ASCII characters, with no double quote."
 
     /// The toast after a rename of this device, nil when it went through: the name rule only
     /// for a bad name, else "Unable to rename this device." and the reason.

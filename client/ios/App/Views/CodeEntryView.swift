@@ -7,6 +7,7 @@ struct CodeEntryView: View {
     @EnvironmentObject var model: AppModel
     @State private var raw = ""
     @State private var busy = false
+    @State private var showTurnstile = false
     @FocusState private var focused: Bool
     @ScaledMetric private var scaled: CGFloat = 28
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -27,9 +28,11 @@ struct CodeEntryView: View {
 
     private var form: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Enter the code")
+            Text("Check your email")
                 .font(.title2.bold())
-            Text("We sent a code to \(email).")
+            Text(email)
+                .font(.headline)
+            Text("We sent a 6-character code to this address. It can take a minute to arrive.")
             ZStack {
                 HStack(spacing: 8) {
                     ForEach(0 ..< EmailCode.length, id: \.self) { i in
@@ -76,10 +79,23 @@ struct CodeEntryView: View {
                 // the step under the indicator: checking the code, then setting up
                 if let c = model.caption { ProgressView(c) } else { ProgressView() }
             }
+            // The countdown ticks once a second until a new code can be sent.
+            TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                let left = model.resend.leftMs(for: email, nowMs: Int(ctx.date.timeIntervalSince1970 * 1000))
+                Button(S.sendLabel("Get a new code", leftMs: left)) { instantly { showTurnstile = true } }
+                    .disabled(left > 0 || busy || model.busy.contains("sendCode"))
+            }
             Button("Back") { model.leaveCode(purpose) }
             Spacer()
         }
         .padding(24)
+        .sheet(isPresented: $showTurnstile) {
+            TurnstileSheet(onToken: { token in
+                Task { await model.emailStart(email, purpose: purpose, turnstile: token) }
+            }, onFail: {
+                model.toast = ErrorCopy.text(.sendCode, .unreachable)
+            })
+        }
     }
 
     /// VoiceOver text for the entered characters, for example "A 7 K, 3 of 6".

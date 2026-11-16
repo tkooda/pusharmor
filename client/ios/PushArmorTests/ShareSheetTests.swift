@@ -18,24 +18,34 @@ final class ShareSheetTests: XCTestCase {
         XCTAssertEqual(src.components(separatedBy: "S.shareLoggedOut").count - 1, 1)
     }
 
-    /// The too-long view keeps its original look at the default text size: padding only
-    /// when it scrolls (large text).
-    func testTooLongViewHasPaddingOnlyWhenItScrolls() throws {
+    /// Too long text: an editable box with the Send screen's counter, and Send greyed until it
+    /// fits; no send of a part.
+    func testTooLongEditsWithCounterAndGreyedSend() throws {
         let src = try source()
         let view = src.components(separatedBy: "private var tooLong: some View {")[1]
             .components(separatedBy: "var body: some View")[0]
-        XCTAssertFalse(view.contains(".padding("))
-        XCTAssertTrue(src.contains("ScrollView { tooLong.padding() }"))
-    }
-
-    /// Too long text: the counter and a greyed Send that cannot be tapped; no send of a part.
-    func testTooLongGreysOutSend() throws {
-        let src = try source()
-        let view = src.components(separatedBy: "private var tooLong: some View {")[1]
-            .components(separatedBy: "var body: some View")[0]
-        XCTAssertTrue(view.contains("Button(\"Send\") {}\n                .disabled(true)"))
+        XCTAssertTrue(view.contains("TextEditor(text: $model.text)"))
+        XCTAssertTrue(view.contains("if SizeCap.isWarning(model.text) {\n                Text(SizeCap.label(model.text))"))
+        XCTAssertTrue(view.contains(".frame(maxWidth: .infinity, alignment: .trailing)"))
+        XCTAssertTrue(view.contains(".disabled(SizeCap.isOver(model.text) ||"))
+        XCTAssertTrue(src.contains("guard !SizeCap.isOver(text) else { return }"))
         XCTAssertFalse(src.contains("truncate"))
         XCTAssertFalse(src.contains("Send the first"))
+    }
+
+    /// The send shows the Send screen's progress popup while it is on its way.
+    func testSendShowsTheSendPopup() throws {
+        let src = try source()
+        XCTAssertTrue(src.contains("SendPopup(caption: model.sendCaption, names: model.sendNames, step: model.sendStep, retry: model.sendRetry)"))
+        XCTAssertTrue(src.contains("SendProgress.$step.withValue"))
+        XCTAssertTrue(src.contains("SendProgress.$retry.withValue"))
+    }
+
+    /// The top-left button reads Cancel until the result shows, then Done.
+    func testDoneAfterTheResult() throws {
+        let src = try source()
+        XCTAssertTrue(src.contains("Button(model.finished ? \"Done\" : \"Cancel\")"))
+        XCTAssertTrue(src.contains("case .done, .failed: return true"))
     }
 
     /// A URL or phone number over the cap greys out Send like text, with no error.

@@ -30,6 +30,13 @@ final class ShareModel: ObservableObject {
     private weak var context: NSExtensionContext?
     private var core: Core?
     private var sending = false
+    /// The send popup: shown while the send is on its way, with its caption, device names, progress
+    /// (25, 50, 75, 100), and try number (2 or 3 when trying again), as on the Send screen.
+    @Published var popup = false
+    @Published var sendCaption = ""
+    @Published var sendNames: [String] = []
+    @Published var sendStep = 0
+    @Published var sendRetry = 0
 
     init(context: NSExtensionContext?) { self.context = context }
 
@@ -63,10 +70,17 @@ final class ShareModel: ObservableObject {
         text = shared.0
         type = shared.1
         if SizeCap.isOver(text) {
-            // text, URL, or phone number over cap: the counter and a greyed Send
+            // text, URL, or phone number over cap: an editable box with the counter, and Send greyed until it fits
             step = .tooLong
             return
         }
+        await route()
+    }
+
+    /// Send on the too-long step, once the edited text fits: how it goes is found again from the new text.
+    func sendEdited() async {
+        guard !SizeCap.isOver(text) else { return }
+        type = SendDetection.detect(text)
         await route()
     }
 
@@ -85,12 +99,29 @@ final class ShareModel: ObservableObject {
         // One send per share: a second tap while the first is on its way does nothing.
         guard let core = core, !sending else { return }
         sending = true
+        let text = self.text, type = self.type, allCount = all.count
+        let chosen = all.filter { ids.contains($0.id) }
+        sendNames = PeerLabel.sorted(chosen).map { PeerLabel.label($0) }
+        sendCaption = sendNames.count > 1 ? S.sendingHeader(type) : S.sending(type, to: sendNames)
+        sendStep = 0
+        sendRetry = 0
+        popup = true
         do {
-            let rep = try await core.send(text, as: type, to: ids, allCount: all.count)
+            let rep = try await SendProgress.$step.withValue({ s in
+                _ = Task { @MainActor in if s > self.sendStep { self.sendStep = s } }
+            }) {
+                try await SendProgress.$retry.withValue({ a in
+                    _ = Task { @MainActor in self.sendRetry = a }
+                }) {
+                    try await core.send(text, as: type, to: ids, allCount: allCount)
+                }
+            }
+            popup = false
             step = .done(rep.toast)
         } catch {
+            popup = false
             if AppEnvironment.shared.updateRequired { step = .update; return }
-            // A failure stays on screen until the user taps Cancel.
+            // A failure stays on screen until the user taps Done.
             step = .failed(ErrorCopy.sendFailText(error))
             return
         }
@@ -99,6 +130,14 @@ final class ShareModel: ObservableObject {
     }
 
     func close() { context?.completeRequest(returningItems: nil) }
+
+    /// The result (sent or failed) is on screen.
+    var finished: Bool {
+        switch step {
+        case .done, .failed: return true
+        default: return false
+        }
+    }
 
     /// The first web URL, else the first text item (activation rule: one web URL or text).
     func sharedContent() async -> (String, SendType)? {
@@ -123,12 +162,34 @@ final class ShareModel: ObservableObject {
 struct ShareView: View {
     @ObservedObject var model: ShareModel
 
+    /// The shared text in an editable box with the Send screen's counter; Send stays greyed until it fits.
     private var tooLong: some View {
-        VStack(spacing: 12) {
-            Text(SizeCap.label(model.text))
-            Button("Send") {}
-                .disabled(true)
+        VStack(alignment: .leading, spacing: 6) {
+            TextEditor(text: $model.text)
+                .scrollContentBackground(.hidden)
+                .accessibilityLabel("Message")
+                .padding(4)
+                .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color(uiColor: .separator), lineWidth: 1)
+                )
+            if SizeCap.isWarning(model.text) {
+                Text(SizeCap.label(model.text))
+                    .font(.footnote)
+                    .foregroundColor(.errorText)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            Button {
+                Task { await model.sendEdited() }
+            } label: {
+                Label("Send", systemImage: "paperplane.fill")
+            }
+            .buttonStyle(GreenButtonStyle())
+            .disabled(SizeCap.isOver(model.text) || model.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .padding(.top, 6)
         }
+        .padding()
     }
 
     var body: some View {
@@ -138,11 +199,7 @@ struct ShareView: View {
                 case .loading:
                     ProgressView()
                 case .tooLong:
-                    // Scrolls only when it does not fit (large text).
-                    ViewThatFits(in: .vertical) {
-                        tooLong
-                        ScrollView { tooLong.padding() }
-                    }
+                    tooLong
                 case .pick:
                     List {
                         if model.showAll {
@@ -162,10 +219,17 @@ struct ShareView: View {
                     .padding()
                 }
             }
+            // Over the screen while the send is on its way, as on the Send screen.
+            .overlay {
+                if model.popup {
+                    SendPopup(caption: model.sendCaption, names: model.sendNames, step: model.sendStep, retry: model.sendRetry)
+                }
+            }
             .navigationTitle(S.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { model.close() } }
+                // Nothing is left to cancel once the result shows.
+                ToolbarItem(placement: .cancellationAction) { Button(model.finished ? "Done" : "Cancel") { model.close() } }
             }
         }
     }
