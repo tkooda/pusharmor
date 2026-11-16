@@ -179,6 +179,22 @@ test("a menu click opens the toolbar popup, which takes the send to run it with 
   assert.deepEqual(await new Promise((resolve) => onRuntimeMessage(boot)({ op: "menuSendClaim" }, {} as never, resolve as never)), { ok: true, data: null });
 });
 
+test("a menu click with text over the limit gives the toolbar popup the text to edit, and sends nothing", async () => {
+  const { onMenuClick, onRuntimeMessage } = await import("../src/shellkit.ts");
+  let sends = 0;
+  const tabs: string[] = [];
+  const b = { action: { setBadgeText: async () => undefined, openPopup: async () => undefined }, tabs: { create: async (o: { url: string }) => void tabs.push(o.url) } };
+  const engine = { send: async () => (sends++, { sent: 1, total: 1, failures: [] }), p: { notify: () => undefined, setBadge: () => undefined } };
+  const boot = async () => ({ engine }) as never;
+  const long = "x".repeat(2001);
+  onMenuClick(b as never, boot, async () => long)({ menuItemId: "pa-sel|dev1", selectionText: "x" } as never);
+  const got = await new Promise((resolve) => onRuntimeMessage(boot)({ op: "menuSendClaim" }, {} as never, resolve as never));
+  assert.deepEqual(got, { ok: true, data: { text: long, child: "dev1", over: true } });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(sends, 0);
+  assert.deepEqual(tabs, []); // the popup shows it; no extra tab
+});
+
 test("a menu click sends in the background when the toolbar popup cannot open", async () => {
   const { onMenuClick } = await import("../src/shellkit.ts");
   let sends = 0;

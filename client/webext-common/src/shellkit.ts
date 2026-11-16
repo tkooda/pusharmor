@@ -164,15 +164,15 @@ export function lazyBoot(make: () => Platform, vapid: Uint8Array): () => Promise
   };
 }
 
-/** A context menu send the toolbar popup takes over: ready gives the text, or null when there is none to send. */
+/** A context menu send the toolbar popup takes over: ready gives the text (over: longer than the limit), or null when there is none to send. */
 interface MenuPending {
-  ready: Promise<{ text: string; child: string } | null>;
+  ready: Promise<{ text: string; child: string; over?: true } | null>;
   claimed: () => void;
 }
 let menuPending: MenuPending | null = null;
 
 /** The toolbar popup takes the waiting context menu send (once), to send it with its Send popup. */
-async function claimMenuSend(): Promise<{ text: string; child: string } | null> {
+async function claimMenuSend(): Promise<{ text: string; child: string; over?: true } | null> {
   const m = menuPending;
   menuPending = null;
   if (!m) return null;
@@ -251,7 +251,7 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
       // the toolbar popup sends it with the same Send popup as its Send screen; if it cannot open
       // or does not take the send in time, the send runs here as before
       const opened = openActionPopup(b);
-      let give: (v: { text: string; child: string } | null) => void = () => undefined;
+      let give: (v: { text: string; child: string; over?: true } | null) => void = () => undefined;
       let taken: () => void = () => undefined;
       const claim = new Promise<void>((r) => (taken = r));
       const mine: MenuPending = { ready: new Promise((r) => (give = r)), claimed: () => taken() };
@@ -266,10 +266,12 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
         text = (await readSelection(tab, info.selectionText ?? "", info.frameId)).slice(0, 200000); // the send window URL stays under 2 MiB
         if (/[\uD800-\uDBFF]$/.test(text)) text = text.slice(0, -1); // a cut inside a pair would make encodeURIComponent throw
       }
-      if (!text || utf8Len(text) > SEND_CAP) give(null);
+      // text over the limit opens the popup's Send screen with the text to edit
+      if (!text) give(null);
+      else if (utf8Len(text) > SEND_CAP) give({ text, child, over: true });
       else give({ text, child });
       if (!text) return unclaim();
-      if (utf8Len(text) <= SEND_CAP && (await opened)) {
+      if (await opened) {
         let late = false;
         await Promise.race([claim, new Promise<void>((r) => setTimeout(() => ((late = true), r()), 5000))]);
         if (!late) return;

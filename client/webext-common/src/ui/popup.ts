@@ -99,8 +99,8 @@ export async function mountPopup(env: UiEnv, root: HTMLElement, page?: PageStart
     root.querySelector<HTMLElement>("button.primary")?.focus();
     return;
   }
-  // a context menu send opened this popup: it runs here with the Send popup
-  if (env.inPopup?.() === true) void menuSendHere(env);
+  // a context menu send opened this popup: it runs here with the Send popup; text over the limit opens Send to edit it
+  const menuOver = env.inPopup?.() === true ? menuSendHere(env) : Promise.resolve(null);
   const blocked = env.notificationsBlocked?.().catch(() => false);
   // a failed read keeps Send, the view this open showed before
   const peers = (await rpc<{ peers: PeerView[] }>(env, "peers").catch(() => null))?.peers;
@@ -155,7 +155,9 @@ export async function mountPopup(env: UiEnv, root: HTMLElement, page?: PageStart
   const top = h("div", { class: "top" }, h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), setupBar(env, st), off, tabs);
   root.append(top, body);
   // after the first view is drawn, so the message keeps clear of its footer
-  void show(first, page?.openPair, page?.arg)
+  const shown = show(first, page?.openPair, page?.arg);
+  void Promise.all([shown, menuOver]).then(([, over]) => over !== null && my === mounts && show("send", false, over));
+  void shown
     .then(() => showPushIssue(env, st, () => my === mounts))
     .then(() => settlePushIssue(env, st, () => my === mounts));
 }
@@ -472,10 +474,11 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   await update();
 }
 
-/** A context menu send this popup took: the Send popup while it runs, then the result as on Send. */
-async function menuSendHere(env: UiEnv): Promise<void> {
-  const m = await rpc<{ text: string; child: string } | null>(env, "menuSendClaim").catch(() => null);
-  if (!m) return;
+/** A context menu send this popup took: the Send popup while it runs, then the result as on Send. Text over the limit is returned, not sent. */
+async function menuSendHere(env: UiEnv): Promise<string | null> {
+  const m = await rpc<{ text: string; child: string; over?: true } | null>(env, "menuSendClaim").catch(() => null);
+  if (!m) return null;
+  if (m.over) return m.text;
   try {
     const peers = (await rpc<{ peers: PeerView[] }>(env, "peers")).peers;
     const one = peers.find((p) => p.id === m.child);
@@ -495,6 +498,7 @@ async function menuSendHere(env: UiEnv): Promise<void> {
   } catch (e) {
     toast((e as Error).message, "err");
   }
+  return null;
 }
 
 /** The Send popup: a modal dialog over the view (the layout stays) with the brand tile, a caption, the bar, and the step line. */
