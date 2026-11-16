@@ -461,8 +461,12 @@ class AppLogicTest {
         assertTrue(sign.contains("Text(UiText.CODE_SENT_NOTE"))
         assertTrue(sign.contains("can never be read by our relay server or anyone else."))
         // Get a new code sends to the same address and stays on the code step.
-        assertTrue(sign.contains("vm.message.value = null; resending = true }"))
-        assertTrue(sign.contains("if (rt != null) requestToken = rt\n                            resending = false"))
+        assertTrue(sign.contains("vm.message.value = null; resending = true; resendTry++ }"))
+        assertTrue(sign.contains("if (rt != null) requestToken = rt\n                                } finally {\n                                    requesting = false\n                                    resending = false"))
+        // A security check that fails or never gives a token does not leave the button greyed; a new tap starts a new check.
+        assertTrue(sign.contains("enabled = left <= 0 && !requesting) {\n                        Text(UiText.sendLabel(\"Get a new code\", left))"))
+        assertTrue(sign.contains("if (resending) key(resendTry) {"))
+        assertFalse(sign.contains("left <= 0 && !resending"))
         // The security check fallback line keeps the normal text color.
         assertTrue(sign.contains("Text(UiText.SECURITY_CHECK_FAILED)\n"))
     }

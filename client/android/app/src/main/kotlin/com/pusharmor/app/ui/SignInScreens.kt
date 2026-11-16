@@ -72,6 +72,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -194,6 +195,8 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onSe
     var code by rememberSaveable { mutableStateOf("") }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     var resending by rememberSaveable { mutableStateOf(false) }
+    var resendTry by rememberSaveable { mutableStateOf(0) }
+    var requesting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val msg by vm.message.collectAsState()
     // Back goes to the log-in choices, not out of the app.
@@ -250,14 +253,22 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onSe
                         if (submit) requestToken?.let { vm.emailVerify(it, code, purpose, onDone) }
                     }
                     // A new code for the same address after the resend countdown; the security check shows here and the code step stays.
-                    TextButton(onClick = { code = ""; error = null; vm.message.value = null; resending = true }, Modifier.heightIn(min = 48.dp), enabled = left <= 0 && !resending) {
+                    // Greyed only while the new code is requested: a security check that fails or never gives a token can be started again.
+                    TextButton(onClick = { code = ""; error = null; vm.message.value = null; resending = true; resendTry++ }, Modifier.heightIn(min = 48.dp), enabled = left <= 0 && !requesting) {
                         Text(UiText.sendLabel("Get a new code", left))
                     }
-                    if (resending) TurnstileView(onNoApp = { vm.message.value = it }, playStore = vm.g.push.hasPlayServices) { token ->
-                        scope.launch {
-                            val rt = vm.emailStart(email, token, purpose)
-                            if (rt != null) requestToken = rt
-                            resending = false
+                    if (resending) key(resendTry) {
+                        TurnstileView(onNoApp = { vm.message.value = it }, playStore = vm.g.push.hasPlayServices) { token ->
+                            requesting = true
+                            scope.launch {
+                                try {
+                                    val rt = vm.emailStart(email, token, purpose)
+                                    if (rt != null) requestToken = rt
+                                } finally {
+                                    requesting = false
+                                    resending = false
+                                }
+                            }
                         }
                     }
                 }
