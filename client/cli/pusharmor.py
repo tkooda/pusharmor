@@ -2857,7 +2857,7 @@ def cmd_pair(cx, args):
                 if r not in ("sent", "429"):
                     raise Fail(pair_reason(r))
             first = False
-            print("\nCompare Pairing Code: %s\n" % e["fingerprint"])
+            print("\nCompare pairing code: %s\n" % e["fingerprint"])
             try:
                 while True:
                     a = ask('Does "%s" show the same code? [y/N] ' % name).strip().lower()

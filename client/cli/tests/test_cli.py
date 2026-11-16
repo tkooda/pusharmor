@@ -495,7 +495,7 @@ def test_pair_send_listen(net, tmp_path, monkeypatch, capsys):
     assert da["peers"][idb]["pairing_id"] == db["peers"][ida]["pairing_id"]
     assert da["pairs"] == {} and db["pairs"] == {}
     out = capsys.readouterr().out
-    assert len(re.findall(r"(?:^|(?<=\n))\nCompare Pairing Code: [0-9A-Z]{4}\n(?=\n)", out)) == 2
+    assert len(re.findall(r"(?:^|(?<=\n))\nCompare pairing code: [0-9A-Z]{4}\n(?=\n)", out)) == 2
     assert out.count("Paired with ") == 2
 
     assert run(a, "pair") == 0
