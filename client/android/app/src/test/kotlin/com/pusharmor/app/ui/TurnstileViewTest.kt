@@ -47,6 +47,15 @@ class QuietWebViewCompat {
     }
 }
 
+@Implements(WebViewCompat::class)
+class CapturingWebViewCompat {
+    companion object {
+        var listener: WebViewCompat.WebMessageListener? = null
+        @JvmStatic @Implementation
+        fun addWebMessageListener(webView: WebView, name: String, origins: Set<String>, listener: WebViewCompat.WebMessageListener) { this.listener = listener }
+    }
+}
+
 @Implements(WebView::class)
 class RecordingWebView : ShadowWebView() {
     companion object { var destroyed = 0 }
@@ -99,5 +108,29 @@ class TurnstileViewTest {
         c.pause().stop().destroy()
         shadowOf(Looper.getMainLooper()).idle()
         assertEquals(1, RecordingWebView.destroyed)
+    }
+
+    private fun webViews(v: View): List<WebView> = when (v) {
+        is WebView -> listOf(v)
+        is ViewGroup -> (0 until v.childCount).flatMap { webViews(v.getChildAt(it)) }
+        else -> emptyList()
+    }
+
+    /** The check page loads but gives no token: 30 s later a new check can be started; a token in time keeps it as is. */
+    @Config(shadows = [SupportedWebViewFeature::class, CapturingWebViewCompat::class])
+    @Test fun noTokenThirtySecondsAfterThePageLoadsCountsAsFailed() {
+        for (token in listOf(false, true)) {
+            var fails = 0
+            UiHostActivity.content = { TurnstileView(onNoApp = {}, onFail = { fails++ }) {} }
+            val a = Robolectric.buildActivity(UiHostActivity::class.java).setup().get()
+            shadowOf(Looper.getMainLooper()).idle()
+            val web = webViews(a.window.decorView).single()
+            shadowOf(web).webViewClient.onPageFinished(web, "https://pusharmor.com/turnstile")
+            if (token) CapturingWebViewCompat.listener!!.onPostMessage(web, androidx.webkit.WebMessageCompat("t"), android.net.Uri.parse("https://pusharmor.com"), true, object : androidx.webkit.JavaScriptReplyProxy() { override fun postMessage(message: String) {}; override fun postMessage(message: ByteArray) {} })
+            shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(29))
+            assertEquals(0, fails)
+            shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+            assertEquals(if (token) 0 else 1, fails)
+        }
     }
 }

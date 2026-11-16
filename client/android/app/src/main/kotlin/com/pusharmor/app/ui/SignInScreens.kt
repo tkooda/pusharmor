@@ -322,7 +322,7 @@ private fun CodeCells(code: String, onChange: (String) -> Unit) {
         })
 }
 
-/** Turnstile host page in a WebView; the token comes back through a WebMessageListener for https://pusharmor.com only. onFail: the check cannot show or its page did not load. */
+/** Turnstile host page in a WebView; the token comes back through a WebMessageListener for https://pusharmor.com only. onFail: the check cannot show, its page did not load, or it gave no token 30 s after its page loaded. */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun TurnstileView(onNoApp: (String) -> Unit, playStore: Boolean = true, onFail: () -> Unit = {}, onToken: (String) -> Unit) {
@@ -349,14 +349,18 @@ fun TurnstileView(onNoApp: (String) -> Unit, playStore: Boolean = true, onFail: 
             settings.allowFileAccess = false
             settings.allowContentAccess = false
             CookieManager.getInstance().setAcceptCookie(true)
+            var done = false
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
                     request.isForMainFrame && !request.url.toString().startsWith("https://pusharmor.com/")
                 override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                     if (request.isForMainFrame) view.post { onFail() }
                 }
+                // The check page loaded but gave no token in 30 s: a new check can be started.
+                override fun onPageFinished(view: WebView, url: String) {
+                    view.postDelayed({ if (!done && view.isAttachedToWindow) onFail() }, 30_000)
+                }
             }
-            var done = false
             WebViewCompat.addWebMessageListener(this, "paTurnstile", setOf("https://pusharmor.com")) { view, msg, _, _, _ ->
                 val token = msg.data ?: return@addWebMessageListener
                 if (done) return@addWebMessageListener
