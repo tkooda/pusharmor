@@ -18,6 +18,7 @@
 
   function say(text, fail) {
     if (fail) status.setAttribute("role", "alert"); else status.setAttribute("role", "status");
+    status.classList.toggle("fail", !!fail);
     status.textContent = text;
   }
 

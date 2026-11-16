@@ -16,6 +16,7 @@
   --btn-fg: #ffffff;
   --armor: #1f3a5f;
   --warn: #9a3b00;
+  --error: #b3261e;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -30,6 +31,7 @@
     --armor: #f4f7fa;
     --push: #15a86b;
     --warn: #ffb27a;
+    --error: #e5534b;
   }
 }
 * { box-sizing: border-box; }
@@ -245,6 +247,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 .framed body, .framed main { padding: 0; }
 .framed footer, .framed #status { display: none; }
 .status { min-height: 1.5rem; font-weight: 600; white-space: pre-line; }
+.status.fail, .copied.fail { color: var(--error); }
 
 /* About page */
 .sec-callout {

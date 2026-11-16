@@ -14,7 +14,8 @@
   var close = document.getElementById("close");
   var android = /Android/.test(navigator.userAgent);
 
-  function say(text, canRetry) {
+  function say(text, canRetry, fail) {
+    status.classList.toggle("fail", !!fail);
     status.textContent = text;
     retry.hidden = !canRetry;
   }
@@ -42,9 +43,9 @@
     if (perm !== "granted") {
       if (android) {
         say("Firefox did not allow notifications. If this is a private tab, open PushArmor.com/fx/setup in a normal tab. " +
-          "Otherwise, allow notifications for PushArmor.com in Firefox Settings > Site permissions, then tap Retry.", true);
+          "Otherwise, allow notifications for PushArmor.com in Firefox Settings > Site permissions, then tap Retry.", true, true);
       } else {
-        say("Allow notifications for PushArmor.com in the address bar, then Retry.", true);
+        say("Allow notifications for PushArmor.com in the address bar, then Retry.", true, true);
       }
       return;
     }
@@ -64,9 +65,9 @@
     }
     if (!sub) {
       if (android) {
-        say("Unable to turn on notifications.\nThis Firefox cannot get notifications on this phone because Google Play services is missing. Install Firefox from Google Play, or use the PushArmor app for Android.", false);
+        say("Unable to turn on notifications.\nThis Firefox cannot get notifications on this phone because Google Play services is missing. Install Firefox from Google Play, or use the PushArmor app for Android.", false, true);
       } else {
-        say("Firefox could not create a push subscription (offline, or push is disabled in this profile)", true);
+        say("Firefox could not create a push subscription (offline, or push is disabled in this profile)", true, true);
       }
       return;
     }

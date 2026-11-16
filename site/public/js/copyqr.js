@@ -94,7 +94,8 @@
       return s;
     }
 
-    function say(s, msg) {
+    function say(s, msg, fail) {
+      s.classList.toggle("fail", !!fail);
       s.textContent = msg;
       clearTimeout(s.pacqTimer);
       s.pacqTimer = setTimeout(function () { s.textContent = ""; }, 2000);
@@ -111,7 +112,7 @@
       btn.addEventListener("click", function () {
         var text = targetText(el);
         if (!copy) return showQr(btn, text);
-        g.navigator.clipboard.writeText(text).then(function () { say(s, "Copied"); }, function () { say(s, "Unable to copy"); });
+        g.navigator.clipboard.writeText(text).then(function () { say(s, "Copied"); }, function () { say(s, "Unable to copy", true); });
       });
       btn.hidden = false;
     });

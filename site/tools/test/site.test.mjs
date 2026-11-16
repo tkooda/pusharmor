@@ -753,7 +753,8 @@ test("fx/setup: a refusal says what to do, and success offers Close this tab", (
 function fxSetup(marked) {
   const el = () => {
     const ls = {};
-    return { hidden: false, textContent: "", ls, addEventListener: (t, f) => void (ls[t] = f) };
+    const cls = new Set();
+    return { hidden: false, textContent: "", ls, cls, classList: { toggle: (c, on) => void (on ? cls.add(c) : cls.delete(c)) }, addEventListener: (t, f) => void (ls[t] = f) };
   };
   const els = { status: el(), start: el(), retry: el(), close: el() };
   const calls = [];
@@ -774,6 +775,7 @@ test("fx/setup in a private tab asks for a normal tab and makes no push subscrip
   assert.equal(els.status.textContent, "Open this page in a normal tab to turn on notifications.");
   assert.equal(els.start.hidden, true);
   assert.equal(els.retry.hidden, true);
+  assert.equal(els.status.cls.has("fail"), false);
   await els.start.ls.click();
   assert.deepEqual(calls, []); // no permission prompt, no service worker, no fx-sub
   const normal = fxSetup(false);
@@ -781,6 +783,16 @@ test("fx/setup in a private tab asks for a normal tab and makes no push subscrip
   assert.equal(normal.els.start.hidden, false);
   await normal.els.start.ls.click().catch(() => undefined); // stops at the stub service worker
   assert.deepEqual(normal.calls.slice(0, 2), ["permission", "register"]);
+});
+
+test("site failure status lines get the red error color; progress and success lines do not", () => {
+  const css = readFileSync(join(PUB, "css", "site.css"), "utf8");
+  assert.match(css, /\.status\.fail, \.copied\.fail \{ color: var\(--error\); \}/);
+  for (const f of ["auth-cli.js", "delete-account.js"]) assert.match(readFileSync(join(PUB, "js", f), "utf8"), /status\.classList\.toggle\("fail", !!fail\);/);
+  const setup = readFileSync(join(PUB, "js", "fx-setup.js"), "utf8");
+  assert.equal((setup.match(/, true\);/g) || []).length, 4);
+  assert.match(readFileSync(join(PUB, "js", "copyqr.js"), "utf8"), /"Unable to copy", true\)/);
+  assert.match(readFileSync(join(PUB, "js", "fx-open.js"), "utf8"), /status\.classList\.add\("fail"\);\n\s*status\.textContent = "Unable to pass/);
 });
 
 test("site build fails when the APK hashes file lacks the APK version of the tag", () => {
