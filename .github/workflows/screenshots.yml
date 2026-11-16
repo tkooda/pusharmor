@@ -67,6 +67,8 @@ jobs:
           profile: pixel
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot-save -noaudio -no-boot-anim
+          # emulator 37.2.13.0; bump on purpose, not at a new Google release
+          emulator-build: 16740729
           working-directory: client/android
           script: bash tools/screenshots.sh "${{ runner.temp }}/shots/android" "${{ runner.temp }}/review/android"
       - name: Check the screenshots
