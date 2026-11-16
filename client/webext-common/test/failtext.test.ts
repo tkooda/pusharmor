@@ -418,3 +418,19 @@ test("Firefox for Android says tap Cancel pairing request and tap Send again, de
     if (nav) Object.defineProperty(globalThis, "navigator", nav);
   }
 });
+
+test("Firefox for Android says tap Check again on the cannot receive banner, desktop says click", async () => {
+  const desk = await import("../src/core/texts.ts");
+  assert.equal(desk.pushIssueText("nostart", false), "This browser cannot receive messages.\nFirefox did not start its push service. Restart Firefox, then click Check again.");
+  assert.equal(desk.pushIssueText("noreach", false), "This browser cannot receive messages.\nIts push address did not reach the relay server. Check the internet connection, then click Check again.");
+  const nav = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  Object.defineProperty(globalThis, "navigator", { value: { userAgent: "Mozilla/5.0 (Android 14; Mobile; rv:133.0) Gecko/133.0 Firefox/133.0" }, configurable: true });
+  try {
+    const fresh: string = "../src/core/texts.ts?android-checkagain"; // a second copy reads the Android user agent at load
+    const fa = (await import(fresh)) as typeof desk;
+    assert.equal(fa.pushIssueText("nostart", false), "This browser cannot receive messages.\nFirefox did not start its push service. Restart Firefox, then tap Check again.");
+    assert.equal(fa.pushIssueText("noreach", false), "This browser cannot receive messages.\nIts push address did not reach the relay server. Check the internet connection, then tap Check again.");
+  } finally {
+    if (nav) Object.defineProperty(globalThis, "navigator", nav);
+  }
+});

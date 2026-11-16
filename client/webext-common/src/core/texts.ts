@@ -95,8 +95,8 @@ export function pushIssueText(issue: "refused" | "noservice" | "unsupported" | "
     return "This device cannot receive messages.\nThe relay server cannot reach " + vendor + "'s push service right now. This is not a problem on this device. Try again later.";
   // the relay server answered 400 "push endpoint not allowed" to this browser's push address
   if (issue === "unsupported") return "This browser cannot receive messages.\nIts push service is not supported.";
-  if (issue === "nostart") return "This browser cannot receive messages.\nFirefox did not start its push service. Restart Firefox, then click Check again.";
-  if (issue === "noreach") return "This browser cannot receive messages.\nIts push address did not reach the relay server. Check the internet connection, then click Check again.";
+  if (issue === "nostart") return "This browser cannot receive messages.\nFirefox did not start its push service. Restart Firefox, then " + CLICK.toLowerCase() + " Check again.";
+  if (issue === "noreach") return "This browser cannot receive messages.\nIts push address did not reach the relay server. Check the internet connection, then " + CLICK.toLowerCase() + " Check again.";
   const head = "Unable to turn on notifications.\n";
   if (issue === "relay") return head + "The relay server did not accept its push service. Try again later.";
   if (brave) return head + 'Turn on "Use Google services for push messaging" in Brave\'s privacy settings.';
