@@ -33,6 +33,11 @@ enum SendScreenRules {
     /// Chip block header, for example "Send to (2 of 3)".
     static func header(selected: Int, total: Int) -> String { "Send to (\(selected) of \(total))" }
 
+    /// VoiceOver value of a device chip: a greyed chip says "Dimmed" first, then why.
+    static func chipValue(ok: Bool, note: String?) -> String {
+        ok ? (note ?? "") : (["Dimmed", note].compactMap { $0 }).joined(separator: ", ")
+    }
+
     /// The "All" chip shows only with 2 or more devices, and only when the setting allows it.
     static func showsAll(setting: Bool, deviceCount: Int) -> Bool { setting && deviceCount >= 2 }
 
@@ -510,7 +515,7 @@ struct ComposeView: View {
                 }
                 .buttonStyle(.plain)
                 .opacity(ok ? 1 : 0.45)
-                .accessibilityValue(note(p) ?? "")
+                .accessibilityValue(SendScreenRules.chipValue(ok: ok, note: note(p)))
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
         }

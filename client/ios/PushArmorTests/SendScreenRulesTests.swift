@@ -192,6 +192,13 @@ final class SendScreenRulesTests: XCTestCase {
         XCTAssertEqual(SendScreenRules.sendTitle(count: 3, soleName: nil), "Send to 3 devices")
     }
 
+    /// A greyed device chip still says "Dimmed" to VoiceOver, then the reason.
+    func testGreyedChipSaysDimmed() {
+        XCTAssertEqual(SendScreenRules.chipValue(ok: false, note: "Send only"), "Dimmed, Send only")
+        XCTAssertEqual(SendScreenRules.chipValue(ok: false, note: nil), "Dimmed")
+        XCTAssertEqual(SendScreenRules.chipValue(ok: true, note: nil), "")
+    }
+
     /// The Send button clears the draft only when the send succeeded (f7db107). The view is
     /// SwiftUI state, so this reads its source: the only draft clear sits inside the success branch.
     func testFailedSendKeepsTheDraft() throws {
