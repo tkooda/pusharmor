@@ -481,7 +481,7 @@ internal fun PermissionGate(content: @Composable () -> Unit) {
     if (!launched) { androidx.compose.runtime.LaunchedEffect(Unit) { launched = true; launcher.launch(Manifest.permission.POST_NOTIFICATIONS) } }
     val activity = ctx as? android.app.Activity
     val permanent = asked && activity != null && !activity.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)
-    BlockingState(PaIcons.NotificationsOff, "PushArmor shows each message as a notification. Allow notifications to receive messages. Also turn off \"Pause app activity if unused\" for PushArmor.",
+    BlockingState(PaIcons.NotificationsOff, "PushArmor shows each message as a notification. Allow notifications to receive messages. Also turn off \"${UiText.unusedAppSetting()}\" for PushArmor.",
         Modifier.safeDrawingPadding()) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             GreenButton(onClick = {

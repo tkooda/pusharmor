@@ -444,7 +444,7 @@ private fun Banners(vm: AppViewModel, prefs: androidx.datastore.preferences.core
         }
     }
     if (st == androidx.core.content.UnusedAppRestrictionsConstants.API_31) {
-        BannerRow(UiText.HIBERNATION_BANNER, "Settings", fault = false, PaIcons.Info) {
+        BannerRow(UiText.hibernationBanner(), "Settings", fault = false, PaIcons.Info) {
             safeStart(context, IntentCompat.createManageUnusedAppRestrictionsIntent(context, context.packageName))
         }
     }
@@ -1736,7 +1736,7 @@ internal fun <T> ChoiceDialog(title: String, options: List<T>, current: T, label
 /** Delete account confirmation: a standard dialog with a title, a red Log in to delete, and Cancel. */
 @Composable
 internal fun DeleteAccountDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Delete account") }, text = { Text(UiText.DELETE_CONFIRM) },
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Delete account?") }, text = { Text(UiText.DELETE_CONFIRM) },
         confirmButton = {
             TextButton(onClick = onConfirm, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Log in to delete") }
         },

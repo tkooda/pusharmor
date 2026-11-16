@@ -62,7 +62,7 @@ class DialogsTest {
         var dismissed = 0
         show { DeleteAccountDialog(onConfirm = { confirmed++ }) { dismissed++ } }
         val t = texts()
-        assertTrue(t.toString(), t.containsAll(listOf("Delete account", UiText.DELETE_CONFIRM, "Log in to delete", "Cancel")))
+        assertTrue(t.toString(), t.containsAll(listOf("Delete account?", UiText.DELETE_CONFIRM, "Log in to delete", "Cancel")))
         click("Cancel")
         assertEquals(0 to 1, confirmed to dismissed)
         click("Log in to delete")

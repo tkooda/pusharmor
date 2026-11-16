@@ -36,7 +36,7 @@ object UiText {
     fun brief(text: String): String =
         text.split('\n').joinToString("\n") { if (it.endsWith('.') && !it.endsWith("..")) it.dropLast(1) else it }
 
-    const val DELETE_CONFIRM = "Delete this account? You must log in again to confirm. This cannot be undone."
+    const val DELETE_CONFIRM = "You must log in again to confirm. This cannot be undone."
 
     // Line 1 of an error: what could not be done. Line 2 (ErrorText) says why.
     const val UNABLE_SEND = "Unable to send."
@@ -242,7 +242,7 @@ object UiText {
     /** One device in the progress list: a bullet and the name, no quotes. */
     fun bulleted(name: String): String = "\u2022 ${cutName(name)}"
 
-    fun directShareSent(name: String): String = "Sent to \"${cutName(name)}\""
+    fun directShareSent(name: String): String = "Message sent to \"${cutName(name)}\""
 
     /** The two lines for the one picked device that did not get a send; null when it did. An unknown or missing word reads as not ready yet. */
     fun sendResultText(word: String, x: String): String? {
@@ -340,7 +340,14 @@ object UiText {
 
     /** No paired device: Devices shows the "Pair your first device" steps, Send and History lead there. */
     fun noPairedDevice(others: List<Peer>): Boolean = others.none { it.pinned && !it.removed }
-    const val HIBERNATION_BANNER = "Android may pause this app's ability to receive messages unless \"Manage app if unused\" is turned off."
+    /** The system setting that pauses unused apps, named as this Android version names it in App info. */
+    fun unusedAppSetting(sdk: Int = android.os.Build.VERSION.SDK_INT): String = when {
+        sdk >= 35 -> "Manage app if unused"
+        sdk >= 33 -> "Pause app activity if unused"
+        else -> "Remove permissions and free up space"
+    }
+    fun hibernationBanner(sdk: Int = android.os.Build.VERSION.SDK_INT): String =
+        "Android may pause this app's ability to receive messages unless \"${unusedAppSetting(sdk)}\" is turned off."
     val PAIR_HOWTO_STEPS = listOf("Install PushArmor on the other device.", "Log in with the same account.", "It appears here. Tap Pair.")
     fun numbered(steps: List<String>): List<String> = steps.mapIndexed { i, t -> "${i + 1}. $t" }
     /** Send chips in alphabetical order of the shown name: case-insensitive, locale-aware. */

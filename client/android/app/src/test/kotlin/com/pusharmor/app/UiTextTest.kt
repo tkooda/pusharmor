@@ -352,9 +352,12 @@ class UiTextTest {
     }
 
     @Test fun hibernationBannerSaysWhyItMatters() {
-        assertTrue(UiText.HIBERNATION_BANNER.contains("receive messages"))
-        assertTrue(UiText.HIBERNATION_BANNER.contains("Manage app if unused"))
-        assertTrue(UiText.HIBERNATION_BANNER.all { it.code < 128 })
+        assertTrue(UiText.hibernationBanner(35).contains("receive messages"))
+        assertTrue(UiText.hibernationBanner(35).contains("\"Manage app if unused\""))
+        assertTrue(UiText.hibernationBanner(34).contains("\"Pause app activity if unused\""))
+        assertTrue(UiText.hibernationBanner(33).contains("\"Pause app activity if unused\""))
+        assertTrue(UiText.hibernationBanner(32).contains("\"Remove permissions and free up space\""))
+        assertTrue(UiText.hibernationBanner(31).all { it.code < 128 })
     }
 
     @Test fun pairHowToStepsAreNumbered() {
