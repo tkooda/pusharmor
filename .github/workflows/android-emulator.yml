@@ -63,6 +63,8 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot-save -noaudio -no-boot-anim
+          # emulator 37.2.13.0; bump on purpose, not at a new Google release
+          emulator-build: 16740729
           working-directory: client/android
           script: ./gradlew --no-daemon --stacktrace --build-cache --parallel :app:${{ matrix.task }}
       - name: Upload test results
