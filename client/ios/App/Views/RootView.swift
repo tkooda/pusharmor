@@ -10,12 +10,17 @@ struct RootView: View {
 
     var body: some View {
         // after a 426 nothing else works, so the update screen replaces every other one.
-        Group { if model.updateRequired { UpdateView() } else { content } }
+        // The banner takes layout space above the screen: the tabs' navigation bars do not move
+        // down for a top safe-area inset, so their titles drew under it.
+        VStack(spacing: 0) {
+            if !model.updateRequired && model.showsCannotReceive {
+                CannotReceiveBanner()
+            }
+            Group { if model.updateRequired { UpdateView() } else { content } }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
             .onReceive(NotificationCenter.default.publisher(for: APIClient.upgradeRequired).receive(on: RunLoop.main)) { _ in
                 model.updateRequired = true
-            }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if !model.updateRequired && model.showsCannotReceive { CannotReceiveBanner() }
             }
             // the banner sits at the bottom, inside the safe area; on the tabs MainView puts
             // it above the tab bar and below the Send bar, so it covers neither.
