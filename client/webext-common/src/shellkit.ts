@@ -171,8 +171,8 @@ interface MenuPending {
   seen?: true;
 }
 let menuPending: MenuPending | null = null;
-/** The reply for a toolbar popup that took a menu send but started it after the background sent it. */
-let menuLate: Promise<unknown> | null = null;
+/** The reply for a toolbar popup that took a menu send but started it after the background sent it (asked: the popup asked for it). */
+let menuLate: { result: Promise<unknown>; asked: boolean } | null = null;
 
 /** The toolbar popup takes the waiting context menu send (once). The background still owns a send until menuSendRun. */
 async function claimMenuSend(): Promise<{ text: string; child: string; over?: true } | null> {
@@ -222,7 +222,8 @@ export function onRuntimeMessage(boot: () => Promise<Booted>, extra?: (msg: Req,
       const late = menuPending?.seen ? null : menuLate;
       menuLate = null;
       if (late) {
-        void late.then(sendResponse);
+        late.asked = true;
+        void late.result.then(sendResponse);
         return true;
       }
       void runMenuSend()
@@ -310,7 +311,16 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
       unclaim();
       // the popup took it but did not start it in time: it gets this send's result to show
       let tellPopup: (v: unknown) => void = () => undefined;
-      if (mine.seen) menuLate = new Promise((r) => (tellPopup = r));
+      const late = mine.seen ? { result: new Promise((r) => (tellPopup = r)), asked: false } : null;
+      menuLate = late;
+      // a failure the popup shows is not also a notification; a popup that does not ask for it in 5 s gets the notification
+      const notifyFail = (p: { notify: (id: string, title: string, body: string) => void }, body: string) => {
+        if (!late) return p.notify("send-result", "PushArmor", body);
+        if (late.asked) return;
+        setTimeout(() => {
+          if (!late.asked) p.notify("send-result", "PushArmor", body);
+        }, 5000);
+      };
       const { engine } = await boot().catch((err: unknown) => {
         tellPopup({ ok: false, error: BOOT_ERROR });
         throw err;
@@ -320,7 +330,7 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
         r = await menuSend(engine, text, child, parent === MENU_SEL);
       } catch (err) {
         // a send that fails (logged out after a wipe) says why
-        engine.p.notify("send-result", "PushArmor", failText("send", err));
+        notifyFail(engine.p, failText("send", err));
         tellPopup({ ok: false, error: failText("send", err) });
         return;
       }
@@ -333,7 +343,7 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
         engine.p.setBadge(r.badge);
         setTimeout(() => void engine.updateBadge(), 5000);
       }
-      if (r.notice) engine.p.notify("send-result", "PushArmor", r.notice);
+      if (r.notice) notifyFail(engine.p, r.notice);
     })();
   };
 }

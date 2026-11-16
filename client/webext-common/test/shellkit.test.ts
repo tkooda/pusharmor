@@ -242,6 +242,59 @@ test("a toolbar popup that starts a menu send late gets the error of the send th
   }
 });
 
+test("a failed menu send a late toolbar popup shows is not also a notification; a popup that does not ask gets it", async () => {
+  const { onMenuClick, onRuntimeMessage } = await import("../src/shellkit.ts");
+  const { Rpc } = await import("../src/core/rpc.ts");
+  const { UserError } = await import("../src/core/engine.ts");
+  const { T } = await import("../src/core/texts.ts");
+  const { failText } = await import("../src/core/failtext.ts");
+  const notes: string[] = [];
+  const b = { action: { setBadgeText: async () => undefined, openPopup: async () => undefined } };
+  let fail: "throw" | "some" = "throw";
+  const engine = {
+    send: async () => {
+      if (fail === "throw") throw new UserError(T.signedOut);
+      return { sent: 0, total: 1, failures: [{ id: "dev1", text: "Not sent" }] };
+    },
+    updateBadge: async () => undefined,
+    p: { notify: (id: string, _t: string, body: string) => void notes.push(id + ": " + body), setBadge: () => undefined },
+  };
+  const boot = async () => ({ engine, rpc: new Rpc(engine as never) }) as never;
+  const ask = (op: string) => new Promise((resolve) => onRuntimeMessage(boot)({ op }, {} as never, resolve as never));
+  const flush = () => new Promise((r) => setImmediate(r));
+  const lateClick = async () => {
+    onMenuClick(b as never, boot, async () => "")({ menuItemId: "pa-page|dev1", pageUrl: "https://example.com/" } as never);
+    assert.deepEqual(await ask("menuSendClaim"), { ok: true, data: { text: "https://example.com/", child: "dev1" } });
+    await flush();
+    mock.timers.tick(5000);
+    await flush();
+  };
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    // the popup asks after the send failed: the toast only
+    await lateClick();
+    assert.deepEqual(await ask("menuSendRun"), { ok: false, error: failText("send", new UserError(T.signedOut)) });
+    mock.timers.tick(10000);
+    await flush();
+    assert.deepEqual(notes, []);
+    // not every device got it: the toast only
+    fail = "some";
+    await lateClick();
+    assert.equal(((await ask("menuSendRun")) as { ok: boolean; data: { sent: number } }).data.sent, 0);
+    mock.timers.tick(10000);
+    await flush();
+    assert.deepEqual(notes, []);
+    // the popup never asks (closed): the notification still shows
+    fail = "throw";
+    await lateClick();
+    mock.timers.tick(5000);
+    await flush();
+    assert.deepEqual(notes, ["send-result: " + failText("send", new UserError(T.signedOut))]);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
 test("a menu click with text over the limit gives the toolbar popup the text to edit, and sends nothing", async () => {
   const { onMenuClick, onRuntimeMessage } = await import("../src/shellkit.ts");
   let sends = 0;
