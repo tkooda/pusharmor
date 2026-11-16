@@ -384,3 +384,9 @@ test("a greyed device chip on Send says Unable to send to the device, then why",
   assert.equal(greyedText("Lap", T.declinedBy("Lap")), to + "It rejected this device. Pair with it again to send it messages.");
   assert.equal(greyedText("Lap", T.notPairedOn("Lap")), to + "It is not paired with this device. Pair with it to send it messages.");
 });
+
+test("Firefox for Android says Tap, desktop says Click", async () => {
+  const { clickWord } = await import("../src/core/texts.ts");
+  assert.equal(clickWord("Mozilla/5.0 (Android 14; Mobile; rv:133.0) Gecko/133.0 Firefox/133.0"), "Tap");
+  assert.equal(clickWord("Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0"), "Click");
+});

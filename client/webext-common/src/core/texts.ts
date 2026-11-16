@@ -6,13 +6,17 @@ const A_DEVICE = "A device";
 /** A device name in a text, in straight double quotes; a device with no name stays "A device" unquoted. */
 export const quoted = (x: string): string => (x === A_DEVICE ? x : '"' + x + '"');
 
+/** "Tap" on Firefox for Android (an Android user agent), "Click" on desktop. */
+export const clickWord = (ua: string): string => (/Android/i.test(ua) ? "Tap" : "Click");
+const CLICK = clickWord(globalThis.navigator?.userAgent ?? "");
+
 export const T = {
   appName: "PushArmor",
   unreadable: "Unable to read a message.\nIt is not valid or was damaged.",
   pairCommit: "A new device wants to pair. Open PushArmor.",
   pairReply: "Pairing code ready. Open PushArmor.",
   pairOpen: (fp: string) => "New device: compare " + fp + ".",
-  pairHalf: (x: string) => quoted(x) + " wants to pair again. Click Pair again on its row.",
+  pairHalf: (x: string) => quoted(x) + " wants to pair again. " + CLICK + " Pair again on its row.",
   pairCrossing: (x: string) => "Pairing with " + quoted(x) + " is in progress. Open PushArmor.",
   approved: (name: string) => quoted(name) + " confirmed this device.",
   peerChanged: "Device list changed.",
@@ -25,7 +29,7 @@ export const T = {
   accountDeleted: "The account was deleted on another device.",
   keysLost: "This device's security keys cannot be used right now. Log in again.",
   keysBrokenTitle: "This device's keys have become unusable.",
-  keysBrokenBody: "Click Retry to try again. If this keeps happening, you can delete the broken keys. You will then log in again and pair all your devices again.",
+  keysBrokenBody: CLICK + " Retry to try again. If this keeps happening, you can delete the broken keys. You will then log in again and pair all your devices again.",
   keysDeleteTitle: "Delete broken keys?",
   keysDeleteBody: "This cannot be undone. You will need to pair all your devices again.",
   requestFailed: "Request failed.\nTry again.",
@@ -34,8 +38,8 @@ export const T = {
   saveFailed: "PushArmor could not save its data on this device. Restart PushArmor and try again.",
   signedOut: "This device is logged out. Log in to resume.",
   sendOnly: "Not listening",
-  pairFailed: (x: string) => "Unable to pair with " + quoted(x) + ".\nClick Pair to start again.",
-  pairTimedOut: (x: string) => "Unable to pair with " + quoted(x) + ".\nIt did not answer in time. Click Pair to start again.",
+  pairFailed: (x: string) => "Unable to pair with " + quoted(x) + ".\n" + CLICK + " Pair to start again.",
+  pairTimedOut: (x: string) => "Unable to pair with " + quoted(x) + ".\nIt did not answer in time. " + CLICK + " Pair to start again.",
   pairing: "Pairing...",
   pairingWith: (x: string) => "Pairing with " + quoted(x) + ". Waiting for its reply.",
   wantsToPair: (x: string) => quoted(x) + " wants to pair.",

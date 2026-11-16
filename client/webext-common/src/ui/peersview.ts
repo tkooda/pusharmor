@@ -2,7 +2,7 @@
 import type { PeerView } from "../core/rpc.ts";
 import { sortByLabel } from "../model/sendsel.ts";
 import { STEP } from "../model/busy.ts";
-import { T, confirmResultText } from "../core/texts.ts";
+import { T, clickWord, confirmResultText } from "../core/texts.ts";
 import { type UiEnv, add, busyBar, clear, pairCommandLine, disableFor, greyFor, group, h, overflowMenu, peerStatus, platformLabel, rpc, sh, statusLine } from "./dom.ts";
 import { confirmDialog, toast } from "./dialog.ts";
 import { devicesArt, icon, platformIcon, shield } from "./icons.ts";
@@ -153,7 +153,7 @@ function pairNew(open = false): HTMLElement {
     { class: "howto", id: "pair-howto", hidden: !open },
     h("li", {}, "Install PushArmor on the other device."),
     h("li", {}, "Log in with the same account."),
-    h("li", {}, "It appears here. Click Pair."),
+    h("li", {}, "It appears here. " + clickWord(navigator.userAgent) + " Pair."),
   );
   const btn = h("button", { class: "tonal", "aria-expanded": String(open), "aria-controls": "pair-howto" }, icon("add", 18), "Pair a new device");
   btn.addEventListener("click", () => {
