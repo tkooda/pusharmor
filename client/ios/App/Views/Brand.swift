@@ -314,7 +314,6 @@ struct FingerprintPlate: View {
                 Text("Pairing code")
                     .font(.caption.weight(.semibold))
                     .tracking(0.8)
-                    .textCase(.uppercase)
                     .foregroundStyle(Color.secondaryText)
             }
             .accessibilityHidden(true)

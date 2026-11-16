@@ -13,7 +13,7 @@ public enum S {
     public static func pairCommit(_ name: String?) -> String {
         name.map { quoted($0) + " wants to pair." } ?? "A new device wants to pair. Open PushArmor."
     }
-    public static func pairOpen(_ fp: String, name: String?) -> String { (name.map { quoted($0) } ?? "New device") + ": compare \(fp)." }
+    public static func pairOpen(_ fp: String) -> String { "New device: compare \(fp)" }
     public static let pairReply = "Pairing code ready. Open PushArmor."
     /// A device name in straight double quotes; "A device" (a name that is not known) stays as it is.
     public static func quoted(_ x: String) -> String { x == aPeer ? aPeer : "\"\(x)\"" }

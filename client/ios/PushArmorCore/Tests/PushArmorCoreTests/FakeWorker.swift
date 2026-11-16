@@ -248,7 +248,7 @@ enum Scenario {
         let fpN = try n.core.store.peer(x.id)!.fingerprint!
         let fpX = try x.core.store.peer(n.id)!.fingerprint!
         XCTAssertEqual(fpN, fpX)
-        XCTAssertEqual(r3.first?.banner?.body, S.pairOpen(fpX, name: try x.core.store.peer(n.id)?.name))
+        XCTAssertEqual(r3.first?.banner?.body, S.pairOpen(fpX))
         XCTAssertEqual(r3.first?.banner?.threadId, r1.first?.banner?.threadId)   // open replaces the commit notice (pk)
         XCTAssertEqual(try n.core.store.pairing(x.id)?.state, .shown)
         XCTAssertEqual(try x.core.store.pairing(n.id)?.state, .shown)

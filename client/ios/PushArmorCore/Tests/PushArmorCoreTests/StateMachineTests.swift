@@ -1208,13 +1208,13 @@ final class StateMachineTests: XCTestCase {
         let fp = try x.core.store.peer(n.id)!.fingerprint
         XCTAssertNotNil(fp)
         XCTAssertEqual(fp, try n.core.store.peer(x.id)!.fingerprint)
-        XCTAssertEqual(opened.first?.banner?.body, S.pairOpen(fp!, name: try x.core.store.peer(n.id)?.name))
+        XCTAssertEqual(opened.first?.banner?.body, S.pairOpen(fp!))
         // a repeated open on X at compare codes re-presents the notice: no "could not read"
         clock.now += 61
         await n.core.refresh(push: nil)
         let again = await x.drainInbox(w)
         XCTAssertEqual(again.count, 1)
-        XCTAssertEqual(again.first?.banner?.body, S.pairOpen(fp!, name: try x.core.store.peer(n.id)?.name))
+        XCTAssertEqual(again.first?.banner?.body, S.pairOpen(fp!))
         XCTAssertFalse(try x.core.store.history().contains { $0.event == .couldNotRead })
         XCTAssertEqual(try x.core.store.pairing(n.id)?.state, .shown)
         // X's approve verified on N: the open is not sent again
