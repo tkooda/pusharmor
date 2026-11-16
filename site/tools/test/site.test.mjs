@@ -499,6 +499,7 @@ test("FAQ texts and fixed lines", () => {
   const how = text("how-to.html");
   const sup = text("support.html");
   assert.ok(how.includes("Devices stay paired until you remove one or delete your account."));
+  assert.ok(read("how-to.html").includes("If they differ, tap <strong>Codes differ</strong>."));
   assert.ok(!how.includes("10 min"));
   const both = how + " " + sup;
   for (const m of ["14 days", "10 tries", "24 hours", "15 minutes"]) assert.ok(!both.includes(m), "mechanics: " + m);
