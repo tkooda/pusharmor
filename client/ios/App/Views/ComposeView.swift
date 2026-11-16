@@ -502,12 +502,13 @@ struct ComposeView: View {
                 let ok = enabled(p)
                 let on = selected.contains(p.id.text) && ok
                 Button {
+                    // a greyed chip stays tappable so it can say why it cannot be chosen
+                    if !ok { model.toast = ErrorCopy.greyedText(model.label(p), note: note(p)); return }
                     if selected.contains(p.id.text) { selected.remove(p.id.text) } else { selected.insert(p.id.text) }
                 } label: {
                     chip(title: model.label(p), symbol: platformSymbol(p.platform), on: on)
                 }
                 .buttonStyle(.plain)
-                .disabled(!ok)
                 .opacity(ok ? 1 : 0.45)
                 .accessibilityValue(note(p) ?? "")
                 .accessibilityAddTraits(on ? .isSelected : [])

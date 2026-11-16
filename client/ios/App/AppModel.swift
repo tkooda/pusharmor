@@ -1097,8 +1097,11 @@ final class AppModel: ObservableObject {
         let stamped = TapStamp.verified(info, key: key)
         let rowid = stamped ? (info["rowid"] as? NSNumber)?.int64Value : nil
         let row = AppModel.tapRow(rowid, store: store)
-        if action == "COPY", let r = row {
-            UIPasteboard.general.string = r.content
+        if action == "COPY" {
+            let value = row?.content ?? ""
+            if !value.isEmpty { UIPasteboard.general.string = value }
+            let r = ToastText.copyResult(value, pasteboardHasText: UIPasteboard.general.hasStrings)
+            await postCopyNotice(r.text)
             return
         }
         switch stamped ? info["tap"] as? String : nil {
@@ -1108,6 +1111,17 @@ final class AppModel: ObservableObject {
         case "detail": if let r = row { markRead(r); detailRow = r; showHistory = true }
         default: break
         }
+    }
+
+    /// The result of a notification Copy as a local notification: line one is the title,
+    /// line two the body. No category, so it carries no Copy action.
+    private func postCopyNotice(_ text: String) async {
+        let lines = ToastText.shown(text).split(separator: "\n", maxSplits: 1).map(String.init)
+        let c = UNMutableNotificationContent()
+        c.title = lines.first ?? ""
+        if lines.count > 1 { c.body = lines[1] }
+        let req = UNNotificationRequest(identifier: "copy-result", content: c, trigger: nil)
+        try? await UNUserNotificationCenter.current().add(req)
     }
 
     /// The tapped row comes from the store: the NSE wrote it while the app was in the

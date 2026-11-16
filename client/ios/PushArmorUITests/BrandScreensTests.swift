@@ -71,7 +71,7 @@ final class BrandScreensTests: XCTestCase {
         // no paired device yet: the Devices tab holds the pairing card, and the tabs stay
         let app = launch(["-PAScreenshotsPairing"])
         XCTAssertTrue(app.navigationBars["Pair your first device"].waitForExistence(timeout: 30))
-        let cells = app.descendants(matching: .any)["Pairing fingerprint K, 7, Q, D"]
+        let cells = app.descendants(matching: .any)["Pairing code K, 7, Q, D"]
         XCTAssertTrue(cells.waitForExistence(timeout: 10))
         XCTAssertTrue(app.tabBars.firstMatch.exists)
         XCTAssertTrue(app.buttons["Codes match"].exists)
@@ -212,7 +212,7 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Pair your first device"].waitForExistence(timeout: 30))
         XCTAssertTrue(app.staticTexts["Install PushArmor on another device."].exists)
         XCTAssertTrue(app.staticTexts["Log in with the same account."].exists)
-        XCTAssertTrue(app.staticTexts["When it shows below, tap Pair, then tap Codes match when the fingerprints match."].exists)
+        XCTAssertTrue(app.staticTexts["When it shows below, tap Pair, then tap Codes match when the codes match."].exists)
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@",
             "Waiting for another device to log in.")).firstMatch.exists)
         XCTAssertTrue(app.tabBars.firstMatch.exists)

@@ -47,7 +47,7 @@ struct LimitPickerView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Remove", role: .destructive) { Task { await model.submitEvict() } }
-                        .disabled(model.busy.contains("evict"))
+                        .disabled(model.busy.contains("evict") || model.limitTicked.isEmpty)
                 }
             }
         }

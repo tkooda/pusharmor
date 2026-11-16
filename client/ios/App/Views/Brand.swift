@@ -311,7 +311,7 @@ struct FingerprintPlate: View {
                 ShieldShape()
                     .fill(.tint, style: FillStyle(eoFill: true))
                     .frame(width: 13, height: 13)
-                Text("Pairing fingerprint")
+                Text("Pairing code")
                     .font(.caption.weight(.semibold))
                     .tracking(0.8)
                     .textCase(.uppercase)
@@ -320,7 +320,7 @@ struct FingerprintPlate: View {
             .accessibilityHidden(true)
             cells
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Pairing fingerprint " + code.map(String.init).joined(separator: ", "))
+                .accessibilityLabel("Pairing code " + code.map(String.init).joined(separator: ", "))
             Text(S.checkSameCode(peer))
                 .font(.subheadline)
                 .foregroundStyle(Color.secondaryText)

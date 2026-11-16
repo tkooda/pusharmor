@@ -31,10 +31,10 @@ public struct HistorySelection: Equatable, Sendable {
         return n == visible.count ? .all : .partial
     }
 
-    /// A tap on the select-all checkbox: every shown row is checked; when all already are,
-    /// none is and the mode ends.
+    /// A tap on the select-all checkbox: when none is checked, every shown row is; when some
+    /// or all already are, none is and the mode ends.
     public mutating func toggleAll(_ visible: [Int64]) {
-        if visible.isEmpty || allState(of: visible) == .all { ids = nil } else { ids = Set(visible) }
+        if visible.isEmpty || allState(of: visible) != .empty { ids = nil } else { ids = Set(visible) }
     }
 
     /// Drops ids whose rows are gone (deleted, or hidden by the filter), which can end the mode.

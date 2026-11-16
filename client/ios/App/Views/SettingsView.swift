@@ -9,6 +9,11 @@ struct SettingsView: View {
     @State private var confirmDeleteAccount = false
     @AppStorage(AppearancePreference.storageKey) private var appearance = AppearancePreference.system.rawValue
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.dismiss) private var dismiss
+    /// Opened as a sheet from the gear on the Log in and Logged out screens: Done closes it.
+    private let showsDone: Bool
+
+    init(showsDone: Bool = false) { self.showsDone = showsDone }
 
     private var dayChoices: [Int] { Array(Set([1, 7, 30, 90, 365, model.historyDays])).sorted() }
     private var email: String? { model.me?.signedInEmail }
@@ -165,6 +170,13 @@ struct SettingsView: View {
             // Like the other tabs: the last About row ends clear of the floating tab bar.
             .contentMargins(.bottom, 12, for: .scrollContent)
             .navigationTitle("Settings")
+            .toolbar {
+                if showsDone {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { dismiss() }
+                    }
+                }
+            }
             // standard alerts; Cancel and the destructive action are placed by the system
             .alert("Delete account?", isPresented: $confirmDeleteAccount) {
                 Button("Cancel", role: .cancel) {}

@@ -198,4 +198,18 @@ final class ErrorCopyTests: XCTestCase {
         XCTAssertTrue(S.keysBrokenBody.contains("You will then log in again"))
         XCTAssertFalse(S.keysBrokenBody.contains("sign in"))
     }
+
+    func testGreyedChipTapSaysWhy() {
+        let to = "Unable to send to \"Tablet\".\n"
+        XCTAssertEqual(ErrorCopy.greyedText("Tablet", note: "Logged out"),
+                       to + "That device is logged out. Log in on that device to receive messages.")
+        XCTAssertEqual(ErrorCopy.greyedText("Tablet", note: "Send only"),
+                       to + "It is set to send only. It does not receive messages.")
+        XCTAssertEqual(ErrorCopy.greyedText("Tablet", note: "(missing)"), to + "It is no longer on this account.")
+        XCTAssertEqual(ErrorCopy.greyedText("Tablet", note: S.notPairedOn("Tablet")),
+                       to + "It is not paired with this device. Pair with it to send it messages.")
+        XCTAssertEqual(ErrorCopy.greyedText("Tablet", note: S.declinedBy("Tablet")),
+                       to + "It rejected this device. Pair with it again to send it messages.")
+        XCTAssertEqual(ErrorCopy.greyedText("Tablet", note: nil), to + "It cannot be reached right now. Try again later.")
+    }
 }

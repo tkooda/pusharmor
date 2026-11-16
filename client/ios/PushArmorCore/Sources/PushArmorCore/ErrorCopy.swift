@@ -234,6 +234,21 @@ public enum ErrorCopy {
         }
     }
 
+    /// The two lines when a greyed device chip on the Send screen is tapped: the chip's note
+    /// ("Logged out", "Send only", "(missing)", "Not paired on ...", "Rejected by ...") gives the reason.
+    public static func greyedText(_ x: String, note: String?) -> String {
+        let sendTo = Action.sendOne(x).line
+        switch note {
+        case "Logged out"?: return sendResultText("logged out", x) ?? sendTo
+        case "Send only"?: return sendResultText("not listening", x) ?? sendTo
+        case "(missing)"?: return sendResultText("unknown", x) ?? sendTo
+        case let n? where n.hasPrefix("Not paired on "): return sendResultText("unapproved", x) ?? sendTo
+        case let n? where n.hasPrefix("Rejected by "):
+            return sendTo + "\nIt rejected this device. Pair with it again to send it messages."
+        default: return sendTo + "\nIt cannot be reached right now. Try again later."
+        }
+    }
+
     /// The toast for a send that threw: "Unable to send." and the reason.
     public static func sendFailText(_ e: Error) -> String {
         switch e as? Core.SendError {

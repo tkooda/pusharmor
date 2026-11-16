@@ -14,7 +14,7 @@ public enum S {
         name.map { quoted($0) + " wants to pair." } ?? "A new device wants to pair. Open PushArmor."
     }
     public static func pairOpen(_ fp: String, name: String?) -> String { (name.map { quoted($0) } ?? "New device") + ": compare \(fp)." }
-    public static let pairReply = "Pairing fingerprint ready. Open PushArmor."
+    public static let pairReply = "Pairing code ready. Open PushArmor."
     /// A device name in straight double quotes; "A device" (a name that is not known) stays as it is.
     public static func quoted(_ x: String) -> String { x == aPeer ? aPeer : "\"\(x)\"" }
     public static func pairAgain(_ x: String) -> String { quoted(x) + " wants to pair again. Tap Pair again on its row." }
@@ -83,7 +83,7 @@ public enum S {
     public static let pairHowTo3 = "It appears here. Tap Pair."
     public static let firstPairStep1 = "Install PushArmor on another device."
     public static let firstPairStep2 = "Log in with the same account."
-    public static let firstPairStep3 = "When it shows below, tap Pair, then tap Codes match when the fingerprints match."
+    public static let firstPairStep3 = "When it shows below, tap Pair, then tap Codes match when the codes match."
     /// Extra line on an unpaired command line device: prefix text, then the command in monospace (no-break spaces keep it whole).
     public static func pairCommandPrefix(_ name: String) -> String { "To pair, run this on \"\(name)\": " }
     public static func pairCommand(_ id: PeerId) -> String { "pusharmor\u{00A0}pair\u{00A0}" + id.shortHex }

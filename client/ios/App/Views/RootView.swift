@@ -218,7 +218,7 @@ struct SettingsGear: ViewModifier {
                     .padding(.trailing, 8)
                 }
             }
-            .sheet(isPresented: $show) { SettingsView() }
+            .sheet(isPresented: $show) { SettingsView(showsDone: true) }
     }
 }
 
