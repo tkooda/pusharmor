@@ -707,3 +707,11 @@ test("section headings are sentence case and keep normal letter spacing", async 
   assert.ok(m);
   assert.doesNotMatch(m[1], /letter-spacing/);
 });
+
+test("the Pairing code label keeps normal letter spacing", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  const m = css.match(/\n\.plate-label \{([^}]*)\}/);
+  assert.ok(m);
+  assert.doesNotMatch(m[1], /letter-spacing/);
+});

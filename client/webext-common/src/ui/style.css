@@ -139,7 +139,7 @@ label.srow { cursor: pointer; }
 .pair-head .txt { flex: 1; }
 .pair-title { font-size: 15px; line-height: 20px; font-weight: 500; overflow-wrap: anywhere; }
 .plate { margin-top: 12px; background: var(--plate); border-radius: var(--rp); padding: 12px 10px; text-align: center; container-type: inline-size; }
-.plate-label { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; line-height: 1.45455; font-weight: 600; letter-spacing: 0.8px; color: var(--ink2); }
+.plate-label { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; line-height: 1.45455; font-weight: 600; color: var(--ink2); }
 .plate-label svg { color: var(--primary); }
 /* the four cells stay on one row: on a narrow screen or at a large zoom, cells and glyphs shrink to fit */
 .cells { display: flex; flex-wrap: nowrap; justify-content: center; gap: 8px; margin: 12px auto 0; max-width: 232px; }
