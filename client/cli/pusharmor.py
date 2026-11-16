@@ -985,11 +985,12 @@ KEY_HEADER = ("# PushArmor private keys of this device. Keep this file secret: w
 
 
 class Fail(Exception):
-    """A one-line reason for stderr and an exit code."""
+    """A one-line reason for stderr and an exit code. action: an "Unable to ..." line to show instead of the
+    command's own."""
 
-    def __init__(self, msg, code=EXIT_ERR):
+    def __init__(self, msg, code=EXIT_ERR, action=None):
         super().__init__(msg)
-        self.code = code
+        self.code, self.action = code, action
 
 
 class TempFail(Fail):
@@ -1034,11 +1035,21 @@ def windows():
     return sys.platform == "win32"
 
 
+_action = ""  # the "Unable to ..." line in front of each error line of the running command
+
+
+def set_action(line):
+    global _action
+    _action = line
+
+
 def log(level, msg):
     """One line on stderr. level: error (the command fails), warning (a problem; the command goes on),
-    or info (an event)."""
+    or info (an event). An error line starts with what failed: "Unable to send." and then the reason."""
     if sys.stderr is None:
         return
+    if level == "error" and _action and not msg.startswith("Unable to "):
+        msg = _action + " " + msg
     print(level + ": " + msg, file=sys.stderr, flush=True)
 
 
@@ -2122,7 +2133,7 @@ def act(cx, d, r, p, notes):
         if q:
             notes.append(("info", '"%s" was removed from your account.' % peer_label(q)))
     elif t == "delete":
-        return "Your PushArmor account was deleted.", None
+        return "The account was deleted on another device.", None
     elif t in ("logout", "login"):
         if n > p["logout_n"]:
             p["logged_out"], p["logout_n"] = t == "logout", n
@@ -2165,12 +2176,12 @@ def receive_pair(cx, pt):
     if send:
         r = post_pair(cx, frm, "open", send)
         if r not in ("sent", "429") and cx.mode == "pair" and frm == cx.target:
-            raise Fail(pair_reason(r, peer_label(p)))  # its fingerprint would never show; pair again sends it
+            raise Fail(pair_reason(r))  # its fingerprint would never show; pair again sends it
         if r not in ("sent", "429"):
             with cx.store.state(write=False) as d:
                 sid = short_id(frm, d["peers"])
             log("warning", 'Unable to continue pairing with "%s". %s Run: `pusharmor pair %s` to try again.'
-                % (peer_label(p), pair_reason(r, peer_label(p)), sid))
+                % (peer_label(p), pair_reason(r), sid))
 
 
 def pair_note(cx, d, x, text):
@@ -2288,18 +2299,18 @@ def could_not(err, verb, name):
     if isinstance(err, ApiError):
         if err.status == 401:
             return err
-        return Fail('Could not %s "%s". %s' % (verb, name, err.reason()))
-    return Fail('Could not %s "%s". %s' % (verb, name, err), err.code)
+        return Fail(err.reason(), action='Unable to %s "%s".' % (verb, name))
+    return Fail(str(err), err.code, action='Unable to %s "%s".' % (verb, name))
 
 
-def pair_reason(r, name):
+def pair_reason(r):
     """A post_pair or post_approve result word -> reason; the word itself is never shown."""
     if r == "network":
         return UNREACHABLE
     m = re.fullmatch(r"([0-9]{3}) ?(.*)", r)
     if m:
         return SERVER_DOWN if int(m.group(1)) >= 500 else ApiError(int(m.group(1)), m.group(2), {}).reason()
-    return device_reason(r, name)
+    return device_reason(r)
 
 
 def send_reply(cx, x):
@@ -2821,6 +2832,8 @@ def cmd_pair(cx, args):
     x = cx.target = resolve_peer(cx, args.id, with_self=True)
     if x == cx.me:
         raise Fail("This is the device you are using. Choose another device.")
+    with cx.store.state(write=False) as d:
+        set_action('Unable to pair with "%s".' % peer_label(d["peers"].get(x)))
     resend_waiting(cx, x)
     with cx.store.state() as d:
         if d["peers"][x]["ruling"] == "denied":
@@ -2834,7 +2847,7 @@ def cmd_pair(cx, args):
             sid = short_id(x, d["peers"])
         name = peer_label(p)
         if p is None:
-            raise Fail('"%s" is no longer on this account.' % name)
+            raise Fail(SEND_WHY["unknown"])
         if p["pinned"] and p["ruling"] == "approved" and p["approves_me"]:
             print('Paired with "%s".' % name)
             return EXIT_OK
@@ -2843,7 +2856,7 @@ def cmd_pair(cx, args):
             if first and e["role"] == "N":
                 r = post_pair(cx, x, "open", e["msg"])
                 if r not in ("sent", "429"):
-                    raise Fail(pair_reason(r, name))
+                    raise Fail(pair_reason(r))
             first = False
             print("\nCompare Pairing Fingerprint: %s\n" % e["fingerprint"])
             try:
@@ -2864,7 +2877,7 @@ def cmd_pair(cx, args):
             except (ApiError, TempFail) as err:
                 raise could_not(err, "confirm", name)
             if r not in ("sent", "stored"):
-                raise Fail('Could not confirm "%s". %s' % (name, pair_reason(r, name)))
+                raise Fail(pair_reason(r), action='Unable to confirm "%s".' % name)
             continue
         if p["pinned"] and p["ruling"] == "approved":
             wait = 'Waiting for "%s" to confirm this device. Press Ctrl+C to stop.' % name
@@ -2881,13 +2894,13 @@ def cmd_pair(cx, args):
             r = pair_start(cx, x)
         first = False
         if r not in ("sent", "429"):
-            raise Fail(pair_reason(r, name))
+            raise Fail(pair_reason(r))
         if wait != told:
             log("info", wait)
             told, deadline = wait, time.time() + PAIR_WAIT_S  # each wait ends after PAIR_WAIT_S
         pt = stream.next(deadline)
         if pt is None:
-            raise Fail('Pairing with "%s" timed out. Run: `pusharmor pair %s` to try again.' % (name, sid))
+            raise Fail("It did not answer in time. Run: `pusharmor pair %s` to try again." % sid)
         pair_receive(cx, pt, stream)
 
 
@@ -2984,7 +2997,7 @@ def cmd_send(cx, args):
                     why = ("unknown" if p["missing"] else "unapproved" if not (
                         p["pinned"] and p["ruling"] == "approved" and p["approves_me"])
                         else "logged out" if p["logged_out"] else "not listening")
-                    raise Fail(SEND_WHY[why] % peer_label(p), EXIT_SEND)
+                    raise Fail(SEND_WHY[why], EXIT_SEND, 'Unable to send to "%s".' % peer_label(p))
                 targets.append(pid)
         if not targets:
             raise Fail("No device is paired yet. Run `pusharmor pair` to pair one.", EXIT_SEND)
@@ -2999,7 +3012,8 @@ def cmd_send(cx, args):
     with cx.store.state() as d:
         for pid in failed:
             r = res.get(pid) if isinstance(res.get(pid), str) else "failed"
-            log("error", device_reason(r, names[pid]))
+            log("error", ('Unable to deliver message to "%s".' if r == "gone" else 'Unable to send to "%s".')
+                % names[pid] + " " + device_reason(r))
             p = d["peers"].get(pid)
             if p and r == "logged out":
                 p["logged_out"] = True
@@ -3009,20 +3023,20 @@ def cmd_send(cx, args):
     return EXIT_SEND if failed else EXIT_OK
 
 
-# /v1/send, /v1/pair, and /v1/approve result word -> reason for one device (%s: its name).
-SEND_WHY = {"gone": '"%s" needs attention. Open PushArmor on it to resolve.',
-            "logged out": '"%s" is logged out. Log in on it to receive messages.',
-            "not listening": '"%s" has not listened recently. Run `pusharmor listen` on it.',
-            "unapproved": '"%s" is not paired with this device. Pair with it to send it messages.',
-            "denied": '"%s" is not paired with this device.', "unknown": '"%s" is no longer on this account.'}
-SEND_FAILED = 'The push service of "%s" did not accept the message. Try again later.'  # failed:CODE
-SEND_NOT_READY = '"%s" has not finished turning on notifications. Open PushArmor on it.'  # failed, any other word
+# /v1/send, /v1/pair, and /v1/approve result word -> reason for one device, after a line that names it.
+SEND_WHY = {"gone": "Open PushArmor on it to resolve.",
+            "logged out": "That device is logged out. Log in on that device to receive messages.",
+            "not listening": "It has not listened recently. Run `pusharmor listen` on it.",
+            "unapproved": "It is not paired with this device. Pair with it to send it messages.",
+            "denied": "It is not paired with this device.", "unknown": "It is no longer on this account."}
+SEND_FAILED = "Its push service did not accept the message. Try again later."  # failed:CODE
+SEND_NOT_READY = "It has not finished turning on notifications. Open PushArmor on it."  # failed, any other word
 
 
-def device_reason(r, name):
+def device_reason(r):
     if r in SEND_WHY:
-        return SEND_WHY[r] % name
-    return (SEND_FAILED if r.startswith("failed:") else SEND_NOT_READY) % name
+        return SEND_WHY[r]
+    return SEND_FAILED if r.startswith("failed:") else SEND_NOT_READY
 
 
 def cmd_rename(cx, args):
@@ -3052,6 +3066,7 @@ def cmd_delete(cx, args):
     x = resolve_peer(cx, args.id, with_self=True)
     with cx.store.state(write=False) as d:
         reg, name = d.get("reg"), peer_label(d["peers"].get(x))
+        set_action('Unable to remove "%s".' % (d.get("name") or name if x == cx.me else name))
     if reg != "registered" and (x != cx.me or reg != "logged_out"):
         raise Fail(LOGGED_OUT if reg == "logged_out" else NOT_LOGGED_IN, EXIT_LOGIN)
     if x == cx.me:
@@ -3099,6 +3114,12 @@ COMMANDS = {
                [(("id",), {"metavar": "ID", "help": "device ID from pusharmor pair"}),
                 (("--yes",), {"action": "store_true", "help": "do not ask for confirmation (needed without a terminal)"})]),
 }
+
+
+# The "Unable to ..." line in front of each error line, as on the apps. pair ID and delete ID name the device.
+ACTIONS = {"login": "Unable to log in.", "logout": "Unable to log out.", "pair": "Unable to refresh the device list.",
+           "devices": "Unable to refresh the device list.", "listen": "Unable to turn on notifications.",
+           "send": "Unable to send.", "rename": "Unable to rename this device."}
 
 
 class Parser(argparse.ArgumentParser):
@@ -3149,7 +3170,8 @@ def _os_error_text(e):
 
 
 def main(argv=None):
-    """Runs one command. Every error ends on stderr as one line, and an exit code from EXIT_CODES."""
+    """Runs one command. Every error ends on stderr as one line, "Unable to <action>." and the reason, and an exit
+    code from EXIT_CODES."""
     try:
         try:
             return _main(argv)
@@ -3183,10 +3205,13 @@ def _main(argv):
         for f in (sys.stdout, sys.stderr):
             with contextlib.suppress(AttributeError, ValueError):
                 f.reconfigure(encoding="utf-8", newline="\n")
+    set_action("")
     parser = build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "_check", lambda a: True)(args):
         parser.error("Use only one of --json, --tsv, and --exec.")
+    set_action(ACTIONS[args.command] if args.command not in ("pair", "delete") or not args.id
+               else ('Unable to pair with "%s".' if args.command == "pair" else 'Unable to remove "%s".') % args.id)
     cx = Ctx(config_dir(args.config))
     if args.config and os.path.exists(cx.store.root) and not os.path.isdir(cx.store.root):
         log("error", "The --config path %s is a file, not a folder." % quoted_path(cx.store.root))
@@ -3203,6 +3228,8 @@ def _main(argv):
         log("info", "Stopped.")
         return 130
     except Fail as e:
+        if e.action:
+            set_action(e.action)
         log("error", str(e))
         return e.code
     except ApiError as e:
