@@ -153,7 +153,9 @@ final class APITests: XCTestCase {
         _ = await api.call("GET", "/v1/x", auth: .none)
         XCTAssertEqual(w.lastHeaders["PA-Client"], "ios/1.2.3")
         XCTAssertTrue(APIClient.defaultClient.hasPrefix("ios/"))
-        let posted = expectation(forNotification: APIClient.upgradeRequired, object: api)
+        // matched in the handler: on Linux, Foundation boxes a non-NSObject object, so an
+        // object: filter never matches there
+        let posted = expectation(forNotification: APIClient.upgradeRequired, object: nil) { ($0.object as? APIClient) === api }
         w.script("POST", "/v1/send", 426, "{\"error\":\"upgrade required\"}")
         let r = await api.call("POST", "/v1/send", auth: .none)
         XCTAssertEqual(r.reply?.status, 426)
