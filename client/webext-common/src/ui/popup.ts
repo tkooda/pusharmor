@@ -100,13 +100,19 @@ export async function mountPopup(env: UiEnv, root: HTMLElement, page?: PageStart
     return;
   }
   // a context menu send opened this popup: it runs here with the Send popup; text over the limit opens Send to edit it
-  const menuOver = env.inPopup?.() === true ? menuSendHere(env) : Promise.resolve(null);
+  const menu = env.inPopup?.() === true ? rpc<{ text: string; child: string; over?: true } | null>(env, "menuSendClaim").catch(() => null) : Promise.resolve(null);
+  void menu.then((m) => {
+    if (m && !m.over) void menuSendHere(env, m);
+  });
   const blocked = env.notificationsBlocked?.().catch(() => false);
   // a failed read keeps Send, the view this open showed before
   const peers = (await rpc<{ peers: PeerView[] }>(env, "peers").catch(() => null))?.peers;
   const off = (await blocked) ? h("div", { class: "setup-bar", role: "status" }, h("span", {}, T.notificationsOff)) : null;
+  // text over the limit: the popup opens on Send with it, and the view does not change after
+  const took = await menu;
+  const over = took?.over ? took : null;
   if (my !== mounts) return;
-  const first: Tab = page?.tab ?? (peers ? launchTab(peers) : "send");
+  const first: Tab = over ? "send" : page?.tab ?? (peers ? launchTab(peers) : "send");
   clear(root);
   const body = h("div", { class: "body", id: "panel", role: "tabpanel" });
   const tabs = h("div", { class: "tabs", role: "tablist" });
@@ -155,8 +161,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement, page?: PageStart
   const top = h("div", { class: "top" }, h("div", { class: "head" }, h("img", { src: "icons/icon-32.png", width: "24", height: "24", alt: "" }), wordmark(env, 16)), setupBar(env, st), off, tabs);
   root.append(top, body);
   // after the first view is drawn, so the message keeps clear of its footer
-  const shown = show(first, page?.openPair, page?.arg);
-  void Promise.all([shown, menuOver]).then(([, over]) => over !== null && my === mounts && show("send", false, over.text, over.child === "all" ? undefined : over.child));
+  const shown = over ? show("send", false, over.text, over.child === "all" ? undefined : over.child) : show(first, page?.openPair, page?.arg);
   void shown
     .then(() => showPushIssue(env, st, () => my === mounts))
     .then(() => settlePushIssue(env, st, () => my === mounts));
@@ -476,11 +481,8 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   await update();
 }
 
-/** A context menu send this popup took: the Send popup while it runs, then the result as on Send. Text over the limit is returned, not sent. */
-async function menuSendHere(env: UiEnv): Promise<{ text: string; child: string } | null> {
-  const m = await rpc<{ text: string; child: string; over?: true } | null>(env, "menuSendClaim").catch(() => null);
-  if (!m) return null;
-  if (m.over) return { text: m.text, child: m.child };
+/** A context menu send this popup took: the Send popup while it runs, then the result as on Send. */
+async function menuSendHere(env: UiEnv, m: { text: string; child: string }): Promise<void> {
   // the send starts first and runs in the background, so a popup that closes cannot lose it; the names come after
   const sending = rpc<SendResult | null>(env, "menuSendRun");
   try {
@@ -498,7 +500,7 @@ async function menuSendHere(env: UiEnv): Promise<{ text: string; child: string }
     // the background sent it (the popup was late) and shows how it went
     if (!r) {
       window.close();
-      return null;
+      return;
     }
     const total = m.child === "all" ? r.total : 1;
     if (r.error) toast(r.error, "err");
@@ -507,7 +509,6 @@ async function menuSendHere(env: UiEnv): Promise<{ text: string; child: string }
   } catch (e) {
     toast((e as Error).message, "err");
   }
-  return null;
 }
 
 /** The Send popup: a modal dialog over the view (the layout stays) with the brand tile, a caption, the bar, and the step line. */

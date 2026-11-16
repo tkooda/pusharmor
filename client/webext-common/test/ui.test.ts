@@ -691,3 +691,11 @@ test("an expanded History row wraps the full URL and the full device name", asyn
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
   assert.match(pop, /content\.classList\.remove\("mid"\);\s+content\.textContent = r\.content;/);
 });
+
+test("over-limit menu text: the popup opens on Send with the text first and never switches the view after", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  assert.match(pop, /const first: Tab = over \? "send" : /);
+  assert.match(pop, /const shown = over \? show\("send", false, over\.text, over\.child === "all" \? undefined : over\.child\) : show\(first, page\?\.openPair, page\?\.arg\);/);
+  assert.doesNotMatch(pop, /menuOver\]\)\.then/);
+});
