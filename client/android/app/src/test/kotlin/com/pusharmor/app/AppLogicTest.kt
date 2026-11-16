@@ -460,6 +460,11 @@ class AppLogicTest {
         assertTrue(sign.contains("if (stage == 2) \"Check your email\""))
         assertTrue(sign.contains("Text(UiText.CODE_SENT_NOTE"))
         assertTrue(sign.contains("can never be read by our relay server or anyone else."))
+        // Get a new code sends to the same address and stays on the code step.
+        assertTrue(sign.contains("vm.message.value = null; resending = true }"))
+        assertTrue(sign.contains("if (rt != null) requestToken = rt\n                            resending = false"))
+        // The security check fallback line keeps the normal text color.
+        assertTrue(sign.contains("Text(UiText.SECURITY_CHECK_FAILED)\n"))
     }
 
     @Test fun deleteAccountAsksFirstAndCanBeCancelled() {

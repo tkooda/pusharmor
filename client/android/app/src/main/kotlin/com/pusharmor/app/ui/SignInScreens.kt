@@ -193,6 +193,7 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onSe
     var requestToken by rememberSaveable { mutableStateOf<String?>(null) }
     var code by rememberSaveable { mutableStateOf("") }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
+    var resending by rememberSaveable { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val msg by vm.message.collectAsState()
     // Back goes to the log-in choices, not out of the app.
@@ -248,9 +249,16 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onSe
                         code = cleaned
                         if (submit) requestToken?.let { vm.emailVerify(it, code, purpose, onDone) }
                     }
-                    // Back to the address step with the address kept, after the resend countdown; the code goes out again from there.
-                    TextButton(onClick = { code = ""; error = null; vm.message.value = null; stage = 0 }, Modifier.heightIn(min = 48.dp), enabled = left <= 0) {
+                    // A new code for the same address after the resend countdown; the security check shows here and the code step stays.
+                    TextButton(onClick = { code = ""; error = null; vm.message.value = null; resending = true }, Modifier.heightIn(min = 48.dp), enabled = left <= 0 && !resending) {
                         Text(UiText.sendLabel("Get a new code", left))
+                    }
+                    if (resending) TurnstileView(onNoApp = { vm.message.value = it }, playStore = vm.g.push.hasPlayServices) { token ->
+                        scope.launch {
+                            val rt = vm.emailStart(email, token, purpose)
+                            if (rt != null) requestToken = rt
+                            resending = false
+                        }
                     }
                 }
             }
@@ -311,7 +319,7 @@ fun TurnstileView(onNoApp: (String) -> Unit, playStore: Boolean = true, onToken:
     var failed by remember { mutableStateOf(false) }
     if (!supported || failed) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(UiText.SECURITY_CHECK_FAILED, color = MaterialTheme.colorScheme.error)
+            Text(UiText.SECURITY_CHECK_FAILED)
             // The store button only where Google Play can open it.
             if (playStore) Button(onClick = {
                 startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.webview")), show = onNoApp)
