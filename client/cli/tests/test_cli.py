@@ -2130,7 +2130,7 @@ def test_login_link_too_old_says_the_code_expired(net, tmp_path, monkeypatch, ca
     monkeypatch.setattr(pa, "input", code_then_eof, raising=False)
     assert run(tmp_path, "login") == 1
     out = capsys.readouterr().out
-    assert "The code expired. Open the link to get a new code:\n\n  %s/auth/cli#" % pa.SITE in out
+    assert "The code expired. Open the URL to get a new code:\n\n  %s/auth/cli#" % pa.SITE in out
 
 
 def test_rename_to_the_same_name_makes_no_network_call(net, tmp_path, monkeypatch, capsys):
@@ -2561,3 +2561,12 @@ def test_reconcile_failure_is_reported(monkeypatch, capsys):
     cx.api = type("A", (), {"call": staticmethod(boom)})()
     pa.reconcile_allow(cx)
     assert "warning: Could not withdraw" in capsys.readouterr().err
+
+
+def test_user_visible_text_says_url_not_link():
+    src = open(pa.__file__, encoding="utf-8").read()
+    for text in ("Open this URL in a browser and log in:", "Open the URL to get a new code:",
+                 "Send a URL or text to your paired devices", "not as a URL or phone number",
+                 "send URLs and text to your own"):
+        assert text in src
+    assert "Open this link" not in src and "Open the link" not in src

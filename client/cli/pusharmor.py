@@ -2533,7 +2533,7 @@ def cmd_login(cx, args):
             k[name], k[name + "_pub"] = new_key()
         cx.keys = cx.api.keys = k
     link = "%s/auth/cli#%s%s" % (SITE, purpose, b64e(sha256(cx.keys["sign_pub"])[:16]))
-    print("Open this link in a browser and log in:\n\n  %s\n\nThen paste the code from the page here." % link)
+    print("Open this URL in a browser and log in:\n\n  %s\n\nThen paste the code from the page here." % link)
     shown, tries, code = time.time(), 0, None
     while True:
         if code is None:
@@ -2550,7 +2550,7 @@ def cmd_login(cx, args):
                 print("The code is not correct. Copy the whole code from the page and paste it again.")
                 continue
         if time.time() - shown > LINK_LIFE_S:
-            print("The code expired. Open the link to get a new code:\n\n  %s\n" % link)
+            print("The code expired. Open the URL to get a new code:\n\n  %s\n" % link)
             shown, code = time.time(), None
             continue
         try:
@@ -2560,7 +2560,7 @@ def cmd_login(cx, args):
             if e.status == 401 and e.error == "unknown peer":
                 raise
             if e.status == 401 and e.error == "ticket expired":
-                print("The code expired. Open the link to get a new code:\n\n  %s\n" % link)
+                print("The code expired. Open the URL to get a new code:\n\n  %s\n" % link)
                 shown, code = time.time(), None
                 continue
             if e.status == 401 and e.error in ("bad ticket", "invalid ticket"):
@@ -3089,10 +3089,10 @@ COMMANDS = {
                [(("--json",), {"action": "store_true", "help": "one JSON object per line"}),
                 (("--tsv",), {"action": "store_true", "help": "tab-separated lines"}),
                 (("--exec",), {"metavar": "PROG", "help": "run PROG ID NAME PLATFORM TYPE BODY per message"})]),
-    "send": (cmd_send, "Send a link or text to your paired devices (all, or --to ID).",
+    "send": (cmd_send, "Send a URL or text to your paired devices (all, or --to ID).",
              [(("message",), {"nargs": "*", "metavar": "MESSAGE", "help": "text to send; - or none reads stdin"}),
               (("--to",), {"action": "append", "metavar": "ID", "help": "send to this device only (repeatable)"}),
-              (("--text",), {"action": "store_true", "help": "send as plain text, not as a link or phone number"})]),
+              (("--text",), {"action": "store_true", "help": "send as plain text, not as a URL or phone number"})]),
     "rename": (cmd_rename, "Change the name your other devices show for this device.",
                [(("name",), {"metavar": "NAME", "help": "1 to 32 plain ASCII characters, no double quote"})]),
     "delete": (cmd_delete, "Remove a device from your account (this device too).",
@@ -3110,7 +3110,7 @@ class Parser(argparse.ArgumentParser):
 
 
 def build_parser():
-    p = Parser(prog="pusharmor", description="PushArmor: send links and text to your own "
+    p = Parser(prog="pusharmor", description="PushArmor: send URLs and text to your own "
                                 "devices, end-to-end encrypted. See https://pusharmor.com",
                                 epilog="exit codes:\n" + "\n".join("  %-3d %s" % c for c in EXIT_CODES),
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
