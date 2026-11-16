@@ -64,5 +64,7 @@ final class ShareSheetTests: XCTestCase {
             .components(separatedBy: "func close()")[0]
         XCTAssertTrue(send.contains("step = .failed(ErrorCopy.sendFailText(error))\n            return"))
         XCTAssertFalse(send.contains("step = .done(ErrorCopy"))
+        // a send that missed any device also stays on screen
+        XCTAssertTrue(send.contains("guard rep.allSent else { step = .failed(rep.toast); return }\n            step = .done(rep.toast)"))
     }
 }

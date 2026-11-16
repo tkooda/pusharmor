@@ -117,6 +117,8 @@ final class ShareModel: ObservableObject {
                 }
             }
             popup = false
+            // A device that did not get the message keeps the result on screen too.
+            guard rep.allSent else { step = .failed(rep.toast); return }
             step = .done(rep.toast)
         } catch {
             popup = false
