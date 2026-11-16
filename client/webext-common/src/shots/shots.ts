@@ -227,12 +227,10 @@ async function main(): Promise<void> {
     const pn = document.getElementById("panel")!;
     const plate = pn.querySelector(".plate");
     pn.scrollTop = q.has("tab") && plate ? pn.scrollTop + plate.getBoundingClientRect().top - pn.getBoundingClientRect().top - 12 : pn.scrollHeight;
-    // ?about (site About page): from the last line of the first-pair steps down
-    const step = q.has("about") && !q.has("tab") ? pn.querySelector(".fp-steps li:last-child span:last-child") : null;
-    const range = document.createRange();
-    if (step) range.selectNodeContents(step);
-    const line = step ? [...range.getClientRects()].pop() : undefined;
-    if (line) pn.scrollTop += line.top - pn.getBoundingClientRect().top - 4;
+    // ?about (site About page): scrolled just enough that the whole pairing card shows above the sticky foot bar
+    const card = q.has("about") && !q.has("tab") ? pn.querySelector(".pair") : null;
+    const bottom = pn.querySelector(".foot")?.getBoundingClientRect().top ?? pn.getBoundingClientRect().bottom;
+    if (card) pn.scrollTop += card.getBoundingClientRect().bottom - bottom + 4;
   }
   if ((tab === "settings" || tab === "signout") && !q.has("top")) {
     await new Promise((done) => setTimeout(done, 500));

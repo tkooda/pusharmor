@@ -24,7 +24,7 @@ const SHOTS = [
 ];
 // --popup=<dir>: the About-page popup shots (plus the send message and the Remove confirm) (400x560 popup alone, captured at 2x: 800x1120 files).
 // --store-popup=<dir> (Chrome): the store shots 01-06 as the 400x560 popup alone, captured at 2x (800x1120 files), for the site About page.
-// With ?about: 02 starts at the last line of the first-pair steps, and 04 has no focus in the message field.
+// With ?about: 02 is scrolled just enough that the whole pairing card shows, and 04 has no focus in the message field.
 // --review=<dir>: also write review images (sign-in, Settings, Log out, last device menu) there; not store shots.
 const REVIEW = [
   ["90-signin", "signin.html#email"],
