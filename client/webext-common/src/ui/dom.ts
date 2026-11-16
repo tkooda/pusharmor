@@ -101,7 +101,7 @@ export function add(el: HTMLElement, ...kids: (Node | string | null | undefined 
   return el;
 }
 
-/** A section header (caps by CSS; the DOM text stays sentence case). A heading, and focusable by script. */
+/** A section header in sentence case. A heading, and focusable by script. */
 export function sh(text: string): HTMLElement {
   return h("h2", { class: "sh", tabindex: "-1" }, text);
 }
