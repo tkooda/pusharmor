@@ -3214,6 +3214,9 @@ def _main(argv):
                 f.reconfigure(encoding="utf-8", newline="\n")
     set_action("")
     parser = build_parser()
+    if not (sys.argv[1:] if argv is None else argv):  # no arguments: the full help, as a usage error
+        parser.print_help(sys.stderr)
+        return EXIT_USAGE
     args = parser.parse_args(argv)
     if not getattr(args, "_check", lambda a: True)(args):
         parser.error("Use only one of --json, --tsv, and --exec.")

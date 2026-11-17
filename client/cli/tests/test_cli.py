@@ -106,7 +106,7 @@ def test_command_table_is_frozen():
     assert list(pa.COMMANDS) == ["login", "logout", "pair", "devices", "listen", "send", "rename", "delete"]
 
 
-@pytest.mark.parametrize("argv", [[], ["frob"], ["rename"], ["delete"], ["send", "--bogus"], ["pair", "a", "b"],
+@pytest.mark.parametrize("argv", [["frob"], ["rename"], ["delete"], ["send", "--bogus"], ["pair", "a", "b"],
                                   ["listen", "--json", "--tsv"], ["listen", "--tsv", "--exec", "x"], ["login", "x"]])
 def test_bad_usage_exits_2(argv, capsys):
     with pytest.raises(SystemExit) as e:
@@ -1387,6 +1387,18 @@ def test_help_lists_every_exit_code(capsys):
     assert len(pa.EXIT_CODES) == 8
     for code, text in pa.EXIT_CODES:
         assert "  %-3d %s" % (code, text) in out
+
+
+def test_no_arguments_prints_the_full_help_on_stderr(capsys, monkeypatch):
+    with pytest.raises(SystemExit):
+        pa.main(["--help"])
+    help_text = capsys.readouterr().out
+    assert pa.main([]) == 2
+    out, err = capsys.readouterr()
+    assert out == "" and err == help_text
+    monkeypatch.setattr(sys, "argv", ["pusharmor"])
+    assert pa.main() == 2
+    assert capsys.readouterr().err == help_text
 
 
 # ---- crashes: every error is one line on stderr and a listed exit code ----
