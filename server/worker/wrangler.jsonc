@@ -27,19 +27,19 @@
       "migrations_dir": "migrations"
     }
   ],
-  // RL_ACCT: 120 calls per 60 s per account (key "acct:" + account id) over every signed call
+  // RL_ACCT: 60 calls per 60 s per account (key "acct:" + account id) over every signed call
   // and POST /peers, checked before any D1 access. A real account (<= 10 devices, a few sends a
   // minute) stays far below it; one account can no longer multiply RL_PEER by its peers.
   "ratelimits": [
     { "name": "RL_IP", "namespace_id": "1001", "simple": { "limit": 100, "period": 60 } },
-    { "name": "RL_PEER", "namespace_id": "1002", "simple": { "limit": 60, "period": 60 } },
+    { "name": "RL_PEER", "namespace_id": "1002", "simple": { "limit": 30, "period": 60 } },
     { "name": "RL_MAIL_EMAIL", "namespace_id": "1010", "simple": { "limit": 2, "period": 60 } },
     { "name": "RL_MAIL_IP", "namespace_id": "1011", "simple": { "limit": 10, "period": 60 } },
     { "name": "RL_MAIL_GLOBAL", "namespace_id": "1012", "simple": { "limit": 600, "period": 60 } },
     { "name": "RL_PAIR", "namespace_id": "1006", "simple": { "limit": 1, "period": 60 } },
     { "name": "RL_PROBE", "namespace_id": "1007", "simple": { "limit": 2, "period": 60 } },
     { "name": "RL_CODE", "namespace_id": "1013", "simple": { "limit": 5, "period": 60 } },
-    { "name": "RL_ACCT", "namespace_id": "1009", "simple": { "limit": 120, "period": 60 } }
+    { "name": "RL_ACCT", "namespace_id": "1009", "simple": { "limit": 60, "period": 60 } }
   ],
   "vars": {
     "PA_ALLOWED_PUSH_ENDPOINTS": "[{\"host\":\"google.com\",\"paths\":[\"/fcm/send/\",\"/wp/\"]},{\"suffix\":\".google.com\",\"paths\":[\"/fcm/send/\",\"/wp/\"]},{\"host\":\"googleapis.com\",\"paths\":[\"/fcm/send/\",\"/wp/\"]},{\"suffix\":\".googleapis.com\",\"paths\":[\"/fcm/send/\",\"/wp/\"]},{\"suffix\":\".push.services.mozilla.com\",\"paths\":[\"/wpush/\"]},{\"suffix\":\".notify.windows.com\",\"paths\":[\"/w/\"]},{\"suffix\":\".push.apple.com\",\"paths\":[\"/\"]}]",

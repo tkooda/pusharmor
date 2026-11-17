@@ -72,10 +72,10 @@ describe("rate limits", () => {
     expect(last).toBe(429);
   });
 
-  it("RL_PEER: 60 signed calls pass, the 61st -> 429", async () => {
+  it("RL_PEER: 30 signed calls pass, the 31st -> 429", async () => {
     const p = await newPeer(randomEmail());
-    const e = await testEnv({ RL_PEER: countingLimit(60), RL_ACCT: countingLimit(1000) });
-    for (let i = 0; i < 60; i++) expect((await call("GET", "/v1/peers", undefined, { peer: p, env: e })).status).toBe(200);
+    const e = await testEnv({ RL_PEER: countingLimit(30), RL_ACCT: countingLimit(1000) });
+    for (let i = 0; i < 30; i++) expect((await call("GET", "/v1/peers", undefined, { peer: p, env: e })).status).toBe(200);
     const r = await call("GET", "/v1/peers", undefined, { peer: p, env: e });
     expect(r.status).toBe(429);
     expect(r.res.headers.get("Retry-After")).toBe("60");
@@ -157,8 +157,8 @@ describe("crons", () => {
     const cfg = JSON.parse(wranglerText.replace(/^\s*\/\/.*$/gm, ""));
     const got = Object.fromEntries(cfg.ratelimits.map((r: { name: string; simple: { limit: number; period: number } }) => [r.name, [r.simple.limit, r.simple.period]]));
     expect(got).toEqual({
-      RL_IP: [100, 60], RL_PEER: [60, 60], RL_MAIL_EMAIL: [2, 60], RL_MAIL_IP: [10, 60], RL_MAIL_GLOBAL: [600, 60],
-      RL_CODE: [5, 60], RL_PAIR: [1, 60], RL_PROBE: [2, 60], RL_ACCT: [120, 60],
+      RL_IP: [100, 60], RL_PEER: [30, 60], RL_MAIL_EMAIL: [2, 60], RL_MAIL_IP: [10, 60], RL_MAIL_GLOBAL: [600, 60],
+      RL_CODE: [5, 60], RL_PAIR: [1, 60], RL_PROBE: [2, 60], RL_ACCT: [60, 60],
     });
     const union = /export type Binding = ([^;]+);/.exec(limitsSrc)![1].match(/RL_[A-Z_]+/g)!;
     expect([...union].sort()).toEqual(Object.keys(got).sort());
