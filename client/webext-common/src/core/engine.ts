@@ -1492,7 +1492,8 @@ export class Engine {
     const self = await this.self();
     if (!self) throw new ReasonError(R.loggedOut);
     const all = await this.allSet();
-    const ids = targets === "all" ? all.map((p) => p.id) : targets.filter((t) => all.some((p) => p.id === t));
+    // All leaves out a device shown greyed as unreachable; a device picked by name is sent to as before
+    const ids = targets === "all" ? all.filter((p) => p.reachable).map((p) => p.id) : targets.filter((t) => all.some((p) => p.id === t));
     const total = all.length;
     const len = utf8Len(text);
     if (len > SEND_CAP) throw new ReasonError(R.tooLong);

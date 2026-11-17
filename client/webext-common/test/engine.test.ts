@@ -1123,6 +1123,24 @@ test("a send to All does not name a device that was greyed before; one the Send 
   assert.deepEqual(r.failures.map((f) => [f.id, f.result]), [[b.id, "not listening"]]);
 });
 
+test("a send to All leaves out a device shown greyed as unreachable; picked by name it is still sent to", async () => {
+  const { clock, w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  const c = await device(w, clock, "firefox");
+  await pairAndApprove(w, a, c);
+  await a.db.updatePeer(c.id, (p) => (p ? { ...p, reachable: false } : null));
+  assert.equal((await new Rpc(a.e).peers()).peers.find((x) => x.id === c.id)!.greyed, "unreachable");
+  const sentTo = () => Object.keys((w.calls.filter((x) => x.path === "/v1/send" && x.method === "POST").at(-1)!.body as { m: Record<string, string> }).m);
+  for (const shown of [[b.id], undefined]) {
+    const r = await a.e.send("hi", "auto", "all", shown);
+    assert.deepEqual(sentTo(), [b.id]);
+    assert.equal(r.sent, 1);
+    assert.deepEqual(r.failures, []);
+  }
+  await a.e.send("hi", "auto", [c.id]);
+  assert.deepEqual(sentTo(), [c.id]);
+});
+
 test("send failures read as sentences, never raw result words", async () => {
   const want: Record<string, string> = {
     gone: 'Unable to deliver message to "Chrome".\nOpen PushArmor on it to resolve.',
