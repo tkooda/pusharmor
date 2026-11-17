@@ -156,7 +156,7 @@ struct MessageDetailView: View {
                 .buttonStyle(ActionButtonStyle())
         case .open:
             Button { openIt() } label: {
-                ActionLabel(title: "Open", icon: row.type == "tel" ? "phone" : "arrow.up.right.square")
+                ActionLabel(title: row.type == "tel" ? "Call" : "Open", icon: row.type == "tel" ? "phone" : "arrow.up.right.square")
             }
             .buttonStyle(ActionButtonStyle())
         case .share:
