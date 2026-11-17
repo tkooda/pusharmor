@@ -4,6 +4,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    open-pull-requests-limit: 0
   - package-ecosystem: npm
     directories:
       - /server/worker
@@ -11,18 +12,22 @@ updates:
       - /site
     schedule:
       interval: weekly
+    open-pull-requests-limit: 0
   # A Gradle bump needs the dependency verification metadata regenerated on the
   # Dependabot branch before merge: ./gradlew --write-verification-metadata sha256 help
   - package-ecosystem: gradle
     directory: /client/android
     schedule:
       interval: weekly
+    open-pull-requests-limit: 0
   - package-ecosystem: swift
     directory: /client/ios/PushArmorCore
     schedule:
       interval: weekly
+    open-pull-requests-limit: 0
   # Hash-pinned test and build tools of the command-line client.
   - package-ecosystem: pip
     directory: /client/cli
     schedule:
       interval: weekly
+    open-pull-requests-limit: 0
