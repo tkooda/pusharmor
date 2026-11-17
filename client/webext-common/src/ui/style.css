@@ -100,6 +100,11 @@ input[type=checkbox]:focus-visible { outline: 2px solid var(--primary); outline-
 label.srow { cursor: pointer; }
 /* a value or control wrapped by large text stays on the right */
 .srow > select, .srow > input { margin-left: auto; }
+/* a long label wraps next to its checkbox; the checkbox stays on the label's first line
+   (one line: the same place as a centered row; --srow-in is the row height less its padding) */
+.srow.nowrap { flex-wrap: nowrap; align-items: flex-start; --srow-in: 28px; }
+.srow.nowrap > span { padding-block: calc((var(--srow-in) - 1lh) / 2); }
+.srow.nowrap > input { margin-top: calc((var(--srow-in) - 16px) / 2); }
 .srow.acct, .srow.acct-acts { display: block; }
 .acct .email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acct-acts .btns { padding: 0; flex-wrap: nowrap; justify-content: center; }
@@ -407,6 +412,7 @@ dialog.sendprog { width: min(340px, calc(100vw - 48px)); }
   .menu button { padding-top: 0; padding-bottom: 0; }
   .login button.text { min-height: 48px; }
   .srow, .prow.target, label.srow, .astext { min-height: 48px; }
+  .srow.nowrap { --srow-in: 32px; }
   .astext { padding: 0 8px; margin: 0 -8px; }
   .hselallbox { min-width: 48px; min-height: 48px; justify-content: center; }
 }

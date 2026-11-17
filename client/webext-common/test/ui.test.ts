@@ -635,6 +635,15 @@ test("Settings: retention says Delete messages older than, and every value or co
   assert.match(css, /\.srow > select, \.srow > input \{ margin-left: auto; \}/);
 });
 
+test('Settings: the Show an "All" button row keeps its checkbox on the label\'s first line when the label wraps', async () => {
+  const { readFileSync } = await import("node:fs");
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  assert.match(pop, /h\("label", \{ class: "srow nowrap" \}, h\("span", \{\}, 'Show an "All" button when choosing devices'\), showAll\)/);
+  assert.match(css, /\.srow\.nowrap \{ flex-wrap: nowrap; align-items: flex-start; --srow-in: 28px; \}/);
+  assert.match(css, /\.srow\.nowrap > input \{ margin-top: calc\(\(var\(--srow-in\) - 16px\) \/ 2\); \}/);
+});
+
 test("user text says URL for a web address; the sign-in email's login link stays", async () => {
   const { readFileSync } = await import("node:fs");
   const { R } = await import("../src/core/texts.ts");
