@@ -113,6 +113,7 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Log in with the same account."].exists)
         XCTAssertTrue(app.staticTexts["It appears here. Tap Pair."].exists)
         app.buttons["Done"].tap()
+        XCTAssertTrue(app.staticTexts["Install PushArmor on the other device."].waitForNonExistence(timeout: 5))
         app.tabBars.buttons["Settings"].tap()
         XCTAssertTrue(app.buttons["Rename"].waitForExistence(timeout: 10))
     }
