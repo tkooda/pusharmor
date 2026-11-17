@@ -4,6 +4,7 @@
 //   node release/tag.mjs X.Y.Z PLATFORM...  owner: tag HEAD for those platforms
 //                                          (PLATFORM X.Y.Z with one platform also
 //                                          works; "all" = android ios chrome firefox;
+//                                          cli and worker are named on their own;
 //                                          platforms are required)
 //   node release/tag.mjs --check TAG       release jobs: the checked-out tag obeys
 //                                          the rules; prints X.Y.Z
