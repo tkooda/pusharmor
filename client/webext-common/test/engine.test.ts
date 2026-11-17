@@ -1141,6 +1141,22 @@ test("a send to All leaves out a device shown greyed as unreachable; picked by n
   assert.deepEqual(sentTo(), [c.id]);
 });
 
+test("Sent to N of M: M is the devices picked for the send; for All, the devices it went to", async () => {
+  const { clock, w, a, b } = await setup();
+  await pairAndApprove(w, a, b);
+  const c = await device(w, clock, "firefox");
+  await pairAndApprove(w, a, c);
+  const d = await device(w, clock, "firefox");
+  await pairAndApprove(w, a, d);
+  w.inject.push({ match: /POST \/v1\/send/, status: 200, body: { r: { [b.id]: "logged out" } }, times: 1 });
+  const one = await a.e.send("hi", "auto", [b.id]);
+  assert.equal(T.sentToNofM(one.sent, one.total), "Sent to 0 of 1 device");
+  await a.db.updatePeer(d.id, (p) => (p ? { ...p, reachable: false } : null));
+  w.inject.push({ match: /POST \/v1\/send/, status: 200, body: { r: { [c.id]: "not listening" } }, times: 1 });
+  const all = await a.e.send("hi", "auto", "all", [c.id]);
+  assert.equal(T.sentToNofM(all.sent, all.total), "Sent to 0 of 1 device");
+});
+
 test("send failures read as sentences, never raw result words", async () => {
   const want: Record<string, string> = {
     gone: 'Unable to deliver message to "Chrome".\nOpen PushArmor on it to resolve.',

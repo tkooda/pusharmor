@@ -111,7 +111,10 @@ interface EngineDeps {
 
 export interface SendResult {
   sent: number;
+  /** M in "Sent to N of M": the devices picked for this send (for All, the devices it went to). */
   total: number;
+  /** Devices in the All set at the send (the Send view names the one device sent to only when it is the only one). */
+  all?: number;
   failures: { id: string; result: string; text: string }[];
   error?: string;
 }
@@ -1494,7 +1497,6 @@ export class Engine {
     const all = await this.allSet();
     // All leaves out a device shown greyed as unreachable; a device picked by name is sent to as before
     const ids = targets === "all" ? all.filter((p) => p.reachable).map((p) => p.id) : targets.filter((t) => all.some((p) => p.id === t));
-    const total = all.length;
     const len = utf8Len(text);
     if (len > SEND_CAP) throw new ReasonError(R.tooLong);
     let type: SendType = as === "auto" ? detectType(text) : as === "url" && isLikelyUrl(text) ? "url" : as === "telOrText" && detectType(text) === "tel" ? "tel" : "text";
@@ -1515,7 +1517,8 @@ export class Engine {
       const res = !p || p.missing || p.removed ? "unknown" : p.logged_out ? "logged out" : p.listening === false ? "not listening" : "unapproved";
       skipped.push({ id, result: res, text: sendResultText(await this.peerName(id), res) });
     }
-    if (ids.length === 0) return skipped.length ? { sent: 0, total, failures: skipped } : { sent: 0, total, failures: [], error: actionLine("send") + "\n" + R.noneCanReceive };
+    const total = ids.length + skipped.length;
+    if (ids.length === 0) return skipped.length ? { sent: 0, total, all: all.length, failures: skipped } : { sent: 0, total, all: all.length, failures: [], error: actionLine("send") + "\n" + R.noneCanReceive };
     const mid = newMsgId();
     // the Send popup shows these steps (a quarter of the bar each); a retry holds the bar at sending
     const names = await Promise.all(ids.map((id) => this.peerName(id)));
@@ -1590,7 +1593,7 @@ export class Engine {
       mid,
     });
     if (trigger) await this.fetchTrigger();
-    const out: SendResult = { sent, total, failures };
+    const out: SendResult = { sent, total, all: all.length, failures };
     if (error) out.error = error;
     return out;
   }
