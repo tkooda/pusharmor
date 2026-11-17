@@ -364,6 +364,14 @@ test("a menu send that some devices did not get, with no text back, says so in t
   assert.equal(r.notice, "Unable to send.\nSome devices did not get the message. Open PushArmor to see which.");
 });
 
+test("a menu send to All that reaches no device (total 0, with an error) shows the error", async () => {
+  const { menuSend } = await import("../src/core/actions.ts");
+  const error = "Unable to send.\nNo device can receive messages right now.";
+  const engine = { send: async () => ({ sent: 0, total: 0, failures: [], error }) } as unknown as Engine;
+  const r = await menuSend(engine, "hi", "all", false);
+  assert.equal(r.notice, error);
+});
+
 test("Codes match that the device did not get: the confirmation line, then why as for a send", async () => {
   const { confirmResultText } = await import("../src/core/texts.ts");
   assert.equal(confirmResultText("Lap", "logged out"), 'Unable to deliver the confirmation to "Lap".\nThat device is logged out. Log in on that device to receive messages.');

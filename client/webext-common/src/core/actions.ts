@@ -83,6 +83,6 @@ export async function menuSend(e: Engine, text: string, child: string, fromSelec
   void fromSelection;
   const total = targets === "all" ? r.total : 1;
   const badge = r.sent + "/" + total;
-  const notice = r.sent < total ? (r.error || r.failures.map((f) => f.text).join("\n") || actionLine("send") + "\n" + R.someNotSent) : null;
+  const notice = r.error || r.sent < total ? (r.error || r.failures.map((f) => f.text).join("\n") || actionLine("send") + "\n" + R.someNotSent) : null;
   return { badge, notice, overCap: null, result: r };
 }

@@ -264,7 +264,7 @@ export function onRuntimeMessage(boot: () => Promise<Booted>, extra?: (msg: Req,
           // a failure the popup closed before it showed: the notification the background gives a send it runs
           const r = res.data as SendResult | undefined;
           const total = d.child === "all" ? r?.total ?? 0 : 1;
-          const body = !res.ok ? res.error ?? "" : r && r.sent < total ? r.error || r.failures.map((f) => f.text).join("\n") || actionLine("send") + "\n" + R.someNotSent : "";
+          const body = !res.ok ? res.error ?? "" : r && (r.error || r.sent < total) ? r.error || r.failures.map((f) => f.text).join("\n") || actionLine("send") + "\n" + R.someNotSent : "";
           if (body) notifyUnlessShown(engine.p, asked, body);
           return res;
         })

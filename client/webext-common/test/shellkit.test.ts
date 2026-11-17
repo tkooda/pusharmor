@@ -541,3 +541,26 @@ test("notifications blocked: Chrome asks notifications.getPermissionLevel; Firef
   assert.equal(await notificationsBlocked({}, "granted"), false);
   assert.equal(await notificationsBlocked({}, undefined), false);
 });
+
+test("a menu send to All the toolbar popup runs, that reaches no device, is notified with the error", async () => {
+  const { onMenuClick, onRuntimeMessage } = await import("../src/shellkit.ts");
+  const { Rpc } = await import("../src/core/rpc.ts");
+  const error = "Unable to send.\nNo device can receive messages right now.";
+  const notes: string[] = [];
+  const b = { action: { setBadgeText: async () => undefined, openPopup: async () => undefined } };
+  const engine = { send: async () => ({ sent: 0, total: 0, failures: [], error }), updateBadge: async () => undefined, p: { notify: (_i: string, _t: string, body: string) => notes.push(body), setBadge: () => undefined } };
+  const boot = async () => ({ engine, rpc: new Rpc(engine as never) }) as never;
+  const ask = (op: string) => new Promise((resolve) => onRuntimeMessage(boot)({ op }, {} as never, resolve as never));
+  const flush = () => new Promise((r) => setImmediate(r));
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    onMenuClick(b as never, boot, async () => "")({ menuItemId: "pa-page|all", pageUrl: "https://example.com/" } as never);
+    await ask("menuSendClaim");
+    await ask("menuSendRun");
+    mock.timers.tick(5000);
+    await flush();
+    assert.deepEqual(notes, [error]);
+  } finally {
+    mock.timers.reset();
+  }
+});
