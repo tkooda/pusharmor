@@ -220,8 +220,7 @@ Promote:
 
 CI: the IPA (cloud-managed signing) in the GitHub release. Nothing is
 uploaded to App Store Connect (no TestFlight build). Before the archive, ios-release
-runs the iOS UI tests and the iOS 17 job: they are not in the per-change gate
-(the nightly workflow runs them on main when main changed).
+runs the iOS UI tests and the iOS 17 job: they are not in the per-change gate.
 
 The app is iPhone only (`TARGETED_DEVICE_FAMILY: "1"` in
 `client/ios/project.yml`), so promote sends only the 6.9-inch iPhone

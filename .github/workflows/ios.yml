@@ -5,8 +5,7 @@ name: ios
 # ios-release.yml with release: true (only what a push does not run: the UI
 # tests and the iOS 17 job; the gate jobs already passed in ci on the tag
 # commit). The UI tests build once (build-for-testing) and run in three shards.
-# nightly.yml calls it with release: true on main when main changed since the
-# last nightly run; a manual dispatch runs every job. The Debug simulator app
+# A manual dispatch runs every job. The Debug simulator app
 # is uploaded (not for tags).
 on:
   workflow_call:
@@ -216,7 +215,7 @@ jobs:
           path: ${{ runner.temp }}/PushArmor.xcresult
           retention-days: 7
 
-  # Release, nightly and manual runs: build the app and its tests once for the
+  # Release and manual runs: build the app and its tests once for the
   # UI shards below.
   ios-build-for-testing:
     name: build for testing (newest simulator)
