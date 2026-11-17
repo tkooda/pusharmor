@@ -77,7 +77,8 @@ export function basePlatform(b: Browser, name: "chrome" | "firefox", isAndroid: 
         return false; // no window: notification only
       }
       if (w.id === undefined) return false;
-      await b.tabs.create({ url, active: false, windowId: w.id });
+      await b.tabs.create({ url, active: true, windowId: w.id });
+      await b.windows.update(w.id, { focused: true }).catch(() => undefined);
       return true;
     },
     menusRebuild(peers: MenuPeer[], showAll: boolean, mode: MenuMode = "send") {

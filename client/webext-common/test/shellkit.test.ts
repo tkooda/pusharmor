@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { mock, test } from "node:test";
-import { lazyBoot, notificationsBlocked, onRuntimeMessage, uiEnv } from "../src/shellkit.ts";
+import { basePlatform, lazyBoot, notificationsBlocked, onRuntimeMessage, uiEnv } from "../src/shellkit.ts";
 
 test("openPage: an open tab on the same page is focused and reloaded", async () => {
   const log: string[] = [];
@@ -563,4 +563,20 @@ test("a menu send to All the toolbar popup runs, that reaches no device, is noti
   } finally {
     mock.timers.reset();
   }
+});
+
+test("autoOpenTab: desktop opens a foreground tab and brings its window forward; Firefox for Android opens a tab as before", async () => {
+  const log: string[] = [];
+  const b = {
+    runtime: { getManifest: () => ({ version: "0.0.52" }) },
+    storage: { local: {}, session: {} },
+    tabs: { create: async (o: { url: string; active: boolean; windowId?: number }) => void log.push(`create ${o.url} active=${o.active} win=${o.windowId}`) },
+    windows: {
+      getLastFocused: async () => ({ id: 7 }),
+      update: async (id: number, p: { focused?: boolean }) => void log.push(`window ${id} focused=${p.focused}`),
+    },
+  };
+  assert.equal(await basePlatform(b as never, "chrome", false, {} as never).autoOpenTab("https://example.com/a"), true);
+  assert.equal(await basePlatform(b as never, "firefox", true, {} as never).autoOpenTab("https://example.com/b"), true);
+  assert.deepEqual(log, ["create https://example.com/a active=true win=7", "window 7 focused=true", "create https://example.com/b active=false win=undefined"]);
 });
