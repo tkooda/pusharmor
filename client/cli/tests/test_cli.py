@@ -123,9 +123,15 @@ def test_help_for_every_command(name, capsys):
     assert e.value.code == 0 and "usage: pusharmor " + name in capsys.readouterr().out
 
 
+def test_send_help_shows_d_and_to(capsys):
+    with pytest.raises(SystemExit):
+        pa.main(["send", "--help"])
+    assert re.search(r"-d( ID)?, --to ID", capsys.readouterr().out)  # Python 3.13 writes the metavar once
+
+
 def test_parse_args_per_command():
     p = pa.build_parser()
-    a = p.parse_args(["--config", "/x", "send", "--to", "abcdef", "--to", "123456", "--text", "hi", "there"])
+    a = p.parse_args(["--config", "/x", "send", "-d", "abcdef", "--to", "123456", "--text", "hi", "there"])
     assert (a.config, a.command, a.to, a.text, a.message) == ("/x", "send", ["abcdef", "123456"], True, ["hi", "there"])
     assert p.parse_args(["pair"]).id is None and p.parse_args(["pair", "abcdef"]).id == "abcdef"
     a = p.parse_args(["listen", "--exec", "notify"])
@@ -512,7 +518,7 @@ def test_pair_send_listen(net, tmp_path, monkeypatch, capsys):
     assert run(a, "send", "https://example.com/a b") == 0
     del net.hooks[("POST", "send")]
     monkeypatch.setattr(sys, "stdin", Stdin(tty=False, data="line one\n\tline two\n".encode()))
-    assert run(a, "send", "--to", pa.id_hex(idb)[:6]) == 0
+    assert run(a, "send", "-d", pa.id_hex(idb)[:6]) == 0
     monkeypatch.setattr(sys, "stdin", Stdin())
 
     net.stop.set()
