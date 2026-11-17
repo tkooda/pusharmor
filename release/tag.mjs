@@ -34,6 +34,7 @@
 // ran them, or push a change under release/ (it runs every component).
 // The same holds for a platform whose files did not change since the last main
 // run: its jobs are skipped on that push.
+// Deploy the Worker before the client tags when the clients need it (RELEASING.md).
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
