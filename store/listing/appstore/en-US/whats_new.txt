@@ -1,1 +1,1 @@
-Log in with Google or Apple now works in the Firefox for Android add-on. The notice shown when notifications are off no longer covers the screen title. The Share sheet stays open when a device did not get the message. A failed rename puts the old name back, so you can try again. Clearer send failures and counts in Chrome and Firefox.
+A message with a phone number now shows a Call button instead of Open. Small reliability improvements.
