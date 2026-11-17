@@ -88,7 +88,7 @@ interface PairPost {
 }
 export const FETCH_WINDOW_MS = 60_000;
 export const SEND_AGAIN_MS = 60_000;
-const AUTO_OPEN_MAX = 3;
+const AUTO_OPEN_MAX = 10;
 const AUTO_OPEN_WINDOW_MS = 60_000;
 
 export interface Settings {
