@@ -325,6 +325,9 @@ object UiText {
     /** The security check cannot show: line 1, then line 2. */
     const val SECURITY_CHECK_FAILED = "Unable to show the security check.\nUpdate Android System WebView."
 
+    /** The security check page did not load (for example, no connection): line 1, then the connection reason. */
+    val SECURITY_CHECK_LOAD_FAILED = "Unable to load the security check.\n" + com.pusharmor.net.ErrorText.UNREACHABLE
+
     /** ms until a code may be sent to [email] again; only the address just sent to (or limited) waits. */
     fun sendLeftMs(until: Long, sentTo: String, email: String, now: Long): Long =
         if (sentTo.isEmpty() || sentTo != email.trim().lowercase()) 0L else maxOf(0L, until - now)

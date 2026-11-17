@@ -133,4 +133,29 @@ class TurnstileViewTest {
             assertEquals(if (token) 0 else 1, fails)
         }
     }
+    /** The check page does not load (for example, offline): the 2-line load error goes to the screen and the check counts as failed; a sub-resource error does neither. */
+    @Config(shadows = [SupportedWebViewFeature::class, QuietWebViewCompat::class])
+    @Test fun mainFramePageErrorShowsTheLoadError() {
+        for (main in listOf(true, false)) {
+            val errors = mutableListOf<String>()
+            var fails = 0
+            UiHostActivity.content = { TurnstileView(onNoApp = {}, onFail = { fails++ }, onError = { errors += it }) {} }
+            val a = Robolectric.buildActivity(UiHostActivity::class.java).setup().get()
+            shadowOf(Looper.getMainLooper()).idle()
+            val web = webViews(a.window.decorView).single()
+            val req = object : android.webkit.WebResourceRequest {
+                override fun getUrl() = android.net.Uri.parse("https://pusharmor.com/turnstile")
+                override fun isForMainFrame() = main
+                override fun isRedirect() = false
+                override fun hasGesture() = false
+                override fun getMethod() = "GET"
+                override fun getRequestHeaders() = emptyMap<String, String>()
+            }
+            android.webkit.WebViewClient::class.java.getMethod("onReceivedError", WebView::class.java, android.webkit.WebResourceRequest::class.java, android.webkit.WebResourceError::class.java)
+                .invoke(shadowOf(web).webViewClient, web, req, null)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(if (main) listOf("Unable to load the security check.\nThe relay server could not be reached. Check your internet connection and try again.") else emptyList<String>(), errors)
+            assertEquals(if (main) 1 else 0, fails)
+        }
+    }
 }

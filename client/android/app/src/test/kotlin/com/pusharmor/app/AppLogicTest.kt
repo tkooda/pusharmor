@@ -465,9 +465,9 @@ class AppLogicTest {
         assertTrue(sign.contains("if (rt != null) requestToken = rt\n                                } finally {\n                                    requesting = false\n                                    resending = false"))
         // Greyed while the security check shows; a check that fails does not leave the button greyed, and a new tap starts a new check.
         assertTrue(sign.contains("enabled = left <= 0 && !requesting && (!resending || checkFailed)) {\n                        Text(UiText.sendLabel(\"Get a new code\", left))"))
-        assertTrue(sign.contains("playStore = vm.g.push.hasPlayServices, onFail = { checkFailed = true }) { token ->"))
+        assertTrue(sign.contains("playStore = vm.g.push.hasPlayServices, onFail = { checkFailed = true }, onError = { error = it }) { token ->"))
         assertTrue(sign.contains("if (!supported || failed) {\n        LaunchedEffect(Unit) { onFail() }"))
-        assertTrue(sign.contains("if (request.isForMainFrame) view.post { onFail() }"))
+        assertTrue(sign.contains("if (request.isForMainFrame) view.post { onError(UiText.SECURITY_CHECK_LOAD_FAILED); onFail() }"))
         assertTrue(sign.contains("if (resending) key(resendTry) {"))
         assertFalse(sign.contains("left <= 0 && !resending"))
         // The security check fallback line keeps the normal text color.

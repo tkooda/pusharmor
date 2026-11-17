@@ -237,7 +237,7 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onSe
                         modifier = Modifier.fillMaxWidth().semantics { if (invalid) this.error("Not a valid email address") })
                     GreenButton(onClick = next, text = UiText.sendLabel("Email me a code", left), icon = null, modifier = Modifier.fillMaxWidth(), enabled = left <= 0)
                 }
-                1 -> TurnstileView(onNoApp = { vm.message.value = it }, playStore = vm.g.push.hasPlayServices) { token ->
+                1 -> TurnstileView(onNoApp = { vm.message.value = it }, playStore = vm.g.push.hasPlayServices, onError = { error = it }) { token ->
                     scope.launch {
                         val rt = vm.emailStart(email, token, purpose)
                         if (rt != null) { requestToken = rt; stage = 2 } else stage = 0
@@ -260,7 +260,7 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onSe
                         Text(UiText.sendLabel("Get a new code", left))
                     }
                     if (resending) key(resendTry) {
-                        TurnstileView(onNoApp = { vm.message.value = it }, playStore = vm.g.push.hasPlayServices, onFail = { checkFailed = true }) { token ->
+                        TurnstileView(onNoApp = { vm.message.value = it }, playStore = vm.g.push.hasPlayServices, onFail = { checkFailed = true }, onError = { error = it }) { token ->
                             requesting = true
                             scope.launch {
                                 try {
@@ -322,10 +322,10 @@ private fun CodeCells(code: String, onChange: (String) -> Unit) {
         })
 }
 
-/** Turnstile host page in a WebView; the token comes back through a WebMessageListener for https://pusharmor.com only. onFail: the check cannot show, its page did not load, or it gave no token 30 s after its page loaded. */
+/** Turnstile host page in a WebView; the token comes back through a WebMessageListener for https://pusharmor.com only. onFail: the check cannot show, its page did not load, or it gave no token 30 s after its page loaded. onError: the error to show when its page did not load. */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun TurnstileView(onNoApp: (String) -> Unit, playStore: Boolean = true, onFail: () -> Unit = {}, onToken: (String) -> Unit) {
+fun TurnstileView(onNoApp: (String) -> Unit, playStore: Boolean = true, onFail: () -> Unit = {}, onError: (String) -> Unit = {}, onToken: (String) -> Unit) {
     val context = LocalContext.current
     // A missing, disabled, or updating WebView throws; the update fallback shows instead.
     val supported = remember { try { WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER) } catch (e: Exception) { false } }
@@ -353,8 +353,8 @@ fun TurnstileView(onNoApp: (String) -> Unit, playStore: Boolean = true, onFail: 
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
                     request.isForMainFrame && !request.url.toString().startsWith("https://pusharmor.com/")
-                override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
-                    if (request.isForMainFrame) view.post { onFail() }
+                override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError?) {
+                    if (request.isForMainFrame) view.post { onError(UiText.SECURITY_CHECK_LOAD_FAILED); onFail() }
                 }
                 // The check page loaded but gave no token in 30 s: a new check can be started.
                 override fun onPageFinished(view: WebView, url: String) {
