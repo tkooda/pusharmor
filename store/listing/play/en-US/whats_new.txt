@@ -1,1 +1,1 @@
-Send progress now shows on every send. Long shared text can be edited before sending. Selecting messages in History is easier: long-press on phones, checkboxes on desktop. Clearer errors and confirmations, and fixes for Firefox for Android.
+Log in with Google or Apple now works in the Firefox for Android add-on. A send keeps going when you rotate the screen or close the share dialog. A failed rename puts the old name back, so you can try again. Clearer errors when the security check does not load, and clearer send failures and counts in Chrome and Firefox.
