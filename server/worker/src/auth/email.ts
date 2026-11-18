@@ -38,13 +38,13 @@ export function mailText(purpose: Purpose, code: string): { subject: string; tex
     purpose === "register"
       ? "Your PushArmor login code is"
       : purpose === "login"
-        ? "Your PushArmor code to log in again is"
+        ? "Your PushArmor code to log in is"
         : "Your PushArmor code to delete your account is";
   const subject =
     purpose === "register"
       ? "your PushArmor login code"
       : purpose === "login"
-        ? "your PushArmor code to log in again"
+        ? "your PushArmor code to log in"
         : "your PushArmor account deletion code";
   return { subject, text: `${what}:\n\n${code}\n\n${ENDING}\n` };
 }

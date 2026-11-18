@@ -51,9 +51,9 @@ async function startEmail(email: string, purpose = "register", extra: Record<str
 }
 
 describe("mailText subject per purpose", () => {
-  it("login, log in again and account deletion subjects", () => {
+  it("login, log in and account deletion subjects", () => {
     expect(mailText("register", "X").subject).toBe("your PushArmor login code");
-    expect(mailText("login", "X").subject).toBe("your PushArmor code to log in again");
+    expect(mailText("login", "X").subject).toBe("your PushArmor code to log in");
     expect(mailText("delete-account", "X").subject).toBe("your PushArmor account deletion code");
   });
 });
