@@ -258,6 +258,8 @@ for (const platform of ["chrome", "firefox"] as const) {
     const rpc = new Rpc(b.e);
     const open = async () => ((await rpc.handle({ op: "popupOpen" })).data as { newerSeen?: boolean }).newerSeen;
     assert.equal(await open(), true);
+    assert.equal(await open(), true); // kept until the popup says it showed the toast
+    await rpc.handle({ op: "newerShown" });
     assert.equal(await open(), undefined); // shown once: the flag is cleared
   });
 
@@ -274,6 +276,24 @@ for (const platform of ["chrome", "firefox"] as const) {
     assert.equal(await b.db.meta(NEWER_SEEN), true);
   });
 }
+
+test("the update toast flag comes only from an approved peer on the normal receive path", async () => {
+  const { w, a, b } = await setup("firefox");
+  await pairAndApprove(w, a, b);
+  const newer = (n: number, show: boolean) => mkMsg(a, b, `{"v":2,"n":${n},"id":"AbC_-${n}"${show ? ',"show":true' : ""},"next":"x"}`);
+  await b.e.receive(await newer(5, true), "returned");
+  await b.e.receive(await newer(6, false), "returned");
+  await b.e.receive(await newer(7, true), "fetched");
+  await b.e.receive(await newer(8, false), "fetched");
+  assert.equal(await b.db.meta(NEWER_SEEN), undefined);
+  await b.db.updatePeer(a.id, (p) => (p ? { ...p, ruling: "none" } : null));
+  await b.e.receive(await newer(9, true), "push");
+  await b.e.receive(await newer(10, false), "push");
+  assert.equal(await b.db.meta(NEWER_SEEN), undefined);
+  await b.db.updatePeer(a.id, (p) => (p ? { ...p, ruling: "approved" } : null));
+  await b.e.receive(await newer(11, true), "push");
+  assert.equal(await b.db.meta(NEWER_SEEN), true);
+});
 
 test("a newer version with show and an invalid id is an unknown row with no message id", async () => {
   const { w, a, b } = await setup("firefox");

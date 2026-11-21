@@ -121,12 +121,16 @@ public struct InnerJSON: Equatable, Sendable {
     /// A 22-character stand-in for the fresh id of a del while its size is measured.
     static let delSizeId = "Xq7-Lm2_Rt9Kw4Zp0Bv8Nc"
 
-    /// True when a del of these ids seals within InnerMessage.maxWire: the same builder, deflate
-    /// and size check as the seal, with the largest n and an id of the sent length.
+    /// Bytes a del keeps spare under the bucket: the sent id is another random id and can deflate a few bytes larger.
+    static let delMargin = 8
+
+    /// True when a del of these ids seals within InnerMessage.maxWire with delMargin bytes spare: the same
+    /// builder, deflate and size check as the seal, with the largest n and an id of the sent length.
     static func delFits(_ ids: [String]) throws -> Bool {
         let deflated = try Deflate.deflateRaw(InnerJSON(n: 9_007_199_254_740_991, content: .del(ids), id: delSizeId).encode())
-        // sig (64) + from id (30) + pairing id (8) + keys flag (1) + u16 length (2) + deflated
-        return (try? InnerMessage.paddedPlaintextLength(minPlaintext: 64 + 30 + 8 + 1 + 2 + deflated.count, approve: false)) != nil
+        // sig (64) + from id (30) + pairing id (8) + keys flag (1) + u16 length (2) + deflated + margin
+        return (try? InnerMessage.paddedPlaintextLength(minPlaintext: 64 + 30 + 8 + 1 + 2 + deflated.count + delMargin,
+                                                        approve: false)) != nil
     }
 
     /// The del messages for these ids, in order: as few as fit within InnerMessage.maxWire.

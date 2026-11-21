@@ -73,7 +73,10 @@ export async function mountPopup(env: UiEnv, root: HTMLElement, page?: PageStart
     return;
   }
   if (my !== mounts) return;
-  if (st.newerSeen) toast(T.newerVersion, "info"); // once per open: the flag is cleared
+  if (st.newerSeen) {
+    toast(T.newerVersion, "info");
+    void rpc(env, "newerShown").catch(() => undefined); // cleared only once shown: shown once
+  }
   if (st.updateRequired) {
     clear(root).append(updateCard(env, st.recheckLocked, () => void again(), st.platform));
     root.querySelector<HTMLElement>("button.primary")?.focus(); // start on the one action

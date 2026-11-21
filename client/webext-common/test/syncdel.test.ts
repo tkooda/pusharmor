@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Rpc } from "../src/core/rpc.ts";
-import { buildJson, delChunks, encodeInner, newMsgId, parseInnerJson } from "../src/model/message.ts";
+import { DEL_SPARE, buildJson, delChunks, delFits, encodeInner, newMsgId, parseInnerJson } from "../src/model/message.ts";
 import { utf8 } from "../src/crypto/bytes.ts";
 import { SEND_CAP } from "../src/model/padding.ts";
 import { b64urlDecode } from "../src/crypto/b64url.ts";
@@ -196,7 +196,7 @@ test("a push that fails on every attempt is sent 3 times in all, then named in t
   assert.equal((await rows(a)).length, 1);
 });
 
-test("a del filled to the max with 22-char ids seals to 3800 chars or less; one more id goes past 3800", async () => {
+test("a del filled to the max with 22-char ids seals to 3800 chars or less; one more id does not fit", async () => {
   const { a, b } = await setup();
   const self = (await a.e.self())!;
   const peer = (await a.db.peer(b.id))!;
@@ -205,7 +205,18 @@ test("a del filled to the max with 22-char ids seals to 3800 chars or less; one 
   const ids = Array.from({ length: 300 }, () => newMsgId());
   const max = (await delChunks(ids))[0]!.length;
   assert.ok((await seal(ids.slice(0, max))).length <= 3800);
-  await assert.rejects(seal(ids.slice(0, max + 1)), /too large/);
+  assert.equal(await delFits(ids.slice(0, max + 1)), false);
+});
+
+test("a del that fits the cap only without 8 bytes spare is split", async () => {
+  assert.equal(DEL_SPARE, 8);
+  const abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  const ids = Array.from({ length: 4096 }, (_, i) => abc[i >> 6]! + abc[i & 63]!); // short ids: each adds only a few bytes
+  let k = 1;
+  while (await delFits(ids.slice(0, k + 1), 0)) k++; // the longest list that fits with no spare
+  const at = ids.slice(0, k);
+  assert.equal(await delFits(at, DEL_SPARE), false);
+  assert.equal((await delChunks(at)).length, 2);
 });
 
 test("a max-length message with an id seals to 3800 chars or less, worst-case content", async () => {

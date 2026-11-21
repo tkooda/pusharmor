@@ -30,7 +30,7 @@ export type ReceiveResult = (
   | { outcome: "unreadable"; from: string | null; unknownSender?: boolean; ignored?: { n: number; consume: boolean } } // ignored: valid-signed message of an unknown type
   | { outcome: Exclude<ReplayOutcome, "accept">; from: string; n: number; content: Content }
   | { outcome: "accept"; from: string; n: number; content: Content; name: string | null; pin: Pin }
-) & { newer?: true }; // newer: a valid-signed message of a newer format version
+) & { newer?: true }; // newer: a valid-signed message of a newer format version from an approved peer
 
 /** Acceptance table (catalog Receiver acceptance) for a verified, pinned sender. */
 export function acceptable(type: Content["type"], ruling: Pin["ruling"]): boolean {
@@ -66,7 +66,7 @@ export async function receiveDecide(i: ReceiveInput): Promise<ReceiveResult> {
   const inflated = await inflateInner(p);
   const j = inflated ? parseInnerJson(inflated) : null;
   if (!j) return { outcome: "unreadable", from };
-  const done = (r: ReceiveResult): ReceiveResult => (j.v > 1 ? { ...r, newer: true } : r);
+  const done = (r: ReceiveResult): ReceiveResult => (j.v > 1 && pin.ruling === "approved" ? { ...r, newer: true } : r);
   const c = j.content;
   if (!c) {
     // unknown type, or a newer version without "show": consume n like a handled message from an approved peer, then do nothing

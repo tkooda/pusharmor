@@ -114,7 +114,7 @@ object InnerMessage {
 
     /**
      * Splits [ids] over as few del messages as needed. Each candidate is measured exactly as [build] seals it:
-     * the deflated JSON (with the longest n) must fit the largest bucket, which seals to [SizeCap.WIRE_CAP] chars,
+     * the deflated JSON (with the longest n) must fit the largest bucket with [DEL_MARGIN] bytes spare, which seals to [SizeCap.WIRE_CAP] chars,
      * and the JSON must stay within the receiver's inflate cap.
      */
     fun delChunks(ids: List<String>): List<List<String>> {
@@ -128,11 +128,14 @@ object InnerMessage {
         return out
     }
 
-    /** True when a del naming [ids] seals within the wire cap (measured with a fresh id of the sent length). */
+    /** Bytes a del keeps spare under the bucket: the sent id is another random id and can deflate a few bytes larger. */
+    const val DEL_MARGIN = 8
+
+    /** True when a del naming [ids] seals within the wire cap with [DEL_MARGIN] bytes spare (measured with a fresh id of the sent length). */
     fun delFits(ids: List<String>): Boolean {
         val json = jsonOf(MAX_COUNTER, MessageBody.Del(ids)).toByteArray(Charsets.UTF_8)
         if (json.size > SizeCap.INFLATE_CAP) return false // the receiver's inflate cap
-        return paddedBodySize(HEADER + 2 + DeflateRaw.deflate(json).size) != null
+        return paddedBodySize(HEADER + 2 + DeflateRaw.deflate(json).size + DEL_MARGIN) != null
     }
 
     /** Signed string for an inner message: "PA-MSG1\n" + recipient id + "\n" + body bytes. */

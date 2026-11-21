@@ -128,6 +128,17 @@ class UnknownTypeTest {
         assertEquals(5L, store.window(a.id)!!.h)
     }
 
+    @Test fun newerVersionFromAnUnapprovedPeerDoesNotSetTheMark() {
+        store.putPeer(a.asPeer(pid, approved = false))
+        receive.onMessage(wireOf("{\"v\":2,\"n\":5,\"id\":\"abc_-9\",\"deny\":1}"), 1000)
+        receive.onMessage(wireOf("{\"v\":2,\"n\":6,\"id\":\"abc_-9\",\"show\":true,\"text\":\"x\"}"), 1000)
+        assertTrue("newer" !in effects.log)
+        // the same peer once approved sets it
+        store.putPeer(a.asPeer(pid))
+        receive.onMessage(wireOf("{\"v\":2,\"n\":7,\"id\":\"abc_-9\",\"deny\":1}"), 1000)
+        assertTrue("newer" in effects.log)
+    }
+
     @Test fun controlWithIdIsThatControl() {
         receive.onMessage(wireOf("{\"v\":1,\"n\":5,\"id\":\"abc_-9\",\"logout\":1}"), 1000).let { assertEquals(MessageBody.Logout, (it as Inbound.Accepted).body) }
         assertTrue(store.history.none { it.type == HistoryRow.UNKNOWN })

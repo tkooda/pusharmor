@@ -351,7 +351,7 @@ export class Engine {
       window: async (from) => (await this.db.replay(from)) ?? null,
       hasHistory: async (from, pid, n) => (await this.db.historyRowFor(from, pid, n)) !== undefined,
     });
-    if (r.newer) await this.db.setMeta(NEWER_SEEN, true); // the popup asks for an update
+    if (r.newer && src !== "returned" && src !== "fetched") await this.db.setMeta(NEWER_SEEN, true); // the popup asks for an update
     if (r.outcome === "unreadable" && r.ignored) {
       // unknown type: consume n like a handled message (known messages from "returned" and "fetched" never consume an unknown one), then do nothing
       if (r.ignored.consume && src !== "returned" && src !== "fetched") {
@@ -2241,11 +2241,14 @@ export class Engine {
     return (await this.db.meta<boolean>(KEYS_BROKEN)) === true;
   }
 
-  /** true once after a message of a newer format version arrived: the popup shows the update toast. */
-  async takeNewerSeen(): Promise<boolean> {
-    if ((await this.db.meta<boolean>(NEWER_SEEN)) !== true) return false;
+  /** true after a message of a newer format version arrived, until the popup showed the update toast. */
+  async newerSeen(): Promise<boolean> {
+    return (await this.db.meta<boolean>(NEWER_SEEN)) === true;
+  }
+
+  /** The popup showed the update toast: clear the flag. */
+  async newerShown(): Promise<void> {
     await this.db.del("meta", NEWER_SEEN);
-    return true;
   }
 
   /**

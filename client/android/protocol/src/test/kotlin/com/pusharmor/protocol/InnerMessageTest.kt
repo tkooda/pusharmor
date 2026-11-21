@@ -202,8 +202,29 @@ class InnerMessageTest {
         val first = InnerMessage.delChunks(ids).first()
         assertEquals(3800, send(9_007_199_254_740_991, MessageBody.Del(first)).length)
         assertTrue(!InnerMessage.delFits(ids.take(first.size + 1)))
-        try { send(9_007_199_254_740_991, MessageBody.Del(ids.take(first.size + 1))); error("fits") } catch (e: MessageTooLargeException) { }
         println("max 22-char ids per del: ${first.size}")
+    }
+
+    /** A del that fits the largest bucket with fewer than 8 bytes spare is split: the sent id can deflate a few bytes larger. */
+    @Test fun delKeepsEightBytesSpareUnderTheCap() {
+        val maxBody = InnerMessage.paddedBodySize(1, 3800)!!
+        fun body(ids: List<String>) = 30 + 8 + 1 + 2 +
+            DeflateRaw.deflate(InnerMessage.jsonOf(9_007_199_254_740_991, MessageBody.Del(ids), "Xq7-Lm2_Rt9Kw4Zp0Bv8Nc").toByteArray(Charsets.UTF_8)).size
+        var found: List<String>? = null
+        search@ for (t in 1..50) {
+            val base = InnerMessage.delChunks((1..400).map { MessageBody.newId() }).first()
+            for (len in 1..64) {
+                val ids = base + (MessageBody.newId() + MessageBody.newId() + MessageBody.newId()).take(len)
+                if (body(ids) in maxBody - 2..maxBody) { found = ids; break@search }
+            }
+        }
+        val ids = found!!
+        assertTrue(InnerMessage.paddedBodySize(body(ids)) != null) // fits at the cap
+        assertTrue(InnerMessage.paddedBodySize(body(ids) + 8) == null) // but not with 8 bytes spare
+        assertTrue(!InnerMessage.delFits(ids))
+        val chunks = InnerMessage.delChunks(ids)
+        assertTrue(chunks.size > 1)
+        assertEquals(ids, chunks.flatten())
     }
 
     /** Worst-case content of [bytes] UTF-8 bytes: the least compressible shapes, including JSON escapes. */

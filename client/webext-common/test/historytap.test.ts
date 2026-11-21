@@ -85,16 +85,36 @@ test("an unknown type row shows the sender, a red x and the update label, and no
   assert.equal(find(tile, (x) => x.tag === "button"), undefined);
 });
 
-test("popup open shows the newer version toast when the state says so, once per open", async () => {
+test("popup open shows the newer version toast when the state says so, then clears it; a mount overtaken first keeps it", async () => {
   let newer = true;
+  let shown = 0;
+  let hold: Promise<void> | null = null;
   const env = {
-    call: async (m: { op: string }) => (m.op === "popupOpen" ? { ok: true, data: { updateRequired: true, recheckLocked: false, platform: "chrome", newerSeen: newer || undefined } } : { ok: false, error: "no" }),
+    call: async (m: { op: string }) => {
+      if (m.op === "newerShown") {
+        shown++;
+        newer = false;
+        return { ok: true, data: null };
+      }
+      if (m.op !== "popupOpen") return { ok: false, error: "no" };
+      if (hold) await hold;
+      return { ok: true, data: { updateRequired: true, recheckLocked: false, platform: "chrome", newerSeen: newer || undefined } };
+    },
     theme: memoryThemeStore("light"),
   } as unknown as UiEnv;
-  await mountPopup(env, new N("main") as unknown as HTMLElement);
+  // a mount that a newer one overtakes while it waits shows no toast and clears nothing
+  let release = () => {};
+  hold = new Promise((ok) => (release = ok));
+  const first = mountPopup(env, new N("main") as unknown as HTMLElement);
+  hold = null;
+  const second = mountPopup(env, new N("main") as unknown as HTMLElement);
+  await second;
+  release();
+  await first;
+  assert.equal(shown, 1);
   await new Promise((ok) => setTimeout(ok, 70)); // the text goes in after the insert
   assert.equal(find(toastEl()!, (x) => x.attrs.class === "toast-msg")!.textContent, "A device uses a newer version. Update PushArmor");
-  newer = false;
+  assert.equal(newer, false);
   await mountPopup(env, new N("main") as unknown as HTMLElement);
   assert.equal(toastEl(), undefined);
 });

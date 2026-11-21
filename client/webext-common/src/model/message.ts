@@ -102,10 +102,13 @@ function unpaddedWireBytes(deflatedLen: number, keys: boolean): number {
   return ENC_LEN + SIG_LEN + ID_LEN + PAIRING_ID_LEN + 1 + (keys ? KEYS_LEN : 0) + 2 + deflatedLen + TAG_LEN;
 }
 
-/** true when a del of these ids seals to WIRE_CAP chars or less (measured with the longest n). */
-export async function delFits(ids: string[]): Promise<boolean> {
+/** Bytes a del keeps spare under the cap: its own random id can deflate a few bytes larger when sent than when measured. */
+export const DEL_SPARE = 8;
+
+/** true when a del of these ids seals to WIRE_CAP chars or less with spare bytes left (measured with the longest n). */
+export async function delFits(ids: string[], spare: number = DEL_SPARE): Promise<boolean> {
   const d = await deflateRaw(utf8(buildJson(Number.MAX_SAFE_INTEGER, { type: "del", ids })));
-  return paddedWireBytes(unpaddedWireBytes(d.length, false), false) !== null;
+  return paddedWireBytes(unpaddedWireBytes(d.length + spare, false), false) !== null;
 }
 
 /** Splits ids over as few del messages as fit the size cap, in order. */

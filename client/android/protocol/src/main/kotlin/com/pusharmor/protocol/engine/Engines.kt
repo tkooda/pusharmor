@@ -353,8 +353,10 @@ class ReceiveEngine(
             inbound
         }
         after?.invoke()
-        // a message in a newer format version: the app says once to update
-        if ((inbound as? Inbound.Ignored)?.newer == true || ((inbound as? Inbound.Accepted)?.body as? MessageBody.Unknown)?.newer == true) effects.newerVersionSeen()
+        // a message in a newer format version from an approved peer: the app says once to update
+        val newerFrom = (inbound as? Inbound.Ignored)?.takeIf { it.newer }?.peerId
+            ?: (inbound as? Inbound.Accepted)?.takeIf { (it.body as? MessageBody.Unknown)?.newer == true }?.peerId
+        if (newerFrom != null && store.peer(newerFrom)?.let { it.approved && !it.deniedByMe } == true) effects.newerVersionSeen()
         return inbound
     }
 

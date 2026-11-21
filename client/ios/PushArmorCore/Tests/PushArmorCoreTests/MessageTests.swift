@@ -202,7 +202,7 @@ final class MessageTests: XCTestCase {
     }
 
     /// Many ids split over as few del messages as fit: a del filled to the max seals within
-    /// 3800 characters, and one more id does not seal.
+    /// 3800 characters, and one more id does not fit.
     func testDelChunksFitTheSizeCap() throws {
         let maxN: UInt64 = 9_007_199_254_740_991
         let ids = (0 ..< 400).map { _ in InnerJSON.newId() }
@@ -212,7 +212,7 @@ final class MessageTests: XCTestCase {
         let first = chunks[0]
         let (m, _) = try roundTrip(InnerJSON(n: maxN, content: .del(first), id: InnerJSON.delSizeId))
         XCTAssertLessThanOrEqual(m.utf8.count, InnerMessage.maxWire)
-        XCTAssertThrowsError(try roundTrip(InnerJSON(n: maxN, content: .del(Array(ids.prefix(first.count + 1))), id: InnerJSON.delSizeId)))
+        XCTAssertFalse(try InnerJSON.delFits(Array(ids.prefix(first.count + 1))))
         for c in chunks {
             let (m, _) = try roundTrip(InnerJSON(n: maxN, content: .del(c), id: InnerJSON.delSizeId))
             XCTAssertLessThanOrEqual(m.utf8.count, InnerMessage.maxWire)
@@ -226,6 +226,37 @@ final class MessageTests: XCTestCase {
         }
         XCTAssertEqual(try InnerJSON.delChunks(["a"]), [["a"]])
         XCTAssertEqual(try InnerJSON.delChunks([]), [])
+    }
+
+    /// A del that fits the largest bucket with fewer than 8 bytes spare is split: the sent id can
+    /// deflate a few bytes larger than the measured one.
+    func testDelKeepsEightBytesSpareUnderTheCap() throws {
+        let maxN: UInt64 = 9_007_199_254_740_991
+        func plain(_ ids: [String]) throws -> Int {
+            let d = try Deflate.deflateRaw(InnerJSON(n: maxN, content: .del(ids), id: InnerJSON.delSizeId).encode())
+            return 64 + 30 + 8 + 1 + 2 + d.count
+        }
+        func fits(_ len: Int) -> Bool { (try? InnerMessage.paddedPlaintextLength(minPlaintext: len, approve: false)) != nil }
+        var found: [String]?
+        search: for _ in 0 ..< 50 {
+            let base = try InnerJSON.delChunks((0 ..< 400).map { _ in InnerJSON.newId() })[0]
+            for len in 1 ... 64 {
+                let ids = base + [String((InnerJSON.newId() + InnerJSON.newId() + InnerJSON.newId()).prefix(len))]
+                let p = try plain(ids)
+                if fits(p), !fits(p + 8) {
+                    found = ids
+                    break search
+                }
+            }
+        }
+        let ids = try XCTUnwrap(found)
+        // fits at the cap, but not with 8 bytes spare
+        let (m, _) = try roundTrip(InnerJSON(n: maxN, content: .del(ids), id: InnerJSON.delSizeId))
+        XCTAssertLessThanOrEqual(m.utf8.count, InnerMessage.maxWire)
+        XCTAssertFalse(try InnerJSON.delFits(ids))
+        let chunks = try InnerJSON.delChunks(ids)
+        XCTAssertGreaterThan(chunks.count, 1)
+        XCTAssertEqual(chunks.flatMap { $0 }, ids)
     }
 
     func testPairMessages() throws {
