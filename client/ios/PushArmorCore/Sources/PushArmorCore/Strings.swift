@@ -4,6 +4,10 @@ import Foundation
 public enum S {
     public static let title = "PushArmor"
     public static let fallback = "New message"
+    /// The text of a History row whose message type is from a newer version.
+    public static let unknownType = "Unknown message type, please update"
+    /// The toast after a message in a newer format version arrived.
+    public static let newerVersion = "A device uses a newer version. Update PushArmor"
     public static let locked = "New message. Unlock to view."
     public static let dropped = "Unable to read a message.\nIt is not valid or was damaged."
     public static let invalid = "Unable to read a message.\nIt is not valid or was damaged."

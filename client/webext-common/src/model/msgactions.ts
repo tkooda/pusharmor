@@ -1,8 +1,9 @@
 /** which buttons a History message shows, the default name of a saved file, and notification text. */
 export type MsgAction = "read" | "copy" | "open" | "share" | "save";
 
-/** Links and phone numbers: Copy, Open, Share. Plain text: View, Copy, Share, Save. */
+/** Links and phone numbers: Copy, Open, Share. Plain text: View, Copy, Share, Save. An unknown type: none. */
 export function msgActions(type: string): MsgAction[] {
+  if (type === "unknown") return [];
   return type === "url" || type === "tel" ? ["copy", "open", "share"] : ["read", "copy", "share", "save"];
 }
 

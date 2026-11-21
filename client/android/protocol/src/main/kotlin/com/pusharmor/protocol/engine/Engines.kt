@@ -353,6 +353,8 @@ class ReceiveEngine(
             inbound
         }
         after?.invoke()
+        // a message in a newer format version: the app says once to update
+        if ((inbound as? Inbound.Ignored)?.newer == true || ((inbound as? Inbound.Accepted)?.body as? MessageBody.Unknown)?.newer == true) effects.newerVersionSeen()
         return inbound
     }
 
@@ -394,6 +396,10 @@ class ReceiveEngine(
                 is Effect.Show -> {
                     val hid = store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = a.peerId, type = e.content.type.key, content = e.content.value, n = a.n, pairingId = a.pairingId, at = now, msgId = a.body.msgId))
                     after = { effects.showContent(hid, a.peerId, e.content) }
+                }
+                is Effect.ShowUnknown -> {
+                    // no notification: the row only says to update
+                    store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = a.peerId, type = HistoryRow.UNKNOWN, content = e.typeKey, n = a.n, pairingId = a.pairingId, at = now, msgId = a.body.msgId))
                 }
                 is Effect.Drop -> {
                     store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = a.peerId, type = "unreadable", at = now, read = true))

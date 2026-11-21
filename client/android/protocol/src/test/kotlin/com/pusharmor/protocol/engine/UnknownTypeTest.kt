@@ -47,6 +47,93 @@ class UnknownTypeTest {
         assertTrue(effects.log.isEmpty())
     }
 
+    @Test fun unknownTypeWithShowIsAContentRowWithNoNotice() {
+        val r = receive.onMessage(wireOf("{\"n\":5,\"id\":\"abc_-9\",\"show\":true,\"file\":\"x\"}"), 1000)
+        assertTrue(r is Inbound.Accepted)
+        assertEquals(MessageBody.Unknown("file", "abc_-9"), (r as Inbound.Accepted).body)
+        val row = store.history.single()
+        assertEquals(HistoryRow.UNKNOWN, row.type)
+        assertEquals("file", row.content)
+        assertEquals("abc_-9", row.msgId)
+        assertEquals(a.id, row.peerId)
+        assertEquals(5L, row.n)
+        assertTrue(effects.log.isEmpty())
+        assertEquals(5L, store.window(a.id)!!.h)
+        // a later del naming its id removes it like any message
+        receive.onMessage(wireOf("{\"n\":6,\"del\":[\"abc_-9\"]}"), 1001)
+        assertTrue(store.history.isEmpty())
+    }
+
+    /** Runs one received sequence on a fresh store; returns per step the inbound kind, History rows and notices. */
+    private fun trace(approved: Boolean, body: (Int) -> String): List<String> {
+        val st = MemStore()
+        val ef = RecEffects()
+        val rx = ReceiveEngine(st, Identity(me.keys, me.id), ef)
+        st.putPeer(a.asPeer(pid, approved = approved))
+        st.putWindow(a.id, pid, ReplayWindow.fresh())
+        fun row(h: HistoryRow) = listOf(h.direction, h.peerId, h.n, h.read, h.count, h.msgId, h.type == "unreadable" || h.type == "invalid").toString()
+        val out = ArrayList<String>()
+        fun step(n: Long, i: Int) {
+            val r = rx.onMessage(wireOf("{\"n\":$n,${body(i)},\"id\":\"id$i\",\"show\":true}"), 1000L + n)
+            out.add("${r::class.simpleName} ${st.history.map(::row)} ${ef.log.map { it.substringBefore(":") }}")
+        }
+        step(150, 1)  // fresh: unread row
+        step(150, 1)  // duplicate with its row
+        rx.onMessage(wireOf("{\"n\":151,\"del\":[\"id1\"]}"), 2000); out.add("del ${st.history.map(::row)}")
+        step(150, 1)  // duplicate whose row was deleted
+        step(10, 2)   // older than the replay window
+        return out
+    }
+
+    @Test fun unknownTypeWithShowFollowsTheTextPath() {
+        for (approved in listOf(true, false)) {
+            val text = trace(approved) { "\"text\":\"x\"" }
+            val unknown = trace(approved) { "\"file\":\"x\"" }
+            // the only difference: a text row notifies, an unknown row does not
+            assertEquals(text.map { it.replace("show, ", "").replace("[show]", "[]").replace(", show]", "]") }, unknown)
+        }
+        assertTrue(trace(false) { "\"file\":\"x\"" }.first().contains("couldNotRead"))
+    }
+
+    @Test fun unknownTypeWithShowAndNoValidIdIsARowWithNoMessageId() {
+        assertTrue(receive.onMessage(wireOf("{\"n\":5,\"id\":\"a b\",\"show\":true,\"file\":\"x\"}"), 1000) is Inbound.Accepted)
+        assertEquals(null, store.history.single().msgId)
+        assertEquals(HistoryRow.UNKNOWN, store.history.single().type)
+    }
+
+    @Test fun unknownTypeWithoutShowIsIgnored() {
+        for ((n, json) in listOf(6L to "{\"n\":6,\"file\":\"x\"}", 7L to "{\"n\":7,\"file\":\"x\",\"id\":\"abc_-9\"}", 8L to "{\"n\":8,\"file\":\"x\",\"id\":7}", 9L to "{\"n\":9,\"id\":\"abc\"}", 10L to "{\"n\":10,\"file\":\"x\",\"show\":1}")) {
+            assertTrue(json, receive.onMessage(wireOf(json), 1000) is Inbound.Ignored)
+            assertEquals(n, store.window(a.id)!!.h)
+        }
+        assertTrue(store.history.isEmpty())
+        assertTrue(effects.log.isEmpty())
+    }
+
+    @Test fun newerVersionWithShowIsAnUnknownRowAndSetsTheMark() {
+        val r = receive.onMessage(wireOf("{\"v\":2,\"n\":5,\"id\":\"abc_-9\",\"show\":true,\"text\":\"x\"}"), 1000)
+        assertEquals(MessageBody.Unknown("text", "abc_-9", newer = true), (r as Inbound.Accepted).body)
+        val row = store.history.single()
+        assertEquals(HistoryRow.UNKNOWN, row.type)
+        assertEquals("abc_-9", row.msgId)
+        assertEquals(false, row.read)
+        assertEquals(listOf("newer"), effects.log)
+        assertEquals(5L, store.window(a.id)!!.h)
+    }
+
+    @Test fun newerVersionWithoutShowIsNoRowButSetsTheMark() {
+        assertTrue(receive.onMessage(wireOf("{\"v\":2,\"n\":5,\"id\":\"abc_-9\",\"deny\":1}"), 1000) is Inbound.Ignored)
+        assertTrue(store.history.isEmpty())
+        assertEquals(listOf("newer"), effects.log)
+        assertEquals(5L, store.window(a.id)!!.h)
+    }
+
+    @Test fun controlWithIdIsThatControl() {
+        receive.onMessage(wireOf("{\"v\":1,\"n\":5,\"id\":\"abc_-9\",\"logout\":1}"), 1000).let { assertEquals(MessageBody.Logout, (it as Inbound.Accepted).body) }
+        assertTrue(store.history.none { it.type == HistoryRow.UNKNOWN })
+        assertTrue("newer" !in effects.log)
+    }
+
     @Test fun unreadableStillShowsRowAndNotice() {
         for (wire in listOf(wireOf("not json"), wireOf("{\"zzz\":\"x\"}"), wireOf("{\"n\":5,\"zzz\":\"x\"}", tamper = true), "AAAA")) {
             store.history.clear(); effects.log.clear()

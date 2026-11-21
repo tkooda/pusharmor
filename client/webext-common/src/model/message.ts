@@ -33,7 +33,8 @@ export type Content =
   | { type: "delete" }
   | { type: "logout" }
   | { type: "login" }
-  | { type: "del"; ids: string[] };
+  | { type: "del"; ids: string[] }
+  | { type: "unknown"; key: string; id: string | null }; // a content message of a type or format version this client does not know
 
 export type ContentType = Content["type"];
 export const CONTROL_TYPES: ReadonlySet<ContentType> = new Set([
@@ -61,23 +62,24 @@ const TYPE_KEYS: readonly string[] = [
   "del",
 ];
 
-/** JSON {"n": n, type: value}. */
+/** JSON {"v": 1, "n": n, "id": id, "show": true (content only), type: value}; every message gets a fresh id unless a content message brings its own. */
 export function buildJson(n: number, c: Content): string {
-  const ns = nStr(n);
+  const mid = (c.type === "url" || c.type === "text" || c.type === "tel") && c.id ? c.id : newMsgId();
+  const head = '{"v":1,"n":' + nStr(n) + ',"id":' + JSON.stringify(mid);
   switch (c.type) {
     case "url":
     case "text":
     case "tel":
-      return '{"n":' + ns + (c.id ? ',"id":' + JSON.stringify(c.id) : "") + "," + JSON.stringify(c.type) + ":" + JSON.stringify(c.value) + "}";
+      return head + ',"show":true,' + JSON.stringify(c.type) + ":" + JSON.stringify(c.value) + "}";
     case "approve":
     case "rename":
-      return '{"n":' + ns + ',"' + c.type + '":' + nameEntryJson(c.entry) + "}";
+      return head + ',"' + c.type + '":' + nameEntryJson(c.entry) + "}";
     case "remove":
-      return '{"n":' + ns + ',"remove":' + JSON.stringify(c.id) + "}";
+      return head + ',"remove":' + JSON.stringify(c.id) + "}";
     case "del":
-      return '{"n":' + ns + ',"del":' + JSON.stringify(c.ids) + "}";
+      return head + ',"del":' + JSON.stringify(c.ids) + "}";
     default:
-      return '{"n":' + ns + ',"' + c.type + '":1}';
+      return head + ',"' + c.type + '":1}';
   }
 }
 
@@ -210,7 +212,8 @@ export async function verifyInner(signPub: Uint8Array, myId: string, p: InnerPla
 
 interface ParsedJson {
   n: number;
-  content: Content | null; // null: a well-formed message of a type this client does not know
+  v: number; // format version; 1 when absent
+  content: Content | null; // null: a well-formed message to ignore (an unknown type, or a newer version, without "show")
 }
 
 export function isPrintableName(name: string): boolean {
@@ -244,35 +247,43 @@ export function parseInnerJson(bytes: Uint8Array): ParsedJson | null {
   if (!("n" in v)) return null;
   const n = counterN(v.n);
   if (n === null) return null;
+  // "v", "n", "id", "show" keep their meaning in every format version; "show" marks a history message.
+  const ver = "v" in v ? counterN(v.v) : 1;
+  if (ver === null) return null;
   // Unknown keys are ignored; the type is the first known type key in TYPE_KEYS order.
   const t = TYPE_KEYS.find((k) => k in v);
-  if (t === undefined) return { n, content: null };
+  if (t === undefined || ver > 1) {
+    // an unknown type, or any message of a newer version: a History row only with "show"
+    if (v.show !== true) return { n, v: ver, content: null };
+    const key = Object.keys(v).find((k) => k !== "v" && k !== "n" && k !== "id" && k !== "show") ?? "";
+    return { n, v: ver, content: { type: "unknown", key, id: isMsgId(v.id) ? v.id : null } };
+  }
   const val = v[t];
   switch (t) {
     case "url":
     case "text":
     case "tel":
       if (typeof val !== "string" || utf8Len(val) > CONTENT_CAP) return null;
-      return { n, content: isMsgId(v.id) ? { type: t, value: val, id: v.id } : { type: t, value: val } };
+      return { n, v: ver, content: isMsgId(v.id) ? { type: t, value: val, id: v.id } : { type: t, value: val } };
     case "approve":
     case "rename": {
       const entry = parseEntry(val);
       if (!entry || entry.n !== n) return null;
-      return { n, content: { type: t, entry } };
+      return { n, v: ver, content: { type: t, entry } };
     }
     case "remove": {
       if (typeof val !== "string") return null;
       const id = b64urlTryDecode(val);
       if (!id || id.length !== ID_LEN) return null;
-      return { n, content: { type: "remove", id: val } };
+      return { n, v: ver, content: { type: "remove", id: val } };
     }
     case "del": {
       if (!Array.isArray(val) || val.length === 0 || !val.every(isMsgId)) return null;
-      return { n, content: { type: "del", ids: val as string[] } };
+      return { n, v: ver, content: { type: "del", ids: val as string[] } };
     }
     default:
       if (!(val instanceof JNum) || val.raw !== "1") return null;
-      return { n, content: { type: t as "deny" | "delete" | "logout" | "login" } };
+      return { n, v: ver, content: { type: t as "deny" | "delete" | "logout" | "login" } };
   }
 }
 

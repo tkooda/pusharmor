@@ -11,6 +11,7 @@ import { autoOpenAllowed, detectType, isPhone, parseHttpUrl } from "../src/model
 import { JNum, counterN, parseStrictJson } from "../src/model/json.ts";
 import {
   INFO_MSG,
+  type Content,
   buildJson,
   encodeInner,
   encodePair,
@@ -51,21 +52,21 @@ test("strict JSON: duplicate keys and raw n token", () => {
 
 test("inner JSON parse rules", () => {
   const p = (s: string) => parseInnerJson(utf8(s));
-  assert.deepEqual(p('{"n":42,"url":"https://example.com/a"}'), { n: 42, content: { type: "url", value: "https://example.com/a" } });
+  assert.deepEqual(p('{"n":42,"url":"https://example.com/a"}'), { n: 42, v: 1, content: { type: "url", value: "https://example.com/a" } });
   assert.equal(p('{"n":1.0,"text":"a"}'), null);
   assert.equal(p('{"n":1e0,"text":"a"}'), null);
   assert.equal(p('{"n":1,"text":"a","text":"b"}'), null);
   assert.equal(p('{"n":0,"text":"a"}'), null);
-  assert.deepEqual(p('{"n":1}'), { n: 1, content: null });
-  assert.deepEqual(p('{"n":1,"text":"a","url":"b"}'), { n: 1, content: { type: "url", value: "b" } });
-  assert.deepEqual(p('{"n":1,"text":"a","x":1}'), { n: 1, content: { type: "text", value: "a" } });
-  assert.deepEqual(p('{"n":1,"foo":"a"}'), { n: 1, content: null });
+  assert.deepEqual(p('{"n":1}'), { n: 1, v: 1, content: null });
+  assert.deepEqual(p('{"n":1,"text":"a","url":"b"}'), { n: 1, v: 1, content: { type: "url", value: "b" } });
+  assert.deepEqual(p('{"n":1,"text":"a","x":1}'), { n: 1, v: 1, content: { type: "text", value: "a" } });
+  assert.deepEqual(p('{"n":1,"foo":"a"}'), { n: 1, v: 1, content: null });
   assert.equal(p('{"n":1,"deny":2}'), null);
-  assert.deepEqual(p('{"n":1,"deny":1}'), { n: 1, content: { type: "deny" } });
+  assert.deepEqual(p('{"n":1,"deny":1}'), { n: 1, v: 1, content: { type: "deny" } });
   assert.equal(p('{"n":1,"text":"' + "a".repeat(2049) + '"}'), null);
   assert.ok(p('{"n":1,"text":"' + "a".repeat(2048) + '"}'));
   assert.equal(p('{"n":1,"remove":"short"}'), null);
-  assert.deepEqual(p('{"n":3,"remove":"' + ID_A + '"}'), { n: 3, content: { type: "remove", id: ID_A } });
+  assert.deepEqual(p('{"n":3,"remove":"' + ID_A + '"}'), { n: 3, v: 1, content: { type: "remove", id: ID_A } });
   for (const c of [
     { type: "url" as const, value: "https://x" },
     { type: "text" as const, value: "a\"b\\c\n" },
@@ -74,9 +75,42 @@ test("inner JSON parse rules", () => {
     { type: "login" as const },
     { type: "delete" as const },
   ]) {
-    assert.deepEqual(p(buildJson(7, c)), { n: 7, content: c });
+    const j = p(buildJson(7, c))!;
+    // every built message carries a fresh id; a content message keeps it
+    assert.deepEqual(j, { n: 7, v: 1, content: "value" in c ? { ...c, id: (j.content as { id: string }).id } : c });
   }
-  assert.equal(buildJson(42, { type: "url", value: "https://example.com/a" }), '{"n":42,"url":"https://example.com/a"}');
+  assert.equal(buildJson(42, { type: "url", value: "https://example.com/a", id: "m1" }), '{"v":1,"n":42,"id":"m1","show":true,"url":"https://example.com/a"}');
+});
+
+test("inner JSON v1: every built message has v and a fresh id; content has show, controls do not", async () => {
+  const entry = { name: "TGFwdG9w", n: 7, s: "x" };
+  for (const c of [{ type: "url" as const, value: "https://x" }, { type: "text" as const, value: "a" }, { type: "tel" as const, value: "+1 555" }]) {
+    assert.match(buildJson(7, c), new RegExp('^\\{"v":1,"n":7,"id":"[A-Za-z0-9_-]{22}","show":true,"' + c.type + '":'));
+  }
+  const controls: Content[] = [{ type: "approve", entry }, { type: "rename", entry }, { type: "deny" }, { type: "delete" }, { type: "logout" }, { type: "login" }, { type: "remove", id: ID_A }, { type: "del", ids: ["a1"] }];
+  for (const c of controls) {
+    const j = buildJson(7, c);
+    assert.match(j, new RegExp('^\\{"v":1,"n":7,"id":"[A-Za-z0-9_-]{22}","' + c.type + '":'));
+    assert.ok(!j.includes('"show"'));
+    assert.notEqual(j, buildJson(7, c)); // a fresh id each time
+  }
+});
+
+test("inner JSON v1 parse: v, show, and an unknown type", () => {
+  const p = (s: string) => parseInnerJson(utf8(s));
+  assert.deepEqual(p('{"v":1,"n":1,"text":"a"}'), { n: 1, v: 1, content: { type: "text", value: "a" } });
+  for (const v of ["0", "-1", "1.5", '"1"', "true", "null", "01"]) assert.equal(p('{"v":' + v + ',"n":1,"text":"a"}'), null, v);
+  // an unknown type: a row only with show exactly true
+  assert.deepEqual(p('{"n":1,"id":"m1","show":true,"future":"x"}'), { n: 1, v: 1, content: { type: "unknown", key: "future", id: "m1" } });
+  assert.deepEqual(p('{"n":1,"id":"m 1","show":true,"future":"x"}'), { n: 1, v: 1, content: { type: "unknown", key: "future", id: null } });
+  for (const sh of ["1", '"true"', "false"]) assert.deepEqual(p('{"n":1,"id":"m1","show":' + sh + ',"future":"x"}'), { n: 1, v: 1, content: null });
+  assert.deepEqual(p('{"n":1,"id":"m1","future":"x"}'), { n: 1, v: 1, content: null });
+  // a control with an id and show is still that control
+  assert.deepEqual(p('{"n":1,"id":"m1","show":true,"logout":1}'), { n: 1, v: 1, content: { type: "logout" } });
+  // a newer version: a row with show whatever the type key, else ignored
+  assert.deepEqual(p('{"v":2,"n":1,"id":"m1","show":true,"text":"a"}'), { n: 1, v: 2, content: { type: "unknown", key: "text", id: "m1" } });
+  assert.deepEqual(p('{"v":2,"n":1,"id":"m1","logout":1}'), { n: 1, v: 2, content: null });
+  assert.equal(p('{"v":2,"n":0,"show":true,"text":"a"}'), null);
 });
 
 test("padding buckets", () => {
@@ -113,7 +147,7 @@ test("inner message round trip per type, every bucket, sig and pad checks", asyn
     assert.ok(!(await verifyInner(b.sign_pub, ID_B, p)));
     assert.ok(!(await verifyInner(a.sign_pub, ID_A, p)));
     const j = parseInnerJson((await inflateInner(p))!);
-    assert.deepEqual(j, { n: 5, content: { type: "text", value: text } });
+    assert.deepEqual(j, { n: 5, v: 1, content: { type: "text", value: text, id: (j!.content as { id: string }).id } });
     assert.equal(await openInner(a.enc, ID_B, m), null); // wrong recipient key
     assert.equal(await openInner(b.enc, ID_A, m), null); // wrong aad id
   }

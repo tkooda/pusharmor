@@ -371,10 +371,12 @@ def new_msg_id():
 
 
 def msg_json(n, type_, value, mid=None):
-    """Exact inner JSON {"n":N,"<type>":value}, n first. value: str for url/text/tel/remove,
-    a name entry (make_name_entry, same n) for approve/rename, 1 for deny/delete/logout/login."""
+    """Exact inner JSON {"v":1,"n":N,"id":ID,"show":true,"<type>":value}, in that order; show only for
+    url/text/tel. value: str for url/text/tel/remove, a name entry (make_name_entry, same n) for
+    approve/rename, 1 for deny/delete/logout/login. A fresh id unless mid is given."""
     v = name_entry_json(value) if type_ in ("approve", "rename") else json.dumps(value)
-    return '{"n":' + str(n) + ',"' + type_ + '":' + v + ("" if mid is None else ',"id":' + json.dumps(mid)) + "}"
+    show = ',"show":true' if type_ in ("url", "text", "tel") else ""
+    return '{"v":1,"n":' + str(n) + ',"id":' + json.dumps(new_msg_id() if mid is None else mid) + show + ',"' + type_ + '":' + v + "}"
 
 
 def msg_signed_bytes(recipient_id, padded_body):
@@ -397,6 +399,14 @@ def build_message(sign_priv, from_id, recipient_id, recipient_enc_pub, pairing_i
 
 def _content_ok(v):
     return type(v) is str and len(v.encode("utf-8", "surrogatepass")) <= CONTENT_CAP
+
+
+_newer_seen = False
+
+
+def log_plain(msg):
+    if sys.stderr is not None:
+        print(msg, file=sys.stderr, flush=True)
 
 
 def open_message(message, own_id, own_enc_priv, own_account, pins):
@@ -457,7 +467,15 @@ def open_message(message, own_id, own_enc_priv, own_account, pins):
     n = counter_n(obj["n"])
     if n is None:
         return bad("n")
-    type_ = next((t for t in TYPES if t in obj), None)
+    ver = counter_n(obj["v"]) if "v" in obj else 1  # "v", "n", "id", "show" keep their meaning in every format version; "show" marks a history message
+    if ver is None:
+        return bad("v")
+    if ver > 1:
+        global _newer_seen
+        if not _newer_seen:
+            _newer_seen = True
+            log_plain("A device uses a newer version. Update PushArmor")
+    type_ = next((t for t in TYPES if t in obj), None) if ver == 1 else None
     if type_ is None:  # signed by a pinned peer: the caller may consume n and ignore it (a type from a newer client)
         window = pin.get("window") or {"h": 0, "seen": []}
         return {"outcome": "unreadable", "why": "type", "from": from_id, "n": n, "flag": flag,
@@ -1833,7 +1851,7 @@ def default_name():
 
 def seal_msg(k, x, p, n, type_, value, approve=False):
     pid = b64d(p["pairing_id"]) if p["pairing_id"] else bytes(8)
-    return build_message(k["sign"], k["id"], x, b64d(p["enc_pub"]), pid, msg_json(n, type_, value, new_msg_id() if type_ in ("url", "text", "tel") else None),
+    return build_message(k["sign"], k["id"], x, b64d(p["enc_pub"]), pid, msg_json(n, type_, value),
                          keys=(k["sign_pub"], k["enc_pub"]) if approve else None)
 
 

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { N } from "./fakedom.ts";
-import { historyView } from "../src/ui/popup.ts";
+import { N, toastEl } from "./fakedom.ts";
+import { historyView, mountPopup } from "../src/ui/popup.ts";
+import { memoryThemeStore } from "../src/ui/theme.ts";
 import type { UiEnv } from "../src/ui/dom.ts";
 
 const find = (n: N, f: (x: N) => boolean): N | undefined => (f(n) ? n : n.kids.map((k) => find(k, f)).find(Boolean));
@@ -65,4 +66,35 @@ test("a tap on another History tile expands it and collapses the open one; a sec
   click(a, a);
   click(a, a);
   assert.deepEqual(open(), []);
+});
+
+test("an unknown type row shows the sender, a red x and the update label, and no action buttons", async () => {
+  const row = { id: 9, dir: "in", peer: "p1", sender: "Phone", type: "unknown", utype: "future", content: "", n: 1, pairing_id: null, received: Date.now(), read: false, mid: "a1" };
+  const data: Record<string, unknown> = { historyOpened: null, history: [row], historyRead: null };
+  const env = { call: async (m: { op: string }) => ({ ok: true, data: data[m.op] }) } as unknown as UiEnv;
+  const root = new N("div");
+  await historyView(env, root as unknown as HTMLElement, undefined, { toDevices: () => undefined, toSend: () => undefined });
+  const tile = find(root, (x) => x.attrs.id === "h-9")!;
+  assert.equal(find(tile, (x) => hasClass(x, "who"))!.textContent, "Phone");
+  assert.ok(tile.cls.has("unread")); // bold like an unread text row
+  const content = find(tile, (x) => hasClass(x, "content"))!;
+  assert.ok(hasClass(content, "unk"));
+  assert.equal(content.textContent, "Unknown message type, please update");
+  assert.ok(find(content, (x) => x.tag === "svg"));
+  assert.equal(find(tile, (x) => hasClass(x, "acts")), undefined);
+  assert.equal(find(tile, (x) => x.tag === "button"), undefined);
+});
+
+test("popup open shows the newer version toast when the state says so, once per open", async () => {
+  let newer = true;
+  const env = {
+    call: async (m: { op: string }) => (m.op === "popupOpen" ? { ok: true, data: { updateRequired: true, recheckLocked: false, platform: "chrome", newerSeen: newer || undefined } } : { ok: false, error: "no" }),
+    theme: memoryThemeStore("light"),
+  } as unknown as UiEnv;
+  await mountPopup(env, new N("main") as unknown as HTMLElement);
+  await new Promise((ok) => setTimeout(ok, 70)); // the text goes in after the insert
+  assert.equal(find(toastEl()!, (x) => x.attrs.class === "toast-msg")!.textContent, "A device uses a newer version. Update PushArmor");
+  newer = false;
+  await mountPopup(env, new N("main") as unknown as HTMLElement);
+  assert.equal(toastEl(), undefined);
 });

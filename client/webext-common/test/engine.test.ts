@@ -9,7 +9,7 @@ import { Rpc } from "../src/core/rpc.ts";
 import { ALLOW_SET, allEntries, getAllowSet, getEntry } from "../src/core/state.ts";
 import { encodeInner } from "../src/model/message.ts";
 import { IDBFactory } from "fake-indexeddb";
-import type { HistoryRow } from "../src/store/db.ts";
+import { type HistoryRow, NEWER_SEEN } from "../src/store/db.ts";
 import { Clock, FakePlatform, MockWorker, deliver, device, makeEngine, pairAndApprove, refresh, restart } from "./harness.ts";
 import { AUTH_PENDING, Login } from "../src/core/login.ts";
 import { AUTH_CHANGED, AUTH_RESULT, type AuthResult, readAuthResult } from "../src/model/signin.ts";
@@ -217,6 +217,119 @@ test("a valid-signed message of an unknown type is ignored silently and consumes
   assert.equal(b.p.notes.size, 0);
   assert.equal((await b.db.history()).length, before);
 });
+
+test("an unknown type without show is ignored silently and consumes n, also with a valid id", async () => {
+  const { w, a, b } = await setup("firefox");
+  await pairAndApprove(w, a, b);
+  const before = (await b.db.history()).length;
+  b.p.notes.clear();
+  await b.e.receive(await mkMsg(a, b, '{"v":1,"n":5,"id":"AbC_-1","future":"x"}'), "push");
+  await b.e.receive(await mkMsg(a, b, '{"n":6,"id":"AbC_-2","show":1,"future":"x"}'), "push"); // show counts only as true
+  assert.equal(b.p.notes.size, 0);
+  assert.equal((await b.db.history()).length, before);
+  assert.equal((await b.db.replay(a.id))!.h, 6);
+  assert.equal(await b.db.meta(NEWER_SEEN), undefined); // version 1: no update toast
+});
+
+test("a control with an id (and show) is still that control", async () => {
+  const { w, a, b } = await setup("firefox");
+  await pairAndApprove(w, a, b);
+  await b.e.receive(await mkMsg(a, b, '{"v":1,"n":5,"id":"t1","show":true,"text":"hi"}'), "push");
+  assert.equal((await b.db.history())[0]!.mid, "t1");
+  await b.e.receive(await mkMsg(a, b, '{"v":1,"n":6,"id":"c1","show":true,"del":["t1"]}'), "push");
+  assert.ok(!(await b.db.history()).some((x) => x.mid === "t1" || x.mid === "c1"));
+  assert.equal((await b.db.replay(a.id))!.h, 6);
+});
+
+for (const platform of ["chrome", "firefox"] as const) {
+  test(`${platform}: a newer version with show is an unknown row and sets the update toast flag once`, async () => {
+    const { w, a, b } = await setup(platform);
+    await pairAndApprove(w, a, b);
+    const before = (await b.db.history()).length;
+    b.p.notes.clear();
+    await b.e.receive(await mkMsg(a, b, '{"v":2,"n":5,"id":"AbC_-1","show":true,"text":"hi"}'), "push"); // a known key does not matter
+    assert.equal(b.p.notes.size, 0);
+    const rows = await b.db.history();
+    assert.equal(rows.length, before + 1);
+    assert.equal(rows[0]!.type, "unknown");
+    assert.equal(rows[0]!.mid, "AbC_-1");
+    assert.equal(rows[0]!.read, false);
+    assert.equal((await b.db.replay(a.id))!.h, 5);
+    const rpc = new Rpc(b.e);
+    const open = async () => ((await rpc.handle({ op: "popupOpen" })).data as { newerSeen?: boolean }).newerSeen;
+    assert.equal(await open(), true);
+    assert.equal(await open(), undefined); // shown once: the flag is cleared
+  });
+
+  test(`${platform}: a newer version without show adds no row, consumes n, and sets the update toast flag`, async () => {
+    const { w, a, b } = await setup(platform);
+    await pairAndApprove(w, a, b);
+    const before = (await b.db.history()).length;
+    b.p.notes.clear();
+    await b.e.receive(await mkMsg(a, b, '{"v":2,"n":5,"id":"AbC_-1","deny":1}'), "push");
+    assert.equal(b.p.notes.size, 0);
+    assert.equal((await b.db.history()).length, before);
+    assert.equal((await b.db.replay(a.id))!.h, 5);
+    assert.equal((await b.db.peer(a.id))!.ruling, "approved"); // not the deny of version 1
+    assert.equal(await b.db.meta(NEWER_SEEN), true);
+  });
+}
+
+test("a newer version with show and an invalid id is an unknown row with no message id", async () => {
+  const { w, a, b } = await setup("firefox");
+  await pairAndApprove(w, a, b);
+  await b.e.receive(await mkMsg(a, b, '{"v":3,"n":5,"id":"bad id!","show":true,"next":"x"}'), "push");
+  const r = (await b.db.history())[0]!;
+  assert.equal(r.type, "unknown");
+  assert.equal(r.mid, null);
+});
+
+for (const platform of ["chrome", "firefox"] as const) {
+  test(`${platform}: an unknown type with show is a History row with no notification`, async () => {
+    const { w, a, b } = await setup(platform);
+    await pairAndApprove(w, a, b);
+    const before = (await b.db.history()).length;
+    b.p.notes.clear();
+    const m = await mkMsg(a, b, '{"n":5,"id":"AbC_-1","show":true,"future":{"x":1}}');
+    await b.e.receive(m, "push");
+    assert.equal(b.p.notes.size, 0);
+    const rows = await b.db.history();
+    assert.equal(rows.length, before + 1);
+    const r = rows[0]!;
+    assert.equal(r.type, "unknown");
+    assert.equal(r.utype, "future");
+    assert.equal(r.mid, "AbC_-1");
+    assert.equal(r.peer, a.id);
+    assert.equal(r.dir, "in");
+    assert.equal(r.read, false); // unread like a text row
+    assert.equal(b.p.badge, "1");
+    assert.equal((await b.db.replay(a.id))!.h, 5);
+    // a duplicate stays silent and adds no row
+    await b.e.receive(m, "push");
+    assert.equal(b.p.notes.size, 0);
+    assert.equal((await b.db.history()).length, before + 1);
+    // a known type still notifies as before
+    await b.e.receive(await mkMsg(a, b, '{"n":6,"id":"t1","text":"hi"}'), "push");
+    assert.equal((await b.db.history())[0]!.type, "text");
+    assert.equal(b.p.notes.size, 1);
+    // a del by id removes the unknown row like a text row
+    await b.e.receive(await mkMsg(a, b, '{"n":7,"del":["AbC_-1"]}'), "push");
+    assert.ok(!(await b.db.history()).some((x) => x.mid === "AbC_-1"));
+  });
+
+  test(`${platform}: an unknown type with show and a stale n is dropped like a text message`, async () => {
+    const run = async (json: string) => {
+      const { w, a, b } = await setup(platform);
+      await pairAndApprove(w, a, b);
+      await b.e.receive(await mkMsg(a, b, '{"n":300,"id":"t0","text":"x"}'), "push");
+      b.p.notes.clear();
+      await b.e.receive(await mkMsg(a, b, json), "push");
+      const rows = await b.db.history();
+      return { top: [rows[0]!.type, rows[0]!.event], len: rows.length, notes: [...b.p.notes.keys()] };
+    };
+    assert.deepEqual(await run('{"n":5,"id":"u1","show":true,"future":"x"}'), await run('{"n":5,"id":"u1","text":"x"}'));
+  });
+}
 
 test("an unreadable message with no type key and a bad signature still yields could-not-read", async () => {
   const { w, a, b } = await setup("firefox");

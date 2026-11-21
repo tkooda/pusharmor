@@ -49,7 +49,7 @@ import { AUTO_REPLY_WINDOW_MS, noReply, pairDecide, type PairDecision, pairHint,
 import { replayCheck, replayRecord } from "../model/replay.ts";
 import { receiveDecide } from "../model/receive.ts";
 import { type Platform, PushNotStarted, PushRefused } from "../platform.ts";
-import { type HistoryRow, type PeerRow, type Platform4, type SelfKeys, ACCOUNTS, Db, SLOT_LOCAL, newPeerRow } from "../store/db.ts";
+import { type HistoryRow, type PeerRow, type Platform4, type SelfKeys, ACCOUNTS, Db, NEWER_SEEN, SLOT_LOCAL, newPeerRow } from "../store/db.ts";
 import {
   ALLOW_SET,
   Lock,
@@ -351,6 +351,7 @@ export class Engine {
       window: async (from) => (await this.db.replay(from)) ?? null,
       hasHistory: async (from, pid, n) => (await this.db.historyRowFor(from, pid, n)) !== undefined,
     });
+    if (r.newer) await this.db.setMeta(NEWER_SEEN, true); // the popup asks for an update
     if (r.outcome === "unreadable" && r.ignored) {
       // unknown type: consume n like a handled message (known messages from "returned" and "fetched" never consume an unknown one), then do nothing
       if (r.ignored.consume && src !== "returned" && src !== "fetched") {
@@ -366,6 +367,7 @@ export class Engine {
     }
     if (src === "returned" && r.content.type !== "approve") return;
     if (r.outcome !== "accept") {
+      if (r.outcome === "represent" && r.content.type === "unknown") return; // an unknown type never notifies
       if (r.outcome === "invalid") return this.dropEvent("invalid", r.from, src);
       if (r.outcome === "noop") {
         if (src === "push" && this.penalized) await this.representControl(r.content, r.from);
@@ -380,7 +382,7 @@ export class Engine {
     if (src === "fetched" && !(c.type === "remove" && c.id === onlyRemove)) return;
     const peer = (await this.db.peer(r.from))!;
     const pidB64 = b64urlEncode(r.pin.pairing_id);
-    const row = c.type === "url" || c.type === "text" || c.type === "tel" ? this.inboundRow(peer, c.type, c.value, r.n, pidB64, c.id ?? null) : null;
+    const row = c.type === "url" || c.type === "text" || c.type === "tel" ? this.inboundRow(peer, c.type, c.value, r.n, pidB64, c.id ?? null) : c.type === "unknown" ? this.unknownRow(peer, c.key, r.n, pidB64, c.id) : null;
     // approve: the peer-row change commits with the replay record
     const peerFn = c.type === "approve" ? approveRow(r.n, r.name, r.pin.pairing_id) : undefined;
     const rec = await this.db.acceptN(r.from, pidB64, r.n, row, (s) => replayCheck(s, r.n), (s) => replayRecord(s, r.n), true, peerFn);
@@ -415,6 +417,23 @@ export class Engine {
     } as HistoryRow;
   }
 
+  /** An unknown content type: an unread row with no content and no notification. */
+  private unknownRow(peer: PeerRow, key: string, n: number, pidB64: string, mid: string | null): HistoryRow {
+    return {
+      dir: "in",
+      peer: peer.id,
+      peer_name: peer.name,
+      type: "unknown",
+      utype: key,
+      content: "",
+      n,
+      pairing_id: pidB64,
+      received: now(this.p),
+      read: false,
+      mid,
+    } as HistoryRow;
+  }
+
   private async act(
     c: Content,
     n: number,
@@ -436,6 +455,9 @@ export class Engine {
         await this.updateBadge();
         return;
       }
+      case "unknown":
+        await this.updateBadge(); // the badge as for text; no notification
+        return;
       case "approve": {
         // the peer row was updated with the replay record (approveRow)
         const row = applied ?? peer;
@@ -2217,6 +2239,13 @@ export class Engine {
 
   async keysBroken(): Promise<boolean> {
     return (await this.db.meta<boolean>(KEYS_BROKEN)) === true;
+  }
+
+  /** true once after a message of a newer format version arrived: the popup shows the update toast. */
+  async takeNewerSeen(): Promise<boolean> {
+    if ((await this.db.meta<boolean>(NEWER_SEEN)) !== true) return false;
+    await this.db.del("meta", NEWER_SEEN);
+    return true;
   }
 
   /**

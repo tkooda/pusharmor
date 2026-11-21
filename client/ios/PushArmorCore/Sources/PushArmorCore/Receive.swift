@@ -164,6 +164,7 @@ extension Core {
         do {
             let (r, applied) = try store.db.write { () -> (ReceivePipeline.Result, Applied?) in
                 let r = runPipeline(m, me: me)
+                if r.newerVersion, mode != .returnedC { try store.setSetting(SettingKey.newerVersionSeen, "1") }
                 if r.ignored, mode != .returnedC, let w = r.windowAfter, let pid = r.pairingId {
                     try store.saveReplay(r.verifiedFrom!, pairingId: pid, window: w)
                 }
@@ -186,7 +187,9 @@ extension Core {
             case .represent:
                 guard mode == .nse, let from = r.verifiedFrom, let j = r.json, let pid = r.pairingId,
                       let row = try? store.historyRow(peer: from, pairingId: pid, n: j.n) else { return .plain(nil) }
-                return ReceiveResult(banner: banner(forRow: row), rowid: row.rowid, committed: true, newMessage: false,
+                // a row of a type from a newer version re-presents the generic fallback
+                let b = row.type == "unknown" ? Banner.fallback : banner(forRow: row)
+                return ReceiveResult(banner: b, rowid: row.rowid, committed: true, newMessage: false,
                                      approveVerified: false)
             case .noop:
                 guard mode == .nse, let from = r.verifiedFrom, let j = r.json else { return .plain(nil) }
@@ -201,6 +204,16 @@ extension Core {
             }
         } catch {
             return drop(mode, fault: true)
+        }
+    }
+
+    /// True once after a message in a newer format version arrived: the app shows
+    /// S.newerVersion and the flag clears.
+    public func takeNewerVersionSeen() throws -> Bool {
+        try store.db.write { () -> Bool in
+            guard try store.boolSetting(SettingKey.newerVersionSeen, default: false) else { return false }
+            try store.setSetting(SettingKey.newerVersionSeen, nil)
+            return true
         }
     }
 
@@ -221,7 +234,7 @@ extension Core {
         case .logout: return noticeBanner(S.loggedOutNotice(nm), peer: id, category: .notice, tap: .peers(id?.text))
         case .login: return noticeBanner(S.loggedInNotice(nm), peer: id, category: .notice, tap: .peers(id?.text))
         case .del(let ids): return noticeBanner(S.messagesDeleted(removed ?? ids.count, nm), peer: id, category: .event, tap: .history)
-        case .url, .text, .tel: return nil
+        case .url, .text, .tel, .unknown: return nil
         }
     }
 
@@ -243,6 +256,15 @@ extension Core {
             a.rowid = rowid
             a.newMessage = true
             if let row = try store.historyRow(rowid) { a.banner = banner(forRow: row) }
+            return a
+        case .unknown(let k):
+            // a row with no actions that shows S.unknownType (content: the raw type key), stored
+            // like a text row; the notification stays the generic fallback
+            try store.savePeer(p)
+            a.rowid = try store.addMessage(dir: .incoming, peer: from, type: "unknown", content: k, n: j.n,
+                                           pairingId: pid, read: false, results: nil, now: now, msgId: j.id)
+            a.newMessage = true
+            a.banner = Banner.fallback
             return a
         case .approve(let f):
             guard let name = r.name else { return nil }

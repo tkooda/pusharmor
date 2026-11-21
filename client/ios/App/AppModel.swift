@@ -345,6 +345,7 @@ final class AppModel: ObservableObject {
         if phase == .main { await core.appOpen(push: pushInfo) }
         else { await core.retryPendingLogout(); await core.allowReconcile() }
         reload()
+        if (try? core.takeNewerVersionSeen()) == true { toast = S.newerVersion }
         if (try? core.store.me().removed) == true { phase = .removed }
     }
 

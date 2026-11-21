@@ -37,6 +37,7 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
     override fun cancelPairNotice(pk: String) = n.cancelPair(pk)
     override fun couldNotRead() { if (fcm) n.notice(Notifier.COULD_NOT_READ) }
     override fun invalidMessage() { if (fcm) n.notice(Notifier.INVALID) }
+    override fun newerVersionSeen() = g.settings.set(com.pusharmor.app.data.Settings.K.NEWER_VERSION, true)
     override fun showContent(historyId: Long, peerId: String, content: ShownContent) = n.content(historyId, peerId, content)
     override fun rePresent(historyId: Long) = n.rePresent(historyId)
     override fun approvedNotice(peerId: String, name: String?) = n.peersNotice(UiText.approvedNotice(name), 3)

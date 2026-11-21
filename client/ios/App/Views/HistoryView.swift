@@ -145,6 +145,8 @@ struct HistoryRowView: View {
     private var outgoing: Bool { row.dir == .outgoing }
     private var unknown: Bool { !outgoing && row.peerId == nil }
     private var isEvent: Bool { row.type == "event" }
+    /// A message type from a newer version: it shows S.unknownType and does not open.
+    private var isUnknownType: Bool { row.type == "unknown" }
 
     private var senderName: String {
         if outgoing { return "Sent" }
@@ -167,10 +169,11 @@ struct HistoryRowView: View {
         row.delPending.compactMap { id in model.peers.first { $0.id.text == id } }.map { PeerLabel.label($0) }
     }
 
-    private var isOpen: Bool { expanded && !selecting && !isEvent }
+    private var isOpen: Bool { expanded && !selecting && !isEvent && !isUnknownType }
 
     private var contentText: String {
-        isEvent && row.count > 1 ? "\(row.content) (\(row.count))" : row.content
+        if isUnknownType { return S.unknownType }
+        return isEvent && row.count > 1 ? "\(row.content) (\(row.count))" : row.content
     }
 
     private var results: [String: String]? {
@@ -267,7 +270,7 @@ struct HistoryRowView: View {
         .onLongPressGesture { if selecting { onToggle() } else { onLongPress() } }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(a11yLabel)
-        .accessibilityValue(isEvent || selecting ? "" : (isOpen ? "Expanded" : "Collapsed"))
+        .accessibilityValue(isEvent || isUnknownType || selecting ? "" : (isOpen ? "Expanded" : "Collapsed"))
         .accessibilityAddTraits(selecting && selected ? [.isButton, .isSelected] : (selecting || !isEvent ? AccessibilityTraits.isButton : []))
         .accessibilityAction { selecting ? onToggle() : tap() }
         .accessibilityAction(named: "Select") { if selecting { onToggle() } else { onLongPress() } }
@@ -296,6 +299,12 @@ struct HistoryRowView: View {
         switch row.type {
         case "url": Text(contentText).lineLimit(typeSize.isAccessibilitySize ? 3 : 1).truncationMode(.middle)
         case "tel": Text(contentText).lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
+        case "unknown":
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Image(systemName: "xmark.circle.fill").imageScale(.small)
+                Text(contentText)
+            }
+            .foregroundColor(.errorText)
         default: Text(contentText).lineLimit(3)
         }
     }
@@ -315,6 +324,7 @@ struct HistoryRowView: View {
     private func tap() {
         if isEvent { return }
         model.markRead(row)
+        if isUnknownType { return }
         model.detailRow = HistoryExpand.tap(open: model.detailRow?.rowid, tapped: row.rowid) == nil ? nil : row
     }
 }

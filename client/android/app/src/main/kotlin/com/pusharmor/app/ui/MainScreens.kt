@@ -1373,7 +1373,10 @@ internal fun PaChip(selected: Boolean, text: String, onClick: () -> Unit) {
         border = FilterChipDefaults.filterChipBorder(enabled = true, selected = selected, borderColor = cs.outline, selectedBorderColor = Color.Transparent))
 }
 
-private val CONTENT_TYPES = setOf("url", "text", "tel")
+private val CONTENT_TYPES = setOf("url", "text", "tel", com.pusharmor.protocol.engine.HistoryRow.UNKNOWN)
+
+/** Shown in place of a message whose type this version does not know. */
+internal const val UNKNOWN_TYPE_TEXT = "Unknown message type, please update"
 
 /** Device status rows (logged in, logged out, rejected): History lists none; those an older version stored stay in the database. */
 private val STATUS_TYPES = setOf("logged_in", "logged_out", "denied")
@@ -1388,6 +1391,7 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
     val context = LocalContext.current
     val cs = MaterialTheme.colorScheme
     val event = h.type !in CONTENT_TYPES
+    val unknown = h.type == com.pusharmor.protocol.engine.HistoryRow.UNKNOWN
     val unread = !h.read && !event
     val who = h.peerId?.let { nameOf(it) } ?: if (h.direction == "SENT") UiText.sentTitle(h.toRow().results, nameOf) else "Unknown sender"
     val time = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(h.at))
@@ -1397,13 +1401,14 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
         "denied" -> "Rejected this device"
         "logged_out" -> "Logged out"
         "logged_in" -> "Logged in"
+        com.pusharmor.protocol.engine.HistoryRow.UNKNOWN -> UNKNOWN_TYPE_TEXT
         else -> h.content.orEmpty()
     }
     // Unread: bold text, no dot, so the time column stays aligned (F32).
     val weight = if (unread) FontWeight.Bold else FontWeight.Normal
     Column(modifier.combinedClickable(role = Role.Button, onLongClick = onSelect) { if (selecting) onSelect() else { onOpen(); vm.markRead(h.id) } }
         .semantics {
-            val st = listOfNotNull(if (unread) "Unread" else null, if (selecting) (if (checked) "Selected" else "Not selected") else h.content?.let { if (expanded) "Expanded" else "Collapsed" })
+            val st = listOfNotNull(if (unread) "Unread" else null, if (selecting) (if (checked) "Selected" else "Not selected") else h.content?.takeIf { !unknown }?.let { if (expanded) "Expanded" else "Collapsed" })
             if (st.isNotEmpty()) stateDescription = st.joinToString(", ")
         }) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -1440,6 +1445,10 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
                         textDecoration = if (notDeleted != null) androidx.compose.ui.text.style.TextDecoration.LineThrough else null)
                     val hc = h.content
                     when {
+                        unknown -> Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(PaIcons.Cancel, null, Modifier.size(18.dp), tint = cs.error)
+                            Text(body, Modifier.padding(start = 4.dp), style = style, color = cs.error, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
                         expanded && hc != null && messageKind(h.type, hc) == MessageKind.TEXT -> TextBox(hc, style)
                         expanded && hc != null -> SelectionContainer { Text(hc, style = style) }
                         h.type == "url" -> MiddleEllipsisText(body, style, Modifier.fillMaxWidth())
@@ -1451,7 +1460,7 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
             }
         }
         val hc = h.content
-        if (expanded && !selecting && hc != null) {
+        if (expanded && !selecting && hc != null && !unknown) {
             val kind = messageKind(h.type, hc)
             var reading by rememberSaveable(h.id) { mutableStateOf(false) }
             val saver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->

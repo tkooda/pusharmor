@@ -6,7 +6,7 @@ final class MessageTests: XCTestCase {
 
     func testInnerJSONEncodeParse() throws {
         let j = InnerJSON(n: 42, content: .url("https://example.com/a"))
-        XCTAssertEqual(String(decoding: j.encode(), as: UTF8.self), "{\"n\":42,\"url\":\"https://example.com/a\"}")
+        XCTAssertEqual(String(decoding: j.encode(), as: UTF8.self), "{\"v\":1,\"n\":42,\"show\":true,\"url\":\"https://example.com/a\"}")
         XCTAssertEqual(try InnerJSON.parse(j.encode()), j)
         let f = NameField(name: "UGhvbmU", n: 3, s: "abc")
         for c: MessageContent in [.text("a\"b\n"), .tel("+1 555"), .approve(f), .rename(f), .deny, .delete, .logout,
@@ -75,7 +75,9 @@ final class MessageTests: XCTestCase {
         XCTAssertEqual(s.pairingId, pid)
         XCTAssertTrue(Signatures.verify(s.sig, data: InnerMessage.signedBytes(recipient: b.id, tail: s.tail), publicKey: a.signPub))
         XCTAssertFalse(Signatures.verify(s.sig, data: InnerMessage.signedBytes(recipient: a.id, tail: s.tail), publicKey: a.signPub))
-        XCTAssertEqual(try InnerJSON.parse(try Deflate.inflateRaw(s.deflated)), j)
+        // a control's id is not kept on receive
+        XCTAssertEqual(try InnerJSON.parse(try Deflate.inflateRaw(s.deflated)),
+                       InnerJSON(v: j.v, n: j.n, content: j.content, id: j.content.isContent ? j.id : nil))
         if keys {
             XCTAssertEqual(s.keys?.signPub, a.signPub)
             XCTAssertEqual(s.keys?.encPub, a.encPub)
@@ -164,28 +166,31 @@ final class MessageTests: XCTestCase {
         XCTAssertNil(NameEntry.verify(f, owner: a.id, recipient: b.id, pairingId: pid, ownerSignPub: a.signPub))
     }
 
-    /// Sync deletions: a url, text or tel carries "id"; a control never does; a bad id is dropped.
+    /// Sync deletions: a url, text or tel carries "id"; a control's id is sent but not kept on
+    /// receive; a bad id is dropped.
     func testInnerJSONMessageId() throws {
         let id = InnerJSON.newId()
         XCTAssertEqual(id.count, 22)
         XCTAssertTrue(InnerJSON.isValidId(id))
         XCTAssertNotEqual(InnerJSON.newId(), id)
         let j = InnerJSON(n: 4, content: .text("hi"), id: id)
-        XCTAssertEqual(String(decoding: j.encode(), as: UTF8.self), "{\"n\":4,\"text\":\"hi\",\"id\":\"" + id + "\"}")
+        XCTAssertEqual(String(decoding: j.encode(), as: UTF8.self), "{\"v\":1,\"n\":4,\"id\":\"" + id + "\",\"show\":true,\"text\":\"hi\"}")
         XCTAssertEqual(try InnerJSON.parse(j.encode()), j)
         XCTAssertEqual(try InnerJSON.parse(Data("{\"n\":1,\"url\":\"x\",\"id\":\"a-b_C9\"}".utf8)).id, "a-b_C9")
         for bad in ["\"\"", "\"a.b\"", "5", "\"" + String(repeating: "a", count: 65) + "\""] {
             XCTAssertNil(try InnerJSON.parse(Data(("{\"n\":1,\"url\":\"x\",\"id\":" + bad + "}").utf8)).id, bad)
         }
         XCTAssertNotNil(try InnerJSON.parse(Data(("{\"n\":1,\"url\":\"x\",\"id\":\"" + String(repeating: "a", count: 64) + "\"}").utf8)).id)
-        XCTAssertNil(InnerJSON(n: 1, content: .logout, id: id).id)
+        let lo = InnerJSON(n: 1, content: .logout, id: id)
+        XCTAssertEqual(String(decoding: lo.encode(), as: UTF8.self), "{\"v\":1,\"n\":1,\"id\":\"" + id + "\",\"logout\":1}")
+        XCTAssertNil(try InnerJSON.parse(lo.encode()).id)
         XCTAssertNil(try InnerJSON.parse(Data("{\"n\":1,\"logout\":1,\"id\":\"abc\"}".utf8)).id)
     }
 
     /// del is a known type: {"n":N,"del":[ids]}; empty, or not an array of valid ids = not readable.
     func testInnerJSONDel() throws {
         let j = InnerJSON(n: 7, content: .del(["a", "b-c"]))
-        XCTAssertEqual(String(decoding: j.encode(), as: UTF8.self), "{\"n\":7,\"del\":[\"a\",\"b-c\"]}")
+        XCTAssertEqual(String(decoding: j.encode(), as: UTF8.self), "{\"v\":1,\"n\":7,\"del\":[\"a\",\"b-c\"]}")
         XCTAssertEqual(try InnerJSON.parse(j.encode()), j)
         XCTAssertTrue(ReceivePipeline.isControl(.del(["a"])))
         for bad in ["{\"n\":1,\"del\":1}", "{\"n\":1,\"del\":\"a\"}", "{\"n\":1,\"del\":[1]}", "{\"n\":1,\"del\":[]}",
@@ -205,18 +210,18 @@ final class MessageTests: XCTestCase {
         XCTAssertGreaterThan(chunks.count, 1)
         XCTAssertEqual(chunks.flatMap { $0 }, ids)
         let first = chunks[0]
-        let (m, _) = try roundTrip(InnerJSON(n: maxN, content: .del(first)))
+        let (m, _) = try roundTrip(InnerJSON(n: maxN, content: .del(first), id: InnerJSON.delSizeId))
         XCTAssertLessThanOrEqual(m.utf8.count, InnerMessage.maxWire)
-        XCTAssertThrowsError(try roundTrip(InnerJSON(n: maxN, content: .del(Array(ids.prefix(first.count + 1))))))
+        XCTAssertThrowsError(try roundTrip(InnerJSON(n: maxN, content: .del(Array(ids.prefix(first.count + 1))), id: InnerJSON.delSizeId)))
         for c in chunks {
-            let (m, _) = try roundTrip(InnerJSON(n: maxN, content: .del(c)))
+            let (m, _) = try roundTrip(InnerJSON(n: maxN, content: .del(c), id: InnerJSON.delSizeId))
             XCTAssertLessThanOrEqual(m.utf8.count, InnerMessage.maxWire)
         }
         // received ids may be up to 64 characters: they split the same way
         let long = (0 ..< 200).map { _ in InnerJSON.newId() + InnerJSON.newId() + "abcdefghijklmnopqrst" }
         XCTAssertEqual(long[0].count, 64)
         for c in try InnerJSON.delChunks(long) {
-            let (m, _) = try roundTrip(InnerJSON(n: maxN, content: .del(c)))
+            let (m, _) = try roundTrip(InnerJSON(n: maxN, content: .del(c), id: InnerJSON.delSizeId))
             XCTAssertLessThanOrEqual(m.utf8.count, InnerMessage.maxWire)
         }
         XCTAssertEqual(try InnerJSON.delChunks(["a"]), [["a"]])

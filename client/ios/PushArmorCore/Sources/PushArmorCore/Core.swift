@@ -36,6 +36,7 @@ public enum SettingKey {
     public static let historyDays = "history_days"         // default 30
     public static let sendDraft = "send_draft"             // the Send draft; gone with the wipe
     public static let syncDeletions = "sync_deletions"     // default on
+    public static let newerVersionSeen = "newer_version_seen"  // "1" until the app shows S.newerVersion
 }
 
 /// Shared logic of the app, the NSE and the share extension over one store and one API client.
@@ -116,7 +117,7 @@ public final class Core: @unchecked Sendable {
     }
 
     /// Build one inner message to a pinned peer: reserve n first (one atomic increment), then
-    /// encrypt.
+    /// encrypt. Every message carries an id: msgId, else a fresh one.
     public func buildMessage(to id: PeerId, withKeys: Bool = false, msgId: String? = nil,
                              _ content: (UInt64) throws -> MessageContent) throws -> String {
         guard let p = try store.peer(id), p.pinned else { throw CoreError.notPinned }
@@ -124,7 +125,7 @@ public final class Core: @unchecked Sendable {
         let pin = try store.reserveCounter(id)
         let n = pin.n
         let keys: (Data, Data)? = withKeys ? (self.keys.signer.publicKey, self.keys.decryptor.publicKey) : nil
-        return try InnerMessage.seal(InnerJSON(n: n, content: try content(n), id: msgId), signer: self.keys.signer, from: me, to: id,
+        return try InnerMessage.seal(InnerJSON(n: n, content: try content(n), id: msgId ?? InnerJSON.newId()), signer: self.keys.signer, from: me, to: id,
                                      toEncPub: pin.encPub, pairingId: pin.pairingId, keys: keys)
     }
 

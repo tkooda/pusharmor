@@ -362,6 +362,180 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(try x.core.store.history().count, before)
     }
 
+    /// Seal a raw inner JSON from n to x with the next n; "N" in the template is that n.
+    func sealRaw(_ n: Device, _ x: Device, _ json: String) throws -> (String, UInt64) {
+        let pin = try n.core.store.reserveCounter(x.id)
+        let m = try InnerMessage.seal(raw: Data(json.replacingOccurrences(of: "N", with: String(pin.n)).utf8), approve: false,
+                                      signer: n.keys.signer, from: n.id, to: x.id, toEncPub: pin.encPub,
+                                      pairingId: pin.pairingId, keys: nil)
+        return (m, pin.n)
+    }
+
+    /// an unknown type with "show": true: one unread History row (type "unknown", content the raw
+    /// type key), the generic fallback banner, a new message for the drain count like text; a
+    /// repeat re-presents the fallback and adds no row; a del of its id removes it.
+    func testSignedUnknownTypeWithShowWritesUnknownRow() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        let (m, _) = try sealRaw(n, x, "{\"v\":1,\"n\":N,\"id\":\"abc_DEF-123\",\"show\":true,\"zzz\":\"v\"}")
+        let before = try x.core.store.history().count
+        let r = await x.core.receive(m, mode: .nse)
+        XCTAssertEqual(r.banner, Banner.fallback)
+        XCTAssertTrue(r.newMessage)
+        XCTAssertNotNil(r.rowid)
+        let rows = try x.core.store.history()
+        XCTAssertEqual(rows.count, before + 1)
+        let row = try XCTUnwrap(rows.first { $0.rowid == r.rowid })
+        XCTAssertEqual(row.type, "unknown")
+        XCTAssertEqual(row.content, "zzz")
+        XCTAssertEqual(row.msgId, "abc_DEF-123")
+        XCTAssertEqual(row.peerId, n.id.text)
+        XCTAssertEqual(row.dir, .incoming)
+        XCTAssertFalse(row.read)
+        XCTAssertEqual(MessageActions.actions(forType: row.type), [])
+        XCTAssertFalse(try x.core.takeNewerVersionSeen())
+        let dup = await x.core.receive(m, mode: .nse)
+        XCTAssertEqual(dup.banner, Banner.fallback)
+        XCTAssertEqual(try x.core.store.history().count, before + 1)
+        let app = await x.core.receive(m, mode: .drain)
+        XCTAssertNil(app.banner)
+        XCTAssertEqual(try x.core.store.history().count, before + 1)
+        XCTAssertEqual(try x.core.store.deleteHistory(msgIds: ["abc_DEF-123"]), [row.rowid])
+        XCTAssertEqual(try x.core.store.history().count, before)
+        // a bad id still gives the row, with no message id
+        let (m2, _) = try sealRaw(n, x, "{\"n\":N,\"id\":\"a b\",\"show\":true,\"zzz\":1}")
+        let r2 = await x.core.receive(m2, mode: .nse)
+        let row2 = try XCTUnwrap(try x.core.store.historyRow(XCTUnwrap(r2.rowid)))
+        XCTAssertEqual(row2.type, "unknown")
+        XCTAssertNil(row2.msgId)
+    }
+
+    /// an unknown type without "show": true (even with a valid id) is ignored: no row, n consumed.
+    func testSignedUnknownTypeWithoutShowIsIgnored() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        for extra in ["", ",\"id\":\"abc_DEF-123\"", ",\"show\":1", ",\"show\":\"true\"", ",\"show\":false"] {
+            let (m, sent) = try sealRaw(n, x, "{\"v\":1,\"n\":N,\"zzz\":1\(extra)}")
+            let before = try x.core.store.history().count
+            let r = await x.core.receive(m, mode: .nse)
+            XCTAssertEqual(r.banner, Banner.fallback, extra)
+            XCTAssertNil(r.rowid, extra)
+            XCTAssertEqual(try x.core.store.history().count, before, extra)
+            XCTAssertEqual(try x.core.store.replay(n.id)?.window.outcome(sent, control: true, hasHistory: false), .noop, extra)
+        }
+        XCTAssertFalse(try x.core.takeNewerVersionSeen())
+    }
+
+    /// a newer format version: with "show": true the unknown row, without it no row; both consume
+    /// n and set the newer-version flag, which the app takes once.
+    func testSignedNewerVersionSetsFlag() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        let (m, _) = try sealRaw(n, x, "{\"v\":2,\"n\":N,\"id\":\"m2\",\"show\":true,\"text\":\"hi\"}")
+        let before = try x.core.store.history().count
+        let r = await x.core.receive(m, mode: .nse)
+        XCTAssertEqual(r.banner, Banner.fallback)
+        let row = try XCTUnwrap(try x.core.store.historyRow(XCTUnwrap(r.rowid)))
+        XCTAssertEqual(row.type, "unknown")
+        XCTAssertEqual(row.msgId, "m2")
+        XCTAssertEqual(try x.core.store.history().count, before + 1)
+        XCTAssertTrue(try x.core.takeNewerVersionSeen())
+        XCTAssertFalse(try x.core.takeNewerVersionSeen())
+        let (m2, sent2) = try sealRaw(n, x, "{\"v\":2,\"n\":N,\"id\":\"m3\",\"text\":\"hi\"}")
+        let r2 = await x.core.receive(m2, mode: .nse)
+        XCTAssertEqual(r2.banner, Banner.fallback)
+        XCTAssertNil(r2.rowid)
+        XCTAssertEqual(try x.core.store.history().count, before + 1)
+        XCTAssertEqual(try x.core.store.replay(n.id)?.window.outcome(sent2, control: true, hasHistory: false), .noop)
+        XCTAssertTrue(try x.core.takeNewerVersionSeen())
+        XCTAssertFalse(try x.core.takeNewerVersionSeen())
+    }
+
+    /// parse: "show": true marks an unknown type as a row; a control with an id is that control;
+    /// missing v is 1; a newer v with "show" is .unknown, without it throws newerVersion; a v that
+    /// is not a positive integer is malformed.
+    func testParseFormatV1() throws {
+        let j = try InnerJSON.parse(Data("{\"n\":7,\"img\":\"x\",\"id\":\"m1\",\"show\":true}".utf8))
+        XCTAssertEqual(j.content, .unknown("img"))
+        XCTAssertEqual(j.id, "m1")
+        XCTAssertEqual(j.v, 1)
+        XCTAssertTrue(j.content.isContent)
+        XCTAssertFalse(ReceivePipeline.isControl(j.content))
+        for bad in ["{\"n\":7,\"img\":\"x\"}", "{\"n\":7,\"img\":\"x\",\"id\":\"m1\"}", "{\"v\":1,\"n\":7,\"id\":\"m1\"}",
+                    "{\"n\":7,\"img\":\"x\",\"show\":1}", "{\"n\":7,\"img\":\"x\",\"show\":false}"] {
+            XCTAssertThrowsError(try InnerJSON.parse(Data(bad.utf8)), bad) { e in
+                guard case .unknownType(7)? = e as? InnerJSON.Failure else { return XCTFail(bad) }
+            }
+        }
+        let t = try InnerJSON.parse(Data("{\"v\":1,\"n\":7,\"img\":\"x\",\"text\":\"hi\",\"id\":\"m1\",\"show\":true}".utf8))
+        XCTAssertEqual(t.content, .text("hi"))
+        XCTAssertEqual(t.id, "m1")
+        XCTAssertEqual(try InnerJSON.parse(Data("{\"n\":7,\"text\":\"hi\"}".utf8)), InnerJSON(n: 7, content: .text("hi")))
+        let d = try InnerJSON.parse(Data("{\"v\":1,\"n\":7,\"id\":\"m1\",\"deny\":1}".utf8))
+        XCTAssertEqual(d.content, .deny)
+        XCTAssertNil(d.id)
+        let d2 = try InnerJSON.parse(Data("{\"n\":7,\"id\":\"m1\",\"show\":true,\"logout\":1}".utf8))
+        XCTAssertEqual(d2.content, .logout)
+        let nv = try InnerJSON.parse(Data("{\"v\":2,\"n\":7,\"id\":\"m1\",\"show\":true,\"text\":\"hi\"}".utf8))
+        XCTAssertEqual(nv.v, 2)
+        XCTAssertEqual(nv.content, .unknown("text"))
+        XCTAssertEqual(nv.id, "m1")
+        XCTAssertThrowsError(try InnerJSON.parse(Data("{\"v\":2,\"n\":7,\"id\":\"m1\",\"text\":\"hi\"}".utf8))) { e in
+            guard case .newerVersion(7)? = e as? InnerJSON.Failure else { return XCTFail("v2") }
+        }
+        for bad in ["0", "-1", "1.5", "\"1\"", "true"] {
+            XCTAssertThrowsError(try InnerJSON.parse(Data("{\"v\":\(bad),\"n\":7,\"show\":true,\"text\":\"hi\"}".utf8)), bad) { e in
+                guard case .shape? = e as? InnerJSON.Failure else { return XCTFail(bad) }
+            }
+        }
+    }
+
+    /// a bad v is malformed: could not read, no row, no flag.
+    func testSignedBadVersionIsUnreadable() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        for bad in ["0", "-1", "1.5", "\"1\"", "true"] {
+            let (m, _) = try sealRaw(n, x, "{\"v\":\(bad),\"n\":N,\"show\":true,\"text\":\"hi\"}")
+            let before = try x.core.store.history().filter { $0.type == "text" || $0.type == "unknown" }.count
+            let r = await x.core.receive(m, mode: .nse)
+            XCTAssertEqual(r.banner, Banner.dropped, bad)
+            XCTAssertNil(r.rowid, bad)
+            XCTAssertEqual(try x.core.store.history().filter { $0.type == "text" || $0.type == "unknown" }.count, before, bad)
+        }
+        XCTAssertFalse(try x.core.takeNewerVersionSeen())
+    }
+
+    /// every sent message carries v 1 and a fresh id; url, text and tel also carry show.
+    func testSentMessagesCarryVersionIdAndShow() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        func json(_ m: String) throws -> String {
+            let sp = try InnerMessage.split(try InnerMessage.open(m, me: x.id, key: x.keys.decryptor))
+            return String(decoding: try Deflate.inflateRaw(sp.deflated), as: UTF8.self)
+        }
+        var ids = Set<String>()
+        let controls: [MessageContent] = [.logout, .login, .delete, .deny, .del(["a"]), .remove(n.id.text)]
+        for c in controls {
+            let s = try json(try n.core.buildMessage(to: x.id) { _ in c })
+            let v = try StrictJSON.parse(Data(s.utf8))
+            XCTAssertTrue(s.hasPrefix("{\"v\":1,\"n\":"), s)
+            let id = try XCTUnwrap(v["id"]?.stringValue, s)
+            XCTAssertEqual(id.count, 22, s)
+            XCTAssertTrue(InnerJSON.isValidId(id), s)
+            XCTAssertNil(v["show"], s)
+            XCTAssertEqual(try InnerJSON.parse(Data(s.utf8)).content, c, s)
+            ids.insert(id)
+        }
+        XCTAssertEqual(ids.count, controls.count)
+        let contents: [MessageContent] = [.text("hi"), .url("https://example.com/"), .tel("+1 555 0100")]
+        for c in contents {
+            let s = try json(try n.core.buildMessage(to: x.id, msgId: "m1") { _ in c })
+            XCTAssertTrue(s.hasPrefix("{\"v\":1,\"n\":"), s)
+            XCTAssertTrue(s.contains(",\"id\":\"m1\",\"show\":true,\"" + c.typeKey + "\":"), s)
+            XCTAssertEqual(try InnerJSON.parse(Data(s.utf8)).content, c, s)
+        }
+    }
+
     /// a bad signature or a missing n still ends as could-not-read.
     func testUnreadableStillCouldNotRead() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")

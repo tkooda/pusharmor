@@ -73,6 +73,7 @@ export async function mountPopup(env: UiEnv, root: HTMLElement, page?: PageStart
     return;
   }
   if (my !== mounts) return;
+  if (st.newerSeen) toast(T.newerVersion, "info"); // once per open: the flag is cleared
   if (st.updateRequired) {
     clear(root).append(updateCard(env, st.recheckLocked, () => void again(), st.platform));
     root.querySelector<HTMLElement>("button.primary")?.focus(); // start on the one action
@@ -803,9 +804,12 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string; notDeleted?: s
   }
   const col = h("div", { class: "txt" }, h("div", { class: "hmeta" }, who, time));
   const one = r.type === "url" || r.type === "tel";
-  const content = h("div", { class: "content " + (one ? "one" : "clamp"), id: "h-" + r.id + "-c", role: "button", tabindex: "0" });
+  const content = h("div", { class: "content " + (one ? "one" : r.type === "unknown" ? "unk" : "clamp"), id: "h-" + r.id + "-c", role: "button", tabindex: "0" });
   if (r.type === "url") midEllipsis(content, r.content);
-  else content.textContent = r.content;
+  else if (r.type === "unknown") {
+    // a content message of a type this version does not know: a red x and the label, no actions
+    content.replaceChildren(icon("cancel", 16), T.unknownType);
+  } else content.textContent = r.content;
   // a delete that did not reach every device yet: struck through, with the devices under it
   const notDeleted = r.notDeleted?.length ? r.notDeleted : null;
   if (notDeleted) content.classList.add("struck");
@@ -879,7 +883,7 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string; notDeleted?: s
     const fails = Object.values(r.results).filter((v) => v !== "sent").length;
     if (fails) col.append(h("div", { class: "dim" }, fails + " not delivered"));
   }
-  col.append(acts);
+  if (r.type !== "unknown") col.append(acts);
   row.append(h("div", { class: "av" }, icon(r.dir === "in" ? "received" : "sent", 18)), col);
   wireSelect(row, r.id ?? 0, ctl, "h-" + r.id + "-who h-" + r.id + "-c");
   return row;

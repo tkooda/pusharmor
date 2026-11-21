@@ -62,6 +62,7 @@ class RecEffects : Effects {
     override fun pairNotice(peerId: String, pk: String, kind: PairNoticeKind, fingerprint: String?) { log.add("pair:$kind:$pk:${fingerprint ?: ""}") }
     override fun couldNotRead() { log.add("couldNotRead") }
     override fun invalidMessage() { log.add("invalid") }
+    override fun newerVersionSeen() { log.add("newer") }
     override fun showContent(historyId: Long, peerId: String, content: com.pusharmor.protocol.ShownContent) { log.add("show:${content.value}") }
     override fun rePresent(historyId: Long) { log.add("represent:$historyId") }
     override fun approvedNotice(peerId: String, name: String?) { log.add("approved:$name") }

@@ -190,4 +190,18 @@ class PushErrorTest {
             assertNull(g.settings.get(Settings.K.PAIR_ERROR))
         } finally { job.cancel() }
     }
+
+    /** A message in a newer format version, received in the background, says to update once; showing clears the mark. */
+    @Test fun newerVersionShowsOnceAndClears() {
+        g.effects(true).newerVersionSeen()
+        assertEquals(true, g.settings.get(Settings.K.NEWER_VERSION))
+        val vm = AppViewModel(app)
+        kotlinx.coroutines.runBlocking { kotlinx.coroutines.withTimeout(5000) { vm.showNewerVersion() } }
+        assertEquals("A device uses a newer version. Update PushArmor", vm.message.value)
+        assertNull(g.settings.get(Settings.K.NEWER_VERSION))
+        // nothing new: the next call waits and shows nothing
+        vm.message.value = null
+        assertNull(kotlinx.coroutines.runBlocking { kotlinx.coroutines.withTimeoutOrNull(300) { vm.showNewerVersion() } })
+        assertNull(vm.message.value)
+    }
 }

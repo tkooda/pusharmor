@@ -34,12 +34,17 @@ sealed class MessageBody {
     object Login : MessageBody() { override val key = "login" }
     /** Sync deletions: delete the History rows with these message ids. */
     data class Del(val ids: List<String>) : MessageBody() { override val key = "del" }
+    /**
+     * A message marked "show" of a type or format version ([newer]) this version does not know, with its type key
+     * ("" when none) and message id (null when none or not valid); never sent.
+     */
+    data class Unknown(val typeKey: String, val id: String?, val newer: Boolean = false) : MessageBody() { override val key = typeKey }
 
-    /** Message id of a url / text / tel; null for controls and old messages. */
-    val msgId: String? get() = when (this) { is Url -> id; is Text -> id; is Tel -> id; else -> null }
+    /** Message id of a url / text / tel / unknown content; null for controls and old messages. */
+    val msgId: String? get() = when (this) { is Url -> id; is Text -> id; is Tel -> id; is Unknown -> id; else -> null }
 
     /** Control types (no History row; a seen n is a silent duplicate). */
-    val isControl: Boolean get() = this !is Url && this !is Text && this !is Tel
+    val isControl: Boolean get() = this !is Url && this !is Text && this !is Tel && this !is Unknown
 
     fun valueJson(): String = when (this) {
         is Url -> StrictJson.quote(value)
@@ -50,6 +55,7 @@ sealed class MessageBody {
         is Remove -> StrictJson.quote(peerId)
         is Del -> ids.joinToString(",", "[", "]") { StrictJson.quote(it) }
         Deny, Delete, Logout, Login -> "1"
+        is Unknown -> error("an unknown type is never sent")
     }
 
     companion object {
@@ -83,8 +89,8 @@ sealed class OpenResult {
 
     data class Ok(val fromId: String, val n: Long, val body: MessageBody, val pairingId: ByteArray) : OpenResult()
 
-    /** Decrypted, parsed and verified, but no known type key (a future type): consume n, do nothing else. */
-    data class Ignored(val fromId: String, val n: Long, val pairingId: ByteArray) : OpenResult()
+    /** Decrypted, parsed and verified, but ignored (a future type or [newer] format version): consume n, do nothing else. */
+    data class Ignored(val fromId: String, val n: Long, val pairingId: ByteArray, val newer: Boolean = false) : OpenResult()
 }
 
 class MessageTooLargeException : Exception("message over the wire cap")
@@ -99,10 +105,11 @@ object InnerMessage {
     /** Max raw bytes that encode to at most [chars] b64url chars. */
     fun bytesForChars(chars: Int): Int = chars * 3 / 4
 
-    fun jsonOf(n: Long, body: MessageBody): String {
+    /** {"v":1,"n","id","show" (content only), type key}; [id]: the message id, else a fresh one. */
+    fun jsonOf(n: Long, body: MessageBody, id: String = body.msgId ?: MessageBody.newId()): String {
         require(n in 1..MAX_COUNTER)
-        val id = body.msgId?.let { ",\"id\":${StrictJson.quote(it)}" } ?: ""
-        return "{\"n\":$n,\"${body.key}\":${body.valueJson()}$id}"
+        val show = if (body.isControl) "" else ",\"show\":true"
+        return "{\"v\":1,\"n\":$n,\"id\":${StrictJson.quote(id)}$show,\"${body.key}\":${body.valueJson()}}"
     }
 
     /**
@@ -121,7 +128,7 @@ object InnerMessage {
         return out
     }
 
-    /** True when a del naming [ids] seals within the wire cap. */
+    /** True when a del naming [ids] seals within the wire cap (measured with a fresh id of the sent length). */
     fun delFits(ids: List<String>): Boolean {
         val json = jsonOf(MAX_COUNTER, MessageBody.Del(ids)).toByteArray(Charsets.UTF_8)
         if (json.size > SizeCap.INFLATE_CAP) return false // the receiver's inflate cap
@@ -219,7 +226,7 @@ object InnerMessage {
         val json = DeflateRaw.inflate(body.copyOfRange(off, off + len)) ?: return OpenResult.Fail(FailReason.INFLATE)
         val parsed = parseJsonOrUnknown(json) ?: return OpenResult.Fail(FailReason.JSON)
         val (n, mb) = parsed
-        if (mb == null) return if (flag == 1) OpenResult.Fail(FailReason.TYPE) else OpenResult.Ignored(fromId, n, pairingId)
+        if (mb == null) return if (flag == 1) OpenResult.Fail(FailReason.TYPE) else OpenResult.Ignored(fromId, n, pairingId, parsed.newer)
         if ((flag == 1) != (mb is MessageBody.Approve)) return OpenResult.Fail(FailReason.TYPE)
         return OpenResult.Ok(fromId, n, mb, pairingId)
     }
@@ -236,18 +243,33 @@ object InnerMessage {
     /** Known type keys; the message type is the first of these present. */
     private val TYPE_ORDER = listOf("url", "text", "tel", "approve", "deny", "remove", "rename", "delete", "logout", "login", "del")
 
-    /** {"n": counter, type key}; unknown keys are ignored; no known type key is null (drop). */
+    /** A parsed inner message: [body] null is ignored; [newer]: its format version is above 1. */
+    data class Parsed(val n: Long, val body: MessageBody?, val newer: Boolean = false)
+
+    /** {"v", "n": counter, "id", "show", type key}; unknown keys are ignored; an ignored message is null (drop). */
     fun parseJson(bytes: ByteArray): Pair<Long, MessageBody>? {
         val (n, body) = parseJsonOrUnknown(bytes) ?: return null
         return if (body == null) null else n to body
     }
 
-    /** Like [parseJson], but a valid object with n and no known type key is (n, null), not a failure. */
-    fun parseJsonOrUnknown(bytes: ByteArray): Pair<Long, MessageBody?>? {
+    /**
+     * Like [parseJson], but a valid object that is ignored (no known type key and no "show", or a newer format
+     * version without "show") has a null body, not a failure; one marked "show" is [MessageBody.Unknown].
+     */
+    fun parseJsonOrUnknown(bytes: ByteArray): Parsed? {
         val text = utf8(bytes) ?: return null
         val obj = StrictJson.parseOrNull(text) as? JValue.JObject ?: return null
+        // "v", "n", "id", "show" keep their meaning in every format version; "show" marks a history message.
+        val version = obj.fields["v"]?.let { counterOf(it) ?: return null } ?: 1L
         val n = counterOf(obj.fields["n"]) ?: return null
-        val k = TYPE_ORDER.firstOrNull { it in obj.fields } ?: return n to null
+        val show = obj.fields["show"] == JValue.JBool(true)
+        fun unknown(newer: Boolean): Parsed {
+            if (!show) return Parsed(n, null, newer)
+            val key = obj.fields.keys.firstOrNull { it != "v" && it != "n" && it != "id" && it != "show" } ?: ""
+            return Parsed(n, MessageBody.Unknown(key, idOf(obj), newer), newer)
+        }
+        if (version > 1) return unknown(newer = true)
+        val k = TYPE_ORDER.firstOrNull { it in obj.fields } ?: return unknown(newer = false)
         val v = obj.fields.getValue(k)
         val body: MessageBody = when (k) {
             "url" -> MessageBody.Url((v as? JValue.JString)?.value ?: return null, idOf(obj))
@@ -263,10 +285,10 @@ object InnerMessage {
             "del" -> MessageBody.Del((v as? JValue.JArray)?.items?.takeIf { it.isNotEmpty() }?.map { e -> ((e as? JValue.JString)?.value ?: return null).takeIf { MessageBody.validId(it) } ?: return null } ?: return null)
             else -> return null
         }
-        return n to body
+        return Parsed(n, body)
     }
 
-    /** The optional "id" of a url / text / tel; anything but a valid id string is null. */
+    /** The optional "id" of a url / text / tel / unknown; anything but a valid id string is null. */
     private fun idOf(o: JValue.JObject): String? = (o.fields["id"] as? JValue.JString)?.value?.takeIf { MessageBody.validId(it) }
 
     private fun isOne(v: JValue) = v is JValue.JNumber && v.raw == "1"

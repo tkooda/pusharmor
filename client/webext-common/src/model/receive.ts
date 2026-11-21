@@ -26,10 +26,11 @@ interface ReceiveInput {
   hasHistory(from: string, pairingIdB64: string, n: number): Promise<boolean>;
 }
 
-export type ReceiveResult =
+export type ReceiveResult = (
   | { outcome: "unreadable"; from: string | null; unknownSender?: boolean; ignored?: { n: number; consume: boolean } } // ignored: valid-signed message of an unknown type
   | { outcome: Exclude<ReplayOutcome, "accept">; from: string; n: number; content: Content }
-  | { outcome: "accept"; from: string; n: number; content: Content; name: string | null; pin: Pin };
+  | { outcome: "accept"; from: string; n: number; content: Content; name: string | null; pin: Pin }
+) & { newer?: true }; // newer: a valid-signed message of a newer format version
 
 /** Acceptance table (catalog Receiver acceptance) for a verified, pinned sender. */
 export function acceptable(type: Content["type"], ruling: Pin["ruling"]): boolean {
@@ -65,25 +66,26 @@ export async function receiveDecide(i: ReceiveInput): Promise<ReceiveResult> {
   const inflated = await inflateInner(p);
   const j = inflated ? parseInnerJson(inflated) : null;
   if (!j) return { outcome: "unreadable", from };
+  const done = (r: ReceiveResult): ReceiveResult => (j.v > 1 ? { ...r, newer: true } : r);
   const c = j.content;
   if (!c) {
-    // unknown type: consume n like a handled message from an approved peer, then do nothing
-    if (p.keys !== null || pin.ruling !== "approved") return { outcome: "unreadable", from };
+    // unknown type, or a newer version without "show": consume n like a handled message from an approved peer, then do nothing
+    if (p.keys !== null || pin.ruling !== "approved") return done({ outcome: "unreadable", from });
     const w = await i.window(from);
-    if (!w || !equal(w.pairing_id, pin.pairing_id)) return { outcome: "unreadable", from };
-    return { outcome: "unreadable", from, ignored: { n: j.n, consume: replayCheck(w, j.n) === "accept" } };
+    if (!w || !equal(w.pairing_id, pin.pairing_id)) return done({ outcome: "unreadable", from });
+    return done({ outcome: "unreadable", from, ignored: { n: j.n, consume: replayCheck(w, j.n) === "accept" } });
   }
-  if ((c.type === "approve") !== (p.keys !== null)) return { outcome: "unreadable", from };
+  if ((c.type === "approve") !== (p.keys !== null)) return done({ outcome: "unreadable", from });
   let name: string | null = null;
   if (c.type === "approve" || c.type === "rename") {
     name = await verifyNameEntry(pin.sign_pub, from, i.id, pin.pairing_id, c.entry);
-    if (name === null) return { outcome: "unreadable", from };
+    if (name === null) return done({ outcome: "unreadable", from });
   }
   const win = await i.window(from);
-  if (!win || !equal(win.pairing_id, pin.pairing_id)) return { outcome: "unreadable", from };
+  if (!win || !equal(win.pairing_id, pin.pairing_id)) return done({ outcome: "unreadable", from });
   const pidB64 = b64urlEncode(pin.pairing_id);
   const r = replayClassify(win, j.n, c.type, await i.hasHistory(from, pidB64, j.n));
-  if (r !== "accept") return { outcome: r, from, n: j.n, content: c };
-  if (!acceptable(c.type, pin.ruling)) return { outcome: "unreadable", from };
-  return { outcome: "accept", from, n: j.n, content: c, name, pin };
+  if (r !== "accept") return done({ outcome: r, from, n: j.n, content: c });
+  if (!acceptable(c.type, pin.ruling)) return done({ outcome: "unreadable", from });
+  return done({ outcome: "accept", from, n: j.n, content: c, name, pin });
 }

@@ -126,6 +126,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** A device with a newer format version says so at most once per call (one per app open); showing clears the mark. */
+    suspend fun showNewerVersion() = withContext(Dispatchers.IO) {
+        g.settings.data.first { it[Settings.K.NEWER_VERSION] == true }
+        message.value = UiText.NEWER_VERSION
+        g.settings.set(Settings.K.NEWER_VERSION, null)
+    }
+
     /** Runs a tap handler; an error shows [action] and why, or only goes to the log when [action] is null. */
     fun io(action: String?, block: suspend () -> Unit) = viewModelScope.launch(Dispatchers.IO) {
         busy.value = true

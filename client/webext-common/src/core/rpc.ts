@@ -67,6 +67,8 @@ export interface StateView {
   pushIssue: "refused" | "noservice" | "unsupported" | "relay" | "nostart" | "noreach" | "fault" | null;
   /** Whose push service this browser uses (Google, Mozilla, ...), for the fault message. */
   pushVendor?: string;
+  /** popupOpen only: a message of a newer format version arrived since the last open (shown once). */
+  newerSeen?: boolean;
   /** The saved keys failed the local check: every view shows the keys screen. */
   keysBroken: boolean;
   /** This build's version (manifest version), shown at the bottom of Settings. */
@@ -152,7 +154,7 @@ export class Rpc {
         await e.probeKeys().catch(() => undefined); // local only
         // draw from the local state at once; the network work runs behind it
         this.opening = e.onPopupOpen().catch(() => undefined);
-        return this.state();
+        return (await e.takeNewerSeen()) ? { ...(await this.state()), newerSeen: true } : this.state();
       case "pushCheck": {
         const result = await e.checkPush();
         return { result, state: await this.state() };

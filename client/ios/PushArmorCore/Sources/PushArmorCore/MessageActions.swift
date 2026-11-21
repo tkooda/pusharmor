@@ -8,9 +8,11 @@ public enum MessageAction: String, Equatable, Sendable {
 
 public enum MessageActions {
     /// Links and phone numbers: Copy, Open, Share. Plain text: Read, Copy, Share, Save.
+    /// A message type from a newer version: none.
     public static func actions(forType type: String) -> [MessageAction] {
         switch type {
         case "url", "tel": return [.copy, .open, .share]
+        case "unknown": return []
         default: return [.read, .copy, .share, .save]
         }
     }

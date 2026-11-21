@@ -354,6 +354,8 @@ internal fun App(vm: AppViewModel) {
         // Taken as soon as it is set, so no screen finds an old one later; a new message replaces the one shown.
         val snack = remember { SnackbarHostState() }
         fun tab(r: String) = nav.tab(r)
+        // A device with a newer format version: said once each time the app comes to the front.
+        androidx.compose.runtime.LaunchedEffect(resumed) { if (resumed) vm.showNewerVersion() }
         androidx.compose.runtime.LaunchedEffect(Unit) {
             var shown: kotlinx.coroutines.Job? = null
             launch { vm.showPairErrors() }

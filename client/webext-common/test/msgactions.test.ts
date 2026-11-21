@@ -9,6 +9,7 @@ test("action order by message type", () => {
   assert.deepEqual(msgActions("url"), ["copy", "open", "share"]);
   assert.deepEqual(msgActions("tel"), ["copy", "open", "share"]);
   assert.deepEqual(msgActions("text"), ["read", "copy", "share", "save"]);
+  assert.deepEqual(msgActions("unknown"), []);
 });
 
 test("save filename uses local time", () => {

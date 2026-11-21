@@ -286,7 +286,7 @@ extension Core {
     /// an all-zero pairing id and n = 1 (no counter exists without a pin; as Android).
     func unpinnedDenyMessage(_ p: Peer) throws -> String {
         guard let enc = p.listEncPub else { throw CoreError.notPinned }
-        return try InnerMessage.seal(InnerJSON(n: 1, content: .deny), signer: keys.signer, from: try myId(), to: p.id,
+        return try InnerMessage.seal(InnerJSON(n: 1, content: .deny, id: InnerJSON.newId()), signer: keys.signer, from: try myId(), to: p.id,
                                      toEncPub: enc, pairingId: Data(count: 8), keys: nil)
     }
 

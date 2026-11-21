@@ -13,6 +13,8 @@ const CLICK = clickWord(globalThis.navigator?.userAgent ?? "");
 export const T = {
   appName: "PushArmor",
   unreadable: "Unable to read a message.\nIt is not valid or was damaged.",
+  unknownType: "Unknown message type, please update",
+  newerVersion: "A device uses a newer version. Update PushArmor",
   pairCommit: "A new device wants to pair. Open PushArmor.",
   pairReply: "Pairing code ready. Open PushArmor.",
   pairOpen: (fp: string) => "New device: compare " + fp + ".",

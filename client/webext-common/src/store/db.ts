@@ -51,7 +51,7 @@ export interface HistoryRow {
   dir: "in" | "out";
   peer: string | null;
   peer_name?: string | null; // last known name, kept for "(removed)"
-  type: "url" | "text" | "tel" | "event";
+  type: "url" | "text" | "tel" | "event" | "unknown";
   event?: "denied" | "logged_out" | "logged_in" | "unreadable" | "invalid";
   content: string;
   n: number | null;
@@ -62,6 +62,7 @@ export interface HistoryRow {
   count?: number; // merged consecutive events
   targets?: string[];
   mid?: string | null; // message id (inner "id"); absent on older rows
+  utype?: string; // type "unknown": the raw type key of a content message from a newer version
   del_req?: string[]; // a Sync deletions delete that is not done yet: the devices it was sent to
   del_ok?: string[]; // of del_req, the devices whose push the relay server accepted
 }
@@ -154,9 +155,11 @@ export function openDb(factory: IDBFactory = indexedDB, name = DB_NAME): Promise
 export const ACCOUNTS = "accounts";
 /** meta key: the storage.local keys of a loaded account, until they are written there. */
 export const SLOT_LOCAL = "slot_local";
+/** meta key of the device: a message of a newer format version arrived; the popup shows a toast once and clears it. */
+export const NEWER_SEEN = "newer_seen";
 const ARCHIVE_PREFIX = "pusharmor-acct-";
 /** meta keys of the device (clock offset, Firefox push setup), not of an account. */
-const DEVICE_META = new Set([ACCOUNTS, SLOT_LOCAL, "offset_s", "fallback_push", "receive_mode", "setup_opened", "autopush"]);
+const DEVICE_META = new Set([ACCOUNTS, SLOT_LOCAL, "offset_s", "fallback_push", "receive_mode", "setup_opened", "autopush", NEWER_SEEN]);
 
 /** One account's rows of each store as [key, value] pairs. */
 export type SlotRows = Record<StoreName, [IDBValidKey, unknown][]>;

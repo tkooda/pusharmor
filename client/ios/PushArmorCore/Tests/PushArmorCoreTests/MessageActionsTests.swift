@@ -11,6 +11,10 @@ final class MessageActionsTests: XCTestCase {
         XCTAssertEqual(MessageActions.actions(forType: "text"), [.read, .copy, .share, .save])
     }
 
+    func testUnknownTypeHasNoActions() {
+        XCTAssertEqual(MessageActions.actions(forType: "unknown"), [])
+    }
+
     func testShortTextDoesNotScroll() {
         XCTAssertFalse(MessageActions.scrolls("one\ntwo\nthree"))
         XCTAssertFalse(MessageActions.scrolls("hello"))

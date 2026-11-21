@@ -40,6 +40,9 @@ public enum MessageContent: Equatable, Sendable {
     case login
     /// Delete the History rows with these message ids (Sync deletions).
     case del([String])
+    /// A message with "show": true that this version cannot show (an unknown type key, or a
+    /// newer format version); carries the raw type key ("" when none).
+    case unknown(String)
 
     public var typeKey: String {
         switch self {
@@ -54,13 +57,14 @@ public enum MessageContent: Equatable, Sendable {
         case .logout: return "logout"
         case .login: return "login"
         case .del: return "del"
+        case .unknown(let k): return k
         }
     }
 
-    /// url, text, tel: the types that write a History row.
+    /// url, text, tel (and an unknown type with "show"): the types that write a History row.
     public var isContent: Bool {
         switch self {
-        case .url, .text, .tel: return true
+        case .url, .text, .tel, .unknown: return true
         default: return false
         }
     }
@@ -69,29 +73,36 @@ public enum MessageContent: Equatable, Sendable {
         switch self {
         case .url(let s), .text(let s), .tel(let s), .remove(let s): return StrictJSON.quote(s)
         case .approve(let f), .rename(let f): return f.json
-        case .deny, .delete, .logout, .login: return "1"
+        case .deny, .delete, .logout, .login, .unknown: return "1"
         case .del(let ids): return "[" + ids.map(StrictJSON.quote).joined(separator: ",") + "]"
         }
     }
 }
 
-/// Inner message JSON {"n": .., one type key}; a url, text or tel may also carry "id".
+/// Inner message JSON {"v": 1, "n": .., "id": .., "show": true, one type key}; "show" only on
+/// a url, text or tel.
 public struct InnerJSON: Equatable, Sendable {
     public static let contentCap = 2048
+    /// The format version: 1 when absent; a larger one is from a newer version.
+    public let v: UInt64
     public let n: UInt64
     public let content: MessageContent
-    /// The message id of a url, text or tel (Sync deletions); nil when absent or not valid.
+    /// The message id. Sent on every message; kept on receive only for a History row (Sync
+    /// deletions); nil when absent or not valid.
     public let id: String?
 
-    public init(n: UInt64, content: MessageContent, id: String? = nil) {
+    public init(v: UInt64 = 1, n: UInt64, content: MessageContent, id: String? = nil) {
+        self.v = v
         self.n = n
         self.content = content
-        self.id = content.isContent ? id : nil
+        self.id = id
     }
 
     public func encode() -> Data {
         let idJSON = id.map { ",\"id\":" + StrictJSON.quote($0) } ?? ""
-        return Data(("{\"n\":" + String(n) + "," + StrictJSON.quote(content.typeKey) + ":" + content.valueJSON + idJSON + "}").utf8)
+        let showJSON = content.isContent ? ",\"show\":true" : ""
+        return Data(("{\"v\":" + String(v) + ",\"n\":" + String(n) + idJSON + showJSON + ","
+                     + StrictJSON.quote(content.typeKey) + ":" + content.valueJSON + "}").utf8)
     }
 
     /// A message id: 1 to 64 characters of A-Z, a-z, 0-9, "_" and "-".
@@ -107,10 +118,13 @@ public struct InnerJSON: Equatable, Sendable {
         return B64URL.encode(Data((0 ..< 16).map { _ in UInt8.random(in: 0 ... 255, using: &g) }))
     }
 
-    /// True when a del of these ids seals within InnerMessage.maxWire: the same deflate and
-    /// size check as the seal, with the largest n.
+    /// A 22-character stand-in for the fresh id of a del while its size is measured.
+    static let delSizeId = "Xq7-Lm2_Rt9Kw4Zp0Bv8Nc"
+
+    /// True when a del of these ids seals within InnerMessage.maxWire: the same builder, deflate
+    /// and size check as the seal, with the largest n and an id of the sent length.
     static func delFits(_ ids: [String]) throws -> Bool {
-        let deflated = try Deflate.deflateRaw(InnerJSON(n: 9_007_199_254_740_991, content: .del(ids)).encode())
+        let deflated = try Deflate.deflateRaw(InnerJSON(n: 9_007_199_254_740_991, content: .del(ids), id: delSizeId).encode())
         // sig (64) + from id (30) + pairing id (8) + keys flag (1) + u16 length (2) + deflated
         return (try? InnerMessage.paddedPlaintextLength(minPlaintext: 64 + 30 + 8 + 1 + 2 + deflated.count, approve: false)) != nil
     }
@@ -131,21 +145,39 @@ public struct InnerJSON: Equatable, Sendable {
     }
 
     public enum Failure: Error { case json, shape, counter, value, tooLong
-        /// A valid n and no known type key (a type from a newer version): carries n.
+        /// A valid n, no known type key and no "show" (a type from a newer version): carries n.
         case unknownType(UInt64)
+        /// A valid n, a newer format version and no "show": carries n.
+        case newerVersion(UInt64)
     }
 
     /// Type keys in priority order: the first one present is the message type.
     static let typeOrder = ["url", "text", "tel", "approve", "deny", "remove", "rename", "delete", "logout", "login", "del"]
 
     /// Lenient parse: n plus at least one known type key; unknown keys and any
-    /// lower-priority type keys are ignored. n a JSON integer in 1 ... 2^53 - 1 on the
-    /// raw token, no duplicate keys, content <= 2048 bytes.
+    /// lower-priority type keys are ignored. n and v JSON integers in 1 ... 2^53 - 1 on the
+    /// raw token (v absent = 1), no duplicate keys, content <= 2048 bytes.
     public static func parse(_ data: Data) throws -> InnerJSON {
         guard let v = try? StrictJSON.parse(data), v.objectMembers != nil else { throw Failure.json }
         guard let nv = v["n"] else { throw Failure.shape }
         guard let n = nv.counterValue else { throw Failure.counter }
-        guard let key = typeOrder.first(where: { v[$0] != nil }), let val = v[key] else { throw Failure.unknownType(n) }
+        // "v", "n", "id", "show" keep their meaning in every format version; "show" marks a history message.
+        var ver: UInt64 = 1
+        if let vv = v["v"] {
+            guard let x = vv.counterValue else { throw Failure.shape }
+            ver = x
+        }
+        let show = v["show"].map { $0 == .bool(true) } ?? false
+        let rowId = v["id"]?.stringValue.flatMap { isValidId($0) ? $0 : nil }
+        let unknownKey = v.objectMembers?.first(where: { !["v", "n", "id", "show"].contains($0.0) })?.0 ?? ""
+        if ver > 1 {
+            guard show else { throw Failure.newerVersion(n) }
+            return InnerJSON(v: ver, n: n, content: .unknown(unknownKey), id: rowId)
+        }
+        guard let key = typeOrder.first(where: { v[$0] != nil }), let val = v[key] else {
+            guard show else { throw Failure.unknownType(n) }
+            return InnerJSON(n: n, content: .unknown(unknownKey), id: rowId)
+        }
         let c: MessageContent
         func str() throws -> String {
             guard let s = val.stringValue else { throw Failure.value }
@@ -182,8 +214,7 @@ public struct InnerJSON: Equatable, Sendable {
             if s.utf8.count > contentCap { throw Failure.tooLong }
         default: break
         }
-        let id = v["id"]?.stringValue.flatMap { isValidId($0) ? $0 : nil }
-        return InnerJSON(n: n, content: c, id: id)
+        return InnerJSON(n: n, content: c, id: c.isContent ? rowId : nil)
     }
 }
 

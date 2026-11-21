@@ -144,7 +144,7 @@ def seal_round_trip(c):
         value = pa.make_name_entry(frm["sign_priv"], frm["id"], r["id"], pid, e["n"], value["name"])
     keys = (frm["sign_pub"], frm["enc_pub"]) if e["type"] == "approve" else None
     text = pa.msg_json(e["n"], e["type"], value)
-    assert json.loads(text) == json.loads(c["json"]) or e["type"] in ("approve", "rename")
+    assert {k: v for k, v in json.loads(text).items() if k not in ("v", "id", "show")} == json.loads(c["json"]) or e["type"] in ("approve", "rename")
     msg = pa.build_message(frm["sign_priv"], frm["id"], r["id"], r["enc_pub"], pid, text, keys)
     assert len(msg) == len(c["message"])
     got = receive(dict(c, message=msg))

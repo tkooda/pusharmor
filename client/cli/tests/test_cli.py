@@ -2075,7 +2075,7 @@ def test_sent_content_carries_a_22_char_id_and_controls_do_not(net, tmp_path, mo
     assert run(a, "send", "hello") == 0
     o = json.loads(seen[-1])
     assert o["text"] == "hello" and re.fullmatch(r"[A-Za-z0-9_-]{22}", o["id"])
-    assert "id" not in json.loads(pa.msg_json(5, "logout", 1))
+    assert "id" in json.loads(pa.msg_json(5, "logout", 1))
 
 
 @pytest.mark.parametrize("unit,count", [(0x7e, 2000), (0x7ff, 1000), (0xfffd, 666), (0x10ffff, 500), (0x1f, 2000)])
@@ -2655,3 +2655,51 @@ def test_user_visible_text_says_url_not_link():
                  "send URLs and text to your own"):
         assert text in src
     assert "Open this link" not in src and "Open the link" not in src
+
+
+def _open_inner(net, tmp_path, monkeypatch, json_text):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = pair_two(monkeypatch, net, a, b)
+    msg = _sealed(a, ida, idb, a, json_text)
+    kb = pa.Store(str(b)).load_keys()
+    with pa.Store(str(b)).state(write=False) as d:
+        p = d["peers"][ida]
+        pins = {ida: {"sign_pub": pa.b64d(p["sign_pub"]), "enc_pub": pa.b64d(p["enc_pub"]),
+                      "pairing_id": pa.b64d(p["pairing_id"]), "ruling": p["ruling"],
+                      "window": {"h": p["h"], "seen": p["seen"]}}}
+    return pa.open_message(msg, kb["id"], kb["enc"], pa.b64d(kb["id"])[:9], pins)
+
+
+def test_sender_emits_v_id_and_show_by_kind():
+    ident = r"[A-Za-z0-9_-]{22}"
+    t = pa.msg_json(5, "text", "hi")
+    assert re.fullmatch(r'\{"v":1,"n":5,"id":"' + ident + r'","show":true,"text":"hi"\}', t)
+    for ty in ("url", "tel"):
+        assert list(json.loads(pa.msg_json(5, ty, "x"))) == ["v", "n", "id", "show", ty]
+    for ty in ("deny", "delete", "logout", "login"):
+        assert list(json.loads(pa.msg_json(5, ty, 1))) == ["v", "n", "id", ty]
+    assert list(json.loads(pa.msg_json(5, "remove", "A" * 40))) == ["v", "n", "id", "remove"]
+    assert list(json.loads(pa.msg_json(5, "del", ["a"]))) == ["v", "n", "id", "del"]
+    assert pa.msg_json(5, "text", "hi") != pa.msg_json(5, "text", "hi")
+
+
+def test_missing_v_is_v1_and_control_with_id_is_a_control(net, tmp_path, monkeypatch):
+    o = _open_inner(net, tmp_path, monkeypatch, '{"n":7,"text":"hi"}')
+    assert o["outcome"] == "accept" and o["type"] == "text"
+    o = _open_inner(net, tmp_path, monkeypatch, '{"v":1,"n":7,"id":"' + "A" * 22 + '","logout":1}')
+    assert o["outcome"] == "accept" and o["type"] == "logout"
+
+
+@pytest.mark.parametrize("v", ["0", "-1", "1.5", '"1"', "true"])
+def test_bad_v_is_malformed(v, net, tmp_path, monkeypatch):
+    o = _open_inner(net, tmp_path, monkeypatch, '{"v":' + v + ',"n":7,"text":"hi"}')
+    assert o["outcome"] == "unreadable" and o["why"] == "v"
+
+
+def test_newer_v_prints_one_stderr_line_per_run_and_is_ignored(net, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(pa, "_newer_seen", False)
+    capsys.readouterr()
+    o = _open_inner(net, tmp_path, monkeypatch, '{"v":2,"n":7,"text":"hi"}')
+    assert o["outcome"] == "unreadable" and o["why"] == "type"
+    _open_inner(net, tmp_path / "x", monkeypatch, '{"v":3,"n":7,"zzz":1}')
+    assert capsys.readouterr().err.splitlines().count("A device uses a newer version. Update PushArmor") == 1

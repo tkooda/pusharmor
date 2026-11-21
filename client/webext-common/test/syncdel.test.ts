@@ -23,10 +23,10 @@ const rows = async (d: { db: { history(): Promise<{ id?: number; dir: string; ty
 
 test("message id: parsed when valid, ignored when not; del parses as a known type", () => {
   const p = (s: string) => parseInnerJson(utf8(s));
-  assert.deepEqual(p('{"n":3,"id":"abc_-9","text":"x"}'), { n: 3, content: { type: "text", value: "x", id: "abc_-9" } });
-  assert.deepEqual(p('{"n":3,"id":"a b","text":"x"}'), { n: 3, content: { type: "text", value: "x" } });
-  assert.deepEqual(p('{"n":3,"id":"' + "a".repeat(65) + '","text":"x"}'), { n: 3, content: { type: "text", value: "x" } });
-  assert.deepEqual(p('{"n":4,"del":["abc","d-e"]}'), { n: 4, content: { type: "del", ids: ["abc", "d-e"] } });
+  assert.deepEqual(p('{"n":3,"id":"abc_-9","text":"x"}'), { n: 3, v: 1, content: { type: "text", value: "x", id: "abc_-9" } });
+  assert.deepEqual(p('{"n":3,"id":"a b","text":"x"}'), { n: 3, v: 1, content: { type: "text", value: "x" } });
+  assert.deepEqual(p('{"n":3,"id":"' + "a".repeat(65) + '","text":"x"}'), { n: 3, v: 1, content: { type: "text", value: "x" } });
+  assert.deepEqual(p('{"n":4,"del":["abc","d-e"]}'), { n: 4, v: 1, content: { type: "del", ids: ["abc", "d-e"] } });
   assert.equal(p('{"n":4,"del":[]}'), null);
   assert.equal(p('{"n":4,"del":["a b"]}'), null);
   assert.match(newMsgId(), /^[A-Za-z0-9_-]{22}$/);

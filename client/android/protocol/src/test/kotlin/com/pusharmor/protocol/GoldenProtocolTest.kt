@@ -108,8 +108,10 @@ class GoldenProtocolTest {
         // inflate and compare json; our JSON writer gives the same text
         assertEquals(name, c.str("json"), String(DeflateRaw.inflate(deflated)!!, Charsets.UTF_8))
         val (n, mb) = InnerMessage.parseJson(c.str("json").toByteArray())!!
-        // our writer may differ in escaping (raw UTF-8 vs \\u); it must parse back to the same value
-        assertEquals(name, n to mb, InnerMessage.parseJson(InnerMessage.jsonOf(n, mb).toByteArray()))
+        // our writer may differ in escaping (raw UTF-8 vs \\u) and adds v, id, show; it must parse back to the same value
+        val id = mb.msgId ?: "x"
+        val withId = when (mb) { is MessageBody.Url -> mb.copy(id = id); is MessageBody.Text -> mb.copy(id = id); is MessageBody.Tel -> mb.copy(id = id); else -> mb }
+        assertEquals(name, n to withId, InnerMessage.parseJson(InnerMessage.jsonOf(n, mb, id).toByteArray()))
         // full receive pipeline
         checkExpect(c)
     }
@@ -131,6 +133,7 @@ class GoldenProtocolTest {
             is Effect.Remove -> assertEquals(value.jsonPrimitive.content, e.targetId)
             is Effect.SelfRemoved, is Effect.Logout, Effect.Deny -> assertEquals(name, "1", value.jsonPrimitive.content)
             is Effect.Drop -> error("drop")
+            is Effect.ShowUnknown -> error("unknown type")
             is Effect.Del -> assertEquals(name, value.toString(), e.ids.joinToString(",", "[", "]") { "\"$it\"" })
         }
     }

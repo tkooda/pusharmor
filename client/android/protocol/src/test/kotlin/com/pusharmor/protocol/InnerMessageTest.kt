@@ -23,7 +23,7 @@ class InnerMessageTest {
     @Test fun roundTripEveryType() {
         val entry = NameEntry.buildClear(a.keys, a.id, b.id, pid, 7, "Phone")
         val bodies = listOf(
-            MessageBody.Url("https://example.com/a"), MessageBody.Text("hi \u00e9 \ud83d\ude00"), MessageBody.Tel("+1 555-123-4567"),
+            MessageBody.Url("https://example.com/a", "u1"), MessageBody.Text("hi \u00e9 \ud83d\ude00", "t1"), MessageBody.Tel("+1 555-123-4567", "p1"),
             MessageBody.Approve(entry), MessageBody.Rename(entry), MessageBody.Deny, MessageBody.Remove(b.id),
             MessageBody.Delete, MessageBody.Logout, MessageBody.Login,
             MessageBody.Text("with id", MessageBody.newId()), MessageBody.Del(listOf(MessageBody.newId(), "a-b_C")),
@@ -40,6 +40,22 @@ class InnerMessageTest {
         }
     }
 
+    /** Every message carries "v":1 and an id (fresh on controls); content also carries "show":true. */
+    @Test fun senderFormatV1() {
+        assertEquals("{\"v\":1,\"n\":7,\"id\":\"abc\",\"show\":true,\"text\":\"x\"}", InnerMessage.jsonOf(7, MessageBody.Text("x", "abc")))
+        assertEquals("{\"v\":1,\"n\":7,\"id\":\"abc\",\"show\":true,\"url\":\"https://a.b/\"}", InnerMessage.jsonOf(7, MessageBody.Url("https://a.b/", "abc")))
+        assertEquals("{\"v\":1,\"n\":7,\"id\":\"abc\",\"show\":true,\"tel\":\"1\"}", InnerMessage.jsonOf(7, MessageBody.Tel("1", "abc")))
+        val entry = NameEntry.buildClear(a.keys, a.id, b.id, pid, 7, "Phone")
+        for (c in listOf(MessageBody.Approve(entry), MessageBody.Rename(entry), MessageBody.Deny, MessageBody.Remove(b.id),
+            MessageBody.Delete, MessageBody.Logout, MessageBody.Login, MessageBody.Del(listOf("a")))) {
+            val j = InnerMessage.jsonOf(7, c)
+            assertTrue(j, Regex("^\\{\"v\":1,\"n\":7,\"id\":\"[A-Za-z0-9_-]{22}\",\"${c.key}\":.*\\}$").matches(j))
+            assertTrue(j, !j.contains("\"show\""))
+            assertTrue(j != InnerMessage.jsonOf(7, c)) // a fresh id each time
+            assertEquals(c, InnerMessage.parseJson(j.toByteArray())!!.second) // the id on a control is ignored
+        }
+    }
+
     @Test fun bucketsAndCap() {
         assertEquals(512, send(1, MessageBody.Text("x")).length)
         val rnd = java.util.Random(5)
@@ -53,14 +69,14 @@ class InnerMessageTest {
     }
 
     @Test fun layoutAndSignatureCoverPad() {
-        val body = InnerMessage.buildBody(a.idRaw, pid, 42, MessageBody.Url("https://example.com/a"), null)
+        val body = InnerMessage.buildBody(a.idRaw, pid, 42, MessageBody.Url("https://example.com/a", "abc"), null)
         assertEquals(512 * 3 / 4 - 81 - 64, body.size)
         assertArrayEquals(a.idRaw, body.copyOf(30))
         assertArrayEquals(pid, body.copyOfRange(30, 38))
         assertEquals(0, body[38].toInt())
         val len = ((body[39].toInt() and 0xff) shl 8) or (body[40].toInt() and 0xff)
         val json = DeflateRaw.inflate(body.copyOfRange(41, 41 + len))!!
-        assertEquals("{\"n\":42,\"url\":\"https://example.com/a\"}", String(json))
+        assertEquals("{\"v\":1,\"n\":42,\"id\":\"abc\",\"show\":true,\"url\":\"https://example.com/a\"}", String(json))
         for (k in 41 + len until body.size) assertEquals(0, body[k].toInt())
     }
 
@@ -106,10 +122,22 @@ class InnerMessageTest {
             "{\"n\":1,\"deny\":2}",
             "{\"n\":\"1\",\"text\":\"a\"}", "{\"n\":1,\"text\":1}",
             "{\"n\":1,\"approve\":{\"name\":\"x\",\"n\":1,\"s\":\"y\"}}", // approve needs keys flag 1
+            // "v" must be a positive JSON integer
+            "{\"v\":0,\"n\":1,\"text\":\"a\"}", "{\"v\":-1,\"n\":1,\"text\":\"a\"}", "{\"v\":1.5,\"n\":1,\"text\":\"a\"}",
+            "{\"v\":\"1\",\"n\":1,\"text\":\"a\"}", "{\"v\":true,\"n\":1,\"text\":\"a\"}", "{\"v\":2,\"n\":0,\"show\":true,\"x\":1}",
         )) assertTrue(j, open(sendJson(j)) is OpenResult.Fail)
+        // missing v is v1; v:1 is the same
+        assertEquals(MessageBody.Text("a"), (open(sendJson("{\"v\":1,\"n\":1,\"text\":\"a\"}")) as OpenResult.Ok).body)
         // valid n with no known type key: verified but ignored, not a failure
         assertTrue(open(sendJson("{\"n\":1}")) is OpenResult.Ignored)
         assertTrue(open(sendJson("{\"n\":1,\"x\":\"a\"}")) is OpenResult.Ignored)
+        assertTrue(open(sendJson("{\"n\":1,\"x\":\"a\",\"id\":\"abc\"}")) is OpenResult.Ignored)
+        assertEquals(MessageBody.Unknown("x", "abc"), (open(sendJson("{\"n\":1,\"x\":\"a\",\"id\":\"abc\",\"show\":true}")) as OpenResult.Ok).body)
+        // a newer format version: "show" makes the unknown row whatever the type key; without it, ignored
+        assertEquals(MessageBody.Unknown("text", "abc", newer = true), (open(sendJson("{\"v\":2,\"n\":1,\"id\":\"abc\",\"show\":true,\"text\":\"a\"}")) as OpenResult.Ok).body)
+        assertEquals(OpenResult.Ignored::class, open(sendJson("{\"v\":2,\"n\":1,\"deny\":1}"))::class)
+        assertEquals(true, (open(sendJson("{\"v\":2,\"n\":1,\"deny\":1}")) as OpenResult.Ignored).newer)
+        assertEquals(false, (open(sendJson("{\"n\":1,\"x\":\"a\"}")) as OpenResult.Ignored).newer)
         // unknown keys are ignored; the first known type key (url before text) wins
         assertEquals(MessageBody.Url("b"), (open(sendJson("{\"n\":1,\"text\":\"a\",\"url\":\"b\",\"x\":0}")) as OpenResult.Ok).body)
         assertEquals(FailReason.PADDING, (open(sendJson("{\"n\":1,\"text\":\"a\"}", nonZeroPad = true)) as OpenResult.Fail).reason)
@@ -132,6 +160,21 @@ class InnerMessageTest {
         assertEquals(MessageBody.Text("x"), parse("{\"n\":1,\"text\":\"x\",\"id\":\"a b\"}"))
         assertEquals(MessageBody.Text("x"), parse("{\"n\":1,\"text\":\"x\",\"id\":7}"))
         assertEquals(MessageBody.Text("x"), parse("{\"n\":1,\"text\":\"x\",\"id\":\"${"a".repeat(65)}\"}"))
+        // an unknown type key with "show":true is a History row (its id kept only when valid); without show it is dropped
+        assertEquals(MessageBody.Unknown("file", "abc_-9"), parse("{\"n\":1,\"file\":\"x\",\"id\":\"abc_-9\",\"show\":true}"))
+        assertEquals(MessageBody.Unknown("file", null), parse("{\"n\":1,\"file\":\"x\",\"id\":\"a b\",\"show\":true}"))
+        assertEquals(MessageBody.Unknown("file", null), parse("{\"v\":1,\"n\":1,\"show\":true,\"file\":\"x\"}"))
+        assertEquals(false, MessageBody.Unknown("file", "abc_-9").isControl)
+        assertEquals("abc_-9", MessageBody.Unknown("file", "abc_-9").msgId)
+        assertEquals(null, parse("{\"n\":1,\"file\":\"x\"}"))
+        assertEquals(null, parse("{\"n\":1,\"file\":\"x\",\"id\":\"abc_-9\"}"))
+        assertEquals(null, parse("{\"n\":1,\"file\":\"x\",\"id\":\"abc\",\"show\":1}"))
+        assertEquals(null, parse("{\"n\":1,\"file\":\"x\",\"id\":\"abc\",\"show\":\"true\"}"))
+        assertEquals(null, parse("{\"n\":1,\"id\":\"abc\"}"))
+        // a known type is handled by type: "show" and "id" do not change it
+        assertEquals(MessageBody.Deny, parse("{\"n\":1,\"deny\":1,\"id\":\"abc\"}"))
+        assertEquals(MessageBody.Deny, parse("{\"v\":1,\"n\":1,\"id\":\"abc\",\"show\":true,\"deny\":1}"))
+        assertEquals(MessageBody.Text("x"), parse("{\"n\":1,\"text\":\"x\",\"show\":false}"))
         assertEquals(MessageBody.Del(listOf("a", "b")), parse("{\"n\":1,\"del\":[\"a\",\"b\"]}"))
         assertEquals(null, parse("{\"n\":1,\"del\":[\"a\",\"b c\"]}"))
         assertEquals(null, parse("{\"n\":1,\"del\":\"a\"}"))

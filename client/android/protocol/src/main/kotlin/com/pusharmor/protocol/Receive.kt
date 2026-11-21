@@ -19,6 +19,9 @@ data class ShownContent(
 sealed class Effect {
     data class Show(val content: ShownContent) : Effect()
 
+    /** Content of a type this version does not know: a History row with no notification. */
+    data class ShowUnknown(val typeKey: String) : Effect()
+
     /** Dropped by the acceptance table after the verify (History may name the peer). */
     data class Drop(val why: String) : Effect()
 
@@ -53,8 +56,11 @@ sealed class Inbound {
     /** Seen n of a control type: no state change, no event; on FCM re-present that type's notice. */
     data class Duplicate(val peerId: String, val body: MessageBody) : Inbound()
 
-    /** Verified message of an unknown (future) type: no row, no notice. [window] is the replay window to store (null: unchanged). */
-    data class Ignored(val peerId: String, val pairingId: ByteArray, val window: ReplayWindow?) : Inbound()
+    /**
+     * Verified message of an unknown (future) type or format version ([newer]): no row, no notice. [window] is the
+     * replay window to store (null: unchanged).
+     */
+    data class Ignored(val peerId: String, val pairingId: ByteArray, val window: ReplayWindow?, val newer: Boolean = false) : Inbound()
 
     /** Window-fresh: commit [window] in the same transaction as any History row. */
     data class Accepted(val peerId: String, val n: Long, val pairingId: ByteArray, val window: ReplayWindow, val body: MessageBody, val effect: Effect) : Inbound()
@@ -129,6 +135,7 @@ object Receive {
             }
             MessageBody.Deny -> if (!approved) Effect.Drop("not approved") else Effect.Deny
             is MessageBody.Del -> if (!approved) Effect.Drop("not approved") else Effect.Del(b.ids)
+            is MessageBody.Unknown -> if (!approved) Effect.Drop("not approved") else Effect.ShowUnknown(b.typeKey)
         }
     }
 
@@ -175,7 +182,7 @@ object ReceivePipeline {
             is OpenResult.Ignored -> {
                 val window = windowOf(opened.fromId) ?: return Inbound.Unreadable(null)
                 val fresh = window.check(opened.n) == ReplayWindow.Verdict.FRESH
-                Inbound.Ignored(opened.fromId, opened.pairingId, if (fresh) window.accept(opened.n) else null)
+                Inbound.Ignored(opened.fromId, opened.pairingId, if (fresh) window.accept(opened.n) else null, opened.newer)
             }
             is OpenResult.Ok -> {
                 val peer = peerOf(opened.fromId)!!
