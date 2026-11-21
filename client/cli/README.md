@@ -47,6 +47,8 @@ Run `pusharmor COMMAND --help` for details. Files live in `~/.config/pusharmor`
 (or `$XDG_CONFIG_HOME/pusharmor`, `$PUSHARMOR_CONFIG`, or `--config DIR`).
 On Windows they live in `%APPDATA%\PushArmor` (or `%PUSHARMOR_CONFIG%`, or `--config DIR`).
 
+Do not restore the config directory (the one holding `keys/` and `devices.toml`) from a backup, copy it to another machine, or delete `devices.toml` alone. Your other devices will reject the messages it sends. Instead, run `pusharmor logout` and `pusharmor login`, then pair again with `pusharmor pair`.
+
 ## Exit codes
 
 `pusharmor --help` lists the exit codes and their meaning.
