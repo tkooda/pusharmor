@@ -22,7 +22,7 @@ class HistoryActionsTest {
 
     @Test fun actionOrderByType() {
         assertEquals(listOf("Copy", "Open", "Share"), historyActionLabels(messageKind("url", "https://example.com/a")))
-        assertEquals(listOf("Copy", "Open", "Share"), historyActionLabels(messageKind("tel", "+15551234567")))
+        assertEquals(listOf("Copy", "Call", "Share"), historyActionLabels(messageKind("tel", "+15551234567")))
         assertEquals(listOf("View", "Copy", "Share", "Save"), historyActionLabels(messageKind("text", "hello")))
         assertEquals(MessageKind.TEXT, messageKind("url", "not a link"))
     }

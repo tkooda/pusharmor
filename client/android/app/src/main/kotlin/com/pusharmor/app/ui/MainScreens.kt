@@ -1467,9 +1467,10 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
                     "Copy" -> MessageAction("Copy", PaIcons.ContentCopy) {
                         vm.message.value = UiText.copyResult(com.pusharmor.app.notify.ActionActivity.copy(context, hc))
                     }
-                    "Open" -> if (kind == MessageKind.URL) com.pusharmor.protocol.UrlCheck.parse(hc)?.let { u ->
+                    "Open" -> com.pusharmor.protocol.UrlCheck.parse(hc)?.let { u ->
                         MessageAction("Open", PaIcons.OpenInNew) { startOrToast(context, Intent(Intent.ACTION_VIEW, Uri.parse(u.href)).addCategory(Intent.CATEGORY_BROWSABLE)) { vm.message.value = it } }
-                    } else MessageAction("Open", PaIcons.OpenInNew) { startOrToast(context, Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(hc))), NO_APP_DIAL) { vm.message.value = it } }
+                    }
+                    "Call" -> MessageAction("Call", PaIcons.Call) { startOrToast(context, Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(hc))), NO_APP_DIAL) { vm.message.value = it } }
                     "Share" -> MessageAction("Share", PaIcons.Share) {
                         context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, hc), null))
                     }
