@@ -44,8 +44,9 @@ public enum ReceivePipeline {
         public var name: String?
         public var windowAfter: ReplayWindow?
         public var pairingId: Data?
-        /// Unreadable outcome only: a verified, approved message of an unknown type. windowAfter is set
-        /// when its n is fresh (to be consumed); the receiver shows no row, no event and no error.
+        /// Unreadable outcome only: a verified message of an unknown type. windowAfter is set when the
+        /// sender is approved and its n is fresh (to be consumed); the receiver shows no row, no event
+        /// and no error.
         public var ignored = false
         /// A verified message from an approved sender in a newer format version: the app shows
         /// S.newerVersion once.
@@ -53,6 +54,14 @@ public enum ReceivePipeline {
 
         static func drop(_ from: PeerId? = nil) -> Result {
             Result(outcome: .unreadable, verifiedFrom: from, unknownFrom: nil, json: nil, name: nil, windowAfter: nil, pairingId: nil)
+        }
+
+        /// An unknown type from a sender that is not approved: ignored, n not consumed.
+        static func ignore(_ from: PeerId, pairingId: Data) -> Result {
+            var r = Result(outcome: .unreadable, verifiedFrom: from, unknownFrom: nil, json: nil, name: nil, windowAfter: nil,
+                           pairingId: pairingId)
+            r.ignored = true
+            return r
         }
     }
 
@@ -109,7 +118,9 @@ public enum ReceivePipeline {
         guard let j = parsed else {
             // verified, from the pinned pairing, no known type or a newer format, and no "show":
             // consume n like a control message, do nothing else
-            guard sp.keys == nil, p.ruling == .approved, var w = window(from) else { return .drop(from) }
+            guard sp.keys == nil else { return .drop(from) }
+            guard p.ruling == .approved else { return .ignore(from, pairingId: p.pairingId) }
+            guard var w = window(from) else { return .drop(from) }
             var r = Result(outcome: .unreadable, verifiedFrom: from, unknownFrom: nil, json: nil, name: nil, windowAfter: nil,
                            pairingId: p.pairingId)
             r.ignored = true
@@ -120,6 +131,7 @@ public enum ReceivePipeline {
         var isApprove = false
         if case .approve = j.content { isApprove = true }
         guard isApprove == (sp.keys != nil) else { return .drop(from) }
+        if case .unknown = j.content, p.ruling != .approved { return .ignore(from, pairingId: p.pairingId) }
         // approve / rename: the name entry is checked before the replay window
         var name: String?
         switch j.content {

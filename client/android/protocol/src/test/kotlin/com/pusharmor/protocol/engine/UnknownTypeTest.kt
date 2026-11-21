@@ -86,13 +86,27 @@ class UnknownTypeTest {
     }
 
     @Test fun unknownTypeWithShowFollowsTheTextPath() {
-        for (approved in listOf(true, false)) {
-            val text = trace(approved) { "\"text\":\"x\"" }
-            val unknown = trace(approved) { "\"file\":\"x\"" }
-            // the only difference: a text row notifies, an unknown row does not
-            assertEquals(text.map { it.replace("show, ", "").replace("[show]", "[]").replace(", show]", "]") }, unknown)
+        val text = trace(true) { "\"text\":\"x\"" }
+        val unknown = trace(true) { "\"file\":\"x\"" }
+        // the only difference: a text row notifies, an unknown row does not
+        assertEquals(text.map { it.replace("show, ", "").replace("[show]", "[]").replace(", show]", "]") }, unknown)
+    }
+
+    @Test fun unknownTypeFromAPeerNotApprovedIsSilentAndKeepsTheWindow() {
+        for (peer in listOf(a.asPeer(pid, approved = false), a.asPeer(pid).copy(deniedByMe = true))) {
+            for (json in listOf("{\"n\":5,\"id\":\"abc\",\"show\":true,\"file\":\"x\"}", "{\"n\":5,\"file\":\"x\"}", "{\"v\":2,\"n\":5,\"id\":\"abc\",\"show\":true,\"text\":\"x\"}")) {
+                val st = MemStore()
+                val ef = RecEffects()
+                val rx = ReceiveEngine(st, Identity(me.keys, me.id), ef)
+                st.putPeer(peer)
+                st.putWindow(a.id, pid, ReplayWindow.fresh())
+                assertTrue(json, rx.onMessage(wireOf(json), 1000) is Inbound.Ignored)
+                assertTrue(json, st.history.isEmpty())
+                assertTrue(json, ef.log.isEmpty())
+                assertEquals(json, ReplayWindow.fresh().h, st.window(a.id)!!.h)
+                assertEquals(json, ReplayWindow.Verdict.FRESH, st.window(a.id)!!.check(5))
+            }
         }
-        assertTrue(trace(false) { "\"file\":\"x\"" }.first().contains("couldNotRead"))
     }
 
     @Test fun unknownTypeWithShowAndNoValidIdIsARowWithNoMessageId() {

@@ -295,6 +295,26 @@ test("the update toast flag comes only from an approved peer on the normal recei
   assert.equal(await b.db.meta(NEWER_SEEN), true);
 });
 
+for (const platform of ["chrome", "firefox"] as const) {
+  test(`${platform}: an unknown type or newer version from a paired peer that is not approved is ignored silently`, async () => {
+    const { w, a, b } = await setup(platform);
+    await pairAndApprove(w, a, b);
+    for (const ruling of ["none", "denied"] as const) {
+      await b.db.updatePeer(a.id, (p) => (p ? { ...p, ruling } : null));
+      const before = (await b.db.history()).length;
+      const h = (await b.db.replay(a.id))!.h;
+      b.p.notes.clear();
+      await b.e.receive(await mkMsg(a, b, `{"v":1,"n":${h + 1},"id":"u1","show":true,"future":"x"}`), "push");
+      await b.e.receive(await mkMsg(a, b, `{"v":1,"n":${h + 2},"id":"u2","future":"x"}`), "push");
+      await b.e.receive(await mkMsg(a, b, `{"v":2,"n":${h + 3},"id":"u3","show":true,"text":"hi"}`), "push");
+      await b.e.receive(await mkMsg(a, b, `{"v":2,"n":${h + 4},"id":"u4","next":"x"}`), "push");
+      assert.equal(b.p.notes.size, 0);
+      assert.equal((await b.db.history()).length, before);
+      assert.equal((await b.db.replay(a.id))!.h, h);
+    }
+  });
+}
+
 test("a newer version with show and an invalid id is an unknown row with no message id", async () => {
   const { w, a, b } = await setup("firefox");
   await pairAndApprove(w, a, b);

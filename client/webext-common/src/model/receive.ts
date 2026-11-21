@@ -70,12 +70,14 @@ export async function receiveDecide(i: ReceiveInput): Promise<ReceiveResult> {
   const c = j.content;
   if (!c) {
     // unknown type, or a newer version without "show": consume n like a handled message from an approved peer, then do nothing
-    if (p.keys !== null || pin.ruling !== "approved") return done({ outcome: "unreadable", from });
+    if (p.keys !== null) return done({ outcome: "unreadable", from });
+    if (pin.ruling !== "approved") return { outcome: "unreadable", from, ignored: { n: j.n, consume: false } }; // not approved: ignored silently
     const w = await i.window(from);
     if (!w || !equal(w.pairing_id, pin.pairing_id)) return done({ outcome: "unreadable", from });
     return done({ outcome: "unreadable", from, ignored: { n: j.n, consume: replayCheck(w, j.n) === "accept" } });
   }
   if ((c.type === "approve") !== (p.keys !== null)) return done({ outcome: "unreadable", from });
+  if (c.type === "unknown" && pin.ruling !== "approved") return { outcome: "unreadable", from, ignored: { n: j.n, consume: false } }; // not approved: ignored silently
   let name: string | null = null;
   if (c.type === "approve" || c.type === "rename") {
     name = await verifyNameEntry(pin.sign_pub, from, i.id, pin.pairing_id, c.entry);

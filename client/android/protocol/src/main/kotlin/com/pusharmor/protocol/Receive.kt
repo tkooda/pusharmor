@@ -181,6 +181,8 @@ object ReceivePipeline {
             is OpenResult.UnknownSender -> Inbound.Unreadable(null, fetch = peerOf(opened.fromId)?.removed != true)
             is OpenResult.Ignored -> {
                 val window = windowOf(opened.fromId) ?: return Inbound.Unreadable(null)
+                // from a peer that is not approved: silent, and the replay window stays unchanged
+                if (peerOf(opened.fromId)?.let { it.approved && !it.deniedByMe } != true) return Inbound.Ignored(opened.fromId, opened.pairingId, null, opened.newer)
                 val fresh = window.check(opened.n) == ReplayWindow.Verdict.FRESH
                 Inbound.Ignored(opened.fromId, opened.pairingId, if (fresh) window.accept(opened.n) else null, opened.newer)
             }
@@ -188,6 +190,9 @@ object ReceivePipeline {
                 val peer = peerOf(opened.fromId)!!
                 if (!Receive.nameEntryOk(opened, peer, ownId)) return Inbound.Unreadable(peer.id)
                 val window = windowOf(peer.id) ?: return Inbound.Unreadable(null)
+                // unknown type from a peer that is not approved: silent, and the replay window stays unchanged
+                val body = opened.body
+                if (body is MessageBody.Unknown && !(peer.approved && !peer.deniedByMe)) return Inbound.Ignored(peer.id, opened.pairingId, null, body.newer)
                 Receive.decide(opened, peer, window, ownId) { n -> historyIdFor(peer.id, opened.pairingId, n) }
             }
         }

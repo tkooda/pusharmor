@@ -451,6 +451,41 @@ final class StateMachineTests: XCTestCase {
         XCTAssertFalse(try x.core.takeNewerVersionSeen())
     }
 
+    /// an unknown type (with or without "show") or a newer version with "show" from a paired
+    /// sender that is not approved is ignored: no row, no could-not-read, no notice, n not consumed.
+    func testUnknownTypeFromUnapprovedSenderIsIgnored() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        for state in [PeerState.unruled, .denied] {
+            try x.core.store.db.write {
+                var p = try x.core.store.peer(n.id)!
+                p.state = state
+                try x.core.store.savePeer(p)
+            }
+            for json in ["{\"v\":1,\"n\":N,\"id\":\"m1\",\"show\":true,\"zzz\":1}", "{\"v\":1,\"n\":N,\"zzz\":1}",
+                         "{\"v\":2,\"n\":N,\"id\":\"m2\",\"show\":true,\"text\":\"hi\"}"] {
+                let label = "\(state) \(json)"
+                let w0 = try XCTUnwrap(try x.core.store.replay(n.id)).window
+                let (m, sent) = try sealRaw(n, x, json)
+                let before = try x.core.store.history().count
+                let r = await x.core.receive(m, mode: .nse)
+                XCTAssertNotEqual(r.banner, Banner.dropped, label)
+                XCTAssertNotEqual(r.banner, Banner.invalid, label)
+                XCTAssertEqual(r.banner, Banner.fallback, label)
+                XCTAssertNil(r.rowid, label)
+                XCTAssertFalse(r.newMessage, label)
+                let app = await x.core.receive(m, mode: .drain)
+                XCTAssertNil(app.banner, label)
+                XCTAssertNil(app.rowid, label)
+                XCTAssertEqual(try x.core.store.history().count, before, label)
+                let w1 = try XCTUnwrap(try x.core.store.replay(n.id)).window
+                XCTAssertEqual(w1, w0, label)
+                XCTAssertEqual(w1.outcome(sent, control: true, hasHistory: false), .accept, label)
+            }
+        }
+        XCTAssertFalse(try x.core.takeNewerVersionSeen())
+    }
+
     /// parse: "show": true marks an unknown type as a row; a control with an id is that control;
     /// missing v is 1; a newer v with "show" is .unknown, without it throws newerVersion; a v that
     /// is not a positive integer is malformed.
