@@ -357,17 +357,22 @@ for (const platform of ["chrome", "firefox"] as const) {
     assert.ok(!(await b.db.history()).some((x) => x.mid === "AbC_-1"));
   });
 
-  test(`${platform}: an unknown type with show and a stale n is dropped like a text message`, async () => {
-    const run = async (json: string) => {
-      const { w, a, b } = await setup(platform);
-      await pairAndApprove(w, a, b);
-      await b.e.receive(await mkMsg(a, b, '{"n":300,"id":"t0","text":"x"}'), "push");
-      b.p.notes.clear();
-      await b.e.receive(await mkMsg(a, b, json), "push");
-      const rows = await b.db.history();
-      return { top: [rows[0]!.type, rows[0]!.event], len: rows.length, notes: [...b.p.notes.keys()] };
-    };
-    assert.deepEqual(await run('{"n":5,"id":"u1","show":true,"future":"x"}'), await run('{"n":5,"id":"u1","text":"x"}'));
+  test(`${platform}: an unknown type with show and a stale n is ignored silently`, async () => {
+    const { w, a, b } = await setup(platform);
+    await pairAndApprove(w, a, b);
+    await b.e.receive(await mkMsg(a, b, '{"n":300,"id":"t0","text":"x"}'), "push");
+    await b.e.receive(await mkMsg(a, b, '{"n":290,"id":"t1","text":"y"}'), "push");
+    await b.db.clear(["history"]);
+    b.p.notes.clear();
+    await b.e.receive(await mkMsg(a, b, '{"n":5,"id":"u1","show":true,"future":"x"}'), "push"); // outside the window
+    await b.e.receive(await mkMsg(a, b, '{"n":290,"id":"u2","show":true,"future":"x"}'), "push"); // seen, no History row
+    await b.e.receive(await mkMsg(a, b, '{"v":2,"n":6,"id":"u3","show":true,"next":"x"}'), "push");
+    assert.equal(b.p.notes.size, 0);
+    assert.equal((await b.db.history()).length, 0);
+    assert.equal((await b.db.replay(a.id))!.h, 300);
+    // text with a stale n still gives Invalid
+    await b.e.receive(await mkMsg(a, b, '{"n":5,"id":"t2","text":"x"}'), "push");
+    assert.equal((await b.db.history())[0]!.event, "invalid");
   });
 }
 

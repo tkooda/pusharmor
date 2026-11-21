@@ -87,6 +87,7 @@ export async function receiveDecide(i: ReceiveInput): Promise<ReceiveResult> {
   if (!win || !equal(win.pairing_id, pin.pairing_id)) return done({ outcome: "unreadable", from });
   const pidB64 = b64urlEncode(pin.pairing_id);
   const r = replayClassify(win, j.n, c.type, await i.hasHistory(from, pidB64, j.n));
+  if (r === "invalid" && c.type === "unknown") return done({ outcome: "unreadable", from, ignored: { n: j.n, consume: false } }); // stale: ignored silently
   if (r !== "accept") return done({ outcome: r, from, n: j.n, content: c });
   if (!acceptable(c.type, pin.ruling)) return done({ outcome: "unreadable", from });
   return done({ outcome: "accept", from, n: j.n, content: c, name, pin });

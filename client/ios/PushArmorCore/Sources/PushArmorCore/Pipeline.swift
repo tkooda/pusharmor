@@ -56,7 +56,7 @@ public enum ReceivePipeline {
             Result(outcome: .unreadable, verifiedFrom: from, unknownFrom: nil, json: nil, name: nil, windowAfter: nil, pairingId: nil)
         }
 
-        /// An unknown type from a sender that is not approved: ignored, n not consumed.
+        /// An unknown type from a sender that is not approved, or with a stale n: ignored, n not consumed.
         static func ignore(_ from: PeerId, pairingId: Data) -> Result {
             var r = Result(outcome: .unreadable, verifiedFrom: from, unknownFrom: nil, json: nil, name: nil, windowAfter: nil,
                            pairingId: pairingId)
@@ -149,7 +149,14 @@ public enum ReceivePipeline {
         r.newerVersion = j.v > 1 && p.ruling == .approved
         switch w.outcome(j.n, control: isControl(j.content), hasHistory: hasHistory(from, j.n)) {
         case .accept: break
-        case .invalid: r.outcome = .invalid; return r
+        case .invalid:
+            // a stale n of an unknown type is ignored, not reported as invalid; n is not consumed
+            if case .unknown = j.content {
+                var g = Result.ignore(from, pairingId: p.pairingId)
+                g.newerVersion = r.newerVersion
+                return g
+            }
+            r.outcome = .invalid; return r
         case .represent: r.outcome = .represent; return r
         case .noop: r.outcome = .noop; return r
         }

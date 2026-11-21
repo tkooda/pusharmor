@@ -486,6 +486,55 @@ final class StateMachineTests: XCTestCase {
         XCTAssertFalse(try x.core.takeNewerVersionSeen())
     }
 
+    /// an unknown type with "show" (or a newer version with "show") whose n is stale, seen with no
+    /// History row or outside the window, is ignored: no row, no invalid event or notice, the
+    /// window unchanged.
+    func testStaleUnknownTypeIsIgnored() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        for json in ["{\"v\":1,\"n\":N,\"id\":\"m1\",\"show\":true,\"zzz\":1}",
+                     "{\"v\":2,\"n\":N,\"id\":\"m2\",\"show\":true,\"text\":\"hi\"}"] {
+            // seen n, its History row gone
+            let (m, sent) = try sealRaw(n, x, json)
+            let first = await x.core.receive(m, mode: .nse)
+            XCTAssertNotNil(first.rowid, json)
+            try x.core.store.db.exec("DELETE FROM history WHERE type = 'unknown'")
+            let before = try x.core.store.history().count
+            let w0 = try XCTUnwrap(try x.core.store.replay(n.id)).window
+            let r = await x.core.receive(m, mode: .nse)
+            XCTAssertNotEqual(r.banner, Banner.invalid, json)
+            XCTAssertEqual(r.banner, Banner.fallback, json)
+            XCTAssertNil(r.rowid, json)
+            let app = await x.core.receive(m, mode: .drain)
+            XCTAssertNil(app.banner, json)
+            XCTAssertEqual(try x.core.store.history().count, before, json)
+            XCTAssertFalse(try x.core.store.history().contains { $0.event == .invalid }, json)
+            XCTAssertEqual(try XCTUnwrap(try x.core.store.replay(n.id)).window, w0, json)
+            // n <= h - 100, with its History row
+            let (m2, sent2) = try sealRaw(n, x, json)
+            let r2first = await x.core.receive(m2, mode: .nse)
+            XCTAssertNotNil(r2first.rowid, json)
+            let rp = try XCTUnwrap(try x.core.store.replay(n.id))
+            var w = rp.window
+            w.accept(sent2 + ReplayWindow.size)
+            try x.core.store.saveReplay(n.id, pairingId: rp.pairingId, window: w)
+            XCTAssertEqual(w.check(sent2), .tooOld, json)
+            XCTAssertEqual(w.check(sent), .tooOld, json)
+            let before2 = try x.core.store.history().count
+            let r2 = await x.core.receive(m2, mode: .nse)
+            XCTAssertNotEqual(r2.banner, Banner.invalid, json)
+            XCTAssertEqual(r2.banner, Banner.fallback, json)
+            XCTAssertNil(r2.rowid, json)
+            let app2 = await x.core.receive(m2, mode: .drain)
+            XCTAssertNil(app2.banner, json)
+            XCTAssertEqual(try x.core.store.history().count, before2, json)
+            XCTAssertFalse(try x.core.store.history().contains { $0.event == .invalid }, json)
+            XCTAssertEqual(try XCTUnwrap(try x.core.store.replay(n.id)).window, w, json)
+            // move the sender's counter past the new h for the next round
+            for _ in 0 ..< ReplayWindow.size { _ = try n.core.store.reserveCounter(x.id) }
+        }
+    }
+
     /// parse: "show": true marks an unknown type as a row; a control with an id is that control;
     /// missing v is 1; a newer v with "show" is .unknown, without it throws newerVersion; a v that
     /// is not a positive integer is malformed.

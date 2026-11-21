@@ -88,8 +88,29 @@ class UnknownTypeTest {
     @Test fun unknownTypeWithShowFollowsTheTextPath() {
         val text = trace(true) { "\"text\":\"x\"" }
         val unknown = trace(true) { "\"file\":\"x\"" }
-        // the only difference: a text row notifies, an unknown row does not
-        assertEquals(text.map { it.replace("show, ", "").replace("[show]", "[]").replace(", show]", "]") }, unknown)
+        // fresh, duplicate, and del: the only difference is that a text row notifies and an unknown row does not
+        assertEquals(text.take(3).map { it.replace("show, ", "").replace("[show]", "[]").replace(", show]", "]") }, unknown.take(3))
+        // stale (seen with no row, older than the window): text is Invalid, unknown is silent
+        assertTrue(text.drop(3).all { it.startsWith("Invalid") })
+        assertEquals(listOf("Ignored [] [represent, deleted]", "Ignored [] [represent, deleted]"), unknown.drop(3))
+    }
+
+    @Test fun unknownTypeWithShowAndAStaleNIsSilentAndKeepsTheWindow() {
+        val show = { n: Int -> wireOf("{\"n\":$n,\"id\":\"abc\",\"show\":true,\"file\":\"x\"}") }
+        val v2 = { n: Int -> wireOf("{\"v\":2,\"n\":$n,\"id\":\"abc\",\"show\":true,\"text\":\"x\"}") }
+        receive.onMessage(show(150), 1000)
+        receive.onMessage(wireOf("{\"n\":151,\"del\":[\"abc\"]}"), 1001)
+        receive.onMessage(wireOf("{\"n\":152,\"file\":\"x\"}"), 1002)  // seen n that never had a row
+        assertTrue(store.history.isEmpty())
+        effects.log.clear()
+        // seen n whose row was deleted, seen n with no row, and n older than the replay window
+        for (wire in listOf(show(150), show(152), show(10), v2(150), v2(152), v2(10))) {
+            assertTrue(receive.onMessage(wire, 2000) is Inbound.Ignored)
+        }
+        assertTrue(store.history.isEmpty())
+        assertTrue(effects.log.isEmpty())
+        assertEquals(152L, store.window(a.id)!!.h)
+        assertEquals(ReplayWindow.Verdict.FRESH, store.window(a.id)!!.check(153))
     }
 
     @Test fun unknownTypeFromAPeerNotApprovedIsSilentAndKeepsTheWindow() {

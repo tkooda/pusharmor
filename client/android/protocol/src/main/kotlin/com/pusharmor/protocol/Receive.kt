@@ -78,12 +78,14 @@ object Receive {
         ownId: String,
         historyIdFor: (Long) -> Long?,
     ): Inbound {
+        // a stale message of an unknown type is ignored silently, and the replay window stays unchanged
+        val stale = if (ok.body is MessageBody.Unknown) Inbound.Ignored(peer.id, ok.pairingId, null) else Inbound.Invalid(peer.id)
         when (window.check(ok.n)) {
-            ReplayWindow.Verdict.TOO_OLD -> return Inbound.Invalid(peer.id)
+            ReplayWindow.Verdict.TOO_OLD -> return stale
             ReplayWindow.Verdict.SEEN -> {
                 if (ok.body.isControl) return Inbound.Duplicate(peer.id, ok.body)
                 val hid = historyIdFor(ok.n)
-                return if (hid != null) Inbound.RePresent(hid) else Inbound.Invalid(peer.id)
+                return if (hid != null) Inbound.RePresent(hid) else stale
             }
             ReplayWindow.Verdict.FRESH -> Unit
         }
