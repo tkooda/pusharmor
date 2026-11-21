@@ -1,6 +1,7 @@
 // One structured log line per request, built only from allow-listed fields. Never log
 // emails, email_hash, IPs, tokens, tickets, codes, push tokens, endpoint paths, keys,
-// messages, name entries, signatures, secrets, raw queries or bodies.
+// messages, name entries, signatures, secrets, raw queries or bodies. The one exception:
+// client IP prefixes (IPv4 /24, IPv6 /48) in the "suppressed" summary line.
 export interface RecipientLog {
   id: string;
   class: string;
@@ -19,6 +20,45 @@ export function sampleRate(v: string | undefined): number {
   return Number.isFinite(n) && n >= 0 && n <= 1 ? n : 1;
 }
 
+// LOG_LEVEL (dashboard variable): error = faults only (alerts, 5xx, exceptions); warn = also other
+// notable lines and 401/403/429 refusals; info (default, and any unknown value) = warn plus
+// PA_LOG_SAMPLE sampling of the rest; debug = every line, unsampled.
+export type Level = "error" | "warn" | "info" | "debug";
+export function logLevel(v: string | undefined): Level {
+  return v === "error" || v === "warn" || v === "debug" ? v : "info";
+}
+
+// Refusals (401/403/429) are always logged, at most REFUSAL_MAX per fixed window of REFUSAL_WINDOW_MS
+// per isolate. A window starts at the first refusal after the previous window ended. Past the
+// limit a refusal is only counted; the next log call after the window ends first emits one
+// "suppressed" summary line. IPs are kept only as prefixes (IPv4 /24, IPv6 /48).
+const REFUSAL_MAX = 10;
+const REFUSAL_WINDOW_MS = 60_000;
+interface Window { start: number; n: number; supp: number; status: Record<string, number>; route: Record<string, number>; ip: Record<string, number>; account: Record<string, number> }
+let win: Window | undefined;
+let now = (): number => Date.now();
+export const testing = {
+  setClock(f: () => number): void { now = f; },
+  reset(): void { win = undefined; now = () => Date.now(); },
+};
+
+const bump = (m: Record<string, number>, k: string): void => { m[k] = (m[k] ?? 0) + 1; };
+const top3 = (m: Record<string, number>): Record<string, number> =>
+  Object.fromEntries(Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 3));
+
+export function ipPrefix(ip: string): string | undefined {
+  const v4 = ip.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.\d{1,3}$/);
+  if (v4) return `${v4[1]}.${v4[2]}.${v4[3]}.0/24`;
+  if (!/^[0-9a-fA-F:]+$/.test(ip) || !ip.includes(":")) return undefined;
+  const [head, tail] = ip.split("::");
+  const h = head ? head.split(":") : [];
+  const t = tail ? tail.split(":") : [];
+  const g = ip.includes("::") ? [...h, ...Array<string>(Math.max(0, 8 - h.length - t.length)).fill("0"), ...t] : h;
+  if (g.length !== 8) return undefined;
+  const p = g.slice(0, 3).map((x) => parseInt(x || "0", 16).toString(16));
+  return `${p[0]}:${p[1]}:${p[2]}::/48`;
+}
+
 // Relay-side fault kinds for the "alert" field. Never set for client errors (4xx) or
 // device-side push failures.
 export type Alert = "cron" | "mail" | "db" | "push-auth" | "ratelimit";
@@ -30,6 +70,7 @@ export class Log {
   colo?: string;
   client?: string;
   account?: string;
+  ip_prefix?: string; // never printed by line(); only counted in the suppressed summary
   peer?: string;
   body_bytes?: number;
   recipients: RecipientLog[] = [];
@@ -41,6 +82,10 @@ export class Log {
   pushAuth = false; // a push hit a relay-side fault (results.ts Outcome.relay, or a token mint failure)
   extra: Record<string, string | number> = {};
   private readonly t0 = Date.now();
+
+  setIp(ip: string | null): void {
+    this.ip_prefix = ip ? ipPrefix(ip) : undefined;
+  }
 
   // Exceptions: class name and stack frames only, never the message text.
   setException(e: unknown): void {
@@ -101,15 +146,52 @@ export class Log {
     return this.recipients.some((r) => r.result !== "sent" || r.retry);
   }
 
-  // Workers Logs bills every line, so plain successes and 4xx are sampled at `rate` (0..1).
+  // A relay fault: an alert, an uncaught exception, or any 5xx.
+  private fault(): boolean {
+    return !!(this.alert() || this.exception || this.status >= 500);
+  }
+
+  // Workers Logs bills every line, so plain successes and other 4xx are sampled at `rate` (0..1).
   // A sampled line carries "sample": 1/rate, to scale counts back up.
-  emit(rate = 1): void {
-    if (rate >= 1 || this.notable()) {
-      console.log(this.line());
-      return;
-    }
-    if (rate <= 0 || Math.random() >= rate) return;
-    this.extra.sample = Math.round(1 / rate);
+  emit(rate = 1, level: Level = "info"): void {
+    flushSuppressed();
+    if (level === "debug") return void console.log(this.line());
+    if (level === "error") return this.fault() ? void console.log(this.line()) : undefined;
+    if (this.notable()) return void console.log(this.line());
+    if ([401, 403, 429].includes(this.status)) return this.refusal();
+    if (level === "warn" || rate <= 0 || (rate < 1 && Math.random() >= rate)) return;
+    if (rate < 1) this.extra.sample = Math.round(1 / rate);
     console.log(this.line());
   }
+
+  private refusal(): void {
+    const t = now();
+    win ??= { start: t, n: 0, supp: 0, status: {}, route: {}, ip: {}, account: {} };
+    if (win.n++ < REFUSAL_MAX) return void console.log(this.line());
+    win.supp++;
+    bump(win.status, String(this.status));
+    bump(win.route, this.route);
+    if (this.ip_prefix) bump(win.ip, this.ip_prefix);
+    if (this.account) bump(win.account, this.account);
+  }
+}
+
+// On the first log call after a window ends: emit one summary line if anything was suppressed.
+function flushSuppressed(): void {
+  if (!win || now() < win.start + REFUSAL_WINDOW_MS) return;
+  const w = win;
+  win = undefined;
+  if (!w.supp) return;
+  const o: Record<string, unknown> = {
+    ts: new Date(now()).toISOString(),
+    route: "suppressed",
+    suppressed: w.supp,
+    window_start: new Date(w.start).toISOString(),
+    window_end: new Date(w.start + REFUSAL_WINDOW_MS).toISOString(),
+    by_status: w.status,
+    by_route: w.route,
+    ip_prefixes: top3(w.ip),
+  };
+  if (Object.keys(w.account).length) o.accounts = top3(w.account);
+  console.log(JSON.stringify(o));
 }

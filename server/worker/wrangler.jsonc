@@ -1,6 +1,6 @@
 // PushArmor Worker. Bindings and vars only; secrets are set with "wrangler secret put".
 // Deployment ids (GOOGLE_*, APPLE_*, WEBPUSH_*, AWS_*, *_AUD_*, PA_OAUTH_REDIRECT_CHROME) and
-// PA_LOG_SAMPLE are Cloudflare dashboard variables, never in this file; keep_vars keeps them on deploy.
+// PA_LOG_SAMPLE and LOG_LEVEL are Cloudflare dashboard variables, never in this file; keep_vars keeps them on deploy.
 // The D1 binding names the database; wrangler looks its id up by name.
 {
   "name": "pusharmor-api",

@@ -41,6 +41,7 @@ export interface Env {
   PA_OAUTH_REDIRECT_CLI: string;
   PA_WEB_ORIGINS: string;
   PA_LOG_SAMPLE: string;
+  LOG_LEVEL?: string; // dashboard variable: error | warn | info (default) | debug
   PA_MIN_CLIENT?: string;
   PA_HEALTHCHECK_URL?: string; // secret; GET after each passing 15-minute self-check
   PA_TOTP_KEY_REVIEWER?: string; // secret; base32 TOTP key of the store review login (auth/totp.ts)

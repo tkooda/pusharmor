@@ -3,7 +3,7 @@ import type { Env } from "./env";
 import type { Ctx } from "./context";
 import { ApiError } from "./errors";
 import { errorResponse, finish, json, preflight } from "./http";
-import { Log, sampleRate } from "./log";
+import { Log, logLevel, sampleRate } from "./log";
 import { readBody } from "./pipeline/body";
 import { checkMinClient, checkSiteRoute, isSiteValue, parseClient } from "./pipeline/client";
 import { enforce, ipKey } from "./pipeline/limits";
@@ -12,6 +12,7 @@ import { scheduled } from "./scheduled";
 
 export async function handle(req: Request, env: Env, exec: ExecutionContext): Promise<Response> {
   const log = new Log();
+  log.setIp(req.headers.get("CF-Connecting-IP"));
   let path = "";
   let res: Response;
   try {
@@ -54,7 +55,7 @@ export async function handle(req: Request, env: Env, exec: ExecutionContext): Pr
   }
   res = finish(res, path, req.headers.get("Origin"), env.PA_WEB_ORIGINS);
   log.status = res.status;
-  log.emit(sampleRate(env.PA_LOG_SAMPLE));
+  log.emit(sampleRate(env.PA_LOG_SAMPLE), logLevel(env.LOG_LEVEL));
   return res;
 }
 

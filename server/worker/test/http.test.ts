@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { env } from "cloudflare:test";
+import { testing } from "../src/log";
 import { call, captured, countingLimit, initP256, message, newPeer, randomEmail, testEnv, keys, ticketFor } from "./helpers";
 import { ipKey } from "../src/pipeline/limits";
 import { LABEL_REQUEST_TOKEN, makeToken } from "../src/crypto/tokens";
@@ -282,6 +283,7 @@ describe("logging", () => {
   });
 
   it("log sampling: successes and 4xx sampled, 5xx always logged", async () => {
+    testing.reset(); // earlier tests may have used up this window's refusal lines
     const off = await testEnv({ PA_LOG_SAMPLE: "0" } as Partial<Env>);
     const k = await keys();
     const p = await newPeer(randomEmail());
@@ -292,8 +294,10 @@ describe("logging", () => {
     before = captured.length;
     expect((await call("POST", "/v1/peers", { x: 1 }, { env: off })).status).toBe(400);
     expect((await call("GET", "/v1/nope", undefined, { env: off })).status).toBe(404);
-    expect((await call("GET", "/v1/peers", undefined, { env: off, peer: { ...p, id: p.id.slice(0, 30) + "AAAAAAAAAA" } })).status).toBe(401);
     expect(captured.slice(before)).toHaveLength(0);
+    // 401, 403, and 429 are never sampled away.
+    expect((await call("GET", "/v1/peers", undefined, { env: off, peer: { ...p, id: p.id.slice(0, 30) + "AAAAAAAAAA" } })).status).toBe(401);
+    expect(captured.slice(before)).toHaveLength(1);
     before = captured.length;
     const broken = { prepare: () => ({ bind: () => ({ all: async () => { throw new Error("down"); } }) }) } as unknown as D1Database;
     expect((await call("GET", "/v1/peers", undefined, { peer: p, env: { ...off, DB: broken } })).status).toBe(503);
@@ -301,7 +305,7 @@ describe("logging", () => {
     before = captured.length;
     const limited = await call("GET", "/v1/peers", undefined, { env: { ...off, RL_IP: countingLimit(0) } });
     expect(limited.status).toBe(429);
-    expect(captured.slice(before)).toHaveLength(0);
+    expect(captured.slice(before)).toHaveLength(1);
     // Sampled lines carry the scale factor; a bad rate logs everything.
     const all = await testEnv({ PA_LOG_SAMPLE: "junk" } as Partial<Env>);
     before = captured.length;
@@ -309,7 +313,7 @@ describe("logging", () => {
     expect(captured.slice(before)).toHaveLength(1);
     const half = await testEnv({ PA_LOG_SAMPLE: "0.5" } as Partial<Env>);
     before = captured.length;
-    for (let i = 0; i < 40; i++) await call("GET", "/v1/peers", undefined, { env: { ...half, RL_IP: countingLimit(0) } });
+    for (let i = 0; i < 40; i++) await call("GET", "/v1/nope", undefined, { env: half });
     const lines = captured.slice(before).map((l) => JSON.parse(l));
     expect(lines.length).toBeGreaterThan(0);
     expect(lines.length).toBeLessThan(40);
