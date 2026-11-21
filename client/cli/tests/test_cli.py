@@ -2703,3 +2703,54 @@ def test_newer_v_prints_one_stderr_line_per_run_and_is_ignored(net, tmp_path, mo
     assert o["outcome"] == "unreadable" and o["why"] == "type"
     _open_inner(net, tmp_path / "x", monkeypatch, '{"v":3,"n":7,"zzz":1}')
     assert capsys.readouterr().err.splitlines().count("A device uses a newer version. Update PushArmor") == 1
+
+
+UNKNOWN_SHOWN = "Unknown message type, please update"
+
+
+def _listen_unknown(net, tmp_path, monkeypatch, capsys, body, *args):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = pair_two(monkeypatch, net, a, b)
+    n = state(a)["peers"][idb]["n"] + 50
+    net.deliver(idb, _sealed(a, ida, idb, a, body % n))
+    net.stop.set()
+    capsys.readouterr()
+    assert run(b, "listen", *args) == 130
+    return capsys.readouterr(), ida, n, b
+
+
+@pytest.mark.parametrize("body", ['{"n":%d,"show":true,"zzz":1}', '{"v":2,"n":%d,"show":true,"text":"hi"}'])
+def test_listen_shows_an_unknown_message_with_show_in_every_output(body, net, tmp_path, monkeypatch, capsys):
+    cap, ida, n, b = _listen_unknown(net, tmp_path, monkeypatch, capsys, body)
+    assert "Type: unknown\n" in cap.out and "Body: " + UNKNOWN_SHOWN in cap.out and "From: " + pa.id_hex(ida)[:6] in cap.out
+    assert n in state(b)["peers"][ida]["seen"]
+
+
+@pytest.mark.parametrize("body", ['{"n":%d,"show":true,"zzz":1}', '{"v":2,"n":%d,"show":true,"text":"hi"}'])
+def test_listen_json_and_tsv_show_an_unknown_message(body, net, tmp_path, monkeypatch, capsys):
+    cap, ida, n, b = _listen_unknown(net, tmp_path, monkeypatch, capsys, body, "--json")
+    o = json.loads(cap.out)
+    assert o["type"] == "unknown" and o["body"] == UNKNOWN_SHOWN and o["from"] == pa.id_hex(ida)
+
+
+@pytest.mark.parametrize("body", ['{"n":%d,"show":true,"zzz":1}', '{"v":2,"n":%d,"show":true,"text":"hi"}'])
+def test_listen_tsv_shows_an_unknown_message(body, net, tmp_path, monkeypatch, capsys):
+    cap, ida, n, b = _listen_unknown(net, tmp_path, monkeypatch, capsys, body, "--tsv")
+    f = cap.out.rstrip("\n").split("\t")
+    assert f[3] == "unknown" and f[4] == UNKNOWN_SHOWN
+
+
+@pytest.mark.skipif(os.name == "nt", reason="the notify program is a shell script")
+@pytest.mark.parametrize("body", ['{"n":%d,"show":true,"zzz":1}', '{"v":2,"n":%d,"show":true,"text":"hi"}'])
+def test_listen_exec_runs_for_an_unknown_message_with_show(body, net, tmp_path, monkeypatch, capsys):
+    prog, out = tmp_path / "prog", tmp_path / "out"
+    prog.write_text('#!/bin/sh\nprintf "%%s|%%s" "$4" "$5" >> "%s"\n' % out)
+    prog.chmod(0o755)
+    _listen_unknown(net, tmp_path, monkeypatch, capsys, body, "--exec", str(prog))
+    assert out.read_text() == "unknown|" + UNKNOWN_SHOWN
+
+
+@pytest.mark.parametrize("body", ['{"n":%d,"zzz":1}', '{"v":2,"n":%d,"text":"hi"}', '{"n":%d,"show":false,"zzz":1}'])
+def test_listen_stays_silent_for_an_unknown_message_without_show(body, net, tmp_path, monkeypatch, capsys):
+    cap, ida, n, b = _listen_unknown(net, tmp_path, monkeypatch, capsys, body, "--json")
+    assert cap.out == "" and n in state(b)["peers"][ida]["seen"]

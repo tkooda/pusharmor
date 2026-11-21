@@ -479,7 +479,7 @@ def open_message(message, own_id, own_enc_priv, own_account, pins):
     if type_ is None:  # signed by a pinned peer: the caller may consume n and ignore it (a type from a newer client)
         window = pin.get("window") or {"h": 0, "seen": []}
         return {"outcome": "unreadable", "why": "type", "from": from_id, "n": n, "flag": flag,
-                "ruling": pin["ruling"],
+                "ruling": pin["ruling"], "show": obj.get("show") is True,
                 "ignorable": pin["ruling"] == "approved" and flag == 0 and replay_outcome(window, n, "", False) == "accept"}
     value = obj[type_]
     if (flag == 1) != (type_ == "approve"):
@@ -2065,10 +2065,16 @@ def receive_inner(cx, pt, src):
         r = open_message(pt, k["id"], k["enc"], b64d(k["id"])[:9], pins)
         out = r["outcome"]
         if out == "unreadable" and r["why"] == "type" and r["flag"] == 0:
-            if r["ignorable"] and src != "returned":
+            if r["ignorable"] and src != "returned" and r["show"] and cx.mode != "listen":
+                cx.skipped = True  # content waits for listen
+            elif r["ignorable"] and src != "returned":
                 p = d["peers"][r["from"]]
                 w = window_accept({"h": p["h"], "seen": p["seen"]}, r["n"])
                 p["h"], p["seen"] = w["h"], w["seen"]
+                if r["show"]:
+                    rec = {"from": id_hex(r["from"]), "name": peer_label(p), "platform": p["platform"], "type": "unknown",
+                           "body": "Unknown message type, please update",
+                           "date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
             elif not r["ignorable"] and src != "returned" and r["ruling"] != "approved":
                 notes.append(("warning", UNREADABLE))
         elif out == "unreadable":
