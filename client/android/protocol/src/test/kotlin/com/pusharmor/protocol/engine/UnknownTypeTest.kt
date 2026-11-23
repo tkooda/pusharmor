@@ -108,7 +108,8 @@ class UnknownTypeTest {
             assertTrue(receive.onMessage(wire, 2000) is Inbound.Ignored)
         }
         assertTrue(store.history.isEmpty())
-        assertTrue(effects.log.isEmpty())
+        // only the newer version mark, no notice
+        assertEquals(listOf("newer", "newer", "newer"), effects.log)
         assertEquals(152L, store.window(a.id)!!.h)
         assertEquals(ReplayWindow.Verdict.FRESH, store.window(a.id)!!.check(153))
     }
@@ -172,6 +173,29 @@ class UnknownTypeTest {
         store.putPeer(a.asPeer(pid))
         receive.onMessage(wireOf("{\"v\":2,\"n\":7,\"id\":\"abc_-9\",\"deny\":1}"), 1000)
         assertTrue("newer" in effects.log)
+    }
+
+    @Test fun newerVersionWithAStaleNSetsTheMarkFromAnApprovedPeerOnly() {
+        val v2 = { n: Int -> wireOf("{\"v\":2,\"n\":$n,\"id\":\"abc\",\"show\":true,\"text\":\"x\"}") }
+        val v2NoShow = { n: Int -> wireOf("{\"v\":2,\"n\":$n,\"id\":\"abc\",\"deny\":1}") }
+        receive.onMessage(v2(150), 1000)  // a row
+        receive.onMessage(wireOf("{\"n\":151,\"file\":\"x\"}"), 1001)  // seen n that never had a row
+        // seen n with a row (re-present), seen n with no row, n older than the window; with and without show
+        for (wire in listOf(v2(150), v2(151), v2(10), v2NoShow(151), v2NoShow(10))) {
+            effects.log.clear()
+            receive.onMessage(wire, 2000)
+            assertTrue(effects.log.toString(), "newer" in effects.log)
+        }
+        assertEquals(151L, store.window(a.id)!!.h)
+        // the same stale messages from a peer that is not approved do not set it
+        for (peer in listOf(a.asPeer(pid, approved = false), a.asPeer(pid).copy(deniedByMe = true))) {
+            store.putPeer(peer)
+            for (wire in listOf(v2(150), v2(151), v2(10), v2NoShow(151), v2NoShow(10))) {
+                effects.log.clear()
+                receive.onMessage(wire, 2000)
+                assertTrue(effects.log.toString(), "newer" !in effects.log)
+            }
+        }
     }
 
     @Test fun controlWithIdIsThatControl() {

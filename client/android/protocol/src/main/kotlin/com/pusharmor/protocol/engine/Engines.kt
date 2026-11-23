@@ -356,6 +356,7 @@ class ReceiveEngine(
         // a message in a newer format version from an approved peer: the app says once to update
         val newerFrom = (inbound as? Inbound.Ignored)?.takeIf { it.newer }?.peerId
             ?: (inbound as? Inbound.Accepted)?.takeIf { (it.body as? MessageBody.Unknown)?.newer == true }?.peerId
+            ?: (inbound as? Inbound.RePresent)?.newerFrom
         if (newerFrom != null && store.peer(newerFrom)?.let { it.approved && !it.deniedByMe } == true) effects.newerVersionSeen()
         return inbound
     }

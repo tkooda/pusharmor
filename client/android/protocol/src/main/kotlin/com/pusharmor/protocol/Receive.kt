@@ -50,8 +50,8 @@ sealed class Inbound {
     /** Replay: "Invalid message received" notice on FCM and History event. */
     data class Invalid(val peerId: String) : Inbound()
 
-    /** Seen n with a History row: re-present that row's notification, nothing else. */
-    data class RePresent(val historyId: Long) : Inbound()
+    /** Seen n with a History row: re-present that row's notification, nothing else. [newerFrom]: the sender, for a newer format version. */
+    data class RePresent(val historyId: Long, val newerFrom: String? = null) : Inbound()
 
     /** Seen n of a control type: no state change, no event; on FCM re-present that type's notice. */
     data class Duplicate(val peerId: String, val body: MessageBody) : Inbound()
@@ -79,13 +79,14 @@ object Receive {
         historyIdFor: (Long) -> Long?,
     ): Inbound {
         // a stale message of an unknown type is ignored silently, and the replay window stays unchanged
-        val stale = if (ok.body is MessageBody.Unknown) Inbound.Ignored(peer.id, ok.pairingId, null) else Inbound.Invalid(peer.id)
+        val newer = (ok.body as? MessageBody.Unknown)?.newer == true
+        val stale = if (ok.body is MessageBody.Unknown) Inbound.Ignored(peer.id, ok.pairingId, null, newer) else Inbound.Invalid(peer.id)
         when (window.check(ok.n)) {
             ReplayWindow.Verdict.TOO_OLD -> return stale
             ReplayWindow.Verdict.SEEN -> {
                 if (ok.body.isControl) return Inbound.Duplicate(peer.id, ok.body)
                 val hid = historyIdFor(ok.n)
-                return if (hid != null) Inbound.RePresent(hid) else stale
+                return if (hid != null) Inbound.RePresent(hid, peer.id.takeIf { newer }) else stale
             }
             ReplayWindow.Verdict.FRESH -> Unit
         }
