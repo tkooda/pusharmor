@@ -128,6 +128,9 @@ object UiText {
     fun pushRefused(host: String, app: String, google: Boolean): String =
         "The relay server cannot send to \"$host\". In $app, use its default server" + if (google) ", or set Push method to Google." else "."
 
+    /** Banner when several UnifiedPush apps are installed and none is chosen. */
+    const val CHOOSE_PUSH_APP = "Choose a UnifiedPush app in Settings to receive messages"
+
     /** Push method value, in the error color, when no push service can be used. */
     const val PUSH_NONE_AVAILABLE = "None available"
 

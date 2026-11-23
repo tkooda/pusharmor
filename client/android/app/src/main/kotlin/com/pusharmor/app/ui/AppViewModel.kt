@@ -567,6 +567,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         } finally { caption.value = null }
     }
     fun switchPush(toUp: Boolean) = io(UiText.UNABLE_CHANGE_SETTING) { g.session.pushSwitched(); if (toUp) g.push.switchToUnifiedPush(g) else g.push.switchToGoogle(g) }
+    /** Set by Choose on the main screen: Settings opens its Push method choice once. */
+    val openPushMethod = MutableStateFlow(false)
     /** Push method choice: [PUSH_GOOGLE] or the package of an installed UnifiedPush app. */
     fun choosePush(choice: String) = io(UiText.UNABLE_CHANGE_SETTING) {
         g.session.pushSwitched()

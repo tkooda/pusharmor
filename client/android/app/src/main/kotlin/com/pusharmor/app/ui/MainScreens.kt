@@ -226,7 +226,7 @@ internal suspend fun devicesScreenOpen(vm: AppViewModel, tick: suspend (Long) ->
 /** Peers screen (section 8): banners, pairing cards, This device, the peer group. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PeersScreen(vm: AppViewModel) {
+fun PeersScreen(vm: AppViewModel, onChoosePush: () -> Unit = {}) {
     val peers by vm.peers.collectAsState()
     val rows by vm.pairings.collectAsState()
     val highlight by vm.highlight.collectAsState()
@@ -297,7 +297,7 @@ fun PeersScreen(vm: AppViewModel) {
                 }
                 item(key = "banners") {
                     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Banners(vm, prefs)
+                        Banners(vm, prefs, onChoosePush)
                     }
                 }
                 if (firstDevice) item(key = "steps") {
@@ -418,13 +418,17 @@ internal class NameEdit(editing: Boolean = false, typed: TextFieldValue = TextFi
 }
 
 @Composable
-private fun Banners(vm: AppViewModel, prefs: androidx.datastore.preferences.core.Preferences?) {
+private fun Banners(vm: AppViewModel, prefs: androidx.datastore.preferences.core.Preferences?, onChoosePush: () -> Unit) {
     val context = LocalContext.current
     // Read here, so every check below runs again on each return to the app.
     val tick = resumeTick()
     val n = vm.g.notifier
     val type = prefs?.get(Settings.K.PUSH_TYPE)
     val noPushApp = remember(tick, prefs == null, type) { prefs != null && UnifiedPushSupport.noPushApp(context, type, vm.g.push.hasPlayServices) }
+    // Several UnifiedPush apps and none chosen: Choose opens Settings > Push method.
+    if (remember(tick, prefs) { prefs != null && UnifiedPushSupport.mustChoose(context, type, vm.g.push.hasPlayServices) }) {
+        BannerRow(UiText.CHOOSE_PUSH_APP, "Choose", fault = true, PaIcons.NotificationsOff) { onChoosePush() }
+    }
     n.blockedChannelPeer(vm.peerEntities.collectAsState().value)?.let { BannerRow(UiText.blockedChannel(it.name), "Fix", fault = true, PaIcons.NotificationsOff) {
         safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
     } }
@@ -1604,6 +1608,9 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     val apps = remember(tick) { UnifiedPushSupport.distributors(context).map { it to UnifiedPushSupport.appName(context, it) } }
     val pushNow = pushCurrent(prefs?.get(Settings.K.PUSH_TYPE), google, remember(tick, prefs) { UnifiedPushSupport.saved(context) })
     fun pushName(o: String?): String = pushMethodName(o, apps)
+    // Choose on the main screen's banner: the Push method choice opens once.
+    val openPush by vm.openPushMethod.collectAsState()
+    LaunchedEffect(openPush) { if (openPush) { vm.openPushMethod.value = false; pickPush = true } }
     val themePref = ThemePref.parse(prefs?.get(Settings.K.THEME))
     fun b(k: androidx.datastore.preferences.core.Preferences.Key<Boolean>, d: Boolean) = prefs?.get(k) ?: d
     val cs = MaterialTheme.colorScheme

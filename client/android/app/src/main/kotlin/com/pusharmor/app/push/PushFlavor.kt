@@ -73,6 +73,10 @@ object UnifiedPushSupport {
     fun noPushApp(context: Context, type: String?, playServices: Boolean): Boolean =
         active(type, playServices) && distributors(context).isEmpty()
 
+    /** UnifiedPush is in use, none is saved, and several UnifiedPush apps are installed: the user chooses one. */
+    fun mustChoose(context: Context, type: String?, playServices: Boolean): Boolean =
+        active(type, playServices) && saved(context) == null && distributors(context).size >= 2
+
     /** A UnifiedPush app installed since the last open: register with it, with no user step. */
     fun registerIfInstalled(g: Graph) {
         if (active(g) && g.settings.get(Settings.K.UP_ENDPOINT) == null && distributors(g.app).isNotEmpty()) register(g)
