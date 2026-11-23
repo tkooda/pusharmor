@@ -466,7 +466,7 @@ class PeersSync(private val store: LocalStore, private val me: Identity, effects
                 val old = store.peer(l.id)
                 var p = (old ?: Peer(id = l.id)).copy(
                     platform = l.platform, created = l.created, listSignPub = l.signPub, listEncPub = l.encPub,
-                    loggedOut = l.loggedOut, listening = l.listening, reachable = l.reachable, listApprovesMe = l.approvesMe, listDeniesMe = l.deniesMe,
+                    loggedOut = l.loggedOut, listening = l.listening, version = l.version, reachable = l.reachable, listApprovesMe = l.approvesMe, listDeniesMe = l.deniesMe,
                     listAfterVerify = old?.approveVerified == true, missing = false,
                 )
                 if (p.removed && !p.pinned) p = p.copy(removed = false) // listed again: an unruled row

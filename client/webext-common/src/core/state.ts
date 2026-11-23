@@ -16,10 +16,12 @@ export const UPDATE_NEEDED = "update_needed";
 /** storage.local: when "Check again" on the update screen last asked the relay server (ms). */
 export const RECHECK_AT = "recheck_at";
 export const REG_MARKER = "registered";
+/** storage.local: the own app version last sent to the relay server in a GET /peers that ran. */
+export const REPORTED_VERSION = "reported_version";
 
 /** A storage.local key of the active account (it moves on an account switch); the rest belong to the device. */
 export function accountKey(k: string): boolean {
-  return k.startsWith(PAIR_PREFIX) || k.startsWith(PAIR_MSG_PREFIX) || [PAIR_AUTO, PAIR_HELD, ALLOW_SET, NET_NOT_BEFORE, REG_MARKER, SEND_SEL_KEY].includes(k);
+  return k.startsWith(PAIR_PREFIX) || k.startsWith(PAIR_MSG_PREFIX) || [PAIR_AUTO, PAIR_HELD, ALLOW_SET, NET_NOT_BEFORE, REG_MARKER, REPORTED_VERSION, SEND_SEL_KEY].includes(k);
 }
 export interface PairEntry {
   role: Role;

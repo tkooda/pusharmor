@@ -61,6 +61,7 @@ import {
   type PairEntry,
   RECHECK_AT,
   REG_MARKER,
+  REPORTED_VERSION,
   UPDATE_NEEDED,
   accountKey,
   allEntries,
@@ -287,6 +288,11 @@ export class Engine {
 
   /** engine.receive(M): the common receive pipeline (section 5). */
   async receive(m: string, src: Src = "push"): Promise<void> {
+    await this.receiveOne(m, src);
+    if (src === "push" || src === "bridge") await this.reportVersion();
+  }
+
+  private async receiveOne(m: string, src: Src): Promise<void> {
     if (isCheckPush(m)) return; // the relay server's test push: dropped silently
     const self = await this.self();
     if (!self) return;
@@ -295,6 +301,13 @@ export class Engine {
       return;
     }
     await this.receiveInner(m, self, src);
+  }
+
+  /** Own app version not yet reported: one GET /peers (it carries PA-Client); stored only after that call ran. */
+  async reportVersion(): Promise<void> {
+    if ((await this.p.storageLocal.get([REPORTED_VERSION]))[REPORTED_VERSION] === this.p.appVersion) return;
+    if ((await this.regState()) !== "registered") return;
+    if (await this.fetchPeersNow().catch(() => false)) await this.p.storageLocal.set({ [REPORTED_VERSION]: this.p.appVersion });
   }
 
   private async dropEvent(kind: "unreadable" | "invalid", peer: string | null, src: Src): Promise<void> {
@@ -1347,6 +1360,7 @@ export class Engine {
           reachable: it.reachable === true,
           denies_me: it.denies_me === true,
           missing: false,
+          version: typeof it.version === "string" ? it.version : null,
         };
         if (row.pinned && row.approve_verified) row = { ...row, approves_me: it.approves_me === true, get_after_verify: true };
         else if (!row.pinned) row = { ...row, approves_me: it.approves_me === true };
@@ -2360,6 +2374,7 @@ export class Engine {
     await this.timeoutCheck();
     await this.reconcileAllow();
     await this.pushReconcile(false, true).catch(() => undefined); // no setup tab from the popup
+    await this.reportVersion();
   }
 }
 

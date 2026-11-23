@@ -67,6 +67,8 @@ public enum NSEFlow {
         if (try? core.store.me().fetchDue) == true && budgetLeft() >= 10 {
             await core.fetchPeers(nse: true)
         }
+        // a new app version not yet reported: one GET /peers, with the same budget rule
+        if budgetLeft() >= 10 { await core.reportVersion(nse: true) }
         return r
     }
 

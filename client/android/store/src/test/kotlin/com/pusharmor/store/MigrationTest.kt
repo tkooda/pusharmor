@@ -52,4 +52,15 @@ class MigrationTest {
             c.moveToFirst(); assertEquals("hi", c.getString(0)); assertEquals("abc", c.getString(1)); assertTrue(c.isNull(2)); assertTrue(c.isNull(3))
         }
     }
+
+    @Test fun migrate10To11KeepsPeersWithNoVersion() {
+        helper.createDatabase("m11.db", 10).apply {
+            execSQL("INSERT INTO peers (id, platform, created, approved, denied_by_me, approve_verified, approves_me, denies_me, list_after_verify, declined, " +
+                "reachable, logged_out, logout_n, hidden, name, name_n, removed, missing, last_n, last_send_at, lock_screen, watch, hide_content) " +
+                "VALUES ('p', 'ios', 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 'Phone', 0, 0, 0, 0, 0, 1, 1, 0)")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate("m11.db", 11, true, PaDatabase.MIGRATION_10_11)
+        db.query("SELECT name, version FROM peers").use { c -> c.moveToFirst(); assertEquals("Phone", c.getString(0)); assertTrue(c.isNull(1)) }
+    }
 }

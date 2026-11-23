@@ -41,6 +41,8 @@ data class ListedPeer(
     val nameForMe: String?,
     /** "listening" of a "cli" entry; absent for other platforms (true). */
     val listening: Boolean = true,
+    /** The peer's last reported app version ("x.y.z"); null when the list does not say. */
+    val version: String? = null,
 )
 
 /**

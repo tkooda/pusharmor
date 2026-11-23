@@ -261,6 +261,7 @@ enum Schema {
         "ALTER TABLE pairing ADD COLUMN wait_from INTEGER",
         "ALTER TABLE history ADD COLUMN msg_id TEXT",
         "ALTER TABLE history ADD COLUMN del_requested TEXT;\nALTER TABLE history ADD COLUMN del_accepted TEXT",
+        "ALTER TABLE peers ADD COLUMN version TEXT",
     ]
 
     /// Reads user_version first with no transaction; takes the write lock only when a

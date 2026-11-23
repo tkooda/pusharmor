@@ -31,6 +31,8 @@ data class Peer(
     val loggedOut: Boolean = false,
     /** A "cli" peer that has not run its listen command recently (GET /peers "listening": false): send only. */
     val listening: Boolean = true,
+    /** The peer's last reported app version from the last GET /peers; null when unknown. */
+    val version: String? = null,
     val logoutN: Long = 0,
     val hidden: Boolean = false,
     val name: String? = null,

@@ -2054,7 +2054,7 @@ final class StateMachineTests: XCTestCase {
         let path = NSTemporaryDirectory() + "pa-mig-\(UUID().uuidString).sqlite"
         _ = try Store(path: path)
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 4)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 5)
         XCTAssertEqual(try s.db.one("PRAGMA journal_mode")?.text("journal_mode"), "wal")
         XCTAssertNil(try s.me().id)
     }
@@ -2064,8 +2064,9 @@ final class StateMachineTests: XCTestCase {
         let path = NSTemporaryDirectory() + "pa-mig1-\(UUID().uuidString).sqlite"
         let id = PeerId(raw: Data((0 ..< 30).map { UInt8($0) }))!
         do {
-            // DB(path:) migrates to the latest version: undo migrations 4, 3 and 2 to get a version 1 file
+            // DB(path:) migrates to the latest version: undo migrations 5, 4, 3 and 2 to get a version 1 file
             let db = try DB(path: path)
+            try db.exec("ALTER TABLE peers DROP COLUMN version")
             try db.exec("ALTER TABLE history DROP COLUMN del_accepted")
             try db.exec("ALTER TABLE history DROP COLUMN del_requested")
             try db.exec("ALTER TABLE history DROP COLUMN msg_id")
@@ -2074,20 +2075,21 @@ final class StateMachineTests: XCTestCase {
             try db.exec("INSERT INTO pairing (peer_id, role, state, started_at, last_send_at) VALUES (?, 'N', 'committed', 1000, 1010)", [.text(id.text)])
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 4)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 5)
         let e = try XCTUnwrap(try s.pairing(id))
         XCTAssertEqual(e.startedAt, 1000)
         XCTAssertEqual(e.lastSendAt, 1010)
         XCTAssertNil(e.waitFrom)
     }
 
-    /// a version 3 file with History rows opens at version 4; the rows keep their fields and
+    /// a version 3 file with History rows opens at version 5; the rows keep their fields and
     /// have no pending delete.
     func testDBMigration3To4KeepsHistory() throws {
         let path = NSTemporaryDirectory() + "pa-mig3-\(UUID().uuidString).sqlite"
         let id = PeerId(raw: Data((0 ..< 30).map { UInt8($0) }))!
         do {
             let db = try DB(path: path)
+            try db.exec("ALTER TABLE peers DROP COLUMN version")
             try db.exec("ALTER TABLE history DROP COLUMN del_accepted")
             try db.exec("ALTER TABLE history DROP COLUMN del_requested")
             try db.exec("PRAGMA user_version = 3")
@@ -2095,7 +2097,7 @@ final class StateMachineTests: XCTestCase {
                         [.text(id.text)])
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 4)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 5)
         let rows = try s.history()
         XCTAssertEqual(rows.count, 1)
         XCTAssertEqual(rows[0].content, "kept")
@@ -2106,12 +2108,13 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(try s.historyRow(rows[0].rowid)?.delPending, ["d1"])
     }
 
-    /// a version 2 file with History rows opens at version 4; the rows keep their fields and have no message id.
+    /// a version 2 file with History rows opens at version 5; the rows keep their fields and have no message id.
     func testDBMigration2To3KeepsHistory() throws {
         let path = NSTemporaryDirectory() + "pa-mig2-\(UUID().uuidString).sqlite"
         let id = PeerId(raw: Data((0 ..< 30).map { UInt8($0) }))!
         do {
             let db = try DB(path: path)
+            try db.exec("ALTER TABLE peers DROP COLUMN version")
             try db.exec("ALTER TABLE history DROP COLUMN del_accepted")
             try db.exec("ALTER TABLE history DROP COLUMN del_requested")
             try db.exec("ALTER TABLE history DROP COLUMN msg_id")
@@ -2120,7 +2123,7 @@ final class StateMachineTests: XCTestCase {
                         [.text(id.text)])
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 4)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 5)
         let rows = try s.history()
         XCTAssertEqual(rows.count, 1)
         XCTAssertEqual(rows[0].content, "kept")
@@ -2143,7 +2146,7 @@ final class StateMachineTests: XCTestCase {
         let s = try await StoreRepair.reset(path: path, vault: FakeVault()) { called += 1 }
         XCTAssertEqual(called, 1)
         XCTAssertNil(try s.me().id)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 4)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 5)
         try s.setMe("name", .text("kept"))
         let s2 = try XCTUnwrap(try StoreRepair.open(path: path))
         XCTAssertEqual(called, 1)
@@ -2361,6 +2364,133 @@ final class StateMachineTests: XCTestCase {
         w.rows[x.id.text]!.listening = nil
         await n.core.fetchPeers(force: true)
         XCTAssertTrue(try n.core.store.peer(x.id)!.listening)
+    }
+
+    /// GET /v1/peers "version": a string is kept with the peer; absent or not a string is
+    /// unknown and the entry still merges.
+    func testPeerVersionParsed() async throws {
+        func fetched(_ d: Device) async throws {
+            let ok = await d.core.fetchPeers(force: true)
+            XCTAssertTrue(ok)
+        }
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        w.rows[x.id.text]!.version = .str("0.0.54")
+        try await fetched(n)
+        XCTAssertEqual(try n.core.store.peer(x.id)!.version, "0.0.54")
+        // absent: unknown
+        w.rows[x.id.text]!.version = nil
+        try await fetched(n)
+        XCTAssertNil(try n.core.store.peer(x.id)!.version)
+        // malformed: unknown, the list still merges
+        for bad: JOut in [.int(54), .bool(true), .obj([]), .arr([.str("0.0.54")]), .null] {
+            w.rows[x.id.text]!.version = .str("0.0.53")
+            try await fetched(n)
+            XCTAssertEqual(try n.core.store.peer(x.id)!.version, "0.0.53")
+            w.rows[x.id.text]!.version = bad
+            try await fetched(n)
+            let p = try XCTUnwrap(try n.core.store.peer(x.id))
+            XCTAssertNil(p.version)
+            XCTAssertTrue(p.listed)
+            XCTAssertFalse(p.missing)
+            XCTAssertTrue(p.inAll)
+        }
+    }
+
+    /// Version report on app open: one GET /v1/peers when this app version differs from the
+    /// one last reported, none when equal; the version is stored only after the GET succeeds.
+    func testVersionReportOnAppOpen() async throws {
+        let n = try dev("Ndev")
+        let key = Core.reportedVersionKey
+        // equal: no GET
+        await n.core.appOpen(push: nil)
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 0)
+        // changed: one GET, then the version is stored
+        try n.core.store.setSetting(key, "ios/0.0.1")
+        await n.core.appOpen(push: nil)
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 1)
+        XCTAssertEqual(try n.core.store.setting(key), n.core.api.client)
+        await n.core.appOpen(push: nil)
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 1)
+        // never reported (no row): one GET
+        try n.core.store.setSetting(key, nil)
+        clock.now += 100
+        await n.core.appOpen(push: nil)
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 2)
+        XCTAssertEqual(try n.core.store.setting(key), n.core.api.client)
+        // a failed GET stores nothing; the next open tries again
+        try n.core.store.setSetting(key, "ios/0.0.1")
+        w.offline = true
+        await n.core.appOpen(push: nil)
+        XCTAssertEqual(try n.core.store.setting(key), "ios/0.0.1")
+        w.offline = false
+        clock.now += 100
+        let g = w.count("GET", "/v1/peers")
+        await n.core.appOpen(push: nil)
+        XCTAssertEqual(w.count("GET", "/v1/peers"), g + 1)
+        XCTAssertEqual(try n.core.store.setting(key), n.core.api.client)
+        // a GET that answers an error stores nothing either
+        try n.core.store.setSetting(key, "ios/0.0.1")
+        w.script("GET", "/v1/peers", 400, "{\"error\":\"bad request\"}")
+        await n.core.appOpen(push: nil)
+        XCTAssertEqual(try n.core.store.setting(key), "ios/0.0.1")
+        // logged out: no GET
+        try n.core.store.setMe("logged_out", .int(1))
+        let g2 = w.count("GET", "/v1/peers")
+        await n.core.reportVersion()
+        XCTAssertEqual(w.count("GET", "/v1/peers"), g2)
+        // not registered: no GET
+        let fresh = Core(store: try Store(path: NSTemporaryDirectory() + "pa-ver-\(UUID().uuidString).sqlite"), api: n.core.api,
+                         keys: n.keys, clock: { [clock] in clock!.now })
+        await fresh.reportVersion()
+        XCTAssertEqual(w.count("GET", "/v1/peers"), g2)
+        XCTAssertNil(try fresh.store.setting(key))
+    }
+
+    /// Version report on a push (the NSE): one GET /v1/peers with >= 10 s of budget left.
+    func testVersionReportOnPush() async throws {
+        let x = try dev("Xdev")
+        let key = Core.reportedVersionKey
+        let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-ver-\(UUID().uuidString)"))
+        let m = String(repeating: "A", count: 400)
+        // the fetch_due fetch stays inside its 60 s window: only the version report GETs
+        try x.core.store.setMe("last_fetch_at", .int(clock.now))
+        // equal: no GET
+        _ = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 1, budgetLeft: { 30 })
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 0)
+        // changed, little budget: no GET, nothing stored
+        try x.core.store.setSetting(key, "ios/0.0.1")
+        _ = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 2, budgetLeft: { 5 })
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 0)
+        XCTAssertEqual(try x.core.store.setting(key), "ios/0.0.1")
+        // changed: one GET, then the version is stored
+        _ = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 3, budgetLeft: { 30 })
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 1)
+        XCTAssertEqual(try x.core.store.setting(key), x.core.api.client)
+        _ = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 4, budgetLeft: { 30 })
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 1)
+    }
+
+    /// a version 4 file with a peer row opens at version 5; the row keeps its fields and has
+    /// no version.
+    func testDBMigration4To5KeepsPeers() throws {
+        let path = NSTemporaryDirectory() + "pa-mig4-\(UUID().uuidString).sqlite"
+        let id = PeerId(raw: Data((0 ..< 30).map { UInt8($0) }))!
+        do {
+            let db = try DB(path: path)
+            try db.exec("ALTER TABLE peers DROP COLUMN version")
+            try db.exec("PRAGMA user_version = 4")
+            try db.exec("INSERT INTO peers (id, platform, name) VALUES (?, 'android', 'kept')", [.text(id.text)])
+        }
+        let s = try Store(path: path)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 5)
+        var p = try XCTUnwrap(try s.peer(id))
+        XCTAssertEqual(p.name, "kept")
+        XCTAssertEqual(p.platform, "android")
+        XCTAssertNil(p.version)
+        p.version = "0.0.54"
+        try s.savePeer(p)
+        XCTAssertEqual(try s.peer(id)?.version, "0.0.54")
     }
 
     func testSendFailureResultsEachShowALine() async throws {

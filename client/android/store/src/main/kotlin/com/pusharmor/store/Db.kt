@@ -71,6 +71,8 @@ data class PeerEntity(
     @ColumnInfo(defaultValue = "1") val listening: Boolean = true,
     /** "Allow message content in notifications" for this peer; the inverse of the old hide_content. */
     @ColumnInfo(name = "show_content", defaultValue = "1") val showContent: Boolean = true,
+    /** The peer's last reported app version from the last GET /peers; null when unknown. */
+    val version: String? = null,
 )
 
 @Entity(tableName = "pairing")
@@ -211,7 +213,7 @@ interface PaDao {
 
 @Database(
     entities = [SelfEntity::class, PeerEntity::class, PairingEntity::class, CapEntity::class, ReplayEntity::class, AllowEntity::class, HistoryEntity::class, StateEntity::class],
-    version = 10,
+    version = 11,
     exportSchema = true,
 )
 abstract class PaDatabase : RoomDatabase() {
@@ -249,6 +251,13 @@ abstract class PaDatabase : RoomDatabase() {
             }
         }
 
+        /** 10 -> 11: peers.version, the peer's last reported app version (null: unknown). */
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `peers` ADD COLUMN `version` TEXT")
+            }
+        }
+
         /**
          * [onCreate] runs when the file is made new: first start, or after a confirmed [deleteCorrupt]. A corrupt
          * file is kept: SQLite hands it to [onCorrupt] instead of deleting it, and the call that met it throws.
@@ -256,7 +265,7 @@ abstract class PaDatabase : RoomDatabase() {
         fun open(context: Context, name: String? = NAME, multiInstance: Boolean = true, onCorrupt: (SupportSQLiteDatabase) -> Unit = {}, onCreate: () -> Unit = {}): PaDatabase {
             val b = if (name == null) Room.inMemoryDatabaseBuilder(context, PaDatabase::class.java)
             else Room.databaseBuilder(context, PaDatabase::class.java, name).let { if (multiInstance) it.enableMultiInstanceInvalidation() else it }
-            return b.addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+            return b.addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                 .openHelperFactory(KeepCorruptFactory(onCorrupt))
                 .addCallback(object : RoomDatabase.Callback() { override fun onCreate(db: SupportSQLiteDatabase) = onCreate() }).build()
         }

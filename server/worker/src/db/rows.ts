@@ -22,6 +22,7 @@ export interface ListRow {
   my_push: string | null;
   my_rm: string | null;
   name_for_me: string | null;
+  version: string | null;
 }
 
 export interface CtxRow {
@@ -37,6 +38,7 @@ export interface CtxRow {
   approves_me: number;
   denies_me: number;
   my_allow: string | null;
+  my_version?: string | null;
   seen?: number | null;
 }
 
@@ -54,9 +56,11 @@ export function myAllowKeys(myAllow: string | null): string[] {
   return allowKeys(myAllow);
 }
 
-// GET /peers body (also POST /peers reply).
-export async function listBody(rows: ListRow[], me: string): Promise<Record<string, unknown>> {
+// GET /peers body (also POST /peers reply). With versions (GET /peers), each peer with a stored
+// version carries it, but only when another peer approves the caller.
+export async function listBody(rows: ListRow[], me: string, versions = false): Promise<Record<string, unknown>> {
   const allows = new Map(rows.map((r) => [r.id, new Set(allowKeys(r.allow))]));
+  const showVersions = versions && rows.some((r) => r.id !== me && r.approves_me === 1);
   const self = rows.find((r) => r.id === me);
   let myPush: string | null = null;
   if (self && self.my_push) myPush = await pushSha256(JSON.parse(self.my_push) as Record<string, unknown>);
@@ -77,6 +81,7 @@ export async function listBody(rows: ListRow[], me: string): Promise<Record<stri
       reachable: r.reachable === 1,
       name_for_me: r.name_for_me ?? null,
       ...(r.platform === "cli" ? { listening: isListening(r.platform, r.push_failed) } : {}),
+      ...(showVersions && r.version !== null ? { version: r.version } : {}),
     };
   });
   // my_relay_fault: the last push to the caller hit a relay-side fault (sql.ts PUSH_FAILED_COL).

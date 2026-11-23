@@ -39,9 +39,23 @@ extension Core {
         try? store.db.write {
             try mergePeerList(j, now: now)
             try store.setMe("fetch_due", .int(0))
+            try store.setSetting(Core.reportedVersionKey, api.client)
         }
         if !nse { await allowReconcile() }
         return out
+    }
+
+    /// Store setting: the PA-Client value ("ios/x.y.z") of the last GET /v1/peers that
+    /// succeeded, so the relay server knows this app version. No row = never reported.
+    public static let reportedVersionKey = "reported_version"
+
+    /// Version report: on an app open or a push, one GET /v1/peers when this app version
+    /// is not the one last reported. Only for a registered device that is not logged out or
+    /// removed; silent. The version is stored only when the GET succeeds (fetchPeersOutcome).
+    public func reportVersion(nse: Bool = false) async {
+        guard let me = try? store.me(), me.id != nil, !me.loggedOut, !me.removed,
+              (try? store.setting(Core.reportedVersionKey)) != api.client else { return }
+        await fetchPeers(force: true, nse: nse)
     }
 
     /// A GET /peers reply this device can use: 2xx with a JSON body.
@@ -51,8 +65,9 @@ extension Core {
     }
 
     /// Merge a GET /peers (or POST /peers) body (catalog Removal rules, GET /peers merge).
-    /// Pins never come from this list.
-    func mergePeerList(_ j: JSONValue, now: Int64) throws {
+    /// Pins never come from this list. Only a GET body sets the peer version (a POST
+    /// body never carries it): absent or not a string = unknown.
+    func mergePeerList(_ j: JSONValue, now: Int64, fromGet: Bool = true) throws {
         let me = try myId()
         try applyFetchedRemoves(j["removed"], me: me, now: now)   // with the pre-merge pins
         var listedIds = Set<String>()
@@ -67,6 +82,7 @@ extension Core {
                 p.listSignPub = s
                 p.listEncPub = en
                 p.platform = e["platform"]?.stringValue ?? p.platform
+                if fromGet { p.version = e["version"]?.stringValue }
                 if case .number(let c)? = e["created"] { p.created = Int64(c) }
                 if case .bool(let b)? = e["logged_out"] { p.loggedOut = b }
                 if case .bool(let b)? = e["reachable"] { p.reachable = b }

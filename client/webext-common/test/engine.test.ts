@@ -6,7 +6,7 @@ import { b64urlDecode, b64urlEncode } from "../src/crypto/b64url.ts";
 import { pairingKey } from "../src/crypto/labels.ts";
 import { T } from "../src/core/texts.ts";
 import { Rpc } from "../src/core/rpc.ts";
-import { ALLOW_SET, allEntries, getAllowSet, getEntry } from "../src/core/state.ts";
+import { ALLOW_SET, REPORTED_VERSION, allEntries, getAllowSet, getEntry } from "../src/core/state.ts";
 import { encodeInner } from "../src/model/message.ts";
 import { IDBFactory } from "fake-indexeddb";
 import { type HistoryRow, NEWER_SEEN } from "../src/store/db.ts";
@@ -409,6 +409,7 @@ test("approve from an unpinned id is dropped", async () => {
   assert.equal(pushed.length, 1);
   // deliver a's approve to b directly
   const c = (pushed[0]!.body as { c: string }).c;
+  await b.p.storageLocal.set({ [REPORTED_VERSION]: b.p.appVersion }); // no version report GET /peers on this push
   await b.e.receive(c, "push");
   assert.equal((await b.db.peer(a.id))!.approves_me, false);
   assert.equal((await b.db.history())[0]!.event, "unreadable");

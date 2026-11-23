@@ -102,7 +102,7 @@ class Session(private val g: Graph) {
         return if (s.flag(Settings.K.SIGNED_OUT, false)) Start.SIGNED_OUT else Start.READY
     }
 
-    /** App start / open work when signed in (no GET /peers on app open). */
+    /** App start / open work when signed in (no GET /peers on app open, except once after an app update). */
     fun onAppOpen(now: Long) {
         if (BuildConfig.SCREENSHOT_MODE && ScreenshotMode.on) return
         // Another thread's removal check may wipe: its reply decides, and this open waits for the next one.
@@ -118,6 +118,17 @@ class Session(private val g: Graph) {
         checkTimeouts(now, refetch = false)
         for (r in g.store.pairings()) if (r.pendingMessage != null) Work.pairSend(g.app, r.peerId, replace = true)
         purgeHistory()
+        reportVersion()
+    }
+
+    /**
+     * After an app update, the first app open or push makes one GET /peers so the relay server learns this
+     * version; the version is stored when a GET /peers succeeds.
+     */
+    fun reportVersion(inPush: Boolean = false) {
+        if (g.identity() == null || s.flag(Settings.K.SIGNED_OUT, false)) return
+        if (s.get(Settings.K.REPORTED_VERSION) == BuildConfig.VERSION_NAME) return
+        fetchPeers(force = true, inPush = inPush)
     }
 
     /** foss cannot serve a stored fcm push: clear it, tell once, run the distributor flow. */
@@ -427,6 +438,7 @@ class Session(private val g: Graph) {
             is ApiResult.Ok -> {
                 g.sync().merge(r.value)
                 s.set(Settings.K.RELAY_FAULT, r.value.myRelayFault)
+                s.set(Settings.K.REPORTED_VERSION, BuildConfig.VERSION_NAME)
                 if (r.pushMissing || (r.value.myPushSha256 != currentPushHash() && currentPushHash() != null)) Work.patchPush(g.app)
                 if (inPush) Work.reconcile(g.app) else g.reconcile().run()
                 updateShortcuts()

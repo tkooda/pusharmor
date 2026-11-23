@@ -135,6 +135,8 @@ class Settings(private val context: Context, private val dao: PaDao) {
         val ACCOUNT = stringPreferencesKey("account")
         /** App version that got HTTP 426; the update screen shows while it is the running version. */
         val UPDATE_REQUIRED = stringPreferencesKey("update_required")
+        /** App version the relay server last saw in a GET /peers that succeeded. */
+        val REPORTED_VERSION = stringPreferencesKey("reported_version")
         /** A device sent a message in a newer format version; cleared when the notice shows. */
         val NEWER_VERSION = booleanPreferencesKey("newer_version")
         /** The file was damaged and reset to defaults; cleared when the notice shows. */

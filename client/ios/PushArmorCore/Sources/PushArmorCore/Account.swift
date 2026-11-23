@@ -56,7 +56,7 @@ extension Core {
                     try store.setSetting(Core.pushUnsupportedKey, nil)
                 }
                 try store.setMe("last_fetch_at", .int(now))
-                try mergePeerList(j, now: now)
+                try mergePeerList(j, now: now, fromGet: false)
             }
         } catch {
             return .failed(r.status, "store")
@@ -197,6 +197,7 @@ extension Core {
         if (try? store.me().removed) == true { return }
         await reconcilePush(push)
         if (try? store.me().fetchDue) == true { await fetchPeers() }
+        await reportVersion()
         await allowReconcile()
         await retryUnsentReplies()
         await resendWaitingApproves()

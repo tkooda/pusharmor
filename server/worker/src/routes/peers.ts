@@ -20,6 +20,7 @@ import { ctEqualStr } from "../crypto/hash";
 import { makeTicket, TICKET_LIFE_PEER_LIMIT_S, TICKET_LIFE_S, TICKET_RENEW_MAX_S } from "../crypto/tokens";
 import { ApiError } from "../errors";
 import { checkSig, checkTime } from "../pipeline/signed";
+import { clientVersion } from "../pipeline/client";
 import { enforce, enforceAccount } from "../pipeline/limits";
 import * as SQL from "../db/sql";
 import { all, batch } from "../db/d1";
@@ -143,7 +144,10 @@ export async function list(c: Ctx): Promise<Response> {
   const rows = await all<ListRow>(c.env.DB.prepare(SQL.Q_LIST).bind(s.me, s.acct));
   const self = rows.find((r) => r.id === s.me);
   await callerCheck(c, s, self);
-  const body = await listBody(rows, s.me);
+  const body = await listBody(rows, s.me, true);
+  const writes: D1PreparedStatement[] = [];
+  const version = clientVersion(c.req.headers.get("PA-Client"));
+  if (version !== null && version !== self!.version) writes.push(c.env.DB.prepare(SQL.W_VERSION).bind(s.me, s.acct, version));
   // Stored remove messages (peers.rm): delivered once, then cleared if unchanged since the read.
   if (self!.my_rm && self!.my_rm !== "{}") {
     const listed = new Set(rows.map((r) => r.id));
@@ -153,8 +157,9 @@ export async function list(c: Ctx): Promise<Response> {
       if (!listed.has(b) && e[0] >= cutoff) removed[b] = e[1];
     }
     if (Object.keys(removed).length) body.removed = removed;
-    await batch(c.env.DB, [c.env.DB.prepare(SQL.W_RM_CLEAR).bind(s.me, s.acct, self!.my_rm)]);
+    writes.push(c.env.DB.prepare(SQL.W_RM_CLEAR).bind(s.me, s.acct, self!.my_rm));
   }
+  if (writes.length) await batch(c.env.DB, writes);
   return json(200, withPushMissing(body, self!.my_push === null));
 }
 

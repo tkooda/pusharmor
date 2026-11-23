@@ -227,6 +227,16 @@ class WorkerClientTest {
         assertEquals(listOf(false, true, true), ps.map { it.listening })
     }
 
+    /** "version" is the peer's app version; absent or not a string reads as unknown and keeps the entry. */
+    @Test fun peersParsesVersion() {
+        fun e(id: String, extra: String) = "{\"id\":\"$id\",\"sign_pub\":\"s\",\"enc_pub\":\"e\",\"platform\":\"ios\",\"created\":1$extra}"
+        server.enqueue(ok("{\"peers\":[" + listOf(e("a", ",\"version\":\"0.0.54\""), e("b", ""), e("c", ",\"version\":54"),
+            e("d", ",\"version\":null"), e("f", ",\"version\":{\"x\":1}"), e("g", ",\"version\":[\"0.0.54\"]")).joinToString(",") + "]}"))
+        val ps = (client.peers() as ApiResult.Ok).value.peers
+        assertEquals(listOf("a", "b", "c", "d", "f", "g"), ps.map { it.id })
+        assertEquals(listOf("0.0.54", null, null, null, null, null), ps.map { it.version })
+    }
+
     @Test fun messagesMissingCarriesIds() {
         server.enqueue(MockResponse().setResponseCode(400).setBody("{\"error\":\"messages missing\",\"ids\":[\"a\",\"b\"]}"))
         val r = client.logout(emptyMap()) as ApiResult.Http

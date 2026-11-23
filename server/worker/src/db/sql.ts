@@ -11,7 +11,7 @@ export const PUSH_FAILED_COL = "push_failed_since";
 const PF = `${PUSH_FAILED_COL} AS push_failed`;
 
 // GET /peers; tail of POST /peers. ?1 me, ?2 acct
-export const Q_LIST = `SELECT id, sign_pub, enc_pub, platform, push_type, created, allow, ${PF},
+export const Q_LIST = `SELECT id, sign_pub, enc_pub, platform, push_type, created, allow, ${PF}, version,
   json_type(allow, ${P(1)}) IS NOT NULL AS approves_me,
   json_type(deny, ${P(1)}) IS NOT NULL AS denies_me,
   push IS NOT NULL AS reachable, logged_out,
@@ -36,6 +36,7 @@ function ctxSql(ids: number, send: boolean): string {
   const list = ["(?1)"];
   for (let i = 0; i < ids; i++) list.push(`(?${3 + i})`);
   s = `SELECT ${Q_CTX_COLS}${send ? `,
+  CASE WHEN id = ?1 THEN version END AS my_version,
   (SELECT last_seen_month FROM accounts WHERE id = ?2) AS seen` : ""}
 FROM (VALUES ${list.join(", ")}) v CROSS JOIN peers
 WHERE peers.account = ?2 AND peers.id = v.column1`;
@@ -44,7 +45,7 @@ WHERE peers.account = ?2 AND peers.id = v.column1`;
 }
 export const Q_CTX = (ids: number): string => ctxSql(ids, false);
 
-// POST /send: Q_CTX plus the account's last_seen_month.
+// POST /send: Q_CTX plus the caller's version and the account's last_seen_month.
 export const Q_CTX_SEND = (ids: number): string => ctxSql(ids, true);
 
 // POST /peers read. ?1 acct, ?2 id, ?3 JSON array of evict ids
@@ -202,6 +203,10 @@ WHERE account = ?2 AND id = ?1 AND platform <> 'cli' AND ${PUSH_FAILED_COL} IS N
 // Push accepted by the vendor for a non-cli peer whose push_failed is set: clears it. ?1 id, ?2 acct
 export const W_RELAY_OK = `UPDATE peers SET ${PUSH_FAILED_COL} = NULL
 WHERE account = ?2 AND id = ?1 AND platform <> 'cli' AND ${PUSH_FAILED_COL} IS NOT NULL`;
+
+// peers.version (migrations/0009): the caller's app version, written only when it changed.
+// ?1 me, ?2 acct, ?3 version "x.y.z"
+export const W_VERSION = `UPDATE peers SET version = ?3 WHERE account = ?2 AND id = ?1 AND version IS NOT ?3`;
 
 // ?1 me, ?2 acct, ?3 logged_out (1 or 0)
 export const W_LOGOUT = `UPDATE peers SET logged_out = ?3 WHERE account = ?2 AND id = ?1`;
