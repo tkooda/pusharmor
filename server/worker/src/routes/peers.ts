@@ -93,6 +93,8 @@ export async function register(c: Ctx): Promise<Response> {
   if (reg.old_sign !== null && (reg.old_sign !== signPub || reg.old_enc !== encPub)) throw new ApiError(409, "id collision");
 
   const now = nowS();
+  // The caller's version is stored with the registration, so a new device needs no GET /peers to report it.
+  const version = clientVersion(c.req.headers.get("PA-Client"));
   const listStmt = c.env.DB.prepare(SQL.Q_LIST).bind(id, acct);
   let rows: ListRow[];
   let pushWritten = false;
@@ -109,12 +111,21 @@ export async function register(c: Ctx): Promise<Response> {
       rows = rs[1].results as ListRow[];
       pushWritten = true;
     }
+    // The stored version comes from the list (no extra read); a changed one is written best effort, as on GET /peers.
+    const old = rows.find((r) => r.id === id);
+    if (version !== null && old && version !== old.version) {
+      try {
+        await c.env.DB.batch([c.env.DB.prepare(SQL.W_VERSION).bind(id, acct, version)]);
+      } catch {
+        c.log.gone_write = "failed";
+      }
+    }
   } else {
     const stmts: D1PreparedStatement[] = [];
     for (const e of evict) stmts.push(c.env.DB.prepare(SQL.W_DEL).bind(e, acct), c.env.DB.prepare(SQL.W_PRUNE).bind(e, acct, "{}", now));
     stmts.push(
       c.env.DB.prepare(SQL.W_ACCT).bind(acct, dayStart(now), monthStart(now)),
-      c.env.DB.prepare(SQL.W_REG).bind(id, acct, signPub, encPub, push ? push.pushType : null, push ? push.stored : null, now, platform),
+      c.env.DB.prepare(SQL.W_REG).bind(id, acct, signPub, encPub, push ? push.pushType : null, push ? push.stored : null, now, platform, version),
       listStmt,
     );
     const rs = await batch(c.env.DB, stmts);

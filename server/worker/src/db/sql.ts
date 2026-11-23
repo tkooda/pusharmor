@@ -62,10 +62,10 @@ export const W_ACCT = `INSERT INTO accounts (id, created, status, last_seen_mont
 ON CONFLICT (id) DO UPDATE SET last_seen_month = excluded.last_seen_month
 WHERE accounts.last_seen_month < excluded.last_seen_month`;
 
-// ?1 id, ?2 acct, ?3 sign_pub, ?4 enc_pub, ?5 push_type, ?6 push, ?7 now, ?8 platform
+// ?1 id, ?2 acct, ?3 sign_pub, ?4 enc_pub, ?5 push_type, ?6 push, ?7 now, ?8 platform, ?9 version (or NULL)
 export const W_REG = `INSERT INTO peers (id, account, sign_pub, enc_pub, platform, push_type, push,
-  allow, deny, name, pending, created)
-SELECT ?1, ?2, ?3, ?4, ?8, ?5, ?6, '{}', '{}', '{}', '{}', ?7
+  allow, deny, name, pending, created, version)
+SELECT ?1, ?2, ?3, ?4, ?8, ?5, ?6, '{}', '{}', '{}', '{}', ?7, ?9
 WHERE (SELECT count(*) FROM peers WHERE account = ?2) < 10
   AND NOT EXISTS (SELECT 1 FROM accounts WHERE id = ?2 AND status = 'banned')
 ON CONFLICT (account, id) DO NOTHING`;

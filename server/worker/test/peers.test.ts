@@ -779,6 +779,34 @@ describe("peer app versions", () => {
     expect((await row(c.id))!.version).toBe("0.0.54");
   });
 
+  it("POST /peers stores the caller's version in the registration, and on a re-register only when it changed", async () => {
+    const email = randomEmail();
+    const k = await keys();
+    const reg = async (v?: string) => {
+      const body = { ticket: await ticketFor(email, k.signPub, "register"), sign_pub: k.signPub, enc_pub: k.encPub, platform: "android", push: pushFor("android") };
+      return call("POST", "/v1/peers", body, { sign: k.sign, ...(v ? ua(v) : {}) });
+    };
+    const spy = vi.spyOn(env.DB, "prepare");
+    try {
+      const r = await reg("android/0.0.54");
+      expect(r.status).toBe(200);
+      const id = r.body.id as string;
+      expect((await row(id))!.version).toBe("0.0.54");
+      expect(versionWrites(spy)).toBe(0); // stored by the insert itself
+      expect((await reg("android/0.0.54")).status).toBe(200);
+      expect((await reg()).status).toBe(200);
+      expect(versionWrites(spy)).toBe(0);
+      expect((await row(id))!.version).toBe("0.0.54");
+      expect((await reg("android/0.0.55")).status).toBe(200);
+      expect(versionWrites(spy)).toBe(1);
+      expect((await row(id))!.version).toBe("0.0.55");
+    } finally {
+      spy.mockRestore();
+    }
+    // no PA-Client: the new row has no version
+    expect((await row((await newPeer(email)).id))!.version).toBeNull();
+  });
+
   it("GET /peers lists versions only to a caller approved by another peer; POST /peers never", async () => {
     const email = randomEmail();
     const a = await newPeer(email);
