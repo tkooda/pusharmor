@@ -1307,8 +1307,9 @@ export class Engine {
     return true;
   }
 
-  /** GET /peers merge (section 4.2, catalog Removal rules). */
-  async mergePeers(json: Record<string, unknown>, self: SelfKeys): Promise<void> {
+  /** GET /peers merge (section 4.2, catalog Removal rules). fromGet false (a POST /peers reply, which
+   * never carries versions): each stored peer version is kept. */
+  async mergePeers(json: Record<string, unknown>, self: SelfKeys, fromGet = true): Promise<void> {
     const acct = accountOf(b64urlDecode(self.id));
     // the literals track the relay server limits: 10 listed devices, 9 allow entries, 8 remove messages
     const list = Array.isArray(json.peers) ? (json.peers as Record<string, unknown>[]).slice(0, 10) : [];
@@ -1360,7 +1361,7 @@ export class Engine {
           reachable: it.reachable === true,
           denies_me: it.denies_me === true,
           missing: false,
-          version: typeof it.version === "string" ? it.version : null,
+          ...(fromGet ? { version: typeof it.version === "string" ? it.version : null } : {}),
         };
         if (row.pinned && row.approve_verified) row = { ...row, approves_me: it.approves_me === true, get_after_verify: true };
         else if (!row.pinned) row = { ...row, approves_me: it.approves_me === true };
@@ -2330,7 +2331,7 @@ export class Engine {
     if (email) await this.db.setMeta("email", email);
     await this.authChanged();
     const self = (await this.self())!;
-    await this.mergePeers(r.json, self);
+    await this.mergePeers(r.json, self, false);
     if (lost && lost.id && lost.id !== id) {
       try {
         await this.api.call("DELETE", "/peers/" + lost.id, { signer: this.signerOf(self), body: { m: {} } });

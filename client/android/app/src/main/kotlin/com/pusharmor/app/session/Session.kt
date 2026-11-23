@@ -253,7 +253,7 @@ class Session(private val g: Graph) {
                 val raw = Ids.decodeId(id)
                 if (raw == null || !raw.copyOfRange(9, 21).contentEquals(Ids.keyhash(k.signPub, k.encPub))) return SignIn.Error(ErrorText.text(action, ErrorText.BAD_REPLY))
                 dao.putSelf(SelfEntity(id = id, accountPrefix = raw.copyOf(9), email = email, name = defaultName(), clockOffset = g.offset.offsetS))
-                g.sync().merge(r.registered.peers)
+                g.sync().merge(r.registered.peers, fromGet = false)
                 s.set(Settings.K.SIGNED_OUT, false)
                 s.set(Settings.K.SIGN_IN_KEYS, null)
                 deleteOldId()

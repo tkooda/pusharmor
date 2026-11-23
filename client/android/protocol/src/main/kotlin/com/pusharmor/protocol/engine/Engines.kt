@@ -451,7 +451,8 @@ class ReceiveEngine(
 class PeersSync(private val store: LocalStore, private val me: Identity, effects: Effects = object : Effects {}) {
     private val receive = ReceiveEngine(store, me, effects)
 
-    fun merge(reply: PeersReply, now: Long = System.currentTimeMillis()) {
+    /** [fromGet]: a GET /peers reply; only it carries peer versions (a POST /peers reply never does: the stored version is kept). */
+    fun merge(reply: PeersReply, now: Long = System.currentTimeMillis(), fromGet: Boolean = true) {
         val after = ArrayList<() -> Unit>()
         store.tx {
             store.replaceAllowSet(reply.myAllow)
@@ -466,7 +467,7 @@ class PeersSync(private val store: LocalStore, private val me: Identity, effects
                 val old = store.peer(l.id)
                 var p = (old ?: Peer(id = l.id)).copy(
                     platform = l.platform, created = l.created, listSignPub = l.signPub, listEncPub = l.encPub,
-                    loggedOut = l.loggedOut, listening = l.listening, version = l.version, reachable = l.reachable, listApprovesMe = l.approvesMe, listDeniesMe = l.deniesMe,
+                    loggedOut = l.loggedOut, listening = l.listening, version = if (fromGet) l.version else old?.version, reachable = l.reachable, listApprovesMe = l.approvesMe, listDeniesMe = l.deniesMe,
                     listAfterVerify = old?.approveVerified == true, missing = false,
                 )
                 if (p.removed && !p.pinned) p = p.copy(removed = false) // listed again: an unruled row

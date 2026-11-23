@@ -64,3 +64,19 @@ test("push received: one GET /peers when the own version changed, none when equa
   assert.equal(gets(w) - g0, 1);
   assert.equal((await a.p.storageLocal.get([REPORTED_VERSION]))[REPORTED_VERSION], "0.0.19");
 });
+
+test("a list that is not from GET /peers (the POST /peers reply) keeps each stored peer version", async () => {
+  const clock = new Clock();
+  const w = new MockWorker(clock);
+  const a = await device(w, clock);
+  const b = await device(w, clock);
+  const self = (await a.e.self())!;
+  const list = w.listFor(a.id);
+  const withVersion = { ...list, peers: list.peers.map((p) => (p.id === b.id ? { ...p, version: "0.0.54" } : p)) };
+  await a.e.mergePeers(withVersion as unknown as Record<string, unknown>, self);
+  assert.equal((await a.db.peer(b.id))?.version, "0.0.54");
+  await a.e.mergePeers(list as unknown as Record<string, unknown>, self, false);
+  assert.equal((await a.db.peer(b.id))?.version, "0.0.54");
+  await a.e.mergePeers(list as unknown as Record<string, unknown>, self);
+  assert.equal((await a.db.peer(b.id))?.version, null);
+});
