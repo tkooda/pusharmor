@@ -146,8 +146,6 @@ export async function list(c: Ctx): Promise<Response> {
   await callerCheck(c, s, self);
   const body = await listBody(rows, s.me, true);
   const writes: D1PreparedStatement[] = [];
-  const version = clientVersion(c.req.headers.get("PA-Client"));
-  if (version !== null && version !== self!.version) writes.push(c.env.DB.prepare(SQL.W_VERSION).bind(s.me, s.acct, version));
   // Stored remove messages (peers.rm): delivered once, then cleared if unchanged since the read.
   if (self!.my_rm && self!.my_rm !== "{}") {
     const listed = new Set(rows.map((r) => r.id));
@@ -160,6 +158,16 @@ export async function list(c: Ctx): Promise<Response> {
     writes.push(c.env.DB.prepare(SQL.W_RM_CLEAR).bind(s.me, s.acct, self!.my_rm));
   }
   if (writes.length) await batch(c.env.DB, writes);
+  // The version write is best effort, as on POST /send: a failure does not fail the list, and the
+  // next GET /peers or POST /send writes it, because the stored value still differs.
+  const version = clientVersion(c.req.headers.get("PA-Client"));
+  if (version !== null && version !== self!.version) {
+    try {
+      await c.env.DB.batch([c.env.DB.prepare(SQL.W_VERSION).bind(s.me, s.acct, version)]);
+    } catch {
+      c.log.gone_write = "failed";
+    }
+  }
   return json(200, withPushMissing(body, self!.my_push === null));
 }
 

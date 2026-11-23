@@ -748,6 +748,37 @@ describe("peer app versions", () => {
     }
   });
 
+  // A W_VERSION statement that fails when it runs (no such table); other statements are real.
+  const failVersionWrites = () => {
+    const prepare = env.DB.prepare.bind(env.DB);
+    return vi.spyOn(env.DB, "prepare").mockImplementation((q: string) =>
+      prepare(q.includes("SET version") ? "UPDATE no_such_table SET version = ?3 WHERE id = ?1 AND account = ?2" : q),
+    );
+  };
+
+  it("a failed version write does not fail GET /peers or POST /send", async () => {
+    const email = randomEmail();
+    const [a, b, c] = [await newPeer(email), await newPeer(email, "chrome"), await newPeer(email)];
+    await setAllow(a, [b.id, c.id]);
+    const msg = message(300);
+    expect((await call("DELETE", "/v1/peers/" + b.id, { m: { [c.id]: msg } }, { peer: a })).status).toBe(200);
+    const spy = failVersionWrites();
+    try {
+      const g = await call("GET", "/v1/peers", undefined, { peer: c, ...ua("android/0.0.54") });
+      expect(g.status).toBe(200);
+      expect(g.body.removed).toEqual({ [b.id]: msg });
+      const s = await call("POST", "/v1/send", { v: 1, m: { [c.id]: message() } }, { peer: a, ...ua("android/0.0.54") });
+      expect(s.status).toBe(200);
+    } finally {
+      spy.mockRestore();
+    }
+    // the remove messages were still cleared; no version was stored, so the next request writes it
+    expect(await row(c.id)).toMatchObject({ rm: "{}", version: null });
+    expect((await row(a.id))!.version).toBeNull();
+    expect((await call("GET", "/v1/peers", undefined, { peer: c, ...ua("android/0.0.54") })).status).toBe(200);
+    expect((await row(c.id))!.version).toBe("0.0.54");
+  });
+
   it("GET /peers lists versions only to a caller approved by another peer; POST /peers never", async () => {
     const email = randomEmail();
     const a = await newPeer(email);
