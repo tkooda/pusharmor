@@ -303,10 +303,11 @@ export class Engine {
     await this.receiveInner(m, self, src);
   }
 
-  /** Own app version not yet reported: one GET /peers (it carries PA-Client); stored only after that call ran. */
+  /** Own app version not yet reported: one GET /peers (it carries PA-Client), at most one per 60 s window; stored only after that call ran. */
   async reportVersion(): Promise<void> {
     if ((await this.p.storageLocal.get([REPORTED_VERSION]))[REPORTED_VERSION] === this.p.appVersion) return;
     if ((await this.regState()) !== "registered") return;
+    if (now(this.p) - ((await this.db.meta<number>("last_fetch")) ?? 0) < FETCH_WINDOW_MS) return; // at most one try per 60 s window
     if (await this.fetchPeersNow().catch(() => false)) await this.p.storageLocal.set({ [REPORTED_VERSION]: this.p.appVersion });
   }
 
