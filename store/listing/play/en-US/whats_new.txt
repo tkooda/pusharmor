@@ -1,1 +1,1 @@
-Log in with Google or Apple now works in the Firefox for Android add-on. A send keeps going when you rotate the screen or close the share dialog. A failed rename puts the old name back, so you can try again. Clearer errors when the security check does not load, and clearer send failures and counts in Chrome and Firefox.
+A message with a phone number now shows a Call button instead of Open. A message from a newer version of PushArmor now shows "Unknown message type, please update" in History, and the app tells you when another device runs a newer version.
