@@ -756,6 +756,18 @@ describe("peer app versions", () => {
     );
   };
 
+  it("GET /peers clears stored remove messages and stores the version in the same request", async () => {
+    const email = randomEmail();
+    const [a, b, c] = [await newPeer(email), await newPeer(email), await newPeer(email)];
+    await setAllow(a, [b.id, c.id]);
+    const msg = message(300);
+    expect((await call("DELETE", "/v1/peers/" + b.id, { m: { [c.id]: msg } }, { peer: a })).status).toBe(200);
+    const g = await call("GET", "/v1/peers", undefined, { peer: c, ...ua("ios/0.0.54") });
+    expect(g.status).toBe(200);
+    expect(g.body.removed).toEqual({ [b.id]: msg });
+    expect(await row(c.id)).toMatchObject({ rm: "{}", version: "0.0.54" });
+  });
+
   it("a failed version write does not fail GET /peers or POST /send", async () => {
     const email = randomEmail();
     const [a, b, c] = [await newPeer(email), await newPeer(email, "chrome"), await newPeer(email)];
@@ -805,6 +817,21 @@ describe("peer app versions", () => {
     }
     // no PA-Client: the new row has no version
     expect((await row((await newPeer(email)).id))!.version).toBeNull();
+  });
+
+  it("versions are listed when any one other device approves the caller, also when another denies it or is logged out", async () => {
+    const email = randomEmail();
+    const [a, b, c] = [await newPeer(email), await newPeer(email, "chrome"), await newPeer(email, "ios")];
+    await call("GET", "/v1/peers", undefined, { peer: b, ...ua("chrome/0.0.53") });
+    // c denies a, b approves a: a still sees versions
+    await setAllow(b, [a.id]);
+    await env.DB.prepare("UPDATE peers SET deny = ?1 WHERE id = ?2").bind(JSON.stringify({ [a.id]: 1 }), c.id).run();
+    const listed = async () =>
+      ((await call("GET", "/v1/peers", undefined, { peer: a })).body.peers as Record<string, unknown>[]).find((x) => x.id === b.id)!.version;
+    expect(await listed()).toBe("0.0.53");
+    // the only approver is logged out: versions are still listed (the approve stays stored)
+    await env.DB.prepare("UPDATE peers SET logged_out = 1 WHERE id = ?1").bind(b.id).run();
+    expect(await listed()).toBe("0.0.53");
   });
 
   it("GET /peers lists versions only to a caller approved by another peer; POST /peers never", async () => {
