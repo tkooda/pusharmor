@@ -743,6 +743,18 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(me.oldId, n.id.text)
     }
 
+    /// a wipe (removed, deleted account, keys lost) clears the reported version, so a device
+    /// that registers again reports its version for its new id.
+    func testWipeClearsReportedVersion() throws {
+        let n = try dev("Ndev")
+        XCTAssertEqual(try n.core.store.setting(Core.reportedVersionKey), n.core.api.client)
+        try n.core.store.wipe()
+        XCTAssertNil(try n.core.store.setting(Core.reportedVersionKey))
+        let k = try dev("Kdev")
+        try k.core.store.keysLost()
+        XCTAssertNil(try k.core.store.setting(Core.reportedVersionKey))
+    }
+
     func testRegisterRetriesOnceOnClockSkew() async throws {
         let n = try dev("Ndev")
         w.script("POST", "/v1/peers", 401, "{\"error\":\"clock skew\"}")
