@@ -457,7 +457,7 @@ test("download: copy and QR icons stay on the last line of their text (structura
   assert.match(css, /\.copy-row \{[^}]*flex-wrap: nowrap/, "copy-row may wrap its icon onto its own line");
   assert.match(css, /\.cell-row > \.icon-btn \{ flex: none; \}/, "cell-row icons can shrink or wrap");
   assert.match(css, /\.cell-row > :first-child \{[^}]*overflow-wrap: anywhere/, "cell-row text cannot break inside a long URL or fingerprint");
-  assert.equal(raw.match(/<td>[^<]*(<a |<code )[^\n]*?<button type="button" class="icon-btn"/g)?.length ?? 0, 0, "a table cell has an icon outside a cell-row");
+  assert.equal(raw.match(/<td>[^<]*(<a |<code )(?:(?!<\/td>|<div)[^\n])*?<button type="button" class="icon-btn"/g)?.length ?? 0, 0, "a table cell has an icon outside a cell-row");
   assert.ok((raw.match(/<div class="cell-row[ "]/g) || []).length >= 4, "table cells lack cell-row");
 });
 
