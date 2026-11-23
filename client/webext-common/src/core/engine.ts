@@ -2332,6 +2332,8 @@ export class Engine {
     await this.authChanged();
     const self = (await this.self())!;
     await this.mergePeers(r.json, self, false);
+    // the relay server stored this app version with the registration
+    await this.p.storageLocal.set({ [REPORTED_VERSION]: this.p.appVersion });
     if (lost && lost.id && lost.id !== id) {
       try {
         await this.api.call("DELETE", "/peers/" + lost.id, { signer: this.signerOf(self), body: { m: {} } });

@@ -27,11 +27,12 @@ test("popup open: one GET /peers when the own version changed; stored only after
   const clock = new Clock();
   const w = new MockWorker(clock);
   const a = await device(w, clock);
+  await a.p.storageLocal.set({ [REPORTED_VERSION]: "0.0.18" }); // an app update
   w.inject.push({ match: /GET \/v1\/peers$/, status: 500, body: { error: "internal" }, times: 99 });
   const g0 = gets(w);
   await a.e.onPopupOpen();
   assert.ok(gets(w) > g0);
-  assert.equal((await a.p.storageLocal.get([REPORTED_VERSION]))[REPORTED_VERSION], undefined);
+  assert.equal((await a.p.storageLocal.get([REPORTED_VERSION]))[REPORTED_VERSION], "0.0.18");
   w.inject = [];
   clock.t += 3600_001; // past any wait the failure set
   const g1 = gets(w);
@@ -51,6 +52,7 @@ test("push received: one GET /peers when the own version changed, none when equa
   const clock = new Clock();
   const w = new MockWorker(clock);
   const a = await device(w, clock);
+  await a.p.storageLocal.set({ [REPORTED_VERSION]: "0.0.18" }); // an app update
   const check = JSON.stringify({ check: 1 });
   const g0 = gets(w);
   await a.e.receive(check, "push");
@@ -63,6 +65,17 @@ test("push received: one GET /peers when the own version changed, none when equa
   await a.e.receive(check, "push");
   assert.equal(gets(w) - g0, 1);
   assert.equal((await a.p.storageLocal.get([REPORTED_VERSION]))[REPORTED_VERSION], "0.0.19");
+});
+
+test("a new registration counts as reported: no GET /peers on the next push or popup open", async () => {
+  const clock = new Clock();
+  const w = new MockWorker(clock);
+  const a = await device(w, clock);
+  assert.equal((await a.p.storageLocal.get([REPORTED_VERSION]))[REPORTED_VERSION], "0.0.19");
+  const g0 = gets(w);
+  await a.e.receive(JSON.stringify({ check: 1 }), "push");
+  await a.e.onPopupOpen();
+  assert.equal(gets(w), g0);
 });
 
 test("a list that is not from GET /peers (the POST /peers reply) keeps each stored peer version", async () => {

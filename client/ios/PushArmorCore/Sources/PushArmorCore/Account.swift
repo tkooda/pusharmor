@@ -57,6 +57,7 @@ extension Core {
                 }
                 try store.setMe("last_fetch_at", .int(now))
                 try mergePeerList(j, now: now, fromGet: false)
+                try store.setSetting(Core.reportedVersionKey, api.client)   // stored with the registration
             }
         } catch {
             return .failed(r.status, "store")

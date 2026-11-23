@@ -2780,11 +2780,7 @@ def test_merge_peers_version_field(net, tmp_path, monkeypatch):
 def test_version_reported_once_per_change(net, tmp_path, monkeypatch, capsys):
     a = tmp_path / "a"
     login(monkeypatch, a)
-    assert "reported_version" not in state(a)
-    n = len(net.log)
-    assert run(a, "devices") == 0
-    assert net.log[n:] == [("GET", "/v1/peers")]
-    assert state(a)["reported_version"] == pa.VERSION
+    assert state(a)["reported_version"] == pa.VERSION  # stored with the registration
     capsys.readouterr()
     n = len(net.log)
     assert run(a, "rename", state(a)["name"]) == 0
@@ -2798,6 +2794,8 @@ def test_version_reported_once_per_change(net, tmp_path, monkeypatch, capsys):
 def test_version_not_stored_when_fetch_fails_and_output_is_unchanged(net, tmp_path, monkeypatch, capsys):
     a = tmp_path / "a"
     login(monkeypatch, a)
+    old = pa.VERSION
+    monkeypatch.setattr(pa, "VERSION", "9.9.9")
     name = state(a)["name"]
     monkeypatch.setattr(pa.time, "sleep", lambda s: None)
     net.hooks[("GET", "peers")] = lambda *x: net.reply(503, {})
@@ -2805,10 +2803,10 @@ def test_version_not_stored_when_fetch_fails_and_output_is_unchanged(net, tmp_pa
     assert run(a, "rename", name) == 0
     cap = capsys.readouterr()
     assert cap.out == 'This device is already named "%s".\n' % name and cap.err == ""
-    assert "reported_version" not in state(a)
+    assert state(a)["reported_version"] == old
     del net.hooks[("GET", "peers")]
     assert run(a, "rename", name) == 0
-    assert state(a)["reported_version"] == pa.VERSION
+    assert state(a)["reported_version"] == "9.9.9"
 
 
 def test_no_version_fetch_when_not_logged_in(net, tmp_path, monkeypatch, capsys):

@@ -755,6 +755,20 @@ final class StateMachineTests: XCTestCase {
         XCTAssertNil(try k.core.store.setting(Core.reportedVersionKey))
     }
 
+    /// The relay server stores the version with the registration: it counts as reported, so a
+    /// later app open makes no GET /v1/peers for it.
+    func testRegistrationCountsAsVersionReport() async throws {
+        let n = try dev("Ndev")
+        try n.core.store.wipe()
+        w.script("POST", "/v1/peers", 200, "{\"id\":\"\(n.id.text)\",\"peers\":[],\"my_allow\":[]}")
+        let r = await n.core.register(ticket: "t", push: nil)
+        guard case .registered = r else { return XCTFail("expected registered, got \(r)") }
+        XCTAssertEqual(try n.core.store.setting(Core.reportedVersionKey), n.core.api.client)
+        clock.now += 61
+        await n.core.appOpen(push: nil)
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 0)
+    }
+
     func testRegisterRetriesOnceOnClockSkew() async throws {
         let n = try dev("Ndev")
         w.script("POST", "/v1/peers", 401, "{\"error\":\"clock skew\"}")

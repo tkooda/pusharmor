@@ -1,6 +1,7 @@
 package com.pusharmor.app.session
 
 import androidx.test.core.app.ApplicationProvider
+import com.pusharmor.app.BuildConfig
 import com.pusharmor.app.FakeAndroidKeyStore
 import com.pusharmor.app.PaApp
 import com.pusharmor.app.TestApp
@@ -62,6 +63,25 @@ class SessionRegisterTest {
         assertEquals(2, times.size)
         assertTrue(Math.abs(times[1] - epoch * 1000) < 5000)
         assertTrue(g.offset.offsetS in 500L..605L) // about 600 s, less the seconds the test took
+    }
+
+    /**
+     * The relay server stores the version with the registration: the app open right after it (before the
+     * login screen closes) makes no GET /peers, and the version counts as reported.
+     */
+    @Test fun registrationCountsAsVersionReport() = io {
+        g.session.keysForSignIn()
+        val k = g.keysOrNull!!
+        val id = B64url.encode(ByteArray(9) { 7 } + Ids.keyhash(k.signPub, k.encPub) + ByteArray(9))
+        val calls = mutableListOf<String>()
+        app.fakeHttp = Interceptor { chain ->
+            synchronized(calls) { calls += chain.request().method + " " + chain.request().url.encodedPath }
+            reply(chain, 200, if (chain.request().method == "POST") "{\"id\":\"$id\",\"peers\":[]}" else "{}", System.currentTimeMillis() / 1000)
+        }
+        assertTrue(g.session.onTicket("t", "a@b.c") is Session.SignIn.Done)
+        assertEquals(BuildConfig.VERSION_NAME, g.settings.get(Settings.K.REPORTED_VERSION))
+        g.session.onAppOpen(System.currentTimeMillis())
+        assertEquals(0, synchronized(calls) { calls.count { it == "GET /v1/peers" } })
     }
 
     /** A sign-in that fails leaves the "removed" banner on screen. */

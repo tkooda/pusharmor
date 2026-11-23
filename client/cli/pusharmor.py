@@ -2671,9 +2671,10 @@ def register_with(cx, code, stream, push, ntfy):
         cx.store.save_keys(k)
         with cx.store.state(fresh=True) as d:
             d.clear()
+            # reported_version: the relay server stored this version with the registration
             d.update(version=STATE_VERSION, name=default_name(), reg="registered", ntfy=ntfy, topic=cx.topic,
                      push_ok=False, since=str(int(time.time())), peers={}, pairs={}, my_allow=[], listed=[],
-                     pair_auto=[])
+                     pair_auto=[], reported_version=VERSION)
             merge_peers(d, j, k)
     except BaseException:
         undo_register(cx)
