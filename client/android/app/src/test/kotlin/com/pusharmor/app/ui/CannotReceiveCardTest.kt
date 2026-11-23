@@ -18,7 +18,9 @@ import com.pusharmor.app.data.Settings
 import com.pusharmor.app.push.UnifiedPushSupport
 import com.pusharmor.store.SelfEntity
 import com.pusharmor.app.session.Session
+import org.junit.After
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -33,6 +35,10 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34], application = TestApp::class)
 class CannotReceiveCardTest {
     private val title = "This device cannot receive messages."
+    private val registerSaved = UnifiedPushSupport.registerSaved
+    // A single fake UnifiedPush app is now registered with; no real registration in a test.
+    @Before fun noRegistration() { UnifiedPushSupport.registerSaved = { } }
+    @After fun restoreRegistration() { UnifiedPushSupport.registerSaved = registerSaved }
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()
     private fun roots(v: View): List<ViewRootForTest> = when (v) {
         is ViewRootForTest -> listOf(v)
