@@ -52,10 +52,13 @@ extension Core {
     /// Version report: on an app open or a push, one GET /v1/peers when this app version
     /// is not the one last reported. Only for a registered device that is not logged out or
     /// removed; silent. The version is stored only when the GET succeeds (fetchPeersOutcome).
+    /// At most one GET per 60 s window, shared by the app and the NSE through last_fetch_at:
+    /// a failed try, or any GET just made in the same handler, waits for a later app open or push.
     public func reportVersion(nse: Bool = false) async {
         guard let me = try? store.me(), me.id != nil, !me.loggedOut, !me.removed,
-              (try? store.setting(Core.reportedVersionKey)) != api.client else { return }
-        await fetchPeers(force: true, nse: nse)
+              (try? store.setting(Core.reportedVersionKey)) != api.client,
+              clock() - me.lastFetchAt >= 60 else { return }
+        await fetchPeers(nse: nse)
     }
 
     /// A GET /peers reply this device can use: 2xx with a JSON body.

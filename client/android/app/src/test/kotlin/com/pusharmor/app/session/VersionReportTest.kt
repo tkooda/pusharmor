@@ -1,6 +1,8 @@
 package com.pusharmor.app.session
 
 import androidx.test.core.app.ApplicationProvider
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import com.pusharmor.app.BuildConfig
 import com.pusharmor.app.FakeAndroidKeyStore
 import com.pusharmor.app.PaApp
@@ -8,6 +10,7 @@ import com.pusharmor.app.TestApp
 import com.pusharmor.app.data.Settings
 import com.pusharmor.app.keys.KeystoreKeyOps
 import com.pusharmor.app.push.PushDispatcher
+import com.pusharmor.app.work.Work
 import com.pusharmor.store.SelfEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -18,6 +21,7 @@ import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
@@ -82,10 +86,35 @@ class VersionReportTest {
         g.session.reportVersion()
         assertEquals(1, peersCalls())
         assertNull(reported())
-        // the next trigger tries again, and a success stores it
+        // the next trigger after the 60 s window tries again, and a success stores it
         status = 200
+        windowPassed()
         g.session.reportVersion()
         assertEquals(2, peersCalls())
+        assertEquals(BuildConfig.VERSION_NAME, reported())
+    }
+
+    private fun windowPassed() = g.settings.set(Settings.K.LAST_FETCH, System.currentTimeMillis() - Work.FETCH_WINDOW_MS - 1)
+
+    private fun fetchQueued() = WorkManager.getInstance(app).getWorkInfosForUniqueWork("fetch-peers").get()
+        .any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING }
+
+    @Test fun failingReportTriesAtMostOncePerWindowWithNoQueuedRetry() = io {
+        WorkManager.getInstance(app).cancelAllWork().result.get()
+        status = 503
+        repeat(5) { PushDispatcher.onPush(g, "not a message", fcm = true) }
+        g.session.onAppOpen(System.currentTimeMillis())
+        assertEquals(1, peersCalls())
+        assertNull(reported())
+        assertFalse(fetchQueued())
+        // after the window: the next push tries once more
+        windowPassed()
+        repeat(3) { PushDispatcher.onPush(g, "not a message", fcm = true) }
+        assertEquals(2, peersCalls())
+        status = 200
+        windowPassed()
+        g.session.onAppOpen(System.currentTimeMillis())
+        assertEquals(3, peersCalls())
         assertEquals(BuildConfig.VERSION_NAME, reported())
     }
 

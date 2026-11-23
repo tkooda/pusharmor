@@ -2418,8 +2418,9 @@ final class StateMachineTests: XCTestCase {
         await n.core.appOpen(push: nil)
         XCTAssertEqual(w.count("GET", "/v1/peers"), 2)
         XCTAssertEqual(try n.core.store.setting(key), n.core.api.client)
-        // a failed GET stores nothing; the next open tries again
+        // a failed GET stores nothing; the next open after the 60 s window tries again
         try n.core.store.setSetting(key, "ios/0.0.1")
+        clock.now += 100
         w.offline = true
         await n.core.appOpen(push: nil)
         XCTAssertEqual(try n.core.store.setting(key), "ios/0.0.1")
@@ -2431,6 +2432,7 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(try n.core.store.setting(key), n.core.api.client)
         // a GET that answers an error stores nothing either
         try n.core.store.setSetting(key, "ios/0.0.1")
+        clock.now += 100
         w.script("GET", "/v1/peers", 400, "{\"error\":\"bad request\"}")
         await n.core.appOpen(push: nil)
         XCTAssertEqual(try n.core.store.setting(key), "ios/0.0.1")
@@ -2453,22 +2455,52 @@ final class StateMachineTests: XCTestCase {
         let key = Core.reportedVersionKey
         let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-ver-\(UUID().uuidString)"))
         let m = String(repeating: "A", count: 400)
-        // the fetch_due fetch stays inside its 60 s window: only the version report GETs
+        // inside the 60 s window of the last GET: neither the fetch_due fetch nor the report GETs
         try x.core.store.setMe("last_fetch_at", .int(clock.now))
         // equal: no GET
         _ = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 1, budgetLeft: { 30 })
         XCTAssertEqual(w.count("GET", "/v1/peers"), 0)
-        // changed, little budget: no GET, nothing stored
+        // changed, inside the window: no GET, nothing stored
         try x.core.store.setSetting(key, "ios/0.0.1")
-        _ = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 2, budgetLeft: { 5 })
+        _ = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 2, budgetLeft: { 30 })
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 0)
+        XCTAssertEqual(try x.core.store.setting(key), "ios/0.0.1")
+        // changed, after the window, little budget: no GET, nothing stored
+        clock.now += 61
+        _ = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 3, budgetLeft: { 5 })
         XCTAssertEqual(w.count("GET", "/v1/peers"), 0)
         XCTAssertEqual(try x.core.store.setting(key), "ios/0.0.1")
         // changed: one GET, then the version is stored
-        _ = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 3, budgetLeft: { 30 })
-        XCTAssertEqual(w.count("GET", "/v1/peers"), 1)
-        XCTAssertEqual(try x.core.store.setting(key), x.core.api.client)
         _ = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 4, budgetLeft: { 30 })
         XCTAssertEqual(w.count("GET", "/v1/peers"), 1)
+        XCTAssertEqual(try x.core.store.setting(key), x.core.api.client)
+        _ = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 5, budgetLeft: { 30 })
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 1)
+    }
+
+    /// A failing version report: at most one GET /v1/peers per 60 s window, shared by the NSE
+    /// and the app through last_fetch_at, so the fetch_due fetch and the report never run back
+    /// to back and pushes in a burst do not each GET.
+    func testVersionReportFailingTriesOncePerWindow() async throws {
+        let x = try dev("Xdev")
+        let key = Core.reportedVersionKey
+        let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-ver-\(UUID().uuidString)"))
+        let m = String(repeating: "A", count: 400)
+        try x.core.store.setSetting(key, "ios/0.0.1")
+        for _ in 0 ..< 30 { w.script("GET", "/v1/peers", 503, "{\"error\":\"unavailable\"}") }
+        for i in 0 ..< 5 {
+            _ = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: Int64(10 + i), budgetLeft: { 30 })
+            clock.now += 5
+        }
+        await x.core.appOpen(push: nil)
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 1)
+        XCTAssertEqual(try x.core.store.setting(key), "ios/0.0.1")
+        // after the window: the next trigger tries once more, and a success stores the version
+        w.lock.lock(); w.scripted.removeAll(); w.lock.unlock()
+        clock.now += 61
+        await x.core.appOpen(push: nil)
+        XCTAssertEqual(w.count("GET", "/v1/peers"), 2)
+        XCTAssertEqual(try x.core.store.setting(key), x.core.api.client)
     }
 
     /// a version 4 file with a peer row opens at version 5; the row keeps its fields and has

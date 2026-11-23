@@ -123,12 +123,14 @@ class Session(private val g: Graph) {
 
     /**
      * After an app update, the first app open or push makes one GET /peers so the relay server learns this
-     * version; the version is stored when a GET /peers succeeds.
+     * version; the version is stored when a GET /peers succeeds. At most one try per 60 s window (shared with
+     * every GET /peers): a failed try waits for the next app open or push after it, with no queued retry.
      */
     fun reportVersion(inPush: Boolean = false) {
         if (g.identity() == null || s.flag(Settings.K.SIGNED_OUT, false)) return
         if (s.get(Settings.K.REPORTED_VERSION) == BuildConfig.VERSION_NAME) return
-        fetchPeers(force = true, inPush = inPush)
+        if (System.currentTimeMillis() - (s.get(Settings.K.LAST_FETCH) ?: 0) < Work.FETCH_WINDOW_MS) return
+        fetchPeers(force = true, inPush = inPush, queueRetry = false)
     }
 
     /** foss cannot serve a stored fcm push: clear it, tell once, run the distributor flow. */
@@ -427,7 +429,8 @@ class Session(private val g: Graph) {
     /** Result of the last GET /peers that did not settle, for the Refresh message. */
     @Volatile private var lastFetchFailure: ApiResult<*>? = null
 
-    fun fetchPeers(force: Boolean = false, inPush: Boolean = false): Boolean {
+    /** [queueRetry]: a failed GET in a push queues the WorkManager retry (not for the version report). */
+    fun fetchPeers(force: Boolean = false, inPush: Boolean = false, queueRetry: Boolean = true): Boolean {
         if (g.identity() == null) return true
         val now = System.currentTimeMillis()
         val last = s.get(Settings.K.LAST_FETCH) ?: 0
@@ -451,7 +454,7 @@ class Session(private val g: Graph) {
             }
             ApiResult.Network -> false
         }
-        if (!ok && inPush) Work.fetchPeers(g.app, s)
+        if (!ok && inPush && queueRetry) Work.fetchPeers(g.app, s)
         if (!ok) lastFetchFailure = r
         return ok
     }
