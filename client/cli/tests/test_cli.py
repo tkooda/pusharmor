@@ -2785,7 +2785,6 @@ def test_version_reported_once_per_change(net, tmp_path, monkeypatch, capsys):
     assert run(a, "devices") == 0
     assert net.log[n:] == [("GET", "/v1/peers")]
     assert state(a)["reported_version"] == pa.VERSION
-    n = len(net.log)
     capsys.readouterr()
     n = len(net.log)
     assert run(a, "rename", state(a)["name"]) == 0
