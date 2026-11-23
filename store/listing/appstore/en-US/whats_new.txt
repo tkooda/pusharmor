@@ -1,1 +1,1 @@
-A message with a phone number now shows a Call button instead of Open. Small reliability improvements.
+A message from a newer version of PushArmor now shows "Unknown message type, please update" in History, and the app tells you when another device runs a newer version. Small reliability improvements.
