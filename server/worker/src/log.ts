@@ -31,8 +31,10 @@ export function logLevel(v: string | undefined): Level {
 // Refusals (401/403/429) are always logged, at most REFUSAL_MAX per fixed window of REFUSAL_WINDOW_MS
 // per isolate. A window starts at the first refusal after the previous window ended. Past the
 // limit a refusal is only counted; the next log call after the window ends first emits one
-// "suppressed" summary line. IPs are kept only as prefixes (IPv4 /24, IPv6 /48).
+// "suppressed" summary line. IPs are kept only as prefixes (IPv4 /24, IPv6 /48). The IP prefix
+// and account counts keep at most KEYS_MAX keys each per window; the rest are counted as "other".
 const REFUSAL_MAX = 10;
+const KEYS_MAX = 1000;
 const REFUSAL_WINDOW_MS = 60_000;
 interface Window { start: number; n: number; supp: number; status: Record<string, number>; route: Record<string, number>; ip: Record<string, number>; account: Record<string, number> }
 let win: Window | undefined;
@@ -43,6 +45,8 @@ export const testing = {
 };
 
 const bump = (m: Record<string, number>, k: string): void => { m[k] = (m[k] ?? 0) + 1; };
+const bumpCapped = (m: Record<string, number>, k: string): void =>
+  bump(m, Object.hasOwn(m, k) || Object.keys(m).length < KEYS_MAX ? k : "other");
 const top3 = (m: Record<string, number>): Record<string, number> =>
   Object.fromEntries(Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 3));
 
@@ -171,8 +175,8 @@ export class Log {
     win.supp++;
     bump(win.status, String(this.status));
     bump(win.route, this.route);
-    if (this.ip_prefix) bump(win.ip, this.ip_prefix);
-    if (this.account) bump(win.account, this.account);
+    if (this.ip_prefix) bumpCapped(win.ip, this.ip_prefix);
+    if (this.account) bumpCapped(win.account, this.account);
   }
 }
 

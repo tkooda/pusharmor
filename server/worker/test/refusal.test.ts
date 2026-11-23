@@ -92,6 +92,19 @@ describe("refusal logging", () => {
     expect(s.ip_prefixes).toEqual({ "203.0.113.0/24": 1 });
   });
 
+  it("ip prefix and account counts keep at most 1000 keys each; the rest count as other", () => {
+    for (let i = 0; i < 10; i++) send(401);
+    for (let i = 0; i < 1000; i++) send(401, { ip: `10.${i >> 8}.${i & 255}.1`, account: `acct${i}` });
+    for (let i = 0; i < 5; i++) send(401, { ip: `10.200.${i}.1`, account: `new${i}` });
+    send(401, { ip: "10.0.0.9", account: "acct0" });
+    t += 60_000;
+    send(200);
+    const s = out[out.length - 1];
+    expect(s.suppressed).toBe(1006);
+    expect(s.ip_prefixes).toEqual({ other: 5, "10.0.0.0/24": 2, "10.0.1.0/24": 1 });
+    expect(s.accounts).toEqual({ other: 5, acct0: 2, acct1: 1 });
+  });
+
   it("ip prefixes", () => {
     expect(ipPrefix("203.0.113.9")).toBe("203.0.113.0/24");
     expect(ipPrefix("2001:0db8:0001:ffff::1")).toBe("2001:db8:1::/48");
