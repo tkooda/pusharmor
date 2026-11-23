@@ -6,7 +6,8 @@ import { createHash, generateKeyPairSync, verify } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { deflateSync } from "node:zlib";
-import { AMO_REVIEW_NOTES, PLAY_ICON, IOS_SCREENSHOT_TYPE, amoInReviewProblem, amoNotesProblems, amoRetry, ascInReviewProblem, ascRetry, ascValidBuild, amoToken, appstore, chrome, ascToken, attestationArgs, hashesName, playInReviewProblem, clearOutput, cmpVersion, commitProblems, contactProblems, http, listingProblems, playGateProblem, pngKey, readListing, releaseAssets, screenshotFiles, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncAmoPreviews, syncScreenshots, tagPlatform } from "./promote.mjs";
+import { loadPublic } from "./public.mjs";
+import { AMO_REVIEW_NOTES, AMO_WHATS_NEW, amoNotes, PLAY_ICON, IOS_SCREENSHOT_TYPE, amoInReviewProblem, amoNotesProblems, amoRetry, ascInReviewProblem, ascRetry, ascValidBuild, amoToken, appstore, chrome, ascToken, attestationArgs, hashesName, playInReviewProblem, clearOutput, cmpVersion, commitProblems, contactProblems, http, listingProblems, playGateProblem, pngKey, readListing, releaseAssets, screenshotFiles, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncAmoPreviews, syncScreenshots, tagPlatform } from "./promote.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -186,6 +187,33 @@ test("AMO listed version: approval notes from store/listing/amo/review_notes.txt
   assert.match(ff, /vf\.append\("approval_notes", readFileSync\(AMO_REVIEW_NOTES, "utf8"\)\.trim\(\)\);\n {2}await amo\("POST", "\/addon\/" \+ id \+ "\/versions\/", vf\)/);
   const check = src.slice(src.indexOf("async function check("), src.indexOf("\n}\n", src.indexOf("async function check(")));
   assert.match(check, /\.\.\.amoNotesProblems\(\)/);
+});
+
+test("AMO release notes: PATCH of version vX.Y.Z from amo/en-US/whats_new.txt, 404 retried then fails", async (t) => {
+  const real = globalThis.fetch;
+  const env = { ...process.env };
+  t.after(() => {
+    globalThis.fetch = real;
+    process.env = env;
+  });
+  process.env.MOZILLA_AMO_JWT_ISSUER = "user:1:2";
+  process.env.MOZILLA_AMO_JWT_SECRET = "s";
+  const calls = [];
+  const statuses = [404, 200];
+  globalThis.fetch = async (url, o) => (calls.push({ url, ...o }), new Response("{}", { status: statuses.shift() }));
+  const waits = [];
+  assert.equal(await amoNotes("0.0.54", async (ms) => waits.push(ms)), true);
+  assert.deepEqual(waits, [10000]);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].method, "PATCH");
+  assert.equal(calls[1].url, "https://addons.mozilla.org/api/v5/addons/addon/" + encodeURIComponent(loadPublic().mozilla_firefox_addon_id) + "/versions/v0.0.54/");
+  assert.equal(calls[1].headers["Content-Type"], "application/json");
+  assert.match(calls[1].headers.Authorization, /^JWT /);
+  assert.deepEqual(JSON.parse(calls[1].body), { release_notes: { "en-US": readFileSync(AMO_WHATS_NEW, "utf8").trim() } });
+  globalThis.fetch = async () => new Response("{}", { status: 404 });
+  await assert.rejects(amoNotes("0.0.54", async () => {}, [1, 1]), /AMO still has no version 0\.0\.54 \(HTTP 404 after 3 tries\)/);
+  globalThis.fetch = async () => new Response('{"detail":"Unauthorized"}', { status: 401 });
+  await assert.rejects(amoNotes("0.0.54", async () => {}), /HTTP 401/);
 });
 
 test("AMO: a refused credential fails with its HTTP status, not as a missing add-on", async (t) => {

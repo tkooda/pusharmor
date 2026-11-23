@@ -18,6 +18,9 @@
 //   node release/promote.mjs appstore X.Y.Z   env ASC_API_KEY_P8, ASC_API_KEY_ID, ASC_API_ISSUER_ID
 //   node release/promote.mjs chrome X.Y.Z     env TOKEN (chromewebstore)
 //   node release/promote.mjs firefox X.Y.Z    env MOZILLA_AMO_JWT_ISSUER, MOZILLA_AMO_JWT_SECRET
+//   node release/promote.mjs amo-notes X.Y.Z  env as firefox: sets the release notes
+//                                             of AMO version X.Y.Z from
+//                                             store/listing/amo/en-US/whats_new.txt
 // Each command writes short result lines to the job summary.
 import { execFileSync } from "node:child_process";
 import { createHash, createHmac, randomUUID, sign } from "node:crypto";
@@ -68,6 +71,8 @@ export const SCREENSHOTS = { play: "android", appstore: "ios" };
 // Notes for the AMO reviewers, sent with each listed version. No
 // credentials: the demo account stays in the AMO Developer Hub.
 export const AMO_REVIEW_NOTES = join(STORE_DIR, "listing", "amo", "review_notes.txt");
+// Release notes of each listed AMO version (the "amo-notes" command).
+export const AMO_WHATS_NEW = join(STORE_DIR, "listing", "amo", "en-US", "whats_new.txt");
 
 /** Problems with the AMO reviewer notes; empty passes. */
 export function amoNotesProblems(file = AMO_REVIEW_NOTES) {
@@ -1022,7 +1027,27 @@ export async function firefox(version) {
   return done("Firefox " + version + ": public zip and source submitted as a listed version; " + (await previews()));
 }
 
-const COMMANDS = { check, gate, play, "appstore-upload": appstoreUpload, appstore, chrome, firefox };
+/** Set the release notes of the AMO version X.Y.Z from AMO_WHATS_NEW. A
+ *  version that AMO does not know yet (HTTP 404, still processing after the
+ *  submit) is tried again after each of `delays` ms, then fails. */
+export async function amoNotes(version, wait = sleep, delays = [10000, 20000, 40000, 80000, 160000]) {
+  const notes = readFileSync(AMO_WHATS_NEW, "utf8").trim();
+  if (!notes || /[^\x0a\x20-\x7e]/.test(notes)) throw new Error("amo/en-US/whats_new.txt: empty or not plain ASCII");
+  const id = encodeURIComponent(loadPublic().mozilla_firefox_addon_id);
+  const amo = amoRetry((method, path, body, ok) =>
+    http(method, "https://addons.mozilla.org/api/v5/addons" + path, { headers: { Authorization: "JWT " + amoToken(process.env.MOZILLA_AMO_JWT_ISSUER, process.env.MOZILLA_AMO_JWT_SECRET), "Content-Type": "application/json" }, body, ok, timeout: AMO_TIMEOUT_MS }), wait);
+  // The "v" prefix makes AMO look the version up by number, not by id.
+  const path = "/addon/" + id + "/versions/v" + version + "/";
+  const body = JSON.stringify({ release_notes: { "en-US": notes } });
+  for (let n = 0; ; n++) {
+    if ((await amo("PATCH", path, body, [200, 404])).status === 200) return done("Firefox " + version + ": AMO release notes set");
+    if (n >= delays.length) throw new Error("Firefox " + version + ": AMO release notes not set, AMO still has no version " + version + " (HTTP 404 after " + (n + 1) + " tries)");
+    console.log("AMO: no version " + version + " yet, waiting " + delays[n] / 1000 + " s (retry " + (n + 1) + " of " + delays.length + ")");
+    await wait(delays[n]);
+  }
+}
+
+const COMMANDS = { check, gate, play, "appstore-upload": appstoreUpload, appstore, chrome, firefox, "amo-notes": amoNotes };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [cmd, version] = process.argv.slice(2);
@@ -1032,7 +1057,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     process.exit(2);
   }
   COMMANDS[cmd](version).then((r) => {
-    if (!["check", "gate", "appstore-upload"].includes(cmd)) output("clear_prerelease", clearOutput(r));
+    if (!["check", "gate", "appstore-upload", "amo-notes"].includes(cmd)) output("clear_prerelease", clearOutput(r));
   }, (e) => {
     summary("- " + cmd + " " + version + ": FAILED: " + e.message.split("\n")[0].slice(0, 300));
     console.error(e.message);

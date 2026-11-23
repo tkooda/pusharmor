@@ -121,7 +121,7 @@ step right before the review submission:
 | `play`     | `pusharmor-X.Y.Z-play.aab` of the release uploaded (skipped when Play has the versionCode) and sent to production, status completed, in one edit; listing text and phone screenshots |
 | `appstore` | (macOS) `pusharmor-X.Y.Z.ipa` of the release uploaded with `xcrun altool` (skipped when App Store Connect has the build), waits up to 40 minutes for processing; the build on the version page X.Y.Z (an unsubmitted version page of an older version is renamed to X.Y.Z, not duplicated), version page text, app name, subtitle, privacy URL, 6.9-inch screenshots; submits for App Review, release after approval |
 | `chrome`   | `pusharmor-chrome-X.Y.Z-store.zip` of the release (hash and build attestation checked) to the public item, then publish (live after review) |
-| `firefox`  | `pusharmor-firefox-X.Y.Z.zip` and the source archive of the release (hash and build attestation checked) to the listed add-on as a new listed version, with the reviewer notes of `store/listing/amo/review_notes.txt`; then replaces the listing previews with `store/screenshots/amo/en-US/` (uploads them, then deletes the old ones) |
+| `firefox`  | `pusharmor-firefox-X.Y.Z.zip` and the source archive of the release (hash and build attestation checked) to the listed add-on as a new listed version, with the reviewer notes of `store/listing/amo/review_notes.txt`; then replaces the listing previews with `store/screenshots/amo/en-US/` (uploads them, then deletes the old ones); then sets the release notes of the version from `store/listing/amo/en-US/whats_new.txt` (`amo-notes`) |
 
 Hard gate: nothing goes to Play until BOTH repository variables
 `PLAY_CONTACT_OK` and `PLAY_PUBLIC_OK` are `yes` (Settings > Secrets and
@@ -157,7 +157,8 @@ project or company domains. Promote never sets or overwrites a contact field
 API (the test checks the payloads). Contact details, the App Review contact
 and demo account, tester lists, the age rating, App Privacy and Data safety stay in the
 store consoles. Chrome Web Store and AMO listing text stays in their
-dashboards. The AMO reviewer notes (`store/listing/amo/review_notes.txt`)
+dashboards; the AMO release notes of each version come from
+`store/listing/amo/en-US/whats_new.txt`. The AMO reviewer notes (`store/listing/amo/review_notes.txt`)
 name no credentials; enter the demo account for the AMO reviewers in the
 Developer Hub.
 

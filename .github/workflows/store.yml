@@ -297,3 +297,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release edit "firefox/v$VERSION" --repo "$GITHUB_REPOSITORY" --prerelease=false
+      # The release notes of the version from
+      # store/listing/amo/en-US/whats_new.txt (waits while AMO processes it).
+      - name: Set the AMO release notes
+        if: steps.promote.outputs.clear_prerelease == 'true'
+        env:
+          MOZILLA_AMO_JWT_ISSUER: ${{ secrets.MOZILLA_AMO_JWT_ISSUER }}
+          MOZILLA_AMO_JWT_SECRET: ${{ secrets.MOZILLA_AMO_JWT_SECRET }}
+        run: node release/promote.mjs amo-notes "$VERSION"

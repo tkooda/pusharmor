@@ -1,0 +1,1 @@
+A message from a newer version of PushArmor now shows "Unknown message type, please update" in History, and the extension tells you when another device runs a newer version. Small reliability improvements.
