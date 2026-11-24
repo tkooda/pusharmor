@@ -277,7 +277,7 @@ extension AppModel {
         guard let id = sendingFile else { return }
         if let f = pendingSends.first(where: { $0.id == id }) {
             let total = f.size + Int64(FileCrypto.overhead)
-            if f.state == "uploading", let b = fileBytes[id], total > 0 { sendStep = SendProgress.encrypted + Int(min(b * 75 / total, 75)) }
+            if f.state == "uploading", let b = fileBytes[id], total > 0 { sendStep = max(sendStep, SendProgress.encrypted + Int(min(b * 75 / total, 75))) }
             if f.state == "uploaded" || f.state == "sending" { sendStep = 100 }
             if f.state != "failed" { return }
         }

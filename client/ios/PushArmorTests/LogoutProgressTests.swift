@@ -38,6 +38,7 @@ final class LogoutProgressTests: XCTestCase {
         XCTAssertEqual(Core.refreshSteps, 5)
         let src = try source("App/Views/PeersView.swift")
         XCTAssertTrue(src.contains("ProgressView(value: Double(model.refreshDone), total: Double(Core.refreshSteps))\n                                    .progressViewStyle(.linear)"))
+        XCTAssertTrue(src.contains(".frame(width: 44)\n                                    .accessibilityLabel(S.stepUpdatingDevices)"))
         XCTAssertTrue(src.contains("Text(S.stepUpdatingDevices)"))
         let model = try source("App/AppModel.swift")
         XCTAssertTrue(model.contains("refreshDone = 0"))

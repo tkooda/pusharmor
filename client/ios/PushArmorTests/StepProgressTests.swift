@@ -46,7 +46,7 @@ final class StepProgressTests: XCTestCase {
 
     func testFileSendBarFollowsTheBytesSent() throws {
         let app = try source("App/FileModel.swift")
-        XCTAssertTrue(app.contains("sendStep = SendProgress.encrypted + Int(min(b * 75 / total, 75))"))
+        XCTAssertTrue(app.contains("sendStep = max(sendStep, SendProgress.encrypted + Int(min(b * 75 / total, 75)))"))
         XCTAssertTrue(app.contains("if f.state == \"uploaded\" || f.state == \"sending\" { sendStep = 100 }"))
         XCTAssertFalse(app.contains("sendStep = 95"))
         XCTAssertTrue(try source("Share/ShareViewController.swift").contains("SendProgress.encrypted + Int(min(done * 75 / total, 75))"))

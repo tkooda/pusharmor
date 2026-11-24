@@ -86,6 +86,7 @@ struct PeersView: View {
                                 ProgressView(value: Double(model.refreshDone), total: Double(Core.refreshSteps))
                                     .progressViewStyle(.linear)
                                     .frame(width: 44)
+                                    .accessibilityLabel(S.stepUpdatingDevices)
                                 Text(S.stepUpdatingDevices)
                                     .font(.caption)
                                     .foregroundColor(.secondaryText)
