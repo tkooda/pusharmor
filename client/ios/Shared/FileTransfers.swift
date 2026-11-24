@@ -143,31 +143,56 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
         lock.unlock()
     }
 
+    /// This process's tag in the names of the completions it claims.
+    private static let processTag = UUID().uuidString
+    /// A claimed completion of another process older than this is taken as left by a process that ended.
+    static let claimStaleSeconds: TimeInterval = 10 * 60
+
     /// Applies the kept completions (app launch, catch-up): downloads need the store, uploads the
-    /// core. Each file is claimed by a rename first (claimed-<uuid>.json), so a hold written while
-    /// this runs is applied next time, never lost; a claimed file a crashed run left is applied too.
+    /// core. Each held-* file is claimed by a rename into this process's name
+    /// (claimed-<process>-<uuid>.json) and deleted only after its completion is applied, so a crash
+    /// in between leaves it for the next launch. A claimed file of another process is recovered only
+    /// when it is older than claimStaleSeconds. Applying a completion twice changes nothing (the
+    /// record must still wait for that very task).
     private func applyHeld(core: Core) {
         applyLock.lock()
         defer { applyLock.unlock() }
         lock.lock()
-        var all = held
+        let memory = held
         held = []
         lock.unlock()
+        for e in memory { applyEnded(e, core: core) }
         let fm = FileManager.default
+        let mine = Self.claimedPrefix + Self.processTag + "-"
         let names = (try? fm.contentsOfDirectory(atPath: dir.path)) ?? []
-        for n in names where n.hasPrefix(Self.heldPrefix) || n.hasPrefix(Self.claimedPrefix) {
-            let claimed = dir.appendingPathComponent(Self.claimedPrefix + UUID().uuidString + ".json")
-            guard (try? fm.moveItem(at: dir.appendingPathComponent(n), to: claimed)) != nil else { continue }
-            if let d = try? Data(contentsOf: claimed), let e = try? JSONDecoder().decode(Ended.self, from: d) { all.append(e) }
-            try? fm.removeItem(at: claimed)
-        }
-        for e in all {
-            if e.upload {
-                uploadEnded(e, core: core)
-            } else {
-                try? core.store.fileTaskEnded(e.id, task: e.task, status: e.status, body: e.body, blobArrived: e.arrived,
-                                              received: e.received, resumable: e.resumable, notCounted: e.takenOver)
+        var claimed: [URL] = []
+        for n in names {
+            let u = dir.appendingPathComponent(n)
+            if n.hasPrefix(mine) { claimed.append(u); continue }
+            if n.hasPrefix(Self.claimedPrefix) {
+                let at = (try? fm.attributesOfItem(atPath: u.path))?[.modificationDate] as? Date
+                guard let t = at, Date().timeIntervalSince(t) > Self.claimStaleSeconds else { continue }
+            } else if !n.hasPrefix(Self.heldPrefix) {
+                continue
             }
+            let c = dir.appendingPathComponent(mine + UUID().uuidString + ".json")
+            guard (try? fm.moveItem(at: u, to: c)) != nil else { continue }
+            // a fresh claim time, so no other process takes it as stale while it is applied
+            try? fm.setAttributes([.modificationDate: Date()], ofItemAtPath: c.path)
+            claimed.append(c)
+        }
+        for c in claimed {
+            if let d = try? Data(contentsOf: c), let e = try? JSONDecoder().decode(Ended.self, from: d) { applyEnded(e, core: core) }
+            try? fm.removeItem(at: c)
+        }
+    }
+
+    private func applyEnded(_ e: Ended, core: Core) {
+        if e.upload {
+            uploadEnded(e, core: core)
+        } else {
+            try? core.store.fileTaskEnded(e.id, task: e.task, status: e.status, body: e.body, blobArrived: e.arrived,
+                                          received: e.received, resumable: e.resumable, notCounted: e.takenOver)
         }
     }
 
