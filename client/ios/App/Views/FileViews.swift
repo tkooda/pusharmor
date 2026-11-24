@@ -9,7 +9,7 @@ import PushArmorCore
 /// system, never read into memory here).
 struct FileSaver: UIViewControllerRepresentable {
     let url: URL
-    /// The picker closed: nil when saved or cancelled, else the error.
+    /// The picker closed: nil when saved, else the error (userCancelled when cancelled).
     let onDone: (Error?) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(onDone: onDone) }
@@ -31,7 +31,7 @@ struct FileSaver: UIViewControllerRepresentable {
             onDone(urls.isEmpty ? CocoaError(.fileWriteUnknown) : nil)
         }
 
-        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) { onDone(nil) }
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) { onDone(CocoaError(.userCancelled)) }
     }
 }
 
@@ -72,7 +72,12 @@ struct FileRowDetail: View {
         .sheet(isPresented: $saving) {
             FileSaver(url: model.plainURL(file)) { e in
                 saving = false
-                if let e = e, let t = ErrorCopy.saveFailText(e) { model.toast = t }
+                if let e = e {
+                    if let t = FileUi.saveFailed(file.name, e) { model.toast = t }
+                } else {
+                    model.toast = FileUi.saved(file.name)
+                    model.toastIsSuccess = true
+                }
             }
             .ignoresSafeArea()
         }
@@ -187,7 +192,7 @@ struct FileRowDetail: View {
                 // a file that cannot be read says so at once
                 if FileManager.default.isReadableFile(atPath: url.path) {
                     saving = true
-                } else if let t = ErrorCopy.saveFailText(CocoaError(.fileReadNoSuchFile)) {
+                } else if let t = FileUi.saveFailed(file.name, CocoaError(.fileReadNoSuchFile)) {
                     model.toast = t
                 }
             } label: { ActionLabel(title: "Save", icon: "square.and.arrow.down") }
@@ -197,7 +202,7 @@ struct FileRowDetail: View {
 
     private func copyImage(_ url: URL) {
         guard let img = UIImage(contentsOfFile: url.path) else {
-            model.toast = ToastText.copyFailed
+            model.toast = FileUi.copyFailed(file.name)
             return
         }
         UIPasteboard.general.image = img

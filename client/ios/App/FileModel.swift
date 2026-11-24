@@ -181,7 +181,7 @@ extension AppModel {
                 case nil:
                     // the store could not record the failure: no automatic try again
                     self.decryptSkip.insert(id)
-                    self.toast = FileUi.openFailed
+                    self.toast = FileUi.openFailed(name)
                 default: break
                 }
                 self.reload()

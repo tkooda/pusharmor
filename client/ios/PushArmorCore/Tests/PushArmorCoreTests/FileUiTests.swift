@@ -19,8 +19,18 @@ final class FileUiTests: XCTestCase {
         XCTAssertEqual(FileUi.noMemoryToast("a.png"), "Not enough memory to decrypt \"a.png\"")
         XCTAssertEqual(FileUi.tooLarge("a.png"), "\"a.png\" is too large to send")
         XCTAssertEqual(FileUi.unreadable("a.png"), "Unable to read \"a.png\"")
-        XCTAssertEqual(FileUi.sending(to: ["Laptop"]), "Sending file to \"Laptop\"...")
-        XCTAssertEqual(FileUi.sending(to: ["Laptop", "Phone"]), "Sending file to:")
+        XCTAssertEqual(FileUi.sending("a.png", to: ["Laptop"]), "Sending \"a.png\" to \"Laptop\"...")
+        XCTAssertEqual(FileUi.sending("a.png", to: ["Laptop", "Phone"]), "Sending \"a.png\" to:")
+        XCTAssertEqual(FileUi.openFailed("a.png"), "Unable to decrypt \"a.png\"\nTry again")
+        XCTAssertEqual(FileUi.saved("a.png"), "Saved \"a.png\"")
+        XCTAssertEqual(FileUi.copyFailed("a.png"), "Unable to copy \"a.png\"")
+        // Save: a cancel shows nothing; a full disk gives the reason on a second line
+        XCTAssertNil(FileUi.saveFailed("a.png", CocoaError(.userCancelled)))
+        XCTAssertEqual(FileUi.saveFailed("a.png", CocoaError(.fileWriteOutOfSpace)),
+                       "Unable to save \"a.png\"\nStorage is full. Free some space and try again")
+        XCTAssertEqual(FileUi.saveFailed("a.png", CocoaError(.fileWriteUnknown)), "Unable to save \"a.png\"")
+        struct OtherError: Error {}
+        XCTAssertEqual(FileUi.saveFailed("a.png", OtherError()), "Unable to save \"a.png\"")
         XCTAssertEqual(S.notEnoughMemory, "Not enough memory to decrypt")
     }
 
@@ -108,7 +118,8 @@ final class FileUiTests: XCTestCase {
         XCTAssertEqual(st(rec("blob")), .decrypting)
         XCTAssertEqual(st(rec("ready")), .decrypting)
         XCTAssertEqual(st(rec("ready", code: "memory", error: S.notEnoughMemory)), .noMemory)
-        XCTAssertEqual(st(rec("ready", code: "failed", error: FileUi.openFailed)), .decryptFailed(text: FileUi.openFailed))
+        XCTAssertEqual(st(rec("ready", code: "failed", error: FileUi.openFailed("a.pdf"))), .decryptFailed(text: FileUi.openFailed("a.pdf")))
+        XCTAssertEqual(st(rec("ready", code: "failed")), .decryptFailed(text: "Unable to decrypt \"a.pdf\"\nTry again"))
         let full = FileRules.storageFullText(upload: false, name: "a.pdf")
         XCTAssertEqual(st(rec("ready", code: "storage", error: full)), .decryptFailed(text: full))
         XCTAssertEqual(st(rec("done"), plain: true), .ready)

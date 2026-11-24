@@ -23,7 +23,7 @@ final class FileScreensTests: XCTestCase {
         XCTAssertTrue(src.contains("if let c = chosen {\n                fileCard(c)"))
         XCTAssertTrue(src.contains(".accessibilityLabel(FileUi.removeFile)"))
         XCTAssertTrue(src.contains("guard Int64(size) <= FileRules.maxFile else {\n            model.toast = FileUi.tooLarge(name)"))
-        XCTAssertTrue(src.contains("sendCaption = FileUi.sending(to: sendNames)"))
+        XCTAssertTrue(src.contains("sendCaption = FileUi.sending(c.name, to: sendNames)"))
     }
 
     /// Settings: the helper text above both pickers, then the storage limit and its helper.
@@ -59,7 +59,10 @@ final class FileScreensTests: XCTestCase {
         XCTAssertTrue(views.contains("case .decryptFailed(let text):"))
         XCTAssertTrue(views.contains("model.toast = FileUi.noApp(file.name)"))
         XCTAssertTrue(views.contains("UIDocumentPickerViewController(forExporting: [url], asCopy: true)"))
-        XCTAssertTrue(views.contains("if let e = e, let t = ErrorCopy.saveFailText(e) { model.toast = t }"))
+        XCTAssertTrue(views.contains("if let t = FileUi.saveFailed(file.name, e) { model.toast = t }"))
+        XCTAssertTrue(views.contains("model.toast = FileUi.saved(file.name)"))
+        XCTAssertTrue(views.contains("model.toast = FileUi.copyFailed(file.name)"))
+        XCTAssertTrue(views.contains("onDone(CocoaError(.userCancelled))"))
         XCTAssertTrue(model.contains("return !AppModel.historyShown.on"))
     }
 

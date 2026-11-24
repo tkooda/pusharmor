@@ -299,9 +299,9 @@ extension Core {
                 f.error = FileRules.storageFullText(upload: false, name: f.name)
             } else {
                 f.code = FileRules.FinalCode.failed.rawValue
-                f.error = FileUi.openFailed
+                f.error = FileUi.openFailed(f.name)
             }
-            result = .failed(f.error ?? FileUi.openFailed)
+            result = .failed(f.error ?? FileUi.openFailed(f.name))
         }
         f.decryptMark = nil
         try store.saveFile(f)

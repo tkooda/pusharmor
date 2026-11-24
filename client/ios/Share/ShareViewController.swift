@@ -161,7 +161,7 @@ final class ShareModel: ObservableObject {
         let allCount = all.count
         let chosen = all.filter { ids.contains($0.id) }
         sendNames = PeerLabel.sorted(chosen).map { PeerLabel.label($0) }
-        sendCaption = FileUi.sending(to: sendNames)
+        sendCaption = FileUi.sending(f.name, to: sendNames)
         sendStep = 0
         sendRetry = 0
         popup = true

@@ -181,7 +181,7 @@ enum ScreenshotSample {
         try add(.incoming, desktop, "slides.key", 48_200_000, "failed", at: clock - 4200, code: "failed",
                 error: FileRules.downloadFailed, expires: now + 6 * 3600)
         try add(.incoming, desktop, "Site backup.zip", 30_200_000, "ready", at: clock - 3600, code: "failed",
-                error: FileUi.openFailed, expires: now + 10 * 3600)
+                error: FileUi.openFailed("Site backup.zip"), expires: now + 10 * 3600)
         try add(.outgoing, laptop, "notes.txt", 12_400, "sent", at: clock - 3000, expires: now + 23 * 3600)
         try add(.incoming, laptop, "Trail map.pdf", 64_500_000, "pending", at: clock - 60, expires: now + 3 * 3600 + 600)
         var s = FileRecord(dir: .outgoing, key: "k", name: "photo.jpg", size: 2_600_000, state: "uploading", created: now)

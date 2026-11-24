@@ -568,7 +568,7 @@ struct ComposeView: View {
                     let sel = selected
                     let chosenPeers = all ? model.allSet : candidates.filter { selected.contains($0.id.text) && enabled($0) }
                     sendNames = PeerLabel.sorted(chosenPeers).map { model.label($0) }
-                    sendCaption = FileUi.sending(to: sendNames)
+                    sendCaption = FileUi.sending(c.name, to: sendNames)
                     Task {
                         // the upload started: the file clears; the result comes as the toast
                         if await RecipientMemory.send(sel, { await model.sendFile(c.url, name: c.name, scoped: c.scoped, toAll: all, peerIds: ids) }) {

@@ -18,16 +18,27 @@ public enum FileUi {
     /// A pasted image while the message box holds text: one type per message.
     public static let pasteImageClear = "Clear the message to add a file"
     /// A decrypt that could not run (not a damaged file and not short of memory).
-    public static let openFailed = "Unable to open this file.\nTry again."
+    public static func openFailed(_ name: String) -> String { "Unable to decrypt \"" + name + "\"\nTry again" }
 
     public static func noMemoryToast(_ name: String) -> String { "Not enough memory to decrypt \"" + name + "\"" }
     public static func tooLarge(_ name: String) -> String { "\"" + name + "\" is too large to send" }
     public static func unreadable(_ name: String) -> String { "Unable to read \"" + name + "\"" }
     public static func noApp(_ name: String) -> String { "No app can open \"" + name + "\"" }
+    public static func saved(_ name: String) -> String { "Saved \"" + name + "\"" }
+    public static func copyFailed(_ name: String) -> String { "Unable to copy \"" + name + "\"" }
+
+    /// The toast after Save, nil when the user cancelled: a full disk says so on a second line.
+    public static func saveFailed(_ name: String, _ e: Error) -> String? {
+        let code = (e as? CocoaError)?.code
+        if code == .userCancelled { return nil }
+        let head = "Unable to save \"" + name + "\""
+        return code == .fileWriteOutOfSpace ? head + "\nStorage is full. Free some space and try again" : head
+    }
 
     /// The send popup caption: one device named, else a header over the list.
-    public static func sending(to names: [String]) -> String {
-        names.count > 1 ? "Sending file to:" : "Sending file to " + (names.first.map { S.quoted($0) } ?? "") + "..."
+    public static func sending(_ name: String, to names: [String]) -> String {
+        let head = "Sending \"" + name + "\" to"
+        return names.count > 1 ? head + ":" : head + " " + (names.first.map { S.quoted($0) } ?? "") + "..."
     }
 
     // MARK: auto-download
@@ -222,7 +233,7 @@ public enum FileUi {
                 : .failed(text: removed, download: true, expires: exp)
         }
         if f.code == "memory" { return .noMemory }
-        if f.state == "ready", f.code != nil { return .decryptFailed(text: f.error ?? openFailed) }
+        if f.state == "ready", f.code != nil { return .decryptFailed(text: f.error ?? openFailed(f.name)) }
         // past expires by the local clock, a file not on this device has no Download button
         let gone = nowSec >= expires
         if f.state == "failed" {
