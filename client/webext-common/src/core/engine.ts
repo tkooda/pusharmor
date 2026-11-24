@@ -367,7 +367,7 @@ export class Engine {
     }
     if (src === "returned" && r.content.type !== "approve") return;
     if (r.outcome !== "accept") {
-      if (r.outcome === "represent" && r.content.type === "unknown") return; // an unknown type never notifies
+      if (r.outcome === "represent" && (r.content.type === "unknown" || r.content.type === "file")) return; // an unknown type never notifies
       if (r.outcome === "invalid") return this.dropEvent("invalid", r.from, src);
       if (r.outcome === "noop") {
         if (src === "push" && this.penalized) await this.representControl(r.content, r.from);
@@ -382,7 +382,7 @@ export class Engine {
     if (src === "fetched" && !(c.type === "remove" && c.id === onlyRemove)) return;
     const peer = (await this.db.peer(r.from))!;
     const pidB64 = b64urlEncode(r.pin.pairing_id);
-    const row = c.type === "url" || c.type === "text" || c.type === "tel" ? this.inboundRow(peer, c.type, c.value, r.n, pidB64, c.id ?? null) : c.type === "unknown" ? this.unknownRow(peer, c.key, r.n, pidB64, c.id) : null;
+    const row = c.type === "url" || c.type === "text" || c.type === "tel" ? this.inboundRow(peer, c.type, c.value, r.n, pidB64, c.id ?? null) : c.type === "unknown" ? this.unknownRow(peer, c.key, r.n, pidB64, c.id) : c.type === "file" ? this.unknownRow(peer, "file", r.n, pidB64, c.id ?? null) : null; // a file shows as an unknown row until this client shows files
     // approve: the peer-row change commits with the replay record
     const peerFn = c.type === "approve" ? approveRow(r.n, r.name, r.pin.pairing_id) : undefined;
     const rec = await this.db.acceptN(r.from, pidB64, r.n, row, (s) => replayCheck(s, r.n), (s) => replayRecord(s, r.n), true, peerFn);
@@ -456,6 +456,7 @@ export class Engine {
         return;
       }
       case "unknown":
+      case "file":
         await this.updateBadge(); // the badge as for text; no notification
         return;
       case "approve": {

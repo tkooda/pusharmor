@@ -26,6 +26,7 @@ export type Content =
   | { type: "url"; value: string; id?: string | null }
   | { type: "text"; value: string; id?: string | null }
   | { type: "tel"; value: string; id?: string | null }
+  | { type: "file"; value: FileValue; id?: string | null }
   | { type: "approve"; entry: NameEntry }
   | { type: "rename"; entry: NameEntry }
   | { type: "deny" }
@@ -35,6 +36,16 @@ export type Content =
   | { type: "login" }
   | { type: "del"; ids: string[] }
   | { type: "unknown"; key: string; id: string | null }; // a content message of a type or format version this client does not know
+
+/** A file message: url and expires from the upload reply, the 43-char b64url file key, the name, the plaintext size, and the sha256 of the blob. */
+export interface FileValue {
+  url: string;
+  expires: number;
+  key: string;
+  name: string;
+  size: number;
+  sha256: string;
+}
 
 export type ContentType = Content["type"];
 export const CONTROL_TYPES: ReadonlySet<ContentType> = new Set([
@@ -52,6 +63,7 @@ const TYPE_KEYS: readonly string[] = [
   "url",
   "text",
   "tel",
+  "file",
   "approve",
   "deny",
   "remove",
@@ -64,13 +76,21 @@ const TYPE_KEYS: readonly string[] = [
 
 /** JSON {"v": 1, "n": n, "id": id, "show": true (content only), type: value}; every message gets a fresh id unless a content message brings its own. */
 export function buildJson(n: number, c: Content): string {
-  const mid = (c.type === "url" || c.type === "text" || c.type === "tel") && c.id ? c.id : newMsgId();
+  const mid = (c.type === "url" || c.type === "text" || c.type === "tel" || c.type === "file") && c.id ? c.id : newMsgId();
   const head = '{"v":1,"n":' + nStr(n) + ',"id":' + JSON.stringify(mid);
   switch (c.type) {
     case "url":
     case "text":
     case "tel":
       return head + ',"show":true,' + JSON.stringify(c.type) + ":" + JSON.stringify(c.value) + "}";
+    case "file": {
+      const f = c.value;
+      return (
+        head +
+        ',"show":true,"file":{"url":' + JSON.stringify(f.url) + ',"expires":' + uintStr(f.expires) + ',"key":' + JSON.stringify(f.key) +
+        ',"name":' + JSON.stringify(f.name) + ',"size":' + uintStr(f.size) + ',"sha256":' + JSON.stringify(f.sha256) + "}}"
+      );
+    }
     case "approve":
     case "rename":
       return head + ',"' + c.type + '":' + nameEntryJson(c.entry) + "}";
@@ -81,6 +101,11 @@ export function buildJson(n: number, c: Content): string {
     default:
       return head + ',"' + c.type + '":1}';
   }
+}
+
+function uintStr(x: number): string {
+  if (!Number.isSafeInteger(x) || x < 0) throw new Error("bad integer");
+  return String(x);
 }
 
 function nameEntryJson(e: NameEntry): string {
@@ -268,6 +293,11 @@ export function parseInnerJson(bytes: Uint8Array): ParsedJson | null {
     case "tel":
       if (typeof val !== "string" || utf8Len(val) > CONTENT_CAP) return null;
       return { n, v: ver, content: isMsgId(v.id) ? { type: t, value: val, id: v.id } : { type: t, value: val } };
+    case "file": {
+      const f = parseFileValue(val);
+      if (!f) return null;
+      return { n, v: ver, content: isMsgId(v.id) ? { type: "file", value: f, id: v.id } : { type: "file", value: f } };
+    }
     case "approve":
     case "rename": {
       const entry = parseEntry(val);
@@ -288,6 +318,29 @@ export function parseInnerJson(bytes: Uint8Array): ParsedJson | null {
       if (!(val instanceof JNum) || val.raw !== "1") return null;
       return { n, v: ver, content: { type: t as "deny" | "delete" | "logout" | "login" } };
   }
+}
+
+/** A JSON integer token 0 .. 2^53 - 1, else null. */
+function uintOf(v: JValue | undefined): number | null {
+  if (!(v instanceof JNum) || !/^(0|[1-9][0-9]{0,15})$/.test(v.raw)) return null;
+  const x = Number(v.raw);
+  return x <= Number.MAX_SAFE_INTEGER ? x : null;
+}
+
+/** 43 chars of b64url holding 32 bytes. */
+function isB64_32(v: JValue | undefined): v is string {
+  return typeof v === "string" && v.length === 43 && b64urlTryDecode(v)?.length === 32;
+}
+
+/** The file object; unknown fields are ignored; null when a field is missing or malformed. */
+function parseFileValue(v: JValue | undefined): FileValue | null {
+  if (!isObject(v)) return null;
+  const { url, key, name, sha256 } = v;
+  const expires = uintOf(v.expires);
+  const size = uintOf(v.size);
+  if (typeof url !== "string" || utf8Len(url) > CONTENT_CAP || typeof name !== "string" || utf8Len(name) > CONTENT_CAP) return null;
+  if (expires === null || size === null || !isB64_32(key) || !isB64_32(sha256)) return null;
+  return { url, expires, key, name, size, sha256 };
 }
 
 export async function inflateInner(p: InnerPlain): Promise<Uint8Array | null> {
