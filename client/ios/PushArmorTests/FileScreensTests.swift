@@ -53,6 +53,13 @@ final class FileScreensTests: XCTestCase {
         XCTAssertTrue(views.contains(".quickLookPreview($preview)"))
     }
 
+    /// A deleted file row takes its file off this device at once (not only at the next launch).
+    func testRowDeleteRemovesTheFile() throws {
+        let src = try source("App/AppModel.swift")
+        let del = src.components(separatedBy: "func deleteRows(")[1].components(separatedBy: "func copy(")[0]
+        XCTAssertTrue(del.contains("try? core.pruneFiles(dir: filesDir)\n            reload()"))
+    }
+
     /// Share sheet: one photo, video, or file opens it; a file sends with the popup on the upload,
     /// and Close leaves the upload to finish in the background.
     func testShareSheetFiles() throws {

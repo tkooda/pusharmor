@@ -1066,6 +1066,8 @@ final class AppModel: ObservableObject {
                 }) { toast = t }
             } catch { toast = ErrorCopy.deleteFailText(.deleteOnThisDevice, error) }
             deleteProgress = nil
+            // a deleted file row takes its file off this device
+            try? core.pruneFiles(dir: filesDir)
             reload()
         }
     }
