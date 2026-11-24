@@ -117,7 +117,7 @@ object InnerMessage {
     fun bytesForChars(chars: Int): Int = chars * 3 / 4
 
     /** Where [jsonOf] gets a fresh message id; tests may set a fixed one. */
-    @Volatile var newMsgId: () -> String = { MessageBody.newId() }
+    @Volatile internal var newMsgId: () -> String = { MessageBody.newId() }
 
     /** {"v":1,"n","id","show" (content only), type key}; [id]: the message id, else a fresh one. */
     fun jsonOf(n: Long, body: MessageBody, id: String = body.msgId ?: newMsgId()): String {

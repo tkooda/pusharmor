@@ -16,7 +16,9 @@ import okhttp3.Interceptor
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.SocketPolicy
+import okhttp3.ResponseBody.Companion.asResponseBody
 import okio.Buffer
+import okio.buffer
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -51,7 +53,7 @@ class FileClientTest {
     private fun blobFile(bytes: ByteArray) = File(dir, "blob").also { it.writeBytes(bytes) }
 
     private fun created(url: String = "https://b2file.pusharmor.com/v1/202611230347/3f9a1c5e7b2d4a60/202611230347-0123456789abcdef0123456789abcdef", expires: Long = clock / 1000 + 3600) =
-        MockResponse().setResponseCode(201).setBody("{\"id\":\"202611230347-0123456789abcdef0123456789abcdef\",\"expires\":$expires,\"url\":\"$url\",\"quota\":{}}")
+        MockResponse().setResponseCode(201).setBody("{\"id\":\"202611230347-0123456789abcdef0123456789abcdef\",\"expires\":$expires,\"url\":\"$url\",\"quota\":{\"day\":{\"used\":3,\"limit\":20,\"resets_at\":1795392000},\"month\":{\"used\":9,\"limit\":100}}}")
 
     private fun status(code: Int, body: String = "{}") = MockResponse().setResponseCode(code).setBody(body)
 
@@ -86,6 +88,8 @@ class FileClientTest {
         val r = client.upload(blob, sha, send)
         assertEquals("202611230347-0123456789abcdef0123456789abcdef", r.id)
         assertEquals(send, r.sendId)
+        assertEquals(QuotaWindow(3, 20, 1795392000), r.day)
+        assertNull(r.month) // no resets_at
         val times = HashSet<String>()
         repeat(3) {
             val req = server.takeRequest()
@@ -208,6 +212,27 @@ class FileClientTest {
         server.enqueue(MockResponse().setBody(Buffer().write(blobBytes)).setSocketPolicy(SocketPolicy.DISCONNECT_DURING_RESPONSE_BODY))
         assertEquals(FileClient.Fetch.Retry(null), client.fetch(ref(), "a.pdf", part))
         assertTrue(part.length() < 1000)
+    }
+
+    /** A read error met while stopping is a stop: the bytes that arrived do not cost an attempt. */
+    @Test fun aReadErrorWhileStoppingIsAStop() {
+        var stopNow = false
+        val c = FileClient({ keys }, { id }, offset, server.url("/"), FileClient.defaultHttp().newBuilder().addInterceptor(Interceptor { chain ->
+            val src = object : okio.Source {
+                var sent = false
+                override fun read(sink: Buffer, byteCount: Long): Long {
+                    if (!sent) { sent = true; sink.write(blobBytes, 0, 100); return 100 }
+                    stopNow = true
+                    throw java.io.IOException("socket closed")
+                }
+                override fun timeout() = okio.Timeout.NONE
+                override fun close() {}
+            }
+            okhttp3.Response.Builder().request(chain.request()).protocol(okhttp3.Protocol.HTTP_1_1).code(200).message("OK")
+                .body(src.buffer().asResponseBody(null, 1000)).build()
+        }).build(), { clock }, { })
+        assertEquals(FileClient.Fetch.Stopped, c.fetch(ref(), "a.pdf", part) { stopNow })
+        assertEquals(100L, part.length())
     }
 
     @Test fun wrongLengthIsDamaged() {

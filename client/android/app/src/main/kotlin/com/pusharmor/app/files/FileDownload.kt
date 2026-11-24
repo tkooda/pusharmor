@@ -33,10 +33,17 @@ class FileDownload(
         data class Final(val code: FinalCode, val text: String?) : Run()
     }
 
-    /** [name]: the sanitized name; [manual]: a tap on Download (one GET even after expires; the automatic count starts again). */
-    fun run(key: String, f: FileValue, name: String, manual: Boolean, stopped: () -> Boolean = { false }): Run {
+    /**
+     * [name]: the sanitized name. A tap on Download is recorded with [FileStore.markManual] before the job is
+     * queued; the run that takes it sends one GET even after expires and starts the automatic count again. Runs
+     * of one file never overlap: a second run waits for the first.
+     */
+    fun run(key: String, f: FileValue, name: String, stopped: () -> Boolean = { false }): Run = store.locked(key) { runLocked(key, f, name, stopped) }
+
+    private fun runLocked(key: String, f: FileValue, name: String, stopped: () -> Boolean): Run {
         var s = store.state(key)
-        if (s.downloaded) return Run.Done
+        if (s.downloaded) { store.clearManual(key); return Run.Done }
+        val manual = store.manualPending(key)
         if (manual) s = s.copy(attempts = Attempts(), redownloaded = false, code = null, text = null)
         else {
             if (s.code != null) return Run.Final(s.code!!, s.text)
@@ -46,7 +53,9 @@ class FileDownload(
         val next = s.attempts.start(blob.length()) ?: return final(key, s, FinalCode.FAILED, FileRules.DOWNLOAD_FAILED)
         s = s.copy(attempts = next)
         store.put(key, s)
-        if (!FileRules.enoughStorage(store.freeBytes(), f.size)) return final(key, s, FinalCode.STORAGE, FileRules.storageFullText(false, name))
+        store.clearManual(key) // taken: a later run (after a stop or a killed process) is automatic
+        // 2 x size + margin in all; the bytes already stored need no new space
+        if (!FileRules.enoughStorage(store.freeBytes()?.let { it + minOf(blob.length(), f.size + FileCrypt.BLOB_OVERHEAD) }, f.size)) return final(key, s, FinalCode.STORAGE, FileRules.storageFullText(false, name))
         try {
             while (true) {
                 val r = fetch(f, name, blob, stopped)

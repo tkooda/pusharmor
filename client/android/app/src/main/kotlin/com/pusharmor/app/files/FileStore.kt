@@ -35,7 +35,9 @@ data class FileState(
 
 /**
  * Received files in app-private storage, one folder per file key: "blob" (the ciphertext, resumed by Range),
- * "plain.tmp" (a decrypt in progress), "state", and the decrypted file under its sanitized name.
+ * "plain.tmp" (a decrypt in progress), "state", "manual" (a tap on Download not yet run), and the folder "out"
+ * that holds only the decrypted file under its sanitized name, so no name can meet an internal file.
+ * Work on one file runs under its lock ([locked]), so two runs never write the same blob or state.
  */
 class FileStore(
     val root: File,
@@ -47,7 +49,22 @@ class FileStore(
         private val KEY = Regex("[A-Za-z0-9_-]{1,64}")
         private const val TMP = "plain.tmp"
         fun validKey(key: String) = KEY.matches(key)
+        private val locks = java.util.concurrent.ConcurrentHashMap<String, Any>()
     }
+
+    /** Runs [block] holding the lock of file [key] (one lock per file in this process). */
+    fun <T> locked(key: String, block: () -> T): T = synchronized(locks.getOrPut(File(root, key).absolutePath) { Any() }) { block() }
+
+    /** The folder of the decrypted file. */
+    fun outDir(key: String) = File(dir(key), "out")
+
+    /** Records a tap on Download: the next run is manual (one GET even after expires; the automatic count starts again). */
+    fun markManual(key: String) { dir(key).mkdirs(); File(dir(key), "manual").createNewFile() }
+
+    /** A tap recorded by [markManual] and not yet taken by a run ([clearManual] once the run's state is stored). */
+    fun manualPending(key: String): Boolean = File(dir(key), "manual").exists()
+
+    fun clearManual(key: String) { File(dir(key), "manual").delete() }
 
     fun dir(key: String): File {
         require(validKey(key)) { "bad file key" }
@@ -105,14 +122,17 @@ class FileStore(
      * low-memory exit after the mark the file shows the memory error (never retried by itself); else the mark is
      * cleared. Any half-written plaintext is deleted. [lowMemoryExits]: times (ms) of low-memory exits.
      */
-    fun reviewMarks(lowMemoryExits: () -> List<Long>) {
-        val marked = keys().filter { state(it).markAt > 0 }
+    fun reviewMarks(lowMemoryExits: () -> List<Long>, before: Long = now()) {
+        // only marks set before this process started: a decrypt of this process may have set a newer one
+        val marked = keys().filter { state(it).markAt in 1 until before }
         if (marked.isEmpty()) return
         val exits = lowMemoryExits()
-        for (k in marked) {
-            File(dir(k), TMP).delete()
+        for (k in marked) locked(k) {
             val s = state(k)
-            put(k, s.copy(markAt = 0, memoryError = s.memoryError || FileRules.markShowsMemoryError(s.markAt, exits)))
+            if (s.markAt in 1 until before) {
+                File(dir(k), TMP).delete()
+                put(k, s.copy(markAt = 0, memoryError = s.memoryError || FileRules.markShowsMemoryError(s.markAt, exits)))
+            }
         }
     }
 
@@ -132,7 +152,10 @@ class FileStore(
      * grow by. The decrypt-attempted mark is set first and cleared on every orderly end, including a cancel
      * ([cancelled] is checked between reads; it throws [CancellationException]).
      */
-    fun decrypt(key: String, f: FileValue, name: String, manual: Boolean, heapFree: () -> Long, cancelled: () -> Boolean = { false }): Decrypted {
+    fun decrypt(key: String, f: FileValue, name: String, manual: Boolean, heapFree: () -> Long, cancelled: () -> Boolean = { false }): Decrypted =
+        locked(key) { decryptLocked(key, f, name, manual, heapFree, cancelled) }
+
+    private fun decryptLocked(key: String, f: FileValue, name: String, manual: Boolean, heapFree: () -> Long, cancelled: () -> Boolean): Decrypted {
         var s = state(key)
         check(s.downloaded) { "not downloaded" }
         if (!manual && s.memoryError) return Decrypted.NoMemory // never retried by itself
@@ -149,14 +172,11 @@ class FileStore(
             tmp.delete()
             put(key, s.copy(markAt = 0, memoryError = true))
             return Decrypted.NoMemory
-        } catch (e: CancellationException) {
+        } catch (e: Throwable) {
+            // a cancel, a full disk, or any other failure: an orderly end clears the mark and the temp file
             tmp.delete()
             put(key, s.copy(markAt = 0))
-            throw e
-        } catch (e: IOException) {
-            tmp.delete()
-            put(key, s.copy(markAt = 0))
-            if ((freeBytes() ?: Long.MAX_VALUE) < f.size) return final(key, FinalCode.STORAGE, FileRules.storageFullText(false, name))
+            if (e is IOException && (freeBytes() ?: Long.MAX_VALUE) < f.size) return final(key, FinalCode.STORAGE, FileRules.storageFullText(false, name))
             throw e
         }
         if (!ok) {
@@ -166,8 +186,9 @@ class FileStore(
             put(key, s.copy(markAt = 0, downloaded = false, redownloaded = true, attempts = Attempts()))
             return Decrypted.Redownload
         }
-        val out = File(d, name)
-        if (!tmp.renameTo(out)) { tmp.delete(); put(key, s.copy(markAt = 0)); throw IOException("rename") }
+        val outDir = outDir(key).also { it.mkdirs() }
+        val out = File(outDir, name)
+        if (out.canonicalFile.parentFile != outDir.canonicalFile || !tmp.renameTo(out)) { tmp.delete(); put(key, s.copy(markAt = 0)); throw IOException("rename") }
         blob(key).delete()
         put(key, s.copy(markAt = 0, plain = name))
         return Decrypted.Ok(out)
@@ -201,12 +222,9 @@ class FileStore(
         try {
             val sha = FileOutputStream(out).use { FileCrypt.seal(key, input, size, it) }
             return Sealed(out, key, sha)
-        } catch (e: FileChangedException) {
+        } catch (e: Throwable) {
             out.delete()
-            throw e
-        } catch (e: IOException) {
-            out.delete()
-            if ((usableSpace(tempDir).takeIf { it > 0 } ?: Long.MAX_VALUE) < size + FileCrypt.BLOB_OVERHEAD) throw FileError(FinalCode.STORAGE, FileRules.storageFullText(true, name))
+            if (e is IOException && e !is FileChangedException && (usableSpace(tempDir).takeIf { it > 0 } ?: Long.MAX_VALUE) < size + FileCrypt.BLOB_OVERHEAD) throw FileError(FinalCode.STORAGE, FileRules.storageFullText(true, name))
             throw e
         }
     }

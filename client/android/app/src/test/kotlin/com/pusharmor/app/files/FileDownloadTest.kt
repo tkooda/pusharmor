@@ -37,7 +37,10 @@ class FileDownloadTest {
 
     private fun append(part: File, from: Int, to: Int) = part.appendBytes(blobBytes.copyOfRange(from, to))
     private fun whole(): (File) -> Fetch = { p -> p.writeBytes(blobBytes); Fetch.Done }
-    private fun run(manual: Boolean = false) = dl.run("k1", f, "a.pdf", manual)
+    private fun run(manual: Boolean = false): FileDownload.Run {
+        if (manual) store.markManual("k1")
+        return dl.run("k1", f, "a.pdf")
+    }
 
     @Test fun downloadsAndChecks() {
         steps += whole()
@@ -127,9 +130,70 @@ class FileDownloadTest {
         val r = store.decrypt("k1", f, "a.pdf", manual = false, heapFree = { 1L shl 30 })
         assertTrue(r is FileStore.Decrypted.Ok)
         assertArrayEquals(plain, (r as FileStore.Decrypted.Ok).file.readBytes())
-        assertEquals(setOf("a.pdf", "state"), store.dir("k1").list()!!.toSet())
+        assertEquals(setOf("out", "state"), store.dir("k1").list()!!.toSet())
+        assertEquals(listOf("a.pdf"), store.outDir("k1").list()!!.toList())
         assertEquals(0L, store.state("k1").markAt)
         assertEquals("a.pdf", store.state("k1").plain)
+    }
+
+    /** The decrypted file has its own folder: a name like an internal file harms nothing. */
+    @Test fun anyNameIsSafe() {
+        for (name in listOf("blob", "state", "state.tmp", "plain.tmp", "manual")) {
+            store.delete("k1")
+            downloaded()
+            val r = store.decrypt("k1", f, name, false, { 1L shl 30 })
+            assertArrayEquals(name, plain, (r as FileStore.Decrypted.Ok).file.readBytes())
+            assertEquals(name, store.state("k1").plain)
+            assertTrue(store.state("k1").downloaded)
+            assertEquals(File(store.outDir("k1"), name), r.file)
+        }
+    }
+
+    /** A resume needs space only for what it has still to store. */
+    @Test fun resumeCountsBytesAlreadyStored() {
+        val have = 3000
+        store.blob("k1").also { it.parentFile.mkdirs() }.writeBytes(blobBytes.copyOf(have))
+        free = 2 * f.size + 10_000_000 - have
+        steps += { p -> append(p, have, blobBytes.size); Fetch.Done }
+        assertEquals(FileDownload.Run.Done, run())
+        store.delete("k1")
+        free = 2 * f.size + 10_000_000 - 1
+        assertEquals(FileDownload.Run.Final(FinalCode.STORAGE, "Not enough storage to download \"a.pdf\""), run())
+    }
+
+    /** A tap is taken once: a run after a stop or a killed process is automatic, so it checks expires and counts. */
+    @Test fun aTapIsTakenOnce() {
+        clockMs += 600_000 // past expires
+        steps += { Fetch.Stopped }
+        assertEquals(FileDownload.Run.Stopped, run(manual = true))
+        assertEquals(FileDownload.Run.Final(FinalCode.EXPIRED, "Expired"), run())
+        store.delete("k1")
+        steps += { throw CancellationException("killed") }
+        try { run(manual = true); throw AssertionError() } catch (e: CancellationException) { }
+        assertEquals(FileDownload.Run.Final(FinalCode.EXPIRED, "Expired"), run())
+        assertEquals(2, calls)
+    }
+
+    /** Two runs of one file never overlap: a tap waits for the run in progress. */
+    @Test fun runsOfOneFileDoNotOverlap() {
+        val inside = java.util.concurrent.atomic.AtomicInteger()
+        var most = 0
+        val entered = java.util.concurrent.CountDownLatch(1)
+        val dl2 = FileDownload(store, { _, _, part, _ ->
+            most = maxOf(most, inside.incrementAndGet())
+            entered.countDown()
+            Thread.sleep(200)
+            inside.decrementAndGet()
+            Fetch.Retry(null)
+        }, { clockMs / 1000 })
+        val t = Thread { dl2.run("k1", f, "a.pdf") }
+        t.start()
+        entered.await()
+        store.markManual("k1")
+        dl2.run("k1", f, "a.pdf")
+        t.join()
+        assertEquals(1, most)
+        assertEquals(1, store.state("k1").attempts.used) // the tap started the count again
     }
 
     @Test fun aFailedTagDropsTheBlobForOneReDownloadThenDamaged() {
@@ -169,6 +233,10 @@ class FileDownloadTest {
         assertEquals(0L, store.state("k1").markAt)
         assertFalse(store.state("k1").memoryError)
         assertEquals(setOf("blob", "state"), store.dir("k1").list()!!.toSet())
+        // any other failure also clears the mark and the temp file
+        try { store.decrypt("k1", f, "a.pdf", false, { 1L shl 30 }) { throw IllegalStateException("x") }; throw AssertionError() } catch (e: IllegalStateException) { }
+        assertEquals(0L, store.state("k1").markAt)
+        assertEquals(setOf("blob", "state"), store.dir("k1").list()!!.toSet())
     }
 
     /** At app start a left mark shows the memory error only after a low-memory exit; else it is cleared. */
@@ -177,14 +245,18 @@ class FileDownloadTest {
         store.put("k2", FileState(downloaded = true, markAt = 2000))
         File(store.dir("k1"), "plain.tmp").writeBytes(ByteArray(3))
         var asked = 0
-        store.reviewMarks { asked++; listOf(1500L) }
+        store.reviewMarks({ asked++; listOf(1500L) })
         assertTrue(store.state("k1").memoryError)
         assertFalse(store.state("k2").memoryError)
         assertEquals(0L, store.state("k1").markAt)
         assertEquals(0L, store.state("k2").markAt)
         assertFalse(File(store.dir("k1"), "plain.tmp").exists())
-        store.reviewMarks { asked++; emptyList() } // no marks: the system is not asked
+        store.reviewMarks({ asked++; emptyList() }) // no marks: the system is not asked
         assertEquals(1, asked)
+        // a mark set by this process (after it started) is left alone
+        store.put("k3", FileState(downloaded = true, markAt = clockMs))
+        store.reviewMarks({ listOf(clockMs) }, before = clockMs)
+        assertEquals(clockMs, store.state("k3").markAt)
     }
 
     @Test fun sealForSend() {

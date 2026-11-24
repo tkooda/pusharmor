@@ -29,8 +29,14 @@ import java.util.concurrent.TimeUnit
 /** A final file transfer error: no automatic retry. [status] (0 = no reply) and [error] are the reply's, for refusals the caller handles. */
 class FileError(val code: FinalCode, val text: String?, val status: Int = 0, val error: String = "") : Exception(code.name + (text?.let { ": $it" } ?: ""))
 
-/** The 201 reply of POST /v1/file, kept with the send's PA-Send-ID so a retry of the same send can use it again. */
-data class UploadReply(val id: String, val expires: Long, val url: String, val sendId: String)
+/** One quota window of a 201 reply: uploads used, the limit, and when it resets (Unix seconds). */
+data class QuotaWindow(val used: Long, val limit: Long, val resetsAt: Long)
+
+/**
+ * The 201 reply of POST /v1/file, kept with the send's PA-Send-ID so a retry of the same send can use it again;
+ * [day] and [month] are its quota block (null when missing or malformed).
+ */
+data class UploadReply(val id: String, val expires: Long, val url: String, val sendId: String, val day: QuotaWindow? = null, val month: QuotaWindow? = null)
 
 /**
  * File transfers: POST /v1/file (PA-FILE1, one PA-Send-ID per send, at most 2 automatic retries, each signed
@@ -151,7 +157,8 @@ class FileClient(
                 val url = (j?.get("url") as? JsonPrimitive)?.takeIf { it.isString }?.content
                 val expires = (j?.get("expires") as? JsonPrimitive)?.takeIf { !it.isString }?.longOrNull
                 if (id == null || url == null || !fileUrlOk(url) || expires == null || expires < 0 || expires > (1L shl 53) - 1) throw FileError(FinalCode.FAILED, null, got.status)
-                return UploadReply(id, expires, url, sendId)
+                val quota = j?.get("quota") as? JsonObject
+                return UploadReply(id, expires, url, sendId, window(quota?.get("day")), window(quota?.get("month")))
             }
             if (got.status == 401 && (got.error == "unknown peer" || got.error == "logged out")) onAuthState(got.error!!)
             if (got.status == 426) onUpdateRequired()
@@ -163,6 +170,12 @@ class FileClient(
                 }
             }
         }
+    }
+
+    private fun window(e: kotlinx.serialization.json.JsonElement?): QuotaWindow? {
+        val o = e as? JsonObject ?: return null
+        fun n(k: String) = (o[k] as? JsonPrimitive)?.takeIf { !it.isString }?.longOrNull?.takeIf { it >= 0 }
+        return QuotaWindow(n("used") ?: return null, n("limit") ?: return null, n("resets_at") ?: return null)
     }
 
     /** What one file GET did. */
@@ -239,7 +252,8 @@ class FileClient(
                 val src = body.byteStream()
                 while (true) {
                     if (stop()) { stopped = true; break }
-                    val n = try { src.read(buf) } catch (e: IOException) { break } // cut off
+                    // cut off; a stop met at that point is a stop (its bytes do not cost an attempt)
+                    val n = try { src.read(buf) } catch (e: IOException) { stopped = stop(); break }
                     if (n < 0) { ended = true; break }
                     out.write(buf, 0, n)
                     have += n

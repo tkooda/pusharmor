@@ -22,14 +22,19 @@ import java.util.concurrent.TimeUnit
 
 /** One unique WorkManager job per received file; no foreground service: a job stopped by the system resumes by Range on its next run. */
 object FileWork {
-    /** [unmeteredOnly]: the picker allows the file on Wi-Fi only. [manual]: a tap on Download (replaces a queued job). */
-    fun download(context: Context, key: String, f: FileValue, name: String, unmeteredOnly: Boolean, manual: Boolean) {
+    /**
+     * [unmeteredOnly]: the picker allows the file on Wi-Fi only. [manual]: a tap on Download, recorded in the
+     * file's folder first and run at once (a queued job is replaced; a run in progress is stopped, and the new
+     * run waits for its lock). [delaySec]: wait this long first (a retry_after).
+     */
+    fun download(context: Context, store: FileStore, key: String, f: FileValue, name: String, unmeteredOnly: Boolean, manual: Boolean, delaySec: Long = 0) {
+        if (manual) store.markManual(key)
         val net = Constraints.Builder().setRequiredNetworkType(if (unmeteredOnly) NetworkType.UNMETERED else NetworkType.CONNECTED).build()
-        val req = OneTimeWorkRequestBuilder<FileDownloadWorker>().setConstraints(net)
-            .setInputData(workDataOf("key" to key, "file" to f.toJson(), "name" to name, "manual" to manual))
+        val b = OneTimeWorkRequestBuilder<FileDownloadWorker>().setConstraints(net)
+            .setInputData(workDataOf("key" to key, "file" to f.toJson(), "name" to name, "unmetered" to unmeteredOnly))
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
-            .build()
-        WorkManager.getInstance(context).enqueueUniqueWork("file-$key", if (manual) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP, req)
+        if (delaySec > 0) b.setInitialDelay(delaySec, TimeUnit.SECONDS)
+        WorkManager.getInstance(context).enqueueUniqueWork("file-$key", if (manual || delaySec > 0) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP, b.build())
     }
 
     /** Times (ms) at which this app's process ended for low memory, as the system recorded them. */
@@ -47,11 +52,18 @@ class FileDownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWork
         val key = inputData.getString("key")?.takeIf { FileStore.validKey(it) } ?: return Result.success()
         val f = inputData.getString("file")?.let { InnerMessage.fileValueOf(StrictJson.parseOrNull(it)) } ?: return Result.success()
         val name = inputData.getString("name") ?: return Result.success()
-        // only the first run is the tap; later runs are automatic attempts
-        val manual = inputData.getBoolean("manual", false) && runAttemptCount == 0
-        val r = withContext(Dispatchers.IO) { g.fileDownload.run(key, f, name, manual) { isStopped } }
+        // manual or automatic is read from the file's folder, never from this job's run count
+        val r = withContext(Dispatchers.IO) { g.fileDownload.run(key, f, name) { isStopped } }
         return when (r) {
-            is FileDownload.Run.Retry, FileDownload.Run.Stopped -> Result.retry()
+            is FileDownload.Run.Retry -> {
+                // a retry_after longer than the backoff is waited in full
+                val wait = r.wait
+                if (wait != null && wait > 30) {
+                    FileWork.download(applicationContext, g.fileStore, key, f, name, inputData.getBoolean("unmetered", false), manual = false, delaySec = wait)
+                    Result.success()
+                } else Result.retry()
+            }
+            FileDownload.Run.Stopped -> Result.retry()
             else -> Result.success()
         }
     }

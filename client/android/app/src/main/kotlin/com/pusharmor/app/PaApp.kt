@@ -49,8 +49,9 @@ open class PaApp : Application() {
         graph = Graph(this)
         graph.notifier.ensureChannels()
         Work.scheduleDaily(this)
-        // a decrypt that the app did not finish: the memory error on a low-memory exit, else the mark is cleared
-        try { graph.fileStore.reviewMarks { FileWork.lowMemoryExits(this) } } catch (e: Exception) { }
+        // a decrypt that the app did not finish: the memory error on a low-memory exit, else the mark is cleared (off the main thread)
+        val started = System.currentTimeMillis()
+        Thread { try { graph.fileStore.reviewMarks({ FileWork.lowMemoryExits(this) }, started) } catch (e: Exception) { } }.start()
     }
 }
 
