@@ -139,6 +139,8 @@ object Receive {
             MessageBody.Deny -> if (!approved) Effect.Drop("not approved") else Effect.Deny
             is MessageBody.Del -> if (!approved) Effect.Drop("not approved") else Effect.Del(b.ids)
             is MessageBody.Unknown -> if (!approved) Effect.Drop("not approved") else Effect.ShowUnknown(b.typeKey)
+            // a file shows as an unknown row until this app shows files
+            is MessageBody.File -> if (!approved) Effect.Drop("not approved") else Effect.ShowUnknown(b.key)
         }
     }
 

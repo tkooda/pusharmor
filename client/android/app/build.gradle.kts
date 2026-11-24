@@ -90,7 +90,11 @@ android {
         includeInApk = false
         includeInBundle = false
     }
-    packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+    packaging {
+        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        // OSGi metadata of Bouncy Castle and jspecify, same path in both jars; unused on Android
+        resources.excludes += "/META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+    }
     testOptions { unitTests.isIncludeAndroidResources = true }
 }
 

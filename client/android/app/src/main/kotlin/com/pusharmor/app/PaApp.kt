@@ -3,6 +3,9 @@ package com.pusharmor.app
 import android.app.Application
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.pusharmor.app.data.Settings
+import com.pusharmor.app.files.FileDownload
+import com.pusharmor.app.files.FileStore
+import com.pusharmor.app.files.FileWork
 import com.pusharmor.app.keys.KeystoreKeyOps
 import com.pusharmor.app.notify.AppEffects
 import com.pusharmor.app.notify.Notifier
@@ -11,6 +14,7 @@ import com.pusharmor.app.session.Session
 import com.pusharmor.app.work.Work
 import com.pusharmor.crypto.KeyOps
 import com.pusharmor.net.ClockOffset
+import com.pusharmor.net.FileClient
 import com.pusharmor.net.WorkerClient
 import com.pusharmor.protocol.engine.AllowReconcile
 import com.pusharmor.protocol.engine.ApproveFlow
@@ -45,6 +49,8 @@ open class PaApp : Application() {
         graph = Graph(this)
         graph.notifier.ensureChannels()
         Work.scheduleDaily(this)
+        // a decrypt that the app did not finish: the memory error on a low-memory exit, else the mark is cleared
+        try { graph.fileStore.reviewMarks { FileWork.lowMemoryExits(this) } } catch (e: Exception) { }
     }
 }
 
@@ -90,6 +96,19 @@ class Graph(val app: PaApp) {
         onAuthState = ::onAuthState, paClient = "android/${BuildConfig.VERSION_NAME}",
         onUpdateRequired = { settings.markUpdateRequired(BuildConfig.VERSION_NAME) },
         onPushMissing = { settings.set(Settings.K.PUSH_MISSING, true) })
+
+    /** Received files in app-private storage. */
+    val fileStore by lazy { FileStore(java.io.File(app.filesDir, "files")) }
+
+    /** File uploads and downloads: long timeouts, redirects checked by hand. */
+    val fileClient by lazy {
+        FileClient({ keysOrNull ?: error("no keys") }, { dao.self()?.id }, offset, BuildConfig.API_BASE.toHttpUrl(),
+            http = if (BuildConfig.SCREENSHOT_MODE) ScreenshotMode.guard(FileClient.defaultHttp()) else FileClient.defaultHttp(),
+            sleep = app::retrySleep, paClient = "android/${BuildConfig.VERSION_NAME}",
+            onAuthState = { onAuthState(it) }, onUpdateRequired = { settings.markUpdateRequired(BuildConfig.VERSION_NAME) })
+    }
+
+    val fileDownload by lazy { FileDownload(fileStore, fileClient::fetch) }
 
     /**
      * 401 "unknown peer": the removal check runs (false = not confirmed, the call reads as no reply);

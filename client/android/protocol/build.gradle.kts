@@ -14,4 +14,5 @@ dependencies {
 
 tasks.test {
     systemProperty("pusharmor.golden", rootProject.file("../../tests/vectors/golden-v1.json").absolutePath)
+    systemProperty("pusharmor.filevectors", rootProject.file("../../tests/vectors/file-v1.json").absolutePath)
 }

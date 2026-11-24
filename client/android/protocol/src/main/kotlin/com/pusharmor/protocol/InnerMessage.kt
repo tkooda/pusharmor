@@ -17,6 +17,15 @@ data class NameEntryClear(val nameB64: String, val n: Long, val s: String) {
     fun toJson(): String = "{\"name\":${StrictJson.quote(nameB64)},\"n\":$n,\"s\":${StrictJson.quote(s)}}"
 }
 
+/**
+ * A file message: [url] and [expires] (Unix seconds) from the upload reply, the 43-char b64url file [key], the
+ * [name], the plaintext [size] in bytes, and the 43-char b64url [sha256] of the blob.
+ */
+data class FileValue(val url: String, val expires: Long, val key: String, val name: String, val size: Long, val sha256: String) {
+    fun toJson(): String = "{\"url\":${StrictJson.quote(url)},\"expires\":$expires,\"key\":${StrictJson.quote(key)}," +
+        "\"name\":${StrictJson.quote(name)},\"size\":$size,\"sha256\":${StrictJson.quote(sha256)}}"
+}
+
 /** The JSON type of an inner message (exactly one per message). */
 sealed class MessageBody {
     abstract val key: String
@@ -25,6 +34,7 @@ sealed class MessageBody {
     data class Url(val value: String, val id: String? = null) : MessageBody() { override val key = "url" }
     data class Text(val value: String, val id: String? = null) : MessageBody() { override val key = "text" }
     data class Tel(val value: String, val id: String? = null) : MessageBody() { override val key = "tel" }
+    data class File(val value: FileValue, val id: String? = null) : MessageBody() { override val key = "file" }
     data class Approve(val entry: NameEntryClear) : MessageBody() { override val key = "approve" }
     data class Rename(val entry: NameEntryClear) : MessageBody() { override val key = "rename" }
     object Deny : MessageBody() { override val key = "deny" }
@@ -40,16 +50,17 @@ sealed class MessageBody {
      */
     data class Unknown(val typeKey: String, val id: String?, val newer: Boolean = false) : MessageBody() { override val key = typeKey }
 
-    /** Message id of a url / text / tel / unknown content; null for controls and old messages. */
-    val msgId: String? get() = when (this) { is Url -> id; is Text -> id; is Tel -> id; is Unknown -> id; else -> null }
+    /** Message id of a url / text / tel / file / unknown content; null for controls and old messages. */
+    val msgId: String? get() = when (this) { is Url -> id; is Text -> id; is Tel -> id; is File -> id; is Unknown -> id; else -> null }
 
     /** Control types (no History row; a seen n is a silent duplicate). */
-    val isControl: Boolean get() = this !is Url && this !is Text && this !is Tel && this !is Unknown
+    val isControl: Boolean get() = this !is Url && this !is Text && this !is Tel && this !is File && this !is Unknown
 
     fun valueJson(): String = when (this) {
         is Url -> StrictJson.quote(value)
         is Text -> StrictJson.quote(value)
         is Tel -> StrictJson.quote(value)
+        is File -> value.toJson()
         is Approve -> entry.toJson()
         is Rename -> entry.toJson()
         is Remove -> StrictJson.quote(peerId)
@@ -247,7 +258,7 @@ object InnerMessage {
     }
 
     /** Known type keys; the message type is the first of these present. */
-    private val TYPE_ORDER = listOf("url", "text", "tel", "approve", "deny", "remove", "rename", "delete", "logout", "login", "del")
+    private val TYPE_ORDER = listOf("url", "text", "tel", "file", "approve", "deny", "remove", "rename", "delete", "logout", "login", "del")
 
     /** A parsed inner message: [body] null is ignored; [newer]: its format version is above 1. */
     data class Parsed(val n: Long, val body: MessageBody?, val newer: Boolean = false)
@@ -281,6 +292,7 @@ object InnerMessage {
             "url" -> MessageBody.Url((v as? JValue.JString)?.value ?: return null, idOf(obj))
             "text" -> MessageBody.Text((v as? JValue.JString)?.value ?: return null, idOf(obj))
             "tel" -> MessageBody.Tel((v as? JValue.JString)?.value ?: return null, idOf(obj))
+            "file" -> MessageBody.File(fileValueOf(v) ?: return null, idOf(obj))
             "approve" -> MessageBody.Approve(nameEntryOf(v) ?: return null)
             "rename" -> MessageBody.Rename(nameEntryOf(v) ?: return null)
             "remove" -> MessageBody.Remove(((v as? JValue.JString)?.value ?: return null).takeIf { Ids.decodeId(it) != null } ?: return null)
@@ -294,8 +306,31 @@ object InnerMessage {
         return Parsed(n, body)
     }
 
-    /** The optional "id" of a url / text / tel / unknown; anything but a valid id string is null. */
+    /** The optional "id" of a url / text / tel / file / unknown; anything but a valid id string is null. */
     private fun idOf(o: JValue.JObject): String? = (o.fields["id"] as? JValue.JString)?.value?.takeIf { MessageBody.validId(it) }
+
+    /** A JSON integer 0 .. 2^53 - 1, else null. */
+    private fun uintOf(v: JValue?): Long? {
+        if (v !is JValue.JNumber) return null
+        val raw = v.raw
+        if (raw != "0" && (raw.isEmpty() || raw.length > 16 || raw[0] !in '1'..'9' || !raw.all { it in '0'..'9' })) return null
+        return raw.toLong().takeIf { it <= MAX_COUNTER }
+    }
+
+    /** 43 chars of b64url holding 32 bytes. */
+    private fun b64x32(v: JValue?): String? = (v as? JValue.JString)?.value?.takeIf { it.length == 43 && com.pusharmor.crypto.B64url.decodeExact(it, 32) != null }
+
+    /** The file object; unknown fields are ignored; null when a field is missing or malformed. */
+    fun fileValueOf(v: JValue?): FileValue? {
+        val o = v as? JValue.JObject ?: return null
+        val url = (o.fields["url"] as? JValue.JString)?.value?.takeIf { SizeCap.utf8Size(it) <= SizeCap.RECEIVE_MAX_BYTES } ?: return null
+        val name = (o.fields["name"] as? JValue.JString)?.value?.takeIf { SizeCap.utf8Size(it) <= SizeCap.RECEIVE_MAX_BYTES } ?: return null
+        val expires = uintOf(o.fields["expires"]) ?: return null
+        val size = uintOf(o.fields["size"]) ?: return null
+        val key = b64x32(o.fields["key"]) ?: return null
+        val sha256 = b64x32(o.fields["sha256"]) ?: return null
+        return FileValue(url, expires, key, name, size, sha256)
+    }
 
     private fun isOne(v: JValue) = v is JValue.JNumber && v.raw == "1"
 

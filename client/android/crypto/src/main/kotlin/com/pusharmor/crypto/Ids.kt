@@ -128,4 +128,11 @@ object Ids {
     /** PA-Sig signed bytes: "PA-REQ1\n" + METHOD + "\n" + path + "\n" + PA-Time + "\n" + body. */
     fun requestSigningBytes(method: String, path: String, paTime: String, body: ByteArray): ByteArray =
         ascii("PA-REQ1\n$method\n$path\n$paTime\n") + body
+
+    /** Signed string of POST /v1/file: [length] is the Content-Length (blob bytes), [sha256] the PA-File-SHA256, [sendId] the PA-Send-ID. */
+    fun fileUploadSigningBytes(paTime: String, length: Long, sha256: String, sendId: String): ByteArray =
+        ascii("PA-FILE1\nPOST\n/v1/file\n$paTime\n$length\n$sha256\n$sendId")
+
+    /** Signed string of DELETE /v1/file/<id>. */
+    fun fileDeleteSigningBytes(id: String, paTime: String): ByteArray = ascii("PA-FILE1\nDELETE\n/v1/file/$id\n$paTime")
 }

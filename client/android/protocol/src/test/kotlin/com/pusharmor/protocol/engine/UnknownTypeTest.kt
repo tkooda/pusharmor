@@ -48,18 +48,33 @@ class UnknownTypeTest {
     }
 
     @Test fun unknownTypeWithShowIsAContentRowWithNoNotice() {
-        val r = receive.onMessage(wireOf("{\"n\":5,\"id\":\"abc_-9\",\"show\":true,\"file\":\"x\"}"), 1000)
+        val r = receive.onMessage(wireOf("{\"n\":5,\"id\":\"abc_-9\",\"show\":true,\"future\":\"x\"}"), 1000)
         assertTrue(r is Inbound.Accepted)
-        assertEquals(MessageBody.Unknown("file", "abc_-9"), (r as Inbound.Accepted).body)
+        assertEquals(MessageBody.Unknown("future", "abc_-9"), (r as Inbound.Accepted).body)
         val row = store.history.single()
         assertEquals(HistoryRow.UNKNOWN, row.type)
-        assertEquals("file", row.content)
+        assertEquals("future", row.content)
         assertEquals("abc_-9", row.msgId)
         assertEquals(a.id, row.peerId)
         assertEquals(5L, row.n)
         assertTrue(effects.log.isEmpty())
         assertEquals(5L, store.window(a.id)!!.h)
         // a later del naming its id removes it like any message
+        receive.onMessage(wireOf("{\"n\":6,\"del\":[\"abc_-9\"]}"), 1001)
+        assertTrue(store.history.isEmpty())
+    }
+
+    /** A file shows as an unknown row (no notice) until this app shows files; a later del removes it. */
+    @Test fun fileIsAnUnknownRowWithNoNotice() {
+        val f = "{\"url\":\"https://b2file.pusharmor.com/v1/x\",\"expires\":1795405632,\"key\":\"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY\",\"name\":\"a.pdf\",\"size\":5,\"sha256\":\"n4bQgYhMfWWaL-qgxVrQFaO_TxsrC4Is0V1sFbDwCgg\"}"
+        val r = receive.onMessage(wireOf("{\"v\":1,\"n\":5,\"id\":\"abc_-9\",\"show\":true,\"file\":$f}"), 1000)
+        assertTrue(r is Inbound.Accepted)
+        assertTrue((r as Inbound.Accepted).body is MessageBody.File)
+        val row = store.history.single()
+        assertEquals(HistoryRow.UNKNOWN, row.type)
+        assertEquals("file", row.content)
+        assertEquals("abc_-9", row.msgId)
+        assertTrue(effects.log.isEmpty())
         receive.onMessage(wireOf("{\"n\":6,\"del\":[\"abc_-9\"]}"), 1001)
         assertTrue(store.history.isEmpty())
     }
@@ -87,7 +102,7 @@ class UnknownTypeTest {
 
     @Test fun unknownTypeWithShowFollowsTheTextPath() {
         val text = trace(true) { "\"text\":\"x\"" }
-        val unknown = trace(true) { "\"file\":\"x\"" }
+        val unknown = trace(true) { "\"future\":\"x\"" }
         // fresh, duplicate, and del: the only difference is that a text row notifies and an unknown row does not
         assertEquals(text.take(3).map { it.replace("show, ", "").replace("[show]", "[]").replace(", show]", "]") }, unknown.take(3))
         // stale (seen with no row, older than the window): text is Invalid, unknown is silent
@@ -96,11 +111,11 @@ class UnknownTypeTest {
     }
 
     @Test fun unknownTypeWithShowAndAStaleNIsSilentAndKeepsTheWindow() {
-        val show = { n: Int -> wireOf("{\"n\":$n,\"id\":\"abc\",\"show\":true,\"file\":\"x\"}") }
+        val show = { n: Int -> wireOf("{\"n\":$n,\"id\":\"abc\",\"show\":true,\"future\":\"x\"}") }
         val v2 = { n: Int -> wireOf("{\"v\":2,\"n\":$n,\"id\":\"abc\",\"show\":true,\"text\":\"x\"}") }
         receive.onMessage(show(150), 1000)
         receive.onMessage(wireOf("{\"n\":151,\"del\":[\"abc\"]}"), 1001)
-        receive.onMessage(wireOf("{\"n\":152,\"file\":\"x\"}"), 1002)  // seen n that never had a row
+        receive.onMessage(wireOf("{\"n\":152,\"future\":\"x\"}"), 1002)  // seen n that never had a row
         assertTrue(store.history.isEmpty())
         effects.log.clear()
         // seen n whose row was deleted, seen n with no row, and n older than the replay window
@@ -116,7 +131,7 @@ class UnknownTypeTest {
 
     @Test fun unknownTypeFromAPeerNotApprovedIsSilentAndKeepsTheWindow() {
         for (peer in listOf(a.asPeer(pid, approved = false), a.asPeer(pid).copy(deniedByMe = true))) {
-            for (json in listOf("{\"n\":5,\"id\":\"abc\",\"show\":true,\"file\":\"x\"}", "{\"n\":5,\"file\":\"x\"}", "{\"v\":2,\"n\":5,\"id\":\"abc\",\"show\":true,\"text\":\"x\"}")) {
+            for (json in listOf("{\"n\":5,\"id\":\"abc\",\"show\":true,\"future\":\"x\"}", "{\"n\":5,\"future\":\"x\"}", "{\"v\":2,\"n\":5,\"id\":\"abc\",\"show\":true,\"text\":\"x\"}")) {
                 val st = MemStore()
                 val ef = RecEffects()
                 val rx = ReceiveEngine(st, Identity(me.keys, me.id), ef)
@@ -132,13 +147,13 @@ class UnknownTypeTest {
     }
 
     @Test fun unknownTypeWithShowAndNoValidIdIsARowWithNoMessageId() {
-        assertTrue(receive.onMessage(wireOf("{\"n\":5,\"id\":\"a b\",\"show\":true,\"file\":\"x\"}"), 1000) is Inbound.Accepted)
+        assertTrue(receive.onMessage(wireOf("{\"n\":5,\"id\":\"a b\",\"show\":true,\"future\":\"x\"}"), 1000) is Inbound.Accepted)
         assertEquals(null, store.history.single().msgId)
         assertEquals(HistoryRow.UNKNOWN, store.history.single().type)
     }
 
     @Test fun unknownTypeWithoutShowIsIgnored() {
-        for ((n, json) in listOf(6L to "{\"n\":6,\"file\":\"x\"}", 7L to "{\"n\":7,\"file\":\"x\",\"id\":\"abc_-9\"}", 8L to "{\"n\":8,\"file\":\"x\",\"id\":7}", 9L to "{\"n\":9,\"id\":\"abc\"}", 10L to "{\"n\":10,\"file\":\"x\",\"show\":1}")) {
+        for ((n, json) in listOf(6L to "{\"n\":6,\"future\":\"x\"}", 7L to "{\"n\":7,\"future\":\"x\",\"id\":\"abc_-9\"}", 8L to "{\"n\":8,\"future\":\"x\",\"id\":7}", 9L to "{\"n\":9,\"id\":\"abc\"}", 10L to "{\"n\":10,\"future\":\"x\",\"show\":1}")) {
             assertTrue(json, receive.onMessage(wireOf(json), 1000) is Inbound.Ignored)
             assertEquals(n, store.window(a.id)!!.h)
         }
@@ -179,7 +194,7 @@ class UnknownTypeTest {
         val v2 = { n: Int -> wireOf("{\"v\":2,\"n\":$n,\"id\":\"abc\",\"show\":true,\"text\":\"x\"}") }
         val v2NoShow = { n: Int -> wireOf("{\"v\":2,\"n\":$n,\"id\":\"abc\",\"deny\":1}") }
         receive.onMessage(v2(150), 1000)  // a row
-        receive.onMessage(wireOf("{\"n\":151,\"file\":\"x\"}"), 1001)  // seen n that never had a row
+        receive.onMessage(wireOf("{\"n\":151,\"future\":\"x\"}"), 1001)  // seen n that never had a row
         // seen n with a row (re-present), seen n with no row, n older than the window; with and without show
         for (wire in listOf(v2(150), v2(151), v2(10), v2NoShow(151), v2NoShow(10))) {
             effects.log.clear()
