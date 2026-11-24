@@ -250,7 +250,7 @@ describe("check 7: RL_FILE", () => {
     const sid = sendId();
     for (let i = 0; i < 5; i++) {
       store.next = "throw";
-      expect((await upload({ peer: a, env, sid })).status).toBe(503);
+      expect((await upload({ peer: a, env, sid })).status).toBe(502);
     }
     const r = await upload({ peer: a, env });
     expect(r.status).toBe(429);
@@ -336,7 +336,7 @@ describe("check 9: quota", () => {
     const sid = sendId();
     for (let i = 0; i < 3; i++) {
       store.next = "throw";
-      expect((await upload({ peer: a, sid })).status).toBe(503);
+      expect((await upload({ peer: a, sid })).status).toBe(502);
     }
     expect(await quotaRow(a.acct)).toMatchObject({ day_count: 1, month_count: 1, sends: { [a.id]: { send_id: sid, attempts: 3 } } });
   });
@@ -349,7 +349,7 @@ describe("check 9: quota", () => {
     await setAllow(b, [a.id]);
     const x = sendId();
     store.next = "throw";
-    expect((await upload({ peer: a, sid: x })).status).toBe(503);
+    expect((await upload({ peer: a, sid: x })).status).toBe(502);
     expect((await upload({ peer: b })).status).toBe(201);
     const r = await upload({ peer: a, sid: x });
     expect(r.status).toBe(201);
@@ -360,7 +360,7 @@ describe("check 9: quota", () => {
     const a = await approvedSender();
     const sid = sendId();
     store.next = "throw";
-    expect((await upload({ peer: a, sid })).status).toBe(503);
+    expect((await upload({ peer: a, sid })).status).toBe(502);
     const stub = baseEnv.FILE_QUOTA.get(baseEnv.FILE_QUOTA.idFromName(a.acct));
     const r = await stub.charge(a.id, sid, 20, 100, Math.floor(Date.now() / 1000) + 1200);
     expect(r).toMatchObject({ ok: true, charged: false });
@@ -469,6 +469,16 @@ async function del(peer: Peer, id: string, o: { env?: Env; signId?: string; unsi
 
 const rnd = () => hex(randBytes(16));
 
+describe("storage errors on upload", () => {
+  it("a storage error or a broken body -> 502 storage error, no cap remembered", async () => {
+    const a = await approvedSender();
+    store.next = "throw";
+    const r = await upload({ peer: a });
+    expect(r).toMatchObject({ status: 502, body: { error: "storage error" } });
+    expect((await upload({ peer: a })).status).toBe(201);
+  });
+});
+
 describe("upload that ends after its own expiry", () => {
   afterEach(() => vi.restoreAllMocks());
 
@@ -485,12 +495,43 @@ describe("upload that ends after its own expiry", () => {
     expect(await quotaRow(a.acct)).toMatchObject({ day_count: 0, month_count: 0 });
   });
 
-  it("refundRow takes back a charge only in the periods that are still current", () => {
+  it("a retry of the same PA-Send-ID after a late upload is charged again", async () => {
+    const a = await approvedSender();
+    const sid = sendId();
+    const real = Date.now();
+    store.afterRead = () => void vi.spyOn(Date, "now").mockReturnValue(real + 86_401_000);
+    expect((await upload({ peer: a, sid })).status).toBe(410);
+    vi.restoreAllMocks();
+    store.afterRead = null;
+    expect((await quotaRow(a.acct))?.sends[a.id]).toBeUndefined();
+    expect((await upload({ peer: a, sid })).status).toBe(201);
+    expect(await quotaRow(a.acct)).toMatchObject({ day_count: 1, month_count: 1 });
+    expect((await quotaRow(a.acct))?.sends[a.id]).toEqual({ send_id: sid, attempts: 1 });
+  });
+
+  it("a late free retry drops the slot, so the next retry of that id is charged", async () => {
+    const a = await approvedSender();
+    const sid = sendId();
+    store.next = "mismatch";
+    expect((await upload({ peer: a, sid })).status).toBe(400);
+    const real = Date.now();
+    store.afterRead = () => void vi.spyOn(Date, "now").mockReturnValue(real + 86_401_000);
+    expect((await upload({ peer: a, sid })).status).toBe(410);
+    vi.restoreAllMocks();
+    store.afterRead = null;
+    expect(await quotaRow(a.acct)).toMatchObject({ day_count: 1, month_count: 1 });
+    expect((await upload({ peer: a, sid })).status).toBe(201);
+    expect(await quotaRow(a.acct)).toMatchObject({ day_count: 2, month_count: 2 });
+  });
+
+  it("refundRow takes back a charge only in the periods that are still current, and drops only a matching slot", () => {
     const t = 1_800_000_000;
-    const row: QuotaRow = { day: dayOf(t), day_count: 2, month: 0, month_count: 5, sends: {} };
-    expect(refundRow(row, t)).toMatchObject({ day_count: 1, month_count: 5 });
-    expect(refundRow(row, t - 86400)).toBeNull();
-    expect(refundRow(undefined, t)).toBeNull();
+    const row: QuotaRow = { day: dayOf(t), day_count: 2, month: 0, month_count: 5, sends: { d1: { send_id: "s1", attempts: 1 }, d2: { send_id: "s2", attempts: 1 } } };
+    expect(refundRow(row, t, "d1", "s1", true)).toEqual({ day: dayOf(t), day_count: 1, month: 0, month_count: 5, sends: { d2: { send_id: "s2", attempts: 1 } } });
+    expect(refundRow(row, t, "d1", "sX", true)?.sends).toEqual(row.sends);
+    expect(refundRow(row, t, "d1", "s1", false)).toMatchObject({ day_count: 2, sends: { d2: { send_id: "s2", attempts: 1 } } });
+    expect(refundRow(row, t - 86400, "d9", "s1", true)).toBeNull();
+    expect(refundRow(undefined, t, "d1", "s1", true)).toBeNull();
   });
 });
 
@@ -511,15 +552,36 @@ describe("DELETE /v1/file/<id>", () => {
     expect((await quotaRow(a.acct))?.day_count).toBe(1);
   });
 
-  it("id minute passed -> 410, more than 24 h + 1 min ahead or not a real minute -> 404, with no storage call or signature", async () => {
+  it("more than 24 h + 1 min ahead or not a real minute -> 404, with no storage call or signature", async () => {
     const a = await approvedSender();
     const now = Math.floor(Date.now() / 1000);
-    expect((await del(a, minuteOf(now - 60) + "-" + rnd(), { unsigned: true })).status).toBe(410);
     expect((await del(a, minuteOf(now + 86400 + 180) + "-" + rnd(), { unsigned: true })).status).toBe(404);
     expect((await del(a, "209913310000-" + rnd(), { unsigned: true })).status).toBe(404);
     expect(store.calls).toEqual([]);
     expect((await del(a, minuteOf(now + 86400) + "-" + rnd())).status).toBe(404);
     expect(store.calls).toEqual(["remove"]);
+  });
+
+  it("a file still stored after its expiry minute can be deleted: 200, then 404", async () => {
+    const a = await approvedSender();
+    const m = minuteOf(Math.floor(Date.now() / 1000) - 120);
+    const id = m + "-" + rnd();
+    store.objects.set("v1/" + m + "/" + (await acctHash(S.FILE_ACCT_SECRET, a.acct)) + "/" + id, randBytes(30));
+    expect(await del(a, id)).toEqual({ status: 200, body: {} });
+    expect(store.objects.size).toBe(0);
+    expect((await del(a, id)).status).toBe(404);
+  });
+
+  it("an upload storage cap does not block a delete", async () => {
+    const a = await approvedSender();
+    store.next = "cap";
+    expect((await upload({ peer: a })).status).toBe(503);
+    const up = await upload({ peer: a });
+    expect(up.status).toBe(503);
+    const m = minuteOf(Math.floor(Date.now() / 1000) + 600);
+    const id = m + "-" + rnd();
+    store.objects.set("v1/" + m + "/" + (await acctHash(S.FILE_ACCT_SECRET, a.acct)) + "/" + id, randBytes(30));
+    expect(await del(a, id)).toEqual({ status: 200, body: {} });
   });
 
   it("a malformed id -> 400", async () => {
@@ -557,7 +619,7 @@ describe("DELETE /v1/file/<id>", () => {
     expect((env.RL_FILE as ReturnType<typeof countingLimit>).seen.every((k) => k === "file:" + a.id)).toBe(true);
   });
 
-  it("a storage error -> 502; a storage cap -> 503 files paused until 00:00 UTC, then refused with no storage call", async () => {
+  it("a storage error -> 502; a storage cap -> 503 files paused until 00:00 UTC, then uploads are refused with no storage call", async () => {
     const a = await approvedSender();
     const m = minuteOf(Math.floor(Date.now() / 1000) + 600);
     store.next = "throw";
@@ -569,7 +631,6 @@ describe("DELETE /v1/file/<id>", () => {
     const now = Math.floor(Date.now() / 1000);
     expect((now + (r.body.retry_after as number)) % 86400).toBe(0);
     store.calls.length = 0;
-    expect((await del(a, m + "-" + rnd())).status).toBe(503);
     expect((await upload({ peer: a })).status).toBe(503);
     expect(store.calls).toEqual([]);
   });

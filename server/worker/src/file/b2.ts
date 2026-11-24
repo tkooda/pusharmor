@@ -50,12 +50,19 @@ function tag(text: string, name: string): string | undefined {
   return t === undefined ? undefined : unxml(t);
 }
 
-// "cap": a B2 daily cap (storage, download bandwidth, or a transaction class).
+// "cap": a B2 daily cap (storage, download bandwidth, or a transaction class). B2 answers a cap
+// with 403; the S3 API says "... cap exceeded" in the message (code AccessDenied), the native
+// API uses codes such as storage_cap_exceeded, download_cap_exceeded and
+// transaction_cap_exceeded. Any other 403 is not a cap.
+export function isCap(status: number, code: string, msg: string): boolean {
+  return status === 403 && /cap[ _-]?exceeded/i.test(code + " " + msg);
+}
+
 async function failure(res: Response): Promise<{ code: string; cap: boolean }> {
   const text = await res.text().catch(() => "");
   const code = tag(text, "Code") ?? "";
   const msg = tag(text, "Message") ?? "";
-  return { code, cap: res.status === 403 && /cap exceeded/i.test(msg) };
+  return { code, cap: isCap(res.status, code, msg) };
 }
 
 export class B2Store implements FileStore {
@@ -110,7 +117,10 @@ export class B2Store implements FileStore {
     const f = await failure(res);
     if (f.cap) return "cap";
     if (res.status === 404) return "missing";
-    if (res.status === 416) return "range";
+    if (res.status === 416) {
+      const m = /^bytes \*\/([0-9]+)$/.exec(res.headers.get("Content-Range") ?? "");
+      return { status: 416, size: m ? Number(m[1]) : null };
+    }
     throw new B2Error(res.status, f.code);
   }
 

@@ -87,6 +87,31 @@ describe("put", () => {
   });
 });
 
+describe("cap detection", () => {
+  it("every B2 cap form is a cap on put, get and lists; any other 403 is not", async () => {
+    const body = randBytes(10);
+    const sha = await sha256(body);
+    const caps = [
+      ["AccessDenied", "Cannot upload files, storage cap exceeded."],
+      ["AccessDenied", "Cannot download file, download bandwidth or transaction (Class B) cap exceeded."],
+      ["AccessDenied", "Transaction cap exceeded"],
+      ["storage_cap_exceeded", "x"],
+      ["download_cap_exceeded", "x"],
+      ["transaction_cap_exceeded", "x"],
+      ["CapExceeded", "x"],
+    ];
+    for (const [code, msg] of caps) {
+      expect(await mock([xmlErr(403, code, msg)]).store.put(KEY, stream(body), body.length, sha)).toBe("cap");
+      expect(await mock([xmlErr(403, code, msg)]).store.get(KEY, null)).toBe("cap");
+      expect(await mock([xmlErr(403, code, msg)]).store.listPrefixes("v1/")).toBe("cap");
+    }
+    for (const [code, msg] of [["AccessDenied", "Access Denied"], ["InvalidAccessKeyId", "x"], ["AccessDenied", "bucket is not authorized"]]) {
+      await expect(mock([xmlErr(403, code, msg)]).store.put(KEY, stream(body), body.length, sha)).rejects.toBeInstanceOf(B2Error);
+    }
+    await expect(mock([xmlErr(500, "InternalError", "cap exceeded")]).store.get(KEY, null)).rejects.toBeInstanceOf(B2Error);
+  });
+});
+
 describe("get", () => {
   it("passes a Range and returns status, Content-Range and ETag", async () => {
     const { store, seen } = mock([new Response("abc", { status: 206, headers: { "Content-Range": "bytes 0-2/10", ETag: '"tag"', "Content-Length": "3" } })]);
@@ -94,14 +119,17 @@ describe("get", () => {
     expect(seen[0].headers.range).toBe("bytes=0-2");
     expect(seen[0].method).toBe("GET");
     await checkSigned(seen[0]);
-    if (typeof r === "string") throw new Error(r);
+    if (typeof r === "string" || r.status === 416) throw new Error("not a body");
     expect(r).toMatchObject({ status: 206, length: 3, contentRange: "bytes 0-2/10", etag: '"tag"' });
     expect(await new Response(r.body).text()).toBe("abc");
   });
 
-  it("404 -> missing, 416 -> range, cap -> cap, other -> throws", async () => {
+  it("404 -> missing, 416 -> 416 with the size, cap -> cap, other -> throws", async () => {
     expect(await mock([xmlErr(404, "NoSuchKey")]).store.get(KEY, null)).toBe("missing");
-    expect(await mock([xmlErr(416, "InvalidRange")]).store.get(KEY, "bytes=99-")).toBe("range");
+    const r416 = xmlErr(416, "InvalidRange");
+    r416.headers.set("Content-Range", "bytes */10");
+    expect(await mock([r416]).store.get(KEY, "bytes=99-")).toEqual({ status: 416, size: 10 });
+    expect(await mock([xmlErr(416, "InvalidRange")]).store.get(KEY, "bytes=99-")).toEqual({ status: 416, size: null });
     expect(await mock([xmlErr(403, "AccessDenied", "Cannot download file, download bandwidth or transaction (Class B) cap exceeded.")]).store.get(KEY, null)).toBe("cap");
     await expect(mock([xmlErr(401, "UnauthorizedAccess")]).store.get(KEY, null)).rejects.toBeInstanceOf(B2Error);
     await expect(mock([xmlErr(500, "InternalError")]).store.get(KEY, null)).rejects.toBeInstanceOf(B2Error);

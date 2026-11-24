@@ -24,7 +24,7 @@ class GetStore {
     if (m) {
       const from = Number(m[1]);
       const to = m[2] === "" ? b.length - 1 : Math.min(Number(m[2]), b.length - 1);
-      if (from >= b.length) return "range";
+      if (from >= b.length) return { status: 416, size: b.length };
       const part = b.slice(from, to + 1);
       return { status: 206, body: new Response(part).body!, length: part.length, contentRange: `bytes ${from}-${to}/${b.length}`, etag: '"e1"' };
     }
@@ -71,6 +71,7 @@ const FIXED = {
   "accept-ranges": "bytes",
   "access-control-expose-headers": "Content-Range, ETag",
   etag: '"e1"',
+  "cache-control": "no-store",
 };
 
 describe("file host", () => {
@@ -118,7 +119,46 @@ describe("file host", () => {
     expect(r2.headers.get("Content-Range")).toBeNull();
     expect(new Uint8Array(await r2.arrayBuffer())).toEqual(bytes);
     expect(store.gets.map((g) => g.range)).toEqual(["bytes=10-19", null]);
-    expect((await get("/" + key, { headers: { Range: "bytes=500-" } })).status).toBe(416);
+    const r3 = await get("/" + key, { headers: { Range: "bytes=500-" } });
+    expect(r3.status).toBe(416);
+    expect(r3.headers.get("Content-Range")).toBe("bytes */100");
+    expect(r3.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  it("206 is never cached; a reversed range (bytes=5-2) is not passed on: 200 full body", async () => {
+    const key = newKey();
+    const bytes = randBytes(50);
+    store.objects.set(key, bytes);
+    const r1 = await get("/" + key, { headers: { Range: "bytes=0-9" } });
+    expect(r1.status).toBe(206);
+    expect(r1.headers.get("Cache-Control")).toBe("no-store");
+    const r2 = await get("/" + key, { headers: { Range: "bytes=5-2" } });
+    expect(r2.status).toBe(200);
+    expect(new Uint8Array(await r2.arrayBuffer())).toEqual(bytes);
+    expect(store.gets.map((g) => g.range)).toEqual(["bytes=0-9", null]);
+  });
+
+  it("a key minute more than 24 h + 5 min behind -> 404 with no storage call", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const old = minuteOf(now - 86400 - 300 - 120);
+    const res = await get(`/v1/${old}/${hex(8)}/${old}-${hex(16)}`);
+    expect(res.status).toBe(404);
+    expect(store.gets).toEqual([]);
+    const recent = minuteOf(now - 86400 + 120);
+    expect((await get(`/v1/${recent}/${hex(8)}/${recent}-${hex(16)}`)).status).toBe(404);
+    expect(store.gets).toHaveLength(1);
+  });
+
+  it("an unexpected error -> 503 unavailable with the error header set", async () => {
+    storeDeps.store = () => {
+      throw new Error("boom");
+    };
+    const res = await get("/" + newKey());
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: "unavailable" });
+    expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*");
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
   });
 
   it("refuses paths off the key pattern, query strings and far-future minutes with no storage call", async () => {

@@ -91,12 +91,18 @@ export function chargeRow(old: QuotaRow | undefined, device: string, sendId: str
   return { row: r, result: { ok: true, charged: true, quota: quota() } };
 }
 
-// Pure refund step: takes back one charge made at chargedAt, in the periods that are still
-// current. The device slot is kept. Returns the new row, or null when unchanged.
-export function refundRow(old: QuotaRow | undefined, chargedAt: number): QuotaRow | null {
+// Pure step for an upload that ended after its own expiry: drops the device slot when it holds
+// sendId (so a retry of that id is charged again), and, when the upload was charged, takes back
+// that charge in the periods that are still current. Returns the new row, or null when unchanged.
+export function refundRow(old: QuotaRow | undefined, chargedAt: number, device: string, sendId: string, charged: boolean): QuotaRow | null {
   if (!old) return null;
-  const r: QuotaRow = { ...old };
+  const r: QuotaRow = { ...old, sends: { ...old.sends } };
   let changed = false;
+  if (Object.hasOwn(r.sends, device) && r.sends[device].send_id === sendId) {
+    delete r.sends[device];
+    changed = true;
+  }
+  if (!charged) return changed ? r : null;
   if (r.day === dayOf(chargedAt) && r.day_count > 0) {
     r.day_count--;
     changed = true;
@@ -117,8 +123,8 @@ export class FileQuota extends DurableObject {
     return result;
   }
 
-  async refund(chargedAt: number): Promise<void> {
-    const row = refundRow(await this.ctx.storage.get<QuotaRow>(ROW), chargedAt);
+  async refund(chargedAt: number, device: string, sendId: string, charged: boolean): Promise<void> {
+    const row = refundRow(await this.ctx.storage.get<QuotaRow>(ROW), chargedAt, device, sendId, charged);
     if (row) await this.ctx.storage.put(ROW, row);
   }
 }

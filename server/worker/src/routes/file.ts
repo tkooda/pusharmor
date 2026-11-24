@@ -173,18 +173,26 @@ export async function uploadFile(c: Ctx): Promise<Response> {
   const expires = now + ttlMinutes(length - BLOB_OVERHEAD) * 60;
   const name = fileName(minuteOf(expires), hash, hex(crypto.getRandomValues(new Uint8Array(16))));
   const body = c.req.body ?? new ReadableStream<Uint8Array>({ start: (ctl) => ctl.close() });
-  const put = await store.put(name.key, body, length, sha);
+  // A storage error or a broken body (client abort, short body) -> 502; the charge stays.
+  let put: Awaited<ReturnType<typeof store.put>>;
+  try {
+    put = await store.put(name.key, body, length, sha);
+  } catch (e) {
+    c.log.extra.storage = storageError(e);
+    throw new ApiError(502, "storage error");
+  }
   if (put === "mismatch") throw new ApiError(400, "hash mismatch");
   if (put === "cap") throw capHit(c);
-  // An upload that ends after its own expiry: delete the object, take back this charge, and
-  // refuse it. A failed delete leaves the object to the cleanup of its expiry minute.
+  // An upload that ends after its own expiry: delete the object, take back this charge, drop
+  // this device's send slot (a retry of the same PA-Send-ID is charged again), and refuse it.
+  // A failed delete leaves the object to the cleanup of its expiry minute.
   if (Math.floor(Date.now() / 1000) >= expires) {
     try {
       await store.remove(name.key);
     } catch {
       // cleanup removes it
     }
-    if (r.charged) await q.refund(now);
+    await q.refund(now, s.me, sendId, r.charged);
     throw new ApiError(410, "expired");
   }
   return json(201, { id: name.id, expires, url: name.url, quota: r.quota });
@@ -195,26 +203,24 @@ export function storageError(e: unknown): string {
   return e instanceof B2Error ? e.status + " " + e.code : "fetch";
 }
 
-// DELETE /v1/file/<id>. The id minute already passed -> 410, more than 24 h + 1 min ahead (or
-// not a real minute) -> 404, both with no storage call; then the POST steps 2-7 (PA-FILE1 DELETE
-// string; counts on RL_FILE). The key comes from the caller's account and the id, so only the
-// account's own objects can be deleted. No quota refund. Storage: no such key -> 404, cap -> 503,
-// any other error -> 502.
+// DELETE /v1/file/<id>. An id minute more than 24 h + 1 min ahead (or not a real minute) -> 404
+// with no storage call; then the POST steps 2-7 (PA-FILE1 DELETE string; counts on RL_FILE). A
+// file can be deleted while it exists, also after its expiry minute. A cap remembered from an
+// upload does not block a delete. The key comes from the caller's account and the id, so only
+// the account's own objects can be deleted. No quota refund. Storage: no such key -> 404, cap ->
+// 503, any other error -> 502.
 export async function deleteFile(c: Ctx): Promise<Response> {
   const id = c.params[0];
   const minute = id.slice(0, 12);
   const start = minuteStart(minute);
   const now0 = Math.floor(Date.now() / 1000);
   if (start === null || start > now0 + AHEAD_MAX) throw new ApiError(404, "not found");
-  if (now0 >= start + 60) throw new ApiError(410, "expired");
   const s = await signedStart(c);
   const rows = await all<CallerRow & { approved: number }>(c.env.DB.prepare(SQL.Q_FILE).bind(s.me, s.acct));
   const caller = rows[0];
   await callerCheck(c, s, caller, false, fileDeleteSignedBytes(id, s.paTime));
   if (caller.approved !== 1) throw new ApiError(403, "unapproved");
   await enforce(c.env, "RL_FILE", "file:" + s.me, c.log);
-  const now = Math.floor(Date.now() / 1000);
-  if (capLeft(now) > 0) throw paused(c, "cap", capLeft(now));
   const store = storeDeps.store(c.env);
   let hash: string;
   try {

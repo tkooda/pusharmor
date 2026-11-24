@@ -7,12 +7,13 @@ import { B2Store } from "./b2";
 // "cap": the storage account hit a daily cap (refused until 00:00 UTC). Any other failure throws.
 export type PutResult = "ok" | "mismatch" | "cap";
 
-// A body to serve (status 206 for a single byte range), or "missing" (no such key), "range"
-// (range not satisfiable), "cap" (daily cap). Any other failure throws.
+// A body to serve (status 206 for a single byte range), status 416 (range not satisfiable, with
+// the object size when storage gave it), "missing" (no such key), or "cap" (daily cap). Any other
+// failure throws.
 export type GetResult =
   | { status: 200 | 206; body: ReadableStream<Uint8Array>; length: number; contentRange: string | null; etag: string | null }
+  | { status: 416; size: number | null }
   | "missing"
-  | "range"
   | "cap";
 
 // "ok": every version deleted. "missing": no version of the key. "cap": daily cap.

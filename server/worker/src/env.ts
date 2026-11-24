@@ -62,8 +62,9 @@ export interface Env {
   PA_CONFIRM_SECRET: string;
   PA_TOKEN_SECRET: string;
   FILE_ACCT_SECRET: string; // acct-hash in file storage keys
-  B2_KEY_ID?: string; // file storage application key id
-  B2_APP_KEY?: string; // file storage application key
+  // File storage application key id and key (without both, file sending is paused).
+  B2_KEY_ID: string;
+  B2_APP_KEY: string;
   CLOUDFLARE_TURNSTILE_SECRET: string;
   AWS_SES_ACCESS_KEY_ID: string;
   AWS_SES_SECRET_ACCESS_KEY: string;

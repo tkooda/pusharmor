@@ -9,7 +9,7 @@ import { checkMinClient, checkSiteRoute, isSiteValue, parseClient } from "./pipe
 import { enforce, ipKey } from "./pipeline/limits";
 import { route } from "./router";
 import { scheduled } from "./scheduled";
-import { fileHost, FILE_HOSTNAME } from "./routes/download";
+import { errorReply, fileHost, FILE_HOSTNAME } from "./routes/download";
 
 export { FileQuota } from "./file/quota";
 
@@ -24,7 +24,7 @@ export async function handle(req: Request, env: Env, exec: ExecutionContext): Pr
     } catch (e) {
       log.setException(e);
       log.error = "unavailable";
-      res = json(503, { error: "unavailable" });
+      res = errorReply(new ApiError(503, "unavailable"));
     }
     log.status = res.status;
     log.emit(sampleRate(env.PA_LOG_SAMPLE), logLevel(env.LOG_LEVEL));
