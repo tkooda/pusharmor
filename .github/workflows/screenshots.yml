@@ -107,15 +107,6 @@ jobs:
           echo "$v"
           printf '%s\n' "$v" | grep -qx "$XCODE_VERSION"
           printf '%s\n' "$v" | grep -qx "$XCODE_BUILD"
-      - name: XcodeGen (pinned, SHA-256 checked) and generate the project
-        run: |
-          d="$RUNNER_TEMP/xcodegen"
-          mkdir -p "$d"
-          curl -fsSL -o "$d/xcodegen.zip" "https://github.com/yonaskolb/XcodeGen/releases/download/$XCODEGEN_VERSION/xcodegen.zip"
-          echo "$XCODEGEN_SHA256  $d/xcodegen.zip" | shasum -a 256 -c -
-          unzip -q "$d/xcodegen.zip" -d "$d"
-          "$d/xcodegen/bin/xcodegen" --version | grep -qF "$XCODEGEN_VERSION"
-          cd client/ios && "$d/xcodegen/bin/xcodegen" generate
       # The xcframework that ios.yml caches; built here on a miss.
       - name: Restore the OpenSSL xcframework
         id: openssl
@@ -130,6 +121,15 @@ jobs:
           cp -R "$RUNNER_TEMP/openssl/COpenSSL.xcframework" client/ios/PushArmorCore/Vendor/
         env:
           HIT: ${{ steps.openssl.outputs.cache-hit }}
+      - name: XcodeGen (pinned, SHA-256 checked) and generate the project
+        run: |
+          d="$RUNNER_TEMP/xcodegen"
+          mkdir -p "$d"
+          curl -fsSL -o "$d/xcodegen.zip" "https://github.com/yonaskolb/XcodeGen/releases/download/$XCODEGEN_VERSION/xcodegen.zip"
+          echo "$XCODEGEN_SHA256  $d/xcodegen.zip" | shasum -a 256 -c -
+          unzip -q "$d/xcodegen.zip" -d "$d"
+          "$d/xcodegen/bin/xcodegen" --version | grep -qF "$XCODEGEN_VERSION"
+          cd client/ios && "$d/xcodegen/bin/xcodegen" generate
       - name: Resolve packages to the committed pins
         working-directory: client/ios
         run: |

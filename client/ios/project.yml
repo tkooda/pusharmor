@@ -34,9 +34,9 @@ targets:
       - App
       - Shared
       # the OpenSSL license, shipped with the app (the xcframework from tools/build-openssl.sh)
+      # (copied into PushArmorCore/Vendor before xcodegen generate in every workflow)
       - path: PushArmorCore/Vendor/COpenSSL.xcframework/LICENSE.txt
         buildPhase: resources
-        optional: true
     dependencies:
       - package: PushArmorCore
       - target: PushArmorNSE

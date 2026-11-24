@@ -127,6 +127,9 @@ jobs:
           } >> "$GITHUB_OUTPUT"
       - name: Config/Public.xcconfig from release/public.json
         run: sh client/ios/tools/public-xcconfig.sh
+      # Built fresh from the pinned tarball for a release (no cache).
+      - name: OpenSSL xcframework (tools/build-openssl.sh)
+        run: bash client/ios/tools/build-openssl.sh client/ios/PushArmorCore/Vendor
       - name: XcodeGen (pinned, SHA-256 checked) and generate the project
         run: |
           d="$RUNNER_TEMP/xcodegen"
@@ -136,9 +139,6 @@ jobs:
           unzip -q "$d/xcodegen.zip" -d "$d"
           "$d/xcodegen/bin/xcodegen" --version | grep -qF "$XCODEGEN_VERSION"
           cd client/ios && "$d/xcodegen/bin/xcodegen" generate
-      # Built fresh from the pinned tarball for a release (no cache).
-      - name: OpenSSL xcframework (tools/build-openssl.sh)
-        run: bash client/ios/tools/build-openssl.sh client/ios/PushArmorCore/Vendor
       - name: Resolve packages to the committed pins
         working-directory: client/ios
         run: |
@@ -164,6 +164,8 @@ jobs:
       # No test hooks in a release build.
       - name: Release bundle check (archive)
         run: bash client/ios/tools/check-release-bundle.sh "$RUNNER_TEMP/PushArmor.xcarchive"
+      - name: OpenSSL license in the archived app
+        run: cmp client/ios/PushArmorCore/Vendor/COpenSSL.xcframework/LICENSE.txt "$RUNNER_TEMP/PushArmor.xcarchive/Products/Applications/PushArmor.app/LICENSE.txt"
       - name: Archive tarball and SHA-256
         id: files
         run: |

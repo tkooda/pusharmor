@@ -215,6 +215,8 @@ jobs:
       # No test hooks in a release build.
       - name: Release bundle check
         run: bash client/ios/tools/check-release-bundle.sh "$RUNNER_TEMP/dd/Build/Products/Release-iphoneos/PushArmor.app"
+      - name: OpenSSL license in the release app
+        run: cmp client/ios/PushArmorCore/Vendor/COpenSSL.xcframework/LICENSE.txt "$RUNNER_TEMP/dd/Build/Products/Release-iphoneos/PushArmor.app/LICENSE.txt"
       # Manual dispatch only (before a release tag): the archive line of
       # ios-release.yml build-ios (ad-hoc signed, no secrets) and its checks.
       - name: Release archive as in ios-release.yml, groups and bundle check
