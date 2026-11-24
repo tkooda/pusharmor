@@ -3060,7 +3060,7 @@ def test_send_file_sanitizes_the_name(net, tmp_path, monkeypatch, capsys):
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Windows saves with a rename")
-@pytest.mark.parametrize("err", [errno.EPERM, errno.ENOTSUP])
+@pytest.mark.parametrize("err", [errno.EPERM, errno.EACCES, errno.ENOTSUP])
 def test_place_works_without_hard_links(tmp_path, monkeypatch, err):
     def no_link(a, b):
         raise OSError(err, "no hard links")
@@ -3089,3 +3089,19 @@ def test_place_raises_other_link_errors(tmp_path, monkeypatch):
     tmp.write_bytes(b"x")
     with pytest.raises(OSError):
         pa._place(str(tmp), str(tmp_path), "a.txt")
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows saves with a rename")
+def test_place_removes_its_empty_name_when_the_rename_fails(tmp_path, monkeypatch):
+    def no_link(a, b):
+        raise OSError(errno.EPERM, "no hard links")
+
+    def no_replace(a, b):
+        raise OSError(errno.EIO, "io")
+    monkeypatch.setattr(pa.os, "link", no_link)
+    monkeypatch.setattr(pa.os, "replace", no_replace)
+    tmp = tmp_path / ".pusharmor-x.tmp"
+    tmp.write_bytes(b"x")
+    with pytest.raises(OSError):
+        pa._place(str(tmp), str(tmp_path), "a.txt")
+    assert sorted(os.listdir(tmp_path)) == [".pusharmor-x.tmp"]

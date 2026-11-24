@@ -2881,7 +2881,7 @@ def _sha256_of(f):
 
 
 # os.link errors of a file system that has no hard links
-_NO_LINK = {errno.EPERM, errno.ENOTSUP, errno.EOPNOTSUPP, errno.ENOSYS, errno.EXDEV}
+_NO_LINK = {errno.EPERM, errno.EACCES, errno.ENOTSUP, errno.EOPNOTSUPP, errno.ENOSYS, errno.EXDEV}
 
 
 def _place(tmp, folder, name):
@@ -2899,8 +2899,19 @@ def _place(tmp, folder, name):
                     raise
                 # no hard links here (FAT, exFAT, some network mounts): claim the name with an exclusive
                 # create, then rename over that empty file of ours
-                os.close(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600))
-                os.replace(tmp, path)
+                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+                try:
+                    mine = os.fstat(fd)
+                finally:
+                    os.close(fd)
+                try:
+                    os.replace(tmp, path)
+                except OSError:
+                    with contextlib.suppress(OSError):  # remove the empty name only while it is still ours
+                        st = os.lstat(path)
+                        if (st.st_dev, st.st_ino) == (mine.st_dev, mine.st_ino) and st.st_size == 0:
+                            os.unlink(path)
+                    raise
                 return path
         except FileExistsError:
             continue  # taken since the listing

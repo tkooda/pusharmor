@@ -44,11 +44,13 @@ export type FileOutcome = { kind: "retry"; wait: number | null } | { kind: "fina
 export const FILE_PAUSED = "File sending is paused. Try again later";
 export const FILE_DAMAGED = "Unable to open this file. It is not valid or was damaged.";
 
-/** Seconds -> "N minutes" under 1 hour, "N hours" under 2 days, else "N days", rounded up. */
+/** Seconds, rounded up -> "N minutes" under 1 hour, "N hours" under 2 days, else "N days" (3599 s -> "1 hour"). */
 export function fileWait(s: number): string {
-  const [unit, size] = s < 3600 ? ["minute", 60] : s < 172800 ? ["hour", 3600] : ["day", 86400];
-  const n = Math.max(1, Math.ceil(s / size));
-  return n + " " + unit + (n === 1 ? "" : "s");
+  const plural = (n: number, unit: string) => n + " " + unit + (n === 1 ? "" : "s");
+  const m = Math.max(1, Math.ceil(s / 60));
+  if (m < 60) return plural(m, "minute");
+  const h = Math.ceil(s / 3600);
+  return h < 48 ? plural(h, "hour") : plural(Math.ceil(s / 86400), "day");
 }
 
 /** retry_after in seconds from the JSON reply, else null. */

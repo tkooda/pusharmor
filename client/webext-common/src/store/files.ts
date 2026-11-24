@@ -18,10 +18,10 @@ function req<T>(r: IDBRequest<T>): Promise<T> {
   });
 }
 
-function done(tx: IDBTransaction): Promise<void> {
+export function done(tx: IDBTransaction): Promise<void> {
   return new Promise((res, rej) => {
     tx.oncomplete = () => res();
-    tx.onerror = () => rej(tx.error);
+    tx.onerror = (ev) => rej((ev.target as IDBRequest | null)?.error ?? tx.error); // a failed request: tx.error is still null here
     tx.onabort = () => rej(tx.error ?? new Error("aborted"));
   });
 }

@@ -100,6 +100,7 @@ interface Reply {
   json: Record<string, unknown>;
   body: ReadableStream<Uint8Array> | null;
   headers: Headers | null;
+  url: string; // after redirects; "" when unknown
 }
 
 async function jsonOf(res: Response): Promise<Record<string, unknown>> {
@@ -116,12 +117,12 @@ async function request(d: FileDeps, url: string, init: RequestInit, keepBody: bo
   try {
     res = await d.fetch(url, { ...init, credentials: "omit", cache: "no-store", signal });
   } catch {
-    return { status: 0, json: {}, body: null, headers: null };
+    return { status: 0, json: {}, body: null, headers: null, url: "" };
   }
   const epoch = res.headers.get("PA-Epoch");
   if (epoch && /^[0-9]{1,13}$/.test(epoch)) await d.setOffset(Number(epoch) - Math.floor(d.now() / 1000));
-  if (keepBody && (res.status === 200 || res.status === 206)) return { status: res.status, json: {}, body: res.body, headers: res.headers };
-  return { status: res.status, json: await jsonOf(res), body: null, headers: res.headers };
+  if (keepBody && (res.status === 200 || res.status === 206)) return { status: res.status, json: {}, body: res.body, headers: res.headers, url: res.url };
+  return { status: res.status, json: await jsonOf(res), body: null, headers: res.headers, url: res.url };
 }
 
 function waitMs(seconds: number | null, fallback: number): number {
@@ -196,6 +197,15 @@ export interface FileRef {
  * Returns the blob once its size and sha256 match; one re-download when they do not. Throws FileError.
  */
 export async function downloadFile(d: DownloadDeps, store: FileStore, key: string, f: FileRef, tries: { n: number }): Promise<Blob> {
+  try {
+    return await download(d, store, key, f, tries);
+  } catch (e) {
+    if (e instanceof FileError) await store.clear(key); // a final error keeps no partial blob
+    throw e;
+  }
+}
+
+async function download(d: DownloadDeps, store: FileStore, key: string, f: FileRef, tries: { n: number }): Promise<Blob> {
   if (f.size > MAX_FILE) throw new FileError("too_large", null);
   if (!fileUrlOk(f.url)) throw new FileError("damaged", FILE_DAMAGED);
   const want = f.size + BLOB_OVERHEAD;
@@ -233,6 +243,11 @@ async function fetchBlob(d: DownloadDeps, store: FileStore, key: string, f: File
       const r = await request(d, f.url, init, true, abort.signal);
       status = r.status;
       json = r.json;
+      if (r.url && !fileUrlOk(r.url)) {
+        await r.body?.cancel().catch(() => undefined);
+        throw new FileError("damaged", FILE_DAMAGED, status); // redirected off the file hosts
+      }
+      if (status === 416) throw new Damaged(); // the stored part is longer than the object
       if (r.body && status === 206 && !(r.headers?.get("Content-Range") ?? "").startsWith("bytes " + have + "-")) {
         await r.body.cancel().catch(() => undefined);
         await store.clear(key); // not the asked range: start again
@@ -243,8 +258,9 @@ async function fetchBlob(d: DownloadDeps, store: FileStore, key: string, f: File
           await store.clear(key);
           have = 0;
         }
-        have = await readInto(store, key, r.body, have, want);
-        if (have > want) throw new Damaged();
+        const got = await readInto(store, key, r.body, have, want);
+        have = got.have;
+        if (have > want || (got.ended && have < want)) throw new Damaged(); // too long, or a whole reply that is too short
         if (have === want) return;
         status = 0; // cut off: resume
       }
@@ -259,11 +275,12 @@ async function fetchBlob(d: DownloadDeps, store: FileStore, key: string, f: File
   }
 }
 
-/** Reads body into the store in pieces; a cut-off body keeps what arrived. -> bytes stored. */
-async function readInto(store: FileStore, key: string, body: ReadableStream<Uint8Array>, have: number, want: number): Promise<number> {
+/** Reads body into the store in pieces; a cut-off body keeps what arrived. -> bytes stored, and ended: the body ended normally. */
+async function readInto(store: FileStore, key: string, body: ReadableStream<Uint8Array>, have: number, want: number): Promise<{ have: number; ended: boolean }> {
   const reader = body.getReader();
   let parts: Uint8Array[] = [];
   let held = 0;
+  let ended = false;
   const flush = async () => {
     if (!held) return;
     const b = new Blob(parts as BlobPart[]);
@@ -280,7 +297,10 @@ async function readInto(store: FileStore, key: string, body: ReadableStream<Uint
       } catch {
         break; // cut off
       }
-      if (r.done) break;
+      if (r.done) {
+        ended = true;
+        break;
+      }
       parts.push(r.value);
       held += r.value.length;
       if (have + held > want) break;
@@ -290,5 +310,5 @@ async function readInto(store: FileStore, key: string, body: ReadableStream<Uint
     reader.cancel().catch(() => undefined);
   }
   await flush();
-  return have;
+  return { have, ended };
 }

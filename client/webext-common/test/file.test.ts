@@ -16,7 +16,7 @@ import { Sha256, sha256Blob } from "../src/crypto/sha256.ts";
 import { collide, sanitizeName } from "../src/model/filename.ts";
 import { DEFAULT_PICKER, PICKER_SIZES, autoDownload, catchUpDue, enoughStorage, fileStatus, fileWait, storageFullText } from "../src/model/filerules.ts";
 import { type FileValue, buildJson, parseInnerJson } from "../src/model/message.ts";
-import { FileStore } from "../src/store/files.ts";
+import { FileStore, done } from "../src/store/files.ts";
 
 type Any = any;
 const root = join(import.meta.dirname, "..", "..", "..", "tests", "vectors");
@@ -51,7 +51,9 @@ test("file-v1 sha256: pure SHA-256 in any split", async () => {
 test("file-v1 blob: seal, open, sha256, any flipped bit fails", async () => {
   for (const c of V.blob.cases) {
     const key = d(c.key);
-    const blob = await sealFile(key, d(c.plaintext), d(c.nonce));
+    const sealed = await sealFile(key, d(c.plaintext), d(c.nonce));
+    assert.ok(sealed instanceof Blob);
+    const blob = new Uint8Array(await sealed.arrayBuffer());
     assert.equal(b64urlEncode(blob), c.blob, c.name);
     assert.equal(blob.length, c.size + BLOB_OVERHEAD);
     assert.equal(blob.length, c.blob_size);
@@ -116,12 +118,12 @@ test("file-v1 auto_download: browser and cli rows", () => {
 
 test("status table, upload and download", () => {
   const rows: [string, "upload" | "download", number, Record<string, unknown>, string, string | null][] = [
-    ["quota", "upload", 429, { error: "file quota", retry_after: 3599 }, "final:quota", "You reached your file limit. Try again in 60 minutes"],
+    ["quota", "upload", 429, { error: "file quota", retry_after: 3599 }, "final:quota", "You reached your file limit. Try again in 1 hour"],
     ["quota hours", "download", 429, { error: "file quota", retry_after: 3600 }, "final:quota", "You reached your file limit. Try again in 1 hour"],
     ["quota no wait", "upload", 429, { error: "file quota" }, "final:quota", "You reached your file limit. Try again later"],
     ["rate limited", "upload", 429, { error: "rate limited", retry_after: 12 }, "retry", null],
     ["paused known end", "upload", 503, { error: "files paused", retry_after: 172800 }, "final:paused", "File sending is over quota and paused for 2 days"],
-    ["paused days", "download", 503, { error: "files paused", retry_after: 172799 }, "final:paused", "File sending is over quota and paused for 48 hours"],
+    ["paused days", "download", 503, { error: "files paused", retry_after: 172799 }, "final:paused", "File sending is over quota and paused for 2 days"],
     ["paused no end", "upload", 503, { error: "files paused" }, "final:paused", "File sending is paused. Try again later"],
     ["502", "download", 502, {}, "retry", null],
     ["503 other", "upload", 503, {}, "retry", null],
@@ -142,6 +144,11 @@ test("status table, upload and download", () => {
   }
   assert.deepEqual(fileStatus("upload", 429, { error: "rate limited", retry_after: 12 }), { kind: "retry", wait: 12 });
   assert.equal(fileWait(1), "1 minute");
+  assert.equal(fileWait(3540), "59 minutes");
+  assert.equal(fileWait(3541), "1 hour");
+  assert.equal(fileWait(3601), "2 hours");
+  assert.equal(fileWait(169200), "47 hours");
+  assert.equal(fileWait(169201), "2 days");
   assert.equal(fileWait(86400 * 3), "3 days");
   assert.equal(storageFullText("download", "a.pdf"), 'Not enough storage to download "a.pdf"');
   assert.equal(storageFullText("upload", "a.pdf"), 'Not enough storage to send "a.pdf"');
@@ -261,7 +268,7 @@ test("download: Range resume, sha256 check, one re-download", async () => {
   const store = await FileStore.open(new IDBFactory(), IDBKeyRange);
   const key = new Uint8Array(32).fill(3);
   const plain = new Uint8Array(5000).map((_, i) => i & 255);
-  const blob = await sealFile(key, plain);
+  const blob = new Uint8Array(await (await sealFile(key, plain)).arrayBuffer());
   const sha = await sha256Blob(new Blob([buf(blob)]));
   const f = { url: FV.url, expires: 1795405632, name: "a.bin", size: plain.length, sha256: sha };
   let sent = false;
@@ -314,7 +321,63 @@ test("download: Range resume, sha256 check, one re-download", async () => {
   assert.equal(calls6.length, 0);
   // a bad URL never gets a request
   await assert.rejects(downloadFile(deps([], []), store, "r7", { ...f, url: "https://example.com/x" }, { n: 0 }), (e: FileError) => e.code === "damaged");
+
+  // final errors drop the partial blob: Deleted, Expired, storage full, tries used up
+  const part = (k = "r8") => store.append(k, new Blob([buf(blob.subarray(0, 100))]));
+  await part();
+  await assert.rejects(downloadFile(deps([jsonRes(404, {})], []), store, "r8", f, { n: 0 }), (e: FileError) => e.code === "deleted");
+  assert.equal(await store.size("r8"), 0);
+  await part();
+  await assert.rejects(downloadFile(deps([jsonRes(410, {})], []), store, "r8", f, { n: 0 }), (e: FileError) => e.code === "expired");
+  assert.equal(await store.size("r8"), 0);
+  await part();
+  await assert.rejects(downloadFile(dd6, store, "r8", f, { n: 0 }), (e: FileError) => e.code === "storage");
+  assert.equal(await store.size("r8"), 0);
+  await part();
+  await assert.rejects(downloadFile(deps([jsonRes(502, {})], []), store, "r8", f, { n: 4 }), (e: FileError) => e.code === "failed");
+  assert.equal(await store.size("r8"), 0);
+
+  // 416: the stored part does not fit the object; start again once
+  await part("r9");
+  const calls9: { url: string; init: RequestInit }[] = [];
+  assert.equal((await downloadFile(deps([new Response("", { status: 416 }), new Response(buf(blob), { status: 200 })], calls9), store, "r9", f, { n: 0 })).size, blob.length);
+  assert.deepEqual(calls9[0]!.init.headers, { Range: "bytes=100-" });
+  assert.equal(calls9[1]!.init.headers, undefined);
+  // a whole reply that is too short, twice: damaged, no resume
+  const short = () => new Response(buf(blob.subarray(0, 50)), { status: 200 });
+  const calls10: { url: string; init: RequestInit }[] = [];
+  await assert.rejects(downloadFile(deps([short(), short()], calls10), store, "r10", f, { n: 0 }), (e: FileError) => e.code === "damaged" && e.text === "Unable to open this file. It is not valid or was damaged.");
+  assert.equal(calls10.length, 2);
+  assert.equal(await store.size("r10"), 0);
+  // a redirect off the file hosts: damaged, the body is not stored
+  const moved = new Response(buf(blob), { status: 200 });
+  Object.defineProperty(moved, "url", { value: "https://example.com/x" });
+  await assert.rejects(downloadFile(deps([moved], []), store, "r11", f, { n: 0 }), (e: FileError) => e.code === "damaged");
+  assert.equal(await store.size("r11"), 0);
+
+  // a full disk while storing: the storage-full text, and no partial blob
+  const full = Object.create(store) as FileStore;
+  full.append = async () => {
+    throw new DOMException("full", "QuotaExceededError");
+  };
+  await part();
+  await assert.rejects(downloadFile(deps([new Response(buf(blob), { status: 200 })], []), full, "r8", f, { n: 0 }), (e: FileError) => e.code === "storage" && e.text === 'Not enough storage to download "a.bin"');
+  assert.equal(await store.size("r8"), 0);
   store.close();
+});
+
+test("file store: a failed request rejects with its own error", async () => {
+  const f = new IDBFactory();
+  await FileStore.open(f, IDBKeyRange);
+  const db = await new Promise<IDBDatabase>((res) => {
+    const r = f.open("pusharmor-files");
+    r.onsuccess = () => res(r.result);
+  });
+  const tx = db.transaction("picked", "readwrite");
+  tx.objectStore("picked").add(new Blob(["a"]), "k");
+  tx.objectStore("picked").add(new Blob(["b"]), "k");
+  await assert.rejects(done(tx), (e: DOMException) => e.name === "ConstraintError");
+  db.close();
 });
 
 test("file store: picked files and clear all", async () => {
