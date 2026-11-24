@@ -38,3 +38,6 @@ xcuserdata/
 
 # Derived from release/public.json by client/ios/tools/public-xcconfig.sh
 client/ios/Config/Public.xcconfig
+
+# Built by client/ios/tools/build-openssl.sh
+client/ios/PushArmorCore/Vendor/
