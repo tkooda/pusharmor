@@ -114,7 +114,7 @@ for (const [len, count] of [[22, 300], [64, 120]] as const) test("a del of " + c
   assert.equal((await rows(a)).length, 0);
 });
 
-test("partial: chunk 1 ok, chunk 2 relay server failure on every attempt, chunk 3 still sent; only chunk 2 rows kept; one error", async () => {
+test("partial: chunk 1 ok, chunk 2 relay server failure on every attempt, chunk 3 still sent; only chunk 2 rows kept; one error", async (t) => {
   const { w, a } = await setup();
   const mids: string[] = [];
   const ids: number[] = [];
@@ -124,6 +124,12 @@ test("partial: chunk 1 ok, chunk 2 relay server failure on every attempt, chunk 
     ids.push(await a.db.addHistory({ dir: "out", peer: null, type: "text", content: "x" + i, n: null, pairing_id: null, received: 1000 + i, read: true, mid }));
   }
   ids.push(await a.db.addHistory({ dir: "out", peer: null, type: "text", content: "noid", n: null, pairing_id: null, received: 1, read: true }));
+  // every size check builds the JSON with a new random message id, whose deflated size varies: a fixed id keeps the boundary in place (the chunks are computed again by the send)
+  t.mock.method(crypto, "getRandomValues", <T extends ArrayBufferView>(a: T): T => {
+    const b = new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+    for (let i = 0; i < b.length; i++) b[i] = (i * 151 + 7) & 255;
+    return a;
+  });
   const chunks = await delChunks(mids);
   assert.ok(chunks.length >= 3);
   const handle = w.handle.bind(w);
@@ -196,13 +202,19 @@ test("a push that fails on every attempt is sent 3 times in all, then named in t
   assert.equal((await rows(a)).length, 1);
 });
 
-test("a del filled to the max with 22-char ids seals to 3800 chars or less; one more id does not fit", async () => {
+test("a del filled to the max with 22-char ids seals to 3800 chars or less; one more id does not fit", async (t) => {
   const { a, b } = await setup();
   const self = (await a.e.self())!;
   const peer = (await a.db.peer(b.id))!;
   const seal = (ids: string[]) =>
     encodeInner({ signKey: self.sign.privateKey, fromId: b64urlDecode(a.id), pairingId: peer.pairing_id!, json: buildJson(Number.MAX_SAFE_INTEGER, { type: "del", ids }), recipientId: b.id, recipientEncPub: peer.enc_pub });
   const ids = Array.from({ length: 300 }, () => newMsgId());
+  // every size check builds the JSON with a new random message id, whose deflated size varies: a fixed id keeps the boundary in place
+  t.mock.method(crypto, "getRandomValues", <T extends ArrayBufferView>(a: T): T => {
+    const b = new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+    for (let i = 0; i < b.length; i++) b[i] = (i * 151 + 7) & 255;
+    return a;
+  });
   const max = (await delChunks(ids))[0]!.length;
   assert.ok((await seal(ids.slice(0, max))).length <= 3800);
   assert.equal(await delFits(ids.slice(0, max + 1)), false);
