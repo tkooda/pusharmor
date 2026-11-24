@@ -61,7 +61,6 @@ import {
   type PairEntry,
   RECHECK_AT,
   REG_MARKER,
-  REPORTED_VERSION,
   UPDATE_NEEDED,
   accountKey,
   allEntries,
@@ -288,11 +287,6 @@ export class Engine {
 
   /** engine.receive(M): the common receive pipeline (section 5). */
   async receive(m: string, src: Src = "push"): Promise<void> {
-    await this.receiveOne(m, src);
-    if (src === "push" || src === "bridge") await this.reportVersion();
-  }
-
-  private async receiveOne(m: string, src: Src): Promise<void> {
     if (isCheckPush(m)) return; // the relay server's test push: dropped silently
     const self = await this.self();
     if (!self) return;
@@ -301,14 +295,6 @@ export class Engine {
       return;
     }
     await this.receiveInner(m, self, src);
-  }
-
-  /** Own app version not yet reported: one GET /peers (it carries PA-Client), at most one per 60 s window; stored only after that call ran. */
-  async reportVersion(): Promise<void> {
-    if ((await this.p.storageLocal.get([REPORTED_VERSION]))[REPORTED_VERSION] === this.p.appVersion) return;
-    if ((await this.regState()) !== "registered") return;
-    if (now(this.p) - ((await this.db.meta<number>("last_fetch")) ?? 0) < FETCH_WINDOW_MS) return; // at most one try per 60 s window
-    if (await this.fetchPeersNow().catch(() => false)) await this.p.storageLocal.set({ [REPORTED_VERSION]: this.p.appVersion });
   }
 
   private async dropEvent(kind: "unreadable" | "invalid", peer: string | null, src: Src): Promise<void> {
@@ -1308,9 +1294,8 @@ export class Engine {
     return true;
   }
 
-  /** GET /peers merge (section 4.2, catalog Removal rules). fromGet false (a POST /peers reply, which
-   * never carries versions): each stored peer version is kept. */
-  async mergePeers(json: Record<string, unknown>, self: SelfKeys, fromGet = true): Promise<void> {
+  /** GET /peers merge (section 4.2, catalog Removal rules). */
+  async mergePeers(json: Record<string, unknown>, self: SelfKeys): Promise<void> {
     const acct = accountOf(b64urlDecode(self.id));
     // the literals track the relay server limits: 10 listed devices, 9 allow entries, 8 remove messages
     const list = Array.isArray(json.peers) ? (json.peers as Record<string, unknown>[]).slice(0, 10) : [];
@@ -1362,7 +1347,6 @@ export class Engine {
           reachable: it.reachable === true,
           denies_me: it.denies_me === true,
           missing: false,
-          ...(fromGet ? { version: typeof it.version === "string" ? it.version : null } : {}),
         };
         if (row.pinned && row.approve_verified) row = { ...row, approves_me: it.approves_me === true, get_after_verify: true };
         else if (!row.pinned) row = { ...row, approves_me: it.approves_me === true };
@@ -2332,9 +2316,7 @@ export class Engine {
     if (email) await this.db.setMeta("email", email);
     await this.authChanged();
     const self = (await this.self())!;
-    await this.mergePeers(r.json, self, false);
-    // the relay server stored this app version with the registration
-    await this.p.storageLocal.set({ [REPORTED_VERSION]: this.p.appVersion });
+    await this.mergePeers(r.json, self);
     if (lost && lost.id && lost.id !== id) {
       try {
         await this.api.call("DELETE", "/peers/" + lost.id, { signer: this.signerOf(self), body: { m: {} } });
@@ -2378,7 +2360,6 @@ export class Engine {
     await this.timeoutCheck();
     await this.reconcileAllow();
     await this.pushReconcile(false, true).catch(() => undefined); // no setup tab from the popup
-    await this.reportVersion();
   }
 }
 

@@ -44,7 +44,6 @@ export interface PeerRow {
   approve_verified: boolean; // the peer's approve verified on this device
   get_after_verify: boolean; // a GET /peers was fetched after the verify
   pending_approve_n: number; // verified approve kept while unruled (0 = none)
-  version?: string | null; // the peer's last reported app version from GET /peers; null or absent = unknown
 }
 
 export interface HistoryRow {
