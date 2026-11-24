@@ -77,6 +77,16 @@ the receiver state the pipeline runs against:
 For kind `pair`, the received kind must equal `expected_kind`, and an open
 must match `stored_c_N`.
 
+## file-v1.json
+
+File send vectors, built and checked the same way (`node ref/gen.mjs`
+writes both files; `ref/check.mjs` checks both). Reference code is in
+`ref/file.mjs`. Sections: `constants` (`MAX_FILE`, `BLOB_OVERHEAD`),
+`file_sig` (PA-FILE1 POST and DELETE strings and PA-Sig), `blob`,
+`upload_request`, `sha256`, `ttl`, `key`, `names`, `collision` (CLI
+`listen --files DIR`) and `auto_download`. `ttl` and `key` carry
+`"worker_only": true`: clients never hardcode a file lifetime.
+
 ## Not covered here
 
 Per-platform state machine tests (re-send while "Waiting for $X", the allow

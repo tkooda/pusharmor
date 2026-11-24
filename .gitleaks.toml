@@ -7,6 +7,7 @@ useDefault = true
 description = "public test vectors and test-only keys"
 paths = [
   '''^tests/vectors/golden-v1\.json$''',
+  '''^tests/vectors/file-v1\.json$''',
   '''^tests/vectors/ref/[^/]+\.mjs$''',
   '''^server/worker/test/secrets\.ts$''',
   '''^server/tools/ban/lib\.test\.mjs$''',

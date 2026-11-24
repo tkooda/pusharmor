@@ -18,6 +18,10 @@ import { sealWire } from './hpke.mjs';
 import { windowAccept, replayOutcome } from './replay.mjs';
 import { isPhone, parseReceivedUrl } from './detect.mjs';
 import { RFC8291_EXAMPLE, RFC9180_SUITE } from './rfc-vectors.mjs';
+import {
+  BLOB_OVERHEAD, MAX_FILE, autoDownload, collisionName, fileDeleteBytes, fileKey, filePostBytes, sanitizeName, sealBlob,
+  ttlMinutes,
+} from './file.mjs';
 
 const label = (s) => sha256('PA-TEST1\n' + s);
 const ikm = (s) => label('ikmE\n' + s);
@@ -1013,8 +1017,279 @@ export function buildGolden() {
   };
 }
 
+// ---------------------------------------------------------------- file-v1.json
+const FILE_TIME = '1795319232123'; // 2026-11-22 03:47:12.123 UTC
+const sendIdOf = (s) => b64e(label('send id\n' + s).subarray(0, 16));
+const randHexOf = (s) => hexe(label('file id\n' + s).subarray(0, 16));
+const ACCT_SECRET = label('ACCT_HASH_SECRET');
+
+function fileSigSection() {
+  const post = (name, cl, sha, sendId, paTime = FILE_TIME) => {
+    const signed = filePostBytes(paTime, cl, sha, sendId);
+    return {
+      name, method: 'POST', signer: X.name, sign_pub: b64e(X.signPub), pa_time: paTime, content_length: cl,
+      file_sha256: sha, send_id: sendId, signed_text: signed.toString('utf8'), signed_bytes: b64e(signed),
+      sig: b64e(sign(X.signPriv, signed)),
+    };
+  };
+  const del = (name, id, paTime = FILE_TIME) => {
+    const signed = fileDeleteBytes(id, paTime);
+    return {
+      name, method: 'DELETE', signer: X.name, sign_pub: b64e(X.signPub), pa_time: paTime, id, path: '/v1/file/' + id,
+      signed_text: signed.toString('utf8'), signed_bytes: b64e(signed), sig: b64e(sign(X.signPriv, signed)),
+    };
+  };
+  const id = '202611230347-' + randHexOf('sig');
+  return {
+    description:
+      'PA-FILE1 signing strings, frozen, UTF-8, no trailing newline. POST: "PA-FILE1\\nPOST\\n/v1/file\\n" + PA-Time + "\\n" + ' +
+      'Content-Length (decimal) + "\\n" + PA-File-SHA256 + "\\n" + PA-Send-ID. DELETE: "PA-FILE1\\nDELETE\\n/v1/file/" + id + ' +
+      '"\\n" + PA-Time (no body line). PA-Sig = b64url of raw r||s, ECDSA P-256 SHA-256 over the string, as PA-REQ1. ' +
+      'Signer X from golden-v1.json keys.peers. Assert signed_bytes byte for byte from the fields and that sig verifies ' +
+      'with sign_pub (verify only).',
+    cases: [
+      post('post_small', 33, b64e(sha256('example blob')), sendIdOf('small')),
+      post('post_max_file', MAX_FILE + BLOB_OVERHEAD, b64e(sha256('max blob')), sendIdOf('max')),
+      del('delete', id),
+      del('delete_other_time', id, '1795320000999'),
+    ],
+  };
+}
+
+const BLOB_INPUTS = [
+  ['empty', ''],
+  ['hello', 'hello, file'],
+  ['prng_1000', prng('file blob 1000', 1000)],
+];
+
+function blobCase(name, text) {
+  const key = label('file key\n' + name);
+  const nonce = label('file nonce\n' + name).subarray(0, 12);
+  const pt = Buffer.from(text, 'latin1');
+  const blob = sealBlob(key, nonce, pt);
+  return {
+    name, key: b64e(key), nonce: b64e(nonce), plaintext: b64e(pt), size: pt.length, blob: b64e(blob),
+    blob_size: blob.length, sha256: b64e(sha256(blob)),
+  };
+}
+
+function blobSection() {
+  return {
+    description:
+      'AES-256-GCM, one random 32-byte key and one random 12-byte nonce per file, no AAD, one tag, never chunked. blob = ' +
+      'nonce (12) || ciphertext || tag (16); blob_size = size + 28 exactly. key is the 43-char b64url file.key. sha256 is ' +
+      'the 43-char b64url SHA-256 of the whole blob (file.sha256 and the PA-File-SHA256 header). Assert: seal(key, nonce, ' +
+      'plaintext) == blob; open(key, blob) == plaintext; sha256(blob) == sha256; a blob with any bit flipped fails to open.',
+    cases: BLOB_INPUTS.map(([n, t]) => blobCase(n, t)),
+  };
+}
+
+function uploadSection() {
+  const b = blobCase('hello', 'hello, file');
+  const blob = b64d(b.blob);
+  const sendId = sendIdOf('upload');
+  const signed = filePostBytes(FILE_TIME, blob.length, b.sha256, sendId);
+  return {
+    description:
+      'One full POST /v1/file request (blob from blob.cases "hello"). Content-Length = body length; PA-File-SHA256 = ' +
+      'b64url SHA-256 of the body; PA-Send-ID = 22-char b64url of 16 random bytes, the same on each retry of one send; ' +
+      'PA-Sig over the PA-FILE1 POST string. Assert every header from the body and the fields, that PA-Sig verifies with ' +
+      'sign_pub, and that the body opens with key to plaintext.',
+    method: 'POST',
+    path: '/v1/file',
+    signer: X.name,
+    sign_pub: b64e(X.signPub),
+    key: b.key,
+    plaintext: b.plaintext,
+    headers: {
+      'PA-ID': X.idB64,
+      'PA-Time': FILE_TIME,
+      'PA-Client': 'cli/0.0.55',
+      'PA-File-SHA256': b.sha256,
+      'Content-Length': String(blob.length),
+      'PA-Send-ID': sendId,
+      'PA-Sig': b64e(sign(X.signPriv, signed)),
+    },
+    body: b.blob,
+    signed_bytes: b64e(signed),
+  };
+}
+
+function sha256Section() {
+  const ins = [['empty', ''], ['abc', 'abc'], ['blob_hello', b64d(blobCase('hello', 'hello, file').blob)]];
+  return {
+    description: 'SHA-256 of bytes as 43-char b64url (no padding). input is b64url bytes. Assert sha256(input) == sha256.',
+    cases: ins.map(([name, v]) => ({ name, input: b64e(Buffer.from(v)), sha256: b64e(sha256(v)) })),
+  };
+}
+
+function ttlSection() {
+  const pts = [
+    ['zero', 0], ['one', 1], ['10_000_000', 10000000], ['10_000_001', 10000001], ['25_mb', 25000000],
+    ['50_mb', 50000000], ['95_mb', 95000000], ['100_mb', 100000000], ['max_file', MAX_FILE], ['max_file_plus_1', MAX_FILE + 1],
+  ];
+  return {
+    description:
+      'WORKER ONLY. Clients never implement or hardcode a lifetime; they show file.expires. size = Content-Length - 28 ' +
+      '(plaintext bytes, decimal). ttl_min = min(1440, floor(14,400,000,000 / size)); size 0 -> 1440. Content-Length > ' +
+      'MAX_FILE + 28 -> 413 and ttl_min null. Assert ttl_min and status for each content_length.',
+    worker_only: true,
+    cases: pts.map(([name, size]) => {
+      const t = ttlMinutes(size);
+      return { name, size, content_length: size + BLOB_OVERHEAD, ttl_min: t, status: t === null ? 413 : 201 };
+    }),
+  };
+}
+
+function keySection() {
+  const u = (y, mo, d, h, mi, s) => Date.UTC(y, mo - 1, d, h, mi, s) / 1000;
+  const cases = [
+    ['plan_example_24h', u(2026, 11, 22, 3, 47, 12), 1234567, ACCT_A],
+    ['25_mb', u(2026, 11, 22, 3, 47, 12), 25000000, ACCT_A],
+    ['other_account', u(2026, 11, 22, 3, 47, 12), 1234567, ACCT_B],
+    ['expires_on_minute', u(2026, 11, 22, 10, 0, 0), 100000000, ACCT_A],
+    ['year_end_100mb_last_minute', u(2026, 12, 31, 21, 35, 59), 100000000, ACCT_A],
+    ['year_end_100mb_rollover', u(2026, 12, 31, 21, 36, 0), 100000000, ACCT_A],
+    ['year_end_24h_last_minute', u(2026, 12, 30, 23, 59, 59), 1, ACCT_A],
+    ['year_end_24h_rollover', u(2026, 12, 31, 0, 0, 0), 1, ACCT_A],
+  ];
+  return {
+    description:
+      'WORKER ONLY (clients use url and id as received). expires = accept_time + ttl_min * 60 (unix seconds); minute = ' +
+      'UTC YYYYMMDDHHMM of floor(expires / 60); acct_hash = first 16 lowercase hex of HMAC-SHA256(acct_secret, raw ' +
+      'account id bytes); id = minute + "-" + rand_hex (32 lowercase hex of 16 random bytes); key = "v1/" + minute + "/" + ' +
+      'acct_hash + "/" + id; url = "https://b2file.pusharmor.com/" + key. Assert every output from the inputs.',
+    worker_only: true,
+    acct_secret: b64e(ACCT_SECRET),
+    cases: cases.map(([name, acceptTime, size, account]) => {
+      const randHex = randHexOf(name);
+      const r = fileKey({ acceptTime, size, secret: ACCT_SECRET, account, randHex });
+      return {
+        name, accept_time: acceptTime, size, account: b64e(account), rand_hex: randHex,
+        acct_hash: r.key.split('/')[2], ...r,
+      };
+    }),
+  };
+}
+
+const NAME_TIME = 1795405632; // 2026-11-23 03:47:12 UTC
+const NAME_INPUTS = [
+  ['report.pdf'], ['report (1).pdf'], ['My Photo 2026.JPG', true], ['/home/user/docs/notes.txt'],
+  ['C:\\Users\\me\\file.docx'], ['../../etc/passwd'], ['dir/'], [''], ['...'], ['.bashrc'], ['..hidden.txt'],
+  ['trailing dot.'], [' spaced name .txt '], ['multi   space.txt'], ['under___score.txt'], ['a_ _b.txt'],
+  ['caf\u00e9.txt'], ['\u65e5\u672c\u8a9e.txt'], ['\u{1F600}.png', true], ['\u{1F600}smile.png', true],
+  ['a<b>c:d"e|f?g*h.txt'], ['tab\there.txt'], ['new\nline.txt'], ['archive.tar.gz'], ['noext'],
+  ['photo.jpeg', true], ['x.abcdefghij'], ['x.abcdefghijk'], ['x.tar-gz'], ['12345.jpg', true], ['0000'],
+  ['con.txt'], ['CON'], ['Nul.tar.gz'], ['com1.log'], ['LPT9'], ['com10.txt'], ['console.txt'], ['aux_file.txt'],
+  ['CON .txt'], ['a'.repeat(64) + '.txt'], ['a'.repeat(65) + '.txt'], ['a'.repeat(65)],
+  ['a'.repeat(64) + '.' + 'b'.repeat(11)], ['_.pdf'], ['-.pdf'], ['(1).pdf'], ['screenshot.PNG', true],
+  ['\u00e9\u00e9\u00e9', true], ['file.name.with.dots.md'], ['dots...txt'], ['  '], ['%20encoded%2F.txt'],
+  ['name.\u00e9xt'], ['report.pdf.'], ['C:'],
+];
+
+function namesSection() {
+  return {
+    description:
+      'File names, applied by sender and receiver. Steps: 1 basename (split on "/" and "\\\\"); 2 every char (code point) ' +
+      'outside [A-Za-z0-9 ._()-] -> "_"; 3 collapse runs of "_" to one "_" and runs of spaces to one space; 4 trim ' +
+      'leading and trailing dots and spaces; 5 extension = text after the last dot if 1-10 chars of [A-Za-z0-9], else ' +
+      'none (base = all); 6 fallback base if the base has no [A-Za-z0-9] or is > 64 chars: "file-YYYYMMDD-HHMMSS" (or ' +
+      '"image-..." when image is true) from time in UTC, extension kept; 7 cut so the total is <= 100 (guard); 8 if the ' +
+      'text before the first dot equals CON, PRN, AUX, NUL, COM1-COM9 or LPT1-LPT9 (any case), prefix "_". Digits-only ' +
+      'names are kept. image and time are inputs (the caller decides image; time is send or receive time). Assert ' +
+      'sanitize(input, time, image) == output.',
+    time: NAME_TIME,
+    cases: NAME_INPUTS.map(([input, image = false]) => ({ input, image, output: sanitizeName(input, NAME_TIME, image) })),
+  };
+}
+
+function collisionSection() {
+  const ten = ['a.pdf', ...Array.from({ length: 9 }, (_, i) => 'a (' + (i + 1) + ').pdf')];
+  const cs = [
+    ['free', 'report.pdf', []],
+    ['taken', 'report.pdf', ['report.pdf']],
+    ['next_free', 'report.pdf', ['report.pdf', 'report (1).pdf']],
+    ['gap', 'report.pdf', ['report.pdf', 'report (1).pdf', 'report (3).pdf']],
+    ['only_numbered_taken', 'report.pdf', ['report (1).pdf']],
+    ['no_ext', 'README', ['README']],
+    ['last_dot_ext', 'archive.tar.gz', ['archive.tar.gz']],
+    ['already_numbered', 'report (1).pdf', ['report (1).pdf']],
+    ['long_ext_is_base', 'x.abcdefghijk', ['x.abcdefghijk']],
+    ['ten', 'a.pdf', ten],
+  ];
+  return {
+    description:
+      'CLI listen --files DIR: when the sanitized name exists in DIR, use "base (N).ext" with the smallest N >= 1 that ' +
+      'is free; base and ext split as names step 5 (no ext -> "base (N)"). existing = names already in DIR. Assert ' +
+      'collide(name, existing) == output.',
+    cases: cs.map(([name, n, existing]) => ({ name, input: n, existing, output: collisionName(n, existing) })),
+  };
+}
+
+function autoDownloadSection() {
+  const pickers = [['off', 0], ['10_mb', 10000000], ['25_mb', 25000000], ['50_mb', 50000000], ['100_mb', 100000000]];
+  const sizes = [1, 10000000, 10000001, 25000001, 50000000, 50000001, 100000000];
+  const cases = [];
+  for (const network of ['wifi', 'mobile']) {
+    for (const dataSaver of [false, true]) {
+      for (const [pn, picker] of pickers) {
+        for (const size of sizes) {
+          const input = { client: 'phone', network, data_saver: dataSaver, picker, size };
+          cases.push({ ...input, picker_name: pn, download: autoDownload(input) });
+        }
+      }
+    }
+  }
+  for (const [pn, picker] of pickers) {
+    for (const size of sizes) {
+      const input = { client: 'browser', network: 'any', data_saver: false, picker, size };
+      cases.push({ ...input, picker_name: pn, download: autoDownload(input) });
+    }
+  }
+  for (const size of [1, MAX_FILE]) {
+    const input = { client: 'cli', network: 'any', data_saver: false, picker: null, size };
+    cases.push({ ...input, picker_name: null, download: autoDownload(input) });
+  }
+  return {
+    description:
+      'Auto-download (catch-up and on arrival) for a pending, non-expired file. phone: picker is the picker for the ' +
+      'current network ("On Wi-Fi" or "On mobile data"); Data Saver / Low Data Mode on mobile = Off. browser: one ' +
+      'picker, network ignored. cli (listen --files DIR): every file up to MAX_FILE, no picker. picker is the limit in ' +
+      'bytes (0 = Off); download = picker > 0 and size <= picker. Assert download for each row.',
+    cases,
+  };
+}
+
+export function buildFile() {
+  return {
+    version: 1,
+    description:
+      'PushArmor file send vectors v1 (normative). Binary values are strict b64url unless a field says hex. Sizes are ' +
+      'bytes (decimal), times are unix seconds, PA-Time is unix ms. Sections marked worker_only (ttl, key) are for the ' +
+      'Worker; clients never hardcode a lifetime.',
+    constants: {
+      description: 'MAX_FILE = largest plaintext size in bytes; BLOB_OVERHEAD = blob bytes beyond the plaintext (nonce 12 + ' +
+        'tag 16). Content-Length limit = MAX_FILE + BLOB_OVERHEAD.',
+      MAX_FILE,
+      BLOB_OVERHEAD,
+    },
+    file_sig: fileSigSection(),
+    blob: blobSection(),
+    upload_request: uploadSection(),
+    sha256: sha256Section(),
+    ttl: ttlSection(),
+    key: keySection(),
+    names: namesSection(),
+    collision: collisionSection(),
+    auto_download: autoDownloadSection(),
+  };
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const path = process.argv[2] ?? new URL('../golden-v1.json', import.meta.url).pathname;
   writeFileSync(path, stableJson(buildGolden()));
   process.stdout.write('wrote ' + path + '\n');
+  const filePath = process.argv[3] ?? new URL('../file-v1.json', import.meta.url).pathname;
+  writeFileSync(filePath, stableJson(buildFile()));
+  process.stdout.write('wrote ' + filePath + '\n');
 }

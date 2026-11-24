@@ -1,9 +1,9 @@
 name: vectors
 
-# Golden cross-platform vectors (tests/vectors/golden-v1.json): the Node
-# reference code checks the file itself. Each component suite (worker.yml,
-# webext.yml, android.yml, ios.yml, cli.yml) runs the same file through its own
-# production code. Called by ci.yml.
+# Golden cross-platform vectors (tests/vectors/golden-v1.json) and file send
+# vectors (tests/vectors/file-v1.json): the Node reference code checks the files
+# themselves. Each component suite (worker.yml, webext.yml, android.yml, ios.yml,
+# cli.yml) runs the same files through its own production code. Called by ci.yml.
 on:
   workflow_call:
 
@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: site/.node-version
-      - name: Check golden-v1.json with the reference code
+      - name: Check golden-v1.json and file-v1.json with the reference code
         working-directory: tests/vectors
         run: node --test ref/check.mjs
 

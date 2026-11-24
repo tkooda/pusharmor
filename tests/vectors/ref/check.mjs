@@ -1,4 +1,5 @@
-// Asserts every section of ../golden-v1.json through the reference code.
+// Asserts every section of ../golden-v1.json and ../file-v1.json through the
+// reference code.
 // Run: node --test ref/check.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,7 +19,11 @@ import { replayOutcome, windowAccept } from './replay.mjs';
 import { isPhone, parseReceivedUrl } from './detect.mjs';
 import { decrypt as wpDecrypt, encrypt as wpEncrypt } from './webpush.mjs';
 import { RFC6979_P256 } from './rfc-vectors.mjs';
-import { buildGolden, stableJson } from './gen.mjs';
+import {
+  BLOB_OVERHEAD, MAX_FILE, acctHash, autoDownload, collisionName, fileDeleteBytes, fileKey, filePostBytes, openBlob,
+  sanitizeName, sealBlob, ttlMinutes, verifyFile,
+} from './file.mjs';
+import { buildFile, buildGolden, stableJson } from './gen.mjs';
 
 const PATH = new URL('../golden-v1.json', import.meta.url);
 const RAW = readFileSync(PATH);
@@ -352,4 +357,112 @@ test('rfc8291', () => {
   }
   assert.equal(b64e(pubFromPriv(b64d(v.as_private))), v.as_public);
   assert.equal(b64e(wpDecrypt({ body: b64d(v.body), uaPrivate: b64d(v.ua_private), authSecret: b64d(v.auth_secret) })), v.plaintext);
+});
+
+// ---------------------------------------------------------------- file-v1.json
+const FRAW = readFileSync(new URL('../file-v1.json', import.meta.url));
+const F = JSON.parse(FRAW.toString('utf8'));
+
+test('file-v1: ASCII, version 1, stable and reproducible', () => {
+  assert.ok(FRAW.every((b) => b < 0x80), 'non-ASCII byte in file-v1.json');
+  assert.equal(F.version, 1);
+  assert.equal(FRAW.toString('utf8'), stableJson(F), 'not in stable sorted form');
+  assert.equal(FRAW.toString('utf8'), stableJson(buildFile()), 'generator output differs from the committed file');
+  for (const [k, v] of Object.entries(F)) if (v && typeof v === 'object') assert.equal(typeof v.description, 'string', k);
+  assert.equal(F.constants.MAX_FILE, MAX_FILE);
+  assert.equal(F.constants.BLOB_OVERHEAD, BLOB_OVERHEAD);
+  assert.equal(F.ttl.worker_only, true);
+  assert.equal(F.key.worker_only, true);
+});
+
+test('file-v1: file_sig', () => {
+  for (const c of F.file_sig.cases) {
+    const bytes = c.method === 'POST'
+      ? filePostBytes(c.pa_time, c.content_length, c.file_sha256, c.send_id)
+      : fileDeleteBytes(c.id, c.pa_time);
+    assert.equal(b64e(bytes), c.signed_bytes, c.name);
+    assert.equal(bytes.toString('utf8'), c.signed_text, c.name);
+    assert.ok(!c.signed_text.endsWith('\n'), c.name);
+    assert.equal(c.sign_pub, G.keys.peers[c.signer].sign_pub);
+    assert.ok(verifyFile(b64d(c.sign_pub), bytes, b64d(c.sig)), c.name);
+    if (c.method === 'POST') {
+      assert.match(c.send_id, /^[A-Za-z0-9_-]{22}$/);
+      assert.equal(b64d(c.send_id).length, 16);
+    } else {
+      assert.equal(c.path, '/v1/file/' + c.id);
+    }
+  }
+});
+
+test('file-v1: blob and sha256', () => {
+  for (const c of F.blob.cases) {
+    const key = b64d(c.key);
+    const pt = b64d(c.plaintext);
+    assert.equal(c.key.length, 43);
+    const blob = sealBlob(key, b64d(c.nonce), pt);
+    assert.equal(b64e(blob), c.blob, c.name);
+    assert.equal(blob.length, c.size + BLOB_OVERHEAD);
+    assert.equal(c.blob_size, blob.length);
+    assert.equal(b64e(openBlob(key, blob)), c.plaintext);
+    assert.equal(b64e(sha256(blob)), c.sha256);
+    assert.equal(c.sha256.length, 43);
+    for (const i of [0, 12, blob.length - 1]) {
+      const bad = Buffer.from(blob);
+      bad[i] ^= 1;
+      assert.throws(() => openBlob(key, bad), c.name + ' flip ' + i);
+    }
+  }
+  for (const c of F.sha256.cases) assert.equal(b64e(sha256(b64d(c.input))), c.sha256, c.name);
+});
+
+test('file-v1: upload_request', () => {
+  const u = F.upload_request;
+  const body = b64d(u.body);
+  const h = u.headers;
+  assert.equal(h['Content-Length'], String(body.length));
+  assert.equal(h['PA-File-SHA256'], b64e(sha256(body)));
+  assert.equal(h['PA-ID'], G.keys.peers[u.signer].id);
+  assert.equal(u.sign_pub, G.keys.peers[u.signer].sign_pub);
+  assert.match(h['PA-Time'], /^[1-9][0-9]{12}$/);
+  const bytes = filePostBytes(h['PA-Time'], body.length, h['PA-File-SHA256'], h['PA-Send-ID']);
+  assert.equal(b64e(bytes), u.signed_bytes);
+  assert.ok(verifyFile(b64d(u.sign_pub), bytes, b64d(h['PA-Sig'])));
+  assert.equal(b64e(openBlob(b64d(u.key), body)), u.plaintext);
+});
+
+test('file-v1: ttl (Worker only)', () => {
+  for (const c of F.ttl.cases) {
+    assert.equal(c.content_length, c.size + BLOB_OVERHEAD, c.name);
+    assert.equal(ttlMinutes(c.size), c.ttl_min, c.name);
+    assert.equal(c.status, c.content_length > MAX_FILE + BLOB_OVERHEAD ? 413 : 201, c.name);
+  }
+});
+
+test('file-v1: key (Worker only)', () => {
+  const secret = b64d(F.key.acct_secret);
+  const minutes = new Set();
+  for (const c of F.key.cases) {
+    const r = fileKey({ acceptTime: c.accept_time, size: c.size, secret, account: b64d(c.account), randHex: c.rand_hex });
+    for (const k of ['expires', 'minute', 'id', 'key', 'url']) assert.equal(r[k], c[k], c.name + ' ' + k);
+    assert.equal(acctHash(secret, b64d(c.account)), c.acct_hash);
+    assert.match(c.key, /^v1\/([0-9]{12})\/[0-9a-f]{16}\/\1-[0-9a-f]{32}$/);
+    minutes.add(c.minute);
+  }
+  assert.ok(minutes.has('202612312359') && minutes.has('202701010000'), 'year rollover');
+});
+
+test('file-v1: names', () => {
+  assert.ok(F.names.cases.length >= 40 && F.names.cases.length <= 60);
+  for (const c of F.names.cases) {
+    assert.equal(sanitizeName(c.input, F.names.time, c.image), c.output, JSON.stringify(c.input));
+    assert.match(c.output, /^[A-Za-z0-9 ._()-]{1,100}$/);
+  }
+});
+
+test('file-v1: collision', () => {
+  for (const c of F.collision.cases) assert.equal(collisionName(c.input, c.existing), c.output, c.name);
+});
+
+test('file-v1: auto_download', () => {
+  for (const c of F.auto_download.cases) assert.equal(autoDownload(c), c.download, JSON.stringify(c));
 });
