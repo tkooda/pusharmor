@@ -1,6 +1,7 @@
 """Command layer: parsing, files, HTTP rules, login, pair, send, and listen through a fake relay server."""
 
 import contextlib
+import errno
 import io
 import json
 import os
@@ -1261,7 +1262,11 @@ REC = {"from": "ab" * 21, "name": "Pixel", "platform": "android", "type": "text"
 def test_format_json_and_tsv():
     assert json.loads(pa.format_record(REC, "json")) == REC
     assert pa.format_record(REC, "tsv") == "\t".join(["ab" * 21, "Pixel", "android", "text", "a\\tb\\nc\\\\d\\u001b",
-                                                       "2026-10-30T12:00:00Z", ""])
+                                                       "2026-10-30T12:00:00Z"])
+    f = dict(REC, type="file", body="a.pdf")
+    assert pa.format_record(f, "tsv").split("\t")[4] == "a.pdf"
+    assert pa.format_record(dict(f, file="/d/a (1).pdf"), "tsv").split("\t") == ["ab" * 21, "Pixel", "android", "file",
+                                                                                "/d/a (1).pdf", "2026-10-30T12:00:00Z"]
 
 
 def test_tsv_escapes_controls_and_json_is_ascii():
@@ -2818,8 +2823,8 @@ def test_listen_tsv_and_exec_get_the_saved_path(net, tmp_path, monkeypatch, caps
     dest.mkdir()
     code, cap = _listen_files(net, b, capsys, "--tsv", "--files", str(dest))
     rows = [x.split("\t") for x in cap.out.splitlines()]
-    assert [r[3] for r in rows] == ["file", "text"] and [len(r) for r in rows] == [7, 7]
-    assert rows[0][6] == str(dest / "report.pdf").replace("\\", "\\\\") and rows[1][6] == ""  # tsv escapes
+    assert [r[3] for r in rows] == ["file", "text"] and [len(r) for r in rows] == [6, 6]
+    assert rows[0][4] == str(dest / "report.pdf").replace("\\", "\\\\") and rows[1][4] == "plain text"  # tsv escapes
     assert b"hello, file" not in cap.out.encode()
 
 
@@ -3052,3 +3057,35 @@ def test_send_file_sanitizes_the_name(net, tmp_path, monkeypatch, capsys):
     assert run(a, "send", "-f", str(src)) == 0
     code, cap = _listen_files(net, b, capsys, "--json")
     assert json.loads(cap.out)["body"] == "caf_ menu.txt"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows saves with a rename")
+@pytest.mark.parametrize("err", [errno.EPERM, errno.ENOTSUP])
+def test_place_works_without_hard_links(tmp_path, monkeypatch, err):
+    def no_link(a, b):
+        raise OSError(err, "no hard links")
+    monkeypatch.setattr(pa.os, "link", no_link)
+    (tmp_path / "a.txt").write_bytes(b"old")
+    (tmp_path / "dangling").symlink_to(tmp_path / "nowhere")
+    for want, data in (("a (1).txt", b"one"), ("a (2).txt", b"two")):
+        tmp = tmp_path / ".pusharmor-x.tmp"
+        tmp.write_bytes(data)
+        assert pa._place(str(tmp), str(tmp_path), "a.txt") == str(tmp_path / want)
+        assert (tmp_path / want).read_bytes() == data and not tmp.exists()
+    assert (tmp_path / "a.txt").read_bytes() == b"old"
+    # a symlink in the way is never followed or replaced
+    tmp = tmp_path / ".pusharmor-y.tmp"
+    tmp.write_bytes(b"three")
+    assert pa._place(str(tmp), str(tmp_path), "dangling") == str(tmp_path / "dangling (1)")
+    assert (tmp_path / "dangling").is_symlink() and not (tmp_path / "nowhere").exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows saves with a rename")
+def test_place_raises_other_link_errors(tmp_path, monkeypatch):
+    def no_space(a, b):
+        raise OSError(errno.ENOSPC, "full")
+    monkeypatch.setattr(pa.os, "link", no_space)
+    tmp = tmp_path / ".pusharmor-x.tmp"
+    tmp.write_bytes(b"x")
+    with pytest.raises(OSError):
+        pa._place(str(tmp), str(tmp_path), "a.txt")

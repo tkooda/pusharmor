@@ -2768,13 +2768,17 @@ def prepare_file(path):
     st2 = os.fstat(f.fileno())
     if not stat.S_ISREG(st2.st_mode) or (st2.st_dev, st2.st_ino, st2.st_size) != (st.st_dev, st.st_ino, st.st_size):
         f.close()
-        raise Fail("The file %s changed while it was read. Try again." % quoted_path(path))
+        raise Fail("The file %s changed while it was opened. Try again." % quoted_path(path))
     return f, st.st_size, name
 
 
-def seal_to_temp(src, size, key, name):
-    """The blob in a private temp file (deleted on close). -> (open file, sha256)."""
-    out = tempfile.TemporaryFile(prefix=".pusharmor-")
+def seal_to_temp(src, size, key, name, folder):
+    """The blob in a private temp file (deleted on close) in folder, the source's folder, so that it is on a
+    disk with room for the file, else in the system temp folder. -> (open file, sha256)."""
+    try:
+        out = tempfile.TemporaryFile(prefix=".pusharmor-", dir=folder)
+    except OSError:
+        out = tempfile.TemporaryFile(prefix=".pusharmor-")
     try:
         sha = seal_file(src, out, key, os.urandom(12), size)
         out.flush()
@@ -2876,6 +2880,10 @@ def _sha256_of(f):
     return b64e(h.digest())
 
 
+# os.link errors of a file system that has no hard links
+_NO_LINK = {errno.EPERM, errno.ENOTSUP, errno.EOPNOTSUPP, errno.ENOSYS, errno.EXDEV}
+
+
 def _place(tmp, folder, name):
     """Moves tmp into folder as name, or "name (N)" when taken; never replaces a file. -> the new path."""
     while True:
@@ -2883,12 +2891,20 @@ def _place(tmp, folder, name):
         try:
             if windows():
                 os.rename(tmp, path)  # fails when path exists
-            else:
+                return path
+            try:
                 os.link(tmp, path)
+            except OSError as e:
+                if e.errno not in _NO_LINK:
+                    raise
+                # no hard links here (FAT, exFAT, some network mounts): claim the name with an exclusive
+                # create, then rename over that empty file of ours
+                os.close(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600))
+                os.replace(tmp, path)
+                return path
         except FileExistsError:
             continue  # taken since the listing
-        if not windows():
-            os.unlink(tmp)
+        os.unlink(tmp)
         return path
 
 
@@ -2955,7 +2971,9 @@ def format_record(rec, fmt):
     if fmt == "tsv":
         esc = lambda s: re.sub(CONTROL_CHARS, lambda m: "\\u%04x" % ord(m.group()),  # noqa: E731
                                s.replace("\\", "\\\\").replace("\t", "\\t").replace("\n", "\\n").replace("\r", "\\r"))
-        return "\t".join(esc(rec[k]) for k in REC_KEYS)
+        # six columns, as before files: a file's body is its saved path when saved, else its name
+        return "\t".join(esc(rec["file"] or rec["body"] if k == "body" and rec["type"] == "file" else rec[k])
+                         for k in REC_KEYS[:6])
     t = datetime.datetime.strptime(rec["date"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
     body = _clean(rec["body"].replace("\r\n", "\n").replace("\r", "\n")).replace("\n", "\n ")
     out = "From: %s %s\nPlatform: %s\nType: %s\nDate: %s\nBody: %s\n" % (
@@ -3522,7 +3540,7 @@ def send_file(cx, args):
     f, size, name = prepare_file(args.file)
     key = os.urandom(32)
     with f:
-        blob, sha = seal_to_temp(f, size, key, name)
+        blob, sha = seal_to_temp(f, size, key, name, os.path.dirname(os.path.abspath(args.file)))
     with blob:
         cx.refresh()
         seal_to_targets(cx, args, None, None)  # no upload when there is no device to send to

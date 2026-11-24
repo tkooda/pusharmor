@@ -34,8 +34,7 @@ distribution:
 - `pusharmor send TEXT` - send a URL or text to all paired devices; `-d ID` for one,
   `--text` to send a URL as plain text. With `-` or piped input it reads stdin.
 - `pusharmor send --file PATH` (`-f`) - send a file of up to 100,000,000 bytes. It is
-  end-to-end encrypted and expires on the relay server between 1 and 24 hours after it is
-  sent (larger files expire sooner).
+  end-to-end encrypted and expires on the relay server at the time shown after the send.
 - `pusharmor listen` - print messages as they arrive; `--json`, `--tsv`, or
   `--exec PROG` (runs PROG ID NAME PLATFORM TYPE BODY per message). `--json` escapes
   every non-ASCII character as `\uXXXX`. `--tsv` writes `\\`, `\t`, `\n`, and `\r` for
@@ -43,9 +42,10 @@ distribution:
   characters, line and paragraph separators, and bidi controls.
   A received file is not downloaded unless you give `--files DIR`: then every file is
   saved in DIR (mode 0600, never replacing a file: `name (1).ext` and so on) and is never
-  written to the output. `--json` and `--tsv` carry the saved path in a `file` field
-  (empty when none), and `--exec` gets it in `$PUSHARMOR_FILE`. A file that cannot be
-  saved prints one `warning:` line, and `--json` adds an `error` field.
+  written to the output. `--json` carries the saved path in a `file` field (empty when
+  none), `--tsv` puts it in the body column (the file name when not saved), and `--exec`
+  gets it in `$PUSHARMOR_FILE`. A file that cannot be saved prints one `warning:` line,
+  and `--json` adds an `error` field.
 - `pusharmor rename NAME` - change the name your other devices show.
 - `pusharmor logout` - log out; keys and paired devices stay on this device.
 - `pusharmor delete ID` - remove a device from your account (this device too). It asks
