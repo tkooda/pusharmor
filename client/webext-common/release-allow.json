@@ -9,6 +9,7 @@
     "localDelete", "loginPurpose", "menuSendClaim", "menuSendRun", "menuSendShown", "newerShown", "oauth", "pair", "pairAgain", "peers", "popupOpen", "popupSettled", "pushCheck", "recheck", "refresh", "remove", "rename", "reply",
     "send", "sendAgain", "sendSel", "sendSelSet", "settings", "signinClear", "signinDraft", "signinProgress", "signout",
     "state", "tryAgain",
-    "fileBeat", "fileDownload", "fileEvent", "fileProgress", "fileStorage", "filesDecrypt", "sendFile"
+    "fileBeat", "fileDownload", "fileEvent", "fileProgress", "fileStorage", "filesDecrypt", "sendFile",
+    "decrypt", "download", "forget", "upload"
   ]
 }
