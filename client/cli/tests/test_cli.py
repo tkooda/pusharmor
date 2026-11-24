@@ -3051,6 +3051,18 @@ def test_send_file_over_the_size_limit_names_the_file(net, tmp_path, monkeypatch
     assert capsys.readouterr().err == 'error: Unable to send. "report.pdf" is too large to send.\n'
 
 
+def test_send_file_blob_temp_is_in_the_system_temp_folder(net, tmp_path, monkeypatch, capsys):
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch)
+    real, dirs = pa.tempfile.TemporaryFile, []
+
+    def temp(*args, **kw):
+        dirs.append(kw.get("dir"))
+        return real(*args, **kw)
+    monkeypatch.setattr(pa.tempfile, "TemporaryFile", temp)
+    assert run(a, "send", "-f", str(src)) == 0
+    assert dirs and all(d is None for d in dirs)
+
+
 def test_send_file_with_no_device_uploads_nothing(net, tmp_path, monkeypatch, capsys):
     a = tmp_path / "a"
     login(monkeypatch, a)

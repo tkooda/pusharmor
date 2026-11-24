@@ -2772,13 +2772,9 @@ def prepare_file(path):
     return f, st.st_size, name
 
 
-def seal_to_temp(src, size, key, name, folder):
-    """The blob in a private temp file (deleted on close) in folder, the source's folder, so that it is on a
-    disk with room for the file, else in the system temp folder. -> (open file, sha256)."""
-    try:
-        out = tempfile.TemporaryFile(prefix=".pusharmor-", dir=folder)
-    except OSError:
-        out = tempfile.TemporaryFile(prefix=".pusharmor-")
+def seal_to_temp(src, size, key, name):
+    """The blob in a private temp file (deleted on close). -> (open file, sha256)."""
+    out = tempfile.TemporaryFile(prefix=".pusharmor-")
     try:
         sha = seal_file(src, out, key, os.urandom(12), size)
         out.flush()
@@ -3551,7 +3547,7 @@ def send_file(cx, args):
     f, size, name = prepare_file(args.file)
     key = os.urandom(32)
     with f:
-        blob, sha = seal_to_temp(f, size, key, name, os.path.dirname(os.path.abspath(args.file)))
+        blob, sha = seal_to_temp(f, size, key, name)
     with blob:
         cx.refresh()
         seal_to_targets(cx, args, None, None)  # no upload when there is no device to send to
