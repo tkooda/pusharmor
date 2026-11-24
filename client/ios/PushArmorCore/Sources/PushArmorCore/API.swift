@@ -51,6 +51,14 @@ public protocol HTTPTransport: Sendable {
 /// sent), 100 (reply in); `retry` gets the number of the next try (2 or 3) before the wait for it.
 public enum SendProgress {
     public static let encrypted = 25
+
+    /// A file send's bar while the file is encrypted: from 0 to encrypted by the bytes read of `total`.
+    public static func encryptStep(read: Int64, total: Int64) -> Int { bytePercent(read, total) * encrypted / 100 }
+
+    /// `done` of `total` bytes as a percent, 0 to 100.
+    public static func bytePercent(_ done: Int64, _ total: Int64) -> Int {
+        total <= 0 ? 0 : Int(min(max(done, 0), total) * 100 / total)
+    }
     @TaskLocal public static var step: (@Sendable (Int) -> Void)? = nil
     @TaskLocal public static var retry: (@Sendable (Int) -> Void)? = nil
 }

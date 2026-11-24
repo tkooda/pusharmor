@@ -51,4 +51,23 @@ final class StepProgressTests: XCTestCase {
         XCTAssertFalse(app.contains("sendStep = 95"))
         XCTAssertTrue(try source("Share/ShareViewController.swift").contains("SendProgress.encrypted + Int(min(done * 75 / total, 75))"))
     }
+
+    /// The file send bar fills 0 to encrypted by the bytes encrypted, in the app and the share
+    /// sheet, and never moves back when the encrypt ends.
+    func testFileSendBarFollowsTheBytesEncrypted() throws {
+        let app = try source("App/FileModel.swift")
+        XCTAssertFalse(app.contains("sendStep = 10\n"))
+        XCTAssertTrue(app.contains("sendStep = 0\n        sendRetry = 0"))
+        XCTAssertTrue(app.contains("Task { @MainActor in if s > self.sendStep { self.sendStep = s } }"))
+        XCTAssertTrue(app.contains("allCount: all.count, core: core,\n                                                              progress: progress))"))
+        XCTAssertTrue(app.contains("sendStep = max(sendStep, SendProgress.encrypted)"))
+        let share = try source("Share/ShareViewController.swift")
+        XCTAssertTrue(share.contains("self.sendStep = max(self.sendStep, s)"))
+        XCTAssertTrue(share.contains("cancelled: { !wanted.on }, progress: progress))"))
+        XCTAssertTrue(share.contains("sendStep = max(sendStep, SendProgress.encrypted)"))
+        for src in [app, share] {
+            XCTAssertTrue(src.contains("let s = SendProgress.encryptStep(read: read, total: total)"))
+        }
+        XCTAssertTrue(try source("Shared/FileTransfers.swift").contains("free: freeBytes(), cancelled: cancelled, progress: progress)"))
+    }
 }

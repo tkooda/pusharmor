@@ -226,19 +226,30 @@ extension AppModel {
         busy.insert("send")
         let all = allSet
         let ids = toAll ? all.map { $0.id } : peerIds.compactMap { PeerId(text: $0) }
-        sendStep = 10
+        sendStep = 0
         sendRetry = 0
         let r: Result<Int64, Error> = await Task.detached {
             let open = scoped && url.startAccessingSecurityScopedResource()
             defer { if open { url.stopAccessingSecurityScopedResource() } }
-            do { return .success(try FileTransfers.shared.send(input: url, name: name, to: ids, allCount: all.count, core: core)) } catch {
+            // the bar fills from 0 to encrypted by the bytes encrypted; a Task only when it moves
+            var last = 0
+            let progress: (Int64, Int64) -> Void = { read, total in
+                let s = SendProgress.encryptStep(read: read, total: total)
+                guard s > last else { return }
+                last = s
+                Task { @MainActor in if s > self.sendStep { self.sendStep = s } }
+            }
+            do {
+                return .success(try FileTransfers.shared.send(input: url, name: name, to: ids, allCount: all.count, core: core,
+                                                              progress: progress))
+            } catch {
                 return .failure(error)
             }
         }.value
         switch r {
         case .success(let id):
             sendingFile = id
-            sendStep = SendProgress.encrypted
+            sendStep = max(sendStep, SendProgress.encrypted)
             reload()
             return true
         case .failure(let e):

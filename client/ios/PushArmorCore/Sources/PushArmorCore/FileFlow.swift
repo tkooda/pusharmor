@@ -319,8 +319,10 @@ extension Core {
 
     /// Share sheet step 1: checks size and room, applies the name rule, encrypts `input` into
     /// the files directory and keeps the send (state uploading). `free`: bytes free, nil = unknown.
+    /// `progress` gets the file bytes read so far and the file size after each encrypted chunk.
     public func fileSendPrepare(input: URL, rawName: String, to recipients: [PeerId], allCount: Int, dir: URL,
-                                free: Int64?, cancelled: () -> Bool = { false }) throws -> FileRecord {
+                                free: Int64?, cancelled: () -> Bool = { false },
+                                progress: (_ read: Int64, _ total: Int64) -> Void = { _, _ in }) throws -> FileRecord {
         guard !recipients.isEmpty else { throw FileSendError.noRecipients }
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: input.path), let sizeN = attrs[.size] as? NSNumber else {
             throw FileSendError.unreadable
@@ -343,7 +345,7 @@ extension Core {
         f.id = try store.addFile(f)
         let blob = dir.appendingPathComponent(f.blobName)
         do {
-            try FileCrypto.encrypt(input: input, output: blob, key: key, cancelled: cancelled)
+            try FileCrypto.encrypt(input: input, output: blob, key: key, cancelled: cancelled, progress: { progress($0, size) })
             guard let sha = FileHash.of(file: blob) else { throw FileSendError.unreadable }
             f.sha256 = sha
             try store.saveFile(f)

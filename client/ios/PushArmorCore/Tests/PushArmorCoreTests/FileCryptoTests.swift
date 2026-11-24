@@ -124,4 +124,21 @@ final class FileCryptoTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: out), plain)
         XCTAssertEqual(try names(), ["blob1", "blob2", "out", "plain"])
     }
+
+    /// Encrypt reports the file bytes read after each chunk, rising to the file size; the send bar
+    /// maps them to 0 to encrypted, never past it.
+    func testEncryptReportsTheBytesRead() throws {
+        let size = FileCrypto.chunkSize * 2 + 5
+        let p = try file("plain", Data(repeating: 7, count: size))
+        var reads: [Int64] = []
+        try FileCrypto.encrypt(input: p, output: dir.appendingPathComponent("blob"), key: Data(repeating: 1, count: 32),
+                               progress: { reads.append($0) })
+        XCTAssertEqual(reads, [Int64(FileCrypto.chunkSize), Int64(FileCrypto.chunkSize * 2), Int64(size)])
+        XCTAssertEqual(SendProgress.encryptStep(read: 0, total: 200), 0)
+        XCTAssertEqual(SendProgress.encryptStep(read: 100, total: 200), 12)
+        XCTAssertEqual(SendProgress.encryptStep(read: 200, total: 200), SendProgress.encrypted)
+        XCTAssertEqual(SendProgress.encryptStep(read: 300, total: 200), SendProgress.encrypted)
+        XCTAssertEqual(SendProgress.encryptStep(read: 5, total: 0), 0)
+        XCTAssertEqual(SendProgress.bytePercent(-1, 10), 0)
+    }
 }

@@ -455,11 +455,12 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
     // MARK: uploads
 
     /// Share sheet: encrypts the file into the App Group container and starts its upload. Throws
-    /// Core.FileSendError (too large, no room) before anything is sent.
+    /// Core.FileSendError (too large, no room) before anything is sent. `progress` gets the bytes
+    /// encrypted so far of the file size.
     func send(input: URL, name: String, to recipients: [PeerId], allCount: Int, core: Core,
-              cancelled: () -> Bool = { false }) throws -> Int64 {
+              cancelled: () -> Bool = { false }, progress: (_ read: Int64, _ total: Int64) -> Void = { _, _ in }) throws -> Int64 {
         let f = try core.fileSendPrepare(input: input, rawName: name, to: recipients, allCount: allCount, dir: ensureDir(),
-                                         free: freeBytes(), cancelled: cancelled)
+                                         free: freeBytes(), cancelled: cancelled, progress: progress)
         if cancelled() {
             // cancelled right after the encrypt: nothing is uploaded, and the record and blob go
             try? FileManager.default.removeItem(at: dir.appendingPathComponent(f.blobName))

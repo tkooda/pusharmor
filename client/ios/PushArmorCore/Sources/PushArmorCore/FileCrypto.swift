@@ -28,15 +28,18 @@ public enum FileCrypto {
     }
 
     /// Encrypts the file at `input` into a blob at `output` with a fresh random nonce.
-    /// `cancelled` is asked before each chunk.
-    public static func encrypt(input: URL, output: URL, key: Data, cancelled: () -> Bool = { false }) throws {
+    /// `cancelled` is asked before each chunk; `progress` gets the file bytes read so far after each chunk.
+    public static func encrypt(input: URL, output: URL, key: Data, cancelled: () -> Bool = { false },
+                               progress: (Int64) -> Void = { _ in }) throws {
         var g = SystemRandomNumberGenerator()
         try encrypt(input: input, output: output, key: key,
-                    nonce: Data((0..<nonceSize).map { _ in UInt8.random(in: 0...255, using: &g) }), cancelled: cancelled)
+                    nonce: Data((0..<nonceSize).map { _ in UInt8.random(in: 0...255, using: &g) }), cancelled: cancelled,
+                    progress: progress)
     }
 
     /// Fixed nonce: known-answer tests only.
-    static func encrypt(input: URL, output: URL, key: Data, nonce: Data, cancelled: () -> Bool = { false }) throws {
+    static func encrypt(input: URL, output: URL, key: Data, nonce: Data, cancelled: () -> Bool = { false },
+                        progress: (Int64) -> Void = { _ in }) throws {
         guard key.count == keySize, nonce.count == nonceSize else { throw Failure.badKey }
         let inFd = try openRead(input)
         defer { close(inFd) }
@@ -46,12 +49,15 @@ public enum FileCrypto {
             var buf = [UInt8](repeating: 0, count: chunkSize)
             var out = [UInt8](repeating: 0, count: chunkSize)
             defer { wipe(&buf); wipe(&out) }
+            var read: Int64 = 0
             while true {
                 if cancelled() { throw Failure.cancelled }
                 let n = try readSome(inFd, &buf, chunkSize)
                 if n == 0 { break }
                 try ctx.update(buf, n, &out)
                 try writeAll(outFd, out, n)
+                read += Int64(n)
+                progress(read)
             }
             try ctx.finish()
             try writeAll(outFd, try ctx.tag())

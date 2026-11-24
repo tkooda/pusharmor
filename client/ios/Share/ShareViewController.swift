@@ -184,9 +184,20 @@ final class ShareModel: ObservableObject {
                 // the blob is in the App Group container now (or the send ended): the shared copy goes
                 try? FileManager.default.removeItem(at: f.url.deletingLastPathComponent())
             }
+            // the bar fills from 0 to encrypted by the bytes encrypted; a Task only when it moves
+            var last = 0
+            let progress: (Int64, Int64) -> Void = { read, total in
+                let s = SendProgress.encryptStep(read: read, total: total)
+                guard s > last else { return }
+                last = s
+                Task { @MainActor [weak self] in
+                    guard let self = self else { return }
+                    self.sendStep = max(self.sendStep, s)
+                }
+            }
             do {
                 return .success(try t.send(input: f.url, name: f.name, to: ids, allCount: allCount, core: core,
-                                           cancelled: { !wanted.on }))
+                                           cancelled: { !wanted.on }, progress: progress))
             } catch {
                 return .failure(error)
             }
@@ -197,7 +208,7 @@ final class ShareModel: ObservableObject {
         if !wanted.on { return }
         switch r {
         case .success:
-            sendStep = SendProgress.encrypted
+            sendStep = max(sendStep, SendProgress.encrypted)
             uploading = true
         case .failure(let e):
             popup = false
