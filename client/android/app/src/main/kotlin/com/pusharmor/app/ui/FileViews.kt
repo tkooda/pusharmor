@@ -130,7 +130,7 @@ internal fun FileThumb(file: File, name: String) {
     androidx.compose.runtime.LaunchedEffect(file) { bmp = withContext(Dispatchers.IO) { decodeSampled(file, 160) } }
     val b = bmp
     if (b == null) com.pusharmor.app.ui.theme.IconTile(fileIcon(name))
-    else Image(b.asImageBitmap(), null, Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
+    else Image(b.asImageBitmap(), name, Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
 }
 
 /** Decodes [file] at most about [max] pixels on its longer side; null when it is not an image or memory is short. */
@@ -200,12 +200,9 @@ internal fun FileActions(vm: AppViewModel, row: FileModel.Row) {
     val mime = fileMime(name)
     var viewing by rememberSaveable(file.path) { mutableStateOf(false) }
     val saver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(mime)) { uri ->
-        if (uri != null) {
-            val err = runCatching { context.contentResolver.openOutputStream(uri)?.use { out -> file.inputStream().use { it.copyTo(out) } } ?: throw java.io.IOException("no stream") }.exceptionOrNull()
-            vm.message.value = if (err == null) "Saved." else com.pusharmor.net.ErrorText.text(UiText.UNABLE_SAVE_MESSAGE, UiText.saveReason(err))
-        }
+        if (uri != null) vm.files.save(file, uri)
     }
-    if (viewing) ImageViewer(file) { viewing = false }
+    if (viewing) ImageViewer(file, name) { viewing = false }
     MessageActions {
         if (row.image) {
             MessageAction("View", PaIcons.Image) { viewing = true }
@@ -235,7 +232,7 @@ private fun copyFile(context: Context, file: File, name: String): Boolean = try 
 
 /** Full-screen image view with pinch zoom; a tap shows or hides the close button. */
 @Composable
-internal fun ImageViewer(file: File, onClose: () -> Unit) {
+internal fun ImageViewer(file: File, name: String, onClose: () -> Unit) {
     val px = with(androidx.compose.ui.platform.LocalDensity.current) { androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp.roundToPx() }
     var bmp by remember(file) { mutableStateOf<Bitmap?>(null) }
     androidx.compose.runtime.LaunchedEffect(file) { bmp = withContext(Dispatchers.IO) { decodeSampled(file, maxOf(px, 1024)) } }
@@ -252,7 +249,7 @@ internal fun ImageViewer(file: File, onClose: () -> Unit) {
                 }
             }) {
             bmp?.let {
-                Image(it.asImageBitmap(), null, Modifier.fillMaxSize().graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y),
+                Image(it.asImageBitmap(), name, Modifier.fillMaxSize().graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y),
                     contentScale = ContentScale.Fit)
             }
             if (showClose) Box(Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(8.dp)) {
@@ -260,4 +257,41 @@ internal fun ImageViewer(file: File, onClose: () -> Unit) {
             }
         }
     }
+}
+
+/** The image on the clipboard, if the first item is a content URI of an image type; else null. */
+internal fun clipImage(context: Context): Uri? = try {
+    context.getSystemService(ClipboardManager::class.java)?.primaryClip
+        ?.takeIf { it.itemCount > 0 && it.description.hasMimeType("image/*") }?.getItemAt(0)?.uri
+} catch (e: Exception) { null }
+
+/**
+ * The message box's Paste: an image on the clipboard becomes the chosen file while the box is empty, and gives
+ * [onRefuse] while it holds text (one type per message); any other paste is unchanged.
+ */
+@Composable
+internal fun PasteImage(textEmpty: Boolean, onImage: (Uri) -> Unit, onRefuse: () -> Unit, content: @Composable () -> Unit) {
+    val base = androidx.compose.ui.platform.LocalTextToolbar.current
+    val context = LocalContext.current
+    val empty = androidx.compose.runtime.rememberUpdatedState(textEmpty)
+    val toolbar = remember(base) {
+        object : androidx.compose.ui.platform.TextToolbar by base {
+            override fun showMenu(rect: androidx.compose.ui.geometry.Rect, onCopyRequested: (() -> Unit)?, onPasteRequested: (() -> Unit)?,
+                                  onCutRequested: (() -> Unit)?, onSelectAllRequested: (() -> Unit)?) {
+                // an image-only clip has no text, so the field offers no Paste: it is offered here
+                val paste: (() -> Unit)? = if (onPasteRequested == null && clipImage(context) == null) null else {
+                    {
+                        val uri = clipImage(context)
+                        when (FileUi.paste(uri != null, empty.value)) {
+                            FileUi.Paste.IMAGE -> onImage(uri!!)
+                            FileUi.Paste.REFUSE -> onRefuse()
+                            FileUi.Paste.TEXT -> onPasteRequested?.invoke()
+                        }
+                    }
+                }
+                base.showMenu(rect, onCopyRequested, paste, onCutRequested, onSelectAllRequested)
+            }
+        }
+    }
+    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalTextToolbar provides toolbar, content = content)
 }

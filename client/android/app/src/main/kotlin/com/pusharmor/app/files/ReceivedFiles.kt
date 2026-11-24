@@ -38,7 +38,7 @@ class ReceivedFiles(
     private fun cm() = context.getSystemService(ConnectivityManager::class.java)
 
     /** Data Saver is on for this app. */
-    fun dataSaver(): Boolean = cm()?.restrictBackgroundStatus == ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED
+    fun dataSaver(): Boolean = cm()?.let { FileUi.dataSaverOn(it.restrictBackgroundStatus) } ?: false
 
     /** true on a metered network, false on an unmetered one, null with no network. */
     fun metered(): Boolean? = cm()?.let { if (it.activeNetwork == null) null else it.isActiveNetworkMetered }

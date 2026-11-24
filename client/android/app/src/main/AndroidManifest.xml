@@ -62,7 +62,7 @@
 
         <!-- Received files, read by the app the user picks to open, share, or paste them. -->
         <provider
-            android:name="androidx.core.content.FileProvider"
+            android:name=".files.OutFileProvider"
             android:authorities="${applicationId}.files"
             android:exported="false"
             android:grantUriPermissions="true">

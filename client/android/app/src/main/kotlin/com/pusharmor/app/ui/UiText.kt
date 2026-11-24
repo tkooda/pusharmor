@@ -242,6 +242,10 @@ object UiText {
         "Sending ${when (type) { ContentType.URL -> "URL"; ContentType.TEL -> "phone number"; ContentType.TEXT -> "text" }} to ${quotedList(names.map(::cutName))}..."
 
     /** Progress caption for 2 or more devices: the devices follow, one per line. */
+    fun directSendingFile(names: List<String>): String = "Sending file to ${quotedList(names.map(::cutName))}..."
+
+    fun directSendingFileList(): String = "Sending file to:"
+
     fun directSendingList(type: ContentType): String =
         "Sending ${when (type) { ContentType.URL -> "URL"; ContentType.TEL -> "phone number"; ContentType.TEXT -> "text" }} to:"
 

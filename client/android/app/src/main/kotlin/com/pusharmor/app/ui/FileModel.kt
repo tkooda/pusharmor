@@ -205,7 +205,16 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
         val name = FileUi.receivedName(f.name, h.at)
         val r = try {
             g.fileStore.decrypt(ReceivedFiles.key(h.id), f, name, manual, FileWork::heapFree) { !shown }
-        } catch (e: CancellationException) { return } catch (e: Exception) { Log.w("PushArmor", "decrypt", e); return }
+        } catch (e: CancellationException) { return } catch (e: Exception) {
+            // any other failure ends the decrypt with the row error and a Download button (a new download)
+            Log.w("PushArmor", "decrypt", e)
+            val k = ReceivedFiles.key(h.id)
+            g.fileStore.locked(k) {
+                g.fileStore.blob(k).delete()
+                g.fileStore.put(k, g.fileStore.state(k).copy(markAt = 0, downloaded = false, code = FinalCode.FAILED, text = com.pusharmor.protocol.FileRules.DOWNLOAD_FAILED))
+            }
+            return
+        }
         when (r) {
             is FileStore.Decrypted.Ok -> g.files.enforceLimit()
             FileStore.Decrypted.NoMemory -> toast(FileUi.noMemoryToast(name))
@@ -220,6 +229,12 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
     fun download(id: Long): Job = scope.launch(Dispatchers.IO) {
         g.dao.history(id)?.let { g.files.download(it) }
         refresh()
+    }
+
+    /** Save: copies the decrypted file to the place the user chose, off the main thread; a toast says how it went. */
+    fun save(file: File, to: Uri): Job = scope.launch(Dispatchers.IO) {
+        val err = runCatching { g.app.contentResolver.openOutputStream(to)?.use { out -> file.inputStream().use { it.copyTo(out) } } ?: throw java.io.IOException("no stream") }.exceptionOrNull()
+        toast(if (err == null) "Saved." else ErrorText.text(UiText.UNABLE_SAVE_MESSAGE, UiText.saveReason(err)))
     }
 
     /** Rows deleted on this device: their files go too. */

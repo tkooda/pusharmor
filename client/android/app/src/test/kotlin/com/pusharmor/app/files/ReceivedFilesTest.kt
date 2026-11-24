@@ -88,6 +88,30 @@ class ReceivedFilesTest {
         assertTrue(ReceivedFiles.key(id) in cancelled)
     }
 
+    /** Log out removes every received file (the rows stay). */
+    @Test fun signOutRemovesFiles() = io {
+        val k = "424242"
+        g.fileStore.outDir(k).mkdirs()
+        File(g.fileStore.outDir(k), "a.pdf").writeText("x")
+        g.fileStore.put(k, FileState(plain = "a.pdf"))
+        g.session.signOut()
+        assertEquals(FileUi.REMOVED, g.fileStore.state(k).text)
+        assertFalse(File(g.fileStore.outDir(k), "a.pdf").exists())
+    }
+
+    /** A decrypt that fails for any other reason ends with the row error and a Download button. */
+    @Test fun aDecryptFailureShowsTheRowError() = io {
+        val id = row("a.pdf", 10, now + 3600)
+        val k = ReceivedFiles.key(id)
+        g.fileStore.put(k, FileState(downloaded = true)) // no blob: the read fails
+        val m = com.pusharmor.app.ui.FileModel(g, kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO)) {}
+        kotlinx.coroutines.runBlocking { m.decryptNow(id).join() }
+        val s = g.fileStore.state(k)
+        assertEquals(FinalCode.FAILED, s.code)
+        assertFalse(s.downloaded)
+        assertEquals(0L, s.markAt)
+    }
+
     @Test fun oldestGoFirstAndLogoutRemovesAll() = io {
         g.settings.set(Settings.K.FILE_STORAGE, 100_000_000L)
         val old = row("old.bin", 60_000_000, now + 3600, at = 1000)

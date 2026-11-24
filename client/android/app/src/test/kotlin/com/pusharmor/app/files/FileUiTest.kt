@@ -93,6 +93,35 @@ class FileUiTest {
         // storage full keeps its Download button
         assertEquals(Status.Failed("Not enough storage to download \"a.pdf\"", true, "expires in 1 h"),
             FileUi.status(s.copy(code = FinalCode.STORAGE, text = "Not enough storage to download \"a.pdf\""), false, 0, false, 100, 3600, 0))
-        assertEquals(Status.Failed(FileUi.REMOVED, true, "Expired"), FileUi.status(s.copy(code = FinalCode.FAILED, text = FileUi.REMOVED), false, 0, false, 100, 3600, 3600))
+        // past expires by the local clock: no Download button
+        assertEquals(Status.Expired, FileUi.status(s, false, 0, false, 100, 3600, 3600))
+        assertEquals(Status.Failed(FileUi.REMOVED, false, null), FileUi.status(s.copy(code = FinalCode.FAILED, text = FileUi.REMOVED), false, 0, false, 100, 3600, 3600))
+        assertEquals(Status.Failed(FileUi.REMOVED, true, "expires in 1 h"), FileUi.status(s.copy(code = FinalCode.FAILED, text = FileUi.REMOVED), false, 0, false, 100, 3600, 0))
+    }
+
+    @Test fun pasteAnImageOnlyIntoAnEmptyBox() {
+        assertEquals(FileUi.Paste.IMAGE, FileUi.paste(clipHasImage = true, textEmpty = true))
+        assertEquals(FileUi.Paste.REFUSE, FileUi.paste(clipHasImage = true, textEmpty = false))
+        assertEquals(FileUi.Paste.TEXT, FileUi.paste(clipHasImage = false, textEmpty = false))
+        assertEquals("Clear the message to paste an image", FileUi.PASTE_IMAGE_CLEAR)
+    }
+
+    @Test fun dataSaverAllowListedCountsAsOff() {
+        assertEquals(true, FileUi.dataSaverOn(android.net.ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED))
+        assertEquals(false, FileUi.dataSaverOn(android.net.ConnectivityManager.RESTRICT_BACKGROUND_STATUS_WHITELISTED))
+        assertEquals(false, FileUi.dataSaverOn(android.net.ConnectivityManager.RESTRICT_BACKGROUND_STATUS_DISABLED))
+    }
+
+    @Test fun onlyDecryptedFilesAreServed() {
+        assertEquals(true, OutFileProvider.served(listOf("received", "12", "out", "a.pdf")))
+        assertEquals(false, OutFileProvider.served(listOf("received", "12", "blob")))
+        assertEquals(false, OutFileProvider.served(listOf("received", "12", "state")))
+        assertEquals(false, OutFileProvider.served(listOf("received", "12", "out", "..")))
+        assertEquals(false, OutFileProvider.served(listOf("received", "..", "out", "a")))
+    }
+
+    @Test fun fileSendCaptions() {
+        assertEquals("Sending file to \"Laptop\"...", com.pusharmor.app.ui.UiText.directSendingFile(listOf("Laptop")))
+        assertEquals("Sending file to:", com.pusharmor.app.ui.UiText.directSendingFileList())
     }
 }

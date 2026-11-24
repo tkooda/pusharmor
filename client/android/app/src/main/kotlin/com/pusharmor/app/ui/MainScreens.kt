@@ -1068,10 +1068,12 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                     if (file != null) FileCard(file.name, file.size, Modifier.rowPad.padding(top = if (title == null) 16.dp else 0.dp)) { vm.files.chosen.value = null }
                     else Box(Modifier.rowPad.fillMaxWidth().then(if (scrolls) Modifier else Modifier.weight(1f, fill = false))
                         .padding(top = if (title == null) 16.dp else 0.dp)) {
-                        OutlinedTextField(text, { asText = SendAsUrl.afterEdit(text, it, asText); text = it }, modifier = Modifier.fillMaxWidth(), minLines = 4, label = { Text("Message") },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = ex.tile, unfocusedContainerColor = ex.tile,
-                                focusedBorderColor = cs.primary, unfocusedBorderColor = cs.outline))
+                        PasteImage(text.isEmpty(), onImage = { vm.files.choose(it) }, onRefuse = { result = ((result?.first ?: 0) + 1) to com.pusharmor.app.files.FileUi.PASTE_IMAGE_CLEAR }) {
+                            OutlinedTextField(text, { asText = SendAsUrl.afterEdit(text, it, asText); text = it }, modifier = Modifier.fillMaxWidth(), minLines = 4, label = { Text("Message") },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = ex.tile, unfocusedContainerColor = ex.tile,
+                                    focusedBorderColor = cs.primary, unfocusedBorderColor = cs.outline))
+                        }
                         // Shown while the box is empty, at its bottom right.
                         if (text.isEmpty()) ChooseFileButton(Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 8.dp)) { pickFile.launch(arrayOf("*/*")) }
                     }
@@ -1081,7 +1083,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                         Row(Modifier.padding(start = 32.dp, end = 16.dp).fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Box(Modifier.align(Alignment.CenterVertically)) { if (file != null) FileCaption() else TypeCaption(SendAsUrl.effective(text, asText)) }
+                                Box(Modifier.align(Alignment.CenterVertically)) { if (file != null) FileCaption() else if (text.isNotEmpty()) TypeCaption(SendAsUrl.effective(text, asText)) }
                                 if (counter) Text(UiText.counter(bytes), Modifier.weight(1f).align(Alignment.CenterVertically), style = MaterialTheme.typography.bodySmall, color = cs.error, textAlign = TextAlign.End)
                             }
                             if (file == null && SendAsUrl.offersText(text)) Row(Modifier.heightIn(min = 48.dp).toggleable(asText, role = Role.Checkbox) { asText = it },
@@ -1157,9 +1159,13 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                     vm.sendStep = 0
                     vm.sendRetry = 0
                     vm.sendNames = sendTo.mapNotNull { id -> peers.firstOrNull { it.id == id } }.map(::label)
-                    val sendType = if (asText || chosen != null) ContentType.TEXT else com.pusharmor.protocol.Detect.type(text)
-                    vm.sendCaption = (if (vm.sendNames.size > 1) UiText.directSendingList(sendType) else UiText.directSending(sendType, vm.sendNames))
-                        .let { if (chosen != null) it.replaceFirst("Sending text", "Sending file") else it }
+                    val sendType = if (asText) ContentType.TEXT else com.pusharmor.protocol.Detect.type(text)
+                    vm.sendCaption = when {
+                        chosen != null && vm.sendNames.size > 1 -> UiText.directSendingFileList()
+                        chosen != null -> UiText.directSendingFile(vm.sendNames)
+                        vm.sendNames.size > 1 -> UiText.directSendingList(sendType)
+                        else -> UiText.directSending(sendType, vm.sendNames)
+                    }
                     vm.sendFromScreen(sendTo, text, asText)
                 }
             }, text = UiText.sendLabel(sendTo.size, sendTo.singleOrNull()?.let { id -> peers.firstOrNull { it.id == id } }?.let(::label)), icon = PaIcons.Send,
@@ -1457,7 +1463,7 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
     val weight = if (unread) FontWeight.Bold else FontWeight.Normal
     Column(modifier.combinedClickable(role = Role.Button, onLongClick = onSelect) { if (selecting) onSelect() else { onOpen(); vm.markRead(h.id) } }
         .semantics {
-            val st = listOfNotNull(if (unread) "Unread" else null, if (selecting) (if (checked) "Selected" else "Not selected") else h.content?.takeIf { !unknown }?.let { if (expanded) "Expanded" else "Collapsed" })
+            val st = listOfNotNull(if (unread) "Unread" else null, if (selecting) (if (checked) "Selected" else "Not selected") else h.content?.takeIf { !unknown && file == null }?.let { if (expanded) "Expanded" else "Collapsed" })
             if (st.isNotEmpty()) stateDescription = st.joinToString(", ")
         }) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {

@@ -299,6 +299,9 @@ class Session(private val g: Graph) {
     fun signOut() {
         if (g.identity() != null) s.set(Settings.K.LOGOUT_PENDING, true)
         s.set(Settings.K.SIGNED_OUT, true)
+        // logout removes every received file from this device
+        WorkManager.getInstance(g.app).cancelAllWorkByTag(com.pusharmor.app.files.FileWork.TAG)
+        g.files.wipe()
         if (g.identity() != null) Work.logout(g.app)
     }
 
@@ -395,6 +398,7 @@ class Session(private val g: Graph) {
         g.notifier.deleteMainChannels()
         ShortcutManagerCompat.removeAllDynamicShortcuts(g.app)
         WorkManager.getInstance(g.app).cancelAllWork()
+        g.files.wipe()
         if (keepOldId) s.clearKeepingOldId() else s.clearKeepingOldId().also { s.set(Settings.K.OLD_ID, null) }
         if (account != null) s.set(Settings.K.ACCOUNT, account)
         g.notifier.ensureChannels()

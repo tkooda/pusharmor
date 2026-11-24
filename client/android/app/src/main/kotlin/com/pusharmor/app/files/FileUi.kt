@@ -19,6 +19,9 @@ object FileUi {
     const val WILL_SEND_FILE = "Will be sent as file"
     const val EXPIRED = "Expired"
 
+    /** A pasted image while the message box holds text: one type per message. */
+    const val PASTE_IMAGE_CLEAR = "Clear the message to paste an image"
+
     fun noMemoryToast(name: String) = "Not enough memory to decrypt \"$name\""
     fun tooLarge(name: String) = "\"$name\" is too large to send"
     fun unreadable(name: String) = "Unable to read \"$name\""
@@ -47,6 +50,18 @@ object FileUi {
     /** Catch-up (app open, open from a notification) and arrival: never after expires by the local clock. */
     fun autoNow(size: Long, expires: Long, nowSec: Long, wifi: Long, mobile: Long, dataSaver: Boolean, metered: Boolean?): Auto? =
         if (nowSec >= expires) null else auto(size, wifi, mobile, dataSaver, metered)
+
+    /** Data Saver turns the mobile picker Off; an app the user allow-listed in Data Saver is not restricted. */
+    fun dataSaverOn(restrictBackgroundStatus: Int): Boolean = restrictBackgroundStatus == android.net.ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED
+
+    /** What a Paste does in the message box: [IMAGE] takes the clipboard image as the file, [REFUSE] shows [PASTE_IMAGE_CLEAR], [TEXT] pastes as usual. */
+    enum class Paste { IMAGE, REFUSE, TEXT }
+
+    fun paste(clipHasImage: Boolean, textEmpty: Boolean): Paste = when {
+        !clipHasImage -> Paste.TEXT
+        textEmpty -> Paste.IMAGE
+        else -> Paste.REFUSE
+    }
 
     fun pickerLabel(bytes: Long): String = if (bytes <= 0) "Off" else "Up to ${bytes / 1_000_000} MB"
 
@@ -168,14 +183,17 @@ object FileUi {
         val exp = expiresText(expires, nowSec)
         if (s.plain != null && plainThere) return Status.Ready
         if (s.memoryError) return Status.NoMemory
+        // past expires by the local clock, a file not on this device has no Download button
+        val gone = !s.downloaded && nowSec >= expires
         when (s.code) {
             null -> {}
             FinalCode.EXPIRED -> return Status.Expired
             FinalCode.DELETED, FinalCode.UPDATE, FinalCode.DAMAGED -> return Status.Failed(s.text ?: FileRules.DOWNLOAD_FAILED, false, null)
-            else -> return Status.Failed(s.text ?: FileRules.DOWNLOAD_FAILED, true, exp)
+            else -> return if (gone) Status.Failed(s.text ?: FileRules.DOWNLOAD_FAILED, false, null) else Status.Failed(s.text ?: FileRules.DOWNLOAD_FAILED, true, exp)
         }
         if (running) return Status.Downloading(if (size + 28 > 0) ((have * 100) / (size + 28)).toInt().coerceIn(0, 99) else 0)
         if (s.downloaded) return Status.Decrypting
+        if (gone) return Status.Expired
         return Status.Pending(exp)
     }
 }

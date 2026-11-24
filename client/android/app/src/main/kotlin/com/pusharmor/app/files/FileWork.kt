@@ -68,6 +68,7 @@ class FileDownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWork
                 } else Result.retry()
             }
             FileDownload.Run.Stopped -> Result.retry()
+            FileDownload.Run.Done -> { withContext(Dispatchers.IO) { g.files.enforceLimit() }; Result.success() }
             else -> Result.success()
         }
     }
