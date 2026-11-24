@@ -35,7 +35,7 @@ struct LimitPickerView: View {
                 // removing the chosen devices, then logging in
                 if model.busy.contains("evict"), let c = model.caption {
                     Section {
-                        ProgressView(c)
+                        StepProgressView(caption: c)
                             .frame(maxWidth: .infinity)
                     }
                 }

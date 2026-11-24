@@ -40,7 +40,11 @@ final class AppModel: ObservableObject {
     @Published var pairings: [String: PairingEntry] = [:]
     @Published var history: [HistoryRow] = []
     /// The step of a running sign-in, log out, or account delete, under its indicator.
-    @Published var caption: String?
+    @Published var caption: String? { didSet { if caption == nil { stepDone = nil } } }
+    /// A counted sign-in or account delete running: its steps done of stepTotal, for its bar;
+    /// nil when none runs.
+    @Published var stepDone: Int?
+    @Published var stepTotal = 0
     /// A log out running: its steps done of logoutSteps, for its bar; nil when none runs.
     @Published var logoutDone: Int?
     /// Log out's steps: this device, then the relay server.
@@ -80,8 +84,10 @@ final class AppModel: ObservableObject {
     /// Check again on the "cannot receive" banner stays greyed this long after a tap.
     @Published var checkGreyUntil: Date = .distantPast
     static let checkGreySeconds: TimeInterval = 10
-    /// A Refresh (button or pull) is running: the toolbar shows a spinner in its place.
+    /// A Refresh (button or pull) is running: the toolbar shows a bar in its place.
     @Published var refreshing = false
+    /// The running Refresh's steps done of Core.refreshSteps, for its bar.
+    @Published var refreshDone = 0
     @Published var highlightPeer: String?
     @Published var showHistory = false
     /// Peer ids with a Pair again call running; their Pair again buttons are disabled.
@@ -634,7 +640,8 @@ final class AppModel: ObservableObject {
 
     private func emailVerifyOnce(_ code: String, purpose: AuthPurpose) async {
         guard let t = requestToken ?? (try? store?.me().requestToken) ?? nil else { phase = .signIn(purpose); return }
-        caption = S.stepCheckingCode
+        countSteps(purpose == .deleteAccount ? 2 : 3)
+        nextStep(S.stepCheckingCode)
         defer { caption = nil }
         await finishTicket(await auth.emailVerify(requestToken: t, code: code), purpose: purpose, action: .checkCode)
     }
@@ -642,6 +649,7 @@ final class AppModel: ObservableObject {
     func appleToken(idToken: String, code: String?, purpose: AuthPurpose) async {
         await once("apple") {
             guard let k = try? keysForSignIn(purpose) else { toast = ErrorCopy.text(.prepareLogin, .keysUnusable); return }
+            countSteps(purpose == .deleteAccount ? 1 : 2)
             defer { caption = nil }
             await finishTicket(await auth.appleToken(idToken: idToken, signPub: k.signer.publicKey, purpose: purpose, code: code),
                                purpose: purpose, action: .loginApple)
@@ -650,9 +658,22 @@ final class AppModel: ObservableObject {
 
     func googleToken(idToken: String, purpose: AuthPurpose) async {
         guard let k = try? keysForSignIn(purpose) else { toast = ErrorCopy.text(.prepareLogin, .keysUnusable); return }
+        countSteps(purpose == .deleteAccount ? 1 : 2)
         defer { caption = nil }
         await finishTicket(await auth.googleToken(idToken: idToken, signPub: k.signer.publicKey, purpose: purpose), purpose: purpose,
                            action: .loginGoogle)
+    }
+
+    /// A counted sign-in or account delete of `total` steps starts; nextStep shows each.
+    private func countSteps(_ total: Int) {
+        stepTotal = total
+        stepDone = nil
+    }
+
+    /// The next counted step: its caption, and its bar one step on.
+    private func nextStep(_ text: String) {
+        caption = text
+        stepDone = (stepDone ?? -1) + 1
     }
 
     func finishTicket(_ r: AuthResult, purpose: AuthPurpose, action: ErrorCopy.Action) async {
@@ -705,7 +726,7 @@ final class AppModel: ObservableObject {
         core = c
         try? store.setSetting(KeyBootstrap.registerKeysSetting, "1")
         let removing = limitEntries.filter { evict.contains($0.id) }.map { PeerLabel.platformName($0.platform) }
-        caption = removing.isEmpty ? S.stepSettingUp : S.stepRemoving(removing)
+        nextStep(removing.isEmpty ? S.stepSettingUp : S.stepRemoving(removing))
         let r = await c.register(ticket: ticket, push: pushInfo, evict: evict)
         settleRegisterKeys(r)
         switch r {
@@ -713,7 +734,7 @@ final class AppModel: ObservableObject {
             pendingKeys = nil
             try? env.keychain.savePeerId(id)
             limitTicket = nil
-            caption = evict.isEmpty ? S.stepLoadingDevices : S.stepLoggingIn
+            nextStep(evict.isEmpty ? S.stepLoadingDevices : S.stepLoggingIn)
             await route()
         case .peerLimit(let t, let list):
             limitTicket = (t, Date())
@@ -780,6 +801,7 @@ final class AppModel: ObservableObject {
             phase = .signIn(.register)
             return
         }
+        countSteps(2)
         await register(ticket: t.ticket, evict: Array(limitTicked))
     }
 
@@ -802,10 +824,10 @@ final class AppModel: ObservableObject {
 
     func login(ticket: String, email: String, action: ErrorCopy.Action) async {
         guard let core = core, let a = accounts else { return }
-        caption = S.stepSettingUp
+        nextStep(S.stepSettingUp)
         switch await a.login(core: core, ticket: ticket, email: email, push: pushInfo) {
         case .loggedIn:
-            caption = S.stepLoadingDevices
+            nextStep(S.stepLoadingDevices)
             await route()
         case .switched(let r):
             await afterSwitch()
@@ -834,7 +856,7 @@ final class AppModel: ObservableObject {
 
     func deleteAccount(ticket: String, email: String) async {
         guard let core = core, let a = accounts else { return }
-        caption = S.stepDeletingAccount
+        nextStep(S.stepDeletingAccount)
         if let r = await a.deleteAccount(core: core, ticket: ticket, email: email) {
             toast = ErrorCopy.text(.deleteAccount, r)
         } else {
@@ -946,8 +968,9 @@ final class AppModel: ObservableObject {
         guard Date() >= refreshGreyUntil, let core = core else { return }
         refreshGreyUntil = Date().addingTimeInterval(AppModel.refreshGreySeconds)
         refreshing = true
+        refreshDone = 0
         defer { refreshing = false }
-        let out = await core.refresh(push: pushInfo)
+        let out = await core.refresh(push: pushInfo, step: { n in await MainActor.run { self.refreshDone = n } })
         if let t = ErrorCopy.refreshFailText(out.fetch, push: out.push) { toast = t }
         reload()
     }

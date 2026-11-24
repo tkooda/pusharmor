@@ -210,8 +210,8 @@ struct SettingsView: View {
     }
 }
 
-/// The step of a running login, log out, or account delete: log out as a bar with its step
-/// under it, any other step as a spinner with its step.
+/// The step of a running login, log out, or account delete: log out and counted steps as a bar
+/// with the step under it, any other step as a spinner with its step.
 struct StepProgressView: View {
     @EnvironmentObject var model: AppModel
     let caption: String
@@ -220,6 +220,14 @@ struct StepProgressView: View {
         if caption == S.stepLoggingOut, let done = model.logoutDone {
             VStack(alignment: .leading, spacing: 4) {
                 ProgressView(value: Double(done), total: Double(AppModel.logoutSteps))
+                    .progressViewStyle(.linear)
+                Text(caption)
+                    .font(.caption)
+                    .foregroundColor(.secondaryText)
+            }
+        } else if let done = model.stepDone, model.stepTotal > 1 {
+            VStack(alignment: .leading, spacing: 4) {
+                ProgressView(value: Double(done), total: Double(model.stepTotal))
                     .progressViewStyle(.linear)
                 Text(caption)
                     .font(.caption)

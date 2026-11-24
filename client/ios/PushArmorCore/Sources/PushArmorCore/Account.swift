@@ -210,16 +210,25 @@ extension Core {
     }
 
     /// Refresh button and pull-to-refresh (greyed 10 s after use): one GET /peers, push reconcile, re-sends.
-    /// Returns the outcomes of the GET and the push PATCH; each nil when none was made.
+    /// Returns the outcomes of the GET and the push PATCH; each nil when none was made. `step` gets
+    /// the steps done of refreshSteps after each step.
     @discardableResult
-    public func refresh(push: PushInfo?) async -> (fetch: APIOutcome?, push: APIOutcome?) {
+    public func refresh(push: PushInfo?, step: (@Sendable (Int) async -> Void)? = nil) async -> (fetch: APIOutcome?, push: APIOutcome?) {
         let out = await fetchPeersOutcome(force: true)
+        await step?(1)
         let patched = await reconcilePush(push, refresh: true)
+        await step?(2)
         await resendWaitingApproves()
+        await step?(3)
         await checkTimeouts()
+        await step?(4)
         await resendWaitingPairs()
+        await step?(5)
         return (out, patched)
     }
+
+    /// Refresh's steps: the GET, the push reconcile, the approve re-sends, the timeouts, the pair re-sends.
+    public static let refreshSteps = 5
 
     // MARK: push check
 

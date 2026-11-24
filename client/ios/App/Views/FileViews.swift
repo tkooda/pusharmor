@@ -97,14 +97,10 @@ struct FileRowDetail: View {
                     .progressViewStyle(.linear)
             }
         case .decrypting:
-            // the decrypt's progress by bytes, per whole percent; unknown until its first chunk
-            if let b = model.fileBytes[file.id] {
-                ProgressView(value: Double(min(b * 100 / max(file.size, 1), 99)), total: 100)
-                    .progressViewStyle(.linear)
-                    .accessibilityLabel("Opening")
-            } else {
-                ProgressView().progressViewStyle(.linear).accessibilityLabel("Opening")
-            }
+            // the decrypt's progress by bytes, per whole percent; empty until its first chunk
+            ProgressView(value: Double(min((model.fileBytes[file.id] ?? 0) * 100 / max(file.size, 1), 99)), total: 100)
+                .progressViewStyle(.linear)
+                .accessibilityLabel("Opening")
         case .failed(let text, let download, let exp):
             let removed = text == FileUi.removed
             Label(text, systemImage: removed ? "info.circle" : "exclamationmark.circle.fill")

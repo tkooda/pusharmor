@@ -2,8 +2,8 @@ import XCTest
 import PushArmorCore
 @testable import PushArmor
 
-/// Log out shows a stock determinate bar with its step under it; a device refresh keeps its
-/// spinner; no "Removing this device" step.
+/// Log out shows a stock determinate bar with its step under it; a device refresh shows a bar
+/// by its steps; no "Removing this device" step.
 @MainActor
 final class LogoutProgressTests: XCTestCase {
     private func source(_ path: String) throws -> String {
@@ -34,9 +34,15 @@ final class LogoutProgressTests: XCTestCase {
         XCTAssertFalse(src.contains("stepRemovingThisDevice"))
     }
 
-    func testRefreshKeepsItsSpinner() throws {
+    func testRefreshIsABarByItsSteps() throws {
+        XCTAssertEqual(Core.refreshSteps, 5)
         let src = try source("App/Views/PeersView.swift")
-        XCTAssertTrue(src.contains("ProgressView()"))
+        XCTAssertTrue(src.contains("ProgressView(value: Double(model.refreshDone), total: Double(Core.refreshSteps))\n                                    .progressViewStyle(.linear)"))
         XCTAssertTrue(src.contains("Text(S.stepUpdatingDevices)"))
+        let model = try source("App/AppModel.swift")
+        XCTAssertTrue(model.contains("refreshDone = 0"))
+        XCTAssertTrue(model.contains("core.refresh(push: pushInfo, step: { n in await MainActor.run { self.refreshDone = n } })"))
+        let core = try source("PushArmorCore/Sources/PushArmorCore/Account.swift")
+        for n in 1 ... 5 { XCTAssertTrue(core.contains("await step?(\(n))")) }
     }
 }

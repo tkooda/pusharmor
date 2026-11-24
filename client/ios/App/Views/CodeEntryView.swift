@@ -77,7 +77,7 @@ struct CodeEntryView: View {
             .onAppear { focused = true }
             if busy {
                 // the step under the indicator: checking the code, then setting up
-                if let c = model.caption { ProgressView(c) } else { ProgressView() }
+                if let c = model.caption { StepProgressView(caption: c) } else { ProgressView() }
             }
             // The countdown ticks once a second until a new code can be sent.
             TimelineView(.periodic(from: .now, by: 1)) { ctx in

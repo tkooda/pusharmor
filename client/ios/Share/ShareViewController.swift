@@ -170,7 +170,7 @@ final class ShareModel: ObservableObject {
         t.onProgress = { [weak self] _, done, total in
             Task { @MainActor in
                 guard let self = self, total > 0 else { return }
-                self.sendStep = max(self.sendStep, SendProgress.encrypted + Int(min(done * 70 / total, 70)))
+                self.sendStep = max(self.sendStep, SendProgress.encrypted + Int(min(done * 75 / total, 75)))
             }
         }
         t.onSendResult = { [weak self] _, o in

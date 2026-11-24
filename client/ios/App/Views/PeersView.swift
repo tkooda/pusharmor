@@ -83,7 +83,9 @@ struct PeersView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         if model.refreshing && !pulling {
                             HStack(spacing: 6) {
-                                ProgressView()
+                                ProgressView(value: Double(model.refreshDone), total: Double(Core.refreshSteps))
+                                    .progressViewStyle(.linear)
+                                    .frame(width: 44)
                                 Text(S.stepUpdatingDevices)
                                     .font(.caption)
                                     .foregroundColor(.secondaryText)
