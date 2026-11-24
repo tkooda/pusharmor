@@ -1948,6 +1948,21 @@ test("a received message keeps History at 500 rows", async () => {
   assert.equal(rows[0]!.content, "hello");
 });
 
+test("the History age purge deletes here only: no del goes to the other devices", async () => {
+  const { w, a, b, clock } = await setup();
+  await pairAndApprove(w, a, b);
+  await deliver(w, b);
+  await a.e.setSettings({ historyDays: 365 });
+  await a.db.put("history", histRow(clock.t - 20 * DAY, "old"));
+  const calls = w.calls.length;
+  await a.e.setSettings({ historyDays: 14 });
+  await a.e.purgeHistory();
+  await a.e.onPopupOpen();
+  assert.equal((await a.db.history()).length, 0);
+  assert.equal(w.calls.slice(calls).filter((c) => c.path === "/v1/send").length, 0);
+  assert.equal(await deliver(w, b), 0);
+});
+
 test("the History purge also keeps only the newest 500 rows", async () => {
   const clock = new Clock();
   const p = new FakePlatform("chrome", new MockWorker(clock), clock);

@@ -236,6 +236,10 @@ class AppLogicTest {
 
     private fun source(path: String) = java.io.File("src/main/kotlin/com/pusharmor/app/$path").readText()
 
+    @Test fun historyDayChoices() {
+        assertTrue(source("ui/MainScreens.kt").contains("ChoiceDialog(\"Delete messages older than\", listOf(1, 7, 14, 30, 90, 180, 365), days,"))
+    }
+
     @Test fun messagesAreSentences() {
         // no raw "No keys", no unended notice, no "a > b" path as the Apple relay hint.
         assertFalse(source("session/Session.kt").contains("This device is not logged in."))

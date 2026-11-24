@@ -899,7 +899,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
   const allowContent = h("input", { type: "checkbox", role: "switch", checked: s.allowContent }) as HTMLInputElement;
   const syncDeletions = h("input", { type: "checkbox", role: "switch", checked: s.syncDeletions }) as HTMLInputElement;
   const days = h("select", { "aria-label": "Delete messages older than" }) as HTMLSelectElement;
-  for (const d of [1, 7, 30, 90, 365]) days.append(h("option", { value: String(d), selected: d === s.historyDays }, d + (d === 1 ? " day" : " days")));
+  for (const d of [1, 7, 14, 30, 90, 180, 365]) days.append(h("option", { value: String(d), selected: d === s.historyDays }, d + (d === 1 ? " day" : " days")));
   const theme = h("select", { "aria-label": "Theme" }) as HTMLSelectElement;
   const pref = parseTheme(await env.theme.get().catch(() => undefined));
   for (const [v, label] of THEME_CHOICES) theme.append(h("option", { value: v, selected: v === pref }, label));

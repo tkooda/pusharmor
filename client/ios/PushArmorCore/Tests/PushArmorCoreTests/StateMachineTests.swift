@@ -915,6 +915,24 @@ final class StateMachineTests: XCTestCase {
         }
     }
 
+    /// The History age prune deletes here only: no del goes to the other devices, with Sync
+    /// deletions on.
+    func testHistoryAgePruneSendsNoDel() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        await x.drainInbox(w)
+        try n.core.store.setSetting(SettingKey.syncDeletions, "1")
+        try n.core.store.setSetting(SettingKey.historyDays, "14")
+        _ = try n.core.store.addMessage(dir: .incoming, peer: x.id, type: "text", content: "old", n: nil, pairingId: nil,
+                                        read: true, results: nil, now: clock.now - 20 * 86400, msgId: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+        let calls = w.calls.count
+        try n.core.pruneHistory()
+        XCTAssertFalse(try n.core.store.history().contains { $0.content == "old" })
+        XCTAssertFalse(w.calls[calls...].contains { $0.1 == "/v1/send" })
+        let got = await x.drainInbox(w)
+        XCTAssertTrue(got.isEmpty)
+    }
+
     /// Codes differ on a pinned row ends the pairing and drops the pin, so a later request or
     /// [Pair] is not refused as a pinned device.
     func testRejectOfPinnedRowDropsThePin() async throws {

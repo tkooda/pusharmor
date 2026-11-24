@@ -636,6 +636,12 @@ test("Settings: retention says Delete messages older than, and every value or co
   assert.match(css, /\.srow > select, \.srow > input \{ margin-left: auto; \}/);
 });
 
+test("Settings: Delete messages older than offers 1, 7, 14, 30, 90, 180, and 365 days", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  assert.match(pop, /for \(const d of \[1, 7, 14, 30, 90, 180, 365\]\) days\.append\(/);
+});
+
 test('Settings: the Show an "All" button row keeps its checkbox on the label\'s first line when the label wraps', async () => {
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");

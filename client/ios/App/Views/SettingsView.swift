@@ -15,7 +15,7 @@ struct SettingsView: View {
 
     init(showsDone: Bool = false) { self.showsDone = showsDone }
 
-    private var dayChoices: [Int] { Array(Set([1, 7, 30, 90, 365, model.historyDays])).sorted() }
+    private var dayChoices: [Int] { Array(Set([1, 7, 14, 30, 90, 180, 365, model.historyDays])).sorted() }
     private var email: String? { model.me?.signedInEmail }
     private var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""

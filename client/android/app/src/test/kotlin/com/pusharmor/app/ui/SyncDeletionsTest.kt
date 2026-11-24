@@ -120,6 +120,17 @@ class SyncDeletionsTest {
         assertNull(vm.message.value)
     }
 
+    /** The History age purge deletes here only: no del goes to the other devices, with Sync deletions on. */
+    @Test fun agePurgeSendsNoDel() {
+        status = 200
+        g.settings.set(Settings.K.SYNC_DELETIONS, true)
+        g.settings.set(Settings.K.HISTORY_DAYS, 14)
+        row("aaaa")
+        io { g.session.purgeHistory() }
+        assertEquals(0, count())
+        assertEquals(0, sends.get())
+    }
+
     /** Del 1 taken, del 2 failed at the relay server: del 1's rows go, del 2's rows stay, one notice. */
     @Test fun aFailedDelKeepsOnlyItsRows() {
         val vm = AppViewModel(app)

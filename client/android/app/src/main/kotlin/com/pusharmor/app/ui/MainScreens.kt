@@ -1707,7 +1707,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                 style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
         }
     }
-    if (pickDays) ChoiceDialog("Delete messages older than", listOf(1, 7, 30, 90, 365), days, { UiText.days(it) }, onDismiss = { pickDays = false }) {
+    if (pickDays) ChoiceDialog("Delete messages older than", listOf(1, 7, 14, 30, 90, 180, 365), days, { UiText.days(it) }, onDismiss = { pickDays = false }) {
         vm.setPref(Settings.K.HISTORY_DAYS, it)
     }
     if (pickTheme) ChoiceDialog("Theme", ThemePref.entries, themePref, { it.label }, note = "Dark uses a true black background.",
