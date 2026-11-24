@@ -1405,7 +1405,7 @@ def _loopback(url):
 
 STATE_LISTS = (("my_allow", str), ("listed", str), ("pair_auto", int))
 STATE_OPTIONAL = (("reg", str), ("name", str), ("ntfy", str), ("topic", str), ("since", str), ("listen_at", int),
-                  ("push_ok", bool), ("logout_pending", bool), ("reported_version", str))
+                  ("push_ok", bool), ("logout_pending", bool))
 
 
 def check_shape(d, path):
@@ -1898,7 +1898,6 @@ class Ctx:
         self.last_fetch = time.time()
         with self.store.state() as d:
             merge_peers(d, j, self.keys)
-            d["reported_version"] = VERSION
         reconcile_allow(self)
 
     def refresh_soon(self):
@@ -1907,18 +1906,6 @@ class Ctx:
                 self.refresh()
             except (ApiError, TempFail) as e:
                 log("warning", "Could not refresh the device list: %s" % _why(e))
-
-
-def report_version(cx):
-    """After a command: one GET /v1/peers when this version was not reported yet. Silent on any failure."""
-    try:
-        cx.setup()
-        with cx.store.state(write=False) as d:
-            due = d.get("reg") == "registered" and d.get("reported_version") != VERSION
-        if due:
-            cx.refresh()
-    except Exception:
-        pass
 
 
 def _ids(xs):
@@ -1960,10 +1947,6 @@ def merge_peers(d, j, k):
                  created=it["created"] if type(it.get("created")) is int else 0,
                  logged_out=it.get("logged_out") is True, listening=it.get("listening") is not False,
                  denies_me=it.get("denies_me") is True, missing=False)
-        if isinstance(it.get("version"), str) and it["version"]:
-            p["version"] = it["version"]
-        else:
-            p.pop("version", None)  # unknown: absent, or not text
         if p["pinned"] and p["approve_verified"]:
             p["approves_me"], p["get_after_verify"] = it.get("approves_me") is True, True
         elif not p["pinned"]:
@@ -2671,10 +2654,9 @@ def register_with(cx, code, stream, push, ntfy):
         cx.store.save_keys(k)
         with cx.store.state(fresh=True) as d:
             d.clear()
-            # reported_version: the relay server stored this version with the registration
             d.update(version=STATE_VERSION, name=default_name(), reg="registered", ntfy=ntfy, topic=cx.topic,
                      push_ok=False, since=str(int(time.time())), peers={}, pairs={}, my_allow=[], listed=[],
-                     pair_auto=[], reported_version=VERSION)
+                     pair_auto=[])
             merge_peers(d, j, k)
     except BaseException:
         undo_register(cx)
@@ -3279,10 +3261,7 @@ def _main(argv):
     try:
         if args.command not in ("login", "logout"):
             retry_pending_logout(cx)
-        code = COMMANDS[args.command][0](cx, args)
-        if args.command not in ("login", "logout"):
-            report_version(cx)
-        return code
+        return COMMANDS[args.command][0](cx, args)
     except KeyboardInterrupt:
         log("info", "Stopped.")
         return 130
