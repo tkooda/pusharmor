@@ -42,6 +42,7 @@ public enum FileCrypto {
             try writeAll(outFd, [UInt8](nonce))
             var buf = [UInt8](repeating: 0, count: chunkSize)
             var out = [UInt8](repeating: 0, count: chunkSize)
+            defer { wipe(&buf); wipe(&out) }
             while true {
                 let n = try readSome(inFd, &buf, chunkSize)
                 if n == 0 { break }
@@ -66,9 +67,10 @@ public enum FileCrypto {
         var nonce = [UInt8](repeating: 0, count: nonceSize)
         try readExactly(inFd, &nonce, nonceSize)
         try writeAtomically(output) { outFd in
-            let ctx = try Cipher(encrypt: false, key: Data(key), nonce: Data(nonce))
+            let ctx = try Cipher(encrypt: false, key: key, nonce: Data(nonce))
             var buf = [UInt8](repeating: 0, count: chunkSize)
             var out = [UInt8](repeating: 0, count: chunkSize)
+            defer { wipe(&buf); wipe(&out) }
             var left = blobSize - Int64(overhead)
             while left > 0 {
                 let want = Int(min(Int64(chunkSize), left))
@@ -95,16 +97,25 @@ public enum FileCrypto {
             guard let c = EVP_CIPHER_CTX_new() else { throw Failure.engine }
             ctx = c
             self.encrypt = encrypt
+            // From here on deinit frees ctx, also when init throws.
+            let cipherOk = encrypt
+                ? EVP_EncryptInit_ex(c, EVP_aes_256_gcm(), nil, nil, nil)
+                : EVP_DecryptInit_ex(c, EVP_aes_256_gcm(), nil, nil, nil)
+            guard cipherOk == 1 else { throw Failure.engine }
+            // The IV length is set explicitly (EVP_CTRL_GCM_SET_IVLEN), not left to the default.
+            guard EVP_CIPHER_CTX_ctrl(c, EVP_CTRL_AEAD_SET_IVLEN, Int32(FileCrypto.nonceSize), nil) == 1 else {
+                throw Failure.engine
+            }
             let ok = key.withUnsafeBytes { k in
                 nonce.withUnsafeBytes { n in
                     let kp = k.bindMemory(to: UInt8.self).baseAddress
                     let np = n.bindMemory(to: UInt8.self).baseAddress
                     return encrypt
-                        ? EVP_EncryptInit_ex(c, EVP_aes_256_gcm(), nil, kp, np)
-                        : EVP_DecryptInit_ex(c, EVP_aes_256_gcm(), nil, kp, np)
+                        ? EVP_EncryptInit_ex(c, nil, nil, kp, np)
+                        : EVP_DecryptInit_ex(c, nil, nil, kp, np)
                 }
             }
-            guard ok == 1 else { EVP_CIPHER_CTX_free(c); throw Failure.engine }
+            guard ok == 1 else { throw Failure.engine }
         }
 
         deinit { EVP_CIPHER_CTX_free(ctx) }
@@ -210,6 +221,13 @@ public enum FileCrypto {
             if n < 0 && errno == EINTR { continue }
             guard n > 0 else { throw Failure.io("write: \(errnoText())") }
             sent += n
+        }
+    }
+
+    /// Zeroes a buffer that held plaintext (memset_s is not optimized away).
+    private static func wipe(_ buf: inout [UInt8]) {
+        buf.withUnsafeMutableBytes { b in
+            if let p = b.baseAddress { _ = memset_s(p, b.count, 0, b.count) }
         }
     }
 
