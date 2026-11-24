@@ -3043,6 +3043,14 @@ def test_send_file_refuses_bad_paths_and_sizes_before_reading(net, tmp_path, mon
     assert net.posts == []
 
 
+def test_send_file_over_the_size_limit_names_the_file(net, tmp_path, monkeypatch, capsys):
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch)
+    monkeypatch.setattr(pa, "MAX_FILE", 5)
+    capsys.readouterr()
+    assert run(a, "send", "-f", str(src)) == 2
+    assert capsys.readouterr().err == 'error: Unable to send. "report.pdf" is too large to send.\n'
+
+
 def test_send_file_with_no_device_uploads_nothing(net, tmp_path, monkeypatch, capsys):
     a = tmp_path / "a"
     login(monkeypatch, a)

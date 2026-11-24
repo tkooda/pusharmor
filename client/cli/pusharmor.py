@@ -2739,7 +2739,7 @@ def upload_file(cx, f, length, file_sha256, name):
         if final:
             raise Fail(final)
         if status == 413:
-            raise Fail('The file "%s" is too large to send.' % name)
+            raise Fail('"%s" is too large to send.' % name)
         if status == 0 or status == 429 or status >= 500:
             attempt += 1
             if attempt < FILE_TRIES:
@@ -2763,7 +2763,7 @@ def prepare_file(path):
         raise Fail("%s is not a regular file." % quoted_path(path), EXIT_USAGE)
     name = sanitize_name(os.path.basename(path), time.time(), is_image(path))
     if st.st_size > MAX_FILE:
-        raise Fail('The file "%s" is too large to send.' % name, EXIT_USAGE)
+        raise Fail('"%s" is too large to send.' % name, EXIT_USAGE)
     f = open(path, "rb")
     st2 = os.fstat(f.fileno())
     if not stat.S_ISREG(st2.st_mode) or (st2.st_dev, st2.st_ino, st2.st_size) != (st.st_dev, st.st_ino, st.st_size):
