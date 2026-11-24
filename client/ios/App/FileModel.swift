@@ -144,14 +144,23 @@ extension AppModel {
     private func decrypt(_ f: FileRecord, manual: Bool) {
         guard let core = core, !decryptRunning else { return }
         decryptRunning = true
-        let dir = filesDir, id = f.id, name = f.name
+        // the download's byte count goes; the decrypt reports its own
+        fileBytes[f.id] = nil
+        let dir = filesDir, id = f.id, name = f.name, size = f.size
+        let progress = FileTransfers.shared.onProgress
         // the decrypt finishes even if the app goes to the background now, so the mark is cleared
         let bg = UIApplication.shared.beginBackgroundTask(withName: "decrypt")
         Task.detached {
             let r: Core.DecryptResult?
+            // asked before each 64 KiB chunk: the row's bar moves per whole percent, and leaving
+            // History stops the decrypt
+            var done: Int64 = 0
+            var shown: Int64 = -1
             do {
-                // leaving History stops the decrypt
                 r = try core.fileDecrypt(id, dir: dir, freeMemory: FileTransfers.freeMemory(), manual: manual) {
+                    let p = done * 100 / max(size, 1)
+                    if p != shown { shown = p; progress?(id, done, size) }
+                    done += 65_536
                     return !AppModel.historyShown.on
                 }
             } catch {
@@ -166,6 +175,7 @@ extension AppModel {
             }
             await MainActor.run {
                 self.decryptRunning = false
+                self.fileBytes[id] = nil
                 switch r {
                 case .noMemory?: self.toast = FileUi.noMemoryToast(name)
                 case nil:
