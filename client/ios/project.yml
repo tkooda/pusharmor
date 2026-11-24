@@ -33,6 +33,10 @@ targets:
     sources:
       - App
       - Shared
+      # the OpenSSL license, shipped with the app (the xcframework from tools/build-openssl.sh)
+      - path: PushArmorCore/Vendor/COpenSSL.xcframework/LICENSE.txt
+        buildPhase: resources
+        optional: true
     dependencies:
       - package: PushArmorCore
       - target: PushArmorNSE
@@ -50,7 +54,7 @@ targets:
         CFBundleDisplayName: PushArmor
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        ITSAppUsesNonExemptEncryption: false   # uses only Apple OS encryption (CryptoKit)
+        ITSAppUsesNonExemptEncryption: false   # Apple OS encryption (CryptoKit), plus OpenSSL libcrypto (AES-256-GCM) for file encryption
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         PAAppGroup: group.$(APP_BUNDLE_ID)

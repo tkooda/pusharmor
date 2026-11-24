@@ -71,6 +71,23 @@ jobs:
           codesign --verify --verbose "$x"
           codesign -dv "$x" 2>&1 | grep -E '^(Authority|TeamIdentifier|Timestamp)' || true
           du -sh "$x"
+          # Required-reason APIs (Apple privacy manifest) that the device libcrypto calls: every
+          # category found must be declared in the App, NSE and Share PrivacyInfo.xcprivacy.
+          syms="$(nm -u -j "$x"/ios-arm64/libcrypto.a | grep -oE '^_[A-Za-z0-9_$]+' | sort -u)"
+          need=""
+          grep -qxE '_(stat|fstat|lstat|fstatat|getattrlist|fgetattrlist|getattrlistat|getattrlistbulk)(64)?' <<<"$syms" \
+            && need="$need NSPrivacyAccessedAPICategoryFileTimestamp"
+          grep -qxE '_mach_absolute_time' <<<"$syms" && need="$need NSPrivacyAccessedAPICategorySystemBootTime"
+          grep -qxE '_(statfs|statvfs|fstatfs|fstatvfs)(64)?' <<<"$syms" && need="$need NSPrivacyAccessedAPICategoryDiskSpace"
+          echo "libcrypto required-reason API categories:${need:- none}"
+          fail=0
+          for c in $need; do
+            for m in App NSE Share; do
+              grep -q "<string>$c</string>" "client/ios/$m/PrivacyInfo.xcprivacy" \
+                || { echo "::error::libcrypto calls a $c API: declare it in client/ios/$m/PrivacyInfo.xcprivacy"; fail=1; }
+            done
+          done
+          [ "$fail" = 0 ]
           tar -C "$RUNNER_TEMP/openssl" -czf "$RUNNER_TEMP/COpenSSL.xcframework.tar.gz" COpenSSL.xcframework
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
