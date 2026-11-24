@@ -208,8 +208,14 @@ test("a del filled to the max with 22-char ids seals to 3800 chars or less; one 
   assert.equal(await delFits(ids.slice(0, max + 1)), false);
 });
 
-test("a del that fits the cap only without 8 bytes spare is split", async () => {
+test("a del that fits the cap only without 8 bytes spare is split", async (t) => {
   assert.equal(DEL_SPARE, 8);
+  // every size check builds the JSON with a new random message id, whose deflated size varies: a fixed id keeps the boundary in place
+  t.mock.method(crypto, "getRandomValues", <T extends ArrayBufferView>(a: T): T => {
+    const b = new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+    for (let i = 0; i < b.length; i++) b[i] = (i * 151 + 7) & 255;
+    return a;
+  });
   const abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
   const ids = Array.from({ length: 4096 }, (_, i) => abc[i >> 6]! + abc[i & 63]!); // short ids: each adds only a few bytes
   let k = 1;
