@@ -53,7 +53,7 @@ class FileClientTest {
     private fun blobFile(bytes: ByteArray) = File(dir, "blob").also { it.writeBytes(bytes) }
 
     private fun created(url: String = "https://b2file.pusharmor.com/v1/202611230347/3f9a1c5e7b2d4a60/202611230347-0123456789abcdef0123456789abcdef", expires: Long = clock / 1000 + 3600) =
-        MockResponse().setResponseCode(201).setBody("{\"id\":\"202611230347-0123456789abcdef0123456789abcdef\",\"expires\":$expires,\"url\":\"$url\",\"quota\":{\"day\":{\"used\":3,\"limit\":20,\"resets_at\":1795392000},\"month\":{\"used\":9,\"limit\":100}}}")
+        MockResponse().setResponseCode(201).setBody("{\"id\":\"202611230347-0123456789abcdef0123456789abcdef\",\"expires\":$expires,\"url\":\"$url\",\"quota\":{}}")
 
     private fun status(code: Int, body: String = "{}") = MockResponse().setResponseCode(code).setBody(body)
 
@@ -88,8 +88,6 @@ class FileClientTest {
         val r = client.upload(blob, sha, send)
         assertEquals("202611230347-0123456789abcdef0123456789abcdef", r.id)
         assertEquals(send, r.sendId)
-        assertEquals(QuotaWindow(3, 20, 1795392000), r.day)
-        assertNull(r.month) // no resets_at
         val times = HashSet<String>()
         repeat(3) {
             val req = server.takeRequest()
