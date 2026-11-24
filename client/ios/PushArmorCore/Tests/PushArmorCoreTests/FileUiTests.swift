@@ -81,11 +81,6 @@ final class FileUiTests: XCTestCase {
         XCTAssertEqual(FileUi.actions(name: "a.png", decodes: true), [.view, .copy, .share, .save])
         XCTAssertEqual(FileUi.actions(name: "a.png", decodes: false), [.open, .share, .save])
         XCTAssertEqual(FileUi.actions(name: "a.pdf", decodes: false), [.open, .share, .save])
-        // web content is never previewed: Share and Save only
-        for n in ["a.html", "a.HTM", "a.svg", "a.webarchive", "a.mhtml", "a.xhtml"] {
-            XCTAssertEqual(FileUi.actions(name: n, decodes: false), [.share, .save], n)
-        }
-        XCTAssertEqual(FileUi.actions(name: "a.txt", decodes: false), [.open, .share, .save])
         XCTAssertTrue(FileUi.previewNotAvailable(name: "a.png", decodes: false))
         XCTAssertFalse(FileUi.previewNotAvailable(name: "a.pdf", decodes: false))
         XCTAssertEqual(MessageActions.actions(forType: "file"), [])

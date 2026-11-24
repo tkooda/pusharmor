@@ -59,6 +59,7 @@ final class FileScreensTests: XCTestCase {
         XCTAssertTrue(views.contains("case .decryptFailed(let text):"))
         XCTAssertTrue(views.contains("model.toast = FileUi.noApp(file.name)"))
         XCTAssertTrue(views.contains("UIDocumentPickerViewController(forExporting: [url], asCopy: true)"))
+        XCTAssertTrue(views.contains("if let e = e, let t = ErrorCopy.saveFailText(e) { model.toast = t }"))
         XCTAssertTrue(model.contains("return !AppModel.historyShown.on"))
     }
 

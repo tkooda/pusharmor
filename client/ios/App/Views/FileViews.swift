@@ -9,8 +9,8 @@ import PushArmorCore
 /// system, never read into memory here).
 struct FileSaver: UIViewControllerRepresentable {
     let url: URL
-    /// The picker closed (saved or cancelled).
-    let onDone: () -> Void
+    /// The picker closed: nil when saved or cancelled, else the error.
+    let onDone: (Error?) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(onDone: onDone) }
 
@@ -23,13 +23,15 @@ struct FileSaver: UIViewControllerRepresentable {
     func updateUIViewController(_ vc: UIDocumentPickerViewController, context: Context) {}
 
     final class Coordinator: NSObject, UIDocumentPickerDelegate {
-        let onDone: () -> Void
+        let onDone: (Error?) -> Void
 
-        init(onDone: @escaping () -> Void) { self.onDone = onDone }
+        init(onDone: @escaping (Error?) -> Void) { self.onDone = onDone }
 
-        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) { onDone() }
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            onDone(urls.isEmpty ? CocoaError(.fileWriteUnknown) : nil)
+        }
 
-        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) { onDone() }
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) { onDone(nil) }
     }
 }
 
@@ -67,7 +69,13 @@ struct FileRowDetail: View {
             }
         }
         .quickLookPreview($preview)
-        .sheet(isPresented: $saving) { FileSaver(url: model.plainURL(file)) { saving = false }.ignoresSafeArea() }
+        .sheet(isPresented: $saving) {
+            FileSaver(url: model.plainURL(file)) { e in
+                saving = false
+                if let e = e, let t = ErrorCopy.saveFailText(e) { model.toast = t }
+            }
+            .ignoresSafeArea()
+        }
     }
 
     @ViewBuilder
@@ -175,7 +183,14 @@ struct FileRowDetail: View {
             ShareLink(item: url) { ActionLabel(title: "Share", icon: "square.and.arrow.up") }
                 .buttonStyle(ActionButtonStyle())
         case .save:
-            Button { saving = true } label: { ActionLabel(title: "Save", icon: "square.and.arrow.down") }
+            Button {
+                // a file that cannot be read says so at once
+                if FileManager.default.isReadableFile(atPath: url.path) {
+                    saving = true
+                } else if let t = ErrorCopy.saveFailText(CocoaError(.fileReadNoSuchFile)) {
+                    model.toast = t
+                }
+            } label: { ActionLabel(title: "Save", icon: "square.and.arrow.down") }
                 .buttonStyle(ActionButtonStyle())
         }
     }
