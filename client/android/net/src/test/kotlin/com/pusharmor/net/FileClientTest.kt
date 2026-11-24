@@ -106,6 +106,17 @@ class FileClientTest {
         assertEquals(listOf(1000L, 3000L), slept)
     }
 
+    @Test fun uploadReportsTheBytesSent() {
+        val blob = blobFile(ByteArray(200_000) { it.toByte() })
+        server.enqueue(created())
+        val seen = ArrayList<Long>()
+        client.upload(blob, "x", "s") { seen += it }
+        assertTrue(seen.size > 1)
+        assertEquals(seen.sorted(), seen)
+        assertEquals(200_000L, seen.last())
+        assertArrayEquals(blob.readBytes(), server.takeRequest().body.readByteArray())
+    }
+
     @Test fun uploadStopsAfterThreeTries() {
         val blob = blobFile(ByteArray(30))
         repeat(3) { server.enqueue(status(500)) }

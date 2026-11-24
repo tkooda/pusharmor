@@ -17,8 +17,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.Response
+import okio.source
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -124,9 +124,9 @@ class FileClient(
 
     /**
      * Uploads one blob file. [prior]: the 201 reply of an earlier try of the same send; it is used again (no new
-     * upload) while it has not expired by the corrected clock. Throws [FileError].
+     * upload) while it has not expired by the corrected clock. [onBytes] gets the bytes of the body sent so far. Throws [FileError].
      */
-    fun upload(blob: File, sha256: String, sendId: String, prior: UploadReply? = null): UploadReply {
+    fun upload(blob: File, sha256: String, sendId: String, prior: UploadReply? = null, onBytes: (Long) -> Unit = {}): UploadReply {
         if (prior != null && prior.sendId == sendId && nowSec() < prior.expires) return prior
         val length = blob.length()
         if (length > FileCrypt.MAX_FILE + FileCrypt.BLOB_OVERHEAD) throw FileError(FinalCode.TOO_LARGE, null, 413)
@@ -135,7 +135,7 @@ class FileClient(
         while (true) {
             val rb = Request.Builder().url(base.newBuilder().encodedPath("/v1/file").build())
             for ((k, v) in uploadHeaders(paTime(), length, sha256, sendId)) if (k != "Content-Length") rb.header(k, v)
-            val req = rb.post(blob.asRequestBody(OCTETS)).build()
+            val req = rb.post(Counted(blob, onBytes)).build()
             val got = try {
                 http.newCall(req).execute().use { r -> epoch(r); Got(r.code, jsonOf(r)) }
             } catch (e: IOException) {
@@ -160,6 +160,26 @@ class FileClient(
                 is FileRules.Outcome.Retry -> {
                     if (++tries >= FileRules.UPLOAD_TRIES) throw FileError(FinalCode.FAILED, null, got.status, got.error.orEmpty())
                     sleep(minOf(o.wait?.let { it * 1000 } ?: UPLOAD_WAITS_MS[tries - 1], MAX_WAIT_MS))
+                }
+            }
+        }
+    }
+
+    /** The blob as an upload body that reports the bytes written so far after each chunk. */
+    private class Counted(private val file: File, private val onBytes: (Long) -> Unit) : okhttp3.RequestBody() {
+        override fun contentType() = OCTETS
+        override fun contentLength() = file.length()
+        override fun writeTo(sink: okio.BufferedSink) {
+            val buf = okio.Buffer()
+            var sent = 0L
+            file.source().use { src ->
+                while (true) {
+                    val n = src.read(buf, 65_536)
+                    if (n < 0) break
+                    sink.write(buf, n)
+                    sink.flush()
+                    sent += n
+                    onBytes(sent)
                 }
             }
         }

@@ -126,7 +126,15 @@ class FileUiTest {
     }
 
     @Test fun fileSendCaptions() {
-        assertEquals("Sending file to \"Laptop\"...", com.pusharmor.app.ui.UiText.directSendingFile(listOf("Laptop")))
-        assertEquals("Sending file to:", com.pusharmor.app.ui.UiText.directSendingFileList())
+        assertEquals("Sending \"a.pdf\" to \"Laptop\"...", com.pusharmor.app.ui.UiText.directSendingFile("a.pdf", listOf("Laptop")))
+        assertEquals("Sending \"a.pdf\" to:", com.pusharmor.app.ui.UiText.directSendingFileList("a.pdf"))
+    }
+
+    @Test fun uploadBarFollowsTheBytesSent() {
+        assertEquals(25, FileUi.uploadStep(0, 1000))
+        assertEquals(60, FileUi.uploadStep(500, 1000))
+        assertEquals(95, FileUi.uploadStep(1000, 1000))
+        assertEquals(95, FileUi.uploadStep(2000, 1000))
+        assertEquals(25, FileUi.uploadStep(0, 0))
     }
 }

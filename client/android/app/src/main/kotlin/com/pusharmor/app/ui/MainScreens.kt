@@ -1161,8 +1161,8 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                     vm.sendNames = sendTo.mapNotNull { id -> peers.firstOrNull { it.id == id } }.map(::label)
                     val sendType = if (asText) ContentType.TEXT else com.pusharmor.protocol.Detect.type(text)
                     vm.sendCaption = when {
-                        chosen != null && vm.sendNames.size > 1 -> UiText.directSendingFileList()
-                        chosen != null -> UiText.directSendingFile(vm.sendNames)
+                        chosen != null && vm.sendNames.size > 1 -> UiText.directSendingFileList(chosen!!.name)
+                        chosen != null -> UiText.directSendingFile(chosen!!.name, vm.sendNames)
                         vm.sendNames.size > 1 -> UiText.directSendingList(sendType)
                         else -> UiText.directSending(sendType, vm.sendNames)
                     }

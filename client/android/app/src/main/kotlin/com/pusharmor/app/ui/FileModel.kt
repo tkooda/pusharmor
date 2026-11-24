@@ -83,8 +83,8 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
             val input = g.app.contentResolver.openInputStream(Uri.parse(c.uri)) ?: throw FileChangedException()
             val sealed = input.use { g.fileStore.seal(File(g.app.cacheDir, "send"), it, c.size, name) }
             onStep(10)
-            val reply = try { g.fileClient.upload(sealed.blob, sealed.sha256, FileClient.newSendId()) } finally { sealed.blob.delete() }
-            onStep(20)
+            val length = sealed.blob.length()
+            val reply = try { g.fileClient.upload(sealed.blob, sealed.sha256, FileClient.newSendId()) { onStep(FileUi.uploadStep(it, length)) } } finally { sealed.blob.delete() }
             FileValue(reply.url, reply.expires, B64url.encode(sealed.key), name, c.size, sealed.sha256).also { prior = Prior(c.uri, c.size, it) }
         }
         val out = g.sender().sendFile(recipients, value, now, onStep)
