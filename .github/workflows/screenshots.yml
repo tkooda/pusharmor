@@ -116,6 +116,20 @@ jobs:
           unzip -q "$d/xcodegen.zip" -d "$d"
           "$d/xcodegen/bin/xcodegen" --version | grep -qF "$XCODEGEN_VERSION"
           cd client/ios && "$d/xcodegen/bin/xcodegen" generate
+      # The xcframework that ios.yml caches; built here on a miss.
+      - name: Restore the OpenSSL xcframework
+        id: openssl
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/openssl
+          key: ios-openssl-${{ env.XCODE_BUILD }}-${{ hashFiles('client/ios/tools/build-openssl.sh', 'client/ios/tools/openssl/**') }}
+      - name: OpenSSL xcframework into PushArmorCore/Vendor
+        run: |
+          [ "$HIT" = true ] || bash client/ios/tools/build-openssl.sh "$RUNNER_TEMP/openssl"
+          mkdir -p client/ios/PushArmorCore/Vendor
+          cp -R "$RUNNER_TEMP/openssl/COpenSSL.xcframework" client/ios/PushArmorCore/Vendor/
+        env:
+          HIT: ${{ steps.openssl.outputs.cache-hit }}
       - name: Resolve packages to the committed pins
         working-directory: client/ios
         run: |

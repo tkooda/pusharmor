@@ -29,9 +29,60 @@ env:
   OLDEST_DEVICE: iPhone 15
 
 jobs:
+  # OpenSSL libcrypto as COpenSSL.xcframework (tools/build-openssl.sh, tarball pinned by
+  # SHA-256), for every job below that builds PushArmorCore. Cached per script, manifest
+  # and Xcode build (not for tags); a miss builds it (about 10 minutes).
+  ios-openssl:
+    name: OpenSSL xcframework (cached)
+    runs-on: macos-26
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Select and assert Xcode
+        run: |
+          echo "runner image: $ImageOS $ImageVersion"
+          sudo xcode-select -s "$XCODE_APP"
+          v="$(xcodebuild -version)"
+          echo "$v"
+          printf '%s\n' "$v" | grep -qx "$XCODE_VERSION"
+          printf '%s\n' "$v" | grep -qx "$XCODE_BUILD"
+      - name: Restore the xcframework
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/openssl
+          key: ios-openssl-${{ env.XCODE_BUILD }}-${{ hashFiles('client/ios/tools/build-openssl.sh', 'client/ios/tools/openssl/**') }}
+      - name: Build the xcframework
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: bash client/ios/tools/build-openssl.sh "$RUNNER_TEMP/openssl"
+      - name: Save the xcframework
+        if: steps.cache.outputs.cache-hit != 'true' && !startsWith(github.ref, 'refs/tags/')
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/openssl
+          key: ios-openssl-${{ env.XCODE_BUILD }}-${{ hashFiles('client/ios/tools/build-openssl.sh', 'client/ios/tools/openssl/**') }}
+      - name: Check and pack the xcframework
+        run: |
+          x="$RUNNER_TEMP/openssl/COpenSSL.xcframework"
+          codesign --verify --verbose "$x"
+          codesign -dv "$x" 2>&1 | grep -E '^(Authority|TeamIdentifier|Timestamp)' || true
+          du -sh "$x"
+          tar -C "$RUNNER_TEMP/openssl" -czf "$RUNNER_TEMP/COpenSSL.xcframework.tar.gz" COpenSSL.xcframework
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-openssl
+          path: ${{ runner.temp }}/COpenSSL.xcframework.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
   ios-core-test:
     name: PushArmorCore tests (macOS and simulator)
     if: ${{ !inputs.release }}
+    needs: ios-openssl
     runs-on: macos-26
     timeout-minutes: 20
     permissions:
@@ -40,6 +91,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ios-openssl
+          path: ${{ runner.temp }}
+      - name: COpenSSL.xcframework into PushArmorCore/Vendor
+        run: |
+          mkdir -p client/ios/PushArmorCore/Vendor
+          tar -C client/ios/PushArmorCore/Vendor -xzf "$RUNNER_TEMP/COpenSSL.xcframework.tar.gz"
       - name: Select and assert Xcode
         run: |
           echo "runner image: $ImageOS $ImageVersion"
@@ -62,6 +121,7 @@ jobs:
   ios-build:
     name: Debug simulator and Release device builds (unsigned)
     if: ${{ !inputs.release }}
+    needs: ios-openssl
     runs-on: macos-26
     timeout-minutes: 30
     permissions:
@@ -70,6 +130,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ios-openssl
+          path: ${{ runner.temp }}
+      - name: COpenSSL.xcframework into PushArmorCore/Vendor
+        run: |
+          mkdir -p client/ios/PushArmorCore/Vendor
+          tar -C client/ios/PushArmorCore/Vendor -xzf "$RUNNER_TEMP/COpenSSL.xcframework.tar.gz"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: site/.node-version
@@ -144,6 +212,7 @@ jobs:
   ios-sim-test:
     name: app unit tests (newest simulator)
     if: ${{ !inputs.release }}
+    needs: ios-openssl
     runs-on: macos-26
     timeout-minutes: 30
     permissions:
@@ -152,6 +221,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ios-openssl
+          path: ${{ runner.temp }}
+      - name: COpenSSL.xcframework into PushArmorCore/Vendor
+        run: |
+          mkdir -p client/ios/PushArmorCore/Vendor
+          tar -C client/ios/PushArmorCore/Vendor -xzf "$RUNNER_TEMP/COpenSSL.xcframework.tar.gz"
       - name: Select and assert Xcode
         run: |
           echo "runner image: $ImageOS $ImageVersion"
@@ -220,6 +297,7 @@ jobs:
   ios-build-for-testing:
     name: build for testing (newest simulator)
     if: inputs.release || github.event_name == 'workflow_dispatch'
+    needs: ios-openssl
     runs-on: macos-26
     timeout-minutes: 30
     permissions:
@@ -228,6 +306,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ios-openssl
+          path: ${{ runner.temp }}
+      - name: COpenSSL.xcframework into PushArmorCore/Vendor
+        run: |
+          mkdir -p client/ios/PushArmorCore/Vendor
+          tar -C client/ios/PushArmorCore/Vendor -xzf "$RUNNER_TEMP/COpenSSL.xcframework.tar.gz"
       - name: Select and assert Xcode
         run: |
           echo "runner image: $ImageOS $ImageVersion"
@@ -360,6 +446,7 @@ jobs:
   ios-sim-test-oldest:
     name: core and app tests (iOS 17 simulator)
     if: inputs.release || github.event_name == 'workflow_dispatch'
+    needs: ios-openssl
     runs-on: macos-26
     timeout-minutes: 60
     permissions:
@@ -368,6 +455,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ios-openssl
+          path: ${{ runner.temp }}
+      - name: COpenSSL.xcframework into PushArmorCore/Vendor
+        run: |
+          mkdir -p client/ios/PushArmorCore/Vendor
+          tar -C client/ios/PushArmorCore/Vendor -xzf "$RUNNER_TEMP/COpenSSL.xcframework.tar.gz"
       - name: Select and assert Xcode
         run: |
           echo "runner image: $ImageOS $ImageVersion"

@@ -136,6 +136,9 @@ jobs:
           unzip -q "$d/xcodegen.zip" -d "$d"
           "$d/xcodegen/bin/xcodegen" --version | grep -qF "$XCODEGEN_VERSION"
           cd client/ios && "$d/xcodegen/bin/xcodegen" generate
+      # Built fresh from the pinned tarball for a release (no cache).
+      - name: OpenSSL xcframework (tools/build-openssl.sh)
+        run: bash client/ios/tools/build-openssl.sh client/ios/PushArmorCore/Vendor
       - name: Resolve packages to the committed pins
         working-directory: client/ios
         run: |
