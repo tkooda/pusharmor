@@ -192,19 +192,6 @@ export class B2Store implements FileStore {
     return { prefixes, next };
   }
 
-  // The common prefixes directly under prefix (delimiter "/"), all pages.
-  async listPrefixes(prefix: string): Promise<string[] | "cap"> {
-    const out: string[] = [];
-    let token: string | undefined;
-    for (;;) {
-      const page = await this.listPrefixesPage(prefix, token);
-      if (page === "cap") return "cap";
-      out.push(...page.prefixes);
-      if (page.next === undefined) return out;
-      token = page.next;
-    }
-  }
-
   // DeleteObjects by key and version id, in batches of 1000. Any per-object error throws.
   async deleteVersions(versions: Version[]): Promise<"ok" | "cap"> {
     for (let i = 0; i < versions.length; i += PAGE) {

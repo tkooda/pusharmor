@@ -48,9 +48,6 @@ class MemStore implements FileStore {
     if (!b) return "missing";
     return { status: 200, body: new Response(b).body!, length: b.length, contentRange: null, etag: null };
   }
-  listPrefixes(): Promise<string[]> {
-    throw new Error("unused");
-  }
   listPrefixesPage(): Promise<{ prefixes: string[] }> {
     throw new Error("unused");
   }

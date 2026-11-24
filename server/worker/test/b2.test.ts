@@ -103,7 +103,7 @@ describe("cap detection", () => {
     for (const [code, msg] of caps) {
       expect(await mock([xmlErr(403, code, msg)]).store.put(KEY, stream(body), body.length, sha)).toBe("cap");
       expect(await mock([xmlErr(403, code, msg)]).store.get(KEY, null)).toBe("cap");
-      expect(await mock([xmlErr(403, code, msg)]).store.listPrefixes("v1/")).toBe("cap");
+      expect(await mock([xmlErr(403, code, msg)]).store.listPrefixesPage("v1/")).toBe("cap");
     }
     for (const [code, msg] of [["AccessDenied", "Access Denied"], ["InvalidAccessKeyId", "x"], ["AccessDenied", "bucket is not authorized"]]) {
       await expect(mock([xmlErr(403, code, msg)]).store.put(KEY, stream(body), body.length, sha)).rejects.toBeInstanceOf(B2Error);
@@ -165,7 +165,7 @@ describe("lists", () => {
     await checkSigned(seen[1]);
   });
 
-  it("listPrefixes pages with the continuation token, delimiter /", async () => {
+  it("listPrefixesPage pages with the continuation token, delimiter /", async () => {
     const page = (ps: string[], token?: string) =>
       new Response(
         `<ListBucketResult><IsTruncated>${token ? "true" : "false"}</IsTruncated>` +
@@ -175,7 +175,8 @@ describe("lists", () => {
         { status: 200 },
       );
     const { store, seen } = mock([page(["v1/202612312359/"], "t+/1="), page(["v1/202701010000/"])]);
-    expect(await store.listPrefixes("v1/")).toEqual(["v1/202612312359/", "v1/202701010000/"]);
+    expect(await store.listPrefixesPage("v1/")).toEqual({ prefixes: ["v1/202612312359/"], next: "t+/1=" });
+    expect(await store.listPrefixesPage("v1/", "t+/1=")).toEqual({ prefixes: ["v1/202701010000/"] });
     expect(new URL(seen[0].url).searchParams.get("delimiter")).toBe("/");
     expect(new URL(seen[0].url).searchParams.get("list-type")).toBe("2");
     expect(new URL(seen[1].url).searchParams.get("continuation-token")).toBe("t+/1=");
@@ -184,7 +185,7 @@ describe("lists", () => {
 
   it("a cap on a list -> cap", async () => {
     expect(await mock([xmlErr(403, "AccessDenied", "Transaction cap exceeded")]).store.listVersions("v1/")).toBe("cap");
-    expect(await mock([xmlErr(403, "AccessDenied", "Transaction cap exceeded")]).store.listPrefixes("v1/")).toBe("cap");
+    expect(await mock([xmlErr(403, "AccessDenied", "Transaction cap exceeded")]).store.listPrefixesPage("v1/")).toBe("cap");
   });
 });
 

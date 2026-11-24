@@ -28,7 +28,6 @@ export interface FileStore {
   put(key: string, body: ReadableStream<Uint8Array>, length: number, sha256: Uint8Array): Promise<PutResult>;
   get(key: string, range: string | null): Promise<GetResult>;
   remove(key: string): Promise<RemoveResult>;
-  listPrefixes(prefix: string): Promise<string[] | "cap">;
   listPrefixesPage(prefix: string, token?: string): Promise<{ prefixes: string[]; next?: string } | "cap">;
   listVersionsPage(prefix: string): Promise<{ versions: Version[]; more: boolean } | "cap">;
   listVersions(prefix: string): Promise<Version[] | "cap">;
