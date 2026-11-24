@@ -1115,7 +1115,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                 vm.sendDone.collect { r ->
                     if (r != null) {
                         vm.sendDone.value = null
-                        if (r.ok) asText = false else result = ((result?.first ?: 0) + 1) to r.text
+                        if (r.ok) { asText = false; text = "" } else result = ((result?.first ?: 0) + 1) to r.text
                         onSent(r)
                     }
                 }
