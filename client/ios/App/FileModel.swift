@@ -113,7 +113,7 @@ extension AppModel {
         // the decrypt finishes even if the app goes to the background now, so the mark is cleared
         let bg = UIApplication.shared.beginBackgroundTask(withName: "decrypt")
         Task.detached {
-            let r: FileFlow.DecryptResult?
+            let r: Core.DecryptResult?
             do {
                 r = try core.fileDecrypt(id, dir: dir, freeMemory: FileTransfers.freeMemory(), manual: manual)
             } catch {
