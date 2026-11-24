@@ -16,7 +16,7 @@ public enum FileUi {
     public static let willSendFile = "Will be sent as file"
     public static let expired = "Expired"
     /// A pasted image while the message box holds text: one type per message.
-    public static let pasteImageClear = "Clear the message to paste an image"
+    public static let pasteImageClear = "Clear the message to add a file"
     /// A decrypt that could not run (not a damaged file and not short of memory).
     public static let openFailed = "Unable to open this file.\nTry again."
 

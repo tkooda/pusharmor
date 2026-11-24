@@ -15,7 +15,7 @@ final class FileUiTests: XCTestCase {
         XCTAssertEqual(FileUi.storageHelper, "When full, the oldest files are removed from this device")
         XCTAssertEqual(FileUi.removed, "Removed from this device")
         XCTAssertEqual(FileUi.willSendFile, "Will be sent as file")
-        XCTAssertEqual(FileUi.pasteImageClear, "Clear the message to paste an image")
+        XCTAssertEqual(FileUi.pasteImageClear, "Clear the message to add a file")
         XCTAssertEqual(FileUi.noMemoryToast("a.png"), "Not enough memory to decrypt \"a.png\"")
         XCTAssertEqual(FileUi.tooLarge("a.png"), "\"a.png\" is too large to send")
         XCTAssertEqual(FileUi.unreadable("a.png"), "Unable to read \"a.png\"")
