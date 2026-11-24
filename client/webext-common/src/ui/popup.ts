@@ -460,6 +460,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
       }
       // one device sent to is named
       const one = (r.all ?? r.total) === 1 && r.sent === 1 && count() === 1 ? sendable.find((p) => p.id === checks.find((c) => on(c.chip))?.id) : undefined;
+      if (r.sent > 0) field.value = ""; // a message sent to any device is not kept; one sent to none stays to send again
       if (r.error) toast(r.error, "err");
       else if (r.failures.length) toast([T.sentToNofM(r.sent, r.total), ...r.failures.map((f) => f.text)].join("\n"), "err");
       else {

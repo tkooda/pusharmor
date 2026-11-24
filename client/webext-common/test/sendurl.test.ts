@@ -78,7 +78,7 @@ async function mount(inPopup: boolean, result: unknown, peers: unknown[] = [PEER
   const meta = find(root, (x) => x.attrs.class === "meta") as N & { hidden: boolean };
   const counter = find(root, (x) => x.attrs.class === "counter") as N & { textContent: string };
   const chipsOn = () => (find(root, (x) => x.attrs.class === "dchips")!.kids.filter((c) => (c.attrs.class ?? "").includes("dchip")) as N[]).filter((c) => c.classList.contains("on")).map((c) => c.attrs.title);
-  return { chipsOn, type, send, sent, closed: () => closed, caption, textRow, tickText, meta, sendBtn, counter };
+  return { chipsOn, type, send, sent, closed: () => closed, caption, textRow, tickText, meta, sendBtn, counter, field };
 }
 
 test("Send: the type line always shows; a URL is sent as URL unless Send as text is ticked, and the override is for one send", async () => {
@@ -88,11 +88,13 @@ test("Send: the type line always shows; a URL is sent as URL unless Send as text
   assert.deepEqual([!!v.textRow.hidden, v.caption.textContent], [false, "Will be sent as URL"]);
   await v.send();
   assert.deepEqual([v.sent[0]!.asUrl, v.sent[0]!.asText], [true, false]);
+  await v.type("minilock.org"); // the sent text was cleared
   await v.tickText(true);
   assert.equal(v.caption.textContent, "Will be sent as text");
   await v.send();
   assert.deepEqual([v.sent[1]!.asUrl, v.sent[1]!.asText], [false, true]);
   assert.equal(textBoxOf(v).checked, false, "a send clears the override");
+  await v.type("minilock.org");
   await v.tickText(true);
   await v.type("minilock.org/x"); // still a URL: the override stays
   assert.equal(v.caption.textContent, "Will be sent as text");
@@ -127,6 +129,31 @@ test("Send: the toolbar popup closes after a sent message; a full tab or Firefox
   for (const k of [...body.kids]) k.remove();
 });
 
+test("Send: a message sent to any device clears the field in a full tab or Firefox for Android; one sent to none keeps the text", async () => {
+  const tab = await mount(false, { sent: 1, total: 1, failures: [] });
+  await tab.type("hello");
+  await tab.send();
+  assert.equal(tab.field.value, "");
+  assert.equal(tab.caption.textContent, "Will be sent as text");
+  const fail = await mount(false, { sent: 0, total: 1, failures: [], error: "Unable to send.\nThe relay server could not be reached." });
+  await fail.type("hello");
+  await fail.send();
+  assert.equal(fail.field.value, "hello");
+  const none = await mount(false, { sent: 0, total: 1, failures: [{ text: "x" }] });
+  await none.type("hello");
+  await none.send();
+  assert.equal(none.field.value, "hello");
+  const part = await mount(false, { sent: 1, total: 2, failures: [{ text: "x" }] });
+  await part.type("hello");
+  await part.send();
+  assert.equal(part.field.value, "");
+  const thrown = await mount(false, new Error("Unable to send.\nNo"));
+  await thrown.type("hello");
+  await thrown.send();
+  assert.equal(thrown.field.value, "hello");
+  for (const k of [...body.kids]) k.remove();
+});
+
 test("Send: a phone number shows its caption and the Send as text box; other text shows only the caption", async () => {
   const v = await mount(false, { sent: 1, total: 1, failures: [] });
   await v.type("+1 555 123 4567");
@@ -134,6 +161,7 @@ test("Send: a phone number shows its caption and the Send as text box; other tex
   assert.equal(v.caption.textContent, "Will be sent as phone number");
   await v.send();
   assert.deepEqual([v.sent[0]!.asUrl, !!v.sent[0]!.asText], [false, false]);
+  await v.type("+1 555 123 4567"); // the sent text was cleared
   await v.tickText(true);
   assert.equal(v.caption.textContent, "Will be sent as text");
   await v.send();
