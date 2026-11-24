@@ -23,6 +23,7 @@ object FileUi {
     const val PASTE_IMAGE_CLEAR = "Clear the message to add a file"
 
     fun noMemoryToast(name: String) = "Not enough memory to decrypt \"$name\""
+    fun decryptFailed(name: String) = "Unable to decrypt \"$name\"\nTry again"
     fun tooLarge(name: String) = "\"$name\" is too large to send"
     fun unreadable(name: String) = "Unable to read \"$name\""
 
@@ -167,6 +168,8 @@ object FileUi {
         data class Failed(val text: String, val download: Boolean, val expires: String?) : Status()
         /** "Not enough memory to decrypt" and a Decrypt button. */
         object NoMemory : Status()
+        /** [decryptFailed] and a Decrypt button. */
+        object DecryptFailed : Status()
         object Expired : Status()
         /** The decrypted file is on this device. */
         object Ready : Status()
@@ -180,6 +183,7 @@ object FileUi {
         val exp = expiresText(expires, nowSec)
         if (s.plain != null && plainThere) return Status.Ready
         if (s.memoryError) return Status.NoMemory
+        if (s.decryptError && s.downloaded) return Status.DecryptFailed
         // past expires by the local clock, a file not on this device has no Download button
         val gone = !s.downloaded && nowSec >= expires
         when (s.code) {

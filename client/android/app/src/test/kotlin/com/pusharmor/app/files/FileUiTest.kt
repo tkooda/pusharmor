@@ -87,6 +87,10 @@ class FileUiTest {
         assertEquals(Status.Downloading(50), FileUi.status(s, true, 64, false, 100, 3600, 0))
         assertEquals(Status.Decrypting, FileUi.status(s.copy(downloaded = true), false, 128, false, 100, 3600, 0))
         assertEquals(Status.NoMemory, FileUi.status(s.copy(downloaded = true, memoryError = true), false, 128, false, 100, 3600, 0))
+        // a decrypt that failed for another reason: its error and a Decrypt button, also past expires
+        assertEquals(Status.DecryptFailed, FileUi.status(s.copy(downloaded = true, decryptError = true), false, 128, false, 100, 3600, 0))
+        assertEquals(Status.DecryptFailed, FileUi.status(s.copy(downloaded = true, decryptError = true), false, 128, false, 100, 3600, 3600))
+        assertEquals("Unable to decrypt \"a.pdf\"\nTry again", FileUi.decryptFailed("a.pdf"))
         assertEquals(Status.Ready, FileUi.status(s.copy(plain = "a.pdf"), false, 0, true, 100, 3600, 0))
         assertEquals(Status.Expired, FileUi.status(s.copy(code = FinalCode.EXPIRED, text = "Expired"), false, 0, false, 100, 3600, 0))
         assertEquals(Status.Failed("Deleted", false, null), FileUi.status(s.copy(code = FinalCode.DELETED, text = "Deleted"), false, 0, false, 100, 3600, 0))

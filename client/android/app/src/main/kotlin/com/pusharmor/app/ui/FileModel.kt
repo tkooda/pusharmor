@@ -186,7 +186,7 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
                 if (!shown) break
                 if (h.direction != "RECEIVED") continue
                 val s = g.fileStore.state(ReceivedFiles.key(h.id))
-                if (!s.downloaded || s.plain != null || s.code != null || s.memoryError || s.markAt != 0L) continue
+                if (!s.downloaded || s.plain != null || s.code != null || s.memoryError || s.decryptError || s.markAt != 0L) continue
                 decryptOne(h, manual = false)
             }
         }
@@ -206,12 +206,12 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
         val r = try {
             g.fileStore.decrypt(ReceivedFiles.key(h.id), f, name, manual, FileWork::heapFree) { !shown }
         } catch (e: CancellationException) { return } catch (e: Exception) {
-            // any other failure ends the decrypt with the row error and a Download button (a new download)
+            // any other failure ends the decrypt with the row error and a Decrypt button; with no blob left, a Download button (a new download)
             Log.w("PushArmor", "decrypt", e)
             val k = ReceivedFiles.key(h.id)
             g.fileStore.locked(k) {
-                g.fileStore.blob(k).delete()
-                g.fileStore.put(k, g.fileStore.state(k).copy(markAt = 0, downloaded = false, code = FinalCode.FAILED, text = com.pusharmor.protocol.FileRules.DOWNLOAD_FAILED))
+                if (g.fileStore.blob(k).isFile) g.fileStore.put(k, g.fileStore.state(k).copy(markAt = 0, decryptError = true))
+                else g.fileStore.put(k, g.fileStore.state(k).copy(markAt = 0, downloaded = false, code = FinalCode.FAILED, text = com.pusharmor.protocol.FileRules.DOWNLOAD_FAILED))
             }
             return
         }

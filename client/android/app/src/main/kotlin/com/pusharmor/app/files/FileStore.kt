@@ -31,6 +31,8 @@ data class FileState(
     val memoryError: Boolean = false,
     /** Name of the decrypted file, once it is in place. */
     val plain: String? = null,
+    /** A decrypt failed for another reason than memory: the blob stays for a tap on Decrypt; never retried by itself. */
+    val decryptError: Boolean = false,
 )
 
 /**
@@ -89,6 +91,7 @@ class FileStore(
             long("markAt", 0),
             p.getProperty("memoryError") == "1",
             p.getProperty("plain"),
+            p.getProperty("decryptError") == "1",
         )
     }
 
@@ -105,6 +108,7 @@ class FileStore(
         p["markAt"] = s.markAt.toString()
         if (s.memoryError) p["memoryError"] = "1"
         s.plain?.let { p["plain"] = it }
+        if (s.decryptError) p["decryptError"] = "1"
         val tmp = File(d, "state.tmp")
         FileOutputStream(tmp).use { p.store(it, null); it.fd.sync() }
         if (!tmp.renameTo(File(d, "state"))) throw IOException("state rename")
@@ -158,7 +162,7 @@ class FileStore(
         check(s.downloaded) { "not downloaded" }
         if (!manual && s.memoryError) return Decrypted.NoMemory // never retried by itself
         if (!manual && heapFree() < FileCrypt.WORKING_MEMORY) return Decrypted.NoMemory.also { put(key, s.copy(memoryError = true)) }
-        s = s.copy(markAt = now(), memoryError = false)
+        s = s.copy(markAt = now(), memoryError = false, decryptError = false)
         put(key, s)
         val d = dir(key)
         val tmp = File(d, TMP)

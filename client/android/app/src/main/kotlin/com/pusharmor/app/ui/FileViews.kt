@@ -186,6 +186,10 @@ internal fun FileRowBody(vm: AppViewModel, h: HistoryEntity, f: FileValue, style
                 line(PaIcons.Error, FileUi.NO_MEMORY, cs.error)
                 button("Decrypt", PaIcons.Lock, null) { vm.files.decryptNow(h.id) }
             }
+            FileUi.Status.DecryptFailed -> {
+                line(PaIcons.Error, FileUi.decryptFailed(name), cs.error)
+                button("Decrypt", PaIcons.Lock, null) { vm.files.decryptNow(h.id) }
+            }
             FileUi.Status.Expired -> line(PaIcons.Schedule, FileUi.EXPIRED, cs.onSurfaceVariant)
         }
     }

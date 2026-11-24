@@ -216,6 +216,14 @@ class FileDownloadTest {
         assertEquals(setOf("state"), store.dir("k1").list()!!.toSet())
     }
 
+    @Test fun aDecryptErrorIsKeptAndClearedByTheNextDecrypt() {
+        downloaded()
+        store.put("k1", store.state("k1").copy(decryptError = true))
+        assertTrue(store.state("k1").decryptError)
+        assertTrue(store.decrypt("k1", f, "a.pdf", true, { 1L shl 30 }) is FileStore.Decrypted.Ok)
+        assertFalse(store.state("k1").decryptError)
+    }
+
     @Test fun shortMemorySkipsUnlessTheButton() {
         downloaded()
         assertEquals(FileStore.Decrypted.NoMemory, store.decrypt("k1", f, "a.pdf", false, { FileCrypt.WORKING_MEMORY - 1 }))
