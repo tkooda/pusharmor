@@ -259,7 +259,12 @@ internal fun ImageViewer(file: File, name: String, onClose: () -> Unit) {
     }
 }
 
-/** The image on the clipboard, if the first item is a content URI of an image type; else null. */
+/** true when the clipboard holds an image, from its description only (reading the clip itself makes Android say it was pasted). */
+internal fun clipHasImage(context: Context): Boolean = try {
+    context.getSystemService(ClipboardManager::class.java)?.primaryClipDescription?.hasMimeType("image/*") == true
+} catch (e: Exception) { false }
+
+/** The image on the clipboard, if the first item is a content URI of an image type; else null. Read only on a tap of Paste. */
 internal fun clipImage(context: Context): Uri? = try {
     context.getSystemService(ClipboardManager::class.java)?.primaryClip
         ?.takeIf { it.itemCount > 0 && it.description.hasMimeType("image/*") }?.getItemAt(0)?.uri
@@ -279,9 +284,9 @@ internal fun PasteImage(textEmpty: Boolean, onImage: (Uri) -> Unit, onRefuse: ()
             override fun showMenu(rect: androidx.compose.ui.geometry.Rect, onCopyRequested: (() -> Unit)?, onPasteRequested: (() -> Unit)?,
                                   onCutRequested: (() -> Unit)?, onSelectAllRequested: (() -> Unit)?) {
                 // an image-only clip has no text, so the field offers no Paste: it is offered here
-                val paste: (() -> Unit)? = if (onPasteRequested == null && clipImage(context) == null) null else {
+                val paste: (() -> Unit)? = if (onPasteRequested == null && !clipHasImage(context)) null else {
                     {
-                        val uri = clipImage(context)
+                        val uri = if (clipHasImage(context)) clipImage(context) else null
                         when (FileUi.paste(uri != null, empty.value)) {
                             FileUi.Paste.IMAGE -> onImage(uri!!)
                             FileUi.Paste.REFUSE -> onRefuse()

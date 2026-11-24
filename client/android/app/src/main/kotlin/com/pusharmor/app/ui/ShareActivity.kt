@@ -81,12 +81,15 @@ class ShareActivity : ComponentActivity() {
         // The app icon (no shortcut id) only preselects the target; the user must tap Send.
         val direct = directTarget(intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID), all.map { it.id })
         // A file that is too large or cannot be read: its toast, and the dialog closes instead of showing an empty Send.
+        var hadFile = false
+        lifecycleScope.launch { vm.files.chosen.collect { if (it != null) hadFile = true } }
         lifecycleScope.launch {
             vm.message.collect { m ->
                 if (m != null) {
                     vm.message.value = null
                     Toast.makeText(this@ShareActivity, UiText.brief(m), Toast.LENGTH_LONG).show()
-                    if (file != null && vm.files.chosen.value == null) finish()
+                    // only a shared file that never showed closes the dialog; after Remove file it stays
+                    if (file != null && !hadFile && vm.files.chosen.value == null) finish()
                 }
             }
         }

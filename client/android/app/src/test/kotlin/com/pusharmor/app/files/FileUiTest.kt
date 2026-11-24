@@ -118,6 +118,13 @@ class FileUiTest {
         assertEquals(false, OutFileProvider.served(listOf("received", "12", "state")))
         assertEquals(false, OutFileProvider.served(listOf("received", "12", "out", "..")))
         assertEquals(false, OutFileProvider.served(listOf("received", "..", "out", "a")))
+        // an encoded separator decodes into the name
+        assertEquals(false, OutFileProvider.served(listOf("received", "12", "out", "../state")))
+        assertEquals(false, OutFileProvider.served(listOf("received", "12", "out", "..\\state")))
+        assertEquals(false, OutFileProvider.served(listOf("received", "12", "out", ".")))
+        val root = java.nio.file.Files.createTempDirectory("served").toFile()
+        assertEquals(true, OutFileProvider.served(listOf("received", "12", "out", "a.pdf"), root))
+        root.deleteRecursively()
     }
 
     @Test fun fileSendCaptions() {
