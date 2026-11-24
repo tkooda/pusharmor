@@ -134,6 +134,7 @@ export class FileWorker {
         shown = pct;
         this.d.progress(picked, n, blob.size);
       };
+      sent(0); // the upload starts: the Send bar shows at once
       const reply = await uploadFile(deps, signer, blob, sha256, newSendId());
       const k = b64urlEncode(key);
       this.prior.set(picked, { reply, key: k, sha256 });

@@ -56,3 +56,38 @@ test("busy bar: the sign-in bars carry the steps the background writes", () => {
   assert.match(page, /evictBar\.start\(STEP\.removing\(names\), \[STEP\.removing\(names\), STEP\.loggingIn\]\)/);
   assert.match(page, /evictBar\.start\(STEP\.setUp, \[STEP\.setUp, STEP\.loading\]\)/);
 });
+
+test("Send popup: a file shows a spinner while it is encrypted, then a bar of the bytes uploaded that never goes back", async () => {
+  const { body } = await import("./fakedom.ts");
+  const { sendProgress } = await import("../src/ui/popup.ts");
+  let cb: ((v: unknown) => void) | null = null;
+  const env = { session: { watch: (_k: string, f: (v: unknown) => void) => ((cb = f), () => (cb = null)) } } as unknown as UiEnv;
+  const prog = sendProgress(env, 'Sending "a.pdf" to "Phone"...', STEP.encryptingFor(["Phone"]), ["Phone"], true);
+  const dlg = body.kids.find((k) => k.tag === "dialog")!;
+  const bar = find(dlg, (x) => x.tag === "progress") as N & { value: number; hidden: boolean };
+  bar.value = Number(bar.attrs.value); // a real progress element reflects its value attribute
+  const spin = find(dlg, (x) => (x.attrs.class ?? "").split(" ").includes("fp-spin")) as N & { hidden: boolean };
+  const cap = find(dlg, (x) => x.attrs.role === "status")!;
+  const write = (v: unknown) => cb?.(v);
+  assert.deepEqual([bar.hidden, spin.hidden, cap.textContent], [true, false, 'Encrypting for "Phone"']);
+  write({ cap: STEP.encryptingFor(["Phone"]) });
+  assert.deepEqual([bar.hidden, spin.hidden], [true, false]);
+  write({ cap: STEP.sendingTo(["Phone"]), done: 0, total: 100 });
+  assert.deepEqual([bar.hidden, spin.hidden, bar.value, cap.textContent], [false, true, 0, 'Sending to "Phone"']);
+  write({ cap: STEP.sendingTo(["Phone"]), done: 40, total: 100 });
+  assert.equal(bar.value, 40);
+  // the message steps after the upload do not move the bar back or bring the spinner back
+  write({ cap: STEP.sendingTo(["Phone"]), done: 2, total: 4 });
+  assert.deepEqual([bar.hidden, spin.hidden, bar.value], [false, true, 50]);
+  write({ cap: STEP.encryptingFor(["Phone"]), done: 1, total: 4 });
+  assert.equal(bar.value, 50);
+  prog.close();
+});
+
+test("History: a file that is decrypting shows a spinner, never a bar that slides", () => {
+  const popup = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  const at = popup.indexOf('case "decrypting":');
+  const arm = popup.slice(at, popup.indexOf("break;", at));
+  assert.doesNotMatch(arm, /h\("progress"/);
+  assert.match(arm, /class: "fp-spin", role: "status", "aria-label": "Decrypting " \+ r\.content/);
+});

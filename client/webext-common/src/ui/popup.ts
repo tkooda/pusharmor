@@ -551,7 +551,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   field.addEventListener("input", () => void update());
   asText.addEventListener("change", () => void update());
   const sendFile = async (f: File, to: string[] | "all", names: string[]): Promise<SendResult | null> => {
-    const prog = sendProgress(env, sendingCaption("file", names, f.name), STEP.encryptingFor(names), names);
+    const prog = sendProgress(env, sendingCaption("file", names, f.name), STEP.encryptingFor(names), names, true);
     try {
       if (!pickedKey) {
         try {
@@ -665,10 +665,17 @@ async function menuSendHere(env: UiEnv, m: { text: string; child: string }): Pro
   }
 }
 
-/** The Send popup: a modal dialog over the view (the layout stays) with the brand tile, a caption, the bar, and the step line. */
-function sendProgress(env: UiEnv, caption: string, first: string, names: string[]): { close: () => void } {
-  const bar = h("progress", { max: "100", value: "25" }) as HTMLProgressElement;
-  const step = h("div", { class: "dim", role: "status" }, first);
+/**
+ * The Send popup: a modal dialog over the view (the layout stays) with the brand tile, a caption, the bar, and the step line.
+ * spin: it opens on a spinner (a file is encrypted in one step); a step with done and total shows the bar.
+ */
+export function sendProgress(env: UiEnv, caption: string, first: string, names: string[], spin = false): { close: () => void } {
+  const bar = h("progress", { max: "100", value: spin ? "0" : "25" }) as HTMLProgressElement;
+  const wheel = h("span", { class: "fp-spin", "aria-hidden": "true" });
+  const text = h("span", {}, first);
+  const step = h("div", { class: "dim busy-cap", role: "status" }, wheel, text);
+  bar.hidden = spin;
+  wheel.hidden = !spin;
   const dlg = h("dialog", { class: "dlg sendprog", "aria-label": "Sending" },
     h("div", { class: "sendprog-head" }, h("img", { src: "icons/icon-128.png", width: "40", height: "40", alt: "", class: "tile big-tile" }), h("span", {}, caption)),
     ...(names.length > 1 ? [h("ul", {}, ...names.map((n) => h("li", {}, n)))] : []),
@@ -680,9 +687,13 @@ function sendProgress(env: UiEnv, caption: string, first: string, names: string[
   const unwatch = env.session?.watch(BUSY, (v) => {
     const b = readBusy(v);
     if (!b) return;
-    step.textContent = b.cap;
-    // the bar never goes back (the steps after a file upload start again at a quarter)
-    if (b.done !== undefined && b.total) bar.value = Math.max(bar.value, Math.round((b.done / b.total) * 100));
+    text.textContent = b.cap;
+    if (b.done === undefined || !b.total) return;
+    // the first step with a count ends the spinner; the bar then stays
+    bar.hidden = false;
+    wheel.hidden = true;
+    // the bar never goes back (the message steps after a file upload start again at a quarter)
+    bar.value = Math.max(bar.value, Math.round((b.done / b.total) * 100));
   });
   document.body.append(dlg);
   dlg.showModal();
@@ -1002,7 +1013,8 @@ function fileLines(env: UiEnv, r: HistRow, nowMs: number, row: HTMLElement): HTM
       out.push(line("download", "Downloading " + st.pct + "%", "dim"), h("progress", { max: "100", value: String(st.pct), class: "fprog", "data-file": String(r.id), "aria-label": "Downloading " + r.content }));
       break;
     case "decrypting":
-      out.push(h("progress", { class: "fprog", "aria-label": "Decrypting " + r.content }));
+      // a decrypt is one step with nothing to count: a spinner, not a bar
+      out.push(h("div", { class: "fline dim" }, h("span", { class: "fp-spin", role: "status", "aria-label": "Decrypting " + r.content })));
       break;
     case "failed":
       out.push(line(st.grey ? "info" : "error", st.text, st.grey ? "dim" : "bad"));

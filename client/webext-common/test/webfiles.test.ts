@@ -443,7 +443,7 @@ test("storage limit counts downloaded blobs too; the file just stored stays; a r
   assert.equal(F.fileRowStatus(fs, false, 0, false, NOW + H, NOW).k, "failed");
 });
 
-test("send: the upload tells the bytes sent, and the Send bar follows them from a quarter to 95 percent", async () => {
+test("send: the upload tells the bytes sent, and the Send bar follows them from 0 to 100 percent", async () => {
   const s = await fileSetup();
   const picked = await s.storeA.putPicked(new Blob([new Uint8Array(1000)]));
   // the worker: each piece the upload body sent goes out as progress of the picked key
@@ -468,6 +468,8 @@ test("send: the upload tells the bytes sent, and the Send bar follows them from 
   const seen: unknown[] = [];
   s.hostA.answer = async (req) => {
     if (req.op !== "upload") return null;
+    // encrypting: no count, so the Send popup shows a spinner
+    seen.push((await s.a.p.storageSession.get(["busy"])).busy);
     s.fa.progress(picked, 0, 1000);
     await new Promise((r) => setTimeout(r, 5));
     seen.push((await s.a.p.storageSession.get(["busy"])).busy);
@@ -480,8 +482,9 @@ test("send: the upload tells the bytes sent, and the Send bar follows them from 
     return { ok: true, url: FILE.url, expires: 10 ** 10, key: FILE.key, sha256: FILE.sha256 };
   };
   await s.fa.send(picked, "a.bin", 1000, [s.b.id]);
-  assert.deepEqual(seen.map((b) => [(b as { done: number }).done, (b as { total: number }).total]), [[25, 100], [60, 100], [95, 100]]);
+  assert.deepEqual(seen.map((b) => [(b as { done: number }).done, (b as { total: number }).total]), [[undefined, undefined], [0, 100], [50, 100], [100, 100]]);
   assert.match((seen[0] as { cap: string }).cap, /^Encrypting for "/);
+  for (const b of seen.slice(1)) assert.match((b as { cap: string }).cap, /^Sending to "/);
   s.fa.progress(picked, 1000, 1000);
   await new Promise((r) => setTimeout(r, 5));
   assert.equal((await s.a.p.storageSession.get(["busy"])).busy, undefined);

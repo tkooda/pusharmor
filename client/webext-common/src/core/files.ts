@@ -124,7 +124,8 @@ export class Files implements FilesHook {
     const to = await this.e.sendTargets(targets, shown);
     if (to.ids.length === 0) return to.none;
     const names = await Promise.all(to.ids.map((id) => this.e.peerName(id)));
-    await this.e.p.storageSession.set({ [BUSY]: { cap: STEP.encryptingFor(names), done: 1, total: 4 } });
+    // encrypting a file is one step with nothing to count: the Send popup shows a spinner until the upload
+    await this.e.p.storageSession.set({ [BUSY]: { cap: STEP.encryptingFor(names) } });
     let out: UploadOut;
     this.uploads.set(picked, names);
     try {
@@ -238,11 +239,11 @@ export class Files implements FilesHook {
     this.tell({ op: "fileEvent", id, pct });
   }
 
-  /** The Send bar during an upload: from a quarter to 95 percent by the bytes sent. */
+  /** The Send bar during an upload: 0 to 100 percent by the bytes sent. */
   private uploaded(picked: string, sent: number, total: number): void {
     const names = this.uploads.get(picked);
     if (!names || total <= 0) return;
-    void this.e.p.storageSession.set({ [BUSY]: { cap: STEP.encryptingFor(names), done: 25 + Math.floor((Math.min(sent, total) * 70) / total), total: 100 } });
+    void this.e.p.storageSession.set({ [BUSY]: { cap: STEP.sendingTo(names), done: Math.floor((Math.min(sent, total) * 100) / total), total: 100 } });
   }
 
   // ---- decrypt (only while History shows) ----
